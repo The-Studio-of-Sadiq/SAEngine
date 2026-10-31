@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,20 +17,68 @@ from saengine.pipeline import design_mode
 # ─────────────────────────────── section properties ───────────────────────────────
 
 
-def test_section_properties_are_worked_out_once_per_profile() -> None:
-    sections._properties.cache_clear()
+def _counting_solves(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
+    """A fresh memo and disk cache, and the keys :func:`sections._solve` is called for."""
+    monkeypatch.setenv(sections.CACHE_ENV, str(tmp_path / "cache"))
+    monkeypatch.setattr(sections, "_MEMO", {})
+    solved: list[str] = []
+    solve = sections._solve
+
+    def counted(key: str) -> sections.SectionProperties:
+        solved.append(key)
+        return solve(key)
+
+    monkeypatch.setattr(sections, "_solve", counted)
+    return solved
+
+
+def test_section_properties_are_worked_out_once_per_profile(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    solved = _counting_solves(monkeypatch, tmp_path)
     first = sections.section_properties(o.RectangleProfile(xDim=300, yDim=500))
     # The same dimensions, as floats and on another object: the kept answer.
     again = sections.section_properties(o.RectangleProfile(xDim=300.0, yDim=500.0))
     assert again is first
-    assert sections._properties.cache_info()[:2] == (1, 1)  # hits, misses
+    assert len(solved) == 1
     # Exactly what a computation of its own gives.
     key = sections.profile_key(o.RectangleProfile(xDim=300, yDim=500))
-    assert sections._properties.__wrapped__(key) == first
+    assert sections._solve(key) == first
     assert first.area == pytest.approx(150_000)
 
 
-def test_the_key_tells_shapes_and_dimensions_apart() -> None:
+def test_section_properties_are_kept_on_disk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    solved = _counting_solves(monkeypatch, tmp_path)
+    profile = o.RectangleProfile(xDim=300, yDim=500)
+    first = sections.section_properties(profile)
+    monkeypatch.setattr(sections, "_MEMO", {})  # a new process
+    assert sections.section_properties(profile) == first
+    assert len(solved) == 1
+    monkeypatch.setenv(sections.CACHE_ENV, "0")
+    monkeypatch.setattr(sections, "_MEMO", {})
+    assert sections.section_properties(profile) == first
+    assert len(solved) == 2
+
+
+def test_prefetch_solves_the_missing_profiles(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(sections.CACHE_ENV, str(tmp_path / "cache"))
+    monkeypatch.setattr(sections, "_MEMO", {})
+    profiles = [o.RectangleProfile(xDim=300, yDim=500), o.RectangleProfile(xDim=400, yDim=400)]
+    sections.prefetch_section_properties([*profiles, profiles[0]])
+    keys = [sections.profile_key(p) for p in profiles]
+    if (os.cpu_count() or 2) >= 4:
+        assert all(k in sections._MEMO for k in keys)
+    for profile, key in zip(profiles, keys, strict=True):
+        assert sections.section_properties(profile) == sections._solve(key)
+
+
+def test_the_key_tells_shapes_and_dimensions_apart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     profiles = [
         o.RectangleProfile(xDim=300, yDim=500),
         o.RectangleProfile(xDim=500, yDim=300),
@@ -48,11 +97,11 @@ def test_the_key_tells_shapes_and_dimensions_apart() -> None:
     ]
     keys = {sections.profile_key(p) for p in profiles}
     assert len(keys) == len(profiles)
-    sections._properties.cache_clear()
+    solved = _counting_solves(monkeypatch, tmp_path)
     rotated = sections.section_properties(profiles[1])
     upright = sections.section_properties(profiles[0])
     assert rotated.ixx == pytest.approx(upright.iyy)
-    assert sections._properties.cache_info().misses == 2
+    assert len(solved) == 2
 
 
 def test_a_designed_section_is_keyed_by_its_definition(tmp_path: Path) -> None:

@@ -205,9 +205,6 @@ export interface IFemDesignReport {
 /** `(model?: URI) => void`: opens the Design Reinforcement page (registered by this contribution). */
 export const DESIGN_REINFORCEMENT_COMMAND = 'saengine.fem.designReinforcement';
 
-/** Planned: strut-and-tie models of any D-region (registered in saengineFem.contribution.ts). */
-export const PLANNED_STM_GENERAL = 'fem.stm-general';
-
 /** `{outDir, projectPath} => IFemDesignRequired`: the steel required by every member of a run. */
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
 /** `{outDir, projectPath, mode, diameters?} => IFemDesignProposal`: bars proposed per object type. */
@@ -389,11 +386,13 @@ export interface IFemDesignSummaryFile {
 	readonly governing: string | null;
 	/** ISO time the checks were computed. */
 	readonly computed: string;
+	/** The run's one count (N-X8), for the part list; absent from an older backend. */
+	readonly counts?: IFemDesignCounts;
 }
 
 export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
-	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString() };
+	const { checked, passed, failed, maxUtilisation, governing, counts } = report.summary;
+	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}) };
 }
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */

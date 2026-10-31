@@ -1008,3 +1008,6 @@
 	width: max-content;
 	min-width: 100%;
 }
+
+/* A retaining wall that fails a check: its utilisation in the fail tier. */
+.saengine-substructure-editor td.sub-rw-fail { color: var(--sa-fail); font-weight: 600; }

@@ -690,6 +690,35 @@ class StrutAndTie(_Group):
     )
 
 
+class RetainingWallFactors(_Group):
+    sliding: float = Field(default=1.5, ge=1, description="Least factor of safety on sliding.")
+    overturning: float = Field(
+        default=1.5, ge=1, description="Least factor of safety on overturning."
+    )
+    seismic: float = Field(
+        default=1.1, ge=1, description="Least factor on sliding and overturning with earthquake."
+    )
+    passive: float = Field(
+        default=2.0, ge=1, description="Factor of safety on the passive resistance in front."
+    )
+    flotation: float = Field(
+        default=1.1, ge=1, description="Least factor of safety against flotation (uplift)."
+    )
+    baseFriction: Share = Field(
+        default=2 / 3, description="Base friction angle as a share of φ' (tan δb, δb = r φ')."
+    )
+    adhesion: Share = Field(
+        default=0.5, description="Base adhesion as a share of cu on a clay without φ'."
+    )
+    hFactor: float = Field(
+        default=1.6, gt=0, description="Load factor on the lateral earth pressure H."
+    )
+    yieldingKh: Share = Field(
+        default=0.5,
+        description="kh of a wall free to yield as a share of the peak ground acceleration.",
+    )
+
+
 class FoundationsTable(TableModel):
     pileSafety: dict[str, tuple[float, float, float, float]]
     pileControls: list[str]
@@ -699,6 +728,10 @@ class FoundationsTable(TableModel):
     noLoadTestSafety: float
     loadTestSafety: float
     strutAndTie: StrutAndTie
+    retainingWall: RetainingWallFactors = Field(
+        default_factory=RetainingWallFactors,
+        description="Stability factors and load factors of retaining and basement walls.",
+    )
 
 
 class DeepBeam(_Group):

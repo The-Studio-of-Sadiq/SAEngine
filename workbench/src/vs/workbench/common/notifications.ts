@@ -638,6 +638,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return true; // explicitly sticky
 		}
 
+		if (this._sticky === false) {
+			return false; // explicitly not sticky (SAEngine: an error toast that leaves for the notification center, N-G6)
+		}
+
 		const hasActions = this.hasActions;
 		if (
 			(hasActions && this._severity === Severity.Error) || // notification errors with actions are sticky

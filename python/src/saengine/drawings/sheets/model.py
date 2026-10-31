@@ -405,6 +405,31 @@ class FootingDetail:
 
 
 @dataclass
+class RetainingWallDetail:
+    """A retaining or basement wall of 9 Substructure in section (per metre run), mm."""
+
+    mark: str
+    kind: str  # cantilever | basement
+    toe: float
+    heel: float
+    stem_top: float
+    stem_bottom: float
+    base: float  # thickness
+    stem_height: float
+    retained: float  # the retained ground above the underside of the base
+    front: float  # the front ground above the underside of the base
+    cover: float
+    founding_level: float
+    length: float
+    stem_back: Mesh | None = None
+    stem_front: Mesh | None = None
+    horizontal: Mesh | None = None
+    heel_top: Mesh | None = None
+    toe_bottom: Mesh | None = None
+    supports: list[float] = field(default_factory=list)  # props above the underside [mm]
+
+
+@dataclass
 class LintelDetail:
     """A lintel over an opening of a wall (:mod:`saengine.design.lintels`), in the wall's
     elevation: from ``x0`` to ``x1`` along the wall, its underside ``bottom`` above the wall's
@@ -591,6 +616,7 @@ class DrawingSet:
     beams: list[BeamDetail] = field(default_factory=list)
     slabs: list[SlabDetail] = field(default_factory=list)
     footings: list[FootingDetail] = field(default_factory=list)
+    retaining_walls: list[RetainingWallDetail] = field(default_factory=list)
     walls: list[WallDetail] = field(default_factory=list)
     stairs: list[StairDetail] = field(default_factory=list)
     bbs: list[Table] = field(default_factory=list)  # the bar schedule, then its totals
