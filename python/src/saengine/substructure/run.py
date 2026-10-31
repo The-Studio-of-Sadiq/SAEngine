@@ -154,7 +154,7 @@ def design_foundations(
         added = add_minimum_bars(root, document)
         if added:
             path.write_text(substructure_text(document), encoding="utf-8", newline="\n")
-    report = substructure_report(root, out_dir)
+    report = substructure_report(root, out_dir, supersede=False)
     report["summary"]["barsAdded"] = added
     if added:
         report["notes"].insert(

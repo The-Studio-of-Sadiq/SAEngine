@@ -215,6 +215,9 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 	// Foundations: rafts first so that footings and caps stay on top.
 	const order = document.foundations.map((f, i) => ({ f, i })).sort((a, b) => Number(b.f.type === 'raft') - Number(a.f.type === 'raft'));
 	const pileTypes = new Map(document.pileTypes.map(p => [p.id, p]));
+	// The ids are drawn after every outline (a neighbour drawn later no longer covers them), each
+	// above its outline's top-left corner, else just inside it when that place is taken (N-U10).
+	const labels: { readonly f: IFoundation; readonly i: number; readonly band: string; readonly left: number; readonly top: number }[] = [];
 	for (const { f, i } of order) {
 		const selected = options.selectedFoundations.has(i) || options.beamStart === f.id;
 		const band = options.bands?.get(f.id) ?? 'none';
@@ -231,13 +234,22 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 			const outlines = foundationOutlines(f, context).flat();
 			const top = outlines.length ? Math.min(...outlines.map(p => view.y(p[1]))) : view.y(center[1]);
 			const left = outlines.length ? Math.min(...outlines.map(p => view.x(p[0]))) : view.x(center[0]);
-			// The id just above the outline's top-left corner, clear of the column and the piles;
-			// its utilisation beside it once checked.
-			const label = svg(group, 'text', { x: left, y: top - 4, class: 'sub-foundation-label' }, f.id);
-			const utilisation = options.utilisations?.get(f.id);
-			if (typeof utilisation === 'number') {
-				svg(label, 'tspan', { class: `sub-foundation-util band-${band}`, dx: 6 }, formatUtilisation(utilisation));
-			}
+			labels.push({ f, i, band, left, top });
+		}
+	}
+	const taken: { x0: number; y0: number; x1: number; y1: number }[] = [];
+	const free = (r: { x0: number; y0: number; x1: number; y1: number }) => !taken.some(t => r.x0 < t.x1 && t.x0 < r.x1 && r.y0 < t.y1 && t.y0 < r.y1);
+	for (const { f, i, band, left, top } of labels) {
+		// The id with its utilisation beside it once checked, clear of the column and the piles.
+		const utilisation = options.utilisations?.get(f.id);
+		const width = (f.id.length + (typeof utilisation === 'number' ? 6 : 0)) * 7;
+		const above = { x0: left, y0: top - 16, x1: left + width, y1: top - 2 };
+		const inside = { x0: left + 4, y0: top + 2, x1: left + 4 + width, y1: top + 16 };
+		const place = free(above) || !free(inside) ? above : inside;
+		taken.push(place);
+		const label = svg(root, 'text', { x: place.x0, y: place.y1 - 2, class: 'sub-foundation-label', 'data-foundation': i }, f.id);
+		if (typeof utilisation === 'number') {
+			svg(label, 'tspan', { class: `sub-foundation-util band-${band}`, dx: 6 }, formatUtilisation(utilisation));
 		}
 	}
 

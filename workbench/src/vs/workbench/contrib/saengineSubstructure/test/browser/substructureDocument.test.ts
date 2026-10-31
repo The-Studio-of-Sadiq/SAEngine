@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capAround, capPileType, capSize, carriedAlready, checkSubstructure, connectGradeBeams, deletePiles, formatSpacings, foundationOutlines, governingCheck, gridIntersections, gridLines, IFoundation, importFoundations, intersectionsInBox, ISiteContext, ISubstructure, makePileCap, maxPressure, minPileSpacing, movePiles, newFooting, newPileCap, newPileGrid, newRaft, newSubstructure, newTieBeam, parseIdList, parseMesh, parseSpacings, parseSubstructure, pileFactorsUsed, pileLayout, pileOffsets, pilePositions, pilesInBox, placePileGroup, refitCap, snapPoint, upgradePileCaps,
-	checkStateText, documentSignatures, minimumMesh, proposalFor, readSiteContext, substructureCheckState, uncoveredBases, readSizingProposal, readSubstructureReport, SUBSTRUCTURE_SCHEMA_ID, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
+	checkStateText, documentSignatures, errorSummary, foundationId, minimumMesh, proposalFor, readSiteContext, substructureCheckState, uncoveredBases, readSizingProposal, readSubstructureReport, SUBSTRUCTURE_SCHEMA_ID, substructureSummary, substructureSummaryFile, uncoveredColumns, utilisationBand,
 } from '../../browser/substructureDocument.js';
 import { renderPlan, renderRaftHeatMap, tieBeamEnds } from '../../browser/substructurePlan.js';
 
@@ -148,7 +148,8 @@ suite('SAEngine - Substructure', () => {
 			combined: ['F2', 'combined', [3000, 0], undefined, 7500, 1500, 600],
 			cap: ['F3', 'P1', ['PL1', 'PL2', 'PL3', 'PL4'], [0, 5000], 2300, 2300, 1000],
 			capPiles: [[-750, 4250], [750, 4250], [750, 5750], [-750, 5750]],
-			raft: ['F4', [[-1000, -1000], [7000, -1000], [7000, 6000], [-1000, 6000]], 600],
+			// A raft is named R1 (N-U9: as the sizing assistant names it).
+			raft: ['R1', [[-1000, -1000], [7000, -1000], [7000, 6000], [-1000, 6000]], 600],
 			tie: { id: 'TB1', from: 'F1', to: 'F3', type: 'B300x500' },
 		});
 	});
@@ -389,7 +390,7 @@ suite('SAEngine - Substructure', () => {
 			bands: ['ok', 'warn', 'warn', 'fail', 'none'],
 			notReport: undefined,
 			governing: ['Punching shear', undefined],
-			file: { foundations: 2, checked: 2, total: 2, passed: 1, failed: 1, unsupported: [], status: 'fail', maxUtilisation: 1.12, governing: 'F1', computed: '1970-01-01T00:00:00.000Z', source: { substructure: 'abc', soil: '' } },
+			file: { foundations: 2, checked: 2, total: 2, passed: 1, failed: 1, bearingUnchecked: [], unsupported: [], status: 'fail', maxUtilisation: 1.12, governing: 'F1', computed: '1970-01-01T00:00:00.000Z', source: { substructure: 'abc', soil: '' } },
 		});
 	});
 
@@ -439,6 +440,60 @@ suite('SAEngine - Substructure', () => {
 			edited: ['incomplete', 1, '1 of 2 checked · 1 changed since checked'],
 			summary: 'pass',
 		});
+	});
+
+	test('a footing without its bearing check is neither checked nor passing (N-U3)', () => {
+		const doc = document([
+			{ id: 'F1', type: 'isolated', columns: ['C1'], length: 1500, width: 1500, thickness: 450 },
+			{ id: 'F2', type: 'isolated', columns: ['C2'], length: 1500, width: 1500, thickness: 450 },
+		]);
+		const report = readSubstructureReport({
+			foundations: [
+				{ id: 'F1', type: 'isolated', checks: [], utilisation: 0.5, ok: true },
+				{ id: 'F2', type: 'isolated', checks: [], utilisation: 0.4, ok: true, notChecked: ['bearing'] },
+			], tieBeams: [], skipped: [], summary: {},
+		})!;
+		const state = substructureCheckState(doc, report, documentSignatures(doc), []);
+		const file = substructureSummaryFile(doc, report, new Date(0));
+		assert.deepStrictEqual({
+			state: [state.status, state.checked, state.passed, state.bearingUnchecked, checkStateText(state)],
+			file: [file.checked, file.passed, file.total, file.status, file.bearingUnchecked],
+		}, {
+			state: ['incomplete', 1, 1, ['F2'], '1 of 2 checked · 1 without a bearing check (no qa)'],
+			file: [1, 1, 2, 'incomplete', ['F2']],
+		});
+	});
+
+	test('a backend error as one line with the traceback as details (N-U1)', () => {
+		const traceback = `saengine.codes.registry.CodePackError: code pack 'bnbc2020' cannot be used: basis: Extra inputs are not permitted Traceback (most recent call last): File "server.py", line 634, in _substructure_report`;
+		assert.deepStrictEqual(errorSummary(traceback), {
+			summary: `CodePackError: code pack 'bnbc2020' cannot be used: basis: Extra inputs are not permitted`,
+			details: traceback,
+			restart: true,
+		});
+		assert.deepStrictEqual(errorSummary('no analysis results'), { summary: 'no analysis results', details: undefined, restart: false });
+		// A plain traceback ends with its message.
+		const plain = 'Traceback (most recent call last):\n  File "server.py", line 634, in run\nValueError: no qa for B1';
+		assert.deepStrictEqual(errorSummary(plain), { summary: 'ValueError: no qa for B1', details: plain, restart: false });
+	});
+
+	test('new foundations follow the ids and materials of the project (N-U9)', () => {
+		const columns = [
+			{ ...CONTEXT.columns[0], id: 'C-A1-L1' }, { ...CONTEXT.columns[1], id: 'C-B1-L1' },
+		];
+		const doc = document([{ id: 'F-A2', type: 'isolated', columns: ['C-A2-L1'], material: 'C27.6', reinforcement: { material: 'B500', cover: 75 }, length: 1500, width: 1500, thickness: 450 }]);
+		const footing = newFooting(doc, CONTEXT, [columns[0]]);
+		const combined = newFooting(doc, CONTEXT, columns);
+		const raft = newRaft(doc, CONTEXT, columns)!;
+		assert.deepStrictEqual(
+			[footing.id, combined.id, raft.id, footing.material, raft.material, raft.reinforcement?.material, foundationId(doc, 'isolated', ['X1'])],
+			['F-A1', 'F-A1-B1', 'R1', 'C27.6', 'C27.6', 'B500', 'F1'],
+		);
+		// Footings replaced by a proposed raft: the raft is named as one and their tie beams go.
+		doc.foundations.push({ ...footing });
+		doc.tieBeams.push({ id: 'TB1', from: 'F-A2', to: 'F-A1' });
+		const placed = applyProposal(doc, { foundations: [{ ...raft, id: 'X', columns: ['C-A1-L1', 'C-A2-L1'] }], pileTypes: [], notes: [] });
+		assert.deepStrictEqual([placed, doc.foundations.map(f => f.id), doc.tieBeams], [['R1'], ['R1'], []]);
 	});
 
 	test('columns and walls without a foundation', () => {
@@ -511,7 +566,9 @@ suite('SAEngine - Substructure', () => {
 			points: [{ x: 250, y: 250, pressure: 80 }, { x: 750, y: 250, pressure: 100 }, { x: 250, y: 750, pressure: 120 }, { x: 750, y: 750, pressure: 140 }],
 		}, CONTEXT, 'pressure', { width: 300, height: 200 });
 		assert.deepStrictEqual({
-			foundations: plan.querySelectorAll('[data-foundation]').length,
+			// The outlines; each id label also selects its foundation (drawn on top since N-U10).
+			foundations: plan.querySelectorAll('[data-foundation]:not(.sub-foundation-label)').length,
+			labels: plan.querySelectorAll('.sub-foundation-label[data-foundation]').length,
 			selected: plan.querySelectorAll('.sub-foundation.selected').length,
 			failing: plan.querySelectorAll('.sub-foundation.band-fail').length,
 			piles: plan.querySelectorAll('[data-pile]').length,
@@ -532,7 +589,7 @@ suite('SAEngine - Substructure', () => {
 			// The tie beam runs between the columns its foundations carry (C1 to C3), not their centres.
 			tieEnds: tieBeamEnds(doc.foundations[0], doc.foundations[1], CONTEXT),
 		}, {
-			foundations: 3, selected: 1, failing: 1, piles: 5, freePiles: 1, selectedPiles: ['PL5'], pileGrid: 4, back: [3000, 2500], columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
+			foundations: 3, labels: 3, selected: 1, failing: 1, piles: 5, freePiles: 1, selectedPiles: ['PL5'], pileGrid: 4, back: [3000, 2500], columns: 4, selectedColumns: 1, ties: 1, boreholes: 2, grid: 4, proposals: 1,
 			heatCells: 4, hottest: 1, range: { min: 80, max: 140 },
 			utilisation: '1.12',
 			tieEnds: [[CONTEXT.columns[0].x, CONTEXT.columns[0].y], [CONTEXT.columns[2].x, CONTEXT.columns[2].y]],
