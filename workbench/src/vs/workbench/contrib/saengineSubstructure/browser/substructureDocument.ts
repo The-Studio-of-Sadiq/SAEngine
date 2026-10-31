@@ -218,8 +218,50 @@ export interface ISubstructure {
 	piles: IPile[];
 	tieBeams: ITieBeam[];
 	groundSlabs: IGroundSlab[];
+	/** Cantilever retaining walls and basement walls, designed per metre run (9 Substructure). */
+	retainingWalls?: IRetainingWall[];
 	design: ISubstructureDesign;
 	[key: string]: unknown;
+}
+
+/** A retaining or basement wall (mm, project datum); the backend's model holds the rest. */
+export interface IRetainingWall {
+	id: string;
+	kind?: 'cantilever' | 'basement';
+	/** Plan line of the wall's soil face [[x, y], ...] mm. */
+	path: Point[];
+	topLevel: number;
+	foundingLevel: number;
+	stemTop?: number;
+	stemBottom?: number;
+	baseThickness?: number;
+	toe?: number;
+	heel?: number;
+	/** Basement walls: levels of the floors that prop it [mm]. */
+	supports?: number[];
+	/** The wall of 6 BIM it is (its earth pressure then loads the analysis model as case H). */
+	wall?: string;
+	material: string;
+	[key: string]: unknown;
+}
+
+/** A new cantilever wall 5 m long retaining 3 m of ground at the finished ground level. */
+export function newRetainingWall(document: ISubstructure, context: ISiteContext): IRetainingWall {
+	const ground = context.groundLevel;
+	return {
+		id: nextId('RW', (document.retainingWalls ?? []).map(w => w.id)),
+		kind: 'cantilever',
+		path: [[0, 0], [5000, 0]],
+		topLevel: ground,
+		frontLevel: ground - 3000,
+		foundingLevel: ground - 3500,
+		stemTop: 200,
+		stemBottom: 300,
+		baseThickness: 400,
+		toe: 700,
+		heel: 1600,
+		material: context.defaultMaterial ?? context.materials[0] ?? '',
+	};
 }
 
 /** BNBC 2020 Part 6 Table 6.3.10a: permanent structure (25 to 100 years), normal control. */
@@ -1872,6 +1914,8 @@ export interface ISubstructureReport {
 	readonly foundations: readonly IFoundationResult[];
 	readonly tieBeams: readonly IFoundationResult[];
 	readonly groundSlabs: readonly IFoundationResult[];
+	/** Retaining and basement walls (type "retainingWall") and the basement's flotation (type "flotation"). */
+	readonly retainingWalls?: readonly IFoundationResult[];
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
@@ -2037,6 +2081,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	const foundations = records(raw.foundations).map(readResult);
 	const tieBeams = records(raw.tieBeams).map(readResult);
 	const groundSlabs = records(raw.groundSlabs).map(readResult);
+	const retainingWalls = records(raw.retainingWalls).map(readResult);
 	// Pile capacities: a flat list of rows, or per pile type a list per borehole (`boreholes` or
 	// `capacities`), or capacity tables ({borehole, rows}); else the pile caps' own capacities.
 	const pileCapacities: IPileCapacity[] = [];
@@ -2063,13 +2108,14 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const skipped = records(raw.skipped).map(s => ({ id: String(s.id ?? ''), type: String(s.type ?? ''), reason: String(s.reason ?? '') }));
 	const summary = isRecord(raw.summary) ? raw.summary : {};
-	const designed = [...foundations, ...tieBeams, ...groundSlabs];
+	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls];
 	const failed = designed.filter(f => !f.ok).length;
 	const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
 	return {
 		foundations,
 		tieBeams,
 		groundSlabs,
+		retainingWalls,
 		skipped,
 		pileCapacities,
 		summary: readSummary(summary, designed.length, failed, skipped.length, worst),

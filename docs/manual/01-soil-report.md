@@ -174,6 +174,38 @@ The **Map** view shows the site on a street map (OpenStreetMap tiles by default;
   when QGIS is installed (setting `saengine.qgis.program`). Export reads the saved file: save
   the soil report first.
 
+### Planning compliance
+
+Under the plot, **Check Planning Rules** checks the plot and the building against the planning
+rules of the code pack's `planning` table. For BNBC 2020 these are the rules BNBC Part 3 defers
+to the planning authority; the pack holds Dhaka's (RAJUK), the *Dhaka Mohanagar Imarat Nirman
+Bidhimala 2008*: Table 2 and Rule 46 (setbacks), Rule 50 (maximum ground coverage, MGC) and Rule
+51 with Tables 3(A)-3(F) (FAR and MGC by use, plot size and road width). A project's own copy of
+the pack can change the table, or hold another authority's.
+
+Choose the **use** (residential A1-A4, residential hotel A5, educational B1 and B2,
+institutional C, health care D, assembly E, office F1, mercantile F2-F5, industry, storage and
+others G-K) and type the **road width**. The height, storeys, ground coverage and gross floor
+area come from the building model (each storey's area is that of the slabs over it; the
+coverage is the slabs on plan); type a value to use it instead, and the floor area the rules
+leave out of FAR (stair and lift rooms over the roof, parking, services: Rule 51(5)).
+
+The panel shows the plot-size row, the FAR and MGC permitted, the area statement (plot area,
+ground coverage, open space, each storey's floor area, gross floor area, the floor area counted
+in FAR, and the limits) and the checks: FAR, ground coverage, front, rear and side setbacks
+against Table 2 (the high-rise row above 33 m or 10 storeys, and the front at least 4.5 m from
+the road's centre, Rule 46(3)) and any part of the building outside the setbacks.
+
+- On a road narrower than the plot's row asks for (6 m and more), the largest plot-size row the
+  road qualifies for applies (SAEngine's reading of Rule 51); below 6 m Rule 51(9) and (10).
+- On a wider road, the rows "any plot size" for 18 m and 24 m roads apply where higher, and Rule
+  51(11) adds 0.05 to the FAR for each 0.30 m of road above the row's width, up to the next
+  row's FAR.
+- "NR" (not restricted): the tables set no FAR limit there.
+
+The design report prints the check in its **Planning compliance** section (after the design
+basis) when the plot has a planning entry.
+
 ## Commands
 
 | Command (category SAEngine) | Does |

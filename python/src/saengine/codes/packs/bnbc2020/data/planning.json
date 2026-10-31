@@ -1,0 +1,1060 @@
+{
+  "$schema": "../../../schemas/planning.schema.json",
+  "$sources": [
+    "Dhaka Mohanagar Imarat (Nirman, Unnayan, Sangrakkhan o Apasaran) Bidhimala 2008, Rules 46, 49-51, Tables 2 and 3(A)-3(F)",
+    "BNBC 2020 Part 3 Chapter 1 (plot, open space, FAR and ground coverage: the planning authority's rules apply)"
+  ],
+  "source": "Dhaka Mohanagar Imarat Nirman Bidhimala 2008 (Bangladesh Gazette): Rule 46 and Table 2 (setbacks), Rule 50 (maximum ground coverage), Rule 51 and Tables 3(A)-3(F) (FAR and MGC by use, plot size and road width), Rule 51(9)-(11) (narrow and wider roads). Transcribed from the gazette text; RAJUK (DMDP area). Another authority's rules are another pack's table.",
+  "authority": "RAJUK, Dhaka (Imarat Nirman Bidhimala 2008)",
+  "plotBands": [
+    {
+      "maxArea": 134,
+      "maxKatha": 2
+    },
+    {
+      "maxArea": 201,
+      "maxKatha": 3
+    },
+    {
+      "maxArea": 268,
+      "maxKatha": 4
+    },
+    {
+      "maxArea": 335,
+      "maxKatha": 5
+    },
+    {
+      "maxArea": 402,
+      "maxKatha": 6
+    },
+    {
+      "maxArea": 469,
+      "maxKatha": 7
+    },
+    {
+      "maxArea": 536,
+      "maxKatha": 8
+    },
+    {
+      "maxArea": 603,
+      "maxKatha": 9
+    },
+    {
+      "maxArea": 670,
+      "maxKatha": 10
+    },
+    {
+      "maxArea": 804,
+      "maxKatha": 12
+    },
+    {
+      "maxArea": 938,
+      "maxKatha": 14
+    },
+    {
+      "maxArea": 1072,
+      "maxKatha": 16
+    },
+    {
+      "maxArea": 1206,
+      "maxKatha": 18
+    },
+    {
+      "maxArea": 1340,
+      "maxKatha": 20
+    },
+    {
+      "maxArea": null,
+      "maxKatha": null
+    }
+  ],
+  "uses": {
+    "A1-A4": {
+      "name": "Residential (A1-A4): dwellings, flats",
+      "table": "Table 3(A)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 3.15,
+          "mgc": 67.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.35,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 4.0,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 4.0,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 4.25,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 4.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 4.75,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 5.0,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 5.25,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 5.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 5.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 6.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": 6.5,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "A5": {
+      "name": "Residential hotel (A5)",
+      "table": "Table 3(A)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 67.5
+        },
+        {
+          "road": 6.0,
+          "far": 2.75,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.0,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 4.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 5.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 6.0,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 6.5,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 7.0,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 7.5,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 8.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 8.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 9.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": null,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": null,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "B1": {
+      "name": "Educational (B1): schools, colleges, universities",
+      "table": "Table 3(B)",
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.0,
+          "mgc": 57.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.0,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 53.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.0,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 4.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": 5.5,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "B2": {
+      "name": "Educational (B2): primary schools, kindergartens",
+      "table": "Table 3(B)",
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 3.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 4.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": 4.5,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "C": {
+      "name": "Institutional (C1-C4)",
+      "table": "Table 3(C)",
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.75,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.0,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.25,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 4.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 5.0,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": null,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": null,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "D": {
+      "name": "Health care (D1-D2)",
+      "table": "Table 3(C)",
+      "rows": [
+        null,
+        null,
+        null,
+        null,
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.75,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.0,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.25,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 4.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 5.0,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": null,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": null,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "E": {
+      "name": "Assembly (E1-E6)",
+      "table": "Table 3(D)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.25,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 2.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.0,
+          "mgc": 52.5
+        },
+        {
+          "road": 12.0,
+          "far": 3.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 3.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 3.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 5.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 6.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": 7.0,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "F1": {
+      "name": "Business (F1): offices",
+      "table": "Table 3(E)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 67.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 5.5,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 6.0,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 6.5,
+          "mgc": 55.0
+        },
+        {
+          "road": 9.0,
+          "far": 7.0,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 7.5,
+          "mgc": 52.5
+        },
+        {
+          "road": 9.0,
+          "far": 8.0,
+          "mgc": 50.0
+        },
+        {
+          "road": 9.0,
+          "far": 8.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 9.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": null,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": null,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "F2-F5": {
+      "name": "Mercantile (F2-F5): shops, markets",
+      "table": "Table 3(E)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 2.25,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 62.5
+        },
+        {
+          "road": 6.0,
+          "far": 3.0,
+          "mgc": 60.0
+        },
+        {
+          "road": 6.0,
+          "far": 3.0,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 57.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 55.0
+        },
+        {
+          "road": 12.0,
+          "far": 3.75,
+          "mgc": 52.5
+        },
+        {
+          "road": 12.0,
+          "far": 4.0,
+          "mgc": 52.5
+        },
+        {
+          "road": 12.0,
+          "far": 4.25,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.75,
+          "mgc": 50.0
+        },
+        {
+          "road": 12.0,
+          "far": 5.5,
+          "mgc": 50.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 6.5,
+          "mgc": 50.0
+        },
+        {
+          "road": 24.0,
+          "far": null,
+          "mgc": 50.0
+        }
+      ]
+    },
+    "G-K": {
+      "name": "Industrial, storage, hazardous and miscellaneous (G, H, J, K)",
+      "table": "Table 3(F)",
+      "rows": [
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.0,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.25,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.25,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 65.0
+        },
+        {
+          "road": 6.0,
+          "far": 2.5,
+          "mgc": 65.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 65.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 65.0
+        },
+        {
+          "road": 9.0,
+          "far": 2.75,
+          "mgc": 65.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.0,
+          "mgc": 62.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.25,
+          "mgc": 62.5
+        },
+        {
+          "road": 9.0,
+          "far": 3.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 3.75,
+          "mgc": 60.0
+        },
+        {
+          "road": 9.0,
+          "far": 4.0,
+          "mgc": 60.0
+        },
+        {
+          "road": 12.0,
+          "far": 4.25,
+          "mgc": 60.0
+        }
+      ],
+      "wideRoads": [
+        {
+          "road": 18.0,
+          "far": 4.5,
+          "mgc": 60.0
+        },
+        {
+          "road": 24.0,
+          "far": 5.0,
+          "mgc": 60.0
+        }
+      ]
+    }
+  },
+  "narrowRoads": [
+    {
+      "minRoad": 3.65,
+      "maxRoad": 5.99,
+      "far": 3.0,
+      "mgc": 65.0,
+      "rule": "Rule 51(9)"
+    },
+    {
+      "minRoad": 2.5,
+      "maxRoad": 3.64,
+      "far": 2.0,
+      "mgc": 65.0,
+      "rule": "Rule 51(10)"
+    }
+  ],
+  "roadIncrement": {
+    "step": 0.3,
+    "far": 0.05,
+    "fromRoad": 6.0,
+    "toRoad": 24.0,
+    "rule": "Rule 51(11)"
+  },
+  "setbacks": {
+    "rows": [
+      {
+        "front": 1.5,
+        "rear": 1.0,
+        "side": 0.8
+      },
+      {
+        "front": 1.5,
+        "rear": 1.0,
+        "side": 1.0
+      },
+      {
+        "front": 1.5,
+        "rear": 1.5,
+        "side": 1.0
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.25
+      },
+      {
+        "front": 1.5,
+        "rear": 2.0,
+        "side": 1.5
+      }
+    ],
+    "highRise": {
+      "front": 1.5,
+      "rear": 3.0,
+      "side": 3.0
+    },
+    "highRiseHeight": 33.0,
+    "highRiseStoreys": 10,
+    "rule": "Rule 46(2), Table 2"
+  },
+  "roadCentre": {
+    "distance": 4.5,
+    "boundary": 1.5,
+    "rule": "Rule 46(3)"
+  },
+  "betweenBuildings": {
+    "frontRear": 4.0,
+    "side": 2.5,
+    "rule": "Rule 46(6)"
+  },
+  "storeyHeightMax": 4.25
+}

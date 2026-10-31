@@ -416,3 +416,9 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* The manual is opening (N-G11). */
+.saengine-editor-frame .sa-frame-help-button.loading {
+	opacity: 0.5;
+	cursor: progress;
+}

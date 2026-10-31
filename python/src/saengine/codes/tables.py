@@ -675,6 +675,35 @@ class StrutAndTie(_Group):
     betaCCT: Share = Field(description="βn of a C-C-T node.")
 
 
+class RetainingWallFactors(_Group):
+    sliding: float = Field(default=1.5, ge=1, description="Least factor of safety on sliding.")
+    overturning: float = Field(
+        default=1.5, ge=1, description="Least factor of safety on overturning."
+    )
+    seismic: float = Field(
+        default=1.1, ge=1, description="Least factor on sliding and overturning with earthquake."
+    )
+    passive: float = Field(
+        default=2.0, ge=1, description="Factor of safety on the passive resistance in front."
+    )
+    flotation: float = Field(
+        default=1.1, ge=1, description="Least factor of safety against flotation (uplift)."
+    )
+    baseFriction: Share = Field(
+        default=2 / 3, description="Base friction angle as a share of φ' (tan δb, δb = r φ')."
+    )
+    adhesion: Share = Field(
+        default=0.5, description="Base adhesion as a share of cu on a clay without φ'."
+    )
+    hFactor: float = Field(
+        default=1.6, gt=0, description="Load factor on the lateral earth pressure H."
+    )
+    yieldingKh: Share = Field(
+        default=0.5,
+        description="kh of a wall free to yield as a share of the peak ground acceleration.",
+    )
+
+
 class FoundationsTable(TableModel):
     pileSafety: dict[str, tuple[float, float, float, float]]
     pileControls: list[str]
@@ -684,6 +713,10 @@ class FoundationsTable(TableModel):
     noLoadTestSafety: float
     loadTestSafety: float
     strutAndTie: StrutAndTie
+    retainingWall: RetainingWallFactors = Field(
+        default_factory=RetainingWallFactors,
+        description="Stability factors and load factors of retaining and basement walls.",
+    )
 
 
 class TwoWayTables(BaseModel):
@@ -1402,6 +1435,104 @@ class SteelSectionsTable(TableModel):
         return self
 
 
+# ───────────────────────────────────────── planning ─────────────────────────────────────────
+
+
+class PlotBand(_Row):
+    maxArea: float | None = Field(
+        description="Largest plot area of the row [m²]; null: every larger plot."
+    )
+    maxKatha: float | None = Field(default=None, description="The same in katha (720 sq ft).")
+
+
+class PlanningRow(_Row):
+    road: float = Field(gt=0, description="Road width the row needs [m].")
+    far: float | None = Field(
+        default=None, gt=0, description="Largest FAR; null: not restricted (NR)."
+    )
+    mgc: float = Field(gt=0, le=100, description="Maximum ground coverage [% of the plot].")
+
+
+class PlanningUse(_Row):
+    name: str
+    table: str = Field(description="The table of the rules, e.g. 'Table 3(A)'.")
+    rows: list[PlanningRow | None] = Field(
+        description="One per plot band (plotBands); null: the use is not permitted there."
+    )
+    wideRoads: list[PlanningRow] = Field(
+        default_factory=list, description="Rows for any plot size on a wide road."
+    )
+
+
+class NarrowRoad(_Row):
+    minRoad: float = Field(gt=0)
+    maxRoad: float = Field(gt=0)
+    far: float = Field(gt=0)
+    mgc: float = Field(gt=0, le=100)
+    rule: str = ""
+
+
+class RoadIncrement(_Row):
+    step: float = Field(gt=0, description="Road width step [m].")
+    far: float = Field(ge=0, description="FAR added per step.")
+    fromRoad: float = Field(ge=0)
+    toRoad: float = Field(gt=0)
+    rule: str = ""
+
+
+class SetbackRow(_Row):
+    front: float = Field(ge=0)
+    rear: float = Field(ge=0)
+    side: float = Field(ge=0)
+
+
+class PlanningSetbacks(_Row):
+    rows: list[SetbackRow] = Field(description="One per plot band [m].")
+    highRise: SetbackRow
+    highRiseHeight: float = Field(gt=0, description="Above this height [m] the high-rise row.")
+    highRiseStoreys: int = Field(gt=0, description="Or above this many storeys.")
+    rule: str = ""
+
+
+class RoadCentre(_Row):
+    distance: float = Field(ge=0, description="Least distance from the road's centre [m].")
+    boundary: float = Field(ge=0, description="Least distance from the plot boundary [m].")
+    rule: str = ""
+
+
+class BetweenBuildings(_Row):
+    frontRear: float = Field(ge=0)
+    side: float = Field(ge=0)
+    rule: str = ""
+
+
+class PlanningTable(TableModel):
+    """Planning rules of the plot: FAR and maximum ground coverage by use, plot size and road
+    width, and the setbacks (the planning authority's rules BNBC Part 3 defers to)."""
+
+    authority: str = Field(description="Whose rules these are.")
+    plotBands: list[PlotBand] = Field(min_length=1)
+    uses: dict[str, PlanningUse]
+    narrowRoads: list[NarrowRoad] = Field(default_factory=list)
+    roadIncrement: RoadIncrement
+    setbacks: PlanningSetbacks
+    roadCentre: RoadCentre
+    betweenBuildings: BetweenBuildings | None = None
+    storeyHeightMax: float | None = Field(
+        default=None, description="Largest storey height counted once in the floor area [m]."
+    )
+
+    @model_validator(mode="after")
+    def _rows(self) -> PlanningTable:
+        n = len(self.plotBands)
+        for key, use in self.uses.items():
+            if len(use.rows) != n:
+                raise ValueError(f"uses.{key}.rows: {len(use.rows)} rows for {n} plot bands")
+        if len(self.setbacks.rows) != n:
+            raise ValueError(f"setbacks.rows: {len(self.setbacks.rows)} rows for {n} plot bands")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -1424,6 +1555,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "electrical": ElectricalTable,
     "fire": FireTable,
     "steelSections": SteelSectionsTable,
+    "planning": PlanningTable,
 }
 
 

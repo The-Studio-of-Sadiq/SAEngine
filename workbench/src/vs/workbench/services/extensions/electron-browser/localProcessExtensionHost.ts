@@ -359,6 +359,11 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 					? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 					: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
+				// SAEngine (N-G2): a slow extension host on opening a project is logged, not shown to
+				// the engineer; extension development still gets the prompt.
+				if (!this._isExtensionDevHost) {
+					return;
+				}
 				this._notificationService.prompt(Severity.Warning, msg,
 					[{
 						label: nls.localize('reloadWindow', "Reload Window"),

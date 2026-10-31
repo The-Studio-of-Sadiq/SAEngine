@@ -11,8 +11,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { computePartStatuses, DESIGN_SUMMARY_FILE, IPartCheckCounts, PART_CHECKS_FILE, partChecksFile, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, MEP_SUMMARY_FILE, REPORT_FILE, SUBSTRUCTURE_SUMMARY_FILE } from '../common/partStatus.js';
+import { computePartStatuses, DESIGN_SUMMARY_FILE, IPartCheckCounts, PART_CHECKS_FILE, partChecksFile, REPORT_PART_CHECKS_COMMAND, EXPORT_DXF_FOLDER, EXPORT_IFC_FOLDER, exportKind, FEM_RESULTS_FOLDER, FEM_RESULTS_MANIFEST, IPartStatus, IPartStatusInputs, ISaenginePartStatusService, MEP_SUMMARY_FILE, REPORT_FILE, SUBSTRUCTURE_SUMMARY_FILE } from '../common/partStatus.js';
 import { ALL_PARTS, ISaengineProject, ISaengineProjectService, partById } from '../common/saengineProject.js';
 
 /** How long file changes settle before the statuses are computed again [ms]. */
@@ -46,14 +47,14 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 		return this._statuses.find(s => s.part === part);
 	}
 
-	async reportChecks(part: string, counts: IPartCheckCounts, sources: readonly string[] = [part]): Promise<void> {
+	async reportChecks(part: string, counts: IPartCheckCounts, sources: readonly string[] = [part], given?: ReadonlyMap<string, string | undefined>): Promise<void> {
 		const project = this.projectService.project;
 		const folder = partById(part)?.folder;
 		if (!project || !folder) {
 			return;
 		}
-		const texts = new Map<string, string | undefined>();
-		for (const id of sources) {
+		const texts = new Map<string, string | undefined>(given ?? []);
+		for (const id of given ? [] : sources) {
 			const source = partById(id);
 			texts.set(id, source?.mainFile ? await this.readText(joinPath(project.root, source.folder, source.mainFile)) : undefined);
 		}
@@ -184,3 +185,11 @@ export class SaenginePartStatusService extends Disposable implements ISaenginePa
 }
 
 registerSingleton(ISaenginePartStatusService, SaenginePartStatusService, InstantiationType.Delayed);
+
+CommandsRegistry.registerCommand(REPORT_PART_CHECKS_COMMAND, (accessor, part: unknown, counts: unknown, texts: unknown) => {
+	if (typeof part !== 'string' || typeof counts !== 'object' || counts === null || typeof texts !== 'object' || texts === null) {
+		return;
+	}
+	const given = new Map(Object.entries(texts as { [part: string]: unknown }).map(([id, text]) => [id, typeof text === 'string' ? text : undefined]));
+	return accessor.get(ISaenginePartStatusService).reportChecks(part, counts as IPartCheckCounts, [...given.keys()], given);
+});

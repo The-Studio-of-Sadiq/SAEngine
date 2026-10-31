@@ -40,35 +40,69 @@ export function sourceStamp(text: string): string {
 
 /** Keys of the project settings the analysis model does not take: the project's details and the drawings' title block. */
 const SETTINGS_INFO_KEYS = new Set(['project', 'drawings']);
+/** Keys of the settings' foundation section the analysis model does not take (N-X9): the qa sizes the footings only. */
+const SETTINGS_FOUNDATION_DESIGN_KEYS = new Set(['allowableBearing']);
+/** Keys of an object type the analysis model does not take (N-X9): the bars and design overwrites are the design checks'. */
+const OBJECT_DESIGN_KEYS = new Set(['reinforcement', 'punchingReinforcement', 'designOverwrites']);
+
+function jsonObject(text: string): { readonly [key: string]: unknown } | undefined {
+	try {
+		const value = JSON.parse(text);
+		return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function without(value: unknown, keys: ReadonlySet<string>): unknown {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([key]) => !keys.has(key))) : value;
+}
 
 /**
  * The stamp an analysis model records for the project settings `text` (key `settings`): of the
- * settings without the project's details and the drawings' title block, so typing the engineer's
- * name or a revision leaves the model current. The Python side
+ * settings without the project's details, the drawings' title block and the foundation's qa, so
+ * typing the engineer's name, a revision or the qa leaves the model current (`legacy`: the stamp
+ * of models derived before the qa was left out). The Python side
  * (`saengine.fem.derive.settings_stamp`) computes the same; a text that is not a JSON object gets
  * the stamp of its text.
  */
-export function femSettingsStamp(text: string): string {
-	let document: unknown;
-	try {
-		document = JSON.parse(text);
-	} catch {
+export function femSettingsStamp(text: string, legacy = false): string {
+	const document = jsonObject(text);
+	if (!document) {
 		return sourceStamp(text);
 	}
-	if (typeof document !== 'object' || document === null || Array.isArray(document)) {
+	const kept: { [key: string]: unknown } = Object.fromEntries(Object.entries(document).filter(([key]) => !SETTINGS_INFO_KEYS.has(key)));
+	if (!legacy && typeof kept.foundation === 'object' && kept.foundation !== null && !Array.isArray(kept.foundation)) {
+		kept.foundation = without(kept.foundation, SETTINGS_FOUNDATION_DESIGN_KEYS);
+	}
+	return sourceStamp(JSON.stringify(kept));
+}
+
+/**
+ * The stamp an analysis model records for the object types `text` (key `objects`): of the types
+ * without their bars and design overwrites (N-X9), so a bar-only Apply leaves the analysis
+ * current. The Python side (`saengine.fem.derive.objects_stamp`) computes the same.
+ */
+export function femObjectsStamp(text: string): string {
+	const document = jsonObject(text);
+	if (!document) {
 		return sourceStamp(text);
 	}
-	return sourceStamp(JSON.stringify(Object.fromEntries(Object.entries(document).filter(([key]) => !SETTINGS_INFO_KEYS.has(key)))));
+	const objects = document.objects;
+	return sourceStamp(JSON.stringify(Array.isArray(objects) ? { ...document, objects: objects.map(o => without(o, OBJECT_DESIGN_KEYS)) } : document));
 }
 
 /**
  * Whether the analysis model's source `part` with `text` is still the one it recorded as
- * `recorded`. The settings count without the project's details ({@link femSettingsStamp}); a
+ * `recorded`. The settings count without the project's details and the qa
+ * ({@link femSettingsStamp}), the object types without their bars ({@link femObjectsStamp}); a
  * model derived before that recorded the whole file's stamp, which stays current while the file
  * is unchanged.
  */
 export function femSourceCurrent(part: string, text: string, recorded: string | undefined): boolean {
-	return recorded === sourceStamp(text) || (part === 'settings' && recorded === femSettingsStamp(text));
+	return recorded === sourceStamp(text)
+		|| (part === 'settings' && (recorded === femSettingsStamp(text) || recorded === femSettingsStamp(text, true)))
+		|| (part === 'objects' && recorded === femObjectsStamp(text));
 }
 
 /** What the analysis model takes from the MEP file (see {@link mepModelStamp}). */
