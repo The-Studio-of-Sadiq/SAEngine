@@ -535,6 +535,18 @@ export interface IFemSolverService {
 	/** What an MEP IFC model in the project holds (`path` project-relative), or `{problems}`. */
 	mepImportIfc(python: string, projectRoot: string, path: string): Promise<object>;
 
+	/** Runs the coordination's clash tests (`tests`: their ids, else the enabled ones) and merges the clashes into its issues (`{coordination, tests, counts, clashes, notes}`), or `{problems}`. */
+	mepCoordinate(python: string, projectRoot: string, mepText?: string, tests?: readonly string[]): Promise<object>;
+
+	/** Writes the coordination issues to the BCF 3.0 file `path` (`{path, topics}`), or `{problems}`. */
+	mepExportBcf(python: string, projectRoot: string, path: string, mepText?: string, issues?: readonly string[]): Promise<object>;
+
+	/** Merges the topics of the BCF file `path` into the coordination issues (`{coordination, counts}`), or `{problems}`. */
+	mepImportBcf(python: string, projectRoot: string, path: string, mepText?: string): Promise<object>;
+
+	/** Checks the models against the coordination's IDS files and merges the failures into its issues (`{coordination, results, counts, notes}`), or `{problems}`. */
+	mepCheckIds(python: string, projectRoot: string, mepText?: string): Promise<object>;
+
 	/**
 	 * The plumbing report of 7 MEP (`saengine.plumbing.project.full_report`): BNBC 2020 Part 8
 	 * sizing, the tanks' RC design (`tankDesigns`), the hydraulics, the sleeves still missing;

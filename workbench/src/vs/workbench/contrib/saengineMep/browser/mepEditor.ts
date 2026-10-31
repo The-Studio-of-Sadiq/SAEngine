@@ -86,6 +86,9 @@ import { renderFire } from './firePlan.js';
 import { renderFireReport } from './fireResults.js';
 import { renderFireData, renderFirePumpProperties, renderFireRiserProperties, renderFireSummaryProperties, renderFireTankProperties } from './fireView.js';
 import { IMepFormHost } from './mepForm.js';
+import {
+	ensureCoordination, ICoordinationActions, ICoordinationViewState, MEP_CHECK_IDS_COMMAND, MEP_COORDINATE_COMMAND, MEP_EXPORT_BCF_COMMAND, MEP_IMPORT_BCF_COMMAND, readCoordinationAnswer, renderCoordinationData,
+} from './coordinationView.js';
 import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 import { ensureStoryUses, fillDown, fillStoryUses, isOccupied, STORY_USE_KEYS, storyUseLabel, StoryUseKey, storyUseOf, storyUsesOf } from './storyUses.js';
@@ -297,6 +300,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private reportError: string | undefined;
 	private reportVersion = 0;
 	private readonly busy = new Set<string>();
+	private readonly coordinationState: ICoordinationViewState = { filter: 'open' };
 	private actionsKey: string | undefined;
 	private lastSize = '';
 	private planView: IPlanView | undefined;
@@ -1920,7 +1924,168 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.renderOpeningTable(document);
 		this.renderShaftTable(document);
 		this.renderModelTable(document);
+		renderCoordinationData(this.formHost(document), this.coordinationActions(), this.coordinationState, this.viewDisposables);
 		this.markSelectedRows();
+	}
+
+	// ───────────────────────────── coordination: clash tests, issues, BCF, IDS ─────────────────────────────
+
+	private coordinationActions(): ICoordinationActions {
+		return {
+			runTests: () => void this.runCoordination(MEP_COORDINATE_COMMAND, 'tests'),
+			checkIds: () => void this.runCoordination(MEP_CHECK_IDS_COMMAND, 'ids'),
+			importBcf: () => void this.importBcf(),
+			exportBcf: () => void this.exportBcf(),
+			addModel: () => void this.addCoordinationFile('model'),
+			addIdsFile: () => void this.addCoordinationFile('ids'),
+			rerender: () => this.renderView(),
+			busy: kind => this.busy.has(`coordination.${kind}`),
+		};
+	}
+
+	/** Runs the clash tests, the IDS checks or the BCF import in the backend and takes the issues it merged. */
+	private async runCoordination(command: string, kind: 'tests' | 'ids' | 'bcf', extra: object = {}): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const document = this.document;
+		if (!request || !document) {
+			return;
+		}
+		if (!CommandsRegistry.getCommand(command)) {
+			this.notificationService.info(localize('coord.noBackend', "The coordination needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		ensureCoordination(document);
+		const holder = `coordination.${kind}`;
+		this.setBusy(holder, true);
+		this.renderView();
+		let answer: ReturnType<typeof readCoordinationAnswer>;
+		try {
+			answer = readCoordinationAnswer(await this.commandService.executeCommand<unknown>(command, { ...request, mepText: serializeMep(document), ...extra }));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.notificationService.error(kind === 'ids' ? localize('coord.idsFailed', "The IDS check failed: {0}", message)
+				: kind === 'bcf' ? localize('coord.bcfFailed', "The BCF file could not be read: {0}", message)
+					: localize('coord.testsFailed', "The clash tests failed: {0}", message));
+			return;
+		} finally {
+			this.setBusy(holder, false);
+			this.renderView();
+		}
+		this.applyCoordination(document, answer);
+	}
+
+	private applyCoordination(document: IMep, answer: ReturnType<typeof readCoordinationAnswer>): void {
+		if (this.document !== document || !answer?.coordination) {
+			return;
+		}
+		document.coordination = answer.coordination;
+		this.view = 'data';
+		this.changed(true);
+		const c = answer.counts;
+		const parts: string[] = [];
+		if (answer.tests.length) {
+			parts.push(answer.tests.map(t => localize('coord.testCount', "{0}: {1} clashes ({2} coordinated)", t.name || t.test, t.found, t.coordinated)).join('; ') + '.');
+		}
+		if (c.new !== undefined) {
+			parts.push(localize('coord.counts', "{0} new, {1} reopened, {2} resolved; {3} open.", c.new, c.reopened ?? 0, c.resolved ?? 0, c.open ?? 0));
+		}
+		if (c.added !== undefined) {
+			parts.push(localize('coord.bcfCounts', "{0} issues updated, {1} added, {2} comments added.", c.updated ?? 0, c.added, c.comments ?? 0));
+		}
+		parts.push(...answer.notes);
+		this.notificationService.info(parts.join(' '));
+	}
+
+	private async importBcf(): Promise<void> {
+		const resource = this.resource;
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('coord.importBcfDialog', "Import BCF Issues"),
+			canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+			defaultUri: resource ? dirname(resource) : undefined,
+			filters: [{ name: localize('coord.bcfFilter', "BCF files"), extensions: ['bcf', 'bcfzip'] }],
+		});
+		if (picked?.[0]) {
+			await this.runCoordination(MEP_IMPORT_BCF_COMMAND, 'bcf', { path: picked[0].fsPath });
+		}
+	}
+
+	private async exportBcf(): Promise<void> {
+		this.flush();
+		const request = this.request();
+		const resource = this.resource;
+		const document = this.document;
+		if (!request || !resource || !document) {
+			return;
+		}
+		if (!CommandsRegistry.getCommand(MEP_EXPORT_BCF_COMMAND)) {
+			this.notificationService.info(localize('coord.noBackend', "The coordination needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('coord.exportBcfDialog', "Export BCF Issues"),
+			defaultUri: joinPath(dirname(resource), 'coordination.bcf'),
+			filters: [{ name: localize('coord.bcfFilter', "BCF files"), extensions: ['bcf'] }],
+		});
+		if (!target) {
+			return;
+		}
+		this.setBusy('coordination.bcf', true);
+		try {
+			const answer = await this.commandService.executeCommand<{ topics?: number }>(MEP_EXPORT_BCF_COMMAND, { ...request, mepText: serializeMep(document), path: target.fsPath });
+			this.notificationService.info(localize('coord.exported', "Wrote {0} issues to {1}.", answer?.topics ?? 0, basename(target)));
+		} catch (error) {
+			this.notificationService.error(localize('coord.exportFailed', "The BCF file could not be written: {0}", error instanceof Error ? error.message : String(error)));
+		} finally {
+			this.setBusy('coordination.bcf', false);
+		}
+	}
+
+	/** Adds another IFC model or an IDS file to the coordination; a file outside the project is copied into 07 MEP first. */
+	private async addCoordinationFile(kind: 'model' | 'ids'): Promise<void> {
+		this.flush();
+		const resource = this.resource;
+		const root = this.projectRoot;
+		const document = this.document;
+		if (!resource || !root || !document) {
+			return;
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: kind === 'model' ? localize('coord.addModelDialog', "Add IFC Model to the Coordination") : localize('coord.addIdsDialog', "Add IDS File"),
+			canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+			defaultUri: dirname(resource),
+			filters: [kind === 'model' ? { name: localize('mep.ifcFilter', "IFC models"), extensions: ['ifc'] } : { name: localize('coord.idsFilter', "IDS files"), extensions: ['ids', 'xml'] }],
+		});
+		const source = picked?.[0];
+		if (!source) {
+			return;
+		}
+		let target = source;
+		try {
+			if (!isEqualOrParent(source, root)) {
+				target = joinPath(dirname(resource), kind === 'model' ? MEP_IFC_FOLDER : 'IDS', basename(source));
+				if (!(await this.fileService.exists(target))) {
+					await this.fileService.copy(source, target);
+				}
+			}
+		} catch (error) {
+			this.notificationService.error(localize('coord.copyFailed', "The file could not be copied into the project: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		}
+		if (this.document !== document) {
+			return;
+		}
+		const path = relativePath(root, target) ?? basename(target);
+		const coordination = ensureCoordination(document);
+		if (kind === 'model') {
+			if (!coordination.models.some(m => m.path === path)) {
+				coordination.models.push({ path, name: basename(target), visible: true });
+			}
+		} else if (!coordination.idsFiles.includes(path)) {
+			coordination.idsFiles.push(path);
+		}
+		this.view = 'data';
+		this.changed(true);
 	}
 
 	private section(title: string, count: number | undefined, add?: { label: string; run: () => void }): HTMLElement {

@@ -271,6 +271,22 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		return this.request(python, 'mep/importIfc', { projectRoot, path });
 	}
 
+	mepCoordinate(python: string, projectRoot: string, mepText?: string, tests?: readonly string[]): Promise<object> {
+		return this.request(python, 'mep/coordinate', { projectRoot, mepText, tests });
+	}
+
+	mepExportBcf(python: string, projectRoot: string, path: string, mepText?: string, issues?: readonly string[]): Promise<object> {
+		return this.request(python, 'mep/exportBcf', { projectRoot, path, mepText, issues });
+	}
+
+	mepImportBcf(python: string, projectRoot: string, path: string, mepText?: string): Promise<object> {
+		return this.request(python, 'mep/importBcf', { projectRoot, path, mepText });
+	}
+
+	mepCheckIds(python: string, projectRoot: string, mepText?: string): Promise<object> {
+		return this.request(python, 'mep/checkIds', { projectRoot, mepText });
+	}
+
 	plumbingReport(python: string, projectRoot: string, mepText?: string, designs?: boolean | 'cached'): Promise<object> {
 		return this.request(python, 'mep/plumbingReport', { projectRoot, mepText, ...(designs !== undefined ? { designs } : {}) });
 	}
