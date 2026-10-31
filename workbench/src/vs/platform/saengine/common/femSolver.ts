@@ -641,6 +641,13 @@ export type ProjectPlatformMethod =
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'
+	// One page of an architect's PDF as DXF with its lines for object snaps (`saengine.library.pdf_underlay`):
+	// `cad/convertPdf` `{path, page?, cache?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings, cached}`.
+	| 'cad/convertPdf'
+	// The model workbook (`saengine.library.workbook`): `workbook/export` `{outPath, floorPlanText, objectsText?,
+	// loadsText?}` -> `{ok, path, sheets}`; `workbook/import` `{path, floorPlanText, objectsText?, loadsText?}` ->
+	// `{ok, problems, diff, texts, changed}`.
+	| 'workbook/export' | 'workbook/import'
 	// The setup's optional components the backend runs (`saengine.rpc.handlers.installer_components`):
 	// `components/list` `{}` -> `{energyplus, libredwg}`, each `{state, path?}`.
 	| 'components/list';

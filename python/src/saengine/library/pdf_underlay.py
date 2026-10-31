@@ -20,6 +20,7 @@ reports it (``vector`` false) instead of an empty drawing.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import json
 import math
 from dataclasses import dataclass, field
@@ -100,7 +101,7 @@ class PageGeometry:
         out: list[list[float]] = []
         for points, closed in self.polylines:
             ring = [*points, points[0]] if closed and len(points) > 2 else points
-            for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
+            for (x1, y1), (x2, y2) in itertools.pairwise(ring):
                 if (x1, y1) != (x2, y2):
                     out.append([round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)])
                     if len(out) >= limit:
@@ -139,7 +140,9 @@ class _Walker:
 
         if depth > MAX_DEPTH or content is None:
             return
-        stream = content if isinstance(content, ContentStream) else ContentStream(content, self.reader)
+        stream = (
+            content if isinstance(content, ContentStream) else ContentStream(content, self.reader)
+        )
         stack: list[Matrix] = []
         subpaths: list[tuple[list[Point], bool]] = []
         current: list[Point] = []

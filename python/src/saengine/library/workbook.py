@@ -23,6 +23,7 @@ import types
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
+from zipfile import BadZipFile
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -92,7 +93,15 @@ def _union_models(annotation: Any) -> tuple[type[BaseModel], ...]:
 
 
 SHEETS: tuple[Sheet, ...] = (
-    Sheet("Grids", FLOOR_PLAN, ("grids",), floorplan.GridLine, (floorplan.GridLine,), ("axis", "X or Y"), "label"),
+    Sheet(
+        "Grids",
+        FLOOR_PLAN,
+        ("grids",),
+        floorplan.GridLine,
+        (floorplan.GridLine,),
+        ("axis", "X or Y"),
+        "label",
+    ),
     Sheet("Stories", FLOOR_PLAN, ("stories",), floorplan.Story, (floorplan.Story,)),
     Sheet("Columns", FLOOR_PLAN, ("columns",), floorplan.PlacedColumn, (floorplan.PlacedColumn,)),
     Sheet("Beams", FLOOR_PLAN, ("beams",), floorplan.PlacedBeam, (floorplan.PlacedBeam,)),
@@ -319,22 +328,38 @@ def export_workbook(
 _README = (
     "SAEngine model workbook: grids, stories, members, sections and member loads.",
     "",
-    "Edit the sheets and import the workbook back from the floor plan (More Actions > Import "
-    "from Excel...). SAEngine checks every row and shows what changes before it writes.",
-    "Row 1 of each sheet holds the field names: do not rename them. Hover a heading for its "
-    "meaning and unit.",
-    "An empty cell takes the field's default. A column marked (JSON) holds a list or a choice "
-    "of shapes as JSON text.",
-    "Adding a row adds an item; deleting a row deletes it; a row is matched by its id (grid "
-    "lines by their label).",
-    "Units: lengths, positions and elevations in mm; angles in degrees; line loads in kN/m; "
-    "point loads in kN; unit weights in kN/m3.",
-    "Grids: axis X (vertical lines, labelled A, B, C...) or Y (horizontal lines, labelled 1, "
-    "2, 3...).",
-    "Members are placed on the grid: a column 'at' a grid point (at.x, at.y, at.dx, at.dy); "
-    "a beam or wall from start to end; a slab by its corners.",
-    "Footings and underlays are not in the workbook: footings are placed in 9 Substructure, "
-    "and both stay as they are on import.",
+    (
+        "Edit the sheets and import the workbook back from the floor plan (More Actions > Import "
+        "from Excel...). SAEngine checks every row and shows what changes before it writes."
+    ),
+    (
+        "Row 1 of each sheet holds the field names: do not rename them. Hover a heading for its "
+        "meaning and unit."
+    ),
+    (
+        "An empty cell takes the field's default. A column marked (JSON) holds a list or a choice "
+        "of shapes as JSON text."
+    ),
+    (
+        "Adding a row adds an item; deleting a row deletes it; a row is matched by its id (grid "
+        "lines by their label)."
+    ),
+    (
+        "Units: lengths, positions and elevations in mm; angles in degrees; line loads in kN/m; "
+        "point loads in kN; unit weights in kN/m3."
+    ),
+    (
+        "Grids: axis X (vertical lines, labelled A, B, C...) or Y (horizontal lines, labelled 1, "
+        "2, 3...)."
+    ),
+    (
+        "Members are placed on the grid: a column 'at' a grid point (at.x, at.y, at.dx, at.dy); "
+        "a beam or wall from start to end; a slab by its corners."
+    ),
+    (
+        "Footings and underlays are not in the workbook: footings are placed in 9 Substructure, "
+        "and both stay as they are on import."
+    ),
 )
 
 
@@ -358,14 +383,18 @@ def _read_sheet(ws: Any, sheet: Sheet) -> _Read:
     known = {c.key for c in cols}
     for name in names:
         if name and name not in known:
-            problems.append(f"{sheet.name}: unknown column '{name}' (row 1 must keep the field names)")
+            problems.append(
+                f"{sheet.name}: unknown column '{name}' (row 1 must keep the field names)"
+            )
     adapter = TypeAdapter(sheet.row_type)
     items: list[dict[str, Any]] = []
     for number, values in enumerate(rows, start=2):
         if number > MAX_ROWS:
             problems.append(f"{sheet.name}: rows past {MAX_ROWS} are not read")
             break
-        if values is None or all(v is None or (isinstance(v, str) and not v.strip()) for v in values):
+        if values is None or all(
+            v is None or (isinstance(v, str) and not v.strip()) for v in values
+        ):
             continue
         cells = {name: value for name, value in zip(names, values, strict=False) if name in known}
         try:
@@ -427,7 +456,9 @@ def _text(doc: dict[str, Any]) -> str:
     return json.dumps(doc, indent="\t", ensure_ascii=False) + "\n"
 
 
-def _merge(sheet: Sheet, old: list[dict[str, Any]], new: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _merge(
+    sheet: Sheet, old: list[dict[str, Any]], new: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The new list (an unchanged item keeps its old JSON exactly) and the sheet's diff."""
     cols = columns(sheet)
     key = sheet.key
@@ -480,11 +511,18 @@ def import_workbook(
     does not validate. Sheets missing from the workbook leave their lists as they are.
     """
     from openpyxl import load_workbook
+    from openpyxl.utils.exceptions import InvalidFileException
 
     try:
         book = load_workbook(str(path), read_only=True, data_only=True)
-    except Exception as exc:  # openpyxl raises many kinds for a file that is not a workbook
-        return {"ok": False, "problems": [f"{Path(path).name} is not a readable .xlsx workbook: {exc}"], "diff": {}, "texts": {}, "changed": []}
+    except (OSError, ValueError, KeyError, BadZipFile, InvalidFileException) as exc:
+        return {
+            "ok": False,
+            "problems": [f"{Path(path).name} is not a readable .xlsx workbook: {exc}"],
+            "diff": {},
+            "texts": {},
+            "changed": [],
+        }
     docs = {
         FLOOR_PLAN: _parse_doc(floor_plan_text),
         OBJECTS: _parse_doc(objects_text),
@@ -519,7 +557,11 @@ def import_workbook(
     finally:
         book.close()
 
-    changed = [name for name in (FLOOR_PLAN, OBJECTS, LOADS) if _normal(new_docs[name]) != _normal(docs[name])]
+    changed = [
+        name
+        for name in (FLOOR_PLAN, OBJECTS, LOADS)
+        if _normal(new_docs[name]) != _normal(docs[name])
+    ]
     if not problems:
         problems.extend(_check(new_docs, changed))
     if problems:
