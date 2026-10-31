@@ -3653,7 +3653,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		append(totals, $('td', undefined, localize('plb.totals', "Totals")));
 		append(totals, $('td'));
 		append(totals, $('td'));
-		for (const key of ['population', ...FIXTURES]) {
+		for (const key of ['population', ...FIXTURES] as const) {
 			const input = append(append(totals, $('td')), $<HTMLInputElement>('input.mep-input.number.plb-total-value', { type: 'text', readonly: 'true', tabindex: '-1', 'aria-label': localize('plb.totalOf', "Total {0}", key === 'population' ? P.population.label : fixtureLabel(key)) }));
 			this.totalCells.set(key, input);
 		}
