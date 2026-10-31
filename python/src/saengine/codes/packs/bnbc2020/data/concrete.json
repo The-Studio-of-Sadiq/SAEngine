@@ -58,6 +58,19 @@
       16.0,
       20.0,
       25.0
+    ],
+    "tank": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ],
+    "foundation": [
+      12,
+      16,
+      20,
+      25
     ]
   },
   "spacingStep": 25.0,
@@ -158,7 +171,7 @@
     "cantileverSlab": 10.0
   },
   "sources": {
-    "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice)",
+    "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice); tank: the water and septic tanks' proposal; foundation: 9 Substructure's minimum mesh and sizing assistant",
     "spacingStep": "SAEngine practice",
     "minSlabSpacing": "SAEngine practice (site), not a code limit",
     "columnRho": "ACI 318 10.6.1.1 (as the code's Chapter 6; page not checked)",

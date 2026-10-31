@@ -95,6 +95,8 @@ export class ResultOverlay {
 	/** The labels change with the selected element. */
 	private labelsFollowSelection = false;
 	private memberExtremes: readonly Extreme[] | undefined;
+	/** The nodes of the elements drawn; undefined: all of them. */
+	private readonly visibleNodes: ReadonlySet<number> | undefined;
 
 	constructor(
 		private readonly index: ModelIndex,
@@ -118,6 +120,7 @@ export class ResultOverlay {
 					}
 				}
 			}
+			this.visibleNodes = nodes;
 			results = {
 				...results,
 				nodes: results.nodes.filter(n => nodes.has(n[0])),
@@ -821,8 +824,51 @@ export class ResultOverlay {
 			lines.setAttribute('position', outline.attribute());
 			this.group.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({ color: this.colors.labelBackground, transparent: true, opacity: 0.35 })));
 		}
+		const joints = this.drawJointGlyphs(this.display.nodeUtilisation ?? {}, bands);
 		this.labelsFollowSelection = true;
-		this.labelling = this.utilisationLabels(utilisation, biggest);
+		const labels = this.utilisationLabels(utilisation, biggest);
+		this.labelling = () => {
+			labels();
+			for (const joint of joints) {
+				this.addLabel(formatUtilisation(joint.value), joint.at, this.colors[utilisationBand(joint.value)]);
+			}
+		};
+	}
+
+	/**
+	 * A small box at each node with a check of its own (a beam-column joint), in its band's
+	 * colour. Returns the failing ones, which are labelled too.
+	 */
+	private drawJointGlyphs(utilisation: { readonly [nodeId: number]: number }, bands: { readonly [band: string]: THREE.Color }): Extreme[] {
+		const glyphs: { at: THREE.Vector3; color: THREE.Color }[] = [];
+		const failing: Extreme[] = [];
+		for (const [key, value] of Object.entries(utilisation)) {
+			const id = Number(key);
+			const at = this.visibleNodes && !this.visibleNodes.has(id) ? undefined : this.index.point(id);
+			if (!at) {
+				continue;
+			}
+			const band = utilisationBand(value);
+			glyphs.push({ at, color: bands[band] });
+			if (band === 'fail') {
+				failing.push({ value, at });
+			}
+		}
+		if (glyphs.length) {
+			const size = this.index.size * 0.012;
+			const box = new THREE.BoxGeometry(size, size, size);
+			const mesh = new THREE.InstancedMesh(box, new THREE.MeshBasicMaterial({ toneMapped: false, depthTest: false, transparent: true }), glyphs.length);
+			mesh.renderOrder = 1;
+			const matrix = new THREE.Matrix4();
+			glyphs.forEach((glyph, i) => {
+				mesh.setMatrixAt(i, matrix.makeTranslation(glyph.at.x, glyph.at.y, glyph.at.z));
+				mesh.setColorAt(i, glyph.color);
+			});
+			mesh.computeBoundingSphere();
+			this.group.add(mesh);
+		}
+		// Many failing joints would bury the view in labels: only the worst few carry one.
+		return failing.sort((a, b) => b.value - a.value).slice(0, 5);
 	}
 
 	/** Where the label of element `id` goes, or undefined when it is not drawn. */

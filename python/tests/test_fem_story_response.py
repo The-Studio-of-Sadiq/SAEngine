@@ -304,3 +304,130 @@ def test_member_forces_of_a_column(solved: tuple[Path, Path, dict]) -> None:
     assert dead["deflection"][-1] == pytest.approx([0, 0, 0], abs=1e-12)
     with pytest.raises(ValueError):
         member_detail.member_forces(out, model, "nope")
+
+
+# ───────────────────── member axes, result tables and their export ─────────────────────
+
+
+def test_member_axes_put_a_beams_gravity_bending_in_m3() -> None:
+    from saengine.fem.derive import local_axes, member_axes, to_member_axes
+
+    # A beam along X: the analysis gives it local z up (gravity bends it about local y, My).
+    beam = np.array(local_axes(np.zeros(3), np.array([6.0, 0, 0])))
+    assert beam[2] == pytest.approx([0, 0, 1])
+    shown = member_axes(beam)
+    assert shown[1] == pytest.approx([0, 0, 1])  # axis 2 up
+    assert np.cross(shown[0], shown[1]) == pytest.approx(shown[2])  # right-handed
+    # Sagging (tension below: My < 0) is M3 > 0; the vertical shear Vz is V2.
+    forces = np.array([10.0, 0.0, -25.0, 0.0, -20.0, 0.0])  # N Vy Vz T My Mz
+    assert to_member_axes(forces, beam) == pytest.approx([10, -25, 0, 0, 0, 20])
+    # A column keeps its axes (the design and the 3D view already read it so).
+    column = np.array(local_axes(np.zeros(3), np.array([0, 0, 3.0])))
+    assert member_axes(column) == pytest.approx(column)
+
+
+def test_beam_forces_are_shown_in_member_axes(solved: tuple[Path, Path, dict]) -> None:
+    from saengine.fem.display import result_view
+
+    out, model, project = solved
+    dead = next(a["id"] for a in project["analyses"] if a["name"].startswith("D:"))
+    view = result_view(out, model, f"case:{dead}")
+    beams = [e for e in view["elements"] if e["name"].startswith("B") and "forces" in e]
+    assert beams
+    for element in beams:
+        f = np.asarray(element["forces"])
+        assert element["y"] == pytest.approx([0, 0, 1], abs=1e-6)  # axis 2 up
+        # Gravity: V2 and M3 carry it, V3 and M2 (sideways) nothing (N-X1: it was the other way).
+        assert np.abs(f[:, 1]).max() > 1e3 and np.abs(f[:, 5]).max() > 1e3
+        assert np.abs(f[:, 2]).max() < 1.0 and np.abs(f[:, 4]).max() < 1.0
+    beam = beams[0]["name"].split("#")[0]
+    detail = member_detail.member_forces(out, model, beam)
+    d = next(r for r in detail["results"] if r["label"].startswith("D"))
+    m3 = [row[5] for row in d["forces"]]
+    assert max(abs(v) for v in m3) > 1e3 and max(abs(row[4]) for row in d["forces"]) < 1.0
+
+
+def test_result_tables_one_at_a_time(solved: tuple[Path, Path, dict]) -> None:
+    from saengine.fem import result_tables as rt
+
+    out, model, _ = solved
+    index = rt.table_index(out, model)["results"]
+    dead = next(r for r in index if r["label"].startswith("D:"))
+    assert [t["id"] for t in dead["tables"]] == ["displacements", "reactions", "members"]
+    modal = next(r for r in index if r["label"].startswith("Modal"))
+    assert [t["id"] for t in modal["tables"]] == ["modal:0"]
+    # The bay ran D, EX and Modal: a combination needing L is listed, not formed.
+    combination = next(r for r in index if r["group"] == "combination")
+    assert combination["tables"] == [] and "not formed" in combination["warnings"][0]
+
+    members = rt.result_table(out, model, dead["key"], "members")
+    assert members["columns"][:3] == ["Member", "Station [m]", "P [kN]"]
+    names = {row[0] for row in members["rows"]}
+    assert all("#" not in n for n in names)  # members, not analysis pieces
+    beam_rows = [r for r in members["rows"] if r[0].startswith("B")]
+    assert max(abs(r[7]) for r in beam_rows) > 1 and max(abs(r[6]) for r in beam_rows) < 0.01
+    # kN with fixed decimals; a beam's stations run from 0 to its length.
+    assert all(round(v, rt.FORCE_DECIMALS) == v for r in members["rows"] for v in r[2:])
+    first = [r for r in beam_rows if r[0] == beam_rows[0][0]]
+    assert first[0][1] == 0.0 and first[-1][1] > first[0][1]
+    # The analysis's own forces, in kN: the station's V2 is the element's vertical shear.
+    reactions = rt.result_table(out, model, dead["key"], "reactions")
+    total = reactions["rows"][-1]
+    assert total[0] == "Total" and total[3] > 0  # the supports carry the weight
+    weight = sum(r[3] for r in reactions["rows"][:-1])
+    assert total[3] == pytest.approx(weight, abs=0.05)
+    frequencies = rt.result_table(out, model, modal["key"], "modal:0")
+    assert frequencies["rows"]
+
+
+def test_tables_export_streams_to_a_workbook(
+    solved: tuple[Path, Path, dict], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from openpyxl import load_workbook
+
+    from saengine.fem import result_tables as rt
+
+    out, model, _ = solved
+    path = tmp_path / "results.xlsx"
+    extra = [{"name": "Storeys", "columns": ["Level"], "rows": [["Base"]]}]
+    written = rt.export_xlsx(out, model, path, tables=["reactions", "members"], extra=extra)
+    book = load_workbook(path, read_only=True)
+    assert book.sheetnames == ["Support reactions", "Member forces", "Storeys"]
+    assert written["sheets"] == 3 and written["rows"] > 0
+    heading = next(book["Member forces"].iter_rows(max_row=1, values_only=True))
+    assert heading[:3] == ("Result", "Member", "Station [m]")
+    book.close()
+    assert not list(tmp_path.glob("*.partial.xlsx"))
+
+    # Stopped: no workbook at the path, and no half-written one beside it.
+    stopped = tmp_path / "stopped.xlsx"
+    real = rt.result_table
+
+    def stop_after_one(*args: object) -> dict:
+        rt.cancel_export()
+        return real(*args)
+
+    monkeypatch.setattr(rt, "result_table", stop_after_one)
+    with pytest.raises(rt.ExportCancelled):
+        rt.export_xlsx(out, model, stopped, tables=["reactions", "members"])
+    assert not stopped.exists() and not list(tmp_path.glob("*.partial.xlsx"))
+    assert rt.export_progress()["running"] is False
+
+
+def test_combination_labels_show_every_case() -> None:
+    from saengine.fem.combinations import combination_label
+    from saengine.library.settings import LoadCombination
+
+    present = {"D", "SD", "L", "EX"}
+    # The D factor applies to SD too: a name of factors is written out from them.
+    assert (
+        combination_label(
+            LoadCombination(name="1.2D + 1.0EX + 1.0L", D=1.2, EX=1.0, L=1.0), present
+        )
+        == "1.2D + 1.2SD + 1.0L + 1.0EX"
+    )
+    assert combination_label(LoadCombination(name="0.9D - 1.0EX", D=0.9, EX=-1.0), present) == (
+        "0.9D + 0.9SD − 1.0EX"
+    )
+    # A name of the engineer's own is kept.
+    assert combination_label(LoadCombination(name="Service", D=1.0, L=1.0), present) == "Service"

@@ -104,6 +104,11 @@ Methods:
   diagrams and demand points (once per run, cached beside the results; worker)
 - ``fem/exportXlsx`` ``{path, sheets: [{name, columns, rows, notes?}]}`` -> the tables written
   to an Excel workbook (``{path, sheets}``; worker)
+- ``fem/tableIndex`` ``{outDir, projectPath}`` -> the results with tables and their tables;
+  ``fem/table`` ``{outDir, projectPath, key, table}`` -> one of them; ``fem/exportTables``
+  ``{outDir, projectPath, path, keys?, tables?, extra?}`` -> the chosen tables streamed to a
+  workbook, ``fem/exportProgress`` / ``fem/exportCancel`` ``{}`` while it runs
+  (``saengine.fem.result_tables``; worker, except progress and cancel)
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -724,6 +729,54 @@ def create_server() -> JsonRPCServer:
     def _export_xlsx(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.export_xlsx(args["path"], args["sheets"])
+
+    @server.feature("fem/tableIndex")
+    @_in_worker
+    def _table_index(params: Any) -> dict[str, Any]:
+        from saengine.fem import result_tables
+
+        args = _plain(params)
+        return result_tables.table_index(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/table")
+    @_in_worker
+    def _table(params: Any) -> dict[str, Any]:
+        from saengine.fem import result_tables
+
+        args = _plain(params)
+        return result_tables.result_table(
+            args["outDir"], args["projectPath"], args["key"], args["table"]
+        )
+
+    @server.feature("fem/exportTables")
+    @_in_worker
+    def _export_tables(params: Any) -> dict[str, Any]:
+        from saengine.fem import result_tables
+
+        args = _plain(params)
+        try:
+            return result_tables.export_xlsx(
+                args["outDir"],
+                args["projectPath"],
+                args["path"],
+                args.get("keys"),
+                args.get("tables"),
+                args.get("extra"),
+            )
+        except result_tables.ExportCancelled:
+            return {"cancelled": True}
+
+    @server.feature("fem/exportProgress")
+    def _export_progress(params: Any) -> dict[str, Any]:
+        from saengine.fem import result_tables
+
+        return result_tables.export_progress()
+
+    @server.feature("fem/exportCancel")
+    def _export_cancel(params: Any) -> dict[str, Any]:
+        from saengine.fem import result_tables
+
+        return result_tables.cancel_export()
 
     @server.feature("mep/report")
     def _mep_report(params: Any) -> dict[str, Any]:

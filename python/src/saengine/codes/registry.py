@@ -33,6 +33,7 @@ Tables are validated through a validator registry (:func:`register`), filled by
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 import importlib
 import json
@@ -78,6 +79,13 @@ KIND_USER_FOLDERS: dict[str, str] = {
 BUILTIN_DIR = Path(__file__).resolve().parent / "packs"
 # A folder given directly (``saengine codepack validate <dir>``): above every other scope.
 _FOLDER: Scope = "folder"
+
+
+#: The warning of a built-in pack whose files changed on disk into one that cannot be used.
+CHANGED_ON_DISK = (
+    "the pack's files changed on disk while the engine was running and cannot be used as they "
+    "are now: the copy read before is used; restart the engine to read them again"
+)
 
 
 class CodePackError(Exception):
@@ -534,6 +542,10 @@ class Registry:
         self._lock = threading.RLock()
         self._read_cache: dict[Path, _Found] = {}
         self._resolved_cache: dict[tuple, tuple[tuple, _Resolved]] = {}
+        # The last sound resolution of each built-in pack, kept while its files change under a
+        # running engine (N-X17 of usability walk 2: an update of the app's own packs mid-run
+        # broke every design check with a raw CodePackError).
+        self._sound_builtin: dict[tuple, _Resolved] = {}
         self._hooks_cache: dict[tuple[Path, str], types.ModuleType] = {}
         self._in_progress: set[Path] = set()  # packs being resolved (guards against cycles)
         # Bumped whenever the installed packs or their trust change through this registry
@@ -589,6 +601,7 @@ class Registry:
         with self._lock:
             self._read_cache.clear()
             self._resolved_cache.clear()
+            self._sound_builtin.clear()
             self.generation += 1
 
     # discovery
@@ -784,6 +797,19 @@ class Registry:
             resolved = self._resolve(found, candidates)
         finally:
             self._in_progress.discard(key[1])
+        if found.scope == "builtin":
+            sound = self._sound_builtin.get(key)
+            if resolved.complete:
+                self._sound_builtin[key] = resolved
+            elif sound is not None:
+                # The app's own pack changed on disk into one this engine cannot use (a newer
+                # format, a half-written file): keep the copy it started with until a restart.
+                warning = Problem(severity="warning", message=CHANGED_ON_DISK)
+                pack = copy.copy(sound.pack)
+                pack._warnings = [*pack._warnings, warning]
+                resolved = dataclasses.replace(
+                    sound, problems=[*sound.problems, warning], pack=pack
+                )
         self._resolved_cache[key] = (world, resolved)
         return resolved
 

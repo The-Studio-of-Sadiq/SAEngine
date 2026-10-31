@@ -24,12 +24,13 @@ import hashlib
 import json
 import math
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from saengine.fem.story_response import _finite, load_cached
+from saengine.fem.story_response import _finite
 
 CACHE_FILE = "column-interaction.json"
 CACHE_SCHEMA = "saengine.columnInteraction/1"
@@ -67,6 +68,54 @@ def _chain(elements: list[Any]) -> list[tuple[Any, bool]]:
     return order
 
 
+@dataclass
+class MemberResults:
+    """The last steps a member's window needs of a static case: its elements' end forces, its
+    nodes' displacements and the load factors (the shape of ``StaticResults`` for them)."""
+
+    load_factors: np.ndarray
+    element_forces: dict[int, np.ndarray]
+    node_disp: dict[int, np.ndarray]
+
+
+def _read_some(group: Any, name: str, keys: list[int]) -> dict[int, np.ndarray]:
+    """The arrays of ``group[name]`` of the ids ``keys`` only, reading just their slices of a
+    packed group (one id's values, not the whole case's)."""
+    if name not in group:
+        return {}
+    sub = group[name]
+    if not sub.attrs.get("packed"):
+        return {k: sub[str(k)][()] for k in keys if str(k) in sub}
+    ids = sub["ids"][()]
+    order = np.argsort(ids)
+    offsets, shapes, values = sub["offsets"], sub["shapes"], sub["values"]
+    out: dict[int, np.ndarray] = {}
+    for key in keys:
+        at = int(np.searchsorted(ids, key, sorter=order))
+        if at >= len(ids) or int(ids[order[at]]) != key:
+            continue
+        i = int(order[at])
+        start, end = (int(v) for v in offsets[i : i + 2])
+        row = shapes[i].tolist()
+        out[key] = values[start:end].reshape(row[1 : 1 + row[0]])
+    return out
+
+
+def member_results(
+    entry: dict[str, Any], out_dir: str | Path, element_ids: list[int], node_ids: list[int]
+) -> MemberResults:
+    """What :func:`member_forces` reads of a static case: only the member's elements and nodes
+    (a whole case of a tall building is tens of megabytes)."""
+    import h5py
+
+    with h5py.File(Path(out_dir) / entry["files"][0], "r") as f:
+        return MemberResults(
+            load_factors=f["load_factors"][()] if "load_factors" in f else np.empty(0),
+            element_forces=_read_some(f, "element_forces", element_ids),
+            node_disp=_read_some(f, "node_disp", node_ids),
+        )
+
+
 def _section_name(project: dict[str, Any], element_id: int) -> str | None:
     """The name of an element's section (SAEngine: the object type's, ``C400x600 column``)."""
     element = next((e for e in project.get("elements", []) if e.get("id") == element_id), {})
@@ -81,16 +130,18 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
     {"x", "y", "z"}, "stations": [x], "results": [{"key", "label", "kind", "forces": [[N, Vy, Vz, T, My,
     Mz]], "deflection": [[u1, u2, u3]], "displacement": [[ux, uy, uz]]}], "notes"}``: stations in
     m from the member's start (the end with the lower node, the bottom of a column); forces as
-    at a cut, of the part beyond it on the part before (the first element's local axes; an
+    at a cut, of the part beyond it on the part before (the first element's member axes,
+    :func:`saengine.fem.derive.member_axes`: a beam's axis 2 up; an
     element running backwards has its forces turned to them); the deflection in the local axes
     relative to the chord between the ends; the displacement global."""
-    from opensees_studio.services.results import StaticResults
 
+    from saengine.fem.derive import member_axes
     from saengine.fem.display import (
         _case_loads,
         _code,
         _elements,
         _last,
+        _load,
         _manifest,
         element_displacements,
         element_section_forces,
@@ -100,12 +151,20 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
     manifest = _manifest(out_dir)
     if manifest is None:
         raise ValueError("there are no results; run the analysis first")
-    project = json.loads(Path(project_path).read_text(encoding="utf-8"))
-    own = [e for e in _elements(project) if member_of(e.name) == member]
+    project = _load(project_path)
+    # Only this member's elements and their nodes are read (a tall building has thousands).
+    mine = [
+        e
+        for e in project.get("elements", [])
+        if member_of(e.get("name") or str(e.get("id"))) == member
+    ]
+    own = _elements({**project, "elements": mine})
     if not own:
         raise ValueError(f"{member} is not a frame member of the analysis model")
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project["nodes"]}
     chain = _chain(own)
+    element_ids = [e.id for e in own]
+    node_ids = sorted({n for e in own for n in (e.i, e.j)})
     # Run from the lower end (a column's bottom), else from the end nearer the origin.
     first, last = chain[0], chain[-1]
     a = coords[first[0].j if first[1] else first[0].i]
@@ -113,7 +172,8 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
     if (b[2] - a[2] < -1e-6) or (abs(b[2] - a[2]) <= 1e-6 and tuple(b[:2]) < tuple(a[:2])):
         chain = [(e, not back) for e, back in reversed(chain)]
         a, b = b, a
-    axes = chain[0][0].axes
+    # The member axes (a beam's axis 2 up): the forces are turned to them below.
+    axes = member_axes(chain[0][0].axes)
     if chain[0][1]:
         axes = np.array([-axes[0], axes[1], -axes[2]])  # the same right-handed frame, reversed
     chord = b - a
@@ -126,20 +186,25 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
     by_code: dict[str, tuple[dict[str, Any], Any]] = {}
     keys: list[tuple[str, str, str, list[tuple[float, Any, int]]]] = []
     for entry in manifest["cases"]:
-        results = load_cached(entry, out_dir)
-        if isinstance(results, StaticResults):
-            by_code[_code(entry["case_name"])] = (entry, results)
-            keys.append(
-                (
-                    f"case:{entry['case_id']}",
-                    entry["case_name"],
-                    "static",
-                    [(1.0, results, int(entry["case_id"]))],
-                )
+        if entry.get("result_type") != "StaticResults":
+            continue
+        results = member_results(entry, out_dir, element_ids, node_ids)
+        by_code[_code(entry["case_name"])] = (entry, results)
+        keys.append(
+            (
+                f"case:{entry['case_id']}",
+                entry["case_name"],
+                "static",
+                [(1.0, results, int(entry["case_id"]))],
             )
+        )
     notes: list[str] = []
     if project.get("meta", {}).get("author") == "SAEngine":
-        from saengine.fem.combinations import combination_factors, settings_beside
+        from saengine.fem.combinations import (
+            combination_factors,
+            combination_label,
+            settings_beside,
+        )
 
         settings = settings_beside(project_path)
         for number, combination in enumerate(settings.combinations if settings else [], 1):
@@ -148,9 +213,21 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
                 parts = [
                     (f, by_code[c][1], int(by_code[c][0]["case_id"])) for c, f in factors.items()
                 ]
-                keys.append((f"combination:{number}", combination.name, "combination", parts))
+                label = combination_label(combination, set(by_code))
+                keys.append((f"combination:{number}", label, "combination", parts))
     thermal = load_corrections(project_path)
     code_of = {int(e["case_id"]): _code(e["case_name"]) for e in manifest["cases"]}
+    # Per case, once: the member's uniform loads and its temperature end-force corrections.
+    wanted = set(element_ids)
+    case_loads: dict[int, dict[int, np.ndarray]] = {}
+    corrections: dict[int, dict[int, np.ndarray]] = {}
+    for *_, parts in keys:
+        for _, _, aid in parts:
+            if aid not in case_loads:
+                every = _case_loads(project, aid)
+                case_loads[aid] = {k: v for k, v in every.items() if k in wanted}
+                found = end_force_corrections(thermal, code_of.get(aid, ""))
+                corrections[aid] = {k: v for k, v in found.items() if k in wanted}
 
     stations: list[float] = []
     offset = 0.0
@@ -167,16 +244,13 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
         loads: dict[int, np.ndarray] = {}
         for factor, results, analysis_id in parts:
             reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
-            for element_id, w in _case_loads(project, analysis_id).items():
+            for element_id, w in case_loads[analysis_id].items():
                 loads[element_id] = loads.get(element_id, np.zeros(3)) + factor * reached * w
         forces_rows, displacement_rows = [], []
         for element, backwards in chain:
             end = sum(
                 f
-                * (
-                    _last(r.element_forces, element.id, 12)
-                    + end_force_corrections(thermal, code_of.get(aid, "")).get(element.id, 0.0)
-                )
+                * (_last(r.element_forces, element.id, 12) + corrections[aid].get(element.id, 0.0))
                 for f, r, aid in parts
             )
             disp = {

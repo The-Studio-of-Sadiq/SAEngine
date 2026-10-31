@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,6 +71,34 @@ def combination_factors(
         if value:
             factors[case] = factors.get(case, 0.0) + value
     return factors
+
+
+#: A combination's name that is just its factors (``1.2D + 1.0EX + 1.0L``).
+_FACTOR_NAME = re.compile(
+    r"^\s*[-+]?\s*\d*\.?\d*\s*[A-Za-z]+(\s*[-+]\s*\d*\.?\d*\s*[A-Za-z]+)*\s*$"
+)
+
+
+def combination_label(
+    combination: LoadCombination, present: set[str] | frozenset[str] | None = None
+) -> str:
+    """The name a combination is shown by: a name that is only factors is written out from
+    the factors it applies (the D factor applies to SD too: ``1.2D + 1.2SD + 1.0L``); any other
+    name is kept. One label on every surface (the 3D view, the tables, the member window)."""
+    name = combination.name
+    if not _FACTOR_NAME.match(name) or not re.search(r"\d", name):
+        return name
+    factors = combination_factors(combination, present)
+    if not factors:
+        return name
+    terms = []
+    for case, value in factors.items():
+        magnitude = f"{abs(value):.2f}".rstrip("0")
+        magnitude = magnitude + "0" if magnitude.endswith(".") else magnitude
+        sign = "−" if value < 0 else "+"
+        terms.append((sign, f"{magnitude}{case}"))
+    text = ("−" if terms[0][0] == "−" else "") + terms[0][1]
+    return text + "".join(f" {sign} {term}" for sign, term in terms[1:])
 
 
 class CaseCombination(LoadCombination):

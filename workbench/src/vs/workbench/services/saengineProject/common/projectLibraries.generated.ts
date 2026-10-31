@@ -4815,6 +4815,21 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Pushover',
 			type: 'object',
 		},
+		Report: {
+			additionalProperties: false,
+			description: 'The printed design report of 11 Exports.',
+			properties: {
+				appendix: {
+					default: 'governing',
+					description: 'Which elements the appendix prints every check of: governing (the element of each object type and storey with the largest utilisation, and every element that fails), all (every element: hundreds of pages for a tall building) or none. The member tables list every element either way.',
+					enum: ['governing', 'all', 'none'],
+					title: 'Appendix of element checks',
+					type: 'string',
+				},
+			},
+			title: 'Report',
+			type: 'object',
+		},
 		Seismic: {
 			additionalProperties: false,
 			properties: {
@@ -5233,6 +5248,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Drawings',
 			description: 'The title block and sheets of the structural drawings (11 Exports).',
 		},
+		report: {
+			$ref: '#/$defs/Report',
+			description: 'The printed design report (11 Exports).',
+			title: 'Design report',
+		},
 	},
 	required: ['project', 'floorLoad', 'roofLoad'],
 	title: 'SAEngine project settings',
@@ -5638,6 +5658,9 @@ export const DEFAULT_SETTINGS: object = {
 		detailScale: 25,
 		developmentLength: 'simplified',
 		curtail: true,
+	},
+	report: {
+		appendix: 'governing',
 	},
 };
 

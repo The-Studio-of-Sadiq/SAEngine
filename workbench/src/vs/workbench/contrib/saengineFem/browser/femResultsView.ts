@@ -61,6 +61,8 @@ export interface IFemResultsEditorOptions extends IEditorOptions {
 export class FemResultsInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.femResults';
+	/** A member's page: its own input type, so the navigator files it under Model and Analysis (where the member is picked), not under the charts. */
+	static readonly MEMBER_ID = 'workbench.input.saengine.femMember';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.femResults';
 
 	/** What the tab shows, kept while another tab of its group is shown. */
@@ -75,7 +77,7 @@ export class FemResultsInput extends EditorInput {
 	}
 
 	override get typeId(): string {
-		return FemResultsInput.ID;
+		return this.page.kind === 'member' ? FemResultsInput.MEMBER_ID : FemResultsInput.ID;
 	}
 
 	override get editorId(): string {
@@ -152,7 +154,7 @@ function withUnit(label: string, unit: IUnit): string {
 }
 
 function fixed(value: number, digits: number): string {
-	return formatNumber(value, { maxDecimals: digits });
+	return formatNumber(value, { decimals: digits });
 }
 
 const AXIS_COLORS: { readonly [axis in FemAxis2]: ChartColor } = { X: 'blue', Y: 'orange' };
@@ -458,18 +460,26 @@ export class FemResultsEditor extends EditorPane {
 		if (!input || input.page.kind !== 'member' || this.interactionState === 'loading') {
 			return;
 		}
-		const request = this.request;
+		const member = input.page.member;
+		const model = input.model.toString();
+		// The page may refresh during the minutes this takes (the results' files change): the
+		// answer still belongs to it while it shows the same member of the same model (N-X16 of
+		// usability walk 2: 282 s of work, then the button again and nothing shown).
+		const current = () => {
+			const shown = this.typed;
+			return !!shown && shown.page.kind === 'member' && shown.page.member === member && shown.model.toString() === model;
+		};
 		this.interactionState = 'loading';
 		this.render();
 		try {
-			const answer = await this.commandService.executeCommand<IFemColumnInteraction>(FEM_COLUMN_INTERACTION_COMMAND, input.model, input.page.member);
-			if (request !== this.request) {
+			const answer = await this.commandService.executeCommand<IFemColumnInteraction>(FEM_COLUMN_INTERACTION_COMMAND, input.model, member);
+			if (!current()) {
 				return;
 			}
-			this.interaction = answer?.columns[input.page.member];
+			this.interaction = answer?.columns[member];
 			this.interactionState = this.interaction ? 'idle' : 'none';
 		} catch (error) {
-			if (request !== this.request) {
+			if (!current()) {
 				return;
 			}
 			this.interactionState = 'failed';
@@ -686,8 +696,8 @@ export class FemResultsEditor extends EditorPane {
 				series.push({
 					name: axis,
 					color: AXIS_COLORS[axis],
-					// Storey forces act at the levels: points, not a line between them.
-					style: quantity === 'force' ? 'points' : 'line',
+					// Storey forces act at the levels: a line through them, each level marked.
+					style: 'line',
 					points: profile.map(p => [p.value * unit.scale, p.z]),
 					tooltips: profile.map(p => `${axis}, ${p.level} (${p.z.toFixed(2)} m): ${[show(p.value), unit.unit].filter(Boolean).join(' ')}`),
 				});
@@ -761,6 +771,7 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(grid, {
 			title: localize('femResults.participation', "Mass Participation"),
 			xLabel: localize('femResults.mode', "Mode"),
+			integerX: true,
 			yLabel: localize('femResults.percent', "Mass [%]"),
 			series,
 			guides: [{ axis: 'y', value: required, label: localize('femResults.requiredLine', "{0} % required", required), color: 'red' }],
@@ -770,6 +781,7 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(grid, {
 			title: localize('femResults.periods', "Periods"),
 			xLabel: localize('femResults.mode', "Mode"),
+			integerX: true,
 			yLabel: localize('femResults.period', "Period [s]"),
 			series: [{
 				name: localize('femResults.period', "Period [s]"), color: 'purple', style: 'bars', bar: { offset: 0, width: 0.6 },

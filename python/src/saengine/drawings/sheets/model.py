@@ -276,6 +276,10 @@ class BeamDetail:
         return next((z for z in self.links if z.start - 1e-6 <= x <= z.end + 1e-6), None)
 
 
+NOT_DESIGNED = "NOT DESIGNED"
+"""What a member without reinforcement shows where its bars would be: never "-" on a sheet."""
+
+
 @dataclass
 class ColumnSection:
     """A column's section over one storey."""
@@ -299,11 +303,20 @@ class ColumnSection:
         return f"Ø{self.b:g}" if self.round else f"{self.b:g}x{self.h:g}"
 
     @property
+    def designed(self) -> bool:
+        """Whether the section has bars: a column type without reinforcement (one that was never
+        designed) has none, and its cell says so rather than showing an empty section."""
+        return bool(self.bars)
+
+    @property
     def bars_text(self) -> str:
-        return " + ".join(bar_text(n, d) for n, d in self.bars) or "-"
+        return " + ".join(bar_text(n, d) for n, d in self.bars) or NOT_DESIGNED
 
     @property
     def ties_text(self) -> list[str]:
+        if self.zone_spacing and abs(self.zone_spacing - self.tie_spacing) < 0.5:
+            # the same spacing in lo and elsewhere: one spacing over the whole height
+            return [f"Ø{self.tie_dia:g}@{self.tie_spacing:g} throughout"]
         if self.zone_spacing and self.zone_length:
             return [
                 f"Ø{self.tie_dia:g}@{self.zone_spacing:g} in lo {self.zone_length:g}",
@@ -589,3 +602,6 @@ class DrawingSet:
     # its sheets draw; None: no architectural sheets
     architecture: Any = None
     problems: list[str] = field(default_factory=list)
+    # members without reinforcement (never designed): {kind: {object type: count}}; while there
+    # are any the sheets are not for construction
+    undesigned: dict[str, dict[str, int]] = field(default_factory=dict)

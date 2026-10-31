@@ -378,10 +378,13 @@ class FactorsTable(TableModel):
 
 
 class BarDiameters(_Group):
-    """Bar size sets [mm] by use (extra sets allowed)."""
+    """Bar size sets [mm] by use (extra sets allowed; an extra set keeps its sizes as printed,
+    integers or decimals: 9 Substructure's minimum mesh is written as given)."""
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
-    __pydantic_extra__: dict[str, list[Positive]] = Field(init=False)  # type: ignore[assignment]
+    __pydantic_extra__: dict[  # type: ignore[assignment]
+        str, list[Annotated[int, Field(gt=0)] | Annotated[float, Field(gt=0)]]
+    ] = Field(init=False)
 
     all: list[Positive] = Field(min_length=1)
     main: list[Positive] = Field(min_length=1)
@@ -693,6 +696,652 @@ class SlabCoefficientsTable(TableModel):
     )
 
 
+# ───────────────────────────────────── building services ─────────────────────────────────────
+# The services tables keep the numbers as the code prints them: an integer stays an integer (a
+# report prints 260 lpcd, not 260.0), a decimal stays a decimal.
+
+#: A number as printed (integer or decimal), positive or at least zero.
+Num = Annotated[int, Field()] | Annotated[float, Field()]
+PosNum = Annotated[int, Field(gt=0)] | Annotated[float, Field(gt=0)]
+NonNegNum = Annotated[int, Field(ge=0)] | Annotated[float, Field(ge=0)]
+
+
+class _Services(TableModel):
+    """A services table: ``pages`` names where each clause is (clause id -> "BNBC 2020 Part 8
+    Table 8.5.5 (p1046)"), which the program cites in its reports."""
+
+    pages: dict[str, str] = Field(default_factory=dict, description="Clause id -> citation.")
+
+
+class WaterOccupancy(_Row):
+    label: str
+    table: str = Field(description='The table the row is in, e.g. "8.5.1(a)".')
+    row: str = Field(description="The row's category as printed.")
+    full: NonNegNum | None = Field(description="lpcd, full facility; null where printed '---'.")
+    restricted: NonNegNum | None = Field(description="lpcd, restricted facility.")
+    group: str = Field(description="Part 3 occupancy group.")
+    unit: Literal["person", "bed", "seat"] = "person"
+
+
+class SizeStep(_Row):
+    upTo: PosNum | None = Field(description="Upper bound of the step; null: above the last.")
+    diameter: PosNum
+
+
+class VelocityLimit(_Row):
+    diameter: PosNum
+    velocity: PosNum = Field(description="[m/s]")
+
+
+class HunterRow(_Row):
+    units: PosNum = Field(description="Fixture units.")
+    tank: PosNum = Field(description="Flow with flush tanks [l/min].")
+    valve: PosNum = Field(description="Flow with flush valves [l/min].")
+
+
+class SupplyUnitsRow(_Row):
+    cold: NonNegNum
+    hot: NonNegNum
+    total: NonNegNum
+    minimum: Annotated[int, Field(ge=0)] = Field(description="Minimum supply pipe [mm].")
+
+
+class DrainageUnitsRow(_Row):
+    units: NonNegNum
+    outlet: Annotated[int, Field(ge=0)] = Field(description="Minimum waste outlet [mm].")
+    soil: bool = Field(description="A soil appliance (to a soil stack).")
+
+
+class TrapUnits(_Row):
+    diameter: PosNum
+    units: PosNum
+
+
+class StackRow(_Row):
+    diameter: PosNum
+    branch: PosNum = Field(description="Any horizontal fixture branch.")
+    threeStoreys: PosNum | None = Field(description="One stack of 3 storeys or 3 intervals.")
+    stackTotal: PosNum | None = Field(description="More than 3 storeys: total for the stack.")
+    storeyTotal: PosNum | None = Field(description="More than 3 storeys: total at one storey.")
+
+
+class BuildingDrainRow(_Row):
+    diameter: PosNum
+    units: list[PosNum | None] = Field(description="Fixture units by slope (drainSlopes).")
+
+
+class VentRow(_Row):
+    diameter: PosNum
+    units: PosNum = Field(description="Fixture units connected.")
+    lengths: dict[int, PosNum] = Field(description="Vent diameter -> maximum length [m].")
+
+
+class BranchVentRow(_Row):
+    diameter: PosNum
+    slope: PosNum = Field(description="[mm/m]")
+    lengths: dict[int, PosNum | None] = Field(
+        description="Vent diameter -> maximum length [m]; null: no limit (NL)."
+    )
+
+
+class SepticTank(_Group):
+    minVolume: PosNum = Field(description="[l]")
+    minWidth: PosNum = Field(description="[mm]")
+    minDepth: PosNum = Field(description="Liquid depth [mm].")
+    lengthRatio: tuple[PosNum, PosNum] = Field(description="Length: at least, at most (widths).")
+    maxUsers: PosNum
+    sludge: PosNum = Field(description="[l/capita/year]")
+    clearance: PosNum = Field(description="Liquid level to the cover slab [mm].")
+    retention: PosNum = Field(description="[day]")
+    desludging: PosNum = Field(description="[year]")
+    twoChambers: PosNum = Field(description="Two chambers above this volume [l].")
+    inletFraction: Share
+    coverLive: PosNum = Field(description="Cover design live load [kPa].")
+    flowCity: PosNum = Field(description="Waste water of groups A, C, D [lpcd].")
+    flowOther: PosNum = Field(description="Waste water of other groups [lpcd].")
+
+
+class Reduction(_Row):
+    factor: Share
+
+
+class AbsorptionRow(_Row):
+    rate: PosNum = Field(description="Percolation [min / 25 mm], upper bound.")
+    trench: PosNum = Field(description="Trench bottom [l/m²/day].")
+    pit: PosNum = Field(description="Seepage pit wall [l/m²/day].")
+
+
+class LeaderRow(_Row):
+    diameter: PosNum
+    area: PosNum = Field(description="Maximum projected roof area [m²].")
+    flow: PosNum = Field(description="[l/min]")
+
+
+class SlopedPipeRow(_Row):
+    diameter: PosNum
+    slopes: dict[int, tuple[PosNum, PosNum]] = Field(
+        description="Slope [mm/m] -> (area m², flow l/min)."
+    )
+
+
+class PlumbingTable(_Services):
+    """BNBC 2020 Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
+    data where the code is silent (marked in ``sources``)."""
+
+    occupancies: dict[str, WaterOccupancy]
+    familySize: Annotated[int, Field(gt=0)]
+    officeAreaPerPerson: PosNum
+    roofTankFraction: PosNum
+    reservoirFraction: PosNum
+    fireReserveHours: NonNegNum
+    consumptionHours: PosNum
+    peakFactor: PosNum
+    tankDrain: list[SizeStep]
+    tankOverflow: list[SizeStep]
+    velocityLimits: list[VelocityLimit]
+    maxHeadLoss: PosNum
+    supplyDiameters: list[PosNum]
+    flowPressureTank: PosNum
+    flowPressureValve: PosNum
+    maxStaticHead: PosNum
+    highRise: PosNum
+    hunter: list[HunterRow]
+    supplyUnits: dict[str, SupplyUnitsRow]
+    drainageUnits: dict[str, DrainageUnitsRow]
+    trapUnits: list[TrapUnits]
+    stacks: list[StackRow]
+    drainSlopes: list[PosNum]
+    buildingDrains: list[BuildingDrainRow]
+    ventStacks: list[VentRow]
+    branchVents: list[BranchVentRow]
+    drainVelocity: tuple[PosNum, PosNum, PosNum] = Field(
+        description="Least, self-cleansing and largest velocity [m/s]."
+    )
+    septic: SepticTank
+    septicReduction: dict[str, Reduction]
+    disposalDistances: dict[str, dict[str, NonNegNum | None]]
+    treatmentTankDistances: dict[str, NonNegNum]
+    absorption: list[AbsorptionRow]
+    seepageCapacityFactor: PosNum
+    seepageAboveWaterTable: NonNegNum
+    percolationBySoil: dict[str, PosNum]
+    tableRainfall: PosNum
+    defaultRainfall: PosNum
+    harvestPlot: PosNum
+    harvestDays: dict[str, Annotated[int, Field(gt=0)]]
+    leaders: list[LeaderRow]
+    gutters: list[SlopedPipeRow]
+    stormDrains: list[SlopedPipeRow]
+    minStormDrain: PosNum
+    outsideDiameter: dict[str, dict[int, PosNum]]
+    hazenC: dict[str, PosNum]
+    sleeveClearance: NonNegNum
+    sleeveSizes: list[PosNum]
+    shaftClearance: NonNegNum
+    wetRoomKinds: dict[str, str]
+    roomFixtures: dict[str, dict[str, Annotated[int, Field(ge=0)]]]
+
+    @model_validator(mode="after")
+    def _keys(self) -> PlumbingTable:
+        for name in ("septicReduction",):
+            for key in getattr(self, name):
+                if key not in self.occupancies:
+                    raise ValueError(f"{name}: no occupancy '{key}'")
+        for kind, fixtures in self.roomFixtures.items():
+            if kind not in self.wetRoomKinds:
+                raise ValueError(f"roomFixtures: no wet room kind '{kind}'")
+            for fixture in fixtures:
+                if fixture not in self.supplyUnits:
+                    raise ValueError(f"roomFixtures.{kind}: no fixture '{fixture}'")
+        return self
+
+
+class Station(_Row):
+    """A row of Table 8.2.2: outside design conditions for summer [°C]."""
+
+    name: str
+    cooling: dict[str, tuple[Num, Num]] = Field(
+        description="Level (0.4, 1, 2 %) -> (DB, mean coincident WB): the cooling load."
+    )
+    evaporation: dict[str, tuple[Num, Num]] = Field(
+        description="Level -> (WB, mean coincident DB): cooling towers, evaporative equipment."
+    )
+    range: Num = Field(description="Mean daily range of the dry bulb.")
+    latitude: Num = Field(ge=-90, le=90, description="[°N]")
+    longitude: Num = Field(ge=-180, le=180, description="[°E]")
+
+
+class InsideRow(_Row):
+    """A row of Table 8.2.1: acceptable inside design conditions for summer."""
+
+    label: str
+    db: tuple[Num, Num] = Field(description="Dry bulb range [°C].")
+    rh: tuple[Num, Num] | None = Field(description="Relative humidity range [%]; null: '--'.")
+
+
+class VentilationRow(_Row):
+    """A row of Table 8.2.3; null where the table prints '-'."""
+
+    label: str
+    group: str
+    perPerson: NonNegNum | None = Field(description="Outdoor air per person [l/s].")
+    perArea: NonNegNum | None = Field(description="Outdoor air per floor area [l/s per m²].")
+    density: NonNegNum | None = Field(description="Persons per 100 m² (note a).")
+    exhaust: NonNegNum | None = Field(default=None, description="[l/s per m²]")
+    exhaustNote: str = Field(default="", description="An exhaust given otherwise (per room).")
+    ach: NonNegNum | None = Field(default=None, description="Air changes per hour.")
+    inside: int | None = Field(default=None, description="Row of 'inside' that applies.")
+
+
+class LeastWindowShare(_Group):
+    """Sec 4.5.1.2(a)-(c): the least window area as a share of the external wall, by the room's
+    depth [m]."""
+
+    shallowDepth: PosNum = Field(description="Rooms less deep than this take 'shallow'.")
+    deepDepth: PosNum = Field(description="Rooms deeper than this take 'deep'.")
+    shallow: Share
+    medium: Share
+    deep: Share
+
+
+class HvacTable(_Services):
+    """BNBC 2020 Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
+    stated assumptions where the code is silent (marked in ``sources``, listed in
+    ``assumptions`` for the report)."""
+
+    stations: dict[str, Station]
+    defaultStation: str = Field(description="The station of a project without a site location.")
+    designLevel: str = Field(description="The Table 8.2.2 level for cooling (Sec 2.12.2.1).")
+    designMonths: list[Annotated[int, Field(ge=1, le=12)]]
+    indoorDb: Num
+    maxIndoorOutdoorDifference: PosNum
+    settingsStation: dict[str, str] = Field(description="Project Settings location -> station.")
+    inside: dict[int, InsideRow]
+    ventilation: dict[str, VentilationRow]
+    lpd: dict[str, PosNum] = Field(description="Table 3.4.5 [W/m²].")
+    groupLpd: dict[str, str] = Field(description="Ventilation group -> row of 'lpd'.")
+    shgcByWwr: dict[int, tuple[PosNum, PosNum]] = Field(
+        description="Window-to-wall ratio [%] -> (SHGC, SC) limit."
+    )
+    overhangA: dict[float, NonNegNum] = Field(description="Projection factor -> correction A.")
+    overhangFactor: PosNum
+    leastWindowShare: LeastWindowShare
+    equipment: dict[str, NonNegNum] = Field(description="Ventilation group -> [W/m²].")
+    equipmentDefault: NonNegNum
+    activity: dict[str, PosNum] = Field(description="Ventilation group -> heat per person [W].")
+    activityDefault: PosNum
+    supplyAirTemperature: Num
+    supplyAirHumidity: PosNum
+    designWindSpeed: NonNegNum
+    siteElevation: Num
+    timeZone: Num = Field(description="Hours from UTC.")
+    assumptions: list[str]
+
+    @model_validator(mode="after")
+    def _keys(self) -> HvacTable:
+        if self.defaultStation not in self.stations:
+            raise ValueError(f"defaultStation: no station '{self.defaultStation}'")
+        if not any(self.designLevel in s.cooling for s in self.stations.values()):
+            raise ValueError(f"designLevel: no station has the level '{self.designLevel}'")
+        for location, station in self.settingsStation.items():
+            if station not in self.stations:
+                raise ValueError(f"settingsStation.{location}: no station '{station}'")
+        for key, row in self.ventilation.items():
+            if row.inside is not None and row.inside not in self.inside:
+                raise ValueError(f"ventilation.{key}: no inside row {row.inside}")
+        for group, row in self.groupLpd.items():
+            if row not in self.lpd:
+                raise ValueError(f"groupLpd.{group}: no lpd row '{row}'")
+        return self
+
+
+class ElectricalUse(_Row):
+    """A row of Table 8.1.17: the minimum unit load [W/m²]."""
+
+    label: str
+    nonAc: NonNegNum
+    ac: NonNegNum | None = Field(description="With air conditioning; null: the table gives none.")
+    lightningA: PosNum = Field(description="Table 8.1.27(a) index A of the row's kind.")
+    lightningC: PosNum = Field(description="Table 8.1.27(b) index C of the row's kind.")
+
+
+class SubstationArea(_Row):
+    number: Annotated[int, Field(gt=0)] = Field(description="Number of transformers.")
+    kva: PosNum
+    transformerArea: PosNum = Field(description="[m²]")
+    totalArea: PosNum = Field(description="With HT and LT panels, without generators [m²].")
+
+
+class IndexRow(_Row):
+    label: str
+    index: PosNum
+
+
+class IndexStep(_Row):
+    upTo: PosNum
+    index: PosNum
+
+
+class IecLevel(_Row):
+    sphere: PosNum = Field(description="Rolling sphere radius [m].")
+    mesh: PosNum = Field(description="Mesh size [m].")
+    downSpacing: PosNum = Field(description="Typical down-conductor spacing [m].")
+
+
+class TransformerUnit(_Row):
+    length: PosNum
+    width: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+    oil: PosNum = Field(description="[litres]")
+
+
+class GeneratorSet(_Row):
+    length: PosNum
+    width: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+
+
+class Busbar(_Row):
+    width: PosNum
+    depth: PosNum
+    mass: PosNum = Field(description="[kg/m]")
+
+
+class CableOd(_Row):
+    amps: PosNum
+    od: PosNum = Field(description="Outside diameter [mm].")
+
+
+class Panel(_Row):
+    width: PosNum
+    depth: PosNum
+    height: PosNum
+    mass: PosNum = Field(description="[kg]")
+    kvar: PosNum | None = Field(default=None, description="A capacitor bank's kvar.")
+
+
+class LtPanel(_Group):
+    section: PosNum = Field(description="Section width [mm].")
+    depth: PosNum
+    height: PosNum
+    massPerM: PosNum = Field(description="[kg/m]")
+    ampsPerSection: PosNum = Field(description="Amperes per section beyond the incomer.")
+
+
+class ElectricalTable(_Services):
+    """BNBC 2020 Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
+    data for the first layout and SAEngine practice where the code is silent (marked in
+    ``sources``)."""
+
+    uses: dict[str, ElectricalUse]
+    loadFactor: Share
+    substationKw: PosNum
+    powerFactor: Share
+    ltVoltage: PosNum
+    substationHeight: tuple[PosNum, PosNum]
+    transformerClearance: dict[str, PosNum]
+    transformerSpacing: dict[str, PosNum]
+    soakPitOil: PosNum
+    substationAreas: list[SubstationArea]
+    transformerSizes: list[PosNum]
+    transformerMax: PosNum
+    generatorClearance: PosNum
+    generatorSpacing: PosNum
+    generatorAreas: dict[int, PosNum] = Field(description="Capacity [kW] -> room area [m²].")
+    generatorSizes: list[PosNum]
+    generatorPf: Share
+    fuelRate: PosNum
+    fuelHours: PosNum
+    essentialShare: Share
+    dieselDensity: PosNum
+    transformerOilDensity: PosNum
+    liftStoreys: Annotated[int, Field(gt=0)]
+    liftHeight: PosNum
+    liftStandbyStoreys: Annotated[int, Field(gt=0)]
+    liftStandbyHeight: PosNum
+    shaftStoreys: Annotated[int, Field(gt=0)]
+    shaftHeight: PosNum
+    shaftSize: tuple[PosNum, PosNum]
+    shaftArea: PosNum
+    cableRiserStoreys: Annotated[int, Field(gt=0)]
+    cableRiserArea: PosNum
+    busbarStoreys: Annotated[int, Field(gt=0)]
+    cableSpacing: PosNum
+    busbarRange: tuple[PosNum, PosNum]
+    openingClearance: NonNegNum
+    trayClearance: NonNegNum
+    openingStep: PosNum
+    trayHeadroom: NonNegNum
+    trayFill: Share
+    trayWidths: list[PosNum]
+    systemEarthOhm: PosNum
+    electrodeSpacing: PosNum
+    earthPit: PosNum
+    lightningEarthOhm: dict[str, PosNum]
+    construction: dict[str, IndexRow]
+    structureUse: dict[str, IndexRow]
+    contents: dict[str, IndexRow]
+    isolation: dict[str, IndexRow]
+    terrain: dict[str, IndexRow]
+    heightIndex: list[IndexStep]
+    thunderIndex: list[IndexStep]
+    thunderOver: PosNum
+    thunderDefault: PosNum
+    marginalRisk: PosNum
+    alwaysHeight: PosNum
+    spikeArea: PosNum
+    spikeHeight: PosNum
+    roofConductorReach: PosNum
+    downSingleArea: PosNum
+    downFirstArea: PosNum
+    downStepArea: PosNum
+    downPerimeter: PosNum
+    testBoxHeight: PosNum
+    lightningSizes: dict[str, str]
+    iecLevels: dict[str, IecLevel]
+    rebarOhm: PosNum
+    transformerOil: dict[int, TransformerUnit] = Field(description="kVA -> unit.")
+    dryMass: PosNum
+    generatorSets: dict[int | float, GeneratorSet] = Field(description="kVA -> set.")
+    busbars: dict[int, Busbar] = Field(description="Rating [A] -> trunking.")
+    cableOd: list[CableOd]
+    ltPanel: LtPanel
+    htPanel: Panel
+    capacitorPanel: Panel
+    targetPf: Share
+    upsKgPerKva: PosNum
+    batteryKgPerKwh: PosNum
+    upsAutonomyMin: PosNum
+    tankPlate: PosNum
+    steelWeight: PosNum
+
+
+class FireFlow(_Row):
+    sprinkler: PosNum = Field(description="[l/min]")
+    standpipe: PosNum = Field(description="Standpipe and hose [l/min].")
+
+
+class PumpRating(_Row):
+    rating: PosNum = Field(description="[l/min]")
+    pipe: PosNum = Field(description="Minimum discharge pipe [mm].")
+
+
+class PipeSchedule(_Row):
+    size: PosNum = Field(description="Nominal size [mm].")
+    light: PosNum | None = Field(description="Heads, light hazard; null: no limit.")
+    ordinary: PosNum | None
+    extra: PosNum | None
+
+
+class Extinguisher(_Group):
+    perUnit: PosNum = Field(description="Area per unit of A rating [m²].")
+    rating: PosNum = Field(description="The smallest rating.")
+    max: PosNum = Field(description="The largest area per extinguisher [m²].")
+
+
+class FireTable(_Services):
+    """BNBC 2020 Part 4 (fire protection): flows, durations, pressures, pump ratings, pipe
+    schedules, sprinkler spacing; the NFPA values the code leaves out (from memory, marked in
+    ``sources``) and SAEngine's pipe and pump assumptions."""
+
+    highRiseHeight: PosNum = Field(description="[m]")
+    highRiseStoreys: Annotated[int, Field(gt=0)]
+    tallHeight: PosNum = Field(description="[m]")
+    hazardOrder: list[str] = Field(description="Table 4.4.1's hazard classes, least first.")
+    hazardLabels: dict[str, str]
+    flows: dict[str, FireFlow] = Field(description="Hazard -> flows (one riser, riserArea).")
+    riserArea: PosNum = Field(description="[m²]")
+    hazardOfGroup: dict[str, str] = Field(
+        description="Part 3 occupancy group (or its letter) -> hazard class."
+    )
+    durationHeights: tuple[PosNum, PosNum] = Field(description="[m]")
+    durations: dict[str, tuple[PosNum, PosNum, PosNum]] = Field(description="[min] by height.")
+    additionalStandpipeFlow: PosNum
+    maxAdditionalStandpipes: Annotated[int, Field(ge=0)]
+    hosePressure: dict[str, PosNum] = Field(description="[kPa]")
+    combinedPressure: PosNum
+    maxPressure: PosNum
+    prvPressure: PosNum
+    gravityHeight: dict[str, PosNum] = Field(description="[m]")
+    hoseSize: dict[str, PosNum] = Field(description="[mm]")
+    hoseLength: PosNum
+    outletHeight: PosNum
+    wetRiserMin: PosNum
+    supportExtra: NonNegNum = Field(description="[kg]")
+    hangerFactor: PosNum
+    hangerSpacing: PosNum = Field(description="[m]")
+    testStandpipe: PosNum = Field(description="[kPa]")
+    testSprinkler: PosNum = Field(description="[kPa]")
+    pumpMinNet: PosNum = Field(description="[kPa]")
+    pumpRatings: list[PumpRating]
+    steelSchedule: list[PipeSchedule]
+    copperSchedule: list[PipeSchedule]
+    riserFloorArea: dict[str, PosNum] = Field(description="[m²]")
+    coverage: dict[str, dict[str, tuple[PosNum, PosNum]]] = Field(
+        description="Construction -> hazard family -> (area m², spacing m)."
+    )
+    densityArea: dict[str, tuple[PosNum, PosNum]] = Field(
+        description="Hazard -> (density l/min/m², design area m²)."
+    )
+    hoseAllowance: dict[str, tuple[PosNum, PosNum]] = Field(description="(l/min, min)")
+    kFactor: PosNum
+    minHeadPressure: PosNum = Field(description="[kPa]")
+    designAreaLength: PosNum
+    jockeyShare: Share
+    jockeyAbove: PosNum = Field(description="[kPa]")
+    overloadFlow: PosNum
+    overloadHead: Share
+    extinguisher: dict[str, Extinguisher]
+    extinguisherTravel: PosNum = Field(description="[m]")
+    extinguisherSmallFloor: PosNum = Field(description="[m²]")
+    detectorArea: PosNum = Field(description="[m²]")
+    callPointArea: PosNum = Field(description="[m²]")
+    steelBore: dict[int, PosNum] = Field(description="Nominal size -> inside diameter [mm].")
+    copperBore: dict[int, PosNum]
+    hazenC: dict[str, PosNum]
+    steelMass: dict[int, PosNum] = Field(description="Nominal size -> [kg/m].")
+    maxVelocity: PosNum = Field(description="[m/s]")
+    pumpEfficiency: Share
+    jockeyEfficiency: Share
+    motorSizes: list[PosNum] = Field(description="[kW]")
+    pumpClearance: NonNegNum = Field(description="[m]")
+    controllerStrip: NonNegNum = Field(description="[m]")
+    pumpCentre: NonNegNum = Field(description="[m]")
+
+    @model_validator(mode="after")
+    def _keys(self) -> FireTable:
+        for hazard in self.hazardOrder:
+            if hazard not in self.flows or hazard not in self.durations:
+                raise ValueError(f"hazardOrder: '{hazard}' needs flows and durations")
+        for group, hazard in self.hazardOfGroup.items():
+            if hazard not in self.flows:
+                raise ValueError(f"hazardOfGroup.{group}: no hazard '{hazard}'")
+        return self
+
+
+class RolledSection(_Row):
+    designation: PosNum = Field(description="The size in the name, e.g. 300 of IPE 300.")
+    h: PosNum = Field(description="Depth [mm].")
+    b: PosNum = Field(description="Flange width [mm].")
+    tw: PosNum = Field(description="Web thickness [mm].")
+    tf: PosNum = Field(description="Flange thickness (mean, for tapered flanges) [mm].")
+    r: NonNegNum = Field(description="Root radius [mm].")
+
+
+class RolledFamily(_Row):
+    """A family of rolled I sections or channels; ``source`` names the standard."""
+
+    shape: Literal["I", "U"]
+    sections: list[RolledSection] = Field(min_length=1)
+
+
+class AngleSection(_Row):
+    leg: PosNum = Field(description="[mm]")
+    t: PosNum = Field(description="Thickness [mm].")
+    r1: NonNegNum = Field(description="Root radius [mm].")
+
+
+class AngleFamily(_Row):
+    """Equal angles; the toe radius is ``toeRadiusShare`` of the root radius."""
+
+    toeRadiusShare: NonNegNum
+    sections: list[AngleSection] = Field(min_length=1)
+
+
+class BoxSize(_Row):
+    h: PosNum
+    b: PosNum
+
+
+class WallRange(_Group):
+    """Walls rolled for a hollow section: those whose slenderness (the smaller side or the
+    diameter over the wall) is within [minRatio, maxRatio]."""
+
+    walls: list[PosNum] = Field(min_length=1)
+    minRatio: PosNum
+    maxRatio: PosNum
+
+
+class HollowFamilies(_Row):
+    """Cold-formed hollow sections by size; ``source`` names the standard."""
+
+    shs: list[PosNum] = Field(description="Square sizes [mm].")
+    rhs: list[BoxSize] = Field(description="Rectangular sizes [mm].")
+    chs: list[PosNum] = Field(description="Outside diameters [mm].")
+    boxWalls: WallRange
+    chsWalls: WallRange
+
+
+class SteelSectionsTable(TableModel):
+    """The standard table of rolled and hollow steel sections SAEngine designs with: the
+    nominal dimensions of each family, as its standard publishes them (``source`` of each
+    family); the properties are computed from them (:mod:`saengine.library.steel_sections`)."""
+
+    density: PosNum = Field(description="Mass density of the steel [kg/m³].")
+    families: list[str] = Field(description="The families, in the order the workbench lists them.")
+    shapeFamilies: dict[str, list[str]] = Field(
+        description="Profile shape -> the families a member of it can be redesigned into."
+    )
+    rolled: dict[str, RolledFamily]
+    angles: AngleFamily
+    hollow: HollowFamilies
+    notes: list[str] = Field(default_factory=list, description="Shown with the table.")
+
+    @model_validator(mode="after")
+    def _keys(self) -> SteelSectionsTable:
+        known = {*self.rolled, "L", "SHS", "RHS", "CHS"}
+        for family in self.families:
+            if family not in known:
+                raise ValueError(f"families: no family '{family}'")
+        for shape, families in self.shapeFamilies.items():
+            for family in families:
+                if family not in self.families:
+                    raise ValueError(f"shapeFamilies.{shape}: no family '{family}'")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -710,6 +1359,11 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "steel": SteelTable,
     "foundations": FoundationsTable,
     "slabCoefficients": SlabCoefficientsTable,
+    "plumbing": PlumbingTable,
+    "hvac": HvacTable,
+    "electrical": ElectricalTable,
+    "fire": FireTable,
+    "steelSections": SteelSectionsTable,
 }
 
 

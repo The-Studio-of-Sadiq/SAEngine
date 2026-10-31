@@ -1,0 +1,617 @@
+{
+  "$schema": "../../../schemas/fire.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 4 Chapters 4-5 (pp. 321-355)",
+    "BNBC 2020 Part 1 Chapter 2 and Part 3 Sec 2.4.4 (pp. 6, 94)"
+  ],
+  "source": "BNBC 2020 Part 4 (fire protection), Bangladesh Gazette edition of 11 February 2021; p = PDF page. Chapter 4 gives the flows, durations, pressures, pump ratings, pipe schedules and sprinkler spacing; it leaves the sprinkler design density, the hose allowance, the jockey pump and the extinguisher ratings to NFPA 10, 13 and 20: those entries are marked 'from memory, to be checked' in 'sources'. Entries marked SAEngine are documented assumptions where both are silent.",
+  "pages": {
+    "high-rise": "BNBC 2020 Part 1 Chapter 2 definitions and Part 3 Sec 2.4.4 (p6) and p94",
+    "4:2.1": "BNBC 2020 Part 4 Sec 2.1 (p285)",
+    "4:2.12.9": "BNBC 2020 Part 4 Sec 2.12.9(iv) (p296)",
+    "4.1.4": "BNBC 2020 Part 4 Sec 4.1.4 (p321)",
+    "4.4.1": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
+    "4.2.2.2": "BNBC 2020 Part 4 Sec 4.2.2.2(a)-(b) (p324)",
+    "4.2.2.3": "BNBC 2020 Part 4 Sec 4.2.2.3 (p325)",
+    "4.2.2.5": "BNBC 2020 Part 4 Sec 4.2.2.5 (p325-326)",
+    "4.2.3.2": "BNBC 2020 Part 4 Sec 4.2.3.2 (p326-327)",
+    "4.2.3.3": "BNBC 2020 Part 4 Sec 4.2.3.3 (p327)",
+    "4.2.3.4": "BNBC 2020 Part 4 Sec 4.2.3.4 (p328)",
+    "4.4.2": "BNBC 2020 Part 4 Table 4.4.2 (p328)",
+    "4.2.3.5": "BNBC 2020 Part 4 Sec 4.2.3.5 (p328)",
+    "4.2.3.7": "BNBC 2020 Part 4 Sec 4.2.3.7 (p328)",
+    "4.2.3.8": "BNBC 2020 Part 4 Sec 4.2.3.8 (p329)",
+    "4.2.3.10": "BNBC 2020 Part 4 Sec 4.2.3.10-4.2.3.11 (p329)",
+    "4.2.3.13": "BNBC 2020 Part 4 Sec 4.2.3.13 (p330)",
+    "4.2.3.14": "BNBC 2020 Part 4 Sec 4.2.3.14 (p330)",
+    "4.2.3.15": "BNBC 2020 Part 4 Sec 4.2.3.15 (p330)",
+    "4.2.4": "BNBC 2020 Part 4 Sec 4.2.4 (p330)",
+    "4.2.10.6": "BNBC 2020 Part 4 Sec 4.2.10.6 (p332)",
+    "4.2.11": "BNBC 2020 Part 4 Sec 4.2.11.1-4.2.11.2 (p332)",
+    "4.4.5": "BNBC 2020 Part 4 Table 4.4.5 (p332-333)",
+    "4.4.6": "BNBC 2020 Part 4 Table 4.4.6 (p333)",
+    "4.4.7": "BNBC 2020 Part 4 Table 4.4.7 (p333-334)",
+    "4.2.12.2": "BNBC 2020 Part 4 Sec 4.2.12.2 (p334)",
+    "4.4.2.ext": "BNBC 2020 Part 4 Sec 4.4.2 (p337)",
+    "4.5": "BNBC 2020 Part 4 Sec 4.5 (p338-339)",
+    "4.6.2.2": "BNBC 2020 Part 4 Sec 4.6.2.2 (p341)",
+    "5.1.6": "BNBC 2020 Part 4 Sec 5.1.6 (p346)",
+    "5.2": "BNBC 2020 Part 4 Sec 5.2.1-5.2.5 (p347)",
+    "5.3.1": "BNBC 2020 Part 4 Sec 5.3.1 (p347)",
+    "5.3.2": "BNBC 2020 Part 4 Sec 5.3.2 (p348)",
+    "5.3.3": "BNBC 2020 Part 4 Sec 5.3.3 (p348)",
+    "5.3.4": "BNBC 2020 Part 4 Sec 5.3.4 (p348)",
+    "5.4": "BNBC 2020 Part 4 Sec 5.4 (p349)",
+    "5.5": "BNBC 2020 Part 4 Sec 5.5 (p349)",
+    "5.6": "BNBC 2020 Part 4 Sec 5.6.1 (p349-350)",
+    "5.7": "BNBC 2020 Part 4 Sec 5.7 (p350-351)",
+    "5.8.1": "BNBC 2020 Part 4 Sec 5.8.1 (p351)",
+    "5.8.2": "BNBC 2020 Part 4 Sec 5.8.2 (p351)",
+    "5.8.3": "BNBC 2020 Part 4 Sec 5.8.3 (p352)",
+    "5.9.1": "BNBC 2020 Part 4 Sec 5.9.1 (p352)",
+    "5.9.2": "BNBC 2020 Part 4 Sec 5.9.2(o)-(p) (p353)",
+    "5.10": "BNBC 2020 Part 4 Sec 5.10 (p354)",
+    "5.11": "BNBC 2020 Part 4 Sec 5.11 (p354)",
+    "5.12": "BNBC 2020 Part 4 Sec 5.12 (p355)",
+    "5.13": "BNBC 2020 Part 4 Sec 5.13 (p355)",
+    "5.14": "BNBC 2020 Part 4 Sec 5.14-5.15 (p355)",
+    "8:5.5.3": "BNBC 2020 Part 8 Sec 5.5.3 (p1038)",
+    "6:2.3.5": "BNBC 2020 Part 6 Sec 2.3.5 (p533)"
+  },
+  "highRiseHeight": 33.0,
+  "highRiseStoreys": 10,
+  "tallHeight": 80.0,
+  "hazardOrder": [
+    "lightI",
+    "lightII",
+    "ordinaryI",
+    "ordinaryII",
+    "ordinaryIII"
+  ],
+  "hazardLabels": {
+    "lightI": "Light hazard-I",
+    "lightII": "Light hazard-II",
+    "ordinaryI": "Ordinary hazard-I",
+    "ordinaryII": "Ordinary hazard-II",
+    "ordinaryIII": "Ordinary hazard-III",
+    "extra": "Extra hazard"
+  },
+  "flows": {
+    "lightI": {
+      "sprinkler": 1000,
+      "standpipe": 1000
+    },
+    "lightII": {
+      "sprinkler": 1900,
+      "standpipe": 1900
+    },
+    "ordinaryI": {
+      "sprinkler": 2650,
+      "standpipe": 1900
+    },
+    "ordinaryII": {
+      "sprinkler": 3200,
+      "standpipe": 1900
+    },
+    "ordinaryIII": {
+      "sprinkler": 4800,
+      "standpipe": 1900
+    },
+    "extra": {
+      "sprinkler": 4800,
+      "standpipe": 1900
+    }
+  },
+  "riserArea": 1000.0,
+  "hazardOfGroup": {
+    "A1": "lightI",
+    "A2": "lightI",
+    "A3": "lightI",
+    "E1": "lightI",
+    "A4": "lightII",
+    "A5": "lightII",
+    "B": "lightII",
+    "C": "lightII",
+    "D": "lightII",
+    "E2": "lightII",
+    "E3": "lightII",
+    "I2": "lightII",
+    "I4": "lightII",
+    "F1": "lightII",
+    "I1": "ordinaryI",
+    "I3": "ordinaryI",
+    "I5": "ordinaryI",
+    "F2": "ordinaryI",
+    "F3": "ordinaryI",
+    "G1": "ordinaryI",
+    "G2": "ordinaryII",
+    "H1": "ordinaryII",
+    "H2": "ordinaryIII",
+    "J": "ordinaryIII"
+  },
+  "durationHeights": [
+    51.0,
+    102.0
+  ],
+  "durations": {
+    "lightI": [
+      30,
+      38,
+      45
+    ],
+    "lightII": [
+      50,
+      62,
+      75
+    ],
+    "ordinaryI": [
+      75,
+      95,
+      112
+    ],
+    "ordinaryII": [
+      75,
+      95,
+      112
+    ],
+    "ordinaryIII": [
+      75,
+      95,
+      112
+    ],
+    "extra": [
+      75,
+      95,
+      112
+    ]
+  },
+  "additionalStandpipeFlow": 1000.0,
+  "maxAdditionalStandpipes": 8,
+  "hosePressure": {
+    "large": 300.0,
+    "small": 300.0,
+    "firstAid": 200.0
+  },
+  "combinedPressure": 600.0,
+  "maxPressure": 2434.0,
+  "prvPressure": 700.0,
+  "gravityHeight": {
+    "large": 31.0,
+    "small": 31.0,
+    "firstAid": 20.5,
+    "combined": 62.0
+  },
+  "hoseSize": {
+    "large": 100,
+    "small": 63,
+    "firstAid": 38
+  },
+  "hoseLength": 30.0,
+  "outletHeight": 1.5,
+  "wetRiserMin": 100,
+  "supportExtra": 110.0,
+  "hangerFactor": 5.0,
+  "hangerSpacing": 5.0,
+  "testStandpipe": 1400.0,
+  "testSprinkler": 1000.0,
+  "pumpMinNet": 272.0,
+  "pumpRatings": [
+    {
+      "rating": 946,
+      "pipe": 75
+    },
+    {
+      "rating": 1136,
+      "pipe": 100
+    },
+    {
+      "rating": 1514,
+      "pipe": 100
+    },
+    {
+      "rating": 1703,
+      "pipe": 125
+    },
+    {
+      "rating": 1892,
+      "pipe": 125
+    },
+    {
+      "rating": 2839,
+      "pipe": 150
+    },
+    {
+      "rating": 3785,
+      "pipe": 150
+    },
+    {
+      "rating": 4731,
+      "pipe": 200
+    },
+    {
+      "rating": 5677,
+      "pipe": 200
+    }
+  ],
+  "steelSchedule": [
+    {
+      "size": 25,
+      "light": 2,
+      "ordinary": 2,
+      "extra": 1
+    },
+    {
+      "size": 32,
+      "light": 3,
+      "ordinary": 3,
+      "extra": 2
+    },
+    {
+      "size": 38,
+      "light": 5,
+      "ordinary": 5,
+      "extra": 5
+    },
+    {
+      "size": 50,
+      "light": 10,
+      "ordinary": 10,
+      "extra": 8
+    },
+    {
+      "size": 63,
+      "light": 30,
+      "ordinary": 20,
+      "extra": 15
+    },
+    {
+      "size": 75,
+      "light": 60,
+      "ordinary": 40,
+      "extra": 27
+    },
+    {
+      "size": 88,
+      "light": 100,
+      "ordinary": 65,
+      "extra": 40
+    },
+    {
+      "size": 100,
+      "light": null,
+      "ordinary": 100,
+      "extra": 55
+    },
+    {
+      "size": 125,
+      "light": null,
+      "ordinary": 160,
+      "extra": 90
+    },
+    {
+      "size": 150,
+      "light": null,
+      "ordinary": 275,
+      "extra": 150
+    },
+    {
+      "size": 200,
+      "light": null,
+      "ordinary": 400,
+      "extra": 225
+    }
+  ],
+  "copperSchedule": [
+    {
+      "size": 25,
+      "light": 2,
+      "ordinary": 2,
+      "extra": 1
+    },
+    {
+      "size": 32,
+      "light": 3,
+      "ordinary": 3,
+      "extra": 2
+    },
+    {
+      "size": 38,
+      "light": 5,
+      "ordinary": 5,
+      "extra": 5
+    },
+    {
+      "size": 50,
+      "light": 12,
+      "ordinary": 12,
+      "extra": 8
+    },
+    {
+      "size": 63,
+      "light": 40,
+      "ordinary": 25,
+      "extra": 20
+    },
+    {
+      "size": 75,
+      "light": 65,
+      "ordinary": 45,
+      "extra": 30
+    },
+    {
+      "size": 88,
+      "light": 115,
+      "ordinary": 75,
+      "extra": 45
+    },
+    {
+      "size": 100,
+      "light": null,
+      "ordinary": 115,
+      "extra": 65
+    },
+    {
+      "size": 125,
+      "light": null,
+      "ordinary": 180,
+      "extra": 100
+    },
+    {
+      "size": 150,
+      "light": null,
+      "ordinary": 300,
+      "extra": 170
+    }
+  ],
+  "riserFloorArea": {
+    "light": 4850.0,
+    "ordinary": 4850.0,
+    "extra": 2325.0
+  },
+  "coverage": {
+    "beams": {
+      "light": [
+        18.6,
+        4.6
+      ],
+      "ordinary": [
+        12.1,
+        4.6
+      ],
+      "extra": [
+        9.3,
+        3.7
+      ]
+    },
+    "openJoists": {
+      "light": [
+        20.9,
+        4.6
+      ],
+      "ordinary": [
+        12.1,
+        4.6
+      ],
+      "extra": [
+        9.3,
+        3.7
+      ]
+    },
+    "other": {
+      "light": [
+        15.6,
+        4.6
+      ],
+      "ordinary": [
+        12.1,
+        4.6
+      ],
+      "extra": [
+        9.3,
+        3.7
+      ]
+    }
+  },
+  "densityArea": {
+    "lightI": [
+      4.1,
+      139.0
+    ],
+    "lightII": [
+      4.1,
+      139.0
+    ],
+    "ordinaryI": [
+      6.1,
+      139.0
+    ],
+    "ordinaryII": [
+      8.1,
+      139.0
+    ],
+    "ordinaryIII": [
+      8.1,
+      139.0
+    ],
+    "extra": [
+      12.2,
+      232.0
+    ]
+  },
+  "hoseAllowance": {
+    "light": [
+      379.0,
+      30
+    ],
+    "ordinary": [
+      946.0,
+      60
+    ],
+    "extra": [
+      1893.0,
+      90
+    ]
+  },
+  "kFactor": 80.0,
+  "minHeadPressure": 50.0,
+  "designAreaLength": 1.2,
+  "jockeyShare": 0.01,
+  "jockeyAbove": 70.0,
+  "overloadFlow": 1.5,
+  "overloadHead": 0.65,
+  "extinguisher": {
+    "light": {
+      "perUnit": 279.0,
+      "rating": 2,
+      "max": 1045.0
+    },
+    "ordinary": {
+      "perUnit": 139.0,
+      "rating": 2,
+      "max": 1045.0
+    },
+    "extra": {
+      "perUnit": 93.0,
+      "rating": 4,
+      "max": 1045.0
+    }
+  },
+  "extinguisherTravel": 22.9,
+  "extinguisherSmallFloor": 279.0,
+  "detectorArea": 80.0,
+  "callPointArea": 1000.0,
+  "steelBore": {
+    "25": 26.6,
+    "32": 35.1,
+    "38": 40.9,
+    "50": 52.5,
+    "63": 62.7,
+    "75": 77.9,
+    "88": 90.1,
+    "100": 102.3,
+    "125": 128.2,
+    "150": 154.1,
+    "200": 202.7,
+    "250": 254.5,
+    "300": 303.2
+  },
+  "copperBore": {
+    "25": 26.0,
+    "32": 32.1,
+    "38": 38.2,
+    "50": 50.4,
+    "63": 62.6,
+    "75": 74.8,
+    "88": 87.0,
+    "100": 99.2
+  },
+  "hazenC": {
+    "steel": 120.0,
+    "GI": 120.0,
+    "copper": 150.0
+  },
+  "steelMass": {
+    "25": 2.5,
+    "32": 3.4,
+    "38": 4.1,
+    "50": 5.4,
+    "63": 8.6,
+    "75": 11.3,
+    "88": 13.6,
+    "100": 16.1,
+    "125": 21.8,
+    "150": 28.3,
+    "200": 42.5,
+    "250": 60.3,
+    "300": 73.8
+  },
+  "maxVelocity": 5.0,
+  "pumpEfficiency": 0.65,
+  "jockeyEfficiency": 0.4,
+  "motorSizes": [
+    0.75,
+    1.1,
+    1.5,
+    2.2,
+    3.0,
+    4.0,
+    5.5,
+    7.5,
+    11.0,
+    15.0,
+    18.5,
+    22.0,
+    30.0,
+    37.0,
+    45.0,
+    55.0,
+    75.0,
+    90.0,
+    110.0,
+    132.0,
+    160.0,
+    200.0,
+    250.0
+  ],
+  "pumpClearance": 1.0,
+  "controllerStrip": 1.2,
+  "pumpCentre": 0.5,
+  "sources": {
+    "highRiseHeight": "BNBC 2020 Part 1 Chapter 2 definitions and Part 3 Sec 2.4.4 (p6) and p94",
+    "highRiseStoreys": "BNBC 2020 Part 1 Chapter 2 definitions and Part 3 Sec 2.4.4 (p6) and p94",
+    "tallHeight": "BNBC 2020 Part 4 Sec 4.5 (p338-339)",
+    "hazardOrder": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
+    "flows": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322): one riser serving 1000 m² (note **); extra hazard (group J) set by the Fire Department, at least ordinary hazard-III",
+    "riserArea": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322) note **",
+    "hazardOfGroup": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322) notes: a group letter alone covers all its subgroups; group J extra hazard, at least ordinary hazard-III",
+    "durationHeights": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
+    "durations": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
+    "additionalStandpipeFlow": "BNBC 2020 Part 4 Sec 4.2.3.2 (p326-327)",
+    "maxAdditionalStandpipes": "BNBC 2020 Part 4 Sec 4.2.3.2 (p326-327)",
+    "hosePressure": "BNBC 2020 Part 4 Sec 4.2.3.3 (p327)",
+    "combinedPressure": "BNBC 2020 Part 4 Sec 4.2.2.2(a)-(b) (p324)(a)",
+    "maxPressure": "BNBC 2020 Part 4 Sec 4.2.3.3 (p327)",
+    "prvPressure": "BNBC 2020 Part 4 Sec 4.2.3.3 (p327)",
+    "gravityHeight": "BNBC 2020 Part 4 Sec 4.2.2.2(a)-(b) (p324)",
+    "hoseSize": "BNBC 2020 Part 4 Sec 4.2.3.10-4.2.3.11 (p329)",
+    "hoseLength": "BNBC 2020 Part 4 Sec 4.2.3.10-4.2.3.11 (p329)",
+    "outletHeight": "BNBC 2020 Part 4 Sec 4.2.3.10-4.2.3.11 (p329)",
+    "wetRiserMin": "BNBC 2020 Part 4 Sec 4.2.4 (p330)",
+    "supportExtra": "BNBC 2020 Part 4 Sec 4.2.3.13 (p330), BNBC 2020 Part 4 Sec 4.2.3.14 (p330)",
+    "hangerFactor": "BNBC 2020 Part 4 Sec 4.2.3.14 (p330)",
+    "hangerSpacing": "BNBC 2020 Part 4 Sec 4.2.10.6 (p332)",
+    "testStandpipe": "BNBC 2020 Part 4 Sec 4.2.12.2 (p334)",
+    "testSprinkler": "BNBC 2020 Part 4 Sec 4.2.12.2 (p334)",
+    "pumpMinNet": "BNBC 2020 Part 4 Sec 4.2.2.5 (p325-326)",
+    "pumpRatings": "BNBC 2020 Part 4 Table 4.4.2 (p328)",
+    "steelSchedule": "BNBC 2020 Part 4 Table 4.4.5 (p332-333)",
+    "copperSchedule": "BNBC 2020 Part 4 Table 4.4.6 (p333)",
+    "riserFloorArea": "BNBC 2020 Part 4 Table 4.4.5 (p332-333) note ***",
+    "coverage": "BNBC 2020 Part 4 Table 4.4.7 (p333-334)",
+    "densityArea": "NFPA 13 density/area curves, the usual design points (from memory, to be checked)",
+    "hoseAllowance": "NFPA 13 inside + outside hose stream allowance (from memory, to be checked)",
+    "kFactor": "standard spray sprinkler K 80 l/min/bar^0.5 (from memory, to be checked)",
+    "minHeadPressure": "0.5 bar (7 psi) (from memory, to be checked)",
+    "designAreaLength": "NFPA 13 (from memory, to be checked)",
+    "jockeyShare": "NFPA 20 (from memory, to be checked)",
+    "jockeyAbove": "NFPA 20 (from memory, to be checked)",
+    "overloadFlow": "NFPA 20 (from memory, to be checked)",
+    "overloadHead": "NFPA 20 (from memory, to be checked)",
+    "extinguisher": "NFPA 10 Table 6.2.1.1 (from memory, to be checked)",
+    "extinguisherTravel": "NFPA 10 (from memory, to be checked)",
+    "extinguisherSmallFloor": "BNBC 2020 Part 4 Sec 4.4.2 (p337)",
+    "detectorArea": "NFPA 72 9.1 m spacing (from memory, to be checked)",
+    "callPointArea": "SAEngine (at each exit in practice)",
+    "steelBore": "schedule 40 steel pipe, ASME B36.10 (from memory, to be checked)",
+    "copperBore": "copper tube type L (from memory, to be checked)",
+    "hazenC": "NFPA 13 Table 23.4.4.8.1 (from memory, to be checked)",
+    "steelMass": "schedule 40 steel pipe (from memory, to be checked)",
+    "maxVelocity": "SAEngine practice (BNBC sizes by the hydraulic calculation or the schedules)",
+    "pumpEfficiency": "SAEngine: typical, the selected pump's curve rules",
+    "jockeyEfficiency": "SAEngine: typical, the selected pump's curve rules",
+    "motorSizes": "IEC motor sizes",
+    "pumpClearance": "SAEngine practice",
+    "controllerStrip": "SAEngine practice",
+    "pumpCentre": "SAEngine"
+  }
+}

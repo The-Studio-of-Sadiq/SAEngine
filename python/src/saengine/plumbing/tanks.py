@@ -110,9 +110,10 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.bars import diameters as bar_diameters
 from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1, phi_axial_flexure
 from saengine.design.slab import min_steel_ratio, one_way_shear, wood_armer
-from saengine.plumbing.tables import SEPTIC_COVER_LIVE
+from saengine.plumbing import tables as plumbing_tables
 from saengine.plumbing.tanks_model import (
     M11,
     M12,
@@ -150,8 +151,8 @@ COVER_STRENGTHS = (20, 25, 30, 35, 40, 45, 50)
 COVER_AGAINST_EARTH = 75.0
 #: BNBC Table 6.3.8, water tank on a raft: maximum settlement [mm] (p733).
 SETTLEMENT_LIMIT = {"sand": 100.0, "plasticClay": 125.0}
-#: Candidate bars for a proposal: diameters [mm] and spacings [mm].
-BAR_DIAS = (10.0, 12.0, 16.0, 20.0, 25.0)
+#: Candidate bars for a proposal: diameters (the code pack's ``concrete.barDiameters["tank"]``,
+#: :func:`saengine.design.bars.diameters`) and spacings [mm].
 BAR_SPACINGS = (300.0, 250.0, 200.0, 175.0, 150.0, 125.0, 100.0)
 STEEL_DENSITY = 7850.0  # kg/m³
 #: Allowance on the bars' weight for laps, hooks and chairs in the quantity estimate.
@@ -163,7 +164,7 @@ def roof_live(spec: TankSpec, options: TankOptions) -> float:
     """The roof live load [kPa]: ``roofLive``, at least 7 kPa on a septic tank (BNBC Part 8 Sec
     6.9.12.14: the manhole cover and the roof designed for at least 7 kPa)."""
     if spec.kind == "septic":
-        return max(options.roofLive, SEPTIC_COVER_LIVE)
+        return max(options.roofLive, plumbing_tables.SEPTIC_COVER_LIVE)
     return options.roofLive
 
 
@@ -1194,6 +1195,7 @@ def design_panels(
                 }
         envelopes.append(envelope)
         # Bars per face and direction.
+        tank_dias = bar_diameters("tank")
         chosen: dict[tuple[str, str], Bars] = {}
         given: dict[tuple[str, str], Bars | None] = {
             (face, direction): _layer_bars(spec, panel, face, direction)
@@ -1212,7 +1214,7 @@ def design_panels(
                     candidates = (
                         [given[key]]
                         if given[key]
-                        else [Bars(dia, s) for dia in BAR_DIAS for s in BAR_SPACINGS]
+                        else [Bars(dia, s) for dia in tank_dias for s in BAR_SPACINGS]
                     )
                     candidates.sort(key=lambda b: (b.area, -b.spacing))
                     pick, record = None, None

@@ -733,6 +733,7 @@ def _shear_rows(
             "mm²/mm",
             None,
             f"Av/s required = (Ve / φ - Vc) / (fyt d), d = {d:.0f} mm"
+            + ("; none: φ Vc carries Ve, the confinement rules set the ties" if need <= 0 else "")
             + (
                 f"; provided {stirrups.legs} legs Ø{stirrups.dia:g} at {stirrups.spacing:g} mm"
                 if stirrups
@@ -857,6 +858,7 @@ def column_capacity_shear(
     level: str = "special",
     doubled_e_shear: float | None = None,
     lam: float = 1.0,
+    base_beam_moment: float | None = None,
 ) -> list[dict[str, Any]]:
     """The capacity-design shear of a column [checks] along the plan ``direction`` (the
     moments bend it in that plane):
@@ -864,8 +866,11 @@ def column_capacity_shear(
     - "special" (Sec 8.3.8.1(b), p 1111): Ve = 2 Mpr / lu, Mpr the largest over the factored
       axial forces ``pmin`` … ``pmax`` [N] (:func:`highest_column_moment`), not more than
       ``beam_limit`` [N] (the shear the beams' Mpr at the two joints can deliver to this column,
-      :func:`beam_limited_column_shear`) and not less than ``analysis_shear``. Vc = 0 by
-      8.3.8.2(a) when Pu,min < 0.05 Ag f'c and the earthquake part is at least half.
+      :func:`beam_limited_column_shear`) and not less than ``analysis_shear``. A column on a
+      base (beams at its top joint only) gives ``base_beam_moment`` [N·mm] instead: its share
+      of the top joint's ΣMpr, so Ve is at most (Mpr + min(Mpr, that share)) / lu, the hinge at
+      the base taking the column's own Mpr. Vc = 0 by 8.3.8.2(a) when Pu,min < 0.05 Ag f'c and
+      the earthquake part is at least half.
     - "intermediate" (Sec 8.3.10.3): the smaller of 2 Mn / lu (Mn the largest over the range)
       and ``doubled_e_shear``.
     Vc otherwise 0.17 λ √f'c bw d: the axial compression's increase (ACI 318-19 Eq.
@@ -886,6 +891,12 @@ def column_capacity_shear(
         if beam_limit is not None and beam_limit < ve:
             ve = beam_limit
             note += f"; limited by the beams' Mpr at the joints: {ve / 1e3:.1f} kN"
+        elif base_beam_moment is not None and base_beam_moment < m:
+            ve = (m + base_beam_moment) / clear_height
+            note += (
+                f"; on a base: (Mpr + the beams' {base_beam_moment / 1e6:.1f} kN·m at the top "
+                f"joint) / lu = {ve / 1e3:.1f} kN"
+            )
         if abs(analysis_shear) > ve:
             ve = abs(analysis_shear)
             note += f"; the analysis shear {ve / 1e3:.1f} kN governs"

@@ -891,6 +891,19 @@ class Drawings(_Model):
         return data
 
 
+class Report(_Model):
+    """The printed design report of 11 Exports."""
+
+    appendix: Literal["governing", "all", "none"] = Field(
+        default="governing",
+        title="Appendix of element checks",
+        description="Which elements the appendix prints every check of: governing (the element "
+        "of each object type and storey with the largest utilisation, and every element that "
+        "fails), all (every element: hundreds of pages for a tall building) or none. The member "
+        "tables list every element either way.",
+    )
+
+
 class ProjectSettings(_Model):
     schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
     project: ProjectInfo
@@ -929,6 +942,11 @@ class ProjectSettings(_Model):
     drawings: Drawings = Field(
         default_factory=Drawings,
         description="The title block and sheets of the structural drawings (11 Exports).",
+    )
+    report: Report = Field(
+        default_factory=Report,
+        title="Design report",
+        description="The printed design report (11 Exports).",
     )
 
 

@@ -675,6 +675,9 @@ The analysis uses #so.stiffness.
     note[*#design.at("failedText", default: str(design.failed) + " element(s)") fail their design
       checks.* They are highlighted in the tables below#if design.seismic.at("membersFail", default: false) [ and under Detailing checks that fail (Seismic detailing)].]
   }
+  #if design.at("skipped", default: ()).len() > 0 {
+    note[*#design.skipped.len() element(s) are not designed* (#design.notDesigned.pairs().map(((k, n)) => str(n) + " " + k).join(", ")): see Elements not designed. They are in no table of checks and must not be built as drawn.]
+  }
 
   #for t in design.tables [
     == #t.title
@@ -1585,9 +1588,20 @@ what the software did not check or assumed; the engineer must consider each one.
   #set page(flipped: true)
   #set heading(numbering: "A.1")
   #counter(heading).update(0)
-  = Appendix: design checks of every element
+  #let scope = design.at("appendix", default: (scope: "all", count: 0, of: 0))
+  #if scope.scope == "governing" [
+    = Appendix: design checks of the governing elements
 
-  Every check of every element, with the combination and position that govern it.
+    Every check, with the combination and position that govern it, of #scope.count of the
+    #scope.of elements checked: for each object type and storey the element with the largest
+    utilisation, and every element that fails. The member tables of Member design list the
+    governing check of every element. (Project Settings → Design report → Appendix: "all"
+    prints every element.)
+  ] else [
+    = Appendix: design checks of every element
+
+    Every check of every element, with the combination and position that govern it.
+  ]
 
   #for e in design.details { checks-table(e, combination: 34%) }
 ]

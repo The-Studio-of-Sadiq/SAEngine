@@ -8,8 +8,9 @@ of :mod:`saengine.substructure.shallow`:
    it is taken from the soil report again for every trial size, as each footing's check does.
 2. Thickness h, in steps of :data:`STEP` from :data:`MIN_THICKNESS`, until punching and one-way
    shear pass without shear reinforcement.
-3. Bottom bars: the lightest mesh of :data:`BAR_DIAS` at a spacing in steps of 25 mm that carries
-   the flexure at the column faces and gives the minimum steel 0.0018 Ag (ACI 7.6.1.1) at a
+3. Bottom bars: the lightest mesh of the code pack's foundation bars
+   (``concrete.barDiameters["foundation"]``) at a spacing in steps of 25 mm that carries the
+   flexure at the column faces and gives the minimum steel 0.0018 Ag (ACI 7.6.1.1) at a
    spacing of at most min(3h, 450 mm) (ACI 7.7.2.3); top bars where the footing hogs beyond what
    plain concrete carries.
 4. Footings that would overlap become one combined footing under their columns: its long axis
@@ -45,7 +46,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design.bars import mesh_for, slab_flexure_need
+from saengine.design.bars import diameters, mesh_for, slab_flexure_need
 from saengine.design.rc import PHI_SHEAR
 from saengine.library.bim import ColumnElement
 from saengine.library.materials import Category
@@ -73,7 +74,6 @@ MAX_SIZE = 8000.0
 #: Concrete cast against and permanently in contact with the ground (ACI 318-19 Table
 #: 20.5.1.3.1) [mm].
 COVER = 75.0
-BAR_DIAS = (12.0, 16.0, 20.0, 25.0)
 #: Beyond the outer column faces of a combined footing [mm].
 OVERHANG = 300.0
 #: Footings covering more than this share of the plan of their columns are replaced by a raft:
@@ -285,7 +285,8 @@ class Sizer:
         if not top:
             need = max(need, min_steel_ratio(fy) * h * 1000)
         # A little over: d of the layers differ.
-        best = mesh_for(need * 1.02, min(3 * h, 450.0), BAR_DIAS)
+        dias = tuple(float(d) for d in diameters("foundation"))
+        best = mesh_for(need * 1.02, min(3 * h, 450.0), dias)
         if best is None:
             raise Skip("no mesh of the bar sizes carries the flexure")
         return BarMesh(dia=best.dia, spacing=best.spacing)

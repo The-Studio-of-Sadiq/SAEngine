@@ -38,21 +38,13 @@ from dataclasses import asdict, dataclass, field, replace
 from functools import cache
 from typing import Any
 
+from saengine.codes import context as code_context
 from saengine.library import objects as o
 
-STEEL_DENSITY = 7850.0  # kg/m³
-
-#: Families in the table, in the order the workbench lists them.
-FAMILIES = ("IPE", "HEA", "HEB", "ISMB", "ISMC", "L", "SHS", "RHS", "CHS")
-
-#: The families a member of each profile shape can be redesigned into.
-SHAPE_FAMILIES: dict[str, tuple[str, ...]] = {
-    "I": ("IPE", "HEA", "HEB", "ISMB"),
-    "U": ("ISMC",),
-    "L": ("L",),
-    "rectangleHollow": ("SHS", "RHS"),
-    "circleHollow": ("CHS",),
-}
+#: The table's names (``STEEL_DENSITY``, ``FAMILIES``, ``SHAPE_FAMILIES``, the sections) are
+#: the code pack's ``steelSections`` table (``saengine/codes/packs/bnbc2020/data/
+#: steelSections.json``: each family's nominal dimensions and the standard they come from), read
+#: from the pack in force where they are used (:class:`saengine.codes.context.TableNames`).
 
 
 @dataclass(frozen=True)
@@ -288,7 +280,7 @@ def _section(
         ry=math.sqrt(props.Iy / props.A),
         J=j,
         Cw=cw,
-        mass=props.A * 1e-6 * STEEL_DENSITY,
+        mass=props.A * 1e-6 * _density(),
         cx=props.cx,
         cy=props.cy,
         Iu=iu,
@@ -404,174 +396,80 @@ def chs_section(name: str, d: float, t: float) -> SteelSection:
 
 # ─────────────────────────────────────── the table ───────────────────────────────────────
 
-# (designation, h, b, tw, tf, r) - EN 10365 nominal dimensions [mm]
-_IPE = [
-    (100, 100, 55, 4.1, 5.7, 7),
-    (120, 120, 64, 4.4, 6.3, 7),
-    (140, 140, 73, 4.7, 6.9, 7),
-    (160, 160, 82, 5.0, 7.4, 9),
-    (180, 180, 91, 5.3, 8.0, 9),
-    (200, 200, 100, 5.6, 8.5, 12),
-    (220, 220, 110, 5.9, 9.2, 12),
-    (240, 240, 120, 6.2, 9.8, 15),
-    (270, 270, 135, 6.6, 10.2, 15),
-    (300, 300, 150, 7.1, 10.7, 15),
-    (330, 330, 160, 7.5, 11.5, 18),
-    (360, 360, 170, 8.0, 12.7, 18),
-    (400, 400, 180, 8.6, 13.5, 21),
-    (450, 450, 190, 9.4, 14.6, 21),
-    (500, 500, 200, 10.2, 16.0, 21),
-    (550, 550, 210, 11.1, 17.2, 24),
-    (600, 600, 220, 12.0, 19.0, 24),
-]
-_HEA = [
-    (100, 96, 100, 5.0, 8.0, 12),
-    (120, 114, 120, 5.0, 8.0, 12),
-    (140, 133, 140, 5.5, 8.5, 12),
-    (160, 152, 160, 6.0, 9.0, 15),
-    (180, 171, 180, 6.0, 9.5, 15),
-    (200, 190, 200, 6.5, 10.0, 18),
-    (220, 210, 220, 7.0, 11.0, 18),
-    (240, 230, 240, 7.5, 12.0, 21),
-    (260, 250, 260, 7.5, 12.5, 24),
-    (280, 270, 280, 8.0, 13.0, 24),
-    (300, 290, 300, 8.5, 14.0, 27),
-    (320, 310, 300, 9.0, 15.5, 27),
-    (340, 330, 300, 9.5, 16.5, 27),
-    (360, 350, 300, 10.0, 17.5, 27),
-    (400, 390, 300, 11.0, 19.0, 27),
-    (450, 440, 300, 11.5, 21.0, 27),
-    (500, 490, 300, 12.0, 23.0, 27),
-]
-_HEB = [
-    (100, 100, 100, 6.0, 10.0, 12),
-    (120, 120, 120, 6.5, 11.0, 12),
-    (140, 140, 140, 7.0, 12.0, 12),
-    (160, 160, 160, 8.0, 13.0, 15),
-    (180, 180, 180, 8.5, 14.0, 15),
-    (200, 200, 200, 9.0, 15.0, 18),
-    (220, 220, 220, 9.5, 16.0, 18),
-    (240, 240, 240, 10.0, 17.0, 21),
-    (260, 260, 260, 10.0, 17.5, 24),
-    (280, 280, 280, 10.5, 18.0, 24),
-    (300, 300, 300, 11.0, 19.0, 27),
-    (320, 320, 300, 11.5, 20.5, 27),
-    (340, 340, 300, 12.0, 21.5, 27),
-    (360, 360, 300, 12.5, 22.5, 27),
-    (400, 400, 300, 13.5, 24.0, 27),
-    (450, 450, 300, 14.0, 26.0, 27),
-    (500, 500, 300, 14.5, 28.0, 27),
-]
-# IS 808 (mean flange thickness; root radius rounded) [mm]
-_ISMB = [
-    (100, 100, 75, 4.0, 7.2, 9),
-    (125, 125, 75, 4.4, 7.6, 9),
-    (150, 150, 80, 4.8, 7.6, 9),
-    (175, 175, 90, 5.5, 8.6, 10),
-    (200, 200, 100, 5.7, 10.8, 11),
-    (225, 225, 110, 6.5, 11.8, 12),
-    (250, 250, 125, 6.9, 12.5, 13),
-    (300, 300, 140, 7.5, 12.4, 14),
-    (350, 350, 140, 8.1, 14.2, 14),
-    (400, 400, 140, 8.9, 16.0, 14),
-    (450, 450, 150, 9.4, 17.4, 15),
-    (500, 500, 180, 10.2, 17.2, 17),
-    (550, 550, 190, 11.2, 19.3, 18),
-    (600, 600, 210, 12.0, 20.8, 20),
-]
-_ISMC = [
-    (75, 75, 40, 4.4, 7.3, 8.5),
-    (100, 100, 50, 4.7, 7.5, 9),
-    (125, 125, 65, 5.0, 8.1, 9.5),
-    (150, 150, 75, 5.4, 9.0, 10),
-    (175, 175, 75, 5.7, 10.2, 10.5),
-    (200, 200, 75, 6.1, 11.4, 11),
-    (225, 225, 80, 6.4, 12.4, 12),
-    (250, 250, 80, 7.1, 14.1, 12),
-    (300, 300, 90, 7.6, 13.6, 13),
-    (350, 350, 100, 8.1, 13.5, 14),
-    (400, 400, 100, 8.6, 15.3, 15),
-]
-# Equal angles: (leg, thickness, root radius); toe radius = root / 2
-_ANGLES = [
-    (25, 3, 3.5),
-    (30, 3, 5),
-    (40, 4, 6),
-    (40, 5, 6),
-    (45, 5, 7),
-    (50, 5, 7),
-    (50, 6, 7),
-    (60, 6, 8),
-    (65, 6, 9),
-    (65, 8, 9),
-    (70, 7, 9),
-    (75, 6, 9),
-    (75, 8, 9),
-    (80, 8, 10),
-    (90, 8, 11),
-    (90, 10, 11),
-    (100, 8, 12),
-    (100, 10, 12),
-    (100, 12, 12),
-    (120, 10, 13),
-    (120, 12, 13),
-    (150, 12, 16),
-    (150, 15, 16),
-    (200, 16, 18),
-    (200, 20, 18),
-]
-_SHS_SIZES = [40, 50, 60, 70, 80, 90, 100, 120, 140, 150, 160, 180, 200, 250, 300]
-_RHS_SIZES = [
-    (60, 40),
-    (80, 40),
-    (100, 50),
-    (100, 60),
-    (120, 60),
-    (120, 80),
-    (150, 100),
-    (160, 80),
-    (200, 100),
-    (200, 120),
-    (250, 150),
-    (300, 200),
-]
-_CHS_SIZES = [48.3, 60.3, 76.1, 88.9, 114.3, 139.7, 168.3, 219.1, 273.0, 323.9]
-_WALLS = [2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.5]
-_CHS_WALLS = [3.2, 4.0, 5.0, 6.3, 8.0, 10.0, 12.5]
+
+def _density() -> float:
+    """Mass density of the steel [kg/m³] (the table's ``density``)."""
+    return code_context.pack_table("steelSections").density
 
 
 def _fmt(x: float) -> str:
     return f"{x:g}"
 
 
-def _box_walls(least: float) -> list[float]:
-    """Walls rolled for a box whose smaller side is ``least``: b/t from 8 to 40."""
-    return [t for t in _WALLS if 8 <= least / t <= 40]
+def _walls(walls: Any, size: float) -> list[float]:
+    """Walls rolled for a hollow section whose smaller side (or diameter) is ``size``: those
+    with size / t within the table's ratios (boxes: b/t from 8 to 40, tubes: d/t 10 to 50)."""
+    return [t for t in walls.walls if walls.minRatio <= size / t <= walls.maxRatio]
 
 
-@cache
+def _sections(t: Any) -> tuple[SteelSection, ...]:
+    """Every section of table ``t``, by family then ascending mass."""
+    out: list[SteelSection] = []
+    for fam, rolled in t.rolled.items():
+        make = i_section if rolled.shape == "I" else channel_section
+        out += [
+            make(f"{fam} {_fmt(r.designation)}", fam, r.h, r.b, r.tw, r.tf, r.r)
+            for r in rolled.sections
+        ]
+    share = t.angles.toeRadiusShare
+    out += [
+        angle_section(f"L {a.leg}x{a.leg}x{_fmt(a.t)}", a.leg, a.leg, a.t, a.r1, a.r1 * share)
+        for a in t.angles.sections
+    ]
+    hollow = t.hollow
+    for size in hollow.shs:
+        out += [
+            rhs_section(f"SHS {size}x{size}x{_fmt(w)}", "SHS", size, size, w)
+            for w in _walls(hollow.boxWalls, size)
+        ]
+    for box in hollow.rhs:
+        h, b = box.h, box.b
+        out += [
+            rhs_section(f"RHS {h}x{b}x{_fmt(w)}", "RHS", h, b, w)
+            for w in _walls(hollow.boxWalls, b)
+        ]
+    for d in hollow.chs:
+        out += [chs_section(f"CHS {_fmt(d)}x{_fmt(w)}", d, w) for w in _walls(hollow.chsWalls, d)]
+    order = {f: i for i, f in enumerate(t.families)}
+    return tuple(sorted(out, key=lambda s: (order[s.family], s.mass, s.h)))
+
+
+def _build(t: Any) -> dict[str, Any]:
+    return {
+        "STEEL_DENSITY": t.density,
+        #: Families in the table, in the order the workbench lists them.
+        "FAMILIES": tuple(t.families),
+        #: The families a member of each profile shape can be redesigned into.
+        "SHAPE_FAMILIES": {k: tuple(v) for k, v in t.shapeFamilies.items()},
+        "NOTES": list(t.notes),
+        "SECTIONS": _sections(t),
+    }
+
+
+_names = code_context.TableNames("steelSections", _build)
+
+
+def __getattr__(name: str) -> Any:
+    return _names.get(name, __name__)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_names()))
+
+
 def section_table() -> tuple[SteelSection, ...]:
     """Every section of the table, by family then ascending mass."""
-    out: list[SteelSection] = []
-    for fam, rows in (("IPE", _IPE), ("HEA", _HEA), ("HEB", _HEB), ("ISMB", _ISMB)):
-        out += [i_section(f"{fam} {n}", fam, h, b, tw, tf, r) for n, h, b, tw, tf, r in rows]
-    out += [channel_section(f"ISMC {n}", "ISMC", h, b, tw, tf, r) for n, h, b, tw, tf, r in _ISMC]
-    out += [
-        angle_section(f"L {leg}x{leg}x{_fmt(t)}", leg, leg, t, r1, r1 / 2) for leg, t, r1 in _ANGLES
-    ]
-    for size in _SHS_SIZES:
-        out += [
-            rhs_section(f"SHS {size}x{size}x{_fmt(t)}", "SHS", size, size, t)
-            for t in _box_walls(size)
-        ]
-    for h, b in _RHS_SIZES:
-        out += [rhs_section(f"RHS {h}x{b}x{_fmt(t)}", "RHS", h, b, t) for t in _box_walls(b)]
-    for d in _CHS_SIZES:
-        out += [
-            chs_section(f"CHS {_fmt(d)}x{_fmt(t)}", d, t) for t in _CHS_WALLS if 10 <= d / t <= 50
-        ]
-    order = {f: i for i, f in enumerate(FAMILIES)}
-    return tuple(sorted(out, key=lambda s: (order[s.family], s.mass, s.h)))
+    return _names()["SECTIONS"]
 
 
 def family(name: str) -> list[SteelSection]:
@@ -591,7 +489,7 @@ def families_for(profile: o.Profile | dict[str, Any]) -> tuple[str, ...]:
     """The families a member of this profile shape can be redesigned into (its own first)."""
     shape = profile["shape"] if isinstance(profile, dict) else profile.shape
     own = family_of(profile)
-    base = SHAPE_FAMILIES.get(shape, ())
+    base = _names()["SHAPE_FAMILIES"].get(shape, ())
     return tuple(dict.fromkeys(([own] if own else []) + list(base)))
 
 
@@ -710,7 +608,7 @@ def family_of(profile: o.Profile | dict[str, Any]) -> str | None:
     shape, dims = _dims_of(profile)
     if shape == "rectangleHollow":
         return "SHS" if abs(dims[0] - dims[1]) < 0.6 else "RHS"
-    fams = SHAPE_FAMILIES.get(shape)
+    fams = _names()["SHAPE_FAMILIES"].get(shape)
     return fams[0] if fams else None
 
 
@@ -827,11 +725,13 @@ def section_of_profile(profile: o.Profile | dict[str, Any]) -> SteelSection:
     raise TypeError(f"not a steel profile: {p['shape']}")
 
 
-def mass_per_metre(profile: o.Profile | dict[str, Any], density: float = STEEL_DENSITY) -> float:
+def mass_per_metre(profile: o.Profile | dict[str, Any], density: float | None = None) -> float:
     """The steel weight of a member of ``profile`` [kg/m], as the bill of quantities and the
     design report give it: the nominal area of :func:`section_of_profile` (with its fillets
     and corner radii) × ``density`` [kg/m³], rounded to 1 g. Raises ``TypeError`` for a
-    profile that is not a steel shape."""
+    profile that is not a steel shape. ``density`` defaults to the table's."""
+    if density is None:
+        density = _density()
     return round(section_of_profile(profile).A * 1e-6 * density, 3)
 
 
@@ -848,13 +748,7 @@ def lightest(
 def table_json() -> dict[str, Any]:
     """The table for the workbench / RPC: ``{"families", "sections": [...]}``."""
     return {
-        "families": list(FAMILIES),
+        "families": list(_names()["FAMILIES"]),
         "sections": [s.as_dict() for s in section_table()],
-        "notes": [
-            (
-                "Properties computed from the nominal dimensions (EN 10365, IS 808, EN 10056, "
-                "EN 10219); confirm against the mill's catalogue."
-            ),
-            "ISMB and ISMC tapered flanges taken parallel at the mean thickness.",
-        ],
+        "notes": list(_names()["NOTES"]),
     }

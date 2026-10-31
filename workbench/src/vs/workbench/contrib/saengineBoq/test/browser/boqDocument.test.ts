@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
+import { boqMaterialsStamp, groundLevelStamp, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
 import { boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, IBoqDocument, IBoqItem, parseBoq, quantityText, toCsv, totalledItems, totalRows, totals, unitLabel } from '../../browser/boqDocument.js';
 
 suite('SAEngine - Bill of quantities', () => {
@@ -93,11 +93,11 @@ suite('SAEngine - Bill of quantities', () => {
 			never: ['bim', 'objects', 'materials'],
 			totals: [{ unit: 'm3', total: 5.048 }],
 			csv: [
-				'Row,Code,Group,Description,Element,Story,Detail,Item Quantity,Element Quantity,Unit',
-				'item,C.01,concrete,Concrete C24.1 in columns,,,,2.048,,m3',
-				'element,C.01,concrete,Concrete C24.1 in columns,C1,L1,,,1.024,m3',
-				'element,C.01,concrete,Concrete C24.1 in columns,C2,L1,,,1.024,m3',
-				'item,C.02,concrete,"Concrete C24.1 in ""beams"", ground",,,,3,,m3',
+				'Row,Code,Group,Description,Element,Story,Detail,Item Quantity,Element Quantity,Unit,Rate,Amount',
+				'item,C.01,concrete,Concrete C24.1 in columns,,,,2.048,,m3,,',
+				'element,C.01,concrete,Concrete C24.1 in columns,C1,L1,,,1.024,m3,,',
+				'element,C.01,concrete,Concrete C24.1 in columns,C2,L1,,,1.024,m3,,',
+				'item,C.02,concrete,"Concrete C24.1 in ""beams"", ground",,,,3,,m3,,',
 				'',
 			],
 		});
@@ -151,11 +151,48 @@ suite('SAEngine - Bill of quantities', () => {
 			cft: '35.31 cft',
 			sft: '10.76 sft',
 			rft: '3.28 rft',
-			kg: '1.00 kg',
+			kg: '1 kg',
 			problems: ['No reinforcement measured'],
 			none: [],
 		});
 	});
+	test('quantities are grouped in thousands, masses whole, bags rounded up (N-Q5)', () => {
+		assert.deepStrictEqual({
+			kg: formatQuantity(623434.39, 'kg'),
+			bags: formatQuantity(12468.69, 'bag'),
+			wholeBags: formatQuantity(12.0000000001, 'bag'),
+			volume: formatQuantity(1234.5678, 'm3'),
+			cft: formatQuantity(-1234567.891, 'cft'),
+			plain: formatQuantity(623434.39, 'kg', false),
+		}, {
+			kg: '623,434',
+			bags: '12,469',
+			wholeBags: '12',
+			volume: '1,234.568',
+			cft: '-1,234,567.89',
+			plain: '623434',
+		});
+	});
+
+	test('a material nothing uses leaves the bill current (N-Q3)', () => {
+		const materials = (extra: object[]) => JSON.stringify({ schema: 'saengine.materials/1', materials: [{ id: 'C25', name: 'Concrete', density: 2400.0, alpha: 0.00001 }, ...extra] }, undefined, '	');
+		const text = materials([]);
+		const measured: IBoqDocument = { ...document, source: { ...document.source, materials: boqMaterialsStamp(text, ['C25']), materialIds: ['C25'] as unknown as string } };
+		const texts = (m: string) => new Map([['bim', '{"a": 1}\n'], ['objects', 'o'], ['materials', m]]);
+		assert.deepStrictEqual({
+			current: changedSources(measured, texts(text)),
+			unusedAdded: changedSources(measured, texts(materials([{ id: 'FE500', name: 'Steel' }]))),
+			usedEdited: changedSources(measured, texts(text.replace('Concrete', 'Concrete 25'))),
+			// the Python side (saengine.boq.quantities.materials_stamp) stamps the same text
+			stamped: JSON.stringify({ ids: ['C25'], materials: [{ id: 'C25', density: 2400.0, alpha: 0.00001 }] }),
+		}, {
+			current: [],
+			unusedAdded: [],
+			usedEdited: ['materials'],
+			stamped: '{"ids":["C25"],"materials":[{"id":"C25","density":2400,"alpha":0.00001}]}',
+		});
+	});
+
 	test('the architecture is a source of the bill once it has a wall or a room', () => {
 		const walls = JSON.stringify({ schema: 'saengine.architecture/1', walls: [{ id: 'W1' }] });
 		const base = { bim: sourceStamp('b'), objects: sourceStamp('o'), materials: sourceStamp('m') };

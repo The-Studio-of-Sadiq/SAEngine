@@ -203,3 +203,20 @@
 	margin-top: var(--sa-space-2, 8px);
 	padding: 2px 10px;
 }
+
+/* A count with its ids under a disclosure (N-X21 of usability walk 2: walls of member ids). */
+.saengine-fem-proposal-editor .fem-proposal-disclosure > summary {
+	cursor: pointer;
+}
+
+.saengine-fem-proposal-editor .fem-proposal-ids {
+	margin-top: 2px;
+	max-height: 8em;
+	overflow-y: auto;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-fem-proposal-editor .fem-proposal-header-detail.warn {
+	color: var(--fem-proposal-warn);
+}

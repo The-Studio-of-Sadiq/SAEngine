@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.electrical.tables import USE_KEYS as ELECTRICAL_USE_KEYS
 from saengine.electrical.tables import USES as ELECTRICAL_USES
+from saengine.fire.tables import HAZARD_LABELS as FIRE_HAZARDS  # BNBC Table 4.4.1 hazards
 from saengine.hvac.constructions import GLAZING_KEYS, GLAZINGS, ROOF_KEYS, ROOFS, WALL_KEYS, WALLS
 from saengine.hvac.tables import STATION_KEYS, STATIONS, VENTILATION, VENTILATION_KEYS
 from saengine.library.labels import field_title
@@ -1162,14 +1163,6 @@ class Electrical(_Model):
 
 # ─────────────────────────── fire protection (BNBC 2020 Part 4) ───────────────────────────
 
-FIRE_HAZARDS = {
-    "lightI": "Light hazard-I",
-    "lightII": "Light hazard-II",
-    "ordinaryI": "Ordinary hazard-I",
-    "ordinaryII": "Ordinary hazard-II",
-    "ordinaryIII": "Ordinary hazard-III",
-    "extra": "Extra hazard",
-}
 FIRE_RISER_SYSTEMS = {
     "standpipe": "Standpipe (hydrant) riser",
     "sprinkler": "Sprinkler riser",

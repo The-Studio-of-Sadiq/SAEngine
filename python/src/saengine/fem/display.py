@@ -11,8 +11,10 @@ frame element:
 - the section forces (local axes, tension positive) from the end forces at ``i`` and the
   element's uniform load, by equilibrium of the segment ``[0, x]``.
 
-Element axes follow OpenSees Studio's runner (``vecxz`` chosen from the element axis), so the
-local y and z directions sent with each element are the ones the forces refer to.
+Element axes follow OpenSees Studio's runner (``vecxz`` chosen from the element axis); the
+forces are sent in the member axes 1, 2, 3 (:func:`saengine.fem.derive.member_axes`: a beam's
+axis 2 up, so its gravity bending is M3), and the y and z directions sent with each element are
+those axes 2 and 3.
 Units follow the model (SAEngine models: m, N, N·m).
 """
 
@@ -24,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from saengine.fem.derive import local_axes
+from saengine.fem.derive import local_axes, member_axes, to_member_axes
 
 STATIONS = 11
 """Points along each element (ends included)."""
@@ -211,10 +213,23 @@ def _manifest(out_dir: str | Path) -> dict[str, Any] | None:
         return None
 
 
+_loaded: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
 def _load(project_path: str | Path) -> dict[str, Any]:
+    """The analysis model, parsed once while its file stays the same (a tall building's is tens
+    of megabytes; the 3D view, the tables and the member windows read it in turn). Callers do
+    not change it."""
     import json
 
-    return json.loads(Path(project_path).read_text(encoding="utf-8"))
+    path = Path(project_path)
+    stamp = path.stat().st_mtime
+    key = str(path.resolve())
+    found = _loaded.get(key)
+    if found is None or found[0] != stamp:
+        _loaded.clear()  # one model at a time: it is large
+        found = _loaded[key] = (stamp, json.loads(path.read_text(encoding="utf-8")))
+    return found[1]
 
 
 #: Most time frames a time-history result offers to show or play.
@@ -353,7 +368,11 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
             )
     project = _load(project_path)
     if project.get("meta", {}).get("author") == "SAEngine":
-        from saengine.fem.combinations import combination_factors, settings_beside
+        from saengine.fem.combinations import (
+            combination_factors,
+            combination_label,
+            settings_beside,
+        )
 
         settings = settings_beside(project_path)
         for number, combination in enumerate(settings.combinations if settings else [], 1):
@@ -361,7 +380,7 @@ def result_list(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
                 results.append(
                     {
                         "key": f"combination:{number}",
-                        "label": combination.name,
+                        "label": combination_label(combination, static_codes),
                         "kind": "combination",
                     }
                 )
@@ -468,15 +487,19 @@ def result_view(
         else:
             raise ValueError(f"{label} cannot be shown in 3D")
     elif key.startswith("combination:"):
-        from saengine.fem.combinations import combination_factors, settings_beside
+        from saengine.fem.combinations import (
+            combination_factors,
+            combination_label,
+            settings_beside,
+        )
 
         settings = settings_beside(project_path)
         number = int(key.split(":")[1])
         if settings is None or not 1 <= number <= len(settings.combinations):
             raise ValueError(f"unknown combination {number}")
         combination = settings.combinations[number - 1]
-        label = combination.name
         by_code = {_code(e["case_name"]): e for e in manifest["cases"]}
+        label = combination_label(combination, set(by_code))
         for code, factor in combination_factors(combination, set(by_code)).items():
             entry = by_code.get(code)
             if entry is None:
@@ -571,15 +594,17 @@ def result_view(
         if e.name.split("#")[0].endswith("/embed"):
             continue  # the struts tying frames and shells into solids
         load = loads.get(e.id, np.zeros(3))
+        shown = member_axes(e.axes)
         item: dict[str, Any] = {
             "id": e.id,
             "name": e.name,
-            "y": _round(e.axes[1], 6),
-            "z": _round(e.axes[2], 6),
+            "y": _round(shown[1], 6),
+            "z": _round(shown[2], 6),
             "displacements": _round(element_displacements(e, disp[e.i], disp[e.j], load), 9),
         }
         if e.id in forces:
-            item["forces"] = _round(element_section_forces(e, forces[e.id], load), 3)
+            section = element_section_forces(e, forces[e.id], load)
+            item["forces"] = _round(to_member_axes(section, e.axes), 3)
         view_elements.append(item)
     # Solids: stresses from the corner displacements (constant in a linear tetrahedron); mode
     # shapes and peak (spectrum) displacements have no meaningful stresses.

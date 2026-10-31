@@ -3,12 +3,20 @@
     "BarDiameters": {
       "additionalProperties": {
         "items": {
-          "exclusiveMinimum": 0,
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
         },
         "type": "array"
       },
-      "description": "Bar size sets [mm] by use (extra sets allowed).",
+      "description": "Bar size sets [mm] by use (extra sets allowed; an extra set keeps its sizes as printed,\nintegers or decimals: 9 Substructure's minimum mesh is written as given).",
       "properties": {
         "all": {
           "items": {

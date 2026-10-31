@@ -218,7 +218,7 @@ def test_display_stages_and_design_use_the_staged_dead_load(run) -> None:
     # Combinations (and so the design checks) take D as the staged case: 1.4D is 1.4 times it
     # plus the superimposed dead load (SD, part of D in the combinations).
     combination = result_view(out, model, "combination:1")
-    assert combination["label"] == "1.4D"
+    assert combination["label"] == "1.4D + 1.4SD"  # every factor written out (N-X15)
     sd_key = next(r["key"] for r in listing["results"] if r["label"].startswith("SD: "))
     staged = {n[0]: np.array(n[1:4]) for n in final["nodes"]}
     superimposed = {n[0]: np.array(n[1:4]) for n in result_view(out, model, sd_key)["nodes"]}

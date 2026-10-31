@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFemDesignCheck, IFemDesignElement } from '../../browser/femDesign.js';
 import { describeBars, describeTransverseSpacing } from '../../browser/femDesignProposal.js';
-import { columnEndJoints, describeJointsSummary, describeScwb, describeJointVerdict, detailingGroup, detailingSection, FemDetailingElement, FemDetailingReport, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointGoverning, jointItems, jointsOf, jointsOfMember, scwbUtilisation } from '../../browser/femSeismicDetailing.js';
+import { designChecksCase } from '../../browser/femModelEditor.js';
+import { columnEndJoints, describeJointsSummary, describeScwb, describeJointVerdict, detailingGroup, detailingSection, FemDetailingElement, FemDetailingReport, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointGoverning, jointGoverningName, jointItems, jointNodeUtilisation, jointsOf, jointsOfMember, scwbUtilisation } from '../../browser/femSeismicDetailing.js';
 
 function check(fields: Partial<IFemDesignCheck> & Record<string, unknown>): IFemDesignCheck {
 	return { name: 'Check', demand: 1, capacity: 2, unit: '', utilisation: 0.5, combination: null, ok: true, note: '', flag: false, ...fields } as IFemDesignCheck;
@@ -105,6 +106,24 @@ suite('SAEngine - FEM seismic detailing', () => {
 		assert.deepStrictEqual(columnEndJoints(REPORT, C1, undefined), { top: J2 });
 	});
 
+	test('the design checks table lists the joints with the members, the failing first', () => {
+		const table = designChecksCase(REPORT);
+		// B1 fails at 1.351 and J1 (at the top of C0) at 1.2 / 1.1 = 1.091; J2 passes at 0.60.
+		assert.deepStrictEqual({
+			name: table.caseName,
+			rows: table.tables[0].rows.map(r => [r[0], r[3], r[4]]),
+			j1: table.tables[0].rows[1][1],
+		}, {
+			name: 'Design Checks: 1 of 4 members fail, 1 of 2 joints',
+			rows: [['B1', 1.351, 'FAIL'], ['C0', 1.091, 'FAIL'], ['C0', 0.7, 'pass'], ['C1', 0.7, 'pass'], ['B2', 0.7, 'pass'], ['C1', 0.6, 'pass']],
+			j1: 'Joint J1 (exterior)',
+		});
+		// The governing check's name: strong column / weak beam or joint shear, else the worst
+		// listed check (a bar-size-through-joint failure has no ratio of its own here).
+		const bars: IFemJoint = { ...J2, utilisation: 1.111, ok: false, checks: [check({ name: 'Detailing: Joint shear, J2 x', utilisation: 0.5 }), check({ name: 'Detailing: Beam bars through joint, J2 y', utilisation: 1.111, ok: false })] };
+		assert.deepStrictEqual([jointGoverningName(J1), jointGoverningName(bars)], ['strong column / weak beam along Y', 'Beam bars through joint y']);
+	});
+
 	test('a report without seismic detailing shows nothing of it', () => {
 		const plain: IFemDesignElement = { ...C0, checks: [check({ name: 'Detailing is not a prefix here' })] };
 		const report = { ...REPORT, joints: undefined };
@@ -117,6 +136,8 @@ suite('SAEngine - FEM seismic detailing', () => {
 			governing: [jointGoverning(J1)?.check, jointGoverning(J2)?.check],
 			scwb: [scwbUtilisation(J1.scwb?.x), scwbUtilisation({ ratio: 1.5, utilisation: 0.9 }), scwbUtilisation(null)],
 			colours: jointColouring(REPORT, MODEL),
+			// The glyphs at the joints' nodes: J1 at node 2, J2 at node 3.
+			glyphs: jointNodeUtilisation(REPORT, MODEL),
 			// Without the model, the whole members.
 			coloursNoModel: jointColouring(REPORT, undefined),
 			summary: describeJointsSummary(REPORT),
@@ -129,6 +150,7 @@ suite('SAEngine - FEM seismic detailing', () => {
 			scwb: [0.7999999999999999, 0.9, undefined],
 			// Only the segments touching each joint's node: 12 (not 10) of C0, 20 (not 22) of B1.
 			colours: { 12: 1.2 / 1.1, 20: 1.2 / 1.1, 11: 0.6, 21: 0.6 },
+			glyphs: { 2: 1.2 / 1.1, 3: 0.6 },
 			// Without the model every segment of the joint's members.
 			coloursNoModel: { 10: 1.2 / 1.1, 12: 1.2 / 1.1, 20: 1.2 / 1.1, 22: 1.2 / 1.1, 11: 0.6, 21: 0.6 },
 			summary: '2 joints: 1 pass, 1 fail · largest utilisation 1.09 at J1 (strong column / weak beam along Y)',
