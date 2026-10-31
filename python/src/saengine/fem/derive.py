@@ -1955,6 +1955,7 @@ def _derive_fem(
                 rigid=True,
                 torsion=bool(option(options, "windTorsionCases", True)),
                 story_names=story_names,
+                settings=settings.wind,
             )
         b.notes.extend(wind_notes)
     if special:
@@ -2455,6 +2456,11 @@ def _derive_fem(
             seismic_loads,
             lambda t: fl.normalized_spectrum(t, settings.site.siteClass),
         )
+    # ── the gust-effect factor of a flexible building (BNBC 2020 Part 6 Sec 2.4.8.2) ──
+    if summary.get("wind"):
+        _wind_gust(
+            project, summary, b.notes, settings.wind, values["windSpeed"], settings.wind.exposure
+        )
     return Derivation(
         project=project,
         notes=b.notes,
@@ -2766,6 +2772,7 @@ def _wind_loads(
     rigid: bool,
     torsion: bool,
     story_names: dict[float, str] | None = None,
+    settings: Any = None,
 ) -> list[str]:
     """The equivalent static wind loads WX and WY (BNBC 2020 Part 6 Sec 2.4.11.2) and the
     torsional cases WTX and WTY (Sec 2.4.11.3 and Figure 6.2.9, pp. 559 and 574-575) into
@@ -2806,6 +2813,7 @@ def _wind_loads(
     rows: dict[str, list[dict[str, float]]] = {}
     totals: dict[str, float] = {}
     no_width: dict[str, list[str]] = {}
+    depth_of: dict[str, float] = {}
     for axis, case in ((0, "WX"), (1, "WY")):
         across = 1 - axis
         spans = [(float(lo[across]), float(hi[across])) for lo, hi in extents]
@@ -2845,6 +2853,7 @@ def _wind_loads(
             else None
         )
         rows[case] = []
+        depth_of[case] = max(depths)
         for i, (h, level) in enumerate(zip(heights, levels, strict=True)):
             shares = level_shares(h)
             total = sum(shares.values())
@@ -2882,8 +2891,132 @@ def _wind_loads(
         "designCases": None if cases is None else dict(vars(cases)),
         "exempt": exempt,
         "noWidth": no_width,
+        "depth_m": depth_of,
+        "base_m": base_m,
     }
+    # Components and cladding (Sec 2.4.11.5) at the roof, the least dimension of the whole
+    # building's plan setting the edge zones' width a.
+    low = np.min([lo for lo, _ in extents], axis=0)
+    high = np.max([hi for _, hi in extents], axis=0)
+    least = float(min(high - low))
+    if rel[-1] > 0 and least > _WIND_MIN_WIDTH:
+        cladding = fl.cladding_pressures(
+            rel[-1],
+            least,
+            speed,
+            exposure,
+            importance,
+            area=getattr(settings, "claddingArea", None),
+            enclosure=getattr(settings, "enclosure", None) or "enclosed",
+            parapet=getattr(settings, "parapetHeight", None) or None,
+        )
+        if cladding is not None:
+            summary["wind"]["cladding"] = cladding
+            worst = min(z["pNeg_kPa"] for z in cladding["zones"] if z["pNeg_kPa"] is not None)
+            notes.append(
+                "wind components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): qh = "
+                f"{cladding['qh_kPa']:.2f} kN/m² at h = {rel[-1]:.1f} m, edge zones a = "
+                f"{cladding['a_m']:.2f} m, largest suction {worst:.2f} kN/m² "
+                + "; ".join(
+                    f"{z['surface']} zone {z['zone']} "
+                    + "/".join(f"{z[k]:+.2f}" for k in ("pPos_kPa", "pNeg_kPa") if z[k] is not None)
+                    for z in cladding["zones"]
+                )
+                + " kN/m²"
+            )
     return notes
+
+
+def _wind_gust(
+    project: dict[str, Any],
+    summary: dict[str, Any],
+    notes: list[str],
+    settings: Any,
+    speed: float,
+    exposure: str,
+) -> None:
+    """The gust-effect factor of a flexible building (BNBC 2020 Part 6 Sec 2.4.8.2): with the
+    natural frequency n1 in each wind direction (the settings' ``naturalFrequency``, else the
+    modal analysis's fundamental mode in that direction, the one with the largest effective
+    mass), a building with n1 < 1 Hz takes Gf instead of the rigid G (0.85, Sec 2.4.8.1). Every
+    term of the wind load is qz·G·Cp, so WX and WTX (WY and WTY) scale by Gf / G; the summary's
+    wind rows with them. Nothing when the settings give G, or the code pack has no Gf."""
+    import subprocess
+
+    wind = summary.get("wind")
+    if not wind or getattr(settings, "gust", None) is not None:
+        return
+    rows = wind.get("levels") or {}
+    if not rows.get("WX") and not rows.get("WY"):
+        return
+    given = getattr(settings, "naturalFrequency", None)
+    if given:
+        frequencies = {"X": float(given), "Y": float(given)}
+        source = "the settings' n1"
+    else:
+        modal = summary.get("periodModal")
+        if modal is None:
+            from saengine.fem.seismic_design import fundamental_periods
+
+            try:
+                modal = fundamental_periods(project)
+            except (ValueError, OSError, subprocess.SubprocessError) as error:
+                notes.append(
+                    f"wind gust factor: the modal analysis failed ({error}); the rigid G is "
+                    "used, so check the building is not flexible (n1 < 1 Hz, BNBC 2020 Part 6 "
+                    "Sec 2.4.8.2) or give its natural frequency in Project Settings > Wind"
+                )
+                return
+        frequencies = {axis: 1 / modal[axis]["period"] for axis in ("X", "Y")}
+        source = "the modal analysis"
+    rigid = fl.wind_factor("gust")
+    height = max(row["z"] for row in rows.get("WX") or rows["WY"]) - wind.get("base_m", 0.0)
+    gust: dict[str, Any] = {"G": rigid, "source": source}
+    by_name = {p.get("name"): p for p in project.get("load_patterns", [])}
+    for axis, case in (("X", "WX"), ("Y", "WY")):
+        levels = rows.get(case) or []
+        n1 = frequencies[axis]
+        entry: dict[str, Any] = {"n1_Hz": n1, "flexible": fl.is_flexible(n1), "G": rigid}
+        gust[axis] = entry
+        if not levels or not entry["flexible"]:
+            continue
+        width = max(row["B_m"] for row in levels)
+        depth = float(summary["wind"].get("depth_m", {}).get(case, width))
+        terms = fl.flexible_gust_factor(
+            height, width, depth, n1, speed, exposure, getattr(settings, "damping", None)
+        )
+        if terms is None:
+            notes.append(
+                f"wind {axis}: n1 = {n1:.3f} Hz < 1 Hz (flexible) but the code pack has no Gf "
+                "(Sec 2.4.8.2); the rigid G is used"
+            )
+            continue
+        entry.update(terms)
+        entry["G"] = terms["Gf"]
+        factor = terms["Gf"] / rigid
+        for name in (case, fl.WIND_TORSION_CASES[case]):
+            pattern = by_name.get(name)
+            for load in (pattern or {}).get("nodal_loads", []):
+                load["forces"] = [round(float(f) * factor, 3) for f in load["forces"]]
+        for row in levels:
+            row["force_kN"] *= factor
+            if "torsion_kNm" in row:
+                row["torsion_kNm"] *= factor
+        summary[f"wind_{axis}_kN"] = summary.get(f"wind_{axis}_kN", 0.0) * factor
+    wind["gust"] = gust
+    notes.append(
+        "wind gust factor (BNBC 2020 Part 6 Sec 2.4.8): "
+        + "; ".join(
+            f"{axis}: n1 = {gust[axis]['n1_Hz']:.3f} Hz from {source}, "
+            + (
+                f"flexible, Gf = {gust[axis]['G']:.3f} (Sec 2.4.8.2, β = "
+                f"{gust[axis].get('beta', 0):.3f})"
+                if "Gf" in gust[axis]
+                else f"rigid, G = {rigid:.2f} (Sec 2.4.8.1)"
+            )
+            for axis in ("X", "Y")
+        )
+    )
 
 
 #: A level narrower than this across the wind [m] has no face of its own (a numerical zero).

@@ -284,7 +284,11 @@ def zones(building: Building, hvac: Any) -> Zoning:
         )
     top = order[-1]
     if top in entries:
-        problems.append(f"hvac: '{top}' is the roof of the building model (no story above it)")
+        problems.append(
+            f"Storey {building.names.get(top, top)} is "
+            "the roof of 06 BIM (no storey above it), not an air-conditioned floor: set its use "
+            "to Roof in 07 MEP's Storey use, or take it out of the HVAC storeys"
+        )
     # the highest story with slabs holds the roof: nothing above it is enclosed (a column or
     # an empty story above the roof slab is no room), so no zone is made at or above it
     with_slabs = [i for i, s in enumerate(order) if building.slabs_at(s)]

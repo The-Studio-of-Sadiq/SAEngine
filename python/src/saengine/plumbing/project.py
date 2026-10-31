@@ -454,7 +454,10 @@ def _summarise_checks(report: dict[str, Any]) -> None:
         f": {', '.join(failed)}" if failed else ""
     )
     if report.get("tankDesignsPending"):
-        line += f" ({report['tankDesignsPending']} tank designs still running)"
+        line += (
+            f" ({report['tankDesignsPending']} tank designs running in the background: "
+            "their checks are added when they are in)"
+        )
     summary = [s for s in report.get("summary") or [] if " checks fail" not in s]
     pump = (report.get("hydraulics") or {}).get("pump")
     if isinstance(pump, dict) and pump.get("motor") is not None and pump.get("flow") is not None:

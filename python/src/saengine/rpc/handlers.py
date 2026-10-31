@@ -215,7 +215,15 @@ def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> 
 def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 
-    if kind not in ("materials", "objects", "settings", "floorPlan", "structure", "bim"):
+    if kind not in (
+        "materials",
+        "objects",
+        "settings",
+        "floorPlan",
+        "structure",
+        "bim",
+        "reportTemplate",
+    ):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
 
@@ -786,6 +794,44 @@ def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
         return {"ok": False, "code": "failed", "message": str(exc)}
 
 
+def convert_pdf(path: str, page: int | None = None, cache: str | None = None) -> dict[str, Any]:
+    """One page of an architect's PDF as DXF (``saengine.library.pdf_underlay``): ``{"ok",
+    "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached"}``, or ``{"ok":
+    False, "code": "failed", "message"}``."""
+    from saengine.library.pdf_underlay import PdfError, convert
+
+    try:
+        return {"ok": True, **convert(path, int(page or 1), cache).to_json()}
+    except PdfError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
+
+
+def workbook_export(
+    out_path: str, floor_plan_text: str, objects_text: str | None, loads_text: str | None
+) -> dict[str, Any]:
+    """The model as an Excel workbook (``saengine.library.workbook``): ``{"ok", "path",
+    "sheets"}`` or ``{"ok": False, "message"}``."""
+    from saengine.library.workbook import export_workbook
+
+    try:
+        return {"ok": True, **export_workbook(out_path, floor_plan_text, objects_text, loads_text)}
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+def workbook_import(
+    path: str, floor_plan_text: str, objects_text: str | None, loads_text: str | None
+) -> dict[str, Any]:
+    """An edited model workbook read against the current files: ``{"ok", "problems", "diff",
+    "texts", "changed"}`` (``saengine.library.workbook.import_workbook``)."""
+    from saengine.library.workbook import import_workbook
+
+    try:
+        return import_workbook(path, floor_plan_text, objects_text, loads_text)
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "problems": [str(exc)], "diff": {}, "texts": {}, "changed": []}
+
+
 def installer_components() -> dict[str, Any]:
     """The setup's optional components the backend runs, found as the backend finds them for
     use (``find_energyplus``, ``find_converter``): ``{"energyplus", "libredwg"}``, each
@@ -966,11 +1012,57 @@ def compute_boq(
     )
 
 
-def build_report(project_root: str, out_pdf: str | None = None) -> dict[str, Any]:
-    """The PDF design report of the project (see ``saengine.report.build_report``)."""
+def build_report(
+    project_root: str,
+    out_pdf: str | None = None,
+    format: str = "pdf",
+    template: str | None = None,
+) -> dict[str, Any]:
+    """The design report of the project, PDF or Word (see ``saengine.report.build_report``)."""
     from saengine.report import build_report as build
 
-    return build(project_root, out_pdf)
+    return build(project_root, out_pdf, format=format, template=template)
+
+
+def report_templates(project_root: str) -> dict[str, Any]:
+    """The report templates the project can print (built-in and its own) and the one its
+    settings name: ``{"templates": [{id, name, source, path?}], "current"}``."""
+    from saengine.library.report_template import DEFAULT_TEMPLATE_ID, list_templates
+    from saengine.report.build import _Parts
+
+    settings = _Parts(Path(project_root), []).settings()
+    current = getattr(getattr(settings, "report", None), "template", None) or DEFAULT_TEMPLATE_ID
+    return {"templates": list_templates(project_root), "current": current}
+
+
+def report_template_create(
+    project_root: str, template_id: str, base: str | None = None, name: str | None = None
+) -> dict[str, Any]:
+    """Writes a new report template ``template_id`` into the project, a copy of ``base`` (a
+    built-in or project template; the default when not given): ``{"path"}`` or ``{"problems"}``.
+    An existing file is never overwritten."""
+    import re
+
+    from saengine.library.report_template import (
+        TEMPLATE_ID_PATTERN,
+        load_template,
+        save_template,
+        template_path,
+    )
+
+    if not re.match(TEMPLATE_ID_PATTERN, template_id):
+        return {
+            "problems": [
+                f"'{template_id}' is not a template id: lower-case letters, digits and hyphens."
+            ]
+        }
+    if template_path(project_root, template_id).exists():
+        return {"path": str(template_path(project_root, template_id)), "existing": True}
+    template, problems = load_template(project_root, base)
+    if problems:
+        return {"problems": problems}
+    copy = template.model_copy(update={"id": template_id, "name": name or template.name})
+    return {"path": str(save_template(project_root, copy))}
 
 
 # ─────────────────────────────────────── soil report ───────────────────────────────────────

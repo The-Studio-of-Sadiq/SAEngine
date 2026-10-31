@@ -171,14 +171,19 @@ class PlacedFooting(_Placed):
 
 
 class Underlay(_Model):
-    """An architect's drawing shown, greyed and read-only, under one story's plan."""
+    """An architect's drawing shown, greyed and read-only, under one story's plan.
+
+    A PDF shows one page's vector linework (``saengine.library.pdf_underlay``) in paper mm, so its
+    ``scale`` is the drawing's scale (100 for 1:100), set by calibrating two points against a
+    known length on the floor plan."""
 
     story: Id = Field(description="Story whose plan shows the drawing.")
     file: str = Field(
         min_length=1,
-        pattern=r"\.[dD]([xX][fF]|[wW][gG])$",
-        description="DXF file, relative to the 05 Floor Plan folder.",
+        pattern=r"\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF])$",
+        description="DXF, DWG or PDF file, relative to the 05 Floor Plan folder.",
     )
+    page: int = Field(default=1, ge=1, description="A PDF's page shown (from 1).")
     dx: Mm = Field(default=0, title="Offset X", description="Where the drawing's origin goes [mm].")
     dy: Mm = Field(default=0, title="Offset Y", description="[mm]")
     scale: float = Field(
@@ -186,6 +191,10 @@ class Underlay(_Model):
     )
     rotation: float = Field(default=0, description="[°]")
     visible: bool = True
+    locked: bool = Field(
+        default=False,
+        description="Locked: moving, rotating and calibrating the underlay are turned off.",
+    )
 
     @field_validator("file")
     @classmethod

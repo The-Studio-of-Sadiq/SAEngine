@@ -31,6 +31,16 @@ export const CAD_OPEN_COMMAND = 'saengine.cad.open';
  * DXF (cached in a `.dwg-cache` folder beside it) by the bundled GNU LibreDWG.
  */
 export const DWG_TO_DXF_COMMAND = 'saengine.cad.dwgToDxf';
+/**
+ * `{path, page?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings}` or `{ok: false,
+ * code, message}`: one page of a PDF drawing as DXF (cached in a `.pdf-cache` folder beside it),
+ * with its straight lines `[x1, y1, x2, y2]` in paper mm for object snaps.
+ */
+export const PDF_TO_DXF_COMMAND = 'saengine.cad.pdfToDxf';
+/** `{outPath, floorPlanText, objectsText?, loadsText?}` -> `{ok, path, sheets}`: the model as an Excel workbook. */
+export const WORKBOOK_EXPORT_COMMAND = 'saengine.workbook.export';
+/** `{path, floorPlanText, objectsText?, loadsText?}` -> `{ok, problems, diff, texts, changed}`: an edited workbook read back. */
+export const WORKBOOK_IMPORT_COMMAND = 'saengine.workbook.import';
 
 /** The UI commands (≡ File menu, the Exports page). Each takes its paths as arguments, for tests. */
 export const EXPORT_ARCHIVE_UI_COMMAND = 'saengine.project.exportArchive';
@@ -42,6 +52,8 @@ export interface IArchiveExportOptions {
 	readonly includeResults: boolean;
 	/** The version history: the receiver can see and restore earlier versions. */
 	readonly includeVersions: boolean;
+	/** The deliverables of 11 Exports (report, drawings): the largest part of most archives. */
+	readonly includeExports: boolean;
 }
 
 export interface IArchiveExportArgs extends IArchiveExportOptions {
@@ -60,6 +72,7 @@ export interface IExportArchiveCommandArgs {
 	readonly outPath?: string;
 	readonly includeResults?: boolean;
 	readonly includeVersions?: boolean;
+	readonly includeExports?: boolean;
 }
 
 /** The arguments of {@link OPEN_ARCHIVE_UI_COMMAND}: any left out is asked; `open: false` imports without opening. */
@@ -70,7 +83,7 @@ export interface IOpenArchiveCommandArgs {
 	readonly open?: boolean;
 }
 
-export const DEFAULT_EXPORT_OPTIONS: IArchiveExportOptions = { includeResults: false, includeVersions: true };
+export const DEFAULT_EXPORT_OPTIONS: IArchiveExportOptions = { includeResults: false, includeVersions: true, includeExports: true };
 
 export function exportArgs(projectRoot: string, outPath: string, options: Partial<IArchiveExportOptions> = {}): IArchiveExportArgs {
 	return {
@@ -78,6 +91,7 @@ export function exportArgs(projectRoot: string, outPath: string, options: Partia
 		outPath: withArchiveExtension(outPath),
 		includeResults: options.includeResults ?? DEFAULT_EXPORT_OPTIONS.includeResults,
 		includeVersions: options.includeVersions ?? DEFAULT_EXPORT_OPTIONS.includeVersions,
+		includeExports: options.includeExports ?? DEFAULT_EXPORT_OPTIONS.includeExports,
 	};
 }
 

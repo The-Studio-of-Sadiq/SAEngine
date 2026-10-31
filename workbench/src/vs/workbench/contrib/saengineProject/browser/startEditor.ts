@@ -13,6 +13,7 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -33,7 +34,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
-import { NEW_BUILDING_COMMAND } from './newBuildingModel.js';
+import { folderError, NEW_BUILDING_COMMAND } from './newBuildingModel.js';
 import { BNBC, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { CODES_LIST_COMMAND, DEFAULT_CODE_PACK, ICodePackInfo, packOptions, readCodePacks } from '../../saengineLibrary/browser/codePacksModel.js';
 import { ProjectOpener, projectFolderName } from './projectOpener.js';
@@ -320,6 +321,14 @@ export class StartEditor extends EditorPane {
 				location.value = picked.fsPath;
 			}
 		}));
+		// The wizard's check: a full path (not "C:Users", which resolves against the app's folder).
+		const locationError = append(form, $('p.error', { role: 'alert' }));
+		const validateLocation = () => {
+			const error = folderError(location.value, isWindows);
+			locationError.textContent = error ?? '';
+			location.inputElement.setAttribute('aria-invalid', String(!!error));
+			return error;
+		};
 
 		// What the project designs decides how Part 5 models it.
 		let type: ProjectType = 'building';
@@ -350,7 +359,7 @@ export class StartEditor extends EditorPane {
 
 		const target = append(form, $('p.target'));
 		const updateTarget = () => {
-			target.textContent = name.value.trim() && !this.opener.validateDisplayName(name.value)
+			target.textContent = name.value.trim() && !this.opener.validateDisplayName(name.value) && !folderError(location.value, isWindows)
 				? localize('start.target', "Created in {0}", joinPath(URI.file(location.value), projectFolderName(name.value)).fsPath)
 				: '';
 		};
@@ -364,11 +373,18 @@ export class StartEditor extends EditorPane {
 		const back = this.pageDisposables.add(new Button(buttons, { ...defaultButtonStyles, secondary: true }));
 		back.label = localize('start.cancel', "Cancel");
 		this.pageDisposables.add(back.onDidClick(() => this.renderRecent(true)));
+		const updateCreate = () => create.enabled = !validateLocation();
+		this.pageDisposables.add(location.onDidChange(updateCreate));
+		updateCreate();
 
 		const submit = () => {
 			nameError.textContent = this.opener.validateDisplayName(name.value) ?? '';
-			if (nameError.textContent || !location.value.trim()) {
+			if (nameError.textContent) {
 				name.focus();
+				return;
+			}
+			if (validateLocation()) {
+				location.focus();
 				return;
 			}
 			this.run(() => this.opener.createAndOpen(URI.file(location.value.trim()), name.value, type, { codePack, location: siteId, use: useValue }));

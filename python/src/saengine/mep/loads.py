@@ -66,6 +66,7 @@ from shapely.geometry import Point, Polygon
 from shapely.geometry import box as shapely_box
 
 from saengine.library.bim import (
+    BeamElement,
     BuildingModel,
     SlabElement,
     SlabOpening,
@@ -79,6 +80,7 @@ from saengine.mep.geometry import (
     inside,
     is_rectangle,
     local_to_global,
+    rotated_rectangle,
     shape_weights,
 )
 
@@ -86,6 +88,8 @@ G = 9.80665
 MM = 1e-3
 #: Unit weight of a plinth whose material has no density [kN/m³].
 PLINTH_UNIT_WEIGHT = 24.0
+#: A beam frames a slab panel when its top is within this of the slab's [mm].
+SLAB_LEVEL_TOLERANCE = 300.0
 
 #: BNBC 2020 Table 6.2.6, vertical impact as a percentage of the static load including
 #: self-weight, by equipment kind (lifts always; the others when marked vibrating).
@@ -366,6 +370,15 @@ def equipment_loads(
         share = 1.0 / len(placed)
         parts = equipment_parts(item, mep.contentsAs, densities, cases)
         frame_points: dict[str, list[tuple[float, float]]] = {}
+        bay = bay_of(item, building)
+        if bay is not None:
+            # A tank covering its bay stands on the bay's beams: its weight goes to them.
+            frame_points[bay.id] = [point for point, _ in placed]
+            placed = []
+            result.notes.append(
+                f"{item.id}: covers bay {bay.id} and stands on its beams: its weight goes to "
+                "the bay's edge beams as uniform loads of the same total"
+            )
         for point, slab in placed:
             if slab.id not in shells_of:
                 frame_points.setdefault(slab.id, []).append(point)
@@ -387,7 +400,7 @@ def equipment_loads(
                         )
                     )
         for slab_id, on_slab in frame_points.items():
-            slab = next(s for s in here if s.id == slab_id)
+            slab = bay if bay is not None else next(s for s in here if s.id == slab_id)
             fraction = len(on_slab) * share
             centre = np.mean(np.array(on_slab), axis=0)
             system = (slab_systems or {}).get(slab.id, "twoWay")
@@ -411,11 +424,12 @@ def equipment_loads(
                                 item.id,
                             )
                         )
-            result.notes.append(
-                f"{item.id}: on {slab.id}, which hands its loads to its beams: its weight goes "
-                "to the slab edges (beams) as uniform loads of the same total; mesh the slab as "
-                "shells to see its local bending"
-            )
+            if bay is None:
+                result.notes.append(
+                    f"{item.id}: on {slab.id}, which hands its loads to its beams: its weight "
+                    "goes to the slab edges (beams) as uniform loads of the same total; mesh the "
+                    "slab as shells to see its local bending"
+                )
     return result
 
 
@@ -429,6 +443,93 @@ def slabs_under(item: Equipment, building: BuildingModel) -> list[str]:
         e for e in building.elements if isinstance(e, SlabElement) and abs(e.elevation - z) < 1.0
     ]
     return sorted({s.id for point in _points(item) for s in slabs if inside(point, s.boundary)})
+
+
+#: Equipment pressing more than this on a slab panel, away from its beams, is flagged [kPa]
+#: (SAEngine practice: several times the floor live loads of BNBC 2020 Part 6 Table 6.2.3 that
+#: a slab panel is designed for).
+HEAVY_PRESSURE = 5.0
+#: A tank covering at least this share of its slab panel stands on the panel's edge beams.
+BAY_SHARE = 0.5
+#: An edge of a slab panel is on a beam when the beam passes within this of its midpoint [mm].
+BEAM_TOLERANCE = 150.0
+
+
+def _beams_at(building: BuildingModel, z: float) -> list[tuple[Sequence[float], Sequence[float]]]:
+    return [
+        (e.start, e.end)
+        for e in building.elements
+        if isinstance(e, BeamElement) and abs(e.elevation - z) <= SLAB_LEVEL_TOLERANCE
+    ]
+
+
+def _on_beam(a: Sequence[float], b: Sequence[float], beams: Sequence[tuple]) -> bool:
+    mid = np.array([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])
+    for start, end in beams:
+        p, q = np.array(start[:2], dtype=float), np.array(end[:2], dtype=float)
+        pq = q - p
+        t = float((mid - p) @ pq) / max(float(pq @ pq), 1e-9)
+        t = min(max(t, 0.0), 1.0)
+        if float(np.linalg.norm(p + t * pq - mid)) <= BEAM_TOLERANCE:
+            return True
+    return False
+
+
+def framed_panel(slab: SlabElement, building: BuildingModel) -> bool:
+    """Whether beams run along every edge of a slab panel (a column-supported bay)."""
+    beams = _beams_at(building, slab.elevation)
+    n = len(slab.boundary)
+    return bool(beams) and all(
+        _on_beam(slab.boundary[i], slab.boundary[(i + 1) % n], beams) for i in range(n)
+    )
+
+
+def bay_of(item: Equipment, building: BuildingModel) -> SlabElement | None:
+    """The slab panel whose edge beams carry a tank: a tank (``kind`` "tank", loaded over its
+    area) whose footprint is on one framed panel (:func:`framed_panel`) and covers at least
+    :data:`BAY_SHARE` of it stands on that bay's beams (its walls on them, or its base spanning
+    to them), so its weight goes to the beams, not to the middle of the panel."""
+    if item.kind != "tank" or item.loadAs != "area":
+        return None
+    levels = {s.id: s.elevation for s in building.stories}
+    if item.story not in levels:
+        return None
+    z = levels[item.story]
+    footprint = Polygon(rotated_rectangle(item.x, item.y, item.length, item.width, item.rotation))
+    for slab in building.elements:
+        if not isinstance(slab, SlabElement) or abs(slab.elevation - z) >= 1.0:
+            continue
+        panel = Polygon([(p[0], p[1]) for p in slab.boundary])
+        if not panel.buffer(BEAM_TOLERANCE).covers(footprint) or panel.area <= 0:
+            continue
+        if footprint.area / panel.area >= BAY_SHARE and framed_panel(slab, building):
+            return slab
+    return None
+
+
+def heavy_on_slab(item: Equipment, building: BuildingModel) -> str | None:
+    """A warning when a piece of equipment presses more than :data:`HEAVY_PRESSURE` on a slab
+    panel above the base level, not standing on the panel's beams (:func:`bay_of`): the slab
+    was designed for floor loads, not for it. None when it is fine (or on grade, or off the
+    slabs)."""
+    area = item.length * item.width * 1e-6
+    if area <= 0:
+        return None
+    pressure = item.operatingWeight / area
+    if pressure <= HEAVY_PRESSURE:
+        return None
+    levels = {s.id: s.elevation for s in building.stories}
+    if item.story not in levels or math.isclose(levels[item.story], min(levels.values())):
+        return None
+    slabs = slabs_under(item, building)
+    if not slabs or bay_of(item, building) is not None:
+        return None
+    return (
+        f"{item.id}: {item.operatingWeight:.0f} kN ({pressure:.1f} kPa over its footprint) on "
+        f"slab {', '.join(slabs)} of story {item.story}, away from its beams: move it over a "
+        "column-supported bay so that it covers the bay and stands on the bay's beams (Propose "
+        "places a new overhead tank there), or give it its own beams; then re-run 08 FEM"
+    )
 
 
 def _in_opening(point: Sequence[float], opening: SlabOpening) -> bool:

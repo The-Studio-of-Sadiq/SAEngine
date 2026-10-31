@@ -39,6 +39,7 @@ from saengine.library.materials import (
 )
 from saengine.library.mep import MepModel
 from saengine.library.objects import ObjectLibrary
+from saengine.library.report_template import ReportTemplate, default_report_template
 from saengine.library.script import TEMPLATE as SCRIPT_TEMPLATE
 from saengine.library.settings import (
     ProjectSettings,
@@ -233,6 +234,12 @@ def generate_typescript() -> str:
             json_schema(Architecture, "SAEngine architecture"),
         ),
         ("DEFAULT_ARCHITECTURE", "object", library_json(default_architecture())),
+        (
+            "REPORT_TEMPLATE_SCHEMA",
+            "IJSONSchema",
+            json_schema(ReportTemplate, "SAEngine report template"),
+        ),
+        ("DEFAULT_REPORT_TEMPLATE", "object", library_json(default_report_template())),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports

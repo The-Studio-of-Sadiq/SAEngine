@@ -393,6 +393,71 @@ export function barsAlongEdges(region: IRegion, inset: number, dia: number, spac
 	return bars.filter(bar => pointInRegion([bar.x, bar.y], region));
 }
 
+/** An axis-aligned rectangle: one leg (or flange, or web) of a template. */
+interface ILeg {
+	readonly x0: number;
+	readonly y0: number;
+	readonly x1: number;
+	readonly y1: number;
+}
+
+/** The legs of the L, T and C templates, overlapping where they meet; undefined for the others. */
+function templateLegs(kind: TemplateKind, p: ITemplateParams): ILeg[] | undefined {
+	const { b, h, t } = p;
+	const tf = p.tf ?? t;
+	const x0 = -b / 2, y0 = -h / 2, x1 = b / 2, y1 = h / 2;
+	switch (kind) {
+		case 'L': return [{ x0, y0, x1, y1: y0 + t }, { x0, y0, x1: x0 + t, y1 }];
+		case 'T': return [{ x0, y0: y1 - tf, x1, y1 }, { x0: -t / 2, y0, x1: t / 2, y1 }];
+		case 'C': return [{ x0, y0, x1: x0 + t, y1 }, { x0, y0, x1, y1: y0 + tf }, { x0, y0: y1 - tf, x1, y1 }];
+		default: return undefined;
+	}
+}
+
+/**
+ * The bars of the L, T and C templates: each leg has a row on each of its two long faces,
+ * `inset` from them, with the bars of the two rows in opposite pairs (so ties can cross the leg)
+ * at no more than `spacing`. The rows of the other legs are stations of every leg, so the bars
+ * at the corners and re-entrant corners are shared, and the spacing is even between them.
+ * Undefined for the other templates (their bars go along the edges, see `barsAlongEdges`).
+ */
+export function templateBars(kind: TemplateKind, p: ITemplateParams, inset: number, dia: number, spacing: number): IBar[] | undefined {
+	const legs = templateLegs(kind, p);
+	if (!legs) {
+		return undefined;
+	}
+	// The bar lines across each leg's thickness: one on each face, or one in the middle of a leg
+	// too thin for two.
+	const lines = (lo: number, hi: number) => hi - lo - 2 * inset >= dia ? [lo + inset, hi - inset] : [(lo + hi) / 2];
+	const along = legs.map(leg => leg.x1 - leg.x0 >= leg.y1 - leg.y0);
+	const bars: IBar[] = [];
+	legs.forEach((leg, i) => {
+		const [lo, hi, a0, a1] = along[i] ? [leg.y0, leg.y1, leg.x0, leg.x1] : [leg.x0, leg.x1, leg.y0, leg.y1];
+		const [from, to] = [a0 + inset, a1 - inset];
+		// Stations: the leg's ends and the bar lines of the legs across it, then evenly between.
+		const fixed = [from, to, ...legs.flatMap((other, j) => j === i || along[j] === along[i] ? [] : along[j] ? lines(other.y0, other.y1) : lines(other.x0, other.x1))]
+			.filter(s => s >= from - 1e-6 && s <= to + 1e-6)
+			.sort((m, n) => m - n);
+		const stations: number[] = [];
+		fixed.forEach((s, k) => {
+			const next = fixed[k + 1];
+			stations.push(s);
+			if (next !== undefined && next - s > 1e-6) {
+				const n = Math.ceil((next - s) / spacing - 1e-9);
+				for (let m = 1; m < n; m++) {
+					stations.push(s + m * (next - s) / n);
+				}
+			}
+		});
+		for (const line of lines(lo, hi)) {
+			for (const s of stations) {
+				addBar(bars, along[i] ? { x: Math.round(s), y: Math.round(line), dia } : { x: Math.round(line), y: Math.round(s), dia });
+			}
+		}
+	});
+	return bars;
+}
+
 function addBar(bars: IBar[], bar: IBar): void {
 	if (!bars.some(b => Math.hypot(b.x - bar.x, b.y - bar.y) < (b.dia + bar.dia) / 2)) {
 		bars.push(bar);
@@ -524,13 +589,15 @@ export interface IPropertyRow {
 
 /**
  * The properties without the round-off of the analysis: a centroid or shear centre of a
- * symmetric section comes out as 1e-14 mm (against a section hundreds of mm across) and Ixy as
- * 1e-4 mm⁴ (against 1e12); those are 0, and so is the principal angle then.
+ * symmetric section comes out as 1e-14 mm (a shear centre as 1e-5 mm, against a section hundreds
+ * of mm across) and Ixy as 1e-4 mm⁴ (against 1e12); those are 0, and so is the principal angle then.
  */
 export function cleanProperties(p: ISectionProperties): ISectionProperties {
 	const size = Math.sqrt(Math.abs(p.area)) || 1;
-	const coordinate = (v: number) => Math.abs(v) < 1e-9 * size ? 0 : v;
-	const ixy = Math.abs(p.ixy) < 1e-9 * Math.sqrt(Math.abs(p.ixx * p.iyy)) ? 0 : p.ixy;
+	// The shear centre is solved numerically: its noise is far larger than the centroid's
+	// (-15e-6 mm on a 600 mm L), yet still under a micrometre per metre of section.
+	const coordinate = (v: number) => Math.abs(v) < 1e-6 * size ? 0 : v;
+	const ixy = Math.abs(p.ixy) < 1e-6 * Math.sqrt(Math.abs(p.ixx * p.iyy)) ? 0 : p.ixy;
 	return {
 		...p,
 		cx: coordinate(p.cx),

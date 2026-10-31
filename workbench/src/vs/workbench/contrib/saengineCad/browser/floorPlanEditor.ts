@@ -26,7 +26,7 @@ import { IDialogService, IFileDialogService } from '../../../../platform/dialogs
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -36,7 +36,7 @@ import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -49,16 +49,17 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
+import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
-import { ISnap, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
+import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
+import { alignAngle, calibrated, diffLines, diffSummary, isPdf, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
-import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
+import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
@@ -83,6 +84,9 @@ const WINDOW_DASH_PIXELS = 20;
 const CLICK_PIXELS = 5;
 
 type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+
+/** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
+type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
 
 const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly icon: ThemeIcon; readonly hint: string }[] = [
 	{ tool: 'select', label: localize('tool.select', "Select"), icon: Codicon.inspect, hint: localize('hint.select', "Click to select, Ctrl+click to add or remove; drag a window left to right for members inside it, right to left for members it touches.") },
@@ -217,6 +221,12 @@ export class FloorPlanEditor extends EditorPane {
 	/** What the editor shows as underlay now (story, file and placement), to reload only on change. */
 	private underlayKey: string | undefined;
 	private underlayProblem: string | undefined;
+	/** The underlay's lines on the plan (a PDF page's), for object snaps; none for a DXF or DWG. */
+	private underlaySegments: ISnapSegment[] = [];
+	/** A PDF underlay's page count, as its last conversion said. */
+	private underlayPages = 0;
+	/** Calibrate, Move, Rotate or Align Underlay under way: the points clicked so far. */
+	private underlayPick: { readonly kind: UnderlayPick; readonly points: CadPoint[] } | undefined;
 
 	private editor: CadEditorApi | undefined;
 	private planModel: ITextModel | undefined;
@@ -295,6 +305,14 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly gridsAction = this._register(new Action('saengine.floorPlan.editGrids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
 	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.attachUnderlay', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
 	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.removeUnderlay', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
+	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.calibrateUnderlay', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
+	private readonly moveUnderlayAction = this._register(new Action('saengine.floorPlan.moveUnderlay', localize('floorPlan.moveUnderlay', "Move Underlay"), undefined, false, async () => this.startUnderlayPick('move')));
+	private readonly rotateUnderlayAction = this._register(new Action('saengine.floorPlan.rotateUnderlay', localize('floorPlan.rotateUnderlay', "Rotate Underlay..."), undefined, false, async () => this.startUnderlayPick('rotate')));
+	private readonly alignUnderlayAction = this._register(new Action('saengine.floorPlan.alignUnderlay', localize('floorPlan.alignUnderlay', "Align Underlay to Grid"), undefined, false, async () => this.startUnderlayPick('align')));
+	private readonly lockUnderlayAction = this._register(new Action('saengine.floorPlan.lockUnderlay', localize('floorPlan.lockUnderlay', "Lock Underlay"), undefined, false, async () => this.toggleUnderlayLock()));
+	private readonly underlayPageAction = this._register(new Action('saengine.floorPlan.underlayPage', localize('floorPlan.underlayPage', "Underlay Page..."), undefined, false, () => this.pickUnderlayPage()));
+	private readonly exportWorkbookAction = this._register(new Action('saengine.floorPlan.exportWorkbook', localize('floorPlan.exportWorkbook', "Export to Excel..."), undefined, false, () => this.exportWorkbook()));
+	private readonly importWorkbookAction = this._register(new Action('saengine.floorPlan.importWorkbook', localize('floorPlan.importWorkbook', "Import from Excel..."), undefined, false, () => this.importWorkbook()));
 	private readonly exportAction = this._register(new Action('saengine.floorPlan.exportDxf', localize('floorPlan.exportDxf', "Export DXF"), undefined, false, () => this.exportDxf()));
 	/** Footings are placed in 9 Substructure since Part 9: the floor plan's Footing tool opens it. */
 	private readonly foundationsAction = this._register(new Action('saengine.floorPlan.openSubstructure', localize('floorPlan.openSubstructure', "Place Footings in 9 Substructure"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openPart('substructure')));
@@ -778,7 +796,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
-		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.selected.length)) {
+		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.cancel();
@@ -883,6 +901,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.polygon = [];
 		this.drag = undefined;
 		this.pasting = false;
+		this.underlayPick = undefined;
 	}
 
 	private setTool(tool: Tool): void {
@@ -898,11 +917,11 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Esc: drops the gesture in progress (a beam's first point, a picked member, corners), then the tool. */
 	private cancel(): void {
-		if (this.tool === 'select' && !this.pasting && !this.drag && this.selected.length) {
+		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && this.selected.length) {
 			this.select([]);
 			this.notice = undefined;
 			this.updateStatus();
-		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag) {
+		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick) {
 			this.resetGesture();
 			this.notice = undefined;
 			this.updateToolbar();
@@ -1008,6 +1027,16 @@ export class FloorPlanEditor extends EditorPane {
 		this.attachUnderlayAction.enabled = editable && !!input?.story;
 		this.attachUnderlayAction.label = underlay ? localize('floorPlan.replaceUnderlay', "Replace Underlay...") : localize('floorPlan.attachUnderlay', "Attach Underlay...");
 		this.removeUnderlayAction.enabled = editable && !!underlay;
+		const placeable = editable && !!underlay && visible && underlay.locked !== true;
+		for (const action of [this.calibrateUnderlayAction, this.moveUnderlayAction, this.rotateUnderlayAction, this.alignUnderlayAction]) {
+			action.enabled = placeable;
+		}
+		this.lockUnderlayAction.enabled = editable && !!underlay;
+		this.lockUnderlayAction.checked = underlay?.locked === true;
+		this.lockUnderlayAction.label = underlay?.locked === true ? localize('floorPlan.unlockUnderlay', "Unlock Underlay") : localize('floorPlan.lockUnderlay', "Lock Underlay");
+		this.underlayPageAction.enabled = editable && !!underlay && isPdf(underlay.file) && this.underlayPages > 1;
+		this.exportWorkbookAction.enabled = editable;
+		this.importWorkbookAction.enabled = editable;
 		this.typicalAction.enabled = editable && storiesOf(parse(this.planModel)).length > 2;
 		this.exportAction.enabled = editable && !!this.editor;
 		const commandLine = !!this.editor?.getChrome().commandLine;
@@ -1040,9 +1069,17 @@ export class FloorPlanEditor extends EditorPane {
 			this.objectsAction,
 			new Separator(),
 			this.attachUnderlayAction,
+			this.calibrateUnderlayAction,
+			this.moveUnderlayAction,
+			this.rotateUnderlayAction,
+			this.alignUnderlayAction,
+			this.underlayPageAction,
+			this.lockUnderlayAction,
 			this.removeUnderlayAction,
 			new Separator(),
 			this.exportAction,
+			this.exportWorkbookAction,
+			this.importWorkbookAction,
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
@@ -1226,7 +1263,7 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.tool === 'polygonSlab' && this.polygon.length >= 3) {
 				e.preventDefault();
 				this.finishPolygon();
-			} else if (this.chainStart || this.picked || this.polygon.length || this.pasting) {
+			} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.underlayPick) {
 				e.preventDefault();
 				this.cancel();
 			} else if (this.editor && this.layoutState === 'ok') {
@@ -1310,7 +1347,19 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** A free point: on an intersection or grid line when near one, else to the mm. */
 	private snapFree(point: CadPoint): CadPoint {
-		return this.editor ? snapPoint(parse(this.planModel), point, SNAP_PIXELS * this.editor.unitsPerPixel()) : point;
+		if (!this.editor) {
+			return point;
+		}
+		const tolerance = SNAP_PIXELS * this.editor.unitsPerPixel();
+		const snapped = snapPoint(parse(this.planModel), point, tolerance);
+		if (this.underlaySegments.length && snapped[0] === Math.round(point[0]) && snapped[1] === Math.round(point[1])) {
+			// Nothing of the grid near: an end, a midpoint or a corner of the architect's drawing.
+			const onDrawing = snapLinear(undefined, '', point, tolerance, undefined, segmentsNear(this.underlaySegments, point, tolerance));
+			if (onDrawing.kind !== 'free' && onDrawing.kind !== 'gridLine') {
+				return [Math.round(onDrawing.point[0]), Math.round(onDrawing.point[1])];
+			}
+		}
+		return snapped;
 	}
 
 	private pick(point: CadPoint): IMemberShape | undefined {
@@ -1663,6 +1712,10 @@ export class FloorPlanEditor extends EditorPane {
 			this.pasteAt(this.snapFree(point));
 			return;
 		}
+		if (this.underlayPick) {
+			this.underlayClick(this.snapUnderlay(point).point);
+			return;
+		}
 		if (this.tool === 'select') {
 			// Selecting shows the members (properties panel, Model Explorer); it never changes them.
 			const shape = this.pick(point);
@@ -1771,7 +1824,19 @@ export class FloorPlanEditor extends EditorPane {
 	/** Where a beam or wall end at `point` snaps (see {@link snapLinear}). */
 	private snapEnd(point: CadPoint): ISnap {
 		const tolerance = this.editor ? SNAP_PIXELS * this.editor.unitsPerPixel() : 0;
-		return snapLinear(parse(this.planModel), this.story ?? '', point, tolerance, this.chainStart?.point);
+		return snapLinear(parse(this.planModel), this.story ?? '', point, tolerance, this.chainStart?.point, segmentsNear(this.underlaySegments, point, tolerance));
+	}
+
+	/** Where a point of an underlay gesture snaps: the underlay's own lines first, then the grid and the members. */
+	private snapUnderlay(point: CadPoint): ISnap {
+		const tolerance = this.editor ? SNAP_PIXELS * this.editor.unitsPerPixel() : 0;
+		const onDrawing = snapLinear(undefined, '', point, tolerance, this.underlayPick?.points[0], segmentsNear(this.underlaySegments, point, tolerance));
+		if (onDrawing.kind !== 'free' && onDrawing.kind !== 'gridLine') {
+			return onDrawing;
+		}
+		const snap = snapLinear(parse(this.planModel), this.story ?? '', point, tolerance, this.underlayPick?.points[0]);
+		// A free point is not rounded to the mm: a calibration measures it as it is.
+		return snap.kind === 'free' ? { kind: 'free', point, exact: true } : snap;
 	}
 
 	/** The next point of the beam or wall chain: its start, else its end (which starts the next one). */
@@ -2094,7 +2159,16 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.chainStart) {
 			marker(this.chainStart.point);
 		}
-		if (point && this.tool !== 'select') {
+		if (point && this.underlayPick) {
+			// An underlay gesture: the snap under the mouse and the line from its first point.
+			const snap = this.hoverSnap = this.snapUnderlay(point);
+			entities.push(...snapMarker(snap, MARKER_PIXELS * units, layer));
+			const first = this.underlayPick.points[0];
+			if (first) {
+				marker(first);
+				entities.push({ kind: 'line', layer, start: first, end: snap.point });
+			}
+		} else if (point && this.tool !== 'select') {
 			if (this.tool === 'delete') {
 				const shape = this.plan && pickMember(this.plan.members, point, PICK_PIXELS * units);
 				if (shape) {
@@ -2318,6 +2392,15 @@ export class FloorPlanEditor extends EditorPane {
 				append(panel, $('.sa-props-section', undefined, localize('floorPlan.underlaySection', "Underlay")));
 				appendPropertyRow(panel, localize('floorPlan.underlayFile', "File"), String(underlay.file));
 				appendPropertyRow(panel, localize('floorPlan.underlayShown', "Shown"), this.underlayVisible(underlay) ? localize('yes', "Yes") : localize('no', "No"));
+				const placement = placementOf(underlay);
+				if (isPdf(underlay.file)) {
+					const page = typeof underlay.page === 'number' ? underlay.page : 1;
+					appendPropertyRow(panel, localize('floorPlan.underlayPageRow', "Page"), this.underlayPages > 1 ? localize('floorPlan.pageOf', "{0} of {1}", page, this.underlayPages) : String(page));
+				}
+				appendPropertyRow(panel, localize('floorPlan.underlayScale', "Scale"), isPdf(underlay.file) ? localize('floorPlan.underlayRatio', "1:{0}", Math.round(placement.scale * 1000) / 1000) : String(placement.scale));
+				appendPropertyRow(panel, localize('floorPlan.underlayRotation', "Rotation"), `${Math.round(placement.rotation * 100) / 100}°`);
+				appendPropertyRow(panel, localize('floorPlan.underlayOrigin', "Origin"), localize('floorPlan.underlayAt', "{0}, {1} mm", Math.round(placement.offset[0]), Math.round(placement.offset[1])));
+				appendPropertyRow(panel, localize('floorPlan.underlayLocked', "Locked"), underlay.locked === true ? localize('yes', "Yes") : localize('no', "No"));
 			}
 			appendPropertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
 		}
@@ -2594,11 +2677,15 @@ export class FloorPlanEditor extends EditorPane {
 		}
 	}
 
-	/** The grids and stories form, beside the plan so its edits show in the plan as they are made. */
+	/**
+	 * The grids and stories form: beside the plan on a wide screen, so its edits show in the plan
+	 * as they are made; in this group on a laptop, where a split squeezes both (N-F8).
+	 */
 	private openGrids(): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		if (input) {
-			void this.editorService.openEditor({ resource: input.resource, options: { override: GRIDS_EDITOR_ID } }, SIDE_GROUP);
+			const wide = getWindow(this.getContainer()).innerWidth >= 1500;
+			void this.editorService.openEditor({ resource: input.resource, options: { override: GRIDS_EDITOR_ID } }, wide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 
@@ -2658,7 +2745,7 @@ export class FloorPlanEditor extends EditorPane {
 			title: localize('floorPlan.pickUnderlay', "Attach an Architect's Drawing"),
 			canSelectFiles: true,
 			canSelectMany: false,
-			filters: [{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG)"), extensions: ['dxf', 'dwg'] }],
+			filters: [{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] }],
 			defaultUri: folder,
 		});
 		const source = picked?.[0];
@@ -2671,18 +2758,30 @@ export class FloorPlanEditor extends EditorPane {
 			const underlays = joinPath(folder, 'Underlays');
 			let target = joinPath(underlays, basename(source));
 			for (let n = 2; await this.fileService.exists(target); n++) {
-				target = joinPath(underlays, basename(source).replace(/(\.d(?:xf|wg))$/i, ` (${n})$1`));
+				target = joinPath(underlays, basename(source).replace(/(\.(?:dxf|dwg|pdf))$/i, ` (${n})$1`));
 			}
 			await this.fileService.copy(source, target);
 			file = relativePath(folder, target)!;
 		}
 		const selected = this.selected;
-		this.changeUnderlay(story, () => ({ story, file }));
+		let page = 1;
+		if (isPdf(file)) {
+			// A PDF of several sheets: which page is this story's plan.
+			const answer = await this.commandService.executeCommand<{ ok?: boolean; pages?: number }>(PDF_TO_DXF_COMMAND, { path: joinPath(folder, file).fsPath, page: 1 });
+			const pages = answer?.ok && typeof answer.pages === 'number' ? answer.pages : 1;
+			this.underlayPages = pages;
+			if (pages > 1) {
+				page = await this.askUnderlayPage(pages, 1) ?? 1;
+			}
+		}
+		this.changeUnderlay(story, () => ({ story, file, ...(page > 1 ? { page } : {}) }));
 		// The dialog's Enter must not reach the plan: keep the selection, focus back on the plan.
 		this.select(prune(selected, this.plan?.members ?? []));
 		this.frame.element.focus();
 		const name = storiesOf(parse(this.planModel)).find(s => s.id === story)?.name ?? story;
-		this.setNotice(localize('floorPlan.underlayAttached', "Attached {0} as the underlay of {1}; Hide Underlay in the toolbar hides it, Remove Underlay in More Actions removes it.", file, name));
+		this.setNotice(isPdf(file)
+			? localize('floorPlan.pdfAttached', "Attached {0} as the underlay of {1}, in paper mm: Calibrate Underlay Scale in More Actions sets its scale from two points and a known length; Move, Rotate, Align and Lock Underlay are there too.", file, name)
+			: localize('floorPlan.underlayAttached', "Attached {0} as the underlay of {1}; Hide Underlay in the toolbar hides it, Remove Underlay in More Actions removes it.", file, name));
 	}
 
 	/** Replaces (or with `undefined` removes) the underlay of `story`. */
@@ -2703,21 +2802,36 @@ export class FloorPlanEditor extends EditorPane {
 		const editor = this.editor;
 		const underlay = this.underlayOf(layout, input.story);
 		const shown = underlay && this.underlayVisible(underlay) ? underlay : undefined;
-		const key = shown ? JSON.stringify([shown.file, shown.dx, shown.dy, shown.scale, shown.rotation]) : '';
+		const key = shown ? JSON.stringify([shown.file, shown.page, shown.dx, shown.dy, shown.scale, shown.rotation]) : '';
 		if (!editor || key === this.underlayKey) {
 			return;
 		}
 		this.underlayKey = key;
 		this.underlayProblem = undefined;
+		this.underlaySegments = [];
 		if (!shown) {
 			await editor.setUnderlay(undefined);
 			return;
 		}
 		const file = String(shown.file);
 		let dxf: string;
+		let segments: unknown;
 		try {
 			let source = joinPath(dirname(input.resource), file);
-			if (/\.dwg$/i.test(file)) {
+			if (isPdf(file)) {
+				// A PDF page's vector linework as DXF (paper mm), with its lines for the object snaps.
+				const page = typeof shown.page === 'number' ? shown.page : 1;
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; pages?: number; vector?: boolean; segments?: unknown; warnings?: string[]; message?: string }>(PDF_TO_DXF_COMMAND, { path: source.fsPath, page });
+				if (!answer?.ok || typeof answer.dxf !== 'string') {
+					throw new Error(answer?.message ?? localize('floorPlan.pdfUnavailable', "PDF drawings cannot be read here."));
+				}
+				this.underlayPages = typeof answer.pages === 'number' ? answer.pages : 1;
+				if (answer.vector === false) {
+					throw new Error(answer.warnings?.[0] ?? localize('floorPlan.pdfNoVector', "the page has no vector linework"));
+				}
+				segments = answer.segments;
+				source = URI.file(answer.dxf);
+			} else if (/\.dwg$/i.test(file)) {
 				// A DWG is shown through its DXF copy, converted (and cached) by the backend.
 				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; code?: string; message?: string }>(DWG_TO_DXF_COMMAND, { path: source.fsPath });
 				if (answer?.code === 'no-converter' && CommandsRegistry.getCommand(COMPONENTS_ADD_COMMAND)) {
@@ -2735,7 +2849,7 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.editor !== editor || this.underlayKey !== key) {
 				return;
 			}
-			this.underlayProblem = /\.dwg$/i.test(file) && error instanceof Error && error.message
+			this.underlayProblem = /\.(dwg|pdf)$/i.test(file) && error instanceof Error && error.message
 				? localize('floorPlan.underlayDwgFailed', "The underlay {0} could not be read: {1}", file, error.message)
 				: localize('floorPlan.underlayMissing', "The underlay {0} could not be read.", file);
 			await editor.setUnderlay(undefined);
@@ -2749,10 +2863,281 @@ export class FloorPlanEditor extends EditorPane {
 		const num = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 		try {
 			await editor.setUnderlay({ name: basename(URI.file(file)), dxf: withoutLayers(dxf, PLAN_ANNOTATION_LAYERS), offset: [num(shown.dx, 0), num(shown.dy, 0)], scale: num(shown.scale, 1), rotation: num(shown.rotation, 0) });
+			this.underlaySegments = planSegments(placementOf(shown), segments);
+			this.updateToolbar();
 		} catch (error) {
 			this.underlayProblem = localize('floorPlan.underlayFailed', "The underlay {0} could not be shown: {1}", file, String(error));
 			this.updateStatus();
 			this.renderProperties();
+		}
+	}
+
+	/** Starts a gesture on the current story's underlay: its points are clicked on the plan. */
+	private startUnderlayPick(kind: UnderlayPick): void {
+		const underlay = this.underlayOf(parse(this.planModel), this.story);
+		if (!underlay || underlay.locked === true) {
+			this.setNotice(underlay ? localize('floorPlan.underlayIsLocked', "The underlay is locked: Unlock Underlay in More Actions first.") : localize('floorPlan.noUnderlayToPlace', "Attach an underlay first."));
+			return;
+		}
+		this.resetGesture();
+		this.setTool('select');
+		this.underlayPick = { kind, points: [] };
+		this.setNotice({
+			calibrate: localize('floorPlan.calibrateFirst', "Calibrate: click the first point of a known length on the drawing (it snaps to the drawing's lines); Esc cancels."),
+			move: localize('floorPlan.moveUnderlayFirst', "Move Underlay: click the base point on the drawing; Esc cancels."),
+			rotate: localize('floorPlan.rotateUnderlayFirst', "Rotate Underlay: click the point to turn it about; Esc cancels."),
+			align: localize('floorPlan.alignFirst', "Align Underlay: click the start of a line of the drawing that should run along the grid; Esc cancels."),
+		}[kind]);
+		this.schedulePreview();
+	}
+
+	/** A click of an underlay gesture: Rotate takes one point (then the angle), the others two. */
+	private underlayClick(point: CadPoint): void {
+		const pick = this.underlayPick;
+		const underlay = this.underlayOf(parse(this.planModel), this.story);
+		if (!pick || !underlay) {
+			this.underlayPick = undefined;
+			return;
+		}
+		if (pick.kind === 'rotate') {
+			this.underlayPick = undefined;
+			void this.askUnderlayRotation(point);
+			return;
+		}
+		if (!pick.points.length) {
+			pick.points.push(point);
+			this.setNotice({
+				calibrate: localize('floorPlan.calibrateSecond', "Calibrate: click the other end of the known length."),
+				move: localize('floorPlan.moveUnderlaySecond', "Move Underlay: click where the base point goes (a grid intersection, say)."),
+				align: localize('floorPlan.alignSecond', "Align Underlay: click the end of that line."),
+			}[pick.kind]);
+			this.schedulePreview();
+			return;
+		}
+		const [first] = pick.points;
+		this.underlayPick = undefined;
+		const placement = placementOf(underlay);
+		if (pick.kind === 'calibrate') {
+			void this.askCalibration(placement, first, point);
+		} else if (pick.kind === 'move') {
+			this.setUnderlayPlacement(moved(placement, first, point), localize('floorPlan.underlayMoved', "Moved the underlay."));
+		} else {
+			const angle = alignAngle(first, point);
+			this.setUnderlayPlacement(rotated(placement, first, angle), localize('floorPlan.underlayAligned', "Turned the underlay {0}° so the line runs along the grid.", Math.round(angle * 100) / 100));
+		}
+		this.schedulePreview();
+	}
+
+	/** Asks the true length between the two clicked points and scales the underlay to it. */
+	private async askCalibration(placement: IUnderlayPlacement, a: CadPoint, b: CadPoint): Promise<void> {
+		const measured = Math.hypot(b[0] - a[0], b[1] - a[1]);
+		if (measured < 1e-6) {
+			this.setNotice(localize('floorPlan.calibrateSame', "The two points are the same: click two different points."));
+			return;
+		}
+		const value = await this.quickInputService.input({
+			title: localize('floorPlan.calibrateTitle', "Calibrate Underlay Scale"),
+			prompt: localize('floorPlan.calibratePrompt', "The true length between the two points in mm (now {0} mm on the plan). The first point stays where it is.", Math.round(measured * 100) / 100),
+			value: String(Math.round(measured)),
+			validateInput: async text => Number(text) > 0 ? undefined : localize('floorPlan.positiveLength', "A length in mm greater than 0."),
+		});
+		const known = Number(value);
+		const next = value !== undefined && known > 0 ? calibrated(placement, a, b, known) : undefined;
+		if (next) {
+			this.setUnderlayPlacement(next, localize('floorPlan.underlayCalibrated', "Calibrated the underlay: {0} mm is now {1} mm (scale {2}).", Math.round(measured * 100) / 100, known, Math.round(next.scale * 10000) / 10000));
+		}
+		this.frame.element.focus();
+	}
+
+	private async askUnderlayRotation(base: CadPoint): Promise<void> {
+		const value = await this.quickInputService.input({
+			title: localize('floorPlan.rotateUnderlayTitle', "Rotate Underlay"),
+			prompt: localize('floorPlan.rotateUnderlayPrompt', "The angle to turn the underlay about the clicked point, in degrees (counter-clockwise positive)."),
+			validateInput: async text => text.trim() && Number.isFinite(Number(text)) ? undefined : localize('floorPlan.angleNumber', "An angle in degrees."),
+		});
+		const angle = Number(value);
+		const underlay = this.underlayOf(parse(this.planModel), this.story);
+		if (value !== undefined && Number.isFinite(angle) && angle && underlay) {
+			this.setUnderlayPlacement(rotated(placementOf(underlay), base, angle), localize('floorPlan.underlayRotated', "Turned the underlay {0}°.", angle));
+		}
+		this.frame.element.focus();
+	}
+
+	/** Writes the current story's underlay placement as one undoable edit of the floor plan. */
+	private setUnderlayPlacement(placement: IUnderlayPlacement, notice: string): void {
+		this.changeUnderlay(this.story, current => ({ ...current, ...placementFields(placement) }));
+		this.setNotice(notice);
+	}
+
+	private toggleUnderlayLock(): void {
+		const underlay = this.underlayOf(parse(this.planModel), this.story);
+		if (underlay) {
+			const locked = underlay.locked !== true;
+			this.underlayPick = undefined;
+			this.changeUnderlay(this.story, current => {
+				const { locked: _, ...rest } = current;
+				return locked ? { ...rest, locked } : rest;
+			});
+			this.setNotice(locked ? localize('floorPlan.underlayLockedNotice', "Locked the underlay: it can no longer be moved, turned or scaled.") : localize('floorPlan.underlayUnlockedNotice', "Unlocked the underlay."));
+		}
+	}
+
+	private async askUnderlayPage(pages: number, current: number): Promise<number | undefined> {
+		const items: (IQuickPickItem & { readonly page: number })[] = Array.from({ length: pages }, (_, i) => ({
+			page: i + 1,
+			label: localize('floorPlan.pageLabel', "Page {0}", i + 1),
+			description: i + 1 === current ? localize('floorPlan.pageCurrent', "shown now") : undefined,
+		}));
+		const picked = await this.quickInputService.pick(items, { title: localize('floorPlan.pageTitle', "Underlay Page"), placeHolder: localize('floorPlan.pageHint', "The page of the PDF with this story's plan") });
+		return picked?.page;
+	}
+
+	private async pickUnderlayPage(): Promise<void> {
+		const underlay = this.underlayOf(parse(this.planModel), this.story);
+		if (!underlay || !isPdf(underlay.file)) {
+			return;
+		}
+		const current = typeof underlay.page === 'number' ? underlay.page : 1;
+		const page = await this.askUnderlayPage(this.underlayPages, current);
+		if (page && page !== current) {
+			this.changeUnderlay(this.story, u => {
+				const { page: _, ...rest } = u;
+				return page > 1 ? { ...rest, page } : rest;
+			});
+			this.setNotice(localize('floorPlan.pageChanged', "The underlay shows page {0}; calibrate it again if the pages are at different scales.", page));
+		}
+		this.frame.element.focus();
+	}
+
+	// ───────────────────────────── the model workbook (Excel round trip) ─────────────────────────────
+
+	/** Writes grids, stories, members, sections and member loads to an Excel workbook. */
+	async exportWorkbook(): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (!input || !this.planModel) {
+			return;
+		}
+		const exports = PROJECT_PARTS.find(p => p.id === 'exports')!;
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('floorPlan.exportWorkbookTitle', "Export the Model to Excel"),
+			defaultUri: joinPath(dirname(dirname(input.resource)), exports.folder, 'Model.xlsx'),
+			filters: [{ name: localize('floorPlan.workbookFiles', "Excel Workbook"), extensions: ['xlsx'] }],
+		});
+		if (!target) {
+			return;
+		}
+		this.frame.showProgress();
+		try {
+			const answer = await this.commandService.executeCommand<{ path?: string; sheets?: { [name: string]: number } }>(WORKBOOK_EXPORT_COMMAND, {
+				outPath: target.fsPath,
+				floorPlanText: this.planModel.getValue(),
+				objectsText: this.objects?.getValue(),
+				loadsText: this.loadsFile.model?.getValue(),
+			});
+			const rows = Object.values(answer?.sheets ?? {}).reduce((a, b) => a + b, 0);
+			const text = localize('floorPlan.workbookExported', "Exported {0} rows to {1}: edit them, then Import from Excel brings them back.", rows, basename(target));
+			this.setNotice(text);
+			this.notificationService.prompt(Severity.Info, text, [
+				{ label: localize('floorPlan.revealExport', "Reveal in File Explorer"), run: () => void this.commandService.executeCommand('revealFileInOS', target) },
+			]);
+		} catch (error) {
+			this.setNotice(localize('floorPlan.workbookExportFailed', "The export to Excel failed: {0}", error instanceof Error ? error.message : String(error)));
+		} finally {
+			this.frame.hideProgress();
+		}
+	}
+
+	/** Reads an edited workbook, shows what it changes and, when asked, writes the changed files. */
+	async importWorkbook(): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		const planModel = this.planModel;
+		if (!input || !planModel) {
+			return;
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('floorPlan.importWorkbookTitle', "Import the Model from Excel"),
+			canSelectFiles: true,
+			canSelectMany: false,
+			filters: [{ name: localize('floorPlan.workbookFiles', "Excel Workbook"), extensions: ['xlsx'] }],
+			defaultUri: joinPath(dirname(dirname(input.resource)), PROJECT_PARTS.find(p => p.id === 'exports')!.folder),
+		});
+		const source = picked?.[0];
+		if (!source || this.input !== input) {
+			return;
+		}
+		const texts = { floorPlanText: planModel.getValue(), objectsText: this.objects?.getValue(), loadsText: this.loadsFile.model?.getValue() };
+		this.frame.showProgress();
+		let result: IWorkbookImport;
+		try {
+			result = readWorkbookImport(await this.commandService.executeCommand(WORKBOOK_IMPORT_COMMAND, { path: source.fsPath, ...texts }));
+		} catch (error) {
+			this.setNotice(localize('floorPlan.workbookReadFailed', "The workbook could not be read: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		} finally {
+			this.frame.hideProgress();
+		}
+		if (!result.ok) {
+			const items: IQuickPickItem[] = result.problems.map(problem => ({ label: problem }));
+			await this.quickInputService.pick(items, {
+				title: localize('floorPlan.workbookProblems', "{0}: {1} problem(s), nothing imported", basename(source), result.problems.length),
+				placeHolder: localize('floorPlan.workbookFix', "Correct these rows in the workbook and import it again"),
+			});
+			this.setNotice(localize('floorPlan.workbookNotImported', "Nothing imported from {0}: {1} problem(s).", basename(source), result.problems.length));
+			return;
+		}
+		if (!result.changed.length) {
+			this.setNotice(localize('floorPlan.workbookSame', "{0} matches the model: nothing to import.", basename(source)));
+			return;
+		}
+		// The diff preview: Apply first, then each change under its sheet.
+		type Item = IQuickPickItem & { readonly apply?: boolean };
+		const summary = diffSummary(result.diff);
+		const items: (Item | IQuickPickSeparator)[] = [{ apply: true, label: `$(check) ${localize('floorPlan.workbookApply', "Apply: {0}", summary)}` }];
+		let sheet = '';
+		for (const line of diffLines(result.diff)) {
+			if (line.sheet !== sheet) {
+				sheet = line.sheet;
+				items.push({ type: 'separator', label: sheet });
+			}
+			items.push({ label: `$(${line.kind === 'added' ? 'add' : line.kind === 'removed' ? 'remove' : 'edit'}) ${line.text}` });
+		}
+		const choice = await this.quickInputService.pick(items, {
+			title: localize('floorPlan.workbookPreview', "Import {0}: {1}", basename(source), summary),
+			placeHolder: localize('floorPlan.workbookPreviewHint', "Check the changes; pick Apply to write them, Esc to leave the model as it is"),
+		});
+		if (!choice?.apply || this.input !== input) {
+			return;
+		}
+		if (planModel.getValue() !== texts.floorPlanText) {
+			this.setNotice(localize('floorPlan.workbookStale', "The floor plan changed while the preview was open: import the workbook again."));
+			return;
+		}
+		await this.applyWorkbook(result.texts, basename(source), summary);
+	}
+
+	private async applyWorkbook(texts: { readonly [file: string]: string }, name: string, summary: string): Promise<void> {
+		const label = localize('floorPlan.workbookImported', "Imported {0} ({1}).", name, summary);
+		try {
+			if (texts.objects !== undefined && this.objects && !this.objects.isDisposed()) {
+				// Object types are 4 Objects' file: written and saved, outside this editor's undo history.
+				const objects = this.objects;
+				objects.pushStackElement();
+				objects.pushEditOperations([], [{ range: objects.getFullModelRange(), text: texts.objects }], () => null);
+				objects.pushStackElement();
+				await this.textFileService.save(objects.uri);
+			}
+			if (texts.loads !== undefined) {
+				const write = await this.loadsFile.write(JSON.parse(texts.loads) as IMemberLoads);
+				if (write) {
+					this.loadsEdited(label, write);
+				}
+			}
+			if (texts.floorPlan !== undefined) {
+				this.write(JSON.parse(texts.floorPlan));
+				this.setNotice(label);
+			}
+		} catch (error) {
+			this.setNotice(localize('floorPlan.workbookWriteFailed', "The import could not be written: {0}", error instanceof Error ? error.message : String(error)));
 		}
 	}
 

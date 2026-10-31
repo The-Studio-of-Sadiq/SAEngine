@@ -409,6 +409,8 @@ export function folderError(folder: string, windows: boolean): string | undefine
 export interface IGeneratedSize {
 	readonly what: string;
 	readonly size: string;
+	/** What governed the size (columns only): gravity, drift, wind and earthquake, transition. */
+	readonly why?: string;
 }
 
 /** What the generator built, as the result page shows it (from its `summary`). */
@@ -418,6 +420,10 @@ export interface IGenerateSummary {
 	/** Member counts: [label, count]. */
 	readonly counts: readonly (readonly [string, number])[];
 	readonly sizes: readonly IGeneratedSize[];
+	/** What the engineer should see first: drift not met, overlapping footings. */
+	readonly warnings: readonly string[];
+	/** The frame failed the drift without walls: core walls would help. */
+	readonly suggestCoreWalls: boolean;
 }
 
 /** What the generator answered: the new project's folder and its notes, or why it failed. */
@@ -445,9 +451,11 @@ export function readGenerateSummary(value: unknown): IGenerateSummary | undefine
 	const counts = (typeof record.counts === 'object' && record.counts !== null ? record.counts : {}) as { readonly [key: string]: unknown };
 	const sizes: IGeneratedSize[] = [];
 	const columnTypes = typeof record.columnTypes === 'object' && record.columnTypes !== null ? record.columnTypes as { readonly [key: string]: unknown } : {};
+	const reasons = typeof record.columnReasons === 'object' && record.columnReasons !== null ? record.columnReasons as { readonly [key: string]: unknown } : {};
 	for (const [what, size] of Object.entries(columnTypes)) {
 		if (typeof size === 'string') {
-			sizes.push({ what: localize('size.columns', "Columns {0}", what), size });
+			const why = reasons[what];
+			sizes.push({ what: localize('size.columns', "Columns {0}", what), size, why: typeof why === 'string' ? why : localize('size.gravity', "gravity: axial load") });
 		}
 	}
 	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['slabTypes', localize('size.slabs', "Slabs")]] as const) {
@@ -460,6 +468,8 @@ export function readGenerateSummary(value: unknown): IGenerateSummary | undefine
 		sdc: typeof record.sdc === 'string' ? record.sdc : undefined,
 		counts: COUNT_LABELS.map(([key, label]) => [label, Number(counts[key]) || 0] as const).filter(([, n]) => n > 0),
 		sizes,
+		warnings: Array.isArray(record.warnings) ? record.warnings.filter((w): w is string => typeof w === 'string') : [],
+		suggestCoreWalls: record.suggestCoreWalls === true,
 	};
 }
 

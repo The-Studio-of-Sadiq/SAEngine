@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from saengine.fem.derive import derive_fem
+from saengine.importers.common import file_combinations
 from saengine.importers.sap2000 import import_sap2000, read_sap2000_text, tables
 
 DATA = Path(__file__).parent / "data" / "import"
@@ -96,7 +97,7 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
         ("6", "point", "L", 10),
     ]
     assert report["imported"]["stories"] == 2
-    combos = {c.name: c for c in project.settings.combinations}
+    combos = file_combinations(project.settings.combinations)
     assert (combos["DSTL2"].D, combos["DSTL2"].L, combos["DSTL2"].Lr) == (1.2, 1.6, 0.5)
     # The wind case pushes in -Y: SAEngine's WY with the factor's sign turned.
     assert combos["DWIND"].WY == -1.6 and combos["DWIND"].D == 1.2

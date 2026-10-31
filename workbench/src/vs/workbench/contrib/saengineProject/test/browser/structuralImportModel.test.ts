@@ -82,11 +82,11 @@ suite('SAEngine structural import model', () => {
 		}, {
 			root: 'C:\\Projects\\Office Frame',
 			problems: [],
-			counts: ['Stories 3', 'Columns 24', 'Beams 36', 'Braces 4', 'Slabs 9', 'Walls 0', 'Sections 7', 'Materials 3', 'Loads 58', 'Load combinations 6', 'Joints 48'],
+			counts: ['Stories 3', 'Columns 24', 'Beams 36', 'Braces 4', 'Inclined members 0', 'Slabs 9', 'Walls 0', 'Sections 7', 'Materials 3', 'Area loads 58', 'Load cases 0', 'Load combinations 6', 'Supports 0', 'Joints 48'],
 			approximated: ['Tapered sections imported as their mid section (2: TAP1, TAP2)', 'Diaphragm D1 taken as rigid'],
 			skipped: ['Link elements are not supported (7: LK1, LK2, LK3, LK4, LK5, ...)'],
 			warnings: ['Load pattern WIND has no loads'],
-			summary: 'Imported from ETABS: 3 stories, 64 members, 9 slabs. 3 approximated, 7 skipped, 1 warning.',
+			summary: 'Imported from ETABS: 3 stories, 64 frame members, 9 slabs. 3 approximated, 7 skipped, 1 warning.',
 			review: true,
 		});
 	});
@@ -107,7 +107,7 @@ suite('SAEngine structural import model', () => {
 		};
 		assert.deepStrictEqual(read, {
 			facts: ['ETABS', '21.0.0', 'kn-m', 'two_story_frame.e2k', 0],
-			counts: ['Stories 3', 'Columns 12', 'Beams 14', 'Braces 1', 'Slabs 4', 'Walls 1', 'Sections 5', 'Materials 3', 'Loads 2', 'Load combinations 3', 'Grid lines 5', 'Supports 6'],
+			counts: ['Stories 3', 'Columns 12', 'Beams 14', 'Braces 1', 'Inclined members 0', 'Slabs 4', 'Walls 1', 'Sections 5', 'Materials 3', 'Area loads 2', 'Load cases 0', 'Load combinations 3', 'Supports 6', 'Grid lines 5'],
 			approximated: [
 				'beam bars left to SAEngine\'s design (e2k gives covers only) (1: B300x500)',
 				'end releases ignored (members are continuous) (1: D1-Story1)',
@@ -123,7 +123,7 @@ suite('SAEngine structural import model', () => {
 			warnings: 1,
 			notCarried: 'D 60 kN, L 20 kN',
 			carried: 'D 180 kN, L 120 kN, Lr 60 kN',
-			summary: 'Imported from ETABS: 3 stories, 27 members, 4 slabs, 1 wall. 80 kN of load not carried over, 5 approximated, 4 skipped, 1 warning.',
+			summary: 'Imported from ETABS: 3 stories, 27 frame members, 4 slabs, 1 wall. 80 kN of load not carried over, 5 approximated, 4 skipped, 1 warning.',
 			review: true,
 		});
 		// Stored as read, it reads back the same (the last import in application storage).
@@ -140,7 +140,7 @@ suite('SAEngine structural import model', () => {
 			root: undefined,
 			problems: ['Line 12: unknown unit "furlong"', 'parse failed'],
 			review: false,
-			summary: 'Imported from unknown format: 0 stories, 0 members, 0 slabs.',
+			summary: 'Imported from unknown format: 0 stories, 0 frame members, 0 slabs.',
 		});
 	});
 

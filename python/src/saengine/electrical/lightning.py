@@ -332,7 +332,8 @@ def lightning_protection(
     needed = risk["decision"] != "notRequired"
     checks.append(_check("Lightning protection", 1 if needed else 0, 1 if lightning.enabled else 0,
                          "", lightning.enabled or not needed,
-                         risk["note"] + ("" if lightning.enabled else "; 07 MEP disables it")))  # fmt: skip
+                         risk["note"] + ("" if lightning.enabled else "; it is switched off: turn on "
+                                                              "Electrical > Lightning protection")))  # fmt: skip
     # The roof: the slabs of the highest story that has any (a top level without slabs is
     # the column tops of an unfinished model).
     top = next((s for s in reversed(building.ordered()) if building.slabs_at(s)), None)

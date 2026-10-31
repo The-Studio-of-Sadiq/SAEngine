@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from saengine.importers.common import file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.neutral import estimated_i_shape, named_profile
 from saengine.importers.project import section_lookup_noted
@@ -356,7 +357,7 @@ def test_slab_loads_reach_the_analysis(project) -> None:  # type: ignore[no-unty
 
 
 def test_fluid_pattern_and_combinations(project) -> None:  # type: ignore[no-untyped-def]
-    combos = {c.name: c for c in project.settings.combinations}
+    combos = file_combinations(project.settings.combinations)
     assert (combos["U1"].D, combos["U1"].F) == (1.4, 1.4)
     assert (combos["U2"].D, combos["U2"].F, combos["U2"].L) == (1.2, 1.2, 1.6)
     approximated = _approximated(project)
