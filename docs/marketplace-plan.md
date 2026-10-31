@@ -483,6 +483,26 @@ latitude or longitude with more than two decimals (finer than a town) and no plo
 person named on drawings or project files (drawn by, checked by, client...) other than the
 package's author.
 
+**Built in M5, M7 and M8 (2026-11-01)**, track T40.
+*M5 coded templates*: a structure template file that names a `generator` (`CodedTemplate` in
+`codes/contents.py`: `generator`, `parameters` as a small JSON Schema, `values`) is made by that
+function of the package's `hooks.py`, through `codes/codedGeometry` (`saengine.codes.coded`): only
+when the package is trusted (the same trust store; `codes/trust` now takes `kind`), parameters
+checked first, the result placed and inserted like a built-in shape. The Generate panel builds the
+form from the schema; the Packages page offers *Trust This Package's Code...* for templates.
+Review rules for code are in `scripts/marketplace/CONTRIBUTING-packages.md`.
+*M7 signing*: `platform/saengine/node/authenticode.ts` checks a setup with Windows'
+`Get-AuthenticodeSignature`; *Add Component...* requires a valid signature by product.json's
+`saengineSigning.publisher` once the owner sets it (until then the SHA-256 only, as before).
+`scripts/installer/component_zips.py` builds the component zips and their manifest; by D7 the app
+offers them only after signing. The SignPath steps for `release.yml` and the owner's sign-up
+steps are in `scripts/signing/` (**waiting for the owner**).
+*M8 offline bundle and docs*: `scripts/marketplace/build_offline_bundle.py` builds
+`saengine-packages-offline-<date>.zip`; *Install from File...* on a bundle (zip or folder) verifies
+its index in the main process and lists it in Browse, installing from its zips with the same
+checks. User docs: `docs/packages.md` and the manual chapter `docs/manual/14-packages.md`; authors:
+`scripts/marketplace/CONTRIBUTING-packages.md` (to be copied into the package repositories).
+
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.
 

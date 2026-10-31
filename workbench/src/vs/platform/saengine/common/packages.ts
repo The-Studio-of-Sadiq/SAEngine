@@ -53,6 +53,17 @@ export interface IVerifiedIndex {
 	readonly source: string;
 }
 
+export interface IOpenBundleRequest {
+	/** An offline bundle: a folder, or a zip, with `index.json`, `index.json.sig` and `packages/*.zip`. */
+	readonly path: string;
+	readonly keys: readonly IPackageIndexKey[];
+}
+
+/** An offline bundle whose index checked out: the folder its package zips are read from. */
+export interface IOpenedBundle extends IVerifiedIndex {
+	readonly folder: string;
+}
+
 export interface IDownloadPackageRequest {
 	readonly url: string;
 	readonly size: number;
@@ -81,6 +92,12 @@ export interface ISaenginePackagesService {
 	 * Only HTTPS URLs on the allowed hosts are fetched.
 	 */
 	downloadPackage(request: IDownloadPackageRequest): Promise<string>;
+	/**
+	 * Opens an offline bundle (round M8): a zip is unpacked to the private temporary folder
+	 * first; its index is verified like a downloaded one. Undefined when `path` is not a bundle
+	 * (no `index.json` in it): then it is a single package to install as a file.
+	 */
+	openBundle(request: IOpenBundleRequest): Promise<IOpenedBundle | undefined>;
 	/** Copies an offline bundle's zip to the temporary folder after the same checks. */
 	copyPackage(request: ICopyPackageRequest): Promise<string>;
 	/** Deletes a zip `downloadPackage` or `copyPackage` returned (after the install). */

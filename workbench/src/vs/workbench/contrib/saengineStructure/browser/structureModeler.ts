@@ -55,7 +55,7 @@ import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorI
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
 import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
-import { CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
+import { CODES_CODED_GEOMETRY_COMMAND, CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
 
 type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
 
@@ -194,6 +194,9 @@ export class StructureModelerEditor extends EditorPane {
 	private panelPresets!: HTMLElement;
 	private presetSelect!: HTMLSelectElement;
 	private presets: IStructurePreset[] = [];
+	/** The coded template being generated (round M5), with its form; undefined for a built-in shape. */
+	private coded: { readonly preset: IStructurePreset; readonly schema: IJSONSchema; readonly value: JsonObject; readonly form: SchemaForm } | undefined;
+	private readonly codedForm = this._register(new DisposableStore());
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 
 	private model: ITextModel | undefined;
@@ -932,6 +935,8 @@ export class StructureModelerEditor extends EditorPane {
 
 	private openShape(): void {
 		this.closePanel();
+		this.coded = undefined;
+		this.codedForm.clear();
 		this.shapeValue ??= { shape: this.template('SpaceTruss') };
 		this.openPanel({ kind: 'shape' });
 		void this.loadPresets();
@@ -969,6 +974,22 @@ export class StructureModelerEditor extends EditorPane {
 		const [g, i] = value.split('/').map(Number);
 		const preset = groupPresets(this.presets)[g]?.presets[i];
 		if (!preset || this.source?.kind !== 'shape') {
+			return;
+		}
+		this.codedForm.clear();
+		if (preset.coded) {
+			// A new shape kind made by the package's code: its form is made from its parameter schema.
+			const schema: IJSONSchema = { type: 'object', properties: { values: preset.coded.parameters as IJSONSchema } };
+			this.coded = { preset, schema, value: { values: clone(preset.coded.values as JsonObject) }, form: this.codedForm.add(this.instantiationService.createInstance(SchemaForm, this.formContext(schema))) };
+			this.fitGhost = true;
+			this.renderPanel();
+			this.renderPresets();
+			this.presetSelect.value = value;
+			this.ghostScheduler.schedule(0);
+			return;
+		}
+		this.coded = undefined;
+		if (!preset.shape) {
 			return;
 		}
 		const shape = clone(preset.shape as JsonObject);
@@ -1054,7 +1075,10 @@ export class StructureModelerEditor extends EditorPane {
 		if (!source) {
 			return;
 		}
-		if (source.kind === 'shape' && this.shapeValue) {
+		if (source.kind === 'shape' && this.coded) {
+			this.panelTitle.textContent = this.coded.preset.name;
+			this.coded.form.render(this.panelForm, this.coded.schema, this.coded.value);
+		} else if (source.kind === 'shape' && this.shapeValue) {
 			this.panelTitle.textContent = localize('modeler.generateTitleShort', "Generate Shape");
 			this.shapeForm.render(this.panelForm, SHAPE_SCHEMA, this.shapeValue);
 		} else if (source.kind === 'import' && this.importValue) {
@@ -1094,7 +1118,10 @@ export class StructureModelerEditor extends EditorPane {
 		const request = ++this.ghostRequest;
 		let result: StructureGeometryResult | undefined;
 		try {
-			result = source.kind === 'shape'
+			const coded = source.kind === 'shape' ? this.coded : undefined;
+			result = coded
+				? await this.commandService.executeCommand<StructureGeometryResult>(CODES_CODED_GEOMETRY_COMMAND, { package: coded.preset.package, file: coded.preset.file, values: coded.value.values, memberType: this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) })
+				: source.kind === 'shape'
 				? await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.shapeGeometry', this.shapeValue?.shape)
 				: await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.importGeometry', source.file, this.importValue?.options, this.objects?.getValue());
 		} catch (error) {

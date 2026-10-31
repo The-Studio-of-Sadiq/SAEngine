@@ -21,7 +21,12 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from saengine.codes.contents import building_spec_model, structure_preset_model
+from saengine.codes.contents import (
+    CodedTemplate,
+    building_spec_model,
+    is_coded_template,
+    structure_preset_model,
+)
 from saengine.codes.registry import Registry, default_registry
 
 #: The building template the New Building wizard starts from (formerly its own default form).
@@ -75,6 +80,27 @@ def structure_presets(
     for info in _packages("structureTemplate", project_root, registry):
         for path in _files(info):
             data, problem = _read(path)
+            if problem is None and is_coded_template(data):
+                # A new shape kind made by the package's code (round M5): its form comes from
+                # its parameter schema, its geometry from codes/codedGeometry when trusted.
+                try:
+                    coded = CodedTemplate.model_validate(data)
+                except ValidationError as error:
+                    problem = f"{path.name}: {error.errors()[0]['msg']}"
+                else:
+                    presets.append(
+                        {
+                            **_package_fields(info),
+                            "file": path.relative_to(Path(info.path)).as_posix(),
+                            "name": coded.name,
+                            "description": coded.description or "",
+                            "coded": True,
+                            "trusted": bool(info.trusted),
+                            "parameters": coded.parameters,
+                            "values": coded.values,
+                        }
+                    )
+                    continue
             if problem is None:
                 try:
                     preset = preset_model.model_validate(data)

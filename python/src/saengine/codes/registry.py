@@ -340,7 +340,11 @@ def _package_problems(found: _Found) -> list[Problem]:
     found.contents, more = contents.content_files(found.path, m)
     problems.extend(more)
     if m.kind != DEFAULT_KIND:
-        problems.extend(contents.check_template(found.path, m.kind, found.contents, m.author or ""))
+        problems.extend(
+            contents.check_template(
+                found.path, m.kind, found.contents, m.author or "", bool(m.hooks)
+            )
+        )
     found.preview, more = contents.preview_file(found.path, m)
     problems.extend(more)
     return problems
@@ -1410,8 +1414,10 @@ def load_path(path: Path, project_root: Path | None = None) -> CodePack:
     return _default.load_path(path, project_root)
 
 
-def set_trusted(pack_id: str, trusted: bool, project_root: Path | None = None) -> PackInfo:
-    return _default.set_trusted(pack_id, trusted, project_root)
+def set_trusted(
+    pack_id: str, trusted: bool, project_root: Path | None = None, kind: Kind = DEFAULT_KIND
+) -> PackInfo:
+    return _default.set_trusted(pack_id, trusted, project_root, kind)
 
 
 def install(

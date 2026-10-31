@@ -502,3 +502,72 @@ def test_builtin_default_building_is_the_wizard_start(user_data):
     assert (spec["gridsX"], spec["gridsY"], spec["storyCount"]) == ([6000] * 3, [5000] * 2, 6)
     # Grade 500 is not allowed in special frames (BNBC 2020 Part 6 Sec 8.3.3.4(b)).
     assert spec["rebar"] == "B420DWR" and spec["system"] == "rcFrame"
+
+
+HOOKS = b"""
+def portal(params):
+    span, height = params["span"], params["height"]
+    return {
+        "members": [
+            {"start": [0, 0, 0], "end": [0, 0, height], "type": "COL"},
+            {"start": [0, 0, height], "end": [span, 0, height], "type": "BEAM"},
+            {"start": [span, 0, height], "end": [span, 0, 0], "type": "COL"},
+        ],
+        "supports": [{"at": [0, 0, 0], "fixity": "fixed"}, {"at": [span, 0, 0], "fixity": "fixed"}],
+    }
+"""
+CODED = {
+    "name": "Portal frame",
+    "generator": "portal",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "span": {"type": "number", "minimum": 1000, "maximum": 60000},
+            "height": {"type": "number", "minimum": 1000},
+        },
+        "required": ["span", "height"],
+    },
+    "values": {"span": 12000, "height": 6000},
+}
+
+
+def test_coded_template_runs_only_when_trusted(dirs):
+    """Round M5: a new shape kind made by the package's own code, through trusted hooks."""
+    from saengine.codes import catalogue
+    from saengine.codes.coded import coded_geometry
+
+    src = write_package(
+        dirs.src,
+        "portals",
+        {"templates/portal.json": CODED, "hooks.py": HOOKS},
+        kind="structureTemplate",
+        hooks="hooks.py",
+    )
+    info = dirs.reg.install(src, "user")
+    assert info.usable, info.problems
+    listed = catalogue.structure_presets(registry=dirs.reg)["presets"]
+    assert [(p["name"], p.get("coded"), p.get("trusted")) for p in listed] == [
+        ("Portal frame", True, False)
+    ]
+    untrusted = coded_geometry("portals", "templates/portal.json", registry=dirs.reg)
+    assert untrusted.get("untrusted") and "Packages page" in untrusted["problems"][0]
+
+    dirs.reg.set_trusted("portals", True, kind="structureTemplate")
+    geometry = coded_geometry(
+        "portals",
+        "templates/portal.json",
+        {"span": 10000, "origin": {"x": 1000, "y": 0, "z": 0}},
+        registry=dirs.reg,
+    )
+    assert len(geometry["members"]) == 3 and len(geometry["supports"]) == 2
+    assert geometry["members"][1]["end"] == [11000.0, 0.0, 6000.0]  # span + origin, height
+    bad = coded_geometry("portals", "templates/portal.json", {"span": 10}, registry=dirs.reg)
+    assert bad["problems"] == ["span: at least 1000"]
+
+
+def test_coded_template_needs_hooks(dirs):
+    src = write_package(
+        dirs.src, "nohooks", {"templates/portal.json": CODED}, kind="structureTemplate"
+    )
+    messages = [p.message for p in dirs.reg.validate(src).problems]
+    assert any("needs the package's hooks" in m for m in messages)

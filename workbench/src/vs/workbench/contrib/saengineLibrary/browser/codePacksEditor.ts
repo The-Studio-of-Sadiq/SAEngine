@@ -42,7 +42,7 @@ import { runningVersion } from '../../saengineUpdate/common/updateCheck.js';
 import { COMPONENTS_SHOW_COMMAND } from '../../saengineUpdate/common/components.js';
 import {
 	CODES_REMOVE_COMMAND, IIndexPackage, IInstalledPackage, IPackageDownload, IPackageIndex, IPackageIndexState, IPackageUpdate, kindLabel, kindPluralLabel, missingRequirements, needsNewerSaengine,
-	newestPackages, PACKAGE_KINDS, packageFileName, packageUpdates, PackageKind, PACKAGES_DISCARD_COMMAND, PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, readPackageIndex, sizeLabel,
+	newestPackages, PACKAGE_KINDS, packageFileName, packageUpdates, PackageKind, PACKAGES_COPY_COMMAND, PACKAGES_DISCARD_COMMAND, PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, PACKAGES_OPEN_BUNDLE_COMMAND, readPackageIndex, sizeLabel,
 } from '../common/packageIndex.js';
 import { CodePacksEditorInput } from './codePacksEditorInput.js';
 import {
@@ -115,6 +115,8 @@ export class CodePacksEditor extends EditorPane {
 	private indexState: IPackageIndexState | undefined;
 	private index: IPackageIndex | undefined;
 	private indexLoading = false;
+	/** An offline bundle opened with Install from File... (round M8): Browse lists it, installs copy from it. */
+	private bundle: { readonly folder: string; readonly source: string } | undefined;
 	/** Package keys (`kind/id`) being installed or updated, to disable their buttons. */
 	private readonly busy = new Set<string>();
 
@@ -323,7 +325,7 @@ export class CodePacksEditor extends EditorPane {
 
 	/** The index: the cached one at once, then a fresh one when `refresh` or when it is stale. */
 	private async loadIndex(refresh: boolean): Promise<void> {
-		if (!CommandsRegistry.getCommand(PACKAGES_INDEX_COMMAND) || this.indexLoading) {
+		if (!CommandsRegistry.getCommand(PACKAGES_INDEX_COMMAND) || this.indexLoading || this.bundle) {
 			return;
 		}
 		this.indexLoading = true;
@@ -364,6 +366,7 @@ export class CodePacksEditor extends EditorPane {
 	}
 
 	private async refresh(): Promise<void> {
+		this.bundle = undefined;
 		await this.load();
 		await this.loadIndex(this.tab !== 'installed');
 	}
@@ -458,6 +461,9 @@ export class CodePacksEditor extends EditorPane {
 		if (!path) {
 			return;
 		}
+		if (await this.openBundle(path)) {
+			return;
+		}
 		const scope = args.scope ?? await this.pickScope(localize('packages.installWhereTitle', "Install a Design Code In (templates are always installed for you)"));
 		if (!scope) {
 			return;
@@ -499,6 +505,36 @@ export class CodePacksEditor extends EditorPane {
 			}
 		}
 		return installed;
+	}
+
+	/**
+	 * An offline bundle (a folder or zip with index.json, index.json.sig and packages/*.zip):
+	 * its signed index is shown in Browse and installs copy the zips from it, checked against the
+	 * same SHA-256. False when `path` is not a bundle (then it is one package).
+	 */
+	private async openBundle(path: string): Promise<boolean> {
+		if (!CommandsRegistry.getCommand(PACKAGES_OPEN_BUNDLE_COMMAND)) {
+			return false;
+		}
+		let opened: (IPackageIndexState & { folder?: string }) | undefined;
+		try {
+			opened = await this.commandService.executeCommand<IPackageIndexState & { folder?: string }>(PACKAGES_OPEN_BUNDLE_COMMAND, { path });
+		} catch (error) {
+			this.notificationService.error(localize('packages.bundleRefused', "The offline bundle was not used: {0}", toErrorMessage(error)));
+			return true;
+		}
+		if (!opened?.text || !opened.folder) {
+			return false;
+		}
+		this.bundle = { folder: opened.folder, source: path };
+		this.indexState = opened;
+		this.index = readPackageIndex(opened.text);
+		this.tab = 'browse';
+		this.selectedKey = undefined;
+		this.ensureSelection();
+		this.render();
+		this.notificationService.info(localize('packages.bundleOpened', "Offline bundle opened: {0} packages. Install them from Browse.", this.newest.length));
+		return true;
 	}
 
 	private async pickScope(title: string): Promise<'user' | 'project' | undefined> {
@@ -587,7 +623,9 @@ export class CodePacksEditor extends EditorPane {
 		let path: string | undefined;
 		try {
 			const request: IPackageDownload = { url: pkg.url, size: pkg.size, sha256: pkg.sha256, fileName: packageFileName(pkg) };
-			path = await this.commandService.executeCommand<string>(PACKAGES_DOWNLOAD_COMMAND, request);
+			path = this.bundle
+				? await this.commandService.executeCommand<string>(PACKAGES_COPY_COMMAND, { ...request, path: `${this.bundle.folder}/packages/${pkg.url.split('/').pop() ?? request.fileName}` })
+				: await this.commandService.executeCommand<string>(PACKAGES_DOWNLOAD_COMMAND, request);
 		} catch (error) {
 			this.busy.delete(key);
 			this.notificationService.error(localize('packages.downloadFailed', "{0} could not be downloaded: {1}", pkg.name, toErrorMessage(error)));
@@ -686,7 +724,7 @@ export class CodePacksEditor extends EditorPane {
 			}
 		}
 		try {
-			await this.commandService.executeCommand(CODES_TRUST_COMMAND, { id: pack.id, trusted, root: this.root?.fsPath });
+			await this.commandService.executeCommand(CODES_TRUST_COMMAND, { id: pack.id, trusted, root: this.root?.fsPath, kind: pack.kind });
 			await this.load();
 		} catch (error) {
 			this.notificationService.error(localize('codePacks.trustFailed', "Could not change the trust of the code pack: {0}", toErrorMessage(error)));
@@ -1038,7 +1076,17 @@ export class CodePacksEditor extends EditorPane {
 		if (pack.kind !== 'designCode') {
 			appendPropertyNote(panel, pack.kind === 'structureTemplate'
 				? localize('packages.structureUse', "Its presets are offered in the modeller's Generate panel.")
-				: localize('packages.buildingUse', "It is offered in the New Building wizard's Start from Template list."));
+				: localize('packages.buildingUse', "It is offered in the New Building wizard's Start from list; a full template opens with New Project from Template..."));
+			if (pack.trust !== 'none') {
+				// Coded templates (round M5): the package's code makes the geometry, only when trusted.
+				appendPropertyHeading(panel, localize('codePacks.hooks', "Hooks"));
+				appendPropertyNote(panel, pack.trust === 'trusted'
+					? localize('packages.codedTrusted', "Its code is trusted: its coded templates make their geometry in the Generate panel.")
+					: localize('packages.codedUntrusted', "It contains code (coded templates) that is not trusted: those templates cannot make geometry until you read the hooks and trust them."));
+				if (pack.scope !== 'builtin') {
+					this.detailButton(panel, pack.trust === 'trusted' ? localize('codePacks.untrust', "Stop Trusting Hooks") : localize('packages.trustCode', "Trust This Package's Code..."), () => this.setTrust(pack, pack.trust !== 'trusted'), true);
+				}
+			}
 			return;
 		}
 
@@ -1178,6 +1226,10 @@ export class CodePacksEditor extends EditorPane {
 				return;
 			}
 			const state = this.indexState;
+			if (this.bundle && state?.text) {
+				this.frame.setStatus({ severity: state.test ? 'warning' : undefined, text: localize('packages.statusBundle', "Offline bundle {0}: its list is signed{1}, every package is checked against its SHA-256.", this.bundle.source, state.test ? localize('packages.testKeySuffix', " with the TEST key") : ''), link: { label: localize('packages.backOnline', "Published List"), run: () => void this.refresh() } });
+				return;
+			}
 			if (state?.text) {
 				const when = state.at ? new Date(state.at).toLocaleString() : '';
 				const text = state.test

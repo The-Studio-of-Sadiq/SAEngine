@@ -20,6 +20,8 @@ export const CODES_CHECK_TEMPLATE_COMMAND = 'saengine.codes.checkTemplate';
 export const NEW_FROM_TEMPLATE_COMMAND = 'saengine.project.newFromTemplate';
 /** The building template the New Building wizard starts from. */
 export const DEFAULT_BUILDING_TEMPLATE = 'saengine-default-building';
+/** `{ package, file, values, root? }` -> a coded structure template's geometry, or `{ problems, untrusted? }` (backend). */
+export const CODES_CODED_GEOMETRY_COMMAND = 'saengine.codes.codedGeometry';
 
 type Raw = { readonly [key: string]: unknown };
 
@@ -39,11 +41,16 @@ interface ITemplateOrigin {
 	readonly file: string;
 }
 
-/** A preset of a parametric shape: the Generate form's `shape`. */
+/**
+ * A preset of a parametric shape (the Generate form's `shape`), or a coded template (round M5):
+ * a new shape kind made by the package's code, with the JSON Schema of its `parameters` (the
+ * form is made from it) and their starting `values`; its code runs only when `trusted`.
+ */
 export interface IStructurePreset extends ITemplateOrigin {
 	readonly name: string;
 	readonly description: string;
-	readonly shape: Raw;
+	readonly shape?: Raw;
+	readonly coded?: { readonly trusted: boolean; readonly parameters: Raw; readonly values: Raw };
 }
 
 /** A building template: a specification (`spec`) or an inputs-only archive (`path`). */
@@ -62,11 +69,13 @@ function origin(raw: Raw): ITemplateOrigin {
 
 export function readStructurePresets(value: unknown): IStructurePreset[] {
 	const list = isRaw(value) && Array.isArray(value.presets) ? value.presets : [];
-	return list.filter(isRaw).filter(p => isRaw(p.shape) && str(p.name)).map(p => ({
+	return list.filter(isRaw).filter(p => str(p.name) && (isRaw(p.shape) || (p.coded === true && isRaw(p.parameters)))).map(p => ({
 		...origin(p),
 		name: str(p.name),
 		description: str(p.description),
-		shape: p.shape as Raw,
+		...(p.coded === true
+			? { coded: { trusted: p.trusted === true, parameters: p.parameters as Raw, values: isRaw(p.values) ? p.values : {} } }
+			: { shape: p.shape as Raw }),
 	}));
 }
 

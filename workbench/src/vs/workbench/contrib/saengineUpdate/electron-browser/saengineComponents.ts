@@ -53,6 +53,8 @@ function extensionStatus(extension: IExtensionDescription | undefined): ICompone
 interface ISAEngineProduct {
 	readonly saengineVersion?: string;
 	readonly saengineUpdate?: { readonly releasesUrl?: string };
+	/** Set by the owner once SignPath signs SAEngine (round M7): the certificate's publisher. */
+	readonly saengineSigning?: { readonly publisher?: string };
 }
 
 function isComponent(value: unknown): value is SetupComponent {
@@ -173,7 +175,7 @@ async function addComponent(accessor: ServicesAccessor, component: SetupComponen
 		}
 	}
 	const components = setupComponents(states, component);
-	const answer = await solver.runSetup({ setup: setup.fsPath, sha256: expected, components });
+	const answer = await solver.runSetup({ setup: setup.fsPath, sha256: expected, components, publisher: product.saengineSigning?.publisher || undefined });
 	if (!answer.ok) {
 		logService.warn(`[saengine components] ${setup.fsPath}: ${(answer.problems ?? []).join(' ')}`);
 		notificationService.error(localize('components.runFailed', "{0} could not be added: {1}", label, (answer.problems ?? []).join(' ')));
