@@ -106,6 +106,7 @@ KIND_ORDER = [
     "slab",
     "staircase",
     "lintel",
+    "diaphragm",
 ]
 
 KIND_TITLES = {
@@ -119,6 +120,7 @@ KIND_TITLES = {
     "slab": "Slabs",
     "staircase": "Stairs",
     "lintel": "Lintels",
+    "diaphragm": "Diaphragms",
     "member": "Members",
 }
 

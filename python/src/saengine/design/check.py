@@ -934,6 +934,22 @@ def design(
         into[0].extend(lintels_found["elements"])
         into[1].extend(lintels_found["skipped"])
         into[2].extend(lintels_found["notes"])
+    # Integrator glue (T3): the floors' chords and collectors (saengine.design.diaphragms,
+    # BNBC 2020 Part 6 Sec 2.5.5.6), from the equivalent static storey forces.
+    from saengine.design import diaphragms as diaphragm_design
+
+    try:
+        diaphragms_found = diaphragm_design.diaphragms_of(project, building, types, mats, settings)
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        diaphragms_found = {
+            "elements": [],
+            "skipped": [],
+            "notes": [f"diaphragm chords and collectors not designed: {error}"],
+        }
+    for into in sinks:
+        into[0].extend(diaphragms_found["elements"])
+        into[1].extend(diaphragms_found["skipped"])
+        into[2].extend(diaphragms_found["notes"])
 
     def assemble(
         checked: list[dict[str, Any]],

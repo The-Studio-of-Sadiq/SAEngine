@@ -20,9 +20,10 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
-import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
+import { DESIGN_REINFORCEMENT_COMMAND, PLANNED_STM_GENERAL } from './femDesign.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
 import { FemModelEditor } from './femModelEditor.js';
@@ -200,3 +201,32 @@ class FemModelEditorResolverContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(FemModelEditorResolverContribution.ID, FemModelEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
+// Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
+// model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
+registerPlannedFeature({
+	id: PLANNED_STM_GENERAL,
+	part: 'fem',
+	title: localize('planned.stmGeneral.title', "Strut-and-Tie Models of Any D-Region"),
+	summary: localize('planned.stmGeneral.summary', "Draw and check a strut-and-tie model for regions the deep-beam checks do not cover: dapped ends, beams and walls with openings, frame corners, continuous deep beams and corbels with several loads."),
+	steps: [
+		localize('planned.stmGeneral.step1', "Pick the D-region on a member and its boundary forces from the analysis."),
+		localize('planned.stmGeneral.step2', "Lay out struts, ties and nodes, or start from a template (dapped end, opening, corner)."),
+		localize('planned.stmGeneral.step3', "Solve the truss and check each strut, tie and node with its βs and βn."),
+		localize('planned.stmGeneral.step4', "Detail the ties' anchorage and the distributed reinforcement, and print the model in the report."),
+	],
+	inputs: [
+		{ label: localize('planned.stmGeneral.inputRegion', "D-region"), example: localize('planned.stmGeneral.exampleRegion', "Dapped end of B12") },
+		{ label: localize('planned.stmGeneral.inputTemplate', "Template"), example: localize('planned.stmGeneral.exampleTemplate', "Dapped end") },
+		{ label: localize('planned.stmGeneral.inputWidth', "Strut width"), unit: 'mm', example: '250' },
+	],
+	outputs: [
+		localize('planned.stmGeneral.output1', "Truss forces and the check of every strut, tie and node"),
+		localize('planned.stmGeneral.output2', "Tie bars and their anchorage"),
+		localize('planned.stmGeneral.output3', "A model sketch in the design report"),
+	],
+	references: [
+		'ACI 318-19 Chapter 23',
+		'BNBC 2020 Part 6 Sec 6.2.3.2 (φ = 0.75)',
+	],
+});
