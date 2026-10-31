@@ -526,8 +526,10 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         return _status("fem", "inProgress", "analysed", "run the design checks")
     counts = _design_counts(summary)
     if summary["failed"] > 0:
-        text = counts["failedText"] if counts and counts["failedText"] else (
-            f"{_js(summary['failed'])} fail"
+        text = (
+            counts["failedText"]
+            if counts and counts["failedText"]
+            else (f"{_js(summary['failed'])} fail")
         )
         return _status("fem", "failed", text, "review the failing members")
     if summary["checked"] == 0 or (counts and counts["checked"] == 0):
@@ -571,9 +573,7 @@ def _design_counts(summary: dict[str, Any]) -> dict[str, Any] | None:
         "checked": members["checked"],
         "passed": members["checked"] - failed,
         "notChecked": int(_positive(members.get("notChecked"))),
-        "noBars": int(_positive(not_checked.get("noBars")))
-        if isinstance(not_checked, dict)
-        else 0,
+        "noBars": int(_positive(not_checked.get("noBars"))) if isinstance(not_checked, dict) else 0,
         "failedText": f"{', '.join(parts)} fail" if parts else None,
     }
 
@@ -1073,7 +1073,9 @@ def next_step(statuses: list[PartStatus]) -> tuple[int, PartStatus] | None:
     if best is None:
         return None
     _, index, status = best
-    needed = next((i for i, s in enumerate(statuses) if status.needs and s.part == status.needs), -1)
+    needed = next(
+        (i for i, s in enumerate(statuses) if status.needs and s.part == status.needs), -1
+    )
     if needed >= 0:
         target = statuses[needed]
         return needed, PartStatus(target.part, target.state, target.text, status.hint, target.needs)

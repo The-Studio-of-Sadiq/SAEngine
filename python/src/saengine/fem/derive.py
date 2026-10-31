@@ -376,9 +376,7 @@ def settings_stamp(text: str, legacy: bool = False) -> str:
     kept = {k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}
     if not legacy and isinstance(kept.get("foundation"), dict):
         kept["foundation"] = {
-            k: v
-            for k, v in kept["foundation"].items()
-            if k not in SETTINGS_FOUNDATION_DESIGN_KEYS
+            k: v for k, v in kept["foundation"].items() if k not in SETTINGS_FOUNDATION_DESIGN_KEYS
         }
     return stamp(js_json(kept))
 
