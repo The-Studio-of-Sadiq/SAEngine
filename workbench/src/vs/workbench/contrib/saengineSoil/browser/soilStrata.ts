@@ -79,7 +79,7 @@ function unitLabel(model: IStratigraphy, index: number): string {
 }
 
 export function renderStrataView(container: HTMLElement, options: IStrataViewOptions): void {
-	const { report, model, state, disposables } = options;
+	const { model, state, disposables } = options;
 	const header = append(container, $('.soil-view-header'));
 	append(header, $('span.soil-view-title', undefined, localize('soil.strata.title', "Stratigraphy")));
 	append(header, $('span.soil-view-subtitle', undefined, localize('soil.strata.subtitle', "The boreholes' strata correlated into units and interpolated between them (inverse distance); a model of the logs to judge, not measured ground.")));
