@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from saengine.importers.common import Units, bar_diameter
+from saengine.importers.common import Units, bar_diameter, file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.library import (
     BuildingModel,
@@ -22,6 +22,7 @@ from saengine.library import (
     ObjectLibrary,
     ProjectSettings,
 )
+from saengine.library.settings import strength_combinations
 
 DATA = Path(__file__).parent / "data" / "import"
 FRAME = DATA / "two_story_frame.e2k"
@@ -120,10 +121,15 @@ def test_frame_imports_into_valid_parts(tmp_path: Path) -> None:
     loads = {a.id: a for a in settings.areaLoads}
     assert (loads["FL"].finish, loads["FL"].live) == (1.5, 2.0)
     assert (loads["RF"].finish, loads["RF"].live) == (1.5, 1.0)
-    combos = {c.name: c for c in settings.combinations}
+    combos = file_combinations(settings.combinations)
     assert set(combos) == {"U1", "U2", "U3"}  # U4 repeats U1; ENV is an envelope
     assert (combos["U1"].D, combos["U2"].D, combos["U2"].L, combos["U2"].Lr) == (1.4, 1.2, 1.6, 0.5)
     assert combos["U3"].EX == -1
+    # N-N6: the BNBC 2020 Part 6 Sec 2.7.3.1 set (+-EX/EY, +-WX/WY, 0.9D) comes first, on
+    # SAEngine's wind and earthquake cases; the file's three follow, named "(from the file)".
+    bnbc = [c.name for c in strength_combinations()]
+    assert [c.name for c in settings.combinations][: len(bnbc)] == bnbc
+    assert "0.9D + 1.0(-EY)" in bnbc and len(settings.combinations) == len(bnbc) + 3
 
     report = load("import-report.json")
     assert report["imported"]["braces"] == 1 and report["imported"]["supports"] == 6
@@ -223,7 +229,9 @@ def test_roof_live_in_live_pattern_keeps_its_factor() -> None:
     text = FRAME.read_text(encoding="utf-8").replace('LC "RLive"', 'LC "Live"')
     text = text.replace('  COMBO "U2"  LOAD "RLive"  SF 0.5\n', "")
     project = read_e2k(FRAME, text=text)
-    combos = {c.name: (c.D, c.L, c.Lr) for c in project.settings.combinations}
+    combos = {
+        n: (c.D, c.L, c.Lr) for n, c in file_combinations(project.settings.combinations).items()
+    }
     assert combos == {"U1": (1.4, 0, 0), "U2": (1.2, 1.6, 1.6), "U3": (1.2, 1.0, 1.0)}
     moved = next(a for a in project.report.approximated if a["what"].startswith("combination fa"))
     assert "U2: Lr 0 → 1.6" in moved["examples"]
@@ -251,7 +259,7 @@ def test_etabs_2013_combination_terms_and_response_spectrum() -> None:
         '  COMBO "S2"  LOADCASE "RSY"  SF -1\n',
     )
     project = read_e2k(FRAME, text=text)
-    combos = {c.name: c for c in project.settings.combinations}
+    combos = file_combinations(project.settings.combinations)
     assert set(combos) == {"U1", "U2", "U3", "S1", "S2"}  # U4 repeats U1 (nested LOADCOMBO)
     assert (combos["U2"].D, combos["U2"].L, combos["U2"].Lr) == (1.2, 1.6, 0.5)
     s1, s2 = combos["S1"], combos["S2"]
@@ -298,10 +306,10 @@ def test_imported_frame_analyses_with_its_loads(tmp_path: Path) -> None:
     )
     assert run.returncode == 0, run.stderr[-2000:]
     entries = {e["caseName"]: e for e in combination_results(out, d.project, project.settings)}
-    reaction = entries["U2"]["tables"][0]["rows"][-1][3] / 1000  # kN, up
+    reaction = entries["U2 (from the file)"]["tables"][0]["rows"][-1][3] / 1000  # kN, up
     expected = 1.2 * (SELF_WEIGHT + SDL) + 1.6 * LIVE + 0.5 * ROOF_LIVE
     assert reaction == pytest.approx(expected, rel=0.005)
-    dead = entries["U1"]["tables"][0]["rows"][-1][3] / 1000
+    dead = entries["U1 (from the file)"]["tables"][0]["rows"][-1][3] / 1000
     assert dead == pytest.approx(1.4 * (SELF_WEIGHT + SDL), rel=0.005)
 
 
@@ -369,7 +377,8 @@ $ LOAD COMBINATIONS
     # The brace from the base at point 4 up to the roof at point 3 is an inclined member.
     assert [m.id for m in project.bim.additions.members] == ["R1-ROOF"]
     assert project.bim.additions.slabOpenings[0].xDim == 1000
-    assert [(c.name, c.D, c.L) for c in project.settings.combinations] == [("COMB1", 1.2, 1.6)]
+    combos = file_combinations(project.settings.combinations)
+    assert [(n, c.D, c.L) for n, c in combos.items()] == [("COMB1", 1.2, 1.6)]
     approximated = {a["what"] for a in project.report.approximated}
     # The pinned base of C1 frees its rotations; the other column bases have no restraint in
     # the file, but SAEngine fixes them (reported).

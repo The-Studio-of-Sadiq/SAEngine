@@ -23,6 +23,7 @@ from saengine.exporters.etabs import (
     library_shape,
     write_e2k,
 )
+from saengine.importers.common import file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
@@ -458,7 +459,8 @@ def check_round_trip(
     def factors(c: Any) -> tuple:
         return tuple(round(getattr(c, k), 6) for k in ("D", "L", "Lr", "WX", "WY", "EX", "EY"))
 
-    assert sorted(factors(c) for c in imported.settings.combinations) == sorted(
+    imported_combinations = file_combinations(imported.settings.combinations).values()
+    assert sorted(factors(c) for c in imported_combinations) == sorted(
         {factors(c) for c in settings.combinations}
     )
 
