@@ -11846,6 +11846,98 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Pile',
 			type: 'object',
 		},
+		Planning: {
+			additionalProperties: false,
+			description: 'What the planning check of the plot needs beyond its shape: the use (a key of the code\npack\'s ``planning.uses``), the road it faces, and the building\'s height, storeys and areas\nwhere the building model does not give them.',
+			properties: {
+				use: {
+					default: 'A1-A4',
+					description: 'Use class of the planning rules, e.g. A1-A4 (residential), F1 (office).',
+					minLength: 1,
+					title: 'Use',
+					type: 'string',
+				},
+				roadWidth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Width of the road the plot faces [mm].',
+					title: 'Road width',
+				},
+				height: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the ground [mm]; empty: from the building model\'s stories.',
+					title: 'Building height',
+				},
+				storeys: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: from the building model.',
+					title: 'Storeys',
+				},
+				groundCoverage: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Building footprint [m²]; empty: the building model\'s slabs on plan.',
+					title: 'Ground coverage',
+				},
+				floorArea: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m²]; empty: the sum of the building model\'s storeys.',
+					title: 'Gross floor area',
+				},
+				excludedArea: {
+					default: 0,
+					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, parking, services) [m²].',
+					minimum: 0,
+					title: 'Excluded floor area',
+					type: 'number',
+				},
+			},
+			title: 'Planning',
+			type: 'object',
+		},
 		Plot: {
 			additionalProperties: false,
 			description: 'The plot: its corners in the project grid (when the site boundary is not given in\nlatitude/longitude), the side facing the road and the setbacks that leave the buildable\nenvelope (``saengine.gis.plot``).',
@@ -11897,6 +11989,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					minimum: 0,
 					title: 'Side setback',
 					type: 'number',
+				},
+				planning: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Planning',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The use and road the plot is checked for against the planning rules (FAR, ground coverage, setbacks; saengine.gis.planning).',
+					title: 'Planning compliance',
 				},
 			},
 			title: 'Plot',
@@ -19327,8 +19432,8 @@ export const REPORT_TEMPLATE_SCHEMA: IJSONSchema = {
 			additionalProperties: false,
 			properties: {
 				id: {
-					enum: ['basis', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
-					enumDescriptions: ['Design basis', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
+					enum: ['basis', 'planning', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
+					enumDescriptions: ['Design basis', 'Planning compliance', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
 					title: 'Section',
 					type: 'string',
 				},
@@ -19450,6 +19555,11 @@ export const DEFAULT_REPORT_TEMPLATE: object = {
 	sections: [
 		{
 			id: 'basis',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'planning',
 			include: true,
 			detail: 'inherit',
 		},

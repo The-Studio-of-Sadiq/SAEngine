@@ -8,7 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport } from './soilDocument.js';
+import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport, PLANNING_DEFAULT_USE, PlanningNumberKey } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
 import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, IBnbcSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
@@ -241,6 +241,7 @@ export class SoilMapView extends Disposable {
 		}
 
 		this.renderPlotPanel(heading, row);
+		this.renderPlanningPanel(heading, row);
 
 		heading(localize('soil.map.boreholes', "Boreholes"));
 		const points = boreholePoints(report, location);
@@ -523,6 +524,121 @@ export class SoilMapView extends Disposable {
 	}
 
 	/** True north, and the project +Y axis at the grid bearing. */
+	// ───────────────────────────── planning compliance ─────────────────────────────
+
+	/**
+	 * Planning compliance of the plot (saengine.gis.planning, the code pack's planning table):
+	 * the use and the road width it is checked for, FAR and MGC permitted, the setbacks Table 2
+	 * asks for against those entered, and the area statement from the building model (or areas
+	 * typed in).
+	 */
+	private renderPlanningPanel(heading: (text: string) => HTMLElement, row: (label: string, value: string, title?: string) => HTMLElement): void {
+		const { report, location } = this.host;
+		const own = report.site?.plot?.planning;
+		const result = location?.planning ?? undefined;
+		heading(localize('soil.planning.heading', "Planning Compliance"));
+		if (!own) {
+			append(this.panel, $('p.soil-note', undefined, localize('soil.planning.intro', "FAR, ground coverage and setbacks of the plot by the planning rules of the code pack (Dhaka: Imarat Nirman Bidhimala 2008), with the area statement of the building.")));
+			this.button(append(this.panel, $('.soil-map-actions')), Codicon.checklist, localize('soil.planning.start', "Check Planning Rules"), () => this.host.editPlot({ planning: { use: PLANNING_DEFAULT_USE } }));
+			return;
+		}
+		if (result?.authority) {
+			append(this.panel, $('p.soil-note', { title: result.source ?? '' }, result.authority));
+		}
+		// The use class.
+		const useRow = append(this.panel, $('.soil-map-row'));
+		const useLabel = localize('soil.planning.use', "Use");
+		append(useRow, $('span.soil-map-label', undefined, useLabel));
+		const useSelect = append(append(useRow, $('span.soil-map-value.soil-prop-control')), $<HTMLSelectElement>('select.soil-input', { 'aria-label': useLabel }));
+		useSelect.dataset.key = 'planningUse';
+		const uses = result?.uses?.length ? result.uses : [{ id: own.use ?? PLANNING_DEFAULT_USE, name: own.use ?? PLANNING_DEFAULT_USE }];
+		for (const use of uses) {
+			const option = append(useSelect, $<HTMLOptionElement>('option', { value: use.id }, use.name));
+			option.selected = use.id === own.use;
+		}
+		this.panelDisposables.add(addDisposableListener(useSelect, EventType.CHANGE, () => this.host.editPlot({ planning: { use: useSelect.value } })));
+		// Numbers: road width, height and storeys (from the building model when empty), areas.
+		const numbers = append(this.panel, $('.soil-plot-setbacks.soil-planning-inputs'));
+		const field = (key: PlanningNumberKey, label: string, scale: number, placeholder: string, title: string) => {
+			const cell = append(numbers, $('label.soil-plot-setback', { title }));
+			append(cell, $('span', undefined, label));
+			const input = append(cell, $<HTMLInputElement>('input.soil-input.number', { type: 'text', spellcheck: 'false', 'aria-label': label }));
+			input.dataset.key = `planning-${key}`;
+			this.panelInputs.set(`planning-${key}`, input);
+			const value = own[key];
+			input.value = typeof value === 'number' ? formatNumber(value / scale, 3) : '';
+			input.placeholder = placeholder;
+			this.panelDisposables.add(addDisposableListener(input, EventType.CHANGE, () => {
+				const text = input.value.trim();
+				const number = text ? Number(text) : undefined;
+				const valid = number === undefined || (Number.isFinite(number) && number >= 0);
+				input.classList.toggle('invalid', !valid);
+				if (valid) {
+					this.host.editPlot({ planning: { [key]: number === undefined ? null : key === 'storeys' ? Math.round(number) : number * scale } });
+				}
+			}));
+		};
+		const measured = (value: number | null | undefined, digits: number) => typeof value === 'number' ? formatNumber(value, digits) : '';
+		field('roadWidth', localize('soil.planning.road', "Road width (m)"), 1000, '', localize('soil.planning.roadTitle', "Width of the road the plot faces"));
+		field('height', localize('soil.planning.height', "Height (m)"), 1000, measured(result?.height, 1), localize('soil.planning.heightTitle', "Building height above ground; empty: from the building model"));
+		field('storeys', localize('soil.planning.storeys', "Storeys"), 1, measured(result?.storeys, 0), localize('soil.planning.storeysTitle', "Empty: from the building model"));
+		field('groundCoverage', localize('soil.planning.coverage', "Coverage (m²)"), 1, measured(result?.areas?.groundCoverage, 1), localize('soil.planning.coverageTitle', "Ground coverage; empty: the building model's slabs on plan"));
+		field('floorArea', localize('soil.planning.floorArea', "Floor area (m²)"), 1, measured(result?.areas?.grossFloorArea, 1), localize('soil.planning.floorAreaTitle', "Gross floor area; empty: the building model's storeys"));
+		field('excludedArea', localize('soil.planning.excluded', "Excluded (m²)"), 1, '0', localize('soil.planning.excludedTitle', "Floor area not counted in FAR (Rule 51(5): stair and lift rooms over the roof, parking, services, ...)"));
+
+		if (this.host.locationState === 'computing' && !result) {
+			append(this.panel, $('p.soil-note', undefined, localize('soil.planning.checking', "Checking...")));
+		}
+		if (!result) {
+			return;
+		}
+		if (typeof result.plotArea === 'number') {
+			row(localize('soil.planning.plotRow', "Plot size row"), result.band ?? '');
+		}
+		const permitted = result.permitted;
+		if (permitted?.allowed) {
+			row(localize('soil.planning.permitted', "Permitted"), localize('soil.planning.permittedValue', "FAR {0}, MGC {1} %", permitted.farText ?? '', formatNumber(permitted.mgc ?? 0, 1)), permitted.rule ?? '');
+		}
+		const limits = result.limits;
+		const areas = result.areas;
+		if (limits || areas) {
+			const table = append(this.panel, $('table.soil-planning-statement', { 'aria-label': localize('soil.planning.statement', "Area statement") }));
+			const line = (label: string, value: string, limit?: string) => {
+				const tr = append(table, $('tr'));
+				append(tr, $('td', undefined, label));
+				append(tr, $('td.number', undefined, value));
+				append(tr, $('td.number', undefined, limit ?? ''));
+			};
+			const head = append(table, $('tr'));
+			append(head, $('th', undefined, localize('soil.planning.statement', "Area statement")));
+			append(head, $('th.number', undefined, localize('soil.planning.provided', "Provided")));
+			append(head, $('th.number', undefined, localize('soil.planning.limit', "Limit")));
+			line(localize('soil.planning.plotArea', "Plot area (m²)"), formatNumber(result.plotArea ?? 0, 1));
+			line(localize('soil.planning.coverageRow', "Ground coverage (m²)"), measured(areas?.groundCoverage, 1), limits ? formatNumber(limits.mgcArea, 1) : '');
+			line(localize('soil.planning.openRow', "Open space (m²)"), measured(areas?.openSpace, 1), limits ? `≥ ${formatNumber(limits.openSpace, 1)}` : '');
+			for (const storey of areas?.storeys ?? []) {
+				line(localize('soil.planning.storeyRow', "  {0}", storey.name), formatNumber(storey.area, 1));
+			}
+			line(localize('soil.planning.grossRow', "Gross floor area (m²)"), measured(areas?.grossFloorArea, 1));
+			if (areas?.excluded) {
+				line(localize('soil.planning.excludedRow', "Less excluded (m²)"), formatNumber(areas.excluded, 1));
+			}
+			line(localize('soil.planning.farRow', "Floor area for FAR (m²)"), measured(areas?.farArea, 1), limits ? (limits.floorArea === null ? localize('soil.planning.nr', "not restricted") : formatNumber(limits.floorArea, 1)) : '');
+		}
+		const list = append(this.panel, $('.soil-map-list.soil-planning-checks', { role: 'list', 'aria-label': localize('soil.planning.checks', "Planning checks") }));
+		for (const check of result.checks ?? []) {
+			const item = append(list, $('.soil-map-item', { role: 'listitem', title: check.rule }));
+			item.classList.toggle('fail', !check.ok);
+			append(item, $(`span${ThemeIcon.asCSSSelector(check.ok ? Codicon.pass : Codicon.error)}`));
+			const limit = check.limit === null ? localize('soil.planning.nr', "not restricted") : formatNumber(check.limit, 2);
+			append(item, $('span.soil-map-item-detail', undefined, localize('soil.planning.checkLine', "{0}: {1} {2} {3} {4}", check.label, formatNumber(check.provided, 2), check.sense, limit, check.unit).trim()));
+		}
+		for (const note of [...result.problems ?? [], ...result.notes ?? []]) {
+			append(this.panel, $('p.soil-note', undefined, note));
+		}
+		this.button(append(this.panel, $('.soil-map-actions')), Codicon.trash, localize('soil.planning.remove', "Remove Planning Check"), () => this.host.editPlot({ planning: null }));
+	}
+
 	private renderCompass(): void {
 		clearNode(this.compass);
 		const rotation = this.host.report.site?.rotation ?? 0;
