@@ -1124,6 +1124,66 @@ class Registry:
             found = next(c for c in candidates if c.path.resolve() == dest.resolve())
             return self._info(self._resolved(found, candidates), candidates)
 
+    def uninstall(
+        self,
+        pack_id: str,
+        scope: Scope = "user",
+        project_root: Path | None = None,
+        kind: Kind = DEFAULT_KIND,
+    ) -> Path:
+        """Remove the ``scope`` package ``pack_id`` of ``kind`` (the Packages page's Remove).
+
+        Built-in packages cannot be removed, only shadowed. A package that another installed
+        package extends or requires is refused unless a copy of it stays installed in another
+        scope. The folder is renamed aside first and then deleted, so a package is never left
+        half-installed. Its trust entry is dropped: a later install of the same id must be
+        trusted again. Returns the folder that was removed."""
+        if scope == "builtin":
+            raise CodePackError("built-in packages cannot be removed, only shadowed")
+        base = self.scope_dir(scope, project_root, kind)
+        if base is None:
+            raise CodePackError(f"there is no {scope} folder for a {KIND_NAMES[kind]}")
+        with self._lock:
+            candidates = self._discover(project_root)
+            found = next(
+                (c for c in candidates if c.id == pack_id and c.scope == scope and c.kind == kind),
+                None,
+            )
+            if found is None:
+                raise CodePackError(f"no {scope} {KIND_NAMES[kind]} '{pack_id}' is installed")
+            folder = found.path
+            if not folder.resolve().is_relative_to(base.resolve()):
+                raise CodePackError(f"'{folder}' is not inside the {scope} package folder")
+            other_copy = any(
+                c.id == pack_id and c.kind == kind and c.path != folder for c in candidates
+            )
+            dependants = sorted(
+                {
+                    c.id
+                    for c in candidates
+                    if c.id != pack_id
+                    and c.manifest is not None
+                    and (
+                        (kind == DEFAULT_KIND and c.manifest.extends == pack_id)
+                        or (c.manifest.requires and pack_id in c.manifest.requires.packages)
+                    )
+                }
+            )
+            if dependants and not other_copy:
+                raise CodePackError(
+                    f"'{pack_id}' is needed by {', '.join(dependants)}: remove those first"
+                )
+            trash = folder.with_name(f".{folder.name}.removing")
+            if trash.exists():
+                shutil.rmtree(trash, ignore_errors=True)
+            folder.rename(trash)
+            shutil.rmtree(trash, ignore_errors=True)
+            if found.manifest is not None and found.manifest.hooks and not other_copy:
+                self.trust.set_trusted(pack_id, "", False)
+            self.generation += 1
+            self.clear_cache()
+            return folder
+
     # trust and hooks
 
     def _is_trusted(self, found: _Found) -> bool:
@@ -1358,6 +1418,15 @@ def install(
     source: Path, scope: Scope = "user", project_root: Path | None = None, replace: bool = False
 ) -> PackInfo:
     return _default.install(source, scope, project_root, replace)
+
+
+def uninstall(
+    pack_id: str,
+    scope: Scope = "user",
+    project_root: Path | None = None,
+    kind: Kind = DEFAULT_KIND,
+) -> Path:
+    return _default.uninstall(pack_id, scope, project_root, kind)
 
 
 def clear_cache() -> None:

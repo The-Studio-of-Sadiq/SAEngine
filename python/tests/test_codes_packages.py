@@ -268,6 +268,40 @@ def test_templates_install_into_their_user_folder_only(dirs):
     assert (dirs.project / PROJECT_PACKS / "regional").is_dir()
 
 
+def test_uninstall_removes_the_folder_and_the_trust(dirs):
+    """Remove on the Packages page (round M3): user and project packages go, built-in stay."""
+    src = structure(dirs.src)
+    dirs.reg.install(src, "user")
+    assert dirs.reg.uninstall("trusses", "user", kind="structureTemplate") == (
+        dirs.structures / "trusses"
+    )
+    assert not (dirs.structures / "trusses").exists()
+    assert not any(p.id == "trusses" for p in dirs.reg.list_packs(kind=None))
+    with pytest.raises(CodePackError, match="is installed"):
+        dirs.reg.uninstall("trusses", "user", kind="structureTemplate")
+    with pytest.raises(CodePackError, match="cannot be removed"):
+        dirs.reg.uninstall("base", "builtin")
+
+    hooked = write_package(dirs.src, "hooked", {"hooks.py": b""}, extends="base", hooks="hooks.py")
+    dirs.reg.install(hooked, "project", dirs.project)
+    dirs.reg.set_trusted("hooked", True, dirs.project)
+    assert dirs.reg.trust._read().get("hooked")
+    dirs.reg.uninstall("hooked", "project", dirs.project)
+    assert not (dirs.project / PROJECT_PACKS / "hooked").exists()
+    assert not dirs.reg.trust._read().get("hooked")
+
+
+def test_uninstall_refuses_a_package_others_need(dirs):
+    dirs.reg.install(write_package(dirs.src, "regional", extends="base"), "user")
+    dirs.reg.install(write_package(dirs.src, "coastal", extends="regional"), "user")
+    with pytest.raises(CodePackError, match="needed by coastal"):
+        dirs.reg.uninstall("regional", "user")
+    # a copy in the project keeps the child resolvable: the user's copy may go
+    dirs.reg.install(dirs.src / "regional", "project", dirs.project)
+    dirs.reg.uninstall("regional", "user", dirs.project)
+    assert not (dirs.user / "regional").exists()
+
+
 @pytest.mark.parametrize("name", ["setup.exe", "lib/helper.dll", "run.ps1", "tool.BAT", "a.js"])
 def test_programs_are_refused(dirs, name):
     src = structure(dirs.src)

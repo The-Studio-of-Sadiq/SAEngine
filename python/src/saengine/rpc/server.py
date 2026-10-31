@@ -1144,7 +1144,16 @@ def create_server() -> JsonRPCServer:
     # Code packs (Project Settings' Design code, the Code Packs page).
     @server.feature("codes/list")
     def _codes_list(params: Any) -> list[dict[str, Any]]:
-        return handlers.codes_list(_plain(params).get("root"))
+        args = _plain(params)
+        return handlers.codes_list(args.get("root"), args.get("kind"))
+
+    @server.feature("codes/remove")
+    @_in_worker
+    def _codes_remove(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_remove(
+            args["id"], args.get("scope") or "user", args.get("kind"), args.get("root")
+        )
 
     @server.feature("codes/show")
     def _codes_show(params: Any) -> dict[str, Any]:
@@ -1167,7 +1176,12 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _codes_install(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.codes_install(args["path"], args.get("scope") or "user", args.get("root"))
+        return handlers.codes_install(
+            args["path"],
+            args.get("scope") or "user",
+            args.get("root"),
+            args.get("replace") is True,
+        )
 
     @server.feature("codes/validate")
     def _codes_validate(params: Any) -> dict[str, Any]:

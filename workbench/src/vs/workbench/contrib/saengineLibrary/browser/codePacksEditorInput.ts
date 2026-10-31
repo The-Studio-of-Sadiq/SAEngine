@@ -11,9 +11,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 
-const codePacksIcon = registerIcon('saengine-code-packs-editor-icon', Codicon.law, localize('saengineCodePacksIcon', "Icon of the SAEngine code packs page."));
+const codePacksIcon = registerIcon('saengine-code-packs-editor-icon', Codicon.law, localize('saengineCodePacksIcon', "Icon of the SAEngine packages page."));
 
-/** The Code Packs page: the design codes installed (built-in, the user's, the project's). */
+/** The Packages page (formerly Code Packs): the packages installed, published and with updates. */
 export class CodePacksEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.codePacks';
@@ -42,7 +42,7 @@ export class CodePacksEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('saengineCodePacks', "Code Packs");
+		return localize('saenginePackages', "Packages");
 	}
 
 	override getIcon(): ThemeIcon {
@@ -54,7 +54,7 @@ export class CodePacksEditorInput extends EditorInput {
 	}
 }
 
-/** Restores the Code Packs page with the window. */
+/** Restores the Packages page with the window. */
 export class CodePacksEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(): boolean {

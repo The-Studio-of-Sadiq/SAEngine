@@ -187,6 +187,8 @@ export class StructureModelerEditor extends EditorPane {
 	private modeler: StructureModeler | undefined;
 	private readonly modelerDisposable = this._register(new MutableDisposable());
 	private readonly inputDisposables = this._register(new DisposableStore());
+	/** "Get more structure templates...": the Generate panel's link to the Packages page. */
+	private panelMore!: HTMLElement;
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 
 	private model: ITextModel | undefined;
@@ -308,6 +310,12 @@ export class StructureModelerEditor extends EditorPane {
 		this.insertButton = this._register(new Button(buttons, { ...defaultButtonStyles }));
 		this.insertButton.label = localize('modeler.insert', "Insert");
 		this._register(this.insertButton.onDidClick(() => void this.insertGhost()));
+		// Structure templates are installed on the Packages page; the panel only links to it.
+		this.panelMore = append(this.panel, $('a.modeler-panel-more.hidden', { href: '#', role: 'button' }, localize('modeler.morePresets', "Get more structure templates...")));
+		this._register(addDisposableListener(this.panelMore, EventType.CLICK, e => {
+			e.preventDefault();
+			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'structureTemplate' });
+		}));
 		const cancel = this._register(new Button(buttons, { ...defaultButtonStyles, secondary: true }));
 		cancel.label = localize('modeler.cancel', "Cancel");
 		this._register(cancel.onDidClick(() => this.closePanel()));
@@ -980,6 +988,7 @@ export class StructureModelerEditor extends EditorPane {
 			}
 		}
 		this.renderDetails();
+		this.panelMore.classList.toggle('hidden', source?.kind !== 'shape');
 		clearNode(this.panelForm);
 		if (!source) {
 			return;

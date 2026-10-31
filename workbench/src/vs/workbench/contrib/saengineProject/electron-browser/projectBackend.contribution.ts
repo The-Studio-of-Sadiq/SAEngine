@@ -177,7 +177,13 @@ CommandsRegistry.registerCommand(VERSIONS_MARK_ISSUED_COMMAND, async (accessor, 
 // (`../../saengineLibrary/browser/codePacksModel.ts`), forwarded to `saengine.codes`.
 
 CommandsRegistry.registerCommand('saengine.codes.list', async (accessor, raw: unknown) => {
-	return call(accessor, 'codes/list', { root: str(bag(raw).root) });
+	const args = bag(raw);
+	return call(accessor, 'codes/list', { root: str(args.root), kind: str(args.kind) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.remove', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/remove', { id: args.id, scope: args.scope === 'project' ? 'project' : 'user', kind: str(args.kind), root: str(args.root) }));
 });
 
 CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: unknown) => {
@@ -192,7 +198,7 @@ CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unk
 
 CommandsRegistry.registerCommand('saengine.codes.install', async (accessor, raw: unknown) => {
 	const args = bag(raw);
-	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root) }));
+	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root), replace: args.replace === true }));
 });
 
 CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw: unknown) => {
