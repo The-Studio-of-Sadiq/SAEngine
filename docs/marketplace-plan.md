@@ -465,6 +465,24 @@ static catalogue on an orphan `gh-pages` branch, built by `scripts/marketplace/s
 (`build_store.py`, `store-pages.yml`); the owner copies them into the four repositories and enables
 Pages (see that folder's README).
 
+**Built in M4 (2026-11-01)**, track T39: templates are applied where they are used, and installed
+only on the Packages page. The backend's `codes/templates` (`saengine.codes.catalogue`) lists the
+presets of the structure templates in force and the building templates (specifications and full
+templates), leaving out a file that does not validate. The modeller's **Generate panel** has a
+*Start from a structure template...* picker grouped by package (the built-in `saengine-shapes`
+first); a preset fills the form, keeps where the shape is placed and goes through the same
+`shape_geometry` and `insert`. The **New Building wizard** has a *Start from* row: a
+specification prefills the form (`formFromSpec`), a full template opens *New Project from
+Template...*; the wizard's own `DEFAULT_FORM` is gone: it starts from the built-in building
+template **`saengine-default-building`** (now in `codes/packs/`; the package repository should
+mirror it from here). **New Project from Template...** (File menu, ≡ menu, start page) picks an
+installed full template, checks it again with `codes/checkTemplate` and opens it through the
+`.civil` import as a new project. The checks of a full template
+(`project.archive.template_problems`, also run by `codepack validate`): inputs only (M2), no
+latitude or longitude with more than two decimals (finer than a town) and no plot outline, and no
+person named on drawings or project files (drawn by, checked by, client...) other than the
+package's author.
+
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.
 

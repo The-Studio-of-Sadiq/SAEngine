@@ -15,7 +15,8 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { dxfCommandTarget, EXPORT_ARCHIVE_UI_COMMAND, IExportArchiveCommandArgs, IOpenArchiveCommandArgs, OPEN_ARCHIVE_UI_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
-import { ProjectArchiveFlows } from './projectArchiveFlows.js';
+import { INewFromTemplateArgs, ProjectArchiveFlows } from './projectArchiveFlows.js';
+import { NEW_FROM_TEMPLATE_COMMAND } from '../../saengineLibrary/common/packageTemplates.js';
 import { PROJECT_MENU, ProjectOpenContext } from './projectMenu.js';
 import { ProjectNavigatorView } from './projectNavigatorView.js';
 import { VersionsEditor } from './versionsEditor.js';
@@ -80,6 +81,27 @@ registerAction2(class extends Action2 {
 	override run(accessor: ServicesAccessor, args?: IOpenArchiveCommandArgs | string): Promise<URI | undefined> {
 		const bag = typeof args === 'string' ? { path: args } : asBag<IOpenArchiveCommandArgs>(args);
 		return accessor.get(IInstantiationService).createInstance(ProjectArchiveFlows).openArchive(bag);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_FROM_TEMPLATE_COMMAND,
+			title: localize2('saengine.newFromTemplate', "New Project from Template..."),
+			metadata: { description: localize2('saengine.newFromTemplate.description', "Opens a full building template (an inputs-only .civil of an installed building-template package) as a new project, after checking it. Arguments: {path, author, name}.") },
+			category,
+			f1: true,
+			menu: [
+				{ id: MenuId.MenubarFileMenu, group: '2_open', order: 2 },
+				{ id: PROJECT_MENU, group: '3_share', order: 3 },
+			],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, args?: INewFromTemplateArgs | string): Promise<URI | undefined> {
+		const bag = typeof args === 'string' ? { path: args } : asBag<INewFromTemplateArgs>(args);
+		return accessor.get(IInstantiationService).createInstance(ProjectArchiveFlows).newFromTemplate(bag);
 	}
 });
 

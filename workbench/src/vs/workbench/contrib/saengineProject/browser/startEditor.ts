@@ -172,6 +172,8 @@ export class StartEditor extends EditorPane {
 		this.newProjectAction = action(Codicon.newFolder, localize('start.new', "New Project..."), () => void this.renderNewProject());
 		// A whole building from its grids and storeys, in the New Building wizard.
 		action(Codicon.symbolStructure, localize('start.newBuilding', "New Building from Grid..."), () => this.run(async () => { await this.commandService.executeCommand(NEW_BUILDING_COMMAND); }));
+		// A whole project from an installed full building template (Packages page).
+		action(Codicon.home, localize('start.newFromTemplate', "New Project from Template..."), () => this.run(async () => { await this.commandService.executeCommand('saengine.project.newFromTemplate'); }));
 		action(Codicon.folderOpened, localize('start.open', "Open Project..."), () => this.run(() => this.opener.pickAndOpen()));
 		action(Codicon.library, localize('start.sample', "Open Sample Project..."), () => this.run(() => this.opener.openSample()));
 		// Another program's model (ETABS, STAAD.Pro, SAP2000) as a new project: the command asks the rest.

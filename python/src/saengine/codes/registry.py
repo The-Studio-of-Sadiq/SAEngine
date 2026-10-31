@@ -340,7 +340,7 @@ def _package_problems(found: _Found) -> list[Problem]:
     found.contents, more = contents.content_files(found.path, m)
     problems.extend(more)
     if m.kind != DEFAULT_KIND:
-        problems.extend(contents.check_template(found.path, m.kind, found.contents))
+        problems.extend(contents.check_template(found.path, m.kind, found.contents, m.author or ""))
     found.preview, more = contents.preview_file(found.path, m)
     problems.extend(more)
     return problems

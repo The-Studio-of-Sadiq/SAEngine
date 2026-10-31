@@ -2086,6 +2086,29 @@ def codes_list(root: str | None = None, kind: str | None = None) -> list[dict[st
     return [p.model_dump(mode="json") for p in registry.list_packs(base, wanted)]
 
 
+def codes_templates(kind: str, root: str | None = None) -> dict[str, Any]:
+    """The templates of the installed packages: ``structureTemplate`` → the Generate panel's
+    presets, ``buildingTemplate`` → the wizard's specifications and the full templates
+    (:mod:`saengine.codes.catalogue`)."""
+    from saengine.codes import catalogue
+
+    base = _pack_root(root)
+    if kind == "structureTemplate":
+        return catalogue.structure_presets(base)
+    return catalogue.building_templates(base)
+
+
+def codes_check_template(path: str, author: str = "") -> dict[str, Any]:
+    """``{ok, problems}``: whether the archive may be opened as a full building template
+    (:func:`saengine.project.archive.template_problems`, plus :func:`inspect_archive`)."""
+    from saengine.project.archive import inspect_archive, template_problems
+
+    result = inspect_archive(path)
+    problems = [*result.get("problems", []), *template_problems(path, author)]
+    errors = [p for p in problems if p.get("severity", "error") == "error"]
+    return {"ok": not errors, "problems": problems}
+
+
 def codes_remove(
     pack_id: str, scope: str = "user", kind: str | None = None, root: str | None = None
 ) -> dict[str, Any]:

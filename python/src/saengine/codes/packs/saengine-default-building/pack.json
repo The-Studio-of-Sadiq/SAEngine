@@ -1,0 +1,20 @@
+{
+  "schema": "saengine.codePack/1",
+  "kind": "buildingTemplate",
+  "id": "saengine-default-building",
+  "name": "Dhaka 6-storey residential, 3 × 2 bays",
+  "version": "1.0.0",
+  "country": "BD",
+  "description": "The New Building wizard's starting values: an RC frame of 3 bays of 6 m by 2 bays of 5 m, 6 storeys (ground 3.6 m, typical 3.2 m), C27.6 concrete and B420DWR bars, isolated footings, residential use (occupancy category II) in Dhaka on an assumed site class SD until a soil report gives one. The generator sizes the members; designs follow BNBC 2020.",
+  "author": "SAEngine contributors",
+  "licence": "CC-BY-4.0",
+  "requires": {
+    "packages": {
+      "bnbc2020": ">=1.0.0"
+    }
+  },
+  "contents": [
+    "spec.json"
+  ],
+  "preview": "preview.png"
+}

@@ -442,3 +442,63 @@ def test_template_archive_must_be_inputs_only(dirs, tmp_path):
     messages = [p.message for p in dirs.reg.info("full", kind="buildingTemplate").problems]
     assert any("soil report" in m and "client data" in m for m in messages)
     assert any("results" in m for m in messages)
+
+
+def test_template_archive_location_and_author_checks(tmp_path):
+    """Round M4: a full template places no site more precisely than a town and names no one but
+    its author."""
+    from saengine.project.archive import template_problems
+
+    def archive(name: str, files: dict[str, object]) -> Path:
+        civil = tmp_path / f"{name}.civil"
+        with zipfile.ZipFile(civil, "w") as zf:
+            for rel, doc in files.items():
+                zf.writestr(f"project/{rel}", json.dumps(doc))
+        return civil
+
+    clean = archive(
+        "clean",
+        {
+            "02 Project Settings/settings.json": {"site": {"location": "dhaka"}, "lat": 23.8},
+            "11 Drawings/sheet.json": {"drawnBy": "SAEngine contributors"},
+        },
+    )
+    assert template_problems(clean, "SAEngine contributors") == []
+    precise = archive("precise", {"06 BIM/site.json": {"refLatitude": 23.81234}})
+    assert [p["code"] for p in template_problems(precise)] == ["template-location"]
+    plot = archive("plot", {"06 BIM/site.json": {"plot": [[90.4, 23.8], [90.41, 23.8]]}})
+    assert [p["code"] for p in template_problems(plot)] == ["template-location"]
+    named = archive("named", {"11 Drawings/sheet.json": {"checkedBy": "A. Client Engineer"}})
+    problems = template_problems(named, "SAEngine contributors")
+    assert [p["code"] for p in problems] == ["template-author"]
+    assert "A. Client Engineer" in problems[0]["message"]
+
+
+def test_catalogue_lists_presets_and_building_templates(dirs):
+    from saengine.codes import catalogue
+
+    dirs.reg.install(structure(dirs.src), "user")
+    write_package(dirs.src, "g9", {"spec.json": SPEC}, kind="buildingTemplate")
+    dirs.reg.install(dirs.src / "g9", "user")
+    presets = catalogue.structure_presets(registry=dirs.reg)
+    assert [(p["package"], p["name"]) for p in presets["presets"]] == [
+        ("trusses", "Warren truss 24 m")
+    ]
+    assert presets["presets"][0]["shape"]["kind"] == "planeTruss"
+    buildings = catalogue.building_templates(registry=dirs.reg)
+    assert [(t["package"], t["type"]) for t in buildings["templates"]] == [("g9", "spec")]
+    assert buildings["templates"][0]["spec"]["storyCount"] == 6
+
+
+def test_builtin_default_building_is_the_wizard_start(user_data):
+    """The wizard's starting values live in the built-in saengine-default-building package."""
+    from saengine.codes import catalogue
+
+    info = registry.info("saengine-default-building", kind="buildingTemplate")
+    assert info.scope == "builtin" and info.usable and info.problems == []
+    first = catalogue.building_templates()["templates"][0]
+    assert first["package"] == catalogue.DEFAULT_BUILDING_TEMPLATE and first["type"] == "spec"
+    spec = first["spec"]
+    assert (spec["gridsX"], spec["gridsY"], spec["storyCount"]) == ([6000] * 3, [5000] * 2, 6)
+    # Grade 500 is not allowed in special frames (BNBC 2020 Part 6 Sec 8.3.3.4(b)).
+    assert spec["rebar"] == "B420DWR" and spec["system"] == "rcFrame"

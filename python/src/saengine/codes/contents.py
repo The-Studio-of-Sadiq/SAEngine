@@ -168,8 +168,10 @@ def _errors(e: ValidationError, file: str, limit: int = 10) -> list[Problem]:
     ]
 
 
-def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]:
-    """Each template file validated by the model that applies it."""
+def check_template(pack_dir: Path, kind: str, files: list[str], author: str = "") -> list[Problem]:
+    """Each template file validated by the model that applies it; a ``template.civil`` also by
+    :func:`saengine.project.archive.template_problems` (inputs only, no site more precise than
+    a town, no names other than ``author``, the package's author)."""
     problems: list[Problem] = []
     if not files:
         problems.append(
@@ -182,7 +184,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
         path = pack_dir / rel
         suffix = path.suffix.lower()
         if kind == "buildingTemplate" and suffix == ".civil":
-            from saengine.project.archive import inputs_only_problems, inspect_archive
+            from saengine.project.archive import inspect_archive, template_problems
 
             result = inspect_archive(path)
             problems.extend(
@@ -191,7 +193,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
                     message=f"template archive: {p.get('message')}",
                     file=rel,
                 )
-                for p in result["problems"] + inputs_only_problems(path)
+                for p in result["problems"] + template_problems(path, author)
             )
             continue
         if suffix != ".json":
