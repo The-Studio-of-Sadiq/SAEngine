@@ -276,3 +276,59 @@
 .saengine-library-editor .settings-code-pack-chips .settings-code-pack-chip:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 }
+
+/* The Packages page: the Installed / Browse / Updates tabs and the kind filter. */
+.saengine-code-packs-editor .packages-tabs {
+	display: flex;
+	gap: 2px;
+}
+
+.saengine-code-packs-editor .packages-tab,
+.saengine-code-packs-editor .packages-kind {
+	padding: 2px var(--sa-space-2, 8px);
+	border: 1px solid transparent;
+	border-radius: var(--sa-radius, 4px);
+	background: none;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+}
+
+.saengine-code-packs-editor .packages-tab:hover,
+.saengine-code-packs-editor .packages-kind:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.saengine-code-packs-editor .packages-tab.active,
+.saengine-code-packs-editor .packages-kind.active {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-foreground);
+}
+
+.saengine-code-packs-editor .packages-tab:focus-visible,
+.saengine-code-packs-editor .packages-kind:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-code-packs-editor .packages-kinds {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px);
+	padding: 0 var(--sa-space-2, 8px) var(--sa-space-2, 8px);
+}
+
+.saengine-code-packs-editor .code-packs-badge.update {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.saengine-code-packs-editor .packages-description {
+	white-space: normal;
+}
+
+.saengine-code-packs-editor .packages-components {
+	margin-top: var(--sa-space-6, 24px);
+}

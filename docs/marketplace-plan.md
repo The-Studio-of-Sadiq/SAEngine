@@ -1,9 +1,11 @@
 # Marketplace and modular install: plan
 
-Status: **plan for discussion** (2026-10-30). Round M1 (manifest and registry kinds) is built:
-`kind`, `requires`, `contents`, `preview` in `pack.json`, per-kind discovery, no programs in a
-package, `saengine codepack --kind` (alias `saengine package`); see docs/code-packs.md, "Other
-package kinds". The rest is not built yet. Decisions D1–D11 are
+Status: **in progress** (plan of 2026-10-30, updated 2026-11-01). Round M1 (manifest and registry
+kinds) is built: `kind`, `requires`, `contents`, `preview` in `pack.json`, per-kind discovery, no
+programs in a package, `saengine codepack --kind` (alias `saengine package`); see
+docs/code-packs.md, "Other package kinds". M2 (package repositories and index) is in pull requests
+in those repositories, M3 (the Packages page) and M6 (installer components) are built; see "Built
+in M…" in §6 and §8 for each. Decisions D1–D11 are
 in §9: four are settled by the owner, the others follow the stated recommendation until the owner
 says otherwise.
 
@@ -438,6 +440,30 @@ has its own copy until M4 reads the template) and a synthetic sample design code
 `bnbc2020`. In SAEngine: the built-in `saengine-shapes` package and the inputs-only check of
 `template.civil` (`project.archive.inputs_only_problems`). The location-precision and
 drawing-author checks of full templates are left for M4.
+
+**Built in M3 (2026-11-01)**, track T38: the Code Packs page is now **Packages** (≡ › Packages...,
+`saengine.packages.show`; `saengine.codePacks.show` stays as an alias) with the tabs *Installed*,
+*Browse* and *Updates*, a kind filter (*All · Design codes · Structure templates · Building
+templates*), *Install from File...* for every kind, *Remove...* (user and project packages; a
+package another one extends or requires is refused; its trust entry is dropped) and *Installer
+Components...*, which opens the M6 list (`saengine.components.show`). The index
+(`saengine.packages.indexUrl`, default the latest release of `saengine-index`) and its
+`index.json.sig` are fetched and verified with Ed25519 in the **main process**
+(`platform/saengine/electron-main/packagesMainService.ts`, Node `crypto.verify`); the zip is
+downloaded there to a private temporary folder, checked against the index's size and SHA-256
+(HTTPS on GitHub hosts only), handed to `codes/install` (with `replace` for an update) and
+deleted. Release builds accept only the owner's key (`OWNER_INDEX_KEYS` in
+`saengineLibrary/common/packageIndex.ts`, **empty until the owner adds the public key**); development
+builds also accept the TEST key. The last verified index is kept for offline use; a background
+check runs at most once a day in a packaged build and says when installed packages have updates;
+`saengine.packages.checkOnline` turns both off. Links: Project Settings' design code list ends with
+*Get More Design Codes...*, *Manage Packages...* and *Install from File...*; the New Building
+wizard has *Get more building templates...*; the modeller's Generate panel has *Get more structure
+templates...*. Backend: `codes/list {kind: "all"}`, `codes/remove`, `codes/install {replace}`,
+`Registry.uninstall`, and `saengine codepack install|remove`. The store sites: each repository gets a
+static catalogue on an orphan `gh-pages` branch, built by `scripts/marketplace/store-site/`
+(`build_store.py`, `store-pages.yml`); the owner copies them into the four repositories and enables
+Pages (see that folder's README).
 
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.

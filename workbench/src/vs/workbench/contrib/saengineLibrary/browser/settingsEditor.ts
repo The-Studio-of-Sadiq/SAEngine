@@ -468,9 +468,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				void this.changeCodePack(option);
 				return;
 			}
-			// The entries after the packs: manage or install packs on the Code Packs page.
+			// The entries after the packs: get more, manage or install packs on the Packages page.
 			this.renderCodePack();
-			void this.commands.executeCommand(e.index === this.packChoices.length ? 'saengine.codePacks.show' : 'saengine.codePacks.install');
+			const extra = e.index - this.packChoices.length;
+			void (extra === 0
+				? this.commands.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'designCode' })
+				: extra === 1 ? this.commands.executeCommand('saengine.packages.show', { tab: 'installed', kind: 'designCode' }) : this.commands.executeCommand('saengine.codePacks.install'));
 		}));
 	}
 
@@ -487,12 +490,13 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		// A pack with errors cannot be loaded by analysis or design, so it cannot be chosen.
 		select.setOptions([
 			...this.packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable && o.id !== chosen })),
-			{ text: localize('settings.managePacks', "Manage Code Packs..."), description: localize('settings.managePacksDescription', "Lists the code packs installed and makes new ones (Code Packs page).") },
-			{ text: localize('settings.installPack', "Install Code Pack..."), description: localize('settings.installPackDescription', "Installs a code pack from a folder or .zip.") },
+			{ text: localize('settings.getMorePacks', "Get More Design Codes..."), description: localize('settings.getMorePacksDescription', "Browses the design codes published for SAEngine (Packages page).") },
+			{ text: localize('settings.managePacks', "Manage Packages..."), description: localize('settings.managePacksDescription', "Lists the design codes installed and makes new ones (Packages page).") },
+			{ text: localize('settings.installPack', "Install from File..."), description: localize('settings.installPackDescription', "Installs a design code from a folder or .zip.") },
 		], index);
 		const option = this.packChoices[index];
 		this.packHover?.update(this.packs === undefined
-			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Code Packs... in this list).", option?.label ?? BNBC.edition)
+			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Packages... in this list).", option?.label ?? BNBC.edition)
 			: option?.description || option?.label || '');
 	}
 
@@ -661,7 +665,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const frame = this.documentFrame!;
 		frame.element.classList.add('saengine-settings-editor');
 		frame.setTitle(localize('settings.title', "Project Settings"));
-		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. Manage Code Packs... at the end of the design code list shows the packs installed and makes new ones.", BNBC.edition));
+		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. Get More Design Codes... and Manage Packages... at the end of the design code list open the Packages page.", BNBC.edition));
 		this.createProjectType(frame);
 		this.createCodePack(frame);
 
@@ -1266,11 +1270,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			appendPropertyRow(panel, localize('settings.edition', "Edition"), pack.edition);
 		}
 		if (pack?.covers.length) {
-			// What the pack provides; each opens the pack on the Code Packs page, where its tables are.
+			// What the pack provides; each opens the pack on the Packages page, where its tables are.
 			const chips = append(panel, $('.settings-code-pack-chips', { 'aria-label': localize('settings.packProvides', "Provides") }));
 			for (const label of new Set(pack.covers.map(coverageLabel))) {
 				const chip = append(chips, $<HTMLButtonElement>('button.settings-code-pack-chip', { type: 'button' }, label));
-				this.valuesDisposables.add(this.hoverService.setupDelayedHover(chip, { content: localize('settings.chipHover', "{0} of {1}: show the pack's tables on the Code Packs page", label, pack.name) }));
+				this.valuesDisposables.add(this.hoverService.setupDelayedHover(chip, { content: localize('settings.chipHover', "{0} of {1}: show the pack's tables on the Packages page", label, pack.name) }));
 				this.valuesDisposables.add(addDisposableListener(chip, EventType.CLICK, () => void this.commands.executeCommand('saengine.codePacks.show')));
 			}
 		}

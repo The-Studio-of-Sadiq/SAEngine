@@ -120,6 +120,18 @@
 	padding: 4px 14px;
 }
 
+/* the panel's links to the Packages page (and the template picker of the Generate panel) */
+.saengine-structure-modeler .modeler-panel-more {
+	display: block;
+	margin-top: var(--sa-space-2, 8px);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-structure-modeler .modeler-panel-more.hidden {
+	display: none;
+}
+
 /* the union pickers of the form (e.g. the shape) in the narrow panel */
 .saengine-structure-modeler .modeler-panel .form-group-header:has(> .form-group-select) {
 	grid-template-columns: minmax(90px, 40%) minmax(0, 1fr);

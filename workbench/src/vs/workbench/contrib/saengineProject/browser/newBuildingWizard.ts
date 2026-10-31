@@ -264,6 +264,12 @@ export class NewBuildingWizard extends EditorPane {
 		const header = append(page, $('header.header'));
 		append(header, $('h1', undefined, localize('newBuilding.title', "New Building from Grid")));
 		append(header, $('p.subtitle', undefined, localize('newBuilding.subtitle', "Columns, beams, walls, slabs and footings on every storey in one step, with preliminary sizes. Edit them afterwards in the floor plan.")));
+		// Building templates are installed on the Packages page; the wizard only links to it.
+		const more = append(header, $('a.packages-link', { href: '#', role: 'button' }, localize('newBuilding.moreTemplates', "Get more building templates...")));
+		this.pageDisposables.add(addDisposableListener(more, EventType.CLICK, e => {
+			e.preventDefault();
+			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' });
+		}));
 		if (!this.available) {
 			const note = append(page, $('.unavailable', { role: 'status' }));
 			append(note, $(`span${ThemeIcon.asCSSSelector(Codicon.info)}`));

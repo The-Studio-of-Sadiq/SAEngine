@@ -6,6 +6,8 @@ show and validate the other packages (``--kind``; ``saengine package`` is the sa
     saengine codepack new <id> [--name NAME] [--extends bnbc2020] --dest <dir> [--root PROJECT]
     saengine codepack validate <dir> [--kind KIND] [--json]
     saengine codepack diff <a> <b> [--root PROJECT] [--json]
+    saengine codepack install <dir|zip> [--scope user|project] [--replace] [--root PROJECT]
+    saengine codepack remove <id> [--scope user|project] [--kind KIND] [--root PROJECT]
 
 KIND is designCode (the default), structureTemplate or buildingTemplate; ``validate --kind``
 also fails when the package is of another kind (the package repositories' CI uses it).
@@ -77,6 +79,17 @@ def register(commands: Any, common: argparse.ArgumentParser) -> argparse.Argumen
     parser = action("diff", "the table/key differences of two packs")
     parser.add_argument("a", help="pack id or folder")
     parser.add_argument("b", help="pack id or folder")
+    parser = action("install", "install a package folder or .zip for the user or the project")
+    parser.add_argument("path", help="the package folder or .zip")
+    parser.add_argument("--scope", choices=("user", "project"), default="user",
+                        help="user (default) or project (design codes only; needs --root)")  # fmt: skip
+    parser.add_argument("--replace", action="store_true",
+                        help="replace an installed package of the same id (an update)")  # fmt: skip
+    parser = action("remove", "remove a package installed for the user or the project")
+    parser.add_argument("id", help="the package id")
+    parser.add_argument("--scope", choices=("user", "project"), default="user",
+                        help="user (default) or project (needs --root)")  # fmt: skip
+    kind(parser, default="designCode")
     return sub
 
 
@@ -218,12 +231,34 @@ def cmd_diff(args: argparse.Namespace, out: Any) -> int:
     return EXIT_OK
 
 
+def cmd_install(args: argparse.Namespace, out: Any) -> int:
+    from saengine.codes import registry
+
+    info = registry.install(Path(args.path), args.scope, _root(args), args.replace)
+    out.line(f"installed {info.id} {info.version or ''} ({info.kind}, {info.scope}) in {info.path}")
+    if info.missingRequires:
+        out.line(f"  it needs: {', '.join(info.missingRequires)}")
+    out.document("codepack install", EXIT_OK, {"pack": info.model_dump(mode="json")})
+    return EXIT_OK
+
+
+def cmd_remove(args: argparse.Namespace, out: Any) -> int:
+    from saengine.codes import registry
+
+    folder = registry.uninstall(args.id, args.scope, _root(args), args.kind)
+    out.line(f"removed {args.id} ({args.kind}, {args.scope}) from {folder}")
+    out.document("codepack remove", EXIT_OK, {"id": args.id, "path": str(folder)})
+    return EXIT_OK
+
+
 ACTIONS = {
     "list": cmd_list,
     "show": cmd_show,
     "new": cmd_new,
     "validate": cmd_validate,
     "diff": cmd_diff,
+    "install": cmd_install,
+    "remove": cmd_remove,
 }
 
 
