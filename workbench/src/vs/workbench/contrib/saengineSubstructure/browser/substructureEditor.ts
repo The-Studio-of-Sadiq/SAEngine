@@ -40,7 +40,7 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFra
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
-	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
+	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	errorSummary, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
@@ -1882,6 +1882,114 @@ export class SubstructureEditor extends EditorPane {
 		this.renderPileTypeTable(document);
 		this.renderPileTable(document);
 		this.renderTieBeamTable(document);
+		this.renderRetainingWallTable(document);
+	}
+
+	private renderRetainingWallTable(document: ISubstructure): void {
+		const walls = document.retainingWalls ?? [];
+		const section = this.section(localize('sub.retainingWalls', "Retaining walls"), walls.length, {
+			label: localize('sub.addRetainingWall', "Add Retaining Wall"),
+			run: () => {
+				document.retainingWalls = [...walls, newRetainingWall(document, this.context)];
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const lengthField = (key: string, label: string): IFieldSpec => ({ key, label, unit: MM, kind: 'number', min: 0 });
+		const levelField = (key: string, label: string): IFieldSpec => ({ key, label, unit: M, kind: 'length' });
+		const sizes = [
+			lengthField('stemTop', localize('sub.f.stemTop', "Stem top")),
+			lengthField('stemBottom', localize('sub.f.stemBottom', "Stem base")),
+			lengthField('baseThickness', localize('sub.f.baseThickness', "Base")),
+			lengthField('toe', localize('sub.f.toe', "Toe")),
+			lengthField('heel', localize('sub.f.heel', "Heel")),
+		];
+		const top = levelField('topLevel', localize('sub.f.topLevel', "Top"));
+		const founding = levelField('foundingLevel', F.foundingLevel.label);
+		const pathField: IFieldSpec = { key: 'path', label: localize('sub.f.path', "Path (x, y; ...)"), kind: 'text' };
+		const floorsField: IFieldSpec = { key: 'supports', label: localize('sub.f.floors', "Floors (levels; ...)"), kind: 'text' };
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: localize('sub.f.wallKind', "Kind"), width: 110 }, { label: pathField.label, unit: M, width: 150 },
+			{ label: top.label, unit: M, numeric: true }, { label: founding.label, unit: M, numeric: true, width: 84 },
+			...sizes.map(f => ({ label: f.label, unit: MM, numeric: true, width: 64 })),
+			{ label: floorsField.label, unit: M, width: 110 }, { label: localize('sub.f.buildingWall', "Building wall"), width: 90 },
+			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 72 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const kinds = [
+			{ value: 'cantilever', label: localize('sub.rw.cantilever', "Cantilever") },
+			{ value: 'basement', label: localize('sub.rw.basement', "Basement (propped)") },
+		];
+		const wallOptions = this.context.walls.map(w => ({ value: w.id, label: w.id }));
+		const metres = (values: readonly number[]) => values.map(v => formatNumber(v / 1000, 3)).join('; ');
+		const parseList = (text: string): number[] | undefined => {
+			const values = text.split(';').map(t => t.trim()).filter(t => t).map(Number);
+			return values.every(v => Number.isFinite(v)) ? values.map(v => Math.round(v * 1000)) : undefined;
+		};
+		walls.forEach((wall: IRetainingWall, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `retainingWalls.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.id, wall.id, value => {
+				wall.id = String(value ?? '');
+				this.changed(false);
+			}, path('id')));
+			append(append(row, $('td')), this.selectInput(kinds, wall.kind ?? 'cantilever', value => {
+				wall.kind = value === 'basement' ? 'basement' : 'cantilever';
+				this.changed(true);
+			}, path('kind'), localize('sub.f.wallKind', "Kind")));
+			const points = wall.path.map(p => `${formatNumber(p[0] / 1000, 3)}, ${formatNumber(p[1] / 1000, 3)}`).join('; ');
+			append(append(row, $('td')), this.textInput(pathField, points, value => {
+				const parsed = String(value ?? '').split(';').map(t => t.split(',').map(v => Number(v.trim())));
+				if (parsed.length >= 2 && parsed.every(p => p.length === 2 && p.every(v => Number.isFinite(v)))) {
+					wall.path = parsed.map(p => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)] as [number, number]);
+					this.changed(true);
+				}
+			}, path('path')));
+			for (const field of [top, founding]) {
+				append(append(row, $('td')), this.textInput(field, wall[field.key], value => {
+					if (typeof value === 'number') {
+						wall[field.key] = value;
+						this.changed(true);
+					}
+				}, path(field.key)));
+			}
+			for (const field of sizes) {
+				append(append(row, $('td')), this.textInput(field, wall[field.key], value => {
+					if (typeof value === 'number') {
+						wall[field.key] = value;
+					} else {
+						delete wall[field.key];
+					}
+					this.changed(true);
+				}, path(field.key)));
+			}
+			append(append(row, $('td')), this.textInput(floorsField, metres(wall.supports ?? []), value => {
+				const levels = parseList(String(value ?? ''));
+				if (levels) {
+					wall.supports = levels;
+					this.changed(true);
+				}
+			}, path('supports')));
+			append(append(row, $('td')), this.selectInput(wallOptions, wall.wall ?? '', value => {
+				if (value) {
+					wall.wall = value;
+				} else {
+					delete wall.wall;
+				}
+				this.changed(true);
+			}, path('wall'), localize('sub.f.buildingWall', "Building wall"), true));
+			const result = this.report?.retainingWalls?.find(r => r.id === wall.id);
+			const utilisation = result?.utilisation;
+			append(row, $(`td.number${result && !result.ok ? '.sub-rw-fail' : ''}`, undefined, typeof utilisation === 'number' ? formatNumber(utilisation, 2) : ''));
+			this.removeButton(row, () => {
+				document.retainingWalls = walls.filter((_, i) => i !== index);
+				this.changed(true);
+			});
+		});
+		if (!walls.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noRetainingWalls', "None yet. Add a cantilever retaining wall, or a basement wall propped by the floors; the soil comes from 1 Soil Report.")));
+		}
 	}
 
 	private section(title: string, count: number, add?: { label: string; run: () => void }): HTMLElement {

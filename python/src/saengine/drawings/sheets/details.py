@@ -1,4 +1,5 @@
 """Details: footings and pile caps (plan and section with the mesh and the column starters),
+retaining and basement walls (section per metre run with the stem and base bars),
 walls (elevation with the web bars, the end zones and the lintels over the openings with their
 bar marks, plan section), stairs (section
 along a flight with its bars, plan).
@@ -15,11 +16,13 @@ from saengine.drawings.sheets.model import (
     FootingDetail,
     LintelDetail,
     Mesh,
+    RetainingWallDetail,
     StairDetail,
     WallDetail,
 )
 
 BLINDING = 75.0  # mm of lean concrete under a footing, drawn
+COVER_UNDER = 75.0  # mm to the bars under a base cast against earth (BNBC Part 6 Sec 8.1.7.2)
 
 
 def _bars_label(mesh: Mesh | None, where: str) -> str:
@@ -258,6 +261,137 @@ def footing_detail(f: FootingDetail, scale: float = 25) -> ViewSpec:
         pad=(2, 2, 2, 2),
         subtitle=f"{L:g}x{B:g}x{T:g}   SCALE 1:{S:g}",
         key=f"footing:{f.mark}",
+    )
+
+
+def retaining_wall_detail(w: RetainingWallDetail, scale: float = 25) -> ViewSpec:
+    """Section of a retaining or basement wall per metre run at ``1:scale``: the base (toe,
+    stem, heel), the stem battered on its front face, the retained and front ground, the
+    blinding, the floors that prop a basement wall, and the bars of its reinforcement."""
+    S = scale
+    B = w.toe + w.stem_bottom + w.heel
+    T, H = w.base, w.stem_height
+    back = w.toe + w.stem_bottom  # x of the stem's soil face
+    batter = w.stem_bottom - w.stem_top
+    c = w.cover
+    label_w = 60.0
+    width = (B + 1000) / S + 30 + label_w
+    height = (T + H + BLINDING) / S + 50
+    ox = 20 + 500 / S  # paper x of the toe
+
+    def draw(view: View) -> None:
+        s = view.inset(ox, 30 + BLINDING / S, S)
+        outline = [
+            (0, 0),
+            (B, 0),
+            (B, T),
+            (back, T),
+            (back, T + H),
+            (back - w.stem_top, T + H),
+            (w.toe, T),
+            (0, T),
+        ]
+        if w.kind == "basement":  # the stem on the raft: only the stem is the wall's
+            outline = [(w.toe, 0), (back, 0), (back, T + H), (back - w.stem_top, T + H), (w.toe, T)]
+        s.polyline(outline, "S-CONC", close=True)
+        if w.kind == "cantilever":
+            s.rect(-100, -BLINDING, B + 100, 0, "S-CONC", lineweight=18)
+            s.hatch(
+                [(-100, -BLINDING), (B + 100, -BLINDING), (B + 100, 0), (-100, 0)],
+                pattern="AR-CONC",
+            )
+        # the ground behind and in front
+        s.line((back, w.retained), (B + 800, w.retained), "S-TEXT")
+        s.text("RETAINED GROUND", (B + 400, w.retained + s.real(3)), TEXT, "BC")
+        if w.front > T + 1:
+            s.line((-500, w.front), (w.toe + batter * (w.front - T) / max(H, 1), w.front), "S-TEXT")
+        for y in w.supports:  # the floors that prop a basement wall
+            s.line((w.toe - 600, y), (w.toe + batter * (y - T) / max(H, 1), y), "S-SLAB")
+            s.text("FLOOR", (w.toe - 300, y + s.real(2)), TEXT, "BC")
+        dims_y = -(BLINDING / S + 6)
+        if w.kind == "cantilever":
+            s.chain([(0, 0), (w.toe, 0), (back, 0), (B, 0)], dims_y)
+            s.dim((0, 0), (B, 0), dims_y - 7)
+            s.dim((B, 0), (B, T), -6, angle=90)
+        s.dim((back, T), (back, T + H), -(w.heel / S + 12), angle=90)
+        s.dim((back - w.stem_top, T + H), (back, T + H), 5)
+        # bars
+        if w.stem_back:
+            d = w.stem_back.dia
+            x = back - c - d / 2
+            foot = COVER_UNDER + d / 2 if w.kind == "cantilever" else 0.0
+            path = [(x, T + H - c), (x, foot)]
+            if w.kind == "cantilever":
+                path.append((max(x - w.stem_bottom - 12 * d, c), foot))
+            bar = s.polyline(path, "S-REBAR-MAIN")
+            tag(bar, mark=w.stem_back.mark, kind="stemBack")
+            s.label(
+                _two_lines(w.stem_back), (x, T + H * 0.6), [(B + 200 - x, 0, "ML")], leader=True
+            )
+        if w.stem_front:
+            d = w.stem_front.dia
+            bottom = (w.toe + c + d / 2, COVER_UNDER + d / 2 if w.kind == "cantilever" else 0.0)
+            top = (back - w.stem_top + c + d / 2, T + H - c)
+            bar = s.polyline([bottom, top], "S-REBAR-MAIN")
+            tag(bar, mark=w.stem_front.mark, kind="stemFront")
+            s.label(
+                _two_lines(w.stem_front),
+                (top[0], T + H * 0.4),
+                [(-(top[0] + 300) / S - 10, 0, "MR")],
+                leader=True,
+            )
+        if w.horizontal:
+            d = w.horizontal.dia
+            inner = (w.stem_back.dia if w.stem_back else 0.0) + d / 2
+            for y in bar_positions(T + 50, T + H - c, w.horizontal):
+                s.dot((back - c - inner, y), d / 2)
+            s.label(
+                _bars_label(w.horizontal, "EF (H)"),
+                (back - c - inner, T + H * 0.85),
+                [(B + 200 - back, 0, "ML")],
+                leader=True,
+            )
+        if w.heel_top and w.kind == "cantilever":
+            d = w.heel_top.dia
+            y = T - c - d / 2
+            bar = s.polyline([(w.toe, y), (B - c, y), (B - c, COVER_UNDER + d)], "S-REBAR-MAIN")
+            tag(bar, mark=w.heel_top.mark, kind="heelTop")
+            s.label(
+                _two_lines(w.heel_top), ((back + B) / 2, y), [(0, T / S + 8, "BC")], leader=True
+            )
+        if w.toe_bottom and w.kind == "cantilever":
+            d = w.toe_bottom.dia
+            y = COVER_UNDER + d / 2
+            bar = s.polyline([(c, T - c), (c, y), (B - c, y)], "S-REBAR-MAIN")
+            tag(bar, mark=w.toe_bottom.mark, kind="toeBottom")
+            s.label(
+                _two_lines(w.toe_bottom),
+                (w.toe / 2, y),
+                [(0, -(BLINDING / S + 18), "TC")],
+                leader=True,
+            )
+        view.text(
+            "\n".join(
+                (
+                    "SECTION (PER METRE RUN)",
+                    f"COVER {c:g}, {COVER_UNDER:g} UNDER THE BASE",
+                    f"FOUNDING LEVEL {w.founding_level / 1000:+.3f}",
+                )
+            ),
+            (ox + B / S / 2, 12),
+            TEXT,
+            "TC",
+        )
+
+    kind = "Basement wall" if w.kind == "basement" else "Retaining wall"
+    return ViewSpec(
+        f"{kind} {w.mark}",
+        1,
+        (0, 0, width, height),
+        draw,
+        pad=(2, 2, 2, 2),
+        subtitle=f"L = {w.length / 1000:.2f} m   SCALE 1:{S:g}",
+        key=f"retaining:{w.mark}",
     )
 
 

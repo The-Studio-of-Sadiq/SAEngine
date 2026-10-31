@@ -265,10 +265,22 @@ def locate(report: SoilReport, bim_text: str | None = None) -> dict[str, Any]:
         "outlineProject": [list(p) for p in outline_xy] if outline_xy else None,
         "outlineSource": how,
         "plot": plot.describe(report.site),
+        "planning": _planning(report.site, bim_text),
         "btmName": BTM_NAME,
         "problems": problems,
         "_point": point,
     }
+
+
+def _planning(site: Site | None, bim_text: str | None) -> dict[str, Any] | None:
+    """The plot's planning compliance (:func:`saengine.gis.planning.check`); a failure is a
+    problem of the check, never of the map."""
+    from saengine.gis import planning
+
+    try:
+        return planning.check(site, bim_text)
+    except Exception as error:  # noqa: BLE001 - a planning table or model error stays local
+        return {"checks": [], "notes": [], "problems": [f"The planning check failed: {error}"]}
 
 
 def soil_location(

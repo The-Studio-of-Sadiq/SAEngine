@@ -29,7 +29,9 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { REPORT_PART_CHECKS_COMMAND } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { storedFieldProblems } from '../../saengineModel/browser/modifiersModel.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { LibraryEditorInput, LibraryKind } from './libraryEditorInput.js';
 import { JsonObject, JsonValue } from './schemaForm.js';
@@ -44,6 +46,9 @@ export interface IDocumentProblem {
 
 /** Desktop command running the full model rules; absent where there is no Python backend. */
 const CHECK_COMMAND = 'saengine.library.check';
+
+/** The documents whose problems this editor hands to the part list (the floor plan reports its own). */
+const STATUS_KINDS: ReadonlySet<LibraryKind> = new Set(['settings', 'materials', 'objects', 'structure', 'bim']);
 
 /** The other project file each document needs for references and checks. */
 const COMPANION_PART: { readonly [kind in LibraryKind]?: string } = {
@@ -427,6 +432,29 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		}
 		this.problems = problems;
 		this.renderProblems();
+		this.reportStatus(kind, problems, companionText);
+	}
+
+	/**
+	 * Hands the problems to the part list (N-P3, N-B2, N-O4 of usability walk 2): a part with
+	 * problems is not "done". Recorded against the text checked, so they count once it is saved.
+	 * The floor plan reports its own checks (the plot and setbacks); the stored stiffness
+	 * modifiers the checks would refuse count for the object types.
+	 */
+	private reportStatus(kind: LibraryKind, problems: readonly IDocumentProblem[], companionText: string | undefined): void {
+		if (!STATUS_KINDS.has(kind) || !this.model) {
+			return;
+		}
+		const items = problems.map(p => ({ severity: 'error' as const, message: p.message, where: p.path || undefined }));
+		if (kind === 'objects') {
+			items.push(...storedFieldProblems(this.document, 'objects').map(p => ({ severity: 'error' as const, message: p.message, where: p.id })));
+		}
+		const texts: { [part: string]: string | undefined } = { [kind]: this.model.getValue() };
+		const companion = COMPANION_PART[kind];
+		if (companion) {
+			texts[companion] = companionText;
+		}
+		void this.commandService.executeCommand(REPORT_PART_CHECKS_COMMAND, kind, { problems: items.length, items }, texts).catch(() => undefined);
 	}
 
 	/** Follows the companion file (unsaved edits included) for references and checks. */

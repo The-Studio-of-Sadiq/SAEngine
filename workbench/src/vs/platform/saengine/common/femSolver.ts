@@ -18,6 +18,11 @@ export interface IFemRunRequest {
 	readonly caseIds: readonly number[];
 	/** Output directory for result files and `manifest.json`. */
 	readonly outDir: string;
+	/**
+	 * Keep the results in `outDir` of the cases whose model and definition did not change
+	 * (`--reuse`: the runner removes the rest of the earlier run and runs only the other cases).
+	 */
+	readonly reuse?: boolean;
 }
 
 /**
@@ -400,6 +405,16 @@ export interface ILibraryProblem {
 	readonly message: string;
 }
 
+/** What the backend is working on: its open requests and the oldest one. */
+export interface IEngineBusy {
+	/** Requests sent and not answered yet. */
+	readonly pending: number;
+	/** When the oldest of them was sent [ms since the epoch]; undefined when idle. */
+	readonly since?: number;
+	/** The method of the oldest ("design/report"). */
+	readonly method?: string;
+}
+
 /**
  * Hosts the SAEngine Python backend (in the shared process): analysis runs through the
  * opensees-studio CLI, and queries through a long-lived `python -m saengine.rpc` server.
@@ -409,6 +424,8 @@ export interface IFemSolverService {
 
 	readonly onDidRunEvent: Event<IFemRunEventMessage>;
 	readonly onDidRunExit: Event<IFemRunExit>;
+	/** Fires when a backend request starts or ends (or a restart drops them): the engine watchdog (N-G3). */
+	readonly onDidChangeBusy: Event<IEngineBusy>;
 
 	/** Starts an analysis run and returns its id; progress arrives through the events. */
 	startRun(request: IFemRunRequest): Promise<string>;
@@ -612,14 +629,19 @@ export interface IFemSolverService {
  * static cases) and the P-Delta drift amplification `fem/secondOrder` `{outDir, projectPath}`;
  * the structural drawings of `11 Exports/Drawings` (`saengine.pipeline.drawings`):
  * `drawings/generate` `{projectRoot, sheets?, size?, designReportText?}` (in a worker thread),
- * `drawings/list` `{projectRoot}` and `drawings/progress` `{projectRoot}`; a new project from an
+ * `drawings/list` `{projectRoot}`, `drawings/progress` `{projectRoot}`, `drawings/issue` (an issue of the set) and
+ * `drawings/dwg` `{projectRoot, sheets?}` (the sheets as DWG); a new project from an
  * ETABS, STAAD.Pro or SAP2000 text file `import/structural` `{path, destParent, name?, overwrite?}`
  * (`{root, name, format, report, problems, files}` or `{error, problems}`; in a worker thread), the
  * project as an ETABS text model `export/e2k` `{projectRoot, outPath?, units?, lateral?}` (`{path,
  * reportPath, report}` or `{error}`; in a worker thread) and
  * the standard steel section table `library/steelSections` `{}`; a new building generated from its
  * grids and storeys `library/generateBuilding` `{spec, destParent, name?, overwrite?, site?}` (`{root, name,
- * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread).
+ * notes, summary, settingsPatch, files}` or `{error}`; in a worker thread); the bill of quantities
+ * priced by the schedule of rates with its embodied carbon `boq/cost` `{boqText, ratesText?,
+ * carbonText?}`, the texts the project's rates and carbon factors start from `boq/templates` `{}`,
+ * and the bill, its costing and carbon written to Excel `boq/exportXlsx` `{path, boqText,
+ * ratesText?, carbonText?, title?}` (in a worker thread).
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
@@ -627,9 +649,10 @@ export type EngineMethod =
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
 	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
-	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
+	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
+	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
 	// `worksheets/calculate` `{kind, inputs, projectRoot?}`, `worksheets/list` `{projectRoot}`,
 	// `worksheets/create` `{projectRoot, kind, id, title?}`.
