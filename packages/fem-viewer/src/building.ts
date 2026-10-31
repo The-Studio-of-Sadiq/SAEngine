@@ -56,9 +56,10 @@ export interface BuildingViewer {
 	/**
 	 * Shows the IFC `ifc`, replacing the building shown before. `ids` maps SAEngine element ids
 	 * to IFC GlobalIds; ids starting with {@link ARCHITECTURE_PREFIX} are the architecture's. The
-	 * camera keeps its place after the first load.
+	 * camera keeps its place after the first load. `layers` puts elements (SAEngine ids) in a
+	 * layer other than their IFC class says: a raft, an IfcSlab, among the foundations.
 	 */
-	load(ifc: Uint8Array, ids: Readonly<Record<string, string>>): Promise<void>;
+	load(ifc: Uint8Array, ids: Readonly<Record<string, string>>, layers?: Readonly<Record<string, BuildingLayer>>): Promise<void>;
 	setSelection(elementId: string | undefined): Promise<void>;
 	setTheme(theme: Partial<BuildingViewerTheme>): Promise<void>;
 	fit(): Promise<void>;
@@ -144,6 +145,8 @@ class BuildingViewerImpl implements BuildingViewer {
 	/** GlobalId <-> SAEngine id, and local item id <-> SAEngine id of the loaded model. */
 	private localIds = new Map<string, number>();
 	private elementIds = new Map<number, string>();
+	/** The layer of the items whose IFC class does not give it (see `load`). */
+	private layerOverrides = new Map<number, BuildingLayer>();
 	private selection: string | undefined;
 	/** The element drawn as selected now (its colour is restored when deselected). */
 	private highlighted: number | undefined;
@@ -200,7 +203,7 @@ class BuildingViewerImpl implements BuildingViewer {
 		canvas.addEventListener('pointerup', this.onPointerUp);
 	}
 
-	async load(ifc: Uint8Array, ids: Readonly<Record<string, string>>): Promise<void> {
+	async load(ifc: Uint8Array, ids: Readonly<Record<string, string>>, layers?: Readonly<Record<string, BuildingLayer>>): Promise<void> {
 		await this.ready;
 		const load = ++this.loads;
 		const model = await this.components.get(OBC.IfcLoader).load(ifc, false, `building-${load}`);
@@ -225,6 +228,13 @@ class BuildingViewerImpl implements BuildingViewer {
 				this.elementIds.set(local, id);
 			}
 		});
+		this.layerOverrides = new Map();
+		for (const [id, layer] of Object.entries(layers ?? {})) {
+			const local = this.localIds.get(id);
+			if (local !== undefined) {
+				this.layerOverrides.set(local, layer);
+			}
+		}
 		await this.applyColors();
 		await this.applyVisibility();
 		await this.applySelection();
@@ -328,7 +338,10 @@ class BuildingViewerImpl implements BuildingViewer {
 		const layers = new Map<BuildingLayer, number[]>();
 		for (const [key, pattern] of CATEGORIES) {
 			const ids = Object.entries(items).filter(([category]) => pattern.test(category.toUpperCase())).flatMap(([, list]) => list);
-			layers.set(key, key === 'room' || key === 'architecture' ? ids : ids.filter(id => !architecture.has(id)));
+			layers.set(key, key === 'room' || key === 'architecture' ? ids : ids.filter(id => !architecture.has(id) && !this.layerOverrides.has(id)));
+		}
+		for (const [id, layer] of this.layerOverrides) {
+			layers.get(layer)?.push(id);
 		}
 		const rooms = new Set(layers.get('room'));
 		layers.set('architecture', [...new Set([...layers.get('architecture')!, ...[...architecture].filter(id => !rooms.has(id))])]);

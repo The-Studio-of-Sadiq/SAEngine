@@ -20,6 +20,7 @@ dependencies = [
     "shapely>=2,<3",  # mid-surfaces of imported plates, quantities (BSD-3-Clause)
     "concreteproperties>=0.8,<0.9",  # RC section capacities for the design checks (MIT)
     "typst>=0.14,<0.15",  # PDF design report (Apache-2.0)
+    "python-docx>=1.1,<2",  # Word design report (MIT)
     "openpyxl>=3.1,<4",  # Excel import of borehole logs, the model workbook (MIT)
     "pypdf>=5,<7",  # architects' PDF plans as floor-plan underlays (BSD-3-Clause)
     "wntr>=1.5,<1.6",  # plumbing water-supply hydraulics, EPANET 2.2 inside (BSD-3-Clause; EPANET MIT)

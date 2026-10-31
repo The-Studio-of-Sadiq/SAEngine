@@ -88,6 +88,7 @@ import { renderFireData, renderFirePumpProperties, renderFireRiserProperties, re
 import { IMepFormHost } from './mepForm.js';
 import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
+import { ensureStoryUses, fillDown, fillStoryUses, isOccupied, STORY_USE_KEYS, storyUseLabel, StoryUseKey, storyUseOf, storyUsesOf } from './storyUses.js';
 
 type View = 'plan' | 'data' | 'results';
 
@@ -289,7 +290,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private planRoot: SVGElement | undefined;
 
 	/** The cells of the fixtures table's totals row, refreshed while typing. */
-	private readonly totalCells = new Map<string, HTMLElement>();
+	private readonly totalCells = new Map<string, HTMLInputElement>();
 
 	private report: IMepReport | undefined;
 	private reportState: ReportState = 'idle';
@@ -1395,7 +1396,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		}
 		// Once, when every discipline the file has has answered: written report by report, the
 		// part list's status jumped from one discipline's failures to another's.
-		if (this.disciplineStates(document).some(([, state]) => state === 'idle' || state === 'computing')) {
+		if (this.disciplineStates(document, true).some(([, state]) => state === 'idle' || state === 'computing')) {
 			return;
 		}
 		const failures = this.disciplineFailures(document);
@@ -1407,11 +1408,16 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.fileService.writeFile(joinPath(dirname(this.resource), MEP_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
 	}
 
-	/** The state of each discipline's report that the file has (the coordination's always). */
-	private disciplineStates(document: IMep): [Discipline, ReportState][] {
+	/**
+	 * The state of each discipline's report that the file has (the coordination's always).
+	 * `forSummary`: the plumbing counts as answered while only its tank designs (minutes each)
+	 * are still running, so the part list is not left at "not checked" meanwhile (N-E7); the
+	 * summary is written again when they are in.
+	 */
+	private disciplineStates(document: IMep, forSummary = false): [Discipline, ReportState][] {
 		const states: [Discipline, ReportState][] = [['coordination', this.reportState]];
 		if (hasPlumbing(document)) {
-			states.push(['plumbing', this.plumbingReport?.tankDesignsPending ? 'computing' : this.plumbingState]);
+			states.push(['plumbing', this.plumbingReport?.tankDesignsPending && !forSummary ? 'computing' : this.plumbingState]);
 		}
 		if (hasHvac(document)) {
 			states.push(['hvac', this.hvacState]);
@@ -1909,6 +1915,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const header = append(this.viewElement, $('.mep-view-header'));
 		append(header, $('span.mep-view-title', undefined, localize('mep.dataTitle', "Equipment, openings, shafts and models")));
 		append(header, $('span.mep-view-subtitle', undefined, localize('mep.dataSubtitle', "Sizes in mm, positions in m, weights in kN; click a row to edit the rest in Properties.")));
+		this.renderStoryUseTable(document);
 		this.renderEquipmentTable(document);
 		this.renderOpeningTable(document);
 		this.renderShaftTable(document);
@@ -1976,6 +1983,83 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private storyOptions(): { value: string; label: string }[] {
 		return this.context.stories.map(s => ({ value: s.id, label: s.name }));
+	}
+
+	/** The use of each storey, entered once here and read by the plumbing, HVAC and electrical services (N-E5). */
+	private renderStoryUseTable(document: IMep): void {
+		const uses = storyUsesOf(document);
+		const stories = this.context.stories;
+		const section = this.section(localize('mep.storyUses', "Storey use"), uses.length, stories.length ? {
+			label: uses.length ? localize('mep.storyUsesFill', "Add Missing Storeys") : localize('mep.storyUsesStart', "Fill from 06 BIM"),
+			run: () => {
+				fillStoryUses(document, stories, 'residential');
+				this.changed(true);
+			},
+		} : undefined);
+		append(section, $('p.mep-note', undefined, localize('mep.storyUsesNote', "One use per storey for the plumbing (BNBC Table 8.5.1), the HVAC (Table 8.2.3) and the electrical services (Table 8.1.17); their own storey tables keep the fixtures, gains and loads. The roof and plant storeys are not occupied: every service leaves them out.")));
+		if (!uses.length) {
+			return;
+		}
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+		this.tableHead(table, [
+			{ label: localize('mep.f.story', "Story"), width: 140 }, { label: localize('mep.f.use', "Use"), width: 240 },
+			{ label: localize('mep.f.population', "Population"), numeric: true, width: 90, title: localize('mep.f.populationTitle', "Persons on the storey; empty: each service's default for the use and the floor area") },
+			{ label: '', width: 120 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		const options = STORY_USE_KEYS.map(key => ({ value: key, label: storyUseLabel(key) }));
+		const population: IFieldSpec = { key: 'population', label: localize('mep.f.population', "Population"), kind: 'integer', min: 0, width: 90 };
+		// Top storey first, as the services' storey tables list them.
+		const order = new Map(stories.map((s, i) => [s.id, i]));
+		const shown = [...uses].sort((a, b) => (order.get(b.story) ?? -1) - (order.get(a.story) ?? -1));
+		for (const entry of shown) {
+			const index = ensureStoryUses(document).indexOf(entry);
+			const tr = append(body, $('tr.mep-row'));
+			const path = (field: string) => `storyUses.${index}.${field}`;
+			append(tr, $('td', undefined, this.storyName(entry.story)));
+			append(append(tr, $('td')), this.selectInput(options, entry.use, value => {
+				entry.use = value as StoryUseKey;
+				this.changed(true);
+			}, path('use'), localize('mep.f.useOf', "Use of {0}", this.storyName(entry.story))));
+			const occupied = isOccupied(entry.use);
+			const cell = append(tr, $('td'));
+			if (occupied) {
+				append(cell, this.textInput(population, entry.population, value => {
+					if (typeof value === 'number') {
+						entry.population = value;
+					} else {
+						delete entry.population;
+					}
+					this.changed(false);
+				}, path('population')));
+			}
+			const fillCell = append(tr, $('td'));
+			if (occupied && (order.get(entry.story) ?? 0) > 0) {
+				const button = append(fillCell, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.fillDownTitle', "Give the storeys below {0} its use and population (not the roof or plant storeys)", this.storyName(entry.story)) }, localize('mep.fillDown', "Fill down")));
+				this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+					fillDown(document, stories, entry.story);
+					this.changed(true);
+				}));
+			}
+			this.removeButton(tr, () => {
+				ensureStoryUses(document).splice(index, 1);
+				this.changed(true);
+			});
+		}
+	}
+
+	/** A storey's use from Storey use, as a link to that table. */
+	private storyUseLink(cell: HTMLElement, use: string): void {
+		const link = append(cell, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.storyUseLinkTitle', "Set in Coordination › Storey use: click to edit it there") }, storyUseLabel(use)));
+		this.viewDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.openStoryUses()));
+	}
+
+	/** Shows the storey-use table (the services' storey tables link to it). */
+	private openStoryUses(): void {
+		this.showDiscipline('coordination');
+		if (this.view !== 'data') {
+			this.showView('data');
+		}
 	}
 
 	private renderEquipmentTable(document: IMep): void {
@@ -2463,10 +2547,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			append(tr, $('td', undefined, this.storyName(e.story)));
 			append(tr, $('td', undefined, e.host ?? ''));
 			append(tr, $('td.number', undefined, e.load === undefined ? '' : formatNumber(e.load, 1)));
-			append(tr, $('td.number', undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
+			append(tr, $(`td.number${e.heavy ? '.band-fail' : ''}`, undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
 			append(tr, $('td', undefined, e.loadCase ?? ''));
 			append(tr, $(`td${!e.applied && !e.onGrade ? '.band-fail' : ''}`, undefined, e.applied ? localize('mep.appliedYes', "on the frame") : e.onGrade ? localize('mep.appliedGrade', "on grade") : localize('mep.appliedNo', "not applied")));
-			append(tr, $('td.mep-wrap', undefined, e.note ?? ''));
+			append(tr, $(`td.mep-wrap${e.heavy ? '.band-fail' : ''}`, undefined, e.note ?? ''));
 		}
 	}
 
@@ -3396,15 +3480,22 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (version !== this.plumbingVersion) {
 			return;
 		}
-		const pending = (report as IPlumbingReport | undefined)?.tankDesignsPending ?? 0;
-		if (pending && report) {
-			this.plumbingReport = report;
+		const quick: IPlumbingReport | undefined = report;
+		const pending = quick?.tankDesignsPending ?? 0;
+		if (pending && quick) {
+			this.plumbingReport = quick;
 			this.plumbingState = 'ok';
 			this.plumbingError = undefined;
 			this.renderReportDependent();
+			this.writeSummary(document, sourceTexts);
 			await ask(true);
 			if (version !== this.plumbingVersion) {
 				return;
+			}
+			if (error && report === quick) {
+				// The designs failed: the rest of the report stands, and nothing is left "running" (N-E8).
+				report = { ...quick, tankDesignsPending: 0 };
+				this.notificationService.warn(localize('plb.designsFailed', "The tanks' designs could not be computed: {0}", error));
 			}
 		}
 		this.setBusy('plumbing', false);
@@ -3500,15 +3591,21 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			const path = (field: string) => index >= 0 ? `plumbing.stories.${index}.${field}` : `plumbing.new.${storyId}.${field}`;
 			const target = () => storyRow(p(), storyId);
 			append(tr, $('td', undefined, this.storyName(storyId)));
-			append(append(tr, $('td')), this.selectInput(this.occupancyOptions(), String(row?.occupancy ?? ''), value => {
-				const r = target();
-				if (value) {
-					r.occupancy = value;
-				} else {
-					delete r.occupancy;
-				}
-				this.changed(true);
-			}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
+			const shared = storyUseOf(document, storyId);
+			if (shared) {
+				// The storey's use is entered once, in Storey use (N-E5): shown here, edited there.
+				this.storyUseLink(append(tr, $('td')), shared.use);
+			} else {
+				append(append(tr, $('td')), this.selectInput(this.occupancyOptions(), String(row?.occupancy ?? ''), value => {
+					const r = target();
+					if (value) {
+						r.occupancy = value;
+					} else {
+						delete r.occupancy;
+					}
+					this.changed(true);
+				}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
+			}
 			const source = sources.get(storyId);
 			const fromCell = append(tr, $('td.plb-from'));
 			append(fromCell, this.selectInput(fromOptions, String(row?.fixturesFrom ?? 'auto'), value => {
@@ -3528,7 +3625,11 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			if (fromRooms) {
 				tr.classList.add('plb-from-rooms');
 			}
-			const populationHint = row?.population === undefined && source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1) : undefined;
+			// Blank: the population the backend used (from the rooms, or the floor area over the area per person of the occupancy, N-E11).
+			const used = this.plumbingReport?.demand.find(d => d.story === storyId)?.population;
+			const populationHint = row?.population !== undefined ? undefined
+				: source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1)
+					: used !== undefined && used > 0 ? formatNumber(used, 0) : undefined;
 			const population = append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population'), populationHint));
 			if (populationHint && source?.populationSource) {
 				population.title = localize('plb.populationFromRooms', "From the rooms: {0}", source.populationSource);
@@ -3547,10 +3648,14 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 				append(tr, $('td'));
 			}
 		}
+		// The same cells as the rows above (one per column, the numbers in read-only inputs), so the totals line up (N-E11).
 		const totals = append(body, $('tr.plb-total'));
-		append(totals, $('td', { colspan: '3' }, localize('plb.totals', "Totals")));
-		for (const key of ['population', ...FIXTURES]) {
-			this.totalCells.set(key, append(totals, $('td.number')));
+		append(totals, $('td', undefined, localize('plb.totals', "Totals")));
+		append(totals, $('td'));
+		append(totals, $('td'));
+		for (const key of ['population', ...FIXTURES] as const) {
+			const input = append(append(totals, $('td')), $<HTMLInputElement>('input.mep-input.number.plb-total-value', { type: 'text', readonly: 'true', tabindex: '-1', 'aria-label': localize('plb.totalOf', "Total {0}", key === 'population' ? P.population.label : fixtureLabel(key)) }));
+			this.totalCells.set(key, input);
 		}
 		append(totals, $('td'));
 		this.updatePlumbingTotals(document);
@@ -3692,7 +3797,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const totals = plumbing ? fixtureTotals(plumbing) : undefined;
 		for (const [key, cell] of this.totalCells) {
 			const value = totals?.[key as keyof typeof totals] ?? 0;
-			cell.textContent = value ? formatNumber(value, 0) : '';
+			cell.value = value ? formatNumber(value, 0) : '';
 		}
 	}
 
@@ -4142,6 +4247,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			storyOptions: () => this.storyOptions(),
 			storyName: id => this.storyName(id),
 			pathInput: (path, store, key, label, minPoints) => this.pathInput(path, store, key, label, minPoints),
+			storyUseLink: (cell, use) => this.storyUseLink(cell, use),
 		};
 	}
 

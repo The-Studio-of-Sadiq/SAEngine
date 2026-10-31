@@ -4378,7 +4378,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				sheetSize: {
 					default: 'A1',
 					description: 'ISO sheet of every drawing.',
-					enum: ['A1', 'A2', 'A3'],
+					enum: ['A0', 'A1', 'A2', 'A3'],
 					title: 'Sheet size',
 					type: 'string',
 				},
@@ -4826,6 +4826,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Appendix of element checks',
 					type: 'string',
 				},
+				template: {
+					default: 'default',
+					description: 'The report template printed: its id, the file name of one in 11 Exports/report-templates, or a built-in one (default: every section in full; summary: the results without each element\'s calculations). The template chooses the sections, their order and detail, the cover, the letterhead and the members printed.',
+					pattern: '^[a-z0-9][a-z0-9-]{0,63}$',
+					title: 'Template',
+					type: 'string',
+				},
 			},
 			title: 'Report',
 			type: 'object',
@@ -4892,9 +4899,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				location: {
 					default: 'dhaka',
-					description: 'District town; sets the seismic zone and the basic wind speed.',
-					enum: ['dhaka', 'chattogram', 'coxsbazar', 'khulna', 'rajshahi', 'sylhet', 'barishal', 'rangpur', 'mymensingh', 'cumilla', 'custom'],
-					enumDescriptions: ['Dhaka', 'Chattogram', 'Cox\'s Bazar', 'Khulna', 'Rajshahi', 'Sylhet', 'Barishal', 'Rangpur', 'Mymensingh', 'Cumilla', 'Custom (enter Z and V)'],
+					description: 'District town (BNBC 2020 Tables 6.2.8 and 6.2.15); sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
+					enum: ['bagerhat', 'bandarban', 'barguna', 'barishal', 'bhola', 'bogura', 'brahmanbaria', 'chandpur', 'chapainawabganj', 'chattogram', 'chuadanga', 'coxsbazar', 'cumilla', 'dhaka', 'dinajpur', 'faridpur', 'feni', 'gaibandha', 'gazipur', 'gopalganj', 'habiganj', 'jamalpur', 'jashore', 'jhalokati', 'jhenaidah', 'joypurhat', 'khagrachhari', 'khulna', 'kishoreganj', 'kurigram', 'kushtia', 'lakshmipur', 'lalmonirhat', 'madaripur', 'magura', 'manikganj', 'meherpur', 'moulvibazar', 'munshiganj', 'mymensingh', 'naogaon', 'narail', 'narayanganj', 'narsingdi', 'natore', 'netrokona', 'nilphamari', 'noakhali', 'pabna', 'panchagarh', 'patuakhali', 'pirojpur', 'rajbari', 'rajshahi', 'rangamati', 'rangpur', 'satkhira', 'shariatpur', 'sherpur', 'sirajganj', 'srimangal', 'sunamganj', 'sylhet', 'tangail', 'thakurgaon', 'custom'],
+					enumDescriptions: ['Bagerhat (zone 1, Z 0.12, V 77.5 m/s)', 'Bandarban (zone 3, Z 0.28, V 62.5 m/s)', 'Barguna (zone 1, Z 0.12, V 80 m/s)', 'Barishal (zone 1, Z 0.12, V 78.7 m/s)', 'Bhola (zone 1, Z 0.12, V 69.5 m/s)', 'Bogura (zone 3, Z 0.28, V 61.9 m/s)', 'Brahmanbaria (zone 3, Z 0.28, V 56.7 m/s)', 'Chandpur (zone 2, Z 0.20, V 50.6 m/s)', 'Chapai Nawabganj (zone 1, Z 0.12, V 41.4 m/s)', 'Chattogram (zone 3, Z 0.28, V 80 m/s)', 'Chuadanga (zone 1, Z 0.12, V 61.9 m/s)', 'Cox\'s Bazar (zone 3, Z 0.28, V 80 m/s)', 'Cumilla (zone 2, Z 0.20, V 61.4 m/s)', 'Dhaka (zone 2, Z 0.20, V 65.7 m/s)', 'Dinajpur (zone 2, Z 0.20, V 41.4 m/s)', 'Faridpur (zone 2, Z 0.20, V 63.1 m/s)', 'Feni (zone 2, Z 0.20, V 64.1 m/s)', 'Gaibandha (zone 3, Z 0.28, V 65.6 m/s)', 'Gazipur (zone 2, Z 0.20, V 66.5 m/s)', 'Gopalganj (zone 1, Z 0.12, V 74.5 m/s)', 'Habiganj (zone 4, Z 0.36, V 54.2 m/s)', 'Jamalpur (zone 4, Z 0.36, V 56.7 m/s)', 'Jashore (zone 1, Z 0.12, V 64.1 m/s)', 'Jhalokati (zone 1, Z 0.12, V 80 m/s)', 'Jhenaidah (zone 1, Z 0.12, V 65 m/s)', 'Joypurhat (zone 2, Z 0.20, V 56.7 m/s)', 'Khagrachhari (zone 3, Z 0.28, V 56.7 m/s)', 'Khulna (zone 1, Z 0.12, V 73.3 m/s)', 'Kishoreganj (zone 4, Z 0.36, V 64.7 m/s)', 'Kurigram (zone 4, Z 0.36, V 65.6 m/s)', 'Kushtia (zone 2, Z 0.20, V 66.9 m/s)', 'Lakshmipur (zone 2, Z 0.20, V 51.9 m/s)', 'Lalmonirhat (zone 3, Z 0.28, V 63.7 m/s)', 'Madaripur (zone 2, Z 0.20, V 68.1 m/s)', 'Magura (zone 1, Z 0.12, V 65 m/s)', 'Manikganj (zone 2, Z 0.20, V 58.2 m/s)', 'Meherpur (zone 1, Z 0.12, V 58.2 m/s)', 'Moulvibazar (zone 4, Z 0.36, V 53 m/s)', 'Munshiganj (zone 2, Z 0.20, V 57.1 m/s)', 'Mymensingh (zone 4, Z 0.36, V 67.4 m/s)', 'Naogaon (zone 2, Z 0.20, V 55.2 m/s)', 'Narail (zone 1, Z 0.12, V 68.6 m/s)', 'Narayanganj (zone 2, Z 0.20, V 61.1 m/s)', 'Narsingdi (zone 3, Z 0.28, V 59.7 m/s)', 'Natore (zone 2, Z 0.20, V 61.9 m/s)', 'Netrokona (zone 4, Z 0.36, V 65.6 m/s)', 'Nilphamari (zone 1, Z 0.12, V 44.7 m/s)', 'Noakhali (zone 2, Z 0.20, V 57.1 m/s)', 'Pabna (zone 2, Z 0.20, V 63.1 m/s)', 'Panchagarh (zone 2, Z 0.20, V 41.4 m/s)', 'Patuakhali (zone 1, Z 0.12, V 80 m/s)', 'Pirojpur (zone 1, Z 0.12, V 80 m/s)', 'Rajbari (zone 2, Z 0.20, V 59.1 m/s)', 'Rajshahi (zone 1, Z 0.12, V 49.2 m/s)', 'Rangamati (zone 3, Z 0.28, V 56.7 m/s)', 'Rangpur (zone 3, Z 0.28, V 65.3 m/s)', 'Satkhira (zone 1, Z 0.12, V 57.6 m/s)', 'Shariatpur (zone 2, Z 0.20, V 61.9 m/s)', 'Sherpur (zone 4, Z 0.36, V 62.5 m/s)', 'Sirajganj (zone 3, Z 0.28, V 50.6 m/s)', 'Srimangal (zone 4, Z 0.36, V 50.6 m/s)', 'Sunamganj (zone 4, Z 0.36, V 61.1 m/s)', 'Sylhet (zone 4, Z 0.36, V 61.1 m/s)', 'Tangail (zone 3, Z 0.28, V 50.6 m/s)', 'Thakurgaon (zone 2, Z 0.20, V 41.4 m/s)', 'Custom (enter Z and V)'],
 					title: 'Location',
 					type: 'string',
 				},
@@ -5153,8 +5160,73 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the code\'s value for a rigid building (BNBC 2020 Sec 2.4.8.1). A flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 here.',
+					description: 'Overrides the code\'s value for every building (BNBC 2020 Sec 2.4.8.1). Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 from its modal frequency.',
 					title: 'Gust effect factor G',
+				},
+				naturalFrequency: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The building\'s fundamental natural frequency [Hz] for the gust-effect factor (BNBC 2020 Sec 2.4.8.2). Empty: from the modal analysis of the model, in each wind direction.',
+					title: 'Natural frequency n1',
+				},
+				damping: {
+					anyOf: [
+						{
+							exclusiveMaximum: 0.2,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Damping ratio of the gust-effect factor Gf (BNBC 2020 Sec 2.4.8.2). Empty: the code pack\'s (0.02, a concrete building; 0.01 for steel).',
+					title: 'Damping ratio β',
+				},
+				enclosure: {
+					default: 'enclosed',
+					description: 'Enclosure classification for the internal pressure (GCpi) of the components and cladding (BNBC 2020 Sec 2.4.2 and Figure 6.2.5).',
+					enum: ['enclosed', 'partiallyEnclosed', 'open'],
+					enumDescriptions: ['Enclosed (GCpi ±0.18)', 'Partially enclosed (GCpi ±0.55)', 'Open (GCpi 0)'],
+					title: 'Enclosure',
+					type: 'string',
+				},
+				claddingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Effective wind area [m²] of the cladding element checked (a glazing panel, a wall panel: span × the larger of its width and span/3). Empty: the smallest area of the figures, the largest pressures.',
+					title: 'Cladding effective wind area',
+				},
+				parapetHeight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 into zone 2; the parapet\'s own pressures are given too.',
+					title: 'Parapet height',
 				},
 			},
 			title: 'Wind',
@@ -5279,6 +5351,7 @@ export const DEFAULT_SETTINGS: object = {
 	},
 	wind: {
 		exposure: 'A',
+		enclosure: 'enclosed',
 	},
 	areaLoads: [
 		{
@@ -5661,6 +5734,7 @@ export const DEFAULT_SETTINGS: object = {
 	},
 	report: {
 		appendix: 'governing',
+		template: 'default',
 	},
 };
 
@@ -5700,55 +5774,330 @@ export const BNBC: IBnbcTables = {
 		'4': 0.36,
 	},
 	locations: {
-		dhaka: {
-			name: 'Dhaka',
-			zone: 2,
-			windSpeed: 65.7,
-		},
-		chattogram: {
-			name: 'Chattogram',
-			zone: 3,
-			windSpeed: 80.0,
-		},
-		coxsbazar: {
-			name: 'Cox\'s Bazar',
-			zone: 3,
-			windSpeed: 80.0,
-		},
-		khulna: {
-			name: 'Khulna',
+		bagerhat: {
+			name: 'Bagerhat',
 			zone: 1,
-			windSpeed: 73.3,
+			windSpeed: 77.5,
 		},
-		rajshahi: {
-			name: 'Rajshahi',
+		bandarban: {
+			name: 'Bandarban',
+			zone: 3,
+			windSpeed: 62.5,
+		},
+		barguna: {
+			name: 'Barguna',
 			zone: 1,
-			windSpeed: 49.2,
-		},
-		sylhet: {
-			name: 'Sylhet',
-			zone: 4,
-			windSpeed: 61.1,
+			windSpeed: 80.0,
 		},
 		barishal: {
 			name: 'Barishal',
 			zone: 1,
 			windSpeed: 78.7,
 		},
-		rangpur: {
-			name: 'Rangpur',
+		bhola: {
+			name: 'Bhola',
+			zone: 1,
+			windSpeed: 69.5,
+		},
+		bogura: {
+			name: 'Bogura',
 			zone: 3,
-			windSpeed: 65.3,
+			windSpeed: 61.9,
+		},
+		brahmanbaria: {
+			name: 'Brahmanbaria',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		chandpur: {
+			name: 'Chandpur',
+			zone: 2,
+			windSpeed: 50.6,
+		},
+		chapainawabganj: {
+			name: 'Chapai Nawabganj',
+			zone: 1,
+			windSpeed: 41.4,
+		},
+		chattogram: {
+			name: 'Chattogram',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		chuadanga: {
+			name: 'Chuadanga',
+			zone: 1,
+			windSpeed: 61.9,
+		},
+		coxsbazar: {
+			name: 'Cox\'s Bazar',
+			zone: 3,
+			windSpeed: 80.0,
+		},
+		cumilla: {
+			name: 'Cumilla',
+			zone: 2,
+			windSpeed: 61.4,
+		},
+		dhaka: {
+			name: 'Dhaka',
+			zone: 2,
+			windSpeed: 65.7,
+		},
+		dinajpur: {
+			name: 'Dinajpur',
+			zone: 2,
+			windSpeed: 41.4,
+		},
+		faridpur: {
+			name: 'Faridpur',
+			zone: 2,
+			windSpeed: 63.1,
+		},
+		feni: {
+			name: 'Feni',
+			zone: 2,
+			windSpeed: 64.1,
+		},
+		gaibandha: {
+			name: 'Gaibandha',
+			zone: 3,
+			windSpeed: 65.6,
+		},
+		gazipur: {
+			name: 'Gazipur',
+			zone: 2,
+			windSpeed: 66.5,
+		},
+		gopalganj: {
+			name: 'Gopalganj',
+			zone: 1,
+			windSpeed: 74.5,
+		},
+		habiganj: {
+			name: 'Habiganj',
+			zone: 4,
+			windSpeed: 54.2,
+		},
+		jamalpur: {
+			name: 'Jamalpur',
+			zone: 4,
+			windSpeed: 56.7,
+		},
+		jashore: {
+			name: 'Jashore',
+			zone: 1,
+			windSpeed: 64.1,
+		},
+		jhalokati: {
+			name: 'Jhalokati',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		jhenaidah: {
+			name: 'Jhenaidah',
+			zone: 1,
+			windSpeed: 65.0,
+		},
+		joypurhat: {
+			name: 'Joypurhat',
+			zone: 2,
+			windSpeed: 56.7,
+		},
+		khagrachhari: {
+			name: 'Khagrachhari',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		khulna: {
+			name: 'Khulna',
+			zone: 1,
+			windSpeed: 73.3,
+		},
+		kishoreganj: {
+			name: 'Kishoreganj',
+			zone: 4,
+			windSpeed: 64.7,
+		},
+		kurigram: {
+			name: 'Kurigram',
+			zone: 4,
+			windSpeed: 65.6,
+		},
+		kushtia: {
+			name: 'Kushtia',
+			zone: 2,
+			windSpeed: 66.9,
+		},
+		lakshmipur: {
+			name: 'Lakshmipur',
+			zone: 2,
+			windSpeed: 51.9,
+		},
+		lalmonirhat: {
+			name: 'Lalmonirhat',
+			zone: 3,
+			windSpeed: 63.7,
+		},
+		madaripur: {
+			name: 'Madaripur',
+			zone: 2,
+			windSpeed: 68.1,
+		},
+		magura: {
+			name: 'Magura',
+			zone: 1,
+			windSpeed: 65.0,
+		},
+		manikganj: {
+			name: 'Manikganj',
+			zone: 2,
+			windSpeed: 58.2,
+		},
+		meherpur: {
+			name: 'Meherpur',
+			zone: 1,
+			windSpeed: 58.2,
+		},
+		moulvibazar: {
+			name: 'Moulvibazar',
+			zone: 4,
+			windSpeed: 53.0,
+		},
+		munshiganj: {
+			name: 'Munshiganj',
+			zone: 2,
+			windSpeed: 57.1,
 		},
 		mymensingh: {
 			name: 'Mymensingh',
 			zone: 4,
 			windSpeed: 67.4,
 		},
-		cumilla: {
-			name: 'Cumilla',
+		naogaon: {
+			name: 'Naogaon',
 			zone: 2,
-			windSpeed: 61.4,
+			windSpeed: 55.2,
+		},
+		narail: {
+			name: 'Narail',
+			zone: 1,
+			windSpeed: 68.6,
+		},
+		narayanganj: {
+			name: 'Narayanganj',
+			zone: 2,
+			windSpeed: 61.1,
+		},
+		narsingdi: {
+			name: 'Narsingdi',
+			zone: 3,
+			windSpeed: 59.7,
+		},
+		natore: {
+			name: 'Natore',
+			zone: 2,
+			windSpeed: 61.9,
+		},
+		netrokona: {
+			name: 'Netrokona',
+			zone: 4,
+			windSpeed: 65.6,
+		},
+		nilphamari: {
+			name: 'Nilphamari',
+			zone: 1,
+			windSpeed: 44.7,
+		},
+		noakhali: {
+			name: 'Noakhali',
+			zone: 2,
+			windSpeed: 57.1,
+		},
+		pabna: {
+			name: 'Pabna',
+			zone: 2,
+			windSpeed: 63.1,
+		},
+		panchagarh: {
+			name: 'Panchagarh',
+			zone: 2,
+			windSpeed: 41.4,
+		},
+		patuakhali: {
+			name: 'Patuakhali',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		pirojpur: {
+			name: 'Pirojpur',
+			zone: 1,
+			windSpeed: 80.0,
+		},
+		rajbari: {
+			name: 'Rajbari',
+			zone: 2,
+			windSpeed: 59.1,
+		},
+		rajshahi: {
+			name: 'Rajshahi',
+			zone: 1,
+			windSpeed: 49.2,
+		},
+		rangamati: {
+			name: 'Rangamati',
+			zone: 3,
+			windSpeed: 56.7,
+		},
+		rangpur: {
+			name: 'Rangpur',
+			zone: 3,
+			windSpeed: 65.3,
+		},
+		satkhira: {
+			name: 'Satkhira',
+			zone: 1,
+			windSpeed: 57.6,
+		},
+		shariatpur: {
+			name: 'Shariatpur',
+			zone: 2,
+			windSpeed: 61.9,
+		},
+		sherpur: {
+			name: 'Sherpur',
+			zone: 4,
+			windSpeed: 62.5,
+		},
+		sirajganj: {
+			name: 'Sirajganj',
+			zone: 3,
+			windSpeed: 50.6,
+		},
+		srimangal: {
+			name: 'Srimangal',
+			zone: 4,
+			windSpeed: 50.6,
+		},
+		sunamganj: {
+			name: 'Sunamganj',
+			zone: 4,
+			windSpeed: 61.1,
+		},
+		sylhet: {
+			name: 'Sylhet',
+			zone: 4,
+			windSpeed: 61.1,
+		},
+		tangail: {
+			name: 'Tangail',
+			zone: 3,
+			windSpeed: 50.6,
+		},
+		thakurgaon: {
+			name: 'Thakurgaon',
+			zone: 2,
+			windSpeed: 41.4,
 		},
 	},
 	categories: {
@@ -5879,7 +6228,7 @@ export const BNBC: IBnbcTables = {
 			r: 3.0,
 			omega: 3.0,
 			cd: 2.5,
-			row: 'C.5 [sic, the 6th row] (p. 623)',
+			row: 'C.5 (p. 623)',
 			heightLimits: {
 				B: null,
 				C: 0.0,
@@ -17225,6 +17574,44 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Shaft',
 			type: 'object',
 		},
+		StoryUseEntry: {
+			additionalProperties: false,
+			description: 'A storey\'s use, entered once for the plumbing, HVAC and electrical services\n(:mod:`saengine.mep.uses`).',
+			properties: {
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				use: {
+					description: 'Mapped to BNBC 2020 Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and services: not occupied (left out of every service\'s stories).',
+					enum: ['residential', 'office', 'retail', 'supermarket', 'restaurant', 'hotel', 'hospital', 'school', 'bank', 'assembly', 'industrial', 'storage', 'parking', 'services', 'roof'],
+					enumDescriptions: ['Residential flats', 'Offices', 'Shops', 'Supermarket', 'Restaurant', 'Hotel rooms', 'Hospital wards', 'School classrooms', 'Bank', 'Assembly hall', 'Light industry', 'Storage', 'Parking', 'Services, plant (not occupied)', 'Roof (not occupied)'],
+					title: 'Use',
+					type: 'string',
+				},
+				population: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Persons; empty: each service\'s default for the use and the floor area.',
+					title: 'Population',
+				},
+			},
+			required: ['story', 'use'],
+			title: 'StoryUseEntry',
+			type: 'object',
+		},
 		WetRoom: {
 			additionalProperties: false,
 			description: 'One wet room of the architecture given its own kind or its own fixtures.',
@@ -17278,6 +17665,14 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: 'saengine.mep/1',
 			title: 'Schema_',
 			type: 'string',
+		},
+		storyUses: {
+			description: 'The use of each storey, read by the plumbing, HVAC and electrical services (their own storey tables keep the fixtures, gains and loads).',
+			items: {
+				$ref: '#/$defs/StoryUseEntry',
+			},
+			title: 'Storey use',
+			type: 'array',
 		},
 		equipment: {
 			items: {
@@ -18240,4 +18635,378 @@ export const DEFAULT_ARCHITECTURE: object = {
 	rooms: [],
 	separators: [],
 	imports: [],
+};
+
+export const REPORT_TEMPLATE_SCHEMA: IJSONSchema = {
+	$defs: {
+		Cover: {
+			additionalProperties: false,
+			properties: {
+				show: {
+					default: true,
+					title: 'Print a cover page',
+					type: 'boolean',
+				},
+				title: {
+					default: 'Structural Design Report',
+					minLength: 1,
+					title: 'Title',
+					type: 'string',
+				},
+				subtitle: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Subtitle',
+				},
+				showStatus: {
+					default: true,
+					description: 'The design result (pass, fail, incomplete) on the cover. A report whose members fail says so on its cover; turn this off only for a report of inputs.',
+					title: 'Design result',
+					type: 'boolean',
+				},
+				showTitleBlock: {
+					default: true,
+					description: 'The title block of the drawings (Project Settings → Drawings) for the signatures.',
+					title: 'Signature block',
+					type: 'boolean',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Text printed on the cover above the disclaimer (a submission note).',
+					title: 'Note',
+				},
+			},
+			title: 'Cover',
+			type: 'object',
+		},
+		Letterhead: {
+			additionalProperties: false,
+			properties: {
+				enabled: {
+					default: false,
+					title: 'Print a letterhead',
+					type: 'boolean',
+				},
+				organisation: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The firm\'s name; empty: the firm of the drawings\' title block.',
+					title: 'Organisation',
+				},
+				lines: {
+					description: 'Address, telephone, e-mail: one per line, under the name.',
+					items: {
+						type: 'string',
+					},
+					title: 'Lines',
+					type: 'array',
+				},
+				logo: {
+					anyOf: [
+						{
+							pattern: '(?i)^[^:*?\\"<>|]+\\.(png|jpe?g)$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A PNG or JPEG file, its path relative to the project folder.',
+					title: 'Logo',
+				},
+			},
+			title: 'Letterhead',
+			type: 'object',
+		},
+		MemberSelection: {
+			additionalProperties: false,
+			properties: {
+				kinds: {
+					description: 'The kinds of member the member tables and the appendix print; empty: all.',
+					items: {
+						enum: ['column', 'beam', 'slab', 'wall', 'brace', 'staircase', 'member'],
+						type: 'string',
+					},
+					title: 'Kinds',
+					type: 'array',
+				},
+				storeys: {
+					description: 'Storey names (Grids & Stories); empty: all.',
+					items: {
+						type: 'string',
+					},
+					title: 'Storeys',
+					type: 'array',
+				},
+				ids: {
+					description: 'Member ids; empty: all (of the kinds and storeys).',
+					items: {
+						type: 'string',
+					},
+					title: 'Members',
+					type: 'array',
+				},
+				failingOnly: {
+					default: false,
+					title: 'Only failing members',
+					type: 'boolean',
+				},
+				appendix: {
+					default: 'settings',
+					description: 'Which elements the appendix prints every check of: as the project settings (Design report → Appendix), the governing element of each type and storey and every failing one, all, or none.',
+					enum: ['settings', 'governing', 'all', 'none'],
+					enumDescriptions: ['As the project settings', 'Governing', 'All', 'None'],
+					title: 'Appendix',
+					type: 'string',
+				},
+			},
+			title: 'MemberSelection',
+			type: 'object',
+		},
+		ReportSection: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					enum: ['basis', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
+					enumDescriptions: ['Design basis', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
+					title: 'Section',
+					type: 'string',
+				},
+				include: {
+					default: true,
+					title: 'Print',
+					type: 'boolean',
+				},
+				detail: {
+					default: 'inherit',
+					description: 'Summary: the results and the governing values; full: every table and the calculations of each element. Inherit: the template\'s detail.',
+					enum: ['inherit', 'summary', 'full'],
+					enumDescriptions: ['As the template', 'Summary', 'Full'],
+					title: 'Detail',
+					type: 'string',
+				},
+				title: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Another heading for the section; empty: its own.',
+					title: 'Heading',
+				},
+			},
+			required: ['id'],
+			title: 'ReportSection',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.reportTemplate/1',
+			default: 'saengine.reportTemplate/1',
+			title: 'Schema_',
+			type: 'string',
+		},
+		id: {
+			default: 'default',
+			description: 'The template\'s id: its file name in 11 Exports/report-templates.',
+			pattern: '^[a-z0-9][a-z0-9-]{0,63}$',
+			title: 'Id',
+			type: 'string',
+		},
+		name: {
+			default: 'Full design report',
+			minLength: 1,
+			title: 'Name',
+			type: 'string',
+		},
+		description: {
+			anyOf: [
+				{
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			title: 'Description',
+		},
+		detail: {
+			default: 'full',
+			description: 'Summary: results and governing values, for a submission or a client; full: every table and every element\'s calculations, for checking.',
+			enum: ['summary', 'full'],
+			enumDescriptions: ['Summary', 'Full calculations'],
+			title: 'Detail',
+			type: 'string',
+		},
+		contents: {
+			default: true,
+			title: 'Table of contents',
+			type: 'boolean',
+		},
+		paper: {
+			default: 'a4',
+			enum: ['a4', 'us-letter'],
+			enumDescriptions: ['A4', 'US Letter'],
+			title: 'Paper',
+			type: 'string',
+		},
+		sections: {
+			description: 'The sections in the order they print. A section left out of the list is not printed; a section without content in this project is skipped.',
+			items: {
+				$ref: '#/$defs/ReportSection',
+			},
+			title: 'Sections',
+			type: 'array',
+		},
+		cover: {
+			$ref: '#/$defs/Cover',
+		},
+		letterhead: {
+			$ref: '#/$defs/Letterhead',
+		},
+		members: {
+			$ref: '#/$defs/MemberSelection',
+			title: 'Member selection',
+		},
+	},
+	title: 'SAEngine report template',
+	type: 'object',
+};
+
+export const DEFAULT_REPORT_TEMPLATE: object = {
+	schema: 'saengine.reportTemplate/1',
+	id: 'default',
+	name: 'Full design report',
+	detail: 'full',
+	contents: true,
+	paper: 'a4',
+	sections: [
+		{
+			id: 'basis',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'soil',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'foundations',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'model',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'results',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'design',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'seismic',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'worksheets',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'mep',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'plumbing',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'hvac',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'electrical',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'fire',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'boq',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'limitations',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'appendix',
+			include: true,
+			detail: 'inherit',
+		},
+	],
+	cover: {
+		show: true,
+		title: 'Structural Design Report',
+		showStatus: true,
+		showTitleBlock: true,
+	},
+	letterhead: {
+		enabled: false,
+		lines: [],
+	},
+	members: {
+		kinds: [],
+		storeys: [],
+		ids: [],
+		failingOnly: false,
+		appendix: 'settings',
+	},
 };

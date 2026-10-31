@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from saengine.fem.member_loads import member_loads
-from saengine.importers.common import ITEMS, ImportReport, ProjectBuilder
+from saengine.importers.common import ITEMS, ImportReport, ProjectBuilder, file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.neutral import build
 from saengine.importers.sap2000 import read_sap2000_text
@@ -127,7 +127,7 @@ def test_etabs_report_counts_stories_without_the_base(etabs) -> None:  # type: i
 
 
 def test_no_fluid_factor_without_fluid_loads(etabs) -> None:  # type: ignore[no-untyped-def]
-    combos = {c.name: c for c in etabs.settings.combinations}
+    combos = file_combinations(etabs.settings.combinations)
     # 1.4D: SAEngine's own default would give F = D (1.4); the file has no fluid loads.
     assert (combos["U1"].D, combos["U1"].F) == (1.4, 0.0)
     assert all(c.F == 0 for c in combos.values())
@@ -200,7 +200,7 @@ def test_frame_programs_word_lateral_loads_the_same(make) -> None:  # type: igno
     assert replaced["loads.lateral.joint"]["what"] == ITEMS["loads.lateral.joint"][1]
     assert set(report["loads"]["replacedByBnbcKN"]) <= {"WX", "WY"}
     assert not set(report["loads"]["notCarriedKN"]) & {"WX", "WY", "EX", "EY"}
-    assert all(c.F == 0 for c in make().settings.combinations)
+    assert all(c.F == 0 for c in file_combinations(make().settings.combinations).values())
 
 
 def test_envelope_combinations_share_their_wording() -> None:
@@ -272,5 +272,5 @@ def test_builder_keeps_the_file_fluid_factors() -> None:
     builder = small_frame()
     builder.add_combination("tank", {"D": 1.2, "F": 1.2, "L": 1.6})
     builder.add_combination("dry", {"D": 1.4})
-    combos = {c.name: c for c in builder.build().settings.combinations}
+    combos = file_combinations(builder.build().settings.combinations)
     assert (combos["tank"].F, combos["dry"].F) == (1.2, 0.0)  # as in the file

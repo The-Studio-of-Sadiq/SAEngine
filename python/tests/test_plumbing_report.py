@@ -42,7 +42,13 @@ def test_report_of_the_six_storey_building(tmp_path: Path) -> None:
     assert report["septic"]["volume"] == pytest.approx(16000)
     for check in report["checks"]:
         assert set(check) == {"name", "demand", "capacity", "unit", "utilisation", "ok", "note"}
-    assert all(c["ok"] for c in report["checks"]), [c for c in report["checks"] if not c["ok"]]
+    # Flagged since walkthrough 2 (not checked before): T1, the verification case's 9 m³
+    # overhead tank, stands in the middle of a roof panel without beams under it (N-E1); the
+    # proposed soak wells take an 18 m run of ground beside the 14 m wide building (N-E6).
+    failing = {c["name"]: c for c in report["checks"] if not c["ok"]}
+    assert set(failing) == {"T1 support", "Soak wells' ground"}, failing
+    assert "kPa over its footprint" in failing["T1 support"]["note"]
+    assert failing["Soak wells' ground"]["demand"] == pytest.approx(18.0)
     json.dumps(report)  # serialisable for the RPC
 
 

@@ -872,6 +872,8 @@ export interface IHvacItemResult {
 	readonly utilisation?: number;
 	readonly status: CheckStatus;
 	readonly note?: string;
+	/** Plant: false when SAEngine only proposes it (not in the file, not a load yet). */
+	readonly inModel?: boolean;
 }
 
 export interface IOpeningResult {
@@ -949,6 +951,7 @@ function readItem(item: Record<string, unknown>): IHvacItemResult {
 		load: optionalNumber(item.flow ?? item.load ?? item.capacity), required: optionalNumber(item.required), provided: optionalNumber(item.provided ?? item.capacity),
 		unit: optionalString(item.unit), velocity: optionalNumber(item.velocity), size: sizeText(item), weight: optionalNumber(item.operatingWeight ?? item.weight),
 		utilisation: optionalNumber(item.utilisation), status: statusOf(item), note: noteOf(item),
+		...(typeof item.inModel === 'boolean' ? { inModel: item.inModel } : {}),
 	};
 }
 

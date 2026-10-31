@@ -52,6 +52,8 @@ export interface IArchiveExportOptions {
 	readonly includeResults: boolean;
 	/** The version history: the receiver can see and restore earlier versions. */
 	readonly includeVersions: boolean;
+	/** The deliverables of 11 Exports (report, drawings): the largest part of most archives. */
+	readonly includeExports: boolean;
 }
 
 export interface IArchiveExportArgs extends IArchiveExportOptions {
@@ -70,6 +72,7 @@ export interface IExportArchiveCommandArgs {
 	readonly outPath?: string;
 	readonly includeResults?: boolean;
 	readonly includeVersions?: boolean;
+	readonly includeExports?: boolean;
 }
 
 /** The arguments of {@link OPEN_ARCHIVE_UI_COMMAND}: any left out is asked; `open: false` imports without opening. */
@@ -80,7 +83,7 @@ export interface IOpenArchiveCommandArgs {
 	readonly open?: boolean;
 }
 
-export const DEFAULT_EXPORT_OPTIONS: IArchiveExportOptions = { includeResults: false, includeVersions: true };
+export const DEFAULT_EXPORT_OPTIONS: IArchiveExportOptions = { includeResults: false, includeVersions: true, includeExports: true };
 
 export function exportArgs(projectRoot: string, outPath: string, options: Partial<IArchiveExportOptions> = {}): IArchiveExportArgs {
 	return {
@@ -88,6 +91,7 @@ export function exportArgs(projectRoot: string, outPath: string, options: Partia
 		outPath: withArchiveExtension(outPath),
 		includeResults: options.includeResults ?? DEFAULT_EXPORT_OPTIONS.includeResults,
 		includeVersions: options.includeVersions ?? DEFAULT_EXPORT_OPTIONS.includeVersions,
+		includeExports: options.includeExports ?? DEFAULT_EXPORT_OPTIONS.includeExports,
 	};
 }
 

@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from saengine.fem.derive import derive_fem
+from saengine.importers.common import file_combinations
 from saengine.importers.staad import import_staad, read_staad_text
 from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan
@@ -127,7 +128,7 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     loads = {a.id: a for a in project.settings.areaLoads}
     assert (loads["FL"].finish, loads["FL"].live) == (1.5, 2.0)
     assert (loads["RF"].finish, loads["RF"].live) == (1.5, 1.0)
-    combos = {c.name: c for c in project.settings.combinations}
+    combos = file_combinations(project.settings.combinations)
     # The live case loads the roof too, which is SAEngine's roof live Lr: Lr gets L's factor.
     assert (combos["5 1.2D+1.6L"].D, combos["5 1.2D+1.6L"].L) == (1.2, 1.6)
     assert combos["5 1.2D+1.6L"].Lr == 1.6
@@ -282,7 +283,7 @@ def test_lateral_cases_named_in_y_up_axes() -> None:
     assert direction_from_name("WIND Z DIR", y_up) == ("Y", -1.0)  # STAAD +Z is SAEngine -Y
     assert direction_from_name("EQY") == ("Y", 1.0)  # Z up: Y is horizontal
     assert direction_from_name("EQY", y_up) is None  # Y up: Y is vertical
-    combos = {c.name: c for c in build(read_staad_text(NO_PLATES)).settings.combinations}
+    combos = file_combinations(build(read_staad_text(NO_PLATES)).settings.combinations)
     assert combos["7 1.2D+EQX"].EX == 1.0 and not combos["7 1.2D+EQX"].EY
     assert combos["8 1.2D+EQZ"].EY == -1.0 and not combos["8 1.2D+EQZ"].EX
     assert combos["9 1.2D+WLX"].WX == 1.6

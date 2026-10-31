@@ -15,6 +15,7 @@ import {
 	connectedLoads, DOWN_CONDUCTORS, downConductorsLabel, EARTHINGS, earthingLabel, ELEC_KINDS, ELEC_RISER_KINDS, elecKindLabel, ElecKind, elecLetters, ElecRiserKind, elecStoryRow, electricalOf,
 	ensureElectrical, IElecEquipment, IElecRiser, IElectricalReport, IElecUse, ITray, LIGHTNING_LEVELS, loadBreakdownText, ratingUnit, riserKindLabel, riserLetters, sourceOf, VOLTAGES, voltageLabel,
 } from './electricalDocument.js';
+import { storyUseOf } from './storyUses.js';
 
 /*
  * The electrical services' Data view and properties panel in the MEP editor: the supply, the
@@ -98,8 +99,13 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 		const target = () => elecStoryRow(e(), storyId);
 		append(tr, $('td', undefined, host.storyName(storyId)));
 		const defaultUse = result && result.useSource !== 'entered' && result.useLabel ? localize('elecView.useDefault', "{0} (building use, Project Settings)", result.useLabel) : true;
-		const select = append(append(tr, $('td')), host.selectInput(uses.map(useOption), String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('elecView.f.useOf', "Occupancy of {0}", host.storyName(storyId)), defaultUse));
-		select.title = select.selectedOptions[0]?.textContent ?? '';
+		const shared = storyUseOf(host.document, storyId);
+		if (shared) {
+			host.storyUseLink(append(tr, $('td')), shared.use);
+		} else {
+			const select = append(append(tr, $('td')), host.selectInput(uses.map(useOption), String(row?.use ?? ''), v => host.setOptional(target(), 'use', v), path('use'), localize('elecView.f.useOf', "Occupancy of {0}", host.storyName(storyId)), defaultUse));
+			select.title = select.selectedOptions[0]?.textContent ?? '';
+		}
 		for (const field of [E.lighting, E.power, E.other]) {
 			// A blank lighting or power shows what the backend put in its place (the rest of the Table 8.1.17 density).
 			const derived = field === E.lighting ? result?.lighting : field === E.power ? result?.power : undefined;

@@ -36,7 +36,7 @@ import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
 import {
 	barArea, barsAlongEdges, barsLine, barsRing, bounds, cleanProperties, formatNumber, hitTest, IBar, IDesignedSection, interactionCurve, ISectionAnalysis, ITemplateParams, IUniaxial,
-	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, sameRegions, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateFields, TemplateKind, templateLabel, templateProblem, templateRegions,
+	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, sameRegions, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateBars, templateFields, TemplateKind, templateLabel, templateProblem, templateRegions,
 } from './sectionDesignerModel.js';
 
 /** Desktop command analysing a section with the Python models (`section/analyse`). */
@@ -208,6 +208,7 @@ export class SectionDesignerEditor extends EditorPane {
 		this.selection = undefined;
 		this.draft = [];
 		this.fitted = false;
+		this.settings.material = ''; // new regions take this section's material (see defaultsFromSection)
 		const reference = await input.resolve();
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
@@ -1150,7 +1151,12 @@ export class SectionDesignerEditor extends EditorPane {
 		const categories = new Map(this.materials.map(m => [m.id, m.category]));
 		const indices = this.selection?.kind === 'region' ? [this.selection.index] : s.regions.map((_, i) => i);
 		const inset = (s.cover ?? 40) + TIE_DIA + this.settings.dia / 2;
-		const bars = indices
+		// A section that is still an L, T or C template gets its bars in pairs across the legs.
+		const template = this.currentTemplate();
+		const paired = template && (categories.get(s.regions[0]?.material) ?? 'concrete') === 'concrete'
+			? templateBars(template.kind, template.params, inset, this.settings.dia, this.settings.spacing)
+			: undefined;
+		const bars = paired ?? indices
 			.filter(i => (categories.get(s.regions[i].material) ?? 'concrete') === 'concrete')
 			.flatMap(i => barsAlongEdges(s.regions[i], inset, this.settings.dia, this.settings.spacing));
 		this.addBars(bars.filter(b => !s.bars.some(o => Math.hypot(o.x - b.x, o.y - b.y) < (o.dia + b.dia) / 2)));
@@ -1185,7 +1191,9 @@ export class SectionDesignerEditor extends EditorPane {
 			s.bars = [];
 			if (!steel && kind !== 'I') {
 				const inset = (s.cover ?? 40) + TIE_DIA + this.settings.dia / 2;
-				s.bars = s.regions.flatMap(r => barsAlongEdges(r, inset, this.settings.dia, this.settings.spacing));
+				// L, T and C: bars in opposite pairs across each leg; the others along the edges.
+				s.bars = templateBars(kind, params, inset, this.settings.dia, this.settings.spacing)
+					?? s.regions.flatMap(r => barsAlongEdges(r, inset, this.settings.dia, this.settings.spacing));
 				s.rebar ||= this.settings.rebar || undefined;
 			}
 		});

@@ -66,6 +66,7 @@ from saengine.library.settings import (
     LoadCombination,
     ProjectSettings,
     default_project_settings,
+    strength_combinations,
 )
 from saengine.library.settings import check as check_settings
 
@@ -438,6 +439,22 @@ class ImportReport:
                 "replacedByBnbcKN": {k: round(v, 3) for k, v in self.replaced.items()},
             },
         }
+
+
+#: The suffix of a combination taken from the imported file (the BNBC 2020 ones come first).
+FROM_FILE = " (from the file)"
+
+
+def file_combinations(combinations: list[LoadCombination]) -> dict[str, LoadCombination]:
+    """The combinations taken from the imported file, by their name in the file."""
+    return {c.name.removesuffix(FROM_FILE): c for c in combinations if c.name.endswith(FROM_FILE)}
+
+
+def _factor_key(combination: LoadCombination) -> tuple[tuple[str, float], ...]:
+    """The factors of ``combination`` to compare, without F: a file without fluid loads gives F
+    0 where BNBC 2020 has it with D, and the fluid case is empty then."""
+    factors = combination.model_dump(exclude={"name", "F"})
+    return tuple(sorted((k, round(float(v), 6)) for k, v in factors.items() if v))
 
 
 # ─────────────────────────────────────────── ids ───────────────────────────────────────────
@@ -1722,34 +1739,51 @@ class ProjectBuilder:
         # SAEngine's F (fluid, the contents of 07 MEP equipment) follows D by default (factor
         # D where D > 1); a file without fluid loads gives F no factor.
         fluid = any(factors.get("F") for _, factors in self._combinations)
-        combinations: list[LoadCombination] = []
+        # The BNBC 2020 Part 6 Sec 2.7.3.1 set comes first, on SAEngine's own wind and earthquake
+        # cases (the file's are replaced, see ``replaced``): a file's few combinations (often
+        # without +-EX/EY, wind or 0.9D) would leave the design short. The file's combinations
+        # follow, named "(from the file)", so their results can be compared with the file's.
+        bnbc = strength_combinations()
+        combinations: list[LoadCombination] = list(bnbc)
         seen: set[tuple[tuple[str, float], ...]] = set()
-        names: set[str] = set()
+        names: set[str] = {c.name for c in bnbc}
+        from_file = 0
         for name, factors in self._combinations:
             factors = self._live_factors(name, factors, roof_cases, floor_cases)
-            key = tuple(sorted((k, round(v, 6)) for k, v in factors.items()))
+            if "F" not in factors:
+                if not fluid and factors.get("D", 0.0) > 1.0:
+                    report.note("combinations.noFluid", name)
+                factors = {**factors, "F": 0.0}
+            combination = LoadCombination(name=name, **factors)
+            key = _factor_key(combination)
             if key in seen:
                 report.approximate(
                     "combinations with the same factors as another one dropped", name
                 )
                 continue
             seen.add(key)
-            if "F" not in factors:
-                if not fluid and factors.get("D", 0.0) > 1.0:
-                    report.note("combinations.noFluid", name)
-                factors = {**factors, "F": 0.0}
-            label, k = name, 2
+            base = f"{name}{FROM_FILE}"
+            label, k = base, 2
             while label in names:
-                label, k = f"{name} ({k})", k + 1
+                label, k = f"{base} {k}", k + 1
             names.add(label)
-            combinations.append(LoadCombination(name=label, **factors))
-        if combinations:
-            settings.combinations = combinations
-            report.count("combinations", len(combinations))
-        else:
-            report.warn(
-                "The file has no load combinations SAEngine can use: the BNBC 2020 ones apply."
+            combination.name = label
+            combinations.append(combination)
+            from_file += 1
+        settings.combinations = combinations
+        report.count("combinations", len(combinations))
+        if from_file:
+            report.count("combinationsFromFile", from_file)
+        report.warn(
+            f"Load combinations: the {len(bnbc)} of BNBC 2020 Part 6 Sec 2.7.3.1 on SAEngine's "
+            "wind and earthquake cases"
+            + (
+                f", then the file's {from_file} named '(from the file)'"
+                if from_file
+                else " (the file has none SAEngine can use)"
             )
+            + " (02 Project Settings)."
+        )
         return settings
 
     def _live_factors(

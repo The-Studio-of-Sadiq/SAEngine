@@ -22,6 +22,7 @@ from saengine.project.versions import VersionsError
 SAMPLE = Path(__file__).resolve().parents[2] / "workbench/resources/saengine/samples/Sample Frame"
 FLOOR = "05 Floor Plan/floor-plan.json"
 MATERIALS = "03 Materials/materials.json"
+SETTINGS = "02 Project Settings/project-settings.json"
 SOIL = "01 Soil Report/soil-report.json"
 
 # A synthetic soil report (not a real client's).
@@ -715,3 +716,16 @@ def test_restore_handles_a_case_only_rename(project: Path):
     assert names == ["Notes.txt"]
     assert (project / "11 Exports" / "Notes.txt").read_text(encoding="utf-8") == "first\n"
     assert "11 Exports/Notes.txt" in saved_paths(project)
+
+
+def test_engineer_names_the_versions_and_the_restore_names_the_parts_and_issue(project: Path):
+    """N-R9: without the author setting the versions are Project Settings' engineer's (not
+    "SAEngine user"); a whole restore names the parts it changed, and the issue label."""
+    edit(project, SETTINGS, lambda s: s.setdefault("project", {}).update(engineer="A. Engineer"))
+    first = versions.save(project, "First version", issued=True, label="Rev A")["version"]
+    assert first["authorName"] == "A. Engineer"
+    edit(project, FLOOR, set_beam("B300x600"))
+    versions.save(project, "Deeper beam")
+    result = versions.restore(project, first["id"])
+    assert result["after"]["message"] == "Restored Floor Plan from version 1 (Rev A)"
+    assert result["after"]["authorName"] == "A. Engineer"

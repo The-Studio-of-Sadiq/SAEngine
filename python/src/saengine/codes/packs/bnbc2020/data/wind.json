@@ -1,24 +1,43 @@
 {
   "$schema": "../../../schemas/wind.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 2.4"
+    "BNBC 2020 Part 6 Sec 2.4",
+    "ASCE 7-05 Chapter 6 (the standard BNBC 2020 Sec 2.4 follows)"
   ],
   "source": "BNBC 2020 Part 6 Sec 2.4 (pp. 549-603)",
   "exposures": {
     "A": {
       "description": "Urban, suburban, wooded",
       "alpha": 7.0,
-      "zg": 365.76
+      "zg": 365.76,
+      "c": 0.3,
+      "l": 97.54,
+      "epsilonBar": 0.3333,
+      "alphaBar": 0.25,
+      "bBar": 0.45,
+      "zmin": 9.14
     },
     "B": {
       "description": "Open terrain, scattered obstructions",
       "alpha": 9.5,
-      "zg": 274.32
+      "zg": 274.32,
+      "c": 0.2,
+      "l": 152.4,
+      "epsilonBar": 0.2,
+      "alphaBar": 0.1538,
+      "bBar": 0.65,
+      "zmin": 4.57
     },
     "C": {
       "description": "Flat open country, coastal",
       "alpha": 11.5,
-      "zg": 213.36
+      "zg": 213.36,
+      "c": 0.15,
+      "l": 198.12,
+      "epsilonBar": 0.125,
+      "alphaBar": 0.1111,
+      "bBar": 0.8,
+      "zmin": 2.13
     }
   },
   "directionality": 0.85,
@@ -52,6 +71,188 @@
     "gust": "BNBC 2020 Part 6 Sec 2.4.8.1 (p. 553), rigid structures",
     "cpWindward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
     "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
-    "designCases": "BNBC 2020 Part 6 Sec 2.4.11.3 (p. 559) and Figure 6.2.9 (pp. 574-575)"
+    "designCases": "BNBC 2020 Part 6 Sec 2.4.11.3 (p. 559) and Figure 6.2.9 (pp. 574-575)",
+    "exposureTerrain": "BNBC 2020 Part 6 Table 6.2.10 (terrain exposure constants, page not checked); ASCE 7-05 Table 6-2 (Exposures B, C, D = BNBC A, B, C)",
+    "flexible": "BNBC 2020 Part 6 Sec 2.4.8.2, Eq. 6.2.8-6.2.16 (p. 553, page not checked); ASCE 7-05 Sec 6.5.8.2. Damping β = 2 % for concrete buildings (ASCE 7-05 Commentary C6.5.8; 1 % for steel)",
+    "cladding": "BNBC 2020 Part 6 Sec 2.4.11.5 and the components-and-cladding figures (pages not checked); ASCE 7-05 Figures 6-11A (walls, h ≤ 60 ft), 6-11B (roofs θ ≤ 7°), 6-17 (h > 60 ft, θ ≤ 10°); internal pressure (GCpi): BNBC 2020 Part 6 Figure 6.2.5, ASCE 7-05 Figure 6-5; parapets: ASCE 7-05 Sec 6.5.12.4.4"
+  },
+  "flexible": {
+    "frequencyLimit": 1.0,
+    "gQ": 3.4,
+    "gv": 3.4,
+    "heightFactor": 0.6,
+    "lead": 0.925,
+    "damping": 0.02
+  },
+  "cladding": {
+    "lowRiseHeight": 18.3,
+    "lowRise": [
+      {
+        "surface": "wall",
+        "zone": "4",
+        "sign": "positive",
+        "area1": 0.93,
+        "gcp1": 1.0,
+        "area2": 46.45,
+        "gcp2": 0.7
+      },
+      {
+        "surface": "wall",
+        "zone": "4",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -1.1,
+        "area2": 46.45,
+        "gcp2": -0.8
+      },
+      {
+        "surface": "wall",
+        "zone": "5",
+        "sign": "positive",
+        "area1": 0.93,
+        "gcp1": 1.0,
+        "area2": 46.45,
+        "gcp2": 0.7
+      },
+      {
+        "surface": "wall",
+        "zone": "5",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -1.4,
+        "area2": 46.45,
+        "gcp2": -0.8
+      },
+      {
+        "surface": "roof",
+        "zone": "1",
+        "sign": "positive",
+        "area1": 0.93,
+        "gcp1": 0.3,
+        "area2": 9.29,
+        "gcp2": 0.2
+      },
+      {
+        "surface": "roof",
+        "zone": "1",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -1.0,
+        "area2": 9.29,
+        "gcp2": -0.9
+      },
+      {
+        "surface": "roof",
+        "zone": "2",
+        "sign": "positive",
+        "area1": 0.93,
+        "gcp1": 0.3,
+        "area2": 9.29,
+        "gcp2": 0.2
+      },
+      {
+        "surface": "roof",
+        "zone": "2",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -1.8,
+        "area2": 9.29,
+        "gcp2": -1.1
+      },
+      {
+        "surface": "roof",
+        "zone": "3",
+        "sign": "positive",
+        "area1": 0.93,
+        "gcp1": 0.3,
+        "area2": 9.29,
+        "gcp2": 0.2
+      },
+      {
+        "surface": "roof",
+        "zone": "3",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -2.8,
+        "area2": 9.29,
+        "gcp2": -1.1
+      }
+    ],
+    "highRise": [
+      {
+        "surface": "wall",
+        "zone": "4",
+        "sign": "positive",
+        "area1": 1.86,
+        "gcp1": 0.9,
+        "area2": 46.45,
+        "gcp2": 0.6
+      },
+      {
+        "surface": "wall",
+        "zone": "4",
+        "sign": "negative",
+        "area1": 1.86,
+        "gcp1": -0.9,
+        "area2": 46.45,
+        "gcp2": -0.7
+      },
+      {
+        "surface": "wall",
+        "zone": "5",
+        "sign": "positive",
+        "area1": 1.86,
+        "gcp1": 0.9,
+        "area2": 46.45,
+        "gcp2": 0.6
+      },
+      {
+        "surface": "wall",
+        "zone": "5",
+        "sign": "negative",
+        "area1": 1.86,
+        "gcp1": -1.8,
+        "area2": 46.45,
+        "gcp2": -1.0
+      },
+      {
+        "surface": "roof",
+        "zone": "1",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -1.4,
+        "area2": 46.45,
+        "gcp2": -0.9
+      },
+      {
+        "surface": "roof",
+        "zone": "2",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -2.3,
+        "area2": 46.45,
+        "gcp2": -1.6
+      },
+      {
+        "surface": "roof",
+        "zone": "3",
+        "sign": "negative",
+        "area1": 0.93,
+        "gcp1": -3.2,
+        "area2": 46.45,
+        "gcp2": -2.3
+      }
+    ],
+    "lowRiseWallFactor": 0.9,
+    "internal": {
+      "enclosed": 0.18,
+      "partiallyEnclosed": 0.55,
+      "open": 0.0
+    },
+    "edgeFraction": 0.1,
+    "edgeHeightFraction": 0.4,
+    "edgeMinFraction": 0.04,
+    "edgeMin": 0.9,
+    "parapetCorner": 0.9
   }
 }

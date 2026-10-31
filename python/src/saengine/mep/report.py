@@ -96,6 +96,23 @@ def _analysis(project: _Project, out_dir: Path) -> tuple[openings.Analysis | Non
     return openings.Analysis(names, pieces), ""
 
 
+def _fem_current(project: _Project, mep_text: str | None) -> bool:
+    """Whether 08 FEM's analysis model was derived from the MEP file as it is now."""
+    from saengine.fem.derive import mep_stamp
+    from saengine.pipeline.status import fem_recorded_sources
+
+    if mep_text is None:
+        try:
+            mep_text = (project.root / MEP_FILE).read_text(encoding="utf-8")
+        except OSError:
+            return False
+    try:
+        model = json.loads((project.root / "08 FEM" / "model.osmodel").read_text("utf-8"))
+    except (OSError, ValueError):
+        return False
+    return fem_recorded_sources(model).get("mep") == mep_stamp(mep_text)
+
+
 def mep_report(
     project_root: str | Path, out_dir: str | Path | None = None, mep_text: str | None = None
 ) -> dict[str, Any]:
@@ -167,7 +184,22 @@ def mep_report(
             )
         elif not entry["applied"]:
             entry["note"] = "not on a slab of its story: its loads are not applied"
+        else:
+            heavy = loads.heavy_on_slab(item, building)
+            entry["heavy"] = heavy is not None
+            if heavy is not None:
+                entry["note"] = "; ".join(n for n in (heavy, entry["note"]) if n)
+            elif loads.bay_of(item, building) is not None:
+                entry["note"] = "; ".join(
+                    n for n in ("on the beams of its bay", entry["note"]) if n
+                )
         equipment.append(entry)
+    heavy = [e for e in equipment if e.get("heavy")]
+    if heavy and _fem_current(project, mep_text):
+        notes.append(
+            f"{len(heavy)} heavy item(s) on slab panels away from their beams; 08 FEM was derived "
+            "with them where they are: after moving them, re-run 08 FEM"
+        )
     stories: dict[str, dict[str, Any]] = {}
     for entry in equipment:
         story = stories.setdefault(
@@ -230,6 +262,7 @@ def mep_report(
             "clashes": sum(1 for c in clashes if c["status"] == "clash" and c["kind"] == "hard"),
             "coordinated": sum(1 for c in clashes if c["status"] == "coordinated"),
             "clearance": sum(1 for c in clashes if c["kind"] == "clearance"),
+            "heavyOnSlab": len(heavy),
             "suggestions": sum(1 for c in clashes if c["sleeve"]),
         },
         "problems": check(mep, building),

@@ -68,6 +68,7 @@ const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	settings: localize('settingsEditorLabel', "Project Settings Editor"),
 	bim: localize('buildingEditorLabel', "Building Model Editor"),
 	structure: localize('structureEditorLabel', "Structural Model Editor"),
+	reportTemplate: localize('reportTemplateEditorLabel', "Report Template Editor"),
 };
 
 const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
@@ -77,6 +78,7 @@ const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
 	settings: LibraryEditorInput.SETTINGS_EDITOR_ID,
 	bim: LibraryEditorInput.BUILDING_EDITOR_ID,
 	structure: LibraryEditorInput.STRUCTURE_EDITOR_ID,
+	reportTemplate: LibraryEditorInput.REPORT_TEMPLATE_EDITOR_ID,
 };
 
 /**

@@ -12,7 +12,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICadOpenResult, IFemSolverService, ProjectPlatformMethod } from '../../../../platform/saengine/common/femSolver.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -98,13 +97,13 @@ CommandsRegistry.registerCommand(ARCHIVE_EXPORT_COMMAND, async (accessor, raw: u
 		includeVersions: args.includeVersions === true,
 		includeExports: args.includeExports !== false,
 		note: str(args.note),
-		saengineVersion: accessor.get(IProductService).version,
+		// No version from here: the backend writes its own, as the design report does (one source).
 	}));
 });
 
 CommandsRegistry.registerCommand(ARCHIVE_INSPECT_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
-	const result = bag(await call(accessor, 'project/inspectArchive', { path: args.path, currentVersion: accessor.get(IProductService).version }));
+	const result = bag(await call(accessor, 'project/inspectArchive', { path: args.path }));
 	// A file that could not be read at all: its reason as the archive's problem.
 	const problems = Array.isArray(result.problems) ? result.problems : [];
 	if (result.ok === false && !problems.length && typeof result.message === 'string') {
@@ -120,7 +119,7 @@ CommandsRegistry.registerCommand(ARCHIVE_IMPORT_COMMAND, async (accessor, raw: u
 		destParent: args.destParent,
 		name: str(args.name),
 		overwrite: args.overwrite === true,
-		currentVersion: accessor.get(IProductService).version,
+		// The backend compares with its own version (one source, as the archive and the report write).
 	})));
 	// What the import migrated, and what it leaves to the engineer, shown with its warnings.
 	const notes = [

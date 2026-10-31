@@ -11,8 +11,11 @@ displacements and story drifts), the member design checks of :mod:`saengine.desi
 of quantities of ``10 BOQ/boq.json`` and the limitations every part reported.
 
 :func:`report_data` gathers everything into plain JSON, every number already formatted as text;
-:func:`build_report` hands it to the Typst template ``templates/report.typ`` (through
-``sys.inputs``, read back with Typst's ``json()``), which only lays it out. User text therefore
+:func:`saengine.report.document.report_document` lays it out as sections of blocks, as the
+project's report template chooses (sections, order, detail, cover, letterhead, members); and
+:func:`build_report` hands that one document to the Typst template ``templates/report.typ``
+(through ``sys.inputs``, read back with Typst's ``json()``) for the PDF, or to
+:mod:`saengine.report.word` for the Word file. Both only draw the blocks. User text therefore
 reaches the template as strings and is printed literally: names with ``#``, ``$``, ``*``, ``_``,
 ``@``, ``<`` or ``[`` need no escaping.
 
@@ -52,6 +55,9 @@ BOQ_FILE = "10 BOQ/boq.json"
 #: by whoever derived it (:func:`keep_derivation`), so the report need not derive it again.
 DERIVATION_FILE = "08 FEM/model.derivation.json"
 DEFAULT_OUTPUT = "11 Exports/report.pdf"
+#: The formats the report is written in, and where each goes by default.
+FORMATS = ("pdf", "docx")
+DEFAULT_OUTPUTS = {"pdf": DEFAULT_OUTPUT, "docx": "11 Exports/report.docx"}
 
 #: Upstream files of the analysis model, by the keys of the stamps it records.
 MODEL_SOURCES = {
@@ -147,43 +153,73 @@ UNITS_STATEMENT = (
 
 
 def build_report(
-    project_root: str | Path, out_pdf: str | Path | None = None, *, version: str | None = None
+    project_root: str | Path,
+    out_pdf: str | Path | None = None,
+    *,
+    version: str | None = None,
+    format: str = "pdf",
+    template: str | None = None,
 ) -> dict[str, Any]:
-    """Typesets the design report of the project at ``project_root`` as a PDF.
+    """Writes the design report of the project at ``project_root``: a PDF (``format`` "pdf",
+    typeset with Typst) or a Word file ("docx"), both from the same document
+    (:func:`saengine.report.document.report_document`).
 
-    ``out_pdf`` defaults to ``<project>/11 Exports/report.pdf``; ``version`` is the SAEngine
-    version printed on the cover (the Python package's version when not given). Returns
-    ``{"path", "pages", "warnings"}`` (``warnings``: what the report could not include, and
-    Typst's own warnings), or ``{"problems"}`` when there is nothing to report or the PDF could
-    not be written.
+    ``out_pdf`` is the file written (for either format; the name is kept for the callers that
+    pass it by position) and defaults to ``<project>/11 Exports/report.pdf`` or ``report.docx``;
+    ``template`` the report template's id (:mod:`saengine.library.report_template`), the one the
+    project settings name when not given; ``version`` is the SAEngine version printed on the
+    cover (the Python package's version when not given). Returns ``{"path", "pages"?,
+    "warnings", "status", "format", "template"}`` (``warnings``: what the report could not
+    include, and Typst's own warnings; ``pages`` for a PDF), or ``{"problems"}`` when there is
+    nothing to report or the file could not be written.
     """
+    from saengine.library.report_template import load_template
+    from saengine.report.document import report_document
+
+    if format not in FORMATS:
+        return {"problems": [f"Unknown report format {format!r}: one of {', '.join(FORMATS)}."]}
     root = Path(project_root)
+    settings_report = getattr(_Parts(root, []).settings(), "report", None)
+    chosen, template_problems = load_template(
+        root, template or getattr(settings_report, "template", None)
+    )
+    appendix = None if chosen.members.appendix == "settings" else chosen.members.appendix
     # The project's own code packs (02 Project Settings/code-packs) are found while it is built.
     with code_context.project(root):
-        data = report_data(root, version=version)
+        data = report_data(root, version=version, appendix=appendix)
     if "problems" in data:
         return {"problems": data["problems"]}
-    target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUT
+    data["warnings"].extend(template_problems)
+    document = report_document(data, chosen)
+    target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUTS[format]
     try:
-        pdf, typst_warnings = render_pdf(data)
-    except Exception as error:  # noqa: BLE001 - Typst, font and IO failures alike
+        if format == "pdf":
+            content, render_warnings = render_pdf(document, root)
+        else:
+            from saengine.report.word import render_docx
+
+            content, render_warnings = render_docx(document, root)
+    except Exception as error:  # noqa: BLE001 - Typst, Word, font and IO failures alike
         return {"problems": [f"The report could not be typeset: {error}"]}
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(pdf)
+        target.write_bytes(content)
     except OSError as error:
+        viewer = "a PDF viewer" if format == "pdf" else "Word"
         return {
             "problems": [
                 (
                     f"{target} could not be written ({error.strerror or error}); "
-                    "close it if it is open in a PDF viewer and try again."
+                    f"close it if it is open in {viewer} and try again."
                 )
             ]
         }
     result: dict[str, Any] = {
         "path": str(target),
-        "warnings": list(data["warnings"]) + typst_warnings,
+        "warnings": list(data["warnings"]) + render_warnings,
         "status": data["status"],
+        "format": format,
+        "template": chosen.id,
     }
     try:
         summary_file(target).write_text(
@@ -191,8 +227,8 @@ def build_report(
             encoding="utf-8",
         )
     except OSError:
-        pass  # the PDF is written; the Exports row then shows no design result
-    pages = count_pages(pdf)
+        pass  # the report is written; the Exports row then shows no design result
+    pages = count_pages(content) if format == "pdf" else 0
     if pages:
         result["pages"] = pages
     return result
@@ -267,14 +303,44 @@ def _and(items: list[str]) -> str:
     return ", ".join(items[:-1]) + " and " + items[-1] if len(items) > 1 else "".join(items)
 
 
-def render_pdf(data: dict[str, Any]) -> tuple[bytes, list[str]]:
-    """The PDF of the report ``data`` (from :func:`report_data`) and Typst's warnings."""
+def render_pdf(
+    document: dict[str, Any], project_root: str | Path | None = None
+) -> tuple[bytes, list[str]]:
+    """The PDF of the report ``document`` (from :func:`saengine.report.document.report_document`)
+    and Typst's warnings. The letterhead's logo (a path in the project) is copied beside the
+    template for Typst, which reads no file outside its folder."""
+    import shutil
+    import tempfile
+
     import typst
 
-    inputs = {"data": json.dumps(data, ensure_ascii=False, allow_nan=False)}
-    result = typst.compile_with_warnings(str(TEMPLATE), format="pdf", sys_inputs=inputs)
+    logo = _logo(document, project_root)
+    with tempfile.TemporaryDirectory(prefix="saengine-report-") as folder:
+        template = TEMPLATE
+        if logo is not None:
+            template = Path(folder) / TEMPLATE.name
+            shutil.copyfile(TEMPLATE, template)
+            shutil.copyfile(logo, Path(folder) / f"logo{logo.suffix.lower()}")
+            document = {
+                **document,
+                "letterhead": {**document["letterhead"], "logo": f"logo{logo.suffix.lower()}"},
+            }
+        else:
+            document = {**document, "letterhead": {**document["letterhead"], "logo": ""}}
+        inputs = {"data": json.dumps(document, ensure_ascii=False, allow_nan=False)}
+        result = typst.compile_with_warnings(str(template), format="pdf", sys_inputs=inputs)
     pdf, warnings = result if isinstance(result, tuple) else (result, [])
     return pdf, [f"Typst: {getattr(w, 'message', w)}" for w in warnings or []]
+
+
+def _logo(document: dict[str, Any], project_root: str | Path | None) -> Path | None:
+    """The letterhead's logo file, when it is printed and exists in the project."""
+    letterhead = document.get("letterhead") or {}
+    name = letterhead.get("logo")
+    if not letterhead.get("enabled") or not name or project_root is None:
+        return None
+    path = Path(project_root) / name
+    return path if path.is_file() and path.suffix.lower() in (".png", ".jpg", ".jpeg") else None
 
 
 def count_pages(pdf: bytes) -> int:
@@ -321,16 +387,25 @@ def results_loaded_once() -> Iterator[None]:
 
 
 def report_data(
-    project_root: str | Path, *, version: str | None = None, today: date | None = None
+    project_root: str | Path,
+    *,
+    version: str | None = None,
+    today: date | None = None,
+    appendix: str | None = None,
 ) -> dict[str, Any]:
     """Everything the report prints, as JSON-ready data with numbers formatted as text, or
-    ``{"problems"}`` when the project has no analysis results to report."""
+    ``{"problems"}`` when the project has no analysis results to report. ``appendix``: which
+    elements the appendix prints ("governing", "all", "none"); the project settings' when None."""
     with results_loaded_once():
-        return _report_data(project_root, version=version, today=today)
+        return _report_data(project_root, version=version, today=today, appendix=appendix)
 
 
 def _report_data(
-    project_root: str | Path, *, version: str | None = None, today: date | None = None
+    project_root: str | Path,
+    *,
+    version: str | None = None,
+    today: date | None = None,
+    appendix: str | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root)
     model_path = root / MODEL_FILE
@@ -363,7 +438,7 @@ def _report_data(
     report["results"] = _results(
         model_path, model, manifest, results_dir, settings, parts, warnings
     )
-    scope = getattr(getattr(settings, "report", None), "appendix", "governing")
+    scope = appendix or getattr(getattr(settings, "report", None), "appendix", "governing")
     report["design"] = _design(results_dir, model_path, warnings, parts.building(), scope)
     report["design"]["required"] = (
         _required(results_dir, model_path, warnings)
@@ -1063,6 +1138,8 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(
             ["Wind design cases", "Cases 1 and 3 only (BNBC 2020 Part 6 Sec 2.4.11.3, Exception)"]
         )
+    rows += _wind_gust_rows(wind.get("gust") or {})
+    rows += _wind_cladding_rows(wind.get("cladding") or {})
     live = values.get("patternLive") or {}
     if live.get("cases"):
         rows.append(
@@ -1091,6 +1168,80 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         check = None
     if isinstance(check, dict) and check.get("note"):
         rows.append(["Mesh check", str(check["note"])])
+    return rows
+
+
+def _wind_gust_rows(gust: dict[str, Any]) -> list[list[str]]:
+    """The gust-effect factor of each wind direction (BNBC 2020 Part 6 Sec 2.4.8), with the
+    terms of Gf for a flexible building (Sec 2.4.8.2)."""
+    rows: list[list[str]] = []
+    for axis in ("X", "Y"):
+        entry = gust.get(axis)
+        if not entry:
+            continue
+        n1 = f"n1 = {fmt(entry.get('n1_Hz', 0), 3)} Hz from {gust.get('source', '')}"
+        if "Gf" in entry:
+            text = (
+                f"{n1}, flexible (n1 < 1 Hz): Gf = {fmt(entry['Gf'], 3)} (BNBC 2020 Part 6 Sec "
+                f"2.4.8.2) with β = {fmt(entry.get('beta', 0), 3)}, z̄ = "
+                f"{fmt(entry.get('zbar_m', 0), 1)} m, Iz̄ = {fmt(entry.get('Iz', 0), 3)}, Lz̄ = "
+                f"{fmt(entry.get('Lz_m', 0), 1)} m, Q = {fmt(entry.get('Q', 0), 3)}, Vz̄ = "
+                f"{fmt(entry.get('Vz_ms', 0), 1)} m/s, R = {fmt(entry.get('R', 0), 3)}, gR = "
+                f"{fmt(entry.get('gR', 0), 3)}; WX/WY and their torsion scaled by Gf / G"
+            )
+        else:
+            text = f"{n1}, rigid: G = {fmt(entry.get('G', 0), 2)} (BNBC 2020 Part 6 Sec 2.4.8.1)"
+        rows.append([f"Wind gust factor ({axis})", text])
+    return rows
+
+
+#: The internal pressure classes of the settings, for the report.
+_ENCLOSURES = {
+    "enclosed": "enclosed",
+    "partiallyEnclosed": "partially enclosed",
+    "open": "open",
+}
+
+
+def _wind_cladding_rows(cladding: dict[str, Any]) -> list[list[str]]:
+    """The components-and-cladding pressures by zone (BNBC 2020 Part 6 Sec 2.4.11.5)."""
+    if not cladding.get("zones"):
+        return []
+    area = cladding.get("area_m2")
+    rows = [
+        [
+            "Wind components and cladding",
+            (
+                f"p = qh·[(GCp) − (±GCpi)], qh = {fmt(cladding.get('qh_kPa', 0), 3)} kN/m² at "
+                f"h = {fmt(cladding.get('h_m', 0), 2)} m, "
+                + ("low-rise (h ≤ 18.3 m)" if cladding.get("lowRise") else "h > 18.3 m")
+                + f", edge zones a = {fmt(cladding.get('a_m', 0), 2)} m, "
+                + _ENCLOSURES.get(cladding.get("enclosure", ""), "enclosed")
+                + f" (GCpi = ±{fmt(cladding.get('GCpi', 0), 2)}), effective wind area "
+                + (f"{fmt(area, 2)} m²" if area else "the smallest (largest pressures)")
+                + " (BNBC 2020 Part 6 Sec 2.4.11.5; ASCE 7-05 Figures 6-11, 6-17)"
+            ),
+        ]
+    ]
+    for zone in cladding["zones"]:
+        parts = []
+        if zone.get("pPos_kPa") is not None:
+            parts.append(f"+{fmt(zone['pPos_kPa'], 2)} kN/m² (GCp = {fmt(zone['GCpPos'], 2)})")
+        if zone.get("pNeg_kPa") is not None:
+            parts.append(f"{fmt(zone['pNeg_kPa'], 2)} kN/m² (GCp = {fmt(zone['GCpNeg'], 2)})")
+        rows.append([f"C&C zone {zone['zone']}: {zone.get('label', '')}", ", ".join(parts)])
+    parapet = cladding.get("parapet")
+    if parapet:
+        rows.append(
+            [
+                f"Parapet {fmt(parapet.get('height_m', 0), 2)} m",
+                (
+                    f"qp = {fmt(parapet.get('qp_kPa', 0), 3)} kN/m²; Case A (windward) "
+                    f"{fmt(parapet.get('caseA_kPa', 0), 2)} kN/m², Case B (leeward) "
+                    f"{fmt(parapet.get('caseB_kPa', 0), 2)} kN/m² (ASCE 7-05 Sec 6.5.12.4.4)"
+                ),
+            ]
+        )
     return rows
 
 
@@ -1752,6 +1903,7 @@ def _design(
     for element in report.get("elements", []):
         kinds.setdefault(str(element.get("kind", "member")), []).append(element)
     tables = []
+    storey_of = _storeys(building)
     for kind in sorted(kinds, key=_kind_key):
         rows, fails = [], []
         for element in kinds[kind]:
@@ -1782,15 +1934,19 @@ def _design(
                 "failed": failed,
                 "rows": rows,
                 "fails": fails,
+                # Each row's storey, for the report template's member selection.
+                "storeys": [storey_of.get(str(e.get("id")), "") for e in kinds[kind]],
             }
         )
     ordered = [e for kind in sorted(kinds, key=_kind_key) for e in kinds[kind]]
-    for element, stands_for in _appendix(ordered, _storeys(building), scope):
+    for element, stands_for in _appendix(ordered, storey_of, scope):
         kind = str(element.get("kind", "member"))
         checks = element.get("checks", [])
         details.append(
             {
                 "id": str(element.get("id")),
+                "kind": kind,
+                "storey": storey_of.get(str(element.get("id")), ""),
                 "title": (
                     f"{element.get('id')} ({_kind_title(kind)[:-1].lower()}, type "
                     f"{element.get('type', '–')}): utilisation "

@@ -144,13 +144,23 @@ suite('SAEngine - New Building wizard model', () => {
 		assert.deepStrictEqual(readGenerateSummary({
 			sdc: 'D',
 			counts: { columns: 72, beams: 102, walls: 0, slabs: 36, foundations: 12 },
-			columnTypes: { 'L1-L3 interior': 'C500x500' },
+			columnTypes: { 'L1-L3 interior': 'C500x500', 'L4-L6 interior': 'C400x400' },
+			columnReasons: { 'L4-L6 interior': 'transition: at most 20% smaller' },
 			beamTypes: ['B300x500'],
 			slabTypes: ['S150', 7],
+			warnings: ['Drift or period NOT met', 3],
+			suggestCoreWalls: true,
 		}), {
 			sdc: 'D',
 			counts: [['Columns', 72], ['Beams', 102], ['Slabs', 36], ['Footings', 12]],
-			sizes: [{ what: 'Columns L1-L3 interior', size: 'C500x500' }, { what: 'Beams', size: 'B300x500' }, { what: 'Slabs', size: 'S150' }],
+			sizes: [
+				{ what: 'Columns L1-L3 interior', size: 'C500x500', why: 'gravity: axial load' },
+				{ what: 'Columns L4-L6 interior', size: 'C400x400', why: 'transition: at most 20% smaller' },
+				{ what: 'Beams', size: 'B300x500' },
+				{ what: 'Slabs', size: 'S150' },
+			],
+			warnings: ['Drift or period NOT met'],
+			suggestCoreWalls: true,
 		});
 		assert.strictEqual(readGenerateSummary('nope'), undefined);
 	});

@@ -1131,6 +1131,8 @@ class _Importer:
             }
             self.e.patterns = patterns
         self_weight = False
+        # The load patterns, counted as the SAP2000 and STAAD.Pro imports count their cases.
+        self.report.count("loadCases", len(patterns))
         for name, p in patterns.items():
             case = _pattern_case(name, p, self.report)
             self.pattern_cases[name] = case

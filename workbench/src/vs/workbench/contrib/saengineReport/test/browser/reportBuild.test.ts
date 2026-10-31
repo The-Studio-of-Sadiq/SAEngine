@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IReportBuildResult, notDesignedCount, reportProblems, reportStepMessage, reportWrittenMessage } from '../../browser/reportBuild.js';
+import { IReportBuildResult, notDesignedCount, reportProblems, reportStepMessage, reportWrittenMessage, templateId } from '../../browser/reportBuild.js';
 
 suite('SAEngine - Design report', () => {
 
@@ -53,5 +53,16 @@ suite('SAEngine - Design report', () => {
 			148,
 			0,
 		]);
+	});
+
+	test('template ids from names', () => {
+		assert.deepStrictEqual(
+			['Client Summary', '  Authority (RAJUK) 2026 ', 'Résumé', '***'].map(templateId),
+			['client-summary', 'authority-rajuk-2026', 'resume', ''],
+		);
+	});
+
+	test('a Word report says so', () => {
+		assert.strictEqual(reportWrittenMessage({ path: 'r.docx', format: 'docx', warnings: [] }), 'Design report written as Word.');
 	});
 });
