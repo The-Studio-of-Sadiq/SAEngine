@@ -123,6 +123,42 @@ class ExportReport(ImportReport):
             },
         }
 
+    def to_markdown(self) -> str:
+        """The report as the engineer reads it: what was written, the warnings, what was left
+        out and what was approximated, and the loads left out."""
+        target = self.source
+        title = f"ETABS export: {target.get('project') or target.get('file') or 'project'}"
+        out = [f"# {title}", ""]
+        if target.get("file"):
+            out += [f"File: `{target['file']}`", ""]
+        out += ["## Written", ""]
+        out += [f"- {n} {_words(kind)}" for kind, n in self.imported.items() if n] or ["- nothing"]
+        if self.warnings:
+            out += ["", "## Warnings", ""]
+            out += [f"- {w}" for w in self.warnings]
+        for heading, entries in (
+            ("Left out (not in the .e2k file)", self.skipped),
+            ("Approximated (in the file, not exactly as in SAEngine)", self.approximated),
+        ):
+            if entries:
+                out += ["", f"## {heading}", ""]
+            for item in entries:
+                examples = ", ".join(item["examples"])
+                count = f" ({item['count']})" if item["count"] > 1 else ""
+                out.append(f"- {item['what']}{count}" + (f": {examples}" if examples else ""))
+        left = {k: v for k, v in self.not_carried.items() if abs(v) > 1e-6}
+        if left:
+            out += ["", "## Loads left out", ""]
+            out += [f"- {case}: {v:.1f} kN" for case, v in left.items()]
+        if not (self.skipped or self.approximated or left):
+            out += ["", "Nothing was left out or approximated."]
+        return "\n".join(out) + "\n"
+
+
+def _words(kind: str) -> str:
+    """``memberLineLoads`` -> ``member line loads``."""
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", kind).lower()
+
 
 @dataclass
 class E2kExport:
@@ -1453,7 +1489,8 @@ class _Writer:
                 text += 'MASTERSTORY "Yes"  '
             out.append(text)
         out.append(f"  STORY {_q(self.levels[0][0])}  ELEV {_n(u.len(self.levels[0][1]))} ")
-        self.report.count("stories", len(self.levels))
+        # The stories above the base, as the import counts them (the base is a level).
+        self.report.count("stories", len(self.levels) - 1)
         out += [
             "$ GRIDS",
             f'  GRIDSYSTEM "G1"  TYPE "CARTESIAN"  BUBBLESIZE {_n(u.len(1250))} ',
@@ -1778,8 +1815,9 @@ def export_e2k_file(
 ) -> dict[str, Any]:
     """Exports the project (:func:`export_e2k`) and writes the e2k file to ``out_path`` (a file,
     or a folder for ``<project>.e2k``; default ``11 Exports/ETABS/<project>.e2k``) with its
-    export report beside it (``<name>.export-report.json``):
-    ``{"path", "reportPath", "report"}`` (the report's ``to_dict``)."""
+    export report beside it (``<name>.export-report.json``, and as text to read,
+    ``<name>.export-report.md``): ``{"path", "reportPath", "readablePath", "report"}`` (the
+    report's ``to_dict``)."""
     import json
 
     from saengine.pipeline.project import ProjectError, open_project
@@ -1793,10 +1831,19 @@ def export_e2k_file(
         target = target / f"{p.name}.e2k"
     result = export_e2k(p.root, units=units, lateral=lateral)
     written = result.write(target)
+    # The file's name, not its full path: the report goes with the project, wherever it is.
+    result.report.source["file"] = written.name
     report = result.report.to_dict()
     report_path = written.with_name(f"{written.stem}.export-report.json")
     report_path.write_text(json.dumps(report, indent="\t", ensure_ascii=False) + "\n", "utf-8")
-    return {"path": str(written), "reportPath": str(report_path), "report": report}
+    readable_path = written.with_name(f"{written.stem}.export-report.md")
+    readable_path.write_text(result.report.to_markdown(), "utf-8")
+    return {
+        "path": str(written),
+        "reportPath": str(report_path),
+        "readablePath": str(readable_path),
+        "report": report,
+    }
 
 
 def rpc_export_e2k(params: dict[str, Any]) -> dict[str, Any]:

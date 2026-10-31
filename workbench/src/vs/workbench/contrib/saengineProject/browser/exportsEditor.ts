@@ -106,6 +106,8 @@ interface IExportKind {
 export interface IE2kExportOutcome {
 	readonly path?: string;
 	readonly reportPath?: string;
+	/** The report as text to read (Markdown), beside the JSON one. */
+	readonly readablePath?: string;
 	/** "120 frames, 36 areas exported", from the report's counts. */
 	readonly exported: string;
 	/** How many kinds of item were approximated, and left out. */
@@ -121,7 +123,7 @@ export function readE2kExport(value: unknown): IE2kExportOutcome {
 	const exported = typeof report.exported === 'object' && report.exported !== null ? report.exported as { readonly [key: string]: unknown } : {};
 	const length = (key: string) => Array.isArray(report[key]) ? (report[key] as unknown[]).length : 0;
 	const outcome = {
-		exported: Object.entries(exported).filter(([, n]) => typeof n === 'number' && n > 0).map(([what, n]) => `${n} ${what}`).join(', '),
+		exported: Object.entries(exported).filter(([, n]) => typeof n === 'number' && n > 0).map(([what, n]) => `${n} ${countWords(what)}`).join(', '),
 		approximated: length('approximated'),
 		skipped: length('skipped'),
 		warnings: length('warnings'),
@@ -132,7 +134,16 @@ export function readE2kExport(value: unknown): IE2kExportOutcome {
 	if (typeof record.path !== 'string') {
 		return { ...outcome, error: localize('exports.e2kNoAnswer', "The backend did not say where it wrote the file.") };
 	}
-	return { ...outcome, path: record.path, ...(typeof record.reportPath === 'string' ? { reportPath: record.reportPath } : {}) };
+	return {
+		...outcome, path: record.path,
+		...(typeof record.reportPath === 'string' ? { reportPath: record.reportPath } : {}),
+		...(typeof record.readablePath === 'string' ? { readablePath: record.readablePath } : {}),
+	};
+}
+
+/** "memberLineLoads" -> "member line loads", as the export report's counts are keyed. */
+function countWords(key: string): string {
+	return key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
 
 function formatTime(time: number): string {
@@ -664,16 +675,31 @@ export class ExportsEditor extends EditorPane {
 			return;
 		}
 		const file = URI.file(outcome.path);
-		const report = outcome.reportPath ? URI.file(outcome.reportPath) : undefined;
+		// The readable report (Markdown) when the backend wrote one, else the JSON.
+		const readable = outcome.readablePath ?? outcome.reportPath;
+		const report = readable ? URI.file(readable) : undefined;
 		const leftOut = outcome.skipped || outcome.approximated
 			? localize('exports.e2kLeftOut', "{0} kinds of item left out and {1} approximated: read the export report before using the model.", outcome.skipped, outcome.approximated)
 			: localize('exports.e2kAllOut', "Nothing was left out.");
 		const message = localize('exports.e2kDone', "Exported {0} to {1}/{2}{3}. {4}",
 			basename(file), partById('exports')?.folder ?? '', EXPORT_E2K_FOLDER, outcome.exported ? ` (${outcome.exported})` : '', leftOut);
 		this.notificationService.prompt(outcome.warnings || outcome.skipped ? Severity.Warning : Severity.Info, message, [
-			...(report ? [{ label: localize('exports.e2kShowReport', "Show Export Report"), run: () => void this.editorService.openEditor({ resource: report, options: { pinned: true } }) }] : []),
+			...(report ? [{ label: localize('exports.e2kShowReport', "Show Export Report"), run: () => void this.showReport(report) }] : []),
 			...(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND) ? [{ label: localize('exports.reveal', "Reveal in File Explorer"), run: () => void this.reveal(file) }] : []),
 		]);
+	}
+
+	/** The export report: Markdown in its preview (the built-in Markdown extension), else as text. */
+	private async showReport(report: URI): Promise<void> {
+		if (report.path.endsWith('.md')) {
+			try {
+				await this.commandService.executeCommand('markdown.showPreview', report);
+				return;
+			} catch {
+				// No Markdown extension in this build: the text editor below.
+			}
+		}
+		await this.editorService.openEditor({ resource: report, options: { pinned: true } });
 	}
 
 	/** Drawings open in SAEngine's CAD editor; the report, IFC and CSV in the system's own application. */
