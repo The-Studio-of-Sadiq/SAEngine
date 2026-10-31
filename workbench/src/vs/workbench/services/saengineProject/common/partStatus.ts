@@ -674,8 +674,10 @@ interface ISubstructureSummary {
 	readonly failed: number;
 	/** Foundations not checked (no loads, no soil, an unsupported type); optional, 0 when absent. */
 	readonly skipped?: number;
-	/** Columns without a support node or foundation the checks cannot handle; optional. */
-	readonly unsupported?: number;
+	/** Foundations and tie beams in the file; optional. */
+	readonly total?: number;
+	/** Columns without a support node or foundation the checks cannot handle (a count, or their ids); optional. */
+	readonly unsupported?: number | readonly string[];
 	/**
 	 * The stamp of each part file the checks read, by part id ("" for a file that was missing):
 	 * the substructure, soil report, settings, materials, object types and building model.
@@ -729,7 +731,10 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
 	}
 	// All pass only when every foundation was checked (U2): skipped or unsupported ones are not.
-	const unchecked = positive(summary.skipped) + positive(summary.unsupported);
+	// The editor's and Run All's file (substructureSummaryFile) give `total` and `unsupported` as a
+	// list; a foundation without its bearing check (no qa) is not in `checked` (N-U3).
+	const unsupported = Array.isArray(summary.unsupported) ? summary.unsupported.length : positive(summary.unsupported);
+	const unchecked = Math.max(positive(summary.skipped), positive(summary.total) - summary.checked) + unsupported;
 	if (unchecked > 0) {
 		return status('substructure', 'inProgress', localize('partStatus.substructure.unchecked', "{0} not checked", unchecked), localize('partStatus.substructure.checkRest', "check the foundations that were skipped"));
 	}
