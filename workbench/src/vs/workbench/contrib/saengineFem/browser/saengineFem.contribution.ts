@@ -619,6 +619,57 @@ registerPlannedFeature({
 	],
 });
 
+// T15: automatic tendon layout and time-step long-term losses.
+registerPlannedFeature({
+	id: FemPlanned.tendonLayout,
+	part: 'fem',
+	title: localize('fem.planned.tendonLayout.title', "Automatic Tendon Layout"),
+	summary: localize('fem.planned.tendonLayout.summary', "Proposes the bands and distributed tendons of a post-tensioned slab, their profiles and counts, from the column grid and a target balanced load, instead of entering each tendon group."),
+	steps: [
+		localize('fem.planned.tendonLayout.step1', "Find the column lines of the slab and place a band on each line one way and distributed tendons the other way."),
+		localize('fem.planned.tendonLayout.step2', "Set each profile to the highest and lowest points the cover allows, with reverse curves over the supports."),
+		localize('fem.planned.tendonLayout.step3', "Choose the tendon counts that balance the target share of the dead load and meet the precompression limits."),
+		localize('fem.planned.tendonLayout.step4', "Write the tendon groups into the building model for the PT checks to verify."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.tendonLayout.balanced', "Balanced share of the self-weight"), unit: '%', example: '80' },
+		{ label: localize('fem.planned.tendonLayout.precompression', "Target precompression"), unit: 'MPa', example: '1.4' },
+		{ label: localize('fem.planned.tendonLayout.cover', "Cover to the tendons"), unit: 'mm', example: '25' },
+	],
+	outputs: [
+		localize('fem.planned.tendonLayout.out1', "Tendon groups with profiles in the building model's additions"),
+		localize('fem.planned.tendonLayout.out2', "A layout summary per slab"),
+	],
+	references: [
+		'PTI DC20.9 (design of post-tensioned slabs using unbonded tendons)',
+		'ACI 423.3R (recommendations for concrete members prestressed with unbonded tendons)',
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.tendonLongTermLosses,
+	part: 'fem',
+	title: localize('fem.planned.tendonLosses.title', "Long-Term Tendon Losses (Time-Step)"),
+	summary: localize('fem.planned.tendonLosses.summary', "Works out the losses of tendon stress from creep, shrinkage and steel relaxation over time, instead of the long-term loss the engineer enters for each tendon group."),
+	steps: [
+		localize('fem.planned.tendonLosses.step1', "Take the precompression and the sustained stress at the tendons from the PT checks."),
+		localize('fem.planned.tendonLosses.step2', "Step through time with the creep and shrinkage of the concrete and the relaxation of the strand."),
+		localize('fem.planned.tendonLosses.step3', "Use the loss found for the service and strength checks."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.tendonLosses.humidity', "Relative humidity"), unit: '%', example: '75' },
+		{ label: localize('fem.planned.tendonLosses.volume', "Volume / surface ratio"), unit: 'mm', example: '100' },
+		{ label: localize('fem.planned.tendonLosses.relaxation', "Strand relaxation class"), example: localize('fem.planned.tendonLosses.low', "low relaxation") },
+	],
+	outputs: [
+		localize('fem.planned.tendonLosses.out1', "Long-term loss per tendon group, with the share of each source"),
+	],
+	references: [
+		'ACI 423.10R (estimating prestress losses)',
+		'ACI 209.2R (creep and shrinkage models)',
+	],
+});
+
 // Planned (T26: BNBC 2020 gives no floor vibration method; linear buckling is built, in the
 // result tables of each load combination).
 registerPlannedFeature({

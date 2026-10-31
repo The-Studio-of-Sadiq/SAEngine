@@ -352,6 +352,28 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "ProjectInfo": {"name": "Project"},
     # building model elements
     "SlabOpening": {"id": "O1", "host": "S1", "x": 0, "y": 0, "xDim": 1000, "yDim": 1000},
+    "TendonPoint": {"at": 0, "height": 100},
+    # A band over two 8 m spans of a 250 mm slab: high over the supports, low mid-span.
+    "SlabTendon": {
+        "id": "PT1",
+        "host": "S1",
+        "layout": "banded",
+        "x1": 0,
+        "y1": 0,
+        "x2": 16000,
+        "y2": 0,
+        "width": 4000,
+        "count": 8,
+        "strands": 1,
+        "longTermLoss": 100,
+        "profile": [
+            {"at": 0, "height": 125},
+            {"at": 3600, "height": 40},
+            {"at": 8000, "height": 210},
+            {"at": 12400, "height": 40},
+            {"at": 16000, "height": 125},
+        ],
+    },
     "WallOpening": {
         "id": "D1",
         "host": "W1",

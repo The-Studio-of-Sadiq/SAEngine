@@ -39,6 +39,9 @@ export const FemPlanned = {
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
 	crackedSlabDeflection: 'fem.crackedSlabDeflection',
 	crackWidths: 'fem.crackWidths',
+	/** T15: automatic tendon layout and time-step long-term losses of PT slabs. */
+	tendonLayout: 'fem.tendonLayout',
+	tendonLongTermLosses: 'fem.tendonLongTermLosses',
 	/** T26: floor vibration from walking. */
 	floorVibration: 'fem.floorVibration',
 } as const;

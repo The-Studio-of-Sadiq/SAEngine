@@ -260,6 +260,242 @@
       "title": "DeflectionLimitsGroup",
       "type": "object"
     },
+    "PrestressLimits": {
+      "additionalProperties": false,
+      "description": "Prestressed slabs (BNBC 2020 Part 6 Chapter 9; ACI 318-11 Chapter 18): stress limits as\nmultiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,\nthe bonded reinforcement, precompression and tendon spacing, and punching with\nprestress.",
+      "properties": {
+        "jackingFpu": {
+          "description": "Jacking stress <= this × fpu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Jackingfpu",
+          "type": "number"
+        },
+        "jackingFpy": {
+          "description": "Jacking stress <= this × fpy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Jackingfpy",
+          "type": "number"
+        },
+        "anchorFpu": {
+          "description": "At the anchors immediately after transfer: stress <= this × fpu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Anchorfpu",
+          "type": "number"
+        },
+        "transferCompression": {
+          "description": "At transfer: compression <= this f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfercompression",
+          "type": "number"
+        },
+        "transferTension": {
+          "description": "At transfer: tension <= this √f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfertension",
+          "type": "number"
+        },
+        "transferTensionEnds": {
+          "description": "At transfer, at the ends of simply supported members: this √f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfertensionends",
+          "type": "number"
+        },
+        "sustainedCompression": {
+          "description": "Service, sustained load: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Sustainedcompression",
+          "type": "number"
+        },
+        "totalCompression": {
+          "description": "Service, total load: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Totalcompression",
+          "type": "number"
+        },
+        "tensionTwoWay": {
+          "description": "Two-way slabs, service tension <= this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Tensiontwoway",
+          "type": "number"
+        },
+        "tensionClassU": {
+          "description": "Class U (uncracked) tension <= this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Tensionclassu",
+          "type": "number"
+        },
+        "unbondedAdd": {
+          "description": "Unbonded fps = fse + this + f'c / (k ρp) [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Unbondedadd",
+          "type": "number"
+        },
+        "unbondedSpanDepth": {
+          "description": "Span / depth dividing the two expressions.",
+          "exclusiveMinimum": 0,
+          "title": "Unbondedspandepth",
+          "type": "number"
+        },
+        "unbondedK": {
+          "description": "k up to and above the span/depth.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Unbondedk",
+          "type": "array"
+        },
+        "unbondedCap": {
+          "description": "fps <= fse + this [MPa], up to and above the span/depth.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Unbondedcap",
+          "type": "array"
+        },
+        "gammaP": {
+          "description": "γp of bonded fps (fpy / fpu >= 0.9).",
+          "exclusiveMinimum": 0,
+          "title": "Gammap",
+          "type": "number"
+        },
+        "bondedNegative": {
+          "description": "Two-way slabs: bonded top bars over the columns As >= this Acf.",
+          "exclusiveMinimum": 0,
+          "title": "Bondednegative",
+          "type": "number"
+        },
+        "bondedPositiveTension": {
+          "description": "Two-way slabs: bonded bottom bars needed when tension > this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Bondedpositivetension",
+          "type": "number"
+        },
+        "bondedPositiveStress": {
+          "description": "As = Nc / (this × fy).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bondedpositivestress",
+          "type": "number"
+        },
+        "bondedOneWay": {
+          "description": "Unbonded one-way: As >= this × Act.",
+          "exclusiveMinimum": 0,
+          "title": "Bondedoneway",
+          "type": "number"
+        },
+        "minPrecompression": {
+          "description": "Average precompression >= this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minprecompression",
+          "type": "number"
+        },
+        "spacingThickness": {
+          "description": "Distributed tendons apart <= this × h.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingthickness",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "... and <= this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "punchingBetaMax": {
+          "description": "βp <= this.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingbetamax",
+          "type": "number"
+        },
+        "punchingBetaA": {
+          "description": "βp = this (1.5 + αs d / b0).",
+          "exclusiveMinimum": 0,
+          "title": "Punchingbetaa",
+          "type": "number"
+        },
+        "punchingFpc": {
+          "description": "vc adds this × fpc.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingfpc",
+          "type": "number"
+        },
+        "punchingFpcRange": {
+          "description": "fpc each way within this range [MPa] for the expression to apply.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Punchingfpcrange",
+          "type": "array"
+        },
+        "punchingRootMax": {
+          "description": "√f'c <= this [MPa] in the expression.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingrootmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "jackingFpu",
+        "jackingFpy",
+        "anchorFpu",
+        "transferCompression",
+        "transferTension",
+        "transferTensionEnds",
+        "sustainedCompression",
+        "totalCompression",
+        "tensionTwoWay",
+        "tensionClassU",
+        "unbondedAdd",
+        "unbondedSpanDepth",
+        "unbondedK",
+        "unbondedCap",
+        "gammaP",
+        "bondedNegative",
+        "bondedPositiveTension",
+        "bondedPositiveStress",
+        "bondedOneWay",
+        "minPrecompression",
+        "spacingThickness",
+        "spacingMax",
+        "punchingBetaMax",
+        "punchingBetaA",
+        "punchingFpc",
+        "punchingFpcRange",
+        "punchingRootMax"
+      ],
+      "title": "PrestressLimits",
+      "type": "object"
+    },
     "SlenderLimits": {
       "additionalProperties": false,
       "description": "Slender column limits (moment magnifier method).",
@@ -647,6 +883,18 @@
       ],
       "default": null,
       "description": "Deflection limits (saengine.design.deflection)."
+    },
+    "prestress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PrestressLimits"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Prestressed slabs (saengine.design.prestress)."
     }
   },
   "required": [

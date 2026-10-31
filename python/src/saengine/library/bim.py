@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import math
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -300,6 +301,103 @@ class InclinedMember(_Model):
         return self
 
 
+class TendonPoint(_Model):
+    """A point of a tendon's profile: the height of the strands' centroid (CGS) above the
+    slab's soffit at a distance along the tendon."""
+
+    at: float = Field(ge=0, description="Distance from the tendon's start [mm].")
+    height: Length = Field(description="Height of the CGS above the soffit [mm].")
+
+
+class SlabTendon(_Model):
+    """A group of post-tensioning tendons in a slab (saengine.design.prestress): banded (the
+    tendons together in a band over a column line) or distributed (spread evenly over the
+    strip they serve), straight in plan from ``start`` to ``end``. The profile's high points
+    (the local highest heights) are taken as the supports of the strip the tendons design."""
+
+    id: Id
+    host: Id = Field(title="Slab", description="Id of the slab element the tendons are in.")
+    layout: Literal["banded", "distributed"] = Field(
+        default="banded",
+        json_schema_extra={"enumDescriptions": ["Banded over a column line", "Distributed"]},
+    )
+    x1: Mm = Field(title="Start X", description="Plan position of the tendons' start [mm].")
+    y1: Mm = Field(title="Start Y")
+    x2: Mm = Field(title="End X")
+    y2: Mm = Field(title="End Y")
+    width: Length = Field(
+        description="Width of the slab strip the tendons serve [mm] (a band: the column strip "
+        "it stands for; distributed: the width they are spread over)."
+    )
+    count: int = Field(default=4, ge=1, description="Tendons in the group.")
+    strands: int = Field(default=1, ge=1, description="Strands per tendon.")
+    strandArea: Length = Field(
+        default=98.7,
+        title="Strand area",
+        description="Area of one strand [mm²] (12.7 mm seven-wire strand: 98.7).",
+    )
+    fpu: Length = Field(
+        default=1860, description="Tensile strength of the strand [MPa] (supplier's value)."
+    )
+    fpy: Length | None = Field(
+        default=None, description="Yield strength [MPa]; empty: 0.9 fpu (low-relaxation strand)."
+    )
+    ep: Length = Field(
+        default=195_000, title="Ep", description="Modulus of the strand [MPa] (supplier's value)."
+    )
+    jacking: float = Field(
+        default=0.80,
+        gt=0,
+        le=0.94,
+        description="Jacking stress / fpu (at most 0.80 fpu and 0.94 fpy).",
+    )
+    bonded: bool = Field(default=False, description="Grouted (bonded) tendons; else unbonded.")
+    stressedAt: Literal["start", "end", "both"] = Field(
+        default="start", title="Stressed at", description="The live end(s)."
+    )
+    wobble: float = Field(
+        default=0.0033,
+        ge=0,
+        title="Wobble K",
+        description="Wobble coefficient [1/m] (supplier's value).",
+    )
+    friction: float = Field(
+        default=0.07,
+        ge=0,
+        title="Curvature friction μ",
+        description="Curvature friction coefficient (supplier's value).",
+    )
+    anchorSet: float = Field(
+        default=6, ge=0, title="Anchor set", description="Draw-in at the live end [mm]."
+    )
+    longTermLoss: float = Field(
+        ge=0,
+        title="Long-term loss",
+        description="Loss of stress from creep, shrinkage and relaxation [MPa], worked out by "
+        "the engineer (the automatic time-step method is planned).",
+    )
+    transferStrength: float | None = Field(
+        default=None,
+        gt=0,
+        title="f'ci",
+        description="Concrete strength at stressing [MPa]; empty: transfer not checked.",
+    )
+    profile: list[TendonPoint] = Field(
+        min_length=3,
+        description="CGS heights along the tendon, from the start: high over the supports, "
+        "low in the spans (parabolic between them).",
+    )
+
+    @model_validator(mode="after")
+    def _profile(self) -> SlabTendon:
+        stations = [p.at for p in self.profile]
+        if any(b <= a for a, b in pairwise(stations)):
+            raise ValueError(f"{self.id}: the profile's distances must increase")
+        if (self.x1, self.y1) == (self.x2, self.y2):
+            raise ValueError(f"{self.id}: its start and end are the same point")
+        return self
+
+
 class Additions(_Model):
     """Elements the building model adds to what it is built from; rebuilding keeps them."""
 
@@ -307,9 +405,18 @@ class Additions(_Model):
     wallOpenings: list[WallOpening] = Field(default_factory=list, title="Wall openings")
     stairs: list[Stair] = Field(default_factory=list)
     members: list[InclinedMember] = Field(default_factory=list, title="Inclined members")
+    slabTendons: list[SlabTendon] = Field(
+        default_factory=list, title="Slab tendons", description="Post-tensioning tendons."
+    )
 
-    def all(self) -> list[SlabOpening | WallOpening | Stair | InclinedMember]:
-        return [*self.slabOpenings, *self.wallOpenings, *self.stairs, *self.members]
+    def all(self) -> list[SlabOpening | WallOpening | Stair | InclinedMember | SlabTendon]:
+        return [
+            *self.slabOpenings,
+            *self.wallOpenings,
+            *self.stairs,
+            *self.members,
+            *self.slabTendons,
+        ]
 
 
 #: Tolerance of the model checks [mm].
@@ -445,6 +552,17 @@ class BuildingModel(_Model):
                 problems.append(
                     f"{slab_opening.id}: its centre ({slab_opening.x:g}, {slab_opening.y:g}) "
                     f"is outside slab {slab.id}"
+                )
+        for tendon in self.additions.slabTendons:
+            slab = hosts.get(tendon.host)
+            if not isinstance(slab, SlabElement):
+                problems.append(f"{tendon.id}: there is no slab '{tendon.host}' to stress")
+                continue
+            length = math.dist((tendon.x1, tendon.y1), (tendon.x2, tendon.y2))
+            if tendon.profile[-1].at > length + _TOLERANCE:
+                problems.append(
+                    f"{tendon.id}: its profile runs to {tendon.profile[-1].at:g} mm, past its "
+                    f"length of {length:.0f} mm"
                 )
         for stair in self.additions.stairs:
             missing = [s for s in (stair.base, stair.top) if s not in stories]

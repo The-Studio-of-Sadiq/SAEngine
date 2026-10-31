@@ -1635,7 +1635,12 @@ export class FemResultsBar extends Disposable {
 			appendPropertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
 		}
 		if (element.kind === 'slab') {
-			this.appendPlanned(container, [FemPlanned.crackedSlabDeflection, FemPlanned.crackWidths]);
+			const prestressed = element.checks.some(c => c.name.startsWith('PT '));
+			this.appendPlanned(container, [
+				FemPlanned.crackedSlabDeflection,
+				FemPlanned.crackWidths,
+				...(prestressed ? [FemPlanned.tendonLayout, FemPlanned.tendonLongTermLosses] : []),
+			]);
 		}
 		// A column's slenderness about each axis: how its moments are magnified for it.
 		for (const check of checks.filter(isSlendernessCheck)) {

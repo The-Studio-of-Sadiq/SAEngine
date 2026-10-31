@@ -170,6 +170,7 @@ const ADDITION_LISTS: { readonly [list: string]: string } = {
 	wallOpenings: 'D',
 	stairs: 'ST',
 	members: 'M',
+	slabTendons: 'PT',
 };
 
 /** The schema definition of an entry of each additions list. */
@@ -178,6 +179,7 @@ const ADDITION_DEFINITIONS: { readonly [list: string]: string } = {
 	wallOpenings: 'WallOpening',
 	stairs: 'Stair',
 	members: 'InclinedMember',
+	slabTendons: 'SlabTendon',
 };
 
 /** The parts of the building model that are generated, not edited in the Additions form. */
@@ -935,7 +937,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.additions.classList.toggle('hidden', view !== 'additions');
 		// What the Additions view is for: the frame's "?" (hover, click or Enter), only in that view.
 		this.documentFrame?.setHelp(view === 'additions'
-			? localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, and braces, sloped beams or raking columns. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")
+			? localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, braces, sloped beams or raking columns, and post-tensioning tendons in slabs. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")
 			: undefined);
 		for (const [id, button] of this.viewButtons) {
 			button.classList.toggle('active', id === view);
@@ -1117,6 +1119,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			['wallOpenings', localize('building.wallOpenings', "Wall openings")],
 			['stairs', localize('building.stairs', "Stairs")],
 			['members', localize('building.inclinedMembers', "Inclined members")],
+			['slabTendons', localize('building.slabTendons', "Slab tendons")],
 		]) {
 			append(additionTable, $('span', undefined, label));
 			append(additionTable, $('span.number', undefined, String(Array.isArray(additions[list]) ? additions[list].length : 0)));

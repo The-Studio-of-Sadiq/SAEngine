@@ -1450,6 +1450,11 @@ def _design_slabs(
         fc, fy = concrete.concrete.fc, bars.steel.fy
         es = bars.mechanical.E or 200_000.0
 
+        if not own and any(t.host == slab_id for t in building.additions.slabTendons):
+            notes.append(
+                f"{slab_id}: its tendons are designed with the slabs analysed as shells (set "
+                "the analysis's slabs to shells)"
+            )
         if not own and settings is not None:
             # Integrator glue (0.0.45): a slab on beams (not in the analysis model) designed by
             # the coefficient methods from its own loads (saengine.design.slab).
@@ -1566,6 +1571,25 @@ def _design_slabs(
             )
         except (ValueError, ZeroDivisionError) as error:
             notes.append(f"{slab_id}: minimum thickness not checked: {error}")
+        # Post-tensioning tendons in the slab (saengine.design.prestress).
+        tendons = [t for t in building.additions.slabTendons if t.host == slab_id]
+        designs: list[tuple[Any, str, Any]] = []
+        if tendons:
+            designs = _tendon_designs(
+                slab_id,
+                tendons,
+                elements_by_id.get(slab_id),
+                object_type,
+                concrete,
+                fc,
+                fy,
+                settings,
+                outline,
+                axes,
+                level >= top_level - 1.0,
+                notes,
+            )
+            context.precompression = _precompression(designs, object_type.thickness, outline, axes)
         try:
             checks = slab.slab_checks(
                 object_type.system,
@@ -1581,6 +1605,18 @@ def _design_slabs(
         except ValueError as error:
             skip(str(error))
             continue
+        if designs:
+            stressed = {direction for _, direction, _ in designs}
+            for check in checks:
+                # The analysis has no prestress: along the tendons the PT checks design the
+                # flexure, the slab's own (reinforced) checks are reported only.
+                name = check["name"]
+                if name.startswith("Flexure") and name.split("(")[0].split()[2] in stressed:
+                    check["flag"] = True
+                    check["note"] += "; along the tendons: designed by the PT checks"
+            for tendon, _, design in designs:
+                checks += design.checks
+                notes += [f"{slab_id}: {note}" for note in design.notes]
         strength = [c for c in checks if not c["flag"]]
         if collect is not None:
             collect.append(
@@ -1748,6 +1784,90 @@ def _line_supports(
                 )
             )
     return supports_at
+
+
+def _tendon_designs(
+    slab_id: str,
+    tendons: list[Any],
+    element: Any,
+    object_type: Any,
+    concrete: Any,
+    fc: float,
+    fy: float,
+    settings: ProjectSettings | None,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    roof: bool,
+    notes: list[str],
+) -> list[tuple[Any, str, Any]]:
+    """The designs of a slab's tendon groups (saengine.design.prestress): (tendon, the slab
+    direction "X" or "Y" it runs along, its design). The strip's loads are the slab's own
+    (self-weight, the finishes and partitions and the live load of its area load)."""
+    from saengine.design import prestress
+
+    if settings is None:
+        notes.append(f"{slab_id}: tendons not designed (no project settings)")
+        return []
+    if getattr(object_type, "ribs", None) is not None:
+        notes.append(f"{slab_id}: tendons are designed in solid slabs only; not checked")
+        return []
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    h = float(object_type.thickness)
+    density = concrete.mechanical.density or 0.0
+    loads = prestress.StripLoads(
+        density * 9.80665 * slab_systems.weight_thickness(object_type) * 1e-9,
+        ((area_load.finish + area_load.partitions) * 1e-3) if area_load else 0.0,
+        (area_load.live * 1e-3) if area_load else 0.0,
+    )
+    layers = slab.layers_of(object_type.reinforcement, h)
+    ux = np.asarray(axes.x[:2], dtype=float)
+    ux = ux / (np.linalg.norm(ux) or 1.0)
+    designs = []
+    for tendon in tendons:
+        run = np.array([tendon.x2 - tendon.x1, tendon.y2 - tendon.y1], dtype=float)
+        direction = "X" if abs(run @ ux) >= np.linalg.norm(run) * math.sqrt(0.5) else "Y"
+        bottom, top = layers[f"bottom{direction}"], layers[f"top{direction}"]
+        try:
+            design = prestress.tendon_design(
+                tendon,
+                h,
+                fc,
+                fy,
+                loads,
+                bottom.area if bottom else 0.0,
+                top.area if top else 0.0,
+                bottom.d if bottom else h - 40.0,
+                top.d if top else h - 40.0,
+                object_type.system != "oneWay",
+            )
+        except (ValueError, ArithmeticError, np.linalg.LinAlgError) as error:
+            notes.append(f"{slab_id}: tendon {tendon.id} not designed: {error}")
+            continue
+        designs.append((tendon, direction, design))
+    return designs
+
+
+def _precompression(
+    designs: list[tuple[Any, str, Any]], h: float, outline: list[tuple[float, float]], axes: Any
+) -> tuple[float, float] | None:
+    """The slab's effective precompression [MPa] along x and along y: the tendons' effective
+    forces each way over the slab's section across them (h times its extent)."""
+    if not designs:
+        return None
+    frame = slab.PlanFrame(axes)
+    local = [frame.local(p) for p in outline]
+    extent = {
+        "X": max(q[1] for q in local) - min(q[1] for q in local),
+        "Y": max(q[0] for q in local) - min(q[0] for q in local),
+    }
+    totals = {"X": 0.0, "Y": 0.0}
+    for _, direction, design in designs:
+        totals[direction] += float(np.mean(design.forces.effective))
+    return tuple(totals[k] / (h * extent[k]) if extent[k] > 0 else 0.0 for k in ("X", "Y"))  # type: ignore[return-value]
 
 
 def _slab_columns(

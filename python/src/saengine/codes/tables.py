@@ -517,6 +517,55 @@ class TorsionLimits(_Group):
     fyMax: Positive = Field(description="Largest fy, fyt of torsion steel [MPa].")
 
 
+class PrestressLimits(_Group):
+    """Prestressed slabs (BNBC 2020 Part 6 Chapter 9; ACI 318-11 Chapter 18): stress limits as
+    multiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,
+    the bonded reinforcement, precompression and tendon spacing, and punching with
+    prestress."""
+
+    jackingFpu: Share = Field(description="Jacking stress <= this × fpu.")
+    jackingFpy: Share = Field(description="Jacking stress <= this × fpy.")
+    anchorFpu: Share = Field(
+        description="At the anchors immediately after transfer: stress <= this × fpu."
+    )
+    transferCompression: Positive = Field(description="At transfer: compression <= this f'ci.")
+    transferTension: Positive = Field(description="At transfer: tension <= this √f'ci.")
+    transferTensionEnds: Positive = Field(
+        description="At transfer, at the ends of simply supported members: this √f'ci."
+    )
+    sustainedCompression: Positive = Field(
+        description="Service, sustained load: compression <= this f'c."
+    )
+    totalCompression: Positive = Field(description="Service, total load: compression <= this f'c.")
+    tensionTwoWay: Positive = Field(description="Two-way slabs, service tension <= this √f'c.")
+    tensionClassU: Positive = Field(description="Class U (uncracked) tension <= this √f'c.")
+    unbondedAdd: Positive = Field(description="Unbonded fps = fse + this + f'c / (k ρp) [MPa].")
+    unbondedSpanDepth: Positive = Field(description="Span / depth dividing the two expressions.")
+    unbondedK: tuple[Positive, Positive] = Field(description="k up to and above the span/depth.")
+    unbondedCap: tuple[Positive, Positive] = Field(
+        description="fps <= fse + this [MPa], up to and above the span/depth."
+    )
+    gammaP: Positive = Field(description="γp of bonded fps (fpy / fpu >= 0.9).")
+    bondedNegative: Positive = Field(
+        description="Two-way slabs: bonded top bars over the columns As >= this Acf."
+    )
+    bondedPositiveTension: Positive = Field(
+        description="Two-way slabs: bonded bottom bars needed when tension > this √f'c."
+    )
+    bondedPositiveStress: Share = Field(description="As = Nc / (this × fy).")
+    bondedOneWay: Positive = Field(description="Unbonded one-way: As >= this × Act.")
+    minPrecompression: Positive = Field(description="Average precompression >= this [MPa].")
+    spacingThickness: Positive = Field(description="Distributed tendons apart <= this × h.")
+    spacingMax: Positive = Field(description="... and <= this [mm].")
+    punchingBetaMax: Positive = Field(description="βp <= this.")
+    punchingBetaA: Positive = Field(description="βp = this (1.5 + αs d / b0).")
+    punchingFpc: Positive = Field(description="vc adds this × fpc.")
+    punchingFpcRange: tuple[Positive, Positive] = Field(
+        description="fpc each way within this range [MPa] for the expression to apply."
+    )
+    punchingRootMax: Positive = Field(description="√f'c <= this [MPa] in the expression.")
+
+
 class DeflectionLimitsGroup(_Group):
     """Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors
     (BNBC 2020 Part 6 Sec 6.2.5)."""
@@ -559,6 +608,9 @@ class ConcreteTable(TableModel):
     )
     deflection: DeflectionLimitsGroup | None = Field(
         default=None, description="Deflection limits (saengine.design.deflection)."
+    )
+    prestress: PrestressLimits | None = Field(
+        default=None, description="Prestressed slabs (saengine.design.prestress)."
     )
 
     @model_validator(mode="after")
