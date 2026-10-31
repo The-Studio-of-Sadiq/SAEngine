@@ -158,7 +158,8 @@ MATERIALS_CONVENTIONS = [
         f"mortar per m³. Cement weighs {CEMENT_DENSITY:g} kg/m³ loose. A design mix gives kg per "
         f"m³; its sand and stone are turned into volumes at {SAND_DENSITY:g} and "
         f"{STONE_DENSITY:g} kg/m³ loose. Water from the water/cement ratio. These are estimating "
-        "practice values, not BNBC values; no wastage is added, and bags are not rounded up."
+        "practice values, not BNBC values; no wastage is added. The bags are shown rounded up "
+        "(a part bag is bought whole); the bill keeps the exact number."
     ),
 ]
 
