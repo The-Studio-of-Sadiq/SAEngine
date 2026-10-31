@@ -48,6 +48,7 @@ import { FemModelEditorInput } from './femModelEditorInput.js';
 import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
 import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
+import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } from './femSeismicDetailing.js';
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, freeTopColumns, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
@@ -83,25 +84,46 @@ export function displayModel<T extends IFemModelNodes>(model: T): T {
 }
 
 /**
- * The design checks of a run as a table: every checked member, the failing first, then by
- * utilisation; the members not checked last, with the reason. A row picks its member in 3D.
+ * The design checks of a run as a table: every checked member and beam-column joint, the
+ * failing first, then by utilisation; the members not checked last, with the reason. A row
+ * picks its member in 3D (a joint's row its column, whose properties list its joints).
  */
 export function designChecksCase(report: IFemDesignReport): IFemCaseResults {
-	const elements = [...report.elements].sort((a, b) => Number(a.ok) - Number(b.ok) || b.utilisation - a.utilisation);
-	const rows: FemTableCell[][] = elements.map(e => {
+	const checked: { readonly ok: boolean; readonly utilisation: number; readonly row: FemTableCell[] }[] = report.elements.map(e => {
 		const governing = sortedChecks(e)[0];
-		return [
-			e.id, designKindLabel(e.kind), e.type, Number(e.utilisation.toFixed(3)),
-			e.ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
-			governing?.name ?? '', governing?.combination ?? '',
-		];
+		return {
+			ok: e.ok, utilisation: e.utilisation, row: [
+				e.id, designKindLabel(e.kind), e.type, Number(e.utilisation.toFixed(3)),
+				e.ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
+				governing?.name ?? '', governing?.combination ?? '',
+			],
+		};
 	});
+	const joints = jointsOf(report);
+	for (const joint of joints) {
+		const governing = jointGoverning(joint);
+		const ok = jointOk(joint);
+		const utilisation = governing && Number.isFinite(governing.utilisation) ? governing.utilisation : ok ? 0 : Infinity;
+		checked.push({
+			ok, utilisation, row: [
+				joint.column ?? joint.id, jointHeading(joint), '', Number.isFinite(utilisation) ? Number(utilisation.toFixed(3)) : '∞',
+				ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
+				jointGoverningName(joint) ?? '', '',
+			],
+		});
+	}
+	checked.sort((a, b) => Number(a.ok) - Number(b.ok) || b.utilisation - a.utilisation);
+	const rows = checked.map(c => c.row);
 	for (const skipped of report.skipped) {
 		rows.push([skipped.id, designKindLabel(skipped.kind), skipped.type, '', localize('femTables.notChecked', "not checked"), skipped.reason, '']);
 	}
+	const membersFailed = report.elements.filter(e => !e.ok).length;
+	const jointsFailed = joints.filter(j => !jointOk(j)).length;
 	return {
 		caseId: -2,
-		caseName: localize('femTables.designChecks', "Design Checks: {0} fail of {1}", report.summary.failed, report.elements.length),
+		caseName: joints.length
+			? localize('femTables.designChecksJoints', "Design Checks: {0} of {1} members fail, {2} of {3} joints", membersFailed, report.elements.length, jointsFailed, joints.length)
+			: localize('femTables.designChecks', "Design Checks: {0} fail of {1}", membersFailed, report.elements.length),
 		resultType: 'summary',
 		earlyStop: false,
 		warnings: [],

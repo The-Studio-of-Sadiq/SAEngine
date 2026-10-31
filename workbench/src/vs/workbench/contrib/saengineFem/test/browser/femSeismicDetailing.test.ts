@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFemDesignCheck, IFemDesignElement } from '../../browser/femDesign.js';
 import { describeBars, describeTransverseSpacing } from '../../browser/femDesignProposal.js';
-import { columnEndJoints, describeJointsSummary, describeScwb, describeJointVerdict, detailingGroup, detailingSection, FemDetailingElement, FemDetailingReport, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointGoverning, jointItems, jointNodeUtilisation, jointsOf, jointsOfMember, scwbUtilisation } from '../../browser/femSeismicDetailing.js';
+import { designChecksCase } from '../../browser/femModelEditor.js';
+import { columnEndJoints, describeJointsSummary, describeScwb, describeJointVerdict, detailingGroup, detailingSection, FemDetailingElement, FemDetailingReport, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointGoverning, jointGoverningName, jointItems, jointNodeUtilisation, jointsOf, jointsOfMember, scwbUtilisation } from '../../browser/femSeismicDetailing.js';
 
 function check(fields: Partial<IFemDesignCheck> & Record<string, unknown>): IFemDesignCheck {
 	return { name: 'Check', demand: 1, capacity: 2, unit: '', utilisation: 0.5, combination: null, ok: true, note: '', flag: false, ...fields } as IFemDesignCheck;
@@ -103,6 +104,24 @@ suite('SAEngine - FEM seismic detailing', () => {
 		]);
 		// Without the model: the joints naming it as their column only.
 		assert.deepStrictEqual(columnEndJoints(REPORT, C1, undefined), { top: J2 });
+	});
+
+	test('the design checks table lists the joints with the members, the failing first', () => {
+		const table = designChecksCase(REPORT);
+		// B1 fails at 1.351 and J1 (at the top of C0) at 1.2 / 1.1 = 1.091; J2 passes at 0.60.
+		assert.deepStrictEqual({
+			name: table.caseName,
+			rows: table.tables[0].rows.map(r => [r[0], r[3], r[4]]),
+			j1: table.tables[0].rows[1][1],
+		}, {
+			name: 'Design Checks: 1 of 4 members fail, 1 of 2 joints',
+			rows: [['B1', 1.351, 'FAIL'], ['C0', 1.091, 'FAIL'], ['C0', 0.7, 'pass'], ['C1', 0.7, 'pass'], ['B2', 0.7, 'pass'], ['C1', 0.6, 'pass']],
+			j1: 'Joint J1 (exterior)',
+		});
+		// The governing check's name: strong column / weak beam or joint shear, else the worst
+		// listed check (a bar-size-through-joint failure has no ratio of its own here).
+		const bars: IFemJoint = { ...J2, utilisation: 1.111, ok: false, checks: [check({ name: 'Detailing: Joint shear, J2 x', utilisation: 0.5 }), check({ name: 'Detailing: Beam bars through joint, J2 y', utilisation: 1.111, ok: false })] };
+		assert.deepStrictEqual([jointGoverningName(J1), jointGoverningName(bars)], ['strong column / weak beam along Y', 'Beam bars through joint y']);
 	});
 
 	test('a report without seismic detailing shows nothing of it', () => {
