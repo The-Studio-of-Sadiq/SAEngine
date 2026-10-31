@@ -72,6 +72,10 @@ sub-base modulus k (empty: the design's subgrade modulus) and an optional crack-
 `8@200`. A new slab covers the columns' extent, 150 mm, 5 kPa. Generator and machine foundations
 are planned (chip under the table).
 
+**Excavation support (planned):** the *Excavation support* section lists contiguous and secant
+pile walls, sheet pile walls, and struts, walers and ground anchors for staged excavation. Each
+chip opens its planned-feature page; nothing is computed in this MVP.
+
 ## Sizing footings
 
 **Size Footings** proposes isolated footings for the columns without a foundation (or for the

@@ -86,6 +86,8 @@ const SITE_PARTS: readonly (readonly [keyof ISiteTexts, string])[] = [
 	['bim', 'bim'], ['objects', 'objects'], ['floorPlan', 'floorPlan'], ['settings', 'settings'], ['soil', 'soil'], ['materials', 'materials'],
 ];
 
+/** Planned excavation support features (registered in the contribution). */
+const EXCAVATION_FEATURES = ['substructure.embeddedPileWall', 'substructure.sheetPileWall', 'substructure.strutsAnchors'];
 /** Planned pile features shown as chips under the pile types (registered in the contribution). */
 const PLANNED_PILE_FEATURES = ['substructure.lateralPileBroms', 'substructure.lateralPilePy', 'substructure.piledRaft', 'substructure.pileGroupInteraction'];
 
@@ -1897,6 +1899,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderTieBeamTable(document);
 		this.renderGroundSlabTable(document);
 		this.renderRetainingWallTable(document);
+		this.renderExcavationSupport();
 	}
 
 	private renderRetainingWallTable(document: ISubstructure): void {
@@ -2275,6 +2278,16 @@ export class SubstructureEditor extends EditorPane {
 		});
 		if (!document.tieBeams.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noTies', "None yet. Select two foundations in the plan and add a tie beam between them.")));
+		}
+	}
+
+	/** Excavation support and shoring: planned features of this part, shown as chips. */
+	private renderExcavationSupport(): void {
+		const section = this.section(localize('sub.excavation', "Excavation support"), EXCAVATION_FEATURES.length);
+		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "Embedded walls and their supports round a basement excavation, with the earth and water pressures of the basement walls. Planned: not in this MVP.")));
+		const planned = append(section, $('.sub-planned'));
+		for (const id of EXCAVATION_FEATURES) {
+			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
 		}
 	}
 
