@@ -701,6 +701,27 @@ class Analysis(_Model):
         "for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec "
         "2.5.7.9 in the report.",
     )
+    notionalLoads: Literal["none", "secondOrder", "firstOrder"] = Field(
+        default="none",
+        title="Notional loads (steel stability)",
+        description="Lateral notional loads Ni at each level for the stability design of steel "
+        "frames (BNBC 2020 Part 6 Sec 10.3.2.2), as the cases NXD, NYD (from D and SD), NXL, "
+        "NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. "
+        "Second-order analysis: Ni = 0.002 Yi, added to the gravity-only combinations in ±X and "
+        "±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, added to every combination "
+        "(with the lateral load's direction; gravity-only ones in ±X and ±Y).",
+        json_schema_extra=_labels(
+            ["None", "Second-order analysis (0.002 Yi)", "First-order analysis (2.1 Δ/L Yi)"]
+        ),
+    )
+    notionalDrift: float = Field(
+        default=0.0,
+        ge=0,
+        le=0.05,
+        title="First-order drift ratio Δ/L",
+        description="First-order analysis: the largest storey drift ratio under the strength "
+        "load combinations, for Ni = 2.1 (Δ/L) Yi (at least 0.0042 Yi). 0: the minimum.",
+    )
     slenderness: Slenderness = Field(default_factory=Slenderness, title="Column slenderness")
     seismicDesign: Literal["static", "responseSpectrum"] = Field(
         default="responseSpectrum",
