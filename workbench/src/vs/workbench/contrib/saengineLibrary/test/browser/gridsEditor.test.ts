@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_FLOOR_PLAN, FLOOR_PLAN_SCHEMA } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
 import { nextLetters } from '../../../../services/saengineProject/common/gridLabels.js';
-import { nextGridLine, nextStory } from '../../browser/gridsEditor.js';
+import { newTower, nextGridLine, nextStory } from '../../browser/gridsEditor.js';
 import { JsonObject, SchemaForm } from '../../browser/schemaForm.js';
 
 suite('SAEngine - Grids and stories editor', () => {
@@ -77,6 +77,15 @@ suite('SAEngine - Grids and stories editor', () => {
 			],
 			x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }],
 			changes: ['grids.x'],
+		});
+	});
+
+	test('a new tower takes the next free id and the whole grid as its region', () => {
+		const grids = { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }], y: [{ label: '1', position: 0 }, { label: '2', position: 5000 }] };
+		assert.deepStrictEqual(newTower(['T1'], grids, n => `Tower ${n}`), {
+			id: 'T2',
+			name: 'Tower 2',
+			boundary: [{ x: 'A', y: '1' }, { x: 'C', y: '1' }, { x: 'C', y: '2' }, { x: 'A', y: '2' }],
 		});
 	});
 });

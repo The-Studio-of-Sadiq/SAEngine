@@ -635,11 +635,23 @@ class LintelLimits(_Group):
     probable: float = Field(ge=1)
 
 
+class BarSpacing(_Group):
+    """Least clear spacing of parallel bars (the 3D rebar cages' congestion check)."""
+
+    layerMin: Positive = Field(description="Bars in a layer: at least this clear [mm].")
+    layerDb: Positive = Field(description="Bars in a layer: at least this many db clear.")
+    betweenLayers: Positive = Field(description="Between layers of bars, clear [mm].")
+    columnMin: Positive = Field(description="Column bars: at least this clear [mm].")
+    columnDb: Positive = Field(description="Column bars: at least this many db clear.")
+
+
 class DetailingTable(TableModel):
     special: SpecialFrames
     joints: Joints
     walls: SpecialWalls
     lintels: LintelLimits
+    #: None in a pack that gives no bar spacing limits: the congestion check is then skipped.
+    spacing: BarSpacing | None = None
 
 
 class SteelPhi(_Group):
@@ -675,6 +687,21 @@ class StrutAndTie(_Group):
     tieArm: Share = Field(description="Lever arm of the tie as a share of the effective depth.")
     betaCCC: Share = Field(description="βn of a C-C-C node.")
     betaCCT: Share = Field(description="βn of a C-C-T node.")
+    betaCTT: Share = Field(default=0.6, description="βn of a C-T-T node.")
+    betaPrism: Share = Field(default=1.0, description="βs of a prism-shaped strut.")
+    betaBottle: Share = Field(
+        default=0.75, description="βs of a bottle-shaped strut with distributed web steel."
+    )
+    betaBottlePlain: Share = Field(
+        default=0.6, description="βs of a bottle-shaped strut without distributed web steel."
+    )
+    minAngle: Positive = Field(
+        default=25.0, lt=90, description="Least angle between a strut and a tie [degrees]."
+    )
+    webRatio: Rho = Field(
+        default=0.003,
+        description="Distributed web steel ratio that confines a bottle-shaped strut.",
+    )
 
 
 class RetainingWallFactors(_Group):
@@ -719,6 +746,56 @@ class FoundationsTable(TableModel):
         default_factory=RetainingWallFactors,
         description="Stability factors and load factors of retaining and basement walls.",
     )
+
+
+class DeepBeam(_Group):
+    spanRatio: Positive = Field(
+        description="Clear span over depth at or below which a beam is deep."
+    )
+    loadDistance: Positive = Field(
+        description="Concentrated loads within this many depths of a support make a beam deep."
+    )
+    shearLimit: Positive = Field(description="Vn at most this × √f'c bw d [MPa^0.5].")
+    verticalRatio: Rho = Field(description="Least vertical web steel Av / (bw s).")
+    horizontalRatio: Rho = Field(description="Least horizontal web steel Avh / (bw s2).")
+    spacingDepth: Positive = Field(description="Web steel spacing at most d over this.")
+    spacingMax: Positive = Field(description="Web steel spacing at most this [mm].")
+
+
+class Corbel(_Group):
+    spanRatio: Positive = Field(description="Largest shear span over depth av / d.")
+    tensionShare: Share = Field(description="Least horizontal tension Nuc over Vu.")
+    tensionMaxShare: Positive = Field(description="Largest horizontal tension Nuc over Vu.")
+    friction: Positive = Field(description="μ of concrete cast monolithically (× λ).")
+    shearCoefficient: Share = Field(description="Vn at most this × f'c bw d.")
+    shearIntercept: Positive = Field(description="Vn at most (this + slope f'c) bw d [MPa].")
+    shearSlope: Share = Field(description="Slope of the second Vn limit.")
+    shearStressMax: Positive = Field(description="Vn at most this × bw d [MPa].")
+    minSteel: Share = Field(description="Least As / (b d) over f'c / fy.")
+    tiesShare: Share = Field(description="Closed ties Ah at least this × (As - An).")
+    tiesDepth: Share = Field(description="Closed ties within this share of d next to As.")
+    edgeDepth: Share = Field(description="Depth at the outer edge at least this × d.")
+
+
+class Diaphragm(_Group):
+    forceMin: Positive = Field(description="Fpx at least this × SDS I wpx.")
+    forceMax: Positive = Field(description="Fpx at most this × SDS I wpx.")
+    plateau: Positive = Field(description="SDS over the peak ground acceleration (2/3) Z S.")
+    collectorCategories: list[str] = Field(
+        description="Seismic Design Categories whose collectors take the Ω0 forces."
+    )
+    irregularIncrease: Positive = Field(
+        description="Factor on the connection forces of irregular buildings."
+    )
+
+
+class TransferTable(TableModel):
+    """Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors
+    (BNBC 2020 Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6)."""
+
+    deepBeam: DeepBeam
+    corbel: Corbel
+    diaphragm: Diaphragm
 
 
 class TwoWayTables(BaseModel):
@@ -1437,6 +1514,54 @@ class SteelSectionsTable(TableModel):
         return self
 
 
+class LiveElementFactors(_Group):
+    interiorColumn: Positive
+    exteriorColumn: Positive = Field(description="Exterior columns without cantilever slabs.")
+    edgeColumnCantilever: Positive = Field(description="Edge columns with cantilever slabs.")
+    cornerColumnCantilever: Positive = Field(description="Corner columns with cantilever slabs.")
+    interiorBeam: Positive
+    edgeBeam: Positive = Field(description="Edge beams without cantilever slabs.")
+    other: Positive = Field(description="All other members (one-way slabs, cantilevers ...).")
+
+
+class LiveReductionTable(TableModel):
+    """Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13)."""
+
+    influenceMin: Positive = Field(description="Least KLL AT [m²] that is reduced.")
+    constant: Share = Field(description="a of L = L0 (a + b / √(KLL AT)).")
+    coefficient: Positive = Field(description="b of L = L0 (a + b / √(KLL AT)) [m].")
+    minOneFloor: Share = Field(description="Least L / L0 of members supporting one floor.")
+    minFloors: Share = Field(description="Least L / L0 of members supporting two or more.")
+    heavyLive: Positive = Field(description="Live loads above this [kN/m²] are not reduced.")
+    heavyFactor: Share = Field(description="L / L0 of heavy loads on members of 2+ floors.")
+    notReduced: list[str] = Field(description="Area uses never reduced.")
+    twoFloorsOnly: list[str] = Field(description="Area uses reduced only on 2+ floors.")
+    kll: LiveElementFactors
+
+
+class FireResistanceTable(TableModel):
+    """Least sizes and covers of concrete members for a fire resistance rating, one value per
+    rating of ``ratings`` (hours)."""
+
+    ratings: list[Positive] = Field(min_length=1, description="Fire resistance ratings [h].")
+    slabThickness: list[Positive] = Field(description="Least slab thickness [mm].")
+    slabCover: list[Positive] = Field(description="Least slab cover to the bars [mm].")
+    wallThickness: list[Positive] = Field(description="Least wall thickness [mm].")
+    beamCover: list[Positive] = Field(description="Least beam cover to the main bars [mm].")
+    beamWidth: Positive = Field(description="Least beam width the beam covers hold for [mm].")
+    columnSize: list[Positive] = Field(description="Least column dimension [mm].")
+    columnCoverPerHour: Positive = Field(description="Column cover per hour of rating [mm].")
+    columnCoverMax: Positive = Field(description="Column cover need not exceed [mm].")
+
+    @model_validator(mode="after")
+    def _same_length(self) -> FireResistanceTable:
+        n = len(self.ratings)
+        for name in ("slabThickness", "slabCover", "wallThickness", "beamCover", "columnSize"):
+            if len(getattr(self, name)) != n:
+                raise ValueError(f"{name}: one value per rating ({n})")
+        return self
+
+
 # ───────────────────────────────────────── planning ─────────────────────────────────────────
 
 
@@ -1551,12 +1676,15 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "detailing": DetailingTable,
     "steel": SteelTable,
     "foundations": FoundationsTable,
+    "transfer": TransferTable,
     "slabCoefficients": SlabCoefficientsTable,
     "plumbing": PlumbingTable,
     "hvac": HvacTable,
     "electrical": ElectricalTable,
     "fire": FireTable,
     "steelSections": SteelSectionsTable,
+    "liveReduction": LiveReductionTable,
+    "fireResistance": FireResistanceTable,
     "planning": PlanningTable,
 }
 

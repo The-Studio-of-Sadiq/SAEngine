@@ -344,6 +344,56 @@ class Thermal(_Model):
     )
 
 
+FireHours = Literal[0, 1, 1.5, 2, 3, 4]
+
+
+class FireResistance(_Model):
+    """The fire resistance ratings the members are checked for (least sizes and covers); 0: not
+    checked."""
+
+    columns: FireHours = Field(
+        default=0,
+        title="Columns",
+        description="Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 "
+        "for the building's occupancy and construction type.",
+    )
+    beams: FireHours = Field(default=0, title="Beams", description="Rating of the beams [h].")
+    slabs: FireHours = Field(default=0, title="Slabs", description="Rating of the slabs [h].")
+    walls: FireHours = Field(
+        default=0, title="Walls", description="Rating of the structural walls [h]."
+    )
+
+
+class SettlementSupport(_Model):
+    """A column base that settles in the settlement case ST."""
+
+    column: Id = Field(
+        title="Column", description="Column of the building model whose base settles."
+    )
+    value: float = Field(
+        gt=0, le=500, title="Settlement", description="Downward settlement of the base [mm]."
+    )
+
+
+class Settlement(_Model):
+    """The support settlement case ST: imposed settlements of column bases. BNBC 2020 Part 6
+    counts differential settlement among the self-straining effects T of its load combinations
+    (Sec 2.7); ST takes T's factor."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Settlement case ST",
+        description="Add the load case ST: the listed column bases settle by the given amounts "
+        "(the differential settlement the soil report or 9 Substructure expects). Fixed bases "
+        "only (not with soil springs).",
+    )
+    supports: list[SettlementSupport] = Field(
+        default_factory=list,
+        title="Settling supports",
+        description="Column bases and their settlement.",
+    )
+
+
 class PDeltaFactors(_Model):
     """Load factors of the gravity preload of the P-Delta analysis."""
 
@@ -559,6 +609,15 @@ class Analysis(_Model):
         description="Share of the live load taken as sustained for the long-term deflection "
         "(an SAEngine assumption for residential and office floors; raise it for storage).",
     )
+    liveLoadReduction: bool = Field(
+        default=False,
+        title="Live load reduction",
+        description="Reduce the floor live load of beams and columns by their influence area "
+        "(BNBC 2020 Part 6 Sec 2.3.13): L = L0 (0.25 + 4.57 / √(KLL AT)), at least 0.5 L0 "
+        "(one floor) or 0.4 L0 (two or more); none for assembly uses, and only 20 % for heavy "
+        "live loads and parking on members carrying two or more floors. A member's design "
+        "overwrite can give its own factor.",
+    )
     periodMethod: Literal["approximate", "analysis"] = Field(
         default="approximate",
         title="Period for the static base shear",
@@ -722,6 +781,13 @@ class Analysis(_Model):
         "pushed sideways after the gravity loads (08 FEM/pushover.osmodel).",
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
+    settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
+    fireResistance: FireResistance = Field(
+        default_factory=FireResistance,
+        title="Fire resistance",
+        description="Ratings the concrete members' least sizes and covers are checked for "
+        "(the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).",
+    )
     supports: Literal["fixed", "soilSprings"] = Field(
         default="fixed",
         title="Column supports",
@@ -826,6 +892,13 @@ class LoadCombination(_Model):
         title="T",
         description="Factor on the temperature case T (Analysis model → Temperature). BNBC 2020 "
         "Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
+    )
+    ST: float = Field(
+        default=0,
+        title="ST",
+        description="Factor on the support settlement case ST (Analysis model → Support "
+        "settlement): differential settlement is a self-straining effect T of BNBC 2020 Part 6 "
+        "Sec 2.7, so it takes T's factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
     )
     F: float | None = Field(
         default=None,
@@ -1019,7 +1092,7 @@ class ProjectSettings(_Model):
 
 
 def strength_combinations(
-    thermal: bool = False, pack: CodePack | None = None
+    thermal: bool = False, pack: CodePack | None = None, settlement: bool = False
 ) -> list[LoadCombination]:
     """The code pack's strength combinations (BNBC 2020 2.7.3 by default), with wind and
     earthquake in ±X and ±Y; with ``thermal``, combination 2 also with ±T
@@ -1037,6 +1110,11 @@ def strength_combinations(
 
                 for t_name, t_factors in strength_combinations_with_t():
                     result.append(LoadCombination(name=t_name, **t_factors))
+            if settlement and name == "1.2D + 1.6L + 0.5Lr":
+                from saengine.fem.settlement import strength_combinations_with_st
+
+                for st_name, st_factors in strength_combinations_with_st(thermal):
+                    result.append(LoadCombination(name=st_name, **st_factors))
             continue
         base = {k: v for k, v in factors.items() if k != lateral}
         for axis in ("X", "Y"):

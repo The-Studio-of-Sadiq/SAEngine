@@ -192,3 +192,26 @@ the entities' own linetype scales of 200 and 100 are made for).
 
 The frame follows ISO 5457: 20 mm binding margin on the left, 10 mm elsewhere, centring marks,
 the title block in a strip at the right. Nothing but the frame lies outside the border.
+
+## 3D reinforcement cages and bar congestion
+
+**Reinforcement** in the Building Model's 3D view (06 BIM) shows the designed bars of the beams
+and columns: the bars, marks, lengths, hooks and hoop rows of the detailing the sheets are drawn
+from, placed on the design's own section layout (the bars the design checks used, corners first).
+Hide Columns and Beams in the legend to see the cages. While it is on, Export IFC writes them too,
+as IfcReinforcingBar (one per bar mark of a member, a swept disk along each bar's centreline,
+NominalDiameter, CrossSectionArea, BarLength, MAIN or LIGATURE, Tag = the mark). Slabs, walls,
+stairs and foundations are not drawn in 3D yet.
+
+Every drawing generation checks bar congestion and writes `rebar-congestion.csv` beside the
+sheets; the failing checks are among the drawings' warnings:
+
+| Check | Limit | Clause |
+| --- | --- | --- |
+| Bars of a layer of a beam | max(db, 25 mm) clear | BNBC 2020 Part 6 Sec 8.1.6.1, p. 1068 |
+| Between layers | 25 mm clear | Sec 8.1.6.2, p. 1068 |
+| Column bars | max(1.5 db, 40 mm) clear | Sec 8.1.6.3, p. 1068 |
+| Beam bars past the column bars at a joint | a clash fails; less than the 8.1.6.1 spacing is tight | practice (BNBC gives no figure for crossing bars) |
+| Top (bottom) bars of beams from two directions | they cannot share a level: one set a bar diameter lower (higher) | practice |
+
+The limits are the code pack's (`detailing.spacing`); a pack without them skips the check.

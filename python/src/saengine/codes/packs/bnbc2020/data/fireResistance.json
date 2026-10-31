@@ -1,0 +1,61 @@
+{
+  "$schema": "../../../schemas/fireResistance.schema.json",
+  "$sources": [
+    "ACI 216.1-14 (the fire resistance standard ACI 318 refers to; BNBC 2020 Part 6 Chapter 6 gives no table of its own)"
+  ],
+  "source": "ACI 216.1-14 Tables 4.2, 4.3.1.1, 4.3.1.2, 4.5.1a and Sec 4.5.3, siliceous aggregate (the least favourable); required ratings by BNBC 2020 Part 4",
+  "ratings": [
+    1.0,
+    1.5,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "slabThickness": [
+    89,
+    109,
+    127,
+    157,
+    178
+  ],
+  "slabCover": [
+    20,
+    20,
+    25,
+    32,
+    41
+  ],
+  "wallThickness": [
+    89,
+    109,
+    127,
+    157,
+    178
+  ],
+  "beamCover": [
+    20,
+    20,
+    20,
+    25,
+    44
+  ],
+  "beamWidth": 254,
+  "columnSize": [
+    203,
+    229,
+    254,
+    305,
+    356
+  ],
+  "columnCoverPerHour": 25,
+  "columnCoverMax": 50,
+  "sources": {
+    "slabThickness": "ACI 216.1-14 Table 4.2, siliceous aggregate: 3.5, 4.3, 5.0, 6.2, 7.0 in (from memory, to be checked)",
+    "slabCover": "ACI 216.1-14 Table 4.3.1.1, unrestrained nonprestressed slabs, siliceous: 3/4, 3/4, 1, 1-1/4, 1-5/8 in (from memory, to be checked)",
+    "wallThickness": "ACI 216.1-14 Table 4.2 (walls as slabs), siliceous (from memory, to be checked)",
+    "beamCover": "ACI 216.1-14 Table 4.3.1.2, nonprestressed beams at least 10 in (254 mm) wide: 3/4, 3/4, 3/4, 1, 1-3/4 in (from memory, to be checked)",
+    "beamWidth": "ACI 216.1-14 Table 4.3.1.2: narrower beams need more cover (checked as not covered)",
+    "columnSize": "ACI 216.1-14 Table 4.5.1a, siliceous: 8, 9, 10, 12, 14 in (from memory, to be checked)",
+    "columnCoverPerHour": "ACI 216.1-14 Sec 4.5.3: 1 in per hour of rating, need not exceed 2 in (from memory, to be checked)"
+  }
+}

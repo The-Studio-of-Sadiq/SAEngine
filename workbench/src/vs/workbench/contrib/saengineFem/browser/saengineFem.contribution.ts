@@ -23,7 +23,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
-import { DESIGN_REINFORCEMENT_COMMAND } from './femDesign.js';
+import { DESIGN_REINFORCEMENT_COMMAND, PLANNED_STM_GENERAL } from './femDesign.js';
 import { FemPlanned } from './femPlannedFeatures.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
@@ -616,5 +616,65 @@ registerPlannedFeature({
 	references: [
 		'EN 1992-1-1 7.3.4 (crack width calculation)',
 		'ACI 224R (control of cracking in concrete structures)',
+	],
+});
+
+// Planned (T26: BNBC 2020 gives no floor vibration method; linear buckling is built, in the
+// result tables of each load combination).
+registerPlannedFeature({
+	id: FemPlanned.floorVibration,
+	part: 'fem',
+	title: localize('planned.floorVibration.title', "Floor Vibration from Walking"),
+	summary: localize('planned.floorVibration.summary', "Checks floors for walking-induced vibration: the floor's natural frequencies and modal masses from the model, the response to footfall, and the comparison with the comfort limits of the occupancy."),
+	steps: [
+		localize('planned.floorVibration.step1', "Pick the floor panels or bays to check and their occupancy (office, residence, shopping, hospital)."),
+		localize('planned.floorVibration.step2', "Run a modal analysis of the floor with the live load expected in service and the damping of the fit-out."),
+		localize('planned.floorVibration.step3', "Work out the peak acceleration or response factor from footfall at the critical points."),
+		localize('planned.floorVibration.step4', "Compare with the occupancy's limit and report each panel."),
+	],
+	inputs: [
+		{ label: localize('planned.floorVibration.occupancy', "Occupancy"), example: localize('planned.floorVibration.occupancyExample', "Office") },
+		{ label: localize('planned.floorVibration.damping', "Damping ratio"), unit: '%', example: '3' },
+		{ label: localize('planned.floorVibration.liveLoad', "Live load in service"), unit: 'kN/m²', example: '0.5' },
+		{ label: localize('planned.floorVibration.walker', "Walking frequency"), unit: 'Hz', example: '1.6 – 2.2' },
+	],
+	outputs: [
+		localize('planned.floorVibration.out1', "Floor frequencies, modal masses and peak accelerations per panel"),
+		localize('planned.floorVibration.out2', "Pass or fail against the comfort limit, coloured on the plan"),
+		localize('planned.floorVibration.out3', "A floor vibration section in the design report"),
+	],
+	references: [
+		localize('planned.floorVibration.ref1', "BNBC 2020 Part 6 (no floor vibration method)"),
+		localize('planned.floorVibration.ref2', "AISC Design Guide 11 (floor vibrations due to human activity)"),
+		localize('planned.floorVibration.ref3', "CCIP-016 (design of floors for vibration)"),
+	],
+});
+
+// Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
+// model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
+registerPlannedFeature({
+	id: PLANNED_STM_GENERAL,
+	part: 'fem',
+	title: localize('planned.stmGeneral.title', "Strut-and-Tie Models of Any D-Region"),
+	summary: localize('planned.stmGeneral.summary', "Draw and check a strut-and-tie model for regions the deep-beam checks do not cover: dapped ends, beams and walls with openings, frame corners, continuous deep beams and corbels with several loads."),
+	steps: [
+		localize('planned.stmGeneral.step1', "Pick the D-region on a member and its boundary forces from the analysis."),
+		localize('planned.stmGeneral.step2', "Lay out struts, ties and nodes, or start from a template (dapped end, opening, corner)."),
+		localize('planned.stmGeneral.step3', "Solve the truss and check each strut, tie and node with its βs and βn."),
+		localize('planned.stmGeneral.step4', "Detail the ties' anchorage and the distributed reinforcement, and print the model in the report."),
+	],
+	inputs: [
+		{ label: localize('planned.stmGeneral.inputRegion', "D-region"), example: localize('planned.stmGeneral.exampleRegion', "Dapped end of B12") },
+		{ label: localize('planned.stmGeneral.inputTemplate', "Template"), example: localize('planned.stmGeneral.exampleTemplate', "Dapped end") },
+		{ label: localize('planned.stmGeneral.inputWidth', "Strut width"), unit: 'mm', example: '250' },
+	],
+	outputs: [
+		localize('planned.stmGeneral.output1', "Truss forces and the check of every strut, tie and node"),
+		localize('planned.stmGeneral.output2', "Tie bars and their anchorage"),
+		localize('planned.stmGeneral.output3', "A model sketch in the design report"),
+	],
+	references: [
+		'ACI 318-19 Chapter 23',
+		'BNBC 2020 Part 6 Sec 6.2.3.2 (φ = 0.75)',
 	],
 });

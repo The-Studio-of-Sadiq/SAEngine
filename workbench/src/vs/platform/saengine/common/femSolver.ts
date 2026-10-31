@@ -154,7 +154,7 @@ export interface IFemResultView {
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */
 /** Project files the Python models check. */
-export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate';
+export type LibraryFileKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate' | 'worksheet';
 
 export interface IGeneratedBuilding {
 	/** The new `bim.json` text, when it could be generated. */
@@ -176,6 +176,11 @@ export interface IBuildingIfcRequest {
 	readonly mepText?: string;
 	/** `05 Floor Plan/architecture.json`: its walls, doors, windows, rooms and finishes are in the model too (ids `arch:<id>`). */
 	readonly architectureText?: string;
+	/**
+	 * The project's folder: when given, the reinforcement cages of its beams and columns are in the
+	 * model too (IfcReinforcingBar, ids `rebar:<element>/<n>`), detailed as the drawings detail them.
+	 */
+	readonly projectRoot?: string;
 }
 
 export interface IBuildingIfc {
@@ -652,7 +657,11 @@ export type EngineMethod =
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
-	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx';
+	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
+	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
+	// `worksheets/calculate` `{kind, inputs, projectRoot?}`, `worksheets/list` `{projectRoot}`,
+	// `worksheets/create` `{projectRoot, kind, id, title?}`.
+	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

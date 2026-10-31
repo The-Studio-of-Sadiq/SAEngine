@@ -24,7 +24,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, PLANNED_STM_GENERAL, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -450,6 +451,7 @@ export class FemResultsBar extends Disposable {
 	private playing = false;
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
+	private readonly diaphragmChips = this._register(new DisposableStore());
 	private readonly resultsWatch = this._register(new MutableDisposable());
 	/** The "Planned" chips of the properties shown (see `FemPlanned`). */
 	private readonly plannedChips = this._register(new MutableDisposable<DisposableStore>());
@@ -1453,6 +1455,8 @@ export class FemResultsBar extends Disposable {
 			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
 			this.appendPlanned(container, [FemPlanned.pushoverHinges, FemPlanned.fibreWalls, FemPlanned.performancePoint]);
+		} else if (entry.kind === 'modal') {
+			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		} else if (entry.kind === 'history') {
 			this.appendPlanned(container, [FemPlanned.nonlinearTimeHistory, FemPlanned.timeHistoryDesign, FemPlanned.recordScaling]);
 		} else if (entry.kind === 'static' && entry.frames?.length) {
@@ -1576,6 +1580,8 @@ export class FemResultsBar extends Disposable {
 				appendPropertyRow(container, localize('femResults.designSteel', "Steel members"), steelMembers);
 			}
 			this.renderStairs(container, report);
+			this.renderDiaphragms(container, report);
+			this.renderTakedown(container, report);
 			this.renderSeismic(container, undefined, true);
 			appendPropertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
@@ -1741,6 +1747,56 @@ export class FemResultsBar extends Disposable {
 			this.renderDetailing(details, [...checkItems(generalChecks(ownChecks(stair))), ...staircaseSection(stair)]);
 			this.renderSteel(details, requiredSteelOf(this.required, stair.id), true);
 		}
+	}
+
+	/**
+	 * The columns' gravity load takedown, under the summary: one fold per column line, a row per
+	 * storey (top down) with the factored and unfactored load at the column's foot and what the
+	 * storey adds.
+	 */
+	private renderTakedown(container: HTMLElement, report: IFemDesignReport): void {
+		const lines = report.takedown?.lines ?? [];
+		if (!lines.length) {
+			return;
+		}
+		appendPropertyHeading(container, localize('femResults.takedownHeading', "Column Load Takedown"));
+		for (const line of lines) {
+			const foot = line.rows[line.rows.length - 1];
+			const details = append(container, $('details.fem-stair'));
+			append(details, $('summary', undefined, localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, foot ? foot.factored.toFixed(0) : '0')));
+			for (const row of line.rows) {
+				const added = Object.values(row.storey).reduce((sum, v) => sum + v, 0);
+				appendPropertyRow(details, localize('femResults.takedownStorey', "{0} ({1})", row.story, row.column),
+					localize('femResults.takedownValue', "{0} kN factored, {1} kN unfactored (+{2} kN this storey)", row.factored.toFixed(0), row.total.toFixed(0), added.toFixed(0)));
+			}
+		}
+		if (report.takedown?.note) {
+			appendPropertyNote(container, report.takedown.note);
+		}
+	}
+
+	/**
+	 * The floors' diaphragm chords and collectors (BNBC 2020 Part 6 Sec 2.5.5.6), under the
+	 * summary: like the stairs they have no analysis elements to pick. Below them, the strut-and-tie
+	 * models of other D-regions that are planned.
+	 */
+	private renderDiaphragms(container: HTMLElement, report: IFemDesignReport): void {
+		const diaphragms = report.elements.filter(e => e.kind === 'diaphragm');
+		appendPropertyHeading(container, localize('femResults.diaphragmsHeading', "Diaphragms and Deep Members"));
+		for (const diaphragm of diaphragms) {
+			const details = append(container, $(`details.fem-stair${diaphragm.ok ? '' : '.fail'}`));
+			append(details, $('summary', undefined, diaphragm.ok
+				? localize('femResults.diaphragmPasses', "{0} passes, {1}", diaphragm.id, formatUtilisation(diaphragm.utilisation))
+				: localize('femResults.diaphragmFails', "{0} fails, {1}", diaphragm.id, formatUtilisation(diaphragm.utilisation))));
+			this.renderDetailing(details, checkItems(diaphragm.checks));
+		}
+		if (!diaphragms.length) {
+			appendPropertyNote(container, localize('femResults.diaphragmsNone', "No diaphragm chords or collectors: the model has no equivalent static earthquake cases (EX, EY) or no slabs."));
+		}
+		appendPropertyNote(container, localize('femResults.deepMembersNote', "Deep beams, transfer girders and corbels are checked with their beams: select one for its strut-and-tie and corbel checks."));
+		const chips = append(container, $('.fem-planned-chips'));
+		this.diaphragmChips.clear();
+		this.diaphragmChips.add(appendPlannedFeatureChip(chips, PLANNED_STM_GENERAL, this.commandService));
 	}
 
 	/**

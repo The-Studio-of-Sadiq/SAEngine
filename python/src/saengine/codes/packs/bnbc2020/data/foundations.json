@@ -38,7 +38,13 @@
   "strutAndTie": {
     "tieArm": 0.9,
     "betaCCC": 1.0,
-    "betaCCT": 0.8
+    "betaCCT": 0.8,
+    "betaCTT": 0.6,
+    "betaPrism": 1.0,
+    "betaBottle": 0.75,
+    "betaBottlePlain": 0.6,
+    "minAngle": 25.0,
+    "webRatio": 0.003
   },
   "sources": {
     "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
@@ -53,7 +59,8 @@
     "retainingWall.baseFriction": "NAVFAC DM 7.02 Table 10-1 practice: tan δb with δb = 2/3 φ' for concrete cast on soil",
     "retainingWall.adhesion": "NAVFAC DM 7.02 Table 10-1 practice: adhesion about 0.5 cu",
     "retainingWall.hFactor": "BNBC 2020 Part 6 Sec 2.7.3.1 (p685): 1.6H",
-    "retainingWall.yieldingKh": "AASHTO LRFD 11.6.5.2.2: kh = 0.5 kh0 for a wall free to move 25-50 mm"
+    "retainingWall.yieldingKh": "AASHTO LRFD 11.6.5.2.2: kh = 0.5 kh0 for a wall free to move 25-50 mm",
+    "strutAndTie": "ACI 318-19 Tables 23.4.3, 23.9.2, Secs 23.2.7, 23.5.1 (the procedure BNBC 2020 Part 6 Sec 6.4.6 sends deep members to; φ in BNBC Sec 6.2.3.2, p. 897); tieArm is SAEngine practice"
   },
   "retainingWall": {
     "sliding": 1.5,

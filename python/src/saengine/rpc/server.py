@@ -8,8 +8,9 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
-- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
-  section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
+- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?,
+  momentCurvature?, contourAt?}`` -> a designed section's properties, interaction diagrams,
+  P-Mx-My surface, moment-curvature curve and M-M contour (Section Designer)
 - ``architecture/importIfc`` ``{path, architectureText?, floorPlanText}`` -> an architect's IFC
   walls, doors, windows and spaces adopted into the architecture, with what was skipped (in a
   worker thread)
@@ -76,6 +77,10 @@ Methods:
   Word (``format`` "docx"), as the report template chooses (``{path, pages, warnings, format,
   template}``); ``report/templates`` ``{projectRoot}`` -> ``{templates, current}``;
   ``report/createTemplate`` ``{projectRoot, id, base?, name?}`` -> ``{path}`` (a copy of ``base``)
+- ``worksheets/kinds`` ``{}`` -> the calculation worksheet kinds with their inputs;
+  ``worksheets/calculate`` ``{kind, inputs, projectRoot?}`` -> the calculation (the project's
+  code pack); ``worksheets/list`` ``{projectRoot}`` -> ``{worksheets, problems}``;
+  ``worksheets/create`` ``{projectRoot, kind, id, title?}`` -> ``{path}`` or ``{problems}``
 - ``drawings/generate`` ``{projectRoot, sheets?, size?, designReportText?}`` -> the structural
   drawings written into ``11 Exports/Drawings`` (``{sheets, pdf, bbsCsv, generatedAt, size,
   stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
@@ -95,7 +100,9 @@ Methods:
 - ``soil/sources`` ``{soilText?, settingsText?, projectRoot?}`` -> where the site class and qa come from
 - ``fem/derive`` also takes ``soilText?`` (else the project's soil report beside ``modelFolder``)
 - ``bim/ifc`` and ``boq/compute`` also take ``substructureText?`` and ``settingsText?``: the
-  foundations of 9 Substructure (once it is no longer the placeholder) and the ground level
+  foundations of 9 Substructure (once it is no longer the placeholder) and the ground level;
+  ``bim/ifcRebar`` takes what ``bim/ifc`` takes and ``projectRoot``: the same IFC with the
+  reinforcement cages of the beams and columns (IfcReinforcingBar; in a worker thread)
 - ``substructure/design`` ``{projectRoot}`` -> Run All's foundation step: footings moved in,
   minimum bars given, the checks (``saengine.substructure.run.design_foundations``; in a worker
   thread, as ``substructure/report`` and ``report/build``)
@@ -365,6 +372,8 @@ def create_server() -> JsonRPCServer:
             args.get("projectRoot"),
             capacity=args.get("capacity", True),
             surface=args.get("surface", False),
+            moment_curvature=args.get("momentCurvature"),
+            contour_at=args.get("contourAt"),
         )
 
     @server.feature("section/analyse")
@@ -417,6 +426,24 @@ def create_server() -> JsonRPCServer:
             args.get("settingsText"),
             args.get("mepText"),
             args.get("architectureText"),
+        )
+
+    # With the reinforcement: the detailing of every beam and column first (seconds to tens of
+    # seconds on a large building), in a worker thread.
+    @server.feature("bim/ifcRebar")
+    @_in_worker
+    def _building_ifc_rebar(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.building_ifc(
+            args["bimText"],
+            args["objectsText"],
+            args.get("materialsText"),
+            args.get("name") or "Project",
+            args.get("substructureText"),
+            args.get("settingsText"),
+            args.get("mepText"),
+            args.get("architectureText"),
+            rebar_root=args.get("projectRoot"),
         )
 
     @server.feature("architecture/importIfc")
@@ -623,6 +650,28 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.report_template_create(
             args["projectRoot"], args["id"], args.get("base"), args.get("name")
+        )
+
+    @server.feature("worksheets/kinds")
+    def _worksheet_kinds(params: Any) -> dict[str, Any]:
+        return handlers.worksheet_kinds()
+
+    @server.feature("worksheets/calculate")
+    def _worksheet_calculate(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.worksheet_calculate(
+            args["kind"], args.get("inputs") or {}, args.get("projectRoot")
+        )
+
+    @server.feature("worksheets/list")
+    def _worksheet_list(params: Any) -> dict[str, Any]:
+        return handlers.worksheet_list(_plain(params)["projectRoot"])
+
+    @server.feature("worksheets/create")
+    def _worksheet_create(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.worksheet_create(
+            args["projectRoot"], args["kind"], args["id"], args.get("title")
         )
 
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
