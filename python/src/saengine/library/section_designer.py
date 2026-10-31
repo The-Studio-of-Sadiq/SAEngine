@@ -929,11 +929,20 @@ def analyse(
     root: str | Path | None = None,
     capacity: bool = True,
     surface: bool = False,
+    moment_curvature: dict[str, Any] | None = None,
+    contour_at: float | None = None,
 ) -> dict[str, Any]:
     """What the Section Designer shows (RPC ``section/analyse``): ``problems`` (validation;
     nothing else then), ``properties``, and for RC sections the ``uniaxial`` diagrams about x
     and y (``capacity``) and the P-Mx-My ``surface`` (``surface``); ``capacityNote`` says why
-    there is no capacity. The pack in force is the project's (the RPC server sets it)."""
+    there is no capacity. Sections without concrete get the plastic (cross-section yield)
+    diagrams of :class:`saengine.library.section_capacity.PlasticSection` instead
+    (``capacityKind`` "plastic", else "rc").
+
+    ``moment_curvature`` (``{axial [N], theta [rad], tension, steelLimit}``) adds the
+    ``momentCurvature`` curve and its key points, and ``contour_at`` [N] the M-M ``contour``
+    at that axial force (:mod:`saengine.library.section_capacity`). The pack in force is the
+    project's (the RPC server sets it)."""
     from pydantic import ValidationError
 
     try:
@@ -956,19 +965,64 @@ def analyse(
         }
     except (SectionError, ValidationError) as error:
         return {"problems": [{"path": "", "message": str(error)}]}
-    if not (capacity or surface):
+    from saengine.library import section_capacity
+
+    if moment_curvature is not None:
+        try:
+            result["momentCurvature"] = section_capacity.moment_curvature(
+                section,
+                materials,
+                axial=float(moment_curvature.get("axial", 0.0)),
+                theta=float(moment_curvature.get("theta", 0.0)),
+                tension=bool(moment_curvature.get("tension", True)),
+                steel_limit=float(
+                    moment_curvature.get("steelLimit", section_capacity.DEFAULT_STEEL_LIMIT)
+                ),
+            )
+        except SectionError as error:
+            result["momentCurvatureNote"] = str(error)
+    if not (capacity or surface or contour_at is not None):
+        return result
+    pack = _pack_for(root)
+    has_concrete = any(_mat(materials, r.material).category == "concrete" for r in section.regions)
+    if not has_concrete:
+        try:
+            plastic = section_capacity.PlasticSection(section, materials, pack)
+        except SectionError as error:
+            result["capacityNote"] = str(error)
+            return result
+        result["capacityKind"] = "plastic"
+        if capacity:
+            result["uniaxial"] = {axis: plastic.uniaxial(axis) for axis in ("x", "y")}
+        if contour_at is not None:
+            result["contour"] = _contour_result(contour_at, plastic.contour(contour_at))
+        result["phi"] = {
+            "tension": plastic.phi["tension"],
+            "compression": plastic.phi["compression"],
+            "flexure": plastic.phi["flexure"],
+        }
         return result
     try:
-        rc = DesignedRcSection(section, materials, _pack_for(root))
+        rc = DesignedRcSection(section, materials, pack)
     except SectionError as error:
         result["capacityNote"] = str(error)
         return result
+    result["capacityKind"] = "rc"
     if capacity:
         result["uniaxial"] = {axis: rc.uniaxial(axis, count=12) for axis in ("x", "y")}
     if surface:
         result["surface"] = rc.surface()
+    if contour_at is not None:
+        result["contour"] = _contour_result(contour_at, section_capacity.rc_contour(rc, contour_at))
     result["phi"] = {"tension": rc.phi.tension, "compression": rc.phi.compression}
     return result
+
+
+def _contour_result(axial: float, rows: list[dict[str, float]] | None) -> dict[str, Any]:
+    """The M-M contour for the editor: the rows, or a note when the force is beyond it."""
+    if rows is None:
+        return {"axial": axial, "points": [], "note": "beyond the section's axial capacity"}
+    return {"axial": axial, "points": rows}
 
 
 def _pack_for(root: str | Path | None) -> Any:

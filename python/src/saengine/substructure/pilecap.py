@@ -80,6 +80,7 @@ from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.objects import BarMesh
 from saengine.substructure.pilehead import METHOD as PILE_HEAD_METHOD
+from saengine.substructure.precast import PRECAST_METHOD
 from saengine.substructure.shallow import (
     ColumnBase,
     Loads,
@@ -897,6 +898,18 @@ def pile_cap_design(
             pu[1],
             tu[1],
         )
+    if kind == "driven" and pile_section is not None:
+        from saengine.substructure.precast import handling_checks, reinforcement_checks
+
+        checks += handling_checks(
+            dia,
+            pile["length"],
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            pile_section.get("unitWeight", 2400 * G * 1e-9),
+        )
+        checks += reinforcement_checks(dia, pile_section.get("reinforcement"))
     head_detail = None
     head_moments = None
     if lateral is not None and strength and pile_section is not None:
@@ -913,6 +926,7 @@ def pile_cap_design(
             n,
             lateral["fixity"],
             lateral.get("depth"),
+            kind == "driven",
         )
         checks += section_list
         if head_detail.get("note"):
@@ -1007,6 +1021,7 @@ PILE_CAP_METHOD = [
         "1.0) and over the piles (βn 0.8) against 0.75 × 0.85 βn f'c."
     ),
     PILE_HEAD_METHOD,
+    PRECAST_METHOD,
 ]
 
 
@@ -1115,6 +1130,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
             "fc": pile_concrete.concrete.fc,
             "fy": pile_fy,
             "reinforcement": pile_type.reinforcement,
+            "unitWeight": (pile_concrete.mechanical.density or 2400.0) * G * 1e-9,
         },
         service_dead,
         loads.dead,

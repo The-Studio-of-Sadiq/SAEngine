@@ -562,6 +562,38 @@ registerPlannedFeature({
 	references: [
 		localize('planned.compositeColumns.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; the provisions of AISC 360-05)"),
 		localize('planned.compositeColumns.ref2', "AISC 360 Ch I (composite members)"),
+	],
+});
+// Planned (T26: BNBC 2020 gives no floor vibration method; linear buckling is built, in the
+// result tables of each load combination).
+registerPlannedFeature({
+	id: FemPlanned.floorVibration,
+	part: 'fem',
+	title: localize('planned.floorVibration.title', "Floor Vibration from Walking"),
+	summary: localize('planned.floorVibration.summary', "Checks floors for walking-induced vibration: the floor's natural frequencies and modal masses from the model, the response to footfall, and the comparison with the comfort limits of the occupancy."),
+	steps: [
+		localize('planned.floorVibration.step1', "Pick the floor panels or bays to check and their occupancy (office, residence, shopping, hospital)."),
+		localize('planned.floorVibration.step2', "Run a modal analysis of the floor with the live load expected in service and the damping of the fit-out."),
+		localize('planned.floorVibration.step3', "Work out the peak acceleration or response factor from footfall at the critical points."),
+		localize('planned.floorVibration.step4', "Compare with the occupancy's limit and report each panel."),
+	],
+	inputs: [
+		{ label: localize('planned.floorVibration.occupancy', "Occupancy"), example: localize('planned.floorVibration.occupancyExample', "Office") },
+		{ label: localize('planned.floorVibration.damping', "Damping ratio"), unit: '%', example: '3' },
+		{ label: localize('planned.floorVibration.liveLoad', "Live load in service"), unit: 'kN/m²', example: '0.5' },
+		{ label: localize('planned.floorVibration.walker', "Walking frequency"), unit: 'Hz', example: '1.6 – 2.2' },
+	],
+	outputs: [
+		localize('planned.floorVibration.out1', "Floor frequencies, modal masses and peak accelerations per panel"),
+		localize('planned.floorVibration.out2', "Pass or fail against the comfort limit, coloured on the plan"),
+		localize('planned.floorVibration.out3', "A floor vibration section in the design report"),
+	],
+	references: [
+		localize('planned.floorVibration.ref1', "BNBC 2020 Part 6 (no floor vibration method)"),
+		localize('planned.floorVibration.ref2', "AISC Design Guide 11 (floor vibrations due to human activity)"),
+		localize('planned.floorVibration.ref3', "CCIP-016 (design of floors for vibration)"),
+	],
+});
 
 // Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
 // model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
