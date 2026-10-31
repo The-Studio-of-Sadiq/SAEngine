@@ -183,9 +183,11 @@ export class SoilGrid extends Disposable {
 				append(th, $('span', undefined, group.label));
 			}
 			if (collapsed) {
-				append(colgroup, $('col', { style: 'width: 22px' }));
-				width += 22;
-				append(headRow, $('th.soil-grid-collapsed'));
+				// Folded, the group keeps its name (a bare chevron does not say what it hides).
+				const folded = 22 + Math.ceil(group.label.length * 6.5);
+				append(colgroup, $('col', { style: `width: ${folded}px` }));
+				width += folded;
+				append(headRow, $('th.soil-grid-collapsed', { title: localize('soil.grid.folded', "{0}: {1}", group.label, columns.map(c => c.label).join(', ')) }));
 				continue;
 			}
 			for (const column of columns) {
@@ -570,6 +572,9 @@ export class SoilGrid extends Disposable {
 			this.cancelEdit();
 			if (move) {
 				this.moveAfterEdit(move, edit.position);
+				if (this.options.state.active.row !== edit.position.row) {
+					this.options.onDidChangeActiveRow?.(this.options.state.active.row);
+				}
 			}
 			if (refocus) {
 				this.scroller.focus({ preventScroll: true });
@@ -600,6 +605,9 @@ export class SoilGrid extends Disposable {
 			this.options.state.active = from;
 			this.options.state.anchor = undefined;
 		}
+		// The owner hears of the new active row before it renders again, so that what follows the
+		// active row (the samples' lab panel) does not pull the cell back to the row just written.
+		this.options.onDidChangeActiveRow?.(this.options.state.active.row);
 		const keepFocus = refocus || this.hasFocus();
 		this.options.onDidWrite(result);
 		if (keepFocus && this.scroller.isConnected) {

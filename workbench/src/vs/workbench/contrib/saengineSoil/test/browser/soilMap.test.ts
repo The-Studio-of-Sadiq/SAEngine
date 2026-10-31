@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILatLon, ISoilLocationResult, ISoilReport, ISoilSite, newSoilReport } from '../../browser/soilDocument.js';
-import { applyPlotEdit, bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
+import { applyPlotEdit, bnbcSuggestion, boreholePoints, boreholeXY, positionMismatch, syncPlacedXY, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
 
 function report(extra: Partial<ISoilReport> = {}): ISoilReport {
 	return {
@@ -268,6 +268,38 @@ suite('SAEngine - Soil site map', () => {
 			map: [[90.4, 23.8], [90.4001, 23.8], [90.4001, 23.8002]],
 			mapOwn: [[90.4, 23.8], [90.5, 23.8], [90.5, 23.9]],
 			side: 'Side 1: 12 m, faces S (front)',
+		});
+	});
+	test('X and Y of a borehole placed by lat/lon follow from it; a stale or disagreeing pair is told (N-S2)', () => {
+		const r = report({ site: { lat: 23.81, lon: 90.41 } });
+		r.boreholes[0].position = 'wgs84';
+		r.boreholes[0].x = 33000; // stored before the site point moved
+		r.boreholes[1].position = 'project'; // also given a lat/lon, but placed by its X and Y
+		r.boreholes[1].lat = 23.8105;
+		r.boreholes[1].lon = 90.4105;
+		const location: ISoilLocationResult = {
+			site: { lat: 23.81, lon: 90.41, georeferenced: true },
+			boreholes: [
+				{ id: 'BH-1', position: 'wgs84', x: 69012.4, y: -4001.6, lat: 23.8103, lon: 90.4125 },
+				{ id: 'BH-2', position: 'project', x: 20000, y: 0, lat: 23.8105, lon: 90.41019 },
+				{ id: 'BH-3', position: 'project', x: 0, y: 15000, lat: 23.81013, lon: 90.41 },
+			],
+		};
+		const shown = boreholeXY(r.boreholes[0], location);
+		const mismatch = r.boreholes.map(b => positionMismatch(b, location)).map(m => m === undefined ? undefined : Math.round(m));
+		const changed = syncPlacedXY(r, location);
+		assert.deepStrictEqual({
+			shown, mismatch, changed, stored: r.boreholes.map(b => [b.x, b.y]),
+			again: syncPlacedXY(r, location), after: positionMismatch(r.boreholes[0], location),
+			unknown: boreholeXY(r.boreholes[0], undefined),
+		}, {
+			shown: { x: 69012.4, y: -4001.6 },
+			// BH-1: 33 m stored against 69 m worked out; BH-2: its lat/lon 32 m east of where X and Y put it.
+			mismatch: [36, 32, undefined],
+			changed: true,
+			stored: [[69012, -4002], [20000, 0], [0, 15000]],
+			again: false, after: undefined,
+			unknown: { x: 69012, y: -4002 },
 		});
 	});
 });

@@ -78,6 +78,7 @@ suite('SAEngine - Soil report', () => {
 			borehole('BH-2', { layers: [] }),
 		] };
 		assert.deepStrictEqual(checkSoilReport(report).map(p => `${p.severity} ${p.index} ${p.borehole ?? ''} ${p.path ?? ''}`), [
+			'error 1 BH-2 id',
 			'error 1 BH-2 layers.1.bottom',
 			'error 1 BH-2 layers.1.top',
 			'error 1 BH-2 spt.0.depth',
@@ -85,6 +86,8 @@ suite('SAEngine - Soil report', () => {
 			'error 1 BH-2 spt.1.depth',
 			'error 2 BH-2 id',
 			'warning 2 BH-2 layers',
+			// One note for the report: no borehole reaches the 30 m of Table 6.2.13.
+			'warning undefined  ',
 		]);
 	});
 
@@ -97,6 +100,7 @@ suite('SAEngine - Soil report', () => {
 			'error 0 layers.1.bottom: BH-1: layer 2 ends at 9 m, below the termination depth 8 m.',
 			'warning 0 waterTable: BH-1: the water table (8.5 m) is below the termination depth 8 m.',
 			'error 1 spt.0.depth: BH-2: the SPT at 9.5 m is below the bottom of the borehole (9 m).',
+			'warning undefined undefined: No borehole reaches 30 m (the deepest ends at 9.5 m): BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so the site class is provisional (the last N is carried down to 30 m). Drill one borehole to 30 m to confirm it.',
 		]);
 	});
 
@@ -119,7 +123,7 @@ suite('SAEngine - Soil report', () => {
 			piles: bh1.piles!.map(p => [p.top, p.bottom, p.soilType, p.fs, p.qb]),
 			notes: results.notes!.length,
 		}, {
-			siteClass: { class: 'SD', borehole: 'BH-1', nBar: 6.5, suBar: 22, depth: 30000, note: 'SD, the softest of the boreholes (BH-1 SD, BH-2 SD), in the order SA to SE of Table 6.2.13.' },
+			siteClass: { class: 'SD', borehole: 'BH-1', nBar: 6.5, suBar: 22, depth: 30000, note: 'SD, the softest of the boreholes (BH-1 SD, BH-2 SD), in the order SA to SE of Table 6.2.13.', provisional: false },
 			perBorehole: [['BH-1', 'SD', 6.5, 22], ['BH-2', 'SD', 6.7, 22]],
 			pga: 0.37800000000000006,
 			pgaSource: true,
@@ -318,5 +322,54 @@ suite('SAEngine - Soil report', () => {
 		}, {
 			problems: ['Soil report: BH-2: layers 1 and 2 overlap'], skipped: ['BH-2'], byN: 'SD', bySu: 'SD',
 		});
+	});
+	test('the site bearing table: the lowest of the boreholes with a value, the others named or left out (N-S4, N-S3, N-S5, N-S6)', () => {
+		const table = (qa: (number | null)[]) => [1000, 2000].map((Df, i) => ({ B: 2000, Df, qa: qa[i], qa_shear: qa[i], qa_settlement: null, governs: qa[i] === null ? null : 'shear' }));
+		const raw = {
+			siteClass: { class: 'SD', governing: 'BH-1', provisional: true, note: 'SD' },
+			boreholes: [
+				{ id: 'BH-1', siteClass: { class: 'SD', N: 8, depth: 15000, provisional: true }, bearing: { table: table([80, 95]) }, ks: 615, ksDetail: { bowles: 9600 },
+					pile: [{ top: 0, bottom: 6000, soilType: 'sand', fs: 20, qb: 300, liquefiable: 0.5, fsSeismic: 10 }] },
+				{ id: 'BH-2', siteClass: { class: 'SD', N: 9, depth: 30000 }, bearing: { table: table([100, 110]) } },
+				// Far away, with fill at its base: no value at Df 1 m.
+				{ id: 'BH-3', siteClass: { class: 'SD', N: 5, depth: 20000 }, bearing: { table: table([null, 60]) } },
+			],
+		};
+		const all = readSoilResults(raw)!;
+		const without = readSoilResults(raw, new Set(['BH-3']))!;
+		const cells = (r: typeof all) => r.bearing!.cells.map(c => [c.Df, c.qa, c.borehole, c.missing]);
+		assert.deepStrictEqual({
+			all: cells(all), without: cells(without), excluded: [all.bearing!.excluded, without.bearing!.excluded],
+			site: [all.siteClass!.provisional, all.boreholes!.map(b => b.siteClass!.provisional)],
+			ks: [all.boreholes![0].ks, all.boreholes![0].ksBowles],
+			piles: all.boreholes![0].piles!.map(p => [p.fs, p.liquefiable, p.fsSeismic]),
+		}, {
+			// Before, BH-3's empty cell blanked Df 1 m for the whole site.
+			all: [[1000, 80, 'BH-1', ['BH-3']], [2000, 60, 'BH-3', undefined]],
+			without: [[1000, 80, 'BH-1', undefined], [2000, 95, 'BH-1', undefined]],
+			excluded: [undefined, ['BH-3']],
+			site: [true, [true, false, false]],
+			ks: [615, 9600],
+			piles: [[20, 0.5, 10]],
+		});
+	});
+
+	test('flags every borehole that shares an id, and a site class when no log reaches 30 m (N-S7, N-S3)', () => {
+		const report: ISoilReport = { ...newSoilReport(), boreholes: [
+			borehole('BH-1', { depth: 30000, layers: [{ top: 0, bottom: 30000, description: '', soilType: 'clay' }] }),
+			borehole('BH-1', { depth: 30000, layers: [{ top: 0, bottom: 30000, description: '', soilType: 'clay' }] }),
+			borehole('BH-3', { depth: 15000, layers: [{ top: 0, bottom: 15000, description: '', soilType: 'clay' }] }),
+			borehole('BH-4', { depth: 12000, layers: [{ top: 0, bottom: 10000, description: '', soilType: 'clay' }, { top: 10000, bottom: 12000, description: '', soilType: 'rock' }] }),
+		] };
+		assert.deepStrictEqual(checkSoilReport(report).map(p => `${p.severity} ${p.index} ${p.path}: ${p.message}`), [
+			'error 0 id: 2 boreholes are called BH-1: give each its own id.',
+			'error 1 id: 2 boreholes are called BH-1: give each its own id.',
+		]);
+		// Without the two 30 m boreholes: one report note, the deepest log named (rock ends BH-4's log).
+		report.boreholes.splice(0, 2);
+		report.boreholes[1].layers = [{ top: 0, bottom: 12000, description: '', soilType: 'clay' }];
+		assert.deepStrictEqual(checkSoilReport(report).map(p => `${p.severity} ${p.index} ${p.message.slice(0, 50)}`), [
+			'warning undefined No borehole reaches 30 m (the deepest ends at 15 m',
+		]);
 	});
 });

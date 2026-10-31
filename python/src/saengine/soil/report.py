@@ -141,6 +141,24 @@ def dumps(report: SoilReport) -> str:
     return json.dumps(data, indent="\t", ensure_ascii=False) + "\n"
 
 
+def _table_notes(rows: list[dict[str, Any]]) -> list[str]:
+    """The bearing table's notes, each once with the founding depths it holds at when not all
+    (a note of the fill under a 1 m footing does not hold for one at 2 m)."""
+    depths = sorted({row["Df"] for row in rows})
+    where: dict[str, set[int]] = {}
+    for row in rows:
+        for note in row["notes"]:
+            where.setdefault(note, set()).add(row["Df"])
+    out = []
+    for note in sorted(where):
+        at = sorted(where[note])
+        if at == depths:
+            out.append(note)
+        else:
+            out.append(f"at Df {', '.join(f'{d / 1e3:g}' for d in at)} m: {note}")
+    return out
+
+
 def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any]) -> dict[str, Any]:
     rows = bearing.table(profile)
     design = profile.design
@@ -163,7 +181,7 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
                 reference["qa"],
             )
         )
-    notes = sorted({n for row in rows for n in row["notes"]})
+    notes = _table_notes(rows)
     return {
         "id": profile.id,
         "x": profile.borehole.x,
@@ -199,7 +217,7 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
         ),
         "ks": ks["value"],
         "ksDetail": ks,
-        "pile": piles.pile_parameters(profile),
+        "pile": piles.pile_parameters(profile, screening.get("layers")),
         "pileType": design.pile.type,
         "pileNote": piles.PILE_NOTES[design.pile.type],
         "lab": [lab.summary(s) for s in profile.borehole.samples],

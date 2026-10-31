@@ -105,6 +105,9 @@ export function niceStep(range: number, count: number): number {
 /** Tick labels of the depth axis stay at least this far apart [px]. */
 const DEPTH_TICK_SPACING = 40;
 
+/** The widest the description column of a log gets [px]; the SPT chart follows it. */
+const DESCRIPTION_MAX = 520;
+
 /** A log keeps at least this many px per m, so a deep borehole (75 m, 150 m) grows and scrolls. */
 const MIN_PX_PER_M = 16;
 
@@ -157,11 +160,13 @@ export function renderBoreholeLog(container: HTMLElement, report: ISoilReport, b
 	const axisWidth = 46;
 	const columnX = axisWidth + 20;
 	const columnWidth = options.compact ? 44 : 58;
-	const width = Math.max(options.compact ? 240 : 480, options.width);
-	const chartWidth = options.compact ? width - columnX - columnWidth - 40 : Math.round(Math.max(170, Math.min(300, options.width * 0.32)));
-	const chartX = width - chartWidth - 16;
 	const descriptionX = columnX + columnWidth + 14;
-	const descriptionWidth = options.compact ? 0 : Math.max(80, chartX - descriptionX - 24);
+	// On a wide screen the description stops at a readable width and the SPT chart follows it,
+	// taking the rest up to a limit, rather than sitting at the far edge behind a gap.
+	const chartWidth = options.compact ? Math.max(240, options.width) - columnX - columnWidth - 40 : Math.round(Math.max(170, Math.min(420, options.width * 0.32)));
+	const descriptionWidth = options.compact ? 0 : Math.max(80, Math.min(DESCRIPTION_MAX, options.width - descriptionX - chartWidth - 40));
+	const width = options.compact ? Math.max(240, options.width) : Math.max(480, descriptionX + descriptionWidth + 24 + chartWidth + 16);
+	const chartX = width - chartWidth - 16;
 
 	const { maxM, scale, step: depthStep } = depthScale(options.maxDepth ?? boreholeDepth(borehole), options.height - top - bottom);
 	const height = Math.round(top + maxM * scale + bottom);
