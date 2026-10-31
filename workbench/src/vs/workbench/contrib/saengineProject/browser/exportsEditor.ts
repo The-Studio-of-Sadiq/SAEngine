@@ -9,7 +9,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -145,6 +145,9 @@ export function readE2kExport(value: unknown): IE2kExportOutcome {
 function countWords(key: string): string {
 	return key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
+
+/** How long the page says a file is opening in the system's viewer (it starts in a few seconds). */
+const OPENING_STATUS_MS = 6000;
 
 function formatTime(time: number): string {
 	const date = new Date(time);
@@ -728,7 +731,13 @@ export class ExportsEditor extends EditorPane {
 		if (kind.kind === 'dxf' || kind.kind === 'e2k') {
 			await this.editorService.openEditor({ resource: file.resource, options: { pinned: true } });
 		} else {
-			await this.openerService.open(file.resource, { openExternal: true });
+			// The system's viewer can take seconds to appear: the page says it is on its way.
+			this.frame.setStatus({ busy: true, text: localize('exports.opening', "Opening {0} in the system's viewer...", file.name) });
+			try {
+				await this.openerService.open(file.resource, { openExternal: true });
+			} finally {
+				this.renderDisposables.add(disposableTimeout(() => this.frame.setStatus(this.status()), OPENING_STATUS_MS));
+			}
 		}
 	}
 
