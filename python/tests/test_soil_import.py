@@ -31,6 +31,50 @@ def test_template_round_trip_csv_and_xlsx(tmp_path: Path) -> None:
         assert hole.layers[1].cu == 25 and hole.layers[1].bottom == 6000
         assert len(hole.spt) == sum(1 for e in EXAMPLE if e["record"] == "spt")
         assert hole.samples[0].plasticLimit == 23 and hole.samples[0].type == "UD"
+        # N-S10: the log sheet's header and SPT columns come through the template too.
+        assert hole.date == "2026-01-15" and hole.method == "Wash boring"
+        last = hole.spt[-1]
+        assert (last.depthTo, last.seat, last.N1, last.N2, last.recovery) == (15450, 12, 13, 15, 80)
+        assert last.sampleNumber == "D-10"
+
+
+def test_position_date_method_refusal_and_recovery(tmp_path: Path) -> None:
+    """N-S10: lat/long, BTM, date, method, SPT to, refusal and recovery columns (synthetic log)."""
+    csv = write(
+        tmp_path / "log.csv",
+        "Borehole,Latitude,Longitude,Date,Method,Depth (m),SPT to (m),N1,N2,Refusal,Recovery (%)\n"
+        "BH-7,23.80001,90.40002,2026-02-01,Wash boring,1.5,1.95,3,4,,70\n"
+        "BH-7,,,,,3.0,,30,,50/100,40\n"
+        "BH-7,,,,,4.5,,50,,R,\n"
+        "BH-8,,,,,1.5,,2,2,maybe,\n"
+        "BH-9,,,2026-02-02,,1.5,,2,2,,\n"
+        "BH-9,,,2026-02-03,,3.0,,2,2,,\n",
+    )
+    boreholes, problems, _ = parse_rows(read_rows(csv))
+    assert problems == [
+        "row 5 (BH-8): Refusal: 'maybe' is not R (or yes) nor blows/penetration as 50/100",
+        "row 7 (BH-9): Date: '2026-02-03' differs from '2026-02-02' on row 6",
+    ]
+    hole = SoilReport.model_validate({"boreholes": [boreholes[0]]}).boreholes[0]
+    assert (hole.lat, hole.lon, hole.date, hole.method) == (
+        23.80001,
+        90.40002,
+        "2026-02-01",
+        "Wash boring",
+    )
+    assert [(r.depth, r.depthTo, r.recovery) for r in hole.spt] == [
+        (1500, 1950, 70),
+        (3000, None, 40),
+        (4500, None, None),
+    ]
+    assert hole.spt[1].refusal is not None and hole.spt[1].refusal.blows == 50
+    assert hole.spt[2].refusal is True
+    btm = write(
+        tmp_path / "btm.csv",
+        "Borehole,BTM easting,BTM northing,Depth,N\nBH-1,540123.4,2633456.7,1.5,4\n",
+    )
+    (only,), problems, _ = parse_rows(read_rows(btm))
+    assert not problems and (only["easting"], only["northing"]) == (540123.4, 2633456.7)
 
 
 def test_template_example_is_not_imported(tmp_path: Path) -> None:

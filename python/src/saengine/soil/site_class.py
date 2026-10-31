@@ -43,7 +43,9 @@ strength (as ASCE 7-16 20.4.3, which takes the softer of N̄ for the cohesionles
 the cohesive soil).
 
 A borehole shorter than 30 m is extended with its last N (or its rock) down to 30 m, the usual
-practice; the result says so.
+practice; the result says so and marks the class ``provisional``: Table 6.2.13 classifies by the
+top 30 m, which the borehole did not reach. The project's class is provisional unless a
+borehole of the governing class reaches 30 m.
 
 The class is one of SA-SE (the project settings' site class); S1, S2 and SE are flags
 (``flags``: ``{"class", "note"}``) the engineer decides on:
@@ -174,6 +176,16 @@ def site_class(profile: Profile) -> dict[str, Any]:
             f". The borehole ends at {bottom:.1f} m: its last N is taken down to 30 m, the usual "
             "practice; a deeper borehole would confirm the class"
         )
+    # The top 30 m were not all logged: the class rests on the extension (rock reached ends it).
+    provisional = bottom < DEPTH - 1e-6 and not any(
+        layer.soil_type == "rock" and layer.bottom >= bottom - 1e-6 for layer in profile.layers
+    )
+    if provisional:
+        notes.append(
+            f"Provisional: the borehole ends at {bottom:.1f} m, and BNBC 2020 Table 6.2.13 "
+            "classifies the site by the top 30 m. Drill one borehole to 30 m (or measure the "
+            "shear wave velocity) to confirm the class."
+        )
     flags: list[dict[str, str]] = []
     rock_top = next((layer.top for layer in profile.layers if layer.soil_type == "rock"), None)
     if rock_top is not None and rock_top < 5.0:
@@ -204,6 +216,7 @@ def site_class(profile: Profile) -> dict[str, Any]:
         "bySu": by_su,
         "depth": round(min(bottom, DEPTH) * 1e3),
         "extrapolated": extrapolated,
+        "provisional": provisional,
         "note": note + ".",
         "notes": notes,
     }
@@ -305,6 +318,13 @@ def governing(results: dict[str, dict[str, Any]]) -> dict[str, Any]:
     )
     if len(set(classes.values())) > 1:
         note += " The boreholes differ: check that the site is not better split into zones."
+    # Confirmed when a borehole of that class reaches 30 m; else it rests on the extension.
+    provisional = all(results[bh].get("provisional", False) for bh in which)
+    if provisional:
+        note += (
+            " Provisional: no borehole of this class reaches 30 m, the depth Table 6.2.13 "
+            "classifies by."
+        )
     flags: dict[str, dict[str, Any]] = {}
     for bh, r in results.items():
         for flag in r.get("flags", []):
@@ -316,6 +336,7 @@ def governing(results: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "class": cls,
         "governing": which[0],
         "boreholes": which,
+        "provisional": provisional,
         "note": note,
         "flags": sorted(flags.values(), key=lambda f: f["class"]),
     }

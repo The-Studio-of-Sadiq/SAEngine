@@ -143,6 +143,36 @@ COLUMNS: tuple[Column, ...] = (
     Column("x", "X", "length", "Plan position of the borehole, project coordinates", ("easting",)),
     Column("y", "Y", "length", "Plan position of the borehole, project coordinates", ("northing",)),
     Column(
+        "lat",
+        "Latitude",
+        "°",
+        "Borehole: WGS 84 latitude; with the longitude it places the borehole",
+        ("latitude",),
+    ),
+    Column("lon", "Longitude", "°", "Borehole: WGS 84 longitude", ("longitude", "long", "lng")),
+    Column(
+        "btmEasting",
+        "BTM easting",
+        None,
+        "Borehole: Bangladesh Transverse Mercator easting [m], as survey drawings give it",
+        ("btme",),
+    ),
+    Column(
+        "btmNorthing",
+        "BTM northing",
+        None,
+        "Borehole: Bangladesh Transverse Mercator northing [m]",
+        ("btmn",),
+    ),
+    Column("date", "Date", None, "Borehole: date drilled", ("datedrilled", "dateofboring")),
+    Column(
+        "method",
+        "Method",
+        None,
+        "Borehole: boring method, e.g. wash boring",
+        ("boringmethod", "drillingmethod"),
+    ),
+    Column(
         "groundLevel",
         "Ground level",
         "length",
@@ -202,6 +232,13 @@ COLUMNS: tuple[Column, ...] = (
         "SPT: field blow count for 300 mm, uncorrected",
         ("spt", "sptn", "nvalue", "blows", "fieldn"),
     ),
+    Column(
+        "depthTo",
+        "SPT to",
+        "length",
+        "SPT record: depth of the end of the drive (empty: depth + 0.45 m)",
+        ("driveto",),
+    ),
     Column("seat", "Seat", None, "SPT: blows for the first (seating) 150 mm", ("seating", "n0")),
     Column("N1", "N1", None, "SPT: blows for the second 150 mm", ("blows2",)),
     Column("N2", "N2", None, "SPT: blows for the third 150 mm", ("blows3",)),
@@ -213,6 +250,20 @@ COLUMNS: tuple[Column, ...] = (
         ("sampleno", "samplenumber", "sampleid"),
     ),
     Column("energyRatio", "Energy ratio", "%", "SPT: hammer energy ratio of this test", ("er",)),
+    Column(
+        "refusal",
+        "Refusal",
+        None,
+        "SPT: R when the drive stopped at 50 blows, or blows/penetration as 50/100 (mm)",
+        ("ref",),
+    ),
+    Column(
+        "recovery",
+        "Recovery",
+        "%",
+        "SPT record or sample: length recovered over the length driven",
+        ("rec",),
+    ),
     Column("sampleType", "Sample type", None, "Sample: e.g. SPT, UD", ("sample",)),
     Column(
         "unitWeight",
@@ -263,7 +314,21 @@ COLUMNS: tuple[Column, ...] = (
     Column("OCR", "OCR", None, "Layer: overconsolidation ratio", ("overconsolidationratio",)),
 )
 
-_BOREHOLE_FIELDS = ("x", "y", "groundLevel", "waterTable", "boreholeDepth")
+_BOREHOLE_FIELDS = (
+    "x",
+    "y",
+    "lat",
+    "lon",
+    "btmEasting",
+    "btmNorthing",
+    "groundLevel",
+    "waterTable",
+    "boreholeDepth",
+)
+#: The borehole's text values (the first row that gives one; another value is a problem).
+_BOREHOLE_TEXT = ("date", "method")
+#: The file format's names of the borehole values the template names otherwise.
+_BOREHOLE_KEYS = {"boreholeDepth": "depth", "btmEasting": "easting", "btmNorthing": "northing"}
 _LAYER_FIELDS = (
     "unitWeight",
     "saturatedUnitWeight",
@@ -291,7 +356,18 @@ _SAMPLE_FIELDS = (
     "Cc",
     "e0",
 )
-_TEXT = {"borehole", "record", "description", "soilType", "uscs", "sampleType", "sampleNumber"}
+_TEXT = {
+    "borehole",
+    "record",
+    "description",
+    "soilType",
+    "uscs",
+    "sampleType",
+    "sampleNumber",
+    "date",
+    "method",
+    "refusal",
+}
 
 _WORDS = {
     "clay": "clay",
@@ -329,6 +405,7 @@ for _column in COLUMNS:
 class _Borehole:
     id: str
     values: dict[str, tuple[float, int]] = field(default_factory=dict)
+    text: dict[str, tuple[str, int]] = field(default_factory=dict)
     layers: list[tuple[int, dict[str, Any]]] = field(default_factory=list)
     spt: list[tuple[int, dict[str, Any]]] = field(default_factory=list)
     samples: list[tuple[int, dict[str, Any]]] = field(default_factory=list)
@@ -478,7 +555,9 @@ def parse_rows(
                 continue
             column, scale = spec
             if column.key in _TEXT:
-                values[column.key] = str(cell).strip()
+                # Excel gives a date cell as a datetime: the date is what the log says.
+                text = cell.strftime("%Y-%m-%d") if hasattr(cell, "strftime") else str(cell)
+                values[column.key] = text.strip()
                 continue
             try:
                 number_value = _number(cell)
@@ -514,11 +593,20 @@ def parse_rows(
                     )
                 else:
                     hole.values.setdefault(key, (values[key], number))
+        for key in _BOREHOLE_TEXT:
+            if key in values:
+                if key in hole.text and hole.text[key][0] != values[key]:
+                    problems.append(
+                        f"{where}: {_column_named(key).header}: '{values[key]}' differs from "
+                        f"'{hole.text[key][0]}' on row {hole.text[key][1]}"
+                    )
+                else:
+                    hole.text.setdefault(key, (values[key], number))
         record = (values.get("record") or "").strip().lower()
         if not record:
             if "top" in values or "bottom" in values:
                 record = "layer"
-            elif "N" in values or "N1" in values or "N2" in values:
+            elif "N" in values or "N1" in values or "N2" in values or "refusal" in values:
                 record = "spt"
             elif "depth" in values:
                 record = "sample"
@@ -537,7 +625,10 @@ def parse_rows(
         data: dict[str, Any] = {"id": hole.id}
         for key in _BOREHOLE_FIELDS:
             if key in hole.values:
-                data["depth" if key == "boreholeDepth" else key] = hole.values[key][0]
+                data[_BOREHOLE_KEYS.get(key, key)] = hole.values[key][0]
+        for key in _BOREHOLE_TEXT:
+            if key in hole.text:
+                data[key] = hole.text[key][0]
         data["layers"] = [v for _, v in sorted(hole.layers, key=lambda r: r[1]["top"])]
         data["spt"] = [v for _, v in sorted(hole.spt, key=lambda r: r[1]["depth"])]
         data["samples"] = [v for _, v in sorted(hole.samples, key=lambda r: r[1]["depth"])]
@@ -550,11 +641,22 @@ def _column_named(key: str) -> Column:
 
 
 def _extra(values: dict[str, Any], allowed: tuple[str, ...], kind: str) -> list[str]:
-    own = {"borehole", "record", *_BOREHOLE_FIELDS}
+    own = {"borehole", "record", *_BOREHOLE_FIELDS, *_BOREHOLE_TEXT}
     by_kind = {
         "layer": {"top", "bottom", "description", "soilType", "uscs"},
-        "spt": {"depth", "N", "seat", "N1", "N2", "sampleNumber", "energyRatio"},
-        "sample": {"depth", "sampleType", "sampleNumber"},
+        "spt": {
+            "depth",
+            "depthTo",
+            "N",
+            "seat",
+            "N1",
+            "N2",
+            "sampleNumber",
+            "energyRatio",
+            "refusal",
+            "recovery",
+        },
+        "sample": {"depth", "sampleType", "sampleNumber", "recovery"},
     }[kind]
     return [
         _column_named(k).header
@@ -604,10 +706,23 @@ def _layer(
 def _spt(
     hole: _Borehole, number: int, where: str, values: dict[str, Any], problems: list[str]
 ) -> None:
-    if "depth" not in values or not ("N" in values or "N1" in values or "N2" in values):
-        problems.append(f"{where}: an SPT record needs Depth and N (or N1 and N2)")
+    has_blows = "N" in values or "N1" in values or "N2" in values or "refusal" in values
+    if "depth" not in values or not has_blows:
+        problems.append(f"{where}: an SPT record needs Depth and N (or N1 and N2, or a refusal)")
         return
     record: dict[str, Any] = {"depth": values["depth"]}
+    if "depthTo" in values:
+        record["depthTo"] = values["depthTo"]
+    if "refusal" in values:
+        refusal = _refusal(values["refusal"])
+        if refusal is None:
+            problems.append(
+                f"{where}: Refusal: '{values['refusal']}' is not R (or yes) nor blows/penetration "
+                "as 50/100"
+            )
+            return
+        if refusal is not False:
+            record["refusal"] = refusal
     for key in ("N", "seat", "N1", "N2"):
         if key in values:
             n = values[key]
@@ -616,7 +731,7 @@ def _spt(
                 problems.append(f"{where}: {header}: {n:g} is not a whole number of blows")
                 return
             record[key] = int(n)
-    if ("N1" in record) != ("N2" in record):
+    if ("N1" in record) != ("N2" in record) and "refusal" not in record:
         problems.append(f"{where}: give both N1 and N2")
         return
     if "N1" in record and "N" in record and record["N"] != record["N1"] + record["N2"]:
@@ -628,12 +743,28 @@ def _spt(
         record["sampleNumber"] = values["sampleNumber"]
     if "energyRatio" in values:
         record["energyRatio"] = values["energyRatio"]
+    if "recovery" in values:
+        record["recovery"] = values["recovery"]
     extra = _extra(values, (), "spt")
     if extra:
         problems.append(
             f"{where}: an SPT record has no {', '.join(extra)} (give lab values on a sample row)"
         )
     hole.spt.append((number, record))
+
+
+def _refusal(text: str) -> dict[str, Any] | bool | None:
+    """A refusal cell: True for R (yes, x), blows and penetration for "50/100" (mm), False for
+    no (empty, no, -); None when it cannot be read."""
+    word = text.strip().lower()
+    if word in ("", "no", "n", "-", "0", "false"):
+        return False
+    if word in ("r", "ref", "refusal", "y", "yes", "x", "1", "true"):
+        return True
+    match = re.fullmatch(r"(\d+)\s*/\s*(\d+(?:\.\d+)?)\s*(mm)?", word)
+    if match:
+        return {"blows": int(match.group(1)), "penetration": float(match.group(2))}
+    return None
 
 
 def _sample(
@@ -647,6 +778,8 @@ def _sample(
         sample["type"] = values["sampleType"]
     if values.get("sampleNumber"):
         sample["number"] = values["sampleNumber"]
+    if "recovery" in values:
+        sample["recovery"] = values["recovery"]
     for key in _SAMPLE_FIELDS:
         if key in values:
             sample[key] = values[key]
@@ -723,6 +856,8 @@ EXAMPLE: list[dict[str, Any]] = [
         "record": "layer",
         "x": 0,
         "y": 0,
+        "date": "2026-01-15",
+        "method": "Wash boring",
         "groundLevel": 0,
         "waterTable": 1.5,
         "boreholeDepth": 15,
@@ -768,7 +903,17 @@ EXAMPLE: list[dict[str, Any]] = [
     {"borehole": EXAMPLE_ID, "record": "spt", "depth": 10.5, "N": 18},
     {"borehole": EXAMPLE_ID, "record": "spt", "depth": 12.0, "N": 22},
     {"borehole": EXAMPLE_ID, "record": "spt", "depth": 13.5, "N": 25},
-    {"borehole": EXAMPLE_ID, "record": "spt", "depth": 15.0, "N": 28},
+    {
+        "borehole": EXAMPLE_ID,
+        "record": "spt",
+        "depth": 15.0,
+        "depthTo": 15.45,
+        "seat": 12,
+        "N1": 13,
+        "N2": 15,
+        "sampleNumber": "D-10",
+        "recovery": 80,
+    },
     {
         "borehole": EXAMPLE_ID,
         "record": "sample",
@@ -838,7 +983,14 @@ def soil_template(path: str) -> dict[str, Any]:
     notes.append(
         ["Lengths in metres unless the header says (mm); depths below the borehole's ground."]
     )
-    notes.append(["Borehole values (X, Y, ground level, water table, depth) on any of its rows."])
+    notes.append(
+        [
+            (
+                "Borehole values (X and Y, or latitude and longitude, or BTM; ground level, "
+                "water table, depth, date, method) on any of its rows."
+            )
+        ]
+    )
     notes.append([])
     notes.append(["Column", "Unit", "Meaning"])
     for cell in notes[5]:

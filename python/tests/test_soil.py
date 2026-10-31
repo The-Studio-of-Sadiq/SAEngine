@@ -240,6 +240,15 @@ def test_site_class_harmonic_mean_and_extrapolation() -> None:
     assert result["N"] == pytest.approx(30 / (10 / 5 + 20 / 40), abs=0.05)
     assert result["extrapolated"] and "30 m" in result["note"]
     assert result["class"] == "SD"  # N̄ = 12
+    # Table 6.2.13 classifies by the top 30 m: a 15 m log gives a provisional class (N-S3).
+    assert result["provisional"] and any(n.startswith("Provisional") for n in result["notes"])
+    assert not site_class.site_class(profile(_uniform(14)))["provisional"]
+    # The project's class is provisional unless a borehole of the governing class reaches 30 m.
+    deep = {"class": "SD", "N": 10, "provisional": False}
+    shallow = {"class": "SD", "N": 8, "provisional": True}
+    assert site_class.governing({"A": shallow, "B": dict(shallow)})["provisional"]
+    assert not site_class.governing({"A": shallow, "B": deep})["provisional"]
+    assert site_class.governing({"A": shallow, "C": {"class": "SC", "N": 20}})["provisional"]
 
 
 def test_site_class_undrained_strength_and_rock() -> None:
@@ -261,6 +270,8 @@ def test_site_class_undrained_strength_and_rock() -> None:
         "spt": [{"depth": d, "N": 20} for d in range(1500, 12001, 1500)],
     }
     result = site_class.site_class(profile(rock))
+    # Ends in rock: the top 30 m are known (rock below), so the class is not provisional.
+    assert not result["provisional"]
     # SE needs the Vs the SPT cannot give: the class stays SC (N̄ = 20) and SE is a flag.
     assert result["class"] == "SC" and [f["class"] for f in result["flags"]] == ["SE"]
     assert "rock-like material at 12.0 m" in result["flags"][0]["note"]
@@ -710,6 +721,24 @@ def test_pile_parameters() -> None:
     )
 
 
+def test_pile_skin_friction_in_liquefiable_layers() -> None:
+    """N-S6: a layer the screening finds liquefiable keeps its static fs, and its seismic fs is
+    none over the liquefied share (the share of 0-10 m in 4-9 m is a half)."""
+    hole = {
+        "id": "BH",
+        "waterTable": 0,
+        "layers": [sand(bottom=10000), sand(top=10000, bottom=20000)],
+        "spt": [{"depth": 5000, "N": 10}, {"depth": 15000, "N": 30}],
+    }
+    loose, dense = piles.pile_parameters(profile(hole), [{"top": 4000, "bottom": 9000}])
+    assert loose["liquefiable"] == 0.5 and loose["fsSeismic"] == pytest.approx(
+        loose["fs"] / 2, abs=0.06
+    )
+    assert "liquefiable over 50%" in loose["note"]
+    assert "liquefiable" not in dense and "fsSeismic" not in dense
+    assert "liquefiable" not in piles.pile_parameters(profile(hole))[0]
+
+
 def test_subgrade_modulus_is_the_secant_value() -> None:
     p = profile(
         {
@@ -722,6 +751,21 @@ def test_subgrade_modulus_is_the_secant_value() -> None:
     s = settlement(p, 2.0, 2.0, 1.5, 150.0)["total"]
     assert result["value"] == pytest.approx(150 / (s / 1e3), rel=1e-3)
     assert result["bowles"] == 40 * 3 * 150
+    assert result["low"] == (result["value"] < piles.KS_LOW)
+    # N-S5: a very soft subgrade (ks below 2000 kN/m³) is flagged before it reaches the analysis.
+    soft = profile(
+        {
+            "id": "BH",
+            "waterTable": 0,
+            "layers": [
+                {"top": 0, "bottom": 30000, "soilType": "clay", "cu": 12, "Cc": 1.0, "e0": 2.0}
+            ],
+            "spt": [{"depth": 3000, "N": 1}],
+        }
+    )
+    low = piles.subgrade_modulus(soft, 40.0)
+    assert low["value"] is not None and low["value"] < piles.KS_LOW and low["low"]
+    assert "below 2000" in low["note"]
 
 
 # ─────────────────────────────── API ───────────────────────────────

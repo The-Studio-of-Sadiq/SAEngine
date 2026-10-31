@@ -740,6 +740,12 @@ class Borehole(_Model):
         description="Depth the borehole was drilled to [mm]; the deepest layer's bottom when "
         "empty.",
     )
+    excludeFromSite: bool | None = Field(
+        default=None,
+        title="Leave out of the site table",
+        description="The site's bearing table takes the lowest of the other boreholes (one far "
+        "from the building, say); the borehole's own results stay.",
+    )
     date: str | None = Field(default=None, max_length=64, title="Date drilled")
     method: str | None = Field(
         default=None, max_length=200, description="E.g. wash boring, auger, rotary."

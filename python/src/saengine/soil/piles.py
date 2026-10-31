@@ -132,8 +132,15 @@ def driven(layer: SoilLayer, z: float, sigma_eff: float) -> dict[str, Any]:
     }
 
 
-def pile_parameters(profile: Profile) -> list[dict[str, Any]]:
+def pile_parameters(
+    profile: Profile, liquefiable: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Per layer: fs and qb, and with the liquefaction screening's ranges (``liquefiable``,
+    ``[{top, bottom}]`` [mm]) the share of the layer that liquefies and the seismic skin
+    friction ``fsSeismic``: none over the liquefied share (liquefied soil is taken to carry no
+    side resistance during the earthquake), the static value over the rest."""
     kind = profile.design.pile.type
+    ranges = [(r["top"] / 1e3, r["bottom"] / 1e3) for r in liquefiable or []]
     rows = []
     for layer in profile.layers:
         z = layer.mid
@@ -160,9 +167,30 @@ def pile_parameters(profile: Profile) -> list[dict[str, Any]]:
             notes = [values["note"]] if values.get("note") else []
             if layer.soil_type in ("organic", "fill"):
                 notes.append(f"{layer.soil_type}: normally ignored for capacity; check downdrag")
+            share = _liquefied_share(layer.top, layer.bottom, ranges)
+            if share > 0:
+                row["liquefiable"] = round(share, 3)
+                if row["fs"] is not None:
+                    row["fsSeismic"] = round(row["fs"] * (1 - share), 1)
+                notes.append(
+                    f"liquefiable over {share:.0%} of the layer: no skin friction there under "
+                    "the earthquake (fs seismic); check the downdrag as it settles after"
+                )
             row["note"] = "; ".join(notes) or None
         rows.append(row)
     return rows
+
+
+def _liquefied_share(top: float, bottom: float, ranges: list[tuple[float, float]]) -> float:
+    """The part of the layer top-bottom [m] within the liquefiable ranges, 0 to 1."""
+    if bottom <= top:
+        return 0.0
+    covered = sum(max(0.0, min(bottom, b) - max(top, a)) for a, b in ranges)
+    return min(1.0, covered / (bottom - top))
+
+
+#: A secant ks below this is very soft ground [kN/m³]: flagged before it reaches the analysis.
+KS_LOW = 2000.0
 
 
 def subgrade_modulus(profile: Profile, qa: float | None) -> dict[str, Any]:
@@ -179,6 +207,17 @@ def subgrade_modulus(profile: Profile, qa: float | None) -> dict[str, Any]:
     if total <= 0:
         return {"value": None, "bowles": round(bowles), "note": "no settlement computed"}
     value = qa / (total / 1e3)
+    note = (
+        f"Square footing {b:g} m wide at {df:g} m: ks falls with the loaded width (about "
+        "B_ref/B in clay); a raft is better designed from the settlement of the whole raft. "
+        "Bowles' 40·FS·qa is shown for comparison."
+    )
+    if value < KS_LOW:
+        note += (
+            f" ks {value:.0f} kN/m³ is below {KS_LOW:.0f}: very soft ground (Bowles, Foundation "
+            "Analysis and Design, Table 9-1, gives 4800 and up for loose sand, 12000 and up for "
+            "clay); check the footing settlements, or use a raft or piles."
+        )
     return {
         "value": round(value),
         "B": round(b * 1e3),
@@ -187,9 +226,6 @@ def subgrade_modulus(profile: Profile, qa: float | None) -> dict[str, Any]:
         "settlement": round(total, 1),
         "bowles": round(bowles),
         "method": "ks = qa/s(qa), the secant value for the subgrade footing",
-        "note": (
-            f"Square footing {b:g} m wide at {df:g} m: ks falls with the loaded width (about "
-            "B_ref/B in clay); a raft is better designed from the settlement of the whole raft. "
-            "Bowles' 40·FS·qa is shown for comparison."
-        ),
+        "low": value < KS_LOW,
+        "note": note,
     }
