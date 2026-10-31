@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { addOpening, addRoom, addSeparator, addWall, ArchEdit, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
+import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ArchEdit, curtainWeight, rampGradient, roofWeight, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
 import { snapLinear } from '../../browser/floorPlanSnap.js';
 
 suite('SAEngine - Architecture', () => {
@@ -143,5 +143,33 @@ suite('SAEngine - Architecture', () => {
 		assert.deepStrictEqual([snap.kind, snap.on, snap.point], ['midpoint', 'AW2', [3000, 2500]]);
 		assert.strictEqual(structureUnder(plan, 'L1', [500, 0], [5500, 0]), 'B1');
 		assert.strictEqual(structureUnder(plan, 'L1', [500, 10], [5500, 0]), undefined);
+	});
+
+	test('curtain walls, roofs, ramps and railings: added, drawn, picked and bounding rooms', () => {
+		let arch = newArchitecture();
+		assert.deepStrictEqual([arch.curtainWallTypes.map(t => t.id), arch.roofTypes.map(t => t.id), arch.railingTypes.map(t => t.id)], [['CW1'], ['RF1', 'RF2'], ['RL1', 'RL2']]);
+		// Glass 12 mm x 25 kN/m3 + 0.15 frame = 0.45 kN/m2; RF2: 0.040 x 20.4 + 0.005 x 12 = 0.876 kN/m2.
+		assert.strictEqual(Math.round(curtainWeight(arch.curtainWallTypes[0]) * 1000) / 1000, 0.45);
+		assert.strictEqual(Math.round(roofWeight(arch.roofTypes[1]) * 1000) / 1000, 0.876);
+		arch = value(addCurtainWall(arch, 'CW1', 'L1', [[0, 0], [6000, 0], [6000, 5000], [0, 5000], [0, 0]], elevations));
+		assert.strictEqual(arch.curtainWalls[0].id, 'CW1');
+		// A curtain wall closes a room as a wall does: net (6.0 - 0.15) x (5.0 - 0.15) m.
+		const room = findRoom(arch, 'L1', [3000, 2500], elevations);
+		assert.ok(room);
+		assert.strictEqual(Math.round(room.area * 1000) / 1000, Math.round(5.85 * 4.85 * 1000) / 1000);
+		arch = value(addRoof(arch, 'RF2', 'L2', [[0, 0], [6000, 0], [6000, 5000], [0, 5000], [0, 0]]));
+		assert.strictEqual(arch.roofs[0].outline.length, 4);
+		assert.strictEqual(addRoof(arch, 'RF2', 'L2', [[0, 0], [1000, 0], [2000, 0]]).ok, false);
+		arch = value(addRamp(arch, 'L1', [1000, 2500], [3000, 2500]));
+		arch = updateItem(arch, { kind: 'ramps', id: 'RP1' }, { rise: 400 });
+		assert.strictEqual(rampGradient(arch.ramps[0]), 0.2);
+		arch = value(addRailing(arch, 'RL1', 'L1', [[0, 5000], [6000, 5000]]));
+		const drawing = architectureDrawing(arch, 'L1', elevations);
+		assert.deepStrictEqual(drawing.problems, []);
+		assert.deepStrictEqual(drawing.shapes.map(s => s.kind).sort(), ['curtainWalls', 'railings', 'ramps']);
+		assert.strictEqual(pickItem(drawing.shapes, [2000, 2500], 10)?.id, 'RP1');
+		assert.strictEqual(architectureDrawing(arch, 'L2', elevations).shapes.some(s => s.kind === 'roofs'), true);
+		assert.deepStrictEqual(removeItem(arch, { kind: 'roofs', id: 'RF1' }).roofs, []);
+		assert.strictEqual(parseArchitecture(JSON.stringify(arch)).kind, 'ok');
 	});
 });

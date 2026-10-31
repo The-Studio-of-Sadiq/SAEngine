@@ -14,7 +14,8 @@ import { ISnapSegment, snapSegments } from './floorPlanSnap.js';
 /*
  * The architecture (`05 Floor Plan/architecture.json`, `saengine.library.architecture`): walls of
  * layered wall types, doors and windows hosted in them, rooms found from the walls around a
- * picked point, and room separators. Physical only: it never stiffens the analysis. These are the
+ * picked point, and room separators; curtain walls, roofs, ramps and railings (T46). Physical
+ * only: it never stiffens the analysis. These are the
  * pure parts of its editor: reading the file, the geometry (centre lines, rooms), the drawing of
  * one story and the edits, each returning a new file value.
  */
@@ -34,6 +35,17 @@ export interface IFinishType {
 	/** A sunk slab's filling under the finish in wet rooms [mm], and its unit weight [kN/m³] (16 when not given). */
 	readonly sunkFilling?: number; readonly sunkUnitWeight?: number;
 }
+
+/** A curtain wall type: glazing on a mullion grid (defaults as `CurtainWallType`'s). */
+export interface ICurtainWallType {
+	readonly id: string; readonly name: string;
+	readonly glassThickness?: number; readonly glassUnitWeight?: number; readonly frameWeight?: number;
+	readonly depth?: number; readonly mullionSpacing?: number; readonly transomSpacing?: number;
+}
+/** A roof covering: its layers, top down. */
+export interface IRoofType { readonly id: string; readonly name: string; readonly layers: readonly IWallLayer[] }
+/** A guard or handrail: height [mm], weight [kN/m], drawn width and post spacing [mm]. */
+export interface IRailingType { readonly id: string; readonly name: string; readonly height?: number; readonly weight?: number; readonly width?: number; readonly postSpacing?: number }
 
 export interface IArchWall {
 	readonly id: string;
@@ -60,6 +72,20 @@ export interface IRoom {
 	readonly wet?: boolean;
 }
 export interface ISeparator { readonly id: string; readonly story: string; readonly start: CadPoint; readonly end: CadPoint }
+/** A curtain wall: placed as a wall, of a curtain wall type. */
+export type ICurtainWall = IArchWall;
+/** A roof over a plan outline on a story: flat, or rising `slope` degrees towards `direction` (degrees from x). */
+export interface IRoof {
+	readonly id: string; readonly type: string; readonly story: string; readonly outline: readonly CadPoint[];
+	readonly baseOffset?: number; readonly slope?: number; readonly direction?: number; readonly occupancy?: string;
+}
+/** A straight ramp built up on a floor from `start` (low end) to `end` (high end). */
+export interface IRamp {
+	readonly id: string; readonly story: string; readonly start: CadPoint; readonly end: CadPoint;
+	readonly width?: number; readonly rise?: number; readonly finish?: string; readonly fillUnitWeight?: number; readonly occupancy?: string;
+}
+/** A railing along a path on a story. */
+export interface IRailing { readonly id: string; readonly type: string; readonly base: string; readonly baseOffset?: number; readonly path: readonly CadPoint[] }
 
 export interface IArchitecture {
 	readonly schema: typeof ARCHITECTURE_SCHEMA_ID;
@@ -72,10 +98,20 @@ export interface IArchitecture {
 	readonly windows: readonly IWindow[];
 	readonly rooms: readonly IRoom[];
 	readonly separators: readonly ISeparator[];
+	readonly curtainWallTypes: readonly ICurtainWallType[];
+	readonly roofTypes: readonly IRoofType[];
+	readonly railingTypes: readonly IRailingType[];
+	readonly curtainWalls: readonly ICurtainWall[];
+	readonly roofs: readonly IRoof[];
+	readonly ramps: readonly IRamp[];
+	readonly railings: readonly IRailing[];
 }
 
 /** The kinds of things drawn and picked, by their list in the file. */
-export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators';
+export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators' | 'curtainWalls' | 'roofs' | 'ramps' | 'railings';
+
+/** Every kind, in the order of the file. */
+export const ARCH_KINDS: readonly ArchKind[] = ['walls', 'doors', 'windows', 'rooms', 'separators', 'curtainWalls', 'roofs', 'ramps', 'railings'];
 
 export interface IArchRef { readonly kind: ArchKind; readonly id: string }
 
@@ -132,6 +168,13 @@ export function parseArchitecture(text: string): ArchitectureParse {
 			windows: list<IWindow>('windows', d => named(d) && typeof d.wall === 'string' && typeof d.offset === 'number'),
 			rooms: list<IRoom>('rooms', r => named(r) && typeof r.story === 'string' && isPoint(r.point)),
 			separators: list<ISeparator>('separators', s => named(s) && typeof s.story === 'string' && isPoint(s.start) && isPoint(s.end)),
+			curtainWallTypes: list<ICurtainWallType>('curtainWallTypes', named),
+			roofTypes: list<IRoofType>('roofTypes', t => named(t) && Array.isArray(t.layers)),
+			railingTypes: list<IRailingType>('railingTypes', named),
+			curtainWalls: list<ICurtainWall>('curtainWalls', w => named(w) && typeof w.type === 'string' && typeof w.base === 'string' && Array.isArray(w.path) && w.path.length >= 2 && w.path.every(isPoint)),
+			roofs: list<IRoof>('roofs', r => named(r) && typeof r.type === 'string' && typeof r.story === 'string' && Array.isArray(r.outline) && r.outline.length >= 3 && r.outline.every(isPoint)),
+			ramps: list<IRamp>('ramps', r => named(r) && typeof r.story === 'string' && isPoint(r.start) && isPoint(r.end)),
+			railings: list<IRailing>('railings', r => named(r) && typeof r.type === 'string' && typeof r.base === 'string' && Array.isArray(r.path) && r.path.length >= 2 && r.path.every(isPoint)),
 		},
 	};
 }
@@ -147,6 +190,37 @@ export function wallThickness(type: IWallType | undefined): number {
 /** Weight per wall area [kN/m²]. */
 export function wallWeight(type: IWallType): number {
 	return type.layers.reduce((sum, layer) => sum + layer.thickness / 1000 * layer.unitWeight, 0);
+}
+
+/** Across a curtain wall [mm]: its mullions' depth. */
+export function curtainDepth(type: ICurtainWallType | undefined): number {
+	return type?.depth ?? 150;
+}
+
+/** A curtain wall's weight per m² [kN/m²]: glass and frame (as `CurtainWallType.weight`). */
+export function curtainWeight(type: ICurtainWallType): number {
+	return (type.glassThickness ?? 12) / 1000 * (type.glassUnitWeight ?? 25) + (type.frameWeight ?? 0.15);
+}
+
+/** A roof covering's weight per m² of its surface [kN/m²], and its thickness [mm]. */
+export function roofWeight(type: IRoofType): number {
+	return wallWeight({ id: type.id, name: type.name, layers: type.layers });
+}
+
+/** The railing type's values with their defaults (as `RailingType`'s). */
+export function railingOf(type: IRailingType | undefined): { readonly height: number; readonly weight: number; readonly width: number; readonly postSpacing: number } {
+	return { height: type?.height ?? 1000, weight: type?.weight ?? 0.3, width: type?.width ?? 50, postSpacing: type?.postSpacing ?? 1200 };
+}
+
+/** A ramp's rise over its run (0.0833 is 1 in 12). */
+export function rampGradient(ramp: IRamp): number {
+	const run = distance(ramp.start, ramp.end);
+	return run ? (ramp.rise ?? 0) / run : 0;
+}
+
+/** A ramp's plan footprint: its centre line widened to both sides, counter-clockwise from the low end's right. */
+export function rampOutline(ramp: IRamp): CadPoint[] {
+	return wallOutline([ramp.start, ramp.end], ramp.width ?? 1500);
 }
 
 export function pathLength(points: readonly CadPoint[]): number {
@@ -277,6 +351,23 @@ export function wallsOnStory(arch: IArchitecture, story: string, elevations: Rea
 	});
 }
 
+/** The curtain walls standing on `story` or rising through it, with their types and centre lines. */
+export function curtainWallsOnStory(arch: IArchitecture, story: string, elevations: ReadonlyMap<string, number>): { readonly wall: ICurtainWall; readonly type: ICurtainWallType | undefined; readonly centre: CadPoint[]; readonly thickness: number }[] {
+	const level = elevations.get(story);
+	if (level === undefined) {
+		return [];
+	}
+	return arch.curtainWalls.flatMap(wall => {
+		const levels = wallLevels(wall, elevations);
+		const onStory = wall.base === story || (!!levels && levels.bottom - 1e-6 <= level && level < levels.top - 1e-6);
+		if (!onStory) {
+			return [];
+		}
+		const type = arch.curtainWallTypes.find(t => t.id === wall.type);
+		return [{ wall, type, centre: wall.path.map(([x, y]) => [x, y] as CadPoint), thickness: curtainDepth(type) }];
+	});
+}
+
 /** Width, height and sill [mm] of a door (sill 0) or window, from its type. */
 export function openingSize(arch: IArchitecture, kind: 'doors' | 'windows', opening: IDoor | IWindow): { readonly width: number; readonly height: number; readonly sill: number } | undefined {
 	if (kind === 'doors') {
@@ -311,7 +402,8 @@ interface IEdge { readonly a: number; readonly b: number; readonly half: number 
  * the smallest face holding the point is the room. Undefined when the point is not enclosed.
  */
 export function findRoom(arch: IArchitecture, story: string, point: CadPoint, elevations: ReadonlyMap<string, number>): IRoomOutline | undefined {
-	const walls = wallsOnStory(arch, story, elevations);
+	// Curtain walls bound rooms as walls do (as `room_boundary`).
+	const walls = [...wallsOnStory(arch, story, elevations), ...curtainWallsOnStory(arch, story, elevations)];
 	const reach = Math.max(JOIN_REACH, ...walls.map(w => w.thickness / 2 + JOIN_REACH));
 	const lines: { readonly start: CadPoint; readonly end: CadPoint; readonly half: number }[] = [];
 	for (const { centre, thickness } of walls) {
@@ -514,6 +606,11 @@ export const ARCH_LAYERS = {
 	rooms: 'A-AREA',
 	roomLabels: 'A-AREA-IDEN',
 	separators: 'A-AREA-SEPR',
+	curtainWalls: 'A-GLAZ-CWMG',
+	roofs: 'A-ROOF',
+	ramps: 'A-FLOR-LEVL',
+	railings: 'A-FLOR-HRAL',
+	labels: 'A-ANNO-NOTE',
 } as const;
 
 export const ARCH_LAYER_SPECS: readonly CadLayerSpec[] = [
@@ -523,6 +620,11 @@ export const ARCH_LAYER_SPECS: readonly CadLayerSpec[] = [
 	{ name: ARCH_LAYERS.rooms, color: 8, linetype: 'DASHED', description: 'Room floors' },
 	{ name: ARCH_LAYERS.roomLabels, color: 7, description: 'Room names, numbers and areas' },
 	{ name: ARCH_LAYERS.separators, color: 6, linetype: 'DASHED', description: 'Room separators' },
+	{ name: ARCH_LAYERS.curtainWalls, color: 4, description: 'Curtain walls and mullions' },
+	{ name: ARCH_LAYERS.roofs, color: 3, linetype: 'DASHED', description: 'Roofs' },
+	{ name: ARCH_LAYERS.ramps, color: 5, description: 'Ramps' },
+	{ name: ARCH_LAYERS.railings, color: 1, description: 'Railings' },
+	{ name: ARCH_LAYERS.labels, color: 7, description: 'Notes: roof slopes, ramp gradients' },
 ];
 
 /** A drawn item's outline, for picking and highlighting. */
@@ -608,6 +710,8 @@ export function architectureDrawing(arch: IArchitecture, story: string, elevatio
 		}
 	}
 
+	extrasDrawing(arch, story, elevations, entities, shapes, problems);
+
 	const rooms = new Map<string, IRoomOutline>();
 	for (const room of arch.rooms) {
 		if (room.story !== story) {
@@ -629,6 +733,107 @@ export function architectureDrawing(arch: IArchitecture, story: string, elevatio
 		shapes.push({ kind: 'rooms', id: room.id, points: outline.net, closed: true });
 	}
 	return { entities, shapes, rooms, problems };
+}
+
+/** Curtain walls (faces, glass line, mullions), roofs (outline, pitch arrow), ramps (outline, "up" arrow) and railings (line, posts) of `story`. */
+function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyMap<string, number>, entities: CadEntitySpec[], shapes: IArchShape[], problems: string[]): void {
+	const line = (layer: string, start: CadPoint, end: CadPoint) => entities.push({ kind: 'line', layer, start, end });
+	const arrow = (layer: string, from: CadPoint, to: CadPoint) => {
+		line(layer, from, to);
+		const length = distance(from, to);
+		if (length <= 0) {
+			return;
+		}
+		const [dx, dy] = [(to[0] - from[0]) / length, (to[1] - from[1]) / length];
+		const head = Math.min(300, length / 3);
+		line(layer, to, [to[0] - head * (dx - dy * 0.5), to[1] - head * (dy + dx * 0.5)]);
+		line(layer, to, [to[0] - head * (dx + dy * 0.5), to[1] - head * (dy - dx * 0.5)]);
+	};
+	// Marks every `spacing` along `points` (not at the ends): `mark(point, direction)`.
+	const along = (points: readonly CadPoint[], spacing: number, mark: (p: CadPoint, d: CadPoint) => void) => {
+		const total = pathLength(points);
+		if (spacing <= 0 || total <= 0) {
+			return;
+		}
+		for (let s = spacing; s < total - 1; s += spacing) {
+			const { point, direction } = pointAlong(points, s);
+			mark(point, direction);
+		}
+	};
+
+	for (const { wall, type, centre, thickness } of curtainWallsOnStory(arch, story, elevations)) {
+		if (!type) {
+			problems.push(localize('arch.noCurtainType', "{0}: no curtain wall type '{1}'", wall.id, wall.type));
+			continue;
+		}
+		const layer = ARCH_LAYERS.curtainWalls;
+		const left = offsetPath(centre, thickness / 2);
+		const right = offsetPath(centre, -thickness / 2);
+		for (let i = 1; i < centre.length; i++) {
+			line(layer, left[i - 1], left[i]);
+			line(layer, right[i - 1], right[i]);
+			line(layer, centre[i - 1], centre[i]);
+		}
+		line(layer, left[0], right[0]);
+		line(layer, left[left.length - 1], right[right.length - 1]);
+		along(centre, type.mullionSpacing ?? 1500, ([x, y], [dx, dy]) => {
+			const t = thickness / 2;
+			line(layer, [x - dy * t, y + dx * t], [x + dy * t, y - dx * t]);
+		});
+		shapes.push({ kind: 'curtainWalls', id: wall.id, points: wallOutline(centre, thickness), closed: true });
+	}
+
+	for (const roof of arch.roofs) {
+		if (roof.story !== story) {
+			continue;
+		}
+		const type = arch.roofTypes.find(t => t.id === roof.type);
+		if (!type) {
+			problems.push(localize('arch.noRoofType', "{0}: no roof type '{1}'", roof.id, roof.type));
+		}
+		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.roofs, points: roof.outline, closed: true, linetypeScale: DASH_SCALE });
+		const [cx, cy] = roof.outline.reduce<CadPoint>((sum, p) => [sum[0] + p[0] / roof.outline.length, sum[1] + p[1] / roof.outline.length], [0, 0]);
+		const slope = roof.slope ?? 0;
+		entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [cx, cy - ROOM_TEXT * 1.6], height: ROOM_TEXT * 0.8, text: slope ? localize('arch.roofPitched', "{0} {1}, {2}°", roof.id, roof.type, slope) : localize('arch.roofFlat', "{0} {1}, flat", roof.id, roof.type) });
+		if (slope) {
+			// Rising towards `direction`: the arrow points uphill.
+			const angle = (roof.direction ?? 90) * Math.PI / 180;
+			const reach = 1000;
+			arrow(ARCH_LAYERS.labels, [cx - Math.cos(angle) * reach, cy - Math.sin(angle) * reach], [cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach]);
+		}
+		shapes.push({ kind: 'roofs', id: roof.id, points: roof.outline, closed: true });
+	}
+
+	for (const ramp of arch.ramps) {
+		if (ramp.story !== story) {
+			continue;
+		}
+		const outline = rampOutline(ramp);
+		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.ramps, points: outline, closed: true });
+		arrow(ARCH_LAYERS.ramps, ramp.start, ramp.end);
+		const gradient = rampGradient(ramp);
+		const [mx, my] = [(ramp.start[0] + ramp.end[0]) / 2, (ramp.start[1] + ramp.end[1]) / 2];
+		entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [mx, my + ROOM_TEXT], height: ROOM_TEXT * 0.8, text: gradient > 0 ? localize('arch.rampUp', "UP 1 in {0}", (1 / gradient).toFixed(1)) : localize('arch.rampLevel', "Level ramp") });
+		shapes.push({ kind: 'ramps', id: ramp.id, points: outline, closed: true });
+	}
+
+	for (const railing of arch.railings) {
+		if (railing.base !== story) {
+			continue;
+		}
+		const type = arch.railingTypes.find(t => t.id === railing.type);
+		if (!type) {
+			problems.push(localize('arch.noRailingType', "{0}: no railing type '{1}'", railing.id, railing.type));
+		}
+		const { width, postSpacing } = railingOf(type);
+		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.railings, points: railing.path, closed: false });
+		const posts: CadPoint[] = [railing.path[0], railing.path[railing.path.length - 1]];
+		along(railing.path, postSpacing, p => posts.push(p));
+		for (const post of posts) {
+			entities.push({ kind: 'polyline', layer: ARCH_LAYERS.railings, points: square(post, Math.max(width, 40) / 2), closed: true });
+		}
+		shapes.push({ kind: 'railings', id: railing.id, points: wallOutline(railing.path.map(([x, y]) => [x, y] as CadPoint), Math.max(width, 100)), closed: true });
+	}
 }
 
 function square([x, y]: CadPoint, r: number): CadPoint[] {
@@ -695,7 +900,7 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 
 /** The item of `shapes` at `point`: openings first, then walls, separators, rooms. */
 export function pickItem(shapes: readonly IArchShape[], point: CadPoint, tolerance: number): IArchShape | undefined {
-	for (const kind of ['doors', 'windows', 'walls', 'separators', 'rooms'] as const) {
+	for (const kind of ['doors', 'windows', 'railings', 'walls', 'curtainWalls', 'separators', 'ramps', 'rooms', 'roofs'] as const) {
 		const hit = shapes.find(s => s.kind === kind && (s.closed ? insidePolygon(point, s.points) || nearOutline(s.points, point, tolerance) : distanceToSegment(point, s.points[0], s.points[1]) <= tolerance));
 		if (hit) {
 			return hit;
@@ -722,11 +927,11 @@ export function structureUnder(layout: unknown, story: string, start: CadPoint, 
 
 export type ArchEdit = { readonly ok: true; readonly value: IArchitecture; readonly id: string } | { readonly ok: false; readonly error: string };
 
-const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS' };
+const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS', curtainWalls: 'CW', roofs: 'RF', ramps: 'RP', railings: 'RL' };
 
 /** The next free id of `kind`: AW1, AW2, ... (unique across all the items). */
 export function nextId(arch: IArchitecture, kind: ArchKind): string {
-	const used = new Set((['walls', 'doors', 'windows', 'rooms', 'separators'] as const).flatMap(k => (arch[k] as readonly { readonly id: string }[]).map(i => i.id)));
+	const used = new Set(ARCH_KINDS.flatMap(k => (arch[k] as readonly { readonly id: string }[]).map(i => i.id)));
 	let n = 1;
 	while (used.has(`${PREFIX[kind]}${n}`)) {
 		n++;
@@ -812,6 +1017,57 @@ export function addSeparator(arch: IArchitecture, story: string, start: CadPoint
 	const round = (p: CadPoint): CadPoint => [Math.round(p[0]), Math.round(p[1])];
 	return { ok: true, value: { ...arch, separators: [...arch.separators, { id, story, start: round(start), end: round(end) }] }, id };
 }
+
+/** A curtain wall of `type` along `path` (its centre line) standing on `story`, rising as a wall does (`addWall`). */
+export function addCurtainWall(arch: IArchitecture, type: string, story: string, path: readonly CadPoint[], elevations: ReadonlyMap<string, number>): ArchEdit {
+	if (path.length < 2 || pathLength(path) <= 0) {
+		return { ok: false, error: localize('arch.curtainTooShort', "A curtain wall needs two different points.") };
+	}
+	if (!arch.curtainWallTypes.some(t => t.id === type)) {
+		return { ok: false, error: localize('arch.noCurtainTypes', "There is no curtain wall type '{0}'.", type) };
+	}
+	const level = elevations.get(story);
+	const above = [...elevations.values()].some(e => level !== undefined && e > level);
+	const id = nextId(arch, 'curtainWalls');
+	const wall: ICurtainWall = { id, type, base: story, ...(above ? {} : { height: 3000 }), path: path.map(roundPoint) };
+	return { ok: true, value: { ...arch, curtainWalls: [...arch.curtainWalls, wall] }, id };
+}
+
+/** A railing of `type` along `path` on `story`. */
+export function addRailing(arch: IArchitecture, type: string, story: string, path: readonly CadPoint[]): ArchEdit {
+	if (path.length < 2 || pathLength(path) <= 0) {
+		return { ok: false, error: localize('arch.railingTooShort', "A railing needs two different points.") };
+	}
+	if (!arch.railingTypes.some(t => t.id === type)) {
+		return { ok: false, error: localize('arch.noRailingTypes', "There is no railing type '{0}'.", type) };
+	}
+	const id = nextId(arch, 'railings');
+	return { ok: true, value: { ...arch, railings: [...arch.railings, { id, type, base: story, path: path.map(roundPoint) }] }, id };
+}
+
+/** A flat roof of `type` over the plan `outline` (three or more points) on `story`. */
+export function addRoof(arch: IArchitecture, type: string, story: string, outline: readonly CadPoint[]): ArchEdit {
+	const points = outline.length > 3 && distance(outline[0], outline[outline.length - 1]) < 1 ? outline.slice(0, -1) : outline;
+	if (points.length < 3 || Math.abs(signedArea(points)) <= 0) {
+		return { ok: false, error: localize('arch.roofTooSmall', "A roof needs three or more corners around an area.") };
+	}
+	if (!arch.roofTypes.some(t => t.id === type)) {
+		return { ok: false, error: localize('arch.noRoofTypes', "There is no roof type '{0}'.", type) };
+	}
+	const id = nextId(arch, 'roofs');
+	return { ok: true, value: { ...arch, roofs: [...arch.roofs, { id, type, story, outline: points.map(roundPoint) }] }, id };
+}
+
+/** A ramp 1500 mm wide on `story` from `start` (low end) to `end`, level until its rise is given. */
+export function addRamp(arch: IArchitecture, story: string, start: CadPoint, end: CadPoint): ArchEdit {
+	if (distance(start, end) <= 0) {
+		return { ok: false, error: localize('arch.rampTooShort', "A ramp needs two different points: its low end and its high end.") };
+	}
+	const id = nextId(arch, 'ramps');
+	return { ok: true, value: { ...arch, ramps: [...arch.ramps, { id, story, start: roundPoint(start), end: roundPoint(end), width: 1500, rise: 0 }] }, id };
+}
+
+const roundPoint = (p: CadPoint): CadPoint => [Math.round(p[0]), Math.round(p[1])];
 
 /** `arch` without the item; a wall goes with its doors and windows. */
 export function removeItem(arch: IArchitecture, ref: IArchRef): IArchitecture {

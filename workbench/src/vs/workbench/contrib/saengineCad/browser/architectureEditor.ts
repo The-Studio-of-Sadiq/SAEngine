@@ -40,7 +40,8 @@ import { BNBC } from '../../../services/saengineProject/common/projectLibraries.
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
-import { addOpening, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, elevationsOf, findRoom, IArchDrawing, IArchitecture, IArchRef, IArchWall, IDoor, IRoom, itemOf, IWindow, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
+import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, curtainWeight, elevationsOf, findRoom, IArchDrawing, IArchitecture, IArchRef, IArchWall, ICurtainWall, IDoor, IRailing, IRamp, IRoof, IRoom, itemOf, IWindow, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, railingOf, rampGradient, removeItem, roofWeight, storyCounts, structureUnder, updateItem, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
+import { signedArea } from '../../../../platform/saengine/common/geometry.js';
 import { IDrawingImportOptions, IDrawingInfo } from './architectureDrawingImport.js';
 import { DrawingImportPanel } from './architectureDrawingImportPanel.js';
 import { ArchitectureEditorInput } from './architectureEditorInput.js';
@@ -62,7 +63,12 @@ const COMPACT_WIDTH = 900;
 /** The 3D view of 6 BIM's part editor (`bim.json` with `{ section: '3d' }`). */
 const BIM_3D_SECTION = '3d';
 
-type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'delete';
+type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'curtainWall' | 'roof' | 'ramp' | 'railing' | 'delete';
+
+/** Tools that draw a chain of points (a wall's path, a roof's outline). */
+const CHAIN_TOOLS: ReadonlySet<Tool> = new Set(['wall', 'curtainWall', 'railing', 'roof']);
+/** Tools that place an item of a type picked in the toolbar. */
+const TYPED_TOOLS: ReadonlySet<Tool> = new Set(['wall', 'door', 'window', 'curtainWall', 'roof', 'railing']);
 
 const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly icon: ThemeIcon; readonly hint: string }[] = [
 	{ tool: 'select', label: localize('archTool.select', "Select"), icon: Codicon.inspect, hint: localize('archHint.select', "Click a wall, door, window, room or separator to see and change it; Delete removes it.") },
@@ -71,6 +77,10 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'window', label: localize('archTool.window', "Window"), icon: Codicon.window, hint: localize('archHint.window', "Click on a wall to put a window there (centred on the click).") },
 	{ tool: 'room', label: localize('archTool.room', "Room"), icon: Codicon.symbolNamespace, hint: localize('archHint.room', "Click inside walls to make a room; its boundary is found from the walls and room separators around the point.") },
 	{ tool: 'separator', label: localize('archTool.separator', "Room Separator"), icon: Codicon.dash, hint: localize('archHint.separator', "Click the start and end of a line that bounds rooms where there is no wall.") },
+	{ tool: 'curtainWall', label: localize('archTool.curtainWall', "Curtain Wall"), icon: Codicon.layoutPanelJustify, hint: localize('archHint.curtainWall', "Click the curtain wall's points along its centre line: they snap as a wall's do. Enter, a double-click or a right-click ends it.") },
+	{ tool: 'roof', label: localize('archTool.roof', "Roof"), icon: Codicon.home, hint: localize('archHint.roof', "Click the roof's corners in turn; click the first corner again (or press Enter) to close it. Give its pitch in the properties panel.") },
+	{ tool: 'ramp', label: localize('archTool.ramp', "Ramp"), icon: Codicon.arrowUp, hint: localize('archHint.ramp', "Click the ramp's low end, then its high end (centre line). Give its rise and width in the properties panel.") },
+	{ tool: 'railing', label: localize('archTool.railing', "Railing"), icon: Codicon.symbolArray, hint: localize('archHint.railing', "Click the railing's points along its path; Enter, a double-click or a right-click ends it.") },
 	{ tool: 'delete', label: localize('archTool.delete', "Delete"), icon: Codicon.trash, hint: localize('archHint.delete', "Click an item to delete it (a wall goes with its doors and windows).") },
 ];
 
@@ -80,6 +90,10 @@ const KIND_NAMES: { readonly [kind in ArchKind]: string } = {
 	windows: localize('archKind.window', "Window"),
 	rooms: localize('archKind.room', "Room"),
 	separators: localize('archKind.separator', "Room separator"),
+	curtainWalls: localize('archKind.curtainWall', "Curtain wall"),
+	roofs: localize('archKind.roof', "Roof"),
+	ramps: localize('archKind.ramp', "Ramp"),
+	railings: localize('archKind.railing', "Railing"),
 };
 
 const PREVIEW_LAYERS: readonly CadLayerSpec[] = [
@@ -403,7 +417,7 @@ export class ArchitectureEditor extends EditorPane {
 			if (this.chain.length) {
 				e.preventDefault();
 				e.stopPropagation();
-				if (this.tool === 'wall' && this.chain.length >= 2) {
+				if (CHAIN_TOOLS.has(this.tool) && this.chain.length >= (this.tool === 'roof' ? 3 : 2)) {
 					this.finishWall(false);
 				} else {
 					this.cancel();
@@ -423,7 +437,7 @@ export class ArchitectureEditor extends EditorPane {
 			this.cancel();
 		} else if (isEditableElement(e.target as HTMLElement)) {
 			return;
-		} else if (e.key === 'Enter' && this.tool === 'wall' && this.chain.length >= 2) {
+		} else if (e.key === 'Enter' && CHAIN_TOOLS.has(this.tool) && this.chain.length >= (this.tool === 'roof' ? 3 : 2)) {
 			e.preventDefault();
 			this.finishWall(false);
 		} else if (e.key === 'Delete' && this.selected) {
@@ -518,7 +532,7 @@ export class ArchitectureEditor extends EditorPane {
 				}
 				return;
 			}
-			case 'wall': {
+			case 'wall': case 'curtainWall': case 'railing': case 'roof': {
 				const p = this.snap(point).point;
 				const first = this.chain[0];
 				if (first && this.chain.length >= 3 && Math.hypot(p[0] - first[0], p[1] - first[1]) <= SNAP_PIXELS * (this.editor?.unitsPerPixel() ?? 1)) {
@@ -530,12 +544,29 @@ export class ArchitectureEditor extends EditorPane {
 				if (!last || last[0] !== p[0] || last[1] !== p[1]) {
 					this.chain.push(p);
 				}
-				if (double && this.chain.length >= 2) {
+				if (double && this.chain.length >= (this.tool === 'roof' ? 3 : 2)) {
 					this.finishWall(false);
 					return;
 				}
 				this.updateStatus();
 				this.renderPreview();
+				return;
+			}
+			case 'ramp': {
+				const p = this.snap(point).point;
+				if (!this.chain.length) {
+					this.chain = [p];
+					this.renderPreview();
+					return;
+				}
+				const start = this.chain[0];
+				this.chain = [];
+				const result = addRamp(arch, story, start, p);
+				this.apply(result, id => localize('arch.addedRamp', "Added ramp {0}: give its rise and width in the properties panel.", id));
+				if (result.ok) {
+					this.selected = { kind: 'ramps', id: result.id };
+					this.renderProperties();
+				}
 				return;
 			}
 			case 'separator': {
@@ -579,9 +610,30 @@ export class ArchitectureEditor extends EditorPane {
 		const arch = this.arch;
 		const path = this.chain;
 		this.chain = [];
-		const type = this.types.get('wall');
+		const tool = this.tool;
+		const type = this.types.get(tool);
 		if (!story || !arch || path.length < 2) {
 			this.renderPreview();
+			return;
+		}
+		if (tool !== 'wall') {
+			if (!type) {
+				this.setNotice(localize('arch.noTypeToPlace', "There is no type to place; add one in the file's text (Edit Types as Text)."));
+				return;
+			}
+			const length = Math.round(pathLength(path));
+			if (tool === 'curtainWall') {
+				this.apply(addCurtainWall(arch, type, story, path, this.elevations()), id => localize('arch.addedCurtainWall', "Added curtain wall {0}, {1} mm.", id, length));
+			} else if (tool === 'railing') {
+				this.apply(addRailing(arch, type, story, path), id => localize('arch.addedRailing', "Added railing {0}, {1} mm.", id, length));
+			} else if (tool === 'roof') {
+				const result = addRoof(arch, type, story, path);
+				this.apply(result, id => localize('arch.addedRoof', "Added roof {0}: give its pitch in the properties panel.", id));
+				if (result.ok) {
+					this.selected = { kind: 'roofs', id: result.id };
+					this.renderProperties();
+				}
+			}
 			return;
 		}
 		if (!type) {
@@ -734,7 +786,7 @@ export class ArchitectureEditor extends EditorPane {
 			outline(this.chain, false, layer);
 		}
 		if (point && this.arch) {
-			if (this.tool === 'wall' || this.tool === 'separator') {
+			if (CHAIN_TOOLS.has(this.tool) || this.tool === 'separator' || this.tool === 'ramp') {
 				const snap = this.hoverSnap = this.snap(point);
 				entities.push(...snapMarker(snap, MARKER_PIXELS * units, layer));
 				const last = this.chain[this.chain.length - 1];
@@ -802,6 +854,8 @@ export class ArchitectureEditor extends EditorPane {
 			new Separator(),
 			...tools(['wall', 'door', 'window', 'room', 'separator']),
 			new Separator(),
+			...tools(['curtainWall', 'roof', 'ramp', 'railing']),
+			new Separator(),
 			...tools(['delete']),
 			...(this.compact ? [] : [this.undoAction, this.redoAction]),
 			new Separator(),
@@ -821,10 +875,14 @@ export class ArchitectureEditor extends EditorPane {
 			frame.setActions(primary, secondary);
 		}
 
-		const placing = this.tool === 'wall' || this.tool === 'door' || this.tool === 'window';
+		const placing = TYPED_TOOLS.has(this.tool);
 		this.typeGroup.classList.toggle('hidden', !placing);
 		if (placing && this.arch) {
-			const types: readonly { readonly id: string; readonly name: string }[] = this.tool === 'wall' ? this.arch.wallTypes : this.tool === 'door' ? this.arch.doorTypes : this.arch.windowTypes;
+			const typesOf: { readonly [tool: string]: readonly { readonly id: string; readonly name: string }[] } = {
+				wall: this.arch.wallTypes, door: this.arch.doorTypes, window: this.arch.windowTypes,
+				curtainWall: this.arch.curtainWallTypes, roof: this.arch.roofTypes, railing: this.arch.railingTypes,
+			};
+			const types = typesOf[this.tool] ?? [];
 			this.typeIds = types.map(t => t.id);
 			let chosen = this.types.get(this.tool);
 			if (!chosen || !this.typeIds.includes(chosen)) {
@@ -1005,6 +1063,92 @@ export class ArchitectureEditor extends EditorPane {
 				appendPropertyNote(panel, localize('arch.separatorNote', "Bounds rooms where there is no wall, e.g. between a kitchen and a dining area."));
 				break;
 			}
+			case 'curtainWalls': {
+				const wall = item as unknown as ICurtainWall;
+				const type = arch.curtainWallTypes.find(t => t.id === wall.type);
+				this.selectRow(panel, localize('arch.curtainType', "Curtain wall type"), arch.curtainWallTypes.map(t => ({ id: t.id, text: `${t.id}: ${t.name}` })), wall.type, id => change({ type: id }, localize('arch.changedType', "{0} is now {1}.", wall.id, id)));
+				if (type) {
+					appendPropertyRow(panel, localize('arch.weight', "Weight"), localize('arch.kNm2', "{0} kN/m²", curtainWeight(type).toFixed(2)));
+					appendPropertyRow(panel, localize('arch.grid', "Mullions, transoms"), localize('arch.gridValue', "{0} mm, {1} mm", type.mullionSpacing ?? 1500, type.transomSpacing ?? 1500));
+				}
+				appendPropertyRow(panel, localize('arch.length', "Length"), localize('arch.mm', "{0} mm", Math.round(pathLength(wall.path))));
+				const levels = wallLevels(wall, elevations);
+				appendPropertyRow(panel, localize('arch.height', "Height"), levels ? localize('arch.mm', "{0} mm", Math.round(levels.top - levels.bottom)) : localize('arch.noHeight', "none: give a height"), !levels);
+				this.inputRow(panel, localize('arch.heightOwn', "Height (mm, empty: to the next story)"), wall.height === undefined ? '' : String(wall.height), text => {
+					const value = text.trim() === '' ? undefined : Number(text);
+					if (value === undefined || (Number.isFinite(value) && value > 0)) {
+						change({ height: value === undefined ? undefined : Math.round(value), top: undefined }, localize('arch.curtainHeightChanged', "{0}'s height: {1}.", wall.id, value === undefined ? localize('arch.nextStory', "the next story") : `${Math.round(value)} mm`));
+					}
+				});
+				appendPropertyNote(panel, localize('arch.curtainNote', "A facade of glazing on a mullion grid: its weight loads the beams or slab edges under it (superimposed dead load); it bounds rooms as a wall does, but is not a partition."));
+				break;
+			}
+			case 'roofs': {
+				const roof = item as unknown as IRoof;
+				const type = arch.roofTypes.find(t => t.id === roof.type);
+				this.selectRow(panel, localize('arch.roofType', "Roof type"), arch.roofTypes.map(t => ({ id: t.id, text: `${t.id}: ${t.name}` })), roof.type, id => change({ type: id }, localize('arch.changedType', "{0} is now {1}.", roof.id, id)));
+				const plan = Math.abs(signedArea(roof.outline)) / 1e6;
+				const slope = roof.slope ?? 0;
+				appendPropertyRow(panel, localize('arch.planArea', "Plan area"), localize('arch.roomArea', "{0} m²", plan.toFixed(2)));
+				if (type) {
+					// Per m² of plan: the covering's weight along the slope over the cosine (saengine.fem.architecture_loads).
+					appendPropertyRow(panel, localize('arch.covering', "Covering"), localize('arch.coveringValue', "{0} kN/m² of plan", (roofWeight(type) / Math.cos(slope * Math.PI / 180)).toFixed(2)));
+				}
+				this.inputRow(panel, localize('arch.slope', "Pitch (°, 0: flat)"), String(slope), text => {
+					const value = Number(text);
+					if (Number.isFinite(value) && value >= 0 && value < 90) {
+						change({ slope: value || undefined }, localize('arch.slopeChanged', "{0} is pitched {1}°.", roof.id, value));
+					}
+				});
+				if (slope) {
+					this.inputRow(panel, localize('arch.direction', "Rises towards (° from x)"), String(roof.direction ?? 90), text => {
+						const value = Number(text);
+						if (Number.isFinite(value)) {
+							change({ direction: value }, localize('arch.directionChanged', "{0} rises towards {1}°.", roof.id, value));
+						}
+					});
+				}
+				this.occupancyRow(panel, roof.id, roof.occupancy, change);
+				appendPropertyNote(panel, localize('arch.roofNote', "Its covering is superimposed dead load over its outline on this story's slab, instead of the floor's flat finish there (rooms on the roof keep theirs); an occupancy gives its live load (BNBC 2020 Part 6 Table 6.2.3)."));
+				break;
+			}
+			case 'ramps': {
+				const ramp = item as unknown as IRamp;
+				const run = Math.hypot(ramp.end[0] - ramp.start[0], ramp.end[1] - ramp.start[1]);
+				const gradient = rampGradient(ramp);
+				appendPropertyRow(panel, localize('arch.run', "Run"), localize('arch.mm', "{0} mm", Math.round(run)));
+				appendPropertyRow(panel, localize('arch.gradient', "Gradient"), gradient > 0 ? localize('arch.gradientValue', "1 in {0} ({1} %)", (1 / gradient).toFixed(1), (gradient * 100).toFixed(1)) : localize('arch.gradientLevel', "level"));
+				const positive = (field: string, label: string, value: number | undefined, min: number) => this.inputRow(panel, label, String(value ?? ''), text => {
+					const n = Number(text);
+					if (Number.isFinite(n) && n >= min) {
+						change({ [field]: Math.round(n) }, localize('arch.fieldChanged', "{0}: {1} {2}.", ramp.id, label, Math.round(n)));
+					}
+				});
+				positive('rise', localize('arch.rise', "Rise (mm)"), ramp.rise ?? 0, 0);
+				positive('width', localize('arch.width', "Width (mm)"), ramp.width ?? 1500, 1);
+				const floors = arch.finishTypes.filter(f => f.kind === 'floor');
+				this.selectRow(panel, localize('arch.floorFinish', "Floor finish"), [{ id: '', text: localize('arch.none', "(none)") }, ...floors.map(f => ({ id: f.id, text: `${f.name} (${f.thickness} mm)` }))], ramp.finish ?? '', id => change({ finish: id || undefined }, localize('arch.finishChanged', "{0}: {1} {2}.", ramp.id, localize('arch.floorFinish', "Floor finish"), id || '-')));
+				this.inputRow(panel, localize('arch.fill', "Fill unit weight (kN/m³, 0: none)"), String(ramp.fillUnitWeight ?? 16), text => {
+					const n = Number(text);
+					if (Number.isFinite(n) && n >= 0) {
+						change({ fillUnitWeight: n }, localize('arch.fillChanged', "{0}'s fill weighs {1} kN/m³.", ramp.id, n));
+					}
+				});
+				this.occupancyRow(panel, ramp.id, ramp.occupancy, change);
+				appendPropertyNote(panel, localize('arch.rampNote', "A ramp built up on the floor: its filling (half its rise deep on average) and finish are superimposed dead load over its footprint, with its occupancy's live load. A turning ramp is several straight ramps with landings."));
+				break;
+			}
+			case 'railings': {
+				const railing = item as unknown as IRailing;
+				const type = arch.railingTypes.find(t => t.id === railing.type);
+				this.selectRow(panel, localize('arch.railingType', "Railing type"), arch.railingTypes.map(t => ({ id: t.id, text: `${t.id}: ${t.name}` })), railing.type, id => change({ type: id }, localize('arch.changedType', "{0} is now {1}.", railing.id, id)));
+				const values = railingOf(type);
+				appendPropertyRow(panel, localize('arch.railingHeight', "Height"), localize('arch.mm', "{0} mm", values.height));
+				appendPropertyRow(panel, localize('arch.weight', "Weight"), localize('arch.kNm', "{0} kN/m", values.weight.toFixed(2)));
+				appendPropertyRow(panel, localize('arch.length', "Length"), localize('arch.mm', "{0} mm", Math.round(pathLength(railing.path))));
+				appendPropertyNote(panel, localize('arch.railingNote', "Its weight loads the beam or slab edge under it (superimposed dead load). The horizontal load a guard resists is for the railing's own design, not the frame's."));
+				break;
+			}
 		}
 		propertyLink(panel, localize('arch.deleteItem', "Delete {0}", ref.id), () => this.deleteItem(ref), this.propertiesDisposables);
 	}
@@ -1041,6 +1185,19 @@ export class ArchitectureEditor extends EditorPane {
 				? localize('arch.finishSunkRow', "{0}: {1} mm, {2} kN/m² (+{3} kN/m² sunk filling in wet rooms)", type.name, type.thickness, weight.toFixed(2), (type.sunkFilling / 1000 * (type.sunkUnitWeight ?? 16)).toFixed(2))
 				: localize('arch.finishRow', "{0}: {1} mm, {2} kN/m²", type.name, type.thickness, weight.toFixed(2)));
 		}
+		if (arch.curtainWallTypes.length || arch.roofTypes.length || arch.railingTypes.length) {
+			appendPropertyHeading(panel, localize('arch.extraTypes', "Curtain wall, roof and railing types"));
+			for (const type of arch.curtainWallTypes) {
+				appendPropertyRow(panel, type.id, localize('arch.curtainTypeRow', "{0}: {1} kN/m²", type.name, curtainWeight(type).toFixed(2)));
+			}
+			for (const type of arch.roofTypes) {
+				appendPropertyRow(panel, type.id, localize('arch.roofTypeRow', "{0}: {1} kN/m²", type.name, roofWeight(type).toFixed(2)));
+			}
+			for (const type of arch.railingTypes) {
+				const values = railingOf(type);
+				appendPropertyRow(panel, type.id, localize('arch.railingTypeRow', "{0}: {1} mm high, {2} kN/m", type.name, values.height, values.weight.toFixed(2)));
+			}
+		}
 		propertyLink(panel, localize('arch.editTypes', "Edit the types as text"), () => void this.openText(), this.propertiesDisposables);
 		const last = this.lastImport;
 		if (last) {
@@ -1063,6 +1220,13 @@ export class ArchitectureEditor extends EditorPane {
 				appendPropertyNote(panel, note);
 			}
 		}
+	}
+
+	/** The occupancy (an area use of the code pack, for the live load) of a roof or ramp. */
+	private occupancyRow(panel: HTMLElement, id: string, occupancy: string | undefined, change: (fields: { readonly [field: string]: unknown }, notice: string) => void): void {
+		const uses = Object.entries(BNBC.areaUses);
+		this.selectRow(panel, localize('arch.occupancy', "Occupancy"), [{ id: '', text: localize('arch.none', "(none)") }, ...uses.map(([use, value]) => ({ id: use, text: localize('arch.useLive', "{0} ({1} kPa)", value.name, value.live) }))], occupancy ?? '',
+			picked => change({ occupancy: picked || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", id, picked ? BNBC.areaUses[picked]?.name ?? picked : localize('arch.noOccupancy', "no occupancy"))));
 	}
 
 	private inputRow(panel: HTMLElement, label: string, value: string, apply: (text: string) => void): void {
