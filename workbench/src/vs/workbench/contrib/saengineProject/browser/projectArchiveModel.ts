@@ -31,6 +31,16 @@ export const CAD_OPEN_COMMAND = 'saengine.cad.open';
  * DXF (cached in a `.dwg-cache` folder beside it) by the bundled GNU LibreDWG.
  */
 export const DWG_TO_DXF_COMMAND = 'saengine.cad.dwgToDxf';
+/**
+ * `{path, page?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings}` or `{ok: false,
+ * code, message}`: one page of a PDF drawing as DXF (cached in a `.pdf-cache` folder beside it),
+ * with its straight lines `[x1, y1, x2, y2]` in paper mm for object snaps.
+ */
+export const PDF_TO_DXF_COMMAND = 'saengine.cad.pdfToDxf';
+/** `{outPath, floorPlanText, objectsText?, loadsText?}` -> `{ok, path, sheets}`: the model as an Excel workbook. */
+export const WORKBOOK_EXPORT_COMMAND = 'saengine.workbook.export';
+/** `{path, floorPlanText, objectsText?, loadsText?}` -> `{ok, problems, diff, texts, changed}`: an edited workbook read back. */
+export const WORKBOOK_IMPORT_COMMAND = 'saengine.workbook.import';
 
 /** The UI commands (≡ File menu, the Exports page). Each takes its paths as arguments, for tests. */
 export const EXPORT_ARCHIVE_UI_COMMAND = 'saengine.project.exportArchive';

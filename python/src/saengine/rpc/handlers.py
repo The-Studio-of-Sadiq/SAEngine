@@ -792,6 +792,44 @@ def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
         return {"ok": False, "code": "failed", "message": str(exc)}
 
 
+def convert_pdf(path: str, page: int | None = None, cache: str | None = None) -> dict[str, Any]:
+    """One page of an architect's PDF as DXF (``saengine.library.pdf_underlay``): ``{"ok",
+    "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached"}``, or ``{"ok":
+    False, "code": "failed", "message"}``."""
+    from saengine.library.pdf_underlay import PdfError, convert
+
+    try:
+        return {"ok": True, **convert(path, int(page or 1), cache).to_json()}
+    except PdfError as exc:
+        return {"ok": False, "code": "failed", "message": str(exc)}
+
+
+def workbook_export(
+    out_path: str, floor_plan_text: str, objects_text: str | None, loads_text: str | None
+) -> dict[str, Any]:
+    """The model as an Excel workbook (``saengine.library.workbook``): ``{"ok", "path",
+    "sheets"}`` or ``{"ok": False, "message"}``."""
+    from saengine.library.workbook import export_workbook
+
+    try:
+        return {"ok": True, **export_workbook(out_path, floor_plan_text, objects_text, loads_text)}
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+def workbook_import(
+    path: str, floor_plan_text: str, objects_text: str | None, loads_text: str | None
+) -> dict[str, Any]:
+    """An edited model workbook read against the current files: ``{"ok", "problems", "diff",
+    "texts", "changed"}`` (``saengine.library.workbook.import_workbook``)."""
+    from saengine.library.workbook import import_workbook
+
+    try:
+        return import_workbook(path, floor_plan_text, objects_text, loads_text)
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "problems": [str(exc)], "diff": {}, "texts": {}, "changed": []}
+
+
 def installer_components() -> dict[str, Any]:
     """The setup's optional components the backend runs, found as the backend finds them for
     use (``find_energyplus``, ``find_converter``): ``{"energyplus", "libredwg"}``, each
