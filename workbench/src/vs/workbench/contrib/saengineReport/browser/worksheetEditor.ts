@@ -204,7 +204,7 @@ export class WorksheetEditor extends JsonDocumentEditor {
 			const box = append(row, $<HTMLInputElement>('input', { type: 'checkbox' }));
 			box.checked = Boolean(current);
 			append(row, $('span', undefined, input.label));
-			this.viewDisposables.add(addDisposableListener(box, EventType.CHANGE, () => this.setInput(input, inputs, box.checked, box)));
+			this.viewDisposables.add(addDisposableListener(box, EventType.CHANGE, () => this.storeInput(input, inputs, box.checked, box)));
 			return;
 		}
 		append(row, $('span.sa-worksheet-label', undefined, input.label));
@@ -214,16 +214,16 @@ export class WorksheetEditor extends JsonDocumentEditor {
 				const element = append(select, $<HTMLOptionElement>('option', { value: option.value }, option.label));
 				element.selected = option.value === String(current);
 			}
-			this.viewDisposables.add(addDisposableListener(select, EventType.CHANGE, () => this.setInput(input, inputs, select.value, select)));
+			this.viewDisposables.add(addDisposableListener(select, EventType.CHANGE, () => this.storeInput(input, inputs, select.value, select)));
 		} else {
 			const field = append(row, $<HTMLInputElement>('input', { type: 'text', inputmode: 'decimal' }));
 			field.value = String(current);
-			this.viewDisposables.add(addDisposableListener(field, EventType.INPUT, () => this.setInput(input, inputs, field.value, field)));
+			this.viewDisposables.add(addDisposableListener(field, EventType.INPUT, () => this.storeInput(input, inputs, field.value, field)));
 		}
 		append(row, $('span.sa-worksheet-unit', undefined, input.unit));
 	}
 
-	private setInput(input: IWorksheetInput, inputs: JsonObject, text: string | boolean, element: HTMLElement): void {
+	private storeInput(input: IWorksheetInput, inputs: JsonObject, text: string | boolean, element: HTMLElement): void {
 		const value = parseInput(input, text);
 		element.classList.toggle('sa-worksheet-invalid', value === undefined);
 		if (value === undefined) {
