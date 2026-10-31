@@ -34,7 +34,7 @@ import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js'
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -67,11 +67,26 @@ export function codeCombinations(settings: JsonObject): JsonValue[] {
 	const combinations = clone((DEFAULT_SETTINGS as JsonObject).combinations as JsonValue) as JsonValue[];
 	const analysis = isObject(settings.analysis) ? settings.analysis : undefined;
 	const thermal = analysis && isObject(analysis.thermal) ? analysis.thermal : undefined;
-	if (thermal?.enabled !== true) {
+	const settlement = analysis && isObject(analysis.settlement) ? analysis.settlement : undefined;
+	const withT = thermal?.enabled === true;
+	const withSt = settlement?.enabled === true;
+	if (!withT && !withSt) {
 		return combinations;
 	}
 	const at = combinations.findIndex(c => isObject(c) && c.name === '1.2D + 1.6L + 0.5Lr');
-	combinations.splice(at < 0 ? combinations.length : at + 1, 0, ...(clone(THERMAL_COMBINATIONS as JsonValue) as JsonValue[]));
+	const added: JsonValue[] = withT ? clone(THERMAL_COMBINATIONS as JsonValue) as JsonValue[] : [];
+	if (withSt) {
+		// Settlement is a self-straining effect T (BNBC 2020 Part 6 Sec 2.7): 1.2ST alone, and
+		// beside ±T when the temperature case is on too.
+		added.push(...clone(SETTLEMENT_COMBINATIONS as JsonValue) as JsonValue[]);
+		if (withT) {
+			for (const t of THERMAL_COMBINATIONS as readonly JsonObject[]) {
+				const name = String(t.name).replace(' + 1.6L', ' + 1.2ST + 1.6L');
+				added.push({ ...(clone(t as JsonValue) as JsonObject), name, ST: 1.2 });
+			}
+		}
+	}
+	combinations.splice(at < 0 ? combinations.length : at + 1, 0, ...added);
 	return combinations;
 }
 

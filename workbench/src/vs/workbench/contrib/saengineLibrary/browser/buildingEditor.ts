@@ -126,7 +126,8 @@ const PRESETS: readonly { readonly preset: BuildingViewPreset; readonly label: s
 ];
 
 /** Names of the layers of the 3D view, in its legend. */
-const LAYER_LABELS: { readonly [layer in BuildingLayer]: string } = {
+// `rebar` is optional here until the viewer package with the reinforcement layer is built.
+const LAYER_LABELS: { readonly [layer in BuildingLayer]: string } & { readonly rebar?: string } = {
 	column: localize('layer.columns', "Columns"),
 	beam: localize('layer.beams', "Beams"),
 	wall: localize('layer.walls', "Walls"),
@@ -137,7 +138,11 @@ const LAYER_LABELS: { readonly [layer in BuildingLayer]: string } = {
 	mep: localize('layer.mep', "MEP"),
 	architecture: localize('layer.architecture', "Architecture"),
 	room: localize('layer.rooms', "Rooms"),
+	rebar: localize('layer.rebar', "Reinforcement"),
 };
+
+/** Ids of the reinforcement in the IFC's id map: `rebar:<element>/<n>` (see `saengine.library.ifc_rebar`). */
+const REBAR_ID = 'rebar:';
 
 /** Ids of the architecture's elements in the IFC's id map (see `saengine.library.architecture_ifc`). */
 const ARCHITECTURE_ID = 'arch:';
@@ -233,6 +238,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private emptyNote!: HTMLElement;
 	private storyFilter: string | undefined;
 	private readonly hiddenLayers = new Set<BuildingLayer>();
+	/** The 3D view (and Export IFC) carries the reinforcement cages. */
+	private showRebar = false;
 	private readonly legendDisposables = this._register(new DisposableStore());
 	/** The Part 5 model this one is built from, followed to say when it changed. */
 	private readonly source = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
@@ -330,6 +337,21 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			append(button, $('span', undefined, label));
 			this._register(addDisposableListener(button, EventType.CLICK, () => void this.viewer?.setView(preset)));
 		}
+		// The reinforcement cages of the beams and columns (detailed as the drawings are): asked
+		// for on demand, a large building takes a while to detail and to draw.
+		const rebar = append(tools, $<HTMLButtonElement>('button.sa-segment.building-rebar-toggle', {
+			type: 'button',
+			'aria-pressed': 'false',
+			title: localize('building.rebarTitle', "Show the designed bars of the beams and columns in 3D (as the drawings detail them), with the IFC reinforcing bars in Export IFC. Hide Columns and Beams in the legend to see the cages."),
+		}));
+		append(rebar, $(ThemeIcon.asCSSSelector(Codicon.symbolArray)));
+		append(rebar, $('span', undefined, localize('building.rebar', "Reinforcement")));
+		this._register(addDisposableListener(rebar, EventType.CLICK, () => {
+			this.showRebar = !this.showRebar;
+			rebar.setAttribute('aria-pressed', String(this.showRebar));
+			rebar.classList.toggle('active', this.showRebar);
+			this.ifcScheduler.schedule(0);
+		}));
 		this.storySelect = append(tools, $<HTMLSelectElement>('select.building-story-filter', { 'aria-label': localize('building.storyFilterAria', "Stories shown") }));
 		this._register(addDisposableListener(this.storySelect, EventType.CHANGE, () => {
 			this.storyFilter = this.storySelect.value || undefined;
@@ -553,11 +575,13 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (!this.document || this.objectsText === undefined) {
 			return undefined;
 		}
+		const root = this.project.project?.root;
 		return this.commands.executeCommand<IBuildingIfc>(IFC_COMMAND, {
 			bimText: JSON.stringify(this.document),
 			objectsText: this.objectsText,
 			materialsText: this.materials?.getValue(),
 			name: this.project.project?.name ?? 'Project',
+			...(this.showRebar && root ? { projectRoot: root.fsPath } : {}),
 		});
 	}
 
@@ -729,6 +753,13 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		for (const { item } of this.mepItems()) {
 			if (item.story === id || item.toStory === id) {
 				ids.push(String(item.id), `${item.id}/plinth`, `${item.id}-base`);
+			}
+		}
+		// The reinforcement of the story's beams and columns, with them.
+		const members = new Set(ids);
+		for (const key of Object.keys(this.ifcIds)) {
+			if (key.startsWith(REBAR_ID) && members.has(key.slice(REBAR_ID.length).split('/')[0])) {
+				ids.push(key);
 			}
 		}
 		// The architecture standing on the story below, as the columns rising to this one.

@@ -1,0 +1,107 @@
+{
+  "additionalProperties": false,
+  "description": "Least sizes and covers of concrete members for a fire resistance rating, one value per\nrating of ``ratings`` (hours).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "ratings": {
+      "description": "Fire resistance ratings [h].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Ratings",
+      "type": "array"
+    },
+    "slabThickness": {
+      "description": "Least slab thickness [mm].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Slabthickness",
+      "type": "array"
+    },
+    "slabCover": {
+      "description": "Least slab cover to the bars [mm].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Slabcover",
+      "type": "array"
+    },
+    "wallThickness": {
+      "description": "Least wall thickness [mm].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Wallthickness",
+      "type": "array"
+    },
+    "beamCover": {
+      "description": "Least beam cover to the main bars [mm].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Beamcover",
+      "type": "array"
+    },
+    "beamWidth": {
+      "description": "Least beam width the beam covers hold for [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Beamwidth",
+      "type": "number"
+    },
+    "columnSize": {
+      "description": "Least column dimension [mm].",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Columnsize",
+      "type": "array"
+    },
+    "columnCoverPerHour": {
+      "description": "Column cover per hour of rating [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Columncoverperhour",
+      "type": "number"
+    },
+    "columnCoverMax": {
+      "description": "Column cover need not exceed [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Columncovermax",
+      "type": "number"
+    }
+  },
+  "required": [
+    "ratings",
+    "slabThickness",
+    "slabCover",
+    "wallThickness",
+    "beamCover",
+    "beamWidth",
+    "columnSize",
+    "columnCoverPerHour",
+    "columnCoverMax"
+  ],
+  "title": "FireResistanceTable",
+  "type": "object",
+  "$id": "saengine.codePack.fireResistance/1"
+}

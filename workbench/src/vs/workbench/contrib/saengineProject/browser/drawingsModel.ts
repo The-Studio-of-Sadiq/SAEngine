@@ -123,6 +123,8 @@ export interface IDrawingSet {
 	readonly pdf?: URI;
 	/** The bar bending schedule. */
 	readonly bbsCsv?: URI;
+	/** The bar congestion checks of the beams, columns and joints (left out: not written). */
+	readonly congestionCsv?: URI;
 	/** When it was generated (ms since the epoch). */
 	readonly generatedAt?: number;
 	readonly size?: string;
@@ -224,10 +226,12 @@ export function readDrawingSet(value: unknown, root: URI): IDrawingSet | undefin
 	}
 	const changed = strings(stamps.changed ?? set.changed);
 	const register = readRegister(set.register, root);
+	const congestionCsv = resolveProjectPath(root, set.congestionCsv);
 	return {
 		sheets,
 		pdf,
 		bbsCsv,
+		...(congestionCsv ? { congestionCsv } : {}),
 		generatedAt: readTime(set.generatedAt ?? set.generated ?? stamps.generatedAt ?? set.time),
 		size: text(set.size) ?? sheets.find(s => s.size)?.size,
 		stale: setStale || sheets.some(s => s.stale),
@@ -297,7 +301,7 @@ export function drawingSetKey(set: IDrawingSet | undefined): string {
 	// A URI's own toJSON carries cached state (fsPath, formatted), so it is written as its text.
 	return set ? JSON.stringify({
 		...set,
-		pdf: set.pdf?.toString(), bbsCsv: set.bbsCsv?.toString(),
+		pdf: set.pdf?.toString(), bbsCsv: set.bbsCsv?.toString(), congestionCsv: set.congestionCsv?.toString(),
 		sheets: set.sheets.map(s => ({ ...s, dxf: s.dxf?.toString(), png: s.png?.toString(), dwg: s.dwg?.toString() })),
 		register: set.register ? { ...set.register, csv: set.register.csv?.toString(), pdf: set.register.pdf?.toString(), issues: set.register.issues.map(i => ({ ...i, folder: i.folder?.toString() })) } : undefined,
 	}) : '';

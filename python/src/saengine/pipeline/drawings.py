@@ -12,6 +12,8 @@ What a generation writes into ``11 Exports/Drawings``:
   or LibreCAD;
 - ``drawings.pdf``: every sheet, one page each; ``previews/S-101.png``, ...: the previews;
 - ``bbs.csv``: the bar bending schedule (UTF-8 with a byte order mark, for Excel);
+- ``rebar-congestion.csv``: the bar congestion checks of the beams, columns and their joints
+  (:mod:`saengine.drawings.cages`); the failing ones are among the answer's warnings;
 - ``drawings.json``: this module's record of the set: its sheets, the drawing settings it was
   drawn with, and the stamps of the files it was drawn from (whole set and per sheet), so that
   :func:`list_drawings` can tell when the model, the settings or the analysis changed since. The
@@ -484,6 +486,7 @@ def _generate(
     schedule = bbs.bar_schedule(model)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / BBS_CSV).write_text(bbs.schedule_csv(schedule), encoding="utf-8-sig", newline="")
+    congestion = _congestion(root, model, folder)
     step("sheets")
     errors = check_problems(model, design_report)
     data = drawing_set(
@@ -673,7 +676,7 @@ def _generate(
     # The model's closing line says how it was detailed (a note); the rest are warnings. The
     # sheets repeat some of the model's notes in their problems: each is listed once.
     warnings: list[str] = []
-    for text in [*(written.get("problems") or []), *(model.get("notes") or [])]:
+    for text in [*(written.get("problems") or []), *(model.get("notes") or []), *congestion]:
         text = str(text)
         if text.startswith("Detailing to "):
             notes.append(text)
@@ -798,6 +801,8 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
         "pdf": absolute(record.get("pdf")),
         "pdfStale": bool(pdf_changed) or pdf_older,
         "bbsCsv": absolute(record.get("bbsCsv")),
+        # The bar congestion checks of the cages (saengine.drawings.cages), when written.
+        "congestionCsv": absolute("rebar-congestion.csv"),
         "generatedAt": _time_ms(record.get("generatedAt")),
         "size": record.get("size"),
         "stale": stale,
@@ -837,6 +842,65 @@ def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
         "csv": absolute(rv.REGISTER_CSV),
         "pdf": absolute(rv.REGISTER_PDF),
     }
+
+
+def _libraries(root: Path) -> tuple[Any, Any]:
+    """The object types and materials of the project (materials None when unreadable)."""
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
+
+    objects = ObjectLibrary.model_validate_json(_read(root / "04 Objects/objects.json") or "{}")
+    try:
+        materials = MaterialLibrary.model_validate_json(
+            _read(root / "03 Materials/materials.json") or ""
+        )
+    except ValueError:
+        materials = None
+    return objects, materials
+
+
+def _congestion(root: Path, model: dict[str, Any], folder: Path) -> list[str]:
+    """The bar congestion checks of the detailing ``model`` written as ``rebar-congestion.csv``;
+    the failing ones as warnings (none when the cages cannot be built)."""
+    from saengine.drawings import cages
+
+    try:
+        objects, materials = _libraries(root)
+        found = cages.cage_model(model, objects, materials)
+    except Exception as error:  # noqa: BLE001 - the drawings do not depend on it
+        return [f"The bar congestion could not be checked: {error}"]
+    (folder / cages.CSV_NAME).write_text(
+        cages.congestion_csv(found), encoding="utf-8-sig", newline=""
+    )
+    return cages.congestion_problems(found)
+
+
+def rebar_cages(project_root: str | Path, check: bool = True) -> dict[str, Any]:
+    """The 3D reinforcement cages of the project's beams and columns with their congestion
+    checks (:func:`saengine.drawings.cages.cage_model`), from the detailing the drawings use:
+    the kept design checks and required steel of the last analysis run and the bar marks of the
+    last drawing set (nothing is designed again). Raises :class:`DrawingsError` when the
+    project cannot be detailed."""
+    from saengine.drawings.cages import cage_model
+    from saengine.drawings.detailing import detailing_model
+
+    root = Path(project_root)
+    if not (root / "06 BIM/bim.json").exists() or not (root / "04 Objects/objects.json").exists():
+        raise DrawingsError("The building model (06 BIM) and the object types are needed.")
+    settings, _ = drawing_settings(_read(root / SOURCES[0][1]))
+    inputs = kept_detailing_inputs(root)
+    try:
+        model = detailing_model(
+            root,
+            design_report=inputs["design_report"],
+            required=inputs["required"],
+            options={"method": settings["developmentLength"], "curtail": settings["curtail"]},
+            previous=inputs["previous"],
+        )
+    except ValueError as error:
+        raise DrawingsError(f"The reinforcement could not be detailed: {error}") from error
+    objects, materials = _libraries(root)
+    return cage_model(model, objects, materials, check=check)
 
 
 def list_drawings(project_root: str | Path) -> dict[str, Any]:

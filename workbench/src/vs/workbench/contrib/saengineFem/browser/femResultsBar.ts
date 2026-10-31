@@ -1546,6 +1546,7 @@ export class FemResultsBar extends Disposable {
 			}
 			this.renderStairs(container, report);
 			this.renderDiaphragms(container, report);
+			this.renderTakedown(container, report);
 			this.renderSeismic(container, undefined, true);
 			appendPropertyNote(container, localize('femResults.designSelect', "Select a member, or a slab's shell, for its checks."));
 			return;
@@ -1707,6 +1708,32 @@ export class FemResultsBar extends Disposable {
 			// A staircase shown by its parts has no checks of its own; one without parts, a flat list.
 			this.renderDetailing(details, [...checkItems(generalChecks(ownChecks(stair))), ...staircaseSection(stair)]);
 			this.renderSteel(details, requiredSteelOf(this.required, stair.id), true);
+		}
+	}
+
+	/**
+	 * The columns' gravity load takedown, under the summary: one fold per column line, a row per
+	 * storey (top down) with the factored and unfactored load at the column's foot and what the
+	 * storey adds.
+	 */
+	private renderTakedown(container: HTMLElement, report: IFemDesignReport): void {
+		const lines = report.takedown?.lines ?? [];
+		if (!lines.length) {
+			return;
+		}
+		appendPropertyHeading(container, localize('femResults.takedownHeading', "Column Load Takedown"));
+		for (const line of lines) {
+			const foot = line.rows[line.rows.length - 1];
+			const details = append(container, $('details.fem-stair'));
+			append(details, $('summary', undefined, localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, foot ? foot.factored.toFixed(0) : '0')));
+			for (const row of line.rows) {
+				const added = Object.values(row.storey).reduce((sum, v) => sum + v, 0);
+				appendPropertyRow(details, localize('femResults.takedownStorey', "{0} ({1})", row.story, row.column),
+					localize('femResults.takedownValue', "{0} kN factored, {1} kN unfactored (+{2} kN this storey)", row.factored.toFixed(0), row.total.toFixed(0), added.toFixed(0)));
+			}
+		}
+		if (report.takedown?.note) {
+			appendPropertyNote(container, report.takedown.note);
 		}
 	}
 

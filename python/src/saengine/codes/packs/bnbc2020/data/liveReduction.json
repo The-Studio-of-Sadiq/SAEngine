@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.3.13"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.3.13 (reduction of live loads)",
+  "influenceMin": 37.16,
+  "constant": 0.25,
+  "coefficient": 4.57,
+  "minOneFloor": 0.5,
+  "minFloors": 0.4,
+  "heavyLive": 4.79,
+  "heavyFactor": 0.8,
+  "notReduced": [
+    "assemblyFixed",
+    "assemblyMovable"
+  ],
+  "twoFloorsOnly": [
+    "parking",
+    "storageLight",
+    "storageHeavy"
+  ],
+  "kll": {
+    "interiorColumn": 4,
+    "exteriorColumn": 4,
+    "edgeColumnCantilever": 3,
+    "cornerColumnCantilever": 2,
+    "interiorBeam": 2,
+    "edgeBeam": 2,
+    "other": 1
+  },
+  "sources": {
+    "influenceMin": "BNBC 2020 Part 6 Sec 2.3.13: members with KLL AT of 37.16 m² or more may be reduced (ASCE 7-05 Sec 4.8.1, SI)",
+    "constant": "BNBC 2020 Part 6 Sec 2.3.13, L = L0 (0.25 + 4.57 / √(KLL AT))",
+    "minOneFloor": "BNBC 2020 Part 6 Sec 2.3.13: at least 0.5 L0 for members supporting one floor, 0.4 L0 for two or more",
+    "heavyLive": "BNBC 2020 Part 6 Sec 2.3.13: live loads over 4.79 kN/m² not reduced, except by 20 % on members supporting two or more floors",
+    "notReduced": "BNBC 2020 Part 6 Sec 2.3.13: assembly uses not reduced",
+    "twoFloorsOnly": "BNBC 2020 Part 6 Sec 2.3.13: passenger car garages (and heavy storage, over 4.79 kN/m²) only by 20 % on members supporting two or more floors",
+    "kll": "BNBC 2020 Part 6 Sec 2.3.13, live load element factor KLL (ASCE 7-05 Table 4-2)"
+  }
+}

@@ -521,6 +521,9 @@ export class DrawingsSection extends Disposable {
 		};
 		fileButton(set.pdf, localize('drawings.openPdf', "Open PDF Set"), Codicon.filePdf, 'pdf');
 		fileButton(set.bbsCsv, localize('drawings.bbsCsv', "Bar Bending Schedule (CSV)"), Codicon.table, 'bbs');
+		if (set.congestionCsv) {
+			fileButton(set.congestionCsv, localize('drawings.congestionCsv', "Bar Congestion (CSV)"), Codicon.warning, 'congestion');
+		}
 		const folder = set.pdf ?? set.bbsCsv ?? set.sheets.find(s => s.dxf)?.dxf;
 		if (folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
 			const button = this.setDisposables.add(this.frame.createIconButton(links, Codicon.folderOpened, localize('drawings.revealSet', "Reveal Drawings in File Explorer"), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, folder)));

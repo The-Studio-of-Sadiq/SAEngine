@@ -33,10 +33,12 @@ export interface BuildingViewerTheme {
 	/** Doors and windows of the architecture's layer: wood, and see-through glass. */
 	readonly door: string;
 	readonly window: string;
+	/** The reinforcing bars of the cages (IfcReinforcingBar), when the IFC carries them. */
+	readonly rebar: string;
 }
 
 /** The groups of elements the view can show or hide, each with its own colour. */
-export type BuildingLayer = 'column' | 'beam' | 'wall' | 'slab' | 'footing' | 'stair' | 'member' | 'mep' | 'architecture' | 'room';
+export type BuildingLayer = 'column' | 'beam' | 'wall' | 'slab' | 'footing' | 'stair' | 'member' | 'mep' | 'architecture' | 'room' | 'rebar';
 
 /** Ids (in `load`'s map) of the architecture's elements: their own layer, whatever their IFC class. */
 export const ARCHITECTURE_PREFIX = 'arch:';
@@ -95,6 +97,7 @@ const defaultTheme: BuildingViewerTheme = {
 	room: '#e2b84d',
 	door: '#9a6a3a',
 	window: '#7cc4e4',
+	rebar: '#ff7043',
 };
 
 /** Rooms are drawn see-through, so the walls and structure show inside them. */
@@ -116,6 +119,8 @@ const CATEGORIES: readonly [BuildingLayer, RegExp][] = [
 	['room', /^IFCSPACE$/],
 	// The architecture's walls, doors, windows and coverings, by their ids (see ARCHITECTURE_PREFIX).
 	['architecture', /^IFC(DOOR|WINDOW|COVERING)$/],
+	// The reinforcement cages (saengine.library.ifc_rebar): hide the concrete to see them.
+	['rebar', /^IFCREINFORCINGBAR$/],
 ];
 
 /** Directions from the target to the camera of the view presets (y is up). */
