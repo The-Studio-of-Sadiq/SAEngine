@@ -18,7 +18,9 @@ only their peak translations (combined and per mode), so the member forces are f
 - **Scaling** (Sec 2.5.9.4, p. 635): where the dynamic base shear V_rs is less than 85 % of the
   equivalent static base shear V (Sec 2.5.7, the cases EX and EY the model already has), all
   the forces, but not the drifts, are multiplied by 0.85·V/V_rs. BNBC gives one fraction for
-  regular and irregular buildings alike.
+  regular and irregular buildings alike. With several towers on a podium each tower's shear at
+  the podium top is checked the same way (:mod:`saengine.fem.towers`) and the building is scaled
+  by the largest factor; the towers' own periods, drifts and torsion are in ``towers``.
 - **Accidental torsion** (Sec 2.5.7.6.2, p. 630, eq. 6.2.43): ``M_ta,i = ±0.05·L_i·F_i`` at each
   level, ``F_i`` the equivalent static storey force, ``L_i`` the floor dimension perpendicular
   to the force, the same direction at every floor. With dynamic analysis BNBC either offsets
@@ -1300,6 +1302,16 @@ def seismic_design(
                 f"than the 90 % of {CLAUSES['modes']}; add modes"
             )
 
+    # ── towers on a podium (saengine.fem.towers): each tower's response spectrum shear at the
+    # podium top must reach the same share of its part of the static shear; the design scales
+    # the building by the largest factor of the building and its towers ──
+    from saengine.fem.towers import tower_checks, tower_scale, tower_shears, towers_beside
+
+    towers = towers_beside(project_path)
+    shears = tower_shears(project, towers, spectra) if towers is not None else {}
+    for axis in ("X", "Y"):
+        scale[axis] = max(scale[axis], tower_scale(shears, axis))
+
     orthogonal = orthogonal_required(category, options.orthogonal)
     torsion_levels = (
         {axis: torsion_loads(project, f"E{axis}")[1] for axis in ("X", "Y")}
@@ -1399,6 +1411,12 @@ def seismic_design(
             "Ax is not applied"
         )
     drift = storey_drifts(project, spectra, storeys, amplification, allowable, forces, ax)
+    tower_summary = None
+    if towers is not None:
+        tower_summary = tower_checks(
+            project, towers, shears, spectra, storeys, amplification, allowable, scale, forces, ax
+        )
+        notes.extend(tower_summary["notes"])
     if any(not d["ok"] for d in drift):
         worst = max(drift, key=lambda d: d["ratio"])
         notes.append(
@@ -1441,6 +1459,7 @@ def seismic_design(
         "combinations": seismic_combinations(settings, options, orthogonal, torsion, ax),
         "signs": options.signs,
         "drift": drift,
+        "towers": tower_summary,
         "notes": notes,
         "clauses": CLAUSES,
     }
