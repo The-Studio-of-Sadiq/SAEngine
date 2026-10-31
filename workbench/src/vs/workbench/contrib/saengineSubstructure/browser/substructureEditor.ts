@@ -37,6 +37,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
@@ -84,6 +85,9 @@ type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
 const SITE_PARTS: readonly (readonly [keyof ISiteTexts, string])[] = [
 	['bim', 'bim'], ['objects', 'objects'], ['floorPlan', 'floorPlan'], ['settings', 'settings'], ['soil', 'soil'], ['materials', 'materials'],
 ];
+
+/** Planned excavation support features (registered in the contribution). */
+const EXCAVATION_FEATURES = ['substructure.embeddedPileWall', 'substructure.sheetPileWall', 'substructure.strutsAnchors'];
 
 const MM = localize('sub.unit.mm', "mm");
 const M = localize('sub.unit.m', "m");
@@ -1882,6 +1886,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderPileTypeTable(document);
 		this.renderPileTable(document);
 		this.renderTieBeamTable(document);
+		this.renderExcavationSupport();
 	}
 
 	private section(title: string, count: number, add?: { label: string; run: () => void }): HTMLElement {
@@ -2136,6 +2141,16 @@ export class SubstructureEditor extends EditorPane {
 		});
 		if (!document.tieBeams.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noTies', "None yet. Select two foundations in the plan and add a tie beam between them.")));
+		}
+	}
+
+	/** Excavation support and shoring: planned features of this part, shown as chips. */
+	private renderExcavationSupport(): void {
+		const section = this.section(localize('sub.excavation', "Excavation support"), EXCAVATION_FEATURES.length);
+		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "Embedded walls and their supports round a basement excavation, with the earth and water pressures of the basement walls. Planned: not in this MVP.")));
+		const planned = append(section, $('.sub-planned'));
+		for (const id of EXCAVATION_FEATURES) {
+			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
 		}
 	}
 

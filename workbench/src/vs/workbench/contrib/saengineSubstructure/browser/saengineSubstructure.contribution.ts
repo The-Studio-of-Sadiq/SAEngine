@@ -22,6 +22,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
@@ -150,4 +151,88 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await (await substructureEditor(accessor))?.migrate();
 	}
+});
+
+// Planned features of 9 Substructure: excavation support and shoring (T12). They will take
+// the earth and water pressures from the basement-wall engine (one module, not a copy).
+
+registerPlannedFeature({
+	id: 'substructure.embeddedPileWall',
+	part: 'substructure',
+	title: localize('planned.pileWall.title', "Contiguous and Secant Pile Walls"),
+	summary: localize('planned.pileWall.summary', "An embedded retaining wall of bored piles, touching (contiguous) or interlocking (secant), round a basement excavation: embedment, bending and shear of the piles, and the capping beam."),
+	steps: [
+		localize('planned.pileWall.s1', "Draw the wall line round the excavation and choose contiguous or secant piles, their diameter and spacing."),
+		localize('planned.pileWall.s2', "Take the earth and water pressures of each excavation stage from the basement-wall engine, with the soil of the nearest boreholes."),
+		localize('planned.pileWall.s3', "Find the embedment for stability (cantilever or propped) and the bending moment and shear down the wall."),
+		localize('planned.pileWall.s4', "Design the pile reinforcement and the capping beam; check the wall's deflection at each stage."),
+	],
+	inputs: [
+		{ label: localize('planned.pileWall.i1', "Wall type"), example: localize('planned.pileWall.i1e', "Secant (hard/soft)") },
+		{ label: localize('planned.pileWall.i2', "Pile diameter"), unit: 'mm', example: '600' },
+		{ label: localize('planned.pileWall.i3', "Pile spacing"), unit: 'mm', example: '750' },
+		{ label: localize('planned.pileWall.i4', "Excavation depth"), unit: 'm', example: '6.0' },
+	],
+	outputs: [
+		localize('planned.pileWall.o1', "Embedment depth and factor of safety per stage"),
+		localize('planned.pileWall.o2', "Moment, shear and deflection diagrams of the wall"),
+		localize('planned.pileWall.o3', "Pile and capping beam reinforcement, wall layout drawing"),
+	],
+	references: [
+		'BNBC 2020 Part 6 Chapter 3 (earth retaining structures, excavation)',
+		'CIRIA C580 (embedded retaining walls)',
+		'EAB, Recommendations on Excavations',
+	],
+});
+
+registerPlannedFeature({
+	id: 'substructure.sheetPileWall',
+	part: 'substructure',
+	title: localize('planned.sheet.title', "Sheet Pile Walls"),
+	summary: localize('planned.sheet.summary', "Steel sheet piles driven round a temporary excavation, cantilevered or propped: embedment by free or fixed earth support, the bending moment and the section of the sheet."),
+	steps: [
+		localize('planned.sheet.s1', "Draw the wall line and choose a sheet pile section."),
+		localize('planned.sheet.s2', "Take the earth and water pressures of each stage from the basement-wall engine."),
+		localize('planned.sheet.s3', "Find the embedment (free or fixed earth support) and the largest moment."),
+		localize('planned.sheet.s4', "Check the sheet section and its deflection."),
+	],
+	inputs: [
+		{ label: localize('planned.sheet.i1', "Sheet section"), example: 'U-type 600 × 210' },
+		{ label: localize('planned.sheet.i2', "Support"), example: localize('planned.sheet.i2e', "Propped at 1.5 m") },
+	],
+	outputs: [
+		localize('planned.sheet.o1', "Embedment and moment per stage"),
+		localize('planned.sheet.o2', "Section check and deflection"),
+	],
+	references: [
+		'Blum (1931), free and fixed earth support of sheet pile walls',
+		'BNBC 2020 Part 6 Chapter 3 (excavation)',
+	],
+});
+
+registerPlannedFeature({
+	id: 'substructure.strutsAnchors',
+	part: 'substructure',
+	title: localize('planned.struts.title', "Struts, Walers and Ground Anchors (Staged Excavation)"),
+	summary: localize('planned.struts.summary', "The supports of an excavation wall, stage by stage: struts and walers across the pit or ground anchors behind the wall, their forces as the excavation goes down and the props are placed and removed."),
+	steps: [
+		localize('planned.struts.s1', "Define the excavation stages: dig levels, strut or anchor levels, and when each is placed or removed."),
+		localize('planned.struts.s2', "Analyse the wall on its supports for each stage with the pressures from the basement-wall engine."),
+		localize('planned.struts.s3', "Design the struts and walers (steel) or the anchors (free length, fixed length, test load)."),
+	],
+	inputs: [
+		{ label: localize('planned.struts.i1', "Stages"), example: localize('planned.struts.i1e', "Dig to −2.0 m, strut at −1.5 m, dig to −5.0 m") },
+		{ label: localize('planned.struts.i2', "Strut spacing"), unit: 'm', example: '4.0' },
+		{ label: localize('planned.struts.i3', "Anchor inclination"), unit: '°', example: '15' },
+	],
+	outputs: [
+		localize('planned.struts.o1', "Strut and anchor forces per stage (envelope)"),
+		localize('planned.struts.o2', "Waler and strut sections; anchor lengths and test loads"),
+		localize('planned.struts.o3', "Staged excavation sequence for the drawings"),
+	],
+	references: [
+		'Terzaghi & Peck apparent earth pressure diagrams',
+		'FHWA GEC No. 4 (ground anchors and anchored systems)',
+		'BNBC 2020 Part 6 Chapter 3 (excavation)',
+	],
 });

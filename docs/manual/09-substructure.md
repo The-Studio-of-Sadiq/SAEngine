@@ -55,6 +55,10 @@ New pile type: bored, 500 mm, 18 m.
 (default: the soil report's); *Pile load test at the site*; raft mesh size (500 mm); subgrade
 modulus ks (default: the soil report's).
 
+**Excavation support (planned):** the *Excavation support* section lists contiguous and secant
+pile walls, sheet pile walls, and struts, walers and ground anchors for staged excavation. Each
+chip opens its planned-feature page; nothing is computed in this MVP.
+
 ## Sizing footings
 
 **Size Footings** proposes isolated footings for the columns without a foundation (or for the
