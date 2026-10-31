@@ -523,6 +523,7 @@ def write_drawings(
     problems: Sequence[str] = (),
     clean: bool = True,
     on_sheet: Callable[[int, int], None] | None = None,
+    on_step: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     """Writes one DXF per sheet into ``out_dir``, the PDF of all sheets and the PNG previews
     (``out_dir/previews/<number>.png``); returns what was written (see the module notes).
@@ -533,7 +534,8 @@ def write_drawings(
     manifest, DXFs and previews named like sheets (``<prefix><number> <title>.dxf``,
     ``previews/<prefix><number>.png``). Pass ``clean=False`` when writing some sheets only
     (their files are added to the manifest). ``on_sheet(n, count)`` is called as sheet ``n``
-    of ``count`` is written (the progress of a long set)."""
+    of ``count`` is written (the progress of a long set), ``on_step(message)`` as each stage of
+    the PDF and the previews starts (see :func:`~saengine.drawings.sheets.render.render`)."""
     from saengine.drawings.sheets.render import render
 
     out = Path(out_dir)
@@ -563,6 +565,7 @@ def write_drawings(
         out / pdf_name if pdf else None,
         out / "previews" if png else None,
         ppi=ppi,
+        on_step=on_step,
     )
     for row, path in zip(rows, rendered.get("png") or []):
         row["png"] = str(path)

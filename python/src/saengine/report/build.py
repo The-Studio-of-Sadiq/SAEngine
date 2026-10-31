@@ -201,13 +201,15 @@ def build_report(
 def summary_file(pdf: Path) -> Path:
     """The design result of a report (``report.summary.json`` beside ``report.pdf``), for the
     Exports row: ``{"state", "checked", "failed", "foundationsChecked", "foundationsFailed",
-    "headline", "warnings"}``, see :func:`design_status`."""
+    "notDesigned", "headline", "warnings"}``, see :func:`design_status`."""
     return pdf.with_name(pdf.stem + ".summary.json")
 
 
 def design_status(report: dict[str, Any]) -> dict[str, Any]:
     """The design result the cover leads with: ``state`` "fail" when an element or foundation
-    fails its checks, "pass" when every one checked passes, "unchecked" when nothing was."""
+    fails its checks, "incomplete" when none fails but some members have no reinforcement
+    (``notDesigned``: their count by kind), "pass" when every one checked passes and none is left
+    out, "unchecked" when nothing was."""
     design = report.get("design") or {}
     fdn = report.get("foundations") or {}
     checked = int(design.get("checked", 0) or 0) if design.get("available") else 0
@@ -223,8 +225,14 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         parts.append(_and(failing) + " fail their design checks")
     if f_failed:
         parts.append(f"{f_failed} of {f_checked} foundations or tie beams fail")
+    # The members left without reinforcement: never "pass" while there are any.
+    not_designed = (design.get("notDesigned") or {}) if design.get("available") else {}
+    missing = f"{counted(not_designed)} are not designed (no reinforcement)"
     if parts:
+        parts += [missing] if not_designed else []
         state, headline = "fail", "DESIGN FAILS: " + "; ".join(parts) + "."
+    elif (checked or f_checked) and not_designed:
+        state, headline = "incomplete", f"DESIGN INCOMPLETE: {missing}; the others pass."
     elif checked or f_checked:
         what = ["all " + _and([f"{of} {what}" for what, of, _ in counts if of])] if checked else []
         what += [f"all {f_checked} foundations and tie beams"] if f_checked else []
@@ -250,6 +258,7 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         "failed": failed,
         "foundationsChecked": f_checked,
         "foundationsFailed": f_failed,
+        "notDesigned": dict(not_designed),
     }
 
 
@@ -354,7 +363,8 @@ def _report_data(
     report["results"] = _results(
         model_path, model, manifest, results_dir, settings, parts, warnings
     )
-    report["design"] = _design(results_dir, model_path, warnings)
+    scope = getattr(getattr(settings, "report", None), "appendix", "governing")
+    report["design"] = _design(results_dir, model_path, warnings, parts.building(), scope)
     report["design"]["required"] = (
         _required(results_dir, model_path, warnings)
         if report["design"].get("available")
@@ -473,10 +483,18 @@ class _Parts:
             return text is None or recorded != mep_stamp(text)
         return fem_source_changed({key: text}, key, recorded)
 
-    def boq_stamp(self, key: str, relative: str) -> str | None:
+    def boq_stamp(
+        self, key: str, relative: str, material_ids: list[str] | None = None
+    ) -> str | None:
         """The stamp of a source of the bill of quantities as the bill records it: for the
         settings, the stamp of their ground level only (as ``compute_boq`` and the workbench's
-        ``boqSourceStamp`` do), else the stamp of the file's text."""
+        ``boqSourceStamp`` do); for the materials of a bill that records ``material_ids``, the
+        stamp of those entries; else the stamp of the file's text."""
+        if key == "materials" and material_ids is not None:
+            from saengine.boq.quantities import materials_stamp
+
+            text = self.text(relative)
+            return materials_stamp(text, set(material_ids)) if text is not None else None
         if key != "settings":
             return self.stamp(relative)
         from saengine.library.bim import ground_level_stamp, source_stamp
@@ -1623,7 +1641,97 @@ def _kind_title(kind: str) -> str:
     return words[:1].upper() + words[1:] + "s"
 
 
-def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[str, Any]:
+def _storeys(building: Any) -> dict[str, str]:
+    """The storey name of each beam (its level) and column or wall (the level of its top)."""
+    if building is None:
+        return {}
+    names = {round(float(s.elevation)): s.name for s in building.stories}
+    out = {}
+    for e in building.elements:
+        z = getattr(e, "elevation", None)
+        if z is None:
+            z = getattr(e, "top", None)
+        if z is not None and round(float(z)) in names:
+            out[e.id] = names[round(float(z))]
+    return out
+
+
+def _appendix(
+    elements: list[dict[str, Any]], storeys: dict[str, str], scope: str
+) -> list[tuple[dict[str, Any], str]]:
+    """The elements whose every check the appendix prints, each with what it stands for:
+    ``scope`` "all": every element; "governing": the element of each kind, object type and storey
+    with the largest utilisation, and every element that fails (the member tables list every
+    element either way); "none": none."""
+    if scope == "none":
+        return []
+    if scope == "all":
+        return [(e, "") for e in elements]
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for e in elements:
+        key = (str(e.get("kind")), str(e.get("type", "")), storeys.get(str(e.get("id")), ""))
+        groups.setdefault(key, []).append(e)
+    chosen: dict[int, str] = {}
+    for (_, type_id, storey), members in groups.items():
+        top = max(members, key=lambda e: float(e.get("utilisation") or 0.0))
+        where = f" on {storey}" if storey else ""
+        chosen[id(top)] = (
+            f"governs the {len(members)} of type {type_id}{where}" if len(members) > 1 else ""
+        )
+        for e in members:
+            # A failing element's title already ends in FAIL: no reason to add.
+            if not e.get("ok") and id(e) not in chosen:
+                chosen[id(e)] = ""
+    return [(e, chosen[id(e)]) for e in elements if id(e) in chosen]
+
+
+#: Plural names of the kinds counted as not designed (the cover and the summary).
+_KIND_PLURALS = {"column": "columns", "beam": "beams", "slab": "slabs", "wall": "walls",
+                 "staircase": "stairs", "brace": "braces", "member": "members"}  # fmt: skip
+
+
+def _not_designed(
+    report: dict[str, Any], building: Any
+) -> tuple[list[list[str]], dict[str, int], list[str]]:
+    """The elements the design checks left out (those skipped, and the slabs without bars that
+    are only noted), the count of each kind, and the design's notes without the slab notes (a row
+    each under Elements not designed instead of a bullet each)."""
+    from saengine.design.check import SLAB_NOT_DESIGNED
+
+    types = {e.id: e.type for e in building.elements} if building is not None else {}
+    rows = [
+        [str(s.get("id")), str(s.get("kind", "")), str(s.get("type", "")), str(s.get("reason"))]
+        for s in report.get("skipped", [])
+    ]
+    suffix = SLAB_NOT_DESIGNED.format("")
+    reason = suffix.split("(", 1)[1].rstrip(")")
+    notes = []
+    for note in (str(n) for n in report.get("notes", [])):
+        if note.endswith(suffix) and note != suffix:
+            slab_id = note[: -len(suffix)]
+            rows.append([slab_id, "slab", str(types.get(slab_id, "")), reason])
+        else:
+            notes.append(note)
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row[1]] = counts.get(row[1], 0) + 1
+    return rows, counts, notes
+
+
+def counted(counts: dict[str, int]) -> str:
+    """``28 columns and 120 slabs``."""
+    return _and(
+        [f"{n} {_KIND_PLURALS.get(k, k + 's') if n != 1 else k}" for k, n in counts.items()]
+    )
+
+
+def _design(
+    results_dir: Path,
+    model_path: Path,
+    warnings: list[str],
+    building: Any = None,
+    scope: str = "governing",
+) -> dict[str, Any]:
     from saengine.pipeline.design_mode import REPORT_FILE, checks, kept, report_stamp
 
     try:
@@ -1676,35 +1784,37 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
                 "fails": fails,
             }
         )
-    for kind in sorted(kinds, key=_kind_key):
-        for element in kinds[kind]:
-            checks = element.get("checks", [])
-            details.append(
-                {
-                    "id": str(element.get("id")),
-                    "title": (
-                        f"{element.get('id')} ({_kind_title(kind)[:-1].lower()}, type "
-                        f"{element.get('type', '–')}): utilisation "
-                        f"{fmt(element.get('utilisation'), 3)}, "
-                        f"{'OK' if element.get('ok') else 'FAIL'}"
-                    ),
-                    "ok": bool(element.get("ok")),
-                    "rows": [
-                        [
-                            str(c.get("name", "")),
-                            fmt(c.get("demand"), 2),
-                            fmt(c.get("capacity"), 2),
-                            str(c.get("unit", "")),
-                            fmt(c.get("utilisation"), 3),
-                            str(c.get("combination") or "–"),
-                            _result_label(c),
-                            str(c.get("note", "")),
-                        ]
-                        for c in checks
-                    ],
-                    "fails": [_result_label(c) == "FAIL" for c in checks],
-                }
-            )
+    ordered = [e for kind in sorted(kinds, key=_kind_key) for e in kinds[kind]]
+    for element, stands_for in _appendix(ordered, _storeys(building), scope):
+        kind = str(element.get("kind", "member"))
+        checks = element.get("checks", [])
+        details.append(
+            {
+                "id": str(element.get("id")),
+                "title": (
+                    f"{element.get('id')} ({_kind_title(kind)[:-1].lower()}, type "
+                    f"{element.get('type', '–')}): utilisation "
+                    f"{fmt(element.get('utilisation'), 3)}, "
+                    f"{'OK' if element.get('ok') else 'FAIL'}"
+                    + (f"; {stands_for}" if stands_for else "")
+                ),
+                "ok": bool(element.get("ok")),
+                "rows": [
+                    [
+                        str(c.get("name", "")),
+                        fmt(c.get("demand"), 2),
+                        fmt(c.get("capacity"), 2),
+                        str(c.get("unit", "")),
+                        fmt(c.get("utilisation"), 3),
+                        str(c.get("combination") or "–"),
+                        _result_label(c),
+                        str(c.get("note", "")),
+                    ]
+                    for c in checks
+                ],
+                "fails": [_result_label(c) == "FAIL" for c in checks],
+            }
+        )
     slender_rows, slender_fails = [], []
     for element in report.get("elements", []):
         for c in element.get("checks", []):
@@ -1751,6 +1861,12 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
     lintels = _lintels(report)
     punching = _punching(report)
     steel = _steel(report)
+    skipped, not_designed, design_notes = _not_designed(report, building)
+    if not_designed:
+        design_notes.append(
+            f"{counted(not_designed)} are not designed (no reinforcement): see Elements not "
+            "designed. Design Reinforcement in 8 FEM proposes their bars."
+        )
     failed = int(summary.get("failed", 0) or 0)
     failed_text = _failed_text(summary)
     if failed:
@@ -1780,7 +1896,7 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
             ["Elements checked", str(summary.get("checked", 0))],
             ["Passed", str(summary.get("passed", 0))],
             ["Failed", str(failed)],
-            ["Skipped", str(summary.get("skipped", 0))],
+            ["Not designed", str(len(skipped))],
             ["Largest utilisation", fmt(max_util, 3) if max_util is not None else "–"],
             ["Governing element", str(governing) if governing else "–"],
         ],
@@ -1790,13 +1906,12 @@ def _design(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[st
         "checked": int(summary.get("checked", 0) or 0),
         "combinations": [str(c) for c in report.get("combinations", [])],
         "tables": tables,
-        "skipped": [
-            [str(s.get("id")), str(s.get("kind", "")), str(s.get("type", "")), str(s.get("reason"))]
-            for s in report.get("skipped", [])
-        ],
+        "skipped": skipped,
+        "notDesigned": not_designed,
         "method": [str(line) for line in report.get("method", [])],
-        "notes": [str(note) for note in report.get("notes", [])],
+        "notes": design_notes,
         "details": details,
+        "appendix": {"scope": scope, "count": len(details), "of": len(ordered)},
     }
 
 
@@ -3558,7 +3673,8 @@ def _boq(parts: _Parts) -> dict[str, Any]:
     changed = [
         relative
         for key, relative in BOQ_SOURCES.items()
-        if source.get(key) is not None and parts.boq_stamp(key, relative) != source.get(key)
+        if source.get(key) is not None
+        and parts.boq_stamp(key, relative, source.get("materialIds")) != source.get(key)
     ]
     unstamped = all(source.get(key) is None for key in BOQ_SOURCES)
     status, message = "ok", ""

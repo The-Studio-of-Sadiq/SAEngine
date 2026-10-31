@@ -68,6 +68,22 @@ TABLE_HELP: dict[str, str] = {
     "resistance, strut-and-tie factors.",
     "slabCoefficients": "Slabs on beams designed by moment coefficients: the two-way tables "
     "by span ratio and edge case, their limits, the one-way coefficients, bar spacing limits.",
+    "plumbing": "Water supply, drainage and rainwater: water demand by occupancy, storage, "
+    "fixture units and the probable demand curve, velocity and pressure limits, stacks, drains "
+    "and vents, septic tank and soak pit, leaders, gutters and storm drains, and the pipe data "
+    "SAEngine assumes. 'pages' names where each clause is; the reports cite it.",
+    "hvac": "Air-conditioning and energy: the outside design conditions of the stations, inside "
+    "conditions, ventilation rates and occupancy, lighting power density, glazing and overhangs, "
+    "and the loads SAEngine assumes where the code is silent ('assumptions', for the report).",
+    "electrical": "Electrical services: load densities by use, the substation, transformer and "
+    "generator rooms, shafts and risers, earthing, the lightning risk indices and protection, "
+    "and typical equipment sizes and masses for the first layout.",
+    "fire": "Fire protection: hazard classes of the occupancy groups, flows and durations, "
+    "standpipe and hose pressures, pump ratings, sprinkler pipe schedules and spacing, and the "
+    "NFPA values the code leaves out (marked 'from memory, to be checked').",
+    "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
+    "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
+    "the walls rolled for them, the density. SAEngine computes the properties from them.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

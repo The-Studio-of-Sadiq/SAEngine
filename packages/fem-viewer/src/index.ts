@@ -45,6 +45,12 @@ export interface FemViewer {
 	/** Draws only these elements and their nodes (a floor, an elevation, a storey); undefined: all. */
 	setVisibleElements(elements: FemVisibleElements): void;
 	/**
+	 * Draws (and picks) the mesh's own nodes too: those inside a member split into pieces and
+	 * those of the wall and slab meshes. Off by default: the joints, supports and diaphragm
+	 * centres are drawn, and a click on a member picks the member.
+	 */
+	setMeshNodes(shown: boolean): void;
+	/**
 	 * Looks at the model in 3D (perspective, orbiting) or straight down the model's Z (`top`: a
 	 * plan), along its Y (`front`: an X-Z elevation) or along its X (`side`: a Y-Z elevation),
 	 * orthographic, and frames what is drawn.
@@ -91,6 +97,41 @@ function sameElements(a: FemVisibleElements, b: FemVisibleElements): boolean {
 	return true;
 }
 
+/**
+ * The mesh's own nodes, not drawn unless asked for: a node joining just two pieces of one member
+ * (`B3#2`, `B3#3`) and nothing else but plates, or a node of plates (wall and slab meshes) only;
+ * never a restrained node. The members' ends, the joints and the diaphragms' centres stay.
+ */
+export function meshNodeIds(model: FemModel): Set<number> {
+	const pieces = new Map<number, string[]>(); // node: the members of the frame pieces at it
+	const plated = new Set<number>();
+	for (const element of model.elements) {
+		if (element.nodes.length === 2) {
+			const member = (element.name ?? String(element.id)).split('#')[0];
+			for (const n of element.nodes) {
+				let at = pieces.get(n);
+				if (!at) {
+					pieces.set(n, at = []);
+				}
+				at.push(member);
+			}
+		} else if (element.nodes.length >= 3 && element.type !== 'Solid') {
+			element.nodes.forEach(n => plated.add(n));
+		}
+	}
+	const mesh = new Set<number>();
+	for (const node of model.nodes) {
+		if (node.restraint?.some(Boolean)) {
+			continue;
+		}
+		const at = pieces.get(node.id);
+		if (at ? at.length === 2 && at[0] === at[1] : plated.has(node.id)) {
+			mesh.add(node.id);
+		}
+	}
+	return mesh;
+}
+
 /** Element names of the struts tying frames and shells into solids (not drawn). */
 const EMBED = /\/embed(#\d+)?$/;
 
@@ -106,6 +147,7 @@ class FemViewerImpl implements FemViewer {
 
 	private theme: FemViewerTheme;
 	private model: FemModel | undefined;
+	private meshNodes = false;
 	/** The model's nodes in world space and its elements by id, shared with the results. */
 	private index: ModelIndex | undefined;
 	private selection: FemSelection | undefined;
@@ -129,7 +171,13 @@ class FemViewerImpl implements FemViewer {
 	private readonly raycaster = new THREE.Raycaster();
 
 	private pointerDown: { x: number; y: number } | undefined;
-	private readonly onPointerDown = (e: PointerEvent) => { this.pointerDown = { x: e.clientX, y: e.clientY }; };
+	private readonly onPointerDown = (e: PointerEvent) => {
+		this.pointerDown = { x: e.clientX, y: e.clientY };
+		this.untouched = false; // an orbit, pan or click: the camera is the engineer's now
+	};
+	private readonly onWheel = () => { this.untouched = false; };
+	/** The camera is where the last fit put it. */
+	private untouched = false;
 	private readonly onPointerUp = (e: PointerEvent) => this.handleClick(e);
 
 	constructor(private readonly container: HTMLElement, private readonly options: FemViewerOptions) {
@@ -159,6 +207,7 @@ class FemViewerImpl implements FemViewer {
 
 		const canvas = this.renderer.three.domElement;
 		canvas.addEventListener('pointerdown', this.onPointerDown);
+		canvas.addEventListener('wheel', this.onWheel, { passive: true });
 		canvas.addEventListener('pointerup', this.onPointerUp);
 	}
 
@@ -205,6 +254,15 @@ class FemViewerImpl implements FemViewer {
 		this.renderResults();
 	}
 
+	setMeshNodes(shown: boolean): void {
+		if (shown === this.meshNodes) {
+			return;
+		}
+		this.meshNodes = shown;
+		this.rebuild();
+		this.renderHighlight();
+	}
+
 	setVisibleElements(elements: FemVisibleElements): void {
 		const visible = elements && elements.size ? new Set(elements) : undefined;
 		if (sameElements(visible, this.visible)) {
@@ -241,19 +299,25 @@ class FemViewerImpl implements FemViewer {
 					: new THREE.Vector3(1, 0.8, 1.2);
 		const eye = sphere.center.clone().add(direction.normalize().multiplyScalar(radius * 2.6));
 		await this.camera.controls.setLookAt(eye.x, eye.y, eye.z, sphere.center.x, sphere.center.y, sphere.center.z, false);
-		if (this.cameraView !== '3d') {
-			await this.camera.controls.fitToSphere(new THREE.Sphere(sphere.center, radius * 1.05), false);
-		}
+		// Centred and filling the view, in 3D too (a fixed distance left a tall model small).
+		await this.camera.controls.fitToSphere(new THREE.Sphere(sphere.center, radius * 1.05), false);
+		this.untouched = true;
 	}
 
 	layout(): void {
 		this.renderer.resize();
 		this.camera.updateAspect();
+		// Resized before the engineer moved the camera (the editor opened small, then grew):
+		// fitted again, so the model is not left small and off-centre.
+		if (this.untouched && this.model) {
+			void this.fit();
+		}
 	}
 
 	dispose(): void {
 		const canvas = this.renderer.three.domElement;
 		canvas?.removeEventListener('pointerdown', this.onPointerDown);
+		canvas?.removeEventListener('wheel', this.onWheel);
 		canvas?.removeEventListener('pointerup', this.onPointerUp);
 		this.clearGroup(this.modelGroup);
 		this.clearGroup(this.highlight);
@@ -407,10 +471,11 @@ class FemViewerImpl implements FemViewer {
 				}
 			}
 		}
+		const meshOnly = this.meshNodes ? new Set<number>() : meshNodeIds(model);
 		const nodePositions = new Floats();
 		this.nodeIds = [];
 		model.nodes.forEach((node, i) => {
-			if (!solidOnly.has(node.id) && (!used || used.has(node.id))) {
+			if (!solidOnly.has(node.id) && !meshOnly.has(node.id) && (!used || used.has(node.id))) {
 				nodePositions.pushFrom(world, i * 3, 3);
 				this.nodeIds.push(node.id);
 			}
@@ -427,21 +492,31 @@ class FemViewerImpl implements FemViewer {
 		// Supports: a small pyramid under every node with any restrained DOF, except the nodes of a
 		// supported solid face (a carpet of them would hide the solid): its face shows it. One
 		// instanced mesh draws them all.
-		const supported: number[] = [];
+		// A fixed support (every DOF held) is a flat block, a pinned or partial one a pyramid.
+		const fixed: number[] = [];
+		const pinned: number[] = [];
 		model.nodes.forEach((node, i) => {
 			if (node.restraint?.some(Boolean) && !solidOnly.has(node.id) && (!used || used.has(node.id))) {
-				supported.push(i);
+				(node.restraint.length >= 6 && node.restraint.every(Boolean) ? fixed : pinned).push(i);
 			}
 		});
-		if (supported.length) {
-			const supportGeometry = new THREE.ConeGeometry(scale * 0.025, scale * 0.04, 4);
-			supportGeometry.translate(0, -scale * 0.02, 0);
-			const supports = new THREE.InstancedMesh(supportGeometry, new THREE.MeshBasicMaterial({ color: this.theme.support }), supported.length);
+		const addSupports = (nodes: number[], geometry: THREE.BufferGeometry) => {
+			if (!nodes.length) {
+				geometry.dispose();
+				return;
+			}
+			const supports = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial({ color: this.theme.support }), nodes.length);
 			const matrix = new THREE.Matrix4();
-			supported.forEach((i, k) => supports.setMatrixAt(k, matrix.makeTranslation(world[i * 3], world[i * 3 + 1], world[i * 3 + 2])));
+			nodes.forEach((i, k) => supports.setMatrixAt(k, matrix.makeTranslation(world[i * 3], world[i * 3 + 1], world[i * 3 + 2])));
 			supports.computeBoundingSphere();
 			this.modelGroup.add(supports);
-		}
+		};
+		const pyramid = new THREE.ConeGeometry(scale * 0.025, scale * 0.04, 4);
+		pyramid.translate(0, -scale * 0.02, 0);
+		addSupports(pinned, pyramid);
+		const block = new THREE.BoxGeometry(scale * 0.04, scale * 0.012, scale * 0.04);
+		block.translate(0, -scale * 0.006, 0);
+		addSupports(fixed, block);
 	}
 
 	/** Under a result the model steps back. */
@@ -455,6 +530,12 @@ class FemViewerImpl implements FemViewer {
 		}
 		if (this.solidEdges) {
 			this.solidEdges.material.opacity = dimmed ? 0.15 : 0.35;
+		}
+		const nodes = this.nodes?.material as THREE.Material | undefined;
+		if (nodes && nodes.transparent !== dimmed) {
+			nodes.transparent = dimmed;
+			nodes.opacity = dimmed ? 0.35 : 1;
+			nodes.needsUpdate = true;
 		}
 	}
 
@@ -546,7 +627,8 @@ class FemViewerImpl implements FemViewer {
 		);
 		const threshold = this.index.size * 0.01;
 		this.raycaster.params.Line = { threshold };
-		this.raycaster.params.Points = { threshold: threshold * 1.5 };
+		// A node is picked only when the click is right on it: elsewhere along a member, the member.
+		this.raycaster.params.Points = { threshold: threshold * 0.6 };
 		this.raycaster.setFromCamera(ndc, this.camera.three);
 		const hits = this.raycaster.intersectObjects(this.pickTargets, false);
 		// Prefer nodes over members, and members over the shell faces behind them.

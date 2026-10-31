@@ -952,7 +952,14 @@ def test_report_of_the_analysed_frame(frame: Path, monkeypatch: pytest.MonkeyPat
     assert skipped["R1"] == "rafts are not designed yet"
     assert "9 Substructure: F9: 'C9' is not a column or wall of 6 BIM" in data["notes"]
     assert data["tieBeams"][0]["force"] > 0
-    assert data["summary"]["checked"] == 4 and data["summary"]["skipped"] == 3
+    # F2 without qa is not checked for its bearing: it counts as neither checked nor passing
+    # (it was 4 checked before N-U3: footings shown as passing with no bearing check).
+    assert by_id["F2"]["notChecked"] == ["bearing"] and "notChecked" not in by_id["F1"]
+    summary = data["summary"]
+    assert summary["checked"] == 3 and summary["skipped"] == 3
+    assert summary["bearingUnchecked"] == ["F2"] and summary["status"] != "pass"
+    assert summary["passed"] == len([e for e in data["foundations"] + data["tieBeams"]
+                                     if e["ok"] and not e.get("notChecked")])  # fmt: skip
     # Pinned: Part 8's old footing_checks (removed in 0.0.46) gave the same checks for the
     # same footing drawn in the building model.
     assert [(c["name"], c["demand"], c["capacity"]) for c in by_id["F1"]["checks"]] == [
@@ -1215,7 +1222,10 @@ def test_run_all_step_gives_footings_without_bars_the_minimum_mesh(frame: Path) 
     assert bars["bottomX"] == bars["bottomY"] == {"dia": 12, "spacing": 125}  # h = 500
     summary = data["summary"]
     assert summary["barsAdded"] == ["F1 12@125"]
-    assert summary["checked"] == summary["total"] == 1
+    # No qa in this frame: F1 is designed but its bearing is not checked, so it is not counted
+    # as checked (it was before N-U3) and Run All can stop on ``bearingUnchecked``.
+    assert summary["checked"] == 0 and summary["total"] == 1
+    assert summary["bearingUnchecked"] == ["F1"]
     # The other columns stand on nothing: designed, but not complete.
     assert summary["status"] in ("incomplete", "fail") and summary["unsupported"]
     assert data["notes"][0].startswith("Minimum bars added")
@@ -1280,3 +1290,95 @@ def test_pile_cap_on_its_own_pile_grid_in_the_report(frame: Path, tmp_path: Path
         "piles": 5, "capped": 4, "warnings": ["PL5: under no pile cap"]
     }  # fmt: skip
     assert "Pile layout: PL5: under no pile cap" in report["notes"]
+
+
+def four_columns(load: float, spacing: float) -> Context:
+    """C1 to C4 on a ``spacing`` square, 400 x 400, each carrying ``load`` kN of dead load, on
+    qa = 150 kPa, no foundations yet."""
+    points = [(0, 0), (spacing, 0), (0, spacing), (spacing, spacing)]
+    elements = [
+        {"id": f"C{k + 1}", "kind": "column", "type": "COL", "position": [x, y], "bottom": 0,
+         "top": 3000}
+        for k, (x, y) in enumerate(points)
+    ]  # fmt: skip
+    reactions = {
+        f"C{k + 1}": [(k + 1, [x, y, 0], [0, 0, load * KN, 0, 0, 0])]
+        for k, (x, y) in enumerate(points)
+    }
+    return synthetic(
+        elements,
+        reactions,
+        {},
+        SETTINGS.model_copy(update={"foundation": FoundationSettings(allowableBearing=150)}),
+    )
+
+
+def test_sizing_assistant_proposes_a_raft_when_footings_would_cover_the_plan() -> None:
+    """N-U2: Size Footings proposed footings that overlapped and failed their own clearance
+    check, and never a raft. 4 x 2500 kN on a 4 m square, qa 150 kPa: footings over 4 m wide
+    (more than the plan of 6 x 6 m between them): one raft, the columns' outline 1 m beyond
+    the outer column lines, thick enough for punching at the heaviest column."""
+    from saengine.substructure.sizing import RAFT_OVERHANG, punching_depth
+
+    ctx = four_columns(2500, 4000)
+    proposal = propose(ctx)
+    assert [f["type"] for f in proposal["foundations"]] == ["raft"], proposal
+    raft = proposal["foundations"][0]
+    assert raft["columns"] == ["C1", "C2", "C3", "C4"]
+    xs = sorted({p[0] for p in raft["outline"]})
+    ys = sorted({p[1] for p in raft["outline"]})
+    assert (xs, ys) == (
+        [-RAFT_OVERHANG, 4000 + RAFT_OVERHANG],
+        [-RAFT_OVERHANG, 4000 + RAFT_OVERHANG],
+    )
+    assert proposal["raft"]["areaRatio"] > 0.5 and proposal["notes"][0].startswith("One raft")
+    # Punching, soil reaction left out, as the footing checks take it: phi vc b0 d >= Vu with
+    # vc = 0.33 lambda_s sqrt(f'c) (ACI 318-19 Table 22.6.5.2, as BNBC 2020 Part 6 Ch 6 follows
+    # ACI 318) and phi 0.75 (BNBC 2020 Part 6 Sec 6.2.3.2, p. 897). Vu 2500 kN, c 400 mm,
+    # f'c 24.1 MPa: at d = 660 mm lambda_s = 0.741, phi vc = 0.901 MPa, b0 = 4240 mm, phi Vc =
+    # 2520 kN; at 655 mm 2496 kN. Was d = 545 mm (h 650) without lambda_s: a raft the checks
+    # would fail in punching.
+    vu = max(ctx.loads.max_axial(c, "strength") for c in ("C1", "C2", "C3", "C4"))
+    fc = ctx.mats[raft["material"]].concrete.fc
+    assert (vu, fc) == (2500e3, 24.1)
+    d = punching_depth(vu, 400, fc)
+    lam = math.sqrt(2 / (1 + 0.004 * d))
+    assert d == 660 and 0.75 * 0.33 * lam * math.sqrt(fc) * 4 * (400 + d) * d >= vu
+    assert max(500, math.ceil((d + 75 + 30) / 50) * 50) == 800  # punching alone
+    # One-way shear of a metre strip governs here: qu = 4 x 2500 kN / (6 m x 6 m) = 278 kPa
+    # over L/2 - c/2 - d; at d = 1070 mm (h 1200 with 20@125, rho 0.00235, lambda_s 0.62)
+    # Vu = 278 x 0.73 = 203 kN/m <= phi Vc (ACI 318-19 Table 22.5.5.1(c)).
+    from saengine.substructure.shallow import one_way_shear_capacity
+
+    assert raft["thickness"] == 1200 and raft["reinforcement"]["bottomX"] == {
+        "dia": 20,
+        "spacing": 125,
+    }
+    qu = 4 * 2500e3 / 6000**2
+    rho = math.pi * 20**2 / 4 * 1000 / 125 / (1000 * 1070)
+    assert one_way_shear_capacity(1000, 1070, rho, fc) >= qu * 1000 * (2000 - 200 - 1070)
+    assert "one-way shear" in raft["note"]
+    assert raft["foundingLevel"] + raft["thickness"] <= ctx.ground_level
+    assert set(raft["reinforcement"]) >= {"bottomX", "bottomY", "topX", "topY"}
+    # Light loads: four separate footings, no raft.
+    small = propose(four_columns(300, 6000))
+    assert [f["type"] for f in small["foundations"]] == ["isolated"] * 4
+    assert not any("raft" in n.lower() for n in small["notes"])
+
+
+def test_sized_footings_never_overlap_and_stay_below_ground() -> None:
+    """N-U2: no two proposed footings overlap, and none stands out of the ground (a footing
+    thicker than its founding depth is founded deeper)."""
+    from saengine.substructure.report import _corners
+    from saengine.substructure.sizing import penetration
+
+    ctx = four_columns(1400, 3500)
+    proposal = propose(ctx, columns=["C1", "C2", "C3"])  # some columns only: footings, no raft
+    shapes = []
+    for f in proposal["foundations"]:
+        assert f["foundingLevel"] + f["thickness"] <= ctx.ground_level, f
+        result, _ = design_shallow(ctx, Foundation.model_validate(f))
+        shapes.append(_corners(result))
+    for k, a in enumerate(shapes):
+        for b in shapes[k + 1 :]:
+            assert penetration(a, b) <= 0.5

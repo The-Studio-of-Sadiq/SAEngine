@@ -21,7 +21,14 @@ from saengine.drawings.sheets.layout import (
     tag,
     text_width,
 )
-from saengine.drawings.sheets.model import BeamBar, BeamDetail, ColumnLine, Level, Table
+from saengine.drawings.sheets.model import (
+    NOT_DESIGNED,
+    BeamBar,
+    BeamDetail,
+    ColumnLine,
+    Level,
+    Table,
+)
 from saengine.drawings.sheets.sections import beam_section, column_section
 
 ROW = 6.0  # paper mm per table row
@@ -271,6 +278,8 @@ def column_schedule(
     storeys.reverse()
 
     def cell_text(section) -> list[str]:
+        if not section.designed:
+            return [section.size_text, NOT_DESIGNED, "NO REINFORCEMENT"]
         return [
             section.size_text,
             section.bars_text,

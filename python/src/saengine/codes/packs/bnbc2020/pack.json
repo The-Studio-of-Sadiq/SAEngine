@@ -21,9 +21,14 @@
     "detailing",
     "steel",
     "foundations",
-    "slabCoefficients"
+    "slabCoefficients",
+    "plumbing",
+    "hvac",
+    "electrical",
+    "fire",
+    "steelSections"
   ],
-  "description": "Bangladesh National Building Code 2020, Part 6 (Structural Design): loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
+  "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
     {
       "id": "BNBC",
@@ -86,6 +91,29 @@
       "Sec 6.1.4.3 (p. 891)",
       "Sec 8.1.6 (p. 1068)",
       "Sec 8.1.11.2 (p. 1075)"
+    ],
+    "plumbing": [
+      "BNBC 2020 Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215)",
+      "BNBC 2020 Part 3 Sec 2.4.4 (p. 94)"
+    ],
+    "hvac": [
+      "BNBC 2020 Part 8 Chapter 2 (pp. 859-916)",
+      "BNBC 2020 Part 3 Chapter 4 (pp. 186-192)"
+    ],
+    "electrical": [
+      "BNBC 2020 Part 8 Chapter 1 (pp. 763-828)",
+      "BNBC 2020 Part 8 Appendix A (pp. 1167-1168)",
+      "BNBC 2020 Part 8 Sec 4.2.1 (pp. 982-983)"
+    ],
+    "fire": [
+      "BNBC 2020 Part 4 Chapters 4-5 (pp. 321-355)",
+      "BNBC 2020 Part 1 Chapter 2 and Part 3 Sec 2.4.4 (pp. 6, 94)"
+    ],
+    "steelSections": [
+      "EN 10365 (IPE, HEA, HEB)",
+      "IS 808 (ISMB, ISMC, equal angles)",
+      "EN 10056 (equal angles)",
+      "EN 10219 (SHS, RHS, CHS)"
     ]
   },
   "basis": {

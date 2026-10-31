@@ -95,6 +95,8 @@ export interface IFemJoint {
 	readonly utilisation?: number | null;
 	readonly ok?: boolean | null;
 	readonly notes?: readonly string[] | string | null;
+	/** Every check of the joint (named "Detailing: <check>, <joint id> <axis>"), if the backend lists them. */
+	readonly checks?: readonly IFemDesignCheck[] | null;
 }
 
 /** The design report with the seismic detailing fields this view reads. */
@@ -369,7 +371,7 @@ export function describeJointsSummary(report: IFemDesignReport | undefined): str
 	}
 	const counts = localize('femDetailing.jointCounts', "{0} joints: {1} pass, {2} fail", joints.length, joints.length - failed, failed);
 	return largest
-		? localize('femDetailing.jointLargest', "{0} · largest utilisation {1} at {2} ({3})", counts, formatUtilisation(largest.utilisation), largest.joint.id, governingLabel(largest.check))
+		? localize('femDetailing.jointLargest', "{0} · largest utilisation {1} at {2} ({3})", counts, formatUtilisation(largest.utilisation), largest.joint.id, jointGoverningName(largest.joint) ?? governingLabel(largest.check))
 		: counts;
 }
 
@@ -390,6 +392,34 @@ export function jointNodeId(joint: IFemJoint, model: IFemDetailingModel | undefi
 	}
 	const named = model?.nodes.find(n => n.name === node || String(n.id) === node);
 	return named?.id ?? (Number.isFinite(Number(node)) ? Number(node) : undefined);
+}
+
+/** Each joint's governing utilisation at its analysis node, for the 3D view's joint glyphs. */
+export function jointNodeUtilisation(report: IFemDesignReport | undefined, model: IFemDetailingModel | undefined): { [nodeId: number]: number } {
+	const result: { [nodeId: number]: number } = {};
+	for (const joint of jointsOf(report)) {
+		const governing = jointGoverning(joint);
+		const node = jointNodeId(joint, model);
+		if (governing && node !== undefined) {
+			result[node] = Math.max(result[node] ?? 0, governing.utilisation);
+		}
+	}
+	return result;
+}
+
+/**
+ * The name of a joint's governing check for a table row: strong column / weak beam or joint
+ * shear, else the worst of its listed checks without the "Detailing:" prefix and the joint's id
+ * ("Beam bars through joint y").
+ */
+export function jointGoverningName(joint: IFemJoint): string | undefined {
+	const named = describeJointVerdict(joint).governing;
+	const worst = [...(joint.checks ?? [])].sort((a, b) => b.utilisation - a.utilisation)[0];
+	const governing = jointGoverning(joint);
+	if (!worst || (named && governing?.check && worst.utilisation <= governing.utilisation)) {
+		return named;
+	}
+	return worst.name.replace(/^Detailing:\s*/, '').replace(`, ${joint.id}`, '').trim();
 }
 
 /** The building model members of a joint: its column, then its beams. */

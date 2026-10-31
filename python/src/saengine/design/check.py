@@ -750,8 +750,6 @@ def design(
         except DesignError as error:
             skip(str(error))
             continue
-        strength = [c for c in checks if not c["flag"]]
-        utilisation = max((c["utilisation"] for c in strength), default=0.0)
         if collect is not None:
             column_points = slender.points if isinstance(object_type, Column) else None
             collect["members"].append(
@@ -780,9 +778,8 @@ def design(
             "type": type_id,
             "members": [p.id for p in own],
             "checks": checks,
-            "utilisation": utilisation,
-            "ok": all(c["ok"] for c in strength),
         }
+        seismic_detailing.rate(entry)
         checked.append(entry)
         designed.append(
             seismic_detailing.Designed(
@@ -1045,14 +1042,71 @@ def _assemble(
             "noBars": sorted({s["type"] for s in skipped if s.get("reason") == NO_REINFORCEMENT}),
             "maxUtilisation": governing["utilisation"] if governing else None,
             "governing": governing["id"] if governing else None,
+            # The check that sets it: a strength check, unless a detailing check fails (rate).
+            "governingCheck": governing.get("governingCheck") if governing else None,
             "joints": {"checked": len(joints), "failed": len(failed_joints)},
             "seismicChecks": len(seismic_checks),
             "seismicChecksFailed": len(failed_seismic),
+            "counts": design_counts(checked, skipped, joints, seismic_checks),
         },
         "notes": notes,
         "stability": slenderness_design.storey_rows(
             context.storeys, combinations, slender_options.sway_magnifier
         ),
+    }
+
+
+def design_counts(
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    joints: list[dict[str, Any]],
+    building: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The one count of a design run every surface shows (N-X8 of usability walk 2: the
+    proposal, the FEM view, Run All and the report each counted differently). Members, joints
+    and the building's own checks are counted apart, never added together::
+
+        {"members": {"total", "checked", "passed", "failed", "notChecked",
+                     "byKind": {kind: {"total", "checked", "passed", "failed", "notChecked"}}},
+         "joints": {"checked", "passed", "failed"},
+         "building": {"checked", "passed", "failed"},
+         "notChecked": {"noBars", "other"}}
+
+    ``kind``: "beam", "column", "slab", "wall", "staircase", the steel kinds; a member is one
+    designed element (a beam or column member, a slab panel, a wall, a staircase), whatever its
+    analysis elements; ``notChecked`` the skipped ones (``noBars``: for want of bars, which
+    Design Reinforcement proposes; ``other``: any other reason, in the skipped list)."""
+
+    def tally(items: list[dict[str, Any]]) -> dict[str, int]:
+        failed = sum(1 for i in items if not i["ok"])
+        return {"checked": len(items), "passed": len(items) - failed, "failed": failed}
+
+    by_kind: dict[str, dict[str, int]] = {}
+    for element in checked:
+        row = by_kind.setdefault(
+            element["kind"], {"total": 0, "checked": 0, "passed": 0, "failed": 0, "notChecked": 0}
+        )
+        row["total"] += 1
+        row["checked"] += 1
+        row["passed" if element["ok"] else "failed"] += 1
+    for element in skipped:
+        row = by_kind.setdefault(
+            element["kind"], {"total": 0, "checked": 0, "passed": 0, "failed": 0, "notChecked": 0}
+        )
+        row["total"] += 1
+        row["notChecked"] += 1
+    members = tally(checked)
+    no_bars = sum(1 for s in skipped if s.get("reason") == NO_REINFORCEMENT)
+    return {
+        "members": {
+            "total": len(checked) + len(skipped),
+            **members,
+            "notChecked": len(skipped),
+            "byKind": by_kind,
+        },
+        "joints": tally(joints),
+        "building": tally(building),
+        "notChecked": {"noBars": no_bars, "other": len(skipped) - no_bars},
     }
 
 

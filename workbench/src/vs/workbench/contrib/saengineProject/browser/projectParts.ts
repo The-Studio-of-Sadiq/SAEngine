@@ -79,6 +79,8 @@ export interface IPartSection {
 	readonly command?: string;
 	/** The input type of the editor this entry is (the part's own editor, or the command's). */
 	readonly typeId?: string;
+	/** Further input types this entry stands for (a member's page under Model and Analysis). */
+	readonly alsoTypeIds?: readonly string[];
 }
 
 /** Editor and input ids of the part editors with entries (kept as strings: no imports between the parts). */
@@ -87,6 +89,7 @@ const FLOOR_PLAN_INPUT = 'workbench.input.saengine.floorPlan';
 const MEMBERS_TABLE_INPUT = 'workbench.input.saengine.membersTable';
 const FEM_MODEL_INPUT = 'workbench.input.saengine.femModel';
 const FEM_RESULTS_INPUT = 'workbench.input.saengine.femResults';
+const FEM_MEMBER_INPUT = 'workbench.input.saengine.femMember';
 const FEM_PROPOSAL_INPUT = 'workbench.input.saengine.femDesignProposal';
 const ARCHITECTURE_INPUT = 'workbench.input.saengine.architecture';
 
@@ -122,7 +125,7 @@ export function partSections(partId: string): readonly IPartSection[] {
 			{ id: 'fire', label: localize('partSection.mepFire', "Fire"), sections: ['fire'] },
 		];
 		case 'fem': return [
-			{ id: 'model', label: localize('partSection.femModel', "Model and Analysis"), typeId: FEM_MODEL_INPUT },
+			{ id: 'model', label: localize('partSection.femModel', "Model and Analysis"), typeId: FEM_MODEL_INPUT, alsoTypeIds: [FEM_MEMBER_INPUT] },
 			{ id: 'results', label: localize('partSection.femResults', "Analysis Charts"), command: 'saengine.fem.showCharts', typeId: FEM_RESULTS_INPUT },
 			{ id: 'proposal', label: localize('partSection.femProposal', "Design Reinforcement"), command: 'saengine.fem.designReinforcement', typeId: FEM_PROPOSAL_INPUT },
 		];
@@ -138,6 +141,9 @@ export function isSectionActive(entry: IPartSection, editor: { readonly typeId: 
 	if (entry.editorId) {
 		return editor.editorId === entry.editorId;
 	}
+	if (entry.alsoTypeIds?.includes(editor.typeId)) {
+		return true;
+	}
 	if (entry.typeId) {
 		return editor.typeId === entry.typeId && editor.editorId !== GRIDS_EDITOR_ID;
 	}
@@ -146,7 +152,7 @@ export function isSectionActive(entry: IPartSection, editor: { readonly typeId: 
 
 /** Whether the active editor is one of a part's own editors without the part's file (results, tables). */
 export function isPartEditor(partId: string, editor: { readonly typeId: string } | undefined): boolean {
-	return !!editor && partSections(partId).some(entry => entry.command && entry.typeId === editor.typeId);
+	return !!editor && partSections(partId).some(entry => (entry.command && entry.typeId === editor.typeId) || entry.alsoTypeIds?.includes(editor.typeId));
 }
 
 /** Opens `entry` of `part`. */

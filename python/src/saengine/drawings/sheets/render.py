@@ -14,7 +14,7 @@ Plotting style: black on white, the lineweights of the layers, the sheets' own T
 from __future__ import annotations
 
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from saengine.drawings.sheets.layout import Sheet
@@ -45,9 +45,17 @@ def render(
     png_dir: Path | None = None,
     ppi: float = 60,
     png_names: Sequence[str] | None = None,
+    on_step: Callable[[str], None] | None = None,
 ) -> dict[str, object]:
     """Writes the sheets as the pages of ``pdf`` and as PNGs in ``png_dir`` (named
-    ``png_names`` or by sheet number). Returns ``{"pdf": Path | None, "png": [Path, ...]}``."""
+    ``png_names`` or by sheet number). Returns ``{"pdf": Path | None, "png": [Path, ...]}``.
+    ``on_step(message)`` is called as each stage starts (the pages, assembling the PDF, the
+    previews): assembling a large set takes minutes, and its progress must say so."""
+
+    def step(message: str) -> None:
+        if on_step is not None:
+            on_step(message)
+
     import typst
 
     result: dict[str, object] = {"pdf": None, "png": []}
@@ -57,6 +65,7 @@ def render(
         root = Path(tmp)
         pages = []
         for i, sheet in enumerate(sheets):
+            step(f"preparing page {i + 1} of {len(sheets)} of the PDF")
             name = f"sheet-{i + 1}.svg"
             (root / name).write_text(sheet_svg(sheet), encoding="utf-8")
             pages.append(
@@ -67,11 +76,13 @@ def render(
         source.write_text("\n".join(pages) + "\n", encoding="utf-8")
         if pdf is not None:
             pdf.parent.mkdir(parents=True, exist_ok=True)
+            step(f"assembling the PDF ({len(sheets)} pages)")
             typst.compile(str(source), output=str(root / "sheets.pdf"), root=str(root))
             pdf.write_bytes((root / "sheets.pdf").read_bytes())
             result["pdf"] = pdf
         if png_dir is not None:
             png_dir.mkdir(parents=True, exist_ok=True)
+            step(f"writing the previews of {len(sheets)} sheets")
             typst.compile(
                 str(source),
                 output=str(root / "page-{p}.png"),

@@ -125,6 +125,15 @@
 	color: var(--sa-muted);
 }
 
+.saengine-substructure-editor .sub-banner-more summary {
+	cursor: pointer;
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-banner-more .sub-banner-detail {
+	margin-top: var(--sa-space-1);
+}
+
 .saengine-substructure-editor .sub-banner .monaco-button {
 	flex: none;
 	width: auto;
@@ -599,6 +608,30 @@
 	line-height: 1.5;
 }
 
+.saengine-substructure-editor .sub-results-state-actions {
+	display: flex;
+	gap: var(--sa-space-2);
+	justify-content: center;
+}
+
+.saengine-substructure-editor .sub-results-state-actions .monaco-button {
+	width: auto;
+	padding: 4px 12px;
+}
+
+.saengine-substructure-editor .sub-results-state-details {
+	max-width: 100%;
+	text-align: left;
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-results-state-details pre {
+	max-height: 240px;
+	overflow: auto;
+	white-space: pre-wrap;
+	font-size: var(--sa-font-s);
+}
+
 .saengine-substructure-editor .sub-tiles {
 	display: flex;
 	flex-wrap: wrap;
@@ -960,4 +993,18 @@
 .saengine-substructure-editor .sub-swatch.pile-grid {
 	border: 1px dashed var(--sub-pile);
 	background: transparent;
+}
+
+/* A selection's ids under its heading, wrapped (not squeezed beside a label: N-U11). */
+.saengine-substructure-editor .sub-selected-list {
+	margin: 0 0 var(--sa-space-2);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+/* The foundations table keeps its column widths at 1366 px and scrolls sideways instead of
+   cutting the ids, types and columns short (N-U10). */
+.saengine-substructure-editor .sub-table.sub-foundations {
+	width: max-content;
+	min-width: 100%;
 }

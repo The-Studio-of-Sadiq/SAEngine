@@ -171,10 +171,38 @@ export function groundLevelStamp(settingsText: string): string {
 
 /**
  * The stamp the bill of quantities records for its source part `part` with text `text`: the
- * ground level's for the project settings, the whole file's otherwise.
+ * ground level's for the project settings; for the materials of a bill `document` that records
+ * the ids it used (`source.materialIds`), the stamp of those entries only (adding a material
+ * nothing uses leaves the bill current); the whole file's otherwise.
  */
-export function boqSourceStamp(part: string, text: string): string {
-	return part === 'settings' ? groundLevelStamp(text) : sourceStamp(text);
+export function boqSourceStamp(part: string, text: string, document?: unknown): string {
+	if (part === 'settings') {
+		return groundLevelStamp(text);
+	}
+	const ids = part === 'materials' ? recordedMaterialIds(document) : undefined;
+	return ids ? boqMaterialsStamp(text, ids) : sourceStamp(text);
+}
+
+function recordedMaterialIds(document: unknown): readonly string[] | undefined {
+	const source = typeof document === 'object' && document !== null ? (document as { source?: { materialIds?: unknown } }).source : undefined;
+	const ids = source?.materialIds;
+	return Array.isArray(ids) && ids.every(id => typeof id === 'string') ? ids : undefined;
+}
+
+/**
+ * The stamp of the entries of `ids` in the materials file `text`, in the file's order; the Python
+ * side (`saengine.boq.quantities.materials_stamp`) computes the same from the same JSON text.
+ */
+export function boqMaterialsStamp(text: string, ids: readonly string[]): string {
+	let materials: unknown;
+	try {
+		materials = JSON.parse(text)?.materials;
+	} catch {
+		return sourceStamp(text);
+	}
+	const wanted = new Set(ids);
+	const entries = Array.isArray(materials) ? materials.filter(m => typeof m === 'object' && m !== null && wanted.has(m.id)) : [];
+	return sourceStamp(JSON.stringify({ ids: [...ids].sort(), materials: entries }));
 }
 
 /** The stamp a derived document recorded for upstream part `part`, if any. */

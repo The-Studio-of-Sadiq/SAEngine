@@ -1,0 +1,941 @@
+{
+  "$schema": "../../../schemas/steelSections.schema.json",
+  "$sources": [
+    "EN 10365 (IPE, HEA, HEB)",
+    "IS 808 (ISMB, ISMC, equal angles)",
+    "EN 10056 (equal angles)",
+    "EN 10219 (SHS, RHS, CHS)"
+  ],
+  "source": "Standard published nominal dimensions of the rolled and hollow steel sections the Bangladesh market stocks and fabricators build with; the properties (A, I, S, Z, r, J, Cw) are computed from them by SAEngine, nothing is copied from a proprietary section database. Confirm the mill's catalogue before ordering.",
+  "density": 7850.0,
+  "families": [
+    "IPE",
+    "HEA",
+    "HEB",
+    "ISMB",
+    "ISMC",
+    "L",
+    "SHS",
+    "RHS",
+    "CHS"
+  ],
+  "shapeFamilies": {
+    "I": [
+      "IPE",
+      "HEA",
+      "HEB",
+      "ISMB"
+    ],
+    "U": [
+      "ISMC"
+    ],
+    "L": [
+      "L"
+    ],
+    "rectangleHollow": [
+      "SHS",
+      "RHS"
+    ],
+    "circleHollow": [
+      "CHS"
+    ]
+  },
+  "rolled": {
+    "IPE": {
+      "source": "EN 10365 nominal dimensions (European parallel-flange sections)",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 55,
+          "tw": 4.1,
+          "tf": 5.7,
+          "r": 7
+        },
+        {
+          "designation": 120,
+          "h": 120,
+          "b": 64,
+          "tw": 4.4,
+          "tf": 6.3,
+          "r": 7
+        },
+        {
+          "designation": 140,
+          "h": 140,
+          "b": 73,
+          "tw": 4.7,
+          "tf": 6.9,
+          "r": 7
+        },
+        {
+          "designation": 160,
+          "h": 160,
+          "b": 82,
+          "tw": 5.0,
+          "tf": 7.4,
+          "r": 9
+        },
+        {
+          "designation": 180,
+          "h": 180,
+          "b": 91,
+          "tw": 5.3,
+          "tf": 8.0,
+          "r": 9
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 100,
+          "tw": 5.6,
+          "tf": 8.5,
+          "r": 12
+        },
+        {
+          "designation": 220,
+          "h": 220,
+          "b": 110,
+          "tw": 5.9,
+          "tf": 9.2,
+          "r": 12
+        },
+        {
+          "designation": 240,
+          "h": 240,
+          "b": 120,
+          "tw": 6.2,
+          "tf": 9.8,
+          "r": 15
+        },
+        {
+          "designation": 270,
+          "h": 270,
+          "b": 135,
+          "tw": 6.6,
+          "tf": 10.2,
+          "r": 15
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 150,
+          "tw": 7.1,
+          "tf": 10.7,
+          "r": 15
+        },
+        {
+          "designation": 330,
+          "h": 330,
+          "b": 160,
+          "tw": 7.5,
+          "tf": 11.5,
+          "r": 18
+        },
+        {
+          "designation": 360,
+          "h": 360,
+          "b": 170,
+          "tw": 8.0,
+          "tf": 12.7,
+          "r": 18
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 180,
+          "tw": 8.6,
+          "tf": 13.5,
+          "r": 21
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 190,
+          "tw": 9.4,
+          "tf": 14.6,
+          "r": 21
+        },
+        {
+          "designation": 500,
+          "h": 500,
+          "b": 200,
+          "tw": 10.2,
+          "tf": 16.0,
+          "r": 21
+        },
+        {
+          "designation": 550,
+          "h": 550,
+          "b": 210,
+          "tw": 11.1,
+          "tf": 17.2,
+          "r": 24
+        },
+        {
+          "designation": 600,
+          "h": 600,
+          "b": 220,
+          "tw": 12.0,
+          "tf": 19.0,
+          "r": 24
+        }
+      ]
+    },
+    "HEA": {
+      "source": "EN 10365 nominal dimensions (European parallel-flange sections)",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 100,
+          "h": 96,
+          "b": 100,
+          "tw": 5.0,
+          "tf": 8.0,
+          "r": 12
+        },
+        {
+          "designation": 120,
+          "h": 114,
+          "b": 120,
+          "tw": 5.0,
+          "tf": 8.0,
+          "r": 12
+        },
+        {
+          "designation": 140,
+          "h": 133,
+          "b": 140,
+          "tw": 5.5,
+          "tf": 8.5,
+          "r": 12
+        },
+        {
+          "designation": 160,
+          "h": 152,
+          "b": 160,
+          "tw": 6.0,
+          "tf": 9.0,
+          "r": 15
+        },
+        {
+          "designation": 180,
+          "h": 171,
+          "b": 180,
+          "tw": 6.0,
+          "tf": 9.5,
+          "r": 15
+        },
+        {
+          "designation": 200,
+          "h": 190,
+          "b": 200,
+          "tw": 6.5,
+          "tf": 10.0,
+          "r": 18
+        },
+        {
+          "designation": 220,
+          "h": 210,
+          "b": 220,
+          "tw": 7.0,
+          "tf": 11.0,
+          "r": 18
+        },
+        {
+          "designation": 240,
+          "h": 230,
+          "b": 240,
+          "tw": 7.5,
+          "tf": 12.0,
+          "r": 21
+        },
+        {
+          "designation": 260,
+          "h": 250,
+          "b": 260,
+          "tw": 7.5,
+          "tf": 12.5,
+          "r": 24
+        },
+        {
+          "designation": 280,
+          "h": 270,
+          "b": 280,
+          "tw": 8.0,
+          "tf": 13.0,
+          "r": 24
+        },
+        {
+          "designation": 300,
+          "h": 290,
+          "b": 300,
+          "tw": 8.5,
+          "tf": 14.0,
+          "r": 27
+        },
+        {
+          "designation": 320,
+          "h": 310,
+          "b": 300,
+          "tw": 9.0,
+          "tf": 15.5,
+          "r": 27
+        },
+        {
+          "designation": 340,
+          "h": 330,
+          "b": 300,
+          "tw": 9.5,
+          "tf": 16.5,
+          "r": 27
+        },
+        {
+          "designation": 360,
+          "h": 350,
+          "b": 300,
+          "tw": 10.0,
+          "tf": 17.5,
+          "r": 27
+        },
+        {
+          "designation": 400,
+          "h": 390,
+          "b": 300,
+          "tw": 11.0,
+          "tf": 19.0,
+          "r": 27
+        },
+        {
+          "designation": 450,
+          "h": 440,
+          "b": 300,
+          "tw": 11.5,
+          "tf": 21.0,
+          "r": 27
+        },
+        {
+          "designation": 500,
+          "h": 490,
+          "b": 300,
+          "tw": 12.0,
+          "tf": 23.0,
+          "r": 27
+        }
+      ]
+    },
+    "HEB": {
+      "source": "EN 10365 nominal dimensions (European parallel-flange sections)",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 100,
+          "tw": 6.0,
+          "tf": 10.0,
+          "r": 12
+        },
+        {
+          "designation": 120,
+          "h": 120,
+          "b": 120,
+          "tw": 6.5,
+          "tf": 11.0,
+          "r": 12
+        },
+        {
+          "designation": 140,
+          "h": 140,
+          "b": 140,
+          "tw": 7.0,
+          "tf": 12.0,
+          "r": 12
+        },
+        {
+          "designation": 160,
+          "h": 160,
+          "b": 160,
+          "tw": 8.0,
+          "tf": 13.0,
+          "r": 15
+        },
+        {
+          "designation": 180,
+          "h": 180,
+          "b": 180,
+          "tw": 8.5,
+          "tf": 14.0,
+          "r": 15
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 200,
+          "tw": 9.0,
+          "tf": 15.0,
+          "r": 18
+        },
+        {
+          "designation": 220,
+          "h": 220,
+          "b": 220,
+          "tw": 9.5,
+          "tf": 16.0,
+          "r": 18
+        },
+        {
+          "designation": 240,
+          "h": 240,
+          "b": 240,
+          "tw": 10.0,
+          "tf": 17.0,
+          "r": 21
+        },
+        {
+          "designation": 260,
+          "h": 260,
+          "b": 260,
+          "tw": 10.0,
+          "tf": 17.5,
+          "r": 24
+        },
+        {
+          "designation": 280,
+          "h": 280,
+          "b": 280,
+          "tw": 10.5,
+          "tf": 18.0,
+          "r": 24
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 300,
+          "tw": 11.0,
+          "tf": 19.0,
+          "r": 27
+        },
+        {
+          "designation": 320,
+          "h": 320,
+          "b": 300,
+          "tw": 11.5,
+          "tf": 20.5,
+          "r": 27
+        },
+        {
+          "designation": 340,
+          "h": 340,
+          "b": 300,
+          "tw": 12.0,
+          "tf": 21.5,
+          "r": 27
+        },
+        {
+          "designation": 360,
+          "h": 360,
+          "b": 300,
+          "tw": 12.5,
+          "tf": 22.5,
+          "r": 27
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 300,
+          "tw": 13.5,
+          "tf": 24.0,
+          "r": 27
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 300,
+          "tw": 14.0,
+          "tf": 26.0,
+          "r": 27
+        },
+        {
+          "designation": 500,
+          "h": 500,
+          "b": 300,
+          "tw": 14.5,
+          "tf": 28.0,
+          "r": 27
+        }
+      ]
+    },
+    "ISMB": {
+      "source": "IS 808 (Indian standard sections): tapered flanges taken parallel at the mean thickness; root radius rounded",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 75,
+          "tw": 4.0,
+          "tf": 7.2,
+          "r": 9
+        },
+        {
+          "designation": 125,
+          "h": 125,
+          "b": 75,
+          "tw": 4.4,
+          "tf": 7.6,
+          "r": 9
+        },
+        {
+          "designation": 150,
+          "h": 150,
+          "b": 80,
+          "tw": 4.8,
+          "tf": 7.6,
+          "r": 9
+        },
+        {
+          "designation": 175,
+          "h": 175,
+          "b": 90,
+          "tw": 5.5,
+          "tf": 8.6,
+          "r": 10
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 100,
+          "tw": 5.7,
+          "tf": 10.8,
+          "r": 11
+        },
+        {
+          "designation": 225,
+          "h": 225,
+          "b": 110,
+          "tw": 6.5,
+          "tf": 11.8,
+          "r": 12
+        },
+        {
+          "designation": 250,
+          "h": 250,
+          "b": 125,
+          "tw": 6.9,
+          "tf": 12.5,
+          "r": 13
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 140,
+          "tw": 7.5,
+          "tf": 12.4,
+          "r": 14
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 140,
+          "tw": 8.1,
+          "tf": 14.2,
+          "r": 14
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 140,
+          "tw": 8.9,
+          "tf": 16.0,
+          "r": 14
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 150,
+          "tw": 9.4,
+          "tf": 17.4,
+          "r": 15
+        },
+        {
+          "designation": 500,
+          "h": 500,
+          "b": 180,
+          "tw": 10.2,
+          "tf": 17.2,
+          "r": 17
+        },
+        {
+          "designation": 550,
+          "h": 550,
+          "b": 190,
+          "tw": 11.2,
+          "tf": 19.3,
+          "r": 18
+        },
+        {
+          "designation": 600,
+          "h": 600,
+          "b": 210,
+          "tw": 12.0,
+          "tf": 20.8,
+          "r": 20
+        }
+      ]
+    },
+    "ISMC": {
+      "source": "IS 808 (Indian standard sections): tapered flanges taken parallel at the mean thickness; root radius rounded",
+      "shape": "U",
+      "sections": [
+        {
+          "designation": 75,
+          "h": 75,
+          "b": 40,
+          "tw": 4.4,
+          "tf": 7.3,
+          "r": 8.5
+        },
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 50,
+          "tw": 4.7,
+          "tf": 7.5,
+          "r": 9
+        },
+        {
+          "designation": 125,
+          "h": 125,
+          "b": 65,
+          "tw": 5.0,
+          "tf": 8.1,
+          "r": 9.5
+        },
+        {
+          "designation": 150,
+          "h": 150,
+          "b": 75,
+          "tw": 5.4,
+          "tf": 9.0,
+          "r": 10
+        },
+        {
+          "designation": 175,
+          "h": 175,
+          "b": 75,
+          "tw": 5.7,
+          "tf": 10.2,
+          "r": 10.5
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 75,
+          "tw": 6.1,
+          "tf": 11.4,
+          "r": 11
+        },
+        {
+          "designation": 225,
+          "h": 225,
+          "b": 80,
+          "tw": 6.4,
+          "tf": 12.4,
+          "r": 12
+        },
+        {
+          "designation": 250,
+          "h": 250,
+          "b": 80,
+          "tw": 7.1,
+          "tf": 14.1,
+          "r": 12
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 90,
+          "tw": 7.6,
+          "tf": 13.6,
+          "r": 13
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 100,
+          "tw": 8.1,
+          "tf": 13.5,
+          "r": 14
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 100,
+          "tw": 8.6,
+          "tf": 15.3,
+          "r": 15
+        }
+      ]
+    }
+  },
+  "angles": {
+    "source": "EN 10056 / IS 808 common equal angle sizes (L 25x25x3 to L 200x200x20); toe radius half the root radius",
+    "toeRadiusShare": 0.5,
+    "sections": [
+      {
+        "leg": 25,
+        "t": 3,
+        "r1": 3.5
+      },
+      {
+        "leg": 30,
+        "t": 3,
+        "r1": 5
+      },
+      {
+        "leg": 40,
+        "t": 4,
+        "r1": 6
+      },
+      {
+        "leg": 40,
+        "t": 5,
+        "r1": 6
+      },
+      {
+        "leg": 45,
+        "t": 5,
+        "r1": 7
+      },
+      {
+        "leg": 50,
+        "t": 5,
+        "r1": 7
+      },
+      {
+        "leg": 50,
+        "t": 6,
+        "r1": 7
+      },
+      {
+        "leg": 60,
+        "t": 6,
+        "r1": 8
+      },
+      {
+        "leg": 65,
+        "t": 6,
+        "r1": 9
+      },
+      {
+        "leg": 65,
+        "t": 8,
+        "r1": 9
+      },
+      {
+        "leg": 70,
+        "t": 7,
+        "r1": 9
+      },
+      {
+        "leg": 75,
+        "t": 6,
+        "r1": 9
+      },
+      {
+        "leg": 75,
+        "t": 8,
+        "r1": 9
+      },
+      {
+        "leg": 80,
+        "t": 8,
+        "r1": 10
+      },
+      {
+        "leg": 90,
+        "t": 8,
+        "r1": 11
+      },
+      {
+        "leg": 90,
+        "t": 10,
+        "r1": 11
+      },
+      {
+        "leg": 100,
+        "t": 8,
+        "r1": 12
+      },
+      {
+        "leg": 100,
+        "t": 10,
+        "r1": 12
+      },
+      {
+        "leg": 100,
+        "t": 12,
+        "r1": 12
+      },
+      {
+        "leg": 120,
+        "t": 10,
+        "r1": 13
+      },
+      {
+        "leg": 120,
+        "t": 12,
+        "r1": 13
+      },
+      {
+        "leg": 150,
+        "t": 12,
+        "r1": 16
+      },
+      {
+        "leg": 150,
+        "t": 15,
+        "r1": 16
+      },
+      {
+        "leg": 200,
+        "t": 16,
+        "r1": 18
+      },
+      {
+        "leg": 200,
+        "t": 20,
+        "r1": 18
+      }
+    ]
+  },
+  "hollow": {
+    "source": "EN 10219 cold-formed hollow section sizes (which local tube mills roll); corner radii by EN 10219-2 practice (computed)",
+    "shs": [
+      40,
+      50,
+      60,
+      70,
+      80,
+      90,
+      100,
+      120,
+      140,
+      150,
+      160,
+      180,
+      200,
+      250,
+      300
+    ],
+    "rhs": [
+      {
+        "h": 60,
+        "b": 40
+      },
+      {
+        "h": 80,
+        "b": 40
+      },
+      {
+        "h": 100,
+        "b": 50
+      },
+      {
+        "h": 100,
+        "b": 60
+      },
+      {
+        "h": 120,
+        "b": 60
+      },
+      {
+        "h": 120,
+        "b": 80
+      },
+      {
+        "h": 150,
+        "b": 100
+      },
+      {
+        "h": 160,
+        "b": 80
+      },
+      {
+        "h": 200,
+        "b": 100
+      },
+      {
+        "h": 200,
+        "b": 120
+      },
+      {
+        "h": 250,
+        "b": 150
+      },
+      {
+        "h": 300,
+        "b": 200
+      }
+    ],
+    "chs": [
+      48.3,
+      60.3,
+      76.1,
+      88.9,
+      114.3,
+      139.7,
+      168.3,
+      219.1,
+      273.0,
+      323.9
+    ],
+    "boxWalls": {
+      "walls": [
+        2.5,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        8.0,
+        10.0,
+        12.5
+      ],
+      "minRatio": 8,
+      "maxRatio": 40
+    },
+    "chsWalls": {
+      "walls": [
+        3.2,
+        4.0,
+        5.0,
+        6.3,
+        8.0,
+        10.0,
+        12.5
+      ],
+      "minRatio": 10,
+      "maxRatio": 50
+    }
+  },
+  "notes": [
+    "Properties computed from the nominal dimensions (EN 10365, IS 808, EN 10056, EN 10219); confirm against the mill's catalogue.",
+    "ISMB and ISMC tapered flanges taken parallel at the mean thickness."
+  ],
+  "sources": {
+    "density": "mass density of structural steel, 7850 kg/m³",
+    "IPE": "EN 10365 nominal dimensions (European parallel-flange sections)",
+    "HEA": "EN 10365 nominal dimensions (European parallel-flange sections)",
+    "HEB": "EN 10365 nominal dimensions (European parallel-flange sections)",
+    "ISMB": "IS 808 (Indian standard sections): tapered flanges taken parallel at the mean thickness; root radius rounded",
+    "ISMC": "IS 808 (Indian standard sections): tapered flanges taken parallel at the mean thickness; root radius rounded",
+    "L": "EN 10056 / IS 808",
+    "SHS": "EN 10219",
+    "RHS": "EN 10219",
+    "CHS": "EN 10219",
+    "boxWalls": "SAEngine: the walls rolled for a box whose smaller side is b, b/t from 8 to 40",
+    "chsWalls": "SAEngine: the walls rolled for a tube of diameter d, d/t from 10 to 50"
+  }
+}

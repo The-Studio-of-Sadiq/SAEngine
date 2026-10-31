@@ -93,8 +93,17 @@ export interface IFemDesignElement {
 	 */
 	readonly members: readonly number[];
 	readonly checks: readonly IFemDesignCheck[];
-	/** The largest utilisation of its strength checks. */
+	/**
+	 * What ranks and colours the member: its strength utilisation, or its detailing one when a
+	 * detailing check fails (a passing detailing equality, lo 550 against 550 mm, never governs).
+	 */
 	readonly utilisation: number;
+	/** The largest utilisation of its strength checks (not `Detailing: ...`). */
+	readonly strengthUtilisation?: number;
+	/** The largest utilisation of its detailing checks. */
+	readonly detailingUtilisation?: number;
+	/** The check that sets `utilisation`, and its combination. */
+	readonly governingCheck?: { readonly name: string; readonly combination?: string | null } | null;
 	readonly ok: boolean;
 	/**
 	 * A slab's design strips (flexure and one-way shear are averaged across them), one bay each;
@@ -122,6 +131,38 @@ export interface IFemDesignSkipped {
 	readonly reason: string;
 }
 
+/** Checked, passed and failed of a group of checks. */
+export interface IFemDesignTally {
+	readonly checked: number;
+	readonly passed: number;
+	readonly failed: number;
+}
+
+/** A member kind's counts: `total` = `checked` + `notChecked`. */
+export interface IFemDesignKindCounts extends IFemDesignTally {
+	readonly total: number;
+	readonly notChecked: number;
+}
+
+/**
+ * The counts of a design run (`summary.counts`, python `saengine.design.check.design_counts`):
+ * the ONE count every surface shows (the proposal, the FEM view, Run All, the report, the
+ * navigator). Members, joints and the building's own seismic checks are counted apart and never
+ * added together. A member is one designed element (a beam or column member, a slab panel, a
+ * wall, a staircase), whatever its analysis elements.
+ */
+export interface IFemDesignCounts {
+	readonly members: IFemDesignKindCounts & {
+		/** By kind: "beam", "column", "slab", "wall", "staircase", the steel kinds. */
+		readonly byKind: { readonly [kind: string]: IFemDesignKindCounts };
+	};
+	readonly joints: IFemDesignTally;
+	/** The building's own checks (system permitted in the category, bar grades). */
+	readonly building: IFemDesignTally;
+	/** Members not checked: for want of bars (proposed by Design Reinforcement), or another reason. */
+	readonly notChecked: { readonly noBars: number; readonly other: number };
+}
+
 /** The design checks of an analysed model, enveloped over the project's load combinations. */
 export interface IFemDesignReport {
 	readonly code: string;
@@ -146,6 +187,10 @@ export interface IFemDesignReport {
 		readonly seismicChecksFailed?: number;
 		/** Object types not checked for want of bars (Design Reinforcement proposes them). */
 		readonly noBars?: readonly string[];
+		/** The check that sets `maxUtilisation`. */
+		readonly governingCheck?: { readonly name: string; readonly combination?: string | null } | null;
+		/** The one count every surface shows (see {@link IFemDesignCounts}). */
+		readonly counts?: IFemDesignCounts;
 	};
 	readonly notes: readonly string[];
 }
@@ -414,6 +459,19 @@ export function designElementOf(report: IFemDesignReport, elementId: number): IF
  * three; an older backend's totals are the members').
  */
 export function describeDesignCounts(summary: IFemDesignReport['summary']): string {
+	const counts = summary.counts;
+	if (counts) {
+		const parts = [localize('femDesign.counts', "{0} members pass, {1} fail", counts.members.passed, counts.members.failed)];
+		if (counts.joints.checked) {
+			parts.push(localize('femDesign.jointCounts', "{0} joints, {1} fail", counts.joints.checked, counts.joints.failed));
+		}
+		if (counts.building.failed) {
+			parts.push(counts.building.failed === 1
+				? localize('femDesign.buildingCheckFails', "1 building check fails")
+				: localize('femDesign.buildingChecksFail', "{0} building checks fail", counts.building.failed));
+		}
+		return parts.join('; ');
+	}
 	const members = summary.elements ?? summary;
 	const parts = [localize('femDesign.counts', "{0} members pass, {1} fail", members.passed, members.failed)];
 	if (summary.elements && summary.joints?.checked) {
@@ -427,6 +485,43 @@ export function describeDesignCounts(summary: IFemDesignReport['summary']): stri
 	return parts.join('; ');
 }
 
+/**
+ * "1 member not checked" / "28 members not checked (12 for want of bars)": the members the
+ * checks left out, from the counts (the report's `skipped` from an older backend).
+ */
+export function describeNotChecked(summary: IFemDesignReport['summary']): string | undefined {
+	const counts = summary.counts;
+	const total = counts ? counts.members.notChecked : summary.skipped;
+	if (!total) {
+		return undefined;
+	}
+	const noBars = counts?.notChecked.noBars ?? 0;
+	if (noBars && noBars < total) {
+		return localize('femDesign.notCheckedSome', "{0} members not checked ({1} for want of bars)", total, noBars);
+	}
+	if (noBars) {
+		return total === 1
+			? localize('femDesign.notCheckedOneNoBars', "1 member not checked for want of bars")
+			: localize('femDesign.notCheckedNoBars', "{0} members not checked for want of bars", total);
+	}
+	return total === 1
+		? localize('femDesign.notCheckedOne', "1 member not checked")
+		: localize('femDesign.notCheckedMany', "{0} members not checked", total);
+}
+
+/**
+ * The text of a backend error line to show for a design run: a code pack the engine cannot use
+ * (N-X17 of usability walk 2: a raw `saengine.codes.registry.CodePackError` when the pack's
+ * files changed while the engine ran) says what to do; anything else is returned as it is.
+ */
+export function describeEngineError(line: string): string {
+	const pack = /(?:^|\.)CodePack(?:Hook)?Error:\s*(?<message>.*)$/.exec(line);
+	if (pack?.groups) {
+		return localize('femDesign.codePackError', "The code pack cannot be used ({0}). If its files changed while the engine ran, restart the engine (Run All menu: Restart Engine) to read them again.", pack.groups.message);
+	}
+	return line;
+}
+
 /** "12 members pass, 2 fail, 3 not checked." */
 export function describeDesignSummary(report: IFemDesignReport): string {
 	const { skipped } = report.summary;
@@ -436,13 +531,24 @@ export function describeDesignSummary(report: IFemDesignReport): string {
 			: localize('femDesign.noMembersOrSlabs', "There are no reinforced-concrete beams, columns or slabs to check.");
 	}
 	const counts = describeDesignCounts(report.summary);
-	const largest = report.summary.maxUtilisation !== null && report.summary.governing
-		? localize('femDesign.largest', "largest utilisation {0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing)
-		: undefined;
-	const parts = [counts, ...(largest ? [largest] : []), ...(skipped ? [localize('femDesign.skipped', "{0} not checked", skipped)] : [])];
+	const largest = describeLargest(report.summary);
+	const notChecked = describeNotChecked(report.summary);
+	const parts = [counts, ...(largest ? [largest] : []), ...(notChecked ? [notChecked] : [])];
 	return report.elements.some(e => e.kind === 'slab')
 		? localize('femDesign.summarySlabs', "{0} ({1}). Select a member, or a slab's shell, for its checks.", parts.join(', '), report.code)
 		: localize('femDesign.summary', "{0} ({1}). Select a member for its checks.", parts.join(', '), report.code);
+}
+
+/** "largest utilisation 0.93 in C-A1-L1 (Axial and bending, 1.2D + 1.0L + 1.0EX)". */
+export function describeLargest(summary: IFemDesignReport['summary']): string | undefined {
+	if (summary.maxUtilisation === null || !summary.governing) {
+		return undefined;
+	}
+	const check = summary.governingCheck;
+	const what = check ? (check.combination ? `${check.name}, ${check.combination}` : check.name) : undefined;
+	return what
+		? localize('femDesign.largestCheck', "largest utilisation {0} in {1} ({2})", formatUtilisation(summary.maxUtilisation), summary.governing, what)
+		: localize('femDesign.largest', "largest utilisation {0} in {1}", formatUtilisation(summary.maxUtilisation), summary.governing);
 }
 
 /** A check's demand against capacity: "120.5 of 300.0 kN", or a ratio "0.11 against 0.38". */

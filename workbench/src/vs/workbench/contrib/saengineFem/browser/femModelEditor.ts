@@ -12,7 +12,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,6 +29,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
 import { FemTableCell, IFemCaseResults, IFemResultTable, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -44,9 +45,10 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFra
 import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
-import { errorSummary, FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
-import { baseReactionTable, displayTable, exportCell, FEM_EXPORT_XLSX_COMMAND, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions, workbookSheets } from './femChartData.js';
+import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
+import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
+import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } from './femSeismicDetailing.js';
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, freeTopColumns, IFilterModel, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
@@ -82,25 +84,46 @@ export function displayModel<T extends IFemModelNodes>(model: T): T {
 }
 
 /**
- * The design checks of a run as a table: every checked member, the failing first, then by
- * utilisation; the members not checked last, with the reason. A row picks its member in 3D.
+ * The design checks of a run as a table: every checked member and beam-column joint, the
+ * failing first, then by utilisation; the members not checked last, with the reason. A row
+ * picks its member in 3D (a joint's row its column, whose properties list its joints).
  */
 export function designChecksCase(report: IFemDesignReport): IFemCaseResults {
-	const elements = [...report.elements].sort((a, b) => Number(a.ok) - Number(b.ok) || b.utilisation - a.utilisation);
-	const rows: FemTableCell[][] = elements.map(e => {
+	const checked: { readonly ok: boolean; readonly utilisation: number; readonly row: FemTableCell[] }[] = report.elements.map(e => {
 		const governing = sortedChecks(e)[0];
-		return [
-			e.id, designKindLabel(e.kind), e.type, Number(e.utilisation.toFixed(3)),
-			e.ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
-			governing?.name ?? '', governing?.combination ?? '',
-		];
+		return {
+			ok: e.ok, utilisation: e.utilisation, row: [
+				e.id, designKindLabel(e.kind), e.type, Number(e.utilisation.toFixed(3)),
+				e.ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
+				governing?.name ?? '', governing?.combination ?? '',
+			],
+		};
 	});
+	const joints = jointsOf(report);
+	for (const joint of joints) {
+		const governing = jointGoverning(joint);
+		const ok = jointOk(joint);
+		const utilisation = governing && Number.isFinite(governing.utilisation) ? governing.utilisation : ok ? 0 : Infinity;
+		checked.push({
+			ok, utilisation, row: [
+				joint.column ?? joint.id, jointHeading(joint), '', Number.isFinite(utilisation) ? Number(utilisation.toFixed(3)) : '∞',
+				ok ? localize('femTables.pass', "pass") : localize('femTables.fail', "FAIL"),
+				jointGoverningName(joint) ?? '', '',
+			],
+		});
+	}
+	checked.sort((a, b) => Number(a.ok) - Number(b.ok) || b.utilisation - a.utilisation);
+	const rows = checked.map(c => c.row);
 	for (const skipped of report.skipped) {
 		rows.push([skipped.id, designKindLabel(skipped.kind), skipped.type, '', localize('femTables.notChecked', "not checked"), skipped.reason, '']);
 	}
+	const membersFailed = report.elements.filter(e => !e.ok).length;
+	const jointsFailed = joints.filter(j => !jointOk(j)).length;
 	return {
 		caseId: -2,
-		caseName: localize('femTables.designChecks', "Design Checks: {0} fail of {1}", report.summary.failed, report.elements.length),
+		caseName: joints.length
+			? localize('femTables.designChecksJoints', "Design Checks: {0} of {1} members fail, {2} of {3} joints", membersFailed, report.elements.length, jointsFailed, joints.length)
+			: localize('femTables.designChecks', "Design Checks: {0} fail of {1}", membersFailed, report.elements.length),
 		resultType: 'summary',
 		earlyStop: false,
 		warnings: [],
@@ -115,6 +138,64 @@ export function designChecksCase(report: IFemDesignReport): IFemCaseResults {
 			rows,
 			notes: [localize('femTables.designNote', "The checks of Design Utilisation ({0}). Click a row to select the member in the view and see its checks.", report.code)],
 		}],
+	};
+}
+
+/** Reads the index of a run's result tables (fem/result_tables.py): `{results}`. */
+export const FEM_TABLE_INDEX_COMMAND = 'saengine.fem.tableIndex';
+/** Reads one table of one result: `(model, key, table id)`. */
+export const FEM_TABLE_COMMAND = 'saengine.fem.table';
+/** Streams the chosen tables to a workbook: `(model, target, {keys?, tables?, extra?, onProgress?}, token)`. */
+export const FEM_EXPORT_TABLES_COMMAND = 'saengine.fem.exportTables';
+
+/** Where a result's tables are listed: the run's cases, the combinations, the spectrum design, the envelope, then the design checks and the summary. */
+export type FemTableGroup = 'case' | 'combination' | 'spectrum' | 'envelope' | 'design' | 'summary';
+
+/** A result with tables, as the backend's index lists it; its tables are read when shown. */
+export interface IFemTableEntry {
+	readonly key: string;
+	readonly label: string;
+	readonly group: FemTableGroup;
+	readonly warnings: readonly string[];
+	readonly tables: readonly { readonly id: string; readonly title: string }[];
+}
+
+export function tableGroupLabel(group: FemTableGroup): string {
+	switch (group) {
+		case 'case': return localize('femTables.groupCases', "Load cases");
+		case 'combination': return localize('femTables.groupCombinations', "Load combinations");
+		case 'spectrum': return localize('femTables.groupSpectrum', "Response spectrum design combinations");
+		case 'envelope': return localize('femTables.groupEnvelope', "Envelope");
+		case 'design': return localize('femTables.groupDesign', "Design");
+		case 'summary': return localize('femTables.groupSummary', "Summary");
+	}
+}
+
+/**
+ * The picker's options for `entries`: a heading (disabled) before each group, then its results.
+ * `rows[k]` is the entry of option k, or -1 for a heading.
+ */
+export function groupedOptions(entries: readonly IFemTableEntry[]): { readonly options: ISelectOptionItem[]; readonly rows: number[] } {
+	const options: ISelectOptionItem[] = [];
+	const rows: number[] = [];
+	let group: FemTableGroup | undefined;
+	entries.forEach((entry, index) => {
+		if (entry.group !== group) {
+			group = entry.group;
+			options.push({ text: `── ${tableGroupLabel(group)} ──`, isDisabled: true });
+			rows.push(-1);
+		}
+		options.push({ text: entry.label });
+		rows.push(index);
+	});
+	return { options, rows };
+}
+
+/** A pseudo result whose tables were worked out here (the design checks, the summary). */
+function localEntry(results: IFemCaseResults, key: string, group: FemTableGroup): { entry: IFemTableEntry; tables: readonly IFemResultTable[] } {
+	return {
+		entry: { key, label: results.caseName, group, warnings: results.warnings, tables: results.tables.map((t, k) => ({ id: String(k), title: t.title })) },
+		tables: results.tables,
 	};
 }
 
@@ -155,12 +236,24 @@ class FemTablesPanel extends Disposable {
 	private readonly body: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private readonly caption: HTMLElement;
-	private cases: readonly IFemCaseResults[] = [];
-	/** The summary tables (storey response, base reactions, modes), read after the cases. */
-	private summary: IFemCaseResults | undefined;
+	/** The run's results with tables (the backend's index); their tables are read when shown. */
+	private entries: readonly IFemTableEntry[] = [];
+	/** The tables read so far, by `key|table id` (the design checks' and the summary's too). */
+	private readonly loaded = new Map<string, IFemResultTable>();
+	/** The tables being read, by `key|table id`. */
+	private readonly reading = new Set<string>();
+	/** Why a table could not be read, by `key|table id`. */
+	private readonly failed = new Map<string, string>();
+	/** The summary tables (storey response, base reactions, modes), read after the index. */
+	private summary: IFemTableEntry | undefined;
 	/** The design checks as a table, once Design Utilisation has run them. */
-	private design: IFemCaseResults | undefined;
+	private design: IFemTableEntry | undefined;
 	private designReport: IFemDesignReport | undefined;
+	private model: URI | undefined;
+	private units: string | undefined;
+	private supports: ReadonlySet<number> = new Set();
+	/** The picker's option k shows entry `optionRows[k]` (-1: a group's heading). */
+	private optionRows: number[] = [];
 	private caseIndex = 0;
 	private tableIndex = 0;
 	private request = 0;
@@ -177,7 +270,7 @@ class FemTablesPanel extends Disposable {
 		/** A case or combination was picked here: the toolbar shows its result too. */
 		private readonly onPick: (label: string) => void,
 		onExport: () => void,
-		/** A design checks row was clicked: select that member (building model id) in the view. */
+		/** A design checks row or a member's row was clicked: select that member (building model id) in the view. */
 		private readonly onPickMember: (member: string) => void,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService contextViewService: IContextViewService,
@@ -188,13 +281,18 @@ class FemTablesPanel extends Disposable {
 		this.casePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femTables.caseAria', "Analysis case of the table") }));
 		this.casePicker.render(append(header, $('.fem-tables-select.case')));
 		this._register(this.casePicker.onDidSelect(({ index }) => {
-			this.caseIndex = index;
+			const row = this.optionRows[index] ?? -1;
+			if (row < 0) {
+				this.renderBody(); // a heading: the picker shows the result it showed
+				return;
+			}
+			this.caseIndex = row;
 			this.tableIndex = 0;
 			this.sort = undefined;
 			this.render();
-			const picked = this.allCases[index];
-			if (picked && picked !== this.summary && picked !== this.design) {
-				this.onPick(picked.caseName);
+			const picked = this.allEntries[row];
+			if (picked && (picked.group === 'case' || picked.group === 'combination')) {
+				this.onPick(picked.label);
 			}
 		}));
 		this.tablePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femTables.tableAria', "Result table shown") }));
@@ -217,8 +315,8 @@ class FemTablesPanel extends Disposable {
 		this.count = append(header, $('span.fem-tables-count'));
 		this.caption = append(header, $('span.fem-tables-count.fem-tables-caption'));
 		append(header, $('.fem-tables-spacer'));
-		// Every case's and combination's tables to Excel: where the engineer looks for it.
-		const exportButton = this._register(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('femTables.exportTitle', "Export every table of every case and combination to an Excel workbook or a CSV file") }));
+		// The tables to Excel: where the engineer looks for it.
+		const exportButton = this._register(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('femTables.exportTitle', "Export the tables you choose, of every result or of the one shown, to an Excel workbook, or the table shown to a CSV file") }));
 		exportButton.label = `$(${Codicon.export.id}) ${localize('femTables.export', "Export to Excel...")}`;
 		exportButton.element.classList.add('fem-tables-export');
 		this._register(exportButton.onDidClick(() => onExport()));
@@ -230,23 +328,41 @@ class FemTablesPanel extends Disposable {
 		append(this.element, this.scrollable.getDomNode());
 	}
 
-	/** The cases, then the summary when it has been read. */
-	private get allCases(): readonly IFemCaseResults[] {
-		return [...this.cases, ...(this.design ? [this.design] : []), ...(this.summary ? [this.summary] : [])];
+	/** The results, then the design checks and the summary when they are there. */
+	private get allEntries(): readonly IFemTableEntry[] {
+		return [...this.entries, ...(this.design ? [this.design] : []), ...(this.summary ? [this.summary] : [])];
 	}
 
-	/** The run's design checks (or none yet): listed after the cases while there are tables. */
+	/** The results of the index (the export's choices). */
+	get results(): readonly IFemTableEntry[] {
+		return this.entries;
+	}
+
+	/** The result and table shown, with the table once it has been read. */
+	get shown(): { readonly entry: IFemTableEntry; readonly title: string; readonly table: IFemResultTable | undefined } | undefined {
+		const entry = this.allEntries[this.caseIndex];
+		const wanted = entry?.tables[this.tableIndex];
+		return entry && wanted ? { entry, title: wanted.title, table: this.loaded.get(`${entry.key}|${wanted.id}`) } : undefined;
+	}
+
+	/** The run's design checks (or none yet): listed after the results while there are tables. */
 	setDesign(report: IFemDesignReport | undefined): void {
 		if (report === this.designReport) {
 			return;
 		}
-		const showing = this.allCases[this.caseIndex];
+		const showing = this.allEntries[this.caseIndex];
 		this.designReport = report;
-		this.design = report ? designChecksCase(report) : undefined;
-		if (this.cases.length) {
+		if (report) {
+			const { entry, tables } = localEntry(designChecksCase(report), 'design', 'design');
+			tables.forEach((t, k) => this.loaded.set(`design|${k}`, t));
+			this.design = entry;
+		} else {
+			this.design = undefined;
+		}
+		if (this.entries.length) {
 			// Stay on the table shown (the design entry comes before the summary).
-			const index = showing ? this.allCases.findIndex(c => c.caseId === showing.caseId) : -1;
-			this.caseIndex = index >= 0 ? index : Math.min(this.caseIndex, this.allCases.length - 1);
+			const index = showing ? this.allEntries.findIndex(c => c.key === showing.key) : -1;
+			this.caseIndex = index >= 0 ? index : Math.min(this.caseIndex, this.allEntries.length - 1);
 			this.render(false);
 		}
 	}
@@ -269,20 +385,21 @@ class FemTablesPanel extends Disposable {
 		}
 	}
 
-	/** Moves to the followed result's tables; true when it moved. */
+	/** Moves to the followed result's tables (the same table: member forces stay member forces); true when it moved. */
 	private applyFollowed(): boolean {
-		const index = this.followed === undefined ? -1 : this.cases.findIndex(c => c.caseName === this.followed);
+		const index = this.followed === undefined ? -1 : this.entries.findIndex(c => c.label === this.followed && c.tables.length > 0);
 		if (index < 0 || index === this.caseIndex) {
 			return false;
 		}
+		const table = this.allEntries[this.caseIndex]?.tables[this.tableIndex];
 		this.caseIndex = index;
-		this.tableIndex = 0;
+		this.tableIndex = Math.max(0, table ? this.entries[index].tables.findIndex(t => t.id === table.id) : 0);
 		this.sort = undefined;
 		return true;
 	}
 
 	private renderCaption(): void {
-		const missing = this.followed !== undefined && this.cases.length > 0 && !this.cases.some(c => c.caseName === this.followed);
+		const missing = this.followed !== undefined && this.entries.length > 0 && !this.entries.some(c => c.label === this.followed && c.tables.length > 0);
 		this.caption.textContent = missing ? localize('femTables.noTablesFor', "{0} has no result tables.", this.followed) : '';
 		this.caption.classList.toggle('hidden', !missing);
 	}
@@ -291,8 +408,9 @@ class FemTablesPanel extends Disposable {
 	showNote(text: string): void {
 		this.request++; // drops a read still going
 		this.element.classList.add('waiting');
-		this.cases = [];
+		this.entries = [];
 		this.summary = undefined;
+		this.clearTables();
 		this.casePicker.setOptions([]);
 		this.tablePicker.setOptions([]);
 		this.count.textContent = '';
@@ -302,16 +420,31 @@ class FemTablesPanel extends Disposable {
 		this.layout();
 	}
 
-	/** Reads the tables of `model`'s last run again, then its summary tables. */
+	/** Forgets the tables read of the last run (the design checks stay: they come with the report). */
+	private clearTables(): void {
+		for (const key of [...this.loaded.keys()]) {
+			if (!key.startsWith('design|')) {
+				this.loaded.delete(key);
+			}
+		}
+		this.reading.clear();
+		this.failed.clear();
+	}
+
+	/** Reads the index of `model`'s last run again (its tables are read when shown), then its summary tables. */
 	async load(model: URI, units: string | undefined, supports: ReadonlySet<number>): Promise<void> {
 		const request = ++this.request;
+		this.model = model;
+		this.units = units;
+		this.supports = supports;
 		clearNode(this.body);
 		this.count.textContent = '';
 		append(this.body, $('.fem-tables-note', undefined, localize('femTables.loading', "Reading the result tables...")));
 		this.layout();
-		let cases: readonly IFemCaseResults[];
+		let entries: readonly IFemTableEntry[];
 		try {
-			cases = await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, model) ?? [];
+			const index = await this.commandService.executeCommand<{ readonly results: readonly IFemTableEntry[] }>(FEM_TABLE_INDEX_COMMAND, model);
+			entries = (index?.results ?? []).filter(r => r.tables.length > 0 || r.warnings.length > 0);
 		} catch (error) {
 			if (request === this.request) {
 				clearNode(this.body);
@@ -323,22 +456,54 @@ class FemTablesPanel extends Disposable {
 		if (request !== this.request) {
 			return;
 		}
-		this.cases = displayCases(cases, units, supports);
+		this.entries = entries;
 		this.summary = undefined;
-		this.caseIndex = Math.min(this.caseIndex, Math.max(0, cases.length - 1));
-		this.tableIndex = Math.min(this.tableIndex, Math.max(0, (cases[this.caseIndex]?.tables.length ?? 1) - 1));
+		this.clearTables();
+		this.caseIndex = Math.min(this.caseIndex, Math.max(0, entries.length - 1));
+		this.tableIndex = Math.min(this.tableIndex, Math.max(0, (entries[this.caseIndex]?.tables.length ?? 1) - 1));
 		this.applyFollowed();
 		this.render();
 		const summary = await summaryTables(this.commandService, model, units).catch(() => undefined);
 		if (request === this.request && summary) {
-			this.summary = summary;
+			const { entry, tables } = localEntry(summary, 'summary', 'summary');
+			tables.forEach((t, k) => this.loaded.set(`summary|${k}`, t));
+			this.summary = entry;
 			this.render(false);
 		}
 	}
 
 	/** The summary tables of the last read, for the export. */
 	get summarySheets(): readonly IFemResultTable[] {
-		return this.summary?.tables ?? [];
+		return (this.summary?.tables ?? []).map(t => this.loaded.get(`summary|${t.id}`)).filter((t): t is IFemResultTable => !!t);
+	}
+
+	/** Reads one table of a result, then draws it if it is still the one shown. */
+	private async read(entry: IFemTableEntry, id: string): Promise<void> {
+		const key = `${entry.key}|${id}`;
+		const model = this.model;
+		if (!model || this.reading.has(key)) {
+			return;
+		}
+		const request = this.request;
+		this.reading.add(key);
+		try {
+			const raw = await this.commandService.executeCommand<IFemResultTable>(FEM_TABLE_COMMAND, model, entry.key, id);
+			if (request !== this.request || !raw) {
+				return;
+			}
+			// OpenSees Studio's tables come in model units (SAEngine's in kN and mm already).
+			const table = displayTable(raw, this.units);
+			this.loaded.set(key, this.supports.size ? supportReactions(table, this.supports) : table);
+		} catch (error) {
+			if (request === this.request) {
+				this.failed.set(key, errorSummary(error));
+			}
+		} finally {
+			this.reading.delete(key);
+		}
+		if (request === this.request && this.shown?.entry === entry) {
+			this.render(false);
+		}
 	}
 
 	private render(scrollTop = true): void {
@@ -355,14 +520,36 @@ class FemTablesPanel extends Disposable {
 		this.tableStore.clear();
 		clearNode(this.body);
 		this.renderCaption();
-		const all = this.allCases;
+		const all = this.allEntries;
 		const results = all[this.caseIndex];
-		this.casePicker.setOptions(all.map<ISelectOptionItem>(c => ({ text: c.caseName })), this.caseIndex);
+		const grouped = groupedOptions(all);
+		this.optionRows = grouped.rows;
+		this.casePicker.setOptions(grouped.options, Math.max(0, grouped.rows.indexOf(this.caseIndex)));
 		this.tablePicker.setOptions((results?.tables ?? []).map<ISelectOptionItem>(t => ({ text: t.title })), this.tableIndex);
-		const table = results?.tables[this.tableIndex];
-		if (!table) {
+		if (!results) {
 			this.count.textContent = '';
 			append(this.body, $('.fem-tables-note', undefined, localize('femTables.none', "There are no result tables: run the analysis first.")));
+			return [];
+		}
+		for (const warning of results.warnings) {
+			append(this.body, $('.fem-tables-note', undefined, warning));
+		}
+		const wanted = results.tables[this.tableIndex];
+		if (!wanted) {
+			this.count.textContent = '';
+			return [];
+		}
+		const key = `${results.key}|${wanted.id}`;
+		const table = this.loaded.get(key);
+		if (!table) {
+			this.count.textContent = '';
+			const problem = this.failed.get(key);
+			append(this.body, $('.fem-tables-note', undefined, problem
+				? localize('femTables.tableFailed', "{0} could not be read: {1}", wanted.title, problem)
+				: localize('femTables.readingTable', "Working out {0} of {1}...", wanted.title, results.label)));
+			if (!problem) {
+				void this.read(results, wanted.id);
+			}
 			return [];
 		}
 		const sort = this.sort;
@@ -373,7 +560,7 @@ class FemTablesPanel extends Disposable {
 			: rows.length === table.rows.length
 				? localize('femTables.count', "{0} rows", table.rows.length)
 				: localize('femTables.countFiltered', "{0} of {1} rows", rows.length, table.rows.length);
-		for (const note of [...results.warnings, ...table.notes]) {
+		for (const note of table.notes) {
 			append(this.body, $('.fem-tables-note', undefined, note));
 		}
 		const element = append(this.body, $('table.fem-table'));
@@ -400,8 +587,8 @@ class FemTablesPanel extends Disposable {
 		});
 		const tbody = append(element, $('tbody'));
 		renderSheetRows(tbody, rows.slice(0, MAX_TABLE_ROWS));
-		if (results === this.design) {
-			// A design check row selects its member: the failing one can be found and picked.
+		// A design check's row or a member's row selects its member: it can be found and picked.
+		if (results.group === 'design' || table.columns[0] === 'Member') {
 			element.classList.add('pickable');
 			[...tbody.children].forEach((tr, k) => {
 				const member = String(rows[k]?.[0] ?? '');
@@ -503,6 +690,11 @@ export class FemModelEditor extends EditorPane {
 	private readonly exportAction = this._register(new Action('saengine.fem.editor.export', localize('femEditor.export', "Export Result Tables..."), undefined, true, () => this.exportTables()));
 	private readonly showLogAction = this._register(new Action('saengine.fem.editor.showLog', localize('femEditor.showLog', "Show Log"), undefined, true, () => this.commandService.executeCommand(FEM_SHOW_LOG_COMMAND)));
 	private readonly fitAction = this._register(new Action('saengine.fem.editor.fit', localize('femEditor.fit', "Zoom to Fit"), undefined, true, async () => this.viewer?.fit()));
+	/** The mesh's own nodes (inside members split into pieces, of the wall and slab meshes): hidden unless asked for. */
+	private readonly meshNodesAction = this._register(new Action('saengine.fem.editor.meshNodes', localize('femEditor.meshNodes', "Show Mesh Nodes"), undefined, true, async () => {
+		this.meshNodesAction.checked = !this.meshNodesAction.checked;
+		this.viewer?.setMeshNodes(!!this.meshNodesAction.checked);
+	}));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly viewerDisposable = this._register(new MutableDisposable());
@@ -533,6 +725,7 @@ export class FemModelEditor extends EditorPane {
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
@@ -682,13 +875,15 @@ export class FemModelEditor extends EditorPane {
 	}
 
 	/**
-	 * Exports every case's and combination's tables, with the summary (storeys, base reactions,
-	 * modes): to an Excel workbook, one sheet per kind of table with the result in its first
-	 * column, or to one CSV file.
+	 * Exports result tables. To an Excel workbook: the tables and the results the engineer picks
+	 * (every case and combination, or the one shown), one sheet per kind of table with the
+	 * result in its first column, and the summary (storeys, base reactions, modes); streamed by
+	 * the backend with its progress shown, and stoppable. To a CSV file: the table shown.
 	 */
 	private async exportTables(): Promise<void> {
 		const resource = this.resource;
-		if (!resource) {
+		const panel = this.tables;
+		if (!resource || !panel) {
 			return;
 		}
 		const target = await this.fileDialogService.showSaveDialog({
@@ -696,39 +891,101 @@ export class FemModelEditor extends EditorPane {
 			defaultUri: joinPath(dirname(resource), 'results.xlsx'),
 			filters: [
 				{ name: localize('femEditor.xlsxFiles', "Excel Workbooks"), extensions: ['xlsx'] },
-				{ name: localize('femEditor.csvFiles', "CSV Files"), extensions: ['csv'] },
+				{ name: localize('femEditor.csvFiles', "CSV Files (the table shown)"), extensions: ['csv'] },
 			],
 		});
 		if (!target) {
 			return;
 		}
-		const units = this.units;
-		const supports = this.supports;
+		if (!/\.xlsx$/i.test(target.path)) {
+			const shown = panel.shown;
+			if (!shown?.table) {
+				this.notificationService.info(localize('femEditor.csvNothing', "Show the table to export in Result Tables first: a CSV file holds the table shown."));
+				return;
+			}
+			await this.fileService.writeFile(target, VSBuffer.fromString(resultTablesCsv([{ caseId: 0, caseName: shown.entry.label, resultType: shown.entry.group, earlyStop: false, warnings: [], tables: [shown.table] }])));
+			this.notificationService.prompt(Severity.Info, localize('femEditor.exportedCsv', "Exported {0} of {1} to {2}.", shown.title, shown.entry.label, target.fsPath), [{
+				label: localize('femEditor.revealExport', "Show in Folder"),
+				run: () => this.commandService.executeCommand('revealFileInOS', target),
+			}]);
+			return;
+		}
+		const choice = await this.pickExport(panel);
+		if (!choice) {
+			return;
+		}
+		const extra: IFemSheet[] = choice.summary ? panel.summarySheets.map(s => ({ name: s.title, columns: s.columns, rows: s.rows, notes: s.notes })) : [];
+		const source = new CancellationTokenSource();
 		try {
-			// Reading every case's tables takes a while on a large model: say so, then say where.
-			const sheets = await this.progressService.withProgress({
+			const written = await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: localize('femEditor.exporting', "Exporting the result tables to {0}...", basename(target)),
-			}, async () => {
-				const cases = displayCases(await this.commandService.executeCommand<readonly IFemCaseResults[]>(FEM_RESULT_TABLES_COMMAND, resource) ?? [], units, supports);
-				if (/\.xlsx$/i.test(target.path)) {
-					const summary: IFemSheet[] = (this.tables?.summarySheets ?? []).map(s => ({ name: s.title, columns: s.columns, rows: s.rows, notes: s.notes }));
-					const book = workbookSheets(cases, summary);
-					await this.commandService.executeCommand(FEM_EXPORT_XLSX_COMMAND, target, book);
-					return book.length;
-				}
-				await this.fileService.writeFile(target, VSBuffer.fromString(resultTablesCsv(cases)));
-				return undefined;
-			});
-			this.notificationService.prompt(Severity.Info, sheets !== undefined
-				? localize('femEditor.exported', "Exported {0} sheets of results (kN, mm, kN·m) to {1}.", sheets, target.fsPath)
-				: localize('femEditor.exportedCsv', "Exported the result tables (kN, mm, kN·m) to {0}.", target.fsPath), [{
-					label: localize('femEditor.revealExport', "Show in Folder"),
-					run: () => this.commandService.executeCommand('revealFileInOS', target),
-				}]);
+				title: localize('femEditor.exporting', "Exporting the result tables to {0}", basename(target)),
+				cancellable: true,
+			}, progress => {
+				let reported = 0;
+				return this.commandService.executeCommand<{ readonly sheets?: number; readonly rows?: number; readonly cancelled?: boolean }>(FEM_EXPORT_TABLES_COMMAND, resource, target, {
+					keys: choice.keys,
+					tables: choice.tables,
+					extra,
+					onProgress: (done: number, total: number, message: string) => {
+						const share = total ? Math.round(100 * done / total) : 0;
+						progress.report({ message: localize('femEditor.exportingStep', "{0} ({1} of {2} tables)", message, done, total), increment: share - reported });
+						reported = share;
+					},
+				}, source.token);
+			}, () => source.cancel());
+			if (written?.cancelled) {
+				this.notificationService.info(localize('femEditor.exportStopped', "The export was stopped; {0} was not written.", basename(target)));
+				return;
+			}
+			this.notificationService.prompt(Severity.Info, localize('femEditor.exported', "Exported {0} sheets, {1} rows of results (kN, mm, kN·m) to {2}.", written?.sheets ?? 0, written?.rows ?? 0, target.fsPath), [{
+				label: localize('femEditor.revealExport', "Show in Folder"),
+				run: () => this.commandService.executeCommand('revealFileInOS', target),
+			}]);
 		} catch (error) {
 			this.notificationService.error(localize('femEditor.exportFailed', "The result tables could not be exported: {0}", errorSummary(error)));
+		} finally {
+			source.dispose();
 		}
+	}
+
+	/** The tables and results to export, picked by the engineer (all of them is large on a tall building). */
+	private async pickExport(panel: FemTablesPanel): Promise<{ readonly keys?: string[]; readonly tables: string[]; readonly summary: boolean } | undefined> {
+		const results = panel.results;
+		const titles = new Map<string, string>();
+		for (const result of results) {
+			for (const table of result.tables) {
+				if (!titles.has(table.id)) {
+					titles.set(table.id, table.title);
+				}
+			}
+		}
+		const usual = new Set(['reactions', 'members', 'modal:0']);
+		interface ITableItem extends IQuickPickItem { readonly id: string }
+		const tableItems: ITableItem[] = [...titles].map(([id, title]) => ({ id, label: title, picked: usual.has(id) }));
+		tableItems.push({ id: 'summary', label: localize('femEditor.exportSummary', "Summary: storeys, base reactions, modes"), picked: true });
+		const tables = await this.quickInputService.pick(tableItems, {
+			canPickMany: true,
+			title: localize('femEditor.exportTablesTitle', "Tables to Export"),
+			placeHolder: localize('femEditor.exportTablesHint', "Each becomes a sheet with the results in its first column; member forces of every combination of a tall building are a large file"),
+		});
+		if (!tables?.length) {
+			return undefined;
+		}
+		const shown = panel.shown?.entry;
+		interface IScopeItem extends IQuickPickItem { readonly keys?: string[] }
+		const groups = (wanted: readonly FemTableGroup[]) => results.filter(r => wanted.includes(r.group)).map(r => r.key);
+		const scopes: IScopeItem[] = [
+			{ label: localize('femEditor.exportAll', "Every case and combination"), description: localize('femEditor.exportAllCount', "{0} results", results.length) },
+			{ label: localize('femEditor.exportCombinations', "The load combinations"), keys: groups(['combination', 'spectrum', 'envelope']) },
+			{ label: localize('femEditor.exportCases', "The load cases"), keys: groups(['case']) },
+			...(shown && shown.group !== 'design' && shown.group !== 'summary' ? [{ label: localize('femEditor.exportShown', "The result shown: {0}", shown.label), keys: [shown.key] }] : []),
+		];
+		const scope = await this.quickInputService.pick(scopes, { title: localize('femEditor.exportScopeTitle', "Results to Export") });
+		if (!scope) {
+			return undefined;
+		}
+		return { keys: scope.keys, tables: tables.map(t => t.id).filter(id => id !== 'summary'), summary: tables.some(t => t.id === 'summary') };
 	}
 
 
@@ -770,6 +1027,7 @@ export class FemModelEditor extends EditorPane {
 			this.showLogAction,
 			new Separator(),
 			this.fitAction,
+			this.meshNodesAction,
 		];
 		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
 		if (key !== this.actionsKey) {
@@ -935,13 +1193,14 @@ export class FemModelEditor extends EditorPane {
 	 * Selects a checked member (building model id, `B5`) in the view from the design checks
 	 * table, with Design Utilisation shown so the properties give its checks.
 	 */
+	/** Selects a member picked in the tables: a design check's (shown with the design), or a member forces row's. */
 	private pickDesignMember(member: string): void {
-		const element = this.results?.designReport?.elements.find(e => e.id === member);
-		const id = element?.members[0];
+		const checked = this.results?.designReport?.elements.find(e => e.id === member);
+		const id = checked?.members[0] ?? this.femModel?.elements.find(e => memberOf(e.name ?? '') === member)?.id;
 		if (id === undefined) {
-			return; // not checked: not in the analysis model's checks
+			return; // not in the analysis model
 		}
-		if (!this.results?.showsDesign) {
+		if (checked && !this.results?.showsDesign) {
 			this.results?.toggleDesign();
 		}
 		const selection: FemSelection = { kind: 'element', id };
@@ -987,6 +1246,7 @@ export class FemModelEditor extends EditorPane {
 				onSelectionChanged: selection => this._onDidChangeSelection.fire(selection),
 			});
 			this.viewer = viewer;
+			viewer.setMeshNodes(!!this.meshNodesAction.checked);
 			if (this.shownResult) {
 				viewer.setResults(this.shownResult.view, this.shownResult.display);
 			}

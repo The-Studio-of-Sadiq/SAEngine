@@ -166,8 +166,9 @@ def ups(load_kw: float | None, autonomy_min: float | None = None) -> dict[str, A
     }
 
 
-def capacitor_kvar(kw: float, pf: float, target: float = T.TARGET_PF) -> float:
-    """Reactive power to raise ``pf`` to ``target`` for ``kw``."""
+def capacitor_kvar(kw: float, pf: float, target: float | None = None) -> float:
+    """Reactive power to raise ``pf`` to ``target`` (default the table's) for ``kw``."""
+    target = T.TARGET_PF if target is None else target
     if pf >= target:
         return 0.0
     return kw * (math.tan(math.acos(pf)) - math.tan(math.acos(target)))

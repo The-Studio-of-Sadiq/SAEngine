@@ -157,6 +157,35 @@ export function formatCell(value: FemTableCell): string {
 	return value;
 }
 
+/**
+ * The decimals of a table column: four significant digits of its largest value (at most six
+ * decimals), so every row of the column reads alike; undefined for a column of whole numbers.
+ */
+export function columnDecimals(rows: readonly (readonly FemTableCell[])[], column: number): number | undefined {
+	let largest = 0;
+	let fractional = false;
+	for (const row of rows) {
+		const value = row[column];
+		if (typeof value === 'number' && Number.isFinite(value)) {
+			largest = Math.max(largest, Math.abs(value));
+			fractional ||= !Number.isInteger(value);
+		}
+	}
+	if (!fractional) {
+		return undefined;
+	}
+	return largest > 0 ? Math.min(6, Math.max(0, 3 - Math.floor(Math.log10(largest)))) : 3;
+}
+
+/** A table cell with `decimals` decimals (no "-0"), or as {@link formatCell} without them. */
+export function formatFixedCell(value: FemTableCell, decimals: number | undefined): string {
+	if (typeof value !== 'number' || decimals === undefined) {
+		return formatCell(value);
+	}
+	const text = value.toFixed(decimals);
+	return Number(text) === 0 ? (0).toFixed(decimals) : text;
+}
+
 /** A number as the exports keep it: six significant digits (no float noise), no "-0". */
 export function exportNumber(value: number): number {
 	const rounded = Number.isInteger(value) ? value : Math.abs(value) < 1e-9 ? 0 : Number(value.toPrecision(6));

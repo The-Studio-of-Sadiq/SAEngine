@@ -50,7 +50,7 @@ from saengine.design.check import _check
 from saengine.design.rc import PHI_SHEAR, STEEL_E, beta1, phi_axial_flexure
 from saengine.library.objects import BarMesh
 from saengine.library.settings import Foundation
-from saengine.substructure.loads import column_action, combine
+from saengine.substructure.loads import column_action
 
 G = 9.80665
 #: The least share of a footing's base in contact under a service combination before it is
@@ -540,7 +540,27 @@ def _beam(
             value += couple * min(max((s - lo) / (hi - lo), 0.0), 1.0)
         return value
 
-    return shear, moment, point, span
+    def moments(stations: list[float]) -> list[float]:
+        """:func:`moment` at many stations. In full contact the soil pressure across the beam
+        integrates to across · (a + g s), so its force and moment are polynomials in s: all
+        stations at once (N-U4: the flexure scan took most of the sizing time). In partial
+        contact, one station at a time."""
+        if pressure.clip:
+            return [moment(s) for s in stations]
+        s = np.asarray(stations, dtype=float)
+        g = pressure.gu if axis == "u" else pressure.gv
+        a = pressure.a
+        force = across * (a * (s - start) + g * (s**2 - start**2) / 2)
+        first = across * (a * (s**2 - start**2) / 2 + g * (s**3 - start**3) / 3)
+        part = np.maximum(s - start, 0.0)
+        value = s * force - first - weight * across * part**2 / 2
+        for lo, hi, p, couple in point:
+            top = np.minimum(s, hi)
+            value -= np.where(top > lo, p / (hi - lo) * ((s - lo) ** 2 - (s - top) ** 2) / 2, 0.0)
+            value += couple * np.clip((s - lo) / (hi - lo), 0.0, 1.0)
+        return [float(v) for v in value]
+
+    return shear, moment, moments, point, span
 
 
 def _transverse_strip(
@@ -788,7 +808,7 @@ def design_footing(
         """One-way shear and flexure of ``beam_spec`` as a beam along ``axis``; ``strip_of`` is
         the column (or wall piece) of a transverse strip of a combined footing."""
         label = labels[axis]
-        shear, moment, point, span = _beam(beam_spec, pressure, loads, axis, weight)
+        shear, _, moments_at, point, span = _beam(beam_spec, pressure, loads, axis, weight)
         across = beam_spec.width if axis == "u" else beam_spec.length
         bottom, top = meshes[axis]
         d = beam_spec.depths("bottom")[axis]  # this direction's own layer
@@ -843,7 +863,7 @@ def design_footing(
         faces = [s for lo, hi, _, _ in point for s in (lo, hi) if -span / 2 < s < span / 2]
         samples = [s for s in np.linspace(-span / 2, span / 2, 241)[1:-1] if not inside(float(s))]
         stations = [*faces, *map(float, samples)]
-        moments = [(moment(s), s) for s in stations]
+        moments = list(zip(moments_at(stations), stations, strict=True))
         sag = max(moments, default=(0.0, 0.0))
         hog = min(moments, default=(0.0, 0.0))
         per_m = 1000 / across
@@ -1443,20 +1463,46 @@ def place_footing(ctx: Any, foundation: Any) -> Placed:
     return Placed(spec, nodes, center, axis_u, axis_v, founding, notes)
 
 
+def _factors(cases: list[str], combinations: list[tuple[str, dict[str, float]]]) -> np.ndarray:
+    """The factors of ``combinations`` as a matrix (combination x case, in the order of
+    ``cases``)."""
+    index = {case: k for k, case in enumerate(cases)}
+    matrix = np.zeros((len(combinations), len(cases)))
+    for row, (_, factors) in enumerate(combinations):
+        for case, factor in factors.items():
+            matrix[row, index[case]] += factor  # a case that was not analysed: KeyError
+    return matrix
+
+
 def footing_loads(loads: Any, placed: Placed) -> tuple[Loads, Loads]:
-    """The service and strength loads ``[P, Cu, Cv]`` of each column of a placed footing."""
+    """The service and strength loads ``[P, Cu, Cv]`` of each column of a placed footing.
+
+    All the combinations at once (factor matrix x the cases' column actions): the sizing
+    assistant calls this for every trial size, and a building has some 300 combinations of
+    some 60 cases (N-U4: one loop per combination took most of the 19 min of 20 columns)."""
     zero = np.zeros(6)
-    per_case = {
-        case: [
-            column_action(reactions.get(node, zero), c.arm, placed.axis_u, placed.axis_v)
-            for c, node in zip(placed.spec.columns, placed.nodes, strict=True)
+    cases = list(loads.cases)
+    per_case = np.array(
+        [
+            [
+                column_action(
+                    loads.cases[case].get(node, zero), c.arm, placed.axis_u, placed.axis_v
+                )
+                for c, node in zip(placed.spec.columns, placed.nodes, strict=True)
+            ]
+            for case in cases
         ]
-        for case, reactions in loads.cases.items()
-    }
-    return (
-        {name: combine(per_case, factors) for name, factors in loads.service},
-        {name: combine(per_case, factors) for name, factors in loads.strength},
-    )
+    ).reshape(len(cases), len(placed.spec.columns), 3)
+
+    def combined(combinations: list[tuple[str, dict[str, float]]]) -> Loads:
+        key = (tuple(cases), id(combinations), len(combinations))
+        cache = loads.__dict__.setdefault("_factor_matrices", {})
+        if key not in cache:
+            cache[key] = _factors(cases, combinations)
+        values = np.einsum("kc,cjd->kjd", cache[key], per_case)
+        return {name: list(values[k]) for k, (name, _) in enumerate(combinations)}
+
+    return combined(loads.service), combined(loads.strength)
 
 
 def summary(
@@ -1515,6 +1561,9 @@ def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]
         "rotation": round(math.degrees(math.atan2(placed.axis_u[1], placed.axis_u[0])), 3),
     }
     result = summary(foundation, checks, members, sizes=sizes, pressure=pressure)
+    if bearing_check is None and service:
+        # No qa: the footing is not checked for what sizes it, whatever its other checks say.
+        result["notChecked"] = ["bearing"]
     return result, placed.notes + notes
 
 

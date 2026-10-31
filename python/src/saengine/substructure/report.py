@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib
 import math
 from collections.abc import Callable
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from saengine.design.check import _check
 from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
 from saengine.substructure.context import Context, Skip, load_context
+from saengine.substructure.jobs import Superseded, newest
 from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
 from saengine.substructure.sizing import penetration
 
@@ -34,7 +36,9 @@ EXTERNAL = {
 }
 
 
-def substructure_report(project_root: str | Path, out_dir: str | Path | None = None) -> dict:
+def substructure_report(
+    project_root: str | Path, out_dir: str | Path | None = None, supersede: bool = True
+) -> dict:
     """The design checks of the substructure of the project at ``project_root`` under the
     analysis results in ``out_dir`` (default ``08 FEM/model.results``), ready for JSON.
 
@@ -47,13 +51,19 @@ def substructure_report(project_root: str | Path, out_dir: str | Path | None = N
     "combination", "ok", "note", "flag"}`` as :func:`saengine.design.design_report`'s
     (``flag`` checks are reported but do not make the foundation fail). Raises ``ValueError``
     when a part of the project cannot be read or is invalid. Runs under the project's code
-    pack."""
-    ctx = load_context(project_root, out_dir)
-    with (
-        code_context.project(ctx.root or project_root),
-        code_context.using(code_context.pack_for(ctx.settings, ctx.root)),
-    ):
-        return report(ctx)
+    pack.
+
+    With ``supersede`` (the editor's checks) it is the newest check of the project: a check of
+    it still running stops, and this one stops with
+    :class:`~saengine.substructure.jobs.Superseded` (a ``ValueError``) when another is asked
+    for (:mod:`saengine.substructure.jobs`). Run All's step passes False."""
+    with newest(project_root) if supersede else nullcontext():
+        ctx = load_context(project_root, out_dir)
+        with (
+            code_context.project(ctx.root or project_root),
+            code_context.using(code_context.pack_for(ctx.settings, ctx.root)),
+        ):
+            return report(ctx)
 
 
 def _external(foundation_type: str) -> tuple[Callable[..., Any] | None, list[str], str]:
@@ -112,7 +122,7 @@ def report(ctx: Context) -> dict[str, Any]:
                     raise Skip(reason)
                 try:
                     value = function(ctx, foundation)
-                except Skip:
+                except (Skip, Superseded):
                     raise
                 except Exception as error:  # another module's failure must not sink the report
                     raise Skip(f"its design failed: {error}") from error
@@ -262,20 +272,27 @@ def check_summary(
 ) -> dict[str, Any]:
     """The report's ``summary``: how many of the foundations and tie beams were checked
     (``checked`` of ``total``), passed and failed, and ``status``: ``"pass"`` only when every
-    one was checked, all pass and every column and wall stands on a foundation; ``"fail"`` when
-    a check fails; ``"incomplete"`` otherwise (some not checked, or columns or walls without a
-    foundation); ``"none"`` when nothing was checked. The part list reads ``status``."""
+    one was checked in full, all pass and every column and wall stands on a foundation;
+    ``"fail"`` when a check fails; ``"incomplete"`` otherwise (some not checked, some without
+    their bearing check, or columns or walls without a foundation); ``"none"`` when nothing was
+    checked. The part list reads ``status``.
+
+    A foundation whose bearing could not be checked (no qa: its result's ``notChecked``) is
+    neither checked nor passed: ``checked`` counts the foundations checked in full, and their
+    ids are in ``bearingUnchecked`` (Run All stops on them, or states its assumption)."""
     failed = [e for e in designed if not e["ok"]]
+    partly = [e for e in designed if e.get("notChecked")]
     governing = max(designed, key=lambda e: e["utilisation"], default=None)
     total = len(designed) + len(skipped)
-    complete = bool(designed) and not skipped and not unsupported
+    complete = bool(designed) and not skipped and not unsupported and not partly
     status = "fail" if failed else "pass" if complete else "incomplete" if designed else "none"
     return {
-        "checked": len(designed),
+        "checked": len(designed) - len(partly),
         "total": total,
-        "passed": len(designed) - len(failed),
+        "passed": len([e for e in designed if e["ok"] and not e.get("notChecked")]),
         "failed": len(failed),
         "skipped": len(skipped),
+        "bearingUnchecked": [e["id"] for e in partly if "bearing" in e["notChecked"]],
         "unsupported": unsupported,
         "complete": complete,
         "status": status,

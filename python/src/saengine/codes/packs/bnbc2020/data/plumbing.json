@@ -1,0 +1,2271 @@
+{
+  "$schema": "../../../schemas/plumbing.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215)",
+    "BNBC 2020 Part 3 Sec 2.4.4 (p. 94)"
+  ],
+  "source": "BNBC 2020 Part 8 Chapters 5-7 (water supply, drainage and sanitation, rainwater), Bangladesh Gazette edition of 11 February 2021; p = PDF page. Entries marked SAEngine in 'sources' are documented assumptions where the code is silent.",
+  "pages": {
+    "8.5.1(a)": "BNBC 2020 Part 8 Table 8.5.1(a) (p1034)",
+    "8.5.1(b)": "BNBC 2020 Part 8 Table 8.5.1(b) (p1035)",
+    "8.5.1(c)": "BNBC 2020 Part 8 Table 8.5.1(c) (p1035)",
+    "8.5.1(d)": "BNBC 2020 Part 8 Table 8.5.1(d) (p1036-1037)",
+    "5.6.3": "BNBC 2020 Part 8 Sec 5.6.3-5.6.4 (p1039)",
+    "5.9.1.2": "BNBC 2020 Part 8 Sec 5.9.1.2(c) (p1041)",
+    "5.9.2.1": "BNBC 2020 Part 8 Sec 5.9.2.1 (p1042)",
+    "5.9.2.3": "BNBC 2020 Part 8 Sec 5.9.2.3 (p1043)",
+    "8.5.2": "BNBC 2020 Part 8 Table 8.5.2 (p1042)",
+    "8.5.3": "BNBC 2020 Part 8 Table 8.5.3 (p1042)",
+    "8.5.1": "BNBC 2020 Part 8 Eq 8.5.1 (Sec 5.10.1(a)) (p1043)",
+    "5.10.1": "BNBC 2020 Part 8 Sec 5.10.1(c)(ii) (p1044)",
+    "8.5.4": "BNBC 2020 Part 8 Table 8.5.4 (p1045)",
+    "8.5.5": "BNBC 2020 Part 8 Table 8.5.5 (p1046)",
+    "8.5.6": "BNBC 2020 Part 8 Table 8.5.6 (p1047)",
+    "5.10.4.2": "BNBC 2020 Part 8 Sec 5.10.4.2 (p1047)",
+    "5.11.1": "BNBC 2020 Part 8 Sec 5.11.1 (p1049)",
+    "8.5.7": "BNBC 2020 Part 8 Table 8.5.7 (p1051)",
+    "8.O.1": "BNBC 2020 Part 8 Appendix O Table 8.O.1 (p1196)",
+    "O": "BNBC 2020 Part 8 Appendix O Sec O.3-O.4 (p1195)",
+    "8.6.2": "BNBC 2020 Part 8 Table 8.6.2 (p1087)",
+    "6.9.3": "BNBC 2020 Part 8 Sec 6.9.3(a) (p1090)",
+    "6.9.12": "BNBC 2020 Part 8 Sec 6.9.12.7-6.9.12.13 (p1106)",
+    "8.6.8": "BNBC 2020 Part 8 Table 8.6.8 (p1106)",
+    "6.9.13": "BNBC 2020 Part 8 Sec 6.9.13.2 (p1107)",
+    "8.6.9": "BNBC 2020 Part 8 Table 8.6.9 (Sec 6.9.14) (p1108)",
+    "6.9.15": "BNBC 2020 Part 8 Sec 6.9.15.2-6.9.15.4 (p1108-1109)",
+    "8.6.10": "BNBC 2020 Part 8 Table 8.6.10 (p1110)",
+    "8.6.12": "BNBC 2020 Part 8 Table 8.6.12 (p1112-1113)",
+    "8.6.13": "BNBC 2020 Part 8 Table 8.6.13 (p1113)",
+    "6.10.2": "BNBC 2020 Part 8 Sec 6.10.2.1 (p1113)",
+    "8.6.14": "BNBC 2020 Part 8 Table 8.6.14 (p1114)",
+    "8.6.15": "BNBC 2020 Part 8 Table 8.6.15 (p1115)",
+    "8.6.16": "BNBC 2020 Part 8 Table 8.6.16 (p1116-1117)",
+    "8.6.17": "BNBC 2020 Part 8 Table 8.6.17 (p1118)",
+    "7.4.1": "BNBC 2020 Part 8 Sec 7.4.1 (p1129)",
+    "7.8.4": "BNBC 2020 Part 8 Sec 7.8.4 (p1132)",
+    "7.8.9": "BNBC 2020 Part 8 Sec 7.8.9 (p1134)",
+    "7.8.10": "BNBC 2020 Part 8 Sec 7.8.10 and 7.21.1 (p1134) and p1141",
+    "8.7.2": "BNBC 2020 Part 8 Table 8.7.2 (p1135)",
+    "8.7.3": "BNBC 2020 Part 8 Table 8.7.3 (p1136)",
+    "7.17": "BNBC 2020 Part 8 Sec 7.17 (p1140)",
+    "8.7.4": "BNBC 2020 Part 8 Table 8.7.4 (p1141)",
+    "R": "BNBC 2020 Part 8 Appendix R Figure 8.R.1 (p1213)",
+    "S": "BNBC 2020 Part 8 Appendix S Eq 8.S.1 and Table 8.S.1 (p1214-1215)",
+    "4.4.1": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
+    "3:2.4.4": "BNBC 2020 Part 3 Sec 2.4.4 (p94)"
+  },
+  "occupancies": {
+    "singleFamily": {
+      "label": "Single family dwelling, high income (city)",
+      "table": "8.5.1(a)",
+      "row": "A1",
+      "full": 260,
+      "restricted": 200,
+      "group": "A1",
+      "unit": "person"
+    },
+    "apartmentLarge": {
+      "label": "Big apartment > 2500 sft, high income (city)",
+      "table": "8.5.1(a)",
+      "row": "A3",
+      "full": 200,
+      "restricted": 150,
+      "group": "A3",
+      "unit": "person"
+    },
+    "residentialFlat": {
+      "label": "Moderate apartment < 2000 sft, middle income (city)",
+      "table": "8.5.1(a)",
+      "row": "y1",
+      "full": 180,
+      "restricted": 135,
+      "group": "A3",
+      "unit": "person"
+    },
+    "apartmentSmall": {
+      "label": "Small apartment < 1500 sft (city)",
+      "table": "8.5.1(a)",
+      "row": "y2",
+      "full": null,
+      "restricted": 120,
+      "group": "A3",
+      "unit": "person"
+    },
+    "staffQuarter": {
+      "label": "Junior staff flat < 1000 sft (city)",
+      "table": "8.5.1(a)",
+      "row": "z1",
+      "full": null,
+      "restricted": 80,
+      "group": "A3",
+      "unit": "person"
+    },
+    "townSingleFamily": {
+      "label": "Single family dwelling (town)",
+      "table": "8.5.1(b)",
+      "row": "A1",
+      "full": null,
+      "restricted": 150,
+      "group": "A1",
+      "unit": "person"
+    },
+    "townApartment": {
+      "label": "Moderate apartment < 2000 sft (town)",
+      "table": "8.5.1(b)",
+      "row": "A3",
+      "full": null,
+      "restricted": 135,
+      "group": "A3",
+      "unit": "person"
+    },
+    "townSmallApartment": {
+      "label": "Small apartment < 1500 sft (town)",
+      "table": "8.5.1(b)",
+      "row": "A3",
+      "full": null,
+      "restricted": 120,
+      "group": "A3",
+      "unit": "person"
+    },
+    "townStaffQuarter": {
+      "label": "Junior staff flat < 1000 sft (town)",
+      "table": "8.5.1(b)",
+      "row": "z1",
+      "full": null,
+      "restricted": 80,
+      "group": "A3",
+      "unit": "person"
+    },
+    "villagePrivate": {
+      "label": "Village, private source",
+      "table": "8.5.1(c)",
+      "row": "z1",
+      "full": null,
+      "restricted": 60,
+      "group": "A1",
+      "unit": "person"
+    },
+    "villagePublic": {
+      "label": "Village, public source",
+      "table": "8.5.1(c)",
+      "row": "z2",
+      "full": null,
+      "restricted": 50,
+      "group": "A1",
+      "unit": "person"
+    },
+    "dormitory": {
+      "label": "Mess, boarding house, dormitory, hostel",
+      "table": "8.5.1(d)",
+      "row": "A4",
+      "full": 135,
+      "restricted": 70,
+      "group": "A4",
+      "unit": "person"
+    },
+    "hotel": {
+      "label": "Hotel, lodging house (per bed)",
+      "table": "8.5.1(d)",
+      "row": "A5",
+      "full": 300,
+      "restricted": 135,
+      "group": "A5",
+      "unit": "bed"
+    },
+    "school": {
+      "label": "Educational up to higher secondary",
+      "table": "8.5.1(d)",
+      "row": "B1",
+      "full": 70,
+      "restricted": 45,
+      "group": "B1",
+      "unit": "person"
+    },
+    "college": {
+      "label": "Training and above higher secondary",
+      "table": "8.5.1(d)",
+      "row": "B2",
+      "full": 100,
+      "restricted": 70,
+      "group": "B2",
+      "unit": "person"
+    },
+    "preschool": {
+      "label": "Pre-school",
+      "table": "8.5.1(d)",
+      "row": "B3",
+      "full": 50,
+      "restricted": 35,
+      "group": "B3",
+      "unit": "person"
+    },
+    "childCare": {
+      "label": "Institution for care of children",
+      "table": "8.5.1(d)",
+      "row": "C1",
+      "full": 180,
+      "restricted": 100,
+      "group": "C1",
+      "unit": "person"
+    },
+    "custodialCapable": {
+      "label": "Custodial institution, capable adults",
+      "table": "8.5.1(d)",
+      "row": "C2",
+      "full": 180,
+      "restricted": 100,
+      "group": "C2",
+      "unit": "person"
+    },
+    "custodialIncapable": {
+      "label": "Custodial institution, incapable adults",
+      "table": "8.5.1(d)",
+      "row": "C3",
+      "full": 120,
+      "restricted": 70,
+      "group": "C3",
+      "unit": "person"
+    },
+    "penalChildren": {
+      "label": "Penal and mental institution, children",
+      "table": "8.5.1(d)",
+      "row": "C4",
+      "full": 100,
+      "restricted": 60,
+      "group": "C4",
+      "unit": "person"
+    },
+    "penalAdults": {
+      "label": "Penal and mental institution, adults",
+      "table": "8.5.1(d)",
+      "row": "C5",
+      "full": 120,
+      "restricted": 70,
+      "group": "C5",
+      "unit": "person"
+    },
+    "hospital": {
+      "label": "Normal medical facility (small hospital)",
+      "table": "8.5.1(d)",
+      "row": "D1",
+      "full": 340,
+      "restricted": 225,
+      "group": "D1",
+      "unit": "person"
+    },
+    "hospitalLarge": {
+      "label": "Big hospital (over 100 beds)",
+      "table": "8.5.1(d)",
+      "row": "D1",
+      "full": 450,
+      "restricted": 250,
+      "group": "D1",
+      "unit": "person"
+    },
+    "emergencyMedical": {
+      "label": "Emergency medical facility",
+      "table": "8.5.1(d)",
+      "row": "D2",
+      "full": 300,
+      "restricted": 135,
+      "group": "D2",
+      "unit": "person"
+    },
+    "nursesQuarters": {
+      "label": "Nurses and medical quarters",
+      "table": "8.5.1(d)",
+      "row": "D2",
+      "full": 250,
+      "restricted": 135,
+      "group": "D2",
+      "unit": "person"
+    },
+    "office": {
+      "label": "Office",
+      "table": "8.5.1(d)",
+      "row": "E1",
+      "full": 45,
+      "restricted": 30,
+      "group": "E1",
+      "unit": "person"
+    },
+    "laboratory": {
+      "label": "Research and testing laboratory",
+      "table": "8.5.1(d)",
+      "row": "E2",
+      "full": 70,
+      "restricted": 45,
+      "group": "E2",
+      "unit": "person"
+    },
+    "essentialServices": {
+      "label": "Essential services",
+      "table": "8.5.1(d)",
+      "row": "E3",
+      "full": 70,
+      "restricted": 45,
+      "group": "E3",
+      "unit": "person"
+    },
+    "shop": {
+      "label": "Small shops and market",
+      "table": "8.5.1(d)",
+      "row": "F1",
+      "full": 45,
+      "restricted": 30,
+      "group": "F1",
+      "unit": "person"
+    },
+    "largeShop": {
+      "label": "Large shops and market",
+      "table": "8.5.1(d)",
+      "row": "F2",
+      "full": 45,
+      "restricted": 30,
+      "group": "F2",
+      "unit": "person"
+    },
+    "refueling": {
+      "label": "Refueling station",
+      "table": "8.5.1(d)",
+      "row": "F3",
+      "full": 70,
+      "restricted": 45,
+      "group": "F3",
+      "unit": "person"
+    },
+    "industryLow": {
+      "label": "Low hazard industry",
+      "table": "8.5.1(d)",
+      "row": "G1",
+      "full": 40,
+      "restricted": 25,
+      "group": "G1",
+      "unit": "person"
+    },
+    "industryModerate": {
+      "label": "Moderate hazard industry",
+      "table": "8.5.1(d)",
+      "row": "G2",
+      "full": 40,
+      "restricted": 25,
+      "group": "G2",
+      "unit": "person"
+    },
+    "storageLow": {
+      "label": "Low fire risk storage",
+      "table": "8.5.1(d)",
+      "row": "H1",
+      "full": 10,
+      "restricted": 6,
+      "group": "H1",
+      "unit": "person"
+    },
+    "storageModerate": {
+      "label": "Moderate fire risk storage",
+      "table": "8.5.1(d)",
+      "row": "H2",
+      "full": 10,
+      "restricted": 6,
+      "group": "H2",
+      "unit": "person"
+    },
+    "assemblyLargeFixed": {
+      "label": "Large assembly with fixed seats (per seat)",
+      "table": "8.5.1(d)",
+      "row": "I1",
+      "full": 90,
+      "restricted": 45,
+      "group": "I1",
+      "unit": "seat"
+    },
+    "assemblySmallFixed": {
+      "label": "Small assembly with fixed seats (per seat)",
+      "table": "8.5.1(d)",
+      "row": "I2",
+      "full": 90,
+      "restricted": 45,
+      "group": "I2",
+      "unit": "seat"
+    },
+    "assemblyLarge": {
+      "label": "Large assembly without fixed seats",
+      "table": "8.5.1(d)",
+      "row": "I3",
+      "full": 15,
+      "restricted": 10,
+      "group": "I3",
+      "unit": "person"
+    },
+    "assemblySmall": {
+      "label": "Small assembly without fixed seats",
+      "table": "8.5.1(d)",
+      "row": "I4",
+      "full": 15,
+      "restricted": 10,
+      "group": "I4",
+      "unit": "person"
+    },
+    "sports": {
+      "label": "Sports facility",
+      "table": "8.5.1(d)",
+      "row": "I5",
+      "full": 15,
+      "restricted": 10,
+      "group": "I5",
+      "unit": "person"
+    },
+    "hazardExplosion": {
+      "label": "Explosion hazard building",
+      "table": "8.5.1(d)",
+      "row": "J1",
+      "full": 15,
+      "restricted": 10,
+      "group": "J1",
+      "unit": "person"
+    },
+    "hazardChemical": {
+      "label": "Chemical hazard building",
+      "table": "8.5.1(d)",
+      "row": "J2",
+      "full": 15,
+      "restricted": 10,
+      "group": "J2",
+      "unit": "person"
+    },
+    "hazardBiological": {
+      "label": "Biological hazard building",
+      "table": "8.5.1(d)",
+      "row": "J3",
+      "full": 10,
+      "restricted": 6,
+      "group": "J3",
+      "unit": "person"
+    },
+    "hazardRadiation": {
+      "label": "Radiation hazard building",
+      "table": "8.5.1(d)",
+      "row": "J4",
+      "full": 10,
+      "restricted": 6,
+      "group": "J4",
+      "unit": "person"
+    },
+    "parking": {
+      "label": "Parking garage (visitors)",
+      "table": "8.5.1(d)",
+      "row": "K1",
+      "full": 15,
+      "restricted": 10,
+      "group": "K1",
+      "unit": "person"
+    },
+    "privateGarage": {
+      "label": "Private garage (visitors)",
+      "table": "8.5.1(d)",
+      "row": "K2",
+      "full": 15,
+      "restricted": 10,
+      "group": "K2",
+      "unit": "person"
+    },
+    "repairGarage": {
+      "label": "Repair garage (visitors)",
+      "table": "8.5.1(d)",
+      "row": "K3",
+      "full": 15,
+      "restricted": 10,
+      "group": "K3",
+      "unit": "person"
+    },
+    "utility": {
+      "label": "Utility",
+      "table": "8.5.1(d)",
+      "row": "L",
+      "full": 10,
+      "restricted": 6,
+      "group": "L",
+      "unit": "person"
+    },
+    "tanksTowers": {
+      "label": "Fences, tanks and towers",
+      "table": "8.5.1(d)",
+      "row": "M2",
+      "full": null,
+      "restricted": 3,
+      "group": "M2",
+      "unit": "person"
+    }
+  },
+  "familySize": 5,
+  "officeAreaPerPerson": 7.4,
+  "roofTankFraction": 0.5,
+  "reservoirFraction": 1.0,
+  "fireReserveHours": 1.0,
+  "consumptionHours": 16.0,
+  "peakFactor": 2.2,
+  "tankDrain": [
+    {
+      "upTo": 2800,
+      "diameter": 25
+    },
+    {
+      "upTo": 5500,
+      "diameter": 38
+    },
+    {
+      "upTo": 11000,
+      "diameter": 50
+    },
+    {
+      "upTo": 19000,
+      "diameter": 63
+    },
+    {
+      "upTo": 28000,
+      "diameter": 75
+    },
+    {
+      "upTo": null,
+      "diameter": 100
+    }
+  ],
+  "tankOverflow": [
+    {
+      "upTo": 190,
+      "diameter": 50
+    },
+    {
+      "upTo": 570,
+      "diameter": 63
+    },
+    {
+      "upTo": 760,
+      "diameter": 75
+    },
+    {
+      "upTo": 1500,
+      "diameter": 100
+    },
+    {
+      "upTo": 2650,
+      "diameter": 125
+    },
+    {
+      "upTo": 3800,
+      "diameter": 150
+    },
+    {
+      "upTo": null,
+      "diameter": 200
+    }
+  ],
+  "velocityLimits": [
+    {
+      "diameter": 13,
+      "velocity": 0.3
+    },
+    {
+      "diameter": 50,
+      "velocity": 0.6
+    },
+    {
+      "diameter": 75,
+      "velocity": 0.75
+    },
+    {
+      "diameter": 100,
+      "velocity": 0.9
+    },
+    {
+      "diameter": 150,
+      "velocity": 1.15
+    },
+    {
+      "diameter": 200,
+      "velocity": 1.3
+    }
+  ],
+  "maxHeadLoss": 1.6,
+  "supplyDiameters": [
+    13,
+    19,
+    25,
+    32,
+    38,
+    50,
+    63,
+    75,
+    100,
+    125,
+    150,
+    200
+  ],
+  "flowPressureTank": 55.0,
+  "flowPressureValve": 100.0,
+  "maxStaticHead": 35.0,
+  "highRise": 33000.0,
+  "hunter": [
+    {
+      "units": 20,
+      "tank": 56.6,
+      "valve": 133.1
+    },
+    {
+      "units": 40,
+      "tank": 93.4,
+      "valve": 178.4
+    },
+    {
+      "units": 60,
+      "tank": 121.8,
+      "valve": 209.5
+    },
+    {
+      "units": 80,
+      "tank": 144.4,
+      "valve": 235.0
+    },
+    {
+      "units": 100,
+      "tank": 161.4,
+      "valve": 257.7
+    },
+    {
+      "units": 120,
+      "tank": 181.2,
+      "valve": 277.5
+    },
+    {
+      "units": 140,
+      "tank": 201.0,
+      "valve": 294.5
+    },
+    {
+      "units": 160,
+      "tank": 215.2,
+      "valve": 311.5
+    },
+    {
+      "units": 180,
+      "tank": 232.2,
+      "valve": 328.5
+    },
+    {
+      "units": 200,
+      "tank": 243.5,
+      "valve": 348.3
+    },
+    {
+      "units": 220,
+      "tank": 260.5,
+      "valve": 359.6
+    },
+    {
+      "units": 240,
+      "tank": 271.8,
+      "valve": 370.9
+    },
+    {
+      "units": 300,
+      "tank": 322.8,
+      "valve": 416.2
+    },
+    {
+      "units": 400,
+      "tank": 396.4,
+      "valve": 481.4
+    },
+    {
+      "units": 500,
+      "tank": 472.9,
+      "valve": 538.0
+    },
+    {
+      "units": 600,
+      "tank": 549.3,
+      "valve": 597.5
+    },
+    {
+      "units": 700,
+      "tank": 606.0,
+      "valve": 651.3
+    },
+    {
+      "units": 800,
+      "tank": 682.4,
+      "valve": 693.7
+    },
+    {
+      "units": 900,
+      "tank": 739.0,
+      "valve": 739.0
+    },
+    {
+      "units": 1000,
+      "tank": 795.7,
+      "valve": 795.7
+    }
+  ],
+  "supplyUnits": {
+    "wc": {
+      "cold": 5,
+      "hot": 0,
+      "total": 5,
+      "source": "Table 8.O.1 water closet, flush tank",
+      "minimum": 19
+    },
+    "wcValve": {
+      "cold": 10,
+      "hot": 0,
+      "total": 10,
+      "source": "Table 8.O.1 water closet, flush valve",
+      "minimum": 25
+    },
+    "urinal": {
+      "cold": 3,
+      "hot": 0,
+      "total": 3,
+      "source": "Table 8.O.1 stall or wall urinal, flush tank",
+      "minimum": 13
+    },
+    "urinalValve": {
+      "cold": 5,
+      "hot": 0,
+      "total": 5,
+      "source": "Table 8.O.1 stall or wall urinal, flush valve",
+      "minimum": 19
+    },
+    "basin": {
+      "cold": 0.75,
+      "hot": 0.75,
+      "total": 1,
+      "source": "Table 8.5.4 wash basin (domestic use)",
+      "minimum": 19
+    },
+    "shower": {
+      "cold": 3,
+      "hot": 3,
+      "total": 4,
+      "source": "Table 8.O.1 shower head, mixing valve",
+      "minimum": 13
+    },
+    "bathtub": {
+      "cold": 1.5,
+      "hot": 1.5,
+      "total": 2,
+      "source": "Table 8.O.1 bathtub, faucet",
+      "minimum": 13
+    },
+    "kitchenSink": {
+      "cold": 1.5,
+      "hot": 1.5,
+      "total": 2,
+      "source": "Table 8.O.1 kitchen sink, faucet",
+      "minimum": 13
+    },
+    "washingMachine": {
+      "cold": 2.25,
+      "hot": 2.25,
+      "total": 3,
+      "source": "Table 8.5.4 washing machine",
+      "minimum": 13
+    },
+    "bidet": {
+      "cold": 1.5,
+      "hot": 1.5,
+      "total": 2,
+      "source": "Table 8.O.1 bidet, faucet",
+      "minimum": 13
+    },
+    "floorDrain": {
+      "cold": 0,
+      "hot": 0,
+      "total": 0,
+      "source": "no supply",
+      "minimum": 0
+    }
+  },
+  "drainageUnits": {
+    "wc": {
+      "units": 3,
+      "source": "Table 8.6.12 water closet, tank operated",
+      "outlet": 100,
+      "soil": true
+    },
+    "wcValve": {
+      "units": 6,
+      "source": "Table 8.6.12 water closet, valve operated",
+      "outlet": 100,
+      "soil": true
+    },
+    "urinal": {
+      "units": 4,
+      "source": "Table 8.6.12 urinal, wall hung",
+      "outlet": 40,
+      "soil": true
+    },
+    "basin": {
+      "units": 1,
+      "source": "Table 8.6.12 wash basin, ordinary",
+      "outlet": 32,
+      "soil": false
+    },
+    "shower": {
+      "units": 2,
+      "source": "Table 8.6.12 shower stall, domestic",
+      "outlet": 40,
+      "soil": false
+    },
+    "bathtub": {
+      "units": 2,
+      "source": "Table 8.6.12 bathtub",
+      "outlet": 50,
+      "soil": false
+    },
+    "kitchenSink": {
+      "units": 2,
+      "source": "Table 8.6.12 kitchen sink, domestic",
+      "outlet": 40,
+      "soil": false
+    },
+    "floorDrain": {
+      "units": 1,
+      "source": "Table 8.6.12 floor trap",
+      "outlet": 65,
+      "soil": false
+    },
+    "washingMachine": {
+      "units": 3,
+      "source": "Table 8.6.13, 50 mm trap (SAEngine)",
+      "outlet": 50,
+      "soil": false
+    },
+    "bidet": {
+      "units": 2,
+      "source": "Table 8.6.12 bidet",
+      "outlet": 32,
+      "soil": false
+    }
+  },
+  "trapUnits": [
+    {
+      "diameter": 30,
+      "units": 1
+    },
+    {
+      "diameter": 40,
+      "units": 2
+    },
+    {
+      "diameter": 50,
+      "units": 3
+    },
+    {
+      "diameter": 65,
+      "units": 4
+    },
+    {
+      "diameter": 75,
+      "units": 5
+    },
+    {
+      "diameter": 100,
+      "units": 6
+    }
+  ],
+  "stacks": [
+    {
+      "diameter": 30,
+      "branch": 1,
+      "threeStoreys": 2,
+      "stackTotal": 2,
+      "storeyTotal": 1
+    },
+    {
+      "diameter": 40,
+      "branch": 3,
+      "threeStoreys": 4,
+      "stackTotal": 8,
+      "storeyTotal": 2
+    },
+    {
+      "diameter": 50,
+      "branch": 6,
+      "threeStoreys": 10,
+      "stackTotal": 24,
+      "storeyTotal": 6
+    },
+    {
+      "diameter": 65,
+      "branch": 12,
+      "threeStoreys": 20,
+      "stackTotal": 42,
+      "storeyTotal": 9
+    },
+    {
+      "diameter": 75,
+      "branch": 20,
+      "threeStoreys": 30,
+      "stackTotal": 60,
+      "storeyTotal": 16
+    },
+    {
+      "diameter": 100,
+      "branch": 160,
+      "threeStoreys": 240,
+      "stackTotal": 500,
+      "storeyTotal": 90
+    },
+    {
+      "diameter": 125,
+      "branch": 360,
+      "threeStoreys": 540,
+      "stackTotal": 1100,
+      "storeyTotal": 200
+    },
+    {
+      "diameter": 150,
+      "branch": 620,
+      "threeStoreys": 960,
+      "stackTotal": 1900,
+      "storeyTotal": 350
+    },
+    {
+      "diameter": 200,
+      "branch": 1400,
+      "threeStoreys": 2200,
+      "stackTotal": 3600,
+      "storeyTotal": 600
+    },
+    {
+      "diameter": 250,
+      "branch": 2500,
+      "threeStoreys": 3800,
+      "stackTotal": 5600,
+      "storeyTotal": 1000
+    },
+    {
+      "diameter": 300,
+      "branch": 3900,
+      "threeStoreys": 6000,
+      "stackTotal": 8400,
+      "storeyTotal": 1500
+    },
+    {
+      "diameter": 375,
+      "branch": 7000,
+      "threeStoreys": null,
+      "stackTotal": null,
+      "storeyTotal": null
+    }
+  ],
+  "drainSlopes": [
+    0.005,
+    0.01,
+    0.02,
+    0.04
+  ],
+  "buildingDrains": [
+    {
+      "diameter": 100,
+      "units": [
+        null,
+        180,
+        216,
+        250
+      ]
+    },
+    {
+      "diameter": 150,
+      "units": [
+        null,
+        700,
+        840,
+        1000
+      ]
+    },
+    {
+      "diameter": 200,
+      "units": [
+        1400,
+        1600,
+        1920,
+        2300
+      ]
+    },
+    {
+      "diameter": 250,
+      "units": [
+        2500,
+        2900,
+        3500,
+        4200
+      ]
+    },
+    {
+      "diameter": 300,
+      "units": [
+        2900,
+        4600,
+        5600,
+        6700
+      ]
+    },
+    {
+      "diameter": 375,
+      "units": [
+        7000,
+        8300,
+        10000,
+        12000
+      ]
+    }
+  ],
+  "ventStacks": [
+    {
+      "diameter": 30,
+      "units": 2,
+      "lengths": {
+        "30": 9
+      }
+    },
+    {
+      "diameter": 40,
+      "units": 8,
+      "lengths": {
+        "30": 15,
+        "40": 45.5
+      }
+    },
+    {
+      "diameter": 40,
+      "units": 10,
+      "lengths": {
+        "30": 9,
+        "40": 30.5
+      }
+    },
+    {
+      "diameter": 50,
+      "units": 12,
+      "lengths": {
+        "30": 9,
+        "40": 22.5,
+        "50": 61
+      }
+    },
+    {
+      "diameter": 50,
+      "units": 20,
+      "lengths": {
+        "30": 8,
+        "40": 15,
+        "50": 45.5
+      }
+    },
+    {
+      "diameter": 65,
+      "units": 42,
+      "lengths": {
+        "40": 9,
+        "50": 30.5,
+        "65": 91.5
+      }
+    },
+    {
+      "diameter": 75,
+      "units": 10,
+      "lengths": {
+        "40": 12.5,
+        "50": 45.5,
+        "65": 109.5,
+        "75": 317
+      }
+    },
+    {
+      "diameter": 75,
+      "units": 21,
+      "lengths": {
+        "40": 9.5,
+        "50": 33.5,
+        "65": 82,
+        "75": 247
+      }
+    },
+    {
+      "diameter": 75,
+      "units": 53,
+      "lengths": {
+        "40": 8,
+        "50": 28.5,
+        "65": 70,
+        "75": 207
+      }
+    },
+    {
+      "diameter": 75,
+      "units": 102,
+      "lengths": {
+        "40": 7.5,
+        "50": 26,
+        "65": 64,
+        "75": 189
+      }
+    },
+    {
+      "diameter": 100,
+      "units": 43,
+      "lengths": {
+        "50": 10.5,
+        "65": 26,
+        "75": 76,
+        "100": 298.5
+      }
+    },
+    {
+      "diameter": 100,
+      "units": 140,
+      "lengths": {
+        "50": 8,
+        "65": 19.5,
+        "75": 61,
+        "100": 228.5
+      }
+    },
+    {
+      "diameter": 100,
+      "units": 320,
+      "lengths": {
+        "50": 7,
+        "65": 16.5,
+        "75": 52,
+        "100": 195
+      }
+    },
+    {
+      "diameter": 100,
+      "units": 540,
+      "lengths": {
+        "50": 6.5,
+        "65": 15,
+        "75": 45.5,
+        "100": 176.5
+      }
+    },
+    {
+      "diameter": 125,
+      "units": 190,
+      "lengths": {
+        "65": 8.5,
+        "75": 25,
+        "100": 97.5,
+        "125": 301.5
+      }
+    },
+    {
+      "diameter": 125,
+      "units": 490,
+      "lengths": {
+        "65": 6.5,
+        "75": 19,
+        "100": 76,
+        "125": 231.5
+      }
+    },
+    {
+      "diameter": 125,
+      "units": 940,
+      "lengths": {
+        "65": 5.5,
+        "75": 16,
+        "100": 64,
+        "125": 204
+      }
+    },
+    {
+      "diameter": 125,
+      "units": 1400,
+      "lengths": {
+        "65": 4.5,
+        "75": 15,
+        "100": 58,
+        "125": 180
+      }
+    },
+    {
+      "diameter": 150,
+      "units": 500,
+      "lengths": {
+        "75": 10,
+        "100": 39.5,
+        "125": 122,
+        "150": 305
+      }
+    },
+    {
+      "diameter": 150,
+      "units": 1100,
+      "lengths": {
+        "75": 6.5,
+        "100": 30.5,
+        "125": 94.5,
+        "150": 237.5
+      }
+    },
+    {
+      "diameter": 150,
+      "units": 2000,
+      "lengths": {
+        "75": 6,
+        "100": 25.5,
+        "125": 79,
+        "150": 201
+      }
+    },
+    {
+      "diameter": 150,
+      "units": 2900,
+      "lengths": {
+        "100": 23.5,
+        "125": 73,
+        "150": 183
+      }
+    },
+    {
+      "diameter": 200,
+      "units": 1800,
+      "lengths": {
+        "100": 9.5,
+        "125": 29,
+        "150": 73,
+        "200": 286.5
+      }
+    },
+    {
+      "diameter": 200,
+      "units": 3400,
+      "lengths": {
+        "100": 7,
+        "125": 22,
+        "150": 58,
+        "200": 219.5
+      }
+    },
+    {
+      "diameter": 200,
+      "units": 5600,
+      "lengths": {
+        "100": 6,
+        "125": 19,
+        "150": 48.5,
+        "200": 186
+      }
+    },
+    {
+      "diameter": 200,
+      "units": 7600,
+      "lengths": {
+        "100": 5.5,
+        "125": 17,
+        "150": 42.5,
+        "200": 170.5
+      }
+    },
+    {
+      "diameter": 250,
+      "units": 4000,
+      "lengths": {
+        "125": 9.5,
+        "150": 23.5,
+        "200": 94.5,
+        "250": 292.5
+      }
+    },
+    {
+      "diameter": 250,
+      "units": 7200,
+      "lengths": {
+        "125": 7,
+        "150": 18,
+        "200": 73,
+        "250": 225.5
+      }
+    },
+    {
+      "diameter": 250,
+      "units": 11000,
+      "lengths": {
+        "125": 6,
+        "150": 15.5,
+        "200": 61,
+        "250": 192
+      }
+    },
+    {
+      "diameter": 250,
+      "units": 15000,
+      "lengths": {
+        "125": 5.5,
+        "150": 14,
+        "200": 55,
+        "250": 173.5
+      }
+    },
+    {
+      "diameter": 300,
+      "units": 7300,
+      "lengths": {
+        "150": 9.5,
+        "200": 36.5,
+        "250": 116,
+        "300": 286.5
+      }
+    },
+    {
+      "diameter": 300,
+      "units": 13000,
+      "lengths": {
+        "150": 7,
+        "200": 28.5,
+        "250": 91.5,
+        "300": 219.5
+      }
+    },
+    {
+      "diameter": 300,
+      "units": 20000,
+      "lengths": {
+        "150": 6,
+        "200": 24,
+        "250": 76,
+        "300": 186
+      }
+    },
+    {
+      "diameter": 300,
+      "units": 26000,
+      "lengths": {
+        "150": 5.5,
+        "200": 22,
+        "250": 70,
+        "300": 152.5
+      }
+    },
+    {
+      "diameter": 375,
+      "units": 15000,
+      "lengths": {
+        "200": 12,
+        "250": 39.5,
+        "300": 94.5
+      }
+    },
+    {
+      "diameter": 375,
+      "units": 25000,
+      "lengths": {
+        "200": 9.5,
+        "250": 29,
+        "300": 73
+      }
+    },
+    {
+      "diameter": 375,
+      "units": 38000,
+      "lengths": {
+        "200": 8,
+        "250": 24.5,
+        "300": 61
+      }
+    },
+    {
+      "diameter": 375,
+      "units": 50000,
+      "lengths": {
+        "200": 7,
+        "250": 22.5,
+        "300": 55
+      }
+    }
+  ],
+  "branchVents": [
+    {
+      "diameter": 30,
+      "slope": 20,
+      "lengths": {
+        "30": null
+      }
+    },
+    {
+      "diameter": 30,
+      "slope": 40,
+      "lengths": {
+        "30": null
+      }
+    },
+    {
+      "diameter": 40,
+      "slope": 20,
+      "lengths": {
+        "30": null,
+        "40": null
+      }
+    },
+    {
+      "diameter": 40,
+      "slope": 40,
+      "lengths": {
+        "30": null,
+        "40": null
+      }
+    },
+    {
+      "diameter": 50,
+      "slope": 10,
+      "lengths": {
+        "30": null,
+        "40": null,
+        "50": null
+      }
+    },
+    {
+      "diameter": 50,
+      "slope": 20,
+      "lengths": {
+        "30": 88,
+        "40": null,
+        "50": null
+      }
+    },
+    {
+      "diameter": 50,
+      "slope": 40,
+      "lengths": {
+        "30": 45,
+        "40": 115,
+        "50": null
+      }
+    },
+    {
+      "diameter": 65,
+      "slope": 10,
+      "lengths": {
+        "30": 54,
+        "40": 137,
+        "50": null
+      }
+    },
+    {
+      "diameter": 65,
+      "slope": 20,
+      "lengths": {
+        "30": 29,
+        "40": 73,
+        "50": null,
+        "65": null
+      }
+    },
+    {
+      "diameter": 65,
+      "slope": 40,
+      "lengths": {
+        "30": 15,
+        "40": 39,
+        "50": null,
+        "65": null
+      }
+    },
+    {
+      "diameter": 75,
+      "slope": 10,
+      "lengths": {
+        "40": 58,
+        "50": null,
+        "65": null,
+        "75": null
+      }
+    },
+    {
+      "diameter": 75,
+      "slope": 20,
+      "lengths": {
+        "40": 29.5,
+        "50": 128,
+        "65": null,
+        "75": null
+      }
+    },
+    {
+      "diameter": 75,
+      "slope": 40,
+      "lengths": {
+        "40": 15,
+        "50": 67,
+        "65": null,
+        "75": null
+      }
+    },
+    {
+      "diameter": 100,
+      "slope": 10,
+      "lengths": {
+        "50": 58,
+        "65": null,
+        "75": null,
+        "100": null
+      }
+    },
+    {
+      "diameter": 100,
+      "slope": 20,
+      "lengths": {
+        "50": 30,
+        "65": 94,
+        "75": null,
+        "100": null
+      }
+    },
+    {
+      "diameter": 100,
+      "slope": 40,
+      "lengths": {
+        "50": 14.5,
+        "65": 48.5,
+        "75": 125,
+        "100": null
+      }
+    },
+    {
+      "diameter": 125,
+      "slope": 10,
+      "lengths": {
+        "75": 149,
+        "100": null,
+        "125": null
+      }
+    },
+    {
+      "diameter": 125,
+      "slope": 20,
+      "lengths": {
+        "65": 58,
+        "75": 76,
+        "100": null,
+        "125": null
+      }
+    },
+    {
+      "diameter": 125,
+      "slope": 40,
+      "lengths": {
+        "65": 29.5,
+        "75": 39.5,
+        "100": null,
+        "125": null
+      }
+    },
+    {
+      "diameter": 150,
+      "slope": 10,
+      "lengths": {
+        "100": null,
+        "125": null,
+        "150": null
+      }
+    },
+    {
+      "diameter": 150,
+      "slope": 20,
+      "lengths": {
+        "65": 14,
+        "75": 58,
+        "100": 76,
+        "125": null,
+        "150": null
+      }
+    },
+    {
+      "diameter": 150,
+      "slope": 40,
+      "lengths": {
+        "75": 29.5,
+        "100": 39.5,
+        "125": null,
+        "150": null
+      }
+    },
+    {
+      "diameter": 200,
+      "slope": 10,
+      "lengths": {
+        "125": null,
+        "150": null,
+        "200": null
+      }
+    },
+    {
+      "diameter": 200,
+      "slope": 20,
+      "lengths": {
+        "75": 14,
+        "100": 58,
+        "125": 94.5,
+        "150": null,
+        "200": null
+      }
+    },
+    {
+      "diameter": 200,
+      "slope": 40,
+      "lengths": {
+        "100": 27.5,
+        "125": 45.5,
+        "150": 125,
+        "200": null,
+        "250": null
+      }
+    }
+  ],
+  "drainVelocity": [
+    0.6,
+    0.75,
+    2.5
+  ],
+  "septic": {
+    "minVolume": 2000.0,
+    "minWidth": 1000.0,
+    "minDepth": 1000.0,
+    "lengthRatio": [
+      3.0,
+      4.0
+    ],
+    "maxUsers": 300,
+    "sludge": 40.0,
+    "clearance": 300.0,
+    "retention": 1.0,
+    "desludging": 1.0,
+    "twoChambers": 3000.0,
+    "inletFraction": 0.6666666666666666,
+    "coverLive": 7.0,
+    "flowCity": 120.0,
+    "flowOther": 10.0
+  },
+  "septicReduction": {
+    "school": {
+      "factor": 0.25,
+      "source": "Table 8.S.1 (ii) primary and secondary school"
+    },
+    "college": {
+      "factor": 0.25,
+      "source": "Table 8.S.1 (iii) institution of higher learning"
+    },
+    "preschool": {
+      "factor": 0.08,
+      "source": "Table 8.S.1 (iv) community centre, kindergarten"
+    },
+    "office": {
+      "factor": 0.5,
+      "source": "Table 8.S.1 (xi) office, no. of staff"
+    },
+    "hotel": {
+      "factor": 0.7,
+      "source": "Table 8.S.1 (x) hotel, no. of beds"
+    },
+    "shop": {
+      "factor": 0.25,
+      "source": "Table 8.S.1 (vi) market, hawker/employee"
+    },
+    "largeShop": {
+      "factor": 0.25,
+      "source": "Table 8.S.1 (vi) market, hawker/employee"
+    },
+    "industryLow": {
+      "factor": 0.5,
+      "source": "Table 8.S.1 (v) factory, one shift per 24 hours"
+    },
+    "industryModerate": {
+      "factor": 0.5,
+      "source": "Table 8.S.1 (v) factory, one shift per 24 hours"
+    },
+    "assemblyLargeFixed": {
+      "factor": 0.03,
+      "source": "Table 8.S.1 (viii) cinema, hall seating capacity"
+    },
+    "assemblySmallFixed": {
+      "factor": 0.03,
+      "source": "Table 8.S.1 (viii) cinema, hall seating capacity"
+    }
+  },
+  "disposalDistances": {
+    "septic": {
+      "building": 1.5,
+      "well": 8,
+      "stream": null,
+      "seepagePit": 1.5,
+      "dryWell": null
+    },
+    "disposalField": {
+      "building": 3,
+      "well": 15,
+      "stream": 7.5,
+      "seepagePit": 6,
+      "dryWell": 6
+    },
+    "seepagePit": {
+      "building": 4.5,
+      "well": 15,
+      "stream": 15,
+      "seepagePit": 6,
+      "dryWell": 6
+    },
+    "dryWell": {
+      "building": 3,
+      "well": 15,
+      "stream": null,
+      "seepagePit": 6,
+      "dryWell": null
+    }
+  },
+  "treatmentTankDistances": {
+    "building": 1.5,
+    "cistern": 7.5,
+    "foundationWall": 1.5,
+    "lake": 7.5,
+    "lotLine": 0.6,
+    "pond": 7.5,
+    "reservoir": 7.5,
+    "spring": 15,
+    "stream": 7.5,
+    "swimmingPool": 4.5,
+    "waterService": 1.5,
+    "well": 7.5
+  },
+  "absorption": [
+    {
+      "rate": 2,
+      "trench": 128,
+      "pit": 172
+    },
+    {
+      "rate": 5,
+      "trench": 96,
+      "pit": 128
+    },
+    {
+      "rate": 10,
+      "trench": 68,
+      "pit": 92
+    },
+    {
+      "rate": 30,
+      "trench": 32,
+      "pit": 44
+    },
+    {
+      "rate": 60,
+      "trench": 16,
+      "pit": 24
+    }
+  ],
+  "seepageCapacityFactor": 2.0,
+  "seepageAboveWaterTable": 1000.0,
+  "percolationBySoil": {
+    "gravel": 2.0,
+    "sand": 5.0,
+    "siltySand": 10.0,
+    "silt": 30.0,
+    "clay": 60.0,
+    "organic": 120.0,
+    "rock": 120.0
+  },
+  "tableRainfall": 25.0,
+  "defaultRainfall": 88.0,
+  "harvestPlot": 300.0,
+  "harvestDays": {
+    "potable": 90,
+    "other": 210
+  },
+  "leaders": [
+    {
+      "diameter": 50,
+      "area": 202,
+      "flow": 87
+    },
+    {
+      "diameter": 65,
+      "area": 367,
+      "flow": 155
+    },
+    {
+      "diameter": 75,
+      "area": 598,
+      "flow": 253
+    },
+    {
+      "diameter": 100,
+      "area": 1287,
+      "flow": 544
+    },
+    {
+      "diameter": 125,
+      "area": 2336,
+      "flow": 986
+    },
+    {
+      "diameter": 150,
+      "area": 3790,
+      "flow": 1602
+    },
+    {
+      "diameter": 200,
+      "area": 8180,
+      "flow": 3450
+    }
+  ],
+  "gutters": [
+    {
+      "diameter": 75,
+      "slopes": {
+        "5": [
+          61,
+          25
+        ],
+        "10": [
+          87,
+          36
+        ],
+        "20": [
+          123,
+          51
+        ],
+        "40": [
+          174,
+          73
+        ]
+      }
+    },
+    {
+      "diameter": 100,
+      "slopes": {
+        "5": [
+          130,
+          55
+        ],
+        "10": [
+          185,
+          77
+        ],
+        "20": [
+          260,
+          110
+        ],
+        "40": [
+          370,
+          155
+        ]
+      }
+    },
+    {
+      "diameter": 125,
+      "slopes": {
+        "5": [
+          227,
+          96
+        ],
+        "10": [
+          320,
+          136
+        ],
+        "20": [
+          455,
+          192
+        ],
+        "40": [
+          645,
+          273
+        ]
+      }
+    },
+    {
+      "diameter": 150,
+      "slopes": {
+        "5": [
+          350,
+          148
+        ],
+        "10": [
+          495,
+          210
+        ],
+        "20": [
+          700,
+          296
+        ],
+        "40": [
+          1010,
+          425
+        ]
+      }
+    },
+    {
+      "diameter": 175,
+      "slopes": {
+        "5": [
+          503,
+          210
+        ],
+        "10": [
+          710,
+          300
+        ],
+        "20": [
+          1000,
+          425
+        ],
+        "40": [
+          1420,
+          600
+        ]
+      }
+    },
+    {
+      "diameter": 200,
+      "slopes": {
+        "5": [
+          725,
+          307
+        ],
+        "10": [
+          1020,
+          430
+        ],
+        "20": [
+          1300,
+          610
+        ],
+        "40": [
+          2040,
+          862
+        ]
+      }
+    },
+    {
+      "diameter": 250,
+      "slopes": {
+        "5": [
+          1300,
+          555
+        ],
+        "10": [
+          1850,
+          785
+        ],
+        "20": [
+          2610,
+          1110
+        ],
+        "40": [
+          3650,
+          1540
+        ]
+      }
+    }
+  ],
+  "stormDrains": [
+    {
+      "diameter": 75,
+      "slopes": {
+        "10": [
+          299,
+          125
+        ],
+        "20": [
+          422,
+          177
+        ],
+        "40": [
+          599,
+          252
+        ]
+      }
+    },
+    {
+      "diameter": 100,
+      "slopes": {
+        "10": [
+          668,
+          288
+        ],
+        "20": [
+          965,
+          406
+        ],
+        "40": [
+          1370,
+          577
+        ]
+      }
+    },
+    {
+      "diameter": 125,
+      "slopes": {
+        "10": [
+          1215,
+          515
+        ],
+        "20": [
+          1715,
+          725
+        ],
+        "40": [
+          2430,
+          1030
+        ]
+      }
+    },
+    {
+      "diameter": 150,
+      "slopes": {
+        "10": [
+          1950,
+          823
+        ],
+        "20": [
+          2745,
+          1157
+        ],
+        "40": [
+          3900,
+          1645
+        ]
+      }
+    },
+    {
+      "diameter": 200,
+      "slopes": {
+        "10": [
+          4185,
+          1765
+        ],
+        "20": [
+          5940,
+          2500
+        ],
+        "40": [
+          8380,
+          3540
+        ]
+      }
+    },
+    {
+      "diameter": 250,
+      "slopes": {
+        "10": [
+          7550,
+          3185
+        ],
+        "20": [
+          10650,
+          4500
+        ],
+        "40": [
+          15100,
+          6370
+        ]
+      }
+    },
+    {
+      "diameter": 300,
+      "slopes": {
+        "10": [
+          12140,
+          5100
+        ],
+        "20": [
+          17140,
+          7236
+        ],
+        "40": [
+          24280,
+          10250
+        ]
+      }
+    },
+    {
+      "diameter": 375,
+      "slopes": {
+        "10": [
+          21700,
+          9120
+        ],
+        "20": [
+          30600,
+          12900
+        ],
+        "40": [
+          43400,
+          18300
+        ]
+      }
+    }
+  ],
+  "minStormDrain": 100,
+  "outsideDiameter": {
+    "plastic": {
+      "13": 20,
+      "19": 25,
+      "25": 32,
+      "30": 40,
+      "32": 40,
+      "38": 50,
+      "40": 50,
+      "50": 63,
+      "63": 75,
+      "65": 75,
+      "75": 90,
+      "100": 110,
+      "125": 140,
+      "150": 160,
+      "175": 200,
+      "200": 225,
+      "250": 280,
+      "300": 315,
+      "375": 400
+    },
+    "metal": {
+      "13": 21.3,
+      "19": 26.9,
+      "25": 33.7,
+      "30": 42.4,
+      "32": 42.4,
+      "38": 48.3,
+      "40": 48.3,
+      "50": 60.3,
+      "63": 76.1,
+      "65": 76.1,
+      "75": 88.9,
+      "100": 114.3,
+      "125": 139.7,
+      "150": 165.1,
+      "175": 193.7,
+      "200": 219.1,
+      "250": 273.0,
+      "300": 323.9,
+      "375": 406.4
+    }
+  },
+  "hazenC": {
+    "uPVC": 150,
+    "PPR": 150,
+    "HDPE": 150,
+    "GI": 120,
+    "CI": 100
+  },
+  "sleeveClearance": 50.0,
+  "sleeveSizes": [
+    50,
+    65,
+    80,
+    100,
+    125,
+    150,
+    200,
+    250,
+    300,
+    350,
+    400,
+    450,
+    500
+  ],
+  "shaftClearance": 100.0,
+  "wetRoomKinds": {
+    "toilet": "Toilet with shower",
+    "halfBath": "WC and basin",
+    "publicToilet": "Public toilet",
+    "kitchen": "Kitchen",
+    "laundry": "Laundry",
+    "wetArea": "Other wet area (floor drain)"
+  },
+  "roomFixtures": {
+    "toilet": {
+      "wc": 1,
+      "basin": 1,
+      "shower": 1,
+      "floorDrain": 1
+    },
+    "halfBath": {
+      "wc": 1,
+      "basin": 1
+    },
+    "publicToilet": {
+      "wc": 2,
+      "urinal": 2,
+      "basin": 2,
+      "floorDrain": 1
+    },
+    "kitchen": {
+      "kitchenSink": 1,
+      "floorDrain": 1
+    },
+    "laundry": {
+      "washingMachine": 1,
+      "floorDrain": 1
+    },
+    "wetArea": {
+      "floorDrain": 1
+    }
+  },
+  "sources": {
+    "occupancies": "BNBC 2020 Part 8 Tables 8.5.1(a)-(d) (p1034-1037); residential rows take the Part 3 group of the building type; Table 8.5.1(c) ranges: the upper value",
+    "familySize": "BNBC 2020 Part 8 Sec 5.6.3-5.6.4 (p1039)",
+    "officeAreaPerPerson": "BNBC 2020 Part 8 Sec 5.6.3-5.6.4 (p1039): 7.4 to 9.3 m², the smaller",
+    "roofTankFraction": "BNBC 2020 Part 8 Sec 5.9.1.2(c) (p1041)",
+    "reservoirFraction": "BNBC 2020 Part 8 Sec 5.9.1.2(c) (p1041)",
+    "fireReserveHours": "BNBC 2020 Part 8 Sec 5.9.1.2(c) (p1041)",
+    "consumptionHours": "BNBC 2020 Part 8 Eq 8.5.1 (Sec 5.10.1(a)) (p1043): usually 15 to 17 hours",
+    "peakFactor": "BNBC 2020 Part 8 Eq 8.5.1 (Sec 5.10.1(a)) (p1043)",
+    "tankDrain": "BNBC 2020 Part 8 Table 8.5.2 (p1042)",
+    "tankOverflow": "BNBC 2020 Part 8 Table 8.5.3 (p1042)",
+    "velocityLimits": "BNBC 2020 Part 8 Sec 5.10.1(c)(ii) (p1044); SAEngine reads each pair of diameters with the pair of velocities in the same order and interpolates",
+    "maxHeadLoss": "BNBC 2020 Part 8 Sec 5.10.1(c)(ii) (p1044): 1.5-1.6 m per 100 m, the upper value",
+    "supplyDiameters": "BNBC 2020 Part 8 Tables 8.5.2, 8.5.6 and 8.O.2",
+    "flowPressureTank": "BNBC 2020 Part 8 Table 8.5.6 (p1047)",
+    "flowPressureValve": "BNBC 2020 Part 8 Table 8.5.6 (p1047)",
+    "maxStaticHead": "BNBC 2020 Part 8 Sec 5.10.4.2 (p1047); BNBC 2020 Part 8 Sec 5.11.1 (p1049)",
+    "highRise": "BNBC 2020 Part 3 Sec 2.4.4 (p94)",
+    "hunter": "BNBC 2020 Part 8 Table 8.5.5 (p1046)",
+    "supplyUnits": "BNBC 2020 Part 8 Appendix O Table 8.O.1 (p1196); BNBC 2020 Part 8 Appendix O Sec O.3-O.4 (p1195); BNBC 2020 Part 8 Table 8.5.4 (p1045) (75 % cold, 75 % hot); minimum pipe BNBC 2020 Part 8 Table 8.5.6 (p1047)",
+    "drainageUnits": "BNBC 2020 Part 8 Table 8.6.12 (p1112-1113); outlets BNBC 2020 Part 8 Table 8.6.2 (p1087); washing machine: BNBC 2020 Part 8 Table 8.6.13 (p1113) by a 50 mm trap (SAEngine)",
+    "trapUnits": "BNBC 2020 Part 8 Table 8.6.13 (p1113)",
+    "stacks": "BNBC 2020 Part 8 Table 8.6.14 (p1114)",
+    "drainSlopes": "BNBC 2020 Part 8 Table 8.6.15 (p1115)",
+    "buildingDrains": "BNBC 2020 Part 8 Table 8.6.15 (p1115)",
+    "ventStacks": "BNBC 2020 Part 8 Table 8.6.16 (p1116-1117)",
+    "branchVents": "BNBC 2020 Part 8 Table 8.6.17 (p1118); null: NL (no limit); '-' entries left out",
+    "drainVelocity": "BNBC 2020 Part 8 Sec 6.10.2.1 (p1113)",
+    "septic": "BNBC 2020 Part 8 Sec 6.9.12.7-6.9.12.13 (p1106); BNBC 2020 Part 8 Sec 6.9.13.2 (p1107); BNBC 2020 Part 8 Appendix S Eq 8.S.1 and Table 8.S.1 (p1214-1215)",
+    "septicReduction": "BNBC 2020 Part 8 Appendix S Eq 8.S.1 and Table 8.S.1 (p1214-1215)",
+    "disposalDistances": "BNBC 2020 Part 8 Table 8.6.8 (p1106)",
+    "treatmentTankDistances": "BNBC 2020 Part 8 Table 8.6.9 (Sec 6.9.14) (p1108)",
+    "absorption": "BNBC 2020 Part 8 Table 8.6.10 (p1110)",
+    "seepageCapacityFactor": "BNBC 2020 Part 8 Sec 6.9.15.2-6.9.15.4 (p1108-1109)",
+    "seepageAboveWaterTable": "BNBC 2020 Part 8 Sec 6.9.15.2-6.9.15.4 (p1108-1109)",
+    "percolationBySoil": "SAEngine: a first estimate from the soil type until the percolation tests (BNBC 2020 Part 8 Sec 6.9.15.2-6.9.15.4 (p1108-1109)) are done; typical ranges, not BNBC values",
+    "tableRainfall": "BNBC 2020 Part 8 Tables 8.7.2-8.7.4 notes and Appendix U",
+    "defaultRainfall": "BNBC 2020 Part 8 Appendix R Figure 8.R.1 (p1213): Dhaka between the 85 and 90 mm isohyets, about 88 mm",
+    "harvestPlot": "BNBC 2020 Part 8 Sec 7.4.1 (p1129)",
+    "harvestDays": "BNBC 2020 Part 8 Sec 7.8.9 (p1134)",
+    "leaders": "BNBC 2020 Part 8 Table 8.7.2 (p1135)",
+    "gutters": "BNBC 2020 Part 8 Table 8.7.3 (p1136)",
+    "stormDrains": "BNBC 2020 Part 8 Table 8.7.4 (p1141)",
+    "minStormDrain": "BNBC 2020 Part 8 Sec 7.10.6.3",
+    "outsideDiameter": "SAEngine (from memory, to be checked against the manufacturer): plastics by the ISO metric series, metal by ISO 65 / BS EN 10255",
+    "hazenC": "SAEngine (from memory, to be checked)",
+    "sleeveClearance": "SAEngine practice (BNBC Part 8 gives no sleeve rule)",
+    "sleeveSizes": "SAEngine practice",
+    "shaftClearance": "SAEngine practice",
+    "wetRoomKinds": "SAEngine defaults from common Bangladeshi practice, not BNBC",
+    "roomFixtures": "SAEngine defaults from common Bangladeshi practice, not BNBC (Part 8 Sec 4 gives the fixtures of a building, not of a room)"
+  }
+}

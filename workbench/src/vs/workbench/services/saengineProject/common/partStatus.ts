@@ -380,12 +380,20 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	// before Part 9 do not record them; Run All measures them again). Of the settings only the
 	// ground level counts: the earthwork is dug from it, and nothing else in the bill reads them.
 	const recorded = (part: string) => recordedStamp(document, part) !== undefined;
-	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
+	// The materials: only those the bill used (see boqSourceStamp).
+	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part), (p, text) => boqSourceStamp(p, text, document)))
 		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
 		|| (!recorded('substructure') && substructureHasFoundations(inputs))
 		|| (!recorded('mep') && mepHasContent(inputs))
 		|| (!recorded('architecture') && architectureHasContent(inputs.texts.get('architecture')))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
+	}
+	// What the bill left out (members with no bars, tanks not designed): it is not "measured" yet.
+	const notMeasured = typeof document.notMeasured === 'number' ? document.notMeasured : (Array.isArray(document.problems) ? document.problems.length : 0);
+	if (notMeasured > 0) {
+		return status('boq', 'inProgress', localize('partStatus.boq.incomplete', "incomplete"), notMeasured === 1
+			? localize('partStatus.boq.oneNotMeasured', "1 item not measured: see the warnings in the bill")
+			: localize('partStatus.boq.notMeasuredCount', "{0} items not measured: see the warnings in the bill", notMeasured));
 	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
 }
@@ -674,8 +682,12 @@ interface ISubstructureSummary {
 	readonly failed: number;
 	/** Foundations not checked (no loads, no soil, an unsupported type); optional, 0 when absent. */
 	readonly skipped?: number;
-	/** Columns without a support node or foundation the checks cannot handle; optional. */
-	readonly unsupported?: number;
+	/** Foundations and tie beams in the file; optional. */
+	readonly total?: number;
+	/** Foundations whose bearing was not checked (no qa); optional. */
+	readonly bearingUnchecked?: readonly string[];
+	/** Columns without a support node or foundation the checks cannot handle (a count, or their ids); optional. */
+	readonly unsupported?: number | readonly string[];
 	/**
 	 * The stamp of each part file the checks read, by part id ("" for a file that was missing):
 	 * the substructure, soil report, settings, materials, object types and building model.
@@ -720,16 +732,28 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 		&& (source ? sourcesUnchanged(inputs.texts, source) : inputs.substructureTime === undefined || time >= inputs.substructureTime)
 		&& (inputs.femResultsTime === undefined || time >= inputs.femResultsTime);
 	if (!current) {
-		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.check', "check the foundations"));
+		// The fails of the last check stay in view while the edits or new results wait for the next
+		// one, as the editor's status line keeps them (N-U5).
+		const text = summary && summary.failed > 0 ? localize('partStatus.substructure.failedStale', "{0} fail (stale)", summary.failed) : foundations;
+		return status('substructure', 'inProgress', text, localize('partStatus.substructure.check', "check the foundations"));
+	}
+	// Fails first: a foundation without its bearing check (no qa) can fail its other checks
+	// while none is checked in full (N-U3, N-U5).
+	if (summary.failed > 0) {
+		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
+	}
+	const noQa = Array.isArray(summary.bearingUnchecked) ? summary.bearingUnchecked.length : 0;
+	if (noQa > 0) {
+		return status('substructure', 'inProgress', localize('partStatus.substructure.noQa', "{0} without a bearing check", noQa), localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"));
 	}
 	if (summary.checked === 0) {
 		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
 	}
-	if (summary.failed > 0) {
-		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
-	}
 	// All pass only when every foundation was checked (U2): skipped or unsupported ones are not.
-	const unchecked = positive(summary.skipped) + positive(summary.unsupported);
+	// The editor's and Run All's file (substructureSummaryFile) give `total` and `unsupported` as a
+	// list; a foundation without its bearing check (no qa) is not in `checked` (N-U3).
+	const unsupported = Array.isArray(summary.unsupported) ? summary.unsupported.length : positive(summary.unsupported);
+	const unchecked = Math.max(positive(summary.skipped), positive(summary.total) - summary.checked) + unsupported;
 	if (unchecked > 0) {
 		return status('substructure', 'inProgress', localize('partStatus.substructure.unchecked', "{0} not checked", unchecked), localize('partStatus.substructure.checkRest', "check the foundations that were skipped"));
 	}

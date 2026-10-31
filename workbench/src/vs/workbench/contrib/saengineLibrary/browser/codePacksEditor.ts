@@ -124,7 +124,7 @@ export class CodePacksEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-code-packs-editor');
 		this.frame.setTitle(localize('codePacks.title', "Code Packs"));
-		this.frame.setHelp(localize('codePacks.help', "A code pack is a design code as data: locations and hazard tables, area loads, load combinations, seismic and wind coefficients, materials, resistance factors and detailing limits, each table with its clauses. A pack can extend another and override only the tables it provides. The design formulas stay in SAEngine; a pack replaces them only through hooks, which run only when you trust them. The project chooses its pack in 02 Project Settings."));
+		this.frame.setHelp(localize('codePacks.help', "A code pack is a design code as data: locations and hazard tables, area loads, load combinations, seismic and wind coefficients, materials, resistance factors, detailing limits, the plumbing, HVAC, electrical and fire protection tables and the steel sections, each table with its clauses. A pack can extend another and override only the tables it provides. The design formulas stay in SAEngine; a pack replaces them only through hooks, which run only when you trust them. The project chooses its pack in 02 Project Settings."));
 		this.frame.setActions([this.newAction, this.installAction, this.validateAction, this.refreshAction, this.frame.togglePropertiesAction], [this.openManifestAction]);
 		this.list = $('.code-packs-list', { role: 'listbox', tabIndex: 0, 'aria-label': localize('codePacks.listLabel', "Installed code packs") });
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));

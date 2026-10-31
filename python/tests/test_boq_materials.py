@@ -174,14 +174,49 @@ def test_the_sample_bill_takes_off_its_concrete() -> None:
         for m in ("C24.1", "C27.6")
     }
     dry = (volume["C24.1"] + volume["C27.6"]) * DRY_VOLUME_CONCRETE
+    # The blinding under the foundations (lean concrete, no material of its own) is 1:3:6 (10
+    # parts; N-Q2 of usability walk 2: it took no cement, sand or stone before).
+    blinding = DRY_VOLUME_CONCRETE * sum(
+        i["quantity"] for i in items if i["group"] == "concrete" and i.get("kind") == "blinding"
+    )
+    assert blinding > 0
     materials: dict[str, tuple[float, str]] = {}
     for i in items:
         if i["group"] == "materials":
             total, _ = materials.get(i["kind"], (0.0, ""))
             materials[i["kind"]] = (total + i["quantity"], i["unit"])
-    assert materials["cement"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY, rel=1e-3), "kg")
-    assert materials["bags"] == (pytest.approx(dry / 5.5 * CEMENT_DENSITY / 50, rel=1e-3), "bag")
-    assert materials["sand"] == (pytest.approx(dry * 1.5 / 5.5 * CFT, rel=1e-3), "cft")
-    assert materials["stone"] == (pytest.approx(dry * 3 / 5.5 * CFT, rel=1e-3), "cft")
+    cement = (dry / 5.5 + blinding / 10) * CEMENT_DENSITY
+    assert materials["cement"] == (pytest.approx(cement, rel=1e-3), "kg")
+    assert materials["bags"] == (pytest.approx(cement / 50, rel=1e-3), "bag")
+    sand = (dry * 1.5 / 5.5 + blinding * 3 / 10) * CFT
+    assert materials["sand"] == (pytest.approx(sand, rel=1e-3), "cft")
+    stone = (dry * 3 / 5.5 + blinding * 6 / 10) * CFT
+    assert materials["stone"] == (pytest.approx(stone, rel=1e-3), "cft")
     assert materials["water"][1] == "l"
     assert any("C27.6 has no mix: 1:1.5:3 assumed" in n for n in bill["notes"])
+    assert any("the blinding (lean concrete) 1:3:6 assumed" in n for n in bill["notes"])
+    # The materials the bill used are recorded, and the stamp is of their entries only.
+    assert "C24.1" in bill["source"]["materialIds"]
+    assert bill["notMeasured"] == 0 or bill["problems"]
+
+
+def test_an_unused_material_leaves_the_bill_current() -> None:
+    # N-Q3 of usability walk 2: adding a material that nothing uses marked the BOQ stale.
+    import json
+
+    from saengine.boq.quantities import js_json, materials_stamp, used_materials
+    from saengine.library.materials import MaterialLibrary
+
+    text = (SAMPLE / "03 Materials/materials.json").read_text(encoding="utf-8")
+    objects = (SAMPLE / "04 Objects/objects.json").read_text(encoding="utf-8")
+    used = used_materials(MaterialLibrary.model_validate_json(text), [objects])
+    data = json.loads(text)
+    data["materials"].append({**data["materials"][0], "id": "UNUSED", "name": "Unused"})
+    more = json.dumps(data, indent="	")
+    assert materials_stamp(more, used) == materials_stamp(text, used)
+    next(m for m in data["materials"] if m["id"] in used)["name"] = "Renamed"
+    assert materials_stamp(json.dumps(data), used) != materials_stamp(text, used)
+    # JSON.stringify's numbers, which the workbench stamps the same text with.
+    assert js_json([1.0, 2.5, 1e-5, 1.5e-7, 1e21, 2e20, -0.25, 7, "Ø"]) == (
+        '[1,2.5,0.00001,1.5e-7,1e+21,200000000000000000000,-0.25,7,"Ø"]'
+    )

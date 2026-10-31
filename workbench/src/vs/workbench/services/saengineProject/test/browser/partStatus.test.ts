@@ -99,6 +99,7 @@ suite('SAEngine - PartStatus', () => {
 			lines({ boq: BOQ })[9],
 			lines({ boq: BOQ, objects: '{"objects": [1]}' })[9],
 			lines({ boq: '[' })[9],
+			lines({ boq: BOQ.replace('"items":[]', '"items":[],"notMeasured":148') })[9],
 			lines({ floorPlan: '{"schema": "saengine.floorPlan/1", "grids": {}}' })[5],
 			lines({ bim: JSON.stringify({ schema: 'saengine.bim/2', elements: [] }) })[5],
 			lines({}, { reportTime: 42 })[10],
@@ -108,6 +109,7 @@ suite('SAEngine - PartStatus', () => {
 			'boq: done measured',
 			'boq: stale stale',
 			'boq: error invalid file',
+			'boq: inProgress incomplete',
 			'bim: stale stale',
 			'bim: notStarted not built',
 			'exports: inProgress report day 42',
@@ -222,11 +224,12 @@ suite('SAEngine - PartStatus', () => {
 			'inProgress 2 foundations (check the foundations)',
 			'inProgress 2 foundations (run the analysis to design them)',
 			'failed 1 fail (review the failing foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
+			// Stale: the fails of the last check stay in view, as in the editor's status line (N-U5).
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
+			'inProgress 1 fail (stale) (check the foundations)',
 			'failed 1 fail (review the failing foundations)',
 		]);
 	});
@@ -562,5 +565,11 @@ suite('SAEngine - PartStatus', () => {
 		const foundations = JSON.stringify({ schema: 'saengine.substructure/1', foundations: [{ id: 'F1' }, { id: 'F2' }] });
 		const skipped = JSON.stringify({ foundations: 2, checked: 1, passed: 1, failed: 0, skipped: 1, source: { substructure: sourceStamp(foundations) } });
 		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: skipped, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 not checked');
+		// The editor's file: F2 passed all but its bearing check (no qa), so it is not checked (N-U3, N-U5).
+		const noQa = JSON.stringify({ foundations: 2, checked: 1, total: 2, passed: 1, failed: 0, bearingUnchecked: ['F2'], unsupported: [], status: 'incomplete', source: { substructure: sourceStamp(foundations) } });
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: noQa, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 without a bearing check');
+		// A raft without qa failing its shear: none checked in full, yet it fails (the 10-storey walk).
+		const failsNoQa = JSON.stringify({ foundations: 2, checked: 0, total: 2, passed: 0, failed: 1, bearingUnchecked: ['F1', 'F2'], unsupported: [], status: 'fail', source: { substructure: sourceStamp(foundations) } });
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: failsNoQa, substructureSummaryTime: 3 }))[8], 'substructure: failed 1 fail');
 	});
 });

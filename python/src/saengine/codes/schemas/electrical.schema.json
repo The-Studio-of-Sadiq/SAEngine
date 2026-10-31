@@ -1,0 +1,1838 @@
+{
+  "$defs": {
+    "Busbar": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depth"
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[kg/m]",
+          "title": "Mass"
+        }
+      },
+      "required": [
+        "width",
+        "depth",
+        "mass"
+      ],
+      "title": "Busbar",
+      "type": "object"
+    },
+    "CableOd": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "amps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Amps"
+        },
+        "od": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Outside diameter [mm].",
+          "title": "Od"
+        }
+      },
+      "required": [
+        "amps",
+        "od"
+      ],
+      "title": "CableOd",
+      "type": "object"
+    },
+    "ElectricalUse": {
+      "additionalProperties": false,
+      "description": "A row of Table 8.1.17: the minimum unit load [W/m²].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "nonAc": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Nonac"
+        },
+        "ac": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "With air conditioning; null: the table gives none.",
+          "title": "Ac"
+        },
+        "lightningA": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Table 8.1.27(a) index A of the row's kind.",
+          "title": "Lightninga"
+        },
+        "lightningC": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Table 8.1.27(b) index C of the row's kind.",
+          "title": "Lightningc"
+        }
+      },
+      "required": [
+        "label",
+        "nonAc",
+        "ac",
+        "lightningA",
+        "lightningC"
+      ],
+      "title": "ElectricalUse",
+      "type": "object"
+    },
+    "GeneratorSet": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Length"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[kg]",
+          "title": "Mass"
+        }
+      },
+      "required": [
+        "length",
+        "width",
+        "height",
+        "mass"
+      ],
+      "title": "GeneratorSet",
+      "type": "object"
+    },
+    "IecLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "sphere": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Rolling sphere radius [m].",
+          "title": "Sphere"
+        },
+        "mesh": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Mesh size [m].",
+          "title": "Mesh"
+        },
+        "downSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Typical down-conductor spacing [m].",
+          "title": "Downspacing"
+        }
+      },
+      "required": [
+        "sphere",
+        "mesh",
+        "downSpacing"
+      ],
+      "title": "IecLevel",
+      "type": "object"
+    },
+    "IndexRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Index"
+        }
+      },
+      "required": [
+        "label",
+        "index"
+      ],
+      "title": "IndexRow",
+      "type": "object"
+    },
+    "IndexStep": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Upto"
+        },
+        "index": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Index"
+        }
+      },
+      "required": [
+        "upTo",
+        "index"
+      ],
+      "title": "IndexStep",
+      "type": "object"
+    },
+    "LtPanel": {
+      "additionalProperties": false,
+      "properties": {
+        "section": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Section width [mm].",
+          "title": "Section"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depth"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        },
+        "massPerM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[kg/m]",
+          "title": "Massperm"
+        },
+        "ampsPerSection": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Amperes per section beyond the incomer.",
+          "title": "Ampspersection"
+        }
+      },
+      "required": [
+        "section",
+        "depth",
+        "height",
+        "massPerM",
+        "ampsPerSection"
+      ],
+      "title": "LtPanel",
+      "type": "object"
+    },
+    "Panel": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depth"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[kg]",
+          "title": "Mass"
+        },
+        "kvar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A capacitor bank's kvar.",
+          "title": "Kvar"
+        }
+      },
+      "required": [
+        "width",
+        "depth",
+        "height",
+        "mass"
+      ],
+      "title": "Panel",
+      "type": "object"
+    },
+    "SubstationArea": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "number": {
+          "description": "Number of transformers.",
+          "exclusiveMinimum": 0,
+          "title": "Number",
+          "type": "integer"
+        },
+        "kva": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Kva"
+        },
+        "transformerArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[m²]",
+          "title": "Transformerarea"
+        },
+        "totalArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "With HT and LT panels, without generators [m²].",
+          "title": "Totalarea"
+        }
+      },
+      "required": [
+        "number",
+        "kva",
+        "transformerArea",
+        "totalArea"
+      ],
+      "title": "SubstationArea",
+      "type": "object"
+    },
+    "TransformerUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Length"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[kg]",
+          "title": "Mass"
+        },
+        "oil": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[litres]",
+          "title": "Oil"
+        }
+      },
+      "required": [
+        "length",
+        "width",
+        "height",
+        "mass",
+        "oil"
+      ],
+      "title": "TransformerUnit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "BNBC 2020 Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment\ndata for the first layout and SAEngine practice where the code is silent (marked in\n``sources``).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "pages": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause id -> citation.",
+      "title": "Pages",
+      "type": "object"
+    },
+    "uses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ElectricalUse"
+      },
+      "title": "Uses",
+      "type": "object"
+    },
+    "loadFactor": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Loadfactor",
+      "type": "number"
+    },
+    "substationKw": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Substationkw"
+    },
+    "powerFactor": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Powerfactor",
+      "type": "number"
+    },
+    "ltVoltage": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Ltvoltage"
+    },
+    "substationHeight": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "title": "Substationheight",
+      "type": "array"
+    },
+    "transformerClearance": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Transformerclearance",
+      "type": "object"
+    },
+    "transformerSpacing": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Transformerspacing",
+      "type": "object"
+    },
+    "soakPitOil": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Soakpitoil"
+    },
+    "substationAreas": {
+      "items": {
+        "$ref": "#/$defs/SubstationArea"
+      },
+      "title": "Substationareas",
+      "type": "array"
+    },
+    "transformerSizes": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Transformersizes",
+      "type": "array"
+    },
+    "transformerMax": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Transformermax"
+    },
+    "generatorClearance": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Generatorclearance"
+    },
+    "generatorSpacing": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Generatorspacing"
+    },
+    "generatorAreas": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "description": "Capacity [kW] -> room area [m²].",
+      "title": "Generatorareas",
+      "type": "object"
+    },
+    "generatorSizes": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Generatorsizes",
+      "type": "array"
+    },
+    "generatorPf": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Generatorpf",
+      "type": "number"
+    },
+    "fuelRate": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Fuelrate"
+    },
+    "fuelHours": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Fuelhours"
+    },
+    "essentialShare": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Essentialshare",
+      "type": "number"
+    },
+    "dieselDensity": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Dieseldensity"
+    },
+    "transformerOilDensity": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Transformeroildensity"
+    },
+    "liftStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Liftstoreys",
+      "type": "integer"
+    },
+    "liftHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Liftheight"
+    },
+    "liftStandbyStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Liftstandbystoreys",
+      "type": "integer"
+    },
+    "liftStandbyHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Liftstandbyheight"
+    },
+    "shaftStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Shaftstoreys",
+      "type": "integer"
+    },
+    "shaftHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Shaftheight"
+    },
+    "shaftSize": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "title": "Shaftsize",
+      "type": "array"
+    },
+    "shaftArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Shaftarea"
+    },
+    "cableRiserStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Cableriserstoreys",
+      "type": "integer"
+    },
+    "cableRiserArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Cableriserarea"
+    },
+    "busbarStoreys": {
+      "exclusiveMinimum": 0,
+      "title": "Busbarstoreys",
+      "type": "integer"
+    },
+    "cableSpacing": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Cablespacing"
+    },
+    "busbarRange": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        }
+      ],
+      "title": "Busbarrange",
+      "type": "array"
+    },
+    "openingClearance": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Openingclearance"
+    },
+    "trayClearance": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Trayclearance"
+    },
+    "openingStep": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Openingstep"
+    },
+    "trayHeadroom": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Trayheadroom"
+    },
+    "trayFill": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Trayfill",
+      "type": "number"
+    },
+    "trayWidths": {
+      "items": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Traywidths",
+      "type": "array"
+    },
+    "systemEarthOhm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Systemearthohm"
+    },
+    "electrodeSpacing": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Electrodespacing"
+    },
+    "earthPit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Earthpit"
+    },
+    "lightningEarthOhm": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        ]
+      },
+      "title": "Lightningearthohm",
+      "type": "object"
+    },
+    "construction": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IndexRow"
+      },
+      "title": "Construction",
+      "type": "object"
+    },
+    "structureUse": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IndexRow"
+      },
+      "title": "Structureuse",
+      "type": "object"
+    },
+    "contents": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IndexRow"
+      },
+      "title": "Contents",
+      "type": "object"
+    },
+    "isolation": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IndexRow"
+      },
+      "title": "Isolation",
+      "type": "object"
+    },
+    "terrain": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IndexRow"
+      },
+      "title": "Terrain",
+      "type": "object"
+    },
+    "heightIndex": {
+      "items": {
+        "$ref": "#/$defs/IndexStep"
+      },
+      "title": "Heightindex",
+      "type": "array"
+    },
+    "thunderIndex": {
+      "items": {
+        "$ref": "#/$defs/IndexStep"
+      },
+      "title": "Thunderindex",
+      "type": "array"
+    },
+    "thunderOver": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Thunderover"
+    },
+    "thunderDefault": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Thunderdefault"
+    },
+    "marginalRisk": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Marginalrisk"
+    },
+    "alwaysHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Alwaysheight"
+    },
+    "spikeArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Spikearea"
+    },
+    "spikeHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Spikeheight"
+    },
+    "roofConductorReach": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Roofconductorreach"
+    },
+    "downSingleArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Downsinglearea"
+    },
+    "downFirstArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Downfirstarea"
+    },
+    "downStepArea": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Downsteparea"
+    },
+    "downPerimeter": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Downperimeter"
+    },
+    "testBoxHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Testboxheight"
+    },
+    "lightningSizes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Lightningsizes",
+      "type": "object"
+    },
+    "iecLevels": {
+      "additionalProperties": {
+        "$ref": "#/$defs/IecLevel"
+      },
+      "title": "Ieclevels",
+      "type": "object"
+    },
+    "rebarOhm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Rebarohm"
+    },
+    "transformerOil": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TransformerUnit"
+      },
+      "description": "kVA -> unit.",
+      "title": "Transformeroil",
+      "type": "object"
+    },
+    "dryMass": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Drymass"
+    },
+    "generatorSets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/GeneratorSet"
+      },
+      "description": "kVA -> set.",
+      "title": "Generatorsets",
+      "type": "object"
+    },
+    "busbars": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Busbar"
+      },
+      "description": "Rating [A] -> trunking.",
+      "title": "Busbars",
+      "type": "object"
+    },
+    "cableOd": {
+      "items": {
+        "$ref": "#/$defs/CableOd"
+      },
+      "title": "Cableod",
+      "type": "array"
+    },
+    "ltPanel": {
+      "$ref": "#/$defs/LtPanel"
+    },
+    "htPanel": {
+      "$ref": "#/$defs/Panel"
+    },
+    "capacitorPanel": {
+      "$ref": "#/$defs/Panel"
+    },
+    "targetPf": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Targetpf",
+      "type": "number"
+    },
+    "upsKgPerKva": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Upskgperkva"
+    },
+    "batteryKgPerKwh": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Batterykgperkwh"
+    },
+    "upsAutonomyMin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Upsautonomymin"
+    },
+    "tankPlate": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Tankplate"
+    },
+    "steelWeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Steelweight"
+    }
+  },
+  "required": [
+    "uses",
+    "loadFactor",
+    "substationKw",
+    "powerFactor",
+    "ltVoltage",
+    "substationHeight",
+    "transformerClearance",
+    "transformerSpacing",
+    "soakPitOil",
+    "substationAreas",
+    "transformerSizes",
+    "transformerMax",
+    "generatorClearance",
+    "generatorSpacing",
+    "generatorAreas",
+    "generatorSizes",
+    "generatorPf",
+    "fuelRate",
+    "fuelHours",
+    "essentialShare",
+    "dieselDensity",
+    "transformerOilDensity",
+    "liftStoreys",
+    "liftHeight",
+    "liftStandbyStoreys",
+    "liftStandbyHeight",
+    "shaftStoreys",
+    "shaftHeight",
+    "shaftSize",
+    "shaftArea",
+    "cableRiserStoreys",
+    "cableRiserArea",
+    "busbarStoreys",
+    "cableSpacing",
+    "busbarRange",
+    "openingClearance",
+    "trayClearance",
+    "openingStep",
+    "trayHeadroom",
+    "trayFill",
+    "trayWidths",
+    "systemEarthOhm",
+    "electrodeSpacing",
+    "earthPit",
+    "lightningEarthOhm",
+    "construction",
+    "structureUse",
+    "contents",
+    "isolation",
+    "terrain",
+    "heightIndex",
+    "thunderIndex",
+    "thunderOver",
+    "thunderDefault",
+    "marginalRisk",
+    "alwaysHeight",
+    "spikeArea",
+    "spikeHeight",
+    "roofConductorReach",
+    "downSingleArea",
+    "downFirstArea",
+    "downStepArea",
+    "downPerimeter",
+    "testBoxHeight",
+    "lightningSizes",
+    "iecLevels",
+    "rebarOhm",
+    "transformerOil",
+    "dryMass",
+    "generatorSets",
+    "busbars",
+    "cableOd",
+    "ltPanel",
+    "htPanel",
+    "capacitorPanel",
+    "targetPf",
+    "upsKgPerKva",
+    "batteryKgPerKwh",
+    "upsAutonomyMin",
+    "tankPlate",
+    "steelWeight"
+  ],
+  "title": "ElectricalTable",
+  "type": "object",
+  "$id": "saengine.codePack.electrical/1"
+}

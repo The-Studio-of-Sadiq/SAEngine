@@ -82,6 +82,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -122,6 +123,10 @@ RAFT_LIMITS = {
 SOIL_NAMES = {"sand": "sand and hard clay", "plasticClay": "plastic clay"}
 #: A column's neighbours lie within this multiple of its distance to the nearest one.
 NEIGHBOURS = 1.5
+#: The longest a raft's solve may take [s], and how often a running one looks whether a newer
+#: check superseded it [s].
+SOLVE_TIMEOUT = 1800
+POLL = 0.5
 
 
 @dataclass(frozen=True)
@@ -428,16 +433,13 @@ def run_raft(
         shutil.rmtree(out)
     model.write_text(json.dumps(project), encoding="utf-8")
     cases = [str(a["id"]) for a in project["analyses"]]
-    done = subprocess.run(
+    returncode, stdout, stderr = _solve(
         [sys.executable, "-m", "opensees_studio.run", "--project", str(model), "--cases", *cases,
          "--out", str(out)],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=1800,
+        folder,
     )  # fmt: skip
-    if done.returncode != 0:
-        message = _error(done.stdout) or done.stderr[-1500:]
+    if returncode != 0:
+        message = _error(stdout) or stderr[-1500:]
         raise RuntimeError(f"the raft analysis of {spec.id} failed: {message}")
     names = list(combinations)
     w: dict[str, np.ndarray] = {}
@@ -452,6 +454,41 @@ def run_raft(
             for k in range(len(mesh.shells))
         ]
     return RaftResults(mesh, names, w, shells, notes)
+
+
+def _solve(command: list[str], folder: Path) -> tuple[int, str, str]:
+    """Runs the solver ``command``: its return code, stdout and stderr. Stopped (and
+    :class:`~saengine.substructure.jobs.Superseded` raised) as soon as a newer check of the
+    project is asked for (:func:`saengine.substructure.jobs.superseded`); a ``RuntimeError``
+    after :data:`SOLVE_TIMEOUT` seconds. The output goes to files in ``folder``: a pipe nobody
+    reads while polling would fill and stall the solver."""
+    from saengine.substructure.jobs import Superseded, superseded
+
+    with (
+        (folder / "solver.out").open("w+", encoding="utf-8") as out,
+        (folder / "solver.err").open("w+", encoding="utf-8") as err,
+    ):
+        process = subprocess.Popen(command, stdout=out, stderr=err, text=True)
+        try:
+            deadline = time.monotonic() + SOLVE_TIMEOUT
+            while True:
+                try:
+                    process.wait(timeout=POLL)
+                    break
+                except subprocess.TimeoutExpired:
+                    if superseded():
+                        raise Superseded() from None
+                    if time.monotonic() > deadline:
+                        raise RuntimeError(
+                            f"the raft analysis took longer than {SOLVE_TIMEOUT // 60} min"
+                        ) from None
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+        out.seek(0)
+        err.seek(0)
+        return process.returncode, out.read(), err.read()
 
 
 def _safe(text: str) -> str:
@@ -783,7 +820,7 @@ def _needed_bars(spec: RaftSpec, checks: list[dict[str, Any]]) -> None:
     instead how much steel it needs: As from Mu = 0.9 As fy 0.9 d (d with 16 mm bars), at least
     As,min, and the lightest mesh that gives it (as a new foundation's,
     :func:`saengine.substructure.run.minimum_mesh`)."""
-    from saengine.substructure.run import BAR_DIAS
+    from saengine.substructure.run import bar_dias
     from saengine.substructure.shallow import min_steel_ratio
 
     cover = spec.reinforcement.cover if spec.reinforcement is not None else 75.0
@@ -798,7 +835,7 @@ def _needed_bars(spec: RaftSpec, checks: list[dict[str, Any]]) -> None:
         mesh = next(
             (
                 f"{dia:g}@{spacing:g}"
-                for dia in BAR_DIAS
+                for dia in bar_dias()
                 for spacing in [min(math.floor(math.pi * dia**2 / 4 * 1e3 / need / 25) * 25, limit)]
                 if spacing >= 125
             ),
@@ -991,6 +1028,82 @@ RAFT_METHOD = [
 ]
 
 
+def _rigid_pressures(
+    outline: list[list[float]], columns: list[RaftColumn], loads: list[np.ndarray]
+) -> tuple[float, float, float]:
+    """``(P, qmax, qmin)`` of the column loads ``[P, Cx, Cy]`` on a rigid raft: the total load
+    [N] and the largest and least linear contact pressure at the outline's corners [N/mm²]
+    (P / A and the moments about the centroid over the second moments of the outline)."""
+    points = np.array(outline, dtype=float)
+    x, y = points[:, 0], points[:, 1]
+    x1, y1 = np.roll(x, -1), np.roll(y, -1)
+    cross = x * y1 - x1 * y
+    area = cross.sum() / 2
+    if abs(area) < 1e-9:
+        return 0.0, 0.0, 0.0
+    cx = ((x + x1) * cross).sum() / (6 * area)
+    cy = ((y + y1) * cross).sum() / (6 * area)
+    dx, dy, dx1, dy1 = x - cx, y - cy, x1 - cx, y1 - cy
+    c = dx * dy1 - dx1 * dy
+    jxx = ((dx**2 + dx * dx1 + dx1**2) * c).sum() / 12  # ∫ dx² dA
+    jyy = ((dy**2 + dy * dy1 + dy1**2) * c).sum() / 12
+    jxy = ((dx * dy1 + 2 * dx * dy + 2 * dx1 * dy1 + dx1 * dy) * c).sum() / 24
+    if area < 0:
+        area, jxx, jyy, jxy = -area, -jxx, -jyy, -jxy
+    total = 0.0
+    first = np.zeros(2)  # ∫ q dx dA, ∫ q dy dA
+    for column, load in zip(columns, loads, strict=True):
+        p, mx, my = float(load[0]), float(load[1]), float(load[2])
+        total += p
+        # A moment vector (Mx, My) on the raft presses it down on the side of +My x, -Mx y.
+        first += (p * (column.x - cx) + my, p * (column.y - cy) - mx)
+    try:
+        a, b = np.linalg.solve(np.array([[jxx, jxy], [jxy, jyy]]), first)
+    except np.linalg.LinAlgError:
+        a = b = 0.0
+    q = total / area + a * dx + b * dy
+    return total, float(q.max()), float(q.min())
+
+
+def governing_combinations(
+    outline: list[list[float]],
+    columns: list[RaftColumn],
+    service: dict[str, list[np.ndarray]],
+    strength: dict[str, list[np.ndarray]],
+) -> tuple[list[str], list[str]]:
+    """The service and strength combinations a raft is analysed under: each one is a nonlinear
+    solve (the springs carry compression only), and a building's 100-300 combinations took over
+    an hour. Kept:
+
+    - service: every gravity combination (the settlement envelope reads them all), and those
+      giving the largest total load and the largest and least contact pressure of a rigid raft
+      (:func:`_rigid_pressures`; the least finds the most lift-off);
+    - strength: those giving the largest total load, the largest and least rigid-raft pressure,
+      and for each column its largest axial load and its largest moment (flexure and punching
+      around it).
+
+    In the order given."""
+
+    def pick(combos: dict[str, list[np.ndarray]], per_column: bool) -> list[str]:
+        if not combos:
+            return []
+        rigid = {n: _rigid_pressures(outline, columns, loads) for n, loads in combos.items()}
+        keep = {
+            max(rigid, key=lambda n: rigid[n][0]),
+            max(rigid, key=lambda n: rigid[n][1]),
+            min(rigid, key=lambda n: rigid[n][2]),
+        }
+        if per_column:
+            for k in range(len(columns)):
+                keep.add(max(combos, key=lambda n: float(combos[n][k][0])))
+                keep.add(max(combos, key=lambda n: float(np.hypot(*combos[n][k][1:3]))))
+        else:
+            keep.update(n for n in combos if _gravity(n))
+        return [n for n in combos if n in keep]
+
+    return pick(service, False), pick(strength, True)
+
+
 def _inside_outline(x: float, y: float, outline: list[list[float]]) -> bool:
     inside = False
     count = len(outline)
@@ -1072,6 +1185,16 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
     service = {name: combine(per_case, f) for name, f in loads.service}
     strength = {name: combine(per_case, f) for name, f in loads.strength}
     service_dead = {name: f.get("D", f.get("SD", 1.0)) for name, f in loads.service}
+    kept_service, kept_strength = governing_combinations(outline, columns, service, strength)
+    if len(kept_service) + len(kept_strength) < len(service) + len(strength):
+        notes.append(
+            f"{foundation.id}: analysed under the {len(kept_service)} of {len(service)} service "
+            f"and {len(kept_strength)} of {len(strength)} strength combinations that govern a "
+            "rigid raft (total load, largest and least contact pressure; per column its largest "
+            "axial load and moment; every gravity service combination)"
+        )
+    service = {name: service[name] for name in kept_service}
+    strength = {name: strength[name] for name in kept_strength}
 
     # Soil: qa, the overburden, ks and Table 6.3.8's column.
     settings = ctx.settings.foundation
@@ -1157,6 +1280,8 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         foundation, out["checks"], [c.id for c in columns], sizes=sizes, pressure=pressure,
         raft=raft,
     )  # fmt: skip
+    if pressure is None:
+        result["notChecked"] = ["bearing"]
     notes += [ks_note] + [f"{foundation.id}: {n}" for n in out["notes"]]
     if bearing.note:
         notes.append(f"{foundation.id}: {bearing.note}")

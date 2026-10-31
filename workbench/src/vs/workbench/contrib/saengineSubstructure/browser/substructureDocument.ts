@@ -44,6 +44,8 @@ export interface ISubstructureMigration {
 
 /** The design checks' summary the editor writes beside the file, for the project's part list ("2 fail"). */
 export const SUBSTRUCTURE_SUMMARY_FILE = 'substructure.results/summary.json';
+/** The editor's last checks of the saved file, with the signatures they were computed for: shown when it opens again. */
+export const SUBSTRUCTURE_REPORT_FILE = 'substructure.results/report.json';
 
 export type FoundationType = 'isolated' | 'combined' | 'strip' | 'pileCap' | 'raft';
 export const FOUNDATION_TYPES: readonly FoundationType[] = ['isolated', 'combined', 'strip', 'pileCap', 'raft'];
@@ -730,12 +732,53 @@ export function defaultReinforcement(context: ISiteContext, thickness = 450, top
 	return context.barMaterial ? { material: context.barMaterial, ...reinforcement } : reinforcement;
 }
 
-function base(document: ISubstructure, context: ISiteContext, type: FoundationType, columns: readonly IColumnBase[], extra: Partial<IFoundation>): IFoundation {
-	const foundation: IFoundation = { id: nextId('F', document.foundations.map(f => f.id)), type, columns: columns.map(c => c.id), ...extra };
-	if (context.defaultMaterial) {
-		foundation.material = context.defaultMaterial;
+/** The value most of `values` have (the first of a tie); undefined for none. */
+function mostCommon(values: readonly (string | undefined)[]): string | undefined {
+	const counts = new Map<string, number>();
+	for (const v of values) {
+		if (v) {
+			counts.set(v, (counts.get(v) ?? 0) + 1);
+		}
 	}
-	foundation.reinforcement = defaultReinforcement(context, num(foundation.thickness, 450), type === 'raft');
+	let best: string | undefined;
+	for (const [v, n] of counts) {
+		if (best === undefined || n > counts.get(best)!) {
+			best = v;
+		}
+	}
+	return best;
+}
+
+/**
+ * The id of a new foundation, in the project's scheme (N-U9): a raft `R1`, `R2`...; a footing
+ * or cap under columns named like `C-A1` or `C-A1-L1` (New Building's) `F-A1`, `F-A1-B1` for
+ * several (as New Building and the import name them), else `F1`, `F2`...
+ */
+export function foundationId(document: ISubstructure, type: FoundationType, columns: readonly string[]): string {
+	const taken = document.foundations.map(f => f.id);
+	if (type === 'raft') {
+		return nextId('R', taken);
+	}
+	const grid = columns.map(c => /^C-(.+?)(?:-L\d+)?$/.exec(c)?.[1]);
+	if (columns.length && grid.every(g => !!g)) {
+		const id = `F-${columns.length === 1 ? grid[0] : `${grid[0]}-${grid[grid.length - 1]}`}`;
+		if (!taken.includes(id)) {
+			return id;
+		}
+	}
+	return nextId('F', taken);
+}
+
+function base(document: ISubstructure, context: ISiteContext, type: FoundationType, columns: readonly IColumnBase[], extra: Partial<IFoundation>): IFoundation {
+	const foundation: IFoundation = { id: foundationId(document, type, columns.map(c => c.id)), type, columns: columns.map(c => c.id), ...extra };
+	// The concrete and bars the project's foundations already use, else the project's (N-U9).
+	const material = mostCommon(document.foundations.map(f => f.material)) ?? context.defaultMaterial;
+	if (material) {
+		foundation.material = material;
+	}
+	const reinforcement = defaultReinforcement(context, num(foundation.thickness, 450), type === 'raft');
+	const bars = mostCommon(document.foundations.map(f => f.reinforcement?.material));
+	foundation.reinforcement = bars ? { ...reinforcement, material: bars } : reinforcement;
 	return foundation;
 }
 
@@ -1718,6 +1761,8 @@ export interface IFoundationResult {
 	readonly capacity?: IPileCapacity;
 	readonly raft?: IRaftResult;
 	readonly notes?: readonly string[];
+	/** Checks that could not be made, e.g. `bearing` without qa: the foundation is not checked in full and does not count as passing. */
+	readonly notChecked?: readonly string[];
 }
 
 export interface ISubstructureReport {
@@ -1875,6 +1920,7 @@ function readResult(f: Record<string, unknown>): IFoundationResult {
 		}) : undefined,
 		capacity: capacity ? readCapacity(capacity, pileType, optionalString(capacity.borehole) ?? optionalString(table?.borehole)) : undefined,
 		raft: readRaft(f.raft),
+		notChecked: Array.isArray(f.notChecked) && f.notChecked.length ? strings(f.notChecked) : undefined,
 		notes: strings(f.notes),
 	};
 }
@@ -2041,25 +2087,27 @@ export function applyProposal(document: ISubstructure, proposal: ISizingProposal
 		const replaced = document.foundations.filter(f => !placed.includes(f.id) && (f.columns ?? []).some(c => columns.has(c)));
 		if (replaced.length) {
 			const [kept, ...others] = replaced;
-			const foundation: IFoundation = { ...proposed, id: kept.id };
+			// Footings replaced by a raft: the raft is named as one (R1); their tie beams go.
+			const id = proposed.type === 'raft' && kept.type !== 'raft' ? foundationId(document, 'raft', []) : kept.id;
+			const foundation: IFoundation = { ...proposed, id };
 			if (foundation.material === undefined && kept.material !== undefined) {
 				foundation.material = kept.material;
 			}
 			if (foundation.reinforcement === undefined && kept.reinforcement !== undefined) {
 				foundation.reinforcement = kept.reinforcement;
 			}
-			const gone = new Set(others.map(f => f.id));
+			const gone = new Set([...others.map(f => f.id), kept.id]);
 			document.foundations[document.foundations.indexOf(kept)] = foundation;
-			document.foundations = document.foundations.filter(f => !gone.has(f.id));
+			document.foundations = document.foundations.filter(f => f === foundation || !gone.has(f.id));
 			for (const tie of document.tieBeams) {
-				tie.from = gone.has(tie.from) ? kept.id : tie.from;
-				tie.to = gone.has(tie.to) ? kept.id : tie.to;
+				tie.from = gone.has(tie.from) ? id : tie.from;
+				tie.to = gone.has(tie.to) ? id : tie.to;
 			}
 			document.tieBeams = document.tieBeams.filter(t => t.from !== t.to);
-			placed.push(kept.id);
+			placed.push(id);
 		} else {
-			const taken = document.foundations.map(f => f.id);
-			const id = proposed.id && !taken.includes(proposed.id) ? proposed.id : nextId('F', taken);
+			// The backend's ids were picked against the saved file: named here, in the project's scheme.
+			const id = foundationId(document, proposed.type, proposed.columns ?? []);
 			document.foundations.push({ ...proposed, id });
 			placed.push(id);
 		}
@@ -2162,9 +2210,13 @@ export type SubstructureCheckStatus = 'pass' | 'fail' | 'incomplete' | 'none';
 export interface ISubstructureCheckState {
 	readonly total: number;
 	readonly checked: number;
+	/** Checked in full and passing. */
+	readonly passed: number;
 	readonly failed: number;
 	readonly stale: number;
 	readonly notChecked: number;
+	/** Foundations checked but for their bearing (no qa): neither checked in full nor passing. */
+	readonly bearingUnchecked: readonly string[];
 	readonly unsupported: readonly string[];
 	readonly status: SubstructureCheckStatus;
 }
@@ -2219,6 +2271,8 @@ export function substructureCheckState(document: ISubstructure, report: ISubstru
 	let checked = 0;
 	let failed = 0;
 	let stale = 0;
+	let passed = 0;
+	const bearingUnchecked: string[] = [];
 	const count = (key: string, result: IFoundationResult | undefined) => {
 		if (!result) {
 			return;
@@ -2227,9 +2281,17 @@ export function substructureCheckState(document: ISubstructure, report: ISubstru
 			stale++;
 			return;
 		}
-		checked++;
 		if (!result.ok) {
 			failed++;
+		}
+		// Without its bearing check a footing is not checked for what sizes it (N-U3).
+		if (result.notChecked?.includes('bearing')) {
+			bearingUnchecked.push(result.id);
+		} else {
+			checked++;
+			if (result.ok) {
+				passed++;
+			}
 		}
 	};
 	for (const f of document.foundations) {
@@ -2240,8 +2302,24 @@ export function substructureCheckState(document: ISubstructure, report: ISubstru
 	}
 	const total = document.foundations.length + document.tieBeams.length;
 	const missing = unsupported ?? report?.summary.unsupported ?? [];
-	const status: SubstructureCheckStatus = failed ? 'fail' : !checked ? 'none' : checked < total || missing.length ? 'incomplete' : 'pass';
-	return { total, checked, failed, stale, notChecked: total - checked - stale, unsupported: missing, status };
+	const status: SubstructureCheckStatus = failed ? 'fail' : !checked && !bearingUnchecked.length ? 'none' : checked < total || missing.length ? 'incomplete' : 'pass';
+	return { total, checked, passed, failed, stale, notChecked: total - checked - stale - bearingUnchecked.length, bearingUnchecked, unsupported: missing, status };
+}
+
+/**
+ * A backend error as one line for the engineer and the rest for Details (N-U1): a Python
+ * traceback's message without its module path ("CodePackError: code pack ... cannot be used"),
+ * the frames in `details`. `restart` when restarting the engine is the likely fix (the code
+ * packs or the backend's files changed under it).
+ */
+export function errorSummary(message: string): { readonly summary: string; readonly details: string | undefined; readonly restart: boolean } {
+	const text = message.trim();
+	const cut = text.search(/\s*(Traceback \(most recent call last\)|File "|\n)/);
+	// A plain Python traceback ends with its message: the last line then.
+	const head = cut > 0 ? text.slice(0, cut) : cut === 0 ? text.split('\n').map(l => l.trim()).filter(Boolean).pop() ?? text : text;
+	const summary = head.trim().replace(/^(?:[A-Za-z_][\w]*\.)+(?=[A-Za-z_]\w*(?:Error|Exception)\b)/, '');
+	const restart = /CodePackError|ModuleNotFoundError|ImportError|BrokenPipe|backend (?:exited|stopped)/i.test(text);
+	return { summary: summary || text, details: summary === text ? undefined : text, restart };
 }
 
 /** "6 of 7 checked · 1 fail · 1 not checked" for the status line and the Results view. */
@@ -2254,6 +2332,9 @@ export function checkStateText(state: ISubstructureCheckState): string {
 	}
 	if (state.stale) {
 		parts.push(state.stale === 1 ? localize('sub.staleOne', "1 changed since checked") : localize('sub.stale', "{0} changed since checked", state.stale));
+	}
+	if (state.bearingUnchecked.length) {
+		parts.push(localize('sub.bearingUnchecked', "{0} without a bearing check (no qa)", state.bearingUnchecked.length));
 	}
 	if (state.notChecked) {
 		parts.push(localize('sub.notCheckedCount', "{0} not checked", state.notChecked));
@@ -2289,6 +2370,8 @@ export interface ISubstructureSummaryFile {
 	readonly total: number;
 	readonly passed: number;
 	readonly failed: number;
+	/** Foundations whose bearing was not checked (no qa): not counted in `checked` or `passed`. */
+	readonly bearingUnchecked: readonly string[];
 	/** Columns and walls without a foundation. */
 	readonly unsupported: readonly string[];
 	readonly status: SubstructureCheckStatus;
@@ -2305,8 +2388,8 @@ export function substructureSummaryFile(document: ISubstructure, report: ISubstr
 	const { maxUtilisation, governing } = report.summary;
 	const state = substructureCheckState(document, report);
 	return {
-		foundations: document.foundations.length, checked: state.checked, total: state.total, passed: state.checked - state.failed, failed: state.failed,
-		unsupported: state.unsupported, status: state.status,
+		foundations: document.foundations.length, checked: state.checked, total: state.total, passed: state.passed, failed: state.failed,
+		bearingUnchecked: state.bearingUnchecked, unsupported: state.unsupported, status: state.status,
 		maxUtilisation, governing, computed: computed.toISOString(), source: report.sources,
 	};
 }

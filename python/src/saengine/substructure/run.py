@@ -23,13 +23,19 @@ from typing import Any
 from saengine.library.materials import Category, default_of
 from saengine.library.substructure import SUBSTRUCTURE_FILE
 
-#: The bar diameters a minimum mesh is chosen from [mm] (as the sizing assistant's).
-BAR_DIAS = (12, 16, 20, 25)
 #: The closest spacing a minimum mesh takes before a larger bar is used [mm].
 MIN_SPACING = 125
 #: The cover of the bars a foundation without reinforcement gets [mm].
 COVER = 75.0
 MATERIALS_FILE = "03 Materials/materials.json"
+
+
+def bar_dias() -> tuple[float, ...]:
+    """The bar diameters a minimum mesh is chosen from [mm], as the sizing assistant's: the code
+    pack's ``concrete.barDiameters["foundation"]`` (BNBC 2020: 12, 16, 20, 25)."""
+    from saengine.design.bars import diameters
+
+    return diameters("foundation")
 
 
 def min_steel_ratio(fy: float = 420.0) -> float:
@@ -45,12 +51,13 @@ def minimum_mesh(thickness: float, fy: float = 420.0) -> dict[str, float]:
     ``minimumMesh`` gives the same mesh for a new foundation."""
     need = min_steel_ratio(fy) * thickness * 1000.0
     limit = min(3.0 * thickness, 450.0)
-    for dia in BAR_DIAS:
+    dias = bar_dias()
+    for dia in dias:
         area = math.pi * dia**2 / 4.0
         spacing = min(math.floor(area * 1000.0 / need / 25.0) * 25.0, math.floor(limit / 25) * 25)
         if spacing >= MIN_SPACING:
             return {"dia": dia, "spacing": spacing}
-    dia = BAR_DIAS[-1]
+    dia = dias[-1]
     spacing = max(math.floor(math.pi * dia**2 / 4.0 * 1000.0 / need / 25.0) * 25.0, 75.0)
     return {"dia": dia, "spacing": spacing}
 
@@ -147,7 +154,7 @@ def design_foundations(
         added = add_minimum_bars(root, document)
         if added:
             path.write_text(substructure_text(document), encoding="utf-8", newline="\n")
-    report = substructure_report(root, out_dir)
+    report = substructure_report(root, out_dir, supersede=False)
     report["summary"]["barsAdded"] = added
     if added:
         report["notes"].insert(
