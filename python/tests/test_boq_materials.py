@@ -214,7 +214,7 @@ def test_an_unused_material_leaves_the_bill_current() -> None:
     data["materials"].append({**data["materials"][0], "id": "UNUSED", "name": "Unused"})
     more = json.dumps(data, indent="	")
     assert materials_stamp(more, used) == materials_stamp(text, used)
-    data["materials"][0]["name"] = "Renamed"
+    next(m for m in data["materials"] if m["id"] in used)["name"] = "Renamed"
     assert materials_stamp(json.dumps(data), used) != materials_stamp(text, used)
     # JSON.stringify's numbers, which the workbench stamps the same text with.
     assert js_json([1.0, 2.5, 1e-5, 1.5e-7, 1e21, 2e20, -0.25, 7, "Ø"]) == (

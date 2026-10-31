@@ -84,7 +84,9 @@ def test_status_of_the_sample(capsys: pytest.CaptureFixture[str], sample: Path):
     # The sample keeps the default materials, which the status (as the workbench's since K2)
     # reads as defaults to review: that is the first open step, ahead of the analysis model.
     assert states["materials"] == ("defaults", "defaults") and document["next"] == "materials"
-    assert states["boq"] == ("done", "measured")
+    # The sample's bill leaves its three tanks unmeasured (no current design): incomplete, not
+    # "measured" (N-Q1 of usability walk 2).
+    assert states["boq"] == ("inProgress", "incomplete")
 
 
 def test_exports(capsys: pytest.CaptureFixture[str], sample: Path):

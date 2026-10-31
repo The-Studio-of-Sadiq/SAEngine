@@ -570,6 +570,15 @@ def boq_status(inputs: StatusInputs) -> PartStatus:
         )
     ):
         return _status("boq", "stale", STALE, "measure the quantities again")
+    # What the bill left out (members with no bars, tanks not designed): it is not "measured" yet.
+    not_measured = document.get("notMeasured")
+    if not isinstance(not_measured, int):
+        not_measured = _length(document.get("problems"))
+    if not_measured > 0:
+        hint = (
+            "1 item not measured" if not_measured == 1 else f"{not_measured} items not measured"
+        ) + ": see the warnings in the bill"
+        return _status("boq", "inProgress", "incomplete", hint)
     return _status("boq", "done", "measured")
 
 

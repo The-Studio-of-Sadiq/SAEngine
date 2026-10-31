@@ -388,6 +388,13 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 		|| (!recorded('architecture') && architectureHasContent(inputs.texts.get('architecture')))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
 	}
+	// What the bill left out (members with no bars, tanks not designed): it is not "measured" yet.
+	const notMeasured = typeof document.notMeasured === 'number' ? document.notMeasured : (Array.isArray(document.problems) ? document.problems.length : 0);
+	if (notMeasured > 0) {
+		return status('boq', 'inProgress', localize('partStatus.boq.incomplete', "incomplete"), notMeasured === 1
+			? localize('partStatus.boq.oneNotMeasured', "1 item not measured: see the warnings in the bill")
+			: localize('partStatus.boq.notMeasuredCount', "{0} items not measured: see the warnings in the bill", notMeasured));
+	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
 }
 
