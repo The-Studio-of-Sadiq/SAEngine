@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "LiveElementFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "interiorColumn": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorcolumn",
+          "type": "number"
+        },
+        "exteriorColumn": {
+          "description": "Exterior columns without cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Exteriorcolumn",
+          "type": "number"
+        },
+        "edgeColumnCantilever": {
+          "description": "Edge columns with cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Edgecolumncantilever",
+          "type": "number"
+        },
+        "cornerColumnCantilever": {
+          "description": "Corner columns with cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Cornercolumncantilever",
+          "type": "number"
+        },
+        "interiorBeam": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorbeam",
+          "type": "number"
+        },
+        "edgeBeam": {
+          "description": "Edge beams without cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Edgebeam",
+          "type": "number"
+        },
+        "other": {
+          "description": "All other members (one-way slabs, cantilevers ...).",
+          "exclusiveMinimum": 0,
+          "title": "Other",
+          "type": "number"
+        }
+      },
+      "required": [
+        "interiorColumn",
+        "exteriorColumn",
+        "edgeColumnCantilever",
+        "cornerColumnCantilever",
+        "interiorBeam",
+        "edgeBeam",
+        "other"
+      ],
+      "title": "LiveElementFactors",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "influenceMin": {
+      "description": "Least KLL AT [m²] that is reduced.",
+      "exclusiveMinimum": 0,
+      "title": "Influencemin",
+      "type": "number"
+    },
+    "constant": {
+      "description": "a of L = L0 (a + b / √(KLL AT)).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Constant",
+      "type": "number"
+    },
+    "coefficient": {
+      "description": "b of L = L0 (a + b / √(KLL AT)) [m].",
+      "exclusiveMinimum": 0,
+      "title": "Coefficient",
+      "type": "number"
+    },
+    "minOneFloor": {
+      "description": "Least L / L0 of members supporting one floor.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Minonefloor",
+      "type": "number"
+    },
+    "minFloors": {
+      "description": "Least L / L0 of members supporting two or more.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Minfloors",
+      "type": "number"
+    },
+    "heavyLive": {
+      "description": "Live loads above this [kN/m²] are not reduced.",
+      "exclusiveMinimum": 0,
+      "title": "Heavylive",
+      "type": "number"
+    },
+    "heavyFactor": {
+      "description": "L / L0 of heavy loads on members of 2+ floors.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Heavyfactor",
+      "type": "number"
+    },
+    "notReduced": {
+      "description": "Area uses never reduced.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notreduced",
+      "type": "array"
+    },
+    "twoFloorsOnly": {
+      "description": "Area uses reduced only on 2+ floors.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Twofloorsonly",
+      "type": "array"
+    },
+    "kll": {
+      "$ref": "#/$defs/LiveElementFactors"
+    }
+  },
+  "required": [
+    "influenceMin",
+    "constant",
+    "coefficient",
+    "minOneFloor",
+    "minFloors",
+    "heavyLive",
+    "heavyFactor",
+    "notReduced",
+    "twoFloorsOnly",
+    "kll"
+  ],
+  "title": "LiveReductionTable",
+  "type": "object",
+  "$id": "saengine.codePack.liveReduction/1"
+}

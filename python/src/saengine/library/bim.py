@@ -356,6 +356,14 @@ def _placement_key(e: Any) -> tuple[Any, ...] | None:
     return None
 
 
+class BimTower(_Model):
+    """A tower above the podium (``FloorPlan.towers``), its plan region in mm."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    boundary: list[Point2] = Field(min_length=3, description="Corners in order around it.")
+
+
 class BuildingModel(_Model):
     schema_: Literal["saengine.bim/2"] = Field(default=SCHEMA_ID, alias="schema")
     source: SourceStamps | None = Field(
@@ -366,6 +374,12 @@ class BuildingModel(_Model):
     additions: Additions = Field(default_factory=Additions)
     supports: list[BimSupport] = Field(
         default_factory=list, description="Supports of a special structure."
+    )
+    podiumTop: Id | None = Field(
+        default=None, title="Podium top", description="The story at the top of the podium."
+    )
+    towers: list[BimTower] = Field(
+        default_factory=list, description="The towers above the podium (from the floor plan)."
     )
 
     @model_validator(mode="after")
@@ -379,6 +393,8 @@ class BuildingModel(_Model):
         for e in self.elements:
             if e.kind in ("column", "wall") and e.bottom >= e.top:
                 raise ValueError(f"{e.id}: its top must be above its bottom")
+        if self.podiumTop is not None and self.podiumTop not in {s.id for s in self.stories}:
+            raise ValueError(f"podium top: no story '{self.podiumTop}'")
         return self
 
     def check_additions(self) -> list[str]:
@@ -589,6 +605,11 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
         elements=[*elements, *own],
         additions=previous.additions.model_copy(deep=True) if previous else Additions(),
         supports=[s.model_copy() for s in previous.supports] if previous else [],
+        podiumTop=plan.podiumTop,
+        towers=[
+            BimTower(id=t.id, name=t.name, boundary=[at(p) for p in t.boundary])
+            for t in plan.towers
+        ],
     )
 
 
@@ -676,6 +697,12 @@ class FoundationSolid:
     rotation: float = 0.0
     length: float = 0.0
     width: float = 0.0
+    #: Concrete volume [mm³] of a sloped or stepped footing (None: the prism's) and the height
+    #: of its vertical sides at the edges [mm].
+    volume: float | None = None
+    edge: float | None = None
+    #: Formwork of a stepped footing's upper step: its perimeter times its rise [mm²].
+    riser: float = 0.0
 
     @property
     def thickness(self) -> float:
@@ -794,6 +821,13 @@ def foundation_solids(
                     rotation=f.rotation,
                     length=length,
                     width=width,
+                    volume=f.concrete_volume() if f.section != "flat" else None,
+                    edge=f.edgeThickness if f.section != "flat" else None,
+                    riser=2
+                    * (float(f.topLength or 0) + float(f.topWidth or 0))
+                    * (float(f.thickness or 0) - float(f.edgeThickness or 0))
+                    if f.section == "stepped"
+                    else 0.0,
                 )
             )
             centers[f.id] = (cx, cy)
