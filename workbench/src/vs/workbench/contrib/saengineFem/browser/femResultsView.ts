@@ -61,6 +61,8 @@ export interface IFemResultsEditorOptions extends IEditorOptions {
 export class FemResultsInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.femResults';
+	/** A member's page: its own input type, so the navigator files it under Model and Analysis (where the member is picked), not under the charts. */
+	static readonly MEMBER_ID = 'workbench.input.saengine.femMember';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.femResults';
 
 	/** What the tab shows, kept while another tab of its group is shown. */
@@ -75,7 +77,7 @@ export class FemResultsInput extends EditorInput {
 	}
 
 	override get typeId(): string {
-		return FemResultsInput.ID;
+		return this.page.kind === 'member' ? FemResultsInput.MEMBER_ID : FemResultsInput.ID;
 	}
 
 	override get editorId(): string {
@@ -152,7 +154,7 @@ function withUnit(label: string, unit: IUnit): string {
 }
 
 function fixed(value: number, digits: number): string {
-	return formatNumber(value, { maxDecimals: digits });
+	return formatNumber(value, { decimals: digits });
 }
 
 const AXIS_COLORS: { readonly [axis in FemAxis2]: ChartColor } = { X: 'blue', Y: 'orange' };
@@ -686,8 +688,8 @@ export class FemResultsEditor extends EditorPane {
 				series.push({
 					name: axis,
 					color: AXIS_COLORS[axis],
-					// Storey forces act at the levels: points, not a line between them.
-					style: quantity === 'force' ? 'points' : 'line',
+					// Storey forces act at the levels: a line through them, each level marked.
+					style: 'line',
 					points: profile.map(p => [p.value * unit.scale, p.z]),
 					tooltips: profile.map(p => `${axis}, ${p.level} (${p.z.toFixed(2)} m): ${[show(p.value), unit.unit].filter(Boolean).join(' ')}`),
 				});
@@ -761,6 +763,7 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(grid, {
 			title: localize('femResults.participation', "Mass Participation"),
 			xLabel: localize('femResults.mode', "Mode"),
+			integerX: true,
 			yLabel: localize('femResults.percent', "Mass [%]"),
 			series,
 			guides: [{ axis: 'y', value: required, label: localize('femResults.requiredLine', "{0} % required", required), color: 'red' }],
@@ -770,6 +773,7 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(grid, {
 			title: localize('femResults.periods', "Periods"),
 			xLabel: localize('femResults.mode', "Mode"),
+			integerX: true,
 			yLabel: localize('femResults.period', "Period [s]"),
 			series: [{
 				name: localize('femResults.period', "Period [s]"), color: 'purple', style: 'bars', bar: { offset: 0, width: 0.6 },

@@ -587,6 +587,67 @@ CommandsRegistry.registerCommand('saengine.fem.exportXlsx', async (accessor, tar
 	return accessor.get(IFemSolverService).engine(python, 'fem/exportXlsx', { path: target.fsPath, sheets });
 });
 
+/**
+ * The result tables, one at a time (femModelEditor.ts): the index of a run's results and their
+ * tables (`saengine.fem.tableIndex`), one table of one result (`saengine.fem.table`), and the
+ * chosen tables streamed to a workbook (`saengine.fem.exportTables`; its progress reported
+ * every second, stopped when its token is cancelled). Internal: called by id.
+ */
+CommandsRegistry.registerCommand('saengine.fem.tableIndex', async (accessor, model: URI) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/tableIndex', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.table', async (accessor, model: URI, key: string, table: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/table', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, key, table });
+});
+
+interface IFemExportTablesArgs {
+	readonly keys?: readonly string[];
+	readonly tables?: readonly string[];
+	readonly extra?: readonly object[];
+	/** Told the table being written: (done, total, what). */
+	readonly onProgress?: (done: number, total: number, message: string) => void;
+}
+
+interface IFemExportProgress {
+	readonly running?: boolean;
+	readonly done?: number;
+	readonly total?: number;
+	readonly message?: string;
+}
+
+CommandsRegistry.registerCommand('saengine.fem.exportTables', async (accessor, model: URI, target: URI, args: IFemExportTablesArgs, token?: CancellationToken) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	const cancel = token?.onCancellationRequested(() => {
+		solver.engine(python, 'fem/exportCancel', {}).catch(() => { /* the export ends anyway */ });
+	});
+	const poll = new IntervalTimer();
+	poll.cancelAndSet(() => {
+		solver.engine(python, 'fem/exportProgress', {}).then(raw => {
+			const state = raw as IFemExportProgress | undefined;
+			if (state?.running && typeof state.done === 'number' && typeof state.total === 'number') {
+				args.onProgress?.(state.done, state.total, state.message ?? '');
+			}
+		}, () => { /* the export's own answer reports failures */ });
+	}, 1000);
+	try {
+		return await solver.engine(python, 'fem/exportTables', {
+			outDir: resultsFolder(model).fsPath,
+			projectPath: model.fsPath,
+			path: target.fsPath,
+			...(args.keys ? { keys: args.keys } : {}),
+			...(args.tables ? { tables: args.tables } : {}),
+			...(args.extra ? { extra: args.extra } : {}),
+		});
+	} finally {
+		poll.dispose();
+		cancel?.dispose();
+	}
+});
+
 CommandsRegistry.registerCommand('saengine.design.proposal', async (accessor, args: IDesignCommandArgs) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const options = {

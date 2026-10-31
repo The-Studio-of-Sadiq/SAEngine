@@ -596,6 +596,7 @@ export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
+	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'

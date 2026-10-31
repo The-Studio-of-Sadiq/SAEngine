@@ -43,6 +43,7 @@ suite('SAEngine - project parts', () => {
 		const floorPlan = editor('workbench.input.saengine.floorPlan', 'workbench.editor.saengine.floorPlan');
 		const grids = editor('workbench.input.saengine.library', 'workbench.editor.saengine.grids');
 		const charts = editor('workbench.input.saengine.femResults', 'workbench.editor.saengine.femResults');
+		const member = editor('workbench.input.saengine.femMember', 'workbench.editor.saengine.femResults');
 		const architecture = editor('workbench.input.saengine.architecture', 'workbench.editor.saengine.architecture');
 		assert.deepStrictEqual({
 			parts: ['settings', 'floorPlan', 'bim', 'mep', 'fem', 'soil'].map(part => partSections(part).map(e => e.id).join(' ')),
@@ -55,6 +56,8 @@ suite('SAEngine - project parts', () => {
 			grids: [isSectionActive(entry('floorPlan', 'grids'), grids, undefined), isSectionActive(entry('floorPlan', 'grids'), floorPlan, undefined)],
 			// The charts have no file: they still belong to 8 FEM.
 			charts: [isSectionActive(entry('fem', 'results'), charts, undefined), isPartEditor('fem', charts), isPartEditor('floorPlan', charts)],
+			// A member's page belongs to Model and Analysis, where the member was picked.
+			member: [isSectionActive(entry('fem', 'model'), member, undefined), isSectionActive(entry('fem', 'results'), member, undefined), isPartEditor('fem', member)],
 			// The architecture is 05 Floor Plan's file in its own editor, listed under 6 BIM.
 			architecture: [entry('bim', 'architecture').command, isSectionActive(entry('bim', 'architecture'), architecture, undefined), isPartEditor('bim', architecture), isPartEditor('floorPlan', architecture)],
 		}, {
@@ -65,6 +68,7 @@ suite('SAEngine - project parts', () => {
 			plan: [true, false],
 			grids: [true, false],
 			charts: [true, true, false],
+			member: [true, false, true],
 			architecture: ['saengine.architecture.open', true, true, false],
 		});
 	});

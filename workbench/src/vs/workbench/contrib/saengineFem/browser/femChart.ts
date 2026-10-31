@@ -16,7 +16,7 @@
 import './media/femChart.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
-import { formatCell, IFemSheet } from './femChartData.js';
+import { columnDecimals, formatFixedCell, IFemSheet } from './femChartData.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -60,6 +60,8 @@ export interface IChartSpec {
 	readonly equalAxes?: boolean;
 	/** The x axis spans exactly this range (a member's length), not the round ticks around it. */
 	readonly xDomain?: readonly [number, number];
+	/** Only whole numbers on the x axis (mode numbers). */
+	readonly integerX?: boolean;
 	/** What matters, said under the chart (and to screen readers). */
 	readonly caption?: string;
 	readonly height?: number;
@@ -115,13 +117,18 @@ function svg<K extends keyof SVGElementTagNameMap>(parent: Element, tag: K, attr
 	return element;
 }
 
-/** Appends the rows of a result table to its `tbody`, numbers right-aligned ({@link formatCell}). */
+/**
+ * Appends the rows of a result table to its `tbody`, numbers right-aligned with the same
+ * decimals down each column ({@link columnDecimals}).
+ */
 export function renderSheetRows(body: HTMLElement, rows: readonly (readonly FemTableCell[])[]): void {
+	const width = Math.max(0, ...rows.map(r => r.length));
+	const decimals = Array.from({ length: width }, (_, column) => columnDecimals(rows, column));
 	for (const row of rows) {
 		const tr = append(body, $('tr'));
-		for (const cell of row) {
-			append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatCell(cell)));
-		}
+		row.forEach((cell, column) => {
+			append(tr, $(typeof cell === 'number' ? 'td.number' : 'td', undefined, formatFixedCell(cell, decimals[column])));
+		});
 	}
 }
 
@@ -193,6 +200,12 @@ export function renderChart(parent: HTMLElement, spec: IChartSpec): HTMLElement 
 		const inside = niceTicks(x0, x1).filter(t => t >= x0 - 1e-9 && t <= x1 + 1e-9);
 		const step = inside.length > 1 ? inside[1] - inside[0] : x1 - x0;
 		xTicks = [...inside.filter(t => t < x1 - 0.4 * step), Number(x1.toPrecision(4))];
+	}
+	if (spec.integerX) {
+		const whole = xTicks.filter(t => Number.isInteger(t));
+		xTicks = whole.length >= 2 ? whole : [Math.floor(x0), Math.ceil(x1)];
+		x0 = Math.min(x0, xTicks[0]);
+		x1 = Math.max(x1, xTicks[xTicks.length - 1]);
 	}
 	const sx = (v: number) => MARGIN.left + (x1 > x0 ? (v - x0) / (x1 - x0) : 0.5) * plotW;
 	const sy = (v: number) => MARGIN.top + plotH - (y1 > y0 ? (v - y0) / (y1 - y0) : 0.5) * plotH;
