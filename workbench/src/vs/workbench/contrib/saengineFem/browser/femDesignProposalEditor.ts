@@ -98,6 +98,8 @@ export class FemDesignProposalEditor extends EditorPane {
 	private loading = false;
 	private applying = false;
 	private problem: string | undefined;
+	/** The engineer stopped waiting: a note, not an error. */
+	private stopped = false;
 	private applied: IAppliedState | undefined;
 	private request = 0;
 	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
@@ -207,6 +209,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		this.model.clear();
 		this.problem = undefined;
+		this.stopped = false;
 		if (!CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND)) {
 			this.render();
 			return;
@@ -263,6 +266,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.request++;
 		this.loading = false;
 		this.applying = false;
+		this.stopped = true;
 		this.problem = localize('femProposal.stopped', "Stopped waiting. The engine finishes in the background and keeps the proposal: Propose Again shows it once it is done.");
 		this.setStep(undefined);
 	}
@@ -291,6 +295,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		this.model.mode = mode;
 		this.problem = undefined;
+		this.stopped = false;
 		if (!this.model.has(mode) && CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND)) {
 			const request = ++this.request;
 			this.loading = true;
@@ -361,6 +366,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		const request = this.request;
 		this.applying = true;
 		this.problem = undefined;
+		this.stopped = false;
 		this.setStep({ index: 1, count: 4, text: localize('femProposal.stepWrite', "Writing the bars into the object types") });
 		try {
 			// The files the backend edits: the object types always; the building model and the
@@ -540,7 +546,7 @@ export class FemDesignProposalEditor extends EditorPane {
 				text: this.problem ?? localize('femProposal.none', "Run the analysis first: bars are proposed from its results."),
 				actions: [{ label: localize('femProposal.refresh', "Propose Again"), icon: Codicon.refresh, run: () => void this.reload() }],
 			});
-			this.frame.setStatus(this.problem ? { severity: 'error', text: this.problem } : undefined);
+			this.frame.setStatus(this.problem ? this.status() : undefined);
 			this.scrollable.scanDomNode();
 			return;
 		}
@@ -589,7 +595,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			return { busy: true, text: localize('femProposal.loading', "Proposing bars from the required steel...") };
 		}
 		if (this.problem) {
-			return { severity: 'error', text: this.problem };
+			return { severity: this.stopped ? 'info' : 'error', text: this.problem };
 		}
 		const rows = this.model.rows();
 		const changed = rows.filter(r => r.changed).length;
