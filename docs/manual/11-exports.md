@@ -152,6 +152,22 @@ length (rounded up to 25 mm), total length and mass, with totals per bar size.
   others (also **Export DXF** in the floor plan).
 - **Export IFC** writes the building model (elements, storeys, materials) as IFC.
 
+## Revit link
+
+**Export for Revit** writes `Revit/<project>.exchange.json` for the SAEngine Revit add-in:
+
+- the levels and the grid lines;
+- the analytical model, with each element's type;
+- the designed bars (generate the drawings first, so that the bars are detailed).
+
+**Import Changes from Revit...** reads the file the add-in writes back. It lists what was moved,
+added, deleted or retyped in Revit; untick what you do not want, then apply. The changes go into
+the floor plan, and a copy of the floor plan as it was is kept beside the file. Rebuild the
+building model afterwards.
+
+Reinforcement, braces and sloped members are listed but not taken back. The file format and the
+full list are in [revit-link.md](../revit-link.md).
+
 ## Not confirmed / limitations
 
 - The BS 8666 shape-code values in the bar bending schedule are marked in the code as *to be

@@ -870,6 +870,28 @@ CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: {
 });
 
 /**
+ * Integrator glue: the backend of the Revit link (revitLink.ts calls them by id). `revit/export`
+ * writes `11 Exports/Revit/<project>.exchange.json` (saengine.exporters.revit_link) and answers
+ * `{path, counts, notes}`; `revit/preview` lists the changes in a file written back from Revit
+ * (`{changes, counts, notes, source}`); `revit/apply` applies the picked ones to the floor plan
+ * (`{applied, failed, backupPath, planPath, notes}`). Each answers `{error}` when it cannot.
+ */
+CommandsRegistry.registerCommand('saengine.revit.export', async (accessor, args: { readonly projectRoot: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'revit/export', { projectRoot: args.projectRoot });
+});
+
+CommandsRegistry.registerCommand('saengine.revit.preview', async (accessor, args: { readonly projectRoot: string; readonly path: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'revit/preview', { projectRoot: args.projectRoot, path: args.path });
+});
+
+CommandsRegistry.registerCommand('saengine.revit.apply', async (accessor, args: { readonly projectRoot: string; readonly path: string; readonly changes: readonly string[] }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'revit/apply', { projectRoot: args.projectRoot, path: args.path, changes: [...args.changes] });
+});
+
+/**
  * Integrator glue: the backend of the New Building wizard (newBuildingWizard.ts calls it by id,
  * `saengine.library.generateBuilding` `{spec, destParent, name, site?}`): `library/generateBuilding`
  * generates the building from its grids and storeys into `<destParent>/<name>`

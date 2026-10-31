@@ -24,6 +24,7 @@ import { VersionsEditorInput, VersionsEditorInputSerializer } from './versionsEd
 import { ISaveVersionCommandArgs, VersionsFlows } from './versionsFlows.js';
 import './versionsService.js';
 import './structuralImport.contribution.js';
+import './revitLink.contribution.js';
 import './newBuildingWizard.contribution.js';
 
 /*

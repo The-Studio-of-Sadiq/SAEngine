@@ -105,7 +105,8 @@ export interface IFemSteelDesign {
  * The entry stream T's design_steel_member gives (python/src/saengine/design/steel/members.py):
  * `section` is an object, `lengths` a sentence; Lb, Lp, Lr, Cb, the flexure classes, KL/r and
  * the H1 ratios are in its checks' notes. Connections (design/steel_connections.py
- * check_connection) are `{connection: 'finPlate'|'endPlate'|'gusset', checks, ok, assumptions}`.
+ * check_connection and the connections 2 checks) are `{connection: 'finPlate'|'endPlate'|'gusset'|
+ * 'flangePlate'|'hssJoint'|'coverPlate'|'basePlate', checks, ok, assumptions}`.
  */
 interface IFemSteelMemberEntry {
 	readonly section?: {
@@ -166,6 +167,10 @@ function connectionKindLabel(kind: string | undefined): string {
 		case 'finPlate': return localize('femSteel.finPlate', "Fin plate (shear tab)");
 		case 'endPlate': return localize('femSteel.endPlate', "End plate");
 		case 'gusset': return localize('femSteel.gusset', "Brace gusset");
+		case 'flangePlate': return localize('femSteel.flangePlate', "Flange-plate moment connection");
+		case 'hssJoint': return localize('femSteel.hssJoint', "HSS truss joint");
+		case 'coverPlate': return localize('femSteel.coverPlate', "Cover-plate splice");
+		case 'basePlate': return localize('femSteel.basePlate', "Column base plate");
 		default: return kind ?? localize('femSteel.connection', "Connection");
 	}
 }

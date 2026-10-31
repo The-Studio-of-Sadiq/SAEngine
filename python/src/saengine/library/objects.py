@@ -473,10 +473,138 @@ class BraceGussetConnection(_Bolted):
     gussetK: float = Field(default=0.65, gt=0, description="Gusset buckling K.")
 
 
+class FlangePlateConnection(_Bolted):
+    """Bolted flange-plate moment connection of a beam to a column flange: a plate on each beam
+    flange, welded to the column and bolted to the flange (``rows`` bolts in each of ``lines``
+    lines), and a fin plate on the web for the shear. The beam end is kept rigid in the
+    analysis. ``plateThickness`` is the flange plates'; ``edgeDistance`` sets their width."""
+
+    type: Literal["flangePlate"] = "flangePlate"
+    lines: int = Field(default=2, ge=2, le=4, description="Bolt lines along each flange plate.")
+    gauge: float = Field(default=100, gt=0, description="Between the bolt lines [mm].")
+    setback: float = Field(
+        default=15, ge=0, description="Column face to the beam end (the plate's free length) [mm]."
+    )
+    plateWeld: Literal["cjp", "fillet"] = Field(
+        default="cjp",
+        description="Flange plates to the column: complete-joint-penetration groove welds "
+        "(matching filler) or fillet welds on both faces.",
+    )
+    webRows: int = Field(default=3, ge=1, le=20, description="Bolts in the web fin plate.")
+    webPlateThickness: float = Field(default=10, gt=0, description="Web fin plate [mm].")
+    webBoltLineOffset: float = Field(
+        default=60, gt=0, description="Column face to the web bolt line [mm]."
+    )
+    columnSection: str | None = Field(
+        default=None,
+        description="The supporting column's section (steel sections table), for the column "
+        "flange, web and panel zone checks; none: the column side is not checked.",
+    )
+    columnMaterial: str | None = Field(
+        default=None, description="03 Materials id of the column; none: the beam's material."
+    )
+    columnStiffeners: bool = Field(
+        default=False,
+        description="Continuity plates opposite the beam flanges (then the column flange and "
+        "web local checks are left to them; their design is not checked).",
+    )
+
+
+class HssJointConnection(_Model):
+    """A welded HSS-to-HSS truss joint at the brace end: the brace (the branch) welded to an
+    HSS chord, both round or both rectangular. Checked for the brace axial forces."""
+
+    type: Literal["hssJoint"] = "hssJoint"
+    chordSection: str | None = Field(
+        default=None, description="The chord's section (steel sections table)."
+    )
+    chordMaterial: str | None = Field(
+        default=None, description="03 Materials id of the chord; none: the brace's material."
+    )
+    joint: Literal["TY", "X", "K"] = Field(
+        default="K",
+        description="T or Y (one branch), X (branches on both faces), K (two branches, gapped).",
+    )
+    angle: float = Field(default=45, ge=30, le=90, description="Branch to chord angle θ [°].")
+    gap: float = Field(default=20, ge=0, description="K joints: gap between the branches [mm].")
+    chordCompression: bool = Field(default=True, description="Chord in compression at the joint.")
+    chordUtilisation: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description="Chord utilisation U at the joint (axial and bending), for the chord "
+        "stress factor Qf.",
+    )
+    plateMaterial: str | None = Field(default=None, description="Not used (no plates).")
+
+
 SteelConnection = Annotated[
-    FinPlateConnection | EndPlateConnection | BraceGussetConnection,
+    FinPlateConnection
+    | EndPlateConnection
+    | BraceGussetConnection
+    | FlangePlateConnection
+    | HssJointConnection,
     Field(discriminator="type"),
 ]
+
+
+class SteelSplice(_Bolted):
+    """Bolted cover-plate splice of an I-section beam or column: a plate on the outside of each
+    flange (``rows`` bolts in each of ``lines`` lines on each side of the joint) and a plate on
+    each side of the web (``webRows`` bolts on each side). Checked for the member's forces at
+    the splice. ``plateThickness`` is the flange plates'; ``edgeDistance`` sets their width."""
+
+    type: Literal["coverPlate"] = "coverPlate"
+    distance: float = Field(
+        default=1000, gt=0, description="Splice position from the member's lower (first) end [mm]."
+    )
+    lines: int = Field(default=2, ge=2, le=4, description="Bolt lines along each flange plate.")
+    gauge: float = Field(default=100, gt=0, description="Between the bolt lines [mm].")
+    gap: float = Field(default=10, ge=0, description="Between the member ends [mm].")
+    webRows: int = Field(default=2, ge=1, le=20, description="Web bolts on each side.")
+    webPitch: float = Field(default=70, gt=0, description="Web bolt spacing [mm].")
+    webEndDistance: float = Field(default=35, gt=0, description="Web plate edge to bolt [mm].")
+    webPlateThickness: float = Field(default=8, gt=0, description="Each web plate [mm].")
+    finishedToBear: bool = Field(
+        default=True,
+        description="Columns: the ends are finished to bear, so compression passes by bearing "
+        "and the plates carry the tension and the moment.",
+    )
+
+
+AnchorDiameter = Literal[16, 20, 24, 30, 36]
+
+
+class ColumnBasePlate(_Model):
+    """Base plate of a steel column on concrete, with anchor rods. Checked for the column's
+    forces at a support: bearing on the concrete, the anchor rods (steel) and the welds."""
+
+    type: Literal["basePlate"] = "basePlate"
+    length: float = Field(default=400, gt=0, description="Along the column depth, N [mm].")
+    width: float = Field(default=300, gt=0, description="Across, B [mm].")
+    thickness: float = Field(default=25, gt=0, description="[mm]")
+    plateMaterial: str | None = Field(
+        default=None, description="03 Materials id; none: the column's material."
+    )
+    concreteStrength: float = Field(
+        default=25, gt=0, description="f'c of the pedestal or footing under the plate [MPa]."
+    )
+    supportLength: float | None = Field(
+        default=None, gt=0, description="Concrete top under the plate, along N [mm]; none: N."
+    )
+    supportWidth: float | None = Field(
+        default=None, gt=0, description="Concrete top under the plate, along B [mm]; none: B."
+    )
+    anchors: int = Field(default=4, ge=2, le=16, description="Anchor rods.")
+    anchorDiameter: AnchorDiameter = Field(default=20, description="[mm]")
+    anchorFu: float = Field(
+        default=400, gt=0, description="Anchor rod tensile strength Fu [MPa] (400: grade 36)."
+    )
+    threadsExcluded: bool = Field(
+        default=False, description="Threads excluded from the shear plane."
+    )
+    weldSize: float = Field(default=8, gt=0, description="Column-to-plate fillet weld leg [mm].")
+    electrode: float = Field(default=480, gt=0, description="FEXX [MPa].")
 
 
 # ─────────────────────────────────── object types ───────────────────────────────────
@@ -497,8 +625,12 @@ class Beam(_ObjectBase):
     omegaCombinations: OmegaCombinations = _omega()
     connection: SteelConnection | None = Field(
         default=None,
-        description="Steel beams: the simple shear connection at both ends (fin plate or end "
-        "plate); none: not checked.",
+        description="Steel beams: the connection at both ends (fin plate or shear end plate: "
+        "simple, the ends pinned in the analysis; flange plates: a moment connection, the ends "
+        "kept rigid); none: not checked.",
+    )
+    splice: SteelSplice | None = Field(
+        default=None, description="Steel I-beams: a bolted cover-plate splice; none: no splice."
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -519,6 +651,15 @@ class Column(_ObjectBase):
     reinforcement: LinearReinforcement | None = None
     seismicRole: SeismicRole = _role()
     omegaCombinations: OmegaCombinations = _omega()
+    splice: SteelSplice | None = Field(
+        default=None,
+        description="Steel I-columns: a bolted cover-plate splice; none: no splice.",
+    )
+    basePlate: ColumnBasePlate | None = Field(
+        default=None,
+        description="Steel columns: the base plate and anchor rods where the column stands on "
+        "a support; none: not checked.",
+    )
     modifiers: FrameModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
@@ -539,7 +680,8 @@ class Brace(_ObjectBase):
     profile: Profile
     connection: SteelConnection | None = Field(
         default=None,
-        description="Steel braces: the bolted gusset connection at both ends; none: not checked.",
+        description="Steel braces: the bolted gusset or the welded HSS truss joint at both "
+        "ends; none: not checked.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,

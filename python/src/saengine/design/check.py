@@ -419,7 +419,24 @@ def design(
             f"with L on the {count} arrangements LP1-LP{count} (BNBC 2020 Part 6 Sec 6.1.12.2)"
         )
         formed = by_pattern
-    if len(formed) != len(with_omega.combinations):
+    # Notional loads of the steel stability design (BNBC 2020 Part 6 Sec 10.3.2.2), when the
+    # model has their cases (saengine.fem.notional_loads).
+    from saengine.fem.notional_loads import notional_combinations
+
+    every = getattr(getattr(settings, "analysis", None), "notionalLoads", "none") == "firstOrder"
+    by_notional = notional_combinations(formed, present, every)
+    if by_notional is not None:
+        pre_notes.append(
+            "notional loads (BNBC 2020 Part 6 Sec 10.3.2.2): each gravity-only combination is "
+            "also checked with its notional loads in +X, -X, +Y and -Y"
+            + (
+                "; every combination with a lateral load takes them in its direction"
+                if every
+                else ""
+            )
+        )
+        formed = by_notional
+    if len(formed) != len(with_omega.combinations) or by_notional is not None:
         with_omega = with_omega.model_copy(update={"combinations": formed})
     # The forces do not depend on the bars: design() calls within shared_demands() on the
     # same results and combinations (the checks with and without assumed bars) work them

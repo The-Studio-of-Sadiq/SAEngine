@@ -860,6 +860,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 								{
 									$ref: '#/$defs/BraceGussetConnection',
 								},
+								{
+									$ref: '#/$defs/FlangePlateConnection',
+								},
+								{
+									$ref: '#/$defs/HssJointConnection',
+								},
 							],
 						},
 						{
@@ -867,8 +873,21 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Steel beams: the simple shear connection at both ends (fin plate or end plate); none: not checked.',
+					description: 'Steel beams: the connection at both ends (fin plate or shear end plate: simple, the ends pinned in the analysis; flange plates: a moment connection, the ends kept rigid); none: not checked.',
 					title: 'Connection',
+				},
+				splice: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SteelSplice',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel I-beams: a bolted cover-plate splice; none: no splice.',
+					title: 'Splice',
 				},
 				modifiers: {
 					anyOf: [
@@ -1023,6 +1042,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 								{
 									$ref: '#/$defs/BraceGussetConnection',
 								},
+								{
+									$ref: '#/$defs/FlangePlateConnection',
+								},
+								{
+									$ref: '#/$defs/HssJointConnection',
+								},
 							],
 						},
 						{
@@ -1030,7 +1055,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Steel braces: the bolted gusset connection at both ends; none: not checked.',
+					description: 'Steel braces: the bolted gusset or the welded HSS truss joint at both ends; none: not checked.',
 					title: 'Connection',
 				},
 				modifiers: {
@@ -1379,6 +1404,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Ω0 combinations',
 					type: 'string',
 				},
+				splice: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SteelSplice',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel I-columns: a bolted cover-plate splice; none: no splice.',
+					title: 'Splice',
+				},
+				basePlate: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ColumnBasePlate',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel columns: the base plate and anchor rods where the column stands on a support; none: not checked.',
+					title: 'Base plate',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -1408,6 +1459,131 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Column',
+			type: 'object',
+		},
+		ColumnBasePlate: {
+			additionalProperties: false,
+			description: 'Base plate of a steel column on concrete, with anchor rods. Checked for the column\'s\nforces at a support: bearing on the concrete, the anchor rods (steel) and the welds.',
+			properties: {
+				type: {
+					const: 'basePlate',
+					default: 'basePlate',
+					title: 'Type',
+					type: 'string',
+				},
+				length: {
+					default: 400,
+					description: 'Along the column depth, N [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				width: {
+					default: 300,
+					description: 'Across, B [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				thickness: {
+					default: 25,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the column\'s material.',
+					title: 'Plate material',
+				},
+				concreteStrength: {
+					default: 25,
+					description: 'f\'c of the pedestal or footing under the plate [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Concrete strength',
+					type: 'number',
+				},
+				supportLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete top under the plate, along N [mm]; none: N.',
+					title: 'Support length',
+				},
+				supportWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete top under the plate, along B [mm]; none: B.',
+					title: 'Support width',
+				},
+				anchors: {
+					default: 4,
+					description: 'Anchor rods.',
+					maximum: 16,
+					minimum: 2,
+					title: 'Anchors',
+					type: 'integer',
+				},
+				anchorDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 24, 30, 36],
+					title: 'Anchor diameter',
+					type: 'integer',
+				},
+				anchorFu: {
+					default: 400,
+					description: 'Anchor rod tensile strength Fu [MPa] (400: grade 36).',
+					exclusiveMinimum: 0,
+					title: 'Anchor fu',
+					type: 'number',
+				},
+				threadsExcluded: {
+					default: false,
+					description: 'Threads excluded from the shear plane.',
+					title: 'Threads excluded',
+					type: 'boolean',
+				},
+				weldSize: {
+					default: 8,
+					description: 'Column-to-plate fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+			},
+			title: 'ColumnBasePlate',
 			type: 'object',
 		},
 		ColumnCapital: {
@@ -1861,6 +2037,186 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'FinPlateConnection',
 			type: 'object',
 		},
+		FlangePlateConnection: {
+			additionalProperties: false,
+			description: 'Bolted flange-plate moment connection of a beam to a column flange: a plate on each beam\nflange, welded to the column and bolted to the flange (``rows`` bolts in each of ``lines``\nlines), and a fin plate on the web for the shear. The beam end is kept rigid in the\nanalysis. ``plateThickness`` is the flange plates\'; ``edgeDistance`` sets their width.',
+			properties: {
+				boltGrade: {
+					default: 'A325N',
+					description: 'Table 6.10.10 grade.',
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					title: 'Bolt grade',
+					type: 'string',
+				},
+				boltDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 22, 24, 27, 30, 36],
+					title: 'Bolt diameter',
+					type: 'integer',
+				},
+				rows: {
+					default: 3,
+					description: 'Bolts in a line.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				pitch: {
+					default: 70,
+					description: 'Bolt spacing along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				endDistance: {
+					default: 35,
+					description: 'Last bolt to the plate edge, along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 35,
+					description: 'Bolt line to the plate edge, across the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				plateThickness: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the member\'s material.',
+					title: 'Plate material',
+				},
+				weldSize: {
+					default: 6,
+					description: 'Fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa] (E70XX ~ 480).',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shearedEdges: {
+					default: false,
+					description: 'Sheared plate edges (else rolled or thermally cut).',
+					title: 'Sheared edges',
+					type: 'boolean',
+				},
+				type: {
+					const: 'flangePlate',
+					default: 'flangePlate',
+					title: 'Type',
+					type: 'string',
+				},
+				lines: {
+					default: 2,
+					description: 'Bolt lines along each flange plate.',
+					maximum: 4,
+					minimum: 2,
+					title: 'Lines',
+					type: 'integer',
+				},
+				gauge: {
+					default: 100,
+					description: 'Between the bolt lines [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gauge',
+					type: 'number',
+				},
+				setback: {
+					default: 15,
+					description: 'Column face to the beam end (the plate\'s free length) [mm].',
+					minimum: 0,
+					title: 'Setback',
+					type: 'number',
+				},
+				plateWeld: {
+					default: 'cjp',
+					description: 'Flange plates to the column: complete-joint-penetration groove welds (matching filler) or fillet welds on both faces.',
+					enum: ['cjp', 'fillet'],
+					title: 'Plate weld',
+					type: 'string',
+				},
+				webRows: {
+					default: 3,
+					description: 'Bolts in the web fin plate.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Web rows',
+					type: 'integer',
+				},
+				webPlateThickness: {
+					default: 10,
+					description: 'Web fin plate [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web plate thickness',
+					type: 'number',
+				},
+				webBoltLineOffset: {
+					default: 60,
+					description: 'Column face to the web bolt line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web bolt line offset',
+					type: 'number',
+				},
+				columnSection: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The supporting column\'s section (steel sections table), for the column flange, web and panel zone checks; none: the column side is not checked.',
+					title: 'Column section',
+				},
+				columnMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the column; none: the beam\'s material.',
+					title: 'Column material',
+				},
+				columnStiffeners: {
+					default: false,
+					description: 'Continuity plates opposite the beam flanges (then the column flange and web local checks are left to them; their design is not checked).',
+					title: 'Column stiffeners',
+					type: 'boolean',
+				},
+			},
+			title: 'FlangePlateConnection',
+			type: 'object',
+		},
 		Footing: {
 			additionalProperties: false,
 			properties: {
@@ -2060,6 +2416,95 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'FrameModifiers',
+			type: 'object',
+		},
+		HssJointConnection: {
+			additionalProperties: false,
+			description: 'A welded HSS-to-HSS truss joint at the brace end: the brace (the branch) welded to an\nHSS chord, both round or both rectangular. Checked for the brace axial forces.',
+			properties: {
+				type: {
+					const: 'hssJoint',
+					default: 'hssJoint',
+					title: 'Type',
+					type: 'string',
+				},
+				chordSection: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The chord\'s section (steel sections table).',
+					title: 'Chord section',
+				},
+				chordMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the chord; none: the brace\'s material.',
+					title: 'Chord material',
+				},
+				joint: {
+					default: 'K',
+					description: 'T or Y (one branch), X (branches on both faces), K (two branches, gapped).',
+					enum: ['TY', 'X', 'K'],
+					title: 'Joint',
+					type: 'string',
+				},
+				angle: {
+					default: 45,
+					description: 'Branch to chord angle θ [°].',
+					maximum: 90,
+					minimum: 30,
+					title: 'Angle',
+					type: 'number',
+				},
+				gap: {
+					default: 20,
+					description: 'K joints: gap between the branches [mm].',
+					minimum: 0,
+					title: 'Gap',
+					type: 'number',
+				},
+				chordCompression: {
+					default: true,
+					description: 'Chord in compression at the joint.',
+					title: 'Chord compression',
+					type: 'boolean',
+				},
+				chordUtilisation: {
+					default: 0.5,
+					description: 'Chord utilisation U at the joint (axial and bending), for the chord stress factor Qf.',
+					maximum: 1,
+					minimum: 0,
+					title: 'Chord utilisation',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Not used (no plates).',
+					title: 'Plate material',
+				},
+			},
+			title: 'HssJointConnection',
 			type: 'object',
 		},
 		IShapeProfile: {
@@ -3167,6 +3612,167 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Staircase',
 			type: 'object',
 		},
+		SteelSplice: {
+			additionalProperties: false,
+			description: 'Bolted cover-plate splice of an I-section beam or column: a plate on the outside of each\nflange (``rows`` bolts in each of ``lines`` lines on each side of the joint) and a plate on\neach side of the web (``webRows`` bolts on each side). Checked for the member\'s forces at\nthe splice. ``plateThickness`` is the flange plates\'; ``edgeDistance`` sets their width.',
+			properties: {
+				boltGrade: {
+					default: 'A325N',
+					description: 'Table 6.10.10 grade.',
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					title: 'Bolt grade',
+					type: 'string',
+				},
+				boltDiameter: {
+					default: 20,
+					description: '[mm]',
+					enum: [16, 20, 22, 24, 27, 30, 36],
+					title: 'Bolt diameter',
+					type: 'integer',
+				},
+				rows: {
+					default: 3,
+					description: 'Bolts in a line.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				pitch: {
+					default: 70,
+					description: 'Bolt spacing along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				endDistance: {
+					default: 35,
+					description: 'Last bolt to the plate edge, along the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 35,
+					description: 'Bolt line to the plate edge, across the line [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				plateThickness: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id; none: the member\'s material.',
+					title: 'Plate material',
+				},
+				weldSize: {
+					default: 6,
+					description: 'Fillet weld leg [mm].',
+					exclusiveMinimum: 0,
+					title: 'Weld size',
+					type: 'number',
+				},
+				electrode: {
+					default: 480,
+					description: 'FEXX [MPa] (E70XX ~ 480).',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shearedEdges: {
+					default: false,
+					description: 'Sheared plate edges (else rolled or thermally cut).',
+					title: 'Sheared edges',
+					type: 'boolean',
+				},
+				type: {
+					const: 'coverPlate',
+					default: 'coverPlate',
+					title: 'Type',
+					type: 'string',
+				},
+				distance: {
+					default: 1000,
+					description: 'Splice position from the member\'s lower (first) end [mm].',
+					exclusiveMinimum: 0,
+					title: 'Distance',
+					type: 'number',
+				},
+				lines: {
+					default: 2,
+					description: 'Bolt lines along each flange plate.',
+					maximum: 4,
+					minimum: 2,
+					title: 'Lines',
+					type: 'integer',
+				},
+				gauge: {
+					default: 100,
+					description: 'Between the bolt lines [mm].',
+					exclusiveMinimum: 0,
+					title: 'Gauge',
+					type: 'number',
+				},
+				gap: {
+					default: 10,
+					description: 'Between the member ends [mm].',
+					minimum: 0,
+					title: 'Gap',
+					type: 'number',
+				},
+				webRows: {
+					default: 2,
+					description: 'Web bolts on each side.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Web rows',
+					type: 'integer',
+				},
+				webPitch: {
+					default: 70,
+					description: 'Web bolt spacing [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web pitch',
+					type: 'number',
+				},
+				webEndDistance: {
+					default: 35,
+					description: 'Web plate edge to bolt [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web end distance',
+					type: 'number',
+				},
+				webPlateThickness: {
+					default: 8,
+					description: 'Each web plate [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web plate thickness',
+					type: 'number',
+				},
+				finishedToBear: {
+					default: true,
+					description: 'Columns: the ends are finished to bear, so compression passes by bearing and the plates carry the tension and the moment.',
+					title: 'Finished to bear',
+					type: 'boolean',
+				},
+			},
+			title: 'SteelSplice',
+			type: 'object',
+		},
 		TShapeProfile: {
 			additionalProperties: false,
 			description: 'IfcTShapeProfileDef.',
@@ -4191,6 +4797,22 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'With P-Delta, also run each lateral static case first order (EX-1, ...), for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec 2.5.7.9 in the report.',
 					title: 'First-order reference cases',
 					type: 'boolean',
+				},
+				notionalLoads: {
+					default: 'none',
+					description: 'Lateral notional loads Ni at each level for the stability design of steel frames (BNBC 2020 Part 6 Sec 10.3.2.2), as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi, added to the gravity-only combinations in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, added to every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y).',
+					enum: ['none', 'secondOrder', 'firstOrder'],
+					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)'],
+					title: 'Notional loads (steel stability)',
+					type: 'string',
+				},
+				notionalDrift: {
+					default: 0.0,
+					description: 'First-order analysis: the largest storey drift ratio under the strength load combinations, for Ni = 2.1 (Δ/L) Yi (at least 0.0042 Yi). 0: the minimum.',
+					maximum: 0.05,
+					minimum: 0,
+					title: 'First-order drift ratio Δ/L',
+					type: 'number',
 				},
 				slenderness: {
 					$ref: '#/$defs/Slenderness',
@@ -6026,6 +6648,8 @@ export const DEFAULT_SETTINGS: object = {
 			L: 1.0,
 		},
 		firstOrderReference: true,
+		notionalLoads: 'none',
+		notionalDrift: 0.0,
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',
@@ -10930,6 +11554,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			L: 1.0,
 		},
 		firstOrderReference: true,
+		notionalLoads: 'none',
+		notionalDrift: 0.0,
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',
