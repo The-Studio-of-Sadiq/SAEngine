@@ -15,7 +15,7 @@ import { sptBlows } from './soilSheet.js';
  */
 
 /** The views of the soil report: the drawn log, the results and the site map. */
-export type SoilView = 'log' | 'results' | 'map';
+export type SoilView = 'log' | 'results' | 'strata' | 'map';
 
 /** The view a soil report opens on, and the one an entry returns to. */
 export const DEFAULT_VIEW: SoilView = 'log';

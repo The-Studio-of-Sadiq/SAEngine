@@ -335,7 +335,15 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
         )
     governing_bh = next((b for b in boreholes if b["id"] == project_site.get("governing")), None)
     permissible = governing_bh["permissibleSettlement"] if governing_bh else None
+    try:
+        from saengine.soil.stratigraphy import build as build_stratigraphy
+
+        strata_model: dict[str, Any] | None = build_stratigraphy(report)
+    except Exception as exc:  # noqa: BLE001 - the 3D model must not blank the results
+        strata_model = None
+        notes.append(f"The 3D stratigraphy could not be built: {exc}")
     return {
+        "stratigraphy": strata_model,
         "boreholes": boreholes,
         "siteClass": project_site,
         "amax": amax,

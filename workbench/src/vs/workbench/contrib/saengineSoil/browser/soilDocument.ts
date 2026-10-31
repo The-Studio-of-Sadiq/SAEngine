@@ -799,11 +799,51 @@ export interface ISiteClassFlag {
 }
 
 /** What the editor shows of `saengine.soil.compute`'s answer. */
+/** A unit of the 3D stratigraphy: strata of one kind correlated between the boreholes. */
+export interface IStrataUnit {
+	readonly id: string;
+	readonly key: string;
+	readonly soilType: string;
+}
+
+/** A vertical section through the stratigraphy along boreholes [m]. */
+export interface IStrataFence {
+	readonly id: string;
+	readonly boreholes: readonly { readonly id: string; readonly distance: number }[];
+	readonly stations: readonly { readonly distance: number; readonly x: number; readonly y: number }[];
+	/** Per surface (the ground, then each unit's bottom), the elevation at each station. */
+	readonly surfaces: readonly (readonly (number | null)[])[];
+	readonly water: readonly (number | null)[] | null;
+	readonly length: number;
+	/** The boreholes share one plan position: the spacing is schematic. */
+	readonly schematic: boolean;
+}
+
+/** The 3D stratigraphy of the site, as `saengine.soil.stratigraphy.build` returns it (m). */
+export interface IStratigraphy {
+	readonly correlateBy: string;
+	readonly units: readonly IStrataUnit[];
+	readonly boreholes: readonly { readonly id: string; readonly x: number; readonly y: number; readonly ground: number; readonly bottom: number; readonly water: number | null; readonly surfaces: readonly (number | null)[] }[];
+	readonly grid: { readonly x: readonly number[]; readonly y: readonly number[]; readonly surfaces: readonly (readonly (readonly (number | null)[])[])[]; readonly water: readonly (readonly (number | null)[])[] | null } | null;
+	readonly fences: readonly IStrataFence[];
+	readonly notes: readonly string[];
+}
+
+/** The stratigraphy of the backend's answer, when it has the shape the drawings need. */
+export function readStratigraphy(raw: unknown): IStratigraphy | undefined {
+	if (!isRecord(raw) || !Array.isArray(raw.units) || !Array.isArray(raw.boreholes) || !Array.isArray(raw.fences)) {
+		return undefined;
+	}
+	return raw as unknown as IStratigraphy;
+}
+
 export interface ISoilResults {
 	readonly siteClass?: ISiteClassResult;
 	readonly boreholes?: readonly IBoreholeResult[];
 	/** The lowest qa of all boreholes for each footing size. */
 	readonly bearing?: IBearingResult;
+	/** The 3D stratigraphy and the fence diagrams (saengine.soil.stratigraphy), when the backend gives them. */
+	readonly stratigraphy?: IStratigraphy;
 	/** Peak ground acceleration used for liquefaction [g], and where it came from. */
 	readonly pga?: number;
 	readonly pgaSource?: string;
@@ -1062,6 +1102,7 @@ export function readSoilResults(raw: unknown, excluded: ReadonlySet<string> = ne
 		liquefactionMethod: str(backend.liquefactionMethod) ?? str(isRecord(backend.design) ? backend.design.liquefactionMethod : undefined),
 		sptMethod: str(backend.methods?.spt),
 		siteClassFlags: readFlags(backend),
+		stratigraphy: readStratigraphy((raw as { stratigraphy?: unknown }).stratigraphy),
 		permissibleSettlement: permissible?.value,
 		permissibleSettlementSource: permissible?.source,
 		problems: [...strings(backend.problems), ...strings(backend.warnings)],
