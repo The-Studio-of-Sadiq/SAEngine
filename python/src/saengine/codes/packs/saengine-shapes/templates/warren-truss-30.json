@@ -1,0 +1,12 @@
+{
+  "name": "Warren truss 30 m",
+  "description": "Warren roof truss of 10 panels, 3 m deep.",
+  "shape": {
+    "kind": "planeTruss",
+    "span": 30000.0,
+    "depth": 3000.0,
+    "panels": 10,
+    "pattern": "warren",
+    "memberType": "MEMBER"
+  }
+}

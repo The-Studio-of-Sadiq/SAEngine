@@ -17,8 +17,21 @@
 
 .floor-plan-loads .floor-plan-loads-check {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--sa-space-1, 4px);
+}
+
+.floor-plan-loads .floor-plan-loads-check .monaco-custom-toggle {
+	margin-left: 0;
+}
+
+.floor-plan-loads .floor-plan-loads-check-label {
+	cursor: pointer;
+	user-select: none;
+}
+
+.floor-plan-loads .floor-plan-loads-check-note {
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -73,4 +86,14 @@
 /* The architecture's loads (read-only): keep a value on one line. */
 .floor-plan-loads .floor-plan-loads-table td.nowrap {
 	white-space: nowrap;
+}
+
+.floor-plan-loads .sa-props-note.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/* A checkbox row's cell reads left to right: the box, its words, the note under them. */
+.floor-plan-loads .sa-props-row.editable > .value:has(.floor-plan-loads-check) {
+	flex: 1 1 100%;
+	text-align: left;
 }

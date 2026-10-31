@@ -1,0 +1,13 @@
+{
+  "name": "Space truss 36 × 24 m",
+  "description": "Two-layer space truss on a 3 m grid, 2 m deep, pinned at the corners.",
+  "shape": {
+    "kind": "spaceTruss",
+    "lengthX": 36000.0,
+    "lengthY": 24000.0,
+    "baysX": 12,
+    "baysY": 8,
+    "depth": 2000.0,
+    "memberType": "MEMBER"
+  }
+}

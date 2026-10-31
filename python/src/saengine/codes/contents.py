@@ -182,7 +182,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
         path = pack_dir / rel
         suffix = path.suffix.lower()
         if kind == "buildingTemplate" and suffix == ".civil":
-            from saengine.project.archive import inspect_archive
+            from saengine.project.archive import inputs_only_problems, inspect_archive
 
             result = inspect_archive(path)
             problems.extend(
@@ -191,7 +191,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
                     message=f"template archive: {p.get('message')}",
                     file=rel,
                 )
-                for p in result["problems"]
+                for p in result["problems"] + inputs_only_problems(path)
             )
             continue
         if suffix != ".json":

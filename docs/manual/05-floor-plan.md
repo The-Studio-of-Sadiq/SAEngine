@@ -26,7 +26,9 @@ project has a 3D **Structural Model** in Part 5 instead; it is not covered by th
 - **Properties panel:** the storey (nothing selected), one member, or several members.
 
 All positions are in **mm**. Every edit is one undoable change of `floor-plan.json`
-(Ctrl+Z / Ctrl+Y, or the toolbar). Save with Ctrl+S.
+(Ctrl+Z / Ctrl+Y, or the toolbar). Save with Ctrl+S. Adding, changing or deleting a line or
+point load is on the same Undo and Redo (the loads file is saved as it changes); the Undo
+button's tooltip names the edit it undoes.
 
 ## Grids and storeys
 
@@ -53,7 +55,7 @@ first.*).
 | **Column** | Click a grid intersection. The column rises from the storey below to this storey. A second column at the same place is refused. |
 | **Beam** / **Wall** | Click two intersections. Placement chains from the last point until Esc or a right-click. Walls also rise from the storey below. |
 | **Slab** | Click inside a bay (the rectangle between neighbouring grid lines). |
-| **Polygon Slab** | Click the corners (they snap to intersections and grid lines); finish on the first corner, with Enter or a right-click (at least three corners). |
+| **Polygon Slab** | Click the corners (they snap to intersections and grid lines); finish on the first corner, with Enter or a right-click (at least three corners). A slab with a beam or structural wall across it is warned about; **Split S1 along B6** (status line or Properties → Warnings) makes two slabs that meet on it. |
 | **Move** | Click a member, then click the new place, or type the displacement *Δx, Δy* in mm (e.g. `150, 0`) and press **Move**. |
 | **Rotate** | Columns and footings only: click one; type an angle and press **Rotate**, or **Turn 90°**. Beams, walls and slabs follow their points. |
 | **Delete** | Click a member on this storey. |
@@ -106,11 +108,13 @@ Fill works on the grid only; it does not look for beams around a bay.
 
 - **Copy Selection to Stories...** copies the selection to the storeys you tick (*Copied 14
   member(s) to Level 2, Level 3; skipped 0 already there.*). Columns and walls rise from the
-  storey below each target. Footings are not copied.
+  storey below each target. Footings are not copied. A beam copied to a storey where nothing
+  holds it up (a cantilever whose column is not there) is named in a warning.
 - **Ctrl+C / Ctrl+V:** copy the selection and paste it at a base point (the lower-left corner of
   the copied members), on this storey or another.
 - **Typical Floors...** (three or more storeys): first pick the typical floor, then the storeys
-  that repeat it. Their plans are replaced by the typical floor's plan, and from then on **every
+  that repeat it. Their plans are replaced by the typical floor's plan (a confirmation first lists
+  the members of theirs that are deleted or replaced), and from then on **every
   edit on any storey of the family is made on all of them** (*Typical floor Level 2: edits repeat
   on all 8 stories*). If the storeys of a family differ (for example after editing the file), the
   status line offers **Copy the typical floor to them**; edits are refused until then.
@@ -138,8 +142,11 @@ Moved or copied members that would land on another member or off the grid stay w
 
 ## Underlay (architect's drawing)
 
-**Attach Underlay...** shows a DXF drawing greyed under the plan of the current storey. A DXF from
-outside the project is copied into `05 Floor Plan/Underlays/`. **Hide/Show Underlay** toggles it.
+**Attach Underlay...** shows a DXF drawing greyed under the plan of the current storey (the
+members keep their colours and draw over it). A DXF from outside the project is copied into
+`05 Floor Plan/Underlays/`. A plan exported from the floor plan can be used too: its grids,
+labels and loads are left out, as the live plan draws them. **Hide/Show Underlay** toggles it; this
+is a view setting, not an edit of the floor plan.
 The underlay's offset, scale and rotation can only be changed in the JSON file.
 
 ## Members Table
@@ -170,7 +177,14 @@ does not show or edit it in this version.
 `05 Floor Plan/loads.json`, beside the floor plan. Select beams and click **Line Load on ...** in
 the Properties panel: a wall type × height (125 mm and 250 mm brick walls from the code pack's
 unit weights, BNBC 2020 Part 6 Table 6.2.2, less an openings percentage) or a value in kN/m, in a
-load case (SD by default). **Point Load...** puts a load in kN on a beam at a distance from its
+load case (SD by default). The wall's height is worked out **per beam and story** by default:
+the storey height above less the depth of the beam above (else of the loaded beam), and a 1 m
+parapet with no openings on the top storey (or no wall there, with *No wall there*). So the
+storeys of a typical floor that differ in height each get their own wall, and several selected
+beams each get their own depth. Untick it to type one height for every storey; the form warns
+when the storeys differ. In the Loads list type `auto` as the height to work it out again.
+Partition walls drawn on the plan (non-structural wall types, drawn dashed) already load the beam
+under them: the form warns when a beam has one, so a wall is not counted twice. **Point Load...** puts a load in kN on a beam at a distance from its
 start, or on a column's joint. The **Loads** list of the story edits or deletes them; the plan
 draws them. A load on a typical floor applies to every story like it unless *This story only*.
 The analysis model applies them as member loads (they count in the seismic weight as their case

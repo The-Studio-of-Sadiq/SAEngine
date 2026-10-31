@@ -8,8 +8,9 @@ import { SETUP_COMPONENTS, SetupComponent } from '../../../../platform/saengine/
 
 /**
  * The optional components of the SAEngine setup (docs/marketplace-plan.md §6, round M6): the
- * separate programs EnergyPlus, LibreCAD and LibreDWG, ticked in the setup's Full type and left
- * out of Compact. A missing component is a state, not an error: the part that uses it says so and
+ * separate programs EnergyPlus, LibreCAD and LibreDWG, and the built-in extensions of the AI
+ * assistant (Copilot), Git and collaboration, ticked in the setup's Full type and left out of
+ * Compact. A missing component is a state, not an error: the part that uses it says so and
  * offers *Add Component...*, which re-runs the setup the user chose (checked against the release's
  * SHA-256) with `/COMPONENTS=`. SAEngine downloads no program by itself (D7).
  *
@@ -46,6 +47,9 @@ export function componentLabel(component: SetupComponent): string {
 		case 'energyplus': return localize('component.energyplus', "Energy simulation (EnergyPlus)");
 		case 'librecad': return localize('component.librecad', "CAD editor (LibreCAD)");
 		case 'libredwg': return localize('component.libredwg', "DWG import (LibreDWG)");
+		case 'ai': return localize('component.ai', "AI assistant (GitHub Copilot)");
+		case 'git': return localize('component.git', "Git");
+		case 'collaboration': return localize('component.collaboration', "Collaboration (remote access)");
 	}
 }
 
@@ -55,6 +59,9 @@ export function componentPurpose(component: SetupComponent): string {
 		case 'energyplus': return localize('component.energyplusPurpose', "The design-day cooling loads of 7 MEP › HVAC. Without it the loads are SAEngine's estimate.");
 		case 'librecad': return localize('component.librecadPurpose', "Edits the DXF drawings SAEngine exports (Open in LibreCAD). Without it they open in the program Windows uses for DXF files.");
 		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports). Without it a DWG must be saved as DXF first.");
+		case 'ai': return localize('component.aiPurpose', "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
+		case 'git': return localize('component.gitPurpose', "Project history with Git and GitHub, in Developer Mode. Without it SAEngine keeps its own versions of the project.");
+		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access; live collaboration will be added here. Without it SAEngine works on this computer only.");
 	}
 }
 

@@ -217,6 +217,64 @@ def test_loads_follow_typical_floors() -> None:
     assert not out.notes
 
 
+def _uneven_typical() -> FloorPlan:
+    """Three typical stories, the middle one 3.6 m high (L2 at 6.4 m, L3 at 10.0 m, the roof)."""
+    data = plan(levels=3, typical=True).model_dump(mode="json", by_alias=True)
+    for story in data["stories"]:
+        if story["id"] == "L3":
+            story["elevation"] = 10000
+    return FloorPlan.model_validate(data)
+
+
+def test_auto_wall_height_per_story_and_beam() -> None:
+    """N-F2: a wall entered on a typical floor with its height worked out ("auto") gets the
+    height of each story it repeats on: story height above less the depth of the beam above
+    (500 mm). Before, the entered 2.7 m was used on every story: the 3.6 m story's walls were
+    13 % light and the roof carried full walls instead of a parapet."""
+    building = generate(_uneven_typical(), "s")
+    types = {o.id: o for o in OBJECTS.objects}
+    wall = {"type": "BW250", "height": 2700, "openings": 20, "auto": True}
+    out = ml.member_loads(
+        building, loads({"id": "W", "story": "L1", "member": "B11", "wall": wall}), types
+    )
+    by_level = {round(line.start[2], 1): line.load / 1000 for line in out.lines}
+    weight = ll.default_wall_types()[1].weight_per_area()  # BW250, 5.35 kN/m²
+    assert by_level == {
+        3.2: pytest.approx(weight * (3.2 - 0.5) * 0.8),  # L1 to L2: 3200 - 500
+        6.4: pytest.approx(weight * (3.6 - 0.5) * 0.8),  # L2 to L3: 3600 - 500
+        10.0: pytest.approx(weight * 1.0),  # the roof: a 1 m parapet, no openings
+    }
+    # Without the object types: the entered height moved by the story's difference.
+    out = ml.member_loads(
+        building, loads({"id": "W", "story": "L1", "member": "B11", "wall": wall})
+    )
+    assert {round(line.start[2], 1): line.load / 1000 for line in out.lines}[6.4] == pytest.approx(
+        weight * 3.1 * 0.8
+    )
+    # Skip the roof: none on the top story, said in the notes.
+    skip = {**wall, "skipRoof": True}
+    out = ml.member_loads(
+        building, loads({"id": "W", "story": "L1", "member": "B11", "wall": skip}), types
+    )
+    assert sorted(round(line.start[2], 1) for line in out.lines) == [3.2, 6.4]
+    assert out.notes == ["W: no wall on B31, on the top story (skip the roof)"]
+    # A height typed by hand stays as typed on every story.
+    fixed = {"type": "BW250", "height": 2700}
+    out = ml.member_loads(
+        building, loads({"id": "W", "story": "L1", "member": "B11", "wall": fixed}), types
+    )
+    assert [line.load for line in out.lines] == pytest.approx([weight * 2.7 * 1000] * 3)
+
+
+def test_auto_height_by_hand() -> None:
+    wall = ll.WallLoad(type="BW250", height=2700, auto=True)
+    assert ll.auto_height(wall, 3600, 450) == 3150
+    assert ll.auto_height(wall, None, 500) == ll.PARAPET_HEIGHT
+    assert ll.auto_height(wall, 3600, None, entered=3200) == 3100
+    assert ll.auto_height(wall.model_copy(update={"skipRoof": True}), None, 500) is None
+    assert ll.auto_height(ll.WallLoad(type="BW250", height=2700), 3600, 450) == 2700
+
+
 def test_no_typical_floor_means_its_own_story() -> None:
     building = generate(plan(levels=2), "s")
     out = ml.member_loads(building, loads({"id": "A", "story": "L1", "member": "B11", "value": 1}))

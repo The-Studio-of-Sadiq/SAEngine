@@ -1,0 +1,13 @@
+{
+  "name": "Barrel vault 24 × 36 m",
+  "description": "Ribbed barrel vault, rise 6 m, 6 bays along its length.",
+  "shape": {
+    "kind": "barrelVault",
+    "span": 24000.0,
+    "rise": 6000.0,
+    "length": 36000.0,
+    "segments": 12,
+    "bays": 6,
+    "memberType": "MEMBER"
+  }
+}
