@@ -27,6 +27,40 @@ export const COMPONENTS_STATES_COMMAND = 'saengine.components.states';
 export const COMPONENTS_SHOW_COMMAND = 'saengine.components.show';
 
 /**
+ * The components that are built-in extensions (`code.iss` installs their folders under
+ * `resources\app\extensions`), each with the extension whose presence tells its state.
+ */
+export const EXTENSION_COMPONENTS = {
+	ai: 'GitHub.copilot-chat',
+	git: 'vscode.git',
+	collaboration: 'vscode.tunnel-forwarding',
+} as const satisfies { readonly [K in SetupComponent]?: string };
+
+export type ExtensionComponent = keyof typeof EXTENSION_COMPONENTS;
+
+/**
+ * The context key that holds an extension component's state (`installed`, `elsewhere`,
+ * `missing`), so menus and view welcomes can offer *Add Component...* where the component is
+ * used, e.g. `saengine.component.git == missing` in Source Control.
+ */
+export function componentContextKey(component: ExtensionComponent): string {
+	return `saengine.component.${component}`;
+}
+
+/** Whether the part that uses the component can use it (the setup's copy or one found elsewhere). */
+export function isUsable(status: IComponentStatus): boolean {
+	return status.state === 'installed' || status.state === 'elsewhere';
+}
+
+/**
+ * The command link of *Add Component...* for a view welcome or a Markdown message
+ * (`command:saengine.components.add?["git"]`).
+ */
+export function addComponentLink(component: SetupComponent): string {
+	return `command:${COMPONENTS_ADD_COMMAND}?${encodeURIComponent(JSON.stringify([component]))}`;
+}
+
+/**
  * `installed`: the setup's copy in the app folder; `elsewhere`: found another way (an environment
  * variable, a setting, a program installed separately), which works too; `missing`: none, the
  * part works without it in a reduced way; `unknown`: the backend could not be asked.
