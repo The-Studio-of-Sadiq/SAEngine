@@ -290,7 +290,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private planRoot: SVGElement | undefined;
 
 	/** The cells of the fixtures table's totals row, refreshed while typing. */
-	private readonly totalCells = new Map<string, HTMLElement>();
+	private readonly totalCells = new Map<string, HTMLInputElement>();
 
 	private report: IMepReport | undefined;
 	private reportState: ReportState = 'idle';
@@ -3625,7 +3625,11 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			if (fromRooms) {
 				tr.classList.add('plb-from-rooms');
 			}
-			const populationHint = row?.population === undefined && source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1) : undefined;
+			// Blank: the population the backend used (from the rooms, or the floor area over the area per person of the occupancy, N-E11).
+			const used = this.plumbingReport?.demand.find(d => d.story === storyId)?.population;
+			const populationHint = row?.population !== undefined ? undefined
+				: source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1)
+					: used !== undefined && used > 0 ? formatNumber(used, 0) : undefined;
 			const population = append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population'), populationHint));
 			if (populationHint && source?.populationSource) {
 				population.title = localize('plb.populationFromRooms', "From the rooms: {0}", source.populationSource);
@@ -3644,10 +3648,14 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 				append(tr, $('td'));
 			}
 		}
+		// The same cells as the rows above (one per column, the numbers in read-only inputs), so the totals line up (N-E11).
 		const totals = append(body, $('tr.plb-total'));
-		append(totals, $('td', { colspan: '3' }, localize('plb.totals', "Totals")));
+		append(totals, $('td', undefined, localize('plb.totals', "Totals")));
+		append(totals, $('td'));
+		append(totals, $('td'));
 		for (const key of ['population', ...FIXTURES]) {
-			this.totalCells.set(key, append(totals, $('td.number')));
+			const input = append(append(totals, $('td')), $<HTMLInputElement>('input.mep-input.number.plb-total-value', { type: 'text', readonly: 'true', tabindex: '-1', 'aria-label': localize('plb.totalOf', "Total {0}", key === 'population' ? P.population.label : fixtureLabel(key)) }));
+			this.totalCells.set(key, input);
 		}
 		append(totals, $('td'));
 		this.updatePlumbingTotals(document);
@@ -3789,7 +3797,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const totals = plumbing ? fixtureTotals(plumbing) : undefined;
 		for (const [key, cell] of this.totalCells) {
 			const value = totals?.[key as keyof typeof totals] ?? 0;
-			cell.textContent = value ? formatNumber(value, 0) : '';
+			cell.value = value ? formatNumber(value, 0) : '';
 		}
 	}
 

@@ -1830,3 +1830,11 @@
 		padding-right: 6px;
 	}
 }
+
+/* The totals in read-only inputs, aligned with the inputs above (N-E11). */
+.saengine-mep-editor tr.plb-total .plb-total-value {
+	border-color: transparent;
+	background: transparent;
+	font-weight: 600;
+	pointer-events: none;
+}
