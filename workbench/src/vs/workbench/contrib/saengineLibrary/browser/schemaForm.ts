@@ -49,6 +49,11 @@ export interface ISchemaFormContext {
 	 * derived from other fields), shown greyed in the field: "8 (BNBC 2020 Table 6.2.19)".
 	 */
 	placeholder?(path: string): string | undefined;
+	/**
+	 * A quiet line below a valid field: what an entered override replaces ("override; the code
+	 * value is 0.20"), or a value derived from it (a column's ρ).
+	 */
+	note?(path: string): string | undefined;
 	/** The option text of a reference (`references`) in its list, e.g. an area load with its loads; undefined: the id. */
 	referenceLabel?(path: string, id: string): string | undefined;
 	/**
@@ -125,7 +130,7 @@ export class SchemaForm {
 	/** Top-level groups and lists render without their heading (see {@link ISchemaFormRenderOptions}). */
 	private flat = false;
 	/** The text fields of the rendered form by path, so a value derived elsewhere can be shown in place. */
-	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void }>();
+	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void; readonly note: () => void }>();
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -171,6 +176,7 @@ export class SchemaForm {
 	refreshPlaceholders(): void {
 		for (const input of this.inputs.values()) {
 			input.placeholder();
+			input.note();
 		}
 	}
 
@@ -621,9 +627,13 @@ export class SchemaForm {
 		// Empty optional fields are handled below, so the leaf is validated as non-nullable.
 		const leaf: IConfigurationPropertySchema = { ...schema };
 		const validator = createValidator(leaf);
+		// An empty field with a default (a combination factor, a mesh size left out of the file)
+		// means "use the default", which its placeholder shows: not a missing number.
+		const defaulted = schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object';
+		const empty = optional || defaulted;
 		const check = (text: string): string | undefined => {
 			const trimmed = text.trim();
-			if (optional && trimmed === '') {
+			if (empty && trimmed === '') {
 				return undefined;
 			}
 			if (numeric && trimmed !== '' && !isFinite(Number(trimmed))) {
@@ -648,28 +658,47 @@ export class SchemaForm {
 			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? String(schema.default) : '');
 		};
 		placeholder();
-		this.inputs.set(path, { box, placeholder });
 		// The problem stays written below the field (not only in a popup while it has focus), and
 		// says that the file keeps its last valid value meanwhile.
 		const field = container.closest<HTMLElement>('.form-field, .form-cell') ?? container;
 		const message = append(field, $('.form-message', { role: 'alert' }));
+		const noteLine = append(field, $('.form-note', { 'aria-live': 'polite' }));
+		const note = () => {
+			noteLine.textContent = field.classList.contains('invalid') ? '' : this.ctx.note?.(path) ?? '';
+		};
 		const showMessage = (text: string) => {
 			const error = check(text);
 			message.textContent = error ? localize('schemaForm.notApplied', "{0} Not applied: the file keeps its last valid value.", error) : '';
 			field.classList.toggle('invalid', !!error);
 		};
+		// Table cells cut long text short ("1.2D + 1.0E + 0.5L + 0.2S"): the whole of it on hover.
+		const showTitle = (text: string) => {
+			if (container.classList.contains('form-cell')) {
+				box.inputElement.title = text;
+			}
+		};
+		this.inputs.set(path, { box, placeholder, note });
 		showMessage(initial);
+		note();
+		showTitle(initial);
 		this.disposables.add(box.onDidChange(text => {
 			showMessage(text);
+			showTitle(text);
 			if (check(text) !== undefined) {
+				note();
 				return;
 			}
 			const trimmed = text.trim();
-			apply(optional && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
+			apply(empty && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
 			this.ctx.changed(path, false);
+			note();
 		}));
 		this.disposables.add(addDisposableListener(box.inputElement, EventType.FOCUS, () => this.ctx.editing?.(true)));
-		this.disposables.add(addDisposableListener(box.inputElement, EventType.BLUR, () => this.ctx.editing?.(false)));
+		this.disposables.add(addDisposableListener(box.inputElement, EventType.BLUR, () => {
+			this.ctx.editing?.(false);
+			// The field's help does not linger over the next row once the cursor has left it.
+			this.hoverService.hideHover(true);
+		}));
 	}
 
 	/** A small borderless icon button (remove a row, add a part), with a hover. */
