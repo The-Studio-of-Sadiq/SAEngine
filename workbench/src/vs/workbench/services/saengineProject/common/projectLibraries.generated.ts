@@ -4748,6 +4748,22 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'First-order reference cases',
 					type: 'boolean',
 				},
+				notionalLoads: {
+					default: 'none',
+					description: 'Lateral notional loads Ni at each level for the stability design of steel frames (BNBC 2020 Part 6 Sec 10.3.2.2), as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi, added to the gravity-only combinations in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, added to every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y).',
+					enum: ['none', 'secondOrder', 'firstOrder'],
+					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)'],
+					title: 'Notional loads (steel stability)',
+					type: 'string',
+				},
+				notionalDrift: {
+					default: 0.0,
+					description: 'First-order analysis: the largest storey drift ratio under the strength load combinations, for Ni = 2.1 (Δ/L) Yi (at least 0.0042 Yi). 0: the minimum.',
+					maximum: 0.05,
+					minimum: 0,
+					title: 'First-order drift ratio Δ/L',
+					type: 'number',
+				},
 				slenderness: {
 					$ref: '#/$defs/Slenderness',
 					title: 'Column slenderness',
@@ -6582,6 +6598,8 @@ export const DEFAULT_SETTINGS: object = {
 			L: 1.0,
 		},
 		firstOrderReference: true,
+		notionalLoads: 'none',
+		notionalDrift: 0.0,
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',
@@ -11456,6 +11474,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			L: 1.0,
 		},
 		firstOrderReference: true,
+		notionalLoads: 'none',
+		notionalDrift: 0.0,
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',

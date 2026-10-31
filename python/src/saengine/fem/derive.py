@@ -2586,6 +2586,15 @@ def _derive_fem(
             summary["nodes"] = len(project["nodes"])
             summary["elements"] = len(project["elements"])
 
+    # ── notional loads for the steel stability design (BNBC 2020 Part 6 Sec 10.3.2.2) ──
+    notional = getattr(options, "notionalLoads", "none") or "none"
+    if notional != "none":
+        from saengine.fem.notional_loads import add_notional_cases
+
+        b.notes.extend(
+            add_notional_cases(project, notional, float(getattr(options, "notionalDrift", 0.0)))
+        )
+
     # ── cracked stiffness and P-Delta (saengine.fem.second_order), after every case exists ──
     from saengine.fem import second_order
 

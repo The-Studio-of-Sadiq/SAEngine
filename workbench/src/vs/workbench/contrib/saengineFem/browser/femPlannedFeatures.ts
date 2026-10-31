@@ -48,10 +48,17 @@ export const FemPlanned = {
 	basePlateDesign: 'fem.basePlateDesign',
 	anchorConcrete: 'fem.anchorConcrete',
 	endPlateMoment: 'fem.endPlateMoment',
+	/** T28: the direct analysis method, AISC 341 seismic systems, member torsion. */
+	directAnalysis: 'fem.directAnalysis',
+	steelSeismic: 'fem.steelSeismic',
+	steelTorsion: 'fem.steelTorsion',
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */
 export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.anchorConcrete, FemPlanned.endPlateMoment];
+
+/** The planned steel stability and seismic features, shown with the steel members' checks. */
+export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.directAnalysis, FemPlanned.steelSeismic, FemPlanned.steelTorsion];
 
 /**
  * A row of "Planned" chips, under a Properties panel heading when `heading` is given. The

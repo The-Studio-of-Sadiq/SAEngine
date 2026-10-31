@@ -785,6 +785,83 @@ registerPlannedFeature({
 	],
 });
 
+// T28: the direct analysis method, AISC 341 seismic steel systems and member torsion. The
+// notional loads of BNBC 2020 Part 6 Sec 10.3.2.2 are built (Project Settings → Analysis).
+registerPlannedFeature({
+	id: FemPlanned.directAnalysis,
+	part: 'fem',
+	title: localize('planned.directAnalysis.title', "Direct Analysis Method"),
+	summary: localize('planned.directAnalysis.summary', "Designs steel frames by the direct analysis method: a second-order analysis on reduced stiffness with notional loads, so every member takes K = 1. Today the notional loads and the P-Delta analysis are available, and the members take K from their bracing or the buckling analysis."),
+	steps: [
+		localize('planned.directAnalysis.step1', "Reduce the stiffness of the steel members that contribute to stability: 0.8 EA and 0.8 τb EI, τb from each member's axial force."),
+		localize('planned.directAnalysis.step2', "Add the notional loads 0.002 Yi at each level, in every combination or in the gravity-only ones when the drift ratio allows."),
+		localize('planned.directAnalysis.step3', "Run a second-order analysis per combination, iterating τb."),
+		localize('planned.directAnalysis.step4', "Check the members with K = 1 and report the second-order to first-order drift ratios."),
+	],
+	inputs: [
+		{ label: localize('planned.directAnalysis.tau', "τb"), example: localize('planned.directAnalysis.tauExample', "From Pr / Py, or 1.0 with 0.001 Yi added") },
+		{ label: localize('planned.directAnalysis.notional', "Notional load coefficient"), example: '0.002' },
+	],
+	outputs: [
+		localize('planned.directAnalysis.out1', "Member forces from the reduced-stiffness second-order analysis"),
+		localize('planned.directAnalysis.out2', "Member checks with K = 1 and the drift ratios per storey"),
+	],
+	references: [
+		localize('planned.directAnalysis.ref1', "BNBC 2020 Part 6 Sec 10.3 (design for stability)"),
+		localize('planned.directAnalysis.ref2', "AISC 360 Chapter C / AISC 360-05 Appendix 7 (direct analysis method)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.steelSeismic,
+	part: 'fem',
+	title: localize('planned.steelSeismic.title', "Seismic Steel Systems"),
+	summary: localize('planned.steelSeismic.summary', "Designs steel moment frames and braced frames for earthquakes: the width-to-thickness and bracing limits of each system, capacity design of columns and connections, panel zones, and the protected zones of special frames."),
+	steps: [
+		localize('planned.steelSeismic.step1', "Pick the system of each frame: special, intermediate or ordinary moment frame; special or ordinary concentrically braced frame; eccentrically braced frame."),
+		localize('planned.steelSeismic.step2', "Check the members' highly or moderately ductile width-to-thickness ratios and lateral bracing."),
+		localize('planned.steelSeismic.step3', "Check strong column, weak beam; the panel zones; the brace and link capacities; and the columns for the amplified seismic load."),
+		localize('planned.steelSeismic.step4', "Design the connections for the expected strengths Ry Fy and report the protected zones."),
+	],
+	inputs: [
+		{ label: localize('planned.steelSeismic.system', "Seismic system"), example: localize('planned.steelSeismic.systemExample', "Special concentrically braced frame") },
+		{ label: localize('planned.steelSeismic.ry', "Ry of the steel"), example: '1.5' },
+		{ label: localize('planned.steelSeismic.link', "EBF link length"), unit: 'mm', example: '900' },
+	],
+	outputs: [
+		localize('planned.steelSeismic.out1', "Seismic checks per member and connection, in the design checks and the report"),
+		localize('planned.steelSeismic.out2', "Capacity-design forces for the columns, beams and connections"),
+	],
+	references: [
+		localize('planned.steelSeismic.ref1', "BNBC 2020 Part 6 Sec 2.5 (the steel seismic systems with R, Cd and Ω0)"),
+		localize('planned.steelSeismic.ref2', "AISC 341 (seismic provisions for structural steel buildings)"),
+		localize('planned.steelSeismic.ref3', "AISC 358 (prequalified moment connections)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.steelTorsion,
+	part: 'fem',
+	title: localize('planned.steelTorsion.title', "Steel Member Torsion"),
+	summary: localize('planned.steelTorsion.summary', "Checks steel members for the torsion of the analysis: St. Venant and warping stresses of open sections, the torsional strength of hollow sections, and their interaction with the axial force, bending and shear."),
+	steps: [
+		localize('planned.steelTorsion.step1', "Take the torsional moment along each member and its end restraint against warping."),
+		localize('planned.steelTorsion.step2', "Work out the shear and normal stresses from pure and warping torsion along the member."),
+		localize('planned.steelTorsion.step3', "Combine them with the stresses of the axial force, bending and shear, and compare with the limits."),
+	],
+	inputs: [
+		{ label: localize('planned.steelTorsion.ends', "Warping restraint at the ends"), example: localize('planned.steelTorsion.endsExample', "Free") },
+		{ label: localize('planned.steelTorsion.load', "Torque from"), example: localize('planned.steelTorsion.loadExample', "The analysis") },
+	],
+	outputs: [
+		localize('planned.steelTorsion.out1', "Torsion and combined stress checks per member"),
+	],
+	references: [
+		localize('planned.steelTorsion.ref1', "BNBC 2020 Part 6 Sec 10.8.3 (members under torsion)"),
+		localize('planned.steelTorsion.ref2', "AISC Design Guide 9 (torsional analysis of structural steel members)"),
+	],
+});
+
 // Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
 // model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
 registerPlannedFeature({
