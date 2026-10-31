@@ -226,7 +226,9 @@ def prefetch_section_properties(profiles: Iterable[o.Profile]) -> None:
     try:
         with ProcessPoolExecutor(max_workers=jobs) as pool:
             solved = list(pool.map(_solve, keys))
-    except (BrokenProcessPool, OSError, RuntimeError):
+    except (BrokenProcessPool, OSError, RuntimeError, Exception):  # noqa: BLE001
+        # Processes that could not start or died, or a profile that fails to solve: each is
+        # solved (or fails, with its own message) where it is first used.
         return
     for key, props in zip(keys, solved, strict=True):
         _write_cached(key, props)
