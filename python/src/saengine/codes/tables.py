@@ -250,6 +250,14 @@ class Exposure(_Row):
     description: str
     alpha: float = Field(gt=0)
     zg: float = Field(gt=0, description="Gradient height [m].")
+    # The terrain constants of the gust-effect factor (BNBC 2020 Part 6 Table 6.2.10); None: a
+    # pack without them gives rigid buildings only.
+    c: float | None = Field(default=None, gt=0, description="Turbulence intensity factor c.")
+    l: float | None = Field(default=None, gt=0, description="Integral length scale ℓ [m].")
+    epsilonBar: float | None = Field(default=None, gt=0, description="Integral length ε̄.")
+    alphaBar: float | None = Field(default=None, gt=0, description="Mean-speed power ᾱ.")
+    bBar: float | None = Field(default=None, gt=0, description="Mean-speed factor b̄.")
+    zmin: float | None = Field(default=None, gt=0, description="z_min of z̄ [m].")
 
 
 class WindDesignCasesRow(_Row):
@@ -265,6 +273,52 @@ class WindDesignCasesRow(_Row):
     exemptHeight: float = Field(gt=0, description="Exception: one-storey height limit h [m].")
 
 
+class FlexibleGustRow(_Row):
+    """The gust-effect factor Gf of a flexible or dynamically sensitive building (BNBC 2020 Part 6
+    Sec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`."""
+
+    frequencyLimit: float = Field(gt=0, description="A building below n1 [Hz] is flexible.")
+    gQ: float = Field(gt=0, description="Peak factor of the background response gQ.")
+    gv: float = Field(gt=0, description="Peak factor of the wind response gv.")
+    heightFactor: float = Field(gt=0, description="z̄ = heightFactor · h.")
+    lead: float = Field(gt=0, description="The factor before the fraction (0.925).")
+    damping: float = Field(gt=0, lt=1, description="Damping ratio β of a concrete building.")
+
+
+class CladdingCurve(_Row):
+    """One external pressure coefficient (GCp) of components and cladding: ``gcp1`` at an
+    effective wind area up to ``area1`` [m²], ``gcp2`` from ``area2``, linear in log A between."""
+
+    surface: Literal["wall", "roof"]
+    zone: str
+    sign: Literal["positive", "negative"]
+    area1: float = Field(gt=0)
+    gcp1: float
+    area2: float = Field(gt=0)
+    gcp2: float
+
+
+class CladdingTable(_Row):
+    """Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and
+    flat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal
+    pressure coefficients and the edge-zone width a."""
+
+    lowRiseHeight: float = Field(gt=0, description="h [m] up to which the low-rise curves hold.")
+    lowRise: list[CladdingCurve]
+    highRise: list[CladdingCurve]
+    lowRiseWallFactor: float = Field(
+        gt=0, le=1, description="Factor on the low-rise wall (GCp) for a roof θ ≤ 10°."
+    )
+    internal: dict[str, float] = Field(description="(GCpi) magnitude by enclosure.")
+    edgeFraction: float = Field(gt=0, description="a ≤ edgeFraction · least plan dimension.")
+    edgeHeightFraction: float = Field(gt=0, description="Low-rise: a ≤ this · h.")
+    edgeMinFraction: float = Field(gt=0, description="a ≥ this · least plan dimension.")
+    edgeMin: float = Field(gt=0, description="a ≥ this [m].")
+    parapetCorner: float = Field(
+        gt=0, description="A parapet this high [m] or more turns roof zone 3 into zone 2."
+    )
+
+
 class WindTable(TableModel):
     exposures: dict[str, Exposure]
     directionality: float = Field(description="Kd for buildings.")
@@ -277,6 +331,12 @@ class WindTable(TableModel):
         default=None,
         description="Factors of the design wind load cases 2-4 (torsional, simultaneous); "
         "None: Case 1 only.",
+    )
+    flexible: FlexibleGustRow | None = Field(
+        default=None, description="Gf of flexible buildings; None: rigid G only."
+    )
+    cladding: CladdingTable | None = Field(
+        default=None, description="Components and cladding pressures; None: not computed."
     )
 
 

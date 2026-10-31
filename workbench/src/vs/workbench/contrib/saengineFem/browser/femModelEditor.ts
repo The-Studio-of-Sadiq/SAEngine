@@ -42,7 +42,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { FemDerivation, IFemDeriveOutcome } from './femDerivationBar.js';
+import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
 import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
@@ -1181,12 +1181,49 @@ export class FemModelEditor extends EditorPane {
 		if (last?.ok && !this.results?.hasResults) {
 			appendPropertyNote(panel, last.message);
 		}
+		if (last?.ok && last.wind) {
+			this.appendWind(panel, last.wind);
+		}
 		if (last?.ok && last.notes.length) {
 			appendPropertyHeading(panel, localize('femEditor.notesHeading', "Derivation Notes"));
 			for (const note of last.notes) {
 				appendPropertyNote(panel, note);
 			}
 		}
+	}
+
+	/** The wind's gust factor per direction and its cladding pressures by zone (BNBC 2020 Part 6 Sec 2.4.8, 2.4.11.5). */
+	private appendWind(panel: HTMLElement, wind: IFemWindSummary): void {
+		const gust = wind.gust;
+		const cladding = wind.cladding;
+		if (!cladding && !gust) {
+			return;
+		}
+		appendPropertyHeading(panel, localize('femEditor.windHeading', "Wind"), cladding ? localize('femEditor.windQh', "qh {0} kN/m² at h = {1} m", cladding.qh_kPa.toFixed(2), cladding.h_m.toFixed(1)) : undefined);
+		for (const axis of ['X', 'Y'] as const) {
+			const g = gust?.[axis];
+			if (g) {
+				appendPropertyRow(panel, localize('femEditor.windGust', "Gust factor {0}", axis), g.flexible
+					? localize('femEditor.windGustFlexible', "Gf {0} (flexible, n1 {1} Hz)", g.G.toFixed(3), g.n1_Hz.toFixed(2))
+					: localize('femEditor.windGustRigid', "G {0} (rigid, n1 {1} Hz)", g.G.toFixed(2), g.n1_Hz.toFixed(2)));
+			}
+		}
+		if (!cladding) {
+			return;
+		}
+		const kPa = (v: number | null) => v === null ? '' : `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+		for (const zone of cladding.zones) {
+			const name = zone.surface === 'wall'
+				? localize('femEditor.windWallZone', "Wall zone {0}", zone.zone)
+				: localize('femEditor.windRoofZone', "Roof zone {0}", zone.zone);
+			const values = [kPa(zone.pPos_kPa), kPa(zone.pNeg_kPa)].filter(v => v).join(' / ');
+			appendPropertyRow(panel, name, localize('femEditor.windZoneValue', "{0} kN/m²", values));
+		}
+		if (cladding.parapet) {
+			appendPropertyRow(panel, localize('femEditor.windParapet', "Parapet"), localize('femEditor.windParapetValue', "A {0}, B {1} kN/m²", cladding.parapet.caseA_kPa.toFixed(2), cladding.parapet.caseB_kPa.toFixed(2)));
+		}
+		appendPropertyNote(panel, localize('femEditor.windCladdingNote', "Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): p = qh·[(GCp) − (±GCpi)], GCpi ±{0}; zones 5 and 3 lie within a = {1} m of corners, zone 2 of roof edges. Effective wind area: {2}.",
+			cladding.GCpi.toFixed(2), cladding.a_m.toFixed(2), cladding.area_m2 ? localize('femEditor.windArea', "{0} m²", cladding.area_m2.toFixed(2)) : localize('femEditor.windAreaSmallest', "the smallest (largest pressures)")));
 	}
 
 	/**
