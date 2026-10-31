@@ -1365,6 +1365,9 @@ class SlabContext:
     #: Filled by :func:`slab_checks`: per shell id, the steel [mm²/m] each layer (LAYERS order)
     #: needs for its Wood-Armer moment, enveloped over the combinations (the rebar contours).
     contours: dict[int, list[float]] = field(default_factory=dict)
+    #: Integrator glue: the effective precompression [MPa] of the slab's tendons along x and
+    #: along y (saengine.design.prestress), for punching with prestress; None: not prestressed.
+    precompression: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -2023,6 +2026,17 @@ def _punching_row(
         return None
     beta = max(c1, c2) / min(c1, c2)
     capacity = punching_capacity(fc, d, section.b0, beta, section.alpha_s)
+    prestressed = None
+    if context.precompression is not None and section.location == "interior":
+        from saengine.design import prestress
+
+        lo, hi = prestress.limits().punchingFpcRange
+        if all(lo <= f <= hi for f in context.precompression):
+            fpc = sum(context.precompression) / 2
+            vc = prestress.punching_vc(fc, d, section.b0, section.alpha_s, fpc)
+            if vc is not None:
+                prestressed = (vc, fpc)
+                capacity = PunchingCapacity(vc, capacity.expressions, capacity.lambda_s)
     t = math.radians(column.angle)
     u = np.array([math.cos(t), math.sin(t), 0.0])
     v = np.array([-math.sin(t), math.cos(t), 0.0])
@@ -2046,6 +2060,11 @@ def _punching_row(
         f"vc = min({a:.3f}, {b:.3f}, {cc:.3f}) MPa, λs = {capacity.lambda_s:.2f}, "
         f"αs = {section.alpha_s:g}, β = {beta:.2f}; shown as v b0 d"
     )
+    if prestressed is not None:
+        note += (
+            f"; prestressed: vc = βp √f'c + 0.3 fpc = {prestressed[0]:.3f} MPa, fpc = "
+            f"{prestressed[1]:.2f} MPa, Vp = 0 (ACI 318-11 11.11.2.2)"
+        )
     if what:
         note = f"{what} ({c1:.0f} x {c2:.0f} mm): " + note
     row = _check(

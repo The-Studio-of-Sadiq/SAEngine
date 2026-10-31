@@ -173,6 +173,35 @@
     "longitudinalDiaMin": 10.0,
     "fyMax": 420.0
   },
+  "prestress": {
+    "jackingFpu": 0.80,
+    "jackingFpy": 0.94,
+    "anchorFpu": 0.70,
+    "transferCompression": 0.60,
+    "transferTension": 0.25,
+    "transferTensionEnds": 0.50,
+    "sustainedCompression": 0.45,
+    "totalCompression": 0.60,
+    "tensionTwoWay": 0.50,
+    "tensionClassU": 0.62,
+    "unbondedAdd": 70.0,
+    "unbondedSpanDepth": 35.0,
+    "unbondedK": [100.0, 300.0],
+    "unbondedCap": [420.0, 210.0],
+    "gammaP": 0.28,
+    "bondedNegative": 0.00075,
+    "bondedPositiveTension": 0.17,
+    "bondedPositiveStress": 0.5,
+    "bondedOneWay": 0.004,
+    "minPrecompression": 0.9,
+    "spacingThickness": 8.0,
+    "spacingMax": 1500.0,
+    "punchingBetaMax": 0.29,
+    "punchingBetaA": 0.083,
+    "punchingFpc": 0.3,
+    "punchingFpcRange": [0.9, 3.5],
+    "punchingRootMax": 5.8
+  },
   "deflection": {
     "liveFloor": 360.0,
     "liveRoof": 180.0,
@@ -204,6 +233,7 @@
     "slender": "BNBC 2020 Part 6 Sec 6.3.10 (Eqs. 6.6.13, 6.6.14, 6.6.17)",
     "walls": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.4, 6.4.8.9 and 8.3.6.2(a)",
     "torsion": "BNBC 2020 Part 6 Sec 6.4.4.3 (θ, Ao = 0.85 Aoh, fy and fyt <= 420 MPa: pp. 928-929) and Sec 6.4.4.6 (spacing ph/8 and 300 mm, longitudinal bars 300 mm apart, diameter >= 0.042 s and 10 mm: p. 931)",
+    "prestress": "BNBC 2020 Part 6 Chapter 9, prestressed concrete (sections and pages not checked), which follows ACI 318-11 Chapter 18: jacking 18.5.1 (0.80 fpu, 0.94 fpy; 0.70 fpu at the anchors after transfer); transfer 18.4.1 (0.60 f'ci, 0.25 and 0.50 √f'ci); service 18.4.2 (0.45 f'c sustained, 0.60 f'c total); two-way slabs Class U with ft <= 0.50 √f'c (18.3.3), Class U 0.62 √f'c (18.3.3); unbonded fps 18.7.2 (c), (d); bonded fps 18.7.2 (a), γp = 0.28; bonded reinforcement 18.9.2, 18.9.3; precompression 0.9 MPa and tendon spacing 8h, 1.5 m 18.12.4; punching with prestress 11.11.2.2",
     "deflection": "BNBC 2020 Part 6 Table 6.6.2 (p. 902): l/180, l/360, l/480, l/240; Sec 6.2.5.2.5 (p. 901): ξ; Table 6.6.1 (p. 900): cantilevers l/8 (beams), l/10 (one-way slabs)"
   }
 }
