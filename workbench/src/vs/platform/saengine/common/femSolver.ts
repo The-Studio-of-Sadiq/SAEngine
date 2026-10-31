@@ -668,6 +668,10 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
+	// The Revit link's exchange file (`saengine.exporters.revit_link`, in a worker thread):
+	// `revit/export` `{projectRoot, outPath?}`, `revit/preview` `{projectRoot, path}` and
+	// `revit/apply` `{projectRoot, path, changes}`.
+	| 'revit/export' | 'revit/preview' | 'revit/apply'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
 	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
