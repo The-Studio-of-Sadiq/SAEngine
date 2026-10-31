@@ -1336,6 +1336,82 @@ def mep_import_ifc(project_root: str, path: str, copy: bool = False) -> dict[str
         return {"problems": [f"{Path(path).name}: {_first_line(error)}"]}
 
 
+def mep_coordinate(
+    project_root: str, mep_text: str | None = None, tests: list[str] | None = None
+) -> dict[str, Any]:
+    """Runs the clash tests and merges their clashes into the coordination issues
+    (``saengine.mep.coordination.coordinate``), or ``{"problems"}``."""
+    from saengine.mep.coordination import coordinate
+
+    try:
+        return coordinate(project_root, mep_text, tests)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+
+
+def _coordination(project_root: str, mep_text: str | None) -> Any:
+    from saengine.library.mep import MEP_FILE, parse
+    from saengine.mep.coordination import coordination_of
+
+    if mep_text is None:
+        try:
+            mep_text = (Path(project_root) / MEP_FILE).read_text(encoding="utf-8")
+        except OSError:
+            mep_text = None
+    mep = parse(mep_text)
+    return mep, coordination_of(mep)
+
+
+def mep_export_bcf(
+    project_root: str, path: str, mep_text: str | None = None, issues: list[str] | None = None
+) -> dict[str, Any]:
+    """Writes the coordination issues (``issues``: their ids, else all) to the BCF 3.0 file
+    ``path``: ``{"path", "topics"}`` or ``{"problems"}``."""
+    from saengine.mep.bcf import export_bcf
+
+    try:
+        mep, coordination = _coordination(project_root, mep_text)
+        files = ["SAEngine model"] + [m.path for m in mep.ifcModels]
+        files += [m.path for m in coordination.models]
+        Path(path).write_bytes(export_bcf(coordination, files, issues))
+    except (OSError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+    count = len([i for i in coordination.issues if issues is None or i.id in issues])
+    return {"path": path, "topics": count}
+
+
+def mep_import_bcf(project_root: str, path: str, mep_text: str | None = None) -> dict[str, Any]:
+    """Merges the topics of the BCF file ``path`` into the coordination issues:
+    ``{"coordination", "counts"}`` or ``{"problems"}``."""
+    import zipfile
+    from xml.etree.ElementTree import ParseError
+
+    from saengine.mep.bcf import merge_bcf, read_bcf
+
+    try:
+        _, coordination = _coordination(project_root, mep_text)
+        topics = read_bcf(Path(path).read_bytes())
+        merged, counts = merge_bcf(coordination, topics)
+    except (OSError, ValueError, zipfile.BadZipFile, ParseError) as error:
+        return {"problems": [_first_line(error)]}
+    return {
+        "coordination": merged.model_dump(mode="json", by_alias=True, exclude_none=True),
+        "counts": counts,
+    }
+
+
+def mep_check_ids(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """Checks the models against the coordination's IDS files (``saengine.mep.ids``):
+    ``{"coordination", "results", "counts", "notes"}`` or ``{"problems"}`` (also when
+    IfcTester is not installed)."""
+    from saengine.mep.ids import check_ids
+
+    try:
+        return check_ids(project_root, mep_text)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+
+
 # ─────────────────────────────────────── plumbing (Part 7) ───────────────────────────────────────
 
 

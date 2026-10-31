@@ -426,9 +426,13 @@ def find_clashes(
     return results, notes
 
 
-def structural_ifc(project_root: str | Path) -> tuple[ifcopenshell.file, BuildingModel, Any, Any]:
+def structural_ifc(
+    project_root: str | Path, architecture: bool = False
+) -> tuple[ifcopenshell.file, BuildingModel, Any, Any]:
     """The structural IFC of the project (as the 3D view exports it), with the building model,
-    its object library and materials."""
+    its object library and materials. With ``architecture`` the floor plan's architecture
+    (``05 Floor Plan/architecture.json``, its elements carrying ``SAEngine_Architecture``) is in
+    the file too, for the multi-discipline clash tests."""
     from saengine.library.bim import BuildingModel
     from saengine.library.ifc import export_ifc
     from saengine.library.materials import MaterialLibrary
@@ -460,7 +464,19 @@ def structural_ifc(project_root: str | Path) -> tuple[ifcopenshell.file, Buildin
     except OSError:
         substructure_text = None
     substructure = authoritative_substructure(substructure_text, building)
-    ifc, _, _ = export_ifc(building, objects, materials, root.name, substructure, ground)
+    arch = None
+    if architecture:
+        from saengine.library.architecture import ARCHITECTURE_FILE
+        from saengine.library.architecture import parse as parse_architecture
+
+        try:
+            arch_text = (root / ARCHITECTURE_FILE).read_text(encoding="utf-8")
+        except OSError:
+            arch_text = None
+        arch = parse_architecture(arch_text) if arch_text else None
+    ifc, _, _ = export_ifc(
+        building, objects, materials, root.name, substructure, ground, architecture=arch
+    )
     return ifc, building, objects, materials
 
 
