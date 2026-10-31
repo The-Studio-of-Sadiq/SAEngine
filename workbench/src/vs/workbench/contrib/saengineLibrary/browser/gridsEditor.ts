@@ -71,6 +71,25 @@ export function nextStory(stories: readonly IStory[], name: (n: number) => strin
 	return { id: `L${n}`, name: name(n), elevation: last ? last.elevation + height : 0 };
 }
 
+/**
+ * A new tower above the podium: the next free id (T1, T2, ...) and, as its region, the whole grid
+ * (first to last X and Y lines), for the engineer to narrow to the tower's lines.
+ */
+export function newTower(ids: readonly string[], grids: { readonly x: readonly IGridLine[]; readonly y: readonly IGridLine[] }, name: (n: number) => string): JsonObject {
+	let n = ids.length + 1;
+	while (ids.includes(`T${n}`)) {
+		n++;
+	}
+	const xs = [grids.x[0]?.label, grids.x[grids.x.length - 1]?.label];
+	const ys = [grids.y[0]?.label, grids.y[grids.y.length - 1]?.label];
+	const corners: [string | undefined, string | undefined][] = [[xs[0], ys[0]], [xs[1], ys[0]], [xs[1], ys[1]], [xs[0], ys[1]]];
+	return {
+		id: `T${n}`,
+		name: name(n),
+		boundary: corners.map(([x, y]) => ({ x: x ?? 'A', y: y ?? '1' })),
+	};
+}
+
 function formatMm(value: number): string {
 	return `${Number(value.toFixed(3))}`;
 }
@@ -121,8 +140,12 @@ export class GridsEditor extends JsonDocumentEditor {
 		this.form = instantiationService.createInstance(SchemaForm, {
 			root: FLOOR_PLAN_SCHEMA,
 			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
-			// A typical floor repeats another story's plan (see the floor plan's Typical Floors).
-			references: path => path === 'stories.similarTo' ? this.stories.map(s => s.id) : undefined,
+			// A typical floor repeats another story's plan (see the floor plan's Typical Floors); the
+			// podium top is a story, a tower's corners are on grid lines.
+			references: path => path === 'stories.similarTo' || path === 'podiumTop' ? this.stories.map(s => s.id)
+				: path === 'towers.boundary.x' ? this.grids.x.map(g => g.label)
+					: path === 'towers.boundary.y' ? this.grids.y.map(g => g.label)
+						: undefined,
 			validate: (path, value) => this.validate(path, value),
 			changed: (_path, structural) => {
 				this.changeNote = undefined;
@@ -320,6 +343,9 @@ export class GridsEditor extends JsonDocumentEditor {
 		if (path === 'stories') {
 			const story = nextStory(list.filter(isObject) as unknown as IStory[], n => localize('building.levelName', "Level {0}", n));
 			return { ...story };
+		}
+		if (path === 'towers') {
+			return newTower(list.filter(isObject).map(t => String(t.id)), this.grids, n => localize('building.towerName', "Tower {0}", n));
 		}
 		return undefined;
 	}
