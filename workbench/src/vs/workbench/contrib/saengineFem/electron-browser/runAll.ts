@@ -296,6 +296,11 @@ export interface IRunAllService {
 	 * Analysis never solves an out-of-date model); the message of what was done, or a failure.
 	 */
 	deriveIfStale(model: URI): Promise<{ readonly ok: boolean; readonly derived: boolean; readonly message?: string }>;
+	/**
+	 * Checks 7 MEP and writes its summary, as Run All's MEP step, without the rest (N-E7: the part
+	 * list shows the services' failures without a visit to Coordination). Quiet: a failure is logged.
+	 */
+	checkMepInBackground(): Promise<void>;
 }
 
 export class RunAllService implements IRunAllService {
@@ -361,6 +366,18 @@ export class RunAllService implements IRunAllService {
 			return { ok: true, derived: result.status === 'ok', message: result.message };
 		} catch (error) {
 			return { ok: false, derived: false, message: error instanceof StepFailure ? error.message : errorSummary(error) };
+		}
+	}
+
+	async checkMepInBackground(): Promise<void> {
+		const project = this.projectService.project;
+		if (!project || this.cancellation) {
+			return;
+		}
+		try {
+			await this.checkMep({ project, model: partFile(project.root, 'fem'), token: CancellationToken.None });
+		} catch (error) {
+			this.logService.info(`[saengine] background MEP check: ${error instanceof StepFailure ? error.message : errorSummary(error)}`);
 		}
 	}
 

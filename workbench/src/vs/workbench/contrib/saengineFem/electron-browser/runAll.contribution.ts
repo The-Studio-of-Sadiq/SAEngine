@@ -3,20 +3,24 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from '../../../../base/common/async.js';
+import { IntervalTimer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IEngineBusy, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
+import { ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_LOG_COMMAND, IFemRunOptions } from '../browser/femResultsBar.js';
@@ -229,3 +233,55 @@ class EngineWatchdog extends Disposable implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(EngineWatchdog.ID, EngineWatchdog, WorkbenchPhase.AfterRestored);
+
+/** How long the part statuses settle before the background MEP check runs [ms]. */
+const MEP_CHECK_DELAY = 3_000;
+
+/**
+ * N-E7: when 7 MEP has services that were never checked (or changed since), checks them in the
+ * background, once per saved MEP text, so the part list says what fails without a visit to the
+ * Coordination page. Never while Run All runs (its MEP step does the same).
+ */
+class MepBackgroundCheck extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.mepBackgroundCheck';
+
+	private readonly scheduler = this._register(new RunOnceScheduler(() => void this.check(), MEP_CHECK_DELAY));
+	/** The MEP status text a check was already made for (with the project), so a failing check is not repeated. */
+	private checkedFor: string | undefined;
+
+	constructor(
+		@ISaenginePartStatusService private readonly statusService: ISaenginePartStatusService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IRunAllService private readonly runAll: IRunAllService,
+		@IFileService private readonly fileService: IFileService,
+	) {
+		super();
+		this._register(statusService.onDidChange(() => this.scheduler.schedule()));
+		this.scheduler.schedule();
+	}
+
+	private async check(): Promise<void> {
+		const status = this.statusService.statusOf('mep');
+		const project = this.projectService.project;
+		const part = partById('mep');
+		// "not checked", "plumbing not checked", ...: in progress without a current summary.
+		if (!project || !part?.mainFile || this.runAll.running || status?.state !== 'inProgress' || !/not checked/.test(status.text)) {
+			return;
+		}
+		let text: string;
+		try {
+			text = (await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile))).value.toString();
+		} catch {
+			return;
+		}
+		const key = `${project.root.toString()}|${text}`;
+		if (key === this.checkedFor) {
+			return;
+		}
+		this.checkedFor = key;
+		await this.runAll.checkMepInBackground();
+	}
+}
+
+registerWorkbenchContribution2(MepBackgroundCheck.ID, MepBackgroundCheck, WorkbenchPhase.Eventually);
