@@ -302,7 +302,7 @@ export class ResultOverlay {
 			return;
 		}
 		const geometry = new THREE.BufferGeometry();
-		const animate = this.results.kind === 'modal' && this.display.animate;
+		const animate = (this.results.kind === 'modal' && this.display.animate) || !!this.display.animateAny;
 		if (animate) {
 			// The shape times the phase, on the GPU: the undeformed lines plus the moves as a
 			// (relative) morph target whose influence is the phase.
