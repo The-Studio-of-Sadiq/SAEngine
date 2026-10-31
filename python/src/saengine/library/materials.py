@@ -112,6 +112,33 @@ class MasonryProperties(_Model):
         default=None, gt=0, description="Masonry (prism) compressive strength f'm [MPa]."
     )
     mortar: Id | None = Field(default=None, description="Id of the mortar material.")
+    unitKind: Literal["clay", "concrete"] = Field(
+        default="clay",
+        title="Unit kind",
+        description="Burnt clay bricks or concrete blocks: sets Em and the ultimate strain of "
+        "the masonry design (BNBC 2020 Part 6 Chapter 7).",
+        json_schema_extra={"enumDescriptions": ["Clay brick", "Concrete block"]},
+    )
+    mortarType: Literal["M", "S", "N"] | None = Field(
+        default=None,
+        title="Mortar type",
+        description="M, S or N; empty: from the mortar material's cement : sand mix.",
+    )
+    units: Literal["solid", "hollow"] = Field(
+        default="solid",
+        description="Solid units (bricks) or hollow units (blocks).",
+        json_schema_extra={"enumDescriptions": ["Solid", "Hollow"]},
+    )
+    grouting: Literal["none", "partial", "full"] = Field(
+        default="none",
+        description="Grout in the cores or cavities: none, at the bars only, or every cell.",
+        json_schema_extra={"enumDescriptions": ["Not grouted", "Partly grouted", "Fully grouted"]},
+    )
+    bond: Literal["running", "stack"] = Field(
+        default="running",
+        description="Running bond (staggered head joints) or stack bond.",
+        json_schema_extra={"enumDescriptions": ["Running bond", "Stack bond"]},
+    )
 
 
 class TimberProperties(_Model):
