@@ -25,6 +25,7 @@ from saengine.hvac.constructions import GLAZING_KEYS, GLAZINGS, ROOF_KEYS, ROOFS
 from saengine.hvac.tables import STATION_KEYS, STATIONS, VENTILATION, VENTILATION_KEYS
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+from saengine.mep.uses import STORY_USE_KEYS, STORY_USES
 from saengine.plumbing.tables import (
     OCCUPANCIES,
     OCCUPANCY_KEYS,
@@ -1403,8 +1404,31 @@ class Fire(_Model):
         return self
 
 
+class StoryUseEntry(_Model):
+    """A storey's use, entered once for the plumbing, HVAC and electrical services
+    (:mod:`saengine.mep.uses`)."""
+
+    story: Id = Field(description="Building-model story.")
+    use: Literal[STORY_USE_KEYS] = Field(  # type: ignore[valid-type]
+        description="Mapped to BNBC 2020 Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and "
+        "services: not occupied (left out of every service's stories).",
+        json_schema_extra=_labels([STORY_USES[k].label for k in STORY_USE_KEYS]),
+    )
+    population: float | None = Field(
+        default=None,
+        ge=0,
+        description="Persons; empty: each service's default for the use and the floor area.",
+    )
+
+
 class MepModel(_Model):
     schema_: Literal["saengine.mep/1"] = Field(default=SCHEMA_ID, alias="schema")
+    storyUses: list[StoryUseEntry] = Field(
+        default_factory=list,
+        title="Storey use",
+        description="The use of each storey, read by the plumbing, HVAC and electrical services "
+        "(their own storey tables keep the fixtures, gains and loads).",
+    )
     equipment: list[Equipment] = Field(default_factory=list)
     openings: list[Opening] = Field(default_factory=list)
     shafts: list[Shaft] = Field(default_factory=list)
@@ -1466,7 +1490,9 @@ def parse(text: str | None) -> MepModel:
     data = json.loads(text)
     if is_placeholder(data):
         return default_mep()
-    return MepModel.model_validate(data)
+    from saengine.mep.uses import with_story_uses
+
+    return with_story_uses(MepModel.model_validate(data))
 
 
 def check(mep: MepModel, building: Any = None) -> list[str]:
@@ -1476,6 +1502,9 @@ def check(mep: MepModel, building: Any = None) -> list[str]:
     stories = {s.id: s.elevation for s in building.stories}
     kinds = {e.id: e.kind for e in building.elements}
     problems = []
+    for entry in mep.storyUses:
+        if entry.story not in stories:
+            problems.append(f"storey use: no story '{entry.story}'")
     for item in mep.equipment:
         if item.story not in stories:
             problems.append(f"{item.id}: no story '{item.story}'")

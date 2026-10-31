@@ -191,6 +191,15 @@ def plumbing_results(
     checks: list[dict[str, Any]] = []
     if not building.known:
         notes.append("no 06 BIM: no story levels, slabs, catchments, sleeves or separations")
+    elif plumbing.stories:
+        roof = building.ordered()[-1]
+        on_roof = next((s for s in plumbing.stories if s.story == roof), None)
+        if on_roof is not None and len(building.stories) > 1:
+            notes.append(
+                f"storey {building.names.get(roof, roof)} is the roof of 06 BIM: it is counted "
+                "as occupied here; set its use to Roof in 07 MEP's Storey use if nobody lives or "
+                "works there"
+            )
 
     # Demand and fixture units.
     demand = daily_demand(plumbing, building)

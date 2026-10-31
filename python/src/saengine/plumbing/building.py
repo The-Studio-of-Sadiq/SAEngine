@@ -61,9 +61,7 @@ class Building:
             holes.append((o.host, rect))
         # The ground is at level 0 unless Project Settings give it (its default is 0 too):
         # not the lowest story, which is a basement's floor in a building with basements.
-        return cls(
-            stories, names, slabs, holes, 0.0 if ground is None else float(ground), model
-        )
+        return cls(stories, names, slabs, holes, 0.0 if ground is None else float(ground), model)
 
     @property
     def known(self) -> bool:

@@ -601,6 +601,60 @@ def _load(project_root: str | Path, mep_text: str | None = None) -> dict[str, An
             "problems": problems}  # fmt: skip
 
 
+def service_loads(
+    project_root: str | Path, mep_text: str | None, loaded: dict[str, Any]
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]], list[str]]:
+    """What the other services draw that 07 MEP electrical does not list, so that the demand
+    includes them (BNBC 2020 Part 8 Sec 1.3.2: lifts, pumps and the air conditioning):
+
+    - the HVAC plant: entered plant is read by the demand itself (None here); without any, the
+      plant the HVAC Results propose (:func:`saengine.hvac.plant.hvac_propose_plant`), marked
+      as proposed;
+    - the water pump, when no motor of kind pump is entered: the plumbing's estimate
+      (:func:`saengine.plumbing.hydraulics.estimated_pump_motor`).
+
+    Returns (hvac loads or None, extra loads, notes); never raises."""
+    from saengine.electrical.demand import hvac_loads
+    from saengine.plumbing.building import Building
+
+    mep, notes = loaded["mep"], []
+    hvac: list[dict[str, Any]] | None = None
+    extra: list[dict[str, Any]] = []
+    if mep.hvac is not None and not mep.hvac.plant and mep.electrical is not None:
+        try:
+            from saengine.hvac.plant import hvac_propose_plant
+
+            proposed = hvac_propose_plant(project_root, mep_text=mep_text).get("plant") or []
+        except Exception:  # noqa: BLE001 - the HVAC may be partly entered
+            proposed = []
+        if proposed:
+            hvac = [
+                {**h, "note": f"{h['note']}; proposed by the HVAC Results, not in 07 MEP yet"}
+                for h in hvac_loads({"hvac": {"plant": proposed}})
+            ]
+            notes.append(
+                f"the air conditioning draws {sum(h['kw'] for h in hvac):.0f} kW: the plant the "
+                "HVAC Results propose (none is entered yet)"
+            )
+    electrical, plumbing = mep.electrical, mep.plumbing
+    if (
+        electrical is not None
+        and plumbing is not None
+        and not any(m.kind == "pump" for m in electrical.motors)
+    ):
+        try:
+            from saengine.plumbing.hydraulics import estimated_pump_motor
+
+            found = estimated_pump_motor(plumbing, Building.of(loaded["bim"], loaded["ground"]))
+        except Exception:  # noqa: BLE001 - the plumbing may be partly entered
+            found = None
+        if found is not None:
+            kw, why = found
+            extra.append({"id": "water pump", "kw": kw, "note": why})
+            notes.append(f"the water pump draws {kw:g} kW (no pump motor is entered): {why}")
+    return hvac, extra, notes
+
+
 def electrical_report(
     project_root: str | Path,
     mep_text: str | None = None,
@@ -615,6 +669,11 @@ def electrical_report(
         loaded = _load(project_root, mep_text)
     except ValueError as error:
         return {"problems": [str(error)]}
+    fed: list[str] = []
+    if hvac is None or extra is None:
+        own_hvac, own_extra, fed = service_loads(project_root, mep_text, loaded)
+        hvac = own_hvac if hvac is None else hvac
+        extra = own_extra if extra is None else extra
     try:
         result = electrical_results(
             loaded["mep"], loaded["bim"], loaded["objects"], loaded["ground"],
@@ -623,6 +682,7 @@ def electrical_report(
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [*loaded["problems"], f"the electrical sizing failed: {error!r}"]}
     result["problems"] = [*loaded["problems"], *result["problems"]]
+    result["notes"] = [*fed, *result.get("notes", [])]
     if result.get("openings"):
         from saengine.plumbing.project import missing_sleeves
 

@@ -127,6 +127,40 @@ def motor_rating(shaft_kw: float) -> float:
     return next((r for r in MOTOR_RATINGS if r >= shaft_kw - 1e-9), round(shaft_kw, 2))
 
 
+#: The pump's friction and velocity head as a share of its static lift, for the estimate of
+#: :func:`estimated_pump_motor` (SAEngine practice; the hydraulics work them out).
+FRICTION_ALLOWANCE = 0.2
+#: The water depth of the reservoir and the overhead tank in that estimate [m].
+TANK_DEPTHS = 2.0 + 2.0
+
+
+def estimated_pump_motor(plumbing: Any, building: Any) -> tuple[float, str] | None:
+    """The delivery pump's motor [kW] and how it was found, without the network: the pump's
+    flow (:func:`saengine.plumbing.supply.pump`) lifted from the reservoir's bottom to the
+    roof tank's top (the top storey's level plus :data:`TANK_DEPTHS`), plus
+    :data:`FRICTION_ALLOWANCE`, at the default efficiency (P = ρgQH/η, BNBC Sec 5.10.5); for
+    the electrical load until the plumbing's hydraulics give the pump. None without demand or
+    stories."""
+    from saengine.plumbing.demand import daily_demand
+    from saengine.plumbing.supply import pump
+
+    if not building.known:
+        return None
+    daily = daily_demand(plumbing, building)["daily"]
+    if daily <= 0:
+        return None
+    flow = pump(plumbing, daily)["flow"] / 60000.0  # m³/s
+    lift = building.height(building.ordered()[-1]) / 1000.0 + TANK_DEPTHS
+    head = lift * (1 + FRICTION_ALLOWANCE)
+    efficiency = HydraulicOptions().pumpEfficiency
+    shaft = RHO * G * flow * head / 1000 / efficiency
+    motor = motor_rating(shaft)
+    return motor, (
+        f"water pump {flow * 60000:.0f} l/min x {head:.1f} m / η {efficiency:g} = {shaft:.2f} kW "
+        f"shaft: {motor:g} kW motor (estimate; the plumbing's hydraulics size the pump)"
+    )
+
+
 def probable_demand(units: float, flush_valves: bool = False, least: float = 0.0) -> float:
     """Probable simultaneous demand [L/min] of ``units`` supply fixture units, BNBC Table 8.5.5
     (:func:`saengine.plumbing.demand.hunter_flow`), and at least ``least`` (the largest single

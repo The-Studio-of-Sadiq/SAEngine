@@ -88,6 +88,7 @@ import { renderFireData, renderFirePumpProperties, renderFireRiserProperties, re
 import { IMepFormHost } from './mepForm.js';
 import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
+import { ensureStoryUses, fillDown, fillStoryUses, isOccupied, STORY_USE_KEYS, storyUseLabel, StoryUseKey, storyUseOf, storyUsesOf } from './storyUses.js';
 
 type View = 'plan' | 'data' | 'results';
 
@@ -1909,6 +1910,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const header = append(this.viewElement, $('.mep-view-header'));
 		append(header, $('span.mep-view-title', undefined, localize('mep.dataTitle', "Equipment, openings, shafts and models")));
 		append(header, $('span.mep-view-subtitle', undefined, localize('mep.dataSubtitle', "Sizes in mm, positions in m, weights in kN; click a row to edit the rest in Properties.")));
+		this.renderStoryUseTable(document);
 		this.renderEquipmentTable(document);
 		this.renderOpeningTable(document);
 		this.renderShaftTable(document);
@@ -1976,6 +1978,83 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private storyOptions(): { value: string; label: string }[] {
 		return this.context.stories.map(s => ({ value: s.id, label: s.name }));
+	}
+
+	/** The use of each storey, entered once here and read by the plumbing, HVAC and electrical services (N-E5). */
+	private renderStoryUseTable(document: IMep): void {
+		const uses = storyUsesOf(document);
+		const stories = this.context.stories;
+		const section = this.section(localize('mep.storyUses', "Storey use"), uses.length, stories.length ? {
+			label: uses.length ? localize('mep.storyUsesFill', "Add Missing Storeys") : localize('mep.storyUsesStart', "Fill from 06 BIM"),
+			run: () => {
+				fillStoryUses(document, stories, 'residential');
+				this.changed(true);
+			},
+		} : undefined);
+		append(section, $('p.mep-note', undefined, localize('mep.storyUsesNote', "One use per storey for the plumbing (BNBC Table 8.5.1), the HVAC (Table 8.2.3) and the electrical services (Table 8.1.17); their own storey tables keep the fixtures, gains and loads. The roof and plant storeys are not occupied: every service leaves them out.")));
+		if (!uses.length) {
+			return;
+		}
+		const table = append(append(section, $('.mep-table-scroll')), $('table.mep-table'));
+		this.tableHead(table, [
+			{ label: localize('mep.f.story', "Story"), width: 140 }, { label: localize('mep.f.use', "Use"), width: 240 },
+			{ label: localize('mep.f.population', "Population"), numeric: true, width: 90, title: localize('mep.f.populationTitle', "Persons on the storey; empty: each service's default for the use and the floor area") },
+			{ label: '', width: 120 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		const options = STORY_USE_KEYS.map(key => ({ value: key, label: storyUseLabel(key) }));
+		const population: IFieldSpec = { key: 'population', label: localize('mep.f.population', "Population"), kind: 'integer', min: 0, width: 90 };
+		// Top storey first, as the services' storey tables list them.
+		const order = new Map(stories.map((s, i) => [s.id, i]));
+		const shown = [...uses].sort((a, b) => (order.get(b.story) ?? -1) - (order.get(a.story) ?? -1));
+		for (const entry of shown) {
+			const index = ensureStoryUses(document).indexOf(entry);
+			const tr = append(body, $('tr.mep-row'));
+			const path = (field: string) => `storyUses.${index}.${field}`;
+			append(tr, $('td', undefined, this.storyName(entry.story)));
+			append(append(tr, $('td')), this.selectInput(options, entry.use, value => {
+				entry.use = value as StoryUseKey;
+				this.changed(true);
+			}, path('use'), localize('mep.f.useOf', "Use of {0}", this.storyName(entry.story))));
+			const occupied = isOccupied(entry.use);
+			const cell = append(tr, $('td'));
+			if (occupied) {
+				append(cell, this.textInput(population, entry.population, value => {
+					if (typeof value === 'number') {
+						entry.population = value;
+					} else {
+						delete entry.population;
+					}
+					this.changed(false);
+				}, path('population')));
+			}
+			const fillCell = append(tr, $('td'));
+			if (occupied && (order.get(entry.story) ?? 0) > 0) {
+				const button = append(fillCell, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.fillDownTitle', "Give the storeys below {0} its use and population (not the roof or plant storeys)", this.storyName(entry.story)) }, localize('mep.fillDown', "Fill down")));
+				this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+					fillDown(document, stories, entry.story);
+					this.changed(true);
+				}));
+			}
+			this.removeButton(tr, () => {
+				ensureStoryUses(document).splice(index, 1);
+				this.changed(true);
+			});
+		}
+	}
+
+	/** A storey's use from Storey use, as a link to that table. */
+	private storyUseLink(cell: HTMLElement, use: string): void {
+		const link = append(cell, $<HTMLButtonElement>('button.mep-link', { type: 'button', title: localize('mep.storyUseLinkTitle', "Set in Coordination › Storey use: click to edit it there") }, storyUseLabel(use)));
+		this.viewDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.openStoryUses()));
+	}
+
+	/** Shows the storey-use table (the services' storey tables link to it). */
+	private openStoryUses(): void {
+		this.showDiscipline('coordination');
+		if (this.view !== 'data') {
+			this.showView('data');
+		}
 	}
 
 	private renderEquipmentTable(document: IMep): void {
@@ -3500,15 +3579,21 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			const path = (field: string) => index >= 0 ? `plumbing.stories.${index}.${field}` : `plumbing.new.${storyId}.${field}`;
 			const target = () => storyRow(p(), storyId);
 			append(tr, $('td', undefined, this.storyName(storyId)));
-			append(append(tr, $('td')), this.selectInput(this.occupancyOptions(), String(row?.occupancy ?? ''), value => {
-				const r = target();
-				if (value) {
-					r.occupancy = value;
-				} else {
-					delete r.occupancy;
-				}
-				this.changed(true);
-			}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
+			const shared = storyUseOf(document, storyId);
+			if (shared) {
+				// The storey's use is entered once, in Storey use (N-E5): shown here, edited there.
+				this.storyUseLink(append(tr, $('td')), shared.use);
+			} else {
+				append(append(tr, $('td')), this.selectInput(this.occupancyOptions(), String(row?.occupancy ?? ''), value => {
+					const r = target();
+					if (value) {
+						r.occupancy = value;
+					} else {
+						delete r.occupancy;
+					}
+					this.changed(true);
+				}, path('occupancy'), localize('plb.f.occupancyOf', "Occupancy of {0}", this.storyName(storyId)), true));
+			}
 			const source = sources.get(storyId);
 			const fromCell = append(tr, $('td.plb-from'));
 			append(fromCell, this.selectInput(fromOptions, String(row?.fixturesFrom ?? 'auto'), value => {
@@ -4142,6 +4227,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			storyOptions: () => this.storyOptions(),
 			storyName: id => this.storyName(id),
 			pathInput: (path, store, key, label, minPoints) => this.pathInput(path, store, key, label, minPoints),
+			storyUseLink: (cell, use) => this.storyUseLink(cell, use),
 		};
 	}
 

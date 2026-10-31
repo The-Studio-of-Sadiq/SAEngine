@@ -435,8 +435,14 @@ FRAMED = BuildingModel.model_validate(
         "elements": [
             *(e.model_dump(mode="json") for e in BUILDING.elements),
             *(
-                {"id": f"B{k}", "type": "BM", "kind": "beam", "start": a, "end": b,
-                 "elevation": 3000}  # fmt: skip
+                {
+                    "id": f"B{k}",
+                    "type": "BM",
+                    "kind": "beam",
+                    "start": a,
+                    "end": b,
+                    "elevation": 3000,
+                }
                 for k, (a, b) in enumerate(
                     (
                         ([0, 0], [6000, 0]),
