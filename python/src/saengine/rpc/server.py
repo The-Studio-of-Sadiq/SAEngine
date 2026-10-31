@@ -8,8 +8,9 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
-- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?}`` -> a designed
-  section's properties, interaction diagrams and P-Mx-My surface (Section Designer)
+- ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?,
+  momentCurvature?, contourAt?}`` -> a designed section's properties, interaction diagrams,
+  P-Mx-My surface, moment-curvature curve and M-M contour (Section Designer)
 - ``architecture/importIfc`` ``{path, architectureText?, floorPlanText}`` -> an architect's IFC
   walls, doors, windows and spaces adopted into the architecture, with what was skipped (in a
   worker thread)
@@ -357,6 +358,8 @@ def create_server() -> JsonRPCServer:
             args.get("projectRoot"),
             capacity=args.get("capacity", True),
             surface=args.get("surface", False),
+            moment_curvature=args.get("momentCurvature"),
+            contour_at=args.get("contourAt"),
         )
 
     @server.feature("section/analyse")
