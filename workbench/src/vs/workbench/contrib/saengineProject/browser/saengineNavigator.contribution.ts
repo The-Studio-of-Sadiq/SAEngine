@@ -38,6 +38,10 @@ import { ExportsEditor } from './exportsEditor.js';
 import { ExportsEditorInput, ExportsEditorInputSerializer } from './exportsEditorInput.js';
 import { PLACEHOLDER_PARTS, PlaceholderEditor, placeholderPartOf } from './placeholderEditor.js';
 import { PlaceholderEditorInput, PlaceholderEditorInputSerializer } from './placeholderEditorInput.js';
+import { OPEN_PLANNED_FEATURE_COMMAND, PlannedFeatureEditor } from './plannedFeatureEditor.js';
+import { PlannedFeatureInput, PlannedFeatureInputSerializer } from './plannedFeatureInput.js';
+import { plannedFeature, plannedFeatures } from '../../../services/saengineProject/common/plannedFeatures.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DEVELOPER_MODE_SETTING, ProjectNavigatorView } from './projectNavigatorView.js';
 import { ProjectOpener } from './projectOpener.js';
 import { ProjectOverviewEditor } from './projectOverviewEditor.js';
@@ -177,6 +181,59 @@ class PlaceholderEditorResolverContribution extends Disposable implements IWorkb
 }
 
 registerWorkbenchContribution2(PlaceholderEditorResolverContribution.ID, PlaceholderEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
+// --- Planned features: shown in the MVP, not computed yet -------------------------------------
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(PlannedFeatureEditor, PlannedFeatureEditor.ID, localize('saenginePlannedFeatureEditor', "SAEngine Planned Feature")),
+	[new SyncDescriptor(PlannedFeatureInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(PlannedFeatureInput.ID, PlannedFeatureInputSerializer);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_PLANNED_FEATURE_COMMAND,
+			title: localize2('openPlannedFeature', "Open Planned Feature"),
+			category,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, featureId?: string): Promise<void> {
+		if (typeof featureId === 'string' && plannedFeature(featureId)) {
+			await accessor.get(IEditorService).openEditor(new PlannedFeatureInput(featureId), { pinned: true });
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.showPlannedFeatures',
+			title: localize2('showPlannedFeatures', "Show Planned Features"),
+			category,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		const items: (IQuickPickItem & { featureId: string })[] = plannedFeatures().map(feature => {
+			const part = partById(feature.part);
+			return { featureId: feature.id, label: feature.title, description: part?.folder, detail: feature.summary };
+		});
+		items.sort((a, b) => (a.description ?? '').localeCompare(b.description ?? '') || a.label.localeCompare(b.label));
+		const picked = await quickInputService.pick(items, {
+			placeHolder: localize('showPlannedFeatures.placeholder', "Features planned after this MVP, by part"),
+			matchOnDescription: true,
+			matchOnDetail: true,
+		});
+		if (picked) {
+			await editorService.openEditor(new PlannedFeatureInput(picked.featureId), { pinned: true });
+		}
+	}
+});
 
 function openOverview(editorService: IEditorService): Promise<unknown> {
 	return editorService.openEditor(ProjectOverviewInput.instance, { pinned: true });
