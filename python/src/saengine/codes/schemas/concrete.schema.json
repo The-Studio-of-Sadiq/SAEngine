@@ -549,6 +549,34 @@
       "title": "Twowaythickness",
       "type": "object"
     },
+    "twoWayThicknessDrop": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Twowaythicknessdrop"
+    },
     "oneWaySlabThickness": {
       "maxItems": 3,
       "minItems": 3,

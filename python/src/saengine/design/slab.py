@@ -78,13 +78,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import pairwise
 from typing import Any
 
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design import slab_systems
 from saengine.design.rc import (
     EPS_CU,
     PHI_SHEAR,
@@ -180,11 +181,19 @@ def _phi_punching() -> float:
     return float(code_context.table("factors").phi["punching"])
 
 
-def _two_way_thickness() -> dict[float, tuple[float, float, float]]:
+def _two_way_thickness(drop: bool = False) -> dict[float, tuple[float, float, float]]:
     """ACI Table 8.3.1.1 (without drop panels), the pack's ``concrete.twoWayThickness``: fy ->
     (exterior without edge beams, exterior with edge beams, interior) divisors of ln (BNBC
-    2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31)."""
-    return code_context.table("concrete").twoWayThickness
+    2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31). With ``drop``: the
+    columns with drop panels, ``concrete.twoWayThicknessDrop`` (BNBC 2020 Table 6.6.3: 280 ->
+    36, 40, 40; 420 -> 33, 36, 36; 520 -> 31, 34, 34)."""
+    table = code_context.table("concrete")
+    if drop:
+        found = getattr(table, "twoWayThicknessDrop", None)
+        if found is None:
+            raise ValueError("the code pack has no minimum thickness with drop panels")
+        return found
+    return table.twoWayThickness
 
 
 # ─────────────────────────────────────── Wood-Armer ───────────────────────────────────────
@@ -420,6 +429,24 @@ def min_steel_ratio(fy: float) -> float:
     return max(0.0018 * 420 / fy, 0.0014)
 
 
+#: φ of a tension-controlled section (ACI Table 21.2.2), taken for the rebar contours.
+PHI_TENSION = 0.90
+
+
+def required_area(moment: float, d: float, fc: float, fy: float, width: float = 1000.0) -> float:
+    """As [mm²/m] a layer at depth ``d`` (mm) needs for ``moment`` [N·mm/m] (the rectangular
+    stress block, ACI 22.2, tension-controlled φ = 0.90; compression ``width`` mm per metre):
+    ρ = 0.85 f'c / fy (1 - √(1 - 2 Rn / (0.85 f'c))), Rn = Mu / (φ b d²), As = ρ b d with
+    b = ``width``, per metre. A moment beyond the section's (Rn above 0.85 f'c / 2) returns
+    the steel at that limit: the contour then shows the section is too thin there."""
+    if moment <= 0 or d <= 0:
+        return 0.0
+    rn = moment / (PHI_TENSION * width * d**2)
+    k = 0.85 * fc
+    root = max(0.0, 1 - 2 * rn / k)
+    return k / fy * (1 - math.sqrt(root)) * width * d
+
+
 # ─────────────────────────────────────── punching ───────────────────────────────────────
 
 
@@ -581,10 +608,11 @@ def punching_stress(section: CriticalSection, vu: float, m_u: float, m_v: float)
 # ─────────────────────────────────────── thickness ───────────────────────────────────────
 
 
-def two_way_divisor(fy: float, exterior: bool, edge_beams: bool) -> float:
-    """The ln divisor of ACI Table 8.3.1.1, interpolated in fy (footnote)."""
+def two_way_divisor(fy: float, exterior: bool, edge_beams: bool, drop: bool = False) -> float:
+    """The ln divisor of ACI Table 8.3.1.1 (``drop``: with drop panels), interpolated in fy
+    (footnote)."""
     column = 2 if not exterior else (1 if edge_beams else 0)
-    table = _two_way_thickness()
+    table = _two_way_thickness(drop)
     keys = sorted(table)
     fy = min(max(fy, keys[0]), keys[-1])
     for lo, hi in pairwise(keys):
@@ -601,9 +629,21 @@ class Thickness:
     note: str
 
 
-def one_way_thickness(span: float, continuous_ends: int, fy: float) -> Thickness:
+def one_way_thickness(
+    span: float, continuous_ends: int, fy: float, ribbed: bool = False
+) -> Thickness:
     """ACI Table 7.3.1.1: l/20 simply supported, l/24 one end continuous, l/28 both ends
-    continuous, times (0.4 + fy / 700) for fy other than 420 MPa."""
+    continuous, times (0.4 + fy / 700) for fy other than 420 MPa. ``ribbed``: the row of beams
+    and ribbed one-way slabs of BNBC 2020 Table 6.6.1 (p. 900), the pack's
+    ``concrete.beamThickness`` (l/16, l/18.5, l/21), against the total depth."""
+    if ribbed:
+        rows = code_context.table("concrete").beamThickness
+        divisor = float(rows[min(continuous_ends, 2)])
+        factor = 0.4 + fy / 700
+        note = f"l = {span:.0f} mm, ribbed one-way: l/{divisor:g}"
+        if abs(factor - 1) > 1e-9:
+            note += f" x (0.4 + fy/700) = {factor:.2f}"
+        return Thickness(span / divisor * factor, "6.6.1", note)
     divisor = {0: 20.0, 1: 24.0}.get(continuous_ends, 28.0)
     factor = 0.4 + fy / 700
     ends = {0: "simply supported", 1: "one end continuous"}.get(continuous_ends, "both continuous")
@@ -614,20 +654,29 @@ def one_way_thickness(span: float, continuous_ends: int, fy: float) -> Thickness
 
 
 def two_way_thickness(
-    ln: float, beta: float, alpha_fm: float, fy: float, exterior: bool, edge_beams: bool
+    ln: float,
+    beta: float,
+    alpha_fm: float,
+    fy: float,
+    exterior: bool,
+    edge_beams: bool,
+    drop: bool = False,
 ) -> Thickness:
-    """ACI 8.3.1.1 (αfm <= 0.2: Table 8.3.1.1, at least 125 mm) or 8.3.1.2 (with beams:
-    ln (0.8 + fy/1400) / (36 + 5β(αfm - 0.2)) >= 125 mm for αfm <= 2, / (36 + 9β) >= 90 mm
-    above)."""
+    """ACI 8.3.1.1 (αfm <= 0.2: Table 8.3.1.1, at least 125 mm; ``drop``: with drop panels, at
+    least 100 mm) or 8.3.1.2 (with beams: ln (0.8 + fy/1400) / (36 + 5β(αfm - 0.2)) >= 125 mm
+    for αfm <= 2, / (36 + 9β) >= 90 mm above)."""
     if alpha_fm <= 0.2:
-        divisor = two_way_divisor(fy, exterior, edge_beams)
+        divisor = two_way_divisor(fy, exterior, edge_beams, drop)
         panel = (
             "interior" if not exterior else "exterior" + (" with edge beams" if edge_beams else "")
         )
+        least = slab_systems.DROP_MIN_THICKNESS if drop else 125.0
         return Thickness(
-            max(ln / divisor, 125.0),
+            max(ln / divisor, least),
             "8.3.1.1",
-            f"ln = {ln:.0f} mm, {panel} panel: ln/{divisor:.1f}, at least 125 mm",
+            f"ln = {ln:.0f} mm, {panel} panel"
+            + (" with drop panels" if drop else "")
+            + f": ln/{divisor:.1f}, at least {least:.0f} mm",
         )
     factor = 0.8 + fy / 1400
     if alpha_fm <= 2.0:
@@ -660,6 +709,8 @@ def minimum_thickness(
     beams: Sequence[EdgeBeam],
     column_size: float = 0.0,
     columns: Sequence[Sequence[float]] = (),
+    drop: bool = False,
+    ribbed: bool = False,
 ) -> Thickness:
     """The minimum thickness of a slab panel by ACI Table 7.3.1.1 (one-way) or 8.3.1.1 / 8.3.1.2
     (two-way, flat). ``boundary``: its plan outline (mm); ``neighbours``: the outlines of the
@@ -674,6 +725,10 @@ def minimum_thickness(
     ``columns`` inside (plan points, mm; a flat slab of several panels) takes its spans from
     the largest distance between neighbouring columns in line along its x and y instead, and
     counts as an exterior panel when any of its sides is free.
+
+    ``drop``: the slab has drop panels that qualify (slab_systems.drop_qualifies), so the
+    two-way table with drop panels applies; ``ribbed``: a one-way slab with ribs, by the row of
+    beams and ribbed one-way slabs (``h`` is then the total depth).
     """
     points = [np.asarray(p[:2], dtype=float) for p in boundary]
     ux, uy = axes.x[:2], axes.y[:2]
@@ -734,7 +789,7 @@ def minimum_thickness(
         along_x = lx <= ly  # spans the short way
         span = lx if along_x else ly
         ends = (sides["x-"], sides["x+"]) if along_x else (sides["y-"], sides["y+"])
-        result = one_way_thickness(span, sum(ends), fy)
+        result = one_way_thickness(span, sum(ends), fy, ribbed)
         return Thickness(
             result.required, result.table, result.note + f", along {'x' if along_x else 'y'}"
         )
@@ -743,7 +798,9 @@ def minimum_thickness(
     ln_short = max(min(lx, ly) - support, 1.0)
     exterior = not all(sides.values())
     edge_beams = bool(exterior_beams) and all(exterior_beams)
-    result = two_way_thickness(ln_long, ln_long / ln_short, alpha_fm, fy, exterior, edge_beams)
+    result = two_way_thickness(
+        ln_long, ln_long / ln_short, alpha_fm, fy, exterior, edge_beams, drop and alpha_fm <= 0.2
+    )
     return Thickness(
         result.required, result.table, result.note + f", along {'x' if long_x else 'y'}"
     )
@@ -1300,6 +1357,14 @@ class SlabContext:
     #: Integrator glue: the slab type's punching reinforcement (``objects.PunchingReinforcement``)
     #: or None; checked (and else proposed) where the concrete alone is not enough.
     punching: Any = None
+    #: The slab type's ribs (:class:`slab_systems.RibSection`), drop panel
+    #: (``objects.DropPanel``) and column capital (``objects.ColumnCapital``), or None.
+    ribs: slab_systems.RibSection | None = None
+    drop: Any = None
+    capital: Any = None
+    #: Filled by :func:`slab_checks`: per shell id, the steel [mm²/m] each layer (LAYERS order)
+    #: needs for its Wood-Armer moment, enveloped over the combinations (the rebar contours).
+    contours: dict[int, list[float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1330,13 +1395,55 @@ def slab_checks(
     :func:`saengine.design.check._check`."""
     from saengine.design.check import _check
 
-    layers = layers_of(reinforcement, h)
+    ribs = context.ribs
+    layers = _slab_layers(reinforcement, h, ribs)
+
+    def compression_width(name: str) -> float:
+        """The compression zone's width per metre: the ribs' webs under a hogging moment in a
+        rib direction (slab_systems), else the whole metre."""
+        if ribs is not None and name.startswith("top") and name[-1] in ribs.directions:
+            return ribs.web_per_metre
+        return 1000.0
+
     capacities = {
-        name: (layer_capacity(layer.area, layer.d, fc, fy, es) if layer is not None else None)
+        name: (
+            layer_capacity(layer.area, layer.d, fc, fy, es, compression_width(name))
+            if layer is not None
+            else None
+        )
         for name, layer in layers.items()
     }
-    # Envelopes: (value, combination, where).
+    # Over drop panels the top bars work at the panel's depth (ACI 318-19 8.5.2.2), limited by
+    # the column (or capital) with the least reach to the panel's edge.
+    drop = context.drop if context.columns else None
+    h_drop = h
+    drop_layers: dict[str, Layer | None] = {}
+    drop_capacities: dict[str, LayerCapacity | None] = {}
+    if drop is not None:
+        h_drop = min(
+            slab_systems.drop_flexure_depth(
+                h, drop, *slab_systems.support_size(c.c1, c.c2, context.capital)
+            )
+            for c in context.columns
+        )
+        drop_layers = layers_of(reinforcement, h_drop)
+        drop_capacities = {
+            name: layer_capacity(layer.area, layer.d, fc, fy, es) if layer is not None else None
+            for name, layer in drop_layers.items()
+        }
+
+    def over_drop(point: Sequence[float]) -> bool:
+        """Whether a plan point (mm) lies over a drop panel."""
+        return drop is not None and any(
+            slab_systems.drop_zone(c.centre, c.angle, drop.length, drop.width, point)
+            for c in context.columns
+        )
+
+    # Envelopes: (value, combination, where); over the drop panels the top layers apart.
     envelope: dict[str, tuple[float, str | None, str]] = {n: (0.0, None, "") for n in LAYERS}
+    drop_env: dict[str, tuple[float, str | None, str]] = {
+        n: (0.0, None, "") for n in LAYERS if n.startswith("top")
+    }
     shear_env: dict[str, tuple[float, float, float, str | None, str]] = {}
 
     def shear_capacity(direction: str, sagging: bool) -> tuple[float, str] | None:
@@ -1344,6 +1451,12 @@ def slab_checks(
         for face in order:
             capacity = capacities[f"{face}{direction}"]
             if capacity is not None:
+                if ribs is not None and direction in ribs.directions:
+                    # The ribs' webs, 1.1 Vc (ACI 318-19 9.8.1.5).
+                    web = ribs.web_per_metre
+                    rho = capacity.area / (web * capacity.d)
+                    phi_vc = one_way_shear(rho, capacity.d, fc)[0] * web / 1000
+                    return phi_vc * slab_systems.RIB_SHEAR_FACTOR, f"{face}{direction}, ribs"
                 rho = capacity.area / (1000 * capacity.d)
                 return one_way_shear(rho, capacity.d, fc)[0], f"{face}{direction}"
         return None
@@ -1397,6 +1510,24 @@ def slab_checks(
     inside = np.array([_near_column(c[2:], context.columns, 0.0) for c in centres])
     near = np.array([_near_column(c[2:], context.columns, 2 * depth) for c in centres])
     skipped_shells = int(inside.sum())
+    # The rebar contours: each shell's Wood-Armer moments, enveloped over the combinations, as
+    # the steel each layer needs there (strength only; As,min not included).
+    peak = means[:, :, 5:9].max(axis=1) * 1e3  # N·mm/m, LAYERS order
+    estimated = _contour_depths(layers, reinforcement, h, ribs)
+    estimated_drop = _contour_depths(drop_layers, reinforcement, h_drop, None) if drop else {}
+    context.contours = {}
+    for i, shell in enumerate(shells):
+        if inside[i]:
+            continue
+        dropped = over_drop(centres[i, 2:] * 1e3)
+        row = []
+        for k, name in enumerate(LAYERS):
+            if dropped and name.startswith("top"):
+                d, width = estimated_drop[name], 1000.0
+            else:
+                d, width = estimated[name], compression_width(name)
+            row.append(round(required_area(float(peak[i, k]), d, fc, fy, width), 1))
+        context.contours[shell.id] = row
     flexure = centres[~inside], means[~inside], weights[~inside]
     shear = centres[~near], means[~near], weights[~near]
     context.strips, context.sections, context.shear = [], [], {}
@@ -1426,10 +1557,15 @@ def slab_checks(
                     StripSection(strip, at, averaged[:, 0], averaged[:, 1], averaged[:, 2])
                 )
                 values = averaged[:, 1:]
+                middle = (strip.lo + strip.hi) / 2
+                dropped = over_drop(
+                    frame.plan(at, middle) if along == 0 else frame.plan(middle, at)
+                )
                 for k, name in enumerate(names):
+                    target = drop_env if dropped and name in drop_env else envelope
                     c = int(np.argmax(values[:, k]))
-                    if values[c, k] > envelope[name][0]:
-                        envelope[name] = (float(values[c, k]), combinations[c], where(at))
+                    if values[c, k] > target[name][0]:
+                        target[name] = (float(values[c, k]), combinations[c], where(at))
             # One-way shear: the strip's transverse shear and moment, away from the columns.
             centres, means, weights = shear
             fields = means[:, :, [3 + along, along]]
@@ -1491,10 +1627,51 @@ def slab_checks(
             f"{_bars(layer)}: As = {capacity.area:.0f} mm²/m, d = {capacity.d:.0f} mm, "
             f"φ = {capacity.phi:.2f}"
         )
+        if ribs is not None and direction in ribs.directions:
+            if face == "top":
+                note += f", compression in the ribs' webs ({ribs.web_per_metre:.0f} mm/m)"
+            elif capacity.a > ribs.topping:
+                note += (
+                    f"; the compression block (a = {capacity.a:.0f} mm) reaches below the "
+                    f"topping ({ribs.topping:.0f} mm): the T-section's web is not counted"
+                )
         if where:
             note += f"; {where}"
         checks.append(
             _check(label, demand / 1e3, capacity.phi_mn / 1e6, "kN·m/m", combination, note)
+        )
+
+    for name, (demand, combination, where) in drop_env.items():
+        if demand <= NO_DEMAND:
+            continue
+        direction = name[-1]
+        label = f"Flexure top {direction} over drop panels (Wood-Armer)"
+        layer, capacity = drop_layers.get(name), drop_capacities.get(name)
+        if layer is None or capacity is None:
+            checks.append(
+                _check(
+                    label,
+                    demand / 1e3,
+                    0.0,
+                    "kN·m/m",
+                    combination,
+                    f"no top {direction} bars, but the slab is hogging {demand / 1e3:.2f} "
+                    f"kN·m/m over a drop panel: top bars are needed; {where}",
+                )
+            )
+            continue
+        checks.append(
+            _check(
+                label,
+                demand / 1e3,
+                capacity.phi_mn / 1e6,
+                "kN·m/m",
+                combination,
+                f"{_bars(layer)}: As = {capacity.area:.0f} mm²/m, d = {capacity.d:.0f} mm in "
+                f"{h_drop:.0f} mm (the slab and at most a quarter of the panel's reach beyond "
+                f"the column or capital face, ACI 318-19 8.5.2.2), φ = {capacity.phi:.2f}; "
+                f"{where}",
+            )
         )
 
     present = {n: c for n, c in capacities.items() if c is not None}
@@ -1521,7 +1698,13 @@ def slab_checks(
                 capacity / 1e3,
                 "kN/m",
                 combination,
-                f"φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c)); {where}",
+                "φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c))"
+                + (
+                    "; ribs: b = the webs per metre, x 1.1 (ACI 318-19 9.8.1.5)"
+                    if ribs is not None
+                    else ""
+                )
+                + f"; {where}",
                 utilisation=ratio,
             )
         )
@@ -1529,7 +1712,19 @@ def slab_checks(
     if present:
         span = span_direction(system, {n: envelope[n][0] for n in LAYERS})
         checks.append(_min_reinforcement_check(system, h, fy, capacities, envelope, span))
-        checks.append(_max_spacing_check(system, h, layers, span))
+        # The bars in the ribs are given per metre: their spacing is the ribs'.
+        spaced = {
+            n: layer
+            for n, layer in layers.items()
+            if ribs is None or not (n.startswith("bottom") and n[-1] in ribs.directions)
+        }
+        if any(spaced.values()):
+            checks.append(_max_spacing_check(system, h, spaced, span))
+        if ribs is not None:
+            checks += _rib_min_reinforcement_checks(ribs, fc, fy, capacities)
+
+    if ribs is not None:
+        checks += slab_systems.rib_geometry_checks(ribs)
 
     if context.thickness is not None:
         t = context.thickness
@@ -1538,8 +1733,77 @@ def slab_checks(
         )
 
     if system == "flat":
+        punching_layers = layers if ribs is None else layers_of(reinforcement, h)
         checks += _punching_checks(
-            layers, fc, combinations, context, h=h, fy=fy, cover=reinforcement.cover
+            punching_layers, fc, combinations, context, h=h, fy=fy, cover=reinforcement.cover
+        )
+    return checks
+
+
+def _slab_layers(
+    reinforcement: PlanarReinforcement, h: float, ribs: slab_systems.RibSection | None
+) -> dict[str, Layer | None]:
+    """The layers of a slab ``h`` thick; with ribs, those of a rib direction at the total
+    depth, the others in the topping (slab_systems)."""
+    if ribs is None:
+        return layers_of(reinforcement, h)
+    full, topping = layers_of(reinforcement, ribs.total), layers_of(reinforcement, h)
+    return {n: (full[n] if n[-1] in ribs.directions else topping[n]) for n in LAYERS}
+
+
+#: Bar assumed for the rebar contours where a layer has no bars [mm].
+CONTOUR_BAR = 12.0
+
+
+def _contour_depths(
+    layers: dict[str, Layer | None],
+    reinforcement: PlanarReinforcement,
+    h: float,
+    ribs: slab_systems.RibSection | None,
+) -> dict[str, float]:
+    """d [mm] of each layer for the rebar contours: the layer's own, or for a layer with no
+    bars that of a Ø12 layer (X outer, Y inner) in the depth its direction works in."""
+    depths = {}
+    for name in LAYERS:
+        layer = layers.get(name)
+        if layer is not None:
+            depths[name] = layer.d
+            continue
+        depth = ribs.total if ribs is not None and name[-1] in ribs.directions else h
+        inner = CONTOUR_BAR if name.endswith("Y") else 0.0
+        depths[name] = depth - reinforcement.cover - inner - CONTOUR_BAR / 2
+    return depths
+
+
+def _rib_min_reinforcement_checks(
+    ribs: slab_systems.RibSection,
+    fc: float,
+    fy: float,
+    capacities: dict[str, LayerCapacity | None],
+) -> list[dict[str, Any]]:
+    """As,min of the ribs as beams (ACI 318-19 9.6.1.2: the greater of 0.25 √f'c / fy and
+    1.4 / fy times bw d), per metre: bw the webs in a metre, for the bottom bars of each rib
+    direction."""
+    from saengine.design.check import _check
+
+    ratio = max(0.25 * math.sqrt(fc), 1.4) / fy
+    checks = []
+    for direction in ribs.directions:
+        capacity = capacities[f"bottom{direction}"]
+        provided = capacity.area if capacity is not None else 0.0
+        d = capacity.d if capacity is not None else ribs.total - 40.0
+        required = ratio * ribs.web_per_metre * d
+        checks.append(
+            _check(
+                f"Min. reinforcement of the ribs {direction} (ACI 318-19 9.6.1.2)",
+                required,
+                provided,
+                "mm²/m",
+                None,
+                f"As,min = max(0.25 √f'c, 1.4) / fy · bw d = {ratio:.5f} x "
+                f"{ribs.web_per_metre:.0f} mm/m x {d:.0f} mm",
+                utilisation=required / provided if provided > 0 else math.inf,
+            )
         )
     return checks
 
@@ -1675,8 +1939,6 @@ def _punching_checks(
     fy: float = 420.0,
     cover: float = 20.0,
 ) -> list[dict[str, Any]]:
-    from saengine.design.check import _check
-
     top = [layer for layer in (layers["topX"], layers["topY"]) if layer is not None]
     source = "top"
     if not top:
@@ -1687,59 +1949,115 @@ def _punching_checks(
     d = sum(layer.d for layer in top) / len(top)
     phi_punching = _phi_punching()
     checks = []
+    drop, ribs = context.drop, context.ribs
+    head = float(drop.depth) if drop is not None else 0.0
+    if ribs is not None and drop is None and context.columns:
+        context.notes.append(
+            "punching of a ribbed or waffle slab without a solid head is not checked: give the "
+            "slab type a drop panel as the solid head round the columns"
+        )
+        return []
     for column in context.columns:
-        section = critical_section(
-            column.centre, column.c1, column.c2, column.angle, d, context.boundary
-        )
-        if not section.sides:
-            continue
-        beta = max(column.c1, column.c2) / min(column.c1, column.c2)
-        capacity = punching_capacity(fc, d, section.b0, beta, section.alpha_s)
-        t = math.radians(column.angle)
-        u = np.array([math.cos(t), math.sin(t), 0.0])
-        v = np.array([-math.sin(t), math.cos(t), 0.0])
-        worst: tuple[float, PunchingStress, float, str | None] | None = None
-        for c, (force, moment) in enumerate(zip(column.forces, column.moments, strict=True)):
-            vu = max(-float(force[2]), 0.0)
-            # A moment vector along v bends the slab in the u direction, and vice versa.
-            stress = punching_stress(section, vu, float(moment @ v), float(moment @ u))
-            if worst is None or stress.vu > worst[0]:
-                worst = (stress.vu, stress, vu, combinations[c])
-        if worst is None:
-            continue
-        vu_max, stress, vu, combination = worst
-        area = section.b0 * d
-        phi_vc = phi_punching * capacity.vc
-        a, b, cc = capacity.expressions
-        note = (
-            f"{section.location} column, b0 = {section.b0:.0f} mm, d = {d:.0f} mm ({source}), "
-            f"Vu = {vu / 1e3:.1f} kN, vu = {vu_max:.3f} MPa (direct {stress.direct:.3f}, "
-            f"γv = {stress.gamma_v[0]:.2f}/{stress.gamma_v[1]:.2f}), "
-            f"vc = min({a:.3f}, {b:.3f}, {cc:.3f}) MPa, λs = {capacity.lambda_s:.2f}, "
-            f"αs = {section.alpha_s:g}, β = {beta:.2f}; shown as v b0 d"
-        )
-        row = _check(
-            f"Punching at {column.id}",
-            vu_max * area / 1e3,
-            phi_vc * area / 1e3,
-            "kN",
-            combination,
-            note,
-            utilisation=vu_max / phi_vc,
-        )
-        if vu_max > phi_vc or context.punching is not None:
-            # Integrator glue: shear reinforcement (saengine.design.punching): the studs or
-            # stirrups of the slab type checked, else proposed; every combination's demand.
-            row = _punching_with_reinforcement(
-                column, d, fc, combinations, context, h, fy, cover, top, row
+        # ACI 318-19 22.6.4.1: at d/2 from the column (or capital) face with d through the drop
+        # panel, and at d/2 outside the panel's edge with the slab's own d (slab_systems).
+        c1, c2 = slab_systems.support_size(column.c1, column.c2, context.capital)
+        faces = [(c1, c2, d + head, "capital face" if context.capital is not None else "")]
+        if drop is not None and ribs is None:
+            faces.append((float(drop.length), float(drop.width), d, "outside the drop panel"))
+        elif drop is not None and column is context.columns[0]:
+            context.notes.append(
+                "outside a waffle's solid heads the ribs take the shear as one-way shear "
+                "(checked with the strips); no second punching section"
             )
-            if not row["note"].startswith(note):
-                # The column's own Vu of the governing combination, as without reinforcement.
-                row["note"] = (
-                    f"Vu = {vu / 1e3:.1f} kN at the column ({combination}); " + row["note"]
+        for index, (s1, s2, depth, what) in enumerate(faces):
+            found = _punching_row(
+                column, s1, s2, depth, what, fc, combinations, context, phi_punching, source
+            )
+            if found is None:
+                continue
+            row, plain_note, vu_max, phi_vc, vu, combination = found
+            if index == 0 and (vu_max > phi_vc or context.punching is not None):
+                # Integrator glue: shear reinforcement (saengine.design.punching): the studs or
+                # stirrups of the slab type checked, else proposed; every combination's demand.
+                effective = replace(column, c1=s1, c2=s2)
+                row = _punching_with_reinforcement(
+                    effective,
+                    depth,
+                    fc,
+                    combinations,
+                    context,
+                    None if h is None else h + head,
+                    fy,
+                    cover,
+                    top,
+                    row,
                 )
-        checks.append(row)
+                if not row["note"].startswith(plain_note):
+                    # The column's own Vu of the governing combination, as without reinforcement.
+                    row["note"] = (
+                        f"Vu = {vu / 1e3:.1f} kN at the column ({combination}); " + row["note"]
+                    )
+            checks.append(row)
     return checks
+
+
+def _punching_row(
+    column: ColumnJoint,
+    c1: float,
+    c2: float,
+    d: float,
+    what: str,
+    fc: float,
+    combinations: list[str],
+    context: SlabContext,
+    phi_punching: float,
+    source: str,
+) -> tuple[dict[str, Any], str, float, float, float, str | None] | None:
+    """One punching section round ``column``, as if it were ``c1`` x ``c2`` (its capital, or
+    a drop panel's edge), with depth ``d``: (the check, its note, vu, φvc [MPa], Vu [N], the
+    governing combination); None when the section lies outside the slab or no force is known."""
+    from saengine.design.check import _check
+
+    section = critical_section(column.centre, c1, c2, column.angle, d, context.boundary)
+    if not section.sides:
+        return None
+    beta = max(c1, c2) / min(c1, c2)
+    capacity = punching_capacity(fc, d, section.b0, beta, section.alpha_s)
+    t = math.radians(column.angle)
+    u = np.array([math.cos(t), math.sin(t), 0.0])
+    v = np.array([-math.sin(t), math.cos(t), 0.0])
+    worst: tuple[float, PunchingStress, float, str | None] | None = None
+    for c, (force, moment) in enumerate(zip(column.forces, column.moments, strict=True)):
+        vu = max(-float(force[2]), 0.0)
+        # A moment vector along v bends the slab in the u direction, and vice versa.
+        stress = punching_stress(section, vu, float(moment @ v), float(moment @ u))
+        if worst is None or stress.vu > worst[0]:
+            worst = (stress.vu, stress, vu, combinations[c])
+    if worst is None:
+        return None
+    vu_max, stress, vu, combination = worst
+    area = section.b0 * d
+    phi_vc = phi_punching * capacity.vc
+    a, b, cc = capacity.expressions
+    note = (
+        f"{section.location} column, b0 = {section.b0:.0f} mm, d = {d:.0f} mm ({source}), "
+        f"Vu = {vu / 1e3:.1f} kN, vu = {vu_max:.3f} MPa (direct {stress.direct:.3f}, "
+        f"γv = {stress.gamma_v[0]:.2f}/{stress.gamma_v[1]:.2f}), "
+        f"vc = min({a:.3f}, {b:.3f}, {cc:.3f}) MPa, λs = {capacity.lambda_s:.2f}, "
+        f"αs = {section.alpha_s:g}, β = {beta:.2f}; shown as v b0 d"
+    )
+    if what:
+        note = f"{what} ({c1:.0f} x {c2:.0f} mm): " + note
+    row = _check(
+        f"Punching at {column.id}" + (f" ({what})" if what else ""),
+        vu_max * area / 1e3,
+        phi_vc * area / 1e3,
+        "kN",
+        combination,
+        note,
+        utilisation=vu_max / phi_vc,
+    )
+    return row, note, vu_max, phi_vc, vu, combination
 
 
 def _punching_with_reinforcement(

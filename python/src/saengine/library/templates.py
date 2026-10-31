@@ -140,6 +140,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "firstLine": 50,
         "spacing": 100,
     },
+    "DropPanel": {"depth": 100, "length": 2400, "width": 2400},
+    "ColumnCapital": {"size": 1000, "depth": 300},
+    "SlabRibs": {"direction": "both", "width": 125, "depth": 300, "spacing": 750},
     "PlanarReinforcement": {
         "material": _REBAR,
         "cover": 25,

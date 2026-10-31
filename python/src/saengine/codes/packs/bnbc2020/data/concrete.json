@@ -101,6 +101,23 @@
       31.0
     ]
   },
+  "twoWayThicknessDrop": {
+    "280.0": [
+      36.0,
+      40.0,
+      40.0
+    ],
+    "420.0": [
+      33.0,
+      36.0,
+      36.0
+    ],
+    "520.0": [
+      31.0,
+      34.0,
+      34.0
+    ]
+  },
   "oneWaySlabThickness": [
     20.0,
     24.0,
@@ -179,6 +196,7 @@
     "slabStrainMin": "ACI 318 7.3.3.1, 8.3.3.1 (page not checked)",
     "fytShearMax": "BNBC 2020 Part 6 Sec 6.4.3.2 (p. 924)",
     "twoWayThickness": "BNBC 2020 Part 6 Table 6.6.3 (p. 902), no drop panels",
+    "twoWayThicknessDrop": "BNBC 2020 Part 6 Table 6.6.3 (p. 902), with drop panels (ACI 318-19 Table 8.3.1.1; drop panels per 8.2.4)",
     "oneWaySlabThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
     "beamThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
     "cover": "SAEngine assumptions when no reinforcement is entered",
