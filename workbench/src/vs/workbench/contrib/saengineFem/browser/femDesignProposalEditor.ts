@@ -531,8 +531,9 @@ export class FemDesignProposalEditor extends EditorPane {
 			return;
 		}
 		const proposal = this.model.proposal;
-		// Without a proposal, the banner of an apply whose files could not be saved still shows.
-		if (!proposal && !this.loading && !this.applied?.problem) {
+		// Without a proposal, the banner of an apply still shows (with its Undo) while the page
+		// checks and proposes again, and when the files could not be saved.
+		if (!proposal && !this.loading && !this.applying && !this.applied) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolRuler,
 				title: localize('femProposal.noneTitle', "No proposal"),
