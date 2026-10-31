@@ -13,11 +13,13 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { parse } from '../../../../base/common/json.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -28,7 +30,7 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DrawingPreviewInput, IDrawingPreviewSheet } from './drawingPreviewInput.js';
 import {
-	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_DWG_COMMAND, DRAWINGS_GENERATE_COMMAND, DRAWINGS_ISSUE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet,
+	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_DWG_COMMAND, DRAWINGS_GENERATE_COMMAND, DRAWINGS_ISSUE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet, officeStandardFile, withOfficeStandard,
 	IDrawingsIssueArgs, issuePurposes, keepSelection, previewSheet, readDrawingSet, readDrawingSettings, registerSummary, selectedSheets, sheetRevisionText,
 } from './drawingsModel.js';
 import { EditorFrame } from './editorFrame.js';
@@ -120,6 +122,7 @@ export class DrawingsSection extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 	) {
 		super();
 		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Drawings") });
@@ -257,6 +260,92 @@ export class DrawingsSection extends Disposable {
 				this.update();
 			}
 		}
+	}
+
+	/** The project settings as saved (the open edits saved first), or undefined after a message. */
+	private async savedSettings(root: URI): Promise<unknown | undefined> {
+		const unsaved = await saveProjectEdits(this.workingCopyService, root);
+		if (unsaved.length) {
+			this.notificationService.warn(localize('drawings.standardUnsaved', "Save Project Settings first: the office standard is read from the saved file."));
+			return undefined;
+		}
+		const file = this.settingsFile;
+		if (!file) {
+			return undefined;
+		}
+		try {
+			return parse((await this.fileService.readFile(file)).value.toString());
+		} catch {
+			return {};
+		}
+	}
+
+	/** Writes the project's office standard (`drawings.standard`) to a file of the engineer's choice. */
+	private async saveOfficeStandard(): Promise<void> {
+		const root = this.root;
+		if (!root) {
+			return;
+		}
+		const settings = await this.savedSettings(root);
+		if (settings === undefined) {
+			return;
+		}
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('drawings.saveStandardTitle', "Save Office Standard"),
+			defaultUri: joinPath(dirname(root), 'office-standard.json'),
+			filters: [{ name: localize('drawings.standardFilter', "Office drafting standard (*.json)"), extensions: ['json'] }],
+		});
+		if (!target) {
+			return;
+		}
+		try {
+			await this.fileService.writeFile(target, VSBuffer.fromString(officeStandardFile(settings)));
+		} catch (error) {
+			this.notificationService.error(localize('drawings.saveStandardFailed', "The office standard could not be saved: {0}", toErrorMessage(error)));
+		}
+	}
+
+	/** Replaces the project's office standard with that of a file; the sheets follow it when drawn again. */
+	private async loadOfficeStandard(): Promise<void> {
+		const root = this.root;
+		const file = this.settingsFile;
+		if (!root || !file) {
+			return;
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('drawings.loadStandardTitle', "Load Office Standard"),
+			canSelectFiles: true,
+			canSelectMany: false,
+			defaultUri: dirname(root),
+			filters: [{ name: localize('drawings.standardFilter', "Office drafting standard (*.json)"), extensions: ['json'] }],
+		});
+		if (!picked?.length) {
+			return;
+		}
+		let standard: unknown;
+		try {
+			standard = parse((await this.fileService.readFile(picked[0])).value.toString());
+		} catch (error) {
+			this.notificationService.error(localize('drawings.loadStandardFailed', "The office standard could not be read: {0}", toErrorMessage(error)));
+			return;
+		}
+		const settings = await this.savedSettings(root);
+		if (settings === undefined) {
+			return;
+		}
+		const updated = withOfficeStandard(settings, standard);
+		if (!updated) {
+			this.notificationService.error(localize('drawings.notStandard', "That file is not an office drafting standard."));
+			return;
+		}
+		try {
+			await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(updated, undefined, '\t') + '\n'));
+		} catch (error) {
+			this.notificationService.error(localize('drawings.loadStandardFailed', "The office standard could not be read: {0}", toErrorMessage(error)));
+			return;
+		}
+		this.notificationService.info(localize('drawings.standardLoaded', "Office standard loaded into Project Settings > Drawings. Generate the drawings to apply it."));
+		this.settingsScheduler.schedule();
 	}
 
 	/** The last generation, as the backend has it (with its staleness). */
@@ -401,6 +490,22 @@ export class DrawingsSection extends Disposable {
 		if (this.settings.conflicts.length) {
 			// One home for these is Project; until the drawings' own fields are cleared, say they differ.
 			append(block, $('.drawings-settings-note.stale', undefined, localize('drawings.conflicts', "{0} Clear the drawings' field in Project Settings > Drawings to use Project's.", this.settings.conflicts.join(' '))));
+		}
+		// The office drafting standard (Project Settings > Drawings > Office standard) as a file,
+		// to carry the office's layers, font and title block lines to its other projects.
+		const standardRow = append(block, $('.drawings-settings-note.drawings-standard-actions'));
+		for (const [name, label, run] of [
+			['standard-save', localize('drawings.saveStandard', "Save Office Standard..."), () => this.saveOfficeStandard()],
+			['standard-load', localize('drawings.loadStandard', "Load Office Standard..."), () => this.loadOfficeStandard()],
+		] as const) {
+			const button = this.named(append(standardRow, $<HTMLAnchorElement>('a.drawings-settings-link', { role: 'button', tabindex: '0' }, label)), name);
+			this.settingsDisposables.add(addDisposableListener(button, EventType.CLICK, () => void run()));
+			this.settingsDisposables.add(addDisposableListener(button, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					void run();
+				}
+			}));
 		}
 		if (!this.settings.present) {
 			append(block, $('.drawings-settings-note', undefined, localize('drawings.settingsDefaults', "The project settings have no drawing settings yet: the sheets use the project's name, number and engineer and these defaults.")));

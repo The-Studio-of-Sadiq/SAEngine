@@ -47,6 +47,7 @@ from saengine.drawings.sheets.layout import (
     paper_size,
 )
 from saengine.drawings.sheets.model import DrawingSet
+from saengine.drawings.sheets.standards import DEFAULT_PREFIXES, Standard
 
 PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250, 300, 400, 500)
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
@@ -64,6 +65,7 @@ class DrawingSettings:
     prefix: str = "S-"
     first: int = 101
     ppi: float = 60
+    standard: dict[str, Any] | None = None  # the office standard (Drawings > Office standard)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> DrawingSettings:
@@ -77,6 +79,7 @@ class DrawingSettings:
             "sheetPrefix": "prefix",
             "firstNumber": "first",
             "previewPpi": "ppi",
+            "standard": "standard",
         }
         values = {}
         for key, name in keys.items():
@@ -292,10 +295,13 @@ def build_sheets(
     area = drawing_area(settings.size)
     cats, problems = categories(data, settings)
     data.problems += problems
+    standard = Standard.from_dict(settings.standard) if settings.standard else None
+    if standard is not None:
+        data.problems += standard.problems
     sheets: list[Sheet] = []
     numbers: dict[str, int] = {}
     for cat in cats:
-        prefix = cat.prefix or settings.prefix
+        prefix = _prefix(cat.prefix or settings.prefix, standard)
         pages = pack(cat.specs, area)
         if cat.plan:
             pages = [centred(page, area) for page in pages]
@@ -322,6 +328,7 @@ def build_sheets(
                     else cat.scale_text or f"1:{cat.scale:g}"
                 ),
                 north=data.building.north if cat.plan else None,
+                standard=standard,
             )
             sheet.category = cat.title  # type: ignore[attr-defined]
             sheet.members = members_of(page, data)  # type: ignore[attr-defined]
@@ -336,6 +343,16 @@ def build_sheets(
             sheet.finish()
             sheets.append(sheet)
     return sheets
+
+
+def _prefix(prefix: str, standard: Standard | None) -> str:
+    """The sheet number prefix of the office standard for SAEngine's ``prefix`` (S-, A-, P-, ...)."""
+    if standard is None:
+        return prefix
+    for discipline, default in DEFAULT_PREFIXES.items():
+        if prefix == default:
+            return standard.prefixes.get(discipline, prefix)
+    return prefix
 
 
 def members_of(page: Sequence[tuple[ViewSpec, float, float]], data: DrawingSet) -> list[str]:
@@ -561,6 +578,9 @@ def write_drawings(
         if on_sheet is not None:
             on_sheet(i + 1, len(sheets))
         target = out / f"{sheet_file_name(sheet)}.dxf"
+        standard = getattr(sheet, "standard", None)
+        if standard is not None:
+            standard.apply(sheet.doc)  # the office's layer names, last (see .standards)
         sheet.doc.saveas(target)
         rows.append(
             {

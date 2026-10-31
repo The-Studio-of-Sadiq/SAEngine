@@ -192,8 +192,19 @@ def drawing_settings(settings_text: str | None) -> tuple[dict[str, Any], dict[st
         "status": drawings.status,
         "revision": revisions[-1]["rev"] if revisions else "0",
         "revisions": revisions,
+        "office": drawings.standard.officeLine,
+        "disclaimer": drawings.standard.disclaimer,
     }
     return drawings.model_dump(), {k: v for k, v in title.items() if v not in (None, "")}
+
+
+def _layer_names(sheets: Sequence[Any]) -> dict[str, str]:
+    """SAEngine layer -> the office's name, as the sheets were written (their standard)."""
+    for sheet in sheets:
+        standard = getattr(sheet, "standard", None)
+        if standard is not None:
+            return dict(standard.renames)
+    return {}
 
 
 def _sheet_settings(settings: dict[str, Any], size: str | None) -> dict[str, Any]:
@@ -203,6 +214,7 @@ def _sheet_settings(settings: dict[str, Any], size: str | None) -> dict[str, Any
         "slabScale": settings["slabScale"],
         "elevationScale": settings["elevationScale"],
         "detailScale": settings["detailScale"],
+        "standard": settings.get("standard"),
     }
 
 
@@ -540,12 +552,15 @@ def _generate(
         and earlier.get("size") == sheet_size
         and [(r.get("number"), r.get("title")) for r in earlier.get("sheets") or []]
         == [(s.number, s.title) for s in all_sheets]
+        and (earlier.get("layerNames") or {}) == _layer_names(all_sheets)
     )
     partial = bool(wanted) and same_set
     if wanted and earlier is not None and not same_set:
         why = (
             f"the sheet size changed from {earlier.get('size')} to {sheet_size}"
             if earlier.get("size") != sheet_size
+            else "the office standard's layer names changed"
+            if (earlier.get("layerNames") or {}) != _layer_names(all_sheets)
             else "the sheets of the set changed"
         )
         notes.append(
@@ -567,7 +582,9 @@ def _generate(
         row = earlier_rows.get(sheet.number)
         if row and row.get("dxf"):
             old_index = rv.SheetIndex.load(folder / rv.INDEX_FOLDER, sheet.number)
-            carried = rv.carry_edits(sheet, folder / str(row["dxf"]), old_index)
+            carried = rv.carry_edits(
+                sheet, folder / str(row["dxf"]), old_index, (earlier or {}).get("layerNames")
+            )
             carried_note = carried.note(sheet.number)
             if carried_note:
                 notes.append(carried_note)
@@ -689,6 +706,8 @@ def _generate(
         "size": sheet_size,
         "settings": settings,
         "source": stamps,
+        # the office layer names the sheets were written with (named back on the next run)
+        "layerNames": _layer_names(all_sheets),
         "sheets": sheet_rows,
         "pdf": pdf,
         "pdfSource": pdf_source,
