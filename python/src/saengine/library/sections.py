@@ -195,15 +195,19 @@ def _properties(key: str) -> SectionProperties:
     return _remember(key, found)
 
 
-#: Most processes :func:`prefetch_section_properties` starts.
-MAX_PREFETCH_JOBS = 4
+#: ``SAENGINE_SECTION_JOBS``: the processes :func:`prefetch_section_properties` may start. Off
+#: (1) by default: on the 20- and 30-storey benchmarks a worker of the pool died ("the handle is
+#: invalid") on a loaded Windows machine; the disk cache alone already spares the solves of every
+#: derivation after the first.
+JOBS_ENV = "SAENGINE_SECTION_JOBS"
 
 
 def prefetch_section_properties(profiles: Iterable[o.Profile]) -> None:
     """Works out the properties of ``profiles`` that are neither known nor kept on disk, in
-    parallel processes when there are several (each is a finite-element solve of seconds), so
-    the next :func:`section_properties` calls find them. Falls back to one by one when the
-    processes cannot start."""
+    parallel processes (``SAENGINE_SECTION_JOBS`` of them) when there are several (each is a
+    finite-element solve of seconds), so the next :func:`section_properties` calls find them.
+    Leaves them to be solved one by one where first used when the variable is unset or the
+    processes fail."""
     keys: list[str] = []
     for profile in profiles:
         try:
@@ -217,7 +221,8 @@ def prefetch_section_properties(profiles: Iterable[o.Profile]) -> None:
             _remember(key, cached)
         else:
             keys.append(key)
-    jobs = min(len(keys), MAX_PREFETCH_JOBS, max(1, (os.cpu_count() or 2) // 2))
+    allowed = os.environ.get(JOBS_ENV, "").strip()
+    jobs = min(len(keys), int(allowed) if allowed.isdigit() else 1)
     if jobs < 2:
         return  # one or none: solved where it is first used
     from concurrent.futures import ProcessPoolExecutor
