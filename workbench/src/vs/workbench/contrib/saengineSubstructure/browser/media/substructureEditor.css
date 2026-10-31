@@ -985,3 +985,17 @@
 	border: 1px dashed var(--sub-pile);
 	background: transparent;
 }
+
+/* A selection's ids under its heading, wrapped (not squeezed beside a label: N-U11). */
+.saengine-substructure-editor .sub-selected-list {
+	margin: 0 0 var(--sa-space-2);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+/* The foundations table keeps its column widths at 1366 px and scrolls sideways instead of
+   cutting the ids, types and columns short (N-U10). */
+.saengine-substructure-editor .sub-table.sub-foundations {
+	width: max-content;
+	min-width: 100%;
+}

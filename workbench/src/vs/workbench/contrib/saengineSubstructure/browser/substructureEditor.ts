@@ -765,11 +765,16 @@ export class SubstructureEditor extends EditorPane {
 		const box = drawing.svg.getBoundingClientRect();
 		const start = drawing.toPlan(press.x - box.left, press.y - box.top);
 		if (press.mode === 'box' && press.moved) {
-			// Piles and columns inside the box; Shift adds to the selection.
+			// Piles, columns and foundations (by their centre) inside the box; Shift adds to the selection.
 			this.flush();
+			const inside = (x: number, y: number) => x >= Math.min(start[0], point[0]) && x <= Math.max(start[0], point[0]) && y >= Math.min(start[1], point[1]) && y <= Math.max(start[1], point[1]);
 			const piles = pilesInBox(document, start, point).map(p => p.id);
-			const columns = this.context.columns.filter(c => c.x >= Math.min(start[0], point[0]) && c.x <= Math.max(start[0], point[0]) && c.y >= Math.min(start[1], point[1]) && c.y <= Math.max(start[1], point[1])).map(c => c.id);
-			this.selectedFoundations = [];
+			const columns = this.context.columns.filter(c => inside(c.x, c.y)).map(c => c.id);
+			const foundations = document.foundations.map((f, i) => {
+				const center = foundationCenter(f, this.context);
+				return center && inside(center[0], center[1]) ? i : -1;
+			}).filter(i => i >= 0);
+			this.selectedFoundations = [...new Set([...(press.add ? this.selectedFoundations : []), ...foundations])];
 			this.selectedTieBeam = undefined;
 			this.gridSelected = false;
 			this.selectedPiles = new Set([...(press.add ? this.selectedPiles : []), ...piles]);
@@ -909,23 +914,47 @@ export class SubstructureEditor extends EditorPane {
 		this.added(added);
 	}
 
-	private addRaft(): void {
+	private async addRaft(): Promise<void> {
 		const document = this.document;
 		if (!document) {
 			return;
 		}
+		this.flush();
 		const picked = this.pickedColumns;
-		if (picked.length && !this.free(document, picked.map(c => c.id))) {
-			return;
-		}
-		if (!picked.length && document.foundations.some(f => f.columns?.length || f.type === 'raft')) {
-			this.notificationService.info(localize('sub.raftWhole', "Some columns already stand on foundations. Select the columns the raft is to carry, or delete the other foundations for a raft under the whole building."));
-			return;
-		}
+		const wanted = new Set((picked.length ? picked : this.context.columns).map(c => c.id));
+		// The foundations under those columns (all of them for a raft under the whole building):
+		// replaced by the raft once the engineer agrees (N-U6).
+		const replaced = document.foundations.filter(f => picked.length ? (f.columns ?? []).some(c => wanted.has(c)) : (f.columns?.length || f.type === 'raft'));
+		// Made before the others go: it takes their concrete and bars.
 		const raft = newRaft(document, this.context, picked.length ? picked : this.context.columns);
 		if (!raft) {
 			this.notificationService.info(localize('sub.noColumns', "The building model has no columns on its base level yet."));
 			return;
+		}
+		if (replaced.length) {
+			const ids = replaced.map(f => f.id);
+			const ties = document.tieBeams.filter(t => ids.includes(t.from) || ids.includes(t.to));
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: replaced.length === 1
+					? localize('sub.raftReplaceOne', "Replace {0} with a raft?", ids[0])
+					: localize('sub.raftReplaceMany', "Replace {0} foundations with a raft?", replaced.length),
+				detail: (replaced.length > 1 ? localize('sub.raftReplaceList', "{0}.", ids.join(', ')) + ' ' : '')
+					+ (ties.length ? localize('sub.raftReplaceTies', "Their tie beams are deleted with them: {0}. ", ties.map(t => t.id).join(', ')) : '')
+					+ localize('sub.raftReplaceUndo', "The raft carries their columns. Undo (Ctrl+Z) brings them back."),
+				primaryButton: localize({ key: 'sub.raftReplaceButton', comment: ['&& denotes a mnemonic'] }, "&&Replace with a Raft"),
+			});
+			if (!confirmed || this.document !== document) {
+				return;
+			}
+			const gone = new Set(ids);
+			document.foundations = document.foundations.filter(f => !gone.has(f.id));
+			document.tieBeams = document.tieBeams.filter(t => !gone.has(t.from) && !gone.has(t.to));
+			// A pile cap's piles go with it.
+			const capPiles = new Set(replaced.flatMap(f => f.type === 'pileCap' ? f.piles ?? [] : []));
+			if (capPiles.size) {
+				deletePiles(document, capPiles);
+			}
 		}
 		if (!picked.length) {
 			// A raft under the whole building carries every column inside its outline.
@@ -1035,6 +1064,17 @@ export class SubstructureEditor extends EditorPane {
 						: localize('sub.deleteTiesMany', "Delete {0} and their tie beams?", [...removed].join(', ')),
 					detail: localize('sub.deleteTiesDetail', "These tie beams join a deleted foundation and are deleted with it: {0}. Undo (Ctrl+Z) brings all back.", ties.map(t => `${t.id} (${t.from} – ${t.to})`).join(', ')),
 					primaryButton: localize({ key: 'sub.deleteTiesButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
+				});
+				if (!confirmed || this.document !== document) {
+					return;
+				}
+			} else if (removed.size > 1) {
+				// Several at once (a box over the plan) are asked about first (N-U6).
+				const { confirmed } = await this.dialogService.confirm({
+					type: 'warning',
+					message: localize('sub.deleteMany', "Delete {0} foundations?", removed.size),
+					detail: localize('sub.deleteManyDetail', "{0}. Undo (Ctrl+Z) brings them back.", [...removed].join(', ')),
+					primaryButton: localize({ key: 'sub.deleteManyButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
 				});
 				if (!confirmed || this.document !== document) {
 					return;
@@ -1383,7 +1423,7 @@ export class SubstructureEditor extends EditorPane {
 			this.setBusy('migrate', false);
 		}
 		if (!imported?.foundations.length || this.document !== document) {
-			this.notificationService.info(imported?.notes.length ? imported.notes.join(' ') : localize('sub.migrateNothing', "The building model has no footings to import."));
+			this.notificationService.info(imported?.notes.length ? sentences(imported.notes) : localize('sub.migrateNothing', "The building model has no footings to import."));
 			return;
 		}
 		const { added, skipped } = importFoundations(document, imported, savedIds);
@@ -1734,7 +1774,7 @@ export class SubstructureEditor extends EditorPane {
 				? localize('sub.proposalOne', "Proposed size for 1 foundation (dashed)")
 				: localize('sub.proposal', "Proposed sizes for {0} foundations (dashed)", count)));
 			if (this.proposal.notes.length) {
-				append(text, $('span.sub-banner-detail', undefined, this.proposal.notes.join(' ')));
+				append(text, $('span.sub-banner-detail', undefined, sentences(this.proposal.notes)));
 			}
 			this.renderProposalTable(text, document, this.proposal);
 			const accept = this.viewDisposables.add(new Button(banner, { ...defaultButtonStyles }));
@@ -1876,7 +1916,7 @@ export class SubstructureEditor extends EditorPane {
 		const scroller = append(section, $('.sub-table-scroll'));
 		const table = append(scroller, $('table.sub-table.sub-foundations'));
 		const columns = [
-			{ label: F.id.label, width: 64 }, { label: localize('sub.f.type', "Type"), width: 156 }, { label: localize('sub.f.columns', "Columns"), width: 110 },
+			{ label: F.id.label, width: 88 }, { label: localize('sub.f.type', "Type"), width: 156 }, { label: localize('sub.f.columns', "Columns"), width: 150 },
 			{ label: F.length.label, unit: MM, numeric: true }, { label: F.width.label, unit: MM, numeric: true }, { label: F.thickness.label, unit: MM, numeric: true },
 			{ label: F.foundingLevel.label, unit: M, numeric: true, width: 84 }, { label: localize('sub.f.pileType', "Pile type"), width: 84 }, { label: localize('sub.f.piles', "Piles"), numeric: true, width: 48 },
 			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 84 }, { label: '', width: 28 },
@@ -2345,6 +2385,7 @@ export class SubstructureEditor extends EditorPane {
 	private columnsInput(foundation: IFoundation, key: string): HTMLInputElement {
 		const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.columns', "Columns") });
 		input.value = (foundation.columns ?? []).join(', ');
+		input.title = input.value; // a combined footing's or raft's list is longer than the cell
 		if (foundation.type === 'raft' && !foundation.columns?.length) {
 			input.placeholder = localize('sub.f.columnsInside', "all inside");
 		}
@@ -2534,8 +2575,13 @@ export class SubstructureEditor extends EditorPane {
 			append(row, $('td', undefined, foundationTypeLabel(f.type)));
 			append(row, $('td', undefined, foundationSize(f)));
 			append(row, $('td', undefined, result ? governing?.name ?? '' : stale ? this.staleText : this.notCheckedText(f.id)));
-			append(row, $('td.sub-muted-cell', undefined, governing?.combination ?? ''));
-			this.utilisationCell(row, result?.utilisation);
+			append(row, $('td.sub-muted-cell', undefined, governing?.combination || '—'));
+			if (result?.notChecked?.includes('bearing') && result.ok) {
+				// Passing what was checked is not passing: the bearing that sizes it was not (N-U3).
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-warn', undefined, localize('sub.noBearing', "bearing not checked")));
+			} else {
+				this.utilisationCell(row, result?.utilisation);
+			}
 			if (result && !result.ok) {
 				row.classList.add('failed');
 			}
@@ -2556,7 +2602,7 @@ export class SubstructureEditor extends EditorPane {
 			append(row, $('td', undefined, localize('sub.tieBeam', "Tie beam")));
 			append(row, $('td', undefined, localize('sub.tieBetween', "{0} – {1}", tie.from, tie.to)));
 			append(row, $('td', undefined, result ? governing?.name ?? '' : stale ? this.staleText : this.notCheckedText(tie.id)));
-			append(row, $('td.sub-muted-cell', undefined, governing?.combination ?? ''));
+			append(row, $('td.sub-muted-cell', undefined, governing?.combination || '—'));
 			this.utilisationCell(row, result?.utilisation);
 			if (result && !result.ok) {
 				row.classList.add('failed');
@@ -2589,15 +2635,19 @@ export class SubstructureEditor extends EditorPane {
 			const row = append(body, $(check.flag ? 'tr.flag' : 'tr'));
 			append(row, $('td', undefined, check.flag ? localize('sub.flagged', "{0} (reported only)", check.name) : check.name));
 			append(row, $('td.number', undefined, value(check.demand)));
-			append(row, $('td.number', undefined, value(check.capacity)));
+			const overlap = check.name === CLEARANCE_CHECK;
+			// The clearance between footings passes or fails; its "capacity" 0 mm and a ratio mean little (N-U12).
+			append(row, $('td.number', undefined, overlap ? '—' : value(check.capacity)));
 			append(row, $('td.sub-muted-cell', undefined, check.unit));
-			if (check.capacity === 0 && (check.utilisation ?? 0) >= 99) {
+			if (overlap && !check.ok) {
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-fail', undefined, localize('sub.overlapBy', "overlaps by {0} mm", formatNumber(check.demand ?? 0, 0))));
+			} else if (check.capacity === 0 && (check.utilisation ?? 0) >= 99) {
 				// Nothing provided (no bars in that layer): a ratio means nothing.
 				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-fail', undefined, localize('sub.needsBars', "none provided")));
 			} else {
 				this.utilisationCell(row, check.utilisation);
 			}
-			append(row, $('td.sub-muted-cell.sub-combination-cell', undefined, check.combination ?? ''));
+			append(row, $('td.sub-muted-cell.sub-combination-cell', undefined, check.combination || '—'));
 			const suggestion = check.ok || check.flag ? '' : this.suggestion(foundation, check);
 			if (suggestion || check.note) {
 				row.classList.add('has-note');
@@ -2793,10 +2843,15 @@ export class SubstructureEditor extends EditorPane {
 				paths = [`tieBeams.${this.selectedTieBeam}.`];
 			} else if (this.selectedFoundations.length > 1) {
 				appendPropertyHeading(panel, localize('sub.manySelected', "{0} foundations", this.selectedFoundations.length));
-				appendPropertyRow(panel, localize('sub.selected', "Selected"), this.selectedFoundations.map(i => document.foundations[i]?.id).join(', '));
-				appendPropertyNote(panel, this.selectedFoundations.length === 2
-					? localize('sub.tieHint', "Add a tie beam between them with the tie beam button in the toolbar.")
-					: localize('sub.tieHintTwo', "Select exactly two foundations to tie them."));
+				const ids = this.selectedFoundations.map(i => document.foundations[i]?.id).filter((id): id is string => !!id);
+				append(panel, $('.sub-selected-list', undefined, ids.join(', ')));
+				// The next step that fits the selection (N-U11): overlapping footings are combined first.
+				const overlapping = ids.some(id => this.report?.foundations.find(r => r.id === id)?.checks.some(c => c.name === CLEARANCE_CHECK && !c.ok));
+				appendPropertyNote(panel, overlapping
+					? localize('sub.overlapHint', "Some of them overlap: Size Footings with them selected makes one combined footing, or Add Raft replaces them with a raft.")
+					: this.selectedFoundations.length === 2
+						? localize('sub.tieHint', "Add a tie beam between them with the tie beam button in the toolbar, or Delete removes both.")
+						: localize('sub.manyHint', "Size Footings, Add Raft and Delete act on all of them. Select exactly two to tie them."));
 			} else if (this.selectedColumns.size) {
 				this.renderColumnProperties(panel, document);
 			} else {
@@ -3056,7 +3111,7 @@ export class SubstructureEditor extends EditorPane {
 			const on = document.foundations.find(f => f.columns?.includes(column.id));
 			appendPropertyRow(panel, localize('sub.f.foundation', "Foundation"), on?.id ?? localize('sub.noneYet', "none yet"));
 		} else {
-			appendPropertyRow(panel, localize('sub.selected', "Selected"), columns.map(c => c.id).join(', '));
+			append(panel, $('.sub-selected-list', undefined, columns.map(c => c.id).join(', ')));
 		}
 		appendPropertyNote(panel, columns.length > 1
 			? localize('sub.columnsHint', "Add a combined footing, one pile cap or a raft under them with the toolbar buttons.")
@@ -3112,7 +3167,7 @@ export class SubstructureEditor extends EditorPane {
 			appendPropertyRow(panel, localize('sub.f.cap', "Cap"), caps.get(pile.id) ?? localize('sub.noCap', "none"));
 		} else {
 			appendPropertyHeading(panel, localize('sub.pilesSelected', "{0} piles", piles.length));
-			appendPropertyRow(panel, localize('sub.selected', "Selected"), piles.map(p => p.id).join(', '));
+			append(panel, $('.sub-selected-list', undefined, piles.map(p => p.id).join(', ')));
 			const kinds = [...new Set(piles.map(p => p.type))];
 			this.propertyRow(panel, localize('sub.f.pileType', "Pile type"), this.selectInput(types, kinds.length === 1 ? kinds[0] : '', value => {
 				for (const pile of piles) {
