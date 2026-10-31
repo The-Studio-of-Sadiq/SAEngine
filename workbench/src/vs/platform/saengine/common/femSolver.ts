@@ -710,7 +710,7 @@ export type ProjectPlatformMethod =
 	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
 	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
 	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
-	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove'
+	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'

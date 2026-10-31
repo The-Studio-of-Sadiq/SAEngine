@@ -95,23 +95,72 @@ export interface INewBuildingForm {
 	readonly category: OccupancyCategory;
 }
 
-export const DEFAULT_FORM: INewBuildingForm = {
+/**
+ * The form before a building template fills it: blank lengths, and choices that fall back to
+ * the first option of each list. The wizard's starting values are the built-in building
+ * template `saengine-default-building` (docs/marketplace-plan.md, round M4), applied by
+ * {@link formFromSpec}; the wizard keeps no copy of its own.
+ */
+export const BLANK_FORM: INewBuildingForm = {
 	name: '',
-	gridX: '3×6000',
-	gridY: '2×5000',
-	storyCount: '6',
-	groundHeight: '3600',
-	typicalHeight: '3200',
+	gridX: '',
+	gridY: '',
+	storyCount: '',
+	groundHeight: '',
+	typicalHeight: '',
 	heights: '',
 	system: 'rcFrame',
-	concrete: 'C27.6',
-	rebar: 'B420DWR', // Grade 500 is not allowed in special frames (BNBC 2020 Part 6 Sec 8.3.3.4(b)), the default system.
+	concrete: '',
+	rebar: '',
 	footing: 'isolated',
-	location: 'dhaka',
+	location: '',
 	siteClass: 'SD',
-	use: 'residential',
+	use: '',
 	category: 'II',
 };
+
+type SpecRaw = { readonly [key: string]: unknown };
+
+function specLengths(value: unknown): number[] | undefined {
+	return Array.isArray(value) && value.length && value.every(v => typeof v === 'number' && v > 0) ? value as number[] : undefined;
+}
+
+function specText(value: unknown): string | undefined {
+	return typeof value === 'string' && value.trim() ? value.trim() : typeof value === 'number' && value > 0 ? String(value) : undefined;
+}
+
+/**
+ * The form filled from a building template's specification (`spec.json`, SAEngine's
+ * `BuildingSpec`: `gridsX`, `gridsY`, `storyCount`, `groundHeight`, `typicalHeight` or
+ * `stories`, `system`, `concrete`, `rebar`, `footing`, `occupancy`, `occupancyCategory`,
+ * `location`, `siteClass`). The name typed in the form is kept; a field the specification does
+ * not give, or gives a value the wizard does not offer, keeps the form's value.
+ */
+export function formFromSpec(spec: SpecRaw, form: INewBuildingForm): INewBuildingForm {
+	const x = specLengths(spec.gridsX);
+	const y = specLengths(spec.gridsY);
+	const stories = Array.isArray(spec.stories) ? specLengths(spec.stories.map(s => typeof s === 'object' && s !== null ? (s as SpecRaw).height : undefined)) : undefined;
+	const pick = <T extends string>(value: unknown, allowed: readonly T[] | undefined, fallback: T): T =>
+		typeof value === 'string' && (!allowed || allowed.includes(value as T)) ? value as T : fallback;
+	const typical = specText(spec.typicalHeight);
+	return {
+		...form,
+		gridX: x ? formatLengths(x) : form.gridX,
+		gridY: y ? formatLengths(y) : form.gridY,
+		storyCount: stories ? String(stories.length) : specText(spec.storyCount) ?? form.storyCount,
+		groundHeight: stories ? '' : specText(spec.groundHeight) ?? typical ?? form.groundHeight,
+		typicalHeight: stories ? '' : typical ?? form.typicalHeight,
+		heights: stories ? formatLengths(stories) : '',
+		system: pick(spec.system, SYSTEM_CHOICES.map(c => c.value), form.system),
+		concrete: pick(spec.concrete, undefined, form.concrete),
+		rebar: pick(spec.rebar, undefined, form.rebar),
+		footing: pick(spec.footing, FOOTING_CHOICES.map(c => c.value), form.footing),
+		location: pick(spec.location, undefined, form.location),
+		siteClass: pick(spec.siteClass, ['SA', 'SB', 'SC', 'SD', 'SE'] as const, form.siteClass),
+		use: pick(spec.occupancy, undefined, form.use),
+		category: pick(spec.occupancyCategory, ['I', 'II', 'III', 'IV'] as const, form.category),
+	};
+}
 
 /** Limits the wizard checks, so a typo does not create a 600 m bay [mm]. */
 const MIN_SPACING = 1000;

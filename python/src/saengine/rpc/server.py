@@ -1147,6 +1147,17 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.codes_list(args.get("root"), args.get("kind"))
 
+    @server.feature("codes/templates")
+    def _codes_templates(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_templates(args.get("kind") or "buildingTemplate", args.get("root"))
+
+    @server.feature("codes/checkTemplate")
+    @_in_worker
+    def _codes_check_template(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_check_template(args["path"], args.get("author") or "")
+
     @server.feature("codes/remove")
     @_in_worker
     def _codes_remove(params: Any) -> dict[str, Any]:

@@ -25,7 +25,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -55,6 +55,7 @@ import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorI
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
 import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
+import { CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
 
 type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
 
@@ -189,6 +190,10 @@ export class StructureModelerEditor extends EditorPane {
 	private readonly inputDisposables = this._register(new DisposableStore());
 	/** "Get more structure templates...": the Generate panel's link to the Packages page. */
 	private panelMore!: HTMLElement;
+	/** The Generate panel's template picker (the presets of the structure templates installed). */
+	private panelPresets!: HTMLElement;
+	private presetSelect!: HTMLSelectElement;
+	private presets: IStructurePreset[] = [];
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 
 	private model: ITextModel | undefined;
@@ -304,6 +309,10 @@ export class StructureModelerEditor extends EditorPane {
 		this.details = append(properties, $('.modeler-details'));
 		this.panel = append(properties, $('.modeler-panel.saengine-library-editor'));
 		this.panelTitle = append(this.panel, $('h3.modeler-panel-title'));
+		// The structure templates installed (Packages page), grouped by package: one fills the form.
+		this.panelPresets = append(this.panel, $('.modeler-panel-presets.hidden'));
+		this.presetSelect = append(this.panelPresets, $('select.modeler-panel-preset', { 'aria-label': localize('modeler.presetLabel', "Start from a structure template") })) as HTMLSelectElement;
+		this._register(addDisposableListener(this.presetSelect, EventType.CHANGE, () => this.applyPreset(this.presetSelect.value)));
 		this.panelForm = append(this.panel, $('.modeler-panel-form.library-form'));
 		this.panelStatus = append(this.panel, $('.modeler-panel-status'));
 		const buttons = append(this.panel, $('.modeler-panel-buttons'));
@@ -925,6 +934,57 @@ export class StructureModelerEditor extends EditorPane {
 		this.closePanel();
 		this.shapeValue ??= { shape: this.template('SpaceTruss') };
 		this.openPanel({ kind: 'shape' });
+		void this.loadPresets();
+	}
+
+	/** The presets of the structure templates installed, for the Generate panel's picker. */
+	private async loadPresets(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_TEMPLATES_COMMAND)) {
+			return;
+		}
+		try {
+			this.presets = readStructurePresets(await this.commandService.executeCommand<unknown>(CODES_TEMPLATES_COMMAND, { kind: 'structureTemplate' }));
+		} catch {
+			this.presets = [];
+		}
+		this.renderPresets();
+	}
+
+	private renderPresets(): void {
+		const select = this.presetSelect;
+		clearNode(select);
+		this.panelPresets.classList.toggle('hidden', this.source?.kind !== 'shape' || !this.presets.length);
+		const placeholder = append(select, $('option', { value: '' }, localize('modeler.presetPlaceholder', "Start from a structure template..."))) as HTMLOptionElement;
+		placeholder.selected = true;
+		groupPresets(this.presets).forEach((group, g) => {
+			const optgroup = append(select, $('optgroup', { label: group.name }));
+			group.presets.forEach((preset, i) => {
+				append(optgroup, $('option', { value: `${g}/${i}`, title: preset.description }, preset.name));
+			});
+		});
+	}
+
+	/** Fills the Generate form with a preset (keeping where the shape is placed). */
+	private applyPreset(value: string): void {
+		const [g, i] = value.split('/').map(Number);
+		const preset = groupPresets(this.presets)[g]?.presets[i];
+		if (!preset || this.source?.kind !== 'shape') {
+			return;
+		}
+		const shape = clone(preset.shape as JsonObject);
+		if (shape.memberType === 'MEMBER' || typeof shape.memberType !== 'string' || !shape.memberType) {
+			shape.memberType = this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
+		}
+		const origin = (this.shapeValue?.shape as JsonObject | undefined)?.origin;
+		if (origin !== undefined && shape.origin === undefined) {
+			shape.origin = origin;
+		}
+		this.shapeValue = { shape };
+		this.fitGhost = true;
+		this.renderPanel();
+		this.renderPresets();
+		this.presetSelect.value = value;
+		this.ghostScheduler.schedule(0);
 	}
 
 	private async openImport(): Promise<void> {
@@ -989,6 +1049,7 @@ export class StructureModelerEditor extends EditorPane {
 		}
 		this.renderDetails();
 		this.panelMore.classList.toggle('hidden', source?.kind !== 'shape');
+		this.panelPresets.classList.toggle('hidden', source?.kind !== 'shape' || !this.presets.length);
 		clearNode(this.panelForm);
 		if (!source) {
 			return;
