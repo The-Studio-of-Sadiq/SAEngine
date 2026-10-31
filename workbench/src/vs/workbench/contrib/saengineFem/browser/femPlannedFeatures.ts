@@ -44,7 +44,14 @@ export const FemPlanned = {
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
 	/** T26: floor vibration from walking. */
 	floorVibration: 'fem.floorVibration',
+	/** T27: base plate thickness and moment bases, anchors in concrete, end-plate moment connections. */
+	basePlateDesign: 'fem.basePlateDesign',
+	anchorConcrete: 'fem.anchorConcrete',
+	endPlateMoment: 'fem.endPlateMoment',
 } as const;
+
+/** The planned steel connection features, shown with the steel members' checks. */
+export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.anchorConcrete, FemPlanned.endPlateMoment];
 
 /**
  * A row of "Planned" chips, under a Properties panel heading when `heading` is given. The

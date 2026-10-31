@@ -14,7 +14,21 @@
     "bearing": 0.75,
     "blockShear": 0.75,
     "weld": 0.75,
-    "plateFlexure": 0.9
+    "plateFlexure": 0.9,
+    "concreteBearing": 0.6,
+    "anchorRod": 0.75,
+    "flangeLocalBending": 0.9,
+    "webLocalYielding": 1.0,
+    "webCrippling": 0.75,
+    "panelZone": 0.9,
+    "shearYielding": 1.0,
+    "hssPlastification": 0.9,
+    "hssPlastificationRect": 1.0,
+    "hssPunching": 0.95,
+    "hssSidewallYielding": 1.0,
+    "hssSidewallCripplingTY": 0.75,
+    "hssSidewallCripplingX": 0.9,
+    "hssBranchYielding": 0.95
   },
   "slenderness": {
     "compression": 150.0,
@@ -22,7 +36,7 @@
   },
   "netAreaMax": 0.85,
   "sources": {
-    "phi": "BNBC 2020 Part 6 Chapter 10; connections: Eqs. 6.10.168, 6.10.173a, 6.10.178, 6.10.162-163 (bnbc-2020-part2.pdf pp. 121-135); plate flexure 0.9 from memory",
+    "phi": "BNBC 2020 Part 6 Chapter 10; connections: Eqs. 6.10.168, 6.10.173a, 6.10.178, 6.10.162-163 (bnbc-2020-part2.pdf pp. 121-135); plate flexure 0.9 from memory; column bases on concrete φc 0.60 (Sec 10.10.8, the LRFD value of AISC 360-05 J8); anchor rods as threaded parts φ 0.75 (Sec 10.10.3.6, 10.10.9); concentrated forces on flanges and webs (Sec 10.10.10): flange local bending 0.90, web local yielding 1.00, web crippling 0.75, panel zone 0.90; HSS-to-HSS truss connections (Sec 10.11.2): round chord plastification 0.90, rectangular T/Y/X chord wall plastification 1.00 (K 0.90), punching 0.95, sidewall yielding 1.00, sidewall crippling 0.75 (T, Y) / 0.90 (X), branch yielding 0.95. The connection and HSS values are from memory of AISC 360-05 Chapters J and K, which BNBC 2020 Part 6 Chapter 10 adopts: to be checked against the BNBC text",
     "slenderness": "BNBC 2020 Part 6 Sec 10.5.2 (KL/r), 10.4.1 (L/r)",
     "netAreaMax": "BNBC 2020 Part 6 Sec 10.10.4.1 Eq. 6.10.175"
   }

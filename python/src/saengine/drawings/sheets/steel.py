@@ -173,7 +173,8 @@ def steel_connections(
     for member in members:
         t = types.get(type_of.get(member.id, ""))
         c = getattr(t, "connection", None) if t is not None else None
-        if c is None:
+        if c is None or c.type not in TYPE_NAMES:
+            # Moment connections and HSS joints have no detail drawing yet (checked only).
             continue
         detail = found.get(t.id)
         if detail is None:

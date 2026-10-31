@@ -981,11 +981,16 @@ def _derive_fem(
     # Members whose steel type has a simple connection: their ends (mm), pinned below.
     simple_ends: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
+    from saengine.design.steel_connections import SIMPLE_KINDS
+
     def simple(type_id: str) -> bool:
         object_type = types.get(type_id)
         material = mats.get(object_type.material) if object_type else None
+        connection = getattr(object_type, "connection", None)
         return (
-            getattr(object_type, "connection", None) is not None
+            connection is not None
+            # a moment connection (flange plates) keeps the end rigid
+            and getattr(connection, "type", "") in SIMPLE_KINDS
             and material is not None
             and material.category.value == "steel"
         )
