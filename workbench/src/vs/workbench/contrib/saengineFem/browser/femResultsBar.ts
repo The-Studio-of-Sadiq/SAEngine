@@ -25,7 +25,7 @@ import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../pla
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
-import { CRACK_WIDTHS_FEATURE, CRACKED_SLAB_DEFLECTION_FEATURE, describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { CRACK_WIDTHS_FEATURE, CRACKED_SLAB_DEFLECTION_FEATURE, describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, TENDON_LAYOUT_FEATURE, TENDON_LOSSES_FEATURE, tooSmallElements, writeDesignSummary } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -1621,7 +1621,8 @@ export class FemResultsBar extends Disposable {
 		if (element.kind === 'slab') {
 			// Not in this MVP: shown where they will appear.
 			const planned = append(container, $('.fem-planned-chips'));
-			for (const feature of [CRACKED_SLAB_DEFLECTION_FEATURE, CRACK_WIDTHS_FEATURE]) {
+			const prestressed = element.checks.some(c => c.name.startsWith('PT '));
+			for (const feature of [CRACKED_SLAB_DEFLECTION_FEATURE, CRACK_WIDTHS_FEATURE, ...(prestressed ? [TENDON_LAYOUT_FEATURE, TENDON_LOSSES_FEATURE] : [])]) {
 				this.propertyChips.add(appendPlannedFeatureChip(planned, feature, this.commandService));
 			}
 		}

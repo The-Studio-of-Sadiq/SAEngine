@@ -458,6 +458,10 @@ export function designUtilisation(report: IFemDesignReport): { [elementId: numbe
 export const CRACKED_SLAB_DEFLECTION_FEATURE = 'fem.crackedSlabDeflection';
 /** Planned feature: crack widths of beams, slabs and walls (registered by the part). */
 export const CRACK_WIDTHS_FEATURE = 'fem.crackWidths';
+/** Planned feature: automatic tendon layout of post-tensioned slabs (registered by the part). */
+export const TENDON_LAYOUT_FEATURE = 'fem.tendonLayout';
+/** Planned feature: time-step long-term losses of tendons (registered by the part). */
+export const TENDON_LOSSES_FEATURE = 'fem.tendonLongTermLosses';
 
 /** The slab layers of {@link IFemDesignElement.rebar}, in its order. */
 export const SLAB_REBAR_LAYERS = ['bottomX', 'bottomY', 'topX', 'topY'] as const;
