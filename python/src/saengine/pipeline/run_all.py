@@ -712,6 +712,20 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
         k: file[k] for k in ("checked", "passed", "failed", "maxUtilisation", "governing")
     }
     step.message = f"{summary.get('passed')} pass, {summary.get('failed')} fail"
+    counts = S.record(summary.get("counts"))
+    members = S.record(counts.get("members"))
+    if members:
+        # N-X8: the run's one count, members and joints apart.
+        joints = S.record(counts.get("joints"))
+        step.message = f"{members.get('passed')} members pass, {members.get('failed')} fail"
+        if joints.get("checked"):
+            step.message += f"; {joints.get('checked')} joints, {joints.get('failed')} fail"
+        step.counts["counts"] = counts
+    # N-G1: failing or unchecked members never end as a clean step.
+    if summary.get("failed") or members.get("notChecked"):
+        step.status = "warning"
+    if members.get("notChecked") and not no_bars:
+        step.message += f"; {members['notChecked']} members not checked"
     if no_bars:
         # X29: members of types without bars are not checked; said, not hidden.
         step.status = "warning"
@@ -794,12 +808,35 @@ def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[st
         step.status = "warning"
         step.counts["barsAdded"] = added
         step.message += f"; minimum bars given to {', '.join(added)}: review them"
-    if file.get("status") == "incomplete":
+    # N-U3: without qa the bearing is not checked, so what sizes the footings is unconfirmed.
+    no_qa = list(file.get("bearingUnchecked") or [])
+    if no_qa:
+        step.status = "warning"
+        step.counts["bearingUnchecked"] = no_qa
+        step.message += (
+            f"; bearing not checked for {_short_list(no_qa)} (no qa): their sizes are not "
+            "confirmed; enter qa in 1 Soil Report or Project Settings, Foundation"
+        )
+    total = file.get("total") or 0
+    not_checked = max(0, total - (file.get("checked") or 0) - len(no_qa))
+    if file.get("status") == "incomplete" and (not_checked or file.get("unsupported")):
         step.status = "warning"
         step.message += f"; {file['checked']} of {file['total']} checked"
         if file.get("unsupported"):
-            step.message += f", no foundation under {', '.join(map(str, file['unsupported']))}"
+            step.message += f", no foundation under {_short_list(file['unsupported'])}"
+    # N-G1: failing or unchecked foundations never end as a clean step.
+    step.counts["notChecked"] = not_checked + len(no_qa)
+    if report["failed"] or step.counts["notChecked"]:
+        step.status = "warning"
     return report
+
+
+def _short_list(ids: Iterable[Any], limit: int = 3) -> str:
+    """``shortList`` of runAll.ts: "F-A1, F-A2, F-B1 and 9 more"."""
+    names = [str(i) for i in ids]
+    if len(names) <= limit:
+        return ", ".join(names)
+    return f"{', '.join(names[:limit])} and {len(names) - limit} more"
 
 
 # ─────────────────────────────── 6: MEP ───────────────────────────────

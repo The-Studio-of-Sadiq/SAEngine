@@ -3,16 +3,25 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IntervalTimer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IEngineBusy, IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
+import { ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
+import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { FEM_RESULT_TABLES_COMMAND, FEM_RUN_CASES_COMMAND, FEM_SHOW_LOG_COMMAND, IFemRunOptions } from '../browser/femResultsBar.js';
 import { FemAnalysisRunner } from './femAnalysisRunner.js';
@@ -29,8 +38,17 @@ registerSingleton(IRunAllService, RunAllService, InstantiationType.Delayed);
  * Runs the analysis of a model with the progress reported to the caller (the FEM editor's
  * toolbar and status line). Internal: the FEM editor calls it by id.
  */
-CommandsRegistry.registerCommand(FEM_RUN_CASES_COMMAND, (accessor, model: URI, options?: IFemRunOptions) =>
-	accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).run(model, options));
+CommandsRegistry.registerCommand(FEM_RUN_CASES_COMMAND, async (accessor, model: URI, options?: IFemRunOptions) => {
+	const runner = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner);
+	const runAll = accessor.get(IRunAllService);
+	// N-X9: an out-of-date model is derived first, so the run solves what the parts say now.
+	options?.onProgress?.({ fraction: 0, message: localize('femRun.deriving', "Deriving the analysis model") });
+	const derived = await runAll.deriveIfStale(model);
+	if (!derived.ok) {
+		return { status: 'invalid' as const, cases: 0, message: localize('femRun.deriveFailed', "The analysis model could not be derived again: {0}", derived.message ?? '') };
+	}
+	return runner.run(model, options);
+});
 
 /** The result tables of a model's last run. Internal: the FEM editor's tables panel calls it by id. */
 CommandsRegistry.registerCommand(FEM_RESULT_TABLES_COMMAND, (accessor, model: URI) =>
@@ -146,3 +164,124 @@ registerAction2(class extends Action2 {
 		await accessor.get(IRunAllService).run();
 	}
 });
+
+/** After this long on one request the status bar says the engine is busy (N-G3). */
+const ENGINE_BUSY_STATUS_MS = 10_000;
+/** After this long it offers Restart Engine. */
+const ENGINE_BUSY_RESTART_MS = 60_000;
+
+/**
+ * The engine watchdog (N-G3 of usability walk 2): a backend request that takes long shows "Engine
+ * busy 12 s" in the status bar (click: Restart Engine), and after a minute one notification
+ * offers Restart Engine. While Run All runs its own status entry says the same, so only the
+ * status bar entry shows.
+ */
+class EngineWatchdog extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.engineWatchdog';
+
+	private busy: IEngineBusy = { pending: 0 };
+	private readonly ticker = this._register(new IntervalTimer());
+	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	/** The busy period a restart was already offered for (by the oldest request's start). */
+	private offeredFor: number | undefined;
+
+	constructor(
+		@IFemSolverService solverService: IFemSolverService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IRunAllService private readonly runAll: IRunAllService,
+	) {
+		super();
+		this._register(solverService.onDidChangeBusy(busy => {
+			this.busy = busy;
+			if (busy.since === undefined) {
+				this.ticker.cancel();
+				this.entry.clear();
+			} else {
+				this.ticker.cancelAndSet(() => this.update(), 1000);
+			}
+			this.update();
+		}));
+	}
+
+	private update(): void {
+		const since = this.busy.since;
+		const elapsed = since === undefined ? 0 : Date.now() - since;
+		if (since === undefined || elapsed < ENGINE_BUSY_STATUS_MS) {
+			this.entry.clear();
+			return;
+		}
+		const seconds = Math.round(elapsed / 1000);
+		const text = localize('engineBusy.status', "Engine busy {0} s", seconds);
+		const tooltip = localize('engineBusy.tooltip', "The SAEngine engine has been working on one request ({0}) for {1} s. Click to restart it: the request is stopped and the next one starts a new engine.", this.busy.method ?? '?', seconds);
+		const entry = { name: localize('engineBusy.name', "Engine busy"), text: `$(loading~spin) ${text}`, ariaLabel: text, tooltip, command: RESTART_ENGINE_COMMAND_ID, kind: 'warning' as const };
+		if (this.entry.value) {
+			this.entry.value.update(entry);
+		} else {
+			this.entry.value = this.statusbarService.addEntry(entry, 'saengine.engineBusy', StatusbarAlignment.LEFT, -101);
+		}
+		if (elapsed >= ENGINE_BUSY_RESTART_MS && this.offeredFor !== since && !this.runAll.running) {
+			this.offeredFor = since;
+			this.notificationService.prompt(Severity.Warning, localize('engineBusy.prompt', "The engine has been busy for {0} s ({1}). If the app no longer responds, restart the engine: the request is stopped and the next one starts a new engine.", seconds, this.busy.method ?? '?'), [{
+				label: localize('engineBusy.restart', "Restart Engine"),
+				run: () => this.commandService.executeCommand(RESTART_ENGINE_COMMAND_ID),
+			}], { sticky: false });
+		}
+	}
+}
+
+registerWorkbenchContribution2(EngineWatchdog.ID, EngineWatchdog, WorkbenchPhase.AfterRestored);
+
+/** How long the part statuses settle before the background MEP check runs [ms]. */
+const MEP_CHECK_DELAY = 3_000;
+
+/**
+ * N-E7: when 7 MEP has services that were never checked (or changed since), checks them in the
+ * background, once per saved MEP text, so the part list says what fails without a visit to the
+ * Coordination page. Never while Run All runs (its MEP step does the same).
+ */
+class MepBackgroundCheck extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.mepBackgroundCheck';
+
+	private readonly scheduler = this._register(new RunOnceScheduler(() => void this.check(), MEP_CHECK_DELAY));
+	/** The MEP status text a check was already made for (with the project), so a failing check is not repeated. */
+	private checkedFor: string | undefined;
+
+	constructor(
+		@ISaenginePartStatusService private readonly statusService: ISaenginePartStatusService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IRunAllService private readonly runAll: IRunAllService,
+		@IFileService private readonly fileService: IFileService,
+	) {
+		super();
+		this._register(statusService.onDidChange(() => this.scheduler.schedule()));
+		this.scheduler.schedule();
+	}
+
+	private async check(): Promise<void> {
+		const status = this.statusService.statusOf('mep');
+		const project = this.projectService.project;
+		const part = partById('mep');
+		// "not checked", "plumbing not checked", ...: in progress without a current summary.
+		if (!project || !part?.mainFile || this.runAll.running || status?.state !== 'inProgress' || !/not checked/.test(status.text)) {
+			return;
+		}
+		let text: string;
+		try {
+			text = (await this.fileService.readFile(joinPath(project.root, part.folder, part.mainFile))).value.toString();
+		} catch {
+			return;
+		}
+		const key = `${project.root.toString()}|${text}`;
+		if (key === this.checkedFor) {
+			return;
+		}
+		this.checkedFor = key;
+		await this.runAll.checkMepInBackground();
+	}
+}
+
+registerWorkbenchContribution2(MepBackgroundCheck.ID, MepBackgroundCheck, WorkbenchPhase.Eventually);

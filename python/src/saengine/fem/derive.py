@@ -349,12 +349,22 @@ def mep_stamp(text: str) -> str:
 #: project's details and the drawings' title block (the model's name is only a label).
 SETTINGS_INFO_KEYS = ("project", "drawings")
 
+#: Keys of the settings' ``foundation`` section the analysis model does not take (N-X9): the
+#: allowable bearing sizes the footings only.
+SETTINGS_FOUNDATION_DESIGN_KEYS = ("allowableBearing",)
 
-def settings_stamp(text: str) -> str:
+#: Keys of an object type the analysis model does not take (N-X9): its bars and the design
+#: overwrites are read by the design checks only, so a bar-only Apply keeps the analysis.
+OBJECT_DESIGN_KEYS = ("reinforcement", "punchingReinforcement", "designOverwrites")
+
+
+def settings_stamp(text: str, legacy: bool = False) -> str:
     """The stamp an analysis model records for the project settings (key ``settings``): of the
-    settings without :data:`SETTINGS_INFO_KEYS`, so typing the engineer's name or a revision
-    leaves the model current. The workbench computes the same (``femSettingsStamp`` in
-    partSources.ts); a text that is not a JSON object is stamped whole."""
+    settings without :data:`SETTINGS_INFO_KEYS` and the foundation's design-only keys
+    (:data:`SETTINGS_FOUNDATION_DESIGN_KEYS`), so typing the engineer's name, a revision or the
+    qa leaves the model current. ``legacy``: the stamp of models derived before the qa was left
+    out. The workbench computes the same (``femSettingsStamp`` in partSources.ts); a text that
+    is not a JSON object is stamped whole."""
     import json
 
     try:
@@ -363,7 +373,38 @@ def settings_stamp(text: str) -> str:
         return stamp(text)
     if not isinstance(document, dict):
         return stamp(text)
-    return stamp(js_json({k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}))
+    kept = {k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}
+    if not legacy and isinstance(kept.get("foundation"), dict):
+        kept["foundation"] = {
+            k: v for k, v in kept["foundation"].items() if k not in SETTINGS_FOUNDATION_DESIGN_KEYS
+        }
+    return stamp(js_json(kept))
+
+
+def objects_stamp(text: str) -> str:
+    """The stamp an analysis model records for the object types (key ``objects``): of the types
+    without :data:`OBJECT_DESIGN_KEYS` (N-X9). The workbench computes the same
+    (``femObjectsStamp`` in partSources.ts); a text that is not a JSON object is stamped whole."""
+    import json
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    objects = document.get("objects")
+    if isinstance(objects, list):
+        document = {
+            **document,
+            "objects": [
+                {k: v for k, v in o.items() if k not in OBJECT_DESIGN_KEYS}
+                if isinstance(o, dict)
+                else o
+                for o in objects
+            ],
+        }
+    return stamp(js_json(document))
 
 
 #: The stamps worked out last, by a hash of the model's raw text (a 10-storey model takes

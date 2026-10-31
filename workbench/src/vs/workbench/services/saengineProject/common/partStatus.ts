@@ -29,6 +29,8 @@ export interface IPartStatus {
 	readonly text: string;
 	/** What to do next in this part, when it is not done ("run the analysis"). */
 	readonly hint?: string;
+	/** The part whose input this part waits for (foundations without qa: the soil report). */
+	readonly needs?: string;
 }
 
 /** The design checks' summary, `08 FEM/model.results/design-summary.json`. */
@@ -39,6 +41,16 @@ export interface IDesignSummary {
 	readonly maxUtilisation: number | null;
 	readonly governing: string | null;
 	readonly computed: string;
+	/**
+	 * The one count of the run (N-X8, python `saengine.design.check.design_counts`): members,
+	 * joints and building checks apart; summaries written before it lack it.
+	 */
+	readonly counts?: {
+		readonly members?: { readonly checked?: number; readonly failed?: number; readonly notChecked?: number };
+		readonly joints?: { readonly failed?: number };
+		readonly building?: { readonly failed?: number };
+		readonly notChecked?: { readonly noBars?: number };
+	};
 }
 
 /** What the rules read from a project. Times are modification times [ms since the epoch]. */
@@ -97,6 +109,13 @@ export interface IPartStatusInputs {
  */
 export const PART_CHECKS_FILE = 'checks.json';
 export const PART_CHECKS_SCHEMA_ID = 'saengine.partChecks/1';
+
+/**
+ * Command of {@link ISaenginePartStatusService.reportChecks} for editors that only hold the
+ * command service: `(part, counts, texts)`, `texts` the part id to the text the counts were made
+ * from (N-P3, N-B2: an editor's problem list reaches the part list).
+ */
+export const REPORT_PART_CHECKS_COMMAND = 'saengine.partStatus.reportChecks';
 
 export interface IPartCheckItem {
 	readonly severity: 'error' | 'warning';
@@ -307,8 +326,8 @@ function changed(texts: ReadonlyMap<string, string | undefined>, part: string, r
 	return text === undefined || recorded !== stamp(part, text);
 }
 
-function status(part: string, state: PartState, text = '', hint?: string): IPartStatus {
-	return { part, state, text, hint };
+function status(part: string, state: PartState, text = '', hint?: string, needs?: string): IPartStatus {
+	return needs ? { part, state, text, hint, needs } : { part, state, text, hint };
 }
 
 const NOT_STARTED = () => localize('partStatus.notStarted', "not started");
@@ -360,13 +379,44 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (!summary || (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime)) {
 		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
 	}
+	const counts = designCounts(summary);
 	if (summary.failed > 0) {
-		return status('fem', 'failed', localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
+		return status('fem', 'failed', counts?.failedText ?? localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
 	}
-	if (summary.checked === 0) {
+	if (summary.checked === 0 || counts?.members.checked === 0) {
 		return status('fem', 'inProgress', localize('partStatus.fem.noneChecked', "nothing checked"), localize('partStatus.fem.noneCheckedHint', "no member was design-checked: open the design results"));
 	}
-	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", summary.passed));
+	// Members left out (no bars, no results) keep the part from "done" (N-X8).
+	if (counts?.members.notChecked) {
+		return status('fem', 'inProgress', localize('partStatus.fem.notChecked', "{0} not checked", counts.members.notChecked), counts.noBars
+			? localize('partStatus.fem.noBars', "{0} members have no bars: Design Reinforcement proposes them", counts.noBars)
+			: localize('partStatus.fem.notCheckedHint', "open the design results for why"));
+	}
+	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", counts?.members.passed ?? summary.passed));
+}
+
+/**
+ * The members' and joints' counts of a design summary that records them (N-X8): "3 members,
+ * 2 joints fail" for the part list instead of a total that adds members and joints together.
+ */
+function designCounts(summary: IDesignSummary): { readonly members: { readonly checked: number; readonly passed: number; readonly notChecked: number }; readonly noBars: number; readonly failedText: string | undefined } | undefined {
+	const members = summary.counts?.members;
+	if (!members || typeof members.checked !== 'number') {
+		return undefined;
+	}
+	const failed = positive(members.failed);
+	const joints = positive(summary.counts?.joints?.failed);
+	const building = positive(summary.counts?.building?.failed);
+	const parts = [
+		...(failed ? [failed === 1 ? localize('partStatus.fem.oneMember', "1 member") : localize('partStatus.fem.members', "{0} members", failed)] : []),
+		...(joints ? [joints === 1 ? localize('partStatus.fem.oneJoint', "1 joint") : localize('partStatus.fem.joints', "{0} joints", joints)] : []),
+		...(building ? [building === 1 ? localize('partStatus.fem.oneBuildingCheck', "1 building check") : localize('partStatus.fem.buildingChecks', "{0} building checks", building)] : []),
+	];
+	return {
+		members: { checked: members.checked, passed: members.checked - failed, notChecked: positive(members.notChecked) },
+		noBars: positive(summary.counts?.notChecked?.noBars),
+		failedText: parts.length ? localize('partStatus.fem.countsFail', "{0} fail", parts.join(', ')) : undefined,
+	};
 }
 
 function boqStatus(inputs: IPartStatusInputs): IPartStatus {
@@ -413,6 +463,12 @@ function bimStatus(parts: readonly IProjectPart[], inputs: IPartStatusInputs): I
 	}
 	if (upstream && changed(inputs.texts, upstream, recorded)) {
 		return status('bim', 'stale', STALE(), localize('partStatus.bim.buildAgain', "build the building model again"));
+	}
+	// Built from an empty plan (N-B1): nothing to analyse yet, so not done.
+	if (!Array.isArray(document.elements) || !document.elements.length) {
+		return status('bim', 'notStarted', localize('partStatus.bim.empty', "no members"), upstream === 'structure'
+			? localize('partStatus.structure.start', "draw the structural model")
+			: localize('partStatus.bim.drawPlan', "draw the columns and beams in the floor plan"));
 	}
 	return status('bim', 'done');
 }
@@ -746,7 +802,7 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 	}
 	const noQa = Array.isArray(summary.bearingUnchecked) ? summary.bearingUnchecked.length : 0;
 	if (noQa > 0) {
-		return status('substructure', 'inProgress', localize('partStatus.substructure.noQa', "{0} without a bearing check", noQa), localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"));
+		return status('substructure', 'inProgress', localize('partStatus.substructure.noQa', "{0} without a bearing check", noQa), localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"), 'soil');
 	}
 	if (summary.checked === 0) {
 		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
@@ -924,13 +980,53 @@ function exportsWithDesign(exports: IPartStatus, fem: IPartStatus, inputs: IPart
 const OPTIONAL_NEEDS_WORK: ReadonlySet<PartState> = new Set(['failed', 'error', 'stale']);
 
 /**
- * The first part, in workflow order, that needs doing (settings or materials still holding the
- * defaults need reviewing), with its index. The optional parts (soil report, MEP, substructure)
- * count only once they fail, are stale or cannot be read.
+ * How soon a part's status needs the engineer (lower first; undefined: it does not), N-N2:
+ * the inputs before the analysis; what the analysis and foundations wait for (qa); the analysis
+ * itself and the foundations to check; failing members and foundations; the outputs after the
+ * analysis; then the services.
+ */
+function urgency(s: IPartStatus, before: boolean): number | undefined {
+	if (s.state === 'done') {
+		return undefined;
+	}
+	switch (s.part) {
+		case 'fem': return s.state === 'failed' ? 4 : 2;
+		case 'substructure':
+			if (s.needs) {
+				return 1;
+			}
+			return s.state === 'failed' ? 4 : s.state === 'notStarted' ? undefined : 3;
+		case 'soil': return OPTIONAL_NEEDS_WORK.has(s.state) ? 1 : undefined;
+		case 'mep': return OPTIONAL_NEEDS_WORK.has(s.state) ? 6 : undefined;
+		default: return OPTIONAL_PARTS.has(s.part) ? (OPTIONAL_NEEDS_WORK.has(s.state) ? 5 : undefined) : before ? 0 : 5;
+	}
+}
+
+/**
+ * The part that needs doing first (settings or materials still holding the defaults need
+ * reviewing), with its index, ranked by {@link urgency} and then workflow order: the inputs, a
+ * missing qa (the soil report, with the foundations' hint), a stale or unrun analysis, the
+ * foundations to check, failing members and foundations, the bill and report, then MEP. The
+ * optional parts (soil report, MEP) count only once they fail, are stale or cannot be read.
  */
 export function nextStep(statuses: readonly IPartStatus[]): { readonly index: number; readonly status: IPartStatus } | undefined {
-	const index = statuses.findIndex(s => s.state !== 'done' && (!OPTIONAL_PARTS.has(s.part) || OPTIONAL_NEEDS_WORK.has(s.state)));
-	return index < 0 ? undefined : { index, status: statuses[index] };
+	const fem = statuses.findIndex(s => s.part === 'fem');
+	let best: { index: number; status: IPartStatus; rank: number } | undefined;
+	statuses.forEach((s, index) => {
+		const rank = urgency(s, fem < 0 || index < fem);
+		if (rank !== undefined && (!best || rank < best.rank)) {
+			best = { index, status: s, rank };
+		}
+	});
+	if (!best) {
+		return undefined;
+	}
+	// A part waiting for another's input sends the engineer there, with its own hint.
+	const needed = best.status.needs ? statuses.findIndex(s => s.part === best!.status.needs) : -1;
+	if (needed >= 0) {
+		return { index: needed, status: { ...statuses[needed], hint: best.status.hint } };
+	}
+	return { index: best.index, status: best.status };
 }
 
 /** The optional parts that were started but are not done (shown when nothing else is left). */
@@ -952,8 +1048,9 @@ export interface ISaenginePartStatusService {
 
 	/**
 	 * Records how the checks of `part` went in its checks file (see {@link PART_CHECKS_FILE}),
-	 * made from the saved files of `sources` (default: the part's own main file). The statuses
-	 * follow once the file is written; an unchanged file is not rewritten.
+	 * made from the saved files of `sources` (default: the part's own main file), or from `texts`
+	 * (part id to the text checked, an editor's unsaved text included: the checks count once that
+	 * text is saved). The statuses follow once the file is written; an unchanged file is not rewritten.
 	 */
-	reportChecks(part: string, counts: IPartCheckCounts, sources?: readonly string[]): Promise<void>;
+	reportChecks(part: string, counts: IPartCheckCounts, sources?: readonly string[], texts?: ReadonlyMap<string, string | undefined>): Promise<void>;
 }

@@ -200,6 +200,8 @@ export class FemAnalysisRunner {
 
 		// The log lists the cases and their warnings: reading every table of a tall building's
 		// run took minutes; the FEM editor reads them one at a time in its tables panel.
+		// N-X18: after the last case the results are listed (minutes on a tall building): said, not silence.
+		options.onProgress?.({ fraction: 1, message: localize('femRun.listing', "Reading the results of {0} cases", caseIds.length) });
 		try {
 			const index = await this.solverService.engine(python, 'fem/tableIndex', { outDir: outDir.fsPath, projectPath }) as { readonly results?: readonly IFemIndexEntry[] } | undefined;
 			output?.append(formatIndex(index?.results ?? []));
@@ -241,11 +243,16 @@ export class FemAnalysisRunner {
 					break;
 				case 'progress':
 					caseProgress.set(event.case_id, event.total > 0 ? event.step / event.total : 1);
-					report?.(localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total));
+					// N-X18: the last step is followed by the case's results being written.
+					report?.(event.total > 0 && event.step >= event.total
+						? localize('femRun.writing', "{0}: writing results ({1} of {2} cases)", caseNames.get(event.case_id) ?? '', caseProgress.size, caseIds.length)
+						: localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total));
 					break;
 				case 'case_finished':
 					caseProgress.set(event.case_id, 1);
-					report?.(localize('femRun.caseFinished', "{0} finished", event.case_name));
+					report?.(caseProgress.size < caseIds.length
+						? localize('femRun.caseFinished', "{0} finished", event.case_name)
+						: localize('femRun.lastCaseFinished', "{0} finished: saving the results", event.case_name));
 					break;
 			}
 		};
