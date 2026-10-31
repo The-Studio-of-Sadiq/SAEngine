@@ -629,7 +629,8 @@ export interface IFemSolverService {
  * static cases) and the P-Delta drift amplification `fem/secondOrder` `{outDir, projectPath}`;
  * the structural drawings of `11 Exports/Drawings` (`saengine.pipeline.drawings`):
  * `drawings/generate` `{projectRoot, sheets?, size?, designReportText?}` (in a worker thread),
- * `drawings/list` `{projectRoot}` and `drawings/progress` `{projectRoot}`; a new project from an
+ * `drawings/list` `{projectRoot}`, `drawings/progress` `{projectRoot}`, `drawings/issue` (an issue of the set) and
+ * `drawings/dwg` `{projectRoot, sheets?}` (the sheets as DWG); a new project from an
  * ETABS, STAAD.Pro or SAP2000 text file `import/structural` `{path, destParent, name?, overwrite?}`
  * (`{root, name, format, report, problems, files}` or `{error, problems}`; in a worker thread), the
  * project as an ETABS text model `export/e2k` `{projectRoot, outPath?, units?, lateral?}` (`{path,
@@ -648,7 +649,7 @@ export type EngineMethod =
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
 	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
-	| 'drawings/generate' | 'drawings/list' | 'drawings/progress'
+	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
 	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx';

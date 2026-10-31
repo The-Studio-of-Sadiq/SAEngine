@@ -46,7 +46,7 @@ export function componentLabel(component: SetupComponent): string {
 	switch (component) {
 		case 'energyplus': return localize('component.energyplus', "Energy simulation (EnergyPlus)");
 		case 'librecad': return localize('component.librecad', "CAD editor (LibreCAD)");
-		case 'libredwg': return localize('component.libredwg', "DWG import (LibreDWG)");
+		case 'libredwg': return localize('component.libredwg', "DWG import and export (LibreDWG)");
 		case 'ai': return localize('component.ai', "AI assistant (GitHub Copilot)");
 		case 'git': return localize('component.git', "Git");
 		case 'collaboration': return localize('component.collaboration', "Collaboration (remote access)");
@@ -58,7 +58,7 @@ export function componentPurpose(component: SetupComponent): string {
 	switch (component) {
 		case 'energyplus': return localize('component.energyplusPurpose', "The design-day cooling loads of 7 MEP › HVAC. Without it the loads are SAEngine's estimate.");
 		case 'librecad': return localize('component.librecadPurpose', "Edits the DXF drawings SAEngine exports (Open in LibreCAD). Without it they open in the program Windows uses for DXF files.");
-		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports). Without it a DWG must be saved as DXF first.");
+		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports) and writes the drawing sheets as DWG. Without it a DWG must be saved as DXF first, and the sheets are DXF only.");
 		case 'ai': return localize('component.aiPurpose', "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
 		case 'git': return localize('component.gitPurpose', "Project history with Git and GitHub, in Developer Mode. Without it SAEngine keeps its own versions of the project.");
 		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access; live collaboration will be added here. Without it SAEngine works on this computer only.");

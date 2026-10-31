@@ -280,8 +280,14 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
     return out, problems
 
 
-def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> list[Sheet]:
-    """The sheets of ``data`` (DXF documents in memory, views drawn)."""
+def build_sheets(
+    data: DrawingSet,
+    settings: DrawingSettings | None = None,
+    before_finish: Callable[[Sheet], None] | None = None,
+) -> list[Sheet]:
+    """The sheets of ``data`` (DXF documents in memory, views drawn). ``before_finish(sheet)``
+    is called once a sheet's views and notes are drawn, before its revisions are written into
+    the title block (:mod:`.revisions` sets them there and draws the revision clouds)."""
     settings = settings or DrawingSettings()
     area = drawing_area(settings.size)
     cats, problems = categories(data, settings)
@@ -325,6 +331,8 @@ def build_sheets(data: DrawingSet, settings: DrawingSettings | None = None) -> l
                 sheet.notes(cat.notes)
             elif cat.plan:
                 sheet.notes(_plan_notes(data))
+            if before_finish is not None:
+                before_finish(sheet)
             sheet.finish()
             sheets.append(sheet)
     return sheets

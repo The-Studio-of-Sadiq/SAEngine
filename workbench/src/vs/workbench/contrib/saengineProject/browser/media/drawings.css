@@ -290,3 +290,23 @@
 .saengine-exports-editor .drawings-settings-note.stale {
 	color: var(--sa-warn);
 }
+
+/* revisions: the sheet's revision under its status, the issue buttons and the last issue */
+.saengine-exports-editor .drawings-sheet-revision {
+	display: block;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-exports-editor .drawings-sheet-revision.revised {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-exports-editor .drawings-revisions {
+	margin-top: var(--sa-space-3, 12px);
+}
+
+.saengine-exports-editor .drawings-revisions-summary {
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	margin-bottom: var(--sa-space-2, 8px);
+}
