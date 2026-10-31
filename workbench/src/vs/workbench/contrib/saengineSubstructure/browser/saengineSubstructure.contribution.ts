@@ -22,6 +22,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
@@ -150,4 +151,60 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await (await substructureEditor(accessor))?.migrate();
 	}
+});
+
+// Planned features of 9 Substructure (MVP: methods BNBC 2020 does not give itself).
+
+registerPlannedFeature({
+	id: 'substructure.lateralPileBroms',
+	part: 'substructure',
+	title: localize('planned.broms.title', "Lateral Pile Capacity (Broms)"),
+	summary: localize('planned.broms.summary', "The ultimate lateral resistance of a single pile and of the group, short or long, free or fixed head, in cohesive and granular soil, from the soil report's layers; it will also give the depth to fixity the pile section is designed with."),
+	steps: [
+		localize('planned.broms.s1', "Take cu, φ' and the unit weights of the layers at the cap's nearest borehole from 1 Soil Report."),
+		localize('planned.broms.s2', "Classify the pile as short or long and find its ultimate lateral load for the head fixity."),
+		localize('planned.broms.s3', "Check the cap's horizontal force against the group's allowable lateral load."),
+		localize('planned.broms.s4', "Fill in the depth to fixity and the largest shaft moment for the pile section design."),
+	],
+	inputs: [
+		{ label: localize('planned.broms.i1', "Pile type"), example: 'P1 · Ø600' },
+		{ label: localize('planned.broms.i2', "Head fixity"), example: localize('planned.broms.i2e', "Fixed in the cap") },
+		{ label: localize('planned.broms.i3', "Factor of safety on lateral load"), example: '2.5' },
+	],
+	outputs: [
+		localize('planned.broms.o1', "Allowable lateral load per pile and per group"),
+		localize('planned.broms.o2', "Depth to fixity and the largest shaft moment"),
+		localize('planned.broms.o3', "A lateral capacity check per pile cap in the report"),
+	],
+	references: [
+		'Broms (1964), Lateral resistance of piles in cohesive / cohesionless soils, ASCE JSMFD',
+		'BNBC 2020 Part 6 Chapter 3 (deep foundations)',
+	],
+});
+
+registerPlannedFeature({
+	id: 'substructure.lateralPilePy',
+	part: 'substructure',
+	title: localize('planned.py.title', "Laterally Loaded Piles (p-y Springs)"),
+	summary: localize('planned.py.summary', "A pile modelled as a beam on nonlinear p-y springs from the soil layers, giving the head deflection, the moment and shear down the shaft and the depth to fixity, checked against a head deflection limit."),
+	steps: [
+		localize('planned.py.s1', "Build p-y curves for each layer (soft clay, stiff clay, sand) at the cap's nearest borehole."),
+		localize('planned.py.s2', "Analyse the pile under the head shear and moment of each combination, fixed or free head."),
+		localize('planned.py.s3', "Check the head deflection against the limit and design the section along the shaft."),
+	],
+	inputs: [
+		{ label: localize('planned.py.i1', "Head deflection limit"), unit: 'mm', example: '12' },
+		{ label: localize('planned.py.i2', "Spring spacing"), unit: 'mm', example: '250' },
+		{ label: localize('planned.py.i3', "Cyclic loading"), example: localize('planned.py.i3e', "Static") },
+	],
+	outputs: [
+		localize('planned.py.o1', "Deflection, moment and shear diagrams down the pile"),
+		localize('planned.py.o2', "Head deflection check per pile cap"),
+		localize('planned.py.o3', "Lateral springs at the pile heads for the building analysis"),
+	],
+	references: [
+		'API RP 2GEO (p-y curves for clay and sand)',
+		'Reese & Van Impe (2011), Single Piles and Pile Groups Under Lateral Loading',
+		'OpenSees PySimple1 material',
+	],
 });

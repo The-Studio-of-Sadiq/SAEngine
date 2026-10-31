@@ -21,14 +21,15 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DrawingPreviewInput, IDrawingPreviewSheet } from './drawingPreviewInput.js';
 import {
-	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet,
-	keepSelection, previewSheet, readDrawingSet, readDrawingSettings, selectedSheets,
+	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_DWG_COMMAND, DRAWINGS_GENERATE_COMMAND, DRAWINGS_ISSUE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet,
+	IDrawingsIssueArgs, issuePurposes, keepSelection, previewSheet, readDrawingSet, readDrawingSettings, registerSummary, selectedSheets, sheetRevisionText,
 } from './drawingsModel.js';
 import { EditorFrame } from './editorFrame.js';
 import { CAD_OPEN_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
@@ -118,6 +119,7 @@ export class DrawingsSection extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Drawings") });
@@ -476,7 +478,12 @@ export class DrawingsSection extends Disposable {
 			append(title, $('span.drawings-sheet-scale', undefined, sheet.scale));
 		}
 		append(item, $('span.drawings-sheet-size', undefined, sheet.size ?? set.size ?? ''));
-		append(item, $('span.drawings-sheet-state', undefined, sheet.stale ? localize('drawings.outOfDate', "Out of date — regenerate") : localize('drawings.current', "Current")));
+		const state = append(item, $('span.drawings-sheet-state', undefined, sheet.stale ? localize('drawings.outOfDate', "Out of date — regenerate") : localize('drawings.current', "Current")));
+		const revision = sheetRevisionText(sheet, set.register?.pending);
+		if (revision) {
+			const line = append(state, $('span.drawings-sheet-revision', undefined, revision));
+			line.classList.toggle('revised', !!sheet.revised);
+		}
 		const actions = append(item, $('.exports-actions'));
 		if (preview) {
 			const button = this.setDisposables.add(this.frame.createIconButton(actions, Codicon.preview, localize('drawings.preview', "Preview"), () => void this.openPreview(preview)));
@@ -514,10 +521,16 @@ export class DrawingsSection extends Disposable {
 		};
 		fileButton(set.pdf, localize('drawings.openPdf', "Open PDF Set"), Codicon.filePdf, 'pdf');
 		fileButton(set.bbsCsv, localize('drawings.bbsCsv', "Bar Bending Schedule (CSV)"), Codicon.table, 'bbs');
+		if (set.congestionCsv) {
+			fileButton(set.congestionCsv, localize('drawings.congestionCsv', "Bar Congestion (CSV)"), Codicon.warning, 'congestion');
+		}
 		const folder = set.pdf ?? set.bbsCsv ?? set.sheets.find(s => s.dxf)?.dxf;
 		if (folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
 			const button = this.setDisposables.add(this.frame.createIconButton(links, Codicon.folderOpened, localize('drawings.revealSet', "Reveal Drawings in File Explorer"), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, folder)));
 			this.named(button.element, 'reveal-set');
+		}
+		if (set.sheets.length) {
+			this.renderRevisions(footer, set);
 		}
 		if (set.problems.length || set.notes.length) {
 			const messages = append(footer, $('ul.drawings-messages'));
@@ -531,6 +544,161 @@ export class DrawingsSection extends Disposable {
 				append(item, $(ThemeIcon.asCSSSelector(Codicon.info)));
 				append(item, $('span', undefined, note));
 			}
+		}
+	}
+
+	/**
+	 * Revisions and issue: Issue Drawings (the new or changed sheets get the next revision, a copy
+	 * goes to `Issued/`), the drawing register, the sheets as DWG and the last issue's folder.
+	 * The engineer's own additions to a sheet's DXF are kept when it is drawn again (the backend's).
+	 */
+	private renderRevisions(footer: HTMLElement, set: IDrawingSet): void {
+		const block = append(footer, $('.drawings-revisions'));
+		append(block, $('.drawings-revisions-summary', undefined, registerSummary(set.register)));
+		const row = append(block, $('.drawings-files'));
+		const issueAvailable = !!CommandsRegistry.getCommand(DRAWINGS_ISSUE_COMMAND);
+		const issue = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.named(issue.element, 'issue');
+		issue.label = `$(${Codicon.send.id}) ${localize('drawings.issue', "Issue Drawings...")}`;
+		issue.enabled = issueAvailable && !this.busy && !this.blocked;
+		issue.setTitle(localize('drawings.issueTitle', "Draw every sheet again and issue those new or changed since their last issue (the ticked ones only, when some are ticked) with the next revision."));
+		this.setDisposables.add(issue.onDidClick(() => void this.issue()));
+		const dwg = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.named(dwg.element, 'dwg');
+		dwg.label = `$(${Codicon.fileBinary.id}) ${localize('drawings.dwg', "Export DWG")}`;
+		dwg.enabled = !!CommandsRegistry.getCommand(DRAWINGS_DWG_COMMAND) && !this.busy;
+		dwg.setTitle(localize('drawings.dwgTitle', "Write the sheets (the ticked ones, when some are ticked) as DWG with LibreDWG, the setup's DWG component."));
+		this.setDisposables.add(dwg.onDidClick(() => void this.exportDwg()));
+		const register = set.register;
+		if (register?.pdf || register?.csv) {
+			const open = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			this.named(open.element, 'register');
+			open.label = `$(${Codicon.listOrdered.id}) ${localize('drawings.register', "Drawing Register")}`;
+			const target = register.pdf ?? register.csv!;
+			this.setDisposables.add(open.onDidClick(() => void this.openExternal(target)));
+		}
+		const last = register?.issues[register.issues.length - 1];
+		if (last?.folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+			const folder = last.folder;
+			const button = this.setDisposables.add(this.frame.createIconButton(row, Codicon.archive, localize('drawings.revealIssue', "Reveal Issue {0} in File Explorer", last.code), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, folder)));
+			this.named(button.element, 'reveal-issue');
+		}
+	}
+
+	/** Asks for the issue's revision, purpose and options, then issues the set. */
+	async issue(): Promise<void> {
+		const root = this.root;
+		const set = this.set;
+		if (!root || !set || this.busy || this.blocked || !CommandsRegistry.getCommand(DRAWINGS_ISSUE_COMMAND)) {
+			return;
+		}
+		const pending = set.register?.pending ?? '0';
+		const code = await this.quickInputService.input({
+			title: localize('drawings.issueStep1', "Issue Drawings (1 of 3): revision"),
+			value: pending,
+			prompt: localize('drawings.issueCodePrompt', "The revision for the sheets new or changed since their last issue (0, A, P1, ...)."),
+			validateInput: async value => value.trim() ? undefined : localize('drawings.issueCodeEmpty', "Give the revision."),
+		});
+		if (code === undefined) {
+			return;
+		}
+		const purposes = issuePurposes().map((label): IQuickPickItem => ({ label }));
+		const purpose = await this.quickInputService.pick(purposes, {
+			title: localize('drawings.issueStep2', "Issue Drawings (2 of 3): purpose"),
+			placeHolder: localize('drawings.issuePurpose', "What the drawings are issued for"),
+		});
+		if (!purpose) {
+			return;
+		}
+		const description = await this.quickInputService.input({
+			title: localize('drawings.issueStep3', "Issue Drawings (3 of 3): description"),
+			value: purpose.label,
+			prompt: localize('drawings.issueDescriptionPrompt', "What changed, as the revision table of the title block shows it."),
+		});
+		if (description === undefined) {
+			return;
+		}
+		const options: (IQuickPickItem & { id: string })[] = [
+			{ id: 'dwg', label: localize('drawings.issueDwg', "Also write the issued sheets as DWG"), description: localize('drawings.issueDwgDescription', "needs the setup's DWG component (LibreDWG)") },
+			{ id: 'force', label: localize('drawings.issueForce', "Issue unchanged sheets too"), description: localize('drawings.issueForceDescription', "they take the new revision as well") },
+		];
+		const picked = await this.quickInputService.pick(options, {
+			canPickMany: true,
+			title: localize('drawings.issueOptions', "Issue Drawings: options (Enter to issue)"),
+		});
+		if (!picked) {
+			return;
+		}
+		const unsaved = await saveProjectEdits(this.workingCopyService, root);
+		if (unsaved.length) {
+			this.notificationService.warn(localize('drawings.unsaved', "Save your changes first: {0} could not be saved.", unsaved.map(u => u.fsPath).join(', ')));
+			return;
+		}
+		const sheets = selectedSheets(set, this.selection);
+		const args: IDrawingsIssueArgs = {
+			projectRoot: root.fsPath,
+			code: code.trim(),
+			description: description.trim(),
+			purpose: purpose.label,
+			...(sheets.length ? { sheets } : {}),
+			...(picked.some(p => p.id === 'force') ? { force: true } : {}),
+			...(picked.some(p => p.id === 'dwg') ? { dwg: true } : {}),
+		};
+		this.busy = true;
+		this.listScheduler.cancel();
+		this.frame.showProgress();
+		this.update(true);
+		try {
+			const result = await this.commandService.executeCommand(DRAWINGS_ISSUE_COMMAND, args);
+			if (root.toString() !== this.root?.toString()) {
+				return;
+			}
+			const issued = readDrawingSet(result, root);
+			for (const sheet of issued?.sheets ?? []) {
+				if (sheet.png) {
+					this.thumbnails.deleteAndDispose(sheet.png.toString());
+				}
+			}
+			if (issued?.sheets.length) {
+				this.setDrawings(issued);
+				this.selection.clear();
+				const raw = (result ?? {}) as { readonly issued?: { readonly code?: string; readonly sheets?: readonly unknown[] } };
+				this.notificationService.info(localize('drawings.issued', "Issued revision {0}: {1} sheet(s), copied into 11 Exports/Drawings/Issued.", raw.issued?.code ?? args.code, raw.issued?.sheets?.length ?? 0));
+			} else {
+				this.notificationService.warn(localize('drawings.issueFailed', "The drawings were not issued: {0}", issued?.problems.join(' ') ?? ''));
+			}
+		} catch (error) {
+			this.notificationService.error(localize('drawings.issueError', "Issue Drawings failed: {0}", toErrorMessage(error)));
+		} finally {
+			this.busy = false;
+			this.frame.hideProgress();
+			if (root.toString() === this.root?.toString()) {
+				this.update(true);
+				void this.list();
+			}
+		}
+	}
+
+	/** Writes the sheets (the ticked ones, when some are) as DWG. */
+	private async exportDwg(): Promise<void> {
+		const root = this.root;
+		if (!root || this.busy || !CommandsRegistry.getCommand(DRAWINGS_DWG_COMMAND)) {
+			return;
+		}
+		const sheets = selectedSheets(this.set, this.selection);
+		try {
+			const answer = (await this.commandService.executeCommand(DRAWINGS_DWG_COMMAND, { projectRoot: root.fsPath, ...(sheets.length ? { sheets } : {}) }) ?? {}) as { readonly written?: readonly unknown[]; readonly problems?: readonly string[]; readonly folder?: string };
+			const written = answer.written?.length ?? 0;
+			const problems = answer.problems ?? [];
+			if (written) {
+				this.notificationService.info(localize('drawings.dwgWritten', "{0} sheet(s) written as DWG into 11 Exports/Drawings/DWG.{1}", written, problems.length ? ` ${problems.join(' ')}` : ''));
+			} else {
+				this.notificationService.warn(localize('drawings.dwgNone', "No DWG was written: {0}", problems.join(' ')));
+			}
+		} catch (error) {
+			this.notificationService.error(localize('drawings.dwgFailed', "Export DWG failed: {0}", toErrorMessage(error)));
+		} finally {
+			void this.list();
 		}
 	}
 

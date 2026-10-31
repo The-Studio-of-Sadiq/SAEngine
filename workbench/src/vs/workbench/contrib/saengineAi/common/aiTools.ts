@@ -215,6 +215,7 @@ export const ALLOWED_COMMANDS: readonly IAllowedCommand[] = [
 	{ id: 'saengine.floorPlan.exportDxf', description: 'Exports the floor plans as DXF.' },
 	{ id: 'saengine.bim.exportIfc', description: 'Exports the building as IFC.' },
 	{ id: 'saengine.boq.exportCsv', description: 'Exports the bill of quantities as CSV (asks where).' },
+	{ id: 'saengine.boq.exportXlsx', description: 'Exports the bill of quantities with its costing and embodied carbon to Excel (asks where).' },
 	{ id: 'saengine.project.showOverview', description: 'Opens the project overview.' },
 	{ id: 'saengine.project.showExports', description: 'Opens the Exports page.' },
 	{ id: 'saengine.project.showStart', description: 'Opens the Start page.' },

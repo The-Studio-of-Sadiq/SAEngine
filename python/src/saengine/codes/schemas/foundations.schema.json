@@ -1,5 +1,78 @@
 {
   "$defs": {
+    "RetainingWallFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "sliding": {
+          "default": 1.5,
+          "description": "Least factor of safety on sliding.",
+          "minimum": 1,
+          "title": "Sliding",
+          "type": "number"
+        },
+        "overturning": {
+          "default": 1.5,
+          "description": "Least factor of safety on overturning.",
+          "minimum": 1,
+          "title": "Overturning",
+          "type": "number"
+        },
+        "seismic": {
+          "default": 1.1,
+          "description": "Least factor on sliding and overturning with earthquake.",
+          "minimum": 1,
+          "title": "Seismic",
+          "type": "number"
+        },
+        "passive": {
+          "default": 2.0,
+          "description": "Factor of safety on the passive resistance in front.",
+          "minimum": 1,
+          "title": "Passive",
+          "type": "number"
+        },
+        "flotation": {
+          "default": 1.1,
+          "description": "Least factor of safety against flotation (uplift).",
+          "minimum": 1,
+          "title": "Flotation",
+          "type": "number"
+        },
+        "baseFriction": {
+          "default": 0.6666666666666666,
+          "description": "Base friction angle as a share of φ' (tan δb, δb = r φ').",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Basefriction",
+          "type": "number"
+        },
+        "adhesion": {
+          "default": 0.5,
+          "description": "Base adhesion as a share of cu on a clay without φ'.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Adhesion",
+          "type": "number"
+        },
+        "hFactor": {
+          "default": 1.6,
+          "description": "Load factor on the lateral earth pressure H.",
+          "exclusiveMinimum": 0,
+          "title": "Hfactor",
+          "type": "number"
+        },
+        "yieldingKh": {
+          "default": 0.5,
+          "description": "kh of a wall free to yield as a share of the peak ground acceleration.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Yieldingkh",
+          "type": "number"
+        }
+      },
+      "title": "RetainingWallFactors",
+      "type": "object"
+    },
     "StrutAndTie": {
       "additionalProperties": false,
       "properties": {
@@ -22,6 +95,54 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "title": "Betacct",
+          "type": "number"
+        },
+        "betaCTT": {
+          "default": 0.6,
+          "description": "βn of a C-T-T node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betactt",
+          "type": "number"
+        },
+        "betaPrism": {
+          "default": 1.0,
+          "description": "βs of a prism-shaped strut.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaprism",
+          "type": "number"
+        },
+        "betaBottle": {
+          "default": 0.75,
+          "description": "βs of a bottle-shaped strut with distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottle",
+          "type": "number"
+        },
+        "betaBottlePlain": {
+          "default": 0.6,
+          "description": "βs of a bottle-shaped strut without distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottleplain",
+          "type": "number"
+        },
+        "minAngle": {
+          "default": 25.0,
+          "description": "Least angle between a strut and a tie [degrees].",
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "webRatio": {
+          "default": 0.003,
+          "description": "Distributed web steel ratio that confines a bottle-shaped strut.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Webratio",
           "type": "number"
         }
       },
@@ -102,6 +223,10 @@
     },
     "strutAndTie": {
       "$ref": "#/$defs/StrutAndTie"
+    },
+    "retainingWall": {
+      "$ref": "#/$defs/RetainingWallFactors",
+      "description": "Stability factors and load factors of retaining and basement walls."
     }
   },
   "required": [
