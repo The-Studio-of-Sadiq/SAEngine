@@ -34,8 +34,17 @@ registerSingleton(IRunAllService, RunAllService, InstantiationType.Delayed);
  * Runs the analysis of a model with the progress reported to the caller (the FEM editor's
  * toolbar and status line). Internal: the FEM editor calls it by id.
  */
-CommandsRegistry.registerCommand(FEM_RUN_CASES_COMMAND, (accessor, model: URI, options?: IFemRunOptions) =>
-	accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).run(model, options));
+CommandsRegistry.registerCommand(FEM_RUN_CASES_COMMAND, async (accessor, model: URI, options?: IFemRunOptions) => {
+	const runner = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner);
+	const runAll = accessor.get(IRunAllService);
+	// N-X9: an out-of-date model is derived first, so the run solves what the parts say now.
+	options?.onProgress?.({ fraction: 0, message: localize('femRun.deriving', "Deriving the analysis model") });
+	const derived = await runAll.deriveIfStale(model);
+	if (!derived.ok) {
+		return { status: 'invalid' as const, cases: 0, message: localize('femRun.deriveFailed', "The analysis model could not be derived again: {0}", derived.message ?? '') };
+	}
+	return runner.run(model, options);
+});
 
 /** The result tables of a model's last run. Internal: the FEM editor's tables panel calls it by id. */
 CommandsRegistry.registerCommand(FEM_RESULT_TABLES_COMMAND, (accessor, model: URI) =>

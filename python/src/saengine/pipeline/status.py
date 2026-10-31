@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from saengine.fem.derive import mep_stamp, settings_stamp
+from saengine.fem.derive import mep_stamp, objects_stamp, settings_stamp
 from saengine.library.bim import source_stamp
 from saengine.pipeline.project import (
     ALL_PARTS,
@@ -188,7 +188,9 @@ def fem_source_changed(texts: dict[str, str | None], part: str, recorded: str | 
     if recorded == source_stamp(text):
         return False
     if part == "settings":
-        return recorded != settings_stamp(text)
+        return recorded not in (settings_stamp(text), settings_stamp(text, legacy=True))
+    if part == "objects":
+        return recorded != objects_stamp(text)
     return True
 
 

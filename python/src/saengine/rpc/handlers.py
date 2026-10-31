@@ -578,7 +578,7 @@ def derive_fem(
     from pydantic import ValidationError
 
     from saengine.fem.derive import derive_fem as derive
-    from saengine.fem.derive import mep_stamp, settings_stamp, stamp
+    from saengine.fem.derive import mep_stamp, objects_stamp, settings_stamp, stamp
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -604,6 +604,8 @@ def derive_fem(
     # The settings without the project's details and title block (X28): typing a name there
     # leaves the model current.
     stamps["settings"] = settings_stamp(settings_text)
+    # Nor the bars (N-X9): a bar-only Apply leaves the analysis current.
+    stamps["objects"] = objects_stamp(objects_text)
     if soil_text is None and model_folder:
         soil_text = read_soil_text(Path(model_folder).parent)
     settings, site = resolve_site_class(parsed["settings"], soil_text)

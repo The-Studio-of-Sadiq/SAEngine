@@ -291,6 +291,11 @@ export interface IRunAllService {
 	cancel(): void;
 	/** Stops the backend (a design check that takes too long); the next request starts it again. */
 	restartEngine(): Promise<void>;
+	/**
+	 * Derives the open project's analysis model `model` again when its sources changed (N-X9: Run
+	 * Analysis never solves an out-of-date model); the message of what was done, or a failure.
+	 */
+	deriveIfStale(model: URI): Promise<{ readonly ok: boolean; readonly derived: boolean; readonly message?: string }>;
 }
 
 export class RunAllService implements IRunAllService {
@@ -343,6 +348,20 @@ export class RunAllService implements IRunAllService {
 
 	async restartEngine(): Promise<void> {
 		await this.solverService.restartBackend(this.python());
+	}
+
+	async deriveIfStale(model: URI): Promise<{ readonly ok: boolean; readonly derived: boolean; readonly message?: string }> {
+		const project = this.projectService.project;
+		if (!project || partFile(project.root, 'fem').toString() !== model.toString()) {
+			return { ok: true, derived: false }; // not the project's derived model
+		}
+		await this.saveSources(project);
+		try {
+			const result = await this.derive({ project, model, token: CancellationToken.None });
+			return { ok: true, derived: result.status === 'ok', message: result.message };
+		} catch (error) {
+			return { ok: false, derived: false, message: error instanceof StepFailure ? error.message : errorSummary(error) };
+		}
 	}
 
 	private python(): string {
