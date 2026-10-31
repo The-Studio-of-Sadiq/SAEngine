@@ -1,4 +1,5 @@
-"""The architecture (``05 Floor Plan/architecture.json``): walls, doors, windows and rooms.
+"""The architecture (``05 Floor Plan/architecture.json``): walls, doors, windows and rooms,
+curtain walls, roofs, ramps and railings.
 
 The architect's layer of the building, drawn on the floor plan's grids and stories: masonry and
 partition walls of layered wall types, doors and windows hosted in them, and rooms found from
@@ -7,6 +8,12 @@ only: it never adds stiffness to the analysis. Its loads (the walls' weight, the
 finishes and occupancy live loads) are derived from it when the analysis model is derived
 (:mod:`saengine.fem.architecture_loads`), and the bill of quantities measures its brickwork,
 plaster, finishes, doors and windows (:mod:`saengine.boq.architecture`).
+
+The extras (track T46) follow the same rules: a curtain wall is a wall of glazing on a mullion
+grid (its weight per m² as a type, no panel families); a roof is a covering of layers over a plan
+outline, flat or of one pitch (a gable is two roofs); a ramp is a straight built-up ramp on a
+floor (a turning ramp is several, with landings); a railing is a guard or handrail along a path,
+of a weight per metre. They are physical only too: their weights load what carries them.
 
 Kept simple on purpose (no Revit clone): door and window types are fixed parametric styles (no
 family editor), a wall is one type over its height (no stacked walls), and there are no phases,
@@ -134,6 +141,89 @@ class FinishType(_Model):
     )
 
 
+class CurtainWallType(_Model):
+    """Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².
+
+    The weight is the glass's (thickness × unit weight) plus the frame's, per m² of wall; the
+    frame's 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the
+    supplier's). BNBC 2020 Part 6 Sec 2.2 takes dead loads as the actual weights of the
+    materials; glass's 25 kN/m³ is its usual density (2,500 kg/m³)."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    glassThickness: Length = Field(
+        default=12, title="Glass thickness", description="Of all the panes together [mm]."
+    )
+    glassUnitWeight: UnitWeight = Field(default=25.0, title="Glass unit weight")
+    frameWeight: float = Field(
+        default=0.15,
+        ge=0,
+        title="Frame weight",
+        description="Mullions, transoms and fixings per m² of wall [kN/m²].",
+    )
+    depth: Length = Field(default=150, description="Of the mullions, across the wall [mm].")
+    mullionSpacing: Length = Field(
+        default=1500, title="Mullion spacing", description="Between vertical mullions [mm]."
+    )
+    transomSpacing: Length = Field(
+        default=1500, title="Transom spacing", description="Between horizontal transoms [mm]."
+    )
+
+    @property
+    def thickness(self) -> float:
+        """Across the wall [mm]: the mullions' depth."""
+        return self.depth
+
+    @property
+    def locationLine(self) -> str:
+        """A curtain wall's path is its centre line."""
+        return "center"
+
+    @property
+    def weight(self) -> float:
+        """Weight per wall area [kN/m²]."""
+        return self.glassThickness / 1000 * self.glassUnitWeight + self.frameWeight
+
+
+class RoofType(_Model):
+    """A roof covering: layers over the roof slab or deck, top down (terracing, screed,
+    waterproofing, tiles), each a thickness and unit weight."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    layers: list[WallLayer] = Field(min_length=1)
+
+    @property
+    def thickness(self) -> float:
+        return sum(layer.thickness for layer in self.layers)
+
+    @property
+    def weight(self) -> float:
+        """Weight per m² of roof surface (along its slope) [kN/m²]."""
+        return sum(layer.thickness / 1000 * layer.unitWeight for layer in self.layers)
+
+
+class RailingType(_Model):
+    """A guard or handrail: its height and weight per metre (posts, rails and infill).
+
+    The 0.3 kN/m default is an SAEngine choice for a steel railing; enter yours."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    height: Length = Field(default=1000, description="Top of rail above the floor [mm].")
+    weight: float = Field(default=0.3, ge=0, description="Per metre run [kN/m].")
+    width: Length = Field(default=50, description="Across the railing, drawn [mm].")
+    postSpacing: Length = Field(default=1200, title="Post spacing", description="[mm].")
+
+    @property
+    def thickness(self) -> float:
+        return self.width
+
+    @property
+    def locationLine(self) -> str:
+        return "center"
+
+
 # ───────────────────────────── instances ─────────────────────────────
 
 
@@ -190,6 +280,64 @@ class Room(_Model):
     wet: bool = Field(default=False, description="Toilet, kitchen or other wet area.")
 
 
+class CurtainWall(ArchWall):
+    """A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type
+    (``type``); doors and windows are not hosted in it (its glazing is its own)."""
+
+    type: Id = Field(title="Curtain wall type")
+
+
+class Roof(_Model):
+    """A roof covering over a plan outline on a story (the roof slab's level): flat, or of one
+    pitch rising ``slope`` degrees towards ``direction``."""
+
+    id: Id
+    type: Id = Field(title="Roof type")
+    story: Id = Field(description="The level the roof covers (its slab's story).")
+    outline: list[Point2] = Field(min_length=3, description="The roof's plan outline [mm].")
+    baseOffset: Mm = Field(default=0, title="Base offset", description="Above the story [mm].")
+    slope: float = Field(default=0, ge=0, lt=90, description="Pitch [°] (0: a flat roof).")
+    direction: float = Field(
+        default=90,
+        description="Plan direction it rises towards [°], anticlockwise from x (pitched only).",
+    )
+    occupancy: str | None = Field(
+        default=None,
+        description="Area use from the code pack for its live load (e.g. BNBC's roof uses).",
+    )
+
+
+class Ramp(_Model):
+    """A straight ramp built up on a floor, from ``start`` (low end) to ``end`` (high end)."""
+
+    id: Id
+    story: Id
+    start: Point2 = Field(description="Centre of the low end [mm].")
+    end: Point2 = Field(description="Centre of the high end [mm].")
+    width: Length = Field(default=1500, description="[mm].")
+    rise: Mm = Field(default=0, ge=0, description="Height gained from start to end [mm].")
+    finish: Id | None = Field(default=None, title="Floor finish")
+    fillUnitWeight: UnitWeight = Field(
+        default=16.0,
+        title="Fill unit weight",
+        description="Of the filling under the ramp [kN/m³] (16: brick-bat filling, an SAEngine "
+        "choice; 0 for a ramp on its own structure).",
+    )
+    occupancy: str | None = Field(
+        default=None, description="Area use from the code pack, for its live load."
+    )
+
+
+class Railing(_Model):
+    """A railing along a path on a story (a balcony's guard, a stair's or ramp's handrail)."""
+
+    id: Id
+    type: Id = Field(title="Railing type")
+    base: Id = Field(description="Story it stands on.")
+    baseOffset: Mm = Field(default=0, title="Base offset", description="Above the story [mm].")
+    path: list[Point2] = Field(min_length=2, description="Along the railing, point by point.")
+
+
 class RoomSeparator(_Model):
     """A line that bounds rooms where there is no wall (an open plan's kitchen and dining)."""
 
@@ -229,11 +377,20 @@ class Architecture(_Model):
     doorTypes: list[DoorType] = Field(default_factory=list, title="Door types")
     windowTypes: list[WindowType] = Field(default_factory=list, title="Window types")
     finishTypes: list[FinishType] = Field(default_factory=list, title="Finish types")
+    curtainWallTypes: list[CurtainWallType] = Field(
+        default_factory=list, title="Curtain wall types"
+    )
+    roofTypes: list[RoofType] = Field(default_factory=list, title="Roof types")
+    railingTypes: list[RailingType] = Field(default_factory=list, title="Railing types")
     walls: list[ArchWall] = Field(default_factory=list)
     doors: list[Door] = Field(default_factory=list)
     windows: list[Window] = Field(default_factory=list)
     rooms: list[Room] = Field(default_factory=list)
     separators: list[RoomSeparator] = Field(default_factory=list, title="Room separators")
+    curtainWalls: list[CurtainWall] = Field(default_factory=list, title="Curtain walls")
+    roofs: list[Roof] = Field(default_factory=list)
+    ramps: list[Ramp] = Field(default_factory=list)
+    railings: list[Railing] = Field(default_factory=list)
     imports: list[DrawingImport] = Field(
         default_factory=list,
         title="Drawing imports",
@@ -241,7 +398,17 @@ class Architecture(_Model):
     )
 
     def instances(self) -> list[Any]:
-        return [*self.walls, *self.doors, *self.windows, *self.rooms, *self.separators]
+        return [
+            *self.walls,
+            *self.doors,
+            *self.windows,
+            *self.rooms,
+            *self.separators,
+            *self.curtainWalls,
+            *self.roofs,
+            *self.ramps,
+            *self.railings,
+        ]
 
     @model_validator(mode="after")
     def _references(self) -> Architecture:
@@ -250,6 +417,9 @@ class Architecture(_Model):
             ("door type", self.doorTypes),
             ("window type", self.windowTypes),
             ("finish type", self.finishTypes),
+            ("curtain wall type", self.curtainWallTypes),
+            ("roof type", self.roofTypes),
+            ("railing type", self.railingTypes),
         ):
             ids = [t.id for t in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
@@ -269,6 +439,27 @@ class Architecture(_Model):
                 raise ValueError(f"{wall.id}: give a top story or a height, not both")
             if _length(wall.path) <= 0:
                 raise ValueError(f"{wall.id}: its path has no length")
+        curtain_types = {t.id for t in self.curtainWallTypes}
+        for curtain in self.curtainWalls:
+            if curtain.type not in curtain_types:
+                raise ValueError(f"{curtain.id}: no curtain wall type '{curtain.type}'")
+            if curtain.top is not None and curtain.height is not None:
+                raise ValueError(f"{curtain.id}: give a top story or a height, not both")
+            if _length(curtain.path) <= 0:
+                raise ValueError(f"{curtain.id}: its path has no length")
+        roof_types = {t.id for t in self.roofTypes}
+        for roof in self.roofs:
+            if roof.type not in roof_types:
+                raise ValueError(f"{roof.id}: no roof type '{roof.type}'")
+        railing_types = {t.id for t in self.railingTypes}
+        for railing in self.railings:
+            if railing.type not in railing_types:
+                raise ValueError(f"{railing.id}: no railing type '{railing.type}'")
+            if _length(railing.path) <= 0:
+                raise ValueError(f"{railing.id}: its path has no length")
+        for ramp in self.ramps:
+            if math.dist(ramp.start, ramp.end) <= 0:
+                raise ValueError(f"{ramp.id}: it has no length")
         for openings, types, kind in (
             (self.doors, {t.id for t in self.doorTypes}, "door"),
             (self.windows, {t.id for t in self.windowTypes}, "window"),
@@ -292,6 +483,9 @@ class Architecture(_Model):
                     raise ValueError(f"{room.id}: no finish type '{finish}'")
                 if finishes[finish] != kind:
                     raise ValueError(f"{room.id}: '{finish}' is a {finishes[finish]} finish")
+        for ramp in self.ramps:
+            if ramp.finish is not None and finishes.get(ramp.finish) != "floor":
+                raise ValueError(f"{ramp.id}: no floor finish '{ramp.finish}'")
         return self
 
 
@@ -381,6 +575,37 @@ def default_architecture() -> Architecture:
                     "unitWeight": 20.4,
                 },
             ],
+            "curtainWallTypes": [
+                {"id": "CW1", "name": "Aluminium curtain wall, double glazed"},
+            ],
+            "roofTypes": [
+                {
+                    "id": "RF1",
+                    "name": "Lime terracing with brick tiles",
+                    "layers": [
+                        {"material": "Brick tiles", "thickness": 40, "unitWeight": 18.85},
+                        {"material": "Lime terracing", "thickness": 75, "unitWeight": 18.85},
+                    ],
+                },
+                {
+                    "id": "RF2",
+                    "name": "Screed and waterproofing",
+                    "layers": [
+                        {"material": "Cement screed", "thickness": 40, "unitWeight": 20.4},
+                        {"material": "Waterproofing membrane", "thickness": 5, "unitWeight": 12},
+                    ],
+                },
+            ],
+            "railingTypes": [
+                {"id": "RL1", "name": "Steel railing", "height": 1000, "weight": 0.3},
+                {
+                    "id": "RL2",
+                    "name": "Glass balustrade",
+                    "height": 1100,
+                    "weight": 0.5,
+                    "width": 20,
+                },
+            ],
         }
     )
 
@@ -455,6 +680,50 @@ def point_along(
     return (points[0][0], points[0][1]), (1.0, 0.0)
 
 
+def railing_as_wall(railing: Railing, railing_type: RailingType) -> ArchWall:
+    """A railing as a wall of its type's height (its pieces and loads are found as a wall's)."""
+    return ArchWall(
+        id=railing.id,
+        type=railing.type,
+        base=railing.base,
+        height=railing_type.height,
+        baseOffset=railing.baseOffset,
+        path=railing.path,
+    )
+
+
+def roof_polygon(roof: Roof) -> Any:
+    """The roof's plan outline (shapely, mm), made valid."""
+    from shapely.geometry import Polygon
+
+    polygon = Polygon(roof.outline)
+    return polygon if polygon.is_valid else polygon.buffer(0)
+
+
+def roof_area(roof: Roof) -> tuple[float, float]:
+    """The roof's plan area and its surface along the slope [mm²]."""
+    plan = roof_polygon(roof).area
+    return plan, plan / math.cos(math.radians(roof.slope))
+
+
+def ramp_length(ramp: Ramp) -> float:
+    """Along the slope [mm]."""
+    return math.hypot(math.dist(ramp.start, ramp.end), ramp.rise)
+
+
+def ramp_gradient(ramp: Ramp) -> float:
+    """Rise over run (0.0833 is 1 in 12)."""
+    run = math.dist(ramp.start, ramp.end)
+    return ramp.rise / run if run else 0.0
+
+
+def ramp_polygon(ramp: Ramp) -> Any:
+    """The ramp's plan footprint (shapely, mm): its centre line widened to both sides."""
+    from shapely.geometry import LineString
+
+    return LineString([ramp.start, ramp.end]).buffer(ramp.width / 2, cap_style="flat")
+
+
 def wall_levels(wall: ArchWall, elevations: dict[str, float]) -> tuple[float, float] | None:
     """The wall's bottom and top [mm], or None when its stories are not in ``elevations``."""
     if wall.base not in elevations:
@@ -480,15 +749,20 @@ def opening_size(arch: Architecture, opening: Door | Window) -> tuple[float, flo
 
 
 def walls_on_story(
-    arch: Architecture, story: str, elevations: dict[str, float]
-) -> list[tuple[ArchWall, WallType]]:
-    """The walls standing on ``story`` or rising through it."""
+    arch: Architecture, story: str, elevations: dict[str, float], curtain: bool = False
+) -> list[tuple[ArchWall, Any]]:
+    """The walls standing on ``story`` or rising through it (with ``curtain``, the curtain walls
+    too, with their curtain wall types)."""
     if story not in elevations:
         return []
     level = elevations[story]
-    types = {t.id: t for t in arch.wallTypes}
+    wall_types: dict[str, Any] = {t.id: t for t in arch.wallTypes}
+    curtain_types: dict[str, Any] = {t.id: t for t in arch.curtainWallTypes}
+    candidates: list[tuple[ArchWall, dict[str, Any]]] = [(w, wall_types) for w in arch.walls]
+    if curtain:
+        candidates += [(c, curtain_types) for c in arch.curtainWalls]
     result = []
-    for wall in arch.walls:
+    for wall, types in candidates:
         levels = wall_levels(wall, elevations)
         if levels is None:
             continue
@@ -507,7 +781,8 @@ def room_boundary(
     from shapely.geometry import LineString, Point
     from shapely.ops import polygonize, unary_union
 
-    walls = walls_on_story(arch, room.story, elevations)
+    # Curtain walls bound rooms as walls do (a glazed facade closes the rooms behind it).
+    walls = walls_on_story(arch, room.story, elevations, curtain=True)
     reach = max([JOIN_REACH, *(t.thickness / 2 + JOIN_REACH for _, t in walls)])
     lines = []
     footprints = []
@@ -572,6 +847,21 @@ def check(arch: Architecture, floor_plan: Any = None) -> list[str]:
         for room in arch.rooms:
             if room.story in elevations and room_boundary(arch, room, elevations) is None:
                 problems.append(f"{room.id}: its point is not enclosed by walls or separators")
+        for curtain in arch.curtainWalls:
+            for story in (curtain.base, curtain.top):
+                if story is not None and story not in elevations:
+                    problems.append(f"{curtain.id}: no story '{story}'")
+            if wall_levels(curtain, elevations) is None and curtain.base in elevations:
+                problems.append(f"{curtain.id}: no story above to rise to; give its height")
+        for item in [*arch.roofs, *arch.ramps]:
+            if item.story not in elevations:
+                problems.append(f"{item.id}: no story '{item.story}'")
+        for railing in arch.railings:
+            if railing.base not in elevations:
+                problems.append(f"{railing.id}: no story '{railing.base}'")
+    for roof in arch.roofs:
+        if roof_polygon(roof).area <= 0:
+            problems.append(f"{roof.id}: its outline has no area")
     for opening in [*arch.doors, *arch.windows]:
         wall = walls[opening.wall]
         length = _length(centre_line(wall, types[wall.type]))

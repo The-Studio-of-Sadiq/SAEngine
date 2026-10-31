@@ -407,6 +407,8 @@ def building_ifc(
             for r in architecture.rooms
             for key in (r.id, f"{r.id}:flooring", f"{r.id}:ceiling")
         },
+        **{f"arch:{c.id}": c.base for c in [*architecture.curtainWalls, *architecture.railings]},
+        **{f"arch:{i.id}": i.story for i in [*architecture.roofs, *architecture.ramps]},
     }
     return {
         "text": ifc.to_string(),
