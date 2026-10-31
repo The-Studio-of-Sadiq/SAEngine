@@ -179,3 +179,16 @@ def test_rebar_sets_equal_the_old_module_constants():
     assert same((10.0, 12.0, 16.0, 20.0, 25.0), diameters("tank")) == []
     assert same((12, 16, 20, 25), bar_dias()) == []
     assert same((12.0, 16.0, 20.0, 25.0), tuple(float(d) for d in diameters("foundation"))) == []
+
+
+def test_fire_hazard_labels_have_one_home():
+    """The MEP schema's hazard choices are the fire table's labels (``library/mep.py`` kept its
+    own copy before code packs 3)."""
+    from saengine.fire import tables as F
+    from saengine.library import mep
+
+    assert mep.FIRE_HAZARDS == F.HAZARD_LABELS
+    assert list(mep.FIRE_HAZARDS) == ["lightI", "lightII", "ordinaryI", "ordinaryII"] + [
+        "ordinaryIII",
+        "extra",
+    ]
