@@ -2015,6 +2015,7 @@ def _design(
     walls = _walls(report)
     stairs = _stairs(report)
     lintels = _lintels(report)
+    takedown = _takedown(report)
     punching = _punching(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
@@ -2038,6 +2039,7 @@ def _design(
         "walls": walls,
         "stairs": stairs,
         "lintels": lintels,
+        "takedown": takedown,
         "punching": punching,
         "steel": steel,
         "slenderness": slender_rows,
@@ -2253,6 +2255,28 @@ def _lintels(report: dict[str, Any]) -> dict[str, Any]:
         )
         bad.append(not element.get("ok"))
     return {"rows": rows, "bad": bad}
+
+
+def _takedown(report: dict[str, Any]) -> dict[str, Any]:
+    """Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown), one
+    row per column line and storey, top down."""
+    found = report.get("takedown") or {}
+    cases = list(found.get("cases") or [])
+    rows = []
+    for line in found.get("lines") or []:
+        for row in line.get("rows") or []:
+            rows.append(
+                [
+                    str(line.get("line", "")),
+                    str(row.get("story", "")),
+                    str(row.get("column", "")),
+                    *(fmt((row.get("storey") or {}).get(c), 1) for c in cases),
+                    *(fmt((row.get("cumulative") or {}).get(c), 1) for c in cases),
+                    fmt(row.get("total"), 1),
+                    fmt(row.get("factored"), 1),
+                ]
+            )
+    return {"rows": rows, "cases": cases, "note": str(found.get("note") or "")}
 
 
 def _punching(report: dict[str, Any]) -> dict[str, Any]:

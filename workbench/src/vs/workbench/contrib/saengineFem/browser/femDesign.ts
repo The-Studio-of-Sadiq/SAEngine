@@ -193,6 +193,24 @@ export interface IFemDesignReport {
 		readonly counts?: IFemDesignCounts;
 	};
 	readonly notes: readonly string[];
+	/** The columns' gravity load takedown (BNBC 2020 Part 6 Sec 2.7.3.1 factors), kN. */
+	readonly takedown?: IFemTakedown;
+}
+
+/** One storey of a column line in the load takedown: per case what the storey adds and the load at the column's foot [kN]. */
+export interface IFemTakedownRow {
+	readonly story: string;
+	readonly column: string;
+	readonly storey: { readonly [kase: string]: number };
+	readonly cumulative: { readonly [kase: string]: number };
+	readonly total: number;
+	readonly factored: number;
+}
+
+export interface IFemTakedown {
+	readonly cases: readonly string[];
+	readonly note: string;
+	readonly lines: readonly { readonly line: string; readonly position: readonly number[]; readonly rows: readonly IFemTakedownRow[] }[];
 }
 
 /*

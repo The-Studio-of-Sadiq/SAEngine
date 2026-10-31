@@ -1127,6 +1127,25 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 size=7.5,
             ),
         ]
+    td = design.get("takedown") or {}
+    if td.get("rows"):
+        cases = list(td.get("cases") or [])
+        out += [
+            h(2, "Column load takedown"),
+            p(
+                f"{td.get('note')}. Per storey: what the storey adds [kN]; cumulative: at the "
+                "column's foot [kN]."
+            ),
+            table(
+                ["Line", "Storey", "Column"]
+                + [f"{c} storey" for c in cases]
+                + [f"{c} cum." for c in cases]
+                + ["Total", "Factored"],
+                td["rows"],
+                align="lll" + "r" * (2 * len(cases) + 2),
+                size=7,
+            ),
+        ]
     pu = design.get("punching") or {}
     if pu.get("rows"):
         out += [

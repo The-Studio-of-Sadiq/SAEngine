@@ -972,9 +972,19 @@ def design(
             slender_options,
         )
 
+    # Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown).
+    from saengine.design.takedown import takedown
+
+    try:
+        column_takedown = takedown(building, pieces, service)
+    except (ValueError, KeyError, AttributeError, TypeError, IndexError) as error:
+        column_takedown = {"lines": [], "cases": [], "note": f"not formed: {error}"}
     if plain is not None and collect is not None:
         collect["plain"] = assemble(plain.checked, plain.skipped, plain.notes, plain.seen)
-    return assemble(checked, skipped, notes, slabs_seen)
+        collect["plain"]["takedown"] = column_takedown
+    result = assemble(checked, skipped, notes, slabs_seen)
+    result["takedown"] = column_takedown
+    return result
 
 
 def _assemble(
