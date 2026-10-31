@@ -17,6 +17,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from shapely.geometry import Polygon
+
 from saengine.library.mep import MEP_FILE, MepModel, PlumbingTank, check, parse
 from saengine.plumbing import tables as T
 from saengine.plumbing.building import Building
@@ -25,7 +27,14 @@ from saengine.plumbing.drainage import STACKS, building_drains, soil_stack, vent
 from saengine.plumbing.rainwater import rainwater
 from saengine.plumbing.septic import separations, septic_tank, soak_well
 from saengine.plumbing.sleeves import proposed_openings, shaft_checks
-from saengine.plumbing.storage import dimensions, tank_drain, tank_overflow, volumes, water_weight
+from saengine.plumbing.storage import (
+    default_wall,
+    dimensions,
+    tank_drain,
+    tank_overflow,
+    volumes,
+    water_weight,
+)
 from saengine.plumbing.supply import (
     SUPPLY,
     capacity,
@@ -89,10 +98,51 @@ def _top_story(plumbing: Any, building: Building) -> str | None:
     return plumbing.stories[-1].story if plumbing.stories else None
 
 
+def _bay(dims: dict[str, Any], building: Building, story: str) -> tuple[float, float] | None:
+    """The centre of the column-supported bay of ``story`` an overhead tank of ``dims`` is put
+    on: a slab panel framed by beams on every edge (:func:`saengine.mep.loads.framed_panel`)
+    that holds the tank's outside plan, preferring one the tank covers at least half of (it
+    then stands on the bay's beams, :func:`saengine.mep.loads.bay_of`), then the one nearest
+    the middle of the roof. None without the building model or such a bay."""
+    from shapely.geometry import box
+
+    from saengine.library.bim import SlabElement
+    from saengine.mep.loads import BAY_SHARE, BEAM_TOLERANCE, framed_panel
+
+    model, roof = building.model, building.roof(story)
+    if model is None or roof is None or story not in building.stories:
+        return None
+    if not (dims.get("length") and dims.get("width")):
+        return None
+    height = (dims.get("waterDepth") or 0.0) + (dims.get("freeboard") or 0.0)
+    wall = dims.get("partitionWall") or default_wall(height)
+    outer_l, outer_w = dims["length"] + 2 * wall, dims["width"] + 2 * wall
+    level, middle = building.stories[story], roof.centroid
+    best: tuple[tuple[bool, float], tuple[float, float]] | None = None
+    for slab in model.elements:
+        if not isinstance(slab, SlabElement) or abs(slab.elevation - level) >= 1.0:
+            continue
+        panel = Polygon([(p[0], p[1]) for p in slab.boundary])
+        if panel.area <= 0:
+            continue
+        c = panel.centroid
+        tank = box(c.x - outer_l / 2, c.y - outer_w / 2, c.x + outer_l / 2, c.y + outer_w / 2)
+        if not panel.buffer(BEAM_TOLERANCE).covers(tank) or not framed_panel(slab, model):
+            continue
+        score = (tank.area / panel.area < BAY_SHARE, c.distance(middle))
+        if best is None or score < best[0]:
+            best = (score, (round(c.x), round(c.y)))
+    return best[1] if best else None
+
+
 def _place(kind: str, dims: dict[str, Any], building: Building, story: str | None):
-    """A first position for a proposed tank (SAEngine): an overhead tank at the centre of its
-    roof; ground tanks in a row south of the building's footprint."""
+    """A first position for a proposed tank (SAEngine): an overhead tank on the
+    column-supported bay of its roof that fits it best (:func:`_bay`), else at the middle of
+    the roof; ground tanks in a row south of the building's footprint."""
     if kind == "overhead" and story is not None:
+        bay = _bay(dims, building, story)
+        if bay is not None:
+            return bay
         roof = building.roof(story)
         if roof is not None:
             c = roof.centroid
@@ -206,6 +256,8 @@ def plumbing_results(
                     dims["compartments"] >= 2,
                     f"at least two for alternate cleaning; {T.PAGES['5.9.2.1']}",
                 ))  # fmt: skip
+    if bim is not None:
+        checks.extend(_support_checks(proposals, bim))
     storage = {**vol, "tanks": storage_tanks, "pump": pumping,
                "heads": heads(plumbing, building)}  # fmt: skip
 
@@ -406,6 +458,32 @@ def _rooms_section(
         "notes": [*(rooms.notes if rooms is not None else []), *run_notes],
         "line": line,
     }
+
+
+def _support_checks(proposals: list[dict[str, Any]], bim: Any) -> list[dict[str, Any]]:
+    """Whether each overhead tank stands where the frame can carry it: a check per tank, failing
+    when it presses on the middle of a slab panel (:func:`saengine.mep.loads.heavy_on_slab`)."""
+    from saengine.library.mep import Equipment
+    from saengine.mep.loads import bay_of, heavy_on_slab
+    from saengine.plumbing.tanks import tank_equipment
+
+    out = []
+    for tank in proposals:
+        if tank.get("kind") != "overhead" or tank.get("story") is None:
+            continue
+        try:
+            entry = tank_equipment(tank, {"materials": None})
+            entry["id"] = tank["id"]
+            item = Equipment.model_validate(entry)
+        except (ValueError, KeyError, TypeError):  # not sized yet: the volume checks say so
+            continue
+        heavy = heavy_on_slab(item, bim)
+        if heavy is not None:
+            out.append(_check(f"{tank['id']} support", 1, None, "", False, heavy))
+        elif bay_of(item, bim) is not None:
+            out.append(_check(f"{tank['id']} support", 0, None, "", True,
+                              "covers a column-supported bay and stands on its beams"))  # fmt: skip
+    return out
 
 
 def _proposal(

@@ -2463,10 +2463,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			append(tr, $('td', undefined, this.storyName(e.story)));
 			append(tr, $('td', undefined, e.host ?? ''));
 			append(tr, $('td.number', undefined, e.load === undefined ? '' : formatNumber(e.load, 1)));
-			append(tr, $('td.number', undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
+			append(tr, $(`td.number${e.heavy ? '.band-fail' : ''}`, undefined, e.pressure === undefined ? '' : formatNumber(e.pressure, 1)));
 			append(tr, $('td', undefined, e.loadCase ?? ''));
 			append(tr, $(`td${!e.applied && !e.onGrade ? '.band-fail' : ''}`, undefined, e.applied ? localize('mep.appliedYes', "on the frame") : e.onGrade ? localize('mep.appliedGrade', "on grade") : localize('mep.appliedNo', "not applied")));
-			append(tr, $('td.mep-wrap', undefined, e.note ?? ''));
+			append(tr, $(`td.mep-wrap${e.heavy ? '.band-fail' : ''}`, undefined, e.note ?? ''));
 		}
 	}
 

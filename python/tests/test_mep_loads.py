@@ -15,10 +15,12 @@ from saengine.mep.geometry import bounded_id
 from saengine.mep.loads import (
     G,
     analysis_openings,
+    bay_of,
     contents_case,
     edge_shares,
     equipment_loads,
     equipment_parts,
+    heavy_on_slab,
     impact_percent,
     plinth_weight,
     with_mep_openings,
@@ -422,3 +424,58 @@ def test_footprint_grid_is_exact() -> None:
     cy = sum(-ld.force[2] * nodes[ld.node][1] for ld in loads.nodal) / total
     assert (cx, cy) == pytest.approx((3.0, 2.0))
     assert not math.isnan(cx)
+
+
+# ─────────────── a heavy tank on a slab panel, or on the beams of its bay (N-E1) ───────────────
+
+#: BUILDING with beams along the four edges of S1: a column-supported bay.
+FRAMED = BuildingModel.model_validate(
+    {
+        **BUILDING.model_dump(mode="json", by_alias=True),
+        "elements": [
+            *(e.model_dump(mode="json") for e in BUILDING.elements),
+            *(
+                {"id": f"B{k}", "type": "BM", "kind": "beam", "start": a, "end": b,
+                 "elevation": 3000}  # fmt: skip
+                for k, (a, b) in enumerate(
+                    (
+                        ([0, 0], [6000, 0]),
+                        ([6000, 0], [6000, 4000]),
+                        ([6000, 4000], [0, 4000]),
+                        ([0, 4000], [0, 0]),
+                    )
+                )
+            ),
+        ],
+    }
+)
+
+
+def _tank(length: float, width: float) -> Equipment:
+    return Equipment(
+        id="T", kind="tank", story="L1", x=3000, y=2000, length=length, width=width,
+        operatingWeight=570, emptyWeight=150,
+    )  # fmt: skip
+
+
+def test_a_small_heavy_tank_mid_panel_is_flagged():
+    # 570 kN on 3 x 2 m = 95 kPa over a quarter of the 6 x 4 m panel: not on the beams.
+    message = heavy_on_slab(_tank(3000, 2000), FRAMED)
+    assert message is not None and "95.0 kPa" in message and "re-run 08 FEM" in message
+    assert bay_of(_tank(3000, 2000), FRAMED) is None
+
+
+def test_a_tank_covering_its_framed_bay_goes_to_the_beams():
+    # 5.6 x 3.6 m covers 84 % of the panel, framed by B0-B3: its whole weight goes to the
+    # edge beams as line loads (same total), none to the slab's shell nodes.
+    tank = _tank(5600, 3600)
+    assert bay_of(tank, FRAMED) is not None
+    assert heavy_on_slab(tank, FRAMED) is None
+    nodes, shells = mesh()
+    mep = MepModel(equipment=[tank])
+    result = equipment_loads(FRAMED, mep, nodes, shells, cases=CASES)
+    assert not result.nodal
+    assert sum(result.totals().values()) == pytest.approx(570.0)
+    # Without the beams the same tank stays on the slab's shells.
+    plain = equipment_loads(BUILDING, mep, nodes, shells, cases=CASES)
+    assert plain.nodal and not plain.lines
