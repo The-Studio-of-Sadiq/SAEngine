@@ -8,10 +8,14 @@ import { roundPointMaterial, subtleNodeColor, usableTheme } from './theme.js';
 import { Floats, ModelIndex } from './geometry.js';
 import { FemCameraView, FemElement, FemModel, FemResultDisplay, FemResultView, FemSelection, FemVisibleElements, outerFaces, sameSelection } from './model.js';
 import { ResultOverlay } from './results.js';
+import { Development, FemPlanPath, isUsablePath } from './development.js';
+import { fromWorld, FemMeasureMode, FemMeasurement, FemMeasurePoint, measure, MeasureOverlay } from './measure.js';
 
 export type { FemCameraView, FemElement, FemModel, FemNode, FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultSolid, FemResultView, FemSelection, FemValueQuantity, FemVisibleElements } from './model.js';
 export { FORCE_COMPONENTS, SHELL_COMPONENTS, SOLID_COMPONENTS, formatUtilisation, UTILISATION_WARN, utilisationBand } from './model.js';
 export { contourColor } from './results.js';
+export { Development, type FemPlanPath } from './development.js';
+export { measure, type FemMeasureMode, type FemMeasurement, type FemMeasurePoint } from './measure.js';
 
 export interface FemViewerTheme {
 	readonly background: string;
@@ -34,6 +38,18 @@ export interface FemViewerTheme {
 export interface FemViewerOptions {
 	readonly theme?: Partial<FemViewerTheme>;
 	readonly onSelectionChanged?: (selection: FemSelection | undefined) => void;
+	/** A measurement taken (a point picked, or the measurement cleared: undefined). */
+	readonly onMeasure?: (measurement: FemMeasurement | undefined) => void;
+	/** The unit of the model's lengths in the measure labels (default `m`). */
+	readonly lengthUnit?: string;
+}
+
+/** Options of {@link FemViewer.recordAnimation}. */
+export interface FemRecordOptions {
+	/** Length of the video [s] (default: two cycles of the motion, 3.2 s). */
+	readonly seconds?: number;
+	/** Frames per second (default 30). */
+	readonly fps?: number;
 }
 
 export interface FemViewer {
@@ -57,10 +73,33 @@ export interface FemViewer {
 	 */
 	setCameraView(view: FemCameraView): Promise<void>;
 	fit(): Promise<void>;
+	/**
+	 * A developed elevation: the frames and walls standing on the plan path `path` (model x, y),
+	 * unfolded into one plane (the distance along the path across, Z up), results included.
+	 * Returns the ids of the elements on the path (the host shows only those); undefined (or a
+	 * path without length): the model as it stands.
+	 */
+	setDevelopment(path: FemPlanPath | undefined): FemVisibleElements;
+	/**
+	 * Clicks measure instead of selecting: a distance (two points), an angle (three, the vertex
+	 * second) or an area (points of a polygon, closed by clicking its first point again).
+	 * Points snap to the nodes drawn, else lie on the member or face clicked. Escape clears.
+	 */
+	setMeasureMode(mode: FemMeasureMode): void;
+	clearMeasurement(): void;
+	/**
+	 * Records the deflected shape shown moving (a mode shape oscillating, a static one growing
+	 * from rest and back) as a WebM video of the view; undefined when no deflected shape is shown
+	 * or the browser cannot record.
+	 */
+	recordAnimation(options?: FemRecordOptions): Promise<Blob | undefined>;
 	/** Call when the container changes size and the browser has not reported it (e.g. hidden tabs). */
 	layout(): void;
 	dispose(): void;
 }
+
+/** One cycle of a deflected shape's motion [ms]. */
+const ANIMATION_PERIOD_MS = 1600;
 
 const defaultTheme: FemViewerTheme = {
 	background: '#1e1e1e',
@@ -168,6 +207,21 @@ class FemViewerImpl implements FemViewer {
 	private cameraView: FemCameraView = '3d';
 	private overlay: ResultOverlay | undefined;
 	private animation: number | undefined;
+	/** The developed elevation shown (its path), or undefined. */
+	private developmentPath: FemPlanPath | undefined;
+	private development: Development | undefined;
+	private measureMode: FemMeasureMode = 'off';
+	private measurePoints: FemMeasurePoint[] = [];
+	private measureClosed = false;
+	private readonly measureOverlay: MeasureOverlay;
+	/** Recording an animation: any deflected shape moves. */
+	private recording = false;
+	private readonly onKeyDown = (e: KeyboardEvent) => {
+		if (e.key === 'Escape' && this.measureMode !== 'off' && this.measurePoints.length) {
+			e.stopPropagation();
+			this.clearMeasurement();
+		}
+	};
 	private readonly raycaster = new THREE.Raycaster();
 
 	private pointerDown: { x: number; y: number } | undefined;
@@ -199,22 +253,33 @@ class FemViewerImpl implements FemViewer {
 		this.world.scene.three.add(this.modelGroup);
 		this.world.scene.three.add(this.highlight);
 		this.world.scene.three.add(this.resultGroup);
+		this.measureOverlay = new MeasureOverlay(this.theme.selection, this.theme.background);
+		this.world.scene.three.add(this.measureOverlay.group);
 
 		this.applyTheme();
 
 		// Labels: the same size on screen under the orthographic camera as under the perspective one.
-		this.renderer.onBeforeUpdate.add(() => this.overlay?.setLabelScale(this.labelScale()));
+		this.renderer.onBeforeUpdate.add(() => {
+			const scale = this.labelScale();
+			this.overlay?.setLabelScale(scale);
+			this.measureOverlay.setLabelScale(scale);
+		});
 
 		const canvas = this.renderer.three.domElement;
 		canvas.addEventListener('pointerdown', this.onPointerDown);
 		canvas.addEventListener('wheel', this.onWheel, { passive: true });
 		canvas.addEventListener('pointerup', this.onPointerUp);
+		container.addEventListener('keydown', this.onKeyDown);
 	}
 
 	setModel(model: FemModel): void {
 		const first = !this.model;
 		this.model = model;
-		this.index = new ModelIndex(model);
+		this.development = isUsablePath(this.developmentPath) ? new Development(model, this.developmentPath) : undefined;
+		this.index = new ModelIndex(this.development?.model ?? model);
+		if (this.development) {
+			this.visible = new Set(this.development.elements);
+		}
 		this.rebuild();
 		this.renderHighlight();
 		this.renderResults();
@@ -274,6 +339,80 @@ class FemViewerImpl implements FemViewer {
 		this.renderResults();
 	}
 
+	setDevelopment(path: FemPlanPath | undefined): FemVisibleElements {
+		const next = isUsablePath(path) ? path.map(p => [p[0], p[1]] as const) : undefined;
+		if (JSON.stringify(next) === JSON.stringify(this.developmentPath)) {
+			return this.development?.elements;
+		}
+		this.developmentPath = next;
+		this.clearMeasurement(); // measured in the other drawing
+		const model = this.model;
+		if (!model) {
+			return undefined;
+		}
+		this.development = next ? new Development(model, next) : undefined;
+		this.index = new ModelIndex(this.development?.model ?? model);
+		// Only the elements on the path; the host sets what it shows otherwise.
+		this.visible = this.development ? new Set(this.development.elements) : undefined;
+		this.rebuild();
+		this.renderHighlight();
+		this.renderResults();
+		return this.development?.elements;
+	}
+
+	setMeasureMode(mode: FemMeasureMode): void {
+		if (mode === this.measureMode) {
+			return;
+		}
+		this.measureMode = mode;
+		this.clearMeasurement();
+	}
+
+	clearMeasurement(): void {
+		const had = this.measurePoints.length > 0;
+		this.measurePoints = [];
+		this.measureClosed = false;
+		this.measureOverlay.draw(undefined, undefined);
+		if (had) {
+			this.options.onMeasure?.(undefined);
+		}
+	}
+
+	async recordAnimation(options: FemRecordOptions = {}): Promise<Blob | undefined> {
+		const canvas = this.renderer.three.domElement as HTMLCanvasElement | undefined;
+		if (!canvas || this.results?.display.show !== 'deformed' || this.recording || typeof MediaRecorder === 'undefined') {
+			return undefined;
+		}
+		const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
+		if (!type) {
+			return undefined;
+		}
+		const fps = Math.max(1, Math.min(60, options.fps ?? 30));
+		const seconds = Math.max(0.5, Math.min(60, options.seconds ?? 2 * ANIMATION_PERIOD_MS / 1000));
+		this.recording = true;
+		this.renderResults(); // moving, from rest
+		const stream = canvas.captureStream(fps);
+		try {
+			const recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8_000_000 });
+			const chunks: Blob[] = [];
+			recorder.ondataavailable = e => {
+				if (e.data.size) {
+					chunks.push(e.data);
+				}
+			};
+			const stopped = new Promise<void>(resolve => recorder.onstop = () => resolve());
+			recorder.start(250);
+			await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+			recorder.stop();
+			await stopped;
+			return chunks.length ? new Blob(chunks, { type: 'video/webm' }) : undefined;
+		} finally {
+			stream.getTracks().forEach(track => track.stop());
+			this.recording = false;
+			this.renderResults();
+		}
+	}
+
 	async setCameraView(view: FemCameraView): Promise<void> {
 		this.cameraView = view;
 		const orthographic = view !== '3d';
@@ -319,6 +458,8 @@ class FemViewerImpl implements FemViewer {
 		canvas?.removeEventListener('pointerdown', this.onPointerDown);
 		canvas?.removeEventListener('wheel', this.onWheel);
 		canvas?.removeEventListener('pointerup', this.onPointerUp);
+		this.container.removeEventListener('keydown', this.onKeyDown);
+		this.measureOverlay.dispose();
 		this.clearGroup(this.modelGroup);
 		this.clearGroup(this.highlight);
 		this.clearResults();
@@ -558,7 +699,18 @@ class FemViewerImpl implements FemViewer {
 			return;
 		}
 		const theme = this.theme;
-		const overlay = new ResultOverlay(index, this.results.view, this.results.display, {
+		const development = this.development;
+		let view = this.results.view;
+		let display = this.results.display;
+		if (development) {
+			view = development.results(view);
+			display = development.display(display);
+		}
+		if (this.recording) {
+			display = { ...display, animate: true, animateAny: true };
+		}
+		const oscillates = view.kind === 'modal';
+		const overlay = new ResultOverlay(index, view, display, {
 			deformed: theme.deformed,
 			positive: theme.positive,
 			negative: theme.negative,
@@ -574,7 +726,9 @@ class FemViewerImpl implements FemViewer {
 		if (overlay.isAnimated) {
 			const start = performance.now();
 			const step = (now: number) => {
-				overlay.setPhase(Math.sin((now - start) / 1600 * 2 * Math.PI));
+				// A mode shape swings both ways; a static shape grows from rest and back.
+				const angle = (now - start) / ANIMATION_PERIOD_MS * 2 * Math.PI;
+				overlay.setPhase(oscillates ? Math.sin(angle) : (1 - Math.cos(angle)) / 2);
 				this.animation = requestAnimationFrame(step);
 			};
 			this.animation = requestAnimationFrame(step);
@@ -635,9 +789,19 @@ class FemViewerImpl implements FemViewer {
 		const nodeHit = hits.find(h => h.object === this.nodes && h.index !== undefined);
 		const memberHit = hits.find(h => h.object === this.members && h.index !== undefined);
 		const faceHit = hits.find(h => h.object === this.faces && h.faceIndex !== undefined && h.faceIndex !== null);
+		if (this.measureMode !== 'off') {
+			// A node's own position; else the point of the member or face under the cursor.
+			const point = nodeHit ? this.index.point(this.nodeIds[nodeHit.index!])
+				: memberHit ? this.closestOnMember(memberHit.index!, this.raycaster.ray) : faceHit?.point;
+			if (point) {
+				this.addMeasurePoint(fromWorld(point));
+			}
+			return;
+		}
 		let next: FemSelection | undefined;
 		if (nodeHit) {
-			next = { kind: 'node', id: this.nodeIds[nodeHit.index!] };
+			const id = this.nodeIds[nodeHit.index!];
+			next = { kind: 'node', id: this.development?.original(id) ?? id };
 		} else if (memberHit) {
 			next = { kind: 'element', id: this.memberIds[Math.floor(memberHit.index! / 2)] };
 		} else if (faceHit) {
@@ -648,6 +812,58 @@ class FemViewerImpl implements FemViewer {
 			this.renderHighlight();
 			this.options.onSelectionChanged?.(next);
 		}
+	}
+
+	/** The point of member segment `index` (of the line segments' vertices) nearest `ray`. */
+	private closestOnMember(index: number, ray: THREE.Ray): THREE.Vector3 | undefined {
+		const position = this.members?.geometry.getAttribute('position');
+		if (!position) {
+			return undefined;
+		}
+		const k = Math.floor(index / 2) * 2;
+		const a = new THREE.Vector3().fromBufferAttribute(position, k);
+		const b = new THREE.Vector3().fromBufferAttribute(position, k + 1);
+		const onSegment = new THREE.Vector3();
+		ray.distanceSqToSegment(a, b, undefined, onSegment);
+		return onSegment;
+	}
+
+	private addMeasurePoint(point: FemMeasurePoint): void {
+		const mode = this.measureMode;
+		if (mode === 'off') {
+			return;
+		}
+		const needed = mode === 'distance' ? 2 : mode === 'angle' ? 3 : Infinity;
+		if (this.measureClosed || this.measurePoints.length >= needed) {
+			// The last measurement is done: this click starts the next.
+			this.measurePoints = [];
+			this.measureClosed = false;
+		}
+		const points = this.measurePoints;
+		const first = points[0];
+		const snap = (this.index?.size ?? 1) * 0.002;
+		if (mode === 'area' && points.length >= 3 && first && Math.hypot(point[0] - first[0], point[1] - first[1], point[2] - first[2]) <= snap) {
+			this.measureClosed = true; // back on the first point: the polygon is closed
+		} else {
+			points.push(point);
+		}
+		const measurement = measure(mode, points, mode === 'area' ? this.measureClosed : points.length >= needed);
+		this.measureOverlay.draw(measurement, this.measureText(measurement));
+		this.options.onMeasure?.(measurement);
+	}
+
+	private measureText(m: FemMeasurement): string | undefined {
+		const unit = this.options.lengthUnit ?? 'm';
+		if (m.length !== undefined) {
+			return `${m.length.toFixed(3)} ${unit}`;
+		}
+		if (m.angle !== undefined) {
+			return `${m.angle.toFixed(1)}°`;
+		}
+		if (m.area !== undefined && m.points.length >= 3) {
+			return `${m.area.toFixed(2)} ${unit}²`;
+		}
+		return undefined;
 	}
 
 	private edges(element: FemElement): [number, number][] {

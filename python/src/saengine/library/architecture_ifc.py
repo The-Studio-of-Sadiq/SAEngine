@@ -4,7 +4,10 @@ Export adds the architecture to the building model's IFC (:func:`saengine.librar
 walls as IfcWall with their wall type (IfcWallType), material layers (IfcMaterialLayerSetUsage),
 centre line (the ``Axis`` representation) and body; doors and windows as IfcDoor and IfcWindow
 filling IfcOpeningElements that void their walls; rooms as IfcSpace (their net floor extruded to
-the next story) with their floor and ceiling finishes as IfcCovering (IfcRelCoversSpaces). Every
+the next story) with their floor and ceiling finishes as IfcCovering (IfcRelCoversSpaces);
+curtain walls as IfcCurtainWall, roofs as IfcRoof (their covering over the outline, flat:
+the pitch is in the property set), ramps as IfcRamp (a sloped solid from the low end to the
+high end) and railings as IfcRailing (GUARDRAIL) along their paths. Every
 element carries ``SAEngine_Architecture`` (its id; a room's occupancy, wet flag and finishes), so
 SAEngine reads its own file back exactly.
 
@@ -34,6 +37,8 @@ from saengine.library.architecture import (
     offset_path,
     opening_size,
     point_along,
+    railing_as_wall,
+    roof_polygon,
     room_boundary,
     wall_levels,
 )
@@ -338,6 +343,146 @@ def export_architecture(
                 RelatingSpace=space,
                 RelatedCoverings=coverings,
             )
+
+    _export_extras(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+
+
+def _export_extras(
+    w: Any,
+    arch: Architecture,
+    elevations: dict[str, float],
+    storeys: dict[str, Any],
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+    pset: Any,
+) -> None:
+    """Curtain walls, roofs, ramps and railings (T46), as :func:`export_architecture` does the
+    walls: a body, a container story and ``SAEngine_Architecture``."""
+    from saengine.library.ifc import _SI, _placement
+
+    def contain(product: Any, story: str, level: float) -> None:
+        w.run(
+            "spatial.assign_container",
+            w.file,
+            products=[product],
+            relating_structure=storeys.get(story) or storey_at(level),
+        )
+
+    def along_path(
+        ifc_class: str, predefined: str, item: ArchWall, item_type: Any, label: str
+    ) -> Any:
+        levels = wall_levels(item, elevations)
+        if levels is None:
+            skipped.append(
+                f"{item.id}: its stories are not in the floor plan (or it needs a height)"
+            )
+            return None
+        bottom, top = levels
+        centre = centre_line(item, item_type)
+        product = w.entity(ifc_class, item.id, f"arch:{item.id}", predefined)
+        product.Tag = item.id
+        product.ObjectType = item_type.id
+        product.Description = label
+        w.extrusion(
+            product, _footprint_profile(w, centre, item_type.thickness, item.id), top - bottom, None
+        )
+        w.place(product, _placement((0, 0, bottom), (1, 0, 0), (0, 0, 1)))
+        contain(product, item.base, bottom)
+        ids[item.id] = product.GlobalId
+        return product
+
+    curtain_types = {t.id: t for t in arch.curtainWallTypes}
+    for curtain in arch.curtainWalls:
+        kind = curtain_types[curtain.type]
+        product = along_path("IfcCurtainWall", "USERDEFINED", curtain, kind, kind.name)
+        if product is not None:
+            product.ObjectType = kind.id
+            pset(
+                product,
+                {
+                    "Id": curtain.id,
+                    "Weight": round(kind.weight, 3),
+                    "MullionSpacing": float(kind.mullionSpacing),
+                    "TransomSpacing": float(kind.transomSpacing),
+                },
+            )
+
+    railing_types = {t.id: t for t in arch.railingTypes}
+    for railing in arch.railings:
+        kind = railing_types[railing.type]
+        product = along_path(
+            "IfcRailing", "GUARDRAIL", railing_as_wall(railing, kind), kind, kind.name
+        )
+        if product is not None:
+            pset(product, {"Id": railing.id, "Weight": float(kind.weight)})
+
+    roof_types = {t.id: t for t in arch.roofTypes}
+    for roof in arch.roofs:
+        if roof.story not in elevations:
+            skipped.append(f"{roof.id}: no story '{roof.story}'")
+            continue
+        kind = roof_types[roof.type]
+        polygon = roof_polygon(roof)
+        if polygon.is_empty or polygon.geom_type != "Polygon":
+            skipped.append(f"{roof.id}: its outline is not one polygon")
+            continue
+        level = elevations[roof.story] + roof.baseOffset
+        product = w.entity(
+            "IfcRoof", roof.id, f"arch:{roof.id}", "SHED_ROOF" if roof.slope else "FLAT_ROOF"
+        )
+        product.Tag = roof.id
+        product.ObjectType = kind.id
+        product.Description = kind.name
+        outline = [(x * _SI, y * _SI) for x, y in list(polygon.exterior.coords)]
+        profile = w.run("profile.add_arbitrary_profile", w.file, profile=outline, name=roof.id)
+        w.extrusion(product, profile, kind.thickness, None)
+        w.place(product, _placement((0, 0, level), (1, 0, 0), (0, 0, 1)))
+        contain(product, roof.story, level)
+        pset(
+            product,
+            {
+                "Id": roof.id,
+                "Slope": float(roof.slope),
+                "Direction": float(roof.direction),
+                "Occupancy": roof.occupancy or "",
+            },
+        )
+        ids[roof.id] = product.GlobalId
+
+    for ramp in arch.ramps:
+        if ramp.story not in elevations:
+            skipped.append(f"{ramp.id}: no story '{ramp.story}'")
+            continue
+        (x0, y0), (x1, y1) = ramp.start, ramp.end
+        run = math.hypot(x1 - x0, y1 - y0)
+        dx, dy = (x1 - x0) / run, (y1 - y0) / run
+        level = elevations[ramp.story]
+        product = w.entity("IfcRamp", ramp.id, f"arch:{ramp.id}", "STRAIGHT_RUN_RAMP")
+        product.Tag = ramp.id
+        # The side of the ramp (along it, up) extruded across its width: local X along the
+        # ramp, Z across it (to its right), so Y = Z x X is up.
+        side = [(0.0, 0.0), (run * _SI, 0.0), (run * _SI, max(ramp.rise, 50.0) * _SI)]
+        if ramp.rise <= 0:
+            side.append((0.0, 50.0 * _SI))  # a level ramp: a 50 mm topping
+        profile = w.run(
+            "profile.add_arbitrary_profile", w.file, profile=[*side, side[0]], name=ramp.id
+        )
+        w.extrusion(product, profile, ramp.width, None)
+        origin = (x0 - dy * ramp.width / 2, y0 + dx * ramp.width / 2, level)
+        w.place(product, _placement(origin, (dx, dy, 0.0), (dy, -dx, 0.0)))
+        contain(product, ramp.story, level)
+        pset(
+            product,
+            {
+                "Id": ramp.id,
+                "Rise": float(ramp.rise),
+                "Width": float(ramp.width),
+                "Finish": ramp.finish or "",
+                "Occupancy": ramp.occupancy or "",
+            },
+        )
+        ids[ramp.id] = product.GlobalId
 
 
 def _guid(key: str) -> str:
@@ -924,6 +1069,10 @@ def architecture_summary(arch: Architecture) -> dict[str, int]:
         "doors": len(arch.doors),
         "windows": len(arch.windows),
         "rooms": len(arch.rooms),
+        "curtainWalls": len(arch.curtainWalls),
+        "roofs": len(arch.roofs),
+        "ramps": len(arch.ramps),
+        "railings": len(arch.railings),
     }
 
 

@@ -54,6 +54,22 @@ spread over the panel uniform). The room's face (to the wall centre lines) is us
 of a floor tile it and no area takes two finishes; the bill of quantities measures the finish
 over the net floor.
 
+**Curtain walls and railings.** A curtain wall is loaded as a wall (its pieces on beams and
+slabs as above), its weight the curtain wall type's per m² of wall (glass and frame) times its
+clear height; it is a facade, not a partition, so it does not drop the story's partition
+allowance. A railing is loaded the same way with its type's weight per metre run (Sec 2.2,
+the actual weight of the materials). The horizontal load a guard must resist is for the
+railing's own design and its fixings, not a load on the building's frame.
+
+**Roofs and ramps.** A roof's covering (its type's layers, per m² of slope, so divided by the
+cosine of its pitch per m² of plan) is SD over its outline on its story, instead of the floor's
+flat finish there, as a room's floor finish; a roof with an occupancy (BNBC's roof uses, Table
+6.2.3) carries its live load instead of the floor's. A ramp built up on a floor carries its
+filling (the mean of its rise, ``rise / 2``, times the fill's unit weight; uniform over the ramp,
+its total exact) and its floor finish as SD over its footprint, and its occupancy's live load.
+Where they overlap rooms, a ramp takes its footprint from the room (it sits on the room's
+floor) and a roof takes only what no room or ramp of its level holds.
+
 The architecture has no typical floors: a wall is on the stories it is drawn on.
 Units: mm and kN in the architecture; m and N in the analysis model.
 """
@@ -137,7 +153,9 @@ class ArchitectureLoads:
 
 
 def has_loads(arch: arch_lib.Architecture | None) -> bool:
-    return arch is not None and bool(arch.walls or arch.rooms)
+    return arch is not None and bool(
+        arch.walls or arch.rooms or arch.curtainWalls or arch.roofs or arch.ramps or arch.railings
+    )
 
 
 def finish_weight(finish: arch_lib.FinishType, wet: bool) -> float:
@@ -223,6 +241,34 @@ def architecture_loads(
                 out,
             )
 
+    if apply_walls:
+        context = _Context(
+            elevations,
+            base,
+            story_at,
+            at_level,
+            beam_size,
+            thickness_of,
+            fp_walls,
+            fp_wall_ids,
+            {bm.id: bm for bm in beams},
+        )
+        curtain_types = {t.id: t for t in arch.curtainWallTypes}
+        for curtain in arch.curtainWalls:
+            _wall(curtain, curtain_types[curtain.type], [], context, out, partition=False)
+        railing_types = {t.id: t for t in arch.railingTypes}
+        for railing in arch.railings:
+            railing_type = railing_types[railing.type]
+            _wall(
+                arch_lib.railing_as_wall(railing, railing_type),
+                railing_type,
+                [],
+                context,
+                out,
+                partition=False,
+                line_weight=railing_type.weight,
+            )
+
     uses = _uses()
     finishes = {t.id: t for t in arch.finishTypes}
     for room in arch.rooms:
@@ -266,7 +312,102 @@ def architecture_loads(
                 "live_kNm2": live,
             }
         )
+    _ramps_and_roofs(arch, elevations, uses, finishes, out)
     return out
+
+
+def _live_of(item: Any, uses: dict[str, Any], out: ArchitectureLoads) -> float | None:
+    """The live load [kN/m²] of an item's occupancy from the code pack, else None (noted)."""
+    if not item.occupancy:
+        return None
+    use = uses.get(item.occupancy)
+    if use is None:
+        out.notes.append(
+            f"{item.id}: no area use '{item.occupancy}' in the code pack; the floor's live load "
+            "is kept"
+        )
+        return None
+    return float(use.live)
+
+
+def _ramps_and_roofs(
+    arch: arch_lib.Architecture,
+    elevations: dict[str, float],
+    uses: dict[str, Any],
+    finishes: dict[str, arch_lib.FinishType],
+    out: ArchitectureLoads,
+) -> None:
+    """The ramps' and roofs' area loads into ``out.rooms`` (see the module's notes)."""
+    import dataclasses
+
+    for ramp in arch.ramps:
+        if ramp.story not in elevations:
+            out.notes.append(f"{ramp.id}: no story '{ramp.story}'; its loads are not applied")
+            continue
+        level = elevations[ramp.story]
+        footprint = arch_lib.ramp_polygon(ramp)
+        finish = finishes.get(ramp.finish) if ramp.finish else None
+        fill = ramp.rise / 2 / 1000 * ramp.fillUnitWeight  # kN/m², the mean depth's
+        finish_kn = (finish_weight(finish, False) if finish is not None else 0.0) + fill
+        live = _live_of(ramp, uses, out)
+        if not finish_kn and live is None:
+            continue
+        # The ramp sits on the room's floor: the room keeps the rest.
+        out.rooms = [
+            dataclasses.replace(r, polygon=r.polygon.difference(footprint))
+            if abs(r.elevation - level) < LEVEL
+            else r
+            for r in out.rooms
+        ]
+        out.rooms.append(RoomLoad(ramp.id, ramp.story, level, footprint, finish_kn or None, live))
+        out.room_rows.append(
+            {
+                "room": ramp.id,
+                "name": "Ramp",
+                "number": "",
+                "story": ramp.story,
+                "area_m2": round(footprint.area * 1e-6, 3),
+                "finish": ramp.finish,
+                "finish_kNm2": round(finish_kn, 3) if finish_kn else None,
+                "sunk": False,
+                "use": ramp.occupancy if live is not None else None,
+                "live_kNm2": live,
+                "kind": "ramp",
+                "gradient": round(arch_lib.ramp_gradient(ramp), 4),
+            }
+        )
+    roof_types = {t.id: t for t in arch.roofTypes}
+    for roof in arch.roofs:
+        if roof.story not in elevations:
+            out.notes.append(f"{roof.id}: no story '{roof.story}'; its loads are not applied")
+            continue
+        level = elevations[roof.story]
+        taken = unary_union([r.polygon for r in out.rooms if abs(r.elevation - level) < LEVEL])
+        outline = arch_lib.roof_polygon(roof)
+        polygon = outline.difference(taken) if not taken.is_empty else outline
+        if polygon.is_empty or polygon.area <= 0:
+            out.notes.append(
+                f"{roof.id}: rooms or ramps cover all of it; its loads are not applied"
+            )
+            continue
+        covering = roof_types[roof.type].weight / math.cos(math.radians(roof.slope))
+        live = _live_of(roof, uses, out)
+        out.rooms.append(RoomLoad(roof.id, roof.story, level, polygon, covering, live))
+        out.room_rows.append(
+            {
+                "room": roof.id,
+                "name": "Roof",
+                "number": "",
+                "story": roof.story,
+                "area_m2": round(polygon.area * 1e-6, 3),
+                "finish": roof.type,
+                "finish_kNm2": round(covering, 3),
+                "sunk": False,
+                "use": roof.occupancy if live is not None else None,
+                "live_kNm2": live,
+                "kind": "roof",
+            }
+        )
 
 
 @dataclass(frozen=True)
@@ -287,12 +428,18 @@ class _Context:
 
 def _wall(
     wall: arch_lib.ArchWall,
-    wall_type: arch_lib.WallType,
+    wall_type: Any,
     wall_openings: list[tuple[float, float, float, float]],
     ctx: _Context,
     out: ArchitectureLoads,
+    partition: bool = True,
+    line_weight: float | None = None,
 ) -> None:
-    """The pieces of ``wall`` and their loads into ``out``."""
+    """The pieces of ``wall`` and their loads into ``out``. ``wall_type``: a wall type, or a
+    curtain wall or railing type (its ``id``, ``thickness``, ``locationLine`` and ``weight``).
+    ``partition``: a partition (its story drops the flat partition allowance); ``line_weight``:
+    a load per metre run [kN/m] instead of the type's weight per m² times the clear height
+    (a railing's)."""
     elevations, base, story_at = ctx.elevations, ctx.base, ctx.story_at
     at_level, beam_size, thickness_of = ctx.at_level, ctx.beam_size, ctx.thickness_of
     fp_walls, fp_wall_ids, beam_of = ctx.fp_walls, ctx.fp_wall_ids, ctx.beam_of
@@ -320,7 +467,8 @@ def _wall(
         return
     bottom, top = levels
     floor = elevations[wall.base]
-    out.walled.add(wall.base)
+    if partition:
+        out.walled.add(wall.base)
     height = top - bottom
     rises_to_level = any(abs(top - z) < LEVEL for z in elevations.values())
     beams_here, slabs_here = at_level(floor)
@@ -404,8 +552,12 @@ def _wall(
                 * max(0.0, min(clear, o_top - offset) - max(0.0, sill - offset))
                 for o_lo, o_hi, sill, o_top in wall_openings
             )
-            # kN/m: w × (h × L − A) / L, the piece's line average.
-            load = weight * max(0.0, clear * piece_length - open_area) / piece_length / 1000
+            # kN/m: w × (h × L − A) / L, the piece's line average (a railing's: its weight per m).
+            load = (
+                line_weight
+                if line_weight is not None
+                else weight * max(0.0, clear * piece_length - open_area) / piece_length / 1000
+            )
             total = load * piece_length * MM
             details = {
                 "member": member,

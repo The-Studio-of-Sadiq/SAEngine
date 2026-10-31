@@ -12,7 +12,7 @@ import { closedPmCurve, columnDecimals, defaultChartResult, displayTable, export
 import { defaultResult, deflectionMagnification, modeText, resultOptions, scaleText } from '../../browser/femResultsBar.js';
 import { groupedOptions } from '../../browser/femModelEditor.js';
 import { chartUnits, memberNames } from '../../browser/femResultsView.js';
-import { cameraOf, freeTopColumns, gridLines, IFilterModel, modelLevels, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
+import { cameraOf, formatPlanPath, freeTopColumns, gridLines, IFilterModel, modelLevels, parsePlanPath, perimeterPath, viewChoices, visibleElements } from '../../browser/femViewFilter.js';
 
 const row = (name: string, z: number, values: Partial<Record<string, number | null>>) => ({
 	name, z, height: null, dispX: null, dispY: null, avgDispX: null, avgDispY: null, driftX: null, driftY: null,
@@ -303,6 +303,21 @@ suite('SAEngine - FEM view filters', () => {
 		assert.deepStrictEqual([...visibleElements(model, { kind: 'elevation', axis: 'x', at: 5 })!].sort((a, b) => a - b), [2, 5, 9]);
 		assert.strictEqual(visibleElements(model, { kind: 'storey', bottom: 0, top: 3, name: 'Roof' })!.size, 10);
 		assert.deepStrictEqual([cameraOf({ kind: 'plan', z: 3, name: '' }), cameraOf({ kind: 'elevation', axis: 'x', at: 0 }), cameraOf({ kind: 'elevation', axis: 'y', at: 0 }), cameraOf({ kind: 'all' })], ['top', 'side', 'front', '3d']);
-		assert.deepStrictEqual(viewChoices(model).map(v => v.choice.kind), ['all', 'plan', 'elevation', 'elevation', 'elevation', 'elevation', 'elevation', 'storey']);
+		assert.deepStrictEqual(viewChoices(model).map(v => v.choice.kind), ['all', 'plan', 'elevation', 'elevation', 'elevation', 'elevation', 'elevation', 'storey', 'developed']);
+		// The developed perimeter's elements are found by the viewer; it looks along the unfolded plane.
+		assert.strictEqual(visibleElements(model, { kind: 'developed', path: [[0, 0], [10, 0]], name: 'custom' }), undefined);
+		assert.strictEqual(cameraOf({ kind: 'developed', path: [[0, 0], [10, 0]], name: 'custom' }), 'front');
+		assert.strictEqual(viewChoices(model, undefined, [[0, 0], [10, 0], [10, 4]]).at(-1)?.label, 'Developed Elevation: 0, 0; 10, 0; 10, 4');
+	});
+
+	test('a developed elevation walks the outer column lines, or a path typed in', () => {
+		assert.deepStrictEqual(perimeterPath(model), [[0, 0], [10, 0], [10, 4], [0, 4], [0, 0]]);
+		assert.strictEqual(perimeterPath({ ...model, elements: model.elements.filter(e => e.id !== 4 && e.id !== 5 && e.id !== 6) }), undefined);
+		assert.deepStrictEqual(parsePlanPath('0, 0; 12,0;12 9'), { path: [[0, 0], [12, 0], [12, 9]] });
+		assert.deepStrictEqual(parsePlanPath('0 0\n5 0'), { path: [[0, 0], [5, 0]] });
+		assert.ok('error' in parsePlanPath('0, 0'));
+		assert.ok('error' in parsePlanPath('0, 0; a, 1'));
+		assert.ok('error' in parsePlanPath('1, 1; 1, 1'));
+		assert.strictEqual(formatPlanPath([[0, 0], [12.5, 0.0004]]), '0, 0; 12.5, 0');
 	});
 });

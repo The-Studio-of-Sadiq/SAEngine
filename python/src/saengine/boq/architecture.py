@@ -8,7 +8,11 @@
   (inside the wall faces), wall finishes over the room's walls to its clear height;
 - doors and windows counted per type (nr), with their sizes;
 - the cement and sand of the brickwork's mortar and of the plaster, from their mixes in 03
-  Materials (the materials take-off of the bill).
+  Materials (the materials take-off of the bill);
+- curtain walls (m² per curtain wall type, each along its centre line over its full height);
+- roof coverings (m² of roof surface along the slope, per roof type and layer);
+- ramps (their filling in m³, their floor finish in m² along the slope);
+- railings (m run per railing type).
 
 The walls are measured where the analysis model loads them (the pieces of
 :func:`saengine.fem.architecture_loads.architecture_loads`, one geometry for both): a wall's
@@ -53,6 +57,12 @@ ARCHITECTURE_CONVENTIONS = [
         "measured with the building model's walls, never both. The mortar of brickwork and "
         "plaster is taken off by its mix."
     ),
+    (
+        "Curtain walls in m² along their centre line over their full height (base to top, past "
+        "the slab edges); roof coverings in m² of the roof's surface along its slope, per layer "
+        "of the roof type; ramps' filling in m³ (footprint times half the rise) and their floor "
+        "finish in m² along the slope; railings in metres run along their path."
+    ),
 ]
 
 
@@ -63,7 +73,7 @@ def _is_plaster(layer: arch_lib.WallLayer) -> bool:
 def measure_architecture(measure: Any, arch: arch_lib.Architecture, objects: Any) -> bool:
     """Adds the architecture's items to ``measure`` (a :class:`saengine.boq.quantities.
     _Measure`); whether there was anything to measure."""
-    if not (arch.walls or arch.rooms or arch.doors or arch.windows):
+    if not has_content(arch):
         return False
     building = measure.building
     bill = measure.bill
@@ -144,6 +154,7 @@ def measure_architecture(measure: Any, arch: arch_lib.Architecture, objects: Any
         )
 
     _rooms(measure, arch, building, hosted, sizes)
+    _extras(measure, arch, building)
 
     for opening in [*arch.doors, *arch.windows]:
         door = isinstance(opening, arch_lib.Door)
@@ -265,6 +276,98 @@ def _rooms(
             )
 
 
+def _extras(measure: Any, arch: arch_lib.Architecture, building: Any) -> None:
+    """The curtain walls, roof coverings, ramps and railings (T46)."""
+    import itertools
+    import math
+
+    elevations = {s.id: s.elevation for s in building.stories}
+    bill = measure.bill
+    curtain_types = {t.id: t for t in arch.curtainWallTypes}
+    for curtain in arch.curtainWalls:
+        levels = arch_lib.wall_levels(curtain, elevations)
+        if levels is None:
+            continue
+        kind = curtain_types[curtain.type]
+        length = sum(math.dist(a, b) for a, b in itertools.pairwise(curtain.path))
+        bill.add(
+            "finishes",
+            (5, kind.id),
+            f"Curtain wall {kind.id}: {kind.name}, glass {kind.glassThickness:g} mm, mullions at "
+            f"{kind.mullionSpacing:g} mm, transoms at {kind.transomSpacing:g} mm",
+            "m2",
+            curtain.id,
+            length * MM * (levels[1] - levels[0]) * MM,
+            story=curtain.base,
+            kind="curtainWall",
+        )
+    roof_types = {t.id: t for t in arch.roofTypes}
+    for roof in arch.roofs:
+        if roof.story not in elevations:
+            continue
+        kind = roof_types[roof.type]
+        _, surface = arch_lib.roof_area(roof)
+        for layer in kind.layers:
+            bill.add(
+                "finishes",
+                (6, kind.id, layer.material),
+                f"Roof covering: {layer.material} {layer.thickness:g} mm in {kind.name} "
+                f"({kind.id})",
+                "m2",
+                roof.id,
+                surface * MM2,
+                story=roof.story,
+                detail=f"{roof.slope:g}° pitch" if roof.slope else "flat",
+                kind="roof",
+            )
+    finishes = {t.id: t for t in arch.finishTypes}
+    for ramp in arch.ramps:
+        if ramp.story not in elevations:
+            continue
+        footprint = arch_lib.ramp_polygon(ramp).area  # mm²
+        run = math.dist(ramp.start, ramp.end)
+        if ramp.rise > 0 and ramp.fillUnitWeight > 0:
+            bill.add(
+                "finishes",
+                (7, "fill"),
+                "Filling under ramps (mean depth: half the rise)",
+                "m3",
+                ramp.id,
+                footprint * MM2 * ramp.rise / 2 * MM,
+                story=ramp.story,
+                detail=f"rise {ramp.rise:g} mm, 1 in {run / ramp.rise:.1f}",
+                kind="filling",
+            )
+        finish = finishes.get(ramp.finish or "")
+        if finish is not None:
+            bill.add(
+                "finishes",
+                (7.1, finish.id),
+                f"Ramp finish: {finish.name} ({finish.id}), {finish.thickness:g} mm",
+                "m2",
+                ramp.id,
+                footprint * MM2 * arch_lib.ramp_length(ramp) / run,
+                story=ramp.story,
+                kind=finish.kind,
+            )
+    railing_types = {t.id: t for t in arch.railingTypes}
+    for railing in arch.railings:
+        if railing.base not in elevations:
+            continue
+        kind = railing_types[railing.type]
+        length = sum(math.dist(a, b) for a, b in itertools.pairwise(railing.path))
+        bill.add(
+            "finishes",
+            (8, kind.id),
+            f"Railing {kind.id}: {kind.name}, {kind.height:g} mm high",
+            "m",
+            railing.id,
+            length * MM,
+            story=railing.base,
+            kind="railing",
+        )
+
+
 def _masonry_material(measure: Any) -> Any:
     """The first masonry material of 03 Materials (the brickwork's, by default)."""
     return next((m for m in measure.materials.values() if m.category == Category.MASONRY), None)
@@ -288,4 +391,13 @@ def _plaster_mortar(measure: Any, masonry: Any) -> str | None:
 
 
 def has_content(arch: arch_lib.Architecture | None) -> bool:
-    return arch is not None and bool(arch.walls or arch.rooms or arch.doors or arch.windows)
+    return arch is not None and bool(
+        arch.walls
+        or arch.rooms
+        or arch.doors
+        or arch.windows
+        or arch.curtainWalls
+        or arch.roofs
+        or arch.ramps
+        or arch.railings
+    )
