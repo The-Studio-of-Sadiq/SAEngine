@@ -76,7 +76,10 @@ Methods:
   stale, notes, problems}``; ``saengine.pipeline.drawings``; in a worker thread; ``sheets``: only
   those sheet numbers); ``drawings/list`` ``{projectRoot}`` -> the
   same for the last generation with ``stale``/``staleReason``/``changed``;
-  ``drawings/progress`` ``{projectRoot}`` -> ``{running, step, index, count, message}``
+  ``drawings/progress`` ``{projectRoot}`` -> ``{running, step, index, count, message}``;
+  ``drawings/issue`` ``{projectRoot, code?, date?, description?, by?, purpose?, sheets?,
+  force?, dwg?}`` -> the generate answer with ``issued`` (in a worker thread);
+  ``drawings/dwg`` ``{projectRoot, sheets?}`` -> ``{written, folder, problems}`` (dxf2dwg)
 - ``soil/report`` ``{soilText, settingsText?, projectRoot?}`` -> everything computed from the soil report
 - ``soil/allowableBearing`` ``{soilText, settingsText?, x, y, foundingLevel, b, l,
   projectRoot?}`` -> qa [kPa]
@@ -610,6 +613,18 @@ def create_server() -> JsonRPCServer:
             args.get("size"),
             json.loads(text) if text else None,
         )
+
+    @server.feature("drawings/issue")
+    @_in_worker
+    def _drawings_issue(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_issue(args["projectRoot"], args)
+
+    @server.feature("drawings/dwg")
+    @_in_worker
+    def _drawings_dwg(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_dwg(args["projectRoot"], args.get("sheets"))
 
     @server.feature("drawings/list")
     def _drawings_list(params: Any) -> dict[str, Any]:

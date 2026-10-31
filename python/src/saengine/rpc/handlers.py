@@ -2001,6 +2001,41 @@ def drawings_list(project_root: str) -> dict[str, Any]:
     return list_drawings(project_root)
 
 
+def drawings_issue(project_root: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Issues the drawing set (``saengine.pipeline.drawings.issue``): every sheet drawn again,
+    the new or changed ones with the new revision, copied into ``Issued/<rev> <date>``; the
+    answer of ``drawings_generate`` with ``issued``, or ``{sheets: [], problems}``."""
+    from saengine.pipeline.drawings import DrawingsError, issue
+
+    try:
+        return issue(
+            project_root,
+            args.get("code") or None,
+            args.get("date") or None,
+            str(args.get("description") or ""),
+            str(args.get("by") or ""),
+            str(args.get("purpose") or ""),
+            args.get("sheets") or None,
+            force=bool(args.get("force")),
+            dwg=bool(args.get("dwg")),
+        )
+    except DrawingsError as error:
+        return {"sheets": [], "notes": [], "problems": [str(error)]}
+    except (ValueError, OSError) as error:
+        return {"sheets": [], "notes": [], "problems": [_first_line(error)]}
+
+
+def drawings_dwg(project_root: str, sheets: list[str] | None = None) -> dict[str, Any]:
+    """The current sheets as DWG (LibreDWG's dxf2dwg, a separate program):
+    ``{written, folder, problems}``."""
+    from saengine.pipeline.drawings import export_dwg
+
+    try:
+        return export_dwg(project_root, sheets or None)
+    except OSError as error:
+        return {"written": [], "folder": None, "problems": [_first_line(error)]}
+
+
 def drawings_progress(project_root: str) -> dict[str, Any]:
     """Where a generation of the project is (``{running: false}`` when none runs)."""
     from saengine.pipeline.drawings import progress
