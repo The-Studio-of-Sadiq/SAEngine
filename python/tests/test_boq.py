@@ -419,7 +419,8 @@ def test_text_for_the_workbench() -> None:
     result = compute_boq_text(bim, json.dumps(OBJECTS), MATERIALS)
     document = json.loads(result["text"])
     assert document["schema"] == "saengine.boq/1"
-    assert set(document["source"]) == {"bim", "objects", "materials"}
+    # materialIds: the materials the bill used, whose entries alone stamp it (N-Q3).
+    assert set(document["source"]) == {"bim", "objects", "materials", "materialIds"}
     assert result["notes"] == document["notes"]
     problems = compute_boq_text("{}", '{"objects": [{"id": 1}]}', MATERIALS)["problems"]
     assert problems and all(p.startswith("Object types: ") for p in problems)

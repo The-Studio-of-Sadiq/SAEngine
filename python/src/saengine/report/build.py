@@ -1679,8 +1679,9 @@ def _appendix(
             f"governs the {len(members)} of type {type_id}{where}" if len(members) > 1 else ""
         )
         for e in members:
+            # A failing element's title already ends in FAIL: no reason to add.
             if not e.get("ok") and id(e) not in chosen:
-                chosen[id(e)] = "fails"
+                chosen[id(e)] = ""
     return [(e, chosen[id(e)]) for e in elements if id(e) in chosen]
 
 
