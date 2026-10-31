@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The page of a planned feature: a calm, readable column with a muted preview form. */
+
+.saengine-planned {
+	box-sizing: border-box;
+	overflow: auto;
+	padding: var(--sa-space-6, 24px);
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+	outline: none;
+}
+
+.saengine-planned .page {
+	max-width: 640px;
+	margin: 0 auto;
+	line-height: 1.5;
+}
+
+.saengine-planned .badge,
+.saengine-planned-chip .tag {
+	display: inline-block;
+	padding: 1px var(--sa-space-2, 8px);
+	border-radius: 999px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-planned h1 {
+	margin: var(--sa-space-3, 12px) 0 0;
+	font-size: var(--sa-font-xl, 20px);
+	font-weight: 600;
+}
+
+.saengine-planned h2 {
+	margin: var(--sa-space-5, 20px) 0 var(--sa-space-2, 8px);
+	font-size: var(--sa-font-m, 13px);
+	font-weight: 600;
+}
+
+.saengine-planned .part,
+.saengine-planned .note,
+.saengine-planned .references {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-planned .part {
+	margin: var(--sa-space-1, 4px) 0 0;
+}
+
+.saengine-planned .summary {
+	margin: var(--sa-space-3, 12px) 0 0;
+}
+
+.saengine-planned ol,
+.saengine-planned ul {
+	margin: 0;
+	padding-left: var(--sa-space-5, 20px);
+}
+
+.saengine-planned .form {
+	display: grid;
+	gap: var(--sa-space-2, 8px);
+	opacity: 0.7;
+}
+
+.saengine-planned .form .row {
+	display: grid;
+	grid-template-columns: minmax(140px, 1fr) minmax(120px, 200px) 56px;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-planned .form input {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+	cursor: not-allowed;
+}
+
+.saengine-planned .form .unit {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-planned .note {
+	margin: var(--sa-space-6, 24px) 0 0;
+	font-size: var(--sa-font-s, 12px);
+}
+
+/* The chip a part places where the feature will appear. */
+
+.saengine-planned-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	padding: 2px var(--sa-space-2, 8px);
+	border: 1px dashed var(--vscode-input-border, var(--vscode-descriptionForeground));
+	border-radius: 4px;
+	background: transparent;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+}
+
+.saengine-planned-chip:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-planned-chip:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
