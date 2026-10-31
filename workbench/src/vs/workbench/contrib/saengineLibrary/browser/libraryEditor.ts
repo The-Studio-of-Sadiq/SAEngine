@@ -93,6 +93,19 @@ const KIND_MATERIALS: { readonly [kind: string]: readonly string[] } = {
 	pile: ['concrete', 'steel', 'other'],
 };
 
+/** What each kind of object type is for, under the Kind field. */
+const KIND_HELP: { readonly [kind: string]: string } = {
+	beam: localize('library.kindBeam', "A beam: a line member between supports, with its section, material and bars. The floor plan places it between grid points."),
+	column: localize('library.kindColumn', "A column: a vertical member rising between storeys. Its bars go round the perimeter; ρ is shown below them."),
+	brace: localize('library.kindBrace', "A brace: a steel diagonal between storeys, with its gusset connection."),
+	slab: localize('library.kindSlab', "A slab: a floor or roof plate of a thickness, spanning one or two ways between beams (or flat on columns). The floor plan fills panels with it; Project Settings › Area Loads give its loads."),
+	wall: localize('library.kindWall', "A wall: a structural (shear) wall of a thickness, rising between storeys. Partition walls are loads, not object types."),
+	staircase: localize('library.kindStaircase', "A staircase: its waist, risers and treads, and the landings."),
+	footing: localize('library.kindFooting', "A footing: designed in 9 Substructure; this type gives its material and bars."),
+	pileCap: localize('library.kindPileCap', "A pile cap on bored piles of a pile type; designed in 9 Substructure."),
+	pile: localize('library.kindPile', "A bored pile: its diameter, length and bars; pile caps refer to it."),
+};
+
 /** Ec = 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1) and fr = 0.62 √f'c (Eq. 6.6.3), rounded as the defaults are. */
 export function concreteFromFc(fc: number): { readonly E: number; readonly fr: number } {
 	const root = Math.sqrt(fc);
@@ -102,6 +115,50 @@ export function concreteFromFc(fc: number): { readonly E: number; readonly fr: n
 /** Whether `value` is the code relation of `fc` (within rounding): it then follows f'c. */
 function follows(value: JsonValue | undefined, derived: number): boolean {
 	return typeof value !== 'number' || Math.abs(value - derived) <= Math.max(0.005 * derived, 0.01);
+}
+
+/**
+ * Column steel ratio limits: at least 1 % (ACI 318 10.6.1.1, as BNBC 2020 Part 6 Chapter 6;
+ * the design reads the code pack's `columnRho`), and above 4 % the lapped bars crowd the
+ * section (ACI 318 R10.6.1.1), so a warning, not an error.
+ */
+const COLUMN_RHO_MIN = 0.01;
+const COLUMN_RHO_PRACTICAL = 0.04;
+
+/** Gross area of a solid rectangle or circle profile [mm²]; undefined for other shapes. */
+export function grossArea(profile: JsonValue | undefined): number | undefined {
+	if (!isObject(profile)) {
+		return undefined;
+	}
+	if (profile.shape === 'rectangle' && typeof profile.xDim === 'number' && typeof profile.yDim === 'number') {
+		return profile.xDim * profile.yDim;
+	}
+	if (profile.shape === 'circle' && typeof profile.radius === 'number') {
+		return Math.PI * profile.radius ** 2;
+	}
+	return undefined;
+}
+
+/** Area of the longitudinal bars of a linear reinforcement [mm²]. */
+export function longitudinalArea(reinforcement: JsonValue | undefined): number {
+	const groups = isObject(reinforcement) && Array.isArray(reinforcement.longitudinal) ? reinforcement.longitudinal.filter(isObject) : [];
+	return groups.reduce((sum, g) => sum + (typeof g.count === 'number' && typeof g.dia === 'number' ? g.count * Math.PI * g.dia ** 2 / 4 : 0), 0);
+}
+
+/**
+ * The fewest perimeter bars of the usual sizes that give a column of gross area `area` at least
+ * 1 % steel: at least 4 bars (6 round a circle), in even counts.
+ */
+export function columnBars(area: number, circular: boolean): { readonly count: number; readonly dia: number } {
+	const options: { count: number; dia: number; steel: number }[] = [];
+	for (const dia of [16, 20, 25, 28, 32]) {
+		for (let count = circular ? 6 : 4; count <= 24; count += 2) {
+			options.push({ count, dia, steel: count * Math.PI * dia ** 2 / 4 });
+		}
+	}
+	options.sort((a, b) => a.steel - b.steel || a.count - b.count);
+	const best = options.find(o => o.steel >= COLUMN_RHO_MIN * area) ?? options[options.length - 1];
+	return { count: best.count, dia: best.dia };
 }
 
 /** The id prefix of a new material of each category. */
@@ -136,6 +193,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 	private readonly selections = new Map<string, string>();
 	/** f'c of the concrete whose form is shown, before the edit being typed (E and fr follow it). */
 	private formFc: number | undefined;
+	/** The column's steel ratio row (see renderSteelRatio), and the form it is in. */
+	private steelRatioRow: HTMLElement | undefined;
+	private steelRatioForm: HTMLElement | undefined;
 	/** The materials document, for which object types take the code's cracked factors (stiffness modifiers). */
 	private materialsDoc: JsonObject | undefined;
 
@@ -177,6 +237,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 			changed: (path, structural) => this.onFormChanged(path, structural),
 			mode: path => this.fieldMode(path),
 			placeholder: path => this.placeholder(path),
+			note: path => this.note(path),
+			label: path => path === 'reinforcement.material' ? localize('library.barMaterial', "Bar material") : undefined,
+			referenceLabel: (path, id) => path === 'profile.section' && id === '' ? localize('library.chooseSection', "Choose a section...") : undefined,
 			editing: active => this.fieldEditing(active),
 		});
 		this._register({ dispose: () => this.form.dispose() });
@@ -195,6 +258,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 		this.listContainer = append(master, $('.library-list', { role: 'listbox', tabIndex: 0 }));
 		this.detail = append(body, $('.library-detail'));
 		this._register(addDisposableListener(this.listContainer, EventType.KEY_DOWN, e => this.onListKey(new StandardKeyboardEvent(e))));
+		// A field's help does not linger over other fields while the form scrolls.
+		this._register(addDisposableListener(this.detail, EventType.SCROLL, () => this.hoverService.hideHover(true)));
 	}
 
 	protected override onWillLoadInput(): void {
@@ -318,11 +383,50 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (item && path === 'concrete.fc') {
 			this.followFc(item);
 		}
+		const renamed = !!item && this.config?.listKey === 'objects' && path !== 'name' && this.followName(item);
 		this.changed(structural);
-		if (!structural && (path === 'id' || path === 'name')) {
+		if (!structural && (path === 'id' || path === 'name' || renamed)) {
 			this.renderList();
 			this.renderDetailTitle();
 		}
+		if (!structural && item && this.steelRatioForm && (path.startsWith('reinforcement.') || path.startsWith('profile.'))) {
+			this.renderSteelRatio(this.steelRatioForm, item);
+		}
+	}
+
+	/**
+	 * A new object type's name ("New beam") follows its section while nobody has typed one:
+	 * "Beam 250 × 450", "Column Ø500". Returns whether the name changed.
+	 */
+	private followName(item: JsonObject): boolean {
+		const kind = humanize(String(item.kind ?? ''));
+		const name = String(item.name ?? '');
+		const generated = name === localize('library.newObjectName', "New {0}", kind.toLowerCase()) || name === this.generatedName;
+		const next = this.describedName(item);
+		if (!generated || !next || next === name) {
+			return false;
+		}
+		item.name = this.generatedName = next;
+		this.form.showValue('name', next);
+		return true;
+	}
+
+	/** The name last made from the section (see followName); a typed name differs from it. */
+	private generatedName: string | undefined;
+
+	private describedName(item: JsonObject): string | undefined {
+		const kind = humanize(String(item.kind ?? ''));
+		const profile = item.profile;
+		if (isObject(profile) && profile.shape === 'rectangle' && typeof profile.xDim === 'number' && typeof profile.yDim === 'number') {
+			return `${kind} ${profile.xDim} × ${profile.yDim}`;
+		}
+		if (isObject(profile) && profile.shape === 'circle' && typeof profile.radius === 'number') {
+			return `${kind} Ø${2 * profile.radius}`;
+		}
+		if (typeof item.thickness === 'number') {
+			return `${kind} ${item.thickness} mm`;
+		}
+		return undefined;
 	}
 
 	/**
@@ -370,6 +474,25 @@ export class LibraryEditor extends JsonDocumentEditor {
 		return undefined;
 	}
 
+	/** A concrete's E and fr that still follow f'c say so, so they do not read as typed overrides. */
+	private note(path: string): string | undefined {
+		const item = this.formItem ?? this.selected;
+		const concrete = item && isObject(item.concrete) ? item.concrete : undefined;
+		const fc = typeof concrete?.fc === 'number' && concrete.fc > 0 ? concrete.fc : undefined;
+		if (this.config?.listKey !== 'materials' || fc === undefined || !item) {
+			return undefined;
+		}
+		const derived = concreteFromFc(fc);
+		const mechanical = isObject(item.mechanical) ? item.mechanical : {};
+		if (path === 'mechanical.E' && typeof mechanical.E === 'number' && follows(mechanical.E, derived.E)) {
+			return localize('library.eFollows', "Code value 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1): follows f'c until you type another, e.g. from tests.");
+		}
+		if (path === 'concrete.ft' && typeof concrete!.ft === 'number' && follows(concrete!.ft, derived.fr)) {
+			return localize('library.frFollows', "Code value 0.62 √f'c (BNBC 2020 Part 6 Eq. 6.6.3): follows f'c until you type another.");
+		}
+		return undefined;
+	}
+
 	/** Lists the designed sections (`04 Objects/sections/<id>.json`) for designed profiles. */
 	private async refreshSections(): Promise<void> {
 		const root = this.projectService.project?.root;
@@ -397,9 +520,21 @@ export class LibraryEditor extends JsonDocumentEditor {
 	 * reinforcement's material a rebar.
 	 */
 	private template(key: string): JsonObject {
-		const kind = this.config?.listKey === 'objects' ? (this.formItem ?? this.selected)?.kind : undefined;
+		const item = this.config?.listKey === 'objects' ? this.formItem ?? this.selected : undefined;
+		const kind = item?.kind;
 		const value = clone((TEMPLATES[`${key}:${String(kind)}`] ?? TEMPLATES[key] ?? {}) as JsonObject);
 		this.fixReferences(value, /Reinforcement$/.test(key) ? 'reinforcement' : '');
+		if (key === 'DesignedProfile') {
+			// No made-up section id (it would be a problem at once): the first designed section, or
+			// none yet, chosen or made with the buttons beside the field.
+			value.section = this.sections[0] ?? '';
+		}
+		const area = grossArea(item?.profile);
+		if (key === 'LinearReinforcement' && kind === 'column' && area !== undefined && Array.isArray(value.longitudinal)) {
+			// The column's bars give it at least 1 % steel (the template's 8 Ø16 is 0.8 % of 450 × 450).
+			const bars = columnBars(area, isObject(item?.profile) && item.profile.shape === 'circle');
+			value.longitudinal = [{ position: 'perimeter', count: bars.count, dia: bars.dia }];
+		}
 		return value;
 	}
 
@@ -468,6 +603,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 			? localize('library.newMaterialName', "New {0}", humanize(variant.value).toLowerCase())
 			: localize('library.newObjectName', "New {0}", humanize(variant.value).toLowerCase());
 		delete item.source; // the template's source notes describe the default it was made from
+		if (!materials) {
+			// "Beam 250 × 450", following the section until a name is typed (see followName).
+			item.name = this.generatedName = this.describedName(item) ?? String(item.name);
+		}
 		(this.document[this.config.listKey] as JsonValue[]).push(item);
 		this.selectedId = item.id as string;
 		this.changed(true);
@@ -511,22 +650,63 @@ export class LibraryEditor extends JsonDocumentEditor {
 		}
 	}
 
+	/** The floor plan's members of object type `id`, counted by group ("12 columns"), from the saved or open floor plan. */
+	private async typeUsers(id: string): Promise<string[]> {
+		const root = this.projectService.project?.root;
+		const part = partById('floorPlan');
+		if (!root || !part?.mainFile) {
+			return [];
+		}
+		try {
+			const reference = await this.textModelService.createModelReference(joinPath(root, part.folder, part.mainFile));
+			try {
+				const plan = JSON.parse(reference.object.textEditorModel.getValue());
+				if (!isObject(plan)) {
+					return [];
+				}
+				return Object.entries(plan).flatMap(([group, list]) => {
+					const count = Array.isArray(list) ? list.filter(m => isObject(m) && m.type === id).length : 0;
+					return count ? [`${count} ${humanize(group).toLowerCase()}`] : [];
+				});
+			} finally {
+				reference.dispose();
+			}
+		} catch {
+			return [];
+		}
+	}
+
 	private async deleteItem(): Promise<void> {
 		const item = this.selected;
 		if (!item || !this.document || !this.config) {
 			return;
 		}
-		const users = this.config.listKey === 'materials' ? await this.materialUsers(String(item.id)) : [];
-		const { confirmed } = await this.dialogService.confirm({
-			type: users.length ? 'warning' : undefined,
-			message: users.length
-				? localize('library.deleteUsedConfirm', "'{0}' is used by {1} object type(s). Delete it anyway?", String(item.name ?? item.id), users.length)
-				: localize('library.deleteConfirm', "Delete '{0}'?", String(item.name ?? item.id)),
-			detail: users.length
+		const materials = this.config.listKey === 'materials';
+		const users = materials ? await this.materialUsers(String(item.id)) : await this.typeUsers(String(item.id));
+		const name = String(item.name ?? item.id);
+		const message = !users.length
+			? localize('library.deleteConfirm', "Delete '{0}'?", name)
+			: materials
+				? localize('library.deleteUsedConfirm', "'{0}' is used by {1} object type(s). Delete it anyway?", name, users.length)
+				: localize('library.deleteTypeUsedConfirm', "'{0}' is placed in the floor plan. Delete it anyway?", name);
+		const detail = !users.length
+			? localize('library.deleteDetail', "Anything that refers to {0} will show it as not defined. You can undo this with Ctrl+Z.", String(item.id))
+			: materials
 				? localize('library.deleteUsedDetail', "Used by: {0}. They will show {1} as not defined, and the analysis and design cannot run until each gets another material in 04 Objects. You can undo this with Ctrl+Z.", users.join(', '), String(item.id))
-				: localize('library.deleteDetail', "Anything that refers to {0} will show it as not defined. You can undo this with Ctrl+Z.", String(item.id)),
-			primaryButton: users.length ? localize('library.deleteAnyway', "&&Delete Anyway") : localize('library.delete', "&&Delete"),
-		});
+				: localize('library.deleteTypeUsedDetail', "Placed as {0} in 05 Floor Plan. They will show {1} as not defined, and the building model cannot be built until each gets another type. You can undo this with Ctrl+Z.", users.join(', '), String(item.id));
+		// Something in use is kept unless Delete is chosen: Keep is the default (Enter) button.
+		const { result: confirmed } = users.length
+			? await this.dialogService.prompt<boolean>({
+				type: 'warning',
+				message,
+				detail,
+				buttons: [
+					{ label: localize('library.keep', "&&Keep"), run: () => false },
+					{ label: localize('library.deleteAnyway', "&&Delete Anyway"), run: () => true },
+				],
+				cancelButton: { label: localize('library.cancel', "Cancel"), run: () => false },
+			})
+			: { result: (await this.dialogService.confirm({ message, detail, primaryButton: localize('library.delete', "&&Delete") })).confirmed };
 		if (!confirmed || this.selected !== item || !this.document) {
 			return;
 		}
@@ -587,7 +767,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 				return this.materialIds.members.filter(m => !allowed || allowed.includes(m.category)).map(m => m.id);
 			}
 			case 'reinforcement.material': return this.materialIds.rebar;
-			case 'profile.section': return this.sections;
+			case 'profile.section': return ['', ...this.sections];
 			case 'pile': return this.items.filter(i => i.kind === 'pile').map(i => String(i.id));
 		}
 		return undefined;
@@ -596,6 +776,11 @@ export class LibraryEditor extends JsonDocumentEditor {
 	/** Material property groups follow the category, mirroring the Python model's rules. */
 	private fieldMode(path: string): 'hidden' | 'required' | undefined {
 		const item = this.selected;
+		if (this.config?.listKey === 'objects' && item && path === 'connection' && item.connection === undefined) {
+			// The simple shear and gusset connections are steel members' (BNBC 2020 Part 6 Sec 10.10).
+			const material = this.materialIds.members.find(m => m.id === item.material);
+			return material?.category === 'steel' ? undefined : 'hidden';
+		}
 		if (this.config?.listKey !== 'materials' || !item) {
 			return undefined;
 		}
@@ -711,6 +896,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 			return;
 		}
 		this.formFc = isObject(item.concrete) && typeof item.concrete.fc === 'number' ? item.concrete.fc : undefined;
+		if (config.listKey === 'objects' && this.generatedName !== item.name) {
+			this.generatedName = undefined; // another entry, or a name typed meanwhile
+		}
 		const header = append(this.detail, $('.library-detail-header'));
 		this.detailTitle = append(header, $('.library-detail-title'));
 		this.renderDetailTitle();
@@ -736,6 +924,14 @@ export class LibraryEditor extends JsonDocumentEditor {
 			void this.renderDesignedSection(form, item);
 		}
 		if (config.listKey === 'objects') {
+			const help = KIND_HELP[String(item.kind)];
+			if (help) {
+				append(typeRow, $('.form-note', undefined, help));
+			}
+			this.steelRatioForm = form;
+			this.renderSteelRatio(form, item);
+		}
+		if (config.listKey === 'objects') {
 			// Stiffness modifiers and design overwrites of the type (the members inherit them).
 			renderModifiers(form, modifiersView('type', [objectTypeTarget(item, this.materialsDoc)], readCodeStiffness(undefined, undefined)), this.detailDisposables, {
 				contextViewService: this.contextViewService,
@@ -752,6 +948,41 @@ export class LibraryEditor extends JsonDocumentEditor {
 	}
 
 	/**
+	 * A column's longitudinal steel ratio ρ = As / Ag, read-only after its bars, with a warning
+	 * below 1 % (the code's minimum) or above 4 % (crowded laps).
+	 */
+	private renderSteelRatio(form: HTMLElement, item: JsonObject): void {
+		this.steelRatioRow?.remove();
+		this.steelRatioRow = undefined;
+		const area = grossArea(item.profile);
+		if (item.kind !== 'column' || area === undefined || !isObject(item.reinforcement)) {
+			return;
+		}
+		const rho = longitudinalArea(item.reinforcement) / area;
+		const row = this.steelRatioRow = $('.form-field.library-steel-ratio');
+		// After the bars it is worked out from (before the stiffness modifiers).
+		const bars = this.form.row('reinforcement.cover')?.closest('.form-group');
+		if (bars) {
+			bars.after(row);
+		} else {
+			form.appendChild(row);
+		}
+		append(append(row, $('.form-label-cell')), $('span.form-label', undefined, localize('library.steelRatio', "Steel ratio ρ")));
+		const control = append(row, $('.form-control', { 'aria-live': 'polite' }));
+		append(control, $('span', undefined, `${(rho * 100).toFixed(2)} %`));
+		const warning = rho < COLUMN_RHO_MIN
+			? localize('library.rhoLow', "Below the 1 % minimum of a column (ACI 318 10.6.1.1, as BNBC 2020 Part 6 Chapter 6): add bars or use larger ones.")
+			: rho > COLUMN_RHO_PRACTICAL
+				? localize('library.rhoHigh', "Above 4 %: the lapped bars crowd the section (ACI 318 R10.6.1.1); a larger column is usually better.")
+				: undefined;
+		if (warning) {
+			const warn = append(row, $('.library-problem.library-designed-warning'));
+			append(warn, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			append(warn, $('span', undefined, warning));
+		}
+	}
+
+	/**
 	 * A designed profile: New/Edit buttons for its section (Section Designer), and the section's
 	 * own material and bars, read-only, with a warning where the object type says otherwise.
 	 */
@@ -760,9 +991,16 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const sectionId = typeof profile.section === 'string' ? profile.section : undefined;
 		const root = this.projectService.project?.root;
 		const store = this.detailDisposables;
-		const row = append(form, $('.form-field.library-designed-section'));
-		append(append(row, $('.form-label-cell')), $('span.form-label', undefined, localize('library.designedSection', "Section Designer")));
-		const control = append(row, $('.form-control'));
+		const row = $('.form-field.library-designed-section');
+		// Right below the section it edits, not at the end of the form.
+		const field = this.form.row('profile.section');
+		if (field) {
+			field.after(row);
+		} else {
+			form.appendChild(row);
+		}
+		append(row, $('.form-label-cell'));
+		const control = append(row, $('.form-control.library-designed-actions'));
 		const exists = !!sectionId && this.sections.includes(sectionId);
 		if (exists && root) {
 			const edit = store.add(new Button(control, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -813,18 +1051,41 @@ export class LibraryEditor extends JsonDocumentEditor {
 		row.after(info);
 		append(append(info, $('.form-label-cell')), $('span.form-label', undefined, localize('library.sectionHas', "From the section")));
 		append(info, $('.form-control', undefined, localize('library.sectionValues', "{0}; bars {1}{2}", materials.join(', '), barText, section.rebar ? ` (${section.rebar})` : '')));
-		const warnings: string[] = [];
+		// The section is what is analysed and designed: a type saying otherwise is fixed in one click.
+		const fixes: { readonly text: string; readonly label: string; readonly run: (target: JsonObject) => void }[] = [];
+		const sectionMaterial = materials.length === 1 ? materials[0] : undefined;
 		if (typeof item.material === 'string' && !materials.includes(item.material)) {
-			warnings.push(localize('library.sectionMaterial', "The type's material {0} is not the section's {1}: make them the same.", item.material, materials.join(', ')));
+			fixes.push({
+				text: localize('library.sectionMaterial', "The type's material {0} is not the section's {1}: make them the same.", item.material, materials.join(', ')),
+				label: sectionMaterial ? localize('library.useSectionMaterial', "Use {0}", sectionMaterial) : '',
+				run: target => target.material = sectionMaterial!,
+			});
 		}
 		if (isObject(item.reinforcement) && section.bars.length) {
-			warnings.push(localize('library.sectionBars', "The section has its own bars ({0}); the type's Reinforcement describes others: turn it off or match it.", barText));
+			fixes.push({
+				text: localize('library.sectionBars', "The section has its own bars ({0}); the type's Reinforcement describes others: turn it off or match it.", barText),
+				label: localize('library.useSectionBars', "Use the Section's Bars"),
+				run: target => delete target.reinforcement,
+			});
 		}
-		if (warnings.length) {
+		let after: HTMLElement = info;
+		for (const fix of fixes) {
 			const warn = $('.library-problem.library-designed-warning');
-			info.after(warn);
+			after.after(warn);
+			after = warn;
 			append(warn, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
-			append(warn, $('span', undefined, warnings.join(' ')));
+			append(warn, $('span', undefined, fix.text));
+			if (fix.label) {
+				const button = store.add(new Button(append(warn, $('span.library-designed-fix')), { ...defaultButtonStyles, secondary: true }));
+				button.label = fix.label;
+				store.add(button.onDidClick(() => {
+					const target = this.items.find(i => i.id === item.id);
+					if (target) {
+						fix.run(target);
+						this.changed(true);
+					}
+				}));
+			}
 		}
 	}
 

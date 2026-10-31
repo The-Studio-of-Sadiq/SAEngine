@@ -969,3 +969,29 @@
 	width: auto;
 	padding: 2px 10px;
 }
+
+/* an entry's form keeps its fields, tables and their buttons together on a wide screen */
+.saengine-library-editor .library-detail .library-form {
+	max-width: 820px;
+}
+
+/* New/Edit beside the designed section field, and one-click fixes of a type the section contradicts */
+.saengine-library-editor .library-designed-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .library-designed-actions > .monaco-button,
+.saengine-library-editor .library-designed-fix > .monaco-button {
+	width: auto;
+	padding: 2px 10px;
+}
+
+.saengine-library-editor .library-designed-fix {
+	margin-left: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .library-steel-ratio .library-problem {
+	grid-column: 1 / -1;
+}

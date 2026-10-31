@@ -54,6 +54,8 @@ export interface ISchemaFormContext {
 	 * value is 0.20"), or a value derived from it (a column's ρ).
 	 */
 	note?(path: string): string | undefined;
+	/** A field's label other than its schema title, where two would read alike ("Bar material"). */
+	label?(path: string): string | undefined;
 	/** The option text of a reference (`references`) in its list, e.g. an area load with its loads; undefined: the id. */
 	referenceLabel?(path: string, id: string): string | undefined;
 	/**
@@ -131,6 +133,8 @@ export class SchemaForm {
 	private flat = false;
 	/** The text fields of the rendered form by path, so a value derived elsewhere can be shown in place. */
 	private readonly inputs = new Map<string, { readonly box: InputBox; readonly placeholder: () => void; readonly note: () => void }>();
+	/** The rows of the rendered form's fields by path (see {@link row}). */
+	private readonly rows = new Map<string, HTMLElement>();
 
 	constructor(
 		private readonly ctx: ISchemaFormContext,
@@ -141,6 +145,7 @@ export class SchemaForm {
 	render(container: HTMLElement, schema: IJSONSchema, value: JsonObject, skip: readonly string[] = [], options: ISchemaFormRenderOptions = {}): void {
 		this.disposables.clear();
 		this.inputs.clear();
+		this.rows.clear();
 		this.flat = !!options.flat;
 		this.renderObject(container, this.resolve(schema).schema, value, '', skip);
 	}
@@ -163,6 +168,11 @@ export class SchemaForm {
 		if (input && !input.box.hasFocus()) {
 			input.box.value = value === undefined || value === null ? '' : String(value);
 		}
+	}
+
+	/** The row of the field at `path` in the rendered form (its table cell inside a table). */
+	row(path: string): HTMLElement | undefined {
+		return this.rows.get(path);
 	}
 
 	/** Puts the cursor in the text field at `path` (e.g. the ID of a new entry), its text selected. */
@@ -239,7 +249,7 @@ export class SchemaForm {
 		}
 		const inner = mode === 'required' ? undefined : this.optional(property);
 		const schema = inner ?? this.optional(property) ?? property;
-		const title = property.title ?? this.resolve(schema).schema.title ?? humanize(key);
+		const title = this.ctx.label?.(path) ?? property.title ?? this.resolve(schema).schema.title ?? humanize(key);
 		const description = property.description ?? this.resolve(schema).schema.description;
 
 		const union = this.union(schema);
@@ -519,6 +529,11 @@ export class SchemaForm {
 
 	private renderField(container: HTMLElement, title: string, description: string | undefined, schema: IJSONSchema, owner: JsonObject, key: string, path: string, optional: boolean): void {
 		const row = this.fieldRow(container, title, description);
+		// The editor can find a field's row, e.g. to put buttons beside it.
+		const element = this.inlineCells ? row.control : row.control.parentElement;
+		if (element) {
+			this.rows.set(path, element);
+		}
 		const value = owner[key];
 
 		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''));
@@ -544,7 +559,8 @@ export class SchemaForm {
 			}
 			const options = values.map(v => ({
 				text: v === null ? localize('schemaForm.notSet', "(not set)") : label(v),
-				description: references && v !== null && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
+				// An empty reference is one still to be chosen (its label says so), not a missing one.
+				description: references && v !== null && v !== '' && !references.includes(v as string) ? localize('schemaForm.missing', "Not defined") : undefined,
 			}));
 			// A value left out of the file is its default (not the first option) until one is picked.
 			const fallback = schema.default ?? this.resolve(schema).schema.default;

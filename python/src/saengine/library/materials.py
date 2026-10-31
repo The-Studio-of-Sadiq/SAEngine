@@ -367,4 +367,43 @@ def plausibility(material: Material) -> list[tuple[str, str]]:
                         ),
                     )
                 )
+        if isinstance(material.composition, NominalMix):
+            ratio = material.composition.ratio
+            usual = nominal_mix_strength(ratio)
+            if usual is not None and fc > usual * (1 + NOMINAL_MIX_MARGIN):
+                mix = ":".join(f"{r:g}" for r in ratio)
+                out.append(
+                    (
+                        "composition",
+                        (
+                            f"f'c {fc:g} MPa is unlikely from a nominal {mix} mix, which usually "
+                            f"gives about {usual:g} MPa: give a mix design (Composition › Design "
+                            "mix) or a richer mix, or lower f'c. Nominal mixes suit ordinary "
+                            "grades only (IS 456:2000 Cl. 9.3, up to M20)"
+                        ),
+                    )
+                )
     return out
+
+
+#: f'c a nominal concrete mix usually reaches in local practice [MPa], by its aggregate parts per
+#: part of cement (sand + coarse): 1:1:2 about 4000 psi, 1:1.5:3 about 3500 psi (the default C24.1),
+#: 1:2:4 about 3000 psi (the default C20.7), 1:3:6 about 2000 psi, leaner mixes less.
+NOMINAL_MIX_STRENGTHS: tuple[tuple[float, float], ...] = (
+    (3.0, 27.6),
+    (4.5, 24.1),
+    (6.0, 20.7),
+    (9.0, 13.8),
+    (float("inf"), 10.0),
+)
+#: How far f'c may exceed the usual strength of its nominal mix before it is flagged.
+NOMINAL_MIX_MARGIN = 0.20
+
+
+def nominal_mix_strength(ratio: list[float]) -> float | None:
+    """The f'c a nominal concrete mix (cement : sand : coarse) usually reaches, or None for a
+    ratio that is not a concrete mix."""
+    if len(ratio) != 3 or ratio[0] <= 0:
+        return None
+    parts = (ratio[1] + ratio[2]) / ratio[0]
+    return next(fc for limit, fc in NOMINAL_MIX_STRENGTHS if parts <= limit + 1e-9)
