@@ -255,6 +255,105 @@ def inputs_only_problems(path: str | Path) -> list[dict[str, Any]]:
     ]
 
 
+#: Coordinates finer than this many decimals of a degree (about 1 km) place the site more
+#: precisely than a town: a building template must not (docs/marketplace-plan.md §2).
+TEMPLATE_COORDINATE_DECIMALS = 2
+_LATITUDE_KEYS = frozenset({"lat", "latitude", "reflatitude"})
+_LONGITUDE_KEYS = frozenset({"lon", "lng", "longitude", "reflongitude"})
+_POLYGON_KEYS = frozenset({"plot", "boundary", "polygon", "footprint"})
+#: Fields that name a person on drawings, sheets and project files.
+_PERSON_KEYS = frozenset(
+    {"author", "drawnby", "checkedby", "approvedby", "designedby", "designer", "engineer",
+     "preparedby", "reviewedby", "client", "owner"}
+)  # fmt: skip
+
+
+def _decimals(value: float) -> int:
+    text = repr(float(value))
+    return len(text.split(".", 1)[1].rstrip("0")) if "." in text and "e" not in text else 0
+
+
+def _template_scan(
+    data: Any, author: str, file: str, found: dict[str, tuple[str, str]], key: str = ""
+) -> None:
+    """Records in ``found`` the first precise coordinate and the first foreign name of ``data``."""
+    folded = key.casefold().replace("_", "").replace("-", "")
+    if isinstance(data, dict):
+        for k, v in data.items():
+            _template_scan(v, author, file, found, str(k))
+        return
+    if isinstance(data, list):
+        if folded in _POLYGON_KEYS and data and all(isinstance(p, list) for p in data):
+            found.setdefault("location", (file, f"'{key}' outlines a plot"))
+            return
+        for item in data:
+            _template_scan(item, author, file, found, key)
+        return
+    is_number = isinstance(data, (int, float)) and not isinstance(data, bool)
+    if (folded in _LATITUDE_KEYS or folded in _LONGITUDE_KEYS) and is_number:
+        if _decimals(data) > TEMPLATE_COORDINATE_DECIMALS:
+            found.setdefault("location", (file, f"'{key}' is {data}"))
+    elif (
+        folded in _PERSON_KEYS
+        and isinstance(data, str)
+        and data.strip()
+        and data.strip().casefold() != author.strip().casefold()
+    ):
+        found.setdefault("author", (file, f"'{key}' is '{data.strip()}'"))
+
+
+def template_problems(path: str | Path, author: str = "") -> list[dict[str, Any]]:
+    """Why the archive ``path`` cannot be a full building template (round M4): it is not inputs
+    only (:func:`inputs_only_problems`), it places the site more precisely than a town (a
+    latitude or longitude with more than :data:`TEMPLATE_COORDINATE_DECIMALS` decimals, or a plot
+    outline), or a drawing or project file names a person other than the template's ``author``
+    (drawn by, checked by, client...). Empty when it may be published and opened as a
+    template."""
+    problems = inputs_only_problems(path)
+    found: dict[str, tuple[str, str]] = {}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            for info in archive.infolist():
+                name = info.filename
+                if (
+                    info.is_dir()
+                    or not name.startswith(PROJECT_PREFIX)
+                    or not name.lower().endswith(_JSON_SUFFIXES)
+                    or info.file_size > JSON_READ_LIMIT
+                ):
+                    continue
+                try:
+                    data = json.loads(archive.read(info).decode("utf-8-sig"))
+                except (ValueError, UnicodeDecodeError, OSError):
+                    continue
+                _template_scan(data, author, name[len(PROJECT_PREFIX) :], found)
+                if len(found) == 2:
+                    break
+    except (zipfile.BadZipFile, OSError):
+        return problems
+    if "location" in found:
+        file, what = found["location"]
+        problems.append(
+            _problem(
+                "template-location",
+                f"the archive places the site more precisely than a town ({what} in {file}): "
+                "a template never holds a client's site",
+                file,
+            )
+        )
+    if "author" in found:
+        file, what = found["author"]
+        problems.append(
+            _problem(
+                "template-author",
+                f"the archive names someone other than the template's author ({what} in "
+                f"{file}): clear the names on drawings and project files",
+                file,
+            )
+        )
+    return problems
+
+
 def is_computed(relative: str, folder: bool = False) -> bool:
     """Whether ``relative`` (relative to the project root, ``/``-separated; a folder if
     ``folder``) is a computed cache, one of :data:`COMPUTED_PATHS`."""

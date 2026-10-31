@@ -22,7 +22,9 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { SoilEditor } from './soilEditor.js';
+import { SITE_RESPONSE_FEATURE } from './soilStrata.js';
 import { SoilEditorInput, SoilEditorInputSerializer } from './soilEditorInput.js';
 import { SOIL_ADD_BOREHOLE_COMMAND, SOIL_IMPORT_FILE_COMMAND, SOIL_SAVE_TEMPLATE_COMMAND } from './soilDocument.js';
 
@@ -168,4 +170,29 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		(await soilEditor(accessor))?.addBorehole();
 	}
+});
+
+// 1D site response is planned (not in this MVP): BNBC 2020 flags site classes SE, S1 and S2
+// (Part 6 Chapter 2, Table 6.2.13) but gives no site response method of its own.
+registerPlannedFeature({
+	id: SITE_RESPONSE_FEATURE,
+	part: 'soil',
+	title: localize('soil.planned.siteResponse', "1D Site Response"),
+	summary: localize('soil.planned.siteResponseSummary', "An equivalent-linear 1D site response of the soil column under the building, whose surface spectrum feeds the response spectrum analysis for site classes SE, S1 and S2."),
+	steps: [
+		localize('soil.planned.siteResponse1', "Build the soil column from the 3D stratigraphy at the building: thickness, unit weight and shear wave velocity of each unit."),
+		localize('soil.planned.siteResponse2', "Pick the modulus reduction and damping curves of each unit and the rock outcrop motions."),
+		localize('soil.planned.siteResponse3', "Run the equivalent-linear analysis and take the mean surface spectrum."),
+		localize('soil.planned.siteResponse4', "Hand the site-specific spectrum to the response spectrum analysis of 08 FEM."),
+	],
+	inputs: [
+		{ label: localize('soil.planned.vs', "Shear wave velocity per unit"), unit: 'm/s', example: '180' },
+		{ label: localize('soil.planned.curves', "Modulus reduction and damping curves"), example: localize('soil.planned.curvesExample', "by plasticity index") },
+		{ label: localize('soil.planned.motions', "Input motions (rock outcrop)"), example: '7' },
+	],
+	outputs: [
+		localize('soil.planned.out1', "Surface response spectrum and amplification against period"),
+		localize('soil.planned.out2', "Peak shear strain and acceleration profiles"),
+	],
+	references: ['BNBC 2020 Part 6 Chapter 2, Table 6.2.13 (site classes SE, S1, S2)', 'ASCE 7-16 Chapter 21 (site response analysis)'],
 });

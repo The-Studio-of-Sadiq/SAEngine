@@ -54,6 +54,7 @@ import { IGridState, newGridState, SoilGrid } from './soilGrid.js';
 import { LabTest } from './soilLabTests.js';
 import { SoilLabPanel } from './soilLabPanel.js';
 import { appendSoilPatterns, appendSoilSwatch, renderBoreholeLog, renderFence, renderLiquefactionChart } from './soilLog.js';
+import { IStrataViewState, renderStrataView } from './soilStrata.js';
 import { applyPlotEdit, boreholeXY, formatDistance, IBnbcSuggestion, positionMismatch, syncPlacedXY, tileSource } from './soilMap.js';
 import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
 import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
@@ -63,6 +64,7 @@ type View = SoilView;
 const VIEWS: readonly { readonly view: View; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ view: 'log', label: localize('soil.viewLog', "Log"), icon: Codicon.layers },
 	{ view: 'results', label: localize('soil.viewResults', "Results"), icon: Codicon.graphLine },
+	{ view: 'strata', label: localize('soil.viewStrata', "Strata"), icon: Codicon.symbolStructure },
 	{ view: 'map', label: localize('soil.viewMap', "Map"), icon: Codicon.globe },
 ];
 
@@ -129,6 +131,7 @@ export class SoilEditor extends EditorPane {
 	/** The selected borehole's index in the report (ids may repeat); undefined selects the report itself. */
 	private selected: number | undefined;
 	private results: ISoilResults | undefined;
+	private readonly strataState: IStrataViewState = { fence: 0, azimuth: 35, elevation: 30, exaggeration: 2 };
 	private resultsState: ResultsState = 'idle';
 	private resultsError: string | undefined;
 	private computeVersion = 0;
@@ -978,7 +981,7 @@ export class SoilEditor extends EditorPane {
 
 	/** The parts that show results: the Results view, N60 in the log, and the status. */
 	private renderResultsDependent(): void {
-		if (!this.entry && (this.view === 'results' || this.view === 'log')) {
+		if (!this.entry && (this.view === 'results' || this.view === 'log' || this.view === 'strata')) {
 			this.renderView();
 		}
 		this.renderProperties();
@@ -1183,6 +1186,7 @@ export class SoilEditor extends EditorPane {
 			switch (this.view) {
 				case 'log': this.renderLogView(report); break;
 				case 'results': this.renderResultsView(report); break;
+				case 'strata': this.renderStrataView(report); break;
 				case 'map': this.renderMapView(report); break;
 			}
 		}
@@ -2384,6 +2388,22 @@ export class SoilEditor extends EditorPane {
 	}
 
 	// ───────────────────────────── map view ─────────────────────────────
+
+	/** The 3D stratigraphy and the fence diagrams (soilStrata.ts), with the fences and the correlation edited here. */
+	private renderStrataView(report: ISoilReport): void {
+		renderStrataView(this.viewElement, {
+			report,
+			model: this.results?.stratigraphy,
+			computing: this.resultsState !== 'ok' && this.resultsState !== 'error',
+			patternPrefix: this.patternPrefix,
+			width: this.viewElement.clientWidth,
+			state: this.strataState,
+			disposables: this.viewDisposables,
+			commandService: this.commandService,
+			changed: () => this.changed(true),
+			rerender: () => this.renderView(),
+		});
+	}
 
 	private renderMapView(report: ISoilReport): void {
 		this.mapView.value = new SoilMapView(this.viewElement, this.mapHost(report), this.mapState);

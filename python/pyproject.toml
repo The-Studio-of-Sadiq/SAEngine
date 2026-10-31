@@ -51,6 +51,7 @@ version = { attr = "saengine.__version__" }
     "packs/*/*.md",
     "packs/*/*.png",
     "packs/*/templates/*.json",
+    "packs/*/spec.json",
     "schemas/*.json",
 ]
 "saengine.boq" = ["data/*.json"]

@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { PACKAGE_KINDS, PackageKind } from '../common/packageIndex.js';
 
 /*
  * Code packs: a design code (BNBC 2020, or a region's own) as a folder of data tables with a
@@ -51,6 +52,8 @@ export interface ICodePackSource {
 /** A pack as the list shows it. */
 export interface ICodePackInfo {
 	readonly id: string;
+	/** The package kind: a design code (every pack before the marketplace), or a template. */
+	readonly kind: PackageKind;
 	readonly name: string;
 	readonly edition: string;
 	readonly region: string;
@@ -80,6 +83,8 @@ export interface ICodePackInfo {
 	readonly sources: readonly ICodePackSource[];
 	/** The resolved tables (own and inherited) with where each comes from, when shown in detail. */
 	readonly tables: readonly { readonly name: string; readonly from: string }[];
+	/** Required packages that are not installed in a fitting version (`missingRequires`). */
+	readonly missingRequires: readonly string[];
 }
 
 /** A group of the Code Packs page: Built-in, Your packs, This project. */
@@ -201,6 +206,7 @@ export function readCodePack(value: unknown): ICodePackInfo | undefined {
 	const usable = typeof value.usable === 'boolean' ? value.usable : errorCount(problems) === 0;
 	return {
 		id,
+		kind: PACKAGE_KINDS.find(k => k === field('kind')) ?? 'designCode',
 		name,
 		edition: text(field('edition')),
 		region: text(field('region') ?? field('country')),
@@ -220,6 +226,7 @@ export function readCodePack(value: unknown): ICodePackInfo | undefined {
 		description: text(field('description')),
 		sources: sourcesOf(field('sources') ?? field('clauses')),
 		tables: tablesOf(value.tables),
+		missingRequires: texts(value.missingRequires),
 	};
 }
 
@@ -230,8 +237,8 @@ export function readCodePacks(value: unknown): ICodePackInfo[] {
 	const packs: ICodePackInfo[] = [];
 	for (const item of list) {
 		const pack = readCodePack(item);
-		if (pack && !seen.has(`${pack.scope}/${pack.id}`)) {
-			seen.add(`${pack.scope}/${pack.id}`);
+		if (pack && !seen.has(`${pack.kind}/${pack.scope}/${pack.id}`)) {
+			seen.add(`${pack.kind}/${pack.scope}/${pack.id}`);
 			packs.push(pack);
 		}
 	}
@@ -249,9 +256,9 @@ export function readProblems(value: unknown): string[] {
  */
 export function builtinDefaultPack(): ICodePackInfo {
 	return {
-		id: DEFAULT_CODE_PACK, name: BNBC.edition, edition: BNBC.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
+		id: DEFAULT_CODE_PACK, kind: 'designCode', name: BNBC.edition, edition: BNBC.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
 		extends: undefined, covers: [], scope: 'builtin', path: undefined, problems: [], usable: true, effective: true, shadowedBy: undefined, trust: 'none', hooksFrom: [],
-		author: '', licence: '', description: '', sources: [], tables: [],
+		author: '', licence: '', description: '', sources: [], tables: [], missingRequires: [],
 	};
 }
 
@@ -367,7 +374,7 @@ export function packOptions(packs: readonly ICodePackInfo[], chosen: string): IC
 		.map(pack => ({
 			id: pack.id,
 			label: pack.usable ? packLabel(pack) : localize('codePacks.unusableLabel', "{0} (has errors)", packLabel(pack)),
-			description: pack.usable ? packDescription(pack, packs) : localize('codePacks.unusableDescription', "This pack, or a pack it extends, has errors and cannot be used until they are fixed: {0}", pack.problems.join('; ') || localize('codePacks.unusableSeeDetails', "see Code Packs")),
+			description: pack.usable ? packDescription(pack, packs) : localize('codePacks.unusableDescription', "This pack, or a pack it extends, has errors and cannot be used until they are fixed: {0}", pack.problems.join('; ') || localize('codePacks.unusableSeeDetails', "see Packages")),
 			missing: false,
 			unusable: !pack.usable,
 			problems: pack.problems,
@@ -376,7 +383,7 @@ export function packOptions(packs: readonly ICodePackInfo[], chosen: string): IC
 		options.push({
 			id: chosen,
 			label: localize('codePacks.missingLabel', "{0} (not installed)", chosen),
-			description: localize('codePacks.missingDescription', "The settings choose the code pack {0}, which is not installed on this computer. Install it from Code Packs, or choose another.", chosen),
+			description: localize('codePacks.missingDescription', "The settings choose the code pack {0}, which is not installed on this computer. Install it from Packages, or choose another.", chosen),
 			missing: true,
 			unusable: true,
 			problems: [],
@@ -390,7 +397,7 @@ export function packOptionBlock(option: ICodePackOption): { readonly message: st
 	if (option.missing) {
 		return {
 			message: localize('codePacks.blockMissingMessage', "{0} is not installed on this computer.", option.id),
-			detail: localize('codePacks.blockMissingDetail', "Install it from Code Packs (≡ > Code Packs...) first."),
+			detail: localize('codePacks.blockMissingDetail', "Install it from Packages (≡ > Packages...) first."),
 		};
 	}
 	if (!option.unusable) {
@@ -398,7 +405,7 @@ export function packOptionBlock(option: ICodePackOption): { readonly message: st
 	}
 	return {
 		message: localize('codePacks.blockMessage', "{0} cannot be used as the design code yet.", option.label),
-		detail: localize('codePacks.blockDetail', "The pack, or a pack it extends, has errors, so analysis, design and reports could not load it. Fix them (Code Packs > Validate lists them) and choose it again. The project keeps its current design code.\n\n{0}", option.problems.join('\n') || localize('codePacks.blockNoList', "Its problems are listed in Code Packs.")),
+		detail: localize('codePacks.blockDetail', "The pack, or a pack it extends, has errors, so analysis, design and reports could not load it. Fix them (Packages > Validate lists them) and choose it again. The project keeps its current design code.\n\n{0}", option.problems.join('\n') || localize('codePacks.blockNoList', "Its problems are listed in Packages.")),
 	};
 }
 

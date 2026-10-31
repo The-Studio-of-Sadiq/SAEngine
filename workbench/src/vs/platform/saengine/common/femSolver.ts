@@ -710,7 +710,7 @@ export type ProjectPlatformMethod =
 	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
 	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
 	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
-	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust'
+	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'
@@ -764,6 +764,11 @@ export interface ISetupRunRequest {
 	readonly sha256: string;
 	/** Every optional component the install should have afterwards. */
 	readonly components: readonly SetupComponent[];
+	/**
+	 * The publisher whose valid Authenticode signature the setup must carry (product.json's
+	 * `saengineSigning.publisher`); without it (signing not set up yet) only the SHA-256 is checked.
+	 */
+	readonly publisher?: string;
 }
 
 export interface ISetupRunResult {

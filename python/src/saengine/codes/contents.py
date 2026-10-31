@@ -64,6 +64,35 @@ def structure_preset_model() -> type[BaseModel]:
 _PRESET: type[BaseModel] | None = None
 
 
+class CodedTemplate(BaseModel):
+    """A structure template whose geometry is made by the package's own Python (round M5): a
+    new shape kind (a bridge, a tower, a hypar...). ``generator`` names a function of the
+    package's ``hooks`` file, ``generator(params) -> geometry``, which runs only when the
+    package is trusted; ``parameters`` is the JSON Schema of its parameters (the Generate panel's
+    form is made from it) and ``values`` their starting values. The geometry enters the model
+    through the same ``insert`` as a built-in shape's."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    schema_ref: str | None = Field(default=None, alias="$schema")
+    name: str = Field(min_length=1, description="Name in the shape list, e.g. 'Hypar 20 m'.")
+    description: str | None = None
+    generator: str = Field(
+        pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
+        description="The function of the package's hooks that builds the geometry.",
+    )
+    parameters: dict[str, Any] = Field(
+        description="JSON Schema (type object) of the parameters: properties with type number, "
+        "integer, string or boolean, title, description, default, minimum, maximum, enum."
+    )
+    values: dict[str, Any] = Field(default_factory=dict, description="Starting values.")
+
+
+def is_coded_template(data: Any) -> bool:
+    """Whether a structure template file is a coded template (it names a ``generator``)."""
+    return isinstance(data, dict) and "generator" in data
+
+
 def building_spec_model() -> type[BaseModel]:
     from saengine.library.generator import BuildingSpec
 
@@ -168,8 +197,65 @@ def _errors(e: ValidationError, file: str, limit: int = 10) -> list[Problem]:
     ]
 
 
-def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]:
-    """Each template file validated by the model that applies it."""
+PARAMETER_TYPES = ("number", "integer", "string", "boolean")
+
+
+def parameter_schema_problems(schema: dict[str, Any]) -> list[str]:
+    """Why ``schema`` is not a parameter schema the Generate panel can show: an object whose
+    properties are numbers, integers, strings or booleans."""
+    if schema.get("type") != "object" or not isinstance(schema.get("properties"), dict):
+        return ["must be a JSON Schema of type object with properties"]
+    problems = []
+    for name, prop in schema["properties"].items():
+        if not isinstance(prop, dict) or prop.get("type") not in PARAMETER_TYPES:
+            problems.append(f"{name}: type must be one of {', '.join(PARAMETER_TYPES)}")
+    return problems
+
+
+def parameter_problems(
+    schema: dict[str, Any], values: dict[str, Any], partial: bool = False
+) -> list[str]:
+    """Why ``values`` do not fit ``schema`` (types, ``minimum``, ``maximum``, ``enum``,
+    ``required`` unless ``partial``); unknown names are refused. A small JSON Schema subset:
+    the one :func:`parameter_schema_problems` allows."""
+    props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    problems = []
+    for name, value in values.items():
+        prop = props.get(name)
+        if not isinstance(prop, dict):
+            problems.append(f"{name}: not a parameter of this template")
+            continue
+        kind = prop.get("type")
+        ok = {
+            "number": isinstance(value, (int, float)) and not isinstance(value, bool),
+            "integer": isinstance(value, int) and not isinstance(value, bool),
+            "string": isinstance(value, str),
+            "boolean": isinstance(value, bool),
+        }.get(kind, False)
+        if not ok:
+            problems.append(f"{name}: must be a {kind}")
+            continue
+        if "enum" in prop and value not in prop["enum"]:
+            problems.append(f"{name}: must be one of {', '.join(map(str, prop['enum']))}")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if "minimum" in prop and value < prop["minimum"]:
+                problems.append(f"{name}: at least {prop['minimum']}")
+            if "maximum" in prop and value > prop["maximum"]:
+                problems.append(f"{name}: at most {prop['maximum']}")
+    if not partial:
+        for name in schema.get("required", []) or []:
+            if name not in values:
+                problems.append(f"{name}: required")
+    return problems
+
+
+def check_template(
+    pack_dir: Path, kind: str, files: list[str], author: str = "", has_hooks: bool = False
+) -> list[Problem]:
+    """Each template file validated by the model that applies it; a ``template.civil`` also by
+    :func:`saengine.project.archive.template_problems` (inputs only, no site more precise than
+    a town, no names other than ``author``, the package's author). A coded structure template
+    (:class:`CodedTemplate`) needs the package's hooks (``has_hooks``)."""
     problems: list[Problem] = []
     if not files:
         problems.append(
@@ -182,7 +268,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
         path = pack_dir / rel
         suffix = path.suffix.lower()
         if kind == "buildingTemplate" and suffix == ".civil":
-            from saengine.project.archive import inputs_only_problems, inspect_archive
+            from saengine.project.archive import inspect_archive, template_problems
 
             result = inspect_archive(path)
             problems.extend(
@@ -191,7 +277,7 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
                     message=f"template archive: {p.get('message')}",
                     file=rel,
                 )
-                for p in result["problems"] + inputs_only_problems(path)
+                for p in result["problems"] + template_problems(path, author)
             )
             continue
         if suffix != ".json":
@@ -204,12 +290,31 @@ def check_template(pack_dir: Path, kind: str, files: list[str]) -> list[Problem]
             problems.append(Problem(message=f"cannot be read: {e}", file=rel))
             continue
         model = structure_preset_model() if kind == "structureTemplate" else building_spec_model()
+        if kind == "structureTemplate" and is_coded_template(data):
+            model = CodedTemplate
+            if not has_hooks:
+                problems.append(
+                    Problem(
+                        message="a coded template (generator) needs the package's hooks file",
+                        file=rel,
+                    )
+                )
         if isinstance(data, dict) and kind == "buildingTemplate":
             data = {k: v for k, v in data.items() if k != "$schema"}
         try:
-            model.model_validate(data)
+            parsed = model.model_validate(data)
         except ValidationError as e:
             problems.extend(_errors(e, rel))
+            continue
+        if isinstance(parsed, CodedTemplate):
+            problems.extend(
+                Problem(message=f"parameters: {m}", file=rel)
+                for m in parameter_schema_problems(parsed.parameters)
+            )
+            problems.extend(
+                Problem(message=f"values: {m}", file=rel)
+                for m in parameter_problems(parsed.parameters, parsed.values, partial=True)
+            )
     return problems
 
 

@@ -1,9 +1,11 @@
 # Marketplace and modular install: plan
 
-Status: **plan for discussion** (2026-10-30). Round M1 (manifest and registry kinds) is built:
-`kind`, `requires`, `contents`, `preview` in `pack.json`, per-kind discovery, no programs in a
-package, `saengine codepack --kind` (alias `saengine package`); see docs/code-packs.md, "Other
-package kinds". The rest is not built yet. Decisions D1–D11 are
+Status: **in progress** (plan of 2026-10-30, updated 2026-11-01). Round M1 (manifest and registry
+kinds) is built: `kind`, `requires`, `contents`, `preview` in `pack.json`, per-kind discovery, no
+programs in a package, `saengine codepack --kind` (alias `saengine package`); see
+docs/code-packs.md, "Other package kinds". M2 (package repositories and index) is in pull requests
+in those repositories, M3 (the Packages page) and M6 (installer components) are built; see "Built
+in M…" in §6 and §8 for each. Decisions D1–D11 are
 in §9: four are settled by the owner, the others follow the stated recommendation until the owner
 says otherwise.
 
@@ -438,6 +440,68 @@ has its own copy until M4 reads the template) and a synthetic sample design code
 `bnbc2020`. In SAEngine: the built-in `saengine-shapes` package and the inputs-only check of
 `template.civil` (`project.archive.inputs_only_problems`). The location-precision and
 drawing-author checks of full templates are left for M4.
+
+**Built in M3 (2026-11-01)**, track T38: the Code Packs page is now **Packages** (≡ › Packages...,
+`saengine.packages.show`; `saengine.codePacks.show` stays as an alias) with the tabs *Installed*,
+*Browse* and *Updates*, a kind filter (*All · Design codes · Structure templates · Building
+templates*), *Install from File...* for every kind, *Remove...* (user and project packages; a
+package another one extends or requires is refused; its trust entry is dropped) and *Installer
+Components...*, which opens the M6 list (`saengine.components.show`). The index
+(`saengine.packages.indexUrl`, default the latest release of `saengine-index`) and its
+`index.json.sig` are fetched and verified with Ed25519 in the **main process**
+(`platform/saengine/electron-main/packagesMainService.ts`, Node `crypto.verify`); the zip is
+downloaded there to a private temporary folder, checked against the index's size and SHA-256
+(HTTPS on GitHub hosts only), handed to `codes/install` (with `replace` for an update) and
+deleted. Release builds accept only the owner's key (`OWNER_INDEX_KEYS` in
+`saengineLibrary/common/packageIndex.ts`, **empty until the owner adds the public key**); development
+builds also accept the TEST key. The last verified index is kept for offline use; a background
+check runs at most once a day in a packaged build and says when installed packages have updates;
+`saengine.packages.checkOnline` turns both off. Links: Project Settings' design code list ends with
+*Get More Design Codes...*, *Manage Packages...* and *Install from File...*; the New Building
+wizard has *Get more building templates...*; the modeller's Generate panel has *Get more structure
+templates...*. Backend: `codes/list {kind: "all"}`, `codes/remove`, `codes/install {replace}`,
+`Registry.uninstall`, and `saengine codepack install|remove`. The store sites: each repository gets a
+static catalogue on an orphan `gh-pages` branch, built by `scripts/marketplace/store-site/`
+(`build_store.py`, `store-pages.yml`); the owner copies them into the four repositories and enables
+Pages (see that folder's README).
+
+**Built in M4 (2026-11-01)**, track T39: templates are applied where they are used, and installed
+only on the Packages page. The backend's `codes/templates` (`saengine.codes.catalogue`) lists the
+presets of the structure templates in force and the building templates (specifications and full
+templates), leaving out a file that does not validate. The modeller's **Generate panel** has a
+*Start from a structure template...* picker grouped by package (the built-in `saengine-shapes`
+first); a preset fills the form, keeps where the shape is placed and goes through the same
+`shape_geometry` and `insert`. The **New Building wizard** has a *Start from* row: a
+specification prefills the form (`formFromSpec`), a full template opens *New Project from
+Template...*; the wizard's own `DEFAULT_FORM` is gone: it starts from the built-in building
+template **`saengine-default-building`** (now in `codes/packs/`; the package repository should
+mirror it from here). **New Project from Template...** (File menu, ≡ menu, start page) picks an
+installed full template, checks it again with `codes/checkTemplate` and opens it through the
+`.civil` import as a new project. The checks of a full template
+(`project.archive.template_problems`, also run by `codepack validate`): inputs only (M2), no
+latitude or longitude with more than two decimals (finer than a town) and no plot outline, and no
+person named on drawings or project files (drawn by, checked by, client...) other than the
+package's author.
+
+**Built in M5, M7 and M8 (2026-11-01)**, track T40.
+*M5 coded templates*: a structure template file that names a `generator` (`CodedTemplate` in
+`codes/contents.py`: `generator`, `parameters` as a small JSON Schema, `values`) is made by that
+function of the package's `hooks.py`, through `codes/codedGeometry` (`saengine.codes.coded`): only
+when the package is trusted (the same trust store; `codes/trust` now takes `kind`), parameters
+checked first, the result placed and inserted like a built-in shape. The Generate panel builds the
+form from the schema; the Packages page offers *Trust This Package's Code...* for templates.
+Review rules for code are in `scripts/marketplace/CONTRIBUTING-packages.md`.
+*M7 signing*: `platform/saengine/node/authenticode.ts` checks a setup with Windows'
+`Get-AuthenticodeSignature`; *Add Component...* requires a valid signature by product.json's
+`saengineSigning.publisher` once the owner sets it (until then the SHA-256 only, as before).
+`scripts/installer/component_zips.py` builds the component zips and their manifest; by D7 the app
+offers them only after signing. The SignPath steps for `release.yml` and the owner's sign-up
+steps are in `scripts/signing/` (**waiting for the owner**).
+*M8 offline bundle and docs*: `scripts/marketplace/build_offline_bundle.py` builds
+`saengine-packages-offline-<date>.zip`; *Install from File...* on a bundle (zip or folder) verifies
+its index in the main process and lists it in Browse, installing from its zips with the same
+checks. User docs: `docs/packages.md` and the manual chapter `docs/manual/14-packages.md`; authors:
+`scripts/marketplace/CONTRIBUTING-packages.md` (to be copied into the package repositories).
 
 Every round ends with the usability walk-through (fresh project, both window sizes) and a
 duplication check: no second installer UI, no second manifest, no second trust store.

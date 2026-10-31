@@ -1,0 +1,16 @@
+{
+  "name": "Portal frame",
+  "description": "A single-bay portal frame with a pitched rafter, fixed at both feet.",
+  "generator": "portal",
+  "parameters": {
+    "type": "object",
+    "required": ["span", "eaves", "rise"],
+    "properties": {
+      "span": { "type": "number", "title": "Span [mm]", "minimum": 3000, "maximum": 60000 },
+      "eaves": { "type": "number", "title": "Eaves height [mm]", "minimum": 2000, "maximum": 20000 },
+      "rise": { "type": "number", "title": "Ridge rise [mm]", "minimum": 0, "maximum": 10000 },
+      "fixed": { "type": "boolean", "title": "Fixed feet", "default": true }
+    }
+  },
+  "values": { "span": 18000, "eaves": 6000, "rise": 1500, "fixed": true }
+}

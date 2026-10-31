@@ -2241,12 +2241,77 @@ def _pack_info(info: Any, root: Path | None) -> dict[str, Any]:
     return result
 
 
-def codes_list(root: str | None = None) -> list[dict[str, Any]]:
-    """Every code pack found (built-in, the user's, the project's), shadowed ones included."""
+def codes_list(root: str | None = None, kind: str | None = None) -> list[dict[str, Any]]:
+    """Every code pack found (built-in, the user's, the project's), shadowed ones included.
+
+    ``kind``: a package kind (``designCode``, the default, ``structureTemplate``,
+    ``buildingTemplate``), or ``all`` for every kind with each manifest's author, licence and
+    description (the Packages page)."""
     from saengine.codes import registry
+    from saengine.codes.manifest import KINDS
 
     base = _pack_root(root)
-    return [p.model_dump(mode="json") for p in registry.list_packs(base)]
+    if kind == "all":
+        return [_pack_info(p, base) for p in registry.list_packs(base, None)]
+    wanted = kind if kind in KINDS else "designCode"
+    return [p.model_dump(mode="json") for p in registry.list_packs(base, wanted)]
+
+
+def codes_templates(kind: str, root: str | None = None) -> dict[str, Any]:
+    """The templates of the installed packages: ``structureTemplate`` → the Generate panel's
+    presets, ``buildingTemplate`` → the wizard's specifications and the full templates
+    (:mod:`saengine.codes.catalogue`)."""
+    from saengine.codes import catalogue
+
+    base = _pack_root(root)
+    if kind == "structureTemplate":
+        return catalogue.structure_presets(base)
+    return catalogue.building_templates(base)
+
+
+def codes_coded_geometry(
+    package: str,
+    file: str,
+    values: dict[str, Any] | None = None,
+    root: str | None = None,
+    member_type: str | None = None,
+) -> dict[str, Any]:
+    """The geometry of a coded structure template (:func:`saengine.codes.coded.coded_geometry`),
+    to preview and insert like a built-in shape's; ``{problems}`` when it cannot be made."""
+    from saengine.codes.coded import coded_geometry
+
+    return coded_geometry(package, file, values or {}, _pack_root(root), member_type=member_type)
+
+
+def codes_check_template(path: str, author: str = "") -> dict[str, Any]:
+    """``{ok, problems}``: whether the archive may be opened as a full building template
+    (:func:`saengine.project.archive.template_problems`, plus :func:`inspect_archive`)."""
+    from saengine.project.archive import inspect_archive, template_problems
+
+    result = inspect_archive(path)
+    problems = [*result.get("problems", []), *template_problems(path, author)]
+    errors = [p for p in problems if p.get("severity", "error") == "error"]
+    return {"ok": not errors, "problems": problems}
+
+
+def codes_remove(
+    pack_id: str, scope: str = "user", kind: str | None = None, root: str | None = None
+) -> dict[str, Any]:
+    """Removes the user's (or the project's) package ``pack_id`` of ``kind``: ``{ok, path}``."""
+    from saengine.codes import CodePackError, registry
+    from saengine.codes.manifest import KINDS
+
+    base = _pack_root(root)
+    try:
+        folder = registry.uninstall(
+            pack_id,
+            "project" if scope == "project" else "user",
+            base,
+            kind if kind in KINDS else "designCode",
+        )
+    except (CodePackError, OSError) as error:
+        return _refusal(error)
+    return {"ok": True, "id": pack_id, "path": str(folder)}
 
 
 def codes_show(pack_id: str, root: str | None = None) -> dict[str, Any]:
@@ -2289,13 +2354,18 @@ def codes_new(
     return {"ok": True, "path": str(folder), "manifest": str(folder / "pack.json")}
 
 
-def codes_install(path: str, scope: str = "user", root: str | None = None) -> dict[str, Any]:
-    """Copies a pack folder or .zip into the user's packs or the project's: its info."""
+def codes_install(
+    path: str, scope: str = "user", root: str | None = None, replace: bool = False
+) -> dict[str, Any]:
+    """Copies a pack folder or .zip into the user's packs or the project's: its info.
+    ``replace``: an installed package of the same id and scope is replaced (an update)."""
     from saengine.codes import CodePackError, registry
 
     base = _pack_root(root)
     try:
-        info = registry.install(Path(path), "project" if scope == "project" else "user", base)
+        info = registry.install(
+            Path(path), "project" if scope == "project" else "user", base, bool(replace)
+        )
     except (CodePackError, OSError) as error:
         return _refusal(error)
     return _pack_info(info, base)
@@ -2323,13 +2393,20 @@ def codes_validate(path: str, root: str | None = None) -> dict[str, Any]:
     return info
 
 
-def codes_trust(pack_id: str, trusted: bool, root: str | None = None) -> dict[str, Any]:
-    """Trusts (or stops trusting) the hooks of the pack in force with this id."""
+def codes_trust(
+    pack_id: str, trusted: bool, root: str | None = None, kind: str | None = None
+) -> dict[str, Any]:
+    """Trusts (or stops trusting) the hooks of the package in force with this id and kind (a
+    design code by default; a structure template's coded templates, round M5)."""
     from saengine.codes import CodePackError, registry
+    from saengine.codes.manifest import KINDS
 
     base = _pack_root(root)
     try:
-        return _pack_info(registry.set_trusted(pack_id, bool(trusted), base), base)
+        info = registry.set_trusted(
+            pack_id, bool(trusted), base, kind if kind in KINDS else "designCode"
+        )
+        return _pack_info(info, base)
     except CodePackError as error:
         return _refusal(error)
 

@@ -177,7 +177,23 @@ CommandsRegistry.registerCommand(VERSIONS_MARK_ISSUED_COMMAND, async (accessor, 
 // (`../../saengineLibrary/browser/codePacksModel.ts`), forwarded to `saengine.codes`.
 
 CommandsRegistry.registerCommand('saengine.codes.list', async (accessor, raw: unknown) => {
-	return call(accessor, 'codes/list', { root: str(bag(raw).root) });
+	const args = bag(raw);
+	return call(accessor, 'codes/list', { root: str(args.root), kind: str(args.kind) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.templates', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'codes/templates', { kind: args.kind === 'structureTemplate' ? 'structureTemplate' : 'buildingTemplate', root: str(args.root) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.checkTemplate', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'codes/checkTemplate', { path: args.path, author: str(args.author) });
+});
+
+CommandsRegistry.registerCommand('saengine.codes.remove', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/remove', { id: args.id, scope: args.scope === 'project' ? 'project' : 'user', kind: str(args.kind), root: str(args.root) }));
 });
 
 CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: unknown) => {
@@ -192,7 +208,7 @@ CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unk
 
 CommandsRegistry.registerCommand('saengine.codes.install', async (accessor, raw: unknown) => {
 	const args = bag(raw);
-	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root) }));
+	return orThrow(await call(accessor, 'codes/install', { path: args.path, scope: args.scope === 'project' ? 'project' : 'user', root: str(args.root), replace: args.replace === true }));
 });
 
 CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw: unknown) => {
@@ -202,7 +218,12 @@ CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw
 
 CommandsRegistry.registerCommand('saengine.codes.trust', async (accessor, raw: unknown) => {
 	const args = bag(raw);
-	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root) }));
+	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root), kind: str(args.kind) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.codedGeometry', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'codes/codedGeometry', { package: args.package, file: args.file, values: bag(args.values), root: str(args.root), memberType: str(args.memberType) });
 });
 
 // --- CAD --------------------------------------------------------------------------------------

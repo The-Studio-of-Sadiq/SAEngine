@@ -1020,6 +1020,31 @@ class Design(_Model):
     )
 
 
+class Fence(_Model):
+    """A fence diagram: a vertical section through the 3D stratigraphy along boreholes."""
+
+    id: str = Field(min_length=1, max_length=64, title="ID", description="E.g. A.")
+    boreholes: list[str] = Field(
+        min_length=2, description="The boreholes it passes through, in order."
+    )
+
+
+class Stratigraphy(_Model):
+    """How the strata of the boreholes are correlated into units, and the fence diagrams."""
+
+    correlateBy: Literal["soilType", "uscs"] = Field(
+        default="soilType",
+        title="Correlate by",
+        description="Layers of one soil type (or one USCS group, where the log gives it) are one "
+        "stratum; strata are matched between boreholes in order from the top.",
+        json_schema_extra=_labels(["Soil type", "USCS group"]),
+    )
+    fences: list[Fence] = Field(
+        default_factory=list,
+        description="Fence diagrams; when none, one through all boreholes along the site.",
+    )
+
+
 class SoilReport(_Model):
     schema_: Literal["saengine.soilReport/1"] = Field(default=SCHEMA_ID, alias="schema")
     report: ReportInfo = Field(default_factory=ReportInfo)
@@ -1031,6 +1056,11 @@ class SoilReport(_Model):
     site: Site | None = Field(default=None, description="The site on the map.")
     boreholes: list[Borehole] = Field(default_factory=list)
     design: Design = Field(default_factory=Design)
+    stratigraphy: Stratigraphy | None = Field(
+        default=None,
+        description="How the boreholes' strata are correlated into the 3D model, and the fence "
+        "diagrams drawn through it.",
+    )
 
     @model_validator(mode="after")
     def _ids(self) -> SoilReport:
@@ -1038,6 +1068,11 @@ class SoilReport(_Model):
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"two boreholes are called {', '.join(duplicates)}")
+        if self.stratigraphy is not None:
+            for fence in self.stratigraphy.fences:
+                missing = [b for b in fence.boreholes if b not in ids]
+                if missing:
+                    raise ValueError(f"fence {fence.id}: no borehole {', '.join(missing)}")
         if self.site is not None and self.site.georeferenced:
             # The engine reads x/y: work them out of the coordinates a borehole is given in.
             from saengine.gis.crs import Grid

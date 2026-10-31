@@ -1,0 +1,33 @@
+# SignPath steps for .github/workflows/release.yml (round M7; see README.md beside this file).
+# They replace the step "Code signing (not yet)". Not active until the owner signs up with SignPath
+# and adds the secret SIGNPATH_API_TOKEN and the variable SIGNPATH_ORGANIZATION_ID.
+
+      - name: Upload the unsigned setup for signing
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-setup
+          path: dist/SAEngine-x64-user-setup-${{ steps.release.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Sign the setup (SignPath)
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: SAEngine
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: inno-setup
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist/signed
+
+      - name: Use the signed setup and write its SHA-256 again
+        shell: pwsh
+        run: |
+          $name = "SAEngine-x64-user-setup-${{ steps.release.outputs.version }}.exe"
+          Move-Item -Force "dist/signed/$name" "dist/$name"
+          $sig = Get-AuthenticodeSignature -LiteralPath "dist/$name"
+          if ($sig.Status -ne 'Valid') { throw "The signed setup's signature is $($sig.Status)." }
+          $hash = (Get-FileHash -Algorithm SHA256 "dist/$name").Hash.ToLower()
+          Set-Content -NoNewline -Encoding ascii "dist/$name.sha256" "$hash *$name`n"

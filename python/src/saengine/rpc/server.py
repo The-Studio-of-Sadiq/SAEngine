@@ -1144,7 +1144,27 @@ def create_server() -> JsonRPCServer:
     # Code packs (Project Settings' Design code, the Code Packs page).
     @server.feature("codes/list")
     def _codes_list(params: Any) -> list[dict[str, Any]]:
-        return handlers.codes_list(_plain(params).get("root"))
+        args = _plain(params)
+        return handlers.codes_list(args.get("root"), args.get("kind"))
+
+    @server.feature("codes/templates")
+    def _codes_templates(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_templates(args.get("kind") or "buildingTemplate", args.get("root"))
+
+    @server.feature("codes/checkTemplate")
+    @_in_worker
+    def _codes_check_template(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_check_template(args["path"], args.get("author") or "")
+
+    @server.feature("codes/remove")
+    @_in_worker
+    def _codes_remove(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_remove(
+            args["id"], args.get("scope") or "user", args.get("kind"), args.get("root")
+        )
 
     @server.feature("codes/show")
     def _codes_show(params: Any) -> dict[str, Any]:
@@ -1167,7 +1187,12 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _codes_install(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.codes_install(args["path"], args.get("scope") or "user", args.get("root"))
+        return handlers.codes_install(
+            args["path"],
+            args.get("scope") or "user",
+            args.get("root"),
+            args.get("replace") is True,
+        )
 
     @server.feature("codes/validate")
     def _codes_validate(params: Any) -> dict[str, Any]:
@@ -1177,7 +1202,21 @@ def create_server() -> JsonRPCServer:
     @server.feature("codes/trust")
     def _codes_trust(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.codes_trust(args["id"], bool(args.get("trusted")), args.get("root"))
+        return handlers.codes_trust(
+            args["id"], bool(args.get("trusted")), args.get("root"), args.get("kind")
+        )
+
+    @server.feature("codes/codedGeometry")
+    @_in_worker
+    def _codes_coded_geometry(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_coded_geometry(
+            args["package"],
+            args["file"],
+            args.get("values"),
+            args.get("root"),
+            args.get("memberType"),
+        )
 
     return server
 

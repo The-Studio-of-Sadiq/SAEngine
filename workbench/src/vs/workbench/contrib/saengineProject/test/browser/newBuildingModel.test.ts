@@ -6,7 +6,11 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { gridLabel } from '../../../../services/saengineProject/common/gridLabels.js';
-import { buildSpec, centralBay, DEFAULT_FORM, fitSpacings, folderError, formatLengths, gridLines, IWizardPlot, parseSpacings, plotFitWarning, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+import { BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, formatLengths, formFromSpec, gridLines, IWizardPlot, parseSpacings, plotFitWarning, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+
+/** The built-in building template saengine-default-building (python/src/saengine/codes/packs), as the wizard applies it. */
+const DEFAULT_SPEC = { name: 'Building', gridsX: [6000, 6000, 6000], gridsY: [5000, 5000], storyCount: 6, groundHeight: 3600, typicalHeight: 3200, system: 'rcFrame', concrete: 'C27.6', rebar: 'B420DWR', footing: 'isolated', occupancy: 'residential', occupancyCategory: 'II', location: 'dhaka', siteClass: 'SD', siteClassSource: 'assumed' };
+const DEFAULT_FORM = formFromSpec(DEFAULT_SPEC, BLANK_FORM);
 
 suite('SAEngine - New Building wizard model', () => {
 
@@ -199,5 +203,15 @@ suite('SAEngine - New Building wizard model', () => {
 			'The grid is larger than the buildable area of the plot (10.00 × 15.50 m): X by 2.00 m, Y by 0.50 m. Use Fit to the Buildable Area or shorten the bays.',
 			'The grid is larger than the buildable area of the plot (10.00 × 15.50 m): Y by 0.50 m. Use Fit to the Buildable Area or shorten the bays.',
 		]);
+	});
+
+	test('a building template fills the form (the wizard has no starting values of its own)', () => {
+		assert.deepStrictEqual(DEFAULT_FORM, {
+			name: '', gridX: '3×6000', gridY: '2×5000', storyCount: '6', groundHeight: '3600', typicalHeight: '3200', heights: '',
+			system: 'rcFrame', concrete: 'C27.6', rebar: 'B420DWR', footing: 'isolated', location: 'dhaka', siteClass: 'SD', use: 'residential', category: 'II',
+		});
+		// The name typed is kept; explicit storeys become the heights; unknown values are ignored.
+		const form = formFromSpec({ gridsX: [7000], stories: [{ name: 'L1', height: 4000 }, { name: 'L2', height: 3000 }], system: 'shellRoof', footing: 'mat' }, { ...DEFAULT_FORM, name: 'Clinic' });
+		assert.deepStrictEqual([form.name, form.gridX, form.gridY, form.storyCount, form.heights, form.system, form.footing], ['Clinic', '7000', '2×5000', '2', '4000, 3000', 'rcFrame', 'mat']);
 	});
 });
