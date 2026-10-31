@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	addLineLoads, addPointLoad, defaultWallHeight, emptyLoads, IMemberLoads, LOAD_LAYERS, loadRows, loadsDrawing, loadsOnStory, loadsText, loadValue, parseArchitectureLoads, parseLoads,
+	addLineLoads, addPointLoad, defaultWallHeight, emptyLoads, IMemberLoads, isPoint, LOAD_LAYERS, loadRows, loadsDrawing, loadsOnStory, loadsText, loadValue, parseArchitectureLoads, parseLoads,
 	removeLoads, updateLoad, wallLineLoad, wallWeight,
 } from '../../browser/floorPlanLoads.js';
 
@@ -118,14 +118,14 @@ suite('SAEngine - Floor plan loads', () => {
 		const entities = loadsDrawing(loads, plan, 'L2');
 		const texts = entities.filter(e => e.kind === 'text').map(e => e.kind === 'text' ? e.text : '');
 		const lines = entities.filter(e => e.kind === 'line' && e.layer === LOAD_LAYERS.loads);
-		// Beam A1-B1 runs along +x, so its loads are drawn above it (+y), the second further out.
-		const offsets = lines.filter(e => e.kind === 'line' && e.start[1] === e.end[1]).map(e => e.kind === 'line' ? e.start[1] : 0);
-		// The point load's symbol is off the beam on its other side (below), clear of the member's id on the centreline.
+		// Beam A1-B1 runs along +x: its label is above it, so its line loads are drawn below (-y), the second further out (N-F9).
+		const offsets = lines.filter(e => e.kind === 'line' && e.start[1] === e.end[1]).map(e => e.kind === 'line' ? Math.round(e.start[1]) : 0);
+		// The point load's symbol is on the label's side (above), beyond the label.
 		const circles = entities.filter(e => e.kind === 'circle').map(e => e.kind === 'circle' ? e.center.map(Math.round) : []);
 		assert.deepStrictEqual({ texts, offsets, circles }, {
 			texts: ['10 kN/m', '2 kN/m', '30 kN'],
-			offsets: [450, 850],
-			circles: [[3000, -610]],
+			offsets: [-450, -850],
+			circles: [[3000, 610]],
 		});
 	});
 
@@ -149,6 +149,45 @@ suite('SAEngine - Floor plan loads', () => {
 		const deeper = { objects: [...objects.objects, { id: 'B600', kind: 'beam', profile: { shape: 'rectangle', xDim: 300, yDim: 600 } }] };
 		// Under B21 (600 deep) on L2: 3200 - 600; under B22 (500 deep): 3200 - 500.
 		assert.deepStrictEqual([defaultWallHeight(plan, deeper, 'B11'), defaultWallHeight(plan, deeper, 'B12')], [2600, 2700]);
+	});
+
+	test('a wall worked out per beam and story follows typical floors of different heights (N-F2)', () => {
+		// L2 is 3.6 m high (L3 at 10.0 m, the roof); B21 (on L2, where L1's walls stop) is 600 deep.
+		const plan = layout();
+		(plan.stories as Json[])[3] = { id: 'L3', name: 'Level 3', elevation: 10000, similarTo: 'L1' };
+		(plan.beams as Json[])[2] = { id: 'B21', type: 'B600', story: 'L2', start: A1, end: B1 };
+		const deeper = { objects: [...objects.objects, { id: 'B600', kind: 'beam', profile: { shape: 'rectangle', xDim: 300, yDim: 600 } }] };
+		const edit = addLineLoads(emptyLoads(), plan, ['B21', 'B22'], { case: 'SD', wall: { type: 'BW250', height: 1, openings: 20, auto: true } }, deeper);
+		const fixed = addLineLoads(emptyLoads(), plan, ['B11'], { case: 'SD', wall: { type: 'BW250', height: 2700 } }, deeper).loads;
+		const skip = addLineLoads(emptyLoads(), plan, ['B11'], { case: 'SD', wall: { type: 'BW250', height: 1, auto: true, skipRoof: true } }, deeper).loads;
+		const text = (loads: IMemberLoads, story: string) => loadsDrawing(loads, plan, story, deeper).filter(e => e.kind === 'text').map(e => e.kind === 'text' ? e.text : '');
+		const rows = loadRows(edit.loads, plan, deeper);
+		assert.deepStrictEqual({
+			// Each beam's own height on its master (L1), not the first beam's: under B21 (600) and B22 (500).
+			stored: edit.loads.loads.map(l => !isPoint(l) && l.wall ? `${l.member} ${l.wall.height}` : ''),
+			L1: text(edit.loads, 'L1'),
+			L2: text(edit.loads, 'L2'),
+			roof: text(edit.loads, 'L3'),
+			typedEverywhere: [text(fixed, 'L2'), text(fixed, 'L3')],
+			skipped: text(skip, 'L3'),
+			heights: rows[0].heights,
+			total: rows[0].total?.toFixed(2),
+		}, {
+			stored: ['B11 2600', 'B12 2700'],
+			// 5.35 kN/m² × h × 0.8: 2.6 m and 2.7 m on L1; 3.6 m - 0.5 m on L2; a 1 m parapet with no openings on the roof.
+			L1: [(5.35 * 2.6 * 0.8).toFixed(2), (5.35 * 2.7 * 0.8).toFixed(2)].map(v => `${Number(v)} kN/m`),
+			L2: [(5.35 * 3.1 * 0.8).toFixed(2), (5.35 * 3.1 * 0.8).toFixed(2)].map(v => `${Number(v)} kN/m`),
+			roof: ['5.35 kN/m', '5.35 kN/m'],
+			typedEverywhere: [['14.44 kN/m'], ['14.44 kN/m']],
+			skipped: [],
+			heights: '2.6 m on Level 1, 3.1 m on Level 2, 1 m parapet on Level 3',
+			total: ((5.35 * 2.6 * 0.8 + 5.35 * 3.1 * 0.8 + 5.35) * 6).toFixed(2),
+		});
+		// A typed height turns it off; "auto" turns it on again.
+		const typed = updateLoad(edit.loads, 'LL1', { height: 2500 });
+		assert.deepStrictEqual([(typed.loads[0] as { wall?: object }).wall, (updateLoad(typed, 'LL1', { auto: true }).loads[0] as { wall?: object }).wall],
+			[{ type: 'BW250', height: 2500, openings: 20 }, { type: 'BW250', height: 2500, openings: 20, auto: true }]);
+		assert.strictEqual(parseLoads(loadsText(edit.loads)).problem, undefined);
 	});
 
 	test('a loads file that does not read fully is reported, and its entries are not dropped silently', () => {

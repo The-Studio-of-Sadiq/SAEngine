@@ -27,6 +27,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.fem.end_zones import profile_depth
 from saengine.library import line_loads as ll
 from saengine.library.bim import BeamElement, BuildingModel, ColumnElement
 
@@ -99,8 +100,15 @@ def _key(xy: Sequence[float]) -> tuple[int, int]:
     return (round(float(xy[0])), round(float(xy[1])))
 
 
-def member_loads(building: BuildingModel, loads: ll.MemberLoads) -> MemberLoadSet:
-    """The loads of ``loads`` on the members of ``building``, repeated over typical floors."""
+def member_loads(
+    building: BuildingModel, loads: ll.MemberLoads, types: Mapping[str, Any] | None = None
+) -> MemberLoadSet:
+    """The loads of ``loads`` on the members of ``building``, repeated over typical floors.
+
+    A wall with ``auto`` height (:func:`saengine.library.line_loads.auto_height`) gets the
+    height of each beam and story it lands on: the story height above less the depth of the
+    beam above (``types``: object id -> object type, for the depths), a parapet on the top
+    story."""
     out = MemberLoadSet()
     elevation = {s.id: s.elevation for s in building.stories}
     beams = {e.id: e for e in building.elements if isinstance(e, BeamElement)}
@@ -109,6 +117,24 @@ def member_loads(building: BuildingModel, loads: ll.MemberLoads) -> MemberLoadSe
         (frozenset((_key(e.start), _key(e.end))), round(e.elevation)): e for e in beams.values()
     }
     story_at = {round(z): sid for sid, z in elevation.items()}
+    levels = sorted(set(elevation.values()))
+
+    def above(z: float) -> float | None:
+        return next((level for level in levels if level > z + 1), None)
+
+    def depth(beam: BeamElement) -> float | None:
+        kind = types.get(beam.type) if types else None
+        profile = getattr(kind, "profile", None)
+        return profile_depth(profile) if profile is not None else None
+
+    def wall_on(beam: BeamElement) -> tuple[float | None, float | None]:
+        """The story height above ``beam`` (None on the top story) and the depth under it: of
+        the beam above, else of ``beam`` itself."""
+        top = above(beam.elevation)
+        if top is None:
+            return None, None
+        upper = beam_at.get((frozenset((_key(beam.start), _key(beam.end))), round(top)))
+        return top - beam.elevation, (depth(upper) if upper else None) or depth(beam)
 
     for load in loads.loads:
         own = beams.get(load.member)
@@ -138,7 +164,18 @@ def member_loads(building: BuildingModel, loads: ll.MemberLoads) -> MemberLoadSe
                 start = np.array([*target.start, target.elevation]) * MM
                 end = np.array([*target.end, target.elevation]) * MM
                 if isinstance(load, ll.LineLoad):
-                    value = ll.line_value(load, loads)
+                    height: float | None = None
+                    parapet = False
+                    if load.wall is not None and load.wall.auto:
+                        story_height, under = wall_on(target)
+                        height = ll.auto_height(load.wall, story_height, under, wall_on(own)[0])
+                        parapet = story_height is None
+                        if height is None:
+                            out.notes.append(
+                                f"{load.id}: no wall on {target.id}, on the top story (skip the roof)"
+                            )
+                            continue
+                    value = ll.line_value(load, loads, height, parapet=parapet)
                     if value:
                         out.lines.append(
                             MemberLineLoad(

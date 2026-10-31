@@ -43,6 +43,9 @@ The setup asks for a type on its *Select Components* page:
 | **Energy simulation** (`energyplus`) | EnergyPlus 26.2.0, a separate program (`resources\energyplus`) | 7 MEP › HVAC shows SAEngine's estimate of the cooling loads instead of the EnergyPlus design-day run |
 | **CAD editor** (`librecad`) | LibreCAD 2.2.1.6, a separate GPL-2.0-only program with its GPL and Qt licence texts (`resources\librecad`); shipped alongside, never linked | *Open in LibreCAD* opens the DXF in the program Windows uses for `.dxf` files; the drawings themselves are made by SAEngine either way |
 | **DWG import** (`libredwg`) | GNU LibreDWG 0.14's `dwg2dxf`, a separate GPL-3.0-or-later program (`resources\libredwg`) | a DWG underlay or import asks for the drawing as DXF |
+| **AI assistant** (`ai`) | the GitHub Copilot chat, a built-in extension (`resources\app\extensions\copilot`, about 280 MB, most of it the Copilot runtime); needs a GitHub account | no chat inside SAEngine; assistants outside it (Claude Code, Claude Desktop) still connect through *Allow AI Assistants to Control This Window* ([AI assistants](../ai-assistants.md)) |
+| **Git** (`git`) | the Git, GitHub and merge-conflict extensions (about 13 MB); GitHub sign-in comes with Git or the AI assistant | no Git integration; SAEngine's own project versions work without it |
+| **Collaboration** (`collaboration`) | port forwarding and Microsoft sign-in for remote access (about 5 MB); live collaboration will be part of it once it exists | SAEngine works on this computer only |
 
 Sizes on disk, as the build prints them (see [Building the installer](#building-the-installer);
 measured on a local build, 2026-10-30):
@@ -62,7 +65,7 @@ components was 711 MB.
 **A missing component is a state, not an error.** Where SAEngine uses the program it says it
 is not installed and offers **Add Component...**: the HVAC results and *Calculate Loads*
 (EnergyPlus), *Open in CAD* (LibreCAD, once, with *Don't Show Again*), a DWG underlay in the
-floor plan (LibreDWG). **Help › Installer Components...** lists all three with their state:
+floor plan (LibreDWG). **Help › Installer Components...** lists all six with their state:
 *installed*, *not installed*, or *not installed by the setup; using ...* when SAEngine finds
 the program elsewhere (`SAENGINE_ENERGYPLUS`, `SAENGINE_LIBREDWG`, the `saengine.cad.program`
 setting, or a LibreCAD in `%ProgramFiles%`).

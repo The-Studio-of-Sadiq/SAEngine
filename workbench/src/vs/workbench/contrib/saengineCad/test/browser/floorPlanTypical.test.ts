@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { copyStory, familyNote, familyOf, inSync, masterOf, onStory as ownStory, placedEdit, placeKey, repeatFamily, repeatOnFamilies, setSimilar, storyBelow } from '../../browser/floorPlanTypical.js';
+import { copyStory, familyNote, familyOf, inSync, masterOf, onStory as ownStory, placedEdit, placeKey, repeatFamily, repeatOnFamilies, setSimilar, storyBelow, typicalLosses } from '../../browser/floorPlanTypical.js';
 
 suite('SAEngine - Floor plan typical floors', () => {
 
@@ -161,4 +161,22 @@ suite('SAEngine - Floor plan typical floors', () => {
 			refused: undefined,
 		});
 	});
+
+	test('making stories typical says which of their own members go (N-F3)', () => {
+		const own = bay('L2', 'L1', 10);
+		const layout = plan(stories(), {
+			columns: [...bay('L1', 'BASE', 1).columns, ...own.columns],
+			beams: [...bay('L1', 'BASE', 1).beams, ...own.beams, { id: 'B99', type: 'B300', story: 'L2', start: B1, end: B2 }],
+			slabs: [...bay('L1', 'BASE', 1).slabs, { ...own.slabs[0], type: 'S200' }],
+		});
+		assert.deepStrictEqual({
+			losses: typicalLosses(layout, 'L1', ['L2', 'L3']),
+			none: typicalLosses(setSimilar(layout, 'L1', ['L2']), 'L1', ['L2']),
+		}, {
+			// L2's extra beam goes and its slab takes L1's type; L3 had nothing to lose.
+			losses: [{ story: 'L2', removed: ['B99'], retyped: ['S10'] }],
+			none: [],
+		});
+	});
+
 });
