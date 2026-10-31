@@ -14,6 +14,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { basename, dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { killTree } from '../../../base/node/processes.js';
+import { authenticodeProblem, authenticodeSignature } from './authenticode.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -350,6 +351,14 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		if (actual !== request.sha256) {
 			this.logService.warn(`[saengine] ${setup}: sha256 ${actual}, expected ${request.sha256}; not run`);
 			return refuse(localize('setup.mismatch', "{0} does not match the release's SHA-256, so it is not that SAEngine setup or it is damaged. It was not run.", basename(setup)));
+		}
+		// Once SAEngine is signed (round M7), the setup must also carry the publisher's signature.
+		if (request.publisher) {
+			const problem = authenticodeProblem(await authenticodeSignature(setup), request.publisher);
+			if (problem) {
+				this.logService.warn(`[saengine] ${setup}: Authenticode: ${problem}; not run`);
+				return refuse(localize('setup.unsigned', "{0} was not run: {1}. A SAEngine setup is signed by {2}.", basename(setup), problem, request.publisher));
+			}
 		}
 		const args = [`/COMPONENTS=${components.join(',')}`];
 		this.logService.info(`[saengine] running ${setup} ${args.join(' ')} (sha256 ${actual})`);

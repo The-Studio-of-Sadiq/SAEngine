@@ -218,7 +218,12 @@ CommandsRegistry.registerCommand('saengine.codes.validate', async (accessor, raw
 
 CommandsRegistry.registerCommand('saengine.codes.trust', async (accessor, raw: unknown) => {
 	const args = bag(raw);
-	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root) }));
+	return orThrow(await call(accessor, 'codes/trust', { id: args.id, trusted: args.trusted === true, root: str(args.root), kind: str(args.kind) }));
+});
+
+CommandsRegistry.registerCommand('saengine.codes.codedGeometry', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'codes/codedGeometry', { package: args.package, file: args.file, values: bag(args.values), root: str(args.root) });
 });
 
 // --- CAD --------------------------------------------------------------------------------------

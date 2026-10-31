@@ -2098,6 +2098,16 @@ def codes_templates(kind: str, root: str | None = None) -> dict[str, Any]:
     return catalogue.building_templates(base)
 
 
+def codes_coded_geometry(
+    package: str, file: str, values: dict[str, Any] | None = None, root: str | None = None
+) -> dict[str, Any]:
+    """The geometry of a coded structure template (:func:`saengine.codes.coded.coded_geometry`),
+    to preview and insert like a built-in shape's; ``{problems}`` when it cannot be made."""
+    from saengine.codes.coded import coded_geometry
+
+    return coded_geometry(package, file, values or {}, _pack_root(root))
+
+
 def codes_check_template(path: str, author: str = "") -> dict[str, Any]:
     """``{ok, problems}``: whether the archive may be opened as a full building template
     (:func:`saengine.project.archive.template_problems`, plus :func:`inspect_archive`)."""
@@ -2208,12 +2218,19 @@ def codes_validate(path: str, root: str | None = None) -> dict[str, Any]:
     return info
 
 
-def codes_trust(pack_id: str, trusted: bool, root: str | None = None) -> dict[str, Any]:
-    """Trusts (or stops trusting) the hooks of the pack in force with this id."""
+def codes_trust(
+    pack_id: str, trusted: bool, root: str | None = None, kind: str | None = None
+) -> dict[str, Any]:
+    """Trusts (or stops trusting) the hooks of the package in force with this id and kind (a
+    design code by default; a structure template's coded templates, round M5)."""
     from saengine.codes import CodePackError, registry
+    from saengine.codes.manifest import KINDS
 
     base = _pack_root(root)
     try:
-        return _pack_info(registry.set_trusted(pack_id, bool(trusted), base), base)
+        info = registry.set_trusted(
+            pack_id, bool(trusted), base, kind if kind in KINDS else "designCode"
+        )
+        return _pack_info(info, base)
     except CodePackError as error:
         return _refusal(error)

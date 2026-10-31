@@ -6,12 +6,13 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { streamToBuffer } from '../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { buffer as zipBuffer, extract } from '../../../base/node/zip.js';
 import { basename, dirname, join, resolve } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { IRequestService } from '../../request/common/request.js';
-import { ICopyPackageRequest, IDownloadPackageRequest, IFetchIndexRequest, IReadIndexFileRequest, ISaenginePackagesService, IVerifiedIndex, packageUrlProblem, safeFileName } from '../common/packages.js';
+import { ICopyPackageRequest, IDownloadPackageRequest, IFetchIndexRequest, IOpenBundleRequest, IOpenedBundle, IReadIndexFileRequest, ISaenginePackagesService, IVerifiedIndex, packageUrlProblem, safeFileName } from '../common/packages.js';
 import { sha256Hex, verifyIndexSignature } from '../node/packageSignature.js';
 
 const CALL_SITE = 'saengine.packages';
@@ -85,6 +86,36 @@ export class SaenginePackagesMainService implements ISaenginePackagesService {
 		}
 		const key = verifyIndexSignature(index, signature, request.keys);
 		return { text: new TextDecoder().decode(index), keyId: key.keyId, test: key.test === true, at: new Date().toISOString(), source: request.indexPath };
+	}
+
+	async openBundle(request: IOpenBundleRequest): Promise<IOpenedBundle | undefined> {
+		const stat = await fs.stat(request.path);
+		let folder = request.path;
+		if (stat.isFile()) {
+			if (!request.path.toLowerCase().endsWith('.zip')) {
+				return undefined;
+			}
+			// A package zip has pack.json, a bundle index.json: look before unpacking.
+			try {
+				await zipBuffer(request.path, 'index.json');
+			} catch {
+				return undefined;
+			}
+			folder = join(this.folder, `bundle-${generateUuid()}`);
+			await fs.mkdir(folder, { recursive: true });
+			await extract(request.path, folder, { overwrite: true }, CancellationToken.None);
+		} else if (!stat.isDirectory()) {
+			return undefined;
+		}
+		const indexPath = join(folder, 'index.json');
+		try {
+			await fs.access(indexPath);
+		} catch {
+			return undefined;
+		}
+		const index = await this.readIndexFile({ indexPath, keys: request.keys });
+		this.logService.info(`[saengine packages] offline bundle ${request.path} verified with key ${index.keyId}`);
+		return { ...index, source: request.path, folder };
 	}
 
 	private async save(data: Uint8Array, expected: { readonly size: number; readonly sha256: string; readonly fileName: string }, from: string): Promise<string> {

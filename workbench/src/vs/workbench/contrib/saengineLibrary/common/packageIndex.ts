@@ -22,6 +22,10 @@ export const PACKAGES_INDEX_COMMAND = 'saengine.packages.index';
 export const PACKAGES_DOWNLOAD_COMMAND = 'saengine.packages.download';
 /** `{ path }`: deletes a zip the download command returned, after the install. Desktop only. */
 export const PACKAGES_DISCARD_COMMAND = 'saengine.packages.discard';
+/** `{ path }` -> `IOpenedBundle | undefined`: an offline bundle (folder or zip) verified. Desktop only. */
+export const PACKAGES_OPEN_BUNDLE_COMMAND = 'saengine.packages.openBundle';
+/** `IPackageDownload` with `path`: a bundle's zip checked and copied like a download. Desktop only. */
+export const PACKAGES_COPY_COMMAND = 'saengine.packages.copy';
 /** `{ tab?, kind? }`: opens the Packages page. */
 export const PACKAGES_SHOW_COMMAND = 'saengine.packages.show';
 /** `{ id, scope, kind, root? }` -> `{ ok, path }`: removes a user or project package (backend). */

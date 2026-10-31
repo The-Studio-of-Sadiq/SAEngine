@@ -1084,7 +1084,17 @@ def create_server() -> JsonRPCServer:
     @server.feature("codes/trust")
     def _codes_trust(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.codes_trust(args["id"], bool(args.get("trusted")), args.get("root"))
+        return handlers.codes_trust(
+            args["id"], bool(args.get("trusted")), args.get("root"), args.get("kind")
+        )
+
+    @server.feature("codes/codedGeometry")
+    @_in_worker
+    def _codes_coded_geometry(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_coded_geometry(
+            args["package"], args["file"], args.get("values"), args.get("root")
+        )
 
     return server
 

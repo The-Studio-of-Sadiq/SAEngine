@@ -36,6 +36,7 @@ CHAPTERS = [
     "11-exports.md",
     "12-importing.md",
     "13-reference.md",
+    "14-packages.md",
     "glossary.md",
 ]
 

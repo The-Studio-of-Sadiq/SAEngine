@@ -23,7 +23,7 @@ import { runningVersion } from '../../saengineUpdate/common/updateCheck.js';
 import { readCodePacks } from '../browser/codePacksModel.js';
 import {
 	acceptedIndexKeys, CHECK_ONLINE_SETTING, DEFAULT_INDEX_URL, INDEX_URL_SETTING, IPackageDownload, IPackageIndexState, newestPackages, packageUpdates, PACKAGES_DISCARD_COMMAND,
-	PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, PACKAGES_SHOW_COMMAND, readPackageIndex,
+	PACKAGES_COPY_COMMAND, PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, PACKAGES_OPEN_BUNDLE_COMMAND, PACKAGES_SHOW_COMMAND, readPackageIndex,
 } from '../common/packageIndex.js';
 
 /*
@@ -110,6 +110,17 @@ CommandsRegistry.registerCommand(PACKAGES_INDEX_COMMAND, async (accessor, raw?: 
 
 CommandsRegistry.registerCommand(PACKAGES_DOWNLOAD_COMMAND, (accessor, request: IPackageDownload) => {
 	return accessor.get(ISaenginePackagesService).downloadPackage(request);
+});
+
+CommandsRegistry.registerCommand(PACKAGES_OPEN_BUNDLE_COMMAND, (accessor, raw: { path?: unknown }) => {
+	if (typeof raw?.path !== 'string') {
+		return undefined;
+	}
+	return accessor.get(ISaenginePackagesService).openBundle({ path: raw.path, keys: acceptedIndexKeys(accessor.get(IEnvironmentService).isBuilt) });
+});
+
+CommandsRegistry.registerCommand(PACKAGES_COPY_COMMAND, (accessor, request: IPackageDownload & { path: string }) => {
+	return accessor.get(ISaenginePackagesService).copyPackage({ path: request.path, size: request.size, sha256: request.sha256, fileName: request.fileName });
 });
 
 CommandsRegistry.registerCommand(PACKAGES_DISCARD_COMMAND, (accessor, raw: { path?: unknown }) => {

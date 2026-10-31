@@ -38,6 +38,8 @@ The same content is compiled into one PDF, **SAEngine User Manual**
 
 - [Importing ETABS, STAAD.Pro and SAP2000 models](12-importing.md)
 - [Reference: commands, command line, files](13-reference.md)
+- [Packages: design codes and templates](14-packages.md) — the Packages page, templates, code
+  that runs only when trusted, offline bundles
 - [Glossary](glossary.md)
 
 **Tutorials**
