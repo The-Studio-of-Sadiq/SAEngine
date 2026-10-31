@@ -380,12 +380,20 @@ function boqStatus(inputs: IPartStatusInputs): IPartStatus {
 	// before Part 9 do not record them; Run All measures them again). Of the settings only the
 	// ground level counts: the earthwork is dug from it, and nothing else in the bill reads them.
 	const recorded = (part: string) => recordedStamp(document, part) !== undefined;
-	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part)))
+	// The materials: only those the bill used (see boqSourceStamp).
+	if (BOQ_SOURCES.some(part => changed(inputs.texts, part, recordedStamp(document, part), (p, text) => boqSourceStamp(p, text, document)))
 		|| BOQ_RECORDED_SOURCES.some(part => recorded(part) && changed(inputs.texts, part, recordedStamp(document, part), boqSourceStamp))
 		|| (!recorded('substructure') && substructureHasFoundations(inputs))
 		|| (!recorded('mep') && mepHasContent(inputs))
 		|| (!recorded('architecture') && architectureHasContent(inputs.texts.get('architecture')))) {
 		return status('boq', 'stale', STALE(), localize('partStatus.boq.measureAgain', "measure the quantities again"));
+	}
+	// What the bill left out (members with no bars, tanks not designed): it is not "measured" yet.
+	const notMeasured = typeof document.notMeasured === 'number' ? document.notMeasured : (Array.isArray(document.problems) ? document.problems.length : 0);
+	if (notMeasured > 0) {
+		return status('boq', 'inProgress', localize('partStatus.boq.incomplete', "incomplete"), notMeasured === 1
+			? localize('partStatus.boq.oneNotMeasured', "1 item not measured: see the warnings in the bill")
+			: localize('partStatus.boq.notMeasuredCount', "{0} items not measured: see the warnings in the bill", notMeasured));
 	}
 	return status('boq', 'done', localize('partStatus.boq.measured', "measured"));
 }

@@ -15,7 +15,9 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -100,6 +102,8 @@ registerAction2(class extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const notificationService = accessor.get(INotificationService);
+		const openerService = accessor.get(IOpenerService);
+		const commandService = accessor.get(ICommandService);
 		if (!project) {
 			return;
 		}
@@ -108,6 +112,6 @@ registerAction2(class extends Action2 {
 			notificationService.info(localize('boq.exportNotMeasured', "Measure the bill of quantities from the building model before exporting it."));
 			return;
 		}
-		await exportBoqCsv(document, project, { textModelService, fileService, fileDialogService, notificationService });
+		await exportBoqCsv(document, project, { textModelService, fileService, fileDialogService, notificationService, openerService, commandService });
 	}
 });

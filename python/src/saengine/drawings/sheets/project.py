@@ -493,8 +493,28 @@ def _zone_length(row: dict[str, Any], at: dict[str, Any]) -> float:
     return t - f
 
 
-def column_lines(columns: list[dict[str, Any]], objects: Any) -> list[ColumnLine]:
-    """Column elements of the detailing model stacked on plan positions."""
+#: How far [mm] off a grid intersection a column is still named "near" it.
+NEAR_GRID = 1000.0
+
+
+def grid_position(
+    x: float, y: float, grids_x: list[Grid], grids_y: list[Grid], tolerance: float = 50.0
+) -> str | None:
+    """The grid intersection at plan ``(x, y)`` ("A1"), or None off the grids."""
+    gx = next((g for g in grids_x if abs(g.position - x) <= tolerance), None)
+    gy = next((g for g in grids_y if abs(g.position - y) <= tolerance), None)
+    return f"{gx.label}{gy.label}" if gx is not None and gy is not None else None
+
+
+def column_lines(
+    columns: list[dict[str, Any]],
+    objects: Any,
+    grids_x: list[Grid] | None = None,
+    grids_y: list[Grid] | None = None,
+) -> list[ColumnLine]:
+    """Column elements of the detailing model stacked on plan positions, marked by their grid
+    intersection ("A1": the stack runs every storey, so not the member id of its lowest one),
+    else by that member's id and the intersection it is near ("C1 (near A1)")."""
     stacks: dict[tuple[int, int], ColumnLine] = {}
     for e in sorted(columns, key=lambda e: float(e.get("at", {}).get("bottom", 0))):
         pos = e.get("at", {}).get("position") or [0, 0]
@@ -502,7 +522,14 @@ def column_lines(columns: list[dict[str, Any]], objects: Any) -> list[ColumnLine
         section = column_section(e, _type_of(objects, str(e.get("type"))))
         if section is None:
             continue
-        line = stacks.setdefault(key, ColumnLine(str(e.get("member") or e["id"]), []))
+        x, y = float(pos[0]), float(pos[1])
+        mark = grid_position(x, y, grids_x or [], grids_y or [])
+        if mark is None:
+            # Off the grids: the member id alone ("C1") reads as grid C1; say which it is near.
+            member = str(e.get("member") or e["id"])
+            near = grid_position(x, y, grids_x or [], grids_y or [], NEAR_GRID)
+            mark = f"{member} (near {near})" if near else member
+        line = stacks.setdefault(key, ColumnLine(mark, []))
         line.members.append(str(e["id"]))
         line.sections[str(e.get("story") or "")] = section
     return list(stacks.values())
@@ -985,6 +1012,8 @@ def drawing_set(
             data.problems.append(f"The detailing model could not be made: {error}")
             detailing = {"elements": [], "notes": []}
     fill_from_detailing(data, detailing, bim, objects, substructure)
+    if data.undesigned:
+        data.title.status = NOT_FOR_CONSTRUCTION
     if schedule is None and detailing.get("elements"):
         from saengine.drawings import bbs
 
@@ -1074,7 +1103,7 @@ def fill_from_detailing(
     levels = {lv.id: lv for lv in data.building.levels}
     elements = detailing.get("elements") or []
     columns = [e for e in elements if e.get("kind") == "column"]
-    data.columns = column_lines(columns, objects)
+    data.columns = column_lines(columns, objects, data.building.grids_x, data.building.grids_y)
     by_id = {str(e["id"]): e for e in columns}
     beams = []
     for e in (e for e in elements if e.get("kind") == "beam"):
@@ -1128,6 +1157,33 @@ def fill_from_detailing(
             st.base_name = levels[stair.base].name if stair.base in levels else ""
             st.top_name = levels[stair.top].name if stair.top in levels else ""
     data.problems += [str(n) for n in detailing.get("notes", []) if "not detailed" in str(n)]
+    data.undesigned = undesigned_members(elements)
+    for kind, types in data.undesigned.items():
+        for type_id, count in types.items():
+            data.problems.append(
+                f"{count} {kind}{'s' if count != 1 else ''} of type {type_id}: no reinforcement, "
+                "not designed. Its sheets are marked NOT FOR CONSTRUCTION: design the type "
+                "(Design Reinforcement in 8 FEM) or enter its bars in 04 Objects."
+            )
+
+
+NOT_FOR_CONSTRUCTION = "NOT FOR CONSTRUCTION"
+"""The title block's status while any member has no reinforcement, whatever status was set."""
+
+
+def undesigned_members(elements: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """The members of the detailing model left out for want of reinforcement (their type has no
+    bars: never designed), counted by kind and object type: ``{"column": {"C400x400": 28}}``.
+    A beam line counts its members."""
+    out: dict[str, dict[str, int]] = {}
+    for e in elements:
+        if not any("reinforcement: not detailed" in str(n) for n in e.get("notes") or []):
+            continue
+        kind, type_id = str(e.get("kind") or "member"), str(e.get("type") or "?")
+        members = e.get("members") or [e.get("id")]
+        types = out.setdefault(kind, {})
+        types[type_id] = types.get(type_id, 0) + len(members)
+    return out
 
 
 def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> list[str]:

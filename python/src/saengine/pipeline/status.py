@@ -111,9 +111,18 @@ def ground_level_stamp_text(settings_text: str) -> str:
     return source_stamp(f"groundLevel={math.floor(ground * 1000 + 0.5)}")
 
 
-def boq_source_stamp(part: str, text: str) -> str:
-    """``boqSourceStamp``."""
-    return ground_level_stamp_text(text) if part == "settings" else source_stamp(text)
+def boq_source_stamp(part: str, text: str, document: Any = None) -> str:
+    """``boqSourceStamp``: for the materials of a bill that records the ids it used, the stamp of
+    those entries only."""
+    if part == "settings":
+        return ground_level_stamp_text(text)
+    source = document.get("source") if isinstance(document, dict) else None
+    ids = source.get("materialIds") if isinstance(source, dict) else None
+    if part == "materials" and isinstance(ids, list):
+        from saengine.boq.quantities import materials_stamp
+
+        return materials_stamp(text, {str(i) for i in ids})
+    return source_stamp(text)
 
 
 def fem_source_stamp(part: str, text: str) -> str:
@@ -540,7 +549,15 @@ def boq_status(inputs: StatusInputs) -> PartStatus:
         return recorded_stamp(document, part) is not None
 
     if (
-        any(_changed(inputs.texts, p, recorded_stamp(document, p)) for p in BOQ_SOURCES)
+        any(
+            _changed(
+                inputs.texts,
+                p,
+                recorded_stamp(document, p),
+                lambda part, text: boq_source_stamp(part, text, document),
+            )
+            for p in BOQ_SOURCES
+        )
         or any(
             recorded(p) and _changed(inputs.texts, p, recorded_stamp(document, p), boq_source_stamp)
             for p in BOQ_RECORDED_SOURCES
@@ -553,6 +570,15 @@ def boq_status(inputs: StatusInputs) -> PartStatus:
         )
     ):
         return _status("boq", "stale", STALE, "measure the quantities again")
+    # What the bill left out (members with no bars, tanks not designed): it is not "measured" yet.
+    not_measured = document.get("notMeasured")
+    if not isinstance(not_measured, int):
+        not_measured = _length(document.get("problems"))
+    if not_measured > 0:
+        hint = (
+            "1 item not measured" if not_measured == 1 else f"{not_measured} items not measured"
+        ) + ": see the warnings in the bill"
+        return _status("boq", "inProgress", "incomplete", hint)
     return _status("boq", "done", "measured")
 
 

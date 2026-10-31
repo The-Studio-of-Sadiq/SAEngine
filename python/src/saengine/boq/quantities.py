@@ -125,6 +125,10 @@ ASSUMED_MIXES: tuple[tuple[float, tuple[float, float, float]], ...] = (
     (math.inf, (1.0, 1.5, 3.0)),
 )
 
+#: The mix of the blinding (lean concrete, which has no material in 03 Materials): 1:3:6, the
+#: M10 nominal mix of IS 456:2000 Table 9, as for a lean concrete of the table above.
+LEAN_MIX = (1.0, 3.0, 6.0)
+
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
 BLINDING = 75.0  # lean concrete under foundations and tie beams
@@ -154,7 +158,8 @@ MATERIALS_CONVENTIONS = [
         f"mortar per m³. Cement weighs {CEMENT_DENSITY:g} kg/m³ loose. A design mix gives kg per "
         f"m³; its sand and stone are turned into volumes at {SAND_DENSITY:g} and "
         f"{STONE_DENSITY:g} kg/m³ loose. Water from the water/cement ratio. These are estimating "
-        "practice values, not BNBC values; no wastage is added, and bags are not rounded up."
+        "practice values, not BNBC values; no wastage is added. The bags are shown rounded up "
+        "(a part bag is bought whole); the bill keeps the exact number."
     ),
 ]
 
@@ -335,7 +340,15 @@ class BoqSource(_Model):
         default=None, title="Object types", description="Stamp of objects.json."
     )
     materials: str | None = Field(
-        default=None, title="Materials", description="Stamp of materials.json."
+        default=None,
+        title="Materials",
+        description="Stamp of materials.json: with materialIds, of the entries of those ids only.",
+    )
+    materialIds: list[str] | None = Field(
+        default=None,
+        title="Materials used",
+        description="The materials the bill was measured from (named by the other files, with "
+        "their mortars); none: the whole file counts.",
     )
     substructure: str | None = Field(
         default=None, title="Substructure", description="Stamp of substructure.json."
@@ -385,6 +398,13 @@ class BillOfQuantities(_Model):
         default_factory=list,
         description="What the bill could not measure (no bars on a type, a tank not designed, "
         "a mortar with no mix, ...): while there are any the bill is incomplete.",
+    )
+    notMeasured: int = Field(
+        default=0,
+        title="Not measured",
+        description="How much the bill left out: the elements with no bars measured, and one for "
+        'each other problem. The part\'s status is "incomplete" while it is above 0, whatever '
+        "else is measured.",
     )
 
     def total(self, group: str, unit: str | None = None) -> float:
@@ -1926,7 +1946,9 @@ class _Measure:
         lines = [
             line
             for line in list(self.bill.lines.values())
-            if line.group in ("concrete", "masonry") and line.unit == "m3" and line.material
+            if line.group in ("concrete", "masonry")
+            and line.unit == "m3"
+            and (line.material or line.kind == "blinding")
         ]
         missing: dict[str, str] = {}
         assumed: dict[str, str] = {}
@@ -1937,9 +1959,17 @@ class _Measure:
         project_cement = max(sorted(set(types)), key=types.count) if types else None
         for line in lines:
             material = self.materials.get(line.material or "")
-            if material is None:
+            if line.kind == "blinding" and material is None:
+                # Lean concrete has no material of its own in 03 Materials: the lean mix.
+                from saengine.library.materials import NominalMix
+
+                mix = NominalMix(ratio=list(LEAN_MIX), cementType=project_cement)
+                share, factor, cement_type = 1.0, DRY_VOLUME_CONCRETE, project_cement
+                ratio = ":".join(f"{r:g}" for r in LEAN_MIX)
+                assumed["~blinding"] = f"the blinding (lean concrete) {ratio} assumed"
+            elif material is None:
                 continue
-            if line.group == "masonry":
+            elif line.group == "masonry":
                 mortar_id = material.masonry.mortar if material.masonry else None
                 mortar = self.materials.get(mortar_id or "")
                 if mortar is None or mortar.composition is None:
@@ -2137,11 +2167,14 @@ def bill_of_quantities(
     measure.fire_measured = measure_fire(measure, tank_designs)
     measure.measure_materials()
     notes = measure.finish()
+    problems = measure.problems()
+    bare = sum(len(v) for v in measure.unreinforced.values())
     return BillOfQuantities(
         source=source or BoqSource(),
         items=measure.bill.items({e.id: e.type for e in building.elements if e.type}),
         notes=notes,
-        problems=measure.problems(),
+        problems=problems,
+        notMeasured=bare + len(problems) - (1 if bare else 0),
     )
 
 
@@ -2211,14 +2244,32 @@ def compute_boq(
 
         designs = {**read_designs(project_root), **read_fire_designs(project_root)}
     earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
+    library = MaterialLibrary.model_validate_json(materials_text)
+    # The bill is measured from the materials the other files name (and their mortars) only, and
+    # records their ids and the stamp of their entries: adding or editing a material nothing
+    # uses leaves it current. The architecture picks masonry by name: then the whole file counts.
+    used = (
+        None
+        if architecture
+        else used_materials(library, [objects_text, substructure_text, mep_text])
+    )
+    if used is not None:
+        library = library.model_copy(
+            update={"materials": [m for m in library.materials if m.id in used]}
+        )
     document = bill_of_quantities(
         BuildingModel.model_validate_json(bim_text),
         ObjectLibrary.model_validate_json(objects_text),
-        MaterialLibrary.model_validate_json(materials_text),
+        library,
         BoqSource(
             bim=source_stamp(bim_text),
             objects=source_stamp(objects_text),
-            materials=source_stamp(materials_text),
+            materials=(
+                materials_stamp(materials_text, used)
+                if used is not None
+                else source_stamp(materials_text)
+            ),
+            materialIds=sorted(used) if used is not None else None,
             substructure=source_stamp(substructure_text) if substructure_text is not None else None,
             mep=source_stamp(mep_text) if mep_text is not None else None,
             settings=ground_level_stamp(ground) if settings_text and earthwork else None,
@@ -2242,6 +2293,94 @@ def compute_boq(
         project_root,
     )
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+def used_materials(library: MaterialLibrary, texts: list[str | None]) -> set[str]:
+    """The ids of the materials of ``library`` that any of ``texts`` (JSON: the object types, the
+    substructure, the MEP) names as a string value, with the mortars of those masonries; also
+    the values of keys named like a material ("material", "concrete", "mortar", ...) that are
+    not in ``library`` yet, so that adding such a material makes the bill out of date."""
+    ids = {m.id for m in library.materials}
+    named: set[str] = set()
+
+    def walk(value: Any, key: str = "") -> None:
+        if isinstance(value, str):
+            if value in ids or key.lower().endswith(("material", "concrete", "mortar")):
+                named.add(value)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                walk(v, str(k))
+        elif isinstance(value, list):
+            for v in value:
+                walk(v, key)
+
+    for text in texts:
+        if text:
+            try:
+                walk(json.loads(text))
+            except ValueError:
+                return ids  # not JSON: everything counts
+    for m in library.materials:
+        if m.id in named and m.masonry is not None and m.masonry.mortar:
+            named.add(m.masonry.mortar)
+    return named
+
+
+def js_json(value: Any) -> str:
+    """``value`` as JavaScript's ``JSON.stringify`` writes it (no spaces; numbers as JavaScript
+    prints them), so the workbench stamps the same text (``boqMaterialsStamp``)."""
+    if value is None or isinstance(value, bool):
+        return json.dumps(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return _js_number(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ",".join(js_json(v) for v in value) + "]"
+    return "{" + ",".join(f"{js_json(str(k))}:{js_json(v)}" for k, v in value.items()) + "}"
+
+
+def _js_number(x: float) -> str:
+    """A float as JavaScript's ``Number.prototype.toString`` prints it (ECMA-262 Number::toString:
+    the shortest round-trip digits, positional from 1e-6 up to 1e21, exponential beyond)."""
+    if not math.isfinite(x):
+        return "null"
+    if x == 0:
+        return "0"
+    from decimal import Decimal
+
+    sign = "-" if x < 0 else ""
+    digits_t = Decimal(repr(abs(x))).normalize().as_tuple()
+    digits = "".join(map(str, digits_t.digits))
+    k = len(digits)
+    n = k + int(digits_t.exponent)  # the decimal point after n digits
+    if k <= n <= 21:
+        out = digits + "0" * (n - k)
+    elif 0 < n <= 21:
+        out = digits[:n] + "." + digits[n:]
+    elif -6 < n <= 0:
+        out = "0." + "0" * (-n) + digits
+    else:
+        e = n - 1
+        mantissa = digits[0] + ("." + digits[1:] if k > 1 else "")
+        out = f"{mantissa}e{'+' if e >= 0 else '-'}{abs(e)}"
+    return sign + out
+
+
+def materials_stamp(materials_text: str, ids: set[str]) -> str:
+    """The stamp of the entries of ``ids`` in ``03 Materials/materials.json`` (in the file's
+    order; the workbench computes the same, ``boqMaterialsStamp`` in partSources.ts)."""
+    try:
+        entries = [
+            m
+            for m in json.loads(materials_text).get("materials", [])
+            if isinstance(m, dict) and m.get("id") in ids
+        ]
+    except (ValueError, AttributeError):
+        return source_stamp(materials_text)
+    return source_stamp(js_json({"ids": sorted(ids), "materials": entries}))
 
 
 def _with_bar_schedule(
