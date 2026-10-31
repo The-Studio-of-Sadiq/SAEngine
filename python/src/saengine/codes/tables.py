@@ -633,11 +633,23 @@ class LintelLimits(_Group):
     probable: float = Field(ge=1)
 
 
+class BarSpacing(_Group):
+    """Least clear spacing of parallel bars (the 3D rebar cages' congestion check)."""
+
+    layerMin: Positive = Field(description="Bars in a layer: at least this clear [mm].")
+    layerDb: Positive = Field(description="Bars in a layer: at least this many db clear.")
+    betweenLayers: Positive = Field(description="Between layers of bars, clear [mm].")
+    columnMin: Positive = Field(description="Column bars: at least this clear [mm].")
+    columnDb: Positive = Field(description="Column bars: at least this many db clear.")
+
+
 class DetailingTable(TableModel):
     special: SpecialFrames
     joints: Joints
     walls: SpecialWalls
     lintels: LintelLimits
+    #: None in a pack that gives no bar spacing limits: the congestion check is then skipped.
+    spacing: BarSpacing | None = None
 
 
 class SteelPhi(_Group):
@@ -1500,6 +1512,54 @@ class SteelSectionsTable(TableModel):
         return self
 
 
+class LiveElementFactors(_Group):
+    interiorColumn: Positive
+    exteriorColumn: Positive = Field(description="Exterior columns without cantilever slabs.")
+    edgeColumnCantilever: Positive = Field(description="Edge columns with cantilever slabs.")
+    cornerColumnCantilever: Positive = Field(description="Corner columns with cantilever slabs.")
+    interiorBeam: Positive
+    edgeBeam: Positive = Field(description="Edge beams without cantilever slabs.")
+    other: Positive = Field(description="All other members (one-way slabs, cantilevers ...).")
+
+
+class LiveReductionTable(TableModel):
+    """Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13)."""
+
+    influenceMin: Positive = Field(description="Least KLL AT [m²] that is reduced.")
+    constant: Share = Field(description="a of L = L0 (a + b / √(KLL AT)).")
+    coefficient: Positive = Field(description="b of L = L0 (a + b / √(KLL AT)) [m].")
+    minOneFloor: Share = Field(description="Least L / L0 of members supporting one floor.")
+    minFloors: Share = Field(description="Least L / L0 of members supporting two or more.")
+    heavyLive: Positive = Field(description="Live loads above this [kN/m²] are not reduced.")
+    heavyFactor: Share = Field(description="L / L0 of heavy loads on members of 2+ floors.")
+    notReduced: list[str] = Field(description="Area uses never reduced.")
+    twoFloorsOnly: list[str] = Field(description="Area uses reduced only on 2+ floors.")
+    kll: LiveElementFactors
+
+
+class FireResistanceTable(TableModel):
+    """Least sizes and covers of concrete members for a fire resistance rating, one value per
+    rating of ``ratings`` (hours)."""
+
+    ratings: list[Positive] = Field(min_length=1, description="Fire resistance ratings [h].")
+    slabThickness: list[Positive] = Field(description="Least slab thickness [mm].")
+    slabCover: list[Positive] = Field(description="Least slab cover to the bars [mm].")
+    wallThickness: list[Positive] = Field(description="Least wall thickness [mm].")
+    beamCover: list[Positive] = Field(description="Least beam cover to the main bars [mm].")
+    beamWidth: Positive = Field(description="Least beam width the beam covers hold for [mm].")
+    columnSize: list[Positive] = Field(description="Least column dimension [mm].")
+    columnCoverPerHour: Positive = Field(description="Column cover per hour of rating [mm].")
+    columnCoverMax: Positive = Field(description="Column cover need not exceed [mm].")
+
+    @model_validator(mode="after")
+    def _same_length(self) -> FireResistanceTable:
+        n = len(self.ratings)
+        for name in ("slabThickness", "slabCover", "wallThickness", "beamCover", "columnSize"):
+            if len(getattr(self, name)) != n:
+                raise ValueError(f"{name}: one value per rating ({n})")
+        return self
+
+
 # ───────────────────────────────────────── planning ─────────────────────────────────────────
 
 
@@ -1621,6 +1681,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "electrical": ElectricalTable,
     "fire": FireTable,
     "steelSections": SteelSectionsTable,
+    "liveReduction": LiveReductionTable,
+    "fireResistance": FireResistanceTable,
     "planning": PlanningTable,
 }
 

@@ -20,8 +20,8 @@ Used by:
 - Steel members (:mod:`saengine.design.steel.lengths`): k per axis (K), Lu per axis (the
   unbraced length for compression buckling), ``Lb`` the laterally unbraced length of the
   compression flange (lateral-torsional buckling).
-- ``liveLoadReduction``: a placeholder (not applied this round; the analysis's live loads are
-  unreduced).
+- ``liveLoadReduction``: the factor on the floor live load L of the member, given instead of the
+  one :mod:`saengine.design.live_reduction` works out (BNBC 2020 Part 6 Sec 2.3.13).
 """
 
 from __future__ import annotations
@@ -103,8 +103,6 @@ class Resolved:
                 value, source = self.values[name]
                 shown = f"{value:g}" if isinstance(value, float) else str(value)
                 out.append(f"{name} = {shown}{_SOURCE_TEXT[source]}")
-        if "liveLoadReduction" in self.values:
-            out.append("live load reduction is not applied yet (the live loads are unreduced)")
         return out
 
 

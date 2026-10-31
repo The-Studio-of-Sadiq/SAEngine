@@ -40,6 +40,7 @@ Length = Annotated[float, Field(gt=0, description="[mm]")]
 Point2 = Annotated[list[float], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
 
 FoundationType = Literal["isolated", "combined", "strip", "pileCap", "raft"]
+FootingSection = Literal["flat", "sloped", "stepped"]
 
 FOUNDATION_TYPES = {
     "isolated": "Isolated footing",
@@ -90,7 +91,33 @@ class Foundation(_Model):
     width: Length | None = Field(
         default=None, description="Along its local y; a strip footing: across its path [mm]."
     )
-    thickness: Length | None = Field(default=None, description="[mm]")
+    thickness: Length | None = Field(
+        default=None, description="[mm]; a sloped or stepped footing: under the column."
+    )
+    section: FootingSection = Field(
+        default="flat",
+        title="Section",
+        description="Isolated footings: flat (one thickness), sloped (the top slopes from a "
+        "flat top round the column down to the edge thickness) or stepped (an upper step round "
+        "the column on a lower slab of the edge thickness).",
+        json_schema_extra=_labels(["Flat", "Sloped", "Stepped"]),
+    )
+    edgeThickness: Length | None = Field(
+        default=None,
+        title="Edge thickness",
+        description="A sloped footing: at its edges; a stepped footing: of the lower step [mm].",
+    )
+    topLength: Length | None = Field(
+        default=None,
+        title="Top length",
+        description="Along its local x, the flat top of a sloped footing or the upper step of a "
+        "stepped one, centred on the column [mm].",
+    )
+    topWidth: Length | None = Field(
+        default=None,
+        title="Top width",
+        description="Along its local y, the flat top or upper step [mm].",
+    )
     path: list[Point2] | None = Field(
         default=None,
         min_length=2,
@@ -158,7 +185,41 @@ class Foundation(_Model):
             raise ValueError(f"{self.id}: two consecutive points of the path coincide")
         if self.outline is not None and abs(polygon_area(self.outline)) < 1:
             raise ValueError(f"{self.id}: the outline encloses no area")
+        if self.section != "flat":
+            self._check_section()
         return self
+
+    def _check_section(self) -> None:
+        if self.type != "isolated":
+            raise ValueError(f"{self.id}: only an isolated footing is sloped or stepped")
+        missing = [
+            n for n in ("edgeThickness", "topLength", "topWidth") if getattr(self, n) is None
+        ]
+        if missing:
+            raise ValueError(f"{self.id}: a {self.section} footing needs {', '.join(missing)}")
+        if self.edgeThickness >= self.thickness:  # type: ignore[operator]
+            raise ValueError(f"{self.id}: the edge thickness must be less than the thickness")
+        if self.topLength > self.length or self.topWidth > self.width:  # type: ignore[operator]
+            raise ValueError(f"{self.id}: the top must lie within the footing's plan")
+
+    def concrete_volume(self) -> float | None:
+        """Concrete volume [mm³] of a rectangular footing or cap: L B h, or for a stepped one
+        L B he + Lt Bt (h - he), and for a sloped one L B he plus the prismatoid between the
+        base and the flat top, (h - he) / 6 (L B + Lt Bt + (L + Lt)(B + Bt)). None for strips
+        and rafts."""
+        if self.length is None or self.width is None or self.thickness is None:
+            return None
+        flat = self.length * self.width * self.thickness
+        if self.section == "flat" or self.edgeThickness is None:
+            return flat
+        lt, bt, he = float(self.topLength or 0), float(self.topWidth or 0), self.edgeThickness
+        rise = self.thickness - he
+        base = self.length * self.width * he
+        if self.section == "stepped":
+            return base + lt * bt * rise
+        return base + rise / 6 * (
+            self.length * self.width + lt * bt + (self.length + lt) * (self.width + bt)
+        )
 
     def founding_level(self, ground_level: float) -> float:
         """The level of the underside [mm]: its own, or :data:`DEFAULT_FOUNDING_DEPTH` below
@@ -346,6 +407,65 @@ class Design(_Model):
         description="Modulus of subgrade reaction of rafts: from the soil report, or a value "
         "[kN/m³].",
     )
+    raftSprings: Literal["noTension", "linear"] = Field(
+        default="noTension",
+        title="Raft springs",
+        description="No tension: where the raft lifts off, the soil carries nothing (solved "
+        "iteratively); linear: the springs may pull.",
+        json_schema_extra=_labels(["No tension (iterative)", "Linear"]),
+    )
+
+
+class GroundSlab(_Model):
+    """A slab on grade (ground-bearing slab): a plain or lightly reinforced slab laid on the
+    compacted ground, under a uniform floor load and a concentrated (post or wheel) load."""
+
+    id: Id
+    outline: list[Point2] = Field(min_length=3, description="Plan outline [[x, y], ...] mm.")
+    thickness: Length = Field(default=150, description="[mm]")
+    material: Id = Field(description="Concrete material id (03 Materials).")
+    mesh: BarMesh | None = Field(
+        default=None,
+        title="Mesh",
+        description="One layer of bars each way for crack control (empty: plain concrete).",
+    )
+    meshMaterial: Id | None = Field(
+        default=None, title="Mesh material", description="Rebar material id (03 Materials)."
+    )
+    uniformLoad: float = Field(
+        default=5.0, ge=0, title="Uniform load", description="Floor load on it [kPa]."
+    )
+    pointLoad: float = Field(
+        default=0.0,
+        ge=0,
+        title="Concentrated load",
+        description="The largest post, rack-leg or wheel load, service [kN]; 0: none.",
+    )
+    contactSide: Length = Field(
+        default=150,
+        title="Contact side",
+        description="Side of the square base plate or tyre print of the concentrated load [mm].",
+    )
+    subgradeModulus: float | None = Field(
+        default=None,
+        gt=0,
+        title="Subgrade modulus k",
+        description="Of the compacted sub-base [kN/m³]; empty: the subgrade springs value of "
+        "9 Substructure → Design.",
+    )
+    factorOfSafety: float = Field(
+        default=2.0,
+        ge=1,
+        le=5,
+        title="Factor of safety",
+        description="On the modulus of rupture for the concentrated load's flexural stress.",
+    )
+    jointSpacing: Length | None = Field(
+        default=None,
+        title="Joint spacing",
+        description="Of the contraction joints [mm]; empty: not checked.",
+    )
+    note: str | None = None
 
 
 RetainingWallKind = Literal["cantilever", "basement"]
@@ -629,6 +749,11 @@ class Substructure(_Model):
         description="Every pile, placed in plan; a pile cap lists the ones it stands on.",
     )
     tieBeams: list[TieBeam] = Field(default_factory=list, title="Tie beams")
+    groundSlabs: list[GroundSlab] = Field(
+        default_factory=list,
+        title="Slabs on grade",
+        description="Ground-bearing slabs on the compacted ground.",
+    )
     retainingWalls: list[RetainingWall] = Field(
         default_factory=list,
         title="Retaining walls",
@@ -656,6 +781,7 @@ class Substructure(_Model):
             ("pile types", self.pileTypes),
             ("piles", self.piles),
             ("tie beams", self.tieBeams),
+            ("slabs on grade", self.groundSlabs),
             ("retaining walls", self.retainingWalls),
         ):
             ids = [i.id for i in items]
@@ -993,6 +1119,12 @@ def check(
         for p in substructure.pileTypes:
             concrete(p.id, p.material)
             bars(p.id, p.reinforcement)
+        for slab in substructure.groundSlabs:
+            concrete(slab.id, slab.material)
+            if slab.meshMaterial is not None:
+                m = materials.get(slab.meshMaterial)
+                if m is None or m.category != Category.REBAR:
+                    problems.append(f"{slab.id}: mesh material '{slab.meshMaterial}' is not rebar")
         for r in substructure.retainingWalls:
             concrete(r.id, r.material)
             bars(r.id, r.reinforcement)

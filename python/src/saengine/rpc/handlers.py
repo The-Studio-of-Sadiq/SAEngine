@@ -316,8 +316,14 @@ def building_ifc(
     settings_text: str | None = None,
     mep_text: str | None = None,
     architecture_text: str | None = None,
+    rebar_root: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
+
+    With ``rebar_root`` (the project's folder) the reinforcement cages of its beams and columns
+    are in the model too, as IfcReinforcingBar keyed ``rebar:<member>/<n>``
+    (``saengine.pipeline.drawings.rebar_cages``: the detailing of the drawings, from the files
+    on disk and the last analysis run's kept design).
 
     With ``mep_text`` (``07 MEP/mep.json``) its equipment, plinths, sleeves, openings and shafts
     are in the model too; with ``architecture_text`` (``05 Floor Plan/architecture.json``) its
@@ -371,6 +377,15 @@ def building_ifc(
         architecture = parse_architecture(architecture_text)
     except ValueError as exc:
         return {"problems": [f"Architecture: {_first_line(exc)}"]}
+    rebar = None
+    rebar_notes: list[str] = []
+    if rebar_root:
+        from saengine.pipeline.drawings import DrawingsError, rebar_cages
+
+        try:
+            rebar = rebar_cages(rebar_root, check=False)
+        except (DrawingsError, ValueError, OSError) as exc:
+            rebar_notes.append(f"Reinforcement: {_first_line(exc)}")
     ifc, ids, skipped = export_ifc(
         building,
         objects,
@@ -380,7 +395,9 @@ def building_ifc(
         ground,
         mep if has_mep else None,
         architecture if architecture.instances() else None,
+        rebar,
     )
+    skipped = [*skipped, *rebar_notes]
     hosts = {w.id: w.base for w in architecture.walls}
     stories = {
         **{f"arch:{w.id}": w.base for w in architecture.walls},

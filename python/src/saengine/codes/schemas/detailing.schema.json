@@ -1,5 +1,50 @@
 {
   "$defs": {
+    "BarSpacing": {
+      "additionalProperties": false,
+      "description": "Least clear spacing of parallel bars (the 3D rebar cages' congestion check).",
+      "properties": {
+        "layerMin": {
+          "description": "Bars in a layer: at least this clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Layermin",
+          "type": "number"
+        },
+        "layerDb": {
+          "description": "Bars in a layer: at least this many db clear.",
+          "exclusiveMinimum": 0,
+          "title": "Layerdb",
+          "type": "number"
+        },
+        "betweenLayers": {
+          "description": "Between layers of bars, clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Betweenlayers",
+          "type": "number"
+        },
+        "columnMin": {
+          "description": "Column bars: at least this clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columnmin",
+          "type": "number"
+        },
+        "columnDb": {
+          "description": "Column bars: at least this many db clear.",
+          "exclusiveMinimum": 0,
+          "title": "Columndb",
+          "type": "number"
+        }
+      },
+      "required": [
+        "layerMin",
+        "layerDb",
+        "betweenLayers",
+        "columnMin",
+        "columnDb"
+      ],
+      "title": "BarSpacing",
+      "type": "object"
+    },
     "Joints": {
       "additionalProperties": false,
       "description": "Plain numbers of special moment frame beam-column joints.",
@@ -273,6 +318,17 @@
     },
     "lintels": {
       "$ref": "#/$defs/LintelLimits"
+    },
+    "spacing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BarSpacing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

@@ -23,6 +23,7 @@ from saengine.design.check import _check
 from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
 from saengine.substructure.context import Context, Skip, load_context
+from saengine.substructure.ground_slab import GROUND_SLAB_METHOD, design_ground_slab
 from saengine.substructure.jobs import Superseded, newest
 from saengine.substructure.retaining_walls import METHOD as RETAINING_WALL_METHOD
 from saengine.substructure.retaining_walls import design_retaining_walls
@@ -148,6 +149,17 @@ def report(ctx: Context) -> dict[str, Any]:
         notes += found
         used.add("shallow")
 
+    slabs: list[dict[str, Any]] = []
+    for slab in substructure.groundSlabs:
+        try:
+            result, found = design_ground_slab(ctx, slab)
+        except Skip as reason:
+            skip(slab, "groundSlab", str(reason))
+            continue
+        slabs.append(result)
+        notes += found
+    if slabs:
+        method += GROUND_SLAB_METHOD
     # Retaining and basement walls, and the flotation of the basement (no analysis needed).
     walls, walls_skipped, found = design_retaining_walls(ctx)
     skipped += walls_skipped
@@ -170,10 +182,11 @@ def report(ctx: Context) -> dict[str, Any]:
     if "shallow" in used:
         method = list(SHALLOW_METHOD) + method
 
-    designed = foundations + ties + walls
+    designed = foundations + ties + slabs + walls
     return {
         "foundations": foundations,
         "tieBeams": ties,
+        "groundSlabs": slabs,
         "retainingWalls": walls,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
