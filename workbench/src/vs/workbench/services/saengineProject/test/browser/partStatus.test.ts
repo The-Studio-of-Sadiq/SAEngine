@@ -222,11 +222,12 @@ suite('SAEngine - PartStatus', () => {
 			'inProgress 2 foundations (check the foundations)',
 			'inProgress 2 foundations (run the analysis to design them)',
 			'failed 1 fail (review the failing foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
-			'inProgress 2 foundations (check the foundations)',
+			// Stale: the fails of the last check stay in view, as in the editor's status line (N-U5).
+			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
+			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
+			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
+			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
+			'inProgress 2 foundations, 1 failed when last checked (check the foundations)',
 			'failed 1 fail (review the failing foundations)',
 		]);
 	});
@@ -562,5 +563,8 @@ suite('SAEngine - PartStatus', () => {
 		const foundations = JSON.stringify({ schema: 'saengine.substructure/1', foundations: [{ id: 'F1' }, { id: 'F2' }] });
 		const skipped = JSON.stringify({ foundations: 2, checked: 1, passed: 1, failed: 0, skipped: 1, source: { substructure: sourceStamp(foundations) } });
 		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: skipped, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 not checked');
+		// The editor's file: F2 passed all but its bearing check (no qa), so it is not checked (N-U3, N-U5).
+		const noQa = JSON.stringify({ foundations: 2, checked: 1, total: 2, passed: 1, failed: 0, bearingUnchecked: ['F2'], unsupported: [], status: 'incomplete', source: { substructure: sourceStamp(foundations) } });
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: noQa, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 not checked');
 	});
 });

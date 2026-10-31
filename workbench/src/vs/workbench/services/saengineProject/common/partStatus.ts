@@ -722,7 +722,10 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 		&& (source ? sourcesUnchanged(inputs.texts, source) : inputs.substructureTime === undefined || time >= inputs.substructureTime)
 		&& (inputs.femResultsTime === undefined || time >= inputs.femResultsTime);
 	if (!current) {
-		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.check', "check the foundations"));
+		// The fails of the last check stay in view while the edits or new results wait for the next
+		// one, as the editor's status line keeps them (N-U5).
+		const text = summary && summary.failed > 0 ? localize('partStatus.substructure.failedBefore', "{0}, {1} failed when last checked", foundations, summary.failed) : foundations;
+		return status('substructure', 'inProgress', text, localize('partStatus.substructure.check', "check the foundations"));
 	}
 	if (summary.checked === 0) {
 		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
