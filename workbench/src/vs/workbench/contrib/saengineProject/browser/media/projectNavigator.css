@@ -189,3 +189,13 @@
 	color: var(--vscode-foreground);
 	font-weight: 600;
 }
+
+/* The Overview row above the groups (N-N1): an icon where the parts have their number. */
+.saengine-project-navigator .sa-nav-overview .sa-nav-number {
+	display: inline-flex;
+	justify-content: center;
+}
+
+.saengine-project-navigator .sa-nav-overview .sa-state-dot.hidden {
+	display: none;
+}

@@ -78,7 +78,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
-from saengine.library.sections import section_properties
+from saengine.library.sections import prefetch_section_properties, section_properties
 from saengine.library.settings import ProjectSettings, derived
 from saengine.library.structure import plane_of
 
@@ -93,9 +93,10 @@ UNITS = "SI (m, N, kg, s, Pa)"
 
 #: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
 #: contents of equipment in 07 MEP) is last and is only in a model that has fluid loads, so the
-#: other cases keep their numbers. The temperature case T is added after them when the settings
+#: other cases keep their numbers; so is the earth pressure case H on the basement walls (9
+#: Substructure, :mod:`saengine.substructure.basement_loads`). The temperature case T is added after them when the settings
 #: ask for it (:mod:`saengine.fem.thermal`).
-CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F"]
+CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -349,12 +350,22 @@ def mep_stamp(text: str) -> str:
 #: project's details and the drawings' title block (the model's name is only a label).
 SETTINGS_INFO_KEYS = ("project", "drawings")
 
+#: Keys of the settings' ``foundation`` section the analysis model does not take (N-X9): the
+#: allowable bearing sizes the footings only.
+SETTINGS_FOUNDATION_DESIGN_KEYS = ("allowableBearing",)
 
-def settings_stamp(text: str) -> str:
+#: Keys of an object type the analysis model does not take (N-X9): its bars and the design
+#: overwrites are read by the design checks only, so a bar-only Apply keeps the analysis.
+OBJECT_DESIGN_KEYS = ("reinforcement", "punchingReinforcement", "designOverwrites")
+
+
+def settings_stamp(text: str, legacy: bool = False) -> str:
     """The stamp an analysis model records for the project settings (key ``settings``): of the
-    settings without :data:`SETTINGS_INFO_KEYS`, so typing the engineer's name or a revision
-    leaves the model current. The workbench computes the same (``femSettingsStamp`` in
-    partSources.ts); a text that is not a JSON object is stamped whole."""
+    settings without :data:`SETTINGS_INFO_KEYS` and the foundation's design-only keys
+    (:data:`SETTINGS_FOUNDATION_DESIGN_KEYS`), so typing the engineer's name, a revision or the
+    qa leaves the model current. ``legacy``: the stamp of models derived before the qa was left
+    out. The workbench computes the same (``femSettingsStamp`` in partSources.ts); a text that
+    is not a JSON object is stamped whole."""
     import json
 
     try:
@@ -363,12 +374,63 @@ def settings_stamp(text: str) -> str:
         return stamp(text)
     if not isinstance(document, dict):
         return stamp(text)
-    return stamp(js_json({k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}))
+    kept = {k: v for k, v in document.items() if k not in SETTINGS_INFO_KEYS}
+    if not legacy and isinstance(kept.get("foundation"), dict):
+        kept["foundation"] = {
+            k: v for k, v in kept["foundation"].items() if k not in SETTINGS_FOUNDATION_DESIGN_KEYS
+        }
+    return stamp(js_json(kept))
+
+
+def objects_stamp(text: str) -> str:
+    """The stamp an analysis model records for the object types (key ``objects``): of the types
+    without :data:`OBJECT_DESIGN_KEYS` (N-X9). The workbench computes the same
+    (``femObjectsStamp`` in partSources.ts); a text that is not a JSON object is stamped whole."""
+    import json
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict):
+        return stamp(text)
+    objects = document.get("objects")
+    if isinstance(objects, list):
+        document = {
+            **document,
+            "objects": [
+                {k: v for k, v in o.items() if k not in OBJECT_DESIGN_KEYS}
+                if isinstance(o, dict)
+                else o
+                for o in objects
+            ],
+        }
+    return stamp(js_json(document))
 
 
 #: The stamps worked out last, by a hash of the model's raw text (a 10-storey model takes
 #: seconds to stamp, and Run All's steps stamp the same file many times).
 _MODEL_STAMPS: dict[bytes, str] = {}
+
+
+def model_text(document: dict[str, Any]) -> str:
+    """An analysis model's file text: each top-level field on its own line and each item of a
+    top-level list (a node, an element, a load pattern) on its own line, written by the C JSON
+    encoder. ``json.dumps(indent=...)`` falls back to the pure-Python encoder, which took most of
+    the minute a 10-storey model's text took; this reads as easily and parses the same."""
+    import json
+
+    def dump(value: Any) -> str:
+        return json.dumps(value, ensure_ascii=False)
+
+    lines = []
+    for key, value in document.items():
+        if isinstance(value, list) and value:
+            items = ",\n".join(f"\t\t{dump(item)}" for item in value)
+            lines.append(f"\t{dump(key)}: [\n{items}\n\t]")
+        else:
+            lines.append(f"\t{dump(key)}: {dump(value)}")
+    return "{\n" + ",\n".join(lines) + "\n}\n" if lines else "{}\n"
 
 
 def model_stamp(data: bytes | str) -> str:
@@ -476,6 +538,19 @@ class _Builder:
         self.notes: list[str] = []
         #: Per section id the properties its stiffness modifiers set (no cracked factor on top).
         self.modified: dict[int, set[str]] = {}
+        self._axes: dict[tuple[Any, ...], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+
+    def member_axes(self, member: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """:func:`local_axes` of a member, worked out once per end nodes and ``vecxz`` (each
+        member takes several element loads, and the rigid end zones read them again)."""
+        vecxz = tuple(member.vecxz) if member.vecxz is not None else None
+        key = (member.i, member.j, vecxz)
+        found = self._axes.get(key)
+        if found is None:
+            found = self._axes[key] = local_axes(
+                self.coords[member.i], self.coords[member.j], member.vecxz
+            )
+        return found
 
     def node(self, x_mm: float, y_mm: float, z_mm: float) -> int:
         key = (round(x_mm), round(y_mm), round(z_mm))
@@ -626,6 +701,13 @@ def _derive_fem(
     options = settings.analysis
     types = {o.id: o for o in objects.objects}
     mats = {m.id: m for m in materials.materials}
+    # The distinct profiles the members use, solved in parallel where not kept from before.
+    prefetch_section_properties(
+        types[t].profile
+        for t in sorted(
+            {e.type for e in building.elements if hasattr(types.get(e.type), "profile")}
+        )
+    )
     levels = sorted({s.elevation for s in building.stories})
     base = levels[0] if levels else 0.0
     # Stiffness modifiers per element (saengine.library.modifiers): the member's over its type's.
@@ -1186,7 +1268,7 @@ def _derive_fem(
     def add_element_load(case: str, index: int, vector: np.ndarray) -> None:
         """A uniform load (global N/m) on member ``index``, applied in its local axes."""
         member = b.members[index]
-        x, y, z = local_axes(b.coords[member.i], b.coords[member.j], member.vecxz)
+        x, y, z = b.member_axes(member)
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local
@@ -1607,6 +1689,20 @@ def _derive_fem(
                 part="other",
             )
         b.notes += eq.notes
+
+    # ── earth and water pressure on the basement walls (case H, 9 Substructure) ──
+    from saengine.substructure.basement_loads import basement_pressures
+
+    earth, earth_notes = basement_pressures(building, objects, settings, substructure, soil_text)
+    b.notes += earth_notes
+    for wall_pressure in earth:
+        for shell in shells_of_source(wall_pressure.wall):
+            points = [b.coords[n] for n in shell.nodes]
+            shares = shell_node_shares(points)
+            for node_id, area, xyz in zip(shell.nodes, shares, points, strict=True):
+                pressure = wall_pressure.pressure(float(xyz[2]) / MM) * 1e3  # Pa
+                if pressure > 0:
+                    add_nodal("H", node_id, wall_pressure.direction * pressure * area)
 
     # ── line and point loads on members (05 Floor Plan/loads.json) ──
     if member_set is not None:
@@ -2059,8 +2155,11 @@ def _derive_fem(
                 "dofs": dofs,
             }
         )
-    # The fluid case F only when it has loads (it is last, so the other cases keep their ids).
-    cases = [c for c in CASES if c != "F" or patterns[c]["nodal"] or patterns[c]["element"]]
+    # The fluid case F and the earth case H only when they have loads (they are last, so the
+    # other cases keep their ids).
+    cases = [
+        c for c in CASES if c not in ("F", "H") or patterns[c]["nodal"] or patterns[c]["element"]
+    ]
     # The eccentric earthquake cases after them (only when asked for, so the others keep ids).
     cases += [c for c in ECCENTRIC_CASES if c in patterns]
     # The torsional wind cases (BNBC Figure 6.2.9) and the live load arrangements after them.
@@ -2655,8 +2754,7 @@ def _rigid_end_zones(
                 ri, rj = member.rigid
                 if not ri and not rj:
                     continue
-                a, c = b.coords[member.i], b.coords[member.j]
-                x, y, z = local_axes(a, c, member.vecxz)
+                x, y, z = b.member_axes(member)
                 g = local[0] * x + local[1] * y + local[2] * z
                 for node, r, sign in ((member.i, ri, 1.0), (member.j, rj, -1.0)):
                     if not r:
@@ -3361,16 +3459,36 @@ def _live_arrangements(
         adjacent=mode in ("bnbc", "bnbcAlternateFloors"),
         adjacent_floors="alternate" if mode == "bnbcAlternateFloors" else "each",
     )
+    # Every load placed once (level and bays), then each arrangement takes its loads by mask
+    # and sums them per target in the order of the log: the same sums, in the same order, as
+    # adding them one by one (hundreds of thousands of loads × tens of arrangements).
+    placed = pattern_live.Placed.of(grid, [at for *_, at in live_log])
+    is_nodal = np.array([kind == "nodal" for kind, *_ in live_log], dtype=bool)
+    targets = np.array([target for _, target, *_ in live_log], dtype=np.int64)
+    vectors = np.array([vector[:3] for _, _, vector, _ in live_log], dtype=float).reshape(-1, 3)
+
+    def summed(chosen: np.ndarray, width: int) -> dict[int, np.ndarray]:
+        index = np.flatnonzero(chosen)
+        if not index.size:
+            return {}
+        found = targets[index]
+        unique, first = np.unique(found, return_index=True)
+        sums = np.zeros((len(unique), 3))
+        np.add.at(sums, np.searchsorted(unique, found), vectors[index])
+        out: dict[int, np.ndarray] = {}
+        for j in np.argsort(first, kind="stable"):
+            row = np.zeros(width)
+            row[:3] = sums[j]
+            out[int(unique[j])] = row
+        return out
+
     kept = []
     for arrangement in arrangements:
-        pattern: dict[str, Any] = {"nodal": {}, "element": {}}
-        for kind, target, vector, (x, y, z) in live_log:
-            if not arrangement.loads(grid, x, y, z):
-                continue
-            if kind == "nodal":
-                pattern["nodal"].setdefault(target, np.zeros(6))[:3] += vector
-            else:
-                pattern["element"].setdefault(target, np.zeros(3))[:] += vector
+        mask = arrangement.mask(grid, placed)
+        pattern: dict[str, Any] = {
+            "nodal": summed(mask & is_nodal, 6),
+            "element": summed(mask & ~is_nodal, 3),
+        }
         if pattern["nodal"] or pattern["element"]:
             patterns[arrangement.name] = pattern
             kept.append(arrangement)

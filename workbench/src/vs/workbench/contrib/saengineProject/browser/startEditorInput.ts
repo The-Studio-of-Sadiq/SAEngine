@@ -32,6 +32,19 @@ export class StartEditorInput extends EditorInput {
 
 	readonly resource = URI.from({ scheme: 'saengine-start', path: 'default' });
 
+	/** Set by "New Project...": the page opens on the new project form (N-N8); taken once. */
+	private newProjectRequested = false;
+
+	requestNewProject(): void {
+		this.newProjectRequested = true;
+	}
+
+	takeNewProjectRequest(): boolean {
+		const requested = this.newProjectRequested;
+		this.newProjectRequested = false;
+		return requested;
+	}
+
 	override get typeId(): string {
 		return StartEditorInput.ID;
 	}

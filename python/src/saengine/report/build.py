@@ -433,6 +433,7 @@ def _report_data(
     }
     report["basis"] = _basis(settings, parts, model, manifest)
     report["soil"] = _soil(parts)
+    report["planning"] = _planning(parts)
     report["foundations"] = _foundations(parts)
     report["model"] = _model_summary(root, model, manifest, parts, warnings)
     report["results"] = _results(
@@ -2572,6 +2573,23 @@ def _m(value: Any, digits: int = 1) -> str:
 
 def _range(top: Any, bottom: Any) -> str:
     return f"{_m(top)}–{_m(bottom)}"
+
+
+def _planning(parts: _Parts) -> dict[str, Any] | None:
+    """The plot's planning compliance (:func:`saengine.gis.planning.check`) when the soil
+    report's plot has a planning entry; never fails the report."""
+    from saengine.gis.planning import check
+    from saengine.soil.report import parse
+
+    text = parts.text(SOIL_FILE)
+    report = parse(text) if text else None
+    if report is None or isinstance(report, list):
+        return None
+    try:
+        return check(report.site, parts.text(BIM_FILE))
+    except Exception as error:  # noqa: BLE001 - the planning check must not fail the report
+        parts.warnings.append(f"The planning compliance could not be checked: {error}")
+        return None
 
 
 def _soil(parts: _Parts) -> dict[str, Any]:

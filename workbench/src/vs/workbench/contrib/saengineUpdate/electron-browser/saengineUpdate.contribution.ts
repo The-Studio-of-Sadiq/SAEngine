@@ -56,7 +56,8 @@ const SKIPPED_VERSION_KEY = 'saengine.update.skippedVersion';
 const CALL_SITE = 'saengine.update';
 /** Long enough for start-up work to settle; the check is one small request. */
 const STARTUP_DELAY_MS = 30_000;
-const NOTES_LIMIT = 6000;
+// N-G12: the dialog fits a 1366 x 768 window; the full notes are one click away on GitHub.
+const NOTES_LIMIT = 900;
 
 interface ISAEngineProduct {
 	readonly saengineVersion?: string;
@@ -225,7 +226,9 @@ class SAEngineUpdateService implements ISAEngineUpdateService {
 	private async showUpdate(update: IAvailableUpdate, current: string): Promise<void> {
 		let notes = update.notes.trim() || localize('update.noNotes', "No release notes.");
 		if (notes.length > NOTES_LIMIT) {
-			notes = notes.slice(0, NOTES_LIMIT) + '\n\n' + localize('update.notesCut', "(Shortened: the full notes are on GitHub.)");
+			// Cut at a line end, so a list item or heading is never cut in half.
+			const cut = notes.lastIndexOf('\n', NOTES_LIMIT);
+			notes = notes.slice(0, cut > NOTES_LIMIT / 2 ? cut : NOTES_LIMIT) + '\n\n' + localize('update.notesCut', "(Shortened: the full notes are on GitHub.)");
 		}
 		const sizeText = update.setupSize ? localize('update.size', " ({0} MB)", Math.round(update.setupSize / (1024 * 1024))) : '';
 		const { result } = await this.dialogService.prompt<'download' | 'open' | undefined>({
