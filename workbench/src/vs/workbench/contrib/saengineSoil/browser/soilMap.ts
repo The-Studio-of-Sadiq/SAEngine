@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { boreholePosition, formatNumber, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlot, ISoilReport, ISoilSite } from './soilDocument.js';
+import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlot, ISoilReport, ISoilSite } from './soilDocument.js';
 
 /*
  * The model of the site map (soilMapView.ts), free of the DOM and of MapLibre: the tile source and
@@ -248,6 +248,80 @@ export function boreholePoints(report: ISoilReport, location?: ISoilLocationResu
 		}
 	});
 	return points;
+}
+
+/** Two positions further apart than this disagree [m]. */
+export const POSITION_TOLERANCE = 2;
+
+/** The great-circle distance between two points [m]. */
+export function distanceBetween(a: ILatLon, b: ILatLon): number {
+	const radians = Math.PI / 180;
+	const dLat = (b.lat - a.lat) * radians;
+	const dLon = (b.lon - a.lon) * radians;
+	const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * radians) * Math.cos(b.lat * radians) * Math.sin(dLon / 2) ** 2;
+	return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * The project X and Y [mm] of a borehole as the backend places it: worked out from its latitude
+ * and longitude (or BTM) when they place it, else its own. The stored X and Y of a borehole
+ * placed by lat/lon only follow when the site or a borehole is moved, so they may be old.
+ */
+export function boreholeXY(borehole: IBorehole, location: ISoilLocationResult | undefined): { x: number; y: number } {
+	if (boreholePosition(borehole) !== 'project') {
+		const placed = location?.boreholes?.find(b => b.id === borehole.id);
+		if (typeof placed?.x === 'number' && typeof placed.y === 'number') {
+			return { x: placed.x, y: placed.y };
+		}
+	}
+	return { x: borehole.x, y: borehole.y };
+}
+
+/**
+ * How far apart a borehole's two positions are [m], when they disagree by more than
+ * POSITION_TOLERANCE: for one placed by lat/lon (or BTM), its stored X and Y and those worked out;
+ * for one placed by X and Y that also has a latitude and longitude, those and the point its X
+ * and Y give on a georeferenced site.
+ */
+export function positionMismatch(borehole: IBorehole, location: ISoilLocationResult | undefined): number | undefined {
+	const placed = location?.boreholes?.find(b => b.id === borehole.id);
+	if (!placed) {
+		return undefined;
+	}
+	let metres: number | undefined;
+	if (boreholePosition(borehole) !== 'project') {
+		if (typeof placed.x === 'number' && typeof placed.y === 'number') {
+			metres = Math.hypot(placed.x - borehole.x, placed.y - borehole.y) / 1000;
+		}
+	} else if (isLatLon(borehole) && location?.site?.georeferenced && typeof placed.lat === 'number' && typeof placed.lon === 'number') {
+		metres = distanceBetween(borehole, { lat: placed.lat, lon: placed.lon });
+	}
+	return metres !== undefined && metres > POSITION_TOLERANCE ? metres : undefined;
+}
+
+/**
+ * Stores the X and Y the backend worked out for the boreholes placed by lat/lon (or BTM), so
+ * that what is shown and stored agrees with the map after the site moved. Whether any changed.
+ */
+export function syncPlacedXY(report: ISoilReport, location: ISoilLocationResult | undefined): boolean {
+	let changed = false;
+	for (const borehole of report.boreholes) {
+		if (boreholePosition(borehole) === 'project') {
+			continue;
+		}
+		const placed = location?.boreholes?.find(b => b.id === borehole.id);
+		if (typeof placed?.x !== 'number' || typeof placed.y !== 'number') {
+			continue;
+		}
+		const x = Math.round(placed.x);
+		const y = Math.round(placed.y);
+		if (x !== borehole.x || y !== borehole.y) {
+			borehole.x = x;
+			borehole.y = y;
+			changed = true;
+		}
+	}
+	return changed;
 }
 
 /** The building's outline as the map draws it: [lon, lat] rings, closed. */

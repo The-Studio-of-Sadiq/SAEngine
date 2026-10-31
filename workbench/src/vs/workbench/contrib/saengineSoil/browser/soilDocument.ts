@@ -207,6 +207,8 @@ export interface IBorehole {
 	groundLevel?: number;
 	waterTable?: number;
 	depth?: number;
+	/** Left out of the project's bearing table (a borehole far from the building, say). */
+	excludeFromSite?: boolean;
 	/** Date drilled and the boring method ("wash boring"), as the log sheet's header gives them. */
 	date?: string;
 	method?: string;
@@ -594,7 +596,25 @@ export interface ISiteClassResult {
 	/** The class by N̄ and by s̄u of Table 6.2.13 (the softer governs). */
 	readonly byN?: string;
 	readonly bySu?: string;
+	/** The borehole (or, for the project, every borehole of its class) ends above 30 m: the class rests on its last N carried down. */
+	readonly provisional?: boolean;
 }
+
+/** The site class as the results show it: "SD", or "SD (provisional)" when no borehole of it reaches 30 m. */
+export function siteClassLabel(site: Pick<ISiteClassResult, 'class' | 'provisional'>): string {
+	return site.provisional ? localize('soil.classProvisional', "{0} (provisional)", site.class) : site.class;
+}
+
+/**
+ * A secant ks below this is very soft ground [kN/m³] (Bowles, Foundation Analysis and Design,
+ * 5th ed., Table 9-1: about 4800-16000 for loose sand, 12000-24000 for clay with qa up to 200 kPa;
+ * a value this low is a raft on very soft clay or fill): the subgrade springs of the analysis
+ * then carry the footings on settlements of tens of mm, so it is flagged before it reaches FEM.
+ */
+export const KS_LOW = 2000;
+
+/** The depth BNBC 2020 Table 6.2.13 classifies the site by [mm]. */
+export const SITE_CLASS_DEPTH = 30000;
 
 /** One footing size of the allowable bearing table. */
 export interface IBearingCell {
@@ -611,11 +631,15 @@ export interface IBearingCell {
 	readonly governs?: 'shear' | 'settlement' | null;
 	/** The borehole the value is from (the lowest of all, in the project table). */
 	readonly borehole?: string;
+	/** In the project table: the boreholes that give no value for this footing (left out of the lowest). */
+	readonly missing?: readonly string[];
 }
 
 export interface IBearingResult {
 	readonly method?: string;
 	readonly cells: readonly IBearingCell[];
+	/** In the project table: the boreholes left out of it (`excludeFromSite`). */
+	readonly excluded?: readonly string[];
 	/** The reference footing (the subgrade footing of the design options) and its value. */
 	readonly governing?: IBearingCell;
 	readonly notes?: readonly string[];
@@ -661,6 +685,10 @@ export interface IPileLayerResult {
 	readonly qb?: number | null;
 	readonly method?: string | null;
 	readonly note?: string | null;
+	/** The share of the layer the liquefaction screening finds liquefiable (0 to 1). */
+	readonly liquefiable?: number;
+	/** Skin friction under the earthquake: none over the liquefiable share [kPa]. */
+	readonly fsSeismic?: number | null;
 }
 
 export interface IBoreholeResult {
@@ -672,6 +700,8 @@ export interface IBoreholeResult {
 	readonly ks?: number | null;
 	readonly ksMethod?: string;
 	readonly ksNote?: string;
+	/** Bowles' 40·FS·qa for comparison [kN/m³]. */
+	readonly ksBowles?: number;
 	readonly piles?: readonly IPileLayerResult[];
 	readonly bearing?: IBearingResult;
 	/** Settlement of the reference footing under its allowable pressure. */
@@ -745,6 +775,8 @@ export interface IBackendSiteClass {
 	readonly bySu?: Maybe<string>;
 	/** The project's: the governing borehole's id. */
 	readonly governing?: Maybe<string>;
+	/** Shallower than 30 m: the class rests on the last N carried down. */
+	readonly provisional?: Maybe<boolean>;
 	/** Special classes the profile may be (S1, S2): objects or "S2: why" strings. */
 	readonly flags?: readonly (IBackendSiteClassFlag | string)[];
 }
@@ -794,7 +826,7 @@ export interface IBackendSoilReport {
 			readonly notes?: readonly string[];
 		};
 		readonly ks?: Maybe<number>;
-		readonly ksDetail?: { readonly B?: Maybe<number>; readonly Df?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string> };
+		readonly ksDetail?: { readonly B?: Maybe<number>; readonly Df?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string>; readonly bowles?: Maybe<number> };
 		readonly pile?: readonly { readonly top: number; readonly bottom: number; readonly soilType?: Maybe<string>; readonly fs?: Maybe<number>; readonly qb?: Maybe<number>; readonly method?: Maybe<string>; readonly note?: Maybe<string> }[];
 		readonly settlement?: Maybe<IBackendSettlement>;
 		readonly permissibleSettlement?: BackendPermissible;
@@ -857,7 +889,11 @@ const REFERENCE_FOOTING = { B: 2000, Df: 1500 };
  * editor shows. Missing or malformed parts are left out, never guessed; undefined when the
  * answer is not an object.
  */
-export function readSoilResults(raw: unknown): ISoilResults | undefined {
+/**
+ * The backend's results as the editor shows them. `excluded`: the boreholes the engineer left out
+ * of the project's tables (`excludeFromSite`), e.g. one far from the building.
+ */
+export function readSoilResults(raw: unknown, excluded: ReadonlySet<string> = new Set()): ISoilResults | undefined {
 	if (!isRecord(raw)) {
 		return undefined;
 	}
@@ -879,7 +915,7 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 		}
 		return {
 			id,
-			siteClass: site && str(site.class) ? { class: str(site.class)!, nBar: num(site.N) ?? null, suBar: num(site.su) ?? null, depth: num(site.depth), note: str(site.note), byN: str(site.byN), bySu: str(site.bySu) } : undefined,
+			siteClass: site && str(site.class) ? { class: str(site.class)!, nBar: num(site.N) ?? null, suBar: num(site.su) ?? null, depth: num(site.depth), note: str(site.note), byN: str(site.byN), bySu: str(site.bySu), provisional: site.provisional === true } : undefined,
 			spt: list(b.profile).filter(isRecord).map(s => ({ depth: s.depth, N: s.N, N60: num(s.N60), N160: num(s.N160), N160cs: cs.get(s.depth) })),
 			liquefaction: liquefaction ? {
 				method: liquefactionMethod,
@@ -893,7 +929,8 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 			ks: num(b.ks) ?? null,
 			ksMethod: str(b.ksDetail?.method),
 			ksNote: str(b.ksDetail?.note),
-			piles: list(b.pile).filter(isRecord).map(p => ({ top: p.top, bottom: p.bottom, soilType: str(p.soilType), fs: num(p.fs) ?? null, qb: num(p.qb) ?? null, method: str(p.method) ?? null, note: str(p.note) ?? null })),
+			ksBowles: num(b.ksDetail?.bowles),
+			piles: list(b.pile).filter(isRecord).map(p => ({ top: p.top, bottom: p.bottom, soilType: str(p.soilType), fs: num(p.fs) ?? null, qb: num(p.qb) ?? null, method: str(p.method) ?? null, note: str(p.note) ?? null, liquefiable: num(p.liquefiable), fsSeismic: num(p.fsSeismic) ?? null })),
 			bearing: bearing ? {
 				method: str(bearing.method) ?? bearingMethod,
 				cells: list(bearing.table).filter(isRecord).map(c => ({
@@ -912,18 +949,28 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 		}
 	}
 
-	// The project's table: for each footing size the lowest qa of the boreholes.
+	// The project's table: for each footing size the lowest qa of the boreholes that give one. A
+	// borehole without a value there (no strength under that base) is named under the table, not
+	// allowed to blank the size for the whole site.
 	const envelope = new Map<string, IBearingCell>();
+	const missing = new Map<string, string[]>();
 	for (const borehole of boreholes) {
+		if (excluded.has(borehole.id)) {
+			continue;
+		}
 		for (const cell of borehole.bearing?.cells ?? []) {
 			const key = `${cell.B}|${cell.Df}`;
+			if (cell.qa === null) {
+				missing.set(key, [...missing.get(key) ?? [], borehole.id]);
+			}
 			const current = envelope.get(key);
-			if (!current || current.qa !== null && (cell.qa === null || cell.qa < current.qa)) {
+			if (!current || cell.qa !== null && (current.qa === null || cell.qa < current.qa)) {
 				envelope.set(key, cell);
 			}
 		}
 	}
-	const cells = [...envelope.values()];
+	const cells = [...envelope.entries()].map(([key, cell]) => missing.has(key) ? { ...cell, missing: missing.get(key) } : cell);
+	const left = boreholes.filter(b => excluded.has(b.id) && b.bearing?.cells.length).map(b => b.id);
 	const project = isRecord(backend.siteClass) ? backend.siteClass : undefined;
 	const governingId = str(project?.governing);
 	const governingSite = boreholes.find(b => b.id === governingId)?.siteClass;
@@ -937,9 +984,10 @@ export function readSoilResults(raw: unknown): ISoilResults | undefined {
 			suBar: governingSite?.suBar ?? null,
 			depth: governingSite?.depth,
 			note: str(project.note),
+			provisional: project.provisional === true,
 		} : undefined,
 		boreholes,
-		bearing: cells.length ? { method: bearingMethod, cells, governing: referenceCell(cells, reference) } : undefined,
+		bearing: cells.length ? { method: bearingMethod, cells, governing: referenceCell(cells, reference), excluded: left.length ? left : undefined } : undefined,
 		pga: num(backend.amax),
 		pgaSource: amaxNote,
 		practice: str(backend.practice) ?? str(isRecord(backend.design) ? backend.design.practice : undefined),
@@ -1467,25 +1515,63 @@ export interface ISoilProblem {
 	readonly severity: 'error' | 'warning';
 }
 
+/** The group symbols of the Unified Soil Classification System (ASTM D2487), with Pt for peat. */
+const USCS_SYMBOLS = new Set(['GW', 'GP', 'GM', 'GC', 'SW', 'SP', 'SM', 'SC', 'ML', 'CL', 'OL', 'MH', 'CH', 'OH', 'PT']);
+
+/**
+ * The British (BS 5930) plasticity symbols logs in Bangladesh often use, and the USCS group they
+ * fall in on the plasticity chart: I (intermediate, LL 35-50) is USCS's low (LL < 50); H, V and
+ * E (LL above 50) are its high.
+ */
+const BS_TO_USCS: { readonly [symbol: string]: string } = {
+	CI: 'CL', MI: 'ML', CV: 'CH', CE: 'CH', MV: 'MH', ME: 'MH',
+};
+
+/** What is wrong with a USCS symbol: unknown, or a BS 5930 one (with its USCS group); undefined when fine or empty. */
+export function uscsProblem(symbol: string | undefined): string | undefined {
+	const text = (symbol ?? '').trim().toUpperCase();
+	if (!text) {
+		return undefined;
+	}
+	// Dual symbols (SP-SM, CL-ML) and borderline ones (CL/ML): each part a group symbol.
+	const parts = text.split(/[-/]/).map(p => p.trim());
+	if (parts.every(p => USCS_SYMBOLS.has(p))) {
+		return undefined;
+	}
+	const bs = parts.find(p => BS_TO_USCS[p]);
+	if (bs) {
+		return localize('soil.p.uscsBs', "{0} is a BS 5930 symbol, not USCS: on the plasticity chart it is {1} (ASTM D2487). Give {1}, or LL and PL to classify it.", bs, BS_TO_USCS[bs]);
+	}
+	return localize('soil.p.uscsUnknown', "{0} is not a USCS group symbol (ASTM D2487: GW, GP, GM, GC, SW, SP, SM, SC, ML, CL, OL, MH, CH, OH, Pt; dual as SP-SM).", symbol!.trim());
+}
+
 /** The checks the editor makes while typing (the backend checks the rest). */
 export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 	const problems: ISoilProblem[] = [];
-	const seen = new Set<string>();
+	const counts = new Map<string, number>();
+	for (const borehole of report.boreholes) {
+		const id = String(borehole.id ?? '');
+		counts.set(id, (counts.get(id) ?? 0) + 1);
+	}
 	report.boreholes.forEach((borehole, boreholeIndex) => {
 		const problem = (p: Omit<ISoilProblem, 'index'>) => problems.push({ ...p, index: boreholeIndex });
 		const id = String(borehole.id ?? '');
 		if (!id) {
 			problem({ path: 'id', message: localize('soil.p.noId', "A borehole has no id."), severity: 'error' });
-		} else if (seen.has(id)) {
-			problem({ borehole: id, path: 'id', message: localize('soil.p.duplicateId', "Two boreholes are called {0}.", id), severity: 'error' });
+		} else if ((counts.get(id) ?? 0) > 1) {
+			// Every borehole with the id, so that each problem opens its own borehole.
+			problem({ borehole: id, path: 'id', message: localize('soil.p.duplicateIdOf', "{0} boreholes are called {1}: give each its own id.", counts.get(id), id), severity: 'error' });
 		}
-		seen.add(id);
 		// What the backend refuses (library/soil.py Borehole) is an error: the report cannot be read until it is fixed.
 		const layers = [...borehole.layers].map((layer, index) => ({ layer, index })).sort((a, b) => a.layer.top - b.layer.top);
 		const termination = typeof borehole.depth === 'number' ? borehole.depth : undefined;
 		let previousBottom = 0;
 		layers.forEach(({ layer, index }, order) => {
 			const n = order + 1;
+			const uscs = uscsProblem(layer.uscs);
+			if (uscs) {
+				problem({ borehole: id, path: `layers.${index}.uscs`, message: localize('soil.p.uscs', "{0}: layer {1}: {2}", id, n, uscs), severity: 'warning' });
+			}
 			if (!(layer.bottom > layer.top)) {
 				problem({ borehole: id, path: `layers.${index}.bottom`, message: localize('soil.p.layerThickness', "{0}: layer {1} ends at or above its top.", id, n), severity: 'error' });
 			}
@@ -1524,6 +1610,12 @@ export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 		});
 		if (!borehole.layers.length) {
 			problem({ borehole: id, path: 'layers', message: localize('soil.p.noLayers', "{0} has no layers yet.", id), severity: 'warning' });
+		}
+		// BNBC 2020 Table 6.2.13 classifies the site by the top 30 m: a shallower log gives a provisional class.
+		const logged = terminationDepth(borehole);
+		const rockBelow = borehole.layers.some(l => l.soilType === 'rock' && l.bottom >= logged - 1);
+		if (borehole.spt.length && logged > 0 && logged < SITE_CLASS_DEPTH - 1 && !rockBelow) {
+			problem({ borehole: id, path: 'depth', message: localize('soil.p.shallowForSiteClass', "{0} ends at {1} m: BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so its site class is provisional (its last N is carried down to 30 m).", id, formatNumber(logged / 1000, 1)), severity: 'warning' });
 		}
 		const away = distanceFromSite(report, borehole);
 		if (away !== undefined && away > FAR_FROM_SITE) {

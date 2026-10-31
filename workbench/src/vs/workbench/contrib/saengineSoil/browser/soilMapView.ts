@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
-import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, IBnbcSuggestion, IMapPoint, inBangladesh, IPlotEdit, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
+import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, IBnbcSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
 
 /*
@@ -210,8 +210,16 @@ export class SoilMapView extends Disposable {
 		};
 
 		heading(localize('soil.map.site', "Site"));
-		this.positionInput('site', site, value => this.host.moveSite(value), localize('soil.map.siteAria', "Site latitude and longitude"));
-		if (site) {
+		// The site's own point only: until it is set, the map is centred on the boreholes, and the
+		// field stays empty (it would otherwise show a point the site does not have).
+		const own = isGeoreferenced(report) ? site : undefined;
+		this.positionInput('site', own, value => this.host.moveSite(value), localize('soil.map.siteAria', "Site latitude and longitude"));
+		if (!own) {
+			append(this.panel, $('p.soil-note', undefined, site
+				? localize('soil.map.siteUnsetNear', "Not set yet. The map is centred on the boreholes placed by latitude and longitude ({0}); type the site point to place the project grid.", formatLatLon(site, style))
+				: localize('soil.map.siteUnset', "Not set yet: type the site point's latitude and longitude to place the project grid on the map.")));
+		}
+		if (own) {
 			row(localize('soil.map.dms', "DMS"), `${formatDms(site.lat, 'lat')}\n${formatDms(site.lon, 'lon')}`);
 			if (location?.site?.btm) {
 				row(localize('soil.map.btmLabel', "BTM"), formatBtm(location.site.btm), localize('soil.map.btmTitle', "Bangladesh Transverse Mercator (EPSG:9678)"));
@@ -251,6 +259,10 @@ export class SoilMapView extends Disposable {
 				}
 			}));
 		});
+		if (points.length) {
+			// A borehole far from the others (or placed after the map was framed) may be off the map.
+			this.button(append(this.panel, $('.soil-map-actions')), Codicon.screenFull, localize('soil.map.fitAll', "Show All Boreholes"), () => this.fitAll());
+		}
 		const selected = this.host.selected !== undefined ? report.boreholes[this.host.selected] : undefined;
 		if (selected) {
 			const point = points.find(p => p.index === this.host.selected);
@@ -701,6 +713,15 @@ export class SoilMapView extends Disposable {
 			}
 		});
 		this.updateMap();
+	}
+
+	/** Frames the site and every borehole, however far apart. */
+	private fitAll(): void {
+		const site = sitePosition(this.host.report, this.host.location);
+		const bounds = boundsOf([...site ? [site] : [], ...boreholePoints(this.host.report, this.host.location)]);
+		if (bounds && this.mapInstance) {
+			this.mapInstance.fitBounds(bounds, { padding: 60, maxZoom: OSM_MAX_ZOOM - 1, animate: false });
+		}
 	}
 
 	/** The plot, its envelope and the plot being drawn, as GeoJSON for the map. */

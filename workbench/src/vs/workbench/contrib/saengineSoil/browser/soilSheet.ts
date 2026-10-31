@@ -671,6 +671,9 @@ export class SampleSheet implements ISheet {
 		if (column.id === 'depthTo' && r && this.depthTo(r).derived && r.spt) {
 			return localize('soil.sheet.toDerived', "The end of the SPT drive (from + 0.45 m) unless given.");
 		}
+		if (column.id === 'PI') {
+			return localize('soil.sheet.piWorkedOut', "PI = LL − PL, worked out: give the sample's LL and PL here, or the stratum's PI in Strata.");
+		}
 		return undefined;
 	}
 

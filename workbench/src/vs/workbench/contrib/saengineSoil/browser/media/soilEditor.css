@@ -1139,6 +1139,14 @@
 	cursor: pointer;
 }
 
+.saengine-soil-editor .soil-prop-check {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin: var(--sa-space-2) 0 0;
+	cursor: pointer;
+}
+
 .saengine-soil-editor .soil-prop-link:hover {
 	text-decoration: underline;
 }
@@ -1249,7 +1257,7 @@
 }
 
 .saengine-soil-editor .soil-grid-group.collapsed span:not(.codicon) {
-	display: none;
+	color: var(--sa-muted);
 }
 
 .saengine-soil-editor .soil-grid-row-header {
@@ -2089,4 +2097,32 @@
 	align-items: baseline;
 	gap: var(--sa-space-2);
 	cursor: default;
+}
+
+/* a very soft subgrade (ks below 2000 kN/m³) reads at the warn tier */
+.saengine-soil-editor .soil-result-table tr.soil-ks-low td:nth-child(2) {
+	color: var(--sa-warn);
+	font-weight: 600;
+}
+
+/* the pile table fits the view: the method wraps instead of scrolling the page sideways */
+.saengine-soil-editor .soil-result-table.soil-pile-table {
+	max-width: 100%;
+}
+
+.saengine-soil-editor .soil-result-table.soil-pile-table td:last-child {
+	white-space: normal;
+	min-width: 160px;
+}
+
+/* in the pile table a liquefiable layer marks its Liquefiable and fs seismic cells, not the method */
+.saengine-soil-editor .soil-result-table.soil-pile-table tr.soil-liquefiable-row td:last-child {
+	color: inherit;
+	font-weight: normal;
+}
+
+.saengine-soil-editor .soil-result-table.soil-pile-table tr.soil-liquefiable-row td:nth-child(5),
+.saengine-soil-editor .soil-result-table.soil-pile-table tr.soil-liquefiable-row td:nth-child(6) {
+	color: var(--sa-fail);
+	font-weight: 600;
 }
