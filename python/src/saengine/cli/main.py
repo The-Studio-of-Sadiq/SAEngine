@@ -686,7 +686,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--lateral", choices=["loads", "coefficient"], default="loads",
                      help="e2k: earthquake as SAEngine's story forces (loads) or as an ETABS "
                      "user coefficient (default: %(default)s)")  # fmt: skip
-    sub.add_argument("--size", choices=["A1", "A2", "A3"],
+    sub.add_argument("--size", choices=["A0", "A1", "A2", "A3"],
                      help="drawings: the sheet size (default: Project Settings' drawings)")  # fmt: skip
     sub.add_argument("--include-results", action="store_true",
                      help="civil: also archive the computed results")  # fmt: skip
