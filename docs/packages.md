@@ -4,7 +4,8 @@ A package is a folder with a `pack.json`, installed from SAEngine's Packages pag
 Packages...), from a `.zip`, or with the command line. How to use them in the app is in the user
 manual, [Packages: design codes and templates](manual/14-packages.md); how design code tables are
 written is in [code-packs.md](code-packs.md); the plan and the decisions behind the marketplace are
-in [marketplace-plan.md](marketplace-plan.md). Authors of packages: see
+in [marketplace-plan.md](marketplace-plan.md); programming SAEngine (Python API, JSON-RPC, hooks)
+in [sdk/README.md](sdk/README.md). Authors of packages: see
 `scripts/marketplace/CONTRIBUTING-packages.md`, the CONTRIBUTING of the package repositories.
 
 ## Kinds and files
