@@ -109,6 +109,17 @@
 	box-shadow: -6px 0 0 -4px var(--sa-ok, var(--vscode-testing-iconPassed));
 }
 
+/* Why a value cannot be used, under its field (not only in the field's popup while focused). */
+.sa-modifiers-message {
+	grid-column: 1 / -1;
+	font-size: var(--sa-font-xs, 11px);
+	color: var(--sa-error, var(--vscode-errorForeground));
+}
+
+.sa-modifiers-message:empty {
+	display: none;
+}
+
 .sa-modifiers-row.warning .sa-modifiers-source {
 	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
 }

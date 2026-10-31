@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
+import { $, append, clearNode, Dimension, getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -143,6 +143,31 @@ export class GridsEditor extends JsonDocumentEditor {
 			ariaLabel: localize('grids.toolbar', "Grids & Stories"),
 			properties: { title: localize('grids.summary', "Summary") },
 		}));
+	}
+
+	/**
+	 * Below this width the Summary folds away, so the grid and story tables keep their columns
+	 * (the form turns rows into cards under 600 px). It unfolds again when there is room.
+	 */
+	private static readonly NARROW = 900;
+	private narrow: boolean | undefined;
+	private foldedSummary = false;
+
+	override layout(dimension: Dimension): void {
+		const frame = this.documentFrame;
+		const narrow = dimension.width < GridsEditor.NARROW;
+		if (frame && narrow !== this.narrow) {
+			// Only when the width crosses the line: the engineer may open the Summary again.
+			if (narrow && frame.isPropertiesVisible) {
+				frame.setPropertiesVisible(false);
+				this.foldedSummary = true;
+			} else if (!narrow && this.foldedSummary) {
+				frame.setPropertiesVisible(true);
+				this.foldedSummary = false;
+			}
+			this.narrow = narrow;
+		}
+		super.layout(dimension);
 	}
 
 	protected createBody(body: HTMLElement): void {
