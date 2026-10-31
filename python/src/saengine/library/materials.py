@@ -36,6 +36,7 @@ class Category(str, Enum):
     REBAR = "rebar"
     STEEL = "steel"
     MASONRY = "masonry"
+    TIMBER = "timber"
     MORTAR = "mortar"
     OTHER = "other"
 
@@ -140,6 +141,26 @@ class MasonryProperties(_Model):
     )
 
 
+class TimberProperties(_Model):
+    """Sawn structural timber (BNBC 2020 Part 6 Chapter 11)."""
+
+    species: str | None = Field(default=None, description="Species, e.g. Sal, Garjan, Teak.")
+    group: Literal["A", "B", "C"] = Field(
+        default="B",
+        title="Strength group",
+        description="Strength group by modulus of elasticity: A (E at least 12.6 GPa), B "
+        "(9.8-12.6 GPa), C (5.6-9.8 GPa); the code pack gives each group's permissible "
+        "stresses.",
+        json_schema_extra={"enumDescriptions": ["Group A", "Group B", "Group C"]},
+    )
+    location: Literal["inside", "outside", "wet"] = Field(
+        default="inside",
+        title="Location of use",
+        description="Inside (dry), outside (exposed to the weather) or wet (always damp).",
+        json_schema_extra={"enumDescriptions": ["Inside", "Outside", "Wet"]},
+    )
+
+
 class NominalMix(_Model):
     """Volumetric site mix, e.g. 1:1.5:3 for concrete or 1:4 for mortar."""
 
@@ -194,6 +215,7 @@ class Material(_Model):
     concrete: ConcreteProperties | None = None
     steel: SteelProperties | None = None
     masonry: MasonryProperties | None = None
+    timber: TimberProperties | None = None
     composition: Composition | None = Field(
         default=None, description="Mix of a concrete or mortar, used for quantities (BOQ)."
     )
@@ -206,16 +228,17 @@ class Material(_Model):
             Category.REBAR: "steel",
             Category.STEEL: "steel",
             Category.MASONRY: "masonry",
+            Category.TIMBER: "timber",
         }.get(self.category)
         if required and getattr(self, required) is None:
             raise ValueError(f"a {self.category.value} material needs '{required}' properties")
-        for group in ("concrete", "steel", "masonry"):
+        for group in ("concrete", "steel", "masonry", "timber"):
             if getattr(self, group) is not None and group != required:
                 raise ValueError(
                     f"'{group}' properties do not apply to a {self.category.value} material"
                 )
         if (
-            self.category in (Category.CONCRETE, Category.REBAR, Category.STEEL)
+            self.category in (Category.CONCRETE, Category.REBAR, Category.STEEL, Category.TIMBER)
             and self.mechanical.E is None
         ):
             raise ValueError(f"a {self.category.value} material needs mechanical.E")

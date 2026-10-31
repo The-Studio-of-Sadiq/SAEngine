@@ -55,7 +55,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			type: 'object',
 		},
 		Category: {
-			enum: ['concrete', 'rebar', 'steel', 'masonry', 'mortar', 'other'],
+			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'other'],
 			title: 'Category',
 			type: 'string',
 		},
@@ -352,6 +352,18 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Masonry',
+				},
+				timber: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Timber',
 				},
 				composition: {
 					anyOf: [
@@ -664,6 +676,43 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			},
 			required: ['fy'],
 			title: 'SteelProperties',
+			type: 'object',
+		},
+		TimberProperties: {
+			additionalProperties: false,
+			description: 'Sawn structural timber (BNBC 2020 Part 6 Chapter 11).',
+			properties: {
+				species: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Species, e.g. Sal, Garjan, Teak.',
+					title: 'Species',
+				},
+				group: {
+					default: 'B',
+					description: 'Strength group by modulus of elasticity: A (E at least 12.6 GPa), B (9.8-12.6 GPa), C (5.6-9.8 GPa); the code pack gives each group\'s permissible stresses.',
+					enum: ['A', 'B', 'C'],
+					enumDescriptions: ['Group A', 'Group B', 'Group C'],
+					title: 'Strength group',
+					type: 'string',
+				},
+				location: {
+					default: 'inside',
+					description: 'Inside (dry), outside (exposed to the weather) or wet (always damp).',
+					enum: ['inside', 'outside', 'wet'],
+					enumDescriptions: ['Inside', 'Outside', 'Wet'],
+					title: 'Location of use',
+					type: 'string',
+				},
+			},
+			title: 'TimberProperties',
 			type: 'object',
 		},
 	},
@@ -11076,6 +11125,19 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			note: 'Typical unit weight ~18.85 kN/m³. Enter unit and prism strengths from tests.',
 		},
 	},
+	'Material:timber': {
+		id: 'TIMBER-B',
+		name: 'Sawn timber, group B',
+		category: 'timber',
+		mechanical: {
+			E: 9800,
+			density: 650,
+		},
+		timber: {
+			group: 'B',
+			location: 'inside',
+		},
+	},
 	'Material:other': {
 		id: 'MAT',
 		name: 'New material',
@@ -11091,6 +11153,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	MasonryProperties: {
 		unit: 'first-class burnt clay brick',
+	},
+	TimberProperties: {
+		group: 'B',
+		location: 'inside',
 	},
 	NominalMix: {
 		method: 'nominal',
