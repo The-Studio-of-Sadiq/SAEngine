@@ -1318,7 +1318,7 @@ def test_sizing_assistant_proposes_a_raft_when_footings_would_cover_the_plan() -
     check, and never a raft. 4 x 2500 kN on a 4 m square, qa 150 kPa: footings over 4 m wide
     (more than the plan of 6 x 6 m between them): one raft, the columns' outline 1 m beyond
     the outer column lines, thick enough for punching at the heaviest column."""
-    from saengine.substructure.sizing import PHI_V, PUNCHING, RAFT_OVERHANG
+    from saengine.substructure.sizing import RAFT_OVERHANG, punching_depth
 
     ctx = four_columns(2500, 4000)
     proposal = propose(ctx)
@@ -1332,12 +1332,19 @@ def test_sizing_assistant_proposes_a_raft_when_footings_would_cover_the_plan() -
         [-RAFT_OVERHANG, 4000 + RAFT_OVERHANG],
     )
     assert proposal["raft"]["areaRatio"] > 0.5 and proposal["notes"][0].startswith("One raft")
-    # Punching (ACI 318-19 22.6.5.2(a)), soil reaction left out: 4 v (c + d) d = Vu.
+    # Punching, soil reaction left out, as the footing checks take it: phi vc b0 d >= Vu with
+    # vc = 0.33 lambda_s sqrt(f'c) (ACI 318-19 Table 22.6.5.2, as BNBC 2020 Part 6 Ch 6 follows
+    # ACI 318) and phi 0.75 (BNBC 2020 Part 6 Sec 6.2.3.2, p. 897). Vu 2500 kN, c 400 mm,
+    # f'c 24.1 MPa: at d = 660 mm lambda_s = 0.741, phi vc = 0.901 MPa, b0 = 4240 mm, phi Vc =
+    # 2520 kN; at 655 mm 2496 kN. Was d = 545 mm (h 650) without lambda_s: a raft the checks
+    # would fail in punching.
     vu = max(ctx.loads.max_axial(c, "strength") for c in ("C1", "C2", "C3", "C4"))
     fc = ctx.mats[raft["material"]].concrete.fc
-    v = PHI_V * PUNCHING * math.sqrt(fc)
-    d = (-400 + math.sqrt(400**2 + vu / v)) / 2
-    assert max(500, math.ceil((d + 75 + 30) / 50) * 50) == 650  # punching alone (d = 545 mm)
+    assert (vu, fc) == (2500e3, 24.1)
+    d = punching_depth(vu, 400, fc)
+    lam = math.sqrt(2 / (1 + 0.004 * d))
+    assert d == 660 and 0.75 * 0.33 * lam * math.sqrt(fc) * 4 * (400 + d) * d >= vu
+    assert max(500, math.ceil((d + 75 + 30) / 50) * 50) == 800  # punching alone
     # One-way shear of a metre strip governs here: qu = 4 x 2500 kN / (6 m x 6 m) = 278 kPa
     # over L/2 - c/2 - d; at d = 1070 mm (h 1200 with 20@125, rho 0.00235, lambda_s 0.62)
     # Vu = 278 x 0.73 = 203 kN/m <= phi Vc (ACI 318-19 Table 22.5.5.1(c)).

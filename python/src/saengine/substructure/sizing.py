@@ -46,6 +46,7 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design.bars import mesh_for, slab_flexure_need
+from saengine.design.rc import PHI_SHEAR
 from saengine.library.bim import ColumnElement
 from saengine.library.materials import Category
 from saengine.library.objects import BarMesh, Column
@@ -57,6 +58,7 @@ from saengine.substructure.shallow import (
     footing_loads,
     min_steel_ratio,
     place_footing,
+    punching_stress,
 )
 
 #: Plan sizes and thicknesses are multiples of this [mm].
@@ -83,9 +85,6 @@ RAFT_RATIO = 0.5
 RAFT_OVERHANG = 1000.0
 #: The thinnest raft proposed [mm].
 RAFT_MIN_THICKNESS = 500.0
-#: phi of shear (ACI 318-19 Table 21.2.1) and the punching stress factor of 22.6.5.2(a).
-PHI_V = 0.75
-PUNCHING = 0.33
 
 SHEAR_CHECKS = ("Punching at", "One-way shear")
 BEARING_CHECKS = (
@@ -758,11 +757,26 @@ def raft_outline(columns: list[ColumnElement]) -> list[list[float]]:
     return outline
 
 
+def punching_depth(vu: float, c: float, fc: float) -> float:
+    """The least d [mm], in steps of 5 mm, for punching at an interior square column of side
+    ``c`` [mm] under ``vu`` [N], the soil reaction inside the section left out (conservative):
+    phi vc b0 d >= Vu with b0 = 4 (c + d), vc and phi as the footing checks take them
+    (:func:`~saengine.substructure.shallow.punching_stress`: ACI 318-19 Table 22.6.5.2 with the
+    size factor lambda_s, as BNBC 2020 Part 6 Ch 6 follows ACI 318, page not checked; phi of
+    shear 0.75, BNBC 2020 Part 6 Sec 6.2.3.2, p. 897)."""
+    d = 5.0
+    while d < 5000.0:
+        b0 = 4 * (c + d)
+        if PHI_SHEAR * punching_stress(c, c, d, b0, 40.0, fc) * b0 * d >= vu:
+            break
+        d += 5.0
+    return d
+
+
 def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str, Any], list[str]]:
     """One raft under ``columns`` (see the module notes), as ``substructure.json``'s raft, and
     notes on how it was sized. The thickness: d for punching at each column as an interior
-    column, Vu <= phi 0.33 sqrt(fc) b0 d with b0 = 4 (c + d) (ACI 318-19 22.6.5.2(a), the soil
-    reaction inside the section left out: conservative), and d for one-way shear of a metre
+    column (:func:`punching_depth`), and d for one-way shear of a metre
     strip between the columns: the net factored soil pressure qu = sum of the columns' largest
     factored loads / the raft's area over (L/2 - c/2 - d), L the largest distance of a column to
     its nearest one, against phi Vc of ACI 318-19 Table 22.5.5.1(c) with the minimum mesh;
@@ -776,14 +790,11 @@ def raft_proposal(sizer: Sizer, columns: list[ColumnElement]) -> tuple[dict[str,
     fy = ctx.mats[rebar].steel.fy if ctx.mats[rebar].steel else None
     if not fc or not fy:
         raise Skip("the concrete or bars have no strength")
-    stress = PHI_V * PUNCHING * math.sqrt(fc)  # N/mm²
     d = 0.0
     heaviest = ""
     for column in columns:
         vu = sizer.loads.max_axial(column.id, "strength")
-        c = max(sizer.side(column), 200.0)
-        # 4 stress (c + d) d = Vu
-        need = (-c + math.sqrt(c * c + vu / stress)) / 2
+        need = punching_depth(vu, max(sizer.side(column), 200.0), fc)
         if need > d:
             d, heaviest = need, column.id
     dia = 20.0
