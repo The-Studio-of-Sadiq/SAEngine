@@ -115,8 +115,11 @@ export class StructuralImportFlows {
 		}
 		let file = args.path ? URI.file(args.path) : undefined;
 		if (!file) {
+			// The folder of the last file imported, not the home folder with its dot-folders.
+			const lastFile = this.lastImport()?.file;
 			const picked = await this.fileDialogService.showOpenDialog({
 				title: localize('import.openTitle', "Import from ETABS, STAAD or SAP2000"),
+				defaultUri: lastFile ? dirname(URI.file(lastFile)) : dirname(await this.opener.defaultLocation()),
 				canSelectFiles: true,
 				canSelectFolders: false,
 				canSelectMany: false,
