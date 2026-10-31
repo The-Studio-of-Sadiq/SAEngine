@@ -224,6 +224,45 @@ export function setSimilar(layout: unknown, master: string, similar: readonly st
 	return copyStory(next, master, familyOf(next, master));
 }
 
+/** What a story loses when it is made to repeat another's plan: its own members with nothing at their place on the master, and those that change type. */
+export interface ITypicalLoss {
+	readonly story: string;
+	readonly removed: readonly string[];
+	readonly retyped: readonly string[];
+}
+
+/**
+ * What {@link setSimilar} would take from the stories that join `master`'s family: per story,
+ * its members with no member at the same place on the master (deleted) and those whose type
+ * differs there (replaced). Stories already in the family and in sync lose nothing.
+ */
+export function typicalLosses(layout: unknown, master: string, similar: readonly string[]): ITypicalLoss[] {
+	if (!isObject(layout)) {
+		return [];
+	}
+	const after = setSimilar(layout, master, similar);
+	const losses: ITypicalLoss[] = [];
+	for (const story of familyOf(after, master).filter(s => s !== master)) {
+		const removed: string[] = [];
+		const retyped: string[] = [];
+		for (const group of GROUPS) {
+			const onMaster = new Map(members(layout, group).filter(m => onStory(layout, group, m, master)).map(m => [placeKey(group, m), m]));
+			for (const member of members(layout, group).filter(m => onStory(layout, group, m, story))) {
+				const there = onMaster.get(placeKey(group, member));
+				if (!there) {
+					removed.push(String(member.id));
+				} else if (there.type !== member.type || (Number(there.rotation) || 0) !== (Number(member.rotation) || 0)) {
+					retyped.push(String(member.id));
+				}
+			}
+		}
+		if (removed.length || retyped.length) {
+			losses.push({ story, removed, retyped });
+		}
+	}
+	return losses;
+}
+
 /** How the story picker names a story of a family: "= Level 2" for a similar story, "typical, 8 more" for a master. */
 export function familyNote(layout: unknown, story: string): { readonly master?: string; readonly similar: number } {
 	const master = masterOf(layout, story);

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditResult, placeLinear, resolvePoint } from '../../browser/floorPlanEdits.js';
-import { nearMisses, snapLinear, typedEnd } from '../../browser/floorPlanSnap.js';
+import { nearMisses, snapLinear, typedEnd, unsupportedBeams } from '../../browser/floorPlanSnap.js';
 
 suite('SAEngine - Floor plan snaps', () => {
 
@@ -81,4 +81,18 @@ suite('SAEngine - Floor plan snaps', () => {
 			undefined,
 		]);
 	});
+
+	test('a beam with nothing at either end is unsupported (N-F6)', () => {
+		const layout = {
+			schema: 'saengine.floorPlan/1',
+			grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }], y: [{ label: '1', position: 0 }, { label: '2', position: 5000 }] },
+			stories: [{ id: 'BASE', name: 'Base', elevation: 0 }, { id: 'L1', name: 'Level 1', elevation: 3200 }, { id: 'L2', name: 'Level 2', elevation: 6400 }],
+			columns: [{ id: 'C1', type: 'C', at: { x: 'A', y: '1' }, base: 'BASE', top: 'L1' }],
+			// A cantilever off C1 on L1, copied to L2 where no column rises.
+			beams: [{ id: 'B1', type: 'B', story: 'L1', start: { x: 'A', y: '1' }, end: { x: 'A', y: '1', dx: 1500 } }, { id: 'B2', type: 'B', story: 'L2', start: { x: 'A', y: '1' }, end: { x: 'A', y: '1', dx: 1500 } }],
+			walls: [], slabs: [], footings: [],
+		};
+		assert.deepStrictEqual([unsupportedBeams(layout, 'L1'), unsupportedBeams(layout, 'L2'), unsupportedBeams(layout, 'L2', new Set(['B9']))], [[], ['B2'], []]);
+	});
+
 });

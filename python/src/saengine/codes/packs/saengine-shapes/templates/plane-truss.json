@@ -1,0 +1,11 @@
+{
+  "name": "Plane truss 24 m",
+  "description": "Pratt truss of 8 panels, 2.4 m deep.",
+  "shape": {
+    "kind": "planeTruss",
+    "span": 24000.0,
+    "depth": 2400.0,
+    "panels": 8,
+    "memberType": "MEMBER"
+  }
+}

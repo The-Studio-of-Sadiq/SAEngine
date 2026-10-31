@@ -674,7 +674,7 @@ export interface ICadProgram {
 }
 
 /** The optional components of the SAEngine setup (`[Components]` of `workbench/build/win32/code.iss`). */
-export const SETUP_COMPONENTS = ['energyplus', 'librecad', 'libredwg'] as const;
+export const SETUP_COMPONENTS = ['energyplus', 'librecad', 'libredwg', 'ai', 'git', 'collaboration'] as const;
 export type SetupComponent = typeof SETUP_COMPONENTS[number];
 
 export interface ISetupRunRequest {
