@@ -5,9 +5,9 @@
 
 import '../../saengineLibrary/browser/media/modelEditors.css';
 import './media/substructureEditor.css';
-import { $, addDisposableListener, append, clearNode, Dimension, EventType, isHTMLInputElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -41,7 +41,7 @@ import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengin
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
-	pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
+	errorSummary, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
@@ -62,6 +62,20 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 	{ view: 'data', label: localize('sub.viewData', "Data"), icon: Codicon.table },
 	{ view: 'results', label: localize('sub.viewResults', "Results"), icon: Codicon.graphLine },
 ];
+
+/** The backend's check of footings overlapping in plan (report.mark_overlaps). */
+const CLEARANCE_CHECK = 'Clear of the other footings';
+
+/** Notes as sentences: each starts with a capital and ends with a full stop (N-U12). */
+function sentences(notes: readonly string[]): string {
+	return notes.map(n => n.trim()).filter(Boolean).map(n => {
+		const text = n.charAt(0).toUpperCase() + n.slice(1);
+		return /[.!?)]$/.test(text) ? text : `${text}.`;
+	}).join(' ');
+}
+
+/** Restart Engine (saengineFem's runAll): stops the Python backend; the next request starts a new one. */
+const RESTART_ENGINE_COMMAND = 'saengine.restartEngine';
 
 /** The state of the design report: not asked yet, being computed, computed, or no backend / failed. */
 type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
@@ -297,7 +311,41 @@ export class SubstructureEditor extends EditorPane {
 		if (this.input !== input) {
 			return;
 		}
+		await this.restoreReport(input);
+		if (this.input !== input) {
+			return;
+		}
 		this.load();
+	}
+
+	/**
+	 * The last checks of the saved file ({@link SUBSTRUCTURE_REPORT_FILE}), shown at once while
+	 * they are computed again: the plan is coloured as soon as it opens (N-U8). Not when the
+	 * analysis ran since (its results are newer); a foundation edited since shows as changed.
+	 */
+	private async restoreReport(input: SubstructureEditorInput): Promise<void> {
+		const folder = dirname(input.resource);
+		try {
+			const file = joinPath(folder, SUBSTRUCTURE_REPORT_FILE);
+			const [stat, content] = await Promise.all([this.fileService.stat(file), this.fileService.readFile(file)]);
+			const manifest = joinPath(dirname(folder), '08 FEM', 'model.results', 'manifest.json');
+			const results = await this.fileService.stat(manifest).catch(() => undefined);
+			if (!results || results.mtime > stat.mtime || this.input !== input || this.report) {
+				return;
+			}
+			const value: unknown = JSON.parse(content.value.toString());
+			const raw = typeof value === 'object' && value !== null ? value as { report?: unknown; checkedFor?: unknown } : {};
+			const report = readSubstructureReport(raw.report);
+			if (!report || typeof raw.checkedFor !== 'object' || raw.checkedFor === null) {
+				return;
+			}
+			this.report = report;
+			this.checkedFor = new Map(Object.entries(raw.checkedFor).filter((e): e is [string, string] => typeof e[1] === 'string'));
+			this.checkedSiteVersion = this.siteVersion;
+			this.reportState = 'ok';
+		} catch {
+			// None yet, or unreadable: the plan waits for the checks.
+		}
 	}
 
 	override clearInput(): void {
@@ -1238,31 +1286,51 @@ export class SubstructureEditor extends EditorPane {
 		}
 		this.setBusy('size', true);
 		this.sizeAction.enabled = false;
-		// Sizing runs every trial through the checks: it takes a while, so say what is going on.
+		// Sizing runs every trial through the checks: it takes a while, so say what is going on,
+		// how long it has run, and let the engineer stop waiting for it (N-U4).
+		const message = (seconds: number) => {
+			const what = columns.length === 1
+				? localize('sub.sizingOne', "Sizing the footing under {0} from the reactions and the soil report…", columns[0])
+				: localize('sub.sizingMany', "Sizing footings under {0} columns from the reactions and the soil report…", columns.length);
+			return seconds ? `${what} ${localize('sub.sizingElapsed', "{0} s", seconds)}` : what;
+		};
+		let cancelled = false;
 		const progress = this.notificationService.notify({
 			severity: Severity.Info,
-			message: columns.length === 1
-				? localize('sub.sizingOne', "Sizing the footing under {0} from the reactions and the soil report…", columns[0])
-				: localize('sub.sizingMany', "Sizing footings under {0} columns from the reactions and the soil report… This can take a minute or two.", columns.length),
+			message: message(0),
 			progress: { infinite: true },
+			actions: {
+				primary: [toAction({
+					id: 'saengine.substructure.sizeCancel', label: localize('sub.sizeCancel', "Cancel"), run: () => {
+						cancelled = true;
+						progress.close();
+					},
+				})],
+			},
 		});
+		const started = Date.now();
+		const targetWindow = getWindow(this.viewElement);
+		const ticker = targetWindow.setInterval(() => progress.updateMessage(message(Math.round((Date.now() - started) / 1000))), 1000);
 		let proposal: ISizingProposal | undefined;
 		try {
 			const answer = readSizingProposal(await this.commandService.executeCommand<unknown>(SUBSTRUCTURE_SIZE_COMMAND, request));
 			proposal = answer && proposalFor(answer, columns);
 		} catch (error) {
-			this.notificationService.error(localize('sub.sizeFailed', "The foundations could not be sized: {0}", error instanceof Error ? error.message : String(error)));
+			if (!cancelled) {
+				this.notificationService.error(localize('sub.sizeFailed', "The foundations could not be sized: {0}", errorSummary(error instanceof Error ? error.message : String(error)).summary));
+			}
 			return;
 		} finally {
+			targetWindow.clearInterval(ticker);
 			progress.close();
 			this.sizeAction.enabled = true;
 			this.setBusy('size', false);
 		}
-		if (this.document !== document) {
+		if (cancelled || this.document !== document) {
 			return;
 		}
 		if (!proposal?.foundations.length) {
-			this.notificationService.info(proposal?.notes.length ? proposal.notes.join(' ') : localize('sub.sizeNothing', "The sizing assistant proposed no foundations. Run the analysis first: it sizes from the support reactions."));
+			this.notificationService.info(proposal?.notes.length ? sentences(proposal.notes) : localize('sub.sizeNothing', "The sizing assistant proposed no foundations. Run the analysis first: it sizes from the support reactions."));
 			return;
 		}
 		this.proposal = proposal;
@@ -1281,6 +1349,8 @@ export class SubstructureEditor extends EditorPane {
 		this.clearSelection();
 		this.selectedFoundations = document.foundations.map((f, i) => ids.has(f.id) ? i : -1).filter(i => i >= 0);
 		this.changed(true);
+		// The backend checks the saved file: Accept saves and checks at once, not on the next Ctrl+S (N-U7).
+		void this.saveAndCheck();
 	}
 
 	private discardProposal(): void {
@@ -1402,9 +1472,11 @@ export class SubstructureEditor extends EditorPane {
 		// after, in case a save came in between).
 		const before = await this.savedText();
 		let report: ISubstructureReport | undefined;
+		let raw: unknown;
 		let error: string | undefined;
 		try {
-			report = readSubstructureReport(await this.commandService.executeCommand<unknown>(SUBSTRUCTURE_REPORT_COMMAND, request));
+			raw = await this.commandService.executeCommand<unknown>(SUBSTRUCTURE_REPORT_COMMAND, request);
+			report = readSubstructureReport(raw);
 			if (!report) {
 				error = localize('sub.reportEmpty', "The backend gave no design report.");
 			}
@@ -1433,6 +1505,8 @@ export class SubstructureEditor extends EditorPane {
 		if (report && this.resource && !this.input?.isDirty()) {
 			const content = JSON.stringify(substructureSummaryFile(document, report, new Date()), undefined, '\t') + '\n';
 			this.fileService.writeFile(joinPath(dirname(this.resource), SUBSTRUCTURE_SUMMARY_FILE), VSBuffer.fromString(content)).catch(() => { /* the part list then shows the count only */ });
+			const kept = JSON.stringify({ checkedFor: Object.fromEntries(this.checkedFor ?? []), report: raw }) + '\n';
+			this.fileService.writeFile(joinPath(dirname(this.resource), SUBSTRUCTURE_REPORT_FILE), VSBuffer.fromString(kept)).catch(() => { /* the next open checks first */ });
 		}
 	}
 
@@ -1699,7 +1773,9 @@ export class SubstructureEditor extends EditorPane {
 		// What is left below the header, legend and banner (the banner's table grows with the proposal).
 		const used = canvas.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 		const height = Math.max(240, view.clientHeight - used - 16);
-		const bands = this.report ? new Map(document.foundations.map(f => [f.id, utilisationBand(this.resultOf(f)?.utilisation)])) : undefined;
+		// A footing passing all but its bearing check (no qa) is amber, not green (N-U3).
+		const band = (r: IFoundationResult | undefined) => r?.ok && r.notChecked?.length ? 'warn' : utilisationBand(r?.utilisation);
+		const bands = this.report ? new Map(document.foundations.map(f => [f.id, band(this.resultOf(f))])) : undefined;
 		this.drawing = renderPlan(canvas, document, this.context, {
 			width, height,
 			selectedFoundations: new Set(this.selectedFoundations),
@@ -2314,9 +2390,32 @@ export class SubstructureEditor extends EditorPane {
 				? localize('sub.computing', "Checking the foundations...")
 				: this.reportState === 'error' ? localize('sub.reportFailed', "The foundations could not be checked")
 					: localize('sub.backendMissing', "Backend not available")));
-			append(state, $('.sub-results-state-text', undefined, this.reportState === 'error'
-				? this.reportError ?? ''
-				: this.reportState === 'missing' ? localize('sub.backendMissingText', "The bearing, shear, flexure, pile and raft checks are computed by the SAEngine Python backend from the analysis reactions and the soil report; it is not running in this window. The foundations can still be drawn and edited; the checks appear once the backend is available.") : ''));
+			if (this.reportState === 'error') {
+				// One line and Details, never the raw traceback (N-U1).
+				const error = errorSummary(this.reportError ?? '');
+				append(state, $('.sub-results-state-text', undefined, error.summary));
+				const actions = append(state, $('.sub-results-state-actions'));
+				const again = this.viewDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: error.restart }));
+				again.label = localize('sub.checkAgain', "Check Again");
+				this.viewDisposables.add(again.onDidClick(() => void this.computeReport()));
+				if (error.restart) {
+					const restart = this.viewDisposables.add(new Button(actions, defaultButtonStyles));
+					restart.label = localize('sub.restartEngine', "Restart Engine");
+					restart.element.title = localize('sub.restartEngineHint', "The engine's files changed while it ran (a code pack, an update): restart it, then the foundations are checked again.");
+					this.viewDisposables.add(restart.onDidClick(async () => {
+						await this.commandService.executeCommand(RESTART_ENGINE_COMMAND);
+						void this.computeReport();
+					}));
+					actions.insertBefore(restart.element, again.element);
+				}
+				if (error.details) {
+					const details = append(state, $<HTMLDetailsElement>('details.sub-results-state-details'));
+					append(details, $('summary', undefined, localize('sub.errorDetails', "Details")));
+					append(details, $('pre', undefined, error.details));
+				}
+				return;
+			}
+			append(state, $('.sub-results-state-text', undefined, this.reportState === 'missing' ? localize('sub.backendMissingText', "The bearing, shear, flexure, pile and raft checks are computed by the SAEngine Python backend from the analysis reactions and the soil report; it is not running in this window. The foundations can still be drawn and edited; the checks appear once the backend is available.") : ''));
 			return;
 		}
 		const report = this.report;
@@ -2386,6 +2485,12 @@ export class SubstructureEditor extends EditorPane {
 		const current = document.foundations.map(f => this.resultOf(f)).filter((r): r is IFoundationResult => !!r);
 		const designed = [...current, ...document.tieBeams.map(t => this.tieResultOf(t)).filter((r): r is IFoundationResult => !!r)];
 		const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
+		// While a check runs the maxima may describe the foundations before the edit (an overlap
+		// with a changed neighbour): shown again once it is done (N-U7).
+		if (this.busy.has('report')) {
+			tile('…', localize('sub.tileChecking', "checking again"));
+			return;
+		}
 		if (typeof worst?.utilisation === 'number') {
 			tile(formatUtilisation(worst.utilisation), localize('sub.tileMaxIn', "largest utilisation, {0}", worst.id), utilisationBand(worst.utilisation));
 		}
