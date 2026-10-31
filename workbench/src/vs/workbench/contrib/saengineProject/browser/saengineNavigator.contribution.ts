@@ -5,7 +5,11 @@
 
 import './media/saengineTokens.css';
 import '../../../services/saengineProject/browser/partStatusService.js';
+import { $, append } from '../../../../base/browser/dom.js';
+import { timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -28,7 +32,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, 
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -358,6 +362,48 @@ class ProjectWindowContribution extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(ProjectWindowContribution.ID, ProjectWindowContribution, WorkbenchPhase.AfterRestored);
+
+// --- Opening a project: say so while the window loads (N-N5) ---------------------------------
+
+/** The longest the overlay waits for the project after the window is restored [ms]. */
+const OPENING_PROJECT_WAIT = 5_000;
+
+/**
+ * While a window opened on a folder loads (the editors, the project's parts, the engine), a
+ * plain overlay says "Opening <folder>…" instead of a blank window. It goes once the window is
+ * restored and the project is known (or the folder turns out not to be one).
+ */
+class OpeningProjectOverlay extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.openingProject';
+
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ISaengineProjectService projectService: ISaengineProjectService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+	) {
+		super();
+		const folder = contextService.getWorkspace().folders[0];
+		if (!folder || lifecycleService.phase >= LifecyclePhase.Restored) {
+			return;
+		}
+		const overlay = append(layoutService.mainContainer, $('.saengine-opening-project', { role: 'status', 'aria-live': 'polite' }));
+		const box = append(overlay, $('.saengine-opening-box'));
+		append(box, $(`span${ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))}`));
+		append(box, $('span', undefined, localize('openingProject', "Opening {0}…", folder.name)));
+		const remove = this._register(toDisposable(() => overlay.remove()));
+		void (async () => {
+			await lifecycleService.when(LifecyclePhase.Restored);
+			if (!projectService.project) {
+				await Promise.race([Event.toPromise(projectService.onDidChangeProject), timeout(OPENING_PROJECT_WAIT)]);
+			}
+			remove.dispose();
+		})();
+	}
+}
+
+registerWorkbenchContribution2(OpeningProjectOverlay.ID, OpeningProjectOverlay, WorkbenchPhase.BlockRestore);
 
 // --- The start page fills the window ---------------------------------------------------------
 
