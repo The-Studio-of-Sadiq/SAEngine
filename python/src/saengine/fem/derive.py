@@ -2448,6 +2448,28 @@ def _derive_fem(
         if not thermal_corrections["frames"] and not thermal_corrections["shells"]:
             b.notes.append("temperature: no member is heated (ΔTu and ΔTg are 0 where they apply)")
 
+    # ── the support settlement case ST (T9; saengine.fem.settlement) ──
+    settle = getattr(options, "settlement", None)
+    if settle is not None and settle.enabled:
+        if (column_supports or getattr(options, "supports", "fixed")) == "soilSprings":
+            b.notes.append(
+                "settlement: the column bases stand on soil springs, so the case ST is not "
+                "formed (the springs settle under the loads)"
+            )
+        elif not settle.supports:
+            b.notes.append("settlement: the case ST is on but lists no column base")
+        else:
+            from saengine.fem.settlement import add_settlement_case
+
+            _, more = add_settlement_case(project, building, settle.supports)
+            b.notes.extend(more)
+            if not any(getattr(c, "ST", 0) for c in settings.combinations):
+                b.notes.append(
+                    "settlement: no load combination has an ST factor, so ST is analysed but "
+                    "not designed for; add 1.2D + 1.2ST + 1.6L + 0.5Lr (BNBC 2020 Part 6 Sec "
+                    "2.7.3.1; Project Settings, Reset Combinations adds it)"
+                )
+
     # ── soil-structure interaction: the column bases on their foundations' springs ──
     ssi_json = None
     mode = column_supports or getattr(options, "supports", "fixed")

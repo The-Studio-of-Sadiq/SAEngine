@@ -113,7 +113,8 @@ class DesignOverwrites(BaseModel):
         gt=0,
         le=1.0,
         title="Live load reduction",
-        description="Live load reduction factor (placeholder: not applied yet).",
+        description="Live load reduction factor given instead of worked out (BNBC 2020 Part 6 "
+        "Sec 2.3.13); it applies to the floor live load L even with the project's reduction off.",
     )
 
 
