@@ -1422,6 +1422,8 @@ export class FemResultsBar extends Disposable {
 			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
 			this.appendPlanned(container, [FemPlanned.pushoverHinges, FemPlanned.fibreWalls, FemPlanned.performancePoint]);
+		} else if (entry.kind === 'modal') {
+			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		} else if (entry.kind === 'history') {
 			this.appendPlanned(container, [FemPlanned.nonlinearTimeHistory, FemPlanned.timeHistoryDesign, FemPlanned.recordScaling]);
 		} else if (entry.kind === 'static' && entry.frames?.length) {
