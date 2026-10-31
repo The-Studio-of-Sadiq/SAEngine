@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -426,9 +427,14 @@ def electrical_results(
                               f"proposed {tx['count']} x {tx['rating']:g} kVA") +
                              f"; {T.PAGES['1.3.18.1']}"))  # fmt: skip
     if sub and supply.voltage == "0.4kV":
-        checks.append(_check("Supply voltage", dem["connected"], T.SUBSTATION_KW, "kW", False,
-                             "50 kW or more: an 11 kV supply with a substation is required "
-                             f"({T.PAGES['1.3.20.1']})"))  # fmt: skip
+        # A rule, not a ratio: pass or fail, no utilisation (N-E9).
+        checks.append({
+            "name": "Supply voltage", "demand": None, "capacity": None, "unit": "",
+            "utilisation": None, "ok": False,
+            "note": f"{dem['connected']:.0f} kW connected, {T.SUBSTATION_KW:g} kW or more: an "
+                    f"11 kV supply with a substation is required ({T.PAGES['1.3.20.1']}); set "
+                    "the supply voltage in Electrical > Supply",
+        })  # fmt: skip
     ess = essential_load(electrical, dem)
     lifts = [m for m in electrical.motors if m.kind == "lift"]
     standby = bool(lifts) and lift_standby_required(storeys, height, hospital)
@@ -525,8 +531,7 @@ def electrical_results(
             f"Lightning: {len(lightning['downConductors'])} down conductors, "
             f"{len(lightning['airTerminals'])} air terminals ({lightning['risk']['decision']})"
         ),
-        f"{len(failed)} of {len(checks)} checks fail"
-        + (f": {', '.join(failed)}" if failed else ""),
+        (f"{len(failed)} checks fail: {', '.join(failed)}" if failed else "All checks pass"),
     ]
     return {
         "demand": dem,
@@ -688,7 +693,23 @@ def electrical_report(
 
         result["openingsProposed"] = len(result["openings"])
         result["openings"] = missing_sleeves(loaded["mep"], result["openings"])
-    return finite(result)
+    return finite(clause_only(result))
+
+
+#: A page reference after a clause: " (p763)", ", p796", " (p338-339)".
+_PAGE = re.compile(r"\s*\(pp?\.? ?\d+(?:[-–]\d+)?\)|,\s*pp?\.? ?\d+(?:[-–]\d+)?(?=[),;]|$)")
+
+
+def clause_only(value: Any) -> Any:
+    """``value`` with the page numbers taken out of its texts: citations by part, section and
+    clause only (the pages differ between printings of BNBC 2020; N-E9)."""
+    if isinstance(value, str):
+        return _PAGE.sub("", value)
+    if isinstance(value, list):
+        return [clause_only(v) for v in value]
+    if isinstance(value, dict):
+        return {k: clause_only(v) for k, v in value.items()}
+    return value
 
 
 def electrical_propose_equipment(

@@ -178,7 +178,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 		}
 		if (lightning.downConductors.length) {
 			append(section, $('.mep-subheading', undefined, lightning.downConductorsNeeded !== undefined
-				? localize('elecResults.downConductorsOf', "Down-conductor columns (for the structural drawings): {0} of {1} needed", lightning.downConductors.length, lightning.downConductorsNeeded)
+				? localize('elecResults.downConductorsOf', "Down-conductor columns (for the structural drawings): {0} placed, {1} needed", lightning.downConductors.length, lightning.downConductorsNeeded)
 				: localize('elecResults.downConductors', "Down-conductor columns (for the structural drawings)")));
 			append(section, $('p.elec-dc-list', undefined, lightning.downConductors.map(d => d.column).join(', ')));
 			const table = append(section, $('table.mep-table.mep-result-table'));
