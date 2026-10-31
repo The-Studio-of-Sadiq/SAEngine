@@ -32,6 +32,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -154,6 +155,7 @@ export class NewBuildingWizard extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 	) {
 		super(NewBuildingWizard.ID, group, telemetryService, themeService, wizardStorage);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -197,18 +199,23 @@ export class NewBuildingWizard extends EditorPane {
 
 	/**
 	 * Where the building goes unless the engineer picks another folder: beside the open project,
-	 * else where the last building went, else the default projects folder. Never a relative path.
+	 * else in the open folder (not a project), else where the last building went, else the
+	 * default projects folder. Never a relative path; a Windows drive in capitals ("C:\").
 	 */
 	private async initialFolder(): Promise<string> {
 		const open = this.projectService.project?.root;
 		if (open?.scheme === 'file') {
-			return dirname(open).fsPath;
+			return driveInCapitals(dirname(open).fsPath);
+		}
+		const folder = this.workspaceService.getWorkspace().folders[0]?.uri;
+		if (folder?.scheme === 'file') {
+			return driveInCapitals(folder.fsPath);
 		}
 		const last = this.wizardStorage.get(LAST_FOLDER_STORAGE_KEY, StorageScope.APPLICATION);
 		if (last && !folderError(last, isWindows)) {
-			return last;
+			return driveInCapitals(last);
 		}
-		return (await this.opener.defaultLocation()).fsPath;
+		return driveInCapitals((await this.opener.defaultLocation()).fsPath);
 	}
 
 	/**
@@ -765,6 +772,11 @@ export class NewBuildingWizard extends EditorPane {
 			void this.editorService.closeEditor({ editor: input, groupId: this.group.id });
 		}
 	}
+}
+
+/** "c:\Users" -> "C:\Users": URIs keep the drive in lower case, the engineer types it in capitals. */
+export function driveInCapitals(path: string): string {
+	return path.replace(/^([a-z]):/, (_, drive: string) => `${drive.toUpperCase()}:`);
 }
 
 /**
