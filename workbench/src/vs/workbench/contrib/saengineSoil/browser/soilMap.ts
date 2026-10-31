@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlot, ISoilReport, ISoilSite } from './soilDocument.js';
+import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlanning, ISoilPlot, ISoilReport, ISoilSite, PLANNING_DEFAULT_USE } from './soilDocument.js';
 
 /*
  * The model of the site map (soilMapView.ts), free of the DOM and of MapLibre: the tile source and
@@ -541,6 +541,8 @@ export interface IPlotEdit {
 	readonly side?: number | null;
 	/** Removes the plot (boundary, corners, road side; the setbacks stay). */
 	readonly clear?: boolean;
+	/** Planning inputs merged into the plot's (a null value clears one); null removes the planning check. */
+	readonly planning?: { readonly [key: string]: string | number | null } | null;
 }
 
 /** Applies `edit` to `site` in place, the way the soil report stores the plot. */
@@ -565,6 +567,20 @@ export function applyPlotEdit(site: ISoilSite, edit: IPlotEdit): void {
 		} else if (typeof value === 'number' && Number.isFinite(value)) {
 			plot[key] = key === 'road' ? value : Math.round(value);
 		}
+	}
+	if (edit.planning === null) {
+		delete plot.planning;
+	} else if (edit.planning) {
+		const planning: ISoilPlanning = { ...plot.planning };
+		for (const [key, value] of Object.entries(edit.planning)) {
+			if (value === null) {
+				delete planning[key];
+			} else {
+				planning[key] = value;
+			}
+		}
+		planning.use ??= PLANNING_DEFAULT_USE;
+		plot.planning = planning;
 	}
 	const corners = site.boundary?.length || plot.points?.length || 0;
 	if (typeof plot.road === 'number' && plot.road >= corners) {

@@ -30,10 +30,11 @@ import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { isPartSectionPane } from '../../../services/saengineProject/common/partSections.js';
-import { IPartStatus, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
+import { IPartStatus, ISaenginePartStatusService, nextStep } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectPart, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { EXPORTS_SCHEME } from './exportsEditorInput.js';
-import { IPartEntry, IPartSection, isPartEditor, isSectionActive, openPart, openPartSection, partGroups, partResource, partSections, stateClass, stateLabel, stateText } from './projectParts.js';
+import { IPartEntry, IPartSection, isPartEditor, isSectionActive, openPart, openPartSection, partGroups, partName, partResource, partSections, stateClass, stateLabel, stateText } from './projectParts.js';
+import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { unsavedSummary } from './versionsModel.js';
 import { IProjectVersionsService } from './versionsService.js';
 
@@ -76,13 +77,22 @@ interface IFileNode {
 	readonly isDirectory: boolean;
 }
 
-type NavigatorNode = IGroupNode | IPartNode | ISectionNode | IFileNode;
+/** The project's Overview, the first row (N-N1): the parts, their status and what to do next. */
+interface IOverviewNode {
+	readonly kind: 'overview';
+	readonly id: string;
+	/** The next step's text ("Next: 9 Substructure"), when there is one. */
+	readonly next: string | undefined;
+}
+
+type NavigatorNode = IOverviewNode | IGroupNode | IPartNode | ISectionNode | IFileNode;
 
 class Delegate implements IListVirtualDelegate<NavigatorNode> {
 	getHeight(node: NavigatorNode): number {
 		switch (node.kind) {
 			case 'group': return 30;
-			case 'part': return 28;
+			case 'part':
+			case 'overview': return 28;
 			case 'section': return 24;
 			default: return 22;
 		}
@@ -99,6 +109,31 @@ class GroupRenderer implements ITreeRenderer<NavigatorNode, void, HTMLElement> {
 	}
 	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, label: HTMLElement): void {
 		label.textContent = node.element.kind === 'group' ? node.element.label : '';
+	}
+	disposeTemplate(): void { }
+}
+
+class OverviewRenderer implements ITreeRenderer<NavigatorNode, void, IPartTemplate> {
+	readonly templateId = 'overview';
+	constructor(private readonly isActive: () => boolean) { }
+	renderTemplate(container: HTMLElement): IPartTemplate {
+		const row = append(container, $('.sa-nav-part.sa-nav-overview'));
+		return {
+			row,
+			number: append(row, $(`span.sa-nav-number${ThemeIcon.asCSSSelector(Codicon.dashboard)}`)),
+			name: append(row, $('span.sa-nav-name')),
+			dot: append(row, $('span.sa-state-dot.hidden')),
+			text: append(row, $('span.sa-nav-state')),
+		};
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, template: IPartTemplate): void {
+		if (node.element.kind !== 'overview') {
+			return;
+		}
+		template.name.textContent = localize('projectNavigator.overview', "Overview");
+		template.text.textContent = node.element.next ?? '';
+		template.text.title = node.element.next ?? '';
+		template.row.classList.toggle('active', this.isActive());
 	}
 	disposeTemplate(): void { }
 }
@@ -188,6 +223,7 @@ export class ProjectNavigatorView extends ViewPane {
 	private tree: WorkbenchObjectTree<NavigatorNode, void> | undefined;
 	private activeResource: URI | undefined;
 	private partNodes: IPartNode[] = [];
+	private overviewNode: IOverviewNode | undefined;
 	private sectionNodes: ISectionNode[] = [];
 	/** The active editor's section (Settings, BIM, MEP), and the listener on its changes. */
 	private activeSection: string | undefined;
@@ -243,6 +279,7 @@ export class ProjectNavigatorView extends ViewPane {
 		const treeContainer = append(container, $('.sa-nav-tree'));
 		this.renderVersionsLine(container);
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<NavigatorNode, void>, 'SaengineProjectNavigator', treeContainer, new Delegate(), [
+			new OverviewRenderer(() => this.editorService.activeEditor instanceof ProjectOverviewInput),
 			new GroupRenderer(),
 			new PartRenderer(part => this.isActive(part)),
 			new SectionRenderer(node => this.isSectionActive(node)),
@@ -252,6 +289,7 @@ export class ProjectNavigatorView extends ViewPane {
 			accessibilityProvider: {
 				getAriaLabel: node => {
 					switch (node.kind) {
+						case 'overview': return [localize('projectNavigator.overview', "Overview"), node.next].filter(Boolean).join(', ');
 						case 'group': return node.label;
 						case 'part': return [`${node.entry.number} ${node.entry.name}`, stateLabel(node.status), node.status?.text].filter(Boolean).join(', ');
 						case 'section': return localize('projectNavigator.sectionAria', "{0}, {1}", node.section.label, node.entry.name);
@@ -260,7 +298,7 @@ export class ProjectNavigatorView extends ViewPane {
 				},
 				getWidgetAriaLabel: () => localize('projectNavigator.aria', "Project Parts"),
 			},
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: node => node.kind === 'part' ? node.entry.name : node.kind === 'section' ? node.section.label : node.kind === 'file' ? node.name : node.label },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: node => node.kind === 'part' ? node.entry.name : node.kind === 'section' ? node.section.label : node.kind === 'file' ? node.name : node.kind === 'overview' ? localize('projectNavigator.overview', "Overview") : node.label },
 			multipleSelectionSupport: false,
 			expandOnlyOnTwistieClick: true,
 			indent: 12,
@@ -414,7 +452,7 @@ export class ProjectNavigatorView extends ViewPane {
 		}
 		this.selectActive();
 		// The list rerenders all rows only with dynamic heights: the rows are rerendered one by one.
-		for (const node of [...this.partNodes, ...this.sectionNodes]) {
+		for (const node of [...(this.overviewNode && this.tree.hasElement(this.overviewNode) ? [this.overviewNode] : []), ...this.partNodes, ...this.sectionNodes]) {
 			this.tree.rerender(node);
 		}
 	}
@@ -425,7 +463,8 @@ export class ProjectNavigatorView extends ViewPane {
 			return;
 		}
 		const part = this.partNodes.find(node => this.isActive(node.entry.part));
-		const active = this.sectionNodes.find(node => this.isSectionActive(node)) ?? part;
+		const overview = this.editorService.activeEditor instanceof ProjectOverviewInput && this.overviewNode && this.tree.hasElement(this.overviewNode) ? this.overviewNode : undefined;
+		const active = this.sectionNodes.find(node => this.isSectionActive(node)) ?? part ?? overview;
 		const selected = this.tree.getSelection()[0];
 		if (active) {
 			if (selected !== active) {
@@ -449,6 +488,10 @@ export class ProjectNavigatorView extends ViewPane {
 		}
 		const developerMode = this.developerMode;
 		const elements: IObjectTreeElement<NavigatorNode>[] = [];
+		const next = nextStep(this.statusService.statuses);
+		const nextPart = next && this.projectService.parts[next.index];
+		const overview: IOverviewNode = { kind: 'overview', id: 'overview', next: nextPart ? localize('projectNavigator.next', "Next: {0}", partName(nextPart)) : undefined };
+		elements.push({ element: overview, collapsible: false });
 		const partNodes: IPartNode[] = [];
 		const sectionNodes: ISectionNode[] = [];
 		for (const group of partGroups(this.projectService.parts)) {
@@ -474,6 +517,7 @@ export class ProjectNavigatorView extends ViewPane {
 		this.tree.setChildren(null, elements);
 		this.partNodes = partNodes;
 		this.sectionNodes = sectionNodes;
+		this.overviewNode = overview;
 		this.updateActive();
 	}
 
@@ -501,7 +545,9 @@ export class ProjectNavigatorView extends ViewPane {
 		if (!node || !project) {
 			return;
 		}
-		if (node.kind === 'part') {
+		if (node.kind === 'overview') {
+			await this.editorService.openEditor(ProjectOverviewInput.instance, { pinned: true, preserveFocus });
+		} else if (node.kind === 'part') {
 			await openPart(project, node.entry.part, { editorService: this.editorService, fileService: this.fileService, openerService: this.openerService, commandService: this.commandService }, { preserveFocus });
 		} else if (node.kind === 'section') {
 			this.opening = node;

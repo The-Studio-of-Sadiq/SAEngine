@@ -117,6 +117,7 @@ LAYERS: tuple[tuple[str, int, str, int, str, bool], ...] = (
     ("A-ELEV", 7, "Continuous", 25, "Elevations and sections: what is seen beyond the cut", True),
     ("A-SECT", 7, "Continuous", 50, "Sections: what the cut passes through; the ground line", True),
     ("A-ANNO-SYMB", 7, "Continuous", 25, "Section lines (phantom) and their marks", True),
+    ("S-REV", 6, "Continuous", 35, "Revision clouds and their triangles (redrawn each run)", True),
     ("S-VIEWPORT", 8, "Continuous", 9, "Viewports (not plotted)", False),
 )
 
@@ -614,7 +615,9 @@ class Sheet:
         self.p_text("SHEET No.", x0 + pad, t - pad, TEXT, "TL")
         self.p_text(self.number, x0 + pad, b + pad + 1, SHEET_NUMBER, "BL")
         self.p_text("REV", x0 + tw * 0.7 + pad, t - pad, TEXT, "TL")
-        self.p_text(info.revision or "0", x0 + tw * 0.85, b + pad + 1, SHEET_NUMBER, "BC")
+        # the revision itself and the revision table are written by finish(): the drawing set's
+        # revisions (saengine.drawings.sheets.revisions) may set them once the views are drawn
+        self._rev_at = (x0 + tw * 0.85, b + pad + 1)
         # scale, size, date
         b, t = row(12)
         third = tw / 3
@@ -665,14 +668,7 @@ class Sheet:
             self.p_line((x0, b + 6 * i), (x1, b + 6 * i))
         for (c0, c1), head in zip(itertools.pairwise(cols), ("REV", "DATE", "DESCRIPTION", "BY")):
             self.p_text(head, x0 + (c0 + c1) / 2 * tw, t - 3, TEXT, "MC")
-        revisions = info.revisions[-rows:] or [Revision(info.revision, info.date, info.status)]
-        for i, r in enumerate(reversed(revisions)):
-            yy = t - 6 * (i + 1) - 3
-            for (c0, c1), value in zip(
-                itertools.pairwise(cols), (r.rev, r.date, r.description, r.by), strict=True
-            ):
-                value = _fit(value, (c1 - c0) * tw - 2, TEXT)
-                self.p_text(value, x0 + c0 * tw + 1, yy, TEXT, "ML")
+        self._revision_table = (x0, t, tw, cols, rows)
         # status
         b, t = row(10)
         self.p_text(info.status.upper(), x0 + tw / 2, (b + t) / 2, TEXT_LARGE, "MC")
@@ -722,8 +718,29 @@ class Sheet:
 
     # ── viewport layout ──
 
+    def _revisions(self) -> None:
+        """The revision in the title block and the rows of its revision table (newest at the
+        top), from ``self.info`` as it is when the sheet is finished."""
+        if getattr(self, "_revisions_drawn", False):
+            return
+        self._revisions_drawn = True
+        info = self.info
+        x, y = self._rev_at
+        self.p_text(info.revision or "0", x, y, SHEET_NUMBER, "BC")
+        x0, t, tw, cols, rows = self._revision_table
+        revisions = info.revisions[-rows:] or [Revision(info.revision, info.date, info.status)]
+        for i, r in enumerate(reversed(revisions)):
+            yy = t - 6 * (i + 1) - 3
+            for (c0, c1), value in zip(
+                itertools.pairwise(cols), (r.rev, r.date, r.description, r.by), strict=True
+            ):
+                value = _fit(value, (c1 - c0) * tw - 2, TEXT)
+                self.p_text(value, x0 + c0 * tw + 1, yy, TEXT, "ML")
+
     def finish(self) -> None:
-        """Adds the paper space layout with one viewport of the whole sheet at the base scale."""
+        """Writes the revisions into the title block and adds the paper space layout with one
+        viewport of the whole sheet at the base scale."""
+        self._revisions()
         name = self.number
         if name in self.doc.layouts:
             return

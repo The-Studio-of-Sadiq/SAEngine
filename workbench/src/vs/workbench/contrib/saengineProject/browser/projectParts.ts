@@ -164,7 +164,7 @@ export async function openPartSection(project: ISaengineProject, part: IProjectP
 	if (entry.command) {
 		await services.commandService.executeCommand(entry.command);
 	} else if (resource) {
-		const section: IPartSectionOptions = { pinned: false, preserveFocus: options?.preserveFocus, override: entry.editorId, section: entry.sections?.[0] };
+		const section: IPartSectionOptions = { pinned: true, preserveFocus: options?.preserveFocus, override: entry.editorId, section: entry.sections?.[0] };
 		await services.editorService.openEditor({ resource, options: section });
 	}
 }
@@ -257,8 +257,8 @@ export async function openPart(project: ISaengineProject, part: IProjectPart, se
 }, options?: { readonly preserveFocus?: boolean }): Promise<void> {
 	const resource = partResource(project, part);
 	if (resource) {
-		await services.editorService.openEditor({ resource, options: { pinned: false, preserveFocus: options?.preserveFocus } });
+		await services.editorService.openEditor({ resource, options: { pinned: true, preserveFocus: options?.preserveFocus } });
 	} else if (part.id === 'exports') {
-		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: false, preserveFocus: options?.preserveFocus });
+		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: true, preserveFocus: options?.preserveFocus });
 	}
 }

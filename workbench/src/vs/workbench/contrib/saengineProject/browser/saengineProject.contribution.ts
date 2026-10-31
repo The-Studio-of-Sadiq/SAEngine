@@ -95,7 +95,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<unknown> {
-		// The form lives in the start window.
+		// The form lives in the start window: it opens on the form (N-N8).
+		StartEditorInput.instance.requestNewProject();
 		return openStart(accessor.get(IEditorService));
 	}
 });

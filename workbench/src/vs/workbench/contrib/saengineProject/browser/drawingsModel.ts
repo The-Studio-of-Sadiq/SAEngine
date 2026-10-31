@@ -22,6 +22,37 @@ import { readProblemsBySeverity } from './projectArchiveModel.js';
 export const DRAWINGS_GENERATE_COMMAND = 'saengine.drawings.generate';
 /** `{projectRoot}` -> the answer of the last generation, with `stale` when the model or design changed since. */
 export const DRAWINGS_LIST_COMMAND = 'saengine.drawings.list';
+/** {@link IDrawingsIssueArgs} -> the answer of generate with `issued`: every sheet drawn again, the new and changed ones issued. */
+export const DRAWINGS_ISSUE_COMMAND = 'saengine.drawings.issue';
+/** `{projectRoot, sheets?}` -> `{written: [{number, dwg}], folder, problems}`: the sheets as DWG (LibreDWG's dxf2dwg, a separate program). */
+export const DRAWINGS_DWG_COMMAND = 'saengine.drawings.dwg';
+
+export interface IDrawingsIssueArgs {
+	readonly projectRoot: string;
+	/** The revision; left out: the one after the last issue. */
+	readonly code?: string;
+	readonly date?: string;
+	readonly description?: string;
+	readonly purpose?: string;
+	readonly by?: string;
+	/** The sheets to issue (those new or changed since their last issue); left out: all. */
+	readonly sheets?: readonly string[];
+	/** Issue the chosen sheets even when unchanged since their last issue. */
+	readonly force?: boolean;
+	/** Also write the issued sheets as DWG. */
+	readonly dwg?: boolean;
+}
+
+/** The purposes an issue is commonly made for (its description when none is typed). */
+export function issuePurposes(): string[] {
+	return [
+		localize('drawings.purposeApproval', "For approval"),
+		localize('drawings.purposeConstruction', "For construction"),
+		localize('drawings.purposeTender', "For tender"),
+		localize('drawings.purposeInformation', "For information"),
+		localize('drawings.purposePreliminary', "Preliminary"),
+	];
+}
 
 /** The sheet sizes offered (ISO A series); A1 is the default. */
 export const SHEET_SIZES = ['A1', 'A2', 'A3'] as const;
@@ -58,6 +89,32 @@ export interface IDrawingSheet {
 	readonly scale?: string;
 	/** Drawn before the last change of the model or design. */
 	readonly stale: boolean;
+	/** The revision it was last issued at (left out: never issued). */
+	readonly revision?: string;
+	/** Changed since that issue: the changes are clouded. */
+	readonly revised?: boolean;
+	/** The sheet as DWG, when written. */
+	readonly dwg?: URI;
+}
+
+export interface IDrawingIssue {
+	readonly code: string;
+	readonly date: string;
+	readonly description: string;
+	readonly purpose: string;
+	readonly by: string;
+	readonly sheets: readonly string[];
+	/** `Issued/<rev> <date>`: the copies of the issued sheets. */
+	readonly folder?: URI;
+}
+
+/** The drawing register: the issues of the set, oldest first. */
+export interface IDrawingRegister {
+	readonly issues: readonly IDrawingIssue[];
+	/** The revision the next issue takes by default. */
+	readonly pending: string;
+	readonly csv?: URI;
+	readonly pdf?: URI;
 }
 
 export interface IDrawingSet {
@@ -75,6 +132,8 @@ export interface IDrawingSet {
 	readonly staleReason?: string;
 	readonly notes: readonly string[];
 	readonly problems: readonly string[];
+	/** The issues of the set (left out: none read). */
+	readonly register?: IDrawingRegister;
 }
 
 type Bag = { readonly [key: string]: unknown };
@@ -152,6 +211,9 @@ export function readDrawingSet(value: unknown, root: URI): IDrawingSet | undefin
 			size: text(raw.size),
 			scale: text(raw.scale),
 			stale: setStale || raw.stale === true,
+			...(text(raw.revision) ? { revision: text(raw.revision) } : {}),
+			...(raw.revised === true ? { revised: true } : {}),
+			...(resolveProjectPath(root, raw.dwg) ? { dwg: resolveProjectPath(root, raw.dwg) } : {}),
 		});
 	}
 	const pdf = resolveProjectPath(root, set.pdf);
@@ -161,6 +223,7 @@ export function readDrawingSet(value: unknown, root: URI): IDrawingSet | undefin
 		return errors.length || notes.length || strings(set.notes).length ? { sheets, stale: false, notes: [...strings(set.notes), ...notes], problems: errors } : undefined;
 	}
 	const changed = strings(stamps.changed ?? set.changed);
+	const register = readRegister(set.register, root);
 	return {
 		sheets,
 		pdf,
@@ -171,7 +234,59 @@ export function readDrawingSet(value: unknown, root: URI): IDrawingSet | undefin
 		staleReason: text(set.staleReason, stamps.reason) ?? (changed.length ? localize('drawings.changedParts', "changed since: {0}", changed.join(', ')) : undefined),
 		notes: [...strings(set.notes), ...notes],
 		problems: errors,
+		...(register ? { register } : {}),
 	};
+}
+
+/** The register of an answer (undefined: none given). */
+export function readRegister(value: unknown, root: URI): IDrawingRegister | undefined {
+	if (!isBag(value)) {
+		return undefined;
+	}
+	const issues: IDrawingIssue[] = [];
+	for (const raw of Array.isArray(value.issues) ? value.issues : []) {
+		const code = isBag(raw) ? text(raw.code) : undefined;
+		if (!isBag(raw) || !code) {
+			continue;
+		}
+		issues.push({
+			code,
+			date: text(raw.date) ?? '',
+			description: text(raw.description) ?? '',
+			purpose: text(raw.purpose) ?? '',
+			by: text(raw.by) ?? '',
+			sheets: strings(raw.sheets),
+			folder: resolveProjectPath(root, raw.folder),
+		});
+	}
+	return {
+		issues,
+		pending: text(value.pending) ?? '0',
+		csv: resolveProjectPath(root, value.csv),
+		pdf: resolveProjectPath(root, value.pdf),
+	};
+}
+
+/** What a sheet's row says of its revision ("Rev A"; "Rev A; changes clouded as B"); undefined: never issued. */
+export function sheetRevisionText(sheet: IDrawingSheet, pending: string | undefined): string | undefined {
+	if (!sheet.revision) {
+		return undefined;
+	}
+	return sheet.revised
+		? localize('drawings.revisedSince', "Rev {0}; changes clouded as {1}", sheet.revision, pending ?? '?')
+		: localize('drawings.revision', "Rev {0}", sheet.revision);
+}
+
+/** The line under the issue buttons: the last issue, or that none was made. */
+export function registerSummary(register: IDrawingRegister | undefined): string {
+	const last = register?.issues[register.issues.length - 1];
+	if (!last) {
+		return localize('drawings.notIssued', "Not issued yet: Issue Drawings records revision {0} in the title blocks and the drawing register, and keeps a copy of the issued sheets.", register?.pending ?? '0');
+	}
+	const count = last.sheets.length === 1 ? localize('drawings.oneIssuedSheet', "1 sheet") : localize('drawings.issuedSheets', "{0} sheets", last.sheets.length);
+	return last.purpose
+		? localize('drawings.lastIssuePurpose', "Last issue: revision {0} of {1} ({2}, {3}). The next issue is revision {4}.", last.code, last.date, count, last.purpose, register?.pending ?? '')
+		: localize('drawings.lastIssue', "Last issue: revision {0} of {1} ({2}). The next issue is revision {3}.", last.code, last.date, count, register?.pending ?? '');
 }
 
 /**
@@ -183,7 +298,8 @@ export function drawingSetKey(set: IDrawingSet | undefined): string {
 	return set ? JSON.stringify({
 		...set,
 		pdf: set.pdf?.toString(), bbsCsv: set.bbsCsv?.toString(),
-		sheets: set.sheets.map(s => ({ ...s, dxf: s.dxf?.toString(), png: s.png?.toString() })),
+		sheets: set.sheets.map(s => ({ ...s, dxf: s.dxf?.toString(), png: s.png?.toString(), dwg: s.dwg?.toString() })),
+		register: set.register ? { ...set.register, csv: set.register.csv?.toString(), pdf: set.register.pdf?.toString(), issues: set.register.issues.map(i => ({ ...i, folder: i.folder?.toString() })) } : undefined,
 	}) : '';
 }
 

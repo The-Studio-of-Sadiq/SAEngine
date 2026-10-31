@@ -468,6 +468,250 @@ class GroundSlab(_Model):
     note: str | None = None
 
 
+RetainingWallKind = Literal["cantilever", "basement"]
+
+RETAINING_WALL_KINDS = {
+    "cantilever": "Cantilever retaining wall",
+    "basement": "Basement wall (propped by the floors)",
+}
+
+
+class RetainingWallBars(_Model):
+    """The bars of a retaining or basement wall per metre run (BarMesh: diameter, spacing);
+    empty layers are proposed by the design."""
+
+    material: Id = Field(description="Reinforcement material id (03 Materials).")
+    cover: Length = Field(
+        default=50,
+        description="To the bars at the faces of the stem against earth or weather [mm] (BNBC "
+        "2020 Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and "
+        "smaller); 75 mm cast against earth is used under the base.",
+    )
+    stemBack: BarMesh | None = Field(
+        default=None,
+        title="Stem, soil face (vertical)",
+        description="Vertical bars at the face against the soil: the main bars of a cantilever "
+        "stem.",
+    )
+    stemFront: BarMesh | None = Field(
+        default=None,
+        title="Stem, inner face (vertical)",
+        description="Vertical bars at the exposed (or inner) face: the span bars of a basement "
+        "wall between the floors.",
+    )
+    horizontal: BarMesh | None = Field(
+        default=None,
+        title="Horizontal (each face)",
+        description="Horizontal distribution bars at each face (BNBC 2020 Part 6 Sec 6.6.3.3).",
+    )
+    heelTop: BarMesh | None = Field(
+        default=None, title="Heel, top", description="Main bars at the top of the heel."
+    )
+    toeBottom: BarMesh | None = Field(
+        default=None, title="Toe, bottom", description="Main bars at the bottom of the toe."
+    )
+    baseDistribution: BarMesh | None = Field(
+        default=None,
+        title="Base, along the wall",
+        description="Distribution bars of the base along the wall, each face.",
+    )
+
+
+class Backfill(_Model):
+    """The soil placed behind the wall, when it is not the ground of the soil report."""
+
+    gamma: float = Field(default=18.0, gt=0, title="Unit weight γ", description="[kN/m³]")
+    gammaSat: float | None = Field(
+        default=None, gt=0, title="Saturated unit weight γsat", description="[kN/m³]; empty: γ + 2."
+    )
+    phi: float | None = Field(
+        default=30.0, ge=0, le=50, title="Friction angle φ'", description="[°]"
+    )
+    c: float = Field(default=0.0, ge=0, title="Cohesion c'", description="[kPa]")
+
+
+class RetainingWall(_Model):
+    """A retaining wall (a cantilever on its own base) or a basement wall (spanning between
+    the basement floors and the raft), designed per metre run along its path. The soil is that
+    of 1 Soil Report at the wall (the nearest borehole) unless a backfill is given."""
+
+    id: Id
+    kind: RetainingWallKind = Field(  # type: ignore[valid-type]
+        default="cantilever",
+        description="A cantilever wall on its own base (stability, stem and base design), or a "
+        "basement wall propped at the floors (one-way span between the supports).",
+        json_schema_extra=_labels(list(RETAINING_WALL_KINDS.values())),
+    )
+    path: list[Point2] = Field(
+        min_length=2,
+        description="Plan line of the wall's soil face [[x, y], ...] mm; the soil is on the "
+        "left looking along the path unless soilSide says otherwise.",
+    )
+    soilSide: Literal["left", "right"] = Field(
+        default="left",
+        title="Soil side",
+        description="Side of the path the retained soil is on, looking along the path.",
+        json_schema_extra=_labels(["Left", "Right"]),
+    )
+    wall: Id | None = Field(
+        default=None,
+        title="Building wall",
+        description="The wall of 6 BIM this is (a basement wall of the building): its earth "
+        "pressure then loads the analysis model as case H. Empty: a free-standing wall.",
+    )
+    topLevel: float = Field(
+        title="Top of the wall", description="Level of the top of the stem, project datum [mm]."
+    )
+    retainedLevel: float | None = Field(
+        default=None,
+        title="Retained ground level",
+        description="Level of the ground behind the wall [mm]; empty: the finished ground of "
+        "Project Settings → Foundation.",
+    )
+    frontLevel: float | None = Field(
+        default=None,
+        title="Front ground level",
+        description="Level of the ground (or basement floor) in front of the wall [mm]; empty: "
+        "the top of the base.",
+    )
+    foundingLevel: float = Field(
+        title="Founding level", description="Level of the underside of the base [mm]."
+    )
+    stemTop: Length = Field(default=200, title="Stem thickness at the top", description="[mm]")
+    stemBottom: Length = Field(default=300, title="Stem thickness at the base", description="[mm]")
+    baseThickness: Length = Field(default=400, title="Base thickness", description="[mm]")
+    toe: float = Field(default=600, ge=0, description="Base beyond the stem's front face [mm].")
+    heel: float = Field(default=1500, ge=0, description="Base beyond the stem's back face [mm].")
+    supports: list[float] = Field(
+        default_factory=list,
+        description="Basement walls: levels of the floors that prop the wall [mm] (the top one "
+        "is usually the ground floor slab); the base is held by the raft or footing.",
+    )
+    baseFixed: bool = Field(
+        default=True,
+        title="Fixed at the base",
+        description="Basement walls: the wall is continuous with the raft (fixed); off: pinned.",
+    )
+    pressure: Literal["auto", "atRest", "active"] | None = Field(
+        default="auto",
+        title="Earth pressure",
+        description="Auto: active on a cantilever wall (free to rotate), at rest on a basement "
+        "wall (propped, cannot yield).",
+        json_schema_extra=_labels(["Auto", "At rest (K0)", "Active (Ka)"]),
+    )
+    method: Literal["rankine", "coulomb"] = Field(
+        default="rankine",
+        description="Active pressure by Rankine (on the vertical plane through the heel) or "
+        "Coulomb (with the wall friction δ, on the stem's back).",
+        json_schema_extra=_labels(["Rankine", "Coulomb"]),
+    )
+    backslope: float = Field(default=0, ge=0, le=45, title="Backfill slope β", description="[°]")
+    wallFriction: float | None = Field(
+        default=None,
+        ge=0,
+        le=45,
+        title="Wall friction δ",
+        description="[°]; empty: 2/3 φ' (Coulomb and the seismic increment).",
+    )
+    surcharge: float = Field(
+        default=10.0,
+        ge=0,
+        description="Uniform surcharge on the retained ground [kPa] (traffic, stored material).",
+    )
+    drained: bool = Field(
+        default=False,
+        description="A drain behind the wall (weep holes, a drainage layer) keeps the water "
+        "off it: no water pressure on the wall and no uplift under the base.",
+    )
+    designWaterTable: float | None = Field(
+        default=None,
+        title="Design water table",
+        description="Depth below the retained ground [m]; empty: the borehole's measured "
+        "level. Use the highest level expected (flood, monsoon).",
+    )
+    backfill: Backfill | None = Field(
+        default=None,
+        description="Properties of the backfill behind the wall; empty: the soil report's layers.",
+    )
+    passive: bool = Field(
+        default=False,
+        title="Passive resistance in front",
+        description="Count the passive pressure of the soil in front of the base against "
+        "sliding (divided by its factor of safety); off on the safe side, as the soil in "
+        "front may be dug away.",
+    )
+    seismic: bool = Field(
+        default=True,
+        title="Seismic earth pressure",
+        description="Check the wall with the seismic increment of the earth pressure "
+        "(Mononobe-Okabe on a cantilever wall, Wood on a basement wall) at the site's peak "
+        "ground acceleration.",
+    )
+    material: Id = Field(description="Concrete material id (03 Materials).")
+    reinforcement: RetainingWallBars | None = None
+    crackLimit: float = Field(
+        default=0.3,
+        gt=0,
+        title="Crack width limit",
+        description="Service crack width at the soil face [mm]: 0.3 for walls in soil, 0.2 "
+        "where they must be watertight (EN 1992-3 Table 7.105, class 1).",
+    )
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _shape(self) -> RetainingWall:
+        if self.topLevel <= self.foundingLevel + self.baseThickness:
+            raise ValueError(f"{self.id}: the top of the wall is not above its base")
+        if self.stemBottom < self.stemTop:
+            raise ValueError(f"{self.id}: the stem is thinner at the base than at the top")
+        if any(math.dist(a, b) < 1 for a, b in itertools.pairwise(self.path)):
+            raise ValueError(f"{self.id}: two consecutive points of the path coincide")
+        top = self.topLevel
+        base = self.foundingLevel + self.baseThickness
+        for level in self.supports:
+            if not base < level <= top + 1e-6:
+                raise ValueError(f"{self.id}: the support at {level:g} is not on the wall")
+        if self.kind == "basement" and not self.supports:
+            raise ValueError(f"{self.id}: a basement wall needs the levels of its floors")
+        return self
+
+    def length(self) -> float:
+        """Along its path [mm]."""
+        return sum(math.dist(a, b) for a, b in itertools.pairwise(self.path))
+
+    def state(self) -> str:
+        """The earth pressure state the design uses."""
+        if self.pressure in (None, "auto"):
+            return "active" if self.kind == "cantilever" else "atRest"
+        return self.pressure
+
+
+class EarthPressure(_Model):
+    """The basement walls of the building in the analysis model (load case H)."""
+
+    basementWalls: bool = Field(
+        default=True,
+        title="Earth pressure on basement walls",
+        description="Load the walls of 6 BIM whose type is a basement wall (and the walls the "
+        "retaining walls name) with the earth and water pressure at rest, as load case H.",
+    )
+    surcharge: float = Field(
+        default=10.0, ge=0, description="On the ground round the building [kPa]."
+    )
+    designWaterTable: float | None = Field(
+        default=None,
+        title="Design water table",
+        description="Depth below the finished ground [m]; empty: each borehole's measured level.",
+    )
+    k0Cohesive: float = Field(
+        default=0.6,
+        gt=0,
+        le=1.5,
+        title="K0 of clay",
+        description="At-rest coefficient of a layer without φ' (given by cu only).",
+    )
+
+
 def pile_layout_problem(
     piles: list[list[float]], diameter: float, length: float, width: float
 ) -> str | None:
@@ -510,6 +754,16 @@ class Substructure(_Model):
         title="Slabs on grade",
         description="Ground-bearing slabs on the compacted ground.",
     )
+    retainingWalls: list[RetainingWall] = Field(
+        default_factory=list,
+        title="Retaining walls",
+        description="Cantilever retaining walls and basement walls, designed per metre run.",
+    )
+    earthPressure: EarthPressure = Field(
+        default_factory=EarthPressure,
+        title="Earth pressure",
+        description="The earth and water pressure on the building's basement walls (case H).",
+    )
     design: Design = Field(default_factory=Design)
 
     @model_validator(mode="before")
@@ -528,6 +782,7 @@ class Substructure(_Model):
             ("piles", self.piles),
             ("tie beams", self.tieBeams),
             ("slabs on grade", self.groundSlabs),
+            ("retaining walls", self.retainingWalls),
         ):
             ids = [i.id for i in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
@@ -833,6 +1088,9 @@ def check(
                     problems.append(f"{f.id}: '{column}' is not a column or wall of 6 BIM")
                 elif isinstance(element, WallElement) and f.type != "strip":
                     problems.append(f"{f.id}: wall '{column}' can stand on a strip footing only")
+        for r in substructure.retainingWalls:
+            if r.wall is not None and not isinstance(bases.get(r.wall), WallElement):
+                problems.append(f"{r.id}: '{r.wall}' is not a wall of 6 BIM")
     if materials is not None:
 
         def concrete(owner: str, material: str | None) -> None:
@@ -867,6 +1125,9 @@ def check(
                 m = materials.get(slab.meshMaterial)
                 if m is None or m.category != Category.REBAR:
                     problems.append(f"{slab.id}: mesh material '{slab.meshMaterial}' is not rebar")
+        for r in substructure.retainingWalls:
+            concrete(r.id, r.material)
+            bars(r.id, r.reinforcement)
     if objects is not None:
         from saengine.library.objects import Beam
 

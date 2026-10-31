@@ -44,6 +44,26 @@
     "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
     "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
     "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
-    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10"
+    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10",
+    "retainingWall.sliding": "BNBC 2020 Part 6 Chapter 3 sets no factor for retaining walls; IBC 2021 Sec 1807.2.3: 1.5 against sliding and overturning",
+    "retainingWall.overturning": "IBC 2021 Sec 1807.2.3 (1.5)",
+    "retainingWall.seismic": "IBC 2021 Sec 1807.2.3: 1.1 where the load combinations include earthquake",
+    "retainingWall.passive": "Practice (NAVFAC DM 7.02 Ch 3): passive resistance divided by 2 for the movement it needs",
+    "retainingWall.flotation": "BNBC 2020 Part 6 Sec 2.6.5.2 (uplift, p680) sets no factor; 1.1 as the ground tanks (ASCE 7 0.6D + H practice)",
+    "retainingWall.baseFriction": "NAVFAC DM 7.02 Table 10-1 practice: tan δb with δb = 2/3 φ' for concrete cast on soil",
+    "retainingWall.adhesion": "NAVFAC DM 7.02 Table 10-1 practice: adhesion about 0.5 cu",
+    "retainingWall.hFactor": "BNBC 2020 Part 6 Sec 2.7.3.1 (p685): 1.6H",
+    "retainingWall.yieldingKh": "AASHTO LRFD 11.6.5.2.2: kh = 0.5 kh0 for a wall free to move 25-50 mm"
+  },
+  "retainingWall": {
+    "sliding": 1.5,
+    "overturning": 1.5,
+    "seismic": 1.1,
+    "passive": 2.0,
+    "flotation": 1.1,
+    "baseFriction": 0.6667,
+    "adhesion": 0.5,
+    "hFactor": 1.6,
+    "yieldingKh": 0.5
   }
 }
