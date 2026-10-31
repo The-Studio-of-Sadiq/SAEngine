@@ -653,7 +653,9 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
                     "notes": [
                         (
                             f"One raft proposed instead of {len(trials)} footings: {why}. Its "
-                            "flexure, contact pressure and settlement are checked once it is applied."
+                            "thickness is a first estimate (even soil pressure): the raft check, "
+                            "once it is applied, gives its shear in the column strips, flexure, "
+                            "contact pressure and settlement, and may ask for it thicker."
                         ),
                         *raft_notes,
                         *sizer.notes,

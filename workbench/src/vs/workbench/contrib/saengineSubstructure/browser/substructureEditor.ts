@@ -1773,8 +1773,18 @@ export class SubstructureEditor extends EditorPane {
 			append(text, $('span.sub-banner-title', undefined, count === 1
 				? localize('sub.proposalOne', "Proposed size for 1 foundation (dashed)")
 				: localize('sub.proposal', "Proposed sizes for {0} foundations (dashed)", count)));
-			if (this.proposal.notes.length) {
-				append(text, $('span.sub-banner-detail', undefined, sentences(this.proposal.notes)));
+			const [first, ...more] = this.proposal.notes;
+			if (first) {
+				// The first note says what is proposed and why; the others (each footing's sizing, the
+				// footings a raft replaces) fold away so the plan stays in view (N-U12).
+				append(text, $('span.sub-banner-detail', undefined, sentences([first])));
+				if (more.length) {
+					const details = append(text, $<HTMLDetailsElement>('details.sub-banner-more'));
+					append(details, $('summary', undefined, more.length === 1 ? localize('sub.proposalMoreOne', "1 more note") : localize('sub.proposalMore', "{0} more notes", more.length)));
+					for (const note of more) {
+						append(details, $('div.sub-banner-detail', undefined, sentences([note])));
+					}
+				}
 			}
 			this.renderProposalTable(text, document, this.proposal);
 			const accept = this.viewDisposables.add(new Button(banner, { ...defaultButtonStyles }));
@@ -2675,6 +2685,13 @@ export class SubstructureEditor extends EditorPane {
 		const thickness = typeof foundation.thickness === 'number' ? foundation.thickness : undefined;
 		if ((name.startsWith('min') || name.includes('flexure') || name.includes('steel') || name.includes('tie (')) && thickness) {
 			return localize('sub.suggestBars', "at least {0} each way (As,min of {1} mm); more for the flexure", formatMesh(minimumMesh(thickness)), formatNumber(thickness, 0));
+		}
+		// Size Footings proposes a raft only from scratch: a raft is made thicker or larger by hand.
+		if (foundation.type === 'raft' && (name.includes('punching') || name.includes('shear'))) {
+			return localize('sub.suggestRaftThicker', "thicker: raise its Thickness, then Save and Check");
+		}
+		if (foundation.type === 'raft' && (name.includes('bearing') || name.includes('contact') || name.includes('settlement'))) {
+			return localize('sub.suggestRaftLarger', "a larger outline (or piles under it), then Save and Check");
 		}
 		if (name.includes('bearing') || name.includes('resultant') || name.includes('contact') || name.includes('uplift')) {
 			return localize('sub.suggestSize', "larger plan: Size Footings with it selected");

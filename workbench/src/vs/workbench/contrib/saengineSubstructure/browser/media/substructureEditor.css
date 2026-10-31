@@ -125,6 +125,15 @@
 	color: var(--sa-muted);
 }
 
+.saengine-substructure-editor .sub-banner-more summary {
+	cursor: pointer;
+	color: var(--sa-muted);
+}
+
+.saengine-substructure-editor .sub-banner-more .sub-banner-detail {
+	margin-top: var(--sa-space-1);
+}
+
 .saengine-substructure-editor .sub-banner .monaco-button {
 	flex: none;
 	width: auto;
