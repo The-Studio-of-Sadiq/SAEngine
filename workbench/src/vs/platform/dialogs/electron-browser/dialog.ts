@@ -26,6 +26,21 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	const copilotSdkVersion = formatCopilotVersion(productService.copilotVersions?.sdk);
 
 	const getDetails = (useAgo: boolean): string => {
+		// SAEngine (N-G10): the engineering app ships no Copilot, so About does not list it.
+		if (!productService.copilotVersions || productService.applicationName === 'saengine') {
+			return localize({ key: 'aboutDetailNoCopilot', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
+				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\nOS: {8}",
+				version,
+				productService.commit || 'Unknown',
+				productService.date ? `${productService.date}${useAgo ? ' (' + fromNow(new Date(productService.date), true) + ')' : ''}` : 'Unknown',
+				process.versions['electron'],
+				process.versions['microsoft-build'],
+				process.versions['chrome'],
+				process.versions['node'],
+				process.versions['v8'],
+				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
+			);
+		}
 		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js, V8 and Copilot are product names that need no translation'] },
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\n@github/copilot: {8}\n@github/copilot-sdk: {9}\nOS: {10}",
 			version,

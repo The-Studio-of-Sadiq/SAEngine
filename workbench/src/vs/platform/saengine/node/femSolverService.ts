@@ -17,7 +17,7 @@ import { killTree } from '../../../base/node/processes.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IEngineBusy, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -46,6 +46,13 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	private readonly _onDidRunExit = this._register(new Emitter<IFemRunExit>());
 	readonly onDidRunExit = this._onDidRunExit.event;
 
+	private readonly _onDidChangeBusy = this._register(new Emitter<IEngineBusy>());
+	readonly onDidChangeBusy = this._onDidChangeBusy.event;
+
+	/** Open backend requests by id: the engine watchdog (N-G3). */
+	private readonly pending = new Map<number, { readonly python: string; readonly method: string; readonly since: number }>();
+	private requestIds = 0;
+
 	private readonly runs = new Map<string, IRun>();
 	private readonly backends = new Map<string, Promise<IBackend>>();
 
@@ -68,6 +75,7 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 			'--project', request.project,
 			'--cases', ...request.caseIds.map(String),
 			'--out', request.outDir,
+			...(request.reuse ? ['--reuse'] : []),
 		];
 		this.logService.info(`[saengine] starting analysis run ${runId}: ${request.python} ${args.join(' ')}`);
 		const child = cp.spawn(request.python, args, { cwd: dirname(request.project), env: pythonEnv(), windowsHide: true });
@@ -152,7 +160,8 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	}
 
 	buildingIfc(python: string, request: IBuildingIfcRequest): Promise<IBuildingIfc> {
-		return this.request(python, 'bim/ifc', request);
+		// With the reinforcement (projectRoot given) the backend details every beam and column first.
+		return this.request(python, request.projectRoot ? 'bim/ifcRebar' : 'bim/ifc', request);
 	}
 
 	deriveFem(python: string, request: IFemDeriveRequest): Promise<IFemDerivation> {
@@ -238,6 +247,13 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 		}
 		this.backends.delete(python);
 		this.logService.info(`[saengine] restarting backend: ${python}`);
+		// Its requests fail with the restart: they no longer keep the engine busy.
+		for (const [id, request] of this.pending) {
+			if (request.python === python) {
+				this.pending.delete(id);
+			}
+		}
+		this.fireBusy();
 		try {
 			const b = await backend;
 			b.connection.dispose();
@@ -430,13 +446,32 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 	}
 
 	private async request<T>(python: string, method: string, params: object): Promise<T> {
-		const backend = await this.backend(python);
+		const id = ++this.requestIds;
+		this.pending.set(id, { python, method, since: Date.now() });
+		this.fireBusy();
 		try {
-			return await backend.connection.sendRequest<T>(method, params);
-		} catch (error) {
-			const detail = backend.stderr.length ? `\n${backend.stderr.join('\n')}` : '';
-			throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
+			const backend = await this.backend(python);
+			try {
+				return await backend.connection.sendRequest<T>(method, params);
+			} catch (error) {
+				const detail = backend.stderr.length ? `\n${backend.stderr.join('\n')}` : '';
+				throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
+			}
+		} finally {
+			if (this.pending.delete(id)) {
+				this.fireBusy();
+			}
 		}
+	}
+
+	private fireBusy(): void {
+		let oldest: { readonly method: string; readonly since: number } | undefined;
+		for (const request of this.pending.values()) {
+			if (!oldest || request.since < oldest.since) {
+				oldest = request;
+			}
+		}
+		this._onDidChangeBusy.fire({ pending: this.pending.size, since: oldest?.since, method: oldest?.method });
 	}
 
 	private backend(python: string): Promise<IBackend> {

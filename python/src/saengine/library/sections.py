@@ -8,14 +8,20 @@ for a beam bending under gravity.
 :func:`section_properties` meshes and solves a profile once per process: a building has a few
 distinct profiles but thousands of elements, and the analysis model, the design checks and the
 others all ask for them (the answer is cached by the profile's dimensions; a designed section
-by its whole definition, so editing it gives a new entry).
+by its whole definition, so editing it gives a new entry). The answers are also kept on disk
+(:func:`cache_folder`), so the next derivation, in this project or another with the same
+profiles, reads them instead of solving again, and :func:`prefetch_section_properties` solves
+the distinct profiles a building still needs in parallel processes.
 """
 
 from __future__ import annotations
 
-import functools
+import hashlib
 import json
-from dataclasses import dataclass
+import os
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from pydantic import TypeAdapter
 from sectionproperties.analysis.section import Section
@@ -105,6 +111,134 @@ def section_properties(profile: o.Profile) -> SectionProperties:
     return _properties(profile_key(profile))
 
 
+#: ``SAENGINE_SECTION_CACHE``: the folder of the on-disk answers, or ``0`` to keep none.
+CACHE_ENV = "SAENGINE_SECTION_CACHE"
+#: Changes when the way the properties are worked out changes (mesh size, solver), so answers
+#: of an earlier way are not read.
+CACHE_VERSION = 1
+
+
+def cache_folder() -> Path | None:
+    """Where the worked-out properties are kept between runs: ``$SAENGINE_SECTION_CACHE``, else
+    ``%LOCALAPPDATA%/SAEngine/cache/section-properties`` (``~/.cache/saengine/...`` elsewhere);
+    None when the variable is ``0``."""
+    given = os.environ.get(CACHE_ENV, "").strip()
+    if given == "0":
+        return None
+    if given:
+        return Path(given)
+    local = os.environ.get("LOCALAPPDATA")
+    root = Path(local) / "SAEngine" / "cache" if local else Path.home() / ".cache" / "saengine"
+    return root / "section-properties"
+
+
+def _cache_file(key: str) -> Path | None:
+    folder = cache_folder()
+    if folder is None:
+        return None
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        solver = version("sectionproperties")
+    except PackageNotFoundError:
+        solver = "?"
+    text = json.dumps([CACHE_VERSION, solver, key])
+    return folder / f"{hashlib.sha256(text.encode('utf-8')).hexdigest()}.json"
+
+
+def _read_cached(key: str) -> SectionProperties | None:
+    path = _cache_file(key)
+    if path is None:
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("key") != key:
+            return None
+        return SectionProperties(**data["properties"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _write_cached(key: str, props: SectionProperties) -> None:
+    path = _cache_file(key)
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        part = path.with_suffix(f".{os.getpid()}.tmp")
+        part.write_text(json.dumps({"key": key, "properties": asdict(props)}), encoding="utf-8")
+        os.replace(part, path)
+    except OSError:
+        pass  # a read-only or full disk: the answer stays in this process only
+
+
+#: The answers of this process by profile key (a building has tens of distinct profiles).
+_MEMO: dict[str, SectionProperties] = {}
+_MEMO_LIMIT = 512
+
+
+def _remember(key: str, props: SectionProperties) -> SectionProperties:
+    if len(_MEMO) >= _MEMO_LIMIT:
+        _MEMO.clear()
+    _MEMO[key] = props
+    return props
+
+
+def _properties(key: str) -> SectionProperties:
+    found = _MEMO.get(key)
+    if found is not None:
+        return found
+    found = _read_cached(key)
+    if found is None:
+        found = _solve(key)
+        _write_cached(key, found)
+    return _remember(key, found)
+
+
+#: ``SAENGINE_SECTION_JOBS``: the processes :func:`prefetch_section_properties` may start. Off
+#: (1) by default: on the 20- and 30-storey benchmarks a worker of the pool died ("the handle is
+#: invalid") on a loaded Windows machine; the disk cache alone already spares the solves of every
+#: derivation after the first.
+JOBS_ENV = "SAENGINE_SECTION_JOBS"
+
+
+def prefetch_section_properties(profiles: Iterable[o.Profile]) -> None:
+    """Works out the properties of ``profiles`` that are neither known nor kept on disk, in
+    parallel processes (``SAENGINE_SECTION_JOBS`` of them) when there are several (each is a
+    finite-element solve of seconds), so the next :func:`section_properties` calls find them.
+    Leaves them to be solved one by one where first used when the variable is unset or the
+    processes fail."""
+    keys: list[str] = []
+    for profile in profiles:
+        try:
+            key = profile_key(profile)
+        except Exception:  # noqa: BLE001, S112 - an unresolvable profile fails where it is used
+            continue
+        if key in _MEMO or key in keys:
+            continue
+        cached = _read_cached(key)
+        if cached is not None:
+            _remember(key, cached)
+        else:
+            keys.append(key)
+    allowed = os.environ.get(JOBS_ENV, "").strip()
+    jobs = min(len(keys), int(allowed) if allowed.isdigit() else 1)
+    if jobs < 2:
+        return  # one or none: solved where it is first used
+    from concurrent.futures import ProcessPoolExecutor
+
+    try:
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            solved = list(pool.map(_solve, keys))
+    except Exception:  # noqa: BLE001
+        # Processes that could not start or died, or a profile that fails to solve: each is
+        # solved (or fails, with its own message) where it is first used.
+        return
+    for key, props in zip(keys, solved, strict=True):
+        _write_cached(key, props)
+        _remember(key, props)
+
+
 def profile_key(profile: o.Profile) -> str:
     """What the properties of ``profile`` depend on, as text: its shape and dimensions, or for
     a designed section the section itself (read from the project)."""
@@ -119,8 +253,8 @@ def profile_key(profile: o.Profile) -> str:
 _PROFILE = TypeAdapter(o.Profile)
 
 
-@functools.lru_cache(maxsize=512)
-def _properties(key: str) -> SectionProperties:
+def _solve(key: str) -> SectionProperties:
+    """Meshes and solves the profile of ``key`` (:func:`profile_key`)."""
     data = json.loads(key)
     if "designed" in data:
         from saengine.library import section_designer

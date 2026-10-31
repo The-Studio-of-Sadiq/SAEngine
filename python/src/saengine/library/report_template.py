@@ -37,6 +37,7 @@ TEMPLATE_ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 #: (landscape pages).
 SECTIONS: dict[str, str] = {
     "basis": "Design basis",
+    "planning": "Planning compliance",
     "soil": "Soil and foundations",
     "foundations": "Foundations",
     "model": "Analysis model",

@@ -174,6 +174,13 @@ class OpenSeesRunner:
         self._geom_transf_tags: dict[str, int] = {}
         self._element_geom_transf_tag: dict[int, int] = {}
         self._emitted_time_series: set[int] = set()
+        #: Whether a pattern of the case imposes support displacements (``sp`` with a value,
+        #: which the Plain handler cannot enforce).
+        self._imposed_displacements = False
+        #: Modal results already computed on this model, by modal case id: a response spectrum
+        #: case whose modal case is here combines them instead of solving the eigenproblem
+        #: again (the analysis CLI fills it as it runs or keeps modal cases).
+        self.known_modal_results: dict[int, ModalResults] = {}
 
     # ─────────────────────── public API ───────────────────────
     def _progress(self, completed: int, total: int) -> None:
@@ -187,6 +194,7 @@ class OpenSeesRunner:
         ops = self._ops
         ops.wipe()
         self._emitted_time_series.clear()
+        self._imposed_displacements = False
         ops.model("basic", "-ndm", self.project.ndm, "-ndf", self.project.ndf)
 
         for node in self.project.nodes:
@@ -251,6 +259,11 @@ class OpenSeesRunner:
             return runner.run(case.model_copy(update={"section_overrides": []}), results_dir)
         if isinstance(case, StagedCase):
             return self._run_staged(case)  # builds one model per stage
+        if (
+            isinstance(case, ResponseSpectrumCase)
+            and case.modal_case_id in self.known_modal_results
+        ):
+            return self._run_response_spectrum(case)  # no eigen solve, so no model either
         if (
             isinstance(case, StaticCase)
             and case.release_diaphragms
@@ -380,7 +393,9 @@ class OpenSeesRunner:
     def _constraints_handler(self, requested: str) -> str:
         """The constraint handler a case runs with: Transformation when the model
         has a rigid link or diaphragm (it enforces them exactly), else the case's own setting."""
-        return "Transformation" if self.project.needs_transformation else requested
+        if self.project.needs_transformation or self._imposed_displacements:
+            return "Transformation"
+        return requested
 
     # ─────────────────────── materials ───────────────────────
     def _emit_material(self, mat: Any) -> None:
@@ -1004,6 +1019,11 @@ class OpenSeesRunner:
                 for nl in pat.nodal_loads:
                     forces = tuple(nl.forces[i] for i in self._dof_idx)
                     ops.load(nl.node_id, *forces)
+                for sd in pat.support_displacements:
+                    # The fix in that DOF gives way to the imposed value (a settlement).
+                    ops.remove("sp", sd.node_id, sd.dof)
+                    ops.sp(sd.node_id, sd.dof, sd.value)
+                    self._imposed_displacements = True
                 for el in pat.element_loads:
                     # eleLoad -ele N -type -beamUniform wy wz wx
                     # 2D: only (wy, wx) are emitted (wz drops).
@@ -1281,12 +1301,27 @@ class OpenSeesRunner:
         disp: dict[int, np.ndarray] = {}
         reaction: dict[int, np.ndarray] = {}
         for node in self.project.nodes:
-            disp[node.id] = np.array(
-                [ops.nodeDisp(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
-            )
-            reaction[node.id] = np.array(
-                [self._reaction(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
-            )
+            # One call per node for all its DOFs (six per node on a tall building's thousands
+            # of nodes, per case, was a fifth of the solver's time); a node with fewer DOFs
+            # than the model reads them one by one, as before.
+            values = ops.nodeDisp(node.id)
+            if isinstance(values, list | tuple) and len(values) == ndf:
+                disp[node.id] = np.array(values, dtype=float)
+            else:
+                disp[node.id] = np.array(
+                    [ops.nodeDisp(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+                )
+            forces_at = ops.nodeReaction(node.id)
+            if (
+                isinstance(forces_at, list | tuple)
+                and len(forces_at) == ndf
+                and node.id not in self._solid_twin
+            ):
+                reaction[node.id] = np.array(forces_at, dtype=float)
+            else:
+                reaction[node.id] = np.array(
+                    [self._reaction(node.id, dof) for dof in range(1, ndf + 1)], dtype=float
+                )
         forces: dict[int, np.ndarray] = {}
         for el in self.project.elements:
             if isinstance(el, SolidElement):
@@ -1895,7 +1930,8 @@ class OpenSeesRunner:
         )
 
     def _run_response_spectrum(self, case: ResponseSpectrumCase) -> ResponseSpectrumResults:
-        """Re-run the referenced modal case, then combine via SRSS/CQC.
+        """Re-run the referenced modal case (or take its results from
+        :attr:`known_modal_results`), then combine via SRSS/CQC.
 
         We delegate to the spectrum service for the math; the runner's
         only job is finding the linked ModalCase + ResponseSpectrum and
@@ -1929,7 +1965,7 @@ class OpenSeesRunner:
                 f"{case.spectrum_id}, but no such ResponseSpectrum exists.",
             )
 
-        modal_results = self._run_modal(modal_case)
+        modal_results = self.known_modal_results.get(modal_case.id) or self._run_modal(modal_case)
 
         warnings: list[str] = []
         damping: float | None = None

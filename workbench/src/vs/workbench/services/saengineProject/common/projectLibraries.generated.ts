@@ -1515,7 +1515,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor (placeholder: not applied yet).',
+					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 			},
@@ -3937,6 +3937,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Sustained share of the live load',
 					type: 'number',
 				},
+				liveLoadReduction: {
+					default: false,
+					description: 'Reduce the floor live load of beams and columns by their influence area (BNBC 2020 Part 6 Sec 2.3.13): L = L0 (0.25 + 4.57 / √(KLL AT)), at least 0.5 L0 (one floor) or 0.4 L0 (two or more); none for assembly uses, and only 20 % for heavy live loads and parking on members carrying two or more floors. A member\'s design overwrite can give its own factor.',
+					title: 'Live load reduction',
+					type: 'boolean',
+				},
 				periodMethod: {
 					default: 'approximate',
 					description: 'Approximate: Ta = Ct·hn^m (BNBC 2020 Part 6 Eq. 6.2.38). Analysis: the modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.',
@@ -4104,6 +4110,15 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				thermal: {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
+				},
+				settlement: {
+					$ref: '#/$defs/Settlement',
+					title: 'Support settlement',
+				},
+				fireResistance: {
+					$ref: '#/$defs/FireResistance',
+					description: 'Ratings the concrete members\' least sizes and covers are checked for (the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).',
+					title: 'Fire resistance',
 				},
 				supports: {
 					default: 'fixed',
@@ -4499,6 +4514,38 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'ExtraMass',
 			type: 'object',
 		},
+		FireResistance: {
+			additionalProperties: false,
+			description: 'The fire resistance ratings the members are checked for (least sizes and covers); 0: not\nchecked.',
+			properties: {
+				columns: {
+					default: 0,
+					description: 'Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 for the building\'s occupancy and construction type.',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Columns',
+				},
+				beams: {
+					default: 0,
+					description: 'Rating of the beams [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Beams',
+				},
+				slabs: {
+					default: 0,
+					description: 'Rating of the slabs [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Slabs',
+				},
+				walls: {
+					default: 0,
+					description: 'Rating of the structural walls [h].',
+					enum: [0, 1, 1.5, 2, 3, 4],
+					title: 'Walls',
+				},
+			},
+			title: 'FireResistance',
+			type: 'object',
+		},
 		Foundation: {
 			additionalProperties: false,
 			description: 'Soil values of the footing design. The net allowable bearing pressure of each footing\ncomes from 1 Soil Report (its nearest boreholes, at the footing\'s founding level and size)\nunless it is overridden here.',
@@ -4591,6 +4638,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'T',
 					type: 'number',
 				},
+				ST: {
+					default: 0,
+					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T of BNBC 2020 Part 6 Sec 2.7, so it takes T\'s factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					title: 'ST',
+					type: 'number',
+				},
 				F: {
 					anyOf: [
 						{
@@ -4603,6 +4656,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Factor on the fluid loads (the contents of equipment in 07 MEP). Empty: the D factor where it is above 1.0, else 0 (BNBC 2020 2.7.3.1: F with D in 1.4(D + F) and 1.2(D + F + T) + ...; none in the 0.9D combinations, as a tank may be empty). 1.2F in the other 1.2D combinations is an SAEngine adoption, on the safe side for gravity.',
 					title: 'F',
+				},
+				H: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factor on the lateral earth and groundwater pressure on the basement walls (case H, 9 Substructure). Empty: 1.6 in the combinations with 1.6L and in the 0.9D ones, else 0 (BNBC 2020 Part 6 Sec 2.7.3.1 (p685), as ASCE 7-05 2.3.2: 1.2(D + F + T) + 1.6(L + H) + 0.5Lr, 0.9D + 1.6W + 1.6H, 0.9D + 1.0E + 1.6H).',
+					title: 'H',
 				},
 			},
 			required: ['name'],
@@ -4892,6 +4958,52 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Seismic',
+			type: 'object',
+		},
+		Settlement: {
+			additionalProperties: false,
+			description: 'The support settlement case ST: imposed settlements of column bases. BNBC 2020 Part 6\ncounts differential settlement among the self-straining effects T of its load combinations\n(Sec 2.7); ST takes T\'s factor.',
+			properties: {
+				enabled: {
+					default: false,
+					description: 'Add the load case ST: the listed column bases settle by the given amounts (the differential settlement the soil report or 9 Substructure expects). Fixed bases only (not with soil springs).',
+					title: 'Settlement case ST',
+					type: 'boolean',
+				},
+				supports: {
+					description: 'Column bases and their settlement.',
+					items: {
+						$ref: '#/$defs/SettlementSupport',
+					},
+					title: 'Settling supports',
+					type: 'array',
+				},
+			},
+			title: 'Settlement',
+			type: 'object',
+		},
+		SettlementSupport: {
+			additionalProperties: false,
+			description: 'A column base that settles in the settlement case ST.',
+			properties: {
+				column: {
+					description: 'Column of the building model whose base settles.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Column',
+					type: 'string',
+				},
+				value: {
+					description: 'Downward settlement of the base [mm].',
+					exclusiveMinimum: 0,
+					maximum: 500,
+					title: 'Settlement',
+					type: 'number',
+				},
+			},
+			required: ['column', 'value'],
+			title: 'SettlementSupport',
 			type: 'object',
 		},
 		Site: {
@@ -5392,7 +5504,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.4,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6L + 0.5Lr',
@@ -5404,7 +5518,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 1.6,
 		},
 		{
 			name: '1.2D + 1.6Lr + 1.0L',
@@ -5416,7 +5532,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WX',
@@ -5428,7 +5546,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WX)',
@@ -5440,7 +5560,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WY',
@@ -5452,7 +5574,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WY)',
@@ -5464,7 +5588,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WX + 1.0L + 0.5Lr',
@@ -5476,7 +5602,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WX) + 1.0L + 0.5Lr',
@@ -5488,7 +5616,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WY + 1.0L + 0.5Lr',
@@ -5500,7 +5630,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WY) + 1.0L + 0.5Lr',
@@ -5512,7 +5644,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EX + 1.0L',
@@ -5524,7 +5658,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EX) + 1.0L',
@@ -5536,7 +5672,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: -1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EY + 1.0L',
@@ -5548,7 +5686,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EY) + 1.0L',
@@ -5560,7 +5700,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: -1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 1.2,
+			H: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WX',
@@ -5572,7 +5714,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.6(-WX)',
@@ -5584,7 +5728,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.6WY',
@@ -5596,7 +5742,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.6(-WY)',
@@ -5608,7 +5756,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.0EX',
@@ -5620,7 +5770,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.0(-EX)',
@@ -5632,7 +5784,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: -1.0,
 			EY: 0.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.0EY',
@@ -5644,7 +5798,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: 1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 		{
 			name: '0.9D + 1.0(-EY)',
@@ -5656,7 +5812,9 @@ export const DEFAULT_SETTINGS: object = {
 			EX: 0.0,
 			EY: -1.0,
 			T: 0.0,
+			ST: 0.0,
 			F: 0.0,
+			H: 1.6,
 		},
 	],
 	analysis: {
@@ -5677,6 +5835,7 @@ export const DEFAULT_SETTINGS: object = {
 		patternLive: 'bnbc',
 		deflection: 'sensitive',
 		sustainedLive: 0.25,
+		liveLoadReduction: false,
 		periodMethod: 'approximate',
 		endOffsets: true,
 		rigidZoneFactor: 0.5,
@@ -5712,6 +5871,16 @@ export const DEFAULT_SETTINGS: object = {
 			uniform: 20.0,
 			gradient: 10.0,
 			scope: 'roof',
+		},
+		settlement: {
+			enabled: false,
+			supports: [],
+		},
+		fireResistance: {
+			columns: 0,
+			beams: 0,
+			slabs: 0,
+			walls: 0,
 		},
 		supports: 'fixed',
 		ssiPileGroupFactor: 1.0,
@@ -5749,7 +5918,9 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		EX: 0.0,
 		EY: 0.0,
 		T: 1.2,
+		ST: 0.0,
 		F: 1.2,
+		H: 1.6,
 	},
 	{
 		name: '1.2D - 1.2T + 1.6L + 0.5Lr',
@@ -5761,7 +5932,26 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		EX: 0.0,
 		EY: 0.0,
 		T: -1.2,
+		ST: 0.0,
 		F: 1.2,
+		H: 1.6,
+	},
+];
+
+export const SETTLEMENT_COMBINATIONS: readonly object[] = [
+	{
+		name: '1.2D + 1.2ST + 1.6L + 0.5Lr',
+		D: 1.2,
+		L: 1.6,
+		Lr: 0.5,
+		WX: 0.0,
+		WY: 0.0,
+		EX: 0.0,
+		EY: 0.0,
+		T: 0.0,
+		ST: 1.2,
+		F: 1.2,
+		H: 1.6,
 	},
 ];
 
@@ -6386,12 +6576,165 @@ export const BNBC: IBnbcTables = {
 		EX: 'Earthquake in X',
 		EY: 'Earthquake in Y',
 		F: 'Fluids (equipment contents)',
+		H: 'Lateral earth and groundwater pressure (basement walls)',
 		T: 'Temperature',
 	},
 };
 
 export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 	$defs: {
+		BeamCorbels: {
+			additionalProperties: false,
+			description: 'Corbels under a beam\'s ends (empty: the beam frames into the column).',
+			properties: {
+				start: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the start',
+				},
+				end: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the end',
+				},
+			},
+			title: 'BeamCorbels',
+			type: 'object',
+		},
+		Corbel: {
+			additionalProperties: false,
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			properties: {
+				width: {
+					description: 'Across the beam [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width bw',
+					type: 'number',
+				},
+				depth: {
+					description: 'At the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth h',
+					type: 'number',
+				},
+				edgeDepth: {
+					description: 'At the outer edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge depth',
+					type: 'number',
+				},
+				projection: {
+					description: 'From the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Projection',
+					type: 'number',
+				},
+				loadOffset: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column face to the bearing\'s centre [mm]; empty: half the projection.',
+					title: 'Shear span av',
+				},
+				bearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pad along the projection [mm]; empty: no bearing check.',
+					title: 'Bearing length',
+				},
+				cover: {
+					default: 40.0,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				mainBars: {
+					$ref: '#/$defs/CorbelBars',
+					description: 'Top tension bars.',
+					title: 'Main bars As',
+				},
+				ties: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CorbelBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closed ties parallel to the main bars (two legs each).',
+					title: 'Closed ties Ah',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.',
+					title: 'Horizontal force Nuc',
+				},
+			},
+			required: ['width', 'depth', 'edgeDepth', 'projection', 'mainBars'],
+			title: 'Corbel',
+			type: 'object',
+		},
+		CorbelBars: {
+			additionalProperties: false,
+			description: 'A set of bars of a corbel: how many and their diameter.',
+			properties: {
+				count: {
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CorbelBars',
+			type: 'object',
+		},
 		DesignOverwrites: {
 			additionalProperties: false,
 			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
@@ -6507,7 +6850,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor (placeholder: not applied yet).',
+					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 			},
@@ -6824,6 +7167,19 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
+				},
+				corbels: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BeamCorbels',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					title: 'Corbels',
 				},
 			},
 			required: ['id', 'type', 'story', 'start', 'end'],
@@ -7178,6 +7534,36 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Story',
 			type: 'object',
 		},
+		Tower: {
+			additionalProperties: false,
+			description: 'One tower of a building with several towers on a common podium: the plan region whose\nfloors above the podium move on their own (a rigid diaphragm per tower and storey) and whose\ndrift, period and base shear are checked on their own (``saengine.fem.towers``).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				boundary: {
+					description: 'Corners of the tower\'s plan region, in order around it; the floors inside it above the podium belong to the tower.',
+					items: {
+						$ref: '#/$defs/GridPoint',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+			},
+			required: ['id', 'name', 'boundary'],
+			title: 'Tower',
+			type: 'object',
+		},
 		Underlay: {
 			additionalProperties: false,
 			description: 'An architect\'s drawing shown, greyed and read-only, under one story\'s plan.\n\nA PDF shows one page\'s vector linework (``saengine.library.pdf_underlay``) in paper mm, so its\n``scale`` is the drawing\'s scale (100 for 1:100), set by calibrating two points against a\nknown length on the floor plan.',
@@ -7307,6 +7693,30 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'Underlays',
 			type: 'array',
 		},
+		podiumTop: {
+			anyOf: [
+				{
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Several towers on one podium: the story at the top of the podium. The floors above it are split into the towers.',
+			title: 'Podium top',
+		},
+		towers: {
+			description: 'The towers above the podium, each a plan region (needs a podium top).',
+			items: {
+				$ref: '#/$defs/Tower',
+			},
+			title: 'Towers',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine floor plan',
 	type: 'object',
@@ -7354,6 +7764,7 @@ export const DEFAULT_FLOOR_PLAN: object = {
 	slabs: [],
 	footings: [],
 	underlays: [],
+	towers: [],
 };
 
 export const STRUCTURE_SCHEMA: IJSONSchema = {
@@ -7955,6 +8366,38 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'AreaElement',
 			type: 'object',
 		},
+		BeamCorbels: {
+			additionalProperties: false,
+			description: 'Corbels under a beam\'s ends (empty: the beam frames into the column).',
+			properties: {
+				start: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the start',
+				},
+				end: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Corbel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'At the end',
+				},
+			},
+			title: 'BeamCorbels',
+			type: 'object',
+		},
 		BeamElement: {
 			additionalProperties: false,
 			description: 'A beam with its top at ``elevation`` (the level of the story it supports).',
@@ -8047,6 +8490,19 @@ export const BIM_SCHEMA: IJSONSchema = {
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
 				},
+				corbels: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BeamCorbels',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					title: 'Corbels',
+				},
 			},
 			required: ['id', 'type', 'start', 'end', 'elevation'],
 			title: 'BeamElement',
@@ -8082,6 +8538,42 @@ export const BIM_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'at'],
 			title: 'BimSupport',
+			type: 'object',
+		},
+		BimTower: {
+			additionalProperties: false,
+			description: 'A tower above the podium (``FloorPlan.towers``), its plan region in mm.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				boundary: {
+					description: 'Corners in order around it.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Boundary',
+					type: 'array',
+				},
+			},
+			required: ['id', 'name', 'boundary'],
+			title: 'BimTower',
 			type: 'object',
 		},
 		BlockElement: {
@@ -8252,6 +8744,126 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'ColumnElement',
 			type: 'object',
 		},
+		Corbel: {
+			additionalProperties: false,
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			properties: {
+				width: {
+					description: 'Across the beam [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width bw',
+					type: 'number',
+				},
+				depth: {
+					description: 'At the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth h',
+					type: 'number',
+				},
+				edgeDepth: {
+					description: 'At the outer edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge depth',
+					type: 'number',
+				},
+				projection: {
+					description: 'From the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Projection',
+					type: 'number',
+				},
+				loadOffset: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column face to the bearing\'s centre [mm]; empty: half the projection.',
+					title: 'Shear span av',
+				},
+				bearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pad along the projection [mm]; empty: no bearing check.',
+					title: 'Bearing length',
+				},
+				cover: {
+					default: 40.0,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				mainBars: {
+					$ref: '#/$defs/CorbelBars',
+					description: 'Top tension bars.',
+					title: 'Main bars As',
+				},
+				ties: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CorbelBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closed ties parallel to the main bars (two legs each).',
+					title: 'Closed ties Ah',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.',
+					title: 'Horizontal force Nuc',
+				},
+			},
+			required: ['width', 'depth', 'edgeDepth', 'projection', 'mainBars'],
+			title: 'Corbel',
+			type: 'object',
+		},
+		CorbelBars: {
+			additionalProperties: false,
+			description: 'A set of bars of a corbel: how many and their diameter.',
+			properties: {
+				count: {
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CorbelBars',
+			type: 'object',
+		},
 		DesignOverwrites: {
 			additionalProperties: false,
 			description: 'Design overwrites of a member or of an object type (empty fields inherit).',
@@ -8367,7 +8979,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor (placeholder: not applied yet).',
+					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 			},
@@ -9288,6 +9900,30 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'Supports',
 			type: 'array',
 		},
+		podiumTop: {
+			anyOf: [
+				{
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					type: 'string',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The story at the top of the podium.',
+			title: 'Podium top',
+		},
+		towers: {
+			description: 'The towers above the podium (from the floor plan).',
+			items: {
+				$ref: '#/$defs/BimTower',
+			},
+			title: 'Towers',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine building model',
 	type: 'object',
@@ -9304,6 +9940,7 @@ export const DEFAULT_BIM: object = {
 		members: [],
 	},
 	supports: [],
+	towers: [],
 };
 
 export const TEMPLATES: { readonly [defName: string]: object } = {
@@ -9849,6 +10486,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		patternLive: 'bnbc',
 		deflection: 'sensitive',
 		sustainedLive: 0.25,
+		liveLoadReduction: false,
 		periodMethod: 'approximate',
 		endOffsets: true,
 		rigidZoneFactor: 0.5,
@@ -9887,6 +10525,16 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			uniform: 20.0,
 			gradient: 10.0,
 			scope: 'roof',
+		},
+		settlement: {
+			enabled: false,
+			supports: [],
+		},
+		fireResistance: {
+			columns: 0,
+			beams: 0,
+			slabs: 0,
+			walls: 0,
 		},
 		supports: 'fixed',
 		ssiShearModulusRatio: null,
@@ -11807,6 +12455,98 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Pile',
 			type: 'object',
 		},
+		Planning: {
+			additionalProperties: false,
+			description: 'What the planning check of the plot needs beyond its shape: the use (a key of the code\npack\'s ``planning.uses``), the road it faces, and the building\'s height, storeys and areas\nwhere the building model does not give them.',
+			properties: {
+				use: {
+					default: 'A1-A4',
+					description: 'Use class of the planning rules, e.g. A1-A4 (residential), F1 (office).',
+					minLength: 1,
+					title: 'Use',
+					type: 'string',
+				},
+				roadWidth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Width of the road the plot faces [mm].',
+					title: 'Road width',
+				},
+				height: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the ground [mm]; empty: from the building model\'s stories.',
+					title: 'Building height',
+				},
+				storeys: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: from the building model.',
+					title: 'Storeys',
+				},
+				groundCoverage: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Building footprint [m²]; empty: the building model\'s slabs on plan.',
+					title: 'Ground coverage',
+				},
+				floorArea: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m²]; empty: the sum of the building model\'s storeys.',
+					title: 'Gross floor area',
+				},
+				excludedArea: {
+					default: 0,
+					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, parking, services) [m²].',
+					minimum: 0,
+					title: 'Excluded floor area',
+					type: 'number',
+				},
+			},
+			title: 'Planning',
+			type: 'object',
+		},
 		Plot: {
 			additionalProperties: false,
 			description: 'The plot: its corners in the project grid (when the site boundary is not given in\nlatitude/longitude), the side facing the road and the setbacks that leave the buildable\nenvelope (``saengine.gis.plot``).',
@@ -11858,6 +12598,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					minimum: 0,
 					title: 'Side setback',
 					type: 'number',
+				},
+				planning: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Planning',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The use and road the plot is checked for against the planning rules (FAR, ground coverage, setbacks; saengine.gis.planning).',
+					title: 'Planning compliance',
 				},
 			},
 			title: 'Plot',
@@ -12838,6 +13591,57 @@ export const DEFAULT_SOIL: object = {
 
 export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 	$defs: {
+		Backfill: {
+			additionalProperties: false,
+			description: 'The soil placed behind the wall, when it is not the ground of the soil report.',
+			properties: {
+				gamma: {
+					default: 18.0,
+					description: '[kN/m³]',
+					exclusiveMinimum: 0,
+					title: 'Unit weight γ',
+					type: 'number',
+				},
+				gammaSat: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]; empty: γ + 2.',
+					title: 'Saturated unit weight γsat',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 30.0,
+					description: '[°]',
+					title: 'Friction angle φ\'',
+				},
+				c: {
+					default: 0.0,
+					description: '[kPa]',
+					minimum: 0,
+					title: 'Cohesion c\'',
+					type: 'number',
+				},
+			},
+			title: 'Backfill',
+			type: 'object',
+		},
 		BarGroup: {
 			additionalProperties: false,
 			description: 'Longitudinal bars of a linear member.',
@@ -12924,8 +13728,58 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					description: 'Modulus of subgrade reaction of rafts: from the soil report, or a value [kN/m³].',
 					title: 'Subgrade springs',
 				},
+				raftSprings: {
+					default: 'noTension',
+					description: 'No tension: where the raft lifts off, the soil carries nothing (solved iteratively); linear: the springs may pull.',
+					enum: ['noTension', 'linear'],
+					enumDescriptions: ['No tension (iterative)', 'Linear'],
+					title: 'Raft springs',
+					type: 'string',
+				},
 			},
 			title: 'Design',
+			type: 'object',
+		},
+		EarthPressure: {
+			additionalProperties: false,
+			description: 'The basement walls of the building in the analysis model (load case H).',
+			properties: {
+				basementWalls: {
+					default: true,
+					description: 'Load the walls of 6 BIM whose type is a basement wall (and the walls the retaining walls name) with the earth and water pressure at rest, as load case H.',
+					title: 'Earth pressure on basement walls',
+					type: 'boolean',
+				},
+				surcharge: {
+					default: 10.0,
+					description: 'On the ground round the building [kPa].',
+					minimum: 0,
+					title: 'Surcharge',
+					type: 'number',
+				},
+				designWaterTable: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the finished ground [m]; empty: each borehole\'s measured level.',
+					title: 'Design water table',
+				},
+				k0Cohesive: {
+					default: 0.6,
+					description: 'At-rest coefficient of a layer without φ\' (given by cu only).',
+					exclusiveMinimum: 0,
+					maximum: 1.5,
+					title: 'K0 of clay',
+					type: 'number',
+				},
+			},
+			title: 'EarthPressure',
 			type: 'object',
 		},
 		FactorOfSafety: {
@@ -13085,8 +13939,61 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: '[mm]',
+					description: '[mm]; a sloped or stepped footing: under the column.',
 					title: 'Thickness',
+				},
+				section: {
+					default: 'flat',
+					description: 'Isolated footings: flat (one thickness), sloped (the top slopes from a flat top round the column down to the edge thickness) or stepped (an upper step round the column on a lower slab of the edge thickness).',
+					enum: ['flat', 'sloped', 'stepped'],
+					enumDescriptions: ['Flat', 'Sloped', 'Stepped'],
+					title: 'Section',
+					type: 'string',
+				},
+				edgeThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A sloped footing: at its edges; a stepped footing: of the lower step [mm].',
+					title: 'Edge thickness',
+				},
+				topLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local x, the flat top of a sloped footing or the upper step of a stepped one, centred on the column [mm].',
+					title: 'Top length',
+				},
+				topWidth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along its local y, the flat top or upper step [mm].',
+					title: 'Top width',
 				},
 				path: {
 					anyOf: [
@@ -13236,6 +14143,151 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type'],
 			title: 'Foundation',
+			type: 'object',
+		},
+		GroundSlab: {
+			additionalProperties: false,
+			description: 'A slab on grade (ground-bearing slab): a plain or lightly reinforced slab laid on the\ncompacted ground, under a uniform floor load and a concentrated (post or wheel) load.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				outline: {
+					description: 'Plan outline [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				thickness: {
+					default: 150,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				material: {
+					description: 'Concrete material id (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				mesh: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'One layer of bars each way for crack control (empty: plain concrete).',
+					title: 'Mesh',
+				},
+				meshMaterial: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rebar material id (03 Materials).',
+					title: 'Mesh material',
+				},
+				uniformLoad: {
+					default: 5.0,
+					description: 'Floor load on it [kPa].',
+					minimum: 0,
+					title: 'Uniform load',
+					type: 'number',
+				},
+				pointLoad: {
+					default: 0.0,
+					description: 'The largest post, rack-leg or wheel load, service [kN]; 0: none.',
+					minimum: 0,
+					title: 'Concentrated load',
+					type: 'number',
+				},
+				contactSide: {
+					default: 150,
+					description: 'Side of the square base plate or tyre print of the concentrated load [mm].',
+					exclusiveMinimum: 0,
+					title: 'Contact side',
+					type: 'number',
+				},
+				subgradeModulus: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the compacted sub-base [kN/m³]; empty: the subgrade springs value of 9 Substructure → Design.',
+					title: 'Subgrade modulus k',
+				},
+				factorOfSafety: {
+					default: 2.0,
+					description: 'On the modulus of rupture for the concentrated load\'s flexural stress.',
+					maximum: 5,
+					minimum: 1,
+					title: 'Factor of safety',
+					type: 'number',
+				},
+				jointSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the contraction joints [mm]; empty: not checked.',
+					title: 'Joint spacing',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'outline', 'material'],
+			title: 'GroundSlab',
 			type: 'object',
 		},
 		LinearReinforcement: {
@@ -13425,6 +14477,29 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Reinforcement',
 				},
+				headFixity: {
+					default: 'fixed',
+					description: 'Fixed: the pile bars developed into the cap, which holds the head against rotation; free: the head may rotate (pinned).',
+					enum: ['fixed', 'free'],
+					enumDescriptions: ['Fixed in the cap', 'Free (pinned)'],
+					title: 'Head fixity',
+					type: 'string',
+				},
+				fixityDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report [mm]; none: the pile is designed for axial force only.',
+					title: 'Depth to fixity',
+				},
 			},
 			required: ['id', 'diameter', 'length', 'material'],
 			title: 'PileType',
@@ -13563,6 +14638,392 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['spacing'],
 			title: 'PunchingReinforcement',
+			type: 'object',
+		},
+		RetainingWall: {
+			additionalProperties: false,
+			description: 'A retaining wall (a cantilever on its own base) or a basement wall (spanning between\nthe basement floors and the raft), designed per metre run along its path. The soil is that\nof 1 Soil Report at the wall (the nearest borehole) unless a backfill is given.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'cantilever',
+					description: 'A cantilever wall on its own base (stability, stem and base design), or a basement wall propped at the floors (one-way span between the supports).',
+					enum: ['cantilever', 'basement'],
+					enumDescriptions: ['Cantilever retaining wall', 'Basement wall (propped by the floors)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan line of the wall\'s soil face [[x, y], ...] mm; the soil is on the left looking along the path unless soilSide says otherwise.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				soilSide: {
+					default: 'left',
+					description: 'Side of the path the retained soil is on, looking along the path.',
+					enum: ['left', 'right'],
+					enumDescriptions: ['Left', 'Right'],
+					title: 'Soil side',
+					type: 'string',
+				},
+				wall: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The wall of 6 BIM this is (a basement wall of the building): its earth pressure then loads the analysis model as case H. Empty: a free-standing wall.',
+					title: 'Building wall',
+				},
+				topLevel: {
+					description: 'Level of the top of the stem, project datum [mm].',
+					title: 'Top of the wall',
+					type: 'number',
+				},
+				retainedLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of the ground behind the wall [mm]; empty: the finished ground of Project Settings → Foundation.',
+					title: 'Retained ground level',
+				},
+				frontLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of the ground (or basement floor) in front of the wall [mm]; empty: the top of the base.',
+					title: 'Front ground level',
+				},
+				foundingLevel: {
+					description: 'Level of the underside of the base [mm].',
+					title: 'Founding level',
+					type: 'number',
+				},
+				stemTop: {
+					default: 200,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Stem thickness at the top',
+					type: 'number',
+				},
+				stemBottom: {
+					default: 300,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Stem thickness at the base',
+					type: 'number',
+				},
+				baseThickness: {
+					default: 400,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Base thickness',
+					type: 'number',
+				},
+				toe: {
+					default: 600,
+					description: 'Base beyond the stem\'s front face [mm].',
+					minimum: 0,
+					title: 'Toe',
+					type: 'number',
+				},
+				heel: {
+					default: 1500,
+					description: 'Base beyond the stem\'s back face [mm].',
+					minimum: 0,
+					title: 'Heel',
+					type: 'number',
+				},
+				supports: {
+					description: 'Basement walls: levels of the floors that prop the wall [mm] (the top one is usually the ground floor slab); the base is held by the raft or footing.',
+					items: {
+						type: 'number',
+					},
+					title: 'Supports',
+					type: 'array',
+				},
+				baseFixed: {
+					default: true,
+					description: 'Basement walls: the wall is continuous with the raft (fixed); off: pinned.',
+					title: 'Fixed at the base',
+					type: 'boolean',
+				},
+				pressure: {
+					anyOf: [
+						{
+							enum: ['auto', 'atRest', 'active'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 'auto',
+					description: 'Auto: active on a cantilever wall (free to rotate), at rest on a basement wall (propped, cannot yield).',
+					enumDescriptions: ['Auto', 'At rest (K0)', 'Active (Ka)'],
+					title: 'Earth pressure',
+				},
+				method: {
+					default: 'rankine',
+					description: 'Active pressure by Rankine (on the vertical plane through the heel) or Coulomb (with the wall friction δ, on the stem\'s back).',
+					enum: ['rankine', 'coulomb'],
+					enumDescriptions: ['Rankine', 'Coulomb'],
+					title: 'Method',
+					type: 'string',
+				},
+				backslope: {
+					default: 0,
+					description: '[°]',
+					maximum: 45,
+					minimum: 0,
+					title: 'Backfill slope β',
+					type: 'number',
+				},
+				wallFriction: {
+					anyOf: [
+						{
+							maximum: 45,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]; empty: 2/3 φ\' (Coulomb and the seismic increment).',
+					title: 'Wall friction δ',
+				},
+				surcharge: {
+					default: 10.0,
+					description: 'Uniform surcharge on the retained ground [kPa] (traffic, stored material).',
+					minimum: 0,
+					title: 'Surcharge',
+					type: 'number',
+				},
+				drained: {
+					default: false,
+					description: 'A drain behind the wall (weep holes, a drainage layer) keeps the water off it: no water pressure on the wall and no uplift under the base.',
+					title: 'Drained',
+					type: 'boolean',
+				},
+				designWaterTable: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the retained ground [m]; empty: the borehole\'s measured level. Use the highest level expected (flood, monsoon).',
+					title: 'Design water table',
+				},
+				backfill: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Backfill',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Properties of the backfill behind the wall; empty: the soil report\'s layers.',
+					title: 'Backfill',
+				},
+				passive: {
+					default: false,
+					description: 'Count the passive pressure of the soil in front of the base against sliding (divided by its factor of safety); off on the safe side, as the soil in front may be dug away.',
+					title: 'Passive resistance in front',
+					type: 'boolean',
+				},
+				seismic: {
+					default: true,
+					description: 'Check the wall with the seismic increment of the earth pressure (Mononobe-Okabe on a cantilever wall, Wood on a basement wall) at the site\'s peak ground acceleration.',
+					title: 'Seismic earth pressure',
+					type: 'boolean',
+				},
+				material: {
+					description: 'Concrete material id (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				reinforcement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/RetainingWallBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reinforcement',
+				},
+				crackLimit: {
+					default: 0.3,
+					description: 'Service crack width at the soil face [mm]: 0.3 for walls in soil, 0.2 where they must be watertight (EN 1992-3 Table 7.105, class 1).',
+					exclusiveMinimum: 0,
+					title: 'Crack width limit',
+					type: 'number',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'path', 'topLevel', 'foundingLevel', 'material'],
+			title: 'RetainingWall',
+			type: 'object',
+		},
+		RetainingWallBars: {
+			additionalProperties: false,
+			description: 'The bars of a retaining or basement wall per metre run (BarMesh: diameter, spacing);\nempty layers are proposed by the design.',
+			properties: {
+				material: {
+					description: 'Reinforcement material id (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				cover: {
+					default: 50,
+					description: 'To the bars at the faces of the stem against earth or weather [mm] (BNBC 2020 Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and smaller); 75 mm cast against earth is used under the base.',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				stemBack: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Vertical bars at the face against the soil: the main bars of a cantilever stem.',
+					title: 'Stem, soil face (vertical)',
+				},
+				stemFront: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Vertical bars at the exposed (or inner) face: the span bars of a basement wall between the floors.',
+					title: 'Stem, inner face (vertical)',
+				},
+				horizontal: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Horizontal distribution bars at each face (BNBC 2020 Part 6 Sec 6.6.3.3).',
+					title: 'Horizontal (each face)',
+				},
+				heelTop: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Main bars at the top of the heel.',
+					title: 'Heel, top',
+				},
+				toeBottom: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Main bars at the bottom of the toe.',
+					title: 'Toe, bottom',
+				},
+				baseDistribution: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distribution bars of the base along the wall, each face.',
+					title: 'Base, along the wall',
+				},
+			},
+			required: ['material'],
+			title: 'RetainingWallBars',
 			type: 'object',
 		},
 		SpliceZone: {
@@ -13811,6 +15272,27 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Tie beams',
 			type: 'array',
 		},
+		groundSlabs: {
+			description: 'Ground-bearing slabs on the compacted ground.',
+			items: {
+				$ref: '#/$defs/GroundSlab',
+			},
+			title: 'Slabs on grade',
+			type: 'array',
+		},
+		retainingWalls: {
+			description: 'Cantilever retaining walls and basement walls, designed per metre run.',
+			items: {
+				$ref: '#/$defs/RetainingWall',
+			},
+			title: 'Retaining walls',
+			type: 'array',
+		},
+		earthPressure: {
+			$ref: '#/$defs/EarthPressure',
+			description: 'The earth and water pressure on the building\'s basement walls (case H).',
+			title: 'Earth pressure',
+		},
 		design: {
 			$ref: '#/$defs/Design',
 		},
@@ -13825,6 +15307,13 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	pileTypes: [],
 	piles: [],
 	tieBeams: [],
+	groundSlabs: [],
+	retainingWalls: [],
+	earthPressure: {
+		basementWalls: true,
+		surcharge: 10.0,
+		k0Cohesive: 0.6,
+	},
 	design: {
 		pileCapacity: 'soilReport',
 		factorOfSafety: {
@@ -13836,6 +15325,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		},
 		raftMeshSize: 500.0,
 		springsFrom: 'soilReport',
+		raftSprings: 'noTension',
 	},
 };
 
@@ -19102,8 +20592,8 @@ export const REPORT_TEMPLATE_SCHEMA: IJSONSchema = {
 			additionalProperties: false,
 			properties: {
 				id: {
-					enum: ['basis', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
-					enumDescriptions: ['Design basis', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
+					enum: ['basis', 'planning', 'soil', 'foundations', 'model', 'results', 'design', 'seismic', 'worksheets', 'mep', 'plumbing', 'hvac', 'electrical', 'fire', 'boq', 'limitations', 'appendix'],
+					enumDescriptions: ['Design basis', 'Planning compliance', 'Soil and foundations', 'Foundations', 'Analysis model', 'Analysis results', 'Member design', 'Seismic detailing', 'Calculation worksheets', 'MEP coordination', 'Plumbing', 'HVAC coordination', 'Electrical coordination', 'Fire protection', 'Bill of quantities', 'Limitations and notes', 'Appendix: element checks'],
 					title: 'Section',
 					type: 'string',
 				},
@@ -19225,6 +20715,11 @@ export const DEFAULT_REPORT_TEMPLATE: object = {
 	sections: [
 		{
 			id: 'basis',
+			include: true,
+			detail: 'inherit',
+		},
+		{
+			id: 'planning',
 			include: true,
 			detail: 'inherit',
 		},

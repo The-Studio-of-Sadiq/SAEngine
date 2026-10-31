@@ -223,6 +223,7 @@ def check_library(kind: str, text: str, materials_text: str | None = None) -> di
         "structure",
         "bim",
         "reportTemplate",
+        "worksheet",
     ):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
@@ -315,8 +316,14 @@ def building_ifc(
     settings_text: str | None = None,
     mep_text: str | None = None,
     architecture_text: str | None = None,
+    rebar_root: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
+
+    With ``rebar_root`` (the project's folder) the reinforcement cages of its beams and columns
+    are in the model too, as IfcReinforcingBar keyed ``rebar:<member>/<n>``
+    (``saengine.pipeline.drawings.rebar_cages``: the detailing of the drawings, from the files
+    on disk and the last analysis run's kept design).
 
     With ``mep_text`` (``07 MEP/mep.json``) its equipment, plinths, sleeves, openings and shafts
     are in the model too; with ``architecture_text`` (``05 Floor Plan/architecture.json``) its
@@ -370,6 +377,15 @@ def building_ifc(
         architecture = parse_architecture(architecture_text)
     except ValueError as exc:
         return {"problems": [f"Architecture: {_first_line(exc)}"]}
+    rebar = None
+    rebar_notes: list[str] = []
+    if rebar_root:
+        from saengine.pipeline.drawings import DrawingsError, rebar_cages
+
+        try:
+            rebar = rebar_cages(rebar_root, check=False)
+        except (DrawingsError, ValueError, OSError) as exc:
+            rebar_notes.append(f"Reinforcement: {_first_line(exc)}")
     ifc, ids, skipped = export_ifc(
         building,
         objects,
@@ -379,7 +395,9 @@ def building_ifc(
         ground,
         mep if has_mep else None,
         architecture if architecture.instances() else None,
+        rebar,
     )
+    skipped = [*skipped, *rebar_notes]
     hosts = {w.id: w.base for w in architecture.walls}
     stories = {
         **{f"arch:{w.id}": w.base for w in architecture.walls},
@@ -559,7 +577,8 @@ def derive_fem(
     ``{"problems"}`` when an input has errors.
 
     ``mep_text`` (``07 MEP/mep.json``) and ``substructure_text`` (``09 Substructure/
-    substructure.json``, read only for soil springs) are read beside ``model_folder`` when not
+    substructure.json``: for soil springs, and for the earth pressure H on basement walls) are
+    read beside ``model_folder`` when not
     given. The MEP file's stamp (of what the model takes from it, ``derive.mep_stamp``) is recorded
     (key ``mep``) once it is more than the placeholder,
     the substructure's (key ``substructure``) when the supports are soil springs.
@@ -586,7 +605,7 @@ def derive_fem(
     from pydantic import ValidationError
 
     from saengine.fem.derive import derive_fem as derive
-    from saengine.fem.derive import mep_stamp, settings_stamp, stamp
+    from saengine.fem.derive import mep_stamp, model_text, objects_stamp, settings_stamp, stamp
     from saengine.library.bim import BuildingModel
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -612,6 +631,8 @@ def derive_fem(
     # The settings without the project's details and title block (X28): typing a name there
     # leaves the model current.
     stamps["settings"] = settings_stamp(settings_text)
+    # Nor the bars (N-X9): a bar-only Apply leaves the analysis current.
+    stamps["objects"] = objects_stamp(objects_text)
     if soil_text is None and model_folder:
         soil_text = read_soil_text(Path(model_folder).parent)
     settings, site = resolve_site_class(parsed["settings"], soil_text)
@@ -654,14 +675,21 @@ def derive_fem(
         return {"problems": [f"Architecture: {_first_line(exc)}"]}
     if has_loads(architecture):
         stamps["architecture"] = stamp(architecture_text or "")
-    substructure = None
-    if settings.analysis.supports == "soilSprings":
-        if substructure_text is None and root is not None:
-            substructure_text = _read(root / substructure_library.SUBSTRUCTURE_FILE)
-        try:
-            substructure = substructure_library.parse(substructure_text)
-        except ValueError as exc:
+    # The substructure: the foundations of the soil springs, and the earth pressure options and
+    # retaining walls of the basement walls' case H (saengine.substructure.basement_loads).
+    from saengine.substructure.basement_loads import has_earth_pressure
+
+    springs = settings.analysis.supports == "soilSprings"
+    if substructure_text is None and root is not None:
+        substructure_text = _read(root / substructure_library.SUBSTRUCTURE_FILE)
+    try:
+        substructure = substructure_library.parse(substructure_text)
+    except ValueError as exc:
+        if springs:
             return {"problems": [f"Substructure: {_first_line(exc)}"]}
+        substructure = None
+    earth = has_earth_pressure(parsed["bim"], parsed["objects"], substructure)
+    if springs or earth:
         stamps["substructure"] = stamp(substructure_text or "")
         if soil_text is not None:
             stamps["soil"] = stamp(soil_text)
@@ -684,14 +712,12 @@ def derive_fem(
         # The derivation's notes and code values for the report (it need not derive again).
         keep_derivation(model_folder, derivation)
     result = {
-        "text": json.dumps(derivation.project, indent="\t", ensure_ascii=False) + "\n",
+        "text": model_text(derivation.project),
         "notes": site_notes + list(derivation.notes),
         "summary": derivation.summary,
     }
     if derivation.pushover is not None:
-        result["pushoverText"] = (
-            json.dumps(derivation.pushover, indent="\t", ensure_ascii=False) + "\n"
-        )
+        result["pushoverText"] = model_text(derivation.pushover)
     if derivation.thermal is not None:
         result["thermalText"] = json.dumps(derivation.thermal)
     if derivation.ssi is not None:
@@ -1008,6 +1034,38 @@ def compute_boq(
         project_root,
         architecture_text,
     )
+
+
+def cost_boq(
+    boq_text: str, rates_text: str | None = None, carbon_text: str | None = None
+) -> dict[str, Any]:
+    """The bill priced by the schedule of rates, with its embodied carbon
+    (``saengine.boq.costing``): ``{"costing", "sampleRates"}`` or ``{"problems"}``."""
+    from saengine.boq.costing import cost_texts
+
+    return cost_texts(boq_text, rates_text, carbon_text)
+
+
+def boq_templates() -> dict[str, str]:
+    """The texts a project's ``10 BOQ/rates.json`` and ``carbon-factors.json`` start from: the
+    sample schedule (made-up rates) and the carbon factors shipped."""
+    from saengine.boq.costing import default_carbon_text, sample_rates_text
+
+    return {"rates": sample_rates_text(), "carbon": default_carbon_text()}
+
+
+def export_boq_xlsx(
+    path: str,
+    boq_text: str,
+    rates_text: str | None = None,
+    carbon_text: str | None = None,
+    title: str = "",
+) -> dict[str, Any]:
+    """The bill, its costing and embodied carbon written to an Excel workbook
+    (``saengine.boq.workbook``)."""
+    from saengine.boq.workbook import write_boq_xlsx_texts
+
+    return write_boq_xlsx_texts(path, boq_text, rates_text, carbon_text, title)
 
 
 def build_report(
@@ -2077,6 +2135,41 @@ def drawings_list(project_root: str) -> dict[str, Any]:
     return list_drawings(project_root)
 
 
+def drawings_issue(project_root: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Issues the drawing set (``saengine.pipeline.drawings.issue``): every sheet drawn again,
+    the new or changed ones with the new revision, copied into ``Issued/<rev> <date>``; the
+    answer of ``drawings_generate`` with ``issued``, or ``{sheets: [], problems}``."""
+    from saengine.pipeline.drawings import DrawingsError, issue
+
+    try:
+        return issue(
+            project_root,
+            args.get("code") or None,
+            args.get("date") or None,
+            str(args.get("description") or ""),
+            str(args.get("by") or ""),
+            str(args.get("purpose") or ""),
+            args.get("sheets") or None,
+            force=bool(args.get("force")),
+            dwg=bool(args.get("dwg")),
+        )
+    except DrawingsError as error:
+        return {"sheets": [], "notes": [], "problems": [str(error)]}
+    except (ValueError, OSError) as error:
+        return {"sheets": [], "notes": [], "problems": [_first_line(error)]}
+
+
+def drawings_dwg(project_root: str, sheets: list[str] | None = None) -> dict[str, Any]:
+    """The current sheets as DWG (LibreDWG's dxf2dwg, a separate program):
+    ``{written, folder, problems}``."""
+    from saengine.pipeline.drawings import export_dwg
+
+    try:
+        return export_dwg(project_root, sheets or None)
+    except OSError as error:
+        return {"written": [], "folder": None, "problems": [_first_line(error)]}
+
+
 def drawings_progress(project_root: str) -> dict[str, Any]:
     """Where a generation of the project is (``{running: false}`` when none runs)."""
     from saengine.pipeline.drawings import progress
@@ -2237,3 +2330,39 @@ def codes_trust(pack_id: str, trusted: bool, root: str | None = None) -> dict[st
         return _pack_info(registry.set_trusted(pack_id, bool(trusted), base), base)
     except CodePackError as error:
         return _refusal(error)
+
+
+def worksheet_kinds() -> dict[str, Any]:
+    """The calculation worksheet kinds and their inputs (``saengine.report.worksheets``)."""
+    from saengine.report.worksheets import kinds
+
+    return {"kinds": kinds()}
+
+
+def worksheet_calculate(
+    kind: str, inputs: dict[str, Any], project_root: str | None = None
+) -> dict[str, Any]:
+    """The calculation of a worksheet ``kind`` for ``inputs``, with the project's code pack."""
+    from saengine.report.worksheets import calculate, project_pack
+
+    with project_pack(project_root) as problems:
+        result = calculate(kind, inputs)
+    if problems:
+        result.setdefault("notes", []).extend(problems)
+    return result
+
+
+def worksheet_list(project_root: str) -> dict[str, Any]:
+    """The project's worksheets with their result (``{worksheets, problems}``)."""
+    from saengine.report.worksheets import list_worksheets
+
+    return list_worksheets(project_root)
+
+
+def worksheet_create(
+    project_root: str, kind: str, worksheet_id: str, title: str | None = None
+) -> dict[str, Any]:
+    """Writes a new worksheet of ``kind`` into the project: ``{path}`` or ``{problems}``."""
+    from saengine.report.worksheets import create_worksheet
+
+    return create_worksheet(project_root, kind, worksheet_id, title)

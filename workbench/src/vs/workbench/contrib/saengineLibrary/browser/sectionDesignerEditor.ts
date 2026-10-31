@@ -7,6 +7,7 @@ import './media/modelEditors.css';
 import './media/sectionDesigner.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -24,6 +25,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -35,7 +37,7 @@ import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
 import {
-	barArea, barsAlongEdges, barsLine, barsRing, bounds, cleanProperties, formatNumber, hitTest, IBar, IDesignedSection, interactionCurve, ISectionAnalysis, ITemplateParams, IUniaxial,
+	barArea, barsAlongEdges, barsLine, barsRing, bilinearPoints, bounds, CompressionSide, cleanProperties, contourPoints, curvaturePoints, formatNumber, hitTest, IBar, ICapacityStudy, IContour, IDesignedSection, IMomentCurvature, IMomentCurvaturePoint, interactionCurve, ISectionAnalysis, ITemplateParams, IUniaxial, KAPPA_SCALE, sideAngle,
 	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, sameRegions, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateBars, templateFields, TemplateKind, templateLabel, templateProblem, templateRegions,
 } from './sectionDesignerModel.js';
 
@@ -90,6 +92,15 @@ const templates = new Map<string, ITemplateState>();
 const analyses = new Map<string, ISectionAnalysis>();
 const ANALYSIS_CACHE_SIZE = 24;
 
+/** Results of the capacity studies, for the section text they were computed on. */
+interface IStudyResult {
+	readonly text: string;
+	curve?: IMomentCurvature;
+	curveNote?: string;
+	contour?: IContour;
+	failure?: string;
+}
+
 /** Above this axial load [kN] the chart is drawn in MN, so the tick labels stay short. */
 const MN_FROM = 1000;
 
@@ -119,6 +130,11 @@ export class SectionDesignerEditor extends EditorPane {
 	private chartAxis: 'x' | 'y' = 'x';
 	/** The large interaction diagram over the drawing, while it is shown. */
 	private chartOverlay: HTMLElement | undefined;
+	/** The capacity studies' inputs (moment-curvature and the M-M contour). */
+	private readonly study: { -readonly [K in keyof ICapacityStudy]: ICapacityStudy[K] } = { axial: 0, side: 'top', tension: true, steelLimit: 0.05 };
+	/** The studies' results, for the section text they were computed on. */
+	private studyResult: IStudyResult | undefined;
+	private studying: 'curve' | 'contour' | undefined;
 	private materials: IMaterialChoice[] = [];
 	/** The project's concrete and rebar (03 Materials `defaults`, else the first of each). */
 	private projectMaterials: { concrete?: string; rebar?: string } = {};
@@ -163,7 +179,7 @@ export class SectionDesignerEditor extends EditorPane {
 		}));
 		frame.element.classList.add('saengine-section-designer');
 		frame.setTitle(localize('section.title', "Section Designer"));
-		frame.setHelp(localize('section.help', "Draw an arbitrary cross-section: regions of concrete or steel plates with openings, and reinforcing bars. Points snap to the grid. Keys: V select, R rectangle, P polygon (Enter closes, Backspace removes the last point), H opening, B bar, L line of bars, O ring of bars, arrows move the selection, Delete removes it, Escape cancels. Properties come from sectionproperties, the interaction diagrams from concreteproperties with the strength reduction factors of the project's code pack. Object types use the section through the profile \"Designed section\"."));
+		frame.setHelp(localize('section.help', "Draw an arbitrary cross-section: regions of concrete or steel plates with openings, and reinforcing bars. Points snap to the grid. Keys: V select, R rectangle, P polygon (Enter closes, Backspace removes the last point), H opening, B bar, L line of bars, O ring of bars, arrows move the selection, Delete removes it, Escape cancels. Properties come from sectionproperties, the interaction diagrams from concreteproperties with the strength reduction factors of the project's code pack (steel sections without concrete: the plastic yield surface). Capacity studies give the moment-curvature curve and the Mx-My contour at an axial force by fibre integration. Object types use the section through the profile \"Designed section\"."));
 
 		const tools = append(frame.controlsSlot, $('.sa-segmented', { role: 'toolbar', 'aria-label': localize('section.toolsAria', "Drawing tools") }));
 		for (const spec of TOOLS) {
@@ -727,6 +743,175 @@ export class SectionDesignerEditor extends EditorPane {
 			appendPropertyHeading(panel, localize('section.heading.capacity', "Interaction diagram"));
 			appendPropertyNote(panel, localize('section.noCapacity', "No RC capacity: {0}", analysis.capacityNote));
 		}
+		if (analysis?.properties && !analysis.problems.length) {
+			this.renderStudies(panel, analysis);
+		}
+	}
+
+	// ───────────────────────────── capacity studies ─────────────────────────────
+
+	/** Moment-curvature and the M-M contour at an axial force, computed on request. */
+	private renderStudies(panel: HTMLElement, analysis: ISectionAnalysis): void {
+		const text = this.model?.getValue();
+		const result = this.studyResult?.text === text ? this.studyResult : undefined;
+		appendPropertyHeading(panel, localize('section.heading.studies', "Capacity studies"));
+		const form = append(panel, $('.section-form'));
+		this.numberField(form, localize('section.studyAxial', "Axial force P [kN]"), this.study.axial, value => { this.study.axial = value; });
+		const sides: [CompressionSide, string][] = [
+			['top', localize('section.sideTop', "Top (+Mx)")],
+			['bottom', localize('section.sideBottom', "Bottom (−Mx)")],
+			['left', localize('section.sideLeft', "Left (−My)")],
+			['right', localize('section.sideRight', "Right (+My)")],
+		];
+		this.selectField(form, localize('section.studySide', "Compression side"), this.study.side, sides, value => { this.study.side = value as CompressionSide; });
+		this.selectField(form, localize('section.studyTension', "Concrete tension"), this.study.tension ? 'yes' : 'no', [['yes', localize('section.tensionYes', "Up to fr, then cracked")], ['no', localize('section.tensionNo', "None")]], value => { this.study.tension = value === 'yes'; });
+		this.numberField(form, localize('section.studySteelLimit', "Steel limit strain"), this.study.steelLimit, value => {
+			if (value > 0) {
+				this.study.steelLimit = value;
+			}
+		});
+		appendPropertyNote(panel, localize('section.studyNote', "P is compression positive. The moment-curvature curve uses the Hognestad curve for concrete (0.85 f'c, ending at εcu = 0.003) and elastic-perfectly plastic steel; the M-M contour is at the axial force entered, factored for RC sections."));
+		const actions = append(panel, $('.section-study-actions'));
+		const curveButton = this.panelDisposables.add(new Button(actions, { ...defaultButtonStyles, title: localize('section.curveTitle', "Compute the moment-curvature curve at P") }));
+		curveButton.label = this.studying === 'curve' ? localize('section.computing', "Computing…") : localize('section.computeCurve', "Moment-Curvature");
+		curveButton.enabled = !this.studying;
+		this.panelDisposables.add(curveButton.onDidClick(() => this.runStudy('curve')));
+		const contourButton = this.panelDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: localize('section.contourTitle', "Compute the Mx-My interaction contour at P") }));
+		contourButton.label = this.studying === 'contour' ? localize('section.computing', "Computing…") : localize('section.computeContour', "M-M Contour");
+		contourButton.enabled = !this.studying && !!analysis.uniaxial;
+		this.panelDisposables.add(contourButton.onDidClick(() => this.runStudy('contour')));
+
+		if (result?.failure) {
+			appendPropertyNote(panel, localize('section.studyFailed', "The study could not be computed: {0}", result.failure));
+		}
+		if (result?.curveNote) {
+			appendPropertyNote(panel, localize('section.curveNote', "No moment-curvature curve: {0}", result.curveNote));
+		}
+		if (result?.curve) {
+			this.renderCurve(panel, result.curve, analysis);
+		}
+		if (result?.contour) {
+			this.renderContour(panel, result.contour, analysis);
+		}
+	}
+
+	private async runStudy(kind: 'curve' | 'contour'): Promise<void> {
+		const text = this.model?.getValue();
+		if (!text || this.studying) {
+			return;
+		}
+		this.studying = kind;
+		this.renderPanel();
+		const next: IStudyResult = { ...(this.studyResult?.text === text ? this.studyResult : { text }), failure: undefined };
+		try {
+			const axial = this.study.axial * 1e3;
+			const options = kind === 'curve'
+				? { capacity: false, momentCurvature: { axial, theta: sideAngle(this.study.side), tension: this.study.tension, steelLimit: this.study.steelLimit } }
+				: { capacity: false, contourAt: axial };
+			const answer = await this.commandService.executeCommand<ISectionAnalysis>(SECTION_ANALYSE_COMMAND, text, options);
+			if (kind === 'curve') {
+				next.curve = answer?.momentCurvature;
+				next.curveNote = answer?.momentCurvatureNote;
+			} else {
+				next.contour = answer?.contour;
+			}
+		} catch (error) {
+			next.failure = (error instanceof Error ? error.message : String(error)).split(/\r?\n/)[0].trim().slice(0, 300);
+		}
+		this.studying = undefined;
+		this.studyResult = next;
+		this.renderPanel();
+	}
+
+	private renderCurve(panel: HTMLElement, curve: IMomentCurvature, analysis: ISectionAnalysis): void {
+		appendPropertyHeading(panel, localize('section.heading.curve', "Moment-curvature"), localize('section.curveAt', "P = {0} kN", formatNumber(curve.axial / 1e3)));
+		const marks: { x: number; y: number; text: string; color: 'red' | 'orange' | 'green' }[] = [];
+		const mark = (point: IMomentCurvaturePoint | null, text: string, color: 'red' | 'orange' | 'green') => {
+			if (point) {
+				marks.push({ x: point.kappa * KAPPA_SCALE, y: point.M / 1e6, text, color });
+			}
+		};
+		mark(curve.cracking, localize('section.markCrack', "cracking"), 'orange');
+		mark(curve.yield, localize('section.markYield', "first yield"), 'green');
+		mark(curve.ultimate, localize('section.markUltimate', "ultimate"), 'red');
+		const series: { name: string; color: 'blue' | 'foreground'; style?: 'dashed'; points: number[][] }[] = [
+			{ name: localize('section.curveSeries', "M-κ"), color: 'blue', points: curvaturePoints(curve) },
+		];
+		const bilinear = bilinearPoints(curve);
+		if (bilinear.length) {
+			series.push({ name: localize('section.bilinearSeries', "Bilinear (equal energy)"), color: 'foreground', style: 'dashed', points: bilinear });
+		}
+		renderChart(append(panel, $('.section-chart')), {
+			title: localize('section.curveChartTitle', "Moment-curvature"),
+			xLabel: 'κ [rad/km]',
+			yLabel: 'M [kN·m]',
+			xFormat: formatNumber,
+			yFormat: formatNumber,
+			series,
+			marks,
+			caption: localize('section.curveCaption', "Moment-curvature at P = {0} kN: Mu = {1} kN·m at κu = {2} rad/km", formatNumber(curve.axial / 1e3), formatNumber(curve.ultimate.M / 1e6), formatNumber(curve.ultimate.kappa * KAPPA_SCALE)),
+			height: 240,
+		});
+		const p = analysis.properties;
+		const gross = p ? p.E * (this.study.side === 'top' || this.study.side === 'bottom' ? p.ixx : p.iyy) : undefined;
+		const ends: Record<IMomentCurvature['end'], string> = {
+			concrete: localize('section.endConcrete', "the concrete strain εcu = 0.003"),
+			steel: localize('section.endSteel', "the steel limit strain"),
+			axial: localize('section.endAxial', "the section no longer carrying P"),
+			limit: localize('section.endLimit', "the last curvature step"),
+		};
+		const rows: [string, string, string][] = [];
+		const point = (label: string, q: IMomentCurvaturePoint | null) => {
+			if (q) {
+				rows.push([label, `${formatNumber(q.M / 1e6)} kN·m`, `${formatNumber(q.kappa * KAPPA_SCALE)} rad/km`]);
+			}
+		};
+		point(localize('section.rowCrack', "Cracking"), curve.cracking);
+		point(localize('section.rowYield', "First yield"), curve.yield);
+		point(localize('section.rowPeak', "Peak"), curve.peak);
+		point(localize('section.rowUltimate', "Ultimate"), curve.ultimate);
+		if (curve.bilinear) {
+			rows.push([localize('section.rowBilinear', "Bilinear Mn, κ'y"), `${formatNumber(curve.bilinear.Mn / 1e6)} kN·m`, `${formatNumber(curve.bilinear.kappaY * KAPPA_SCALE)} rad/km`]);
+		}
+		if (curve.ductility !== null) {
+			rows.push([localize('section.rowDuctility', "Curvature ductility μκ"), formatNumber(curve.ductility), '']);
+		}
+		if (curve.EIeff !== null) {
+			rows.push([localize('section.rowEI', "EIeff = My / κy"), `${formatNumber(curve.EIeff / 1e9)} kN·m²`, gross ? localize('section.rowEIRatio', "{0} × EIg", formatNumber(curve.EIeff / gross)) : '']);
+		}
+		const table = append(panel, $('table.section-properties', { 'aria-label': localize('section.curveTableAria', "Key points of the moment-curvature curve") }));
+		for (const [label, value, extra] of rows) {
+			const tr = append(table, $('tr'));
+			append(tr, $('th', { scope: 'row' }, label));
+			append(tr, $('td.value', undefined, value));
+			append(tr, $('td.unit', undefined, extra));
+		}
+		appendPropertyNote(panel, localize('section.curveEnd', "Ended by {0}. EIg is of the gross section (E of {1}).", ends[curve.end], p?.referenceMaterial ?? ''));
+	}
+
+	private renderContour(panel: HTMLElement, contour: IContour, analysis: ISectionAnalysis): void {
+		appendPropertyHeading(panel, localize('section.heading.contour', "M-M interaction"), localize('section.curveAt', "P = {0} kN", formatNumber(contour.axial / 1e3)));
+		if (!contour.points.length) {
+			appendPropertyNote(panel, localize('section.contourNone', "No contour: {0}.", contour.note ?? ''));
+			return;
+		}
+		renderChart(append(panel, $('.section-chart')), {
+			title: localize('section.contourChartTitle', "Mx-My at P = {0} kN", formatNumber(contour.axial / 1e3)),
+			xLabel: 'Mx [kN·m]',
+			yLabel: 'My [kN·m]',
+			xFormat: formatNumber,
+			yFormat: formatNumber,
+			equalAxes: true,
+			series: [
+				{ name: localize('section.nominal', "Nominal Pn, Mn"), color: 'foreground', style: 'dashed', points: contourPoints(contour, false) },
+				{ name: localize('section.design', "Design φPn, φMn"), color: 'blue', points: contourPoints(contour, true) },
+			],
+			caption: localize('section.contourCaption', "Mx-My interaction contour at P = {0} kN", formatNumber(contour.axial / 1e3)),
+			height: 260,
+		});
+		appendPropertyNote(panel, analysis.capacityKind === 'plastic'
+			? localize('section.contourPlastic', "Cross-section yield surface of the steel (fy on both sides of the plastic neutral axis), φ from the code pack's steel factors. Member and local buckling are not included.")
+			: localize('section.contourRc', "P is the factored axial force φPn; the nominal contour is at the same neutral axes. φ from the code pack."));
 	}
 
 	/** The template this section still is (its regions unchanged since), if any. */
@@ -815,7 +1000,9 @@ export class SectionDesignerEditor extends EditorPane {
 		}
 		const diagram: IUniaxial = analysis.uniaxial![this.chartAxis];
 		this.drawChart(append(panel, $('.section-chart')), diagram, 260);
-		if (analysis.phi) {
+		if (analysis.phi && analysis.capacityKind === 'plastic') {
+			appendPropertyNote(panel, localize('section.phiPlasticNote', "Cross-section yield surface of the steel (no concrete): Py = {0} kN; φ from the code pack's steel factors ({1} compression, {2} tension, {3} flexure). Member and local buckling are not included.", formatNumber(diagram.p0 / 1e3), analysis.phi.compression, analysis.phi.tension, analysis.phi.flexure ?? '—'));
+		} else if (analysis.phi) {
 			appendPropertyNote(panel, localize('section.phiNote', "φ from the code pack: {0} tension-controlled, {1} compression-controlled; φPn,max = {2} kN, P0 = {3} kN.", analysis.phi.tension, analysis.phi.compression, formatNumber(diagram.phiPnMax / 1e3), formatNumber(diagram.p0 / 1e3)));
 		}
 	}

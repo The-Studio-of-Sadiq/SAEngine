@@ -134,14 +134,24 @@ CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind
 });
 
 /**
- * Properties and interaction diagrams of a designed section (the Section Designer's text) with
- * the Python models; the project's materials and code pack apply. Internal: the Section
+ * Properties, interaction diagrams, moment-curvature and M-M contour of a designed section (the
+ * Section Designer's text) with the Python models; the project's materials and code pack apply. Internal: the Section
  * Designer calls it by id.
  */
-CommandsRegistry.registerCommand('saengine.section.analyse', async (accessor, text: string, options?: { capacity?: boolean; surface?: boolean }) => {
+CommandsRegistry.registerCommand('saengine.section.analyse', async (accessor, text: string, options?: {
+	capacity?: boolean;
+	surface?: boolean;
+	/** Moment-curvature: axial force [N, compression positive], neutral-axis angle [rad]. */
+	momentCurvature?: { axial: number; theta: number; tension?: boolean; steelLimit?: number };
+	/** Axial force [N] of the M-M contour. */
+	contourAt?: number;
+}) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const projectRoot = accessor.get(ISaengineProjectService).project?.root.fsPath;
-	return accessor.get(IFemSolverService).engine(python, 'section/analyse', { text, projectRoot, capacity: options?.capacity ?? true, surface: options?.surface ?? false });
+	return accessor.get(IFemSolverService).engine(python, 'section/analyse', {
+		text, projectRoot, capacity: options?.capacity ?? true, surface: options?.surface ?? false,
+		momentCurvature: options?.momentCurvature, contourAt: options?.contourAt,
+	});
 });
 
 /**
@@ -307,6 +317,26 @@ CommandsRegistry.registerCommand('saengine.boq.compute', async (accessor, args: 
 });
 
 /**
+ * The bill priced by the schedule of rates with its embodied carbon (`boq/cost`), the texts the
+ * project's rates and carbon factors start from (`boq/templates`), and the bill written to an
+ * Excel workbook (`boq/exportXlsx`). Internal: the BOQ editor and its export command call them by id.
+ */
+CommandsRegistry.registerCommand('saengine.boq.cost', async (accessor, args: { boqText: string; ratesText?: string; carbonText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/cost', args);
+});
+
+CommandsRegistry.registerCommand('saengine.boq.templates', async accessor => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/templates', {});
+});
+
+CommandsRegistry.registerCommand('saengine.boq.writeXlsx', async (accessor, target: URI, args: { boqText: string; ratesText?: string; carbonText?: string; title?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'boq/exportXlsx', { ...args, path: target.fsPath });
+});
+
+/**
  * The soil report's results (`saengine.soil.soil_report`, returned as it is: the editor reads
  * it). Internal: the Soil Report editor calls it by id.
  */
@@ -368,6 +398,16 @@ CommandsRegistry.registerCommand('saengine.report.templates', async (accessor, a
 CommandsRegistry.registerCommand('saengine.report.createTemplate', async (accessor, args: { projectRoot: string; id: string; base?: string; name?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).createReportTemplate(python, args.projectRoot, args.id, args.base, args.name);
+});
+
+/**
+ * The calculation worksheets (`saengine.report.worksheets`): `{method, params}` with method one
+ * of `worksheets/kinds`, `worksheets/calculate`, `worksheets/list`, `worksheets/create`.
+ * Internal: the worksheet editor and commands call it by id.
+ */
+CommandsRegistry.registerCommand('saengine.worksheets.request', async (accessor, method: 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create', params: object) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, method, params ?? {});
 });
 
 /** What the Substructure editor asks the backend: the project folder (its saved files are read), and the columns to size. */
@@ -850,4 +890,43 @@ CommandsRegistry.registerCommand('saengine.library.generateBuilding', async (acc
 CommandsRegistry.registerCommand('saengine.drawings.list', async (accessor, args: { readonly projectRoot: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'drawings/list', { projectRoot: args.projectRoot });
+});
+
+/**
+ * Issuing the drawing set (`drawings/issue`, saengine.pipeline.drawings.issue): every sheet drawn
+ * again, those new or changed since their last issue with the new revision in their title block,
+ * copied into `11 Exports/Drawings/Issued/<rev> <date>` with the drawing register. Minutes for a
+ * large set, so the window's progress follows `drawings/progress` as for generate. The Exports
+ * page calls it by id (drawingsModel.ts).
+ */
+CommandsRegistry.registerCommand('saengine.drawings.issue', async (accessor, args: { readonly projectRoot: string;[key: string]: unknown }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.issuing', "Issuing drawings") }, async progress => {
+		const poll = new IntervalTimer();
+		poll.cancelAndSet(() => {
+			solver.engine(python, 'drawings/progress', { projectRoot: args.projectRoot }).then(raw => {
+				const state = raw as IDrawingsProgress | undefined;
+				if (state?.running && state.message && state.index && state.count) {
+					progress.report({ message: localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count) });
+				}
+			}, () => { /* the issue's own answer reports failures */ });
+		}, 700);
+		try {
+			return await solver.engine(python, 'drawings/issue', { ...args });
+		} finally {
+			poll.dispose();
+		}
+	});
+});
+
+/**
+ * The current sheets as DWG (`drawings/dwg`): LibreDWG's dxf2dwg, a separate GPL program of the
+ * setup's DWG component, run by the backend as its own process (never linked).
+ */
+CommandsRegistry.registerCommand('saengine.drawings.dwg', async (accessor, args: { readonly projectRoot: string; readonly sheets?: readonly string[] }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.writingDwg', "Writing DWG drawings") }, () =>
+		solver.engine(python, 'drawings/dwg', { projectRoot: args.projectRoot, ...(args.sheets?.length ? { sheets: args.sheets } : {}) }));
 });

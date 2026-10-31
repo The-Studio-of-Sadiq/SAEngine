@@ -42,6 +42,9 @@ REACTIONS = ("reactions", "Support reactions")
 MEMBER_FORCES = ("members", "Member forces")
 SHELL_FORCES = ("shells", "Wall and slab forces")
 ENVELOPE = ("envelope", "Member forces, envelope")
+#: Linear buckling under a combination's axial forces (saengine.fem.buckling).
+BUCKLING = ("buckling", "Buckling factors")
+EFFECTIVE_LENGTHS = ("effectiveLengths", "Effective length factors (buckling)")
 
 _KN = 1e-3
 _MM = 1e3
@@ -193,7 +196,16 @@ def table_index(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
                 ),
                 "tables": []
                 if missing
-                else [{"id": i, "title": t} for i, t in (DISPLACEMENTS, REACTIONS, MEMBER_FORCES)],
+                else [
+                    {"id": i, "title": t}
+                    for i, t in (
+                        DISPLACEMENTS,
+                        REACTIONS,
+                        MEMBER_FORCES,
+                        BUCKLING,
+                        EFFECTIVE_LENGTHS,
+                    )
+                ],
             }
         )
     seismic = _seismic(out_dir, settings)
@@ -521,7 +533,107 @@ def result_table(
             _member_rows(model, ends),
             [_MEMBER_NOTE],
         )
+    if table in (BUCKLING[0], EFFECTIVE_LENGTHS[0]):
+        return _buckling_table(project_path, key, label, parts, model, table)
     raise ValueError(f"{label} has no table {table}")
+
+
+# ─────────────────────────────────────── buckling ───────────────────────────────────────
+
+_buckling_cache: dict[tuple[str, Any, str], Any] = {}
+
+_BUCKLING_NOTE = (
+    "Linear (eigen) buckling of the frame under the axial forces of this combination: λ is the "
+    "factor on its loads at which the frame buckles (below 1: unstable under them). Frames, "
+    "trusses, pinned-end links, supports and diaphragms are in the buckling model; walls, slabs "
+    "(other than through the rigid diaphragms) and solids are not, so a building held by walls "
+    "gets lower, conservative, factors. Second-order design still follows BNBC 2020 Part 6 Sec "
+    "6.3.10 and Chapter 10."
+)
+_EFFECTIVE_NOTE = (
+    "K = (π / L) √(E I / Pcr) with Pcr = λ1 |P|, the member's largest compression P at the "
+    "first critical factor λ1, about the section's strong and weak axes (BNBC 2020 Part 6 Sec "
+    "10.5, KL/r; the frame-buckling K of AISC 360-05, which BNBC 2020 Part 6 Chapter 10 "
+    "adopts). Meaningful for the members that take part in mode 1; above 10 it is not shown. "
+    "The design checks keep their own effective lengths."
+)
+
+
+def _buckling(project_path: str | Path, key: str, parts: list[Any], model: _Model) -> Any:
+    """The buckling result of a combination, computed once while the model stays the same."""
+    from saengine.fem.buckling import linear_buckling
+    from saengine.fem.thermal import load_corrections
+
+    path = Path(project_path).resolve()
+    cache_key = (str(path), path.stat().st_mtime, key)
+    found = _buckling_cache.get(cache_key)
+    if found is None:
+        ids = [e.id for _, chain, _ in model.members for e, _ in chain]
+        ends = _summed(parts, "element_forces", ids, 12, load_corrections(project_path))
+        # Axial force, tension positive: the mean of the two ends (fem.display convention).
+        axial = {i: float((-end[0] + end[6]) / 2) for i, end in ends.items()}
+        _buckling_cache.clear()  # one at a time: it holds mode shapes
+        found = _buckling_cache[cache_key] = linear_buckling(model.project, axial)
+    return found
+
+
+def _buckling_table(
+    project_path: str | Path,
+    key: str,
+    label: str,
+    parts: list[Any],
+    model: _Model,
+    table: str,
+) -> dict[str, Any]:
+    from saengine.fem.buckling import BucklingError, member_effective_lengths, mode_shares
+
+    try:
+        result = _buckling(project_path, key, parts, model)
+    except BucklingError as error:
+        title = BUCKLING[1] if table == BUCKLING[0] else EFFECTIVE_LENGTHS[1]
+        return _table(title, f"{title}: {label}", ["Note"], [[str(error)]], [_BUCKLING_NOTE])
+    skipped = ", ".join(f"{n} {kind}" for kind, n in sorted(result.skipped.items()))
+    notes = [_BUCKLING_NOTE] + ([f"Not in the buckling model: {skipped}."] if skipped else [])
+    if table == BUCKLING[0]:
+        rows = []
+        for number, (factor, shape) in enumerate(zip(result.factors, result.modes, strict=True), 1):
+            shares = mode_shares(shape)
+            peak = max(shape, key=lambda n: float(np.linalg.norm(shape[n][:3])), default=None)
+            rows.append(
+                [
+                    number,
+                    round(factor, 3),
+                    *(round(100 * v, 1) for v in shares),
+                    _point(model, peak) if peak in model.coords else "",
+                ]
+            )
+        return _table(
+            BUCKLING[1],
+            f"{BUCKLING[1]}: {label}",
+            ["Mode", "λ", "X [%]", "Y [%]", "Z [%]", "Largest at"],
+            rows,
+            notes + ["X, Y, Z: shares of the mode's translations along the global axes."],
+        )
+    members = [(name, [e.id for e, _ in chain]) for name, chain, _ in model.members]
+    rows = [
+        [
+            row["member"],
+            round(row["length"], STATION_DECIMALS),
+            round(-row["N"] * _KN, FORCE_DECIMALS),
+            round(row["Pcr"] * _KN, FORCE_DECIMALS),
+            None if row["Kmajor"] is None else round(row["Kmajor"], 2),
+            None if row["Kminor"] is None else round(row["Kminor"], 2),
+        ]
+        for row in member_effective_lengths(result, members)
+    ]
+    first = result.factors[0] if result.factors else None
+    return _table(
+        EFFECTIVE_LENGTHS[1],
+        f"{EFFECTIVE_LENGTHS[1]}: {label}" + (f" (λ1 = {first:.3f})" if first is not None else ""),
+        ["Member", "L [m]", "P [kN]", "Pcr [kN]", "K major", "K minor"],
+        rows,
+        [_EFFECTIVE_NOTE, *notes[1:]],
+    )
 
 
 def _studio_table(

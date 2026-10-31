@@ -23,7 +23,10 @@ from saengine.design.check import _check
 from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.substructure import FOUNDATION_TYPES, check, pile_layout_warnings
 from saengine.substructure.context import Context, Skip, load_context
+from saengine.substructure.ground_slab import GROUND_SLAB_METHOD, design_ground_slab
 from saengine.substructure.jobs import Superseded, newest
+from saengine.substructure.retaining_walls import METHOD as RETAINING_WALL_METHOD
+from saengine.substructure.retaining_walls import design_retaining_walls
 from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
 from saengine.substructure.sizing import penetration
 
@@ -42,8 +45,8 @@ def substructure_report(
     """The design checks of the substructure of the project at ``project_root`` under the
     analysis results in ``out_dir`` (default ``08 FEM/model.results``), ready for JSON.
 
-    Returns ``{"foundations", "tieBeams", "skipped", "summary", "notes", "method",
-    "combinations"}``: per designed foundation ``{"id", "type", "columns", "checks",
+    Returns ``{"foundations", "tieBeams", "retainingWalls", "skipped", "summary", "notes",
+    "method", "combinations"}``: per designed foundation ``{"id", "type", "columns", "checks",
     "utilisation", "ok", "sizes", "pressure"}`` (pile caps and rafts add their ``piles`` and
     ``raft``), per tie beam ``{"id", "type": "tieBeam", "columns": [from, to], "checks",
     "utilisation", "ok", "force"}``, per skipped foundation or tie beam ``{"id", "type",
@@ -146,6 +149,24 @@ def report(ctx: Context) -> dict[str, Any]:
         notes += found
         used.add("shallow")
 
+    slabs: list[dict[str, Any]] = []
+    for slab in substructure.groundSlabs:
+        try:
+            result, found = design_ground_slab(ctx, slab)
+        except Skip as reason:
+            skip(slab, "groundSlab", str(reason))
+            continue
+        slabs.append(result)
+        notes += found
+    if slabs:
+        method += GROUND_SLAB_METHOD
+    # Retaining and basement walls, and the flotation of the basement (no analysis needed).
+    walls, walls_skipped, found = design_retaining_walls(ctx)
+    skipped += walls_skipped
+    notes += found
+    if walls or walls_skipped:
+        method += [m for m in RETAINING_WALL_METHOD if m not in method]
+
     # The piles placed in plan: under no cap, outside their cap, too close together.
     layout = pile_layout_warnings(substructure)
     notes += [f"Pile layout: {w}" for w in layout]
@@ -161,10 +182,12 @@ def report(ctx: Context) -> dict[str, Any]:
     if "shallow" in used:
         method = list(SHALLOW_METHOD) + method
 
-    designed = foundations + ties
+    designed = foundations + ties + slabs + walls
     return {
         "foundations": foundations,
         "tieBeams": ties,
+        "groundSlabs": slabs,
+        "retainingWalls": walls,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": notes,

@@ -62,6 +62,8 @@ export const EXPORT_IFC_COMMAND = 'saengine.bim.exportIfc';
 export const EXPORT_DXF_COMMAND = 'saengine.floorPlan.exportDxf';
 /** Exports the bill of quantities as CSV (saengineBoq). */
 export const EXPORT_BOQ_CSV_COMMAND = 'saengine.boq.exportCsv';
+/** Exports the bill of quantities with its costing and embodied carbon to Excel (saengineBoq). */
+export const EXPORT_BOQ_XLSX_COMMAND = 'saengine.boq.exportXlsx';
 /**
  * Writes the building as an ETABS text model to `11 Exports/ETABS/<project>.e2k` with its export
  * report beside it (`saengine.exporters.etabs`): `{projectRoot}` -> `{path, reportPath, report}`
@@ -73,7 +75,7 @@ export const EXPORT_E2K_FOLDER = 'ETABS';
 /** The file explorer's "Reveal in File Explorer" (desktop only). */
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 
-type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'csv';
+type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'csv' | 'xlsx';
 
 interface IExportFile {
 	readonly resource: URI;
@@ -195,6 +197,7 @@ export class ExportsEditor extends EditorPane {
 	private readonly ifcAction = this._register(new Action('saengine.exports.ifc', localize('exports.exportIfc', "Export IFC"), undefined, true, () => this.make('ifc')));
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
+	private readonly xlsxAction = this._register(new Action('saengine.exports.xlsx', localize('exports.exportXlsx', "Export Bill of Quantities to Excel..."), undefined, true, () => this.make('xlsx')));
 	private readonly e2kAction = this._register(new Action('saengine.exports.e2k', localize('exports.exportE2k', "Export to ETABS (.e2k)"), undefined, true, () => this.make('e2k')));
 	private readonly archiveAction = this._register(new Action('saengine.exports.archive', localize('exports.exportArchive', "Export Project (.civil)..."), undefined, true, () => this.exportArchive()));
 	private readonly openArchiveAction = this._register(new Action('saengine.exports.openArchive', localize('exports.openArchive', "Open Project Archive..."), undefined, true, () => this.openArchive()));
@@ -470,6 +473,18 @@ export class ExportsEditor extends EditorPane {
 			blocked: boq ? blockedBy('boq', localize('exports.csvBlocked', "Measure the bill of quantities ({0}) first.", partName(boq))) : undefined,
 			runningLabel: localize('exports.csvRunning', "Exporting the CSV..."),
 		});
+		kinds.push({
+			kind: 'xlsx', icon: Codicon.table,
+			title: localize('exports.xlsx', "Bill of quantities, costing and carbon (Excel)"),
+			description: localize('exports.xlsxDescription', "The bill with its breakdown, the cost per item, per part and in total by the project's schedule of rates, and the embodied carbon of the materials."),
+			location: `${exportsFolder}/boq.xlsx`,
+			makeLabel: localize('exports.exportXlsxShort', "Export Excel..."),
+			againLabel: localize('exports.exportXlsxAgain', "Export Excel Again..."),
+			command: EXPORT_BOQ_XLSX_COMMAND,
+			fallbackPart: 'boq',
+			blocked: boq ? blockedBy('boq', localize('exports.csvBlocked', "Measure the bill of quantities ({0}) first.", partName(boq))) : undefined,
+			runningLabel: localize('exports.xlsxRunning', "Exporting the workbook..."),
+		});
 		return kinds;
 	}
 
@@ -521,11 +536,12 @@ export class ExportsEditor extends EditorPane {
 		this.dxfAction.enabled = can('dxf');
 		this.e2kAction.enabled = can('e2k') && !!CommandsRegistry.getCommand(EXPORT_E2K_COMMAND);
 		this.csvAction.enabled = can('csv');
+		this.xlsxAction.enabled = can('xlsx');
 		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND) && !this.emptyModel();
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
 		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.drawingsAction, this.csvAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
+		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;

@@ -12,10 +12,18 @@ What a generation writes into ``11 Exports/Drawings``:
   or LibreCAD;
 - ``drawings.pdf``: every sheet, one page each; ``previews/S-101.png``, ...: the previews;
 - ``bbs.csv``: the bar bending schedule (UTF-8 with a byte order mark, for Excel);
+- ``rebar-congestion.csv``: the bar congestion checks of the beams, columns and their joints
+  (:mod:`saengine.drawings.cages`); the failing ones are among the answer's warnings;
 - ``drawings.json``: this module's record of the set: its sheets, the drawing settings it was
   drawn with, and the stamps of the files it was drawn from (whole set and per sheet), so that
   :func:`list_drawings` can tell when the model, the settings or the analysis changed since. The
   marks of the detailing model are kept too: a later generation keeps the bar marks.
+- ``.sheet-index/``: what SAEngine drew on each sheet, so that the engineer's own additions to a
+  sheet's DXF are kept when it is drawn again (:mod:`saengine.drawings.sheets.revisions`);
+- after an issue (:func:`issue`): ``Issued/<rev> <date>/`` (the issued DXFs, PDF set, DWGs and
+  register), ``register.json``, ``register.csv``, ``register.pdf``; the sheets changed since
+  their last issue carry revision clouds of the pending revision. ``DWG/``: the sheets as DWG
+  (:func:`export_dwg`, with LibreDWG's ``dxf2dwg`` run as a separate program).
 
 Staleness: the stamps (:func:`saengine.library.bim.source_stamp`) of Project Settings,
 Materials, Object Types, the floor plan, the architecture, the building model and the
@@ -24,14 +32,18 @@ analysis results' manifest when the design checks were used. Any change of one m
 sheets drawn before it out of date. Generating some sheets only rewrites their DXF and preview
 (and their stamps); the PDF set is then older than those sheets until the whole set is drawn.
 
-Calls (also the RPC methods ``drawings/generate``, ``drawings/list``, ``drawings/progress``):
+Calls (also the RPC methods ``drawings/generate``, ``drawings/list``, ``drawings/progress``,
+``drawings/issue`` and ``drawings/dwg``):
 
 - :func:`generate` ``(project_root, sheets=None, size=None, design_report=None, progress=None)``
   -> the answer the Exports page reads (``{sheets, pdf, bbsCsv, generatedAt, size, stale,
   notes, problems}``, absolute paths);
 - :func:`list_drawings` ``(project_root)`` -> the same for the last generation, with ``stale``,
   ``staleReason`` and ``changed`` (cheap: it reads the record and stamps the inputs);
-- :func:`progress` ``(project_root)`` -> ``{running, step, index, count, message}``.
+- :func:`progress` ``(project_root)`` -> ``{running, step, index, count, message}``;
+- :func:`issue` ``(project_root, code=None, date=None, description, by, purpose, sheets=None,
+  force=False, dwg=False)`` -> the answer of :func:`generate` with ``issued`` (the issue);
+- :func:`export_dwg` ``(project_root, sheets=None)`` -> ``{written, folder, problems}``.
 """
 
 from __future__ import annotations
@@ -52,6 +64,7 @@ FOLDER = "11 Exports/Drawings"
 RECORD = "drawings.json"
 BBS_CSV = "bbs.csv"
 PDF = "drawings.pdf"
+DWG_FOLDER = "DWG"
 FEM_MODEL = "08 FEM/model.osmodel"
 RESULTS_MANIFEST = "08 FEM/model.results/manifest.json"
 
@@ -383,6 +396,7 @@ def generate(
     required: dict[str, Any] | None = None,
     use_design: bool = True,
     progress: Progress | None = None,
+    issuing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generates the drawing set of the project at ``project_root`` into ``11 Exports/Drawings``
     (see the module notes) and returns the answer :func:`list_drawings` gives for it.
@@ -391,7 +405,8 @@ def generate(
     ``size``: A1, A2 or A3 over the drawing settings' sheet size. ``design_report`` and
     ``required``: the design checks and required steel (Run All passes those it just made);
     else, with ``use_design``, those of the last analysis run when there is one. ``progress``:
-    called ``(step, index, count, message)`` as the steps start.
+    called ``(step, index, count, message)`` as the steps start. ``issuing``: the issue being
+    made (:func:`issue`; every sheet is drawn then).
 
     Raises :class:`DrawingsError` when nothing can be drawn (no building model, a generation of
     this project already running)."""
@@ -403,7 +418,7 @@ def generate(
         _RUNNING[key] = {"step": "", "index": 0, "count": len(STEPS), "message": "",
                          "started": time.time()}  # fmt: skip
     try:
-        return _generate(root, sheets, size, design_report, required, use_design, progress)
+        return _generate(root, sheets, size, design_report, required, use_design, progress, issuing)
     finally:
         with _GUARD:
             _RUNNING.pop(key, None)
@@ -417,10 +432,12 @@ def _generate(
     required: dict[str, Any] | None,
     use_design: bool,
     report_progress: Progress | None,
+    issuing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from saengine.drawings import bbs
     from saengine.drawings.detailing import detailing_model
     from saengine.drawings.sheets import DrawingSettings, build_sheets, drawing_set, write_drawings
+    from saengine.drawings.sheets import revisions as rv
 
     def step(name: str) -> None:
         index = [s for s, _ in STEPS].index(name) + 1
@@ -469,6 +486,7 @@ def _generate(
     schedule = bbs.bar_schedule(model)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / BBS_CSV).write_text(bbs.schedule_csv(schedule), encoding="utf-8-sig", newline="")
+    congestion = _congestion(root, model, folder)
     step("sheets")
     errors = check_problems(model, design_report)
     data = drawing_set(
@@ -480,7 +498,39 @@ def _generate(
     )
     data.notes = [*data.notes, *_sheet_check_notes(errors)]
     sheet_size = _sheet_settings(settings, size)["size"]
-    all_sheets = build_sheets(data, DrawingSettings.from_dict(_sheet_settings(settings, size)))
+    # Revisions: each sheet against its last issue (clouds, its revisions in the title block).
+    register = rv.Register.load(folder)
+    made: rv.Issue | None = None
+    if issuing is not None:
+        only = None  # an issue draws every sheet
+        try:
+            made = rv.new_issue(
+                register,
+                issuing.get("code"),
+                issuing.get("date"),
+                str(issuing.get("description") or ""),
+                str(issuing.get("by") or data.title.drawn or ""),
+                str(issuing.get("purpose") or ""),
+                fallback=data.title.revision,
+            )
+        except rv.IssueError as error:
+            raise DrawingsError(str(error)) from error
+    reviser = rv.Reviser(
+        folder,
+        data.title,
+        register,
+        made,
+        chosen=(issuing or {}).get("sheets") or None,
+        force=bool((issuing or {}).get("force")),
+    )
+    all_sheets = build_sheets(
+        data, DrawingSettings.from_dict(_sheet_settings(settings, size)), before_finish=reviser
+    )
+    if made is not None and not any(s.issued for s in reviser.states.values()):
+        raise DrawingsError(
+            "No sheet has changed since its last issue: nothing to issue (tick Issue every "
+            "sheet to issue them again)."
+        )
     page = {s.number: i + 1 for i, s in enumerate(all_sheets)}
     wanted = {s.strip() for s in (only or []) if s and s.strip()}
     # Some sheets are drawn again only into the same set: same size, same sheets (numbers and
@@ -506,6 +556,21 @@ def _generate(
     if partial and not chosen:
         raise DrawingsError(f"No sheet {', '.join(sorted(wanted))} in the drawing set.")
     step("files")
+    # The engineer's own additions to the earlier DXFs are copied into the sheets drawn again;
+    # the index of what SAEngine drew is taken first.
+    earlier_rows = {
+        str(r.get("number")): r for r in (earlier or {}).get("sheets") or [] if isinstance(r, dict)
+    }
+    indices = {}
+    for sheet in chosen:
+        indices[sheet.number] = rv.full_index(sheet, getattr(sheet, "content_index", None))
+        row = earlier_rows.get(sheet.number)
+        if row and row.get("dxf"):
+            old_index = rv.SheetIndex.load(folder / rv.INDEX_FOLDER, sheet.number)
+            carried = rv.carry_edits(sheet, folder / str(row["dxf"]), old_index)
+            carried_note = carried.note(sheet.number)
+            if carried_note:
+                notes.append(carried_note)
 
     def sheet_progress(n: int, count: int) -> None:
         # In the polled progress (:func:`progress`) only: the callback has one call per step.
@@ -532,6 +597,29 @@ def _generate(
         on_sheet=sheet_progress,
         on_step=files_progress,
     )
+    for index in indices.values():
+        index.save(folder / rv.INDEX_FOLDER)
+    notes += reviser.notes()
+    revised = reviser.sheet_rows()
+    issued = None
+    if made is not None:
+        by_number = {r["number"]: Path(r["dxf"]) for r in written["sheets"]}
+        dwgs: dict[str, Path] = {}
+        if (issuing or {}).get("dwg"):
+            dwgs, dwg_problems = _write_dwgs(folder, by_number, set(by_number))
+            notes.extend(dwg_problems)
+        try:
+            issued = rv.record_issue(
+                folder, register, made, reviser, all_sheets, by_number, folder / PDF, dwgs
+            )
+        except rv.IssueError as error:
+            raise DrawingsError(str(error)) from error
+        notes.append(
+            f"Issued revision {issued.code} ({issued.date}): {len(issued.sheets)} sheet(s) "
+            f"into {FOLDER}/{issued.folder}."
+        )
+        for number in issued.numbers():
+            revised[number] = {"revision": issued.code, "revised": False, "clouds": 0}
     conflicts = []
     for sheet in chosen:
         found = sheet.labels.conflicts() if hasattr(sheet, "labels") else []
@@ -557,6 +645,7 @@ def _generate(
             "source": stamps,
             "generatedAt": generated,
             "failing": sorted(failing_ids.intersection(row.get("members") or [])),
+            **revised.get(row["number"], {}),
         }
     if partial:
         kept_rows = {s["number"]: s for s in earlier.get("sheets", []) if isinstance(s, dict)}
@@ -587,7 +676,7 @@ def _generate(
     # The model's closing line says how it was detailed (a note); the rest are warnings. The
     # sheets repeat some of the model's notes in their problems: each is listed once.
     warnings: list[str] = []
-    for text in [*(written.get("problems") or []), *(model.get("notes") or [])]:
+    for text in [*(written.get("problems") or []), *(model.get("notes") or []), *congestion]:
         text = str(text)
         if text.startswith("Detailing to "):
             notes.append(text)
@@ -618,11 +707,15 @@ def _generate(
         # NOT FOR CONSTRUCTION ({kind: {object type: count}}).
         "undesigned": data.undesigned,
         "status": data.title.status,
+        "pendingRevision": register.pending_code(data.title.revision),
     }
     (folder / RECORD).write_text(
         json.dumps(record, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    return _answer(root, record)
+    answer = _answer(root, record)
+    if issued is not None:
+        answer["issued"] = issued.to_json()
+    return answer
 
 
 # ─────────────────────────────────── listing ───────────────────────────────────
@@ -670,6 +763,13 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
                 "generatedAt": _time_ms(row.get("generatedAt")),
                 # Members on the sheet that failed their design checks when it was drawn.
                 "failing": list(row.get("failing") or []),
+                # The revision it was last issued at, and whether it changed since (clouded).
+                "revision": row.get("revision"),
+                "revised": bool(row.get("revised")),
+                "clouds": int(row.get("clouds") or 0),
+                "dwg": absolute(f"{DWG_FOLDER}/{Path(str(row.get('dxf'))).stem}.dwg")
+                if row.get("dxf")
+                else None,
             }
         )
     pdf_changed = changed_sources(record.get("pdfSource"), current)
@@ -701,6 +801,8 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
         "pdf": absolute(record.get("pdf")),
         "pdfStale": bool(pdf_changed) or pdf_older,
         "bbsCsv": absolute(record.get("bbsCsv")),
+        # The bar congestion checks of the cages (saengine.drawings.cages), when written.
+        "congestionCsv": absolute("rebar-congestion.csv"),
         "generatedAt": _time_ms(record.get("generatedAt")),
         "size": record.get("size"),
         "stale": stale,
@@ -710,7 +812,95 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
         "reconciliation": rec,
         "notes": notes,
         "problems": problems,
+        "register": _register_answer(folder, record),
     }
+
+
+def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
+    """The issues of the set (oldest first) and the revision the next issue takes."""
+    from saengine.drawings.sheets import revisions as rv
+
+    register = rv.Register.load(folder)
+
+    def absolute(name: str) -> str | None:
+        return str(folder / name) if name and (folder / name).exists() else None
+
+    return {
+        "issues": [
+            {
+                "code": i.code,
+                "date": i.date,
+                "description": i.description,
+                "purpose": i.purpose,
+                "by": i.by,
+                "sheets": [s.number for s in i.sheets],
+                "folder": absolute(i.folder),
+            }
+            for i in register.issues
+        ],
+        "pending": record.get("pendingRevision") or register.pending_code("0"),
+        "csv": absolute(rv.REGISTER_CSV),
+        "pdf": absolute(rv.REGISTER_PDF),
+    }
+
+
+def _libraries(root: Path) -> tuple[Any, Any]:
+    """The object types and materials of the project (materials None when unreadable)."""
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
+
+    objects = ObjectLibrary.model_validate_json(_read(root / "04 Objects/objects.json") or "{}")
+    try:
+        materials = MaterialLibrary.model_validate_json(
+            _read(root / "03 Materials/materials.json") or ""
+        )
+    except ValueError:
+        materials = None
+    return objects, materials
+
+
+def _congestion(root: Path, model: dict[str, Any], folder: Path) -> list[str]:
+    """The bar congestion checks of the detailing ``model`` written as ``rebar-congestion.csv``;
+    the failing ones as warnings (none when the cages cannot be built)."""
+    from saengine.drawings import cages
+
+    try:
+        objects, materials = _libraries(root)
+        found = cages.cage_model(model, objects, materials)
+    except Exception as error:  # noqa: BLE001 - the drawings do not depend on it
+        return [f"The bar congestion could not be checked: {error}"]
+    (folder / cages.CSV_NAME).write_text(
+        cages.congestion_csv(found), encoding="utf-8-sig", newline=""
+    )
+    return cages.congestion_problems(found)
+
+
+def rebar_cages(project_root: str | Path, check: bool = True) -> dict[str, Any]:
+    """The 3D reinforcement cages of the project's beams and columns with their congestion
+    checks (:func:`saengine.drawings.cages.cage_model`), from the detailing the drawings use:
+    the kept design checks and required steel of the last analysis run and the bar marks of the
+    last drawing set (nothing is designed again). Raises :class:`DrawingsError` when the
+    project cannot be detailed."""
+    from saengine.drawings.cages import cage_model
+    from saengine.drawings.detailing import detailing_model
+
+    root = Path(project_root)
+    if not (root / "06 BIM/bim.json").exists() or not (root / "04 Objects/objects.json").exists():
+        raise DrawingsError("The building model (06 BIM) and the object types are needed.")
+    settings, _ = drawing_settings(_read(root / SOURCES[0][1]))
+    inputs = kept_detailing_inputs(root)
+    try:
+        model = detailing_model(
+            root,
+            design_report=inputs["design_report"],
+            required=inputs["required"],
+            options={"method": settings["developmentLength"], "curtail": settings["curtail"]},
+            previous=inputs["previous"],
+        )
+    except ValueError as error:
+        raise DrawingsError(f"The reinforcement could not be detailed: {error}") from error
+    objects, materials = _libraries(root)
+    return cage_model(model, objects, materials, check=check)
 
 
 def list_drawings(project_root: str | Path) -> dict[str, Any]:
@@ -721,3 +911,99 @@ def list_drawings(project_root: str | Path) -> dict[str, Any]:
     if record is None:
         return {"sheets": [], "stale": False, "notes": [], "problems": []}
     return _answer(root, record)
+
+
+# ─────────────────────────────────── issue and DWG ───────────────────────────────────
+
+
+def issue(
+    project_root: str | Path,
+    code: str | None = None,
+    date: str | None = None,
+    description: str = "",
+    by: str = "",
+    purpose: str = "",
+    sheets: Sequence[str] | None = None,
+    *,
+    force: bool = False,
+    dwg: bool = False,
+    design_report: dict[str, Any] | None = None,
+    progress: Progress | None = None,
+) -> dict[str, Any]:
+    """Issues the drawing set: draws every sheet again with revision ``code`` (default: the
+    one after the last issue) in the title block of each sheet of ``sheets`` (default: all)
+    that is new or changed since its last issue (``force``: also the unchanged ones), copies
+    them, the PDF set and the register into ``Issued/<code> <date>/`` (with DWGs when
+    ``dwg``) and records the issue in the register. The answer is :func:`generate`'s with
+    ``issued``. Raises :class:`DrawingsError` (nothing changed, the code issued already, ...)."""
+    return generate(
+        project_root,
+        None,
+        None,
+        design_report=design_report,
+        progress=progress,
+        issuing={
+            "code": code,
+            "date": date,
+            "description": description,
+            "by": by,
+            "purpose": purpose,
+            "sheets": [s for s in sheets or [] if s] or None,
+            "force": force,
+            "dwg": dwg,
+        },
+    )
+
+
+def _write_dwgs(
+    folder: Path, dxfs: dict[str, Path], wanted: set[str]
+) -> tuple[dict[str, Path], list[str]]:
+    """The sheets' DXFs of ``wanted`` as DWG in ``DWG/``; what could not be written."""
+    from saengine.library import dwg
+
+    out: dict[str, Path] = {}
+    problems: list[str] = []
+    if dwg.find_writer() is None:
+        return out, [
+            (
+                "No DWG was written: GNU LibreDWG's dxf2dwg (the setup's DWG component) is not "
+                f"installed; add it with Help > Installer Components... or set {dwg.ENV_VAR}."
+            )
+        ]
+    for number, dxf in dxfs.items():
+        if number not in wanted:
+            continue
+        target = folder / DWG_FOLDER / f"{dxf.stem}.dwg"
+        try:
+            dwg.write_dwg(dxf, target)
+            out[number] = target
+        except dwg.DwgError as error:
+            problems.append(f"{number}: {error}")
+    return out, problems
+
+
+def export_dwg(project_root: str | Path, sheets: Sequence[str] | None = None) -> dict[str, Any]:
+    """Writes the current sheets (or those numbered in ``sheets``) as DWG into
+    ``11 Exports/Drawings/DWG`` with LibreDWG's ``dxf2dwg`` (a separate program): ``{written:
+    [{number, dwg}], folder, problems}``."""
+    root = Path(project_root)
+    folder = root / FOLDER
+    record = _record(folder)
+    if record is None:
+        return {"written": [], "folder": None, "problems": ["Generate the drawings first."]}
+    dxfs = {
+        str(r.get("number")): folder / str(r.get("dxf"))
+        for r in record.get("sheets") or []
+        if isinstance(r, dict) and r.get("dxf")
+    }
+    wanted = {s for s in sheets or [] if s} or set(dxfs)
+    missing = sorted(n for n in wanted if n in dxfs and not dxfs[n].is_file())
+    present = {n: p for n, p in dxfs.items() if p.is_file()}
+    written, problems = _write_dwgs(folder, present, wanted)
+    if missing:
+        problems.append(f"The DXF of {', '.join(missing)} is missing: generate it again.")
+    return {
+        "written": [{"number": n, "dwg": str(p)} for n, p in written.items()],
+        "folder": str(folder / DWG_FOLDER),
+        "problems": problems,
+    }

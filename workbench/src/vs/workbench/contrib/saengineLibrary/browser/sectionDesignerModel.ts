@@ -506,7 +506,89 @@ export interface ISectionAnalysis {
 	readonly properties?: ISectionProperties;
 	readonly uniaxial?: { readonly x: IUniaxial; readonly y: IUniaxial };
 	readonly capacityNote?: string;
-	readonly phi?: { readonly tension: number; readonly compression: number };
+	/** `rc`: concreteproperties with the code's stress block; `plastic`: the yield surface of a section without concrete. */
+	readonly capacityKind?: 'rc' | 'plastic';
+	readonly phi?: { readonly tension: number; readonly compression: number; readonly flexure?: number };
+	readonly momentCurvature?: IMomentCurvature;
+	readonly momentCurvatureNote?: string;
+	readonly contour?: IContour;
+}
+
+/** One state of a moment-curvature curve [1/mm, N·mm, strain, mm]. */
+export interface IMomentCurvaturePoint {
+	readonly kappa: number;
+	readonly M: number;
+	readonly Mx: number;
+	readonly My: number;
+	readonly epsC: number;
+	readonly epsS: number;
+	readonly c: number | null;
+}
+
+/** The moment-curvature curve and its key points (`saengine.library.section_capacity`). */
+export interface IMomentCurvature {
+	readonly axial: number;
+	readonly theta: number;
+	readonly end: 'concrete' | 'steel' | 'axial' | 'limit';
+	readonly points: readonly IMomentCurvaturePoint[];
+	readonly cracking: IMomentCurvaturePoint | null;
+	readonly yield: IMomentCurvaturePoint | null;
+	readonly ultimate: IMomentCurvaturePoint;
+	readonly peak: IMomentCurvaturePoint;
+	readonly EIeff: number | null;
+	readonly bilinear: { readonly Mn: number; readonly kappaY: number; readonly kappaU: number } | null;
+	readonly ductility: number | null;
+}
+
+/** The M-M contour at one axial force [N, N·mm]. */
+export interface IContour {
+	readonly axial: number;
+	readonly points: readonly { readonly theta: number; readonly Mx: number; readonly My: number; readonly phiMx: number; readonly phiMy: number }[];
+	readonly note?: string;
+}
+
+/** What the capacity studies ask the backend: moment-curvature and the M-M contour. */
+export interface ICapacityStudy {
+	/** Axial force [kN], compression positive. */
+	readonly axial: number;
+	/** Side of the section in compression. */
+	readonly side: CompressionSide;
+	/** Concrete carries tension up to fr before it cracks. */
+	readonly tension: boolean;
+	/** Strain of bars and plates that ends the curve. */
+	readonly steelLimit: number;
+}
+
+export type CompressionSide = 'top' | 'bottom' | 'left' | 'right';
+
+/** The neutral-axis angle [rad] that puts `side` in compression (concreteproperties' convention: 0 compresses the top). */
+export function sideAngle(side: CompressionSide): number {
+	switch (side) {
+		case 'top': return 0;
+		case 'bottom': return Math.PI;
+		case 'left': return Math.PI / 2;
+		case 'right': return -Math.PI / 2;
+	}
+}
+
+/** Curvature for display: rad/km from 1/mm. */
+export const KAPPA_SCALE = 1e6;
+
+/** The moment-curvature curve as chart points [rad/km, kN·m]. */
+export function curvaturePoints(curve: IMomentCurvature): number[][] {
+	return curve.points.map(p => [p.kappa * KAPPA_SCALE, p.M / 1e6]);
+}
+
+/** The equal-energy bilinear line as chart points [rad/km, kN·m], or none. */
+export function bilinearPoints(curve: IMomentCurvature): number[][] {
+	const b = curve.bilinear;
+	return b ? [[0, 0], [b.kappaY * KAPPA_SCALE, b.Mn / 1e6], [b.kappaU * KAPPA_SCALE, b.Mn / 1e6]] : [];
+}
+
+/** A closed contour as chart points [kN·m], design or nominal. */
+export function contourPoints(contour: IContour, factored: boolean): number[][] {
+	const points = contour.points.map(p => [(factored ? p.phiMx : p.Mx) / 1e6, (factored ? p.phiMy : p.My) / 1e6]);
+	return points.length ? [...points, points[0]] : [];
 }
 
 export interface ISectionProperties {

@@ -21,12 +21,16 @@
     "detailing",
     "steel",
     "foundations",
+    "transfer",
     "slabCoefficients",
     "plumbing",
     "hvac",
     "electrical",
     "fire",
-    "steelSections"
+    "steelSections",
+    "liveReduction",
+    "fireResistance",
+    "planning"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -80,13 +84,19 @@
       "Sec 6.2.5 (pp. 899-903): deflection"
     ],
     "detailing": [
-      "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)"
+      "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
+      "BNBC 2020 Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068)"
     ],
     "steel": [
       "BNBC 2020 Part 6 Chapter 10"
     ],
     "foundations": [
       "BNBC 2020 Part 6 Chapter 3, Table 6.3.10a (p. 750)"
+    ],
+    "transfer": [
+      "BNBC 2020 Part 6 Sec 6.4.6 (deep beams)",
+      "Sec 6.4.7 (brackets and corbels)",
+      "Sec 2.5.5.6 (p. 625): collectors"
     ],
     "slabCoefficients": [
       "BNBC 2020 Part 6 Sec 6.5.8, Tables 6.6.8-6.6.11 (pp. 960-966)",
@@ -116,6 +126,16 @@
       "IS 808 (ISMB, ISMC, equal angles)",
       "EN 10056 (equal angles)",
       "EN 10219 (SHS, RHS, CHS)"
+    ],
+    "liveReduction": [
+      "BNBC 2020 Part 6 Sec 2.3.13"
+    ],
+    "fireResistance": [
+      "ACI 216.1-14 (BNBC 2020 Part 6 gives no table; the ratings come from Part 4)"
+    ],
+    "planning": [
+      "BNBC 2020 Part 3 Chapter 1 (plot, open space, FAR and ground coverage by the planning authority's rules)",
+      "Dhaka Mohanagar Imarat Nirman Bidhimala 2008, Rules 46, 50, 51 and Tables 2, 3(A)-3(F)"
     ]
   },
   "basis": {

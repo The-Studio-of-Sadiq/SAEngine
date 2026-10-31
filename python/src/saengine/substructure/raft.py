@@ -11,9 +11,11 @@ with OpenSees Studio's runner, as the building's analysis is:
   fixed node at the same place) of stiffness ``k = ks A``, A the node's share of the plan
   area under a uniform pressure (the consistent shares of the shells,
   :func:`saengine.fem.mesh.shell_node_shares`), so a uniform pressure q settles exactly q/ks;
-- compression-only springs by default: an elastic material with a tension modulus of 10⁻⁶ of
-  the compression one, solved with Newton iterations, so where the raft lifts off the soil
-  carries nothing (``compression_only=False``: linear springs, which may pull);
+- no-tension (compression-only) springs by default (``design.raftSprings``): an elastic
+  material with a tension modulus of 10⁻⁶ of the compression one, solved with Newton
+  iterations, so where the raft lifts off the soil carries nothing; a combination that does not
+  converge in one step is applied again in :data:`RETRY_STEPS` load increments
+  (``raftSprings = "linear"``: linear springs, which may pull);
 - the raft's horizontal translations and its drilling rotation are restrained (the model
   carries vertical loads; horizontal forces are not analysed here);
 - the column loads as nodal loads, each spread to the corners of the shell under the column's
@@ -112,6 +114,8 @@ from saengine.library.objects import PlanarReinforcement
 
 #: Tension stiffness of a compression-only spring, as a share of its compression stiffness.
 TENSION_SHARE = 1e-6
+#: Load steps of each combination when the no-tension springs do not converge in one.
+RETRY_STEPS = 10
 #: Gmsh keeps global state: one raft mesh at a time.
 MESH_LOCK = threading.Lock()
 #: BNBC 2020 Part 6 Table 6.3.8, raft foundations of RCC structures: soil column ->
@@ -280,9 +284,11 @@ def raft_model(
     spec: RaftSpec,
     mesh: RaftMesh,
     combinations: dict[str, tuple[list[np.ndarray], float]],
+    steps: int = 1,
 ) -> tuple[dict[str, Any], list[str]]:
     """The OpenSees Studio project of the raft: per combination name, (column loads, dead-load
-    factor). Returns the project and notes."""
+    factor). Returns the project and notes. ``steps``: load increments of each combination
+    (no-tension springs: more when one step does not converge, :data:`RETRY_STEPS`)."""
     notes: list[str] = []
     count = len(mesh.nodes)
     k_values = spec.ks * 1e3 * mesh.shares  # N/m
@@ -376,8 +382,8 @@ def raft_model(
                 "name": name,
                 "type": "Static",
                 "pattern_ids": [number],
-                "n_steps": 1,
-                "load_factor_increment": 1.0,
+                "n_steps": steps,
+                "load_factor_increment": 1.0 / steps,
                 "system": "BandGeneral",
                 "constraints": "Plain",
                 "integrator": "LoadControl",
@@ -433,11 +439,22 @@ def run_raft(
         shutil.rmtree(out)
     model.write_text(json.dumps(project), encoding="utf-8")
     cases = [str(a["id"]) for a in project["analyses"]]
-    returncode, stdout, stderr = _solve(
-        [sys.executable, "-m", "opensees_studio.run", "--project", str(model), "--cases", *cases,
-         "--out", str(out)],
-        folder,
-    )  # fmt: skip
+    command = [
+        sys.executable, "-m", "opensees_studio.run", "--project", str(model), "--cases", *cases,
+        "--out", str(out),
+    ]  # fmt: skip
+    returncode, stdout, stderr = _solve(command, folder)
+    if returncode != 0 and spec.compression_only:
+        # No-tension springs: where one load step does not converge (much of the raft lifting
+        # off), apply each combination in RETRY_STEPS increments, the contact found step by step.
+        project, notes = raft_model(spec, mesh, combinations, RETRY_STEPS)
+        if out.exists():
+            shutil.rmtree(out)
+        model.write_text(json.dumps(project), encoding="utf-8")
+        returncode, stdout, stderr = _solve(command, folder)
+        notes.append(
+            f"{spec.id}: the no-tension springs needed {RETRY_STEPS} load steps to converge"
+        )
     if returncode != 0:
         message = _error(stdout) or stderr[-1500:]
         raise RuntimeError(f"the raft analysis of {spec.id} failed: {message}")
@@ -1247,6 +1264,8 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         nu=nu,
         es=es,
         mesh_size=ctx.substructure.design.raftMeshSize,
+        compression_only=getattr(ctx.substructure.design, "raftSprings", "noTension")
+        == "noTension",
         unit_weight=density * 9.80665e-3,
         surcharge=surcharge,
         punching_reinforcement=getattr(foundation, "punchingReinforcement", None),

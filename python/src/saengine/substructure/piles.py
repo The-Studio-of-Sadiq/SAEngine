@@ -61,6 +61,11 @@ reinforcement, the plain concrete strength φPn = 0.60 × 0.60 f'c Ag (ACI 318-1
 without the slenderness term, φ of Table 21.2.1) and no tension. Driven precast piles also get
 BNBC Sec 3.10.1.31's service stress limit 0.33 f'c on the gross area.
 
+Section: a bored pile is a circle of diameter D; a driven pile is a square precast pile of side
+B (``PileType.diameter``, as the BOQ measures it): shaft perimeter 4B and base area B², and its
+structural checks on the square section (:mod:`saengine.substructure.precast`, which also
+checks its handling and its least bars).
+
 Units: m, kPa and kN inside; reported in mm, kPa and kN.
 """
 
@@ -182,6 +187,14 @@ def table_factor(structure: str = "permanent", control: str = "normal") -> float
     return f.pileSafety[structure][list(f.pileControls).index(control)]
 
 
+def section_shape(kind: str, size: float) -> tuple[float, float]:
+    """Shaft perimeter and section area of a pile of ``size`` (any unit): a bored pile a circle
+    of diameter ``size``, a driven precast pile a square of side ``size``."""
+    if kind == "driven":
+        return 4 * size, size * size
+    return math.pi * size, math.pi * size**2 / 4
+
+
 def nearest_profile(profiles: list[Profile], x_mm: float, y_mm: float) -> tuple[Profile, float]:
     """The borehole nearest to a plan point (mm) and its distance [mm]."""
     if not profiles:
@@ -268,8 +281,7 @@ def single_pile(
     given = factors or FactorsOfSafety()
     factors = given.for_method(method)
     tip = head + length
-    perimeter = math.pi * diameter
-    area = math.pi * diameter**2 / 4
+    perimeter, area = section_shape(kind, diameter)
     notes: list[str] = []
     raised = given.raised(method)
     if raised:
@@ -513,15 +525,22 @@ def structural_checks(
     ``diameter`` in mm, f'c and fy in MPa, ``reinforcement`` a LinearReinforcement or None."""
     from saengine.design.check import _check
     from saengine.design.rc import DesignError, section_of
-    from saengine.library.objects import CircleProfile
+    from saengine.library.objects import CircleProfile, RectangleProfile
 
-    area = math.pi * diameter**2 / 4  # mm²
+    square = kind == "driven"
+    area = section_shape(kind, diameter)[1]  # mm²
+    shape = f"{diameter:.0f} mm square" if square else f"Ø{diameter:.0f}"
     checks: list[dict[str, Any]] = []
     section = None
     reason = "no reinforcement"
     if reinforcement is not None and reinforcement.longitudinal:
+        profile = (
+            RectangleProfile(xDim=diameter, yDim=diameter)
+            if square
+            else CircleProfile(radius=diameter / 2)
+        )
         try:
-            section = section_of(CircleProfile(radius=diameter / 2), reinforcement, fc, fy)
+            section = section_of(profile, reinforcement, fc, fy)
         except DesignError as error:
             reason = str(error)
     if section is not None:
@@ -534,7 +553,7 @@ def structural_checks(
                 section.phi_pn_max / 1e3,
                 "kN",
                 combination,
-                f"ACI 318-19 22.4.2 φPn,max of the Ø{diameter:.0f} section ({tie}), {bars}, "
+                f"ACI 318-19 22.4.2 φPn,max of the {shape} section ({tie}), {bars}, "
                 f"As = {section.steel_area:.0f} mm² ({100 * section.steel_area / area:.2f} %); "
                 "fully embedded: not a long column (BNBC Sec 3.10.1.31)",
             )

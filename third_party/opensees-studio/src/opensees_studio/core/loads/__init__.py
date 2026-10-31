@@ -16,7 +16,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
-from opensees_studio.core._base import Entity
+from opensees_studio.core._base import Entity, omit_when_default
 
 
 # ──────────────────────────── Time series ────────────────────────────
@@ -188,6 +188,18 @@ class NodalLoad(BaseModel):
     )
 
 
+class SupportDisplacement(BaseModel):
+    """An imposed displacement of a restrained node in one DOF — ``sp <nodeTag> <dof> <value>``
+    inside a ``Plain`` pattern (a support settlement). The node's fix in that DOF is replaced by
+    the imposed value for the case that holds the pattern."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    node_id: PositiveInt
+    dof: int = Field(..., ge=1, le=6, description="DOF direction (1..6).")
+    value: float = Field(..., description="Imposed displacement (model units).")
+
+
 class UniformElementLoad(BaseModel):
     """Uniformly distributed load on a line element — ``eleLoad -ele N -type -beamUniform wy wz wx``.
 
@@ -214,6 +226,9 @@ class PlainLoadPattern(Entity):
     time_series_id: PositiveInt
     nodal_loads: list[NodalLoad] = Field(default_factory=list)
     element_loads: list[UniformElementLoad] = Field(default_factory=list)
+    support_displacements: list[SupportDisplacement] = Field(default_factory=list)
+
+    serialize_without_defaults = omit_when_default("support_displacements")
 
 
 class UniformExcitationPattern(Entity):

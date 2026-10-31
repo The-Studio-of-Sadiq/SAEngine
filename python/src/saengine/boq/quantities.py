@@ -173,6 +173,7 @@ KINDS: dict[str, str] = {
     "pile": "piles",
     "raft": "rafts",
     "tieBeam": "tie beams",
+    "retainingWall": "retaining walls",
     "column": "columns",
     "wall": "walls",
     "beam": "beams",
@@ -269,7 +270,10 @@ FOUNDATION_CONVENTIONS = [
         "full length below the cap (bored piles round, driven piles square of the given size), "
         "bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie "
         "beams: concrete and stirrups between the faces of the foundations they tie, "
-        "longitudinal bars centre to centre of the foundations, formwork to their two sides."
+        "longitudinal bars centre to centre of the foundations, formwork to their two sides. "
+        "Retaining walls: the base over its plan by its thickness and the stem by its mean "
+        "thickness and height, formwork to the stem's faces and the base's edges, bars as "
+        "meshes (vertical bars through the base, no laps at the base or anchorage hooks)."
     ),
     (
         f"Earthwork: each foundation and tie beam is dug with vertical sides "
@@ -1449,9 +1453,15 @@ class _Measure:
                     "concrete, formwork and bars are not measured."
                 )
                 continue
-            self.concrete(f.id, material, kind, plan.area * f.thickness, story)
-            below[f.id] = below.get(f.id, 0.0) + plan.area * max(0.0, min(f.top, ground) - f.bottom)
-            self.formwork(f.id, kind, plan.exterior.length * f.thickness, story, "sides")
+            volume = f.volume if f.volume is not None else plan.area * f.thickness
+            self.concrete(f.id, material, kind, volume, story)
+            # Below the ground: a sloped or stepped footing in proportion to its prism.
+            share = volume / (plan.area * f.thickness) if f.thickness > 0 else 1.0
+            below[f.id] = below.get(f.id, 0.0) + share * plan.area * max(
+                0.0, min(f.top, ground) - f.bottom
+            )
+            sides = f.edge if f.edge is not None else f.thickness
+            self.formwork(f.id, kind, plan.exterior.length * sides + f.riser, story, "sides")
             reinforcement = f.reinforcement
             if reinforcement is None:
                 self.notes.append(f"{f.id}: no reinforcement; no bars are measured.")
@@ -1512,7 +1522,89 @@ class _Measure:
                     / depth
                 )
 
+        for wall in substructure.retainingWalls:
+            self.retaining_wall(wall, story, blinding, below)
+
         self.earthwork(pits, below, story)
+
+    def retaining_wall(self, wall: Any, story: str | None, blinding: Any, below: dict) -> None:
+        """A retaining or basement wall of 9 Substructure: the base over its plan (the heel on
+        the soil side of its path, the stem and toe on the other) by its thickness, the stem by
+        its mean thickness and height, formwork to the stem's two faces and the base's edges,
+        the bars of its ``reinforcement`` as meshes (none measured without it), its blinding
+        and its share of the excavation and backfill."""
+        line = LineString(wall.path)
+        length = line.length
+        heel_side = 1 if wall.soilSide == "left" else -1
+        base_plan = unary_union(
+            [
+                line.buffer(heel_side * wall.heel, single_sided=True, join_style="mitre")
+                if wall.heel > 0
+                else Polygon(),
+                line.buffer(
+                    -heel_side * (wall.stemBottom + wall.toe), single_sided=True, join_style="mitre"
+                ),
+            ]
+        )
+        base_top = wall.foundingLevel + wall.baseThickness
+        stem_height = wall.topLevel - base_top
+        mean = (wall.stemTop + wall.stemBottom) / 2
+        material = self.materials.get(wall.material)
+        if wall.kind == "cantilever":
+            blinding(wall.id, base_plan, wall.foundingLevel)
+        ground = self.ground_level
+        below[wall.id] = (
+            below.get(wall.id, 0.0)
+            + base_plan.area * max(0.0, min(base_top, ground) - wall.foundingLevel)
+            + length * mean * max(0.0, min(wall.topLevel, ground) - base_top)
+        )
+        if material is None or material.category != Category.CONCRETE:
+            self.notes.append(
+                f"{wall.id}: its material '{wall.material}' is not a concrete of 03 Materials; "
+                "its concrete, formwork and bars are not measured."
+            )
+            return
+        # A stem that is a wall of 6 BIM is measured with the building's walls, and a basement
+        # wall's base is its raft or strip footing (measured with the foundations): never twice.
+        stem = wall.wall is None
+        base = wall.kind == "cantilever"
+        if not stem:
+            self.notes.append(
+                f"{wall.id}: its stem is wall {wall.wall} of 6 BIM, measured with the walls."
+            )
+        volume = (base_plan.area * wall.baseThickness if base else 0.0) + (
+            length * mean * stem_height if stem else 0.0
+        )
+        self.concrete(wall.id, material, "retainingWall", volume, story)
+        if stem:
+            self.formwork(wall.id, "retainingWall", 2 * length * stem_height, story, "stem faces")
+        if base and base_plan.geom_type == "Polygon":
+            self.formwork(
+                wall.id,
+                "retainingWall",
+                base_plan.exterior.length * wall.baseThickness,
+                story,
+                "base edges",
+            )
+        bars = wall.reinforcement
+        if bars is None:
+            self.notes.append(f"{wall.id}: no reinforcement; no bars are measured.")
+            return
+        width = wall.toe + wall.stemBottom + wall.heel
+        vertical = stem_height + wall.baseThickness
+        for part, detail, mesh, area, run in (
+            (stem, "stem soil face", bars.stemBack, length * vertical, vertical),
+            (stem, "stem inner face", bars.stemFront, length * vertical, vertical),
+            (stem, "stem horizontal, soil face", bars.horizontal, length * stem_height, length),
+            (stem, "stem horizontal, inner face", bars.horizontal, length * stem_height, length),
+            (base, "heel top", bars.heelTop, length * width, width),
+            (base, "toe bottom", bars.toeBottom, length * width, width),
+            (base, "base along the wall, top", bars.baseDistribution, length * width, length),
+            (base, "base along the wall, bottom", bars.baseDistribution, length * width, length),
+        ):
+            if part and mesh is not None:
+                total = mesh_length(area, mesh.spacing, run, mesh.dia)
+                self.rebar(wall.id, bars.material, mesh.dia, total, story, detail)
 
     def pile(self, pile: PileSolid, story: str | None) -> None:
         """One pile: concrete, bars, and the moulds of a driven precast pile."""
@@ -2064,7 +2156,9 @@ class _Measure:
     def finish(self) -> list[str]:
         notes = [*CONVENTIONS]
         if self.substructure is not None and (
-            self.substructure.foundations or self.substructure.tieBeams
+            self.substructure.foundations
+            or self.substructure.tieBeams
+            or self.substructure.retainingWalls
         ):
             notes += FOUNDATION_CONVENTIONS
         if self.mep is not None and (
@@ -2243,7 +2337,9 @@ def compute_boq(
         from saengine.plumbing.project import read_designs
 
         designs = {**read_designs(project_root), **read_fire_designs(project_root)}
-    earthwork = substructure is not None and bool(substructure.foundations or substructure.tieBeams)
+    earthwork = substructure is not None and bool(
+        substructure.foundations or substructure.tieBeams or substructure.retainingWalls
+    )
     library = MaterialLibrary.model_validate_json(materials_text)
     # The bill is measured from the materials the other files name (and their mortars) only, and
     # records their ids and the stamp of their entries: adding or editing a material nothing
