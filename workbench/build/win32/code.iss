@@ -13,7 +13,15 @@
 #define HasEnergyPlus DirExists(SourceDir + "\" + SAEngineResources + "\energyplus")
 #define HasLibreCAD DirExists(SourceDir + "\" + SAEngineResources + "\librecad")
 #define HasLibreDWG DirExists(SourceDir + "\" + SAEngineResources + "\libredwg")
-#define HasComponents HasEnergyPlus || HasLibreCAD || HasLibreDWG
+// Optional built-in extensions: the AI assistant is the Copilot extension (about 280 MB, most of it
+// the Copilot runtime); Git is the Git, GitHub and merge-conflict extensions; collaboration is
+// port forwarding and Microsoft sign-in (live collaboration joins it later). GitHub sign-in serves both AI and Git.
+#define SAEngineExtensions SAEngineResources + "\app\extensions"
+#define SAEngineCopilot SAEngineExtensions + "\copilot"
+#define HasCopilot DirExists(SourceDir + "\" + SAEngineCopilot)
+#define HasGit DirExists(SourceDir + "\" + SAEngineExtensions + "\git")
+#define HasCollaboration DirExists(SourceDir + "\" + SAEngineExtensions + "\tunnel-forwarding")
+#define HasComponents HasEnergyPlus || HasLibreCAD || HasLibreDWG || HasCopilot || HasGit || HasCollaboration
 #if HasComponents
 #define CoreComponent "; Components: core"
 #else
@@ -103,6 +111,22 @@ Type: filesandordirs; Name: "{app}\{#SAEngineResources}\librecad"; Components: n
 #if HasLibreDWG
 Type: filesandordirs; Name: "{app}\{#SAEngineResources}\libredwg"; Components: not libredwg; Check: IsNotBackgroundUpdate
 #endif
+#if HasCopilot
+Type: filesandordirs; Name: "{app}\{#SAEngineCopilot}"; Components: not ai; Check: IsNotBackgroundUpdate
+#endif
+#if HasGit
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\git"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\git-base"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\github"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\merge-conflict"; Components: not git; Check: IsNotBackgroundUpdate
+#endif
+#if HasCopilot || HasGit
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\github-authentication"; Components: not ai and not git; Check: IsNotBackgroundUpdate
+#endif
+#if HasCollaboration
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\tunnel-forwarding"; Components: not collaboration; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\microsoft-authentication"; Components: not collaboration; Check: IsNotBackgroundUpdate
+#endif
 
 [UninstallDelete]
 // SAEngine: the bundled Python (resources\python) may gain files at runtime (bytecode caches).
@@ -133,6 +157,15 @@ Name: "librecad"; Description: "{cm:SAEngineComponentLibreCAD}"; Types: full; Fl
 #if HasLibreDWG
 Name: "libredwg"; Description: "{cm:SAEngineComponentLibreDWG}"; Types: full; Flags: disablenouninstallwarning
 #endif
+#if HasCopilot
+Name: "ai"; Description: "{cm:SAEngineComponentAI}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasGit
+Name: "git"; Description: "{cm:SAEngineComponentGit}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasCollaboration
+Name: "collaboration"; Description: "{cm:SAEngineComponentCollaboration}"; Types: full; Flags: disablenouninstallwarning
+#endif
 
 #endif
 [Tasks]
@@ -151,7 +184,7 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
 // SAEngine: the optional programs are left out here and installed by their components below.
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*,\{#SAEngineResources}\energyplus,\{#SAEngineResources}\energyplus\*,\{#SAEngineResources}\librecad,\{#SAEngineResources}\librecad\*,\{#SAEngineResources}\libredwg,\{#SAEngineResources}\libredwg\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs{#CoreComponent}
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*,\{#SAEngineResources}\energyplus,\{#SAEngineResources}\energyplus\*,\{#SAEngineResources}\librecad,\{#SAEngineResources}\librecad\*,\{#SAEngineResources}\libredwg,\{#SAEngineResources}\libredwg\*,\{#SAEngineCopilot},\{#SAEngineCopilot}\*,\{#SAEngineExtensions}\git,\{#SAEngineExtensions}\git\*,\{#SAEngineExtensions}\git-base,\{#SAEngineExtensions}\git-base\*,\{#SAEngineExtensions}\github,\{#SAEngineExtensions}\github\*,\{#SAEngineExtensions}\merge-conflict,\{#SAEngineExtensions}\merge-conflict\*,\{#SAEngineExtensions}\github-authentication,\{#SAEngineExtensions}\github-authentication\*,\{#SAEngineExtensions}\tunnel-forwarding,\{#SAEngineExtensions}\tunnel-forwarding\*,\{#SAEngineExtensions}\microsoft-authentication,\{#SAEngineExtensions}\microsoft-authentication\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs{#CoreComponent}
 #if HasEnergyPlus
 Source: "{#SAEngineResources}\energyplus\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\energyplus"; Components: energyplus; Flags: ignoreversion recursesubdirs createallsubdirs
 #endif
@@ -162,6 +195,22 @@ Source: "{#SAEngineResources}\librecad\*"; DestDir: "{code:GetDestDir}\{#SAEngin
 #endif
 #if HasLibreDWG
 Source: "{#SAEngineResources}\libredwg\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\libredwg"; Components: libredwg; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCopilot
+Source: "{#SAEngineCopilot}\*"; DestDir: "{code:GetDestDir}\{#SAEngineCopilot}"; Components: ai; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasGit
+Source: "{#SAEngineExtensions}\git\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\git"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\git-base\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\git-base"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\github\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\github"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\merge-conflict\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\merge-conflict"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCopilot || HasGit
+Source: "{#SAEngineExtensions}\github-authentication\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\github-authentication"; Components: ai or git; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCollaboration
+Source: "{#SAEngineExtensions}\tunnel-forwarding\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\tunnel-forwarding"; Components: collaboration; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\microsoft-authentication\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\microsoft-authentication"; Components: collaboration; Flags: ignoreversion recursesubdirs createallsubdirs
 #endif
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
@@ -1399,6 +1448,9 @@ SAEngineComponentCore=SAEngine (design, analysis, MEP, BNBC 2020, Python)
 SAEngineComponentEnergyPlus=Energy simulation: EnergyPlus (HVAC design-day loads)
 SAEngineComponentLibreCAD=CAD editor: LibreCAD, a separate GPL-2.0 program (edits the DXF drawings)
 SAEngineComponentLibreDWG=DWG import: GNU LibreDWG, a separate GPL-3.0 program (reads DWG drawings)
+SAEngineComponentAI=AI assistant: GitHub Copilot chat (needs a GitHub account)
+SAEngineComponentGit=Git: project history and GitHub (Git, GitHub and merge-conflict tools)
+SAEngineComponentCollaboration=Collaboration: port forwarding and Microsoft sign-in for remote access (live collaboration later)
 SAEngineCivilFile=SAEngine Project Archive
 
 [Code]

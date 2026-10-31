@@ -1,0 +1,13 @@
+{
+  "name": "Cable net 36 × 24 m",
+  "description": "Saddle-shaped cable net, 3 m rise at the edge middles.",
+  "shape": {
+    "kind": "cableNet",
+    "lengthX": 36000.0,
+    "lengthY": 24000.0,
+    "divisionsX": 12,
+    "divisionsY": 8,
+    "rise": 3000.0,
+    "memberType": "MEMBER"
+  }
+}

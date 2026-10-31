@@ -75,11 +75,31 @@ class WallType(_Model):
         ) / 1000
 
 
+#: A parapet on a roof beam (no story above) [mm].
+PARAPET_HEIGHT = 1000.0
+
+
 class WallLoad(_Model):
     """A wall standing on the beam: its type, height and openings."""
 
     type: Id = Field(title="Wall type")
-    height: float = Field(gt=0, description="Height of the wall on the beam [mm].")
+    height: float = Field(
+        gt=0,
+        description="Height of the wall on the beam [mm]; with ``auto``, its height on the beam "
+        "and story it was entered on.",
+    )
+    auto: bool = Field(
+        default=False,
+        title="Height per story",
+        description="The height is worked out on each beam and story it applies to: the story "
+        "height above less the depth of the beam above (else of the loaded beam), and a parapet "
+        "on the top story. Typical floors of different heights get their own walls.",
+    )
+    skipRoof: bool = Field(
+        default=False,
+        title="None on the top story",
+        description="With ``auto``: no wall on the top story, instead of a parapet.",
+    )
     openings: float = Field(
         default=0,
         ge=0,
@@ -224,15 +244,47 @@ def wall_line_load(wall_type: WallType, height: float, openings: float = 0.0) ->
     return wall_type.weight_per_area() * height / 1000 * (1 - openings / 100)
 
 
-def line_value(load: LineLoad, loads: MemberLoads) -> float:
-    """kN/m of a line load (0 for a wall of an unknown type, which validation forbids)."""
+def auto_height(
+    wall: WallLoad,
+    story_height: float | None,
+    depth: float | None,
+    entered: float | None = None,
+) -> float | None:
+    """The height [mm] of an ``auto`` wall on a beam: ``story_height`` (to the story above; None
+    on the top story) less ``depth`` (of the beam above it, else of the loaded beam). On the top
+    story a parapet, or none (None) with ``skipRoof``. Without a depth, the entered height
+    changed by as much as the story's height differs from ``entered``, the height of the story
+    it was entered on.
+
+    A wall not ``auto`` keeps its height everywhere."""
+    if not wall.auto:
+        return wall.height
+    if story_height is None:
+        return None if wall.skipRoof else PARAPET_HEIGHT
+    if depth is None:
+        if entered is None:
+            return wall.height
+        depth = entered - wall.height
+    height = story_height - depth
+    if height <= 0:
+        return None if wall.skipRoof else PARAPET_HEIGHT
+    return height
+
+
+def line_value(
+    load: LineLoad, loads: MemberLoads, height: float | None = None, *, parapet: bool = False
+) -> float:
+    """kN/m of a line load (0 for a wall of an unknown type, which validation forbids); a wall
+    ``height`` other than its own (an ``auto`` wall's on another story). A ``parapet`` (an
+    ``auto`` wall on the top story) has no openings."""
     if load.value is not None:
         return load.value
     assert load.wall is not None
     wall_type = loads.wall_type(load.wall.type)
     if wall_type is None:
         return 0.0
-    return wall_line_load(wall_type, load.wall.height, load.wall.openings)
+    used = load.wall.height if height is None else height
+    return wall_line_load(wall_type, used, 0.0 if parapet else load.wall.openings)
 
 
 def describe(load: LineLoad | PointLoad, loads: MemberLoads) -> str:
@@ -243,9 +295,10 @@ def describe(load: LineLoad | PointLoad, loads: MemberLoads) -> str:
     if load.wall is None:
         return f"{load.value:g} kN/m"
     reduction = f" − {load.wall.openings:g} %" if load.wall.openings else ""
+    per_story = " (height per story)" if load.wall.auto else ""
     return (
         f"{load.wall.type} × {load.wall.height / 1000:g} m{reduction} = "
-        f"{line_value(load, loads):.2f} kN/m"
+        f"{line_value(load, loads):.2f} kN/m{per_story}"
     )
 
 

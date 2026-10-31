@@ -1,0 +1,14 @@
+{
+  "schema": "saengine.codePack/1",
+  "kind": "structureTemplate",
+  "id": "saengine-shapes",
+  "name": "SAEngine shapes",
+  "version": "1.0.0",
+  "description": "Presets of the six parametric shapes built into SAEngine (space truss, plane truss, arch, dome, barrel vault, cable net): their starting values in the Generate panel, and a few named variants. The shapes themselves are part of SAEngine; this package holds only their parameters.",
+  "author": "SAEngine contributors",
+  "licence": "CC-BY-4.0",
+  "contents": [
+    "templates/*.json"
+  ],
+  "preview": "preview.png"
+}

@@ -799,3 +799,25 @@ def test_received_editor_settings_do_not_reach_an_existing_folder(tmp_path: Path
     # (VSCODE~1 is the short name of the existing .vscode on Windows: not written through.)
     assert (dest / ".vscode" / "settings.json").read_text(encoding="utf-8") == "{}"
     assert sorted(p.name for p in dest.iterdir()) == [".vscode", PROJECT]
+
+
+def test_inputs_only_problems(tmp_path):
+    path = tmp_path / "t.civil"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("manifest.json", "{}")
+        zf.writestr("project/02 Project Settings/project-settings.json", "{}")
+        zf.writestr("project/05 Floor Plan/floor-plan.json", "{}")
+    assert archive.inputs_only_problems(path) == []
+    with zipfile.ZipFile(path, "a") as zf:
+        zf.writestr("project/01 Soil Report/soil-report.json", "{}")
+        zf.writestr("project/08 FEM/model.results/summary.json", "{}")
+        zf.writestr("project/11 Exports/report.pdf", "x")
+        zf.writestr("project/.git/HEAD", "x")
+    codes = sorted(p["code"] for p in archive.inputs_only_problems(path))
+    assert codes == [
+        "not-inputs-only-exports",
+        "not-inputs-only-results",
+        "not-inputs-only-soil",
+        "not-inputs-only-versions",
+    ]
+    assert archive.inputs_only_problems(tmp_path / "missing.civil") == []

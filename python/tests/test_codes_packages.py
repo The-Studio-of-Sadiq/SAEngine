@@ -373,3 +373,38 @@ def test_builtin_bnbc_is_an_unchanged_design_code(user_data):
     assert info.kind == "designCode" and info.usable and info.problems == []
     assert info.requires is None and info.missingRequires == []
     assert info.contents and all(c.startswith("data/") for c in info.contents)
+
+
+def test_builtin_shapes_presets_are_the_generate_panel_defaults(user_data):
+    from saengine.codes.contents import structure_preset_model
+    from saengine.library.templates import _SHAPES
+
+    info = registry.info("saengine-shapes", kind="structureTemplate")
+    assert info.scope == "builtin" and info.usable and info.problems == []
+    model = structure_preset_model()
+    presets = {
+        Path(rel).stem: model.model_validate_json(Path(info.path, rel).read_bytes())
+        for rel in info.contents
+    }
+    defaults = ("space-truss", "plane-truss", "arch", "dome", "barrel-vault", "cable-net")
+    # One preset per shape at the Generate panel's starting values (change both together).
+    assert [presets[name].shape for name in defaults] == list(_SHAPES)
+    assert len(presets) > len(defaults)  # and named variants
+    assert info.preview and Path(info.preview).stat().st_size < 256 * 1024
+    # Design codes are listed apart: the shapes package is not one.
+    assert "saengine-shapes" not in {i.id for i in registry.list_packs()}
+
+
+def test_template_archive_must_be_inputs_only(dirs, tmp_path):
+    civil = tmp_path / "template.civil"
+    with zipfile.ZipFile(civil, "w") as zf:
+        zf.writestr("manifest.json", "{}")
+        zf.writestr("project/05 Floor Plan/floor-plan.json", "{}")
+        zf.writestr("project/01 Soil Report/soil-report.json", "{}")
+        zf.writestr("project/08 FEM/model.results/summary.json", "{}")
+    write_package(
+        dirs.buildings, "full", {"template.civil": civil.read_bytes()}, kind="buildingTemplate"
+    )
+    messages = [p.message for p in dirs.reg.info("full", kind="buildingTemplate").problems]
+    assert any("soil report" in m and "client data" in m for m in messages)
+    assert any("results" in m for m in messages)

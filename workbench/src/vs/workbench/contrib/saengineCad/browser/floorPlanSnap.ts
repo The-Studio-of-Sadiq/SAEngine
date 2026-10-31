@@ -245,6 +245,25 @@ export function typedEnd(start: CadPoint, text: string, toward: CadPoint | undef
 }
 
 /**
+ * Beams on `story` (of `ids`, or all) with neither end on a column rising to it, a wall under it
+ * or another beam: nothing holds them up (a cantilever copied to a story without its column).
+ */
+export function unsupportedBeams(layout: unknown, story: string, ids?: ReadonlySet<string>): string[] {
+	const segments = snapSegments(layout, story);
+	const columns = columnPoints(layout, story);
+	const model = isObject(layout) ? layout : {};
+	const held = (id: string, point: CadPoint) => columns.some(c => distance(c.point, point) <= 1)
+		|| segments.some(s => s.id !== id && distance(at(s, Math.max(0, Math.min(1, parameter(point, s)))), point) <= 1);
+	return list(model.beams)
+		.filter(b => b.story === story && typeof b.id === 'string' && (!ids || ids.has(b.id)))
+		.filter(b => {
+			const ends = [resolvePoint(model, b.start), resolvePoint(model, b.end)];
+			return ends.every(end => !end || !held(b.id as string, end));
+		})
+		.map(b => b.id as string);
+}
+
+/**
  * Beam ends on `story` that stop just short of (or just past) another beam or wall, within
  * `reach` mm but not on it: they look connected on the plan, but the analysis model leaves them
  * apart (a cantilever on nothing). One line per end.

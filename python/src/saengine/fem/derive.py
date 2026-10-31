@@ -786,7 +786,7 @@ def _derive_fem(
     from saengine.fem import member_loads as ml
 
     member_set = (
-        ml.member_loads(building, member_loads)
+        ml.member_loads(building, member_loads, types)
         if member_loads is not None and member_loads.loads
         else None
     )

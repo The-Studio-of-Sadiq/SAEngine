@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { floorPlanDrawing } from '../../browser/floorPlanDrawing.js';
-import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid } from '../../browser/floorPlanEdits.js';
+import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab } from '../../browser/floorPlanEdits.js';
 
 suite('SAEngine - Floor plan edits', () => {
 
@@ -190,4 +190,19 @@ suite('SAEngine - Floor plan edits', () => {
 			rotateFooting: 'Footings are placed and edited in 9 Substructure.',
 		});
 	});
+
+	test('a slab with a beam across it splits along the beam into two that meet on it (N-F7)', () => {
+		const layout = {
+			...empty,
+			slabs: [{ id: 'S1', type: 'S150', story: 'L1', boundary: [{ x: 'A', y: '1' }, { x: 'C', y: '1' }, { x: 'C', y: '2' }, { x: 'A', y: '2' }] }],
+			beams: [{ id: 'B6', type: 'B300', story: 'L1', start: { x: 'B', y: '1' }, end: { x: 'B', y: '2' } }, { id: 'B7', type: 'B300', story: 'L1', start: { x: 'A', y: '1' }, end: { x: 'C', y: '1' } }],
+		};
+		const split = model(splitSlab(layout, 'S1', 'B6'));
+		const corners = (split.slabs as { id: string; boundary: { x: string; y: string; dx?: number }[] }[]).map(s => `${s.id}: ${s.boundary.map(p => `${p.x}${p.y}${p.dx ? `+${p.dx}` : ''}`).join(' ')}`);
+		assert.deepStrictEqual({ corners, edge: outcome(splitSlab(layout, 'S1', 'B7')) }, {
+			corners: ['S1: A1 B1 B2 A2', 'S2: B1 C1 C2 B2'],
+			edge: 'B7 does not run across S1.',
+		});
+	});
+
 });

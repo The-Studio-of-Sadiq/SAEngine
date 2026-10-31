@@ -12,6 +12,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,10 +21,11 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IFemSolverService, SETUP_COMPONENTS, SetupComponent } from '../../../../platform/saengine/common/femSolver.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
 import { CAD_PROGRAM_SETTING } from '../../saengineProject/electron-browser/projectBackend.contribution.js';
-import { COMPONENTS_ADD_COMMAND, COMPONENTS_SHOW_COMMAND, COMPONENTS_STATES_COMMAND, componentLabel, componentPurpose, componentStateText, IComponentStates, readComponentStatus, releasesPage, setupComponents } from '../common/components.js';
+import { COMPONENTS_ADD_COMMAND, COMPONENTS_SHOW_COMMAND, COMPONENTS_STATES_COMMAND, componentLabel, componentPurpose, componentStateText, IComponentStates, IComponentStatus, readComponentStatus, releasesPage, setupComponents } from '../common/components.js';
 import { compareVersions, parseSha256File, runningVersion, SETUP_ASSET } from '../common/updateCheck.js';
 
 /*
@@ -32,6 +34,21 @@ import { compareVersions, parseSha256File, runningVersion, SETUP_ASSET } from '.
  * chooses the SAEngine setup (SAEngine downloads no program by itself, D7), its SHA-256 is checked
  * against the release's `.sha256` beside it, and the shared process runs it with `/COMPONENTS=`.
  */
+
+/**
+ * The extension that tells whether each extension component is installed (`workbench/extensions/<name>`;
+ * `code.iss` lists every folder of a component).
+ */
+const COMPONENT_EXTENSIONS = {
+	ai: 'GitHub.copilot-chat',
+	git: 'vscode.git',
+	collaboration: 'vscode.tunnel-forwarding',
+} as const;
+
+/** The setup's copy is a built-in extension; one the user installed is found elsewhere. */
+function extensionStatus(extension: IExtensionDescription | undefined): IComponentStatus {
+	return extension ? { state: extension.isBuiltin ? 'installed' : 'elsewhere', path: extension.extensionLocation.fsPath } : { state: 'missing' };
+}
 
 interface ISAEngineProduct {
 	readonly saengineVersion?: string;
@@ -47,18 +64,25 @@ async function componentStates(accessor: ServicesAccessor): Promise<IComponentSt
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const configured = accessor.get(IConfigurationService).getValue<string>(CAD_PROGRAM_SETTING) || undefined;
 	const logService = accessor.get(ILogService);
-	const [backend, cad] = await Promise.all([
+	const extensionService = accessor.get(IExtensionService);
+	const [backend, cad, ai, git, collaboration] = await Promise.all([
 		solver.projectPlatform(python, 'components/list', {}).catch(error => {
 			logService.warn(`[saengine components] the backend could not be asked: ${toErrorMessage(error)}`);
 			return undefined;
 		}),
 		solver.cadProgram(configured).catch(() => undefined),
+		extensionService.getExtension(COMPONENT_EXTENSIONS.ai),
+		extensionService.getExtension(COMPONENT_EXTENSIONS.git),
+		extensionService.getExtension(COMPONENT_EXTENSIONS.collaboration),
 	]);
 	const answer = (backend ?? {}) as { readonly energyplus?: unknown; readonly libredwg?: unknown };
 	return {
 		energyplus: readComponentStatus(answer.energyplus),
 		librecad: cad ? { state: cad.source === 'bundled' ? 'installed' : 'elsewhere', path: cad.program } : { state: 'missing' },
 		libredwg: readComponentStatus(answer.libredwg),
+		ai: extensionStatus(ai),
+		git: extensionStatus(git),
+		collaboration: extensionStatus(collaboration),
 	};
 }
 
