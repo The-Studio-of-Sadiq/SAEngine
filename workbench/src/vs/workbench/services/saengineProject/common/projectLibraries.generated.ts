@@ -20117,6 +20117,168 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'ArchWall',
 			type: 'object',
 		},
+		CurtainWall: {
+			additionalProperties: false,
+			description: 'A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type\n(``type``); doors and windows are not hosted in it (its glazing is its own).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Curtain wall type',
+					type: 'string',
+				},
+				base: {
+					description: 'Story the wall stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				top: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Story the wall rises to (empty: the next story up, or its height).',
+					title: 'Top',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height above its base [mm], instead of a top story.',
+					title: 'Height',
+				},
+				baseOffset: {
+					default: 0,
+					description: 'Above the base story [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				path: {
+					description: 'The location line, point by point.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				structuralRef: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The floor-plan beam or wall it stands on (informative: no stiffness).',
+					title: 'Sits on',
+				},
+			},
+			required: ['id', 'type', 'base', 'path'],
+			title: 'CurtainWall',
+			type: 'object',
+		},
+		CurtainWallType: {
+			additionalProperties: false,
+			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².\n\nThe weight is the glass\'s (thickness × unit weight) plus the frame\'s, per m² of wall; the\nframe\'s 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the\nsupplier\'s). BNBC 2020 Part 6 Sec 2.2 takes dead loads as the actual weights of the\nmaterials; glass\'s 25 kN/m³ is its usual density (2,500 kg/m³).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				glassThickness: {
+					default: 12,
+					description: 'Of all the panes together [mm].',
+					exclusiveMinimum: 0,
+					title: 'Glass thickness',
+					type: 'number',
+				},
+				glassUnitWeight: {
+					default: 25.0,
+					description: '[kN/m³]',
+					minimum: 0,
+					title: 'Glass unit weight',
+					type: 'number',
+				},
+				frameWeight: {
+					default: 0.15,
+					description: 'Mullions, transoms and fixings per m² of wall [kN/m²].',
+					minimum: 0,
+					title: 'Frame weight',
+					type: 'number',
+				},
+				depth: {
+					default: 150,
+					description: 'Of the mullions, across the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				mullionSpacing: {
+					default: 1500,
+					description: 'Between vertical mullions [mm].',
+					exclusiveMinimum: 0,
+					title: 'Mullion spacing',
+					type: 'number',
+				},
+				transomSpacing: {
+					default: 1500,
+					description: 'Between horizontal transoms [mm].',
+					exclusiveMinimum: 0,
+					title: 'Transom spacing',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CurtainWallType',
+			type: 'object',
+		},
 		Door: {
 			additionalProperties: false,
 			properties: {
@@ -20338,6 +20500,307 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'kind', 'thickness', 'unitWeight'],
 			title: 'FinishType',
+			type: 'object',
+		},
+		Railing: {
+			additionalProperties: false,
+			description: 'A railing along a path on a story (a balcony\'s guard, a stair\'s or ramp\'s handrail).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Railing type',
+					type: 'string',
+				},
+				base: {
+					description: 'Story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Base',
+					type: 'string',
+				},
+				baseOffset: {
+					default: 0,
+					description: 'Above the story [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				path: {
+					description: 'Along the railing, point by point.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+			},
+			required: ['id', 'type', 'base', 'path'],
+			title: 'Railing',
+			type: 'object',
+		},
+		RailingType: {
+			additionalProperties: false,
+			description: 'A guard or handrail: its height and weight per metre (posts, rails and infill).\n\nThe 0.3 kN/m default is an SAEngine choice for a steel railing; enter yours.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				height: {
+					default: 1000,
+					description: 'Top of rail above the floor [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				weight: {
+					default: 0.3,
+					description: 'Per metre run [kN/m].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				width: {
+					default: 50,
+					description: 'Across the railing, drawn [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				postSpacing: {
+					default: 1200,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Post spacing',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'RailingType',
+			type: 'object',
+		},
+		Ramp: {
+			additionalProperties: false,
+			description: 'A straight ramp built up on a floor, from ``start`` (low end) to ``end`` (high end).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				start: {
+					description: 'Centre of the low end [mm].',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: 'Centre of the high end [mm].',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+				width: {
+					default: 1500,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				rise: {
+					default: 0,
+					description: 'Height gained from start to end [mm].',
+					minimum: 0,
+					title: 'Rise',
+					type: 'number',
+				},
+				finish: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Floor finish',
+				},
+				fillUnitWeight: {
+					default: 16.0,
+					description: 'Of the filling under the ramp [kN/m³] (16: brick-bat filling, an SAEngine choice; 0 for a ramp on its own structure).',
+					minimum: 0,
+					title: 'Fill unit weight',
+					type: 'number',
+				},
+				occupancy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area use from the code pack, for its live load.',
+					title: 'Occupancy',
+				},
+			},
+			required: ['id', 'story', 'start', 'end'],
+			title: 'Ramp',
+			type: 'object',
+		},
+		Roof: {
+			additionalProperties: false,
+			description: 'A roof covering over a plan outline on a story (the roof slab\'s level): flat, or of one\npitch rising ``slope`` degrees towards ``direction``.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Roof type',
+					type: 'string',
+				},
+				story: {
+					description: 'The level the roof covers (its slab\'s story).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				outline: {
+					description: 'The roof\'s plan outline [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+				baseOffset: {
+					default: 0,
+					description: 'Above the story [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				slope: {
+					default: 0,
+					description: 'Pitch [°] (0: a flat roof).',
+					exclusiveMaximum: 90,
+					minimum: 0,
+					title: 'Slope',
+					type: 'number',
+				},
+				direction: {
+					default: 90,
+					description: 'Plan direction it rises towards [°], anticlockwise from x (pitched only).',
+					title: 'Direction',
+					type: 'number',
+				},
+				occupancy: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Area use from the code pack for its live load (e.g. BNBC\'s roof uses).',
+					title: 'Occupancy',
+				},
+			},
+			required: ['id', 'type', 'story', 'outline'],
+			title: 'Roof',
+			type: 'object',
+		},
+		RoofType: {
+			additionalProperties: false,
+			description: 'A roof covering: layers over the roof slab or deck, top down (terracing, screed,\nwaterproofing, tiles), each a thickness and unit weight.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				layers: {
+					items: {
+						$ref: '#/$defs/WallLayer',
+					},
+					minItems: 1,
+					title: 'Layers',
+					type: 'array',
+				},
+			},
+			required: ['id', 'name', 'layers'],
+			title: 'RoofType',
 			type: 'object',
 		},
 		Room: {
@@ -20694,6 +21157,27 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Finish types',
 			type: 'array',
 		},
+		curtainWallTypes: {
+			items: {
+				$ref: '#/$defs/CurtainWallType',
+			},
+			title: 'Curtain wall types',
+			type: 'array',
+		},
+		roofTypes: {
+			items: {
+				$ref: '#/$defs/RoofType',
+			},
+			title: 'Roof types',
+			type: 'array',
+		},
+		railingTypes: {
+			items: {
+				$ref: '#/$defs/RailingType',
+			},
+			title: 'Railing types',
+			type: 'array',
+		},
 		walls: {
 			items: {
 				$ref: '#/$defs/ArchWall',
@@ -20727,6 +21211,34 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 				$ref: '#/$defs/RoomSeparator',
 			},
 			title: 'Room separators',
+			type: 'array',
+		},
+		curtainWalls: {
+			items: {
+				$ref: '#/$defs/CurtainWall',
+			},
+			title: 'Curtain walls',
+			type: 'array',
+		},
+		roofs: {
+			items: {
+				$ref: '#/$defs/Roof',
+			},
+			title: 'Roofs',
+			type: 'array',
+		},
+		ramps: {
+			items: {
+				$ref: '#/$defs/Ramp',
+			},
+			title: 'Ramps',
+			type: 'array',
+		},
+		railings: {
+			items: {
+				$ref: '#/$defs/Railing',
+			},
+			title: 'Railings',
 			type: 'array',
 		},
 		imports: {
@@ -20879,11 +21391,79 @@ export const DEFAULT_ARCHITECTURE: object = {
 			sunkUnitWeight: 16.0,
 		},
 	],
+	curtainWallTypes: [
+		{
+			id: 'CW1',
+			name: 'Aluminium curtain wall, double glazed',
+			glassThickness: 12.0,
+			glassUnitWeight: 25.0,
+			frameWeight: 0.15,
+			depth: 150.0,
+			mullionSpacing: 1500.0,
+			transomSpacing: 1500.0,
+		},
+	],
+	roofTypes: [
+		{
+			id: 'RF1',
+			name: 'Lime terracing with brick tiles',
+			layers: [
+				{
+					material: 'Brick tiles',
+					thickness: 40.0,
+					unitWeight: 18.85,
+				},
+				{
+					material: 'Lime terracing',
+					thickness: 75.0,
+					unitWeight: 18.85,
+				},
+			],
+		},
+		{
+			id: 'RF2',
+			name: 'Screed and waterproofing',
+			layers: [
+				{
+					material: 'Cement screed',
+					thickness: 40.0,
+					unitWeight: 20.4,
+				},
+				{
+					material: 'Waterproofing membrane',
+					thickness: 5.0,
+					unitWeight: 12.0,
+				},
+			],
+		},
+	],
+	railingTypes: [
+		{
+			id: 'RL1',
+			name: 'Steel railing',
+			height: 1000.0,
+			weight: 0.3,
+			width: 50.0,
+			postSpacing: 1200.0,
+		},
+		{
+			id: 'RL2',
+			name: 'Glass balustrade',
+			height: 1100.0,
+			weight: 0.5,
+			width: 20.0,
+			postSpacing: 1200.0,
+		},
+	],
 	walls: [],
 	doors: [],
 	windows: [],
 	rooms: [],
 	separators: [],
+	curtainWalls: [],
+	roofs: [],
+	ramps: [],
+	railings: [],
 	imports: [],
 };
 
