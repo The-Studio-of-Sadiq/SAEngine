@@ -98,6 +98,13 @@ export interface IPartStatusInputs {
 export const PART_CHECKS_FILE = 'checks.json';
 export const PART_CHECKS_SCHEMA_ID = 'saengine.partChecks/1';
 
+/**
+ * Command of {@link ISaenginePartStatusService.reportChecks} for editors that only hold the
+ * command service: `(part, counts, texts)`, `texts` the part id to the text the counts were made
+ * from (N-P3, N-B2: an editor's problem list reaches the part list).
+ */
+export const REPORT_PART_CHECKS_COMMAND = 'saengine.partStatus.reportChecks';
+
 export interface IPartCheckItem {
 	readonly severity: 'error' | 'warning';
 	readonly message: string;
@@ -950,8 +957,9 @@ export interface ISaenginePartStatusService {
 
 	/**
 	 * Records how the checks of `part` went in its checks file (see {@link PART_CHECKS_FILE}),
-	 * made from the saved files of `sources` (default: the part's own main file). The statuses
-	 * follow once the file is written; an unchanged file is not rewritten.
+	 * made from the saved files of `sources` (default: the part's own main file), or from `texts`
+	 * (part id to the text checked, an editor's unsaved text included: the checks count once that
+	 * text is saved). The statuses follow once the file is written; an unchanged file is not rewritten.
 	 */
-	reportChecks(part: string, counts: IPartCheckCounts, sources?: readonly string[]): Promise<void>;
+	reportChecks(part: string, counts: IPartCheckCounts, sources?: readonly string[], texts?: ReadonlyMap<string, string | undefined>): Promise<void>;
 }
