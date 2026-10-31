@@ -15,6 +15,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ModelExplorerView } from './modelExplorerView.js';
+import { ModifierProblemsContribution } from './modifierProblemsContribution.js';
 import { ProjectCodeStiffnessContribution } from './projectCodeStiffness.js';
 
 /** True while a SAEngine project is open. */
@@ -95,3 +96,5 @@ class ProjectOpenContextContribution extends Disposable implements IWorkbenchCon
 registerWorkbenchContribution2(ProjectOpenContextContribution.ID, ProjectOpenContextContribution, WorkbenchPhase.BlockRestore);
 
 registerWorkbenchContribution2(ProjectCodeStiffnessContribution.ID, ProjectCodeStiffnessContribution, WorkbenchPhase.AfterRestored);
+
+registerWorkbenchContribution2(ModifierProblemsContribution.ID, ModifierProblemsContribution, WorkbenchPhase.AfterRestored);
