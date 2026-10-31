@@ -42,7 +42,7 @@ import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengin
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
-	errorSummary, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
+	errorSummary, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
@@ -86,6 +86,9 @@ const SITE_PARTS: readonly (readonly [keyof ISiteTexts, string])[] = [
 	['bim', 'bim'], ['objects', 'objects'], ['floorPlan', 'floorPlan'], ['settings', 'settings'], ['soil', 'soil'], ['materials', 'materials'],
 ];
 
+/** Planned pile features shown as chips under the pile types (registered in the contribution). */
+const PLANNED_PILE_FEATURES = ['substructure.lateralPileBroms', 'substructure.lateralPilePy'];
+
 const MM = localize('sub.unit.mm', "mm");
 const M = localize('sub.unit.m', "m");
 
@@ -102,6 +105,7 @@ const F = {
 	note: { key: 'note', label: localize('sub.f.note', "Note"), kind: 'text' },
 	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80 },
 	pileLength: { key: 'length', label: localize('sub.f.pileLength', "Length"), unit: M, kind: 'length', min: 0.001, required: true, width: 72 },
+	fixityDepth: { key: 'fixityDepth', label: localize('sub.f.fixityDepth', "Depth to fixity"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.fixityDepthTitle', "Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report. Empty: the piles are designed for axial force only."), width: 80 },
 	level: { key: 'level', label: localize('sub.f.level', "Level"), unit: M, kind: 'length', title: localize('sub.f.levelTitle', "Top of the tie beam; the foundations' top when empty"), width: 72 },
 	pileCompression: { key: 'pileCompression', label: localize('sub.f.fsCompression', "FS pile compression"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsCompressionTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control. Sec 3.10.1.18 (bored piles: Sec 3.10.4.10) asks at least 3.0 unless the design rests on a load test at the site (then 2.0): the design raises a smaller value.") },
 	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control") },
@@ -1999,6 +2003,7 @@ export class SubstructureEditor extends EditorPane {
 			{ label: F.id.label, width: 64 }, { label: localize('sub.f.kind', "Kind"), width: 170 }, { label: F.diameter.label, unit: MM, numeric: true, width: 80 },
 			{ label: F.pileLength.label, unit: M, numeric: true }, { label: localize('sub.f.material', "Concrete"), width: 96 },
 			{ label: localize('sub.f.pileBars', "Bars"), width: 84 }, { label: localize('sub.f.pileTies', "Ties"), width: 110 },
+			{ label: localize('sub.f.headFixity', "Head"), width: 120 }, { label: F.fixityDepth.label, unit: M, numeric: true, width: 80 },
 			{ label: localize('sub.f.pileCount', "Piles"), numeric: true, width: 48 }, { label: '', width: 28 },
 		];
 		this.tableHead(table, columns);
@@ -2027,6 +2032,18 @@ export class SubstructureEditor extends EditorPane {
 			}, path('material'), true));
 			append(append(row, $('td')), this.pileBarsInput(pile, path('reinforcement.longitudinal')));
 			append(append(row, $('td')), this.pileTiesInput(pile, path('reinforcement.transverse')));
+			append(append(row, $('td')), this.selectInput(PILE_FIXITIES.map(k => ({ value: k, label: pileFixityLabel(k) })), pile.headFixity ?? 'fixed', value => {
+				pile.headFixity = value as IPileType['headFixity'];
+				this.changed(false);
+			}, path('headFixity'), localize('sub.f.headFixity', "Head")));
+			append(append(row, $('td')), this.textInput(F.fixityDepth, pile.fixityDepth, value => {
+				if (typeof value === 'number') {
+					pile.fixityDepth = value;
+				} else {
+					delete pile.fixityDepth;
+				}
+				this.changed(false);
+			}, path('fixityDepth')));
 			append(row, $('td.number', undefined, String(document.piles.filter(p => p.type === pile.id).length)));
 			this.removeButton(row, () => {
 				document.pileTypes.splice(index, 1);
@@ -2035,6 +2052,10 @@ export class SubstructureEditor extends EditorPane {
 		});
 		if (!document.pileTypes.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noPileTypes', "None yet. A pile cap adds a 500 mm bored pile type to start with.")));
+		}
+		const planned = append(section, $('.sub-planned'));
+		for (const id of PLANNED_PILE_FEATURES) {
+			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
 		}
 	}
 
