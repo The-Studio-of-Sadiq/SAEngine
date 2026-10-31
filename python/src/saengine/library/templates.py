@@ -42,6 +42,15 @@ def _material_templates() -> dict[str, dict[str, Any]]:
         key = f"Material:{material.category.value}"
         if key not in templates:
             templates[key] = material.model_dump(mode="json", by_alias=True, exclude_none=True)
+    # Timber has no default material: a Group B sawn timber for dry use (BNBC 2020 Part 6
+    # Chapter 11), E the group's least.
+    templates[f"Material:{Category.TIMBER.value}"] = {
+        "id": "TIMBER-B",
+        "name": "Sawn timber, group B",
+        "category": "timber",
+        "mechanical": {"E": 9800, "density": 650},
+        "timber": {"group": "B", "location": "inside"},
+    }
     templates[f"Material:{Category.OTHER.value}"] = {
         "id": "MAT",
         "name": "New material",
@@ -58,6 +67,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "ConcreteProperties": {"fc": 24.1},
     "SteelProperties": {"fy": 420},
     "MasonryProperties": {"unit": "first-class burnt clay brick"},
+    "TimberProperties": {"group": "B", "location": "inside"},
     "NominalMix": {
         "method": "nominal",
         "ratio": [1, 1.5, 3],

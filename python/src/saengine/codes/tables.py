@@ -146,6 +146,11 @@ class CombinationsTable(TableModel):
     loadCases: dict[str, str] = Field(description="Load case id -> title.")
     strength: list[Combination] = Field(description="Strength (LRFD/USD) combinations.")
     service: list[Combination] = Field(default_factory=list)
+    allowable: list[Combination] = Field(
+        default_factory=list,
+        description="Allowable stress design (ASD) combinations, for the materials designed by "
+        "permissible stresses (timber).",
+    )
     temperature: list[Combination] = Field(
         default_factory=list, description="Strength combinations with T (rise +, fall -)."
     )
@@ -1614,6 +1619,63 @@ class FireResistanceTable(TableModel):
         return self
 
 
+# ───────────────────────────────────────── timber ─────────────────────────────────────────
+
+TimberLocation = Literal["inside", "outside", "wet"]
+
+
+class TimberGroup(BaseModel):
+    """Permissible stresses of a strength group [MPa], by location of use where they differ."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    E: Positive = Field(description="Modulus of elasticity [MPa].")
+    bending: dict[TimberLocation, Positive]
+    tension: dict[TimberLocation, Positive]
+    shearHorizontal: Positive
+    shearAlong: Positive
+    compressionParallel: dict[TimberLocation, Positive]
+    compressionPerpendicular: dict[TimberLocation, Positive]
+
+
+class TimberColumn(_Group):
+    short: Positive = Field(description="Le/d up to which a column is short.")
+    k8: Positive = Field(description="K8 = k8 √(E/Fc), where long columns start.")
+    intermediate: Positive = Field(description="Fc [1 - (Le/(d K8))⁴ / intermediate].")
+    long: Positive = Field(description="Long columns: long · E / (Le/d)².")
+    maxSlenderness: Positive = Field(description="Largest Le/d.")
+
+
+class TimberDepthFactor(_Group):
+    above: Positive = Field(description="Depth [mm] above which K3 applies.")
+    factor: Positive
+    a: Positive
+    b: Positive
+
+
+class TimberDuration(_Group):
+    permanent: Positive
+    wind: Positive
+    earthquake: Positive
+
+
+class TimberDeflection(_Group):
+    span: Positive
+    cantilever: Positive
+
+
+class TimberTable(TableModel):
+    """Permissible stress design of sawn timber: stresses by strength group and location, the
+    column formulas, the depth factor, load duration factors and deflection limits."""
+
+    groups: dict[str, TimberGroup] = Field(min_length=1)
+    column: TimberColumn
+    depthFactor: TimberDepthFactor
+    duration: TimberDuration
+    deflection: TimberDeflection
+
+
 # ───────────────────────────────────────── planning ─────────────────────────────────────────
 
 
@@ -1738,6 +1800,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "liveReduction": LiveReductionTable,
     "fireResistance": FireResistanceTable,
     "planning": PlanningTable,
+    "timber": TimberTable,
 }
 
 
@@ -1747,6 +1810,7 @@ MERGE_KEYS: dict[str, dict[str, str]] = {
     "combinations": {
         "strength": "name",
         "service": "name",
+        "allowable": "name",
         "temperature": "name",
         "gravity": "name",
     },

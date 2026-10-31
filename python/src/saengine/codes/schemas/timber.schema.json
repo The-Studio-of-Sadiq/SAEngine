@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "TimberColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "short": {
+          "description": "Le/d up to which a column is short.",
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        },
+        "k8": {
+          "description": "K8 = k8 √(E/Fc), where long columns start.",
+          "exclusiveMinimum": 0,
+          "title": "K8",
+          "type": "number"
+        },
+        "intermediate": {
+          "description": "Fc [1 - (Le/(d K8))⁴ / intermediate].",
+          "exclusiveMinimum": 0,
+          "title": "Intermediate",
+          "type": "number"
+        },
+        "long": {
+          "description": "Long columns: long · E / (Le/d)².",
+          "exclusiveMinimum": 0,
+          "title": "Long",
+          "type": "number"
+        },
+        "maxSlenderness": {
+          "description": "Largest Le/d.",
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "short",
+        "k8",
+        "intermediate",
+        "long",
+        "maxSlenderness"
+      ],
+      "title": "TimberColumn",
+      "type": "object"
+    },
+    "TimberDeflection": {
+      "additionalProperties": false,
+      "properties": {
+        "span": {
+          "exclusiveMinimum": 0,
+          "title": "Span",
+          "type": "number"
+        },
+        "cantilever": {
+          "exclusiveMinimum": 0,
+          "title": "Cantilever",
+          "type": "number"
+        }
+      },
+      "required": [
+        "span",
+        "cantilever"
+      ],
+      "title": "TimberDeflection",
+      "type": "object"
+    },
+    "TimberDepthFactor": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "description": "Depth [mm] above which K3 applies.",
+          "exclusiveMinimum": 0,
+          "title": "Above",
+          "type": "number"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "a": {
+          "exclusiveMinimum": 0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "exclusiveMinimum": 0,
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": [
+        "above",
+        "factor",
+        "a",
+        "b"
+      ],
+      "title": "TimberDepthFactor",
+      "type": "object"
+    },
+    "TimberDuration": {
+      "additionalProperties": false,
+      "properties": {
+        "permanent": {
+          "exclusiveMinimum": 0,
+          "title": "Permanent",
+          "type": "number"
+        },
+        "wind": {
+          "exclusiveMinimum": 0,
+          "title": "Wind",
+          "type": "number"
+        },
+        "earthquake": {
+          "exclusiveMinimum": 0,
+          "title": "Earthquake",
+          "type": "number"
+        }
+      },
+      "required": [
+        "permanent",
+        "wind",
+        "earthquake"
+      ],
+      "title": "TimberDuration",
+      "type": "object"
+    },
+    "TimberGroup": {
+      "additionalProperties": false,
+      "description": "Permissible stresses of a strength group [MPa], by location of use where they differ.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "E": {
+          "description": "Modulus of elasticity [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "E",
+          "type": "number"
+        },
+        "bending": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "inside",
+              "outside",
+              "wet"
+            ]
+          },
+          "title": "Bending",
+          "type": "object"
+        },
+        "tension": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "inside",
+              "outside",
+              "wet"
+            ]
+          },
+          "title": "Tension",
+          "type": "object"
+        },
+        "shearHorizontal": {
+          "exclusiveMinimum": 0,
+          "title": "Shearhorizontal",
+          "type": "number"
+        },
+        "shearAlong": {
+          "exclusiveMinimum": 0,
+          "title": "Shearalong",
+          "type": "number"
+        },
+        "compressionParallel": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "inside",
+              "outside",
+              "wet"
+            ]
+          },
+          "title": "Compressionparallel",
+          "type": "object"
+        },
+        "compressionPerpendicular": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "inside",
+              "outside",
+              "wet"
+            ]
+          },
+          "title": "Compressionperpendicular",
+          "type": "object"
+        }
+      },
+      "required": [
+        "label",
+        "E",
+        "bending",
+        "tension",
+        "shearHorizontal",
+        "shearAlong",
+        "compressionParallel",
+        "compressionPerpendicular"
+      ],
+      "title": "TimberGroup",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Permissible stress design of sawn timber: stresses by strength group and location, the\ncolumn formulas, the depth factor, load duration factors and deflection limits.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "groups": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TimberGroup"
+      },
+      "minProperties": 1,
+      "title": "Groups",
+      "type": "object"
+    },
+    "column": {
+      "$ref": "#/$defs/TimberColumn"
+    },
+    "depthFactor": {
+      "$ref": "#/$defs/TimberDepthFactor"
+    },
+    "duration": {
+      "$ref": "#/$defs/TimberDuration"
+    },
+    "deflection": {
+      "$ref": "#/$defs/TimberDeflection"
+    }
+  },
+  "required": [
+    "groups",
+    "column",
+    "depthFactor",
+    "duration",
+    "deflection"
+  ],
+  "title": "TimberTable",
+  "type": "object",
+  "$id": "saengine.codePack.timber/1"
+}

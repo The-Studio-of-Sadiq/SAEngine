@@ -17,7 +17,7 @@ of the old constants and checks every value of the pack against it.
 | `zoneCoefficients.json` | Zone coefficient Z by zone | Table 6.2.14 (p. 615) |
 | `occupancyCategories.json` | Categories I-IV, seismic and wind importance | Tables 6.1.1 (p. 480), 6.2.17 (p. 616), 6.2.9 (p. 601) |
 | `areaLoads.json` | Live loads by use (a selection) | Table 6.2.3 (pp. 533-539) |
-| `combinations.json` | Load cases; strength, temperature and gravity combinations; D factors of the combinations with E | Sec 2.7.3.1 (p. 685) |
+| `combinations.json` | Load cases; strength, temperature and gravity combinations; allowable stress combinations (Sec 2.7.3.2, for timber); D factors of the combinations with E | Sec 2.7.3.1 (p. 685) |
 | `seismic.json` | Site classes and spectrum (S, TB, TC, TD), systems (R, Ω0, Cd, height limits, detailing level), Ct/m, SDC table, drift limits, RS scaling, torsion, Ev | Sec 2.5 (pp. 609-648) |
 | `wind.json` | Exposures (α, zg), Kd, Kzt, G, Cp | Sec 2.4, Tables 6.2.11, 6.2.12 (pp. 602-603) |
 | `materials.json` | εcu, Es, G of steel, f'c and fy limits of seismic members | Sec 8.3.3 (pp. 1089-1090) |
@@ -34,6 +34,7 @@ of the old constants and checks every value of the pack against it.
 | `liveReduction.json` | Reduction of floor live loads by influence area: L = L0 (0.25 + 4.57/√(KLL AT)), least factors, uses not reduced, KLL by member | Sec 2.3.13 |
 | `fireResistance.json` | Least slab and wall thickness, column size and the covers of slabs, beams and columns for 1-4 h fire resistance (siliceous aggregate; from memory, to be checked) | ACI 216.1-14 Tables 4.2, 4.3.1.1, 4.3.1.2, 4.5.1a, Sec 4.5.3; the ratings by BNBC 2020 Part 4 |
 | `planning.json` | Planning rules of the plot for Dhaka (RAJUK): FAR and maximum ground coverage by use, plot size and road width (Tables 3(A)-3(F)), narrow roads and the road-width increment (Rule 51(9)-(11)), setbacks by plot size and height (Table 2, Rule 46), the road-centre distance (Rule 46(3)); transcribed from the gazette | Dhaka Mohanagar Imarat Nirman Bidhimala 2008; BNBC 2020 Part 3 Chapter 1 defers to the planning authority |
+| `timber.json` | Permissible stress design of sawn timber: stresses by strength group (A, B, C) and location of use (inside, outside, wet), E, the column formulas (short, intermediate with K8, long), the depth factor K3, load duration factors and deflection limits (stresses from memory, to be checked) | Part 6 Chapter 11, with the provisions of IS 883:1994 it follows (section and page numbers of the BNBC text to be checked) |
 | `steelSections.json` | Nominal dimensions of the steel shapes: IPE, HEA, HEB (EN 10365), ISMB, ISMC (IS 808, mean flange thickness), equal angles (EN 10056 / IS 808), SHS, RHS, CHS (EN 10219) and the walls rolled per size; the steel density. The properties are computed from them | The standard of each family, in its `source` |
 
 Each file names its clauses in `source` (the table), `sources` (single entries) and `$sources`
