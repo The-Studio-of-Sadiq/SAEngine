@@ -35,6 +35,13 @@
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 
+.saengine-new-building .header .packages-link {
+	display: inline-block;
+	margin-top: var(--sa-space-1, 4px);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--sa-font-s, 12px);
+}
+
 .saengine-new-building .unavailable {
 	display: flex;
 	gap: var(--sa-space-2, 8px);

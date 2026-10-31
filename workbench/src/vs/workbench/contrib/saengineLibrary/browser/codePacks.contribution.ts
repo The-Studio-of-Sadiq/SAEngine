@@ -13,13 +13,15 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { PROJECT_MENU } from '../../saengineProject/browser/projectMenu.js';
-import { CodePacksEditor, IInstallCodePackArgs, INewCodePackArgs } from './codePacksEditor.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { PACKAGES_SHOW_COMMAND } from '../common/packageIndex.js';
+import { CodePacksEditor, IInstallCodePackArgs, INewCodePackArgs, IShowPackagesArgs } from './codePacksEditor.js';
 import { CodePacksEditorInput, CodePacksEditorInputSerializer } from './codePacksEditorInput.js';
 
 const category = localize2('saengine.category', "SAEngine");
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(CodePacksEditor, CodePacksEditor.ID, localize('saengineCodePacksEditor', "SAEngine Code Packs")),
+	EditorPaneDescriptor.create(CodePacksEditor, CodePacksEditor.ID, localize('saengineCodePacksEditor', "SAEngine Packages")),
 	[new SyncDescriptor(CodePacksEditorInput)]
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(CodePacksEditorInput.ID, CodePacksEditorInputSerializer);
@@ -32,19 +34,23 @@ async function openPage(accessor: ServicesAccessor): Promise<CodePacksEditor | u
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'saengine.codePacks.show',
-			title: localize2('saengine.codePacks.show', "Code Packs..."),
+			id: PACKAGES_SHOW_COMMAND,
+			title: localize2('saengine.packages.show', "Packages..."),
 			category,
-			icon: Codicon.law,
+			icon: Codicon.package,
 			f1: true,
 			menu: { id: PROJECT_MENU, group: '1_project', order: 7 },
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		await openPage(accessor);
+	/** `args` (optional): `{ tab: 'installed' | 'browse' | 'updates', kind }`. */
+	override async run(accessor: ServicesAccessor, args?: IShowPackagesArgs): Promise<void> {
+		(await openPage(accessor))?.show(args);
 	}
 });
+
+// The page's earlier name: kept so links, keybindings and scripts that open Code Packs still work.
+CommandsRegistry.registerCommand('saengine.codePacks.show', (accessor, args?: IShowPackagesArgs) => accessor.get(ICommandService).executeCommand(PACKAGES_SHOW_COMMAND, args));
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -66,7 +72,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.codePacks.install',
-			title: localize2('saengine.codePacks.install', "Install Code Pack..."),
+			title: localize2('saengine.codePacks.install', "Install Package from File..."),
 			category,
 			f1: true,
 		});

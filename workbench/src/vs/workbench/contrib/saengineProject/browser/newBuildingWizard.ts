@@ -42,12 +42,13 @@ import { gridLabel } from '../../../services/saengineProject/common/gridLabels.j
 import { BNBC, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
-	buildSpec, centralBay, DEFAULT_FORM, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, OccupancyCategory,
+	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, OccupancyCategory,
 	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { ProjectOpener } from './projectOpener.js';
+import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -137,12 +138,16 @@ export class NewBuildingWizard extends EditorPane {
 	private scrollable!: DomScrollableElement;
 	private readonly opener: ProjectOpener;
 	private readonly pageDisposables = this._register(new DisposableStore());
-	private form: { -readonly [key in keyof INewBuildingForm]: INewBuildingForm[key] } = { ...DEFAULT_FORM };
+	private form: { -readonly [key in keyof INewBuildingForm]: INewBuildingForm[key] } = { ...BLANK_FORM };
 	private folder = '';
 	private focusTarget: { focus(): void } | undefined;
 	private busy = false;
 	/** The plot of the open project's soil report, in the grid's frame; undefined without one. */
 	private plot: IWizardPlot | undefined;
+	/** The building templates installed (Packages page): specifications and full projects. */
+	private templates: IBuildingTemplate[] = [];
+	/** The package of the specification that filled the form last; undefined before any. */
+	private templateApplied: string | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -172,6 +177,15 @@ export class NewBuildingWizard extends EditorPane {
 		await super.setInput(input, options, context, token);
 		if (!this.folder) {
 			this.folder = await this.initialFolder();
+		}
+		// The starting values are a building template's (saengine-default-building, built in).
+		await this.loadTemplates();
+		if (!this.templateApplied) {
+			const start = this.templates.find(t => t.type === 'spec' && t.package === DEFAULT_BUILDING_TEMPLATE) ?? this.templates.find(t => t.type === 'spec');
+			if (start?.spec) {
+				this.form = { ...formFromSpec(start.spec, this.form) };
+				this.templateApplied = start.package;
+			}
 		}
 		this.renderForm();
 		// The plot needs the backend (a second or two): the form shows at once, then again with it.
@@ -246,6 +260,51 @@ export class NewBuildingWizard extends EditorPane {
 		}
 	}
 
+	/** The building templates of the installed packages (empty without the backend). */
+	private async loadTemplates(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_TEMPLATES_COMMAND)) {
+			return;
+		}
+		try {
+			this.templates = readBuildingTemplates(await this.commandService.executeCommand<unknown>(CODES_TEMPLATES_COMMAND, { kind: 'buildingTemplate', root: this.projectService.project?.root.fsPath }));
+		} catch {
+			this.templates = [];
+		}
+	}
+
+	/** "Start from": the specifications fill the form; a full template opens as a new project. */
+	private renderTemplates(form: HTMLElement): void {
+		const control = this.row(form, localize('newBuilding.template', "Start from"));
+		const specs = this.templates.filter(t => t.type === 'spec');
+		const archives = this.templates.filter(t => t.type === 'archive');
+		const label = (t: IBuildingTemplate) => t.packageName === t.name || !t.packageName ? t.name : localize('newBuilding.templateIn', "{0} ({1})", t.name, t.packageName);
+		const options = [
+			...specs.map(t => ({ text: label(t), description: t.description })),
+			...archives.map(t => ({ text: localize('newBuilding.templateFull', "{0}: full project...", label(t)), description: t.description })),
+		];
+		if (!options.length) {
+			append(control, $('span.hint', undefined, localize('newBuilding.noTemplates', "No building templates installed.")));
+			return;
+		}
+		const index = Math.max(0, specs.findIndex(t => t.package === this.templateApplied));
+		const box = this.pageDisposables.add(new SelectBox(options, index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('newBuilding.template', "Start from") }));
+		box.render(control);
+		this.pageDisposables.add(box.onDidSelect(({ index: picked }) => {
+			const spec = specs[picked];
+			if (spec?.spec) {
+				this.form = { ...formFromSpec(spec.spec, this.form) };
+				this.templateApplied = spec.package;
+				this.renderForm();
+				return;
+			}
+			const archive = archives[picked - specs.length];
+			if (archive?.path) {
+				box.select(index);
+				void this.commandService.executeCommand(NEW_FROM_TEMPLATE_COMMAND, { path: archive.path, author: archive.author, name: this.form.name.trim() || undefined });
+			}
+		}));
+	}
+
 	/** Whether the backend can generate a building in this build. */
 	private get available(): boolean {
 		return !!CommandsRegistry.getCommand(GENERATE_BUILDING_COMMAND);
@@ -265,6 +324,12 @@ export class NewBuildingWizard extends EditorPane {
 		const header = append(page, $('header.header'));
 		append(header, $('h1', undefined, localize('newBuilding.title', "New Building from Grid")));
 		append(header, $('p.subtitle', undefined, localize('newBuilding.subtitle', "Columns, beams, walls, slabs and footings on every storey in one step, with preliminary sizes. Edit them afterwards in the floor plan.")));
+		// Building templates are installed on the Packages page; the wizard only links to it.
+		const more = append(header, $('a.packages-link', { href: '#', role: 'button' }, localize('newBuilding.moreTemplates', "Get more building templates...")));
+		this.pageDisposables.add(addDisposableListener(more, EventType.CLICK, e => {
+			e.preventDefault();
+			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' });
+		}));
 		if (!this.available) {
 			const note = append(page, $('.unavailable', { role: 'status' }));
 			append(note, $(`span${ThemeIcon.asCSSSelector(Codicon.info)}`));
@@ -318,6 +383,7 @@ export class NewBuildingWizard extends EditorPane {
 
 		// ── project ──
 		this.section(form, localize('newBuilding.project', "Project"));
+		this.renderTemplates(form);
 		const name = this.textInput(form, localize('newBuilding.name', "Name"), this.form.name, value => this.form.name = value, localize('newBuilding.namePlaceholder', "e.g. Office Building"), text => this.opener.validateName(text));
 		inputs.set('name', name);
 		this.pageDisposables.add(name.onDidChange(() => name.validate()));

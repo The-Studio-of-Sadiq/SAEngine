@@ -268,6 +268,40 @@ def test_templates_install_into_their_user_folder_only(dirs):
     assert (dirs.project / PROJECT_PACKS / "regional").is_dir()
 
 
+def test_uninstall_removes_the_folder_and_the_trust(dirs):
+    """Remove on the Packages page (round M3): user and project packages go, built-in stay."""
+    src = structure(dirs.src)
+    dirs.reg.install(src, "user")
+    assert dirs.reg.uninstall("trusses", "user", kind="structureTemplate") == (
+        dirs.structures / "trusses"
+    )
+    assert not (dirs.structures / "trusses").exists()
+    assert not any(p.id == "trusses" for p in dirs.reg.list_packs(kind=None))
+    with pytest.raises(CodePackError, match="is installed"):
+        dirs.reg.uninstall("trusses", "user", kind="structureTemplate")
+    with pytest.raises(CodePackError, match="cannot be removed"):
+        dirs.reg.uninstall("base", "builtin")
+
+    hooked = write_package(dirs.src, "hooked", {"hooks.py": b""}, extends="base", hooks="hooks.py")
+    dirs.reg.install(hooked, "project", dirs.project)
+    dirs.reg.set_trusted("hooked", True, dirs.project)
+    assert dirs.reg.trust._read().get("hooked")
+    dirs.reg.uninstall("hooked", "project", dirs.project)
+    assert not (dirs.project / PROJECT_PACKS / "hooked").exists()
+    assert not dirs.reg.trust._read().get("hooked")
+
+
+def test_uninstall_refuses_a_package_others_need(dirs):
+    dirs.reg.install(write_package(dirs.src, "regional", extends="base"), "user")
+    dirs.reg.install(write_package(dirs.src, "coastal", extends="regional"), "user")
+    with pytest.raises(CodePackError, match="needed by coastal"):
+        dirs.reg.uninstall("regional", "user")
+    # a copy in the project keeps the child resolvable: the user's copy may go
+    dirs.reg.install(dirs.src / "regional", "project", dirs.project)
+    dirs.reg.uninstall("regional", "user", dirs.project)
+    assert not (dirs.user / "regional").exists()
+
+
 @pytest.mark.parametrize("name", ["setup.exe", "lib/helper.dll", "run.ps1", "tool.BAT", "a.js"])
 def test_programs_are_refused(dirs, name):
     src = structure(dirs.src)
@@ -408,3 +442,132 @@ def test_template_archive_must_be_inputs_only(dirs, tmp_path):
     messages = [p.message for p in dirs.reg.info("full", kind="buildingTemplate").problems]
     assert any("soil report" in m and "client data" in m for m in messages)
     assert any("results" in m for m in messages)
+
+
+def test_template_archive_location_and_author_checks(tmp_path):
+    """Round M4: a full template places no site more precisely than a town and names no one but
+    its author."""
+    from saengine.project.archive import template_problems
+
+    def archive(name: str, files: dict[str, object]) -> Path:
+        civil = tmp_path / f"{name}.civil"
+        with zipfile.ZipFile(civil, "w") as zf:
+            for rel, doc in files.items():
+                zf.writestr(f"project/{rel}", json.dumps(doc))
+        return civil
+
+    clean = archive(
+        "clean",
+        {
+            "02 Project Settings/settings.json": {"site": {"location": "dhaka"}, "lat": 23.8},
+            "11 Drawings/sheet.json": {"drawnBy": "SAEngine contributors"},
+        },
+    )
+    assert template_problems(clean, "SAEngine contributors") == []
+    precise = archive("precise", {"06 BIM/site.json": {"refLatitude": 23.81234}})
+    assert [p["code"] for p in template_problems(precise)] == ["template-location"]
+    plot = archive("plot", {"06 BIM/site.json": {"plot": [[90.4, 23.8], [90.41, 23.8]]}})
+    assert [p["code"] for p in template_problems(plot)] == ["template-location"]
+    named = archive("named", {"11 Drawings/sheet.json": {"checkedBy": "A. Client Engineer"}})
+    problems = template_problems(named, "SAEngine contributors")
+    assert [p["code"] for p in problems] == ["template-author"]
+    assert "A. Client Engineer" in problems[0]["message"]
+
+
+def test_catalogue_lists_presets_and_building_templates(dirs):
+    from saengine.codes import catalogue
+
+    dirs.reg.install(structure(dirs.src), "user")
+    write_package(dirs.src, "g9", {"spec.json": SPEC}, kind="buildingTemplate")
+    dirs.reg.install(dirs.src / "g9", "user")
+    presets = catalogue.structure_presets(registry=dirs.reg)
+    assert [(p["package"], p["name"]) for p in presets["presets"]] == [
+        ("trusses", "Warren truss 24 m")
+    ]
+    assert presets["presets"][0]["shape"]["kind"] == "planeTruss"
+    buildings = catalogue.building_templates(registry=dirs.reg)
+    assert [(t["package"], t["type"]) for t in buildings["templates"]] == [("g9", "spec")]
+    assert buildings["templates"][0]["spec"]["storyCount"] == 6
+
+
+def test_builtin_default_building_is_the_wizard_start(user_data):
+    """The wizard's starting values live in the built-in saengine-default-building package."""
+    from saengine.codes import catalogue
+
+    info = registry.info("saengine-default-building", kind="buildingTemplate")
+    assert info.scope == "builtin" and info.usable and info.problems == []
+    first = catalogue.building_templates()["templates"][0]
+    assert first["package"] == catalogue.DEFAULT_BUILDING_TEMPLATE and first["type"] == "spec"
+    spec = first["spec"]
+    assert (spec["gridsX"], spec["gridsY"], spec["storyCount"]) == ([6000] * 3, [5000] * 2, 6)
+    # Grade 500 is not allowed in special frames (BNBC 2020 Part 6 Sec 8.3.3.4(b)).
+    assert spec["rebar"] == "B420DWR" and spec["system"] == "rcFrame"
+
+
+HOOKS = b"""
+def portal(params):
+    span, height = params["span"], params["height"]
+    return {
+        "members": [
+            {"start": [0, 0, 0], "end": [0, 0, height], "type": "COL"},
+            {"start": [0, 0, height], "end": [span, 0, height], "type": "BEAM"},
+            {"start": [span, 0, height], "end": [span, 0, 0], "type": "COL"},
+        ],
+        "supports": [{"at": [0, 0, 0], "fixity": "fixed"}, {"at": [span, 0, 0], "fixity": "fixed"}],
+    }
+"""
+CODED = {
+    "name": "Portal frame",
+    "generator": "portal",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "span": {"type": "number", "minimum": 1000, "maximum": 60000},
+            "height": {"type": "number", "minimum": 1000},
+        },
+        "required": ["span", "height"],
+    },
+    "values": {"span": 12000, "height": 6000},
+}
+
+
+def test_coded_template_runs_only_when_trusted(dirs):
+    """Round M5: a new shape kind made by the package's own code, through trusted hooks."""
+    from saengine.codes import catalogue
+    from saengine.codes.coded import coded_geometry
+
+    src = write_package(
+        dirs.src,
+        "portals",
+        {"templates/portal.json": CODED, "hooks.py": HOOKS},
+        kind="structureTemplate",
+        hooks="hooks.py",
+    )
+    info = dirs.reg.install(src, "user")
+    assert info.usable, info.problems
+    listed = catalogue.structure_presets(registry=dirs.reg)["presets"]
+    assert [(p["name"], p.get("coded"), p.get("trusted")) for p in listed] == [
+        ("Portal frame", True, False)
+    ]
+    untrusted = coded_geometry("portals", "templates/portal.json", registry=dirs.reg)
+    assert untrusted.get("untrusted") and "Packages page" in untrusted["problems"][0]
+
+    dirs.reg.set_trusted("portals", True, kind="structureTemplate")
+    geometry = coded_geometry(
+        "portals",
+        "templates/portal.json",
+        {"span": 10000, "origin": {"x": 1000, "y": 0, "z": 0}},
+        registry=dirs.reg,
+    )
+    assert len(geometry["members"]) == 3 and len(geometry["supports"]) == 2
+    assert geometry["members"][1]["end"] == [11000.0, 0.0, 6000.0]  # span + origin, height
+    bad = coded_geometry("portals", "templates/portal.json", {"span": 10}, registry=dirs.reg)
+    assert bad["problems"] == ["span: at least 1000"]
+
+
+def test_coded_template_needs_hooks(dirs):
+    src = write_package(
+        dirs.src, "nohooks", {"templates/portal.json": CODED}, kind="structureTemplate"
+    )
+    messages = [p.message for p in dirs.reg.validate(src).problems]
+    assert any("needs the package's hooks" in m for m in messages)

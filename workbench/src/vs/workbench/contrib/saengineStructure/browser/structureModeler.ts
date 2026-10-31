@@ -25,7 +25,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -55,6 +55,7 @@ import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorI
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
 import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
+import { CODES_CODED_GEOMETRY_COMMAND, CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
 
 type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
 
@@ -187,6 +188,15 @@ export class StructureModelerEditor extends EditorPane {
 	private modeler: StructureModeler | undefined;
 	private readonly modelerDisposable = this._register(new MutableDisposable());
 	private readonly inputDisposables = this._register(new DisposableStore());
+	/** "Get more structure templates...": the Generate panel's link to the Packages page. */
+	private panelMore!: HTMLElement;
+	/** The Generate panel's template picker (the presets of the structure templates installed). */
+	private panelPresets!: HTMLElement;
+	private presetSelect!: HTMLSelectElement;
+	private presets: IStructurePreset[] = [];
+	/** The coded template being generated (round M5), with its form; undefined for a built-in shape. */
+	private coded: { readonly preset: IStructurePreset; readonly schema: IJSONSchema; readonly value: JsonObject; readonly form: SchemaForm } | undefined;
+	private readonly codedForm = this._register(new DisposableStore());
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 
 	private model: ITextModel | undefined;
@@ -302,12 +312,22 @@ export class StructureModelerEditor extends EditorPane {
 		this.details = append(properties, $('.modeler-details'));
 		this.panel = append(properties, $('.modeler-panel.saengine-library-editor'));
 		this.panelTitle = append(this.panel, $('h3.modeler-panel-title'));
+		// The structure templates installed (Packages page), grouped by package: one fills the form.
+		this.panelPresets = append(this.panel, $('.modeler-panel-presets.hidden'));
+		this.presetSelect = append(this.panelPresets, $('select.modeler-panel-preset', { 'aria-label': localize('modeler.presetLabel', "Start from a structure template") })) as HTMLSelectElement;
+		this._register(addDisposableListener(this.presetSelect, EventType.CHANGE, () => this.applyPreset(this.presetSelect.value)));
 		this.panelForm = append(this.panel, $('.modeler-panel-form.library-form'));
 		this.panelStatus = append(this.panel, $('.modeler-panel-status'));
 		const buttons = append(this.panel, $('.modeler-panel-buttons'));
 		this.insertButton = this._register(new Button(buttons, { ...defaultButtonStyles }));
 		this.insertButton.label = localize('modeler.insert', "Insert");
 		this._register(this.insertButton.onDidClick(() => void this.insertGhost()));
+		// Structure templates are installed on the Packages page; the panel only links to it.
+		this.panelMore = append(this.panel, $('a.modeler-panel-more.hidden', { href: '#', role: 'button' }, localize('modeler.morePresets', "Get more structure templates...")));
+		this._register(addDisposableListener(this.panelMore, EventType.CLICK, e => {
+			e.preventDefault();
+			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'structureTemplate' });
+		}));
 		const cancel = this._register(new Button(buttons, { ...defaultButtonStyles, secondary: true }));
 		cancel.label = localize('modeler.cancel', "Cancel");
 		this._register(cancel.onDidClick(() => this.closePanel()));
@@ -915,8 +935,77 @@ export class StructureModelerEditor extends EditorPane {
 
 	private openShape(): void {
 		this.closePanel();
+		this.coded = undefined;
+		this.codedForm.clear();
 		this.shapeValue ??= { shape: this.template('SpaceTruss') };
 		this.openPanel({ kind: 'shape' });
+		void this.loadPresets();
+	}
+
+	/** The presets of the structure templates installed, for the Generate panel's picker. */
+	private async loadPresets(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_TEMPLATES_COMMAND)) {
+			return;
+		}
+		try {
+			this.presets = readStructurePresets(await this.commandService.executeCommand<unknown>(CODES_TEMPLATES_COMMAND, { kind: 'structureTemplate' }));
+		} catch {
+			this.presets = [];
+		}
+		this.renderPresets();
+	}
+
+	private renderPresets(): void {
+		const select = this.presetSelect;
+		clearNode(select);
+		this.panelPresets.classList.toggle('hidden', this.source?.kind !== 'shape' || !this.presets.length);
+		const placeholder = append(select, $('option', { value: '' }, localize('modeler.presetPlaceholder', "Start from a structure template..."))) as HTMLOptionElement;
+		placeholder.selected = true;
+		groupPresets(this.presets).forEach((group, g) => {
+			const optgroup = append(select, $('optgroup', { label: group.name }));
+			group.presets.forEach((preset, i) => {
+				append(optgroup, $('option', { value: `${g}/${i}`, title: preset.description }, preset.name));
+			});
+		});
+	}
+
+	/** Fills the Generate form with a preset (keeping where the shape is placed). */
+	private applyPreset(value: string): void {
+		const [g, i] = value.split('/').map(Number);
+		const preset = groupPresets(this.presets)[g]?.presets[i];
+		if (!preset || this.source?.kind !== 'shape') {
+			return;
+		}
+		this.codedForm.clear();
+		if (preset.coded) {
+			// A new shape kind made by the package's code: its form is made from its parameter schema.
+			const schema: IJSONSchema = { type: 'object', properties: { values: preset.coded.parameters as IJSONSchema } };
+			this.coded = { preset, schema, value: { values: clone(preset.coded.values as JsonObject) }, form: this.codedForm.add(this.instantiationService.createInstance(SchemaForm, this.formContext(schema))) };
+			this.fitGhost = true;
+			this.renderPanel();
+			this.renderPresets();
+			this.presetSelect.value = value;
+			this.ghostScheduler.schedule(0);
+			return;
+		}
+		this.coded = undefined;
+		if (!preset.shape) {
+			return;
+		}
+		const shape = clone(preset.shape as JsonObject);
+		if (shape.memberType === 'MEMBER' || typeof shape.memberType !== 'string' || !shape.memberType) {
+			shape.memberType = this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
+		}
+		const origin = (this.shapeValue?.shape as JsonObject | undefined)?.origin;
+		if (origin !== undefined && shape.origin === undefined) {
+			shape.origin = origin;
+		}
+		this.shapeValue = { shape };
+		this.fitGhost = true;
+		this.renderPanel();
+		this.renderPresets();
+		this.presetSelect.value = value;
+		this.ghostScheduler.schedule(0);
 	}
 
 	private async openImport(): Promise<void> {
@@ -980,11 +1069,16 @@ export class StructureModelerEditor extends EditorPane {
 			}
 		}
 		this.renderDetails();
+		this.panelMore.classList.toggle('hidden', source?.kind !== 'shape');
+		this.panelPresets.classList.toggle('hidden', source?.kind !== 'shape' || !this.presets.length);
 		clearNode(this.panelForm);
 		if (!source) {
 			return;
 		}
-		if (source.kind === 'shape' && this.shapeValue) {
+		if (source.kind === 'shape' && this.coded) {
+			this.panelTitle.textContent = this.coded.preset.name;
+			this.coded.form.render(this.panelForm, this.coded.schema, this.coded.value);
+		} else if (source.kind === 'shape' && this.shapeValue) {
 			this.panelTitle.textContent = localize('modeler.generateTitleShort', "Generate Shape");
 			this.shapeForm.render(this.panelForm, SHAPE_SCHEMA, this.shapeValue);
 		} else if (source.kind === 'import' && this.importValue) {
@@ -1024,7 +1118,10 @@ export class StructureModelerEditor extends EditorPane {
 		const request = ++this.ghostRequest;
 		let result: StructureGeometryResult | undefined;
 		try {
-			result = source.kind === 'shape'
+			const coded = source.kind === 'shape' ? this.coded : undefined;
+			result = coded
+				? await this.commandService.executeCommand<StructureGeometryResult>(CODES_CODED_GEOMETRY_COMMAND, { package: coded.preset.package, file: coded.preset.file, values: coded.value.values, memberType: this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) })
+				: source.kind === 'shape'
 				? await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.shapeGeometry', this.shapeValue?.shape)
 				: await this.commandService.executeCommand<StructureGeometryResult>('saengine.structure.importGeometry', source.file, this.importValue?.options, this.objects?.getValue());
 		} catch (error) {
