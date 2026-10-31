@@ -1004,6 +1004,15 @@ class _TypeResult:
     warnings: list[str] = field(default_factory=list)
 
 
+def _some_joints(joint_ids: list[str], shown: int = 3) -> str:
+    """Joint ids: "C1@3000" as is; "52 joints: C-A1@3600, C-A4@3600, C-E1@3600 and 49 more" for
+    many (N-X21 of usability walk 2: a row with a wall of joint ids)."""
+    if len(joint_ids) <= shown + 1:
+        return ", ".join(joint_ids)
+    rest = len(joint_ids) - shown
+    return f"{len(joint_ids)} joints: {', '.join(joint_ids[:shown])} and {rest} more"
+
+
 def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) -> None:
     """Reports a column type too small for the joint shear at ``joint_ids`` (as a section too
     small for bars: nothing is changed for it, its split types are not made); the bars its
@@ -1017,8 +1026,9 @@ def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) 
     entry["proposed"] = None
     entry["strengthBars"] = bars
     entry["tooSmall"] = {
-        "reason": f"joint shear at {', '.join(joint_ids)}",
+        "reason": f"joint shear at {_some_joints(joint_ids)}",
         "suggestion": suggestion,
+        "joints": list(joint_ids),
     }
     if bars:
         entry["notes"] = [
@@ -1486,7 +1496,7 @@ def propose(
                     *trial.entry["notes"],
                     (
                         "the lightest bars that pass, for the joint shear at "
-                        f"{', '.join(fixed)} (Vj from 1.25 fy of the beam bars, Sec 8.3.7.1(a))"
+                        f"{_some_joints(fixed)} (Vj from 1.25 fy of the beam bars, Sec 8.3.7.1(a))"
                     ),
                 ]
                 beam_results[type_id] = trial

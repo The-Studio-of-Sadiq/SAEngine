@@ -770,3 +770,15 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     assert {e["id"] for e in again["elements"] if not e["ok"]} == set()
     moved = {m["member"]: m["to"] for m in split["reassign"]}
     assert {e["id"]: e["type"] for e in again["elements"] if e["id"] in moved} == moved
+
+
+def test_a_long_joint_list_reads_as_a_count() -> None:
+    """N-X21 of usability walk 2: a column type too small for joint shear at 52 joints listed all
+    52 ids in its row; now the count, the first three and how many more (all kept under
+    ``tooSmall.joints``)."""
+    from saengine.design.proposal import _some_joints
+
+    assert _some_joints(["C1@3000"]) == "C1@3000"
+    assert _some_joints(["A", "B", "C", "D"]) == "A, B, C, D"
+    many = [f"C{i}@3600" for i in range(1, 53)]
+    assert _some_joints(many) == "52 joints: C1@3600, C2@3600, C3@3600 and 49 more"
