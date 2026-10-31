@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -261,6 +262,7 @@ export class EditorFrame extends Disposable {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.storageKey = `saengine.editorFrame.${options.id}`;
@@ -412,7 +414,8 @@ export class EditorFrame extends Disposable {
 
 	/**
 	 * A "?" button after the title whose hover explains the editor (what used to be a paragraph
-	 * at the top); undefined removes it. Clicking it, or Enter on it, shows the hover too.
+	 * at the top); undefined removes it. Clicking it, or Enter on it, opens the part's chapter of
+	 * the user manual (the hover without one).
 	 */
 	setHelp(text: string | undefined): void {
 		this.helpStore.clear();
@@ -431,7 +434,19 @@ export class EditorFrame extends Disposable {
 			content.appendMarkdown(`\n\n[${localize('editorFrame.learnMore', "Learn more in the user manual")}](command:${OPEN_MANUAL_COMMAND}?${encodeURIComponent(JSON.stringify([chapter]))})`);
 		}
 		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, { markdown: content, markdownNotSupportedFallback: text }));
-		this.helpStore.add(addDisposableListener(button, EventType.CLICK, () => hover.show(true)));
+		// N-G11: a click opens the manual's chapter (the hover still explains on hover).
+		this.helpStore.add(addDisposableListener(button, EventType.CLICK, () => {
+			if (chapter) {
+				button.classList.add('loading');
+				button.setAttribute('aria-busy', 'true');
+				void this.commandService.executeCommand(OPEN_MANUAL_COMMAND, chapter).finally(() => {
+					button.classList.remove('loading');
+					button.removeAttribute('aria-busy');
+				});
+			} else {
+				hover.show(true);
+			}
+		}));
 	}
 
 	/**

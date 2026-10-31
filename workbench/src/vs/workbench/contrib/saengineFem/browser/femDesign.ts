@@ -386,11 +386,13 @@ export interface IFemDesignSummaryFile {
 	readonly governing: string | null;
 	/** ISO time the checks were computed. */
 	readonly computed: string;
+	/** The run's one count (N-X8), for the part list; absent from an older backend. */
+	readonly counts?: IFemDesignCounts;
 }
 
 export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing } = report.summary;
-	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString() };
+	const { checked, passed, failed, maxUtilisation, governing, counts } = report.summary;
+	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}) };
 }
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */

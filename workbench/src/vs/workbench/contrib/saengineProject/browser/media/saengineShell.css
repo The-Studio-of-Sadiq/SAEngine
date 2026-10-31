@@ -49,3 +49,22 @@
 	cursor: default;
 	opacity: 0.5;
 }
+
+/* "Opening <project>…" while a window opened on a project loads (N-N5). */
+.saengine-opening-project {
+	position: absolute;
+	inset: 0;
+	z-index: 30;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.saengine-opening-project .saengine-opening-box {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font-size: 14px;
+}

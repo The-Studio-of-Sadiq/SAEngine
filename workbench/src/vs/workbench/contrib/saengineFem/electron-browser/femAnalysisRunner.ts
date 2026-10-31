@@ -8,12 +8,11 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -42,7 +41,6 @@ export class FemAnalysisRunner {
 		@IFemSolverService private readonly solverService: IFemSolverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -173,8 +171,8 @@ export class FemAnalysisRunner {
 			return { status: 'cancelled', cases: 0 };
 		}
 
+		// The runner keeps the results of unchanged cases and removes the rest of the previous run.
 		const outDir = resultsFolder(model);
-		await this.clearPreviousResults(outDir);
 
 		const output = this.outputService.getChannel(FEM_OUTPUT_CHANNEL_ID);
 		// replace() rather than clear(): clear() resets asynchronously and would also drop the lines appended right after it.
@@ -200,6 +198,8 @@ export class FemAnalysisRunner {
 
 		// The log lists the cases and their warnings: reading every table of a tall building's
 		// run took minutes; the FEM editor reads them one at a time in its tables panel.
+		// N-X18: after the last case the results are listed (minutes on a tall building): said, not silence.
+		options.onProgress?.({ fraction: 1, message: localize('femRun.listing', "Reading the results of {0} cases", caseIds.length) });
 		try {
 			const index = await this.solverService.engine(python, 'fem/tableIndex', { outDir: outDir.fsPath, projectPath }) as { readonly results?: readonly IFemIndexEntry[] } | undefined;
 			output?.append(formatIndex(index?.results ?? []));
@@ -241,11 +241,16 @@ export class FemAnalysisRunner {
 					break;
 				case 'progress':
 					caseProgress.set(event.case_id, event.total > 0 ? event.step / event.total : 1);
-					report?.(localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total));
+					// N-X18: the last step is followed by the case's results being written.
+					report?.(event.total > 0 && event.step >= event.total
+						? localize('femRun.writing', "{0}: writing results ({1} of {2} cases)", caseNames.get(event.case_id) ?? '', caseProgress.size, caseIds.length)
+						: localize('femRun.step', "{0}: step {1} of {2}", caseNames.get(event.case_id) ?? '', event.step, event.total));
 					break;
 				case 'case_finished':
 					caseProgress.set(event.case_id, 1);
-					report?.(localize('femRun.caseFinished', "{0} finished", event.case_name));
+					report?.(caseProgress.size < caseIds.length
+						? localize('femRun.caseFinished', "{0} finished", event.case_name)
+						: localize('femRun.lastCaseFinished', "{0} finished: saving the results", event.case_name));
 					break;
 			}
 		};
@@ -273,7 +278,7 @@ export class FemAnalysisRunner {
 		}
 
 		const start = async () => {
-			runId = await this.solverService.startRun({ python, project, caseIds, outDir });
+			runId = await this.solverService.startRun({ python, project, caseIds, outDir, reuse: true });
 			if (cancelled) {
 				void this.solverService.cancelRun(runId);
 			}
@@ -309,13 +314,6 @@ export class FemAnalysisRunner {
 			return { result: await done.p, lastError };
 		} finally {
 			disposables.dispose();
-		}
-	}
-
-	/** Removes the previous run's output, but only if it is one (it has a `manifest.json`). */
-	private async clearPreviousResults(outDir: URI): Promise<void> {
-		if (await this.fileService.exists(joinPath(outDir, 'manifest.json'))) {
-			await this.fileService.del(outDir, { recursive: true, useTrash: false });
 		}
 	}
 

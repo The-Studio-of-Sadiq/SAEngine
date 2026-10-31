@@ -7,6 +7,11 @@ linked into SAEngine, like LibreCAD. LibreDWG reads DWG up to R2018 (AC1032, the
 AutoCAD 2018 to today's releases; tested from R2000); objects it cannot read yet (some styles,
 proxy objects) are skipped and counted in the warnings, the geometry is kept.
 
+Writing DWG (the drawing sheets, :func:`write_dwg`) is the other direction, by ``dxf2dwg`` of
+the same LibreDWG, found the same way (:func:`find_writer`), also run as its own process. It
+writes AutoCAD R2000 DWG (AC1015), which every current CAD program opens; its DWG writer is
+younger than its reader, so the DXF stays the sheet's master file and the DWG a copy for issue.
+
 Where ``dwg2dxf`` is (:func:`find_converter`): the ``SAENGINE_LIBREDWG`` environment variable
 (the folder or the exe), then the copy bundled with SAEngine (``<app>/resources/libredwg``, next
 to the bundled ``resources/python``), then ``dwg2dxf`` on the ``PATH``.
@@ -32,6 +37,7 @@ from pathlib import Path
 
 ENV_VAR = "SAENGINE_LIBREDWG"
 EXE = "dwg2dxf.exe" if os.name == "nt" else "dwg2dxf"
+WRITER = "dxf2dwg.exe" if os.name == "nt" else "dxf2dwg"
 #: A DWG of a few MB converts in seconds; this bounds a file the converter loops on.
 TIMEOUT = 120.0
 CACHE_FOLDER = ".dwg-cache"
@@ -67,29 +73,44 @@ def bundled_dir() -> Path:
     return Path(sys.executable).resolve().parent.parent / "libredwg"
 
 
-def _candidates() -> list[Path]:
+def _candidates(program: str = "dwg2dxf") -> list[Path]:
     out: list[Path] = []
     env = os.environ.get(ENV_VAR)
     if env:
         out.append(Path(env))
     out.append(bundled_dir())
-    found = shutil.which("dwg2dxf")
+    found = shutil.which(program)
     if found:
         out.append(Path(found))
     return out
 
 
-def find_converter(explicit: str | Path | None = None) -> Path | None:
-    """The ``dwg2dxf`` executable (``explicit``: a folder or the exe, before the others), or
-    None when there is none."""
-    for candidate in ([Path(explicit)] if explicit else []) + _candidates():
-        exe = candidate if candidate.name.lower() == EXE.lower() else candidate / EXE
+def _find(name: str, explicit: str | Path | None) -> Path | None:
+    for candidate in ([Path(explicit)] if explicit else []) + _candidates(Path(name).stem):
+        # a folder, or one of LibreDWG's programs (its sibling is beside it)
+        if candidate.suffix.lower() in (".exe", "") and candidate.name.lower().startswith(
+            ("dwg2dxf", "dxf2dwg")
+        ):
+            candidate = candidate.parent
+        exe = candidate / name
         try:
             if exe.is_file():
                 return exe
         except OSError:
             continue
     return None
+
+
+def find_converter(explicit: str | Path | None = None) -> Path | None:
+    """The ``dwg2dxf`` executable (``explicit``: a folder or the exe, before the others), or
+    None when there is none."""
+    return _find(EXE, explicit)
+
+
+def find_writer(explicit: str | Path | None = None) -> Path | None:
+    """The ``dxf2dwg`` executable (``explicit``: a folder or a LibreDWG exe, before the
+    others), or None when there is none."""
+    return _find(WRITER, explicit)
 
 
 def is_dwg(path: str | Path) -> bool:
@@ -203,3 +224,62 @@ def converted(
     """``dwg`` converted into a temporary folder, removed afterwards."""
     with tempfile.TemporaryDirectory(prefix="saengine-dwg-") as tmp:
         yield convert(dwg, tmp, timeout, converter)
+
+
+class WriterMissing(DwgError):
+    """No ``dxf2dwg`` was found."""
+
+
+def write_dwg(
+    dxf: str | Path,
+    dwg: str | Path,
+    timeout: float = TIMEOUT,
+    writer: str | Path | None = None,
+) -> list[str]:
+    """Writes ``dxf`` as the DWG ``dwg`` (R2000) with LibreDWG's ``dxf2dwg``, run as its own
+    process; returns what the converter reported. Raises :class:`WriterMissing` without the
+    program and :class:`DwgError` when it fails (``dwg`` is then left as it was)."""
+    dxf, dwg = Path(dxf), Path(dwg)
+    if not dxf.is_file():
+        raise DwgError(f"{dxf.name} does not exist")
+    exe = find_writer(writer)
+    if exe is None:
+        raise WriterMissing(
+            f"{dxf.name}: writing DWG needs GNU LibreDWG's dxf2dwg, the SAEngine setup's DWG "
+            f"component, which is not installed: add it with Help > Installer Components..., "
+            f"or set {ENV_VAR} to its folder. The DXF sheets open in every CAD program meanwhile."
+        )
+    dwg.parent.mkdir(parents=True, exist_ok=True)
+    # Plain ASCII names in a working folder, as for dwg2dxf (the ANSI code page).
+    with tempfile.TemporaryDirectory(prefix="dxf-", dir=dwg.parent) as tmp:
+        work = Path(tmp)
+        shutil.copyfile(dxf, work / "in.dxf")
+        try:
+            done = subprocess.run(
+                [str(exe), "-y", "-o", "out.dwg", "in.dxf"],
+                cwd=work,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise DwgError(
+                f"{dxf.name}: the DWG writer did not finish within {timeout:g} s (use the DXF)"
+            ) from exc
+        except OSError as exc:
+            raise DwgError(f"the DWG writer {exe} could not be started: {exc}") from exc
+        report = _summary((done.stderr or "") + "\n" + (done.stdout or ""))
+        out = work / "out.dwg"
+        ok = out.is_file() and out.stat().st_size > 0 and out.read_bytes()[:3] == MAGIC
+        if done.returncode != 0 or not ok:
+            detail = "; ".join(line for line in report if not line.startswith("LibreDWG"))
+            raise DwgError(
+                f"{dxf.name} could not be written as DWG (dxf2dwg exit code "
+                f"{done.returncode}{': ' + detail if detail else ''}); use the DXF"
+            )
+        os.replace(out, dwg)
+    return report

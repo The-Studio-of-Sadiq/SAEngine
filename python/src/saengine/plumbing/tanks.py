@@ -135,6 +135,7 @@ from saengine.plumbing.tanks_model import (
     perimeter_shares,
     run_tank,
 )
+from saengine.substructure.earth_pressure import Soil, soil_column
 
 GAMMA_W = 9.81  # kN/m³
 #: BNBC 2020 Part 6 Table 6.8.3 nominal cover [mm] by f'c (20 25 30 35 40 45 50 N/mm²), part1
@@ -365,85 +366,17 @@ def tank_spec(tank: dict[str, Any], context: TankContext) -> TankSpec:
 # ─────────────────────────────────────── soil ───────────────────────────────────────
 
 
-@dataclass
-class Soil:
-    """The soil around a ground tank: the borehole's layers (or assumed), the design water
-    table [m below ground] and the surcharge [kPa]."""
-
-    layers: list[tuple[float, float, float, float, float | None]]  # top, bottom, γ, γsat, φ'
-    water_table: float | None
-    surcharge: float
-    k0_cohesive: float
-    source: str
-    profile: Any = None
-
-    def _layer(self, z: float) -> tuple[float, float, float, float, float | None]:
-        for layer in self.layers:
-            if layer[0] <= z < layer[1]:
-                return layer
-        return self.layers[-1] if z >= self.layers[-1][0] else self.layers[0]
-
-    def sigma_v_eff(self, z: float) -> float:
-        """σ'v [kPa] at depth z [m]: the layers' unit weights, submerged below the water
-        table, integrated exactly between the layers' boundaries and the water table."""
-        cuts = {0.0, z}
-        cuts.update(b for layer in self.layers for b in layer[:2] if 0 < b < z)
-        if self.water_table is not None and 0 < self.water_table < z:
-            cuts.add(self.water_table)
-        edges = sorted(cuts)
-        total = 0.0
-        for a, b in pairwise(edges):
-            mid = (a + b) / 2
-            _, _, g, gs, _ = self._layer(mid)
-            below = self.water_table is not None and mid > self.water_table
-            total += (gs - GAMMA_W if below else g) * (b - a)
-        return total
-
-    def sigma_v(self, z: float) -> float:
-        return self.sigma_v_eff(z) + self.u(z)
-
-    def u(self, z: float) -> float:
-        if self.water_table is None or z <= self.water_table:
-            return 0.0
-        return GAMMA_W * (z - self.water_table)
-
-    def k0(self, z: float) -> float:
-        phi = self._layer(z)[4]
-        return self.k0_cohesive if phi is None else 1 - math.sin(math.radians(phi))
-
-    def lateral(self, z: float) -> float:
-        """K0 (σ'v + q) + u [kPa] at depth z [m] (0 above the ground)."""
-        if z <= 0:
-            return 0.0
-        return self.k0(z) * (self.sigma_v_eff(z) + self.surcharge) + self.u(z)
-
-    def unit_weight(self, z: float) -> float:
-        """The effective unit weight at depth z (submerged below the water table)."""
-        _, _, g, gs, _ = self._layer(z)
-        if self.water_table is not None and z > self.water_table:
-            return gs - GAMMA_W
-        return g
-
-
 def soil_of(spec: TankSpec, context: TankContext) -> Soil:
+    """The soil round a ground tank, from the shared earth-pressure engine
+    (:func:`saengine.substructure.earth_pressure.soil_column`)."""
     o = context.options
-    if context.profiles:
-        from saengine.substructure.piles import nearest_profile
-
-        profile, distance = nearest_profile(context.profiles, spec.x, spec.y)
-        layers = [
-            (lay.top, lay.bottom, lay.gamma, lay.gamma_sat, lay.phi) for lay in profile.layers
-        ]
-        water = profile.water_table if o.designWaterTable is None else o.designWaterTable
-        source = f"soil report: {profile.id}, {distance / 1e3:.1f} m away"
-        return Soil(layers, water, o.surcharge, o.k0Cohesive, source, profile)
-    water = o.designWaterTable
-    return Soil(
-        [(0.0, 100.0, 18.0, 20.0, 30.0)],
-        water,
+    return soil_column(
+        context.profiles or [],
+        spec.x,
+        spec.y,
+        o.designWaterTable,
         o.surcharge,
         o.k0Cohesive,
-        "no soil report: γ = 18, γsat = 20 kN/m³, φ' = 30° assumed",
     )
 
 
