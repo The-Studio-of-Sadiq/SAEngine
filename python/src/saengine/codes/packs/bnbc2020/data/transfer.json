@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../schemas/transfer.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.4.6 (deep beams)",
+    "BNBC 2020 Part 6 Sec 6.4.7 (brackets and corbels)",
+    "BNBC 2020 Part 6 Sec 2.5.5.6 (p. 625)"
+  ],
+  "source": "BNBC 2020 Part 6 Secs 6.4.6, 6.4.7 and 2.5.5.6",
+  "deepBeam": {
+    "spanRatio": 4.0,
+    "loadDistance": 2.0,
+    "shearLimit": 0.83,
+    "verticalRatio": 0.0025,
+    "horizontalRatio": 0.0015,
+    "spacingDepth": 5.0,
+    "spacingMax": 300.0
+  },
+  "corbel": {
+    "spanRatio": 1.0,
+    "tensionShare": 0.2,
+    "tensionMaxShare": 1.0,
+    "friction": 1.4,
+    "shearCoefficient": 0.2,
+    "shearIntercept": 3.3,
+    "shearSlope": 0.08,
+    "shearStressMax": 11.0,
+    "minSteel": 0.04,
+    "tiesShare": 0.5,
+    "tiesDepth": 0.667,
+    "edgeDepth": 0.5
+  },
+  "diaphragm": {
+    "forceMin": 0.2,
+    "forceMax": 0.4,
+    "plateau": 2.5,
+    "collectorCategories": [
+      "C",
+      "D"
+    ],
+    "irregularIncrease": 1.25
+  },
+  "sources": {
+    "deepBeam": "BNBC 2020 Part 6 Sec 6.4.6 (ACI 318-11 Sec 11.7): deep when ln <= 4h or a concentrated load lies within 2h of the support (6.4.6.1); Vn <= 0.83 √f'c bw d (6.4.6.2); Av >= 0.0025 bw s, s <= d/5 and 300 mm (6.4.6.3); Avh >= 0.0015 bw s2, s2 <= d/5 and 300 mm (6.4.6.4)",
+    "corbel": "BNBC 2020 Part 6 Sec 6.4.7 (ACI 318-11 Sec 11.8): av/d <= 1, Nuc <= Vu (6.4.7.1); outer depth >= 0.5 d (6.4.7.2); Vn <= min(0.2 f'c, 3.3 + 0.08 f'c, 11) bw d (6.4.7.3.2); Nuc >= 0.2 Vu (6.4.7.3.4); As >= 0.04 (f'c/fy) b d (6.4.7.5); Ah >= 0.5 (As - An) within (2/3) d (6.4.7.4); μ = 1.4 λ monolithic (Sec 6.4.5, shear friction)",
+    "diaphragm": "collectors with Ω0 in Seismic Design Categories C and D: BNBC 2020 Part 6 Sec 2.5.5.6.3 (p. 625); connection forces +25 % for irregular buildings: Sec 2.5.5.6.2 (p. 625); the diaphragm force Fpx and its bounds 0.2-0.4 SDS I wpx: BNBC is silent, ASCE 7-05 Sec 12.10.1.1 (the standard BNBC Sec 2.5 follows), SDS = 2.5 × (2/3) Z S of BNBC Sec 2.5.4.3"
+  }
+}

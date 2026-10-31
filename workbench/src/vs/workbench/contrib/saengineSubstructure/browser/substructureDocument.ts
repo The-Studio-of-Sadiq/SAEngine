@@ -57,6 +57,10 @@ export const FOOTING_SECTIONS: readonly FootingSection[] = ['flat', 'sloped', 's
 export type PileKind = 'bored' | 'driven';
 export const PILE_KINDS: readonly PileKind[] = ['bored', 'driven'];
 
+/** How the pile head is held by the cap: fixed (bars developed into it) or free (pinned). */
+export type PileFixity = 'fixed' | 'free';
+export const PILE_FIXITIES: readonly PileFixity[] = ['fixed', 'free'];
+
 /** A plan point [x, y] in mm on the project's axes. */
 export type Point = [number, number];
 
@@ -156,6 +160,10 @@ export interface IPileType {
 	length: number;
 	material?: string;
 	reinforcement?: IPileReinforcement;
+	/** Head fixity in the cap (default fixed). */
+	headFixity?: PileFixity;
+	/** Depth to fixity below the head [mm], from the geotechnical report; none: axial only. */
+	fixityDepth?: number;
 	[key: string]: unknown;
 }
 
@@ -1444,6 +1452,14 @@ export function foundationTypeLabel(type: FoundationType | string): string {
 	}
 }
 
+export function pileFixityLabel(fixity: PileFixity | string): string {
+	switch (fixity) {
+		case 'fixed': return localize('sub.pile.fixed', "Fixed in the cap");
+		case 'free': return localize('sub.pile.free', "Free (pinned)");
+		default: return String(fixity);
+	}
+}
+
 export function pileKindLabel(kind: PileKind | string): string {
 	switch (kind) {
 		case 'bored': return localize('sub.pile.bored', "Bored (cast in situ)");
@@ -1668,6 +1684,12 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 		if (!PILE_KINDS.includes(p.kind)) {
 			error(at('kind'), localize('sub.p.kind', "{0}: the pile is bored or driven.", p.id));
+		}
+		if (p.headFixity !== undefined && !PILE_FIXITIES.includes(p.headFixity)) {
+			error(at('headFixity'), localize('sub.p.fixity', "{0}: the pile head is fixed in the cap or free.", p.id));
+		}
+		if (p.fixityDepth !== undefined && !(num(p.fixityDepth) > 0)) {
+			error(at('fixityDepth'), localize('sub.p.fixityDepth', "{0}: the depth to fixity is positive, or leave it empty.", p.id));
 		}
 		if (p.reinforcement && !p.reinforcement.material) {
 			error(at('reinforcement.material'), localize('sub.p.pileBarMaterial', "{0}: the pile's bars need a rebar material (03 Materials).", p.id));

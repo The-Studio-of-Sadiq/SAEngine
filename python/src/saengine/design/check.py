@@ -36,7 +36,8 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design import column_shear, seismic_rules, slab, steel_design
+from saengine.design import column_shear, deep_beams, seismic_rules, slab, steel_design
+from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
@@ -701,6 +702,33 @@ def design(
                         bars.steel.fy,
                         notes,
                     )
+                    # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
+                    # model (saengine.design.deep_beams, BNBC 2020 Part 6 Sec 6.4.6), and the corbels
+                    # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
+                    deep_rows, deep_notes = deep_beams.member_checks(
+                        element,
+                        object_type,
+                        section,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                    )
+                    checks += corbel_design.member_checks(
+                        element,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        concrete.concrete.fc,
+                        bars.steel.fy,
+                    )
+                    if deep_rows:
+                        for row in checks:
+                            if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
+                                row["flag"] = True
+                                row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                        checks += deep_rows
+                        notes.extend(deep_notes)
             else:
                 if type_id not in column_sections:
                     section = section_of(
@@ -906,6 +934,22 @@ def design(
         into[0].extend(lintels_found["elements"])
         into[1].extend(lintels_found["skipped"])
         into[2].extend(lintels_found["notes"])
+    # Integrator glue (T3): the floors' chords and collectors (saengine.design.diaphragms,
+    # BNBC 2020 Part 6 Sec 2.5.5.6), from the equivalent static storey forces.
+    from saengine.design import diaphragms as diaphragm_design
+
+    try:
+        diaphragms_found = diaphragm_design.diaphragms_of(project, building, types, mats, settings)
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        diaphragms_found = {
+            "elements": [],
+            "skipped": [],
+            "notes": [f"diaphragm chords and collectors not designed: {error}"],
+        }
+    for into in sinks:
+        into[0].extend(diaphragms_found["elements"])
+        into[1].extend(diaphragms_found["skipped"])
+        into[2].extend(diaphragms_found["notes"])
 
     def assemble(
         checked: list[dict[str, Any]],

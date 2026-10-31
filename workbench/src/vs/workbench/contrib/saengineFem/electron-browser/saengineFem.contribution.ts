@@ -390,6 +390,16 @@ CommandsRegistry.registerCommand('saengine.report.createTemplate', async (access
 	return accessor.get(IFemSolverService).createReportTemplate(python, args.projectRoot, args.id, args.base, args.name);
 });
 
+/**
+ * The calculation worksheets (`saengine.report.worksheets`): `{method, params}` with method one
+ * of `worksheets/kinds`, `worksheets/calculate`, `worksheets/list`, `worksheets/create`.
+ * Internal: the worksheet editor and commands call it by id.
+ */
+CommandsRegistry.registerCommand('saengine.worksheets.request', async (accessor, method: 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create', params: object) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, method, params ?? {});
+});
+
 /** What the Substructure editor asks the backend: the project folder (its saved files are read), and the columns to size. */
 interface ISubstructureCommandArgs {
 	readonly projectRoot: string;

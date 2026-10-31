@@ -96,6 +96,54 @@
           "maximum": 1,
           "title": "Betacct",
           "type": "number"
+        },
+        "betaCTT": {
+          "default": 0.6,
+          "description": "βn of a C-T-T node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betactt",
+          "type": "number"
+        },
+        "betaPrism": {
+          "default": 1.0,
+          "description": "βs of a prism-shaped strut.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaprism",
+          "type": "number"
+        },
+        "betaBottle": {
+          "default": 0.75,
+          "description": "βs of a bottle-shaped strut with distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottle",
+          "type": "number"
+        },
+        "betaBottlePlain": {
+          "default": 0.6,
+          "description": "βs of a bottle-shaped strut without distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottleplain",
+          "type": "number"
+        },
+        "minAngle": {
+          "default": 25.0,
+          "description": "Least angle between a strut and a tie [degrees].",
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "webRatio": {
+          "default": 0.003,
+          "description": "Distributed web steel ratio that confines a bottle-shaped strut.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Webratio",
+          "type": "number"
         }
       },
       "required": [

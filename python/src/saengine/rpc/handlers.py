@@ -223,6 +223,7 @@ def check_library(kind: str, text: str, materials_text: str | None = None) -> di
         "structure",
         "bim",
         "reportTemplate",
+        "worksheet",
     ):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
@@ -2236,3 +2237,39 @@ def codes_trust(pack_id: str, trusted: bool, root: str | None = None) -> dict[st
         return _pack_info(registry.set_trusted(pack_id, bool(trusted), base), base)
     except CodePackError as error:
         return _refusal(error)
+
+
+def worksheet_kinds() -> dict[str, Any]:
+    """The calculation worksheet kinds and their inputs (``saengine.report.worksheets``)."""
+    from saengine.report.worksheets import kinds
+
+    return {"kinds": kinds()}
+
+
+def worksheet_calculate(
+    kind: str, inputs: dict[str, Any], project_root: str | None = None
+) -> dict[str, Any]:
+    """The calculation of a worksheet ``kind`` for ``inputs``, with the project's code pack."""
+    from saengine.report.worksheets import calculate, project_pack
+
+    with project_pack(project_root) as problems:
+        result = calculate(kind, inputs)
+    if problems:
+        result.setdefault("notes", []).extend(problems)
+    return result
+
+
+def worksheet_list(project_root: str) -> dict[str, Any]:
+    """The project's worksheets with their result (``{worksheets, problems}``)."""
+    from saengine.report.worksheets import list_worksheets
+
+    return list_worksheets(project_root)
+
+
+def worksheet_create(
+    project_root: str, kind: str, worksheet_id: str, title: str | None = None
+) -> dict[str, Any]:
+    """Writes a new worksheet of ``kind`` into the project: ``{path}`` or ``{problems}``."""
+    from saengine.report.worksheets import create_worksheet
+
+    return create_worksheet(project_root, kind, worksheet_id, title)

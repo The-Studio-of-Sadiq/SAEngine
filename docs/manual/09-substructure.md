@@ -48,7 +48,15 @@ Toolbar (the labels follow the selection):
 
 New foundations: isolated 1.5 × 1.5 × 0.45 m; combined: the columns' extent + 750 mm each side,
 600 mm thick; raft: the columns' extent + 1 m, 600 mm thick; bottom mesh 12@150 both ways.
-New pile type: bored, 500 mm, 18 m.
+New pile type: bored, 500 mm, 18 m, head fixed in the cap, no depth to fixity.
+
+**Pile heads under lateral load:** each pile type has a *Head* (*Fixed in the cap* or *Free
+(pinned)*) and a *Depth to fixity* (m below the head, from the geotechnical report). The cap's
+horizontal force is shared equally by its piles; the head moment is H Lf / 2 for a fixed head
+and H Lf at the depth to fixity for a free one. With a depth to fixity the pile section is
+checked for axial force plus that moment and for shear, and fixed heads add their moments to the
+cap's face moments. Empty: the piles are checked for axial force only. Lateral capacity by
+Broms and by p-y springs are planned (chips under the pile types table).
 
 **Design options** (nothing selected): pile capacity from the *Soil report (per layer)* or the
 *BNBC SPT equations*; factors of safety for pile compression and uplift (default 2.5, BNBC Table
@@ -98,6 +106,7 @@ first: it sizes from the support reactions.*
 | Pile caps | Pile load in compression and uplift, group capacity, block failure (clay), group settlement, pile spacing, cap edge beyond the piles, cover, flexure, one-way shear, punching at columns and round a pile; strut-and-tie for deep caps. |
 | Sloped and stepped footings | The same checks, each section with its own depth (ACI 318-19 13.2.7.3): one-way shear summed over strips across the section (at d from the column faces, at d from the step, along the slope), flexure with the compression face as wide as the top there, punching with the depth at d/2 and round the upper step; weight and BOQ from the true volume. |
 | Slabs on grade | Flexural stress under the post load at the interior, an edge and a corner (Westergaard, Ioannides et al. 1985) against 0.62 √f'c / FS; punching of the plain slab under 1.6 P (ACI 14.5.5.1); mesh and joint spacing reported only. |
+| Pile sections | Axial + moment on the P-M surface of the circular section (ACI 318-19 22.4) and shear (22.5, bw = D, d = 0.8 D) under the head shear and moment; fully embedded, not a long column (BNBC 2020 Part 6 Sec 3.10.1.31). |
 | Pile capacity | Soil-report method or BNBC SPT equations (6.3.21 to 6.3.34): Qult = Qs + Qb − W, uplift ≤ 0.7 Qs + W. |
 | Rafts | OpenSees plate on compression-only springs: net contact pressure, maximum and differential settlement, angular distortion (BNBC Table 6.3.8), punching, slab flexure and shear (Wood-Armer). A contact pressure / settlement map can be shown on the plan. |
 | Tie beams | Tie force (10 %, BNBC Part 6 1.8.5.2), size (BNBC 8.3.11.3), flexure and shear from settlement. |
