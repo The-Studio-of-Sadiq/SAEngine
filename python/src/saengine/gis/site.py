@@ -218,7 +218,9 @@ def _borehole_location(borehole: Borehole, grid: Grid | None) -> dict[str, Any]:
     }
 
 
-def locate(report: SoilReport, bim_text: str | None = None) -> dict[str, Any]:
+def locate(
+    report: SoilReport, bim_text: str | None = None, settings_text: str | None = None
+) -> dict[str, Any]:
     site = report.site or Site()
     grid = Grid(site) if site.georeferenced else None
     boreholes = [_borehole_location(b, grid) for b in report.boreholes]
@@ -265,20 +267,22 @@ def locate(report: SoilReport, bim_text: str | None = None) -> dict[str, Any]:
         "outlineProject": [list(p) for p in outline_xy] if outline_xy else None,
         "outlineSource": how,
         "plot": plot.describe(report.site),
-        "planning": _planning(report.site, bim_text),
+        "planning": _planning(report.site, bim_text, settings_text),
         "btmName": BTM_NAME,
         "problems": problems,
         "_point": point,
     }
 
 
-def _planning(site: Site | None, bim_text: str | None) -> dict[str, Any] | None:
+def _planning(
+    site: Site | None, bim_text: str | None, settings_text: str | None = None
+) -> dict[str, Any] | None:
     """The plot's planning compliance (:func:`saengine.gis.planning.check`); a failure is a
     problem of the check, never of the map."""
     from saengine.gis import planning
 
     try:
-        return planning.check(site, bim_text)
+        return planning.check(site, bim_text, settings_text)
     except Exception as error:  # noqa: BLE001 - a planning table or model error stays local
         return {"checks": [], "notes": [], "problems": [f"The planning check failed: {error}"]}
 
@@ -300,7 +304,7 @@ def soil_location(
     report = _report(soil_text)
     if isinstance(report, list):
         return {"problems": report}
-    out = locate(report, bim_text)
+    out = locate(report, bim_text, settings_text)
     point = out.pop("_point")
     out["suggestion"] = suggestion(point[0], point[1], settings_text) if point else None
     if point is not None:

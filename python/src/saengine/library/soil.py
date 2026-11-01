@@ -698,6 +698,33 @@ POSITIONS = {
 }
 
 
+class OverheadLine(_Model):
+    """An overhead electric line near the building: its class (an id of the code pack's
+    ``planning.buildingCode.overheadLines.classes``), voltage and the distances to it."""
+
+    kind: str = Field(
+        default="lowMedium",
+        min_length=1,
+        max_length=32,
+        title="Line",
+        description="Class of the line in the code pack: lowMedium (low to medium voltage and "
+        "service lines) or high (high voltage).",
+    )
+    voltage: float | None = Field(
+        default=None, gt=0, title="Voltage", description="Of a high voltage line [kV]."
+    )
+    vertical: Depth | None = Field(
+        default=None,
+        title="Vertical distance",
+        description="From the building or any part of it to the line [mm]; empty: not checked.",
+    )
+    horizontal: Depth | None = Field(
+        default=None,
+        title="Horizontal distance",
+        description="From the building or any part of it to the line [mm]; empty: not checked.",
+    )
+
+
 class Planning(_Model):
     """What the planning check of the plot needs beyond its shape: the use (a key of the code
     pack's ``planning.uses``), the road it faces, and the building's height, storeys and areas
@@ -737,7 +764,72 @@ class Planning(_Model):
         ge=0,
         title="Excluded floor area",
         description="Floor area the rules leave out of FAR (stair and lift rooms over the roof, "
-        "parking, services) [m²].",
+        "services), other than the parking floors [m²].",
+    )
+    # B23: the building code's own site rules (the code pack's planning.buildingCode).
+    rules: Literal["authority", "code"] = Field(
+        default="authority",
+        title="Rules",
+        description="authority: the planning authority's FAR, ground coverage and setbacks (the "
+        "code pack's planning table), with the building code's own site rules; code: no "
+        "authority rules apply, the building code's open area and setbacks instead.",
+        json_schema_extra=_labels(["Planning authority", "Building code only"]),
+    )
+    typology: Literal["detached", "semiDetached", "row"] = Field(
+        default="detached",
+        title="Typology",
+        description="Detached, semi-detached (one side on the property line or a pounding gap) "
+        "or row type: the building code's side and rear open spaces depend on it.",
+        json_schema_extra=_labels(["Detached", "Semi-detached", "Row type"]),
+    )
+    parkingArea: float = Field(
+        default=0,
+        ge=0,
+        title="Parking floor area",
+        description="Area of the floors (basements included) used mainly for car parking and "
+        "their accessory plant, which the building code leaves out of FAR [m²].",
+    )
+    openArea: float | None = Field(
+        default=None,
+        ge=0,
+        title="Open area",
+        description="Total open area: exterior open spaces and interior courtyards, not the "
+        "light and ventilation shafts [m²]; empty: the plot less the ground coverage.",
+    )
+    unpavedArea: float | None = Field(
+        default=None,
+        ge=0,
+        title="Unpaved area",
+        description="Open area left unpaved, with or without vegetation [m²]; empty: not checked.",
+    )
+    plinthHeight: Depth | None = Field(
+        default=None,
+        title="Plinth height",
+        description="Plinth level above the surface of the road's centre line [mm]; empty: not "
+        "checked.",
+    )
+    formationHeight: float | None = Field(
+        default=None,
+        title="Formation height",
+        description="Formation level of the plot above the road's centre line [mm] (negative: "
+        "below the road); empty: not checked.",
+    )
+    floodProne: bool = Field(
+        default=False,
+        title="Flood prone",
+        description="The area is prone to flood or surge: the plinth and formation levels are "
+        "the development authority's.",
+    )
+    approvedArea: bool = Field(
+        default=False,
+        title="Approved area",
+        description="The plot lies in an approved residential or business area (unlimited height "
+        "on a wide road, by the building code).",
+    )
+    overheadLine: OverheadLine | None = Field(
+        default=None,
+        title="Overhead electric line",
+        description="The nearest overhead electric line and the building's distances to it.",
     )
 
 

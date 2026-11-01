@@ -260,11 +260,36 @@ export interface ISoilPlanning {
 	groundCoverage?: number;
 	floorArea?: number;
 	excludedArea?: number;
+	/** authority: the planning authority's rules with the building code's own; code: the building code's only. */
+	rules?: 'authority' | 'code';
+	typology?: 'detached' | 'semiDetached' | 'row';
+	/** Floors used for car parking, left out of FAR [m²]. */
+	parkingArea?: number;
+	/** [m²] */
+	openArea?: number;
+	/** [m²] */
+	unpavedArea?: number;
+	/** Above the road's centre line [mm]. */
+	plinthHeight?: number;
+	/** Above the road's centre line [mm]; negative: below. */
+	formationHeight?: number;
+	floodProne?: boolean;
+	approvedArea?: boolean;
+	overheadLine?: ISoilOverheadLine;
 	[key: string]: unknown;
 }
 
+/** An overhead electric line near the building (`saengine.library.soil.OverheadLine`): distances [mm]. */
+export interface ISoilOverheadLine {
+	kind?: string;
+	/** [kV] */
+	voltage?: number;
+	vertical?: number;
+	horizontal?: number;
+}
+
 /** The planning inputs typed as numbers in the site map. */
-export type PlanningNumberKey = 'roadWidth' | 'height' | 'storeys' | 'groundCoverage' | 'floorArea' | 'excludedArea';
+export type PlanningNumberKey = 'roadWidth' | 'height' | 'storeys' | 'groundCoverage' | 'floorArea' | 'excludedArea' | 'parkingArea' | 'openArea' | 'unpavedArea' | 'plinthHeight' | 'formationHeight';
 
 /** The use a new planning check starts with: residential (A1-A4). */
 export const PLANNING_DEFAULT_USE = 'A1-A4';
@@ -276,6 +301,18 @@ export interface IPlanningCheck {
 	readonly use?: string;
 	readonly useName?: string;
 	readonly uses?: readonly { readonly id: string; readonly name: string }[];
+	/** The rules applied: the authority's, or the building code's only. */
+	readonly rules?: 'authority' | 'code';
+	/** The building code whose own site rules apply (the code pack's name for them). */
+	readonly codeName?: string | null;
+	/** The overhead line classes of the code pack. */
+	readonly lineClasses?: readonly { readonly id: string; readonly label: string }[];
+	/** The construction type of the project settings. */
+	readonly constructionType?: string | null;
+	/** The building code's height limit by road width and construction type. */
+	readonly heightLimit?: { readonly storeys: number; readonly height: number; readonly basis: number; readonly column: string; readonly rule: string } | null;
+	/** The row of the building code's open space table (rules: code). */
+	readonly setbacksRow?: string | null;
 	/** [m²] */
 	readonly plotArea?: number;
 	readonly katha?: number;
@@ -303,13 +340,16 @@ export interface IPlanningCheck {
 		readonly groundCoverage: number | null;
 		readonly grossFloorArea: number | null;
 		readonly excluded: number;
+		readonly parking?: number;
+		readonly unpaved?: number | null;
 		readonly farArea: number | null;
 		readonly openSpace: number | null;
 		readonly storeys: readonly { readonly name: string; readonly area: number; readonly elevation: number; readonly height: number | null }[];
 	};
 	/** [m²]; floorArea null: not restricted. */
 	readonly limits?: { readonly mgcArea: number; readonly floorArea: number | null; readonly openSpace: number };
-	readonly checks?: readonly { readonly label: string; readonly provided: number; readonly limit: number | null; readonly sense: string; readonly unit: string; readonly ok: boolean; readonly rule: string }[];
+	/** advisory: a building code rule the authority's rules replace; it never fails the plot. */
+	readonly checks?: readonly { readonly label: string; readonly provided: number; readonly limit: number | null; readonly sense: string; readonly unit: string; readonly ok: boolean; readonly rule: string; readonly advisory?: boolean }[];
 	readonly ok?: boolean;
 	readonly notes?: readonly string[];
 	readonly problems?: readonly string[];

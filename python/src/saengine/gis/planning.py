@@ -7,8 +7,18 @@ that BNBC Part 3 Chapter 1 defers to, for Dhaka (RAJUK) the Imarat Nirman Bidhim
 MGC by use, plot size and road width). The table is pack data: another authority's rules are
 another pack's table, and a project may edit its copy.
 
+Beside the authority's rules the table's ``buildingCode`` block holds the building code's own
+site rules (for BNBC 2020 Part 3 Chapter 1): the plinth and formation levels, the distances to
+overhead electric lines, the least open and unpaved area, the fallback open spaces where no
+authority's rules apply, the height by road width and construction type (the project setting
+``construction.constructionType``), the open spaces of a building of unlimited height or FAR and
+the parking floors left out of FAR. Which of them bind also under the authority's rules is pack
+data (``withAuthority``); the others are shown as advisory there.
+
 - :func:`permitted`: the FAR and MGC a plot of ``area`` on a road ``road`` wide may have;
 - :func:`required_setbacks`: the setbacks Table 2 asks for (and the road-centre rule);
+- :func:`code_setbacks`, :func:`height_limit`, :func:`overhead_clearance`,
+  :func:`open_area_percent`, :func:`unlimited_open_spaces`: the building code's rules;
 - :func:`floor_areas`: the storeys' floor areas and the ground coverage of the building model;
 - :func:`check`: the area statement and the checks of the site's plot and building.
 
@@ -35,6 +45,12 @@ UNRESTRICTED = math.inf
 def rules() -> Any:
     """The planning table of the pack in force (BNBC 2020's when the pack has none)."""
     return code_context.pack_table("planning")
+
+
+def _clause(key: str) -> str:
+    """The clause of the authority's rules the table names for ``key`` (coverage, far,
+    envelope); empty when it names none."""
+    return rules().clauses.get(key, "")
 
 
 def band(area: float) -> int:
@@ -92,7 +108,7 @@ def permitted(use: str, area: float, road: float) -> dict[str, Any]:
             "allowed": False,
             "far": 0.0,
             "mgc": 0.0,
-            "rule": f"Rule 51, {spec.table}",
+            "rule": f"{_clause('far')}, {spec.table}",
             "row": band_label(here),
             "notes": [
                 (
@@ -121,7 +137,7 @@ def permitted(use: str, area: float, road: float) -> dict[str, Any]:
             "allowed": False,
             "far": 0.0,
             "mgc": 0.0,
-            "rule": "Rule 51(10)",
+            "rule": table.narrowRoads[-1].rule if table.narrowRoads else _clause("far"),
             "row": None,
             "notes": [
                 (
@@ -142,7 +158,7 @@ def permitted(use: str, area: float, road: float) -> dict[str, Any]:
                 notes.append(
                     f"The road ({road:g} m) is narrower than the {own.road:g} m a plot "
                     f"{band_label(here)} needs: the row of a plot {band_label(i)} applies "
-                    "(SAEngine reading of Rule 51)."
+                    f"(SAEngine reading of {_clause('far')})."
                 )
             break
     for wide in spec.wideRoads:
@@ -154,12 +170,12 @@ def permitted(use: str, area: float, road: float) -> dict[str, Any]:
             "allowed": False,
             "far": 0.0,
             "mgc": 0.0,
-            "rule": f"Rule 51, {spec.table}",
+            "rule": f"{_clause('far')}, {spec.table}",
             "row": None,
             "notes": [f"No row of {spec.table} applies to a {road:g} m road."],
         }
     far, mgc, row_road, label = max(candidates, key=lambda c: (c[0], c[2]))
-    rule = f"Rule 51, {spec.table}"
+    rule = f"{_clause('far')}, {spec.table}"
     inc = table.roadIncrement
     if not math.isinf(far) and road > row_road + 1e-9 and inc.fromRoad <= row_road < inc.toRoad:
         steps = math.floor((min(road, inc.toRoad) - row_road) / inc.step + 1e-9)
@@ -209,6 +225,227 @@ def required_setbacks(
             )
             front = from_centre
     return {"front": front, "rear": row.rear, "side": row.side, "rule": table.rule, "notes": notes}
+
+
+# ─────────────────────────── the building code's own site rules (B23) ───────────────────────────
+# The pack's ``planning.buildingCode`` (for BNBC 2020: Part 3 Chapter 1): the plinth and formation
+# levels, overhead lines, the open area, the fallback setbacks, the height by road width and
+# construction type, and the parking floors left out of FAR.
+
+
+def code_rules() -> Any:
+    """The building code's site rules of the pack in force; None when the pack has none."""
+    return rules().buildingCode
+
+
+def _code_rule(rule: str) -> str:
+    code = code_rules()
+    return f"{code.name} {rule}".strip() if code is not None and rule else rule
+
+
+def occupancy(use: str) -> str | None:
+    """The building code's occupancy group of the authority's use ``use`` (None: unknown)."""
+    code = code_rules()
+    return None if code is None else code.occupancies.get(use)
+
+
+def _tall(setbacks: Any, height: float | None, storeys: int | None) -> bool:
+    return (height is not None and height > setbacks.tallHeight + 1e-9) or (
+        storeys is not None and storeys > setbacks.tallStoreys
+    )
+
+
+def code_setbacks(
+    use: str,
+    area: float,
+    height: float | None,
+    storeys: int | None,
+    road: float | None,
+    typology: str = "detached",
+) -> dict[str, Any]:
+    """The building code's least open spaces [m] where no authority's rules apply: the front
+    from the street's centre and the property line, the rear and side of the code's table by
+    occupancy, typology, height and plot size. ``{front, rear, side (None: not given),
+    sides (the table's values, None the pounding gap), row, rule, notes, covered}``."""
+    code = code_rules()
+    notes: list[str] = []
+    out: dict[str, Any] = {
+        "front": None,
+        "rear": None,
+        "side": None,
+        "sides": None,
+        "row": None,
+        "rule": "",
+        "notes": notes,
+        "covered": False,
+    }
+    if code is None or code.setbacks is None:
+        notes.append("The code pack gives no fallback open spaces.")
+        return out
+    if code.front is not None:
+        front = code.front.fromBoundary
+        if road is not None and road > 0:
+            front = max(code.front.fromCentre - road / 2, code.front.fromBoundary)
+        out["front"] = front
+        out["frontRule"] = _code_rule(code.front.rule)
+    table = code.setbacks
+    out["rule"] = _code_rule(table.rule)
+    group = occupancy(use)
+    tall = _tall(table, height, storeys)
+    for row in table.rows:
+        if group not in row.occupancies:
+            continue
+        if row.typology is not None and row.typology != typology:
+            continue
+        if row.tall is not None and row.tall != tall:
+            continue
+        if row.heightMax is not None and height is not None and height > row.heightMax + 1e-9:
+            continue
+        if row.storeysMax is not None and storeys is not None and storeys > row.storeysMax:
+            continue
+        if area < row.areaMin - 1e-9 or (row.areaMax is not None and area > row.areaMax + 1e-9):
+            continue
+        out["row"] = row.label
+        if row.note:
+            notes.append(f"{row.note} ({out['rule']})")
+        if row.rear is None or row.side is None:
+            notes.append(f"{row.label}: the open spaces are by the other provisions of the code.")
+            return out
+        values = [v for v in row.side if v is not None]
+        out.update(rear=row.rear, side=max(values, default=0.0), sides=list(row.side))
+        out["covered"] = True
+        if len(values) > 1:
+            notes.append(
+                f"{out['rule']}: the two sides need {' and '.join(f'{v:g}' for v in values)} m; "
+                f"the plot's side distance is checked against the larger, {max(values):g} m."
+            )
+        if any(v is None for v in row.side):
+            notes.append(
+                f"One side is on the property line or at the pounding gap (PG, "
+                f"{_code_rule(table.poundingGap)}): the gap is the building's seismic "
+                "separation, checked with the analysis results (Project Settings, Seismic: gap "
+                "to the property line); the open side is checked here."
+            )
+        return out
+    notes.append(
+        f"No row of {out['rule']} fits a {typology} building of this use on a {area:.0f} m² "
+        "plot at this height: the open spaces are not checked."
+    )
+    return out
+
+
+def open_area_percent(use: str) -> float | None:
+    """The least total open area [% of the plot] of the building code for ``use``."""
+    code = code_rules()
+    if code is None or code.openArea is None:
+        return None
+    group = occupancy(use)
+    return code.openArea.byOccupancy.get(group or "", code.openArea.minPercent)
+
+
+def overhead_clearance(kind: str, voltage: float | None = None) -> dict[str, Any] | None:
+    """The least vertical and horizontal distances [m] to an overhead electric line of class
+    ``kind`` at ``voltage`` kV: ``{vertical, horizontal, label, rule}``; None when the pack has
+    no such class."""
+    code = code_rules()
+    if code is None or code.overheadLines is None:
+        return None
+    spec = next((c for c in code.overheadLines.classes if c.id == kind), None)
+    if spec is None:
+        return None
+    vertical, horizontal = spec.vertical, spec.horizontal
+    if spec.upToKv is not None and spec.stepKv and voltage is not None and voltage > spec.upToKv:
+        # "for each additional 33 kV or part thereof"
+        steps = math.ceil((voltage - spec.upToKv) / spec.stepKv - 1e-9)
+        vertical += steps * spec.stepVertical
+        horizontal += steps * spec.stepHorizontal
+    return {
+        "vertical": round(vertical, 3),
+        "horizontal": round(horizontal, 3),
+        "label": spec.label,
+        "rule": _code_rule(code.overheadLines.rule),
+    }
+
+
+def height_limit(construction_type: str, road: float, front: float) -> dict[str, Any] | None:
+    """The largest storeys and height [m] of the building code for a building of
+    ``construction_type`` on a road ``road`` m wide with a front open space ``front`` m:
+    ``{storeys, height, basis, column, rule}``; None when the code's table has no column for
+    the type."""
+    code = code_rules()
+    if code is None or code.height is None:
+        return None
+    spec = code.height
+    column = next((c for c in spec.columns if construction_type in c.types), None)
+    if column is None:
+        return None
+    basis = spec.basis * (road + front)
+    index = next((i for i, top in enumerate(spec.bands) if basis < top - 1e-9), None)
+    extra = 0
+    if index is None:
+        index = len(spec.bands) - 1
+        extra = math.floor((basis - spec.bands[-1]) / spec.step + 1e-9) + 1
+    if len(column.storeys) == 1:
+        storeys, height = column.storeys[0], column.heights[0]
+    else:
+        storeys, height = column.storeys[index], column.heights[index]
+    storeys += extra * column.stepStoreys
+    height += extra * column.stepHeight
+    return {
+        "storeys": storeys,
+        "height": height,
+        "basis": round(basis, 3),
+        "column": column.label,
+        "rule": _code_rule(spec.rule),
+        "source": column.source,
+    }
+
+
+def unlimited_height(use: str, construction_type: str, road: float | None, approved: bool) -> bool:
+    """True when the building code sets no height limit: an approved area on a wide road, for
+    the uses and construction types it names."""
+    code = code_rules()
+    if code is None or code.unlimited is None or road is None:
+        return False
+    spec = code.unlimited
+    return (
+        approved
+        and road >= spec.minRoad - 1e-9
+        and occupancy(use) in spec.occupancies
+        and construction_type in spec.types
+    )
+
+
+def unlimited_open_spaces(use: str) -> dict[str, Any] | None:
+    """The least front, rear and side open spaces [m] of a building of unlimited height or FAR:
+    ``{front, rear, side, rule}``; None when the code gives none for the use."""
+    code = code_rules()
+    if code is None or code.unlimited is None:
+        return None
+    group = occupancy(use)
+    row = next((r for r in code.unlimited.rows if group in r.occupancies), None)
+    if row is None:
+        return None
+    return {
+        "front": row.front,
+        "rear": row.rear,
+        "side": row.side,
+        "rule": _code_rule(code.unlimited.openSpaceRule),
+    }
+
+
+def _construction_type(settings_text: str | None) -> str:
+    """The construction type of the project settings ('' when not classified or unreadable)."""
+    if not settings_text:
+        return ""
+    import json
+
+    try:
+        construction = json.loads(settings_text).get("construction") or {}
+    except (ValueError, AttributeError):
+        return ""
+    value = construction.get("constructionType") if isinstance(construction, dict) else None
+    return value if isinstance(value, str) else ""
 
 
 def floor_areas(bim_text: str | None) -> dict[str, Any] | None:
@@ -277,7 +514,13 @@ def floor_areas(bim_text: str | None) -> dict[str, Any] | None:
 
 
 def _check(
-    label: str, provided: float, limit: float, unit: str, rule: str, at_least: bool = False
+    label: str,
+    provided: float,
+    limit: float,
+    unit: str,
+    rule: str,
+    at_least: bool = False,
+    advisory: bool = False,
 ) -> dict[str, Any]:
     ok = provided >= limit - 1e-6 if at_least else provided <= limit + 1e-6
     return {
@@ -288,32 +531,50 @@ def _check(
         "unit": unit,
         "ok": ok,
         "rule": rule,
+        # An advisory check (a code rule the authority's rules replace) never fails the plot.
+        "advisory": advisory,
     }
 
 
-def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | None:
+def check(
+    site: Site | None, bim_text: str | None = None, settings_text: str | None = None
+) -> dict[str, Any] | None:
     """The planning compliance of the site's plot: None until the plot has a planning entry
-    (``site.plot.planning``). ``{authority, use, useName, plotArea, katha, band, road,
-    permitted, setbacks {required, provided}, areas, limits, checks, notes, problems}``."""
+    (``site.plot.planning``). ``{authority, rules, use, useName, plotArea, katha, band, road,
+    permitted, setbacks {required, provided}, areas, limits, heightLimit, checks, notes,
+    problems}``. ``settings_text`` (the project settings) gives the construction type the
+    height limits need."""
     from saengine.gis import plot as plot_geometry
 
     plan = site.plot.planning if site is not None and site.plot is not None else None
     if plan is None:
         return None
     table = rules()
+    code = table.buildingCode
+    by_code = plan.rules == "code"
     problems: list[str] = []
     notes: list[str] = []
     ring, problem = plot_geometry.plot_ring(site)
     out: dict[str, Any] = {
-        "authority": table.authority,
-        "source": table.source,
+        "authority": code.name if by_code and code is not None else table.authority,
+        "source": code.source if by_code and code is not None else table.source,
+        "rules": plan.rules,
+        "codeName": None if code is None else code.name,
         "use": plan.use,
         "useName": table.uses[plan.use].name if plan.use in table.uses else plan.use,
         "uses": [{"id": k, "name": v.name} for k, v in table.uses.items()],
+        "lineClasses": []
+        if code is None or code.overheadLines is None
+        else [{"id": c.id, "label": c.label} for c in code.overheadLines.classes],
         "checks": [],
         "notes": notes,
         "problems": problems,
     }
+    if by_code and code is None:
+        problems.append(
+            "The code pack has no building-code site rules: choose the planning authority's."
+        )
+        return out
     if ring is None:
         problems.append(problem or "Draw the plot (or type it as a rectangle) to check it.")
         return out
@@ -331,10 +592,17 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
         height=height,
         storeys=storeys,
     )
+
+    def binding(key: str) -> bool:
+        return by_code or (code is not None and key in code.withAuthority)
+
+    allowed = None
     if road is None:
-        problems.append("Enter the width of the road the plot faces: FAR and MGC depend on it.")
-        allowed = None
-    else:
+        problems.append(
+            "Enter the width of the road the plot faces: "
+            + ("the front open space and height depend on it." if by_code else "FAR and MGC do.")
+        )
+    elif not by_code:
         allowed = permitted(plan.use, area, road)
         notes += allowed["notes"]
         out["permitted"] = {
@@ -343,10 +611,25 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
             if k != "notes"
         }
         out["permitted"]["farText"] = _far_text(allowed["far"])
-    required = required_setbacks(area, height, storeys, road)
-    notes += required["notes"]
     own = site.plot
     provided = {"front": own.front / 1000, "rear": own.rear / 1000, "side": own.side / 1000}
+    if by_code:
+        fallback = code_setbacks(plan.use, area, height, storeys, road, plan.typology)
+        notes += fallback["notes"]
+        required = {
+            "front": fallback["front"],
+            "rear": fallback["rear"],
+            "side": fallback["side"],
+            "rule": fallback["rule"],
+            "frontRule": fallback.get("frontRule", fallback["rule"]),
+        }
+        out["setbacksRow"] = fallback["row"]
+    else:
+        authority = required_setbacks(area, height, storeys, road)
+        notes += authority["notes"]
+        required = {**authority, "frontRule": authority["rule"]}
+        if road:
+            required["frontRule"] += f", {table.roadCentre.rule}"
     out["setbacks"] = {
         "required": {k: required[k] for k in ("front", "rear", "side")},
         "provided": provided,
@@ -358,7 +641,13 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
         else (measured or {}).get("groundCoverage")
     )
     gross = plan.floorArea if plan.floorArea is not None else (measured or {}).get("grossFloorArea")
-    far_area = None if gross is None else max(gross - plan.excludedArea, 0.0)
+    parking = plan.parkingArea if code is not None and code.parking is not None else 0.0
+    far_area = None if gross is None else max(gross - plan.excludedArea - parking, 0.0)
+    open_space = (
+        plan.openArea
+        if plan.openArea is not None
+        else (None if coverage is None else round(area - coverage, 2))
+    )
     out["areas"] = {
         "groundCoverage": coverage,
         "coverageSource": "entered"
@@ -369,10 +658,18 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
         if plan.floorArea is not None
         else ("building model" if measured else None),
         "excluded": plan.excludedArea,
+        "parking": parking,
         "farArea": far_area,
         "storeys": (measured or {}).get("storeys", []),
-        "openSpace": None if coverage is None else round(area - coverage, 2),
+        "openSpace": open_space,
+        "unpaved": plan.unpavedArea,
     }
+    if parking and code is not None and code.parking is not None:
+        notes.append(
+            f"{_code_rule(code.parking.rule)}: {parking:g} m² of floors used for car parking "
+            f"(at least {code.parking.parkingShare:.0%} of each, the rest accessory) are left "
+            "out of the floor area for FAR."
+        )
     if allowed and allowed["allowed"]:
         mgc_area = area * allowed["mgc"] / 100
         far_limit = area * allowed["far"]
@@ -388,7 +685,7 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
                     coverage / area * 100,
                     allowed["mgc"],
                     "%",
-                    f"Rule 50, {allowed['rule']}",
+                    f"{_clause('coverage')}, {allowed['rule']}".strip(", "),
                 )
             )
         if far_area is not None:
@@ -397,15 +694,22 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
             )
     elif allowed:
         problems.append(" ".join(allowed["notes"]))
+    elif by_code and code is not None:
+        notes.append(
+            f"{code.name}: the floor area is the result of the open spaces and the height; FAR "
+            "and ground coverage are set by the planning authority."
+        )
     labels = {"front": "Front setback", "rear": "Rear setback", "side": "Side setback"}
     for key, label in labels.items():
+        if required[key] is None:
+            continue
         out["checks"].append(
             _check(
                 label,
                 provided[key],
                 required[key],
                 "m",
-                required["rule"] + (", Rule 46(3)" if key == "front" and road else ""),
+                required["frontRule"] if key == "front" else required["rule"],
                 at_least=True,
             )
         )
@@ -417,12 +721,236 @@ def check(site: Site | None, bim_text: str | None = None) -> dict[str, Any] | No
         outside = measured["footprint"].difference(buildable).area / 1e6 if buildable else None
         if outside is not None:
             out["checks"].append(
-                _check("Building outside the setbacks", outside, 0.0, "m²", "Rule 46(1)-(2)")
+                _check(
+                    "Building outside the setbacks",
+                    outside,
+                    0.0,
+                    "m²",
+                    required["rule"] if by_code else _clause("envelope"),
+                )
             )
     elif plan.floorArea is None:
         notes.append(
             "No building model yet: enter the ground coverage and the floor area, or "
             "generate the building model."
         )
-    out["ok"] = all(c["ok"] for c in out["checks"]) and not problems
+    if code is not None:
+        _code_checks(out, plan, code, area, road, height, storeys, provided, allowed, binding)
+        construction = _construction_type(settings_text)
+        _height_checks(out, plan, code, road, height, storeys, provided, construction, binding)
+    out["ok"] = all(c["ok"] for c in out["checks"] if not c.get("advisory")) and not problems
     return out
+
+
+def _code_checks(
+    out: dict[str, Any],
+    plan: Any,
+    code: Any,
+    area: float,
+    road: float | None,
+    height: float | None,
+    storeys: int | None,
+    provided: dict[str, float],
+    allowed: dict[str, Any] | None,
+    binding: Any,
+) -> None:
+    """The building code's levels, overhead line, open area and unpaved area checks."""
+    checks, notes, problems = out["checks"], out["notes"], out["problems"]
+    levels = code.levels
+    if (
+        levels is not None
+        and plan.floodProne
+        and (plan.plinthHeight is not None or plan.formationHeight is not None)
+    ):
+        notes.append(
+            f"{_code_rule(levels.plinthRule)}: in a flood or surge prone area the plinth and "
+            "formation levels are the development authority's; they are not checked here."
+        )
+    elif levels is not None:
+        if plan.plinthHeight is not None:
+            checks.append(
+                _check(
+                    "Plinth above the road",
+                    plan.plinthHeight / 1000,
+                    levels.plinthMin,
+                    "m",
+                    _code_rule(levels.plinthRule),
+                    at_least=True,
+                    advisory=not binding("plinth"),
+                )
+            )
+        if plan.formationHeight is not None:
+            rule = _code_rule(levels.formationRule)
+            formation = plan.formationHeight / 1000
+            checks.append(
+                _check(
+                    "Formation level not below the road",
+                    formation,
+                    0.0,
+                    "m",
+                    rule,
+                    at_least=True,
+                    advisory=not binding("formation"),
+                )
+            )
+            if levels.formationMax is not None:
+                checks.append(
+                    _check(
+                        "Formation level above the road",
+                        formation,
+                        levels.formationMax,
+                        "m",
+                        rule,
+                        advisory=not binding("formation"),
+                    )
+                )
+    line = plan.overheadLine
+    if line is not None:
+        need = overhead_clearance(line.kind, line.voltage)
+        if need is None:
+            problems.append(f"Unknown overhead line class '{line.kind}' in the code pack.")
+        else:
+            for key, label in (("vertical", "vertically"), ("horizontal", "horizontally")):
+                have = getattr(line, key)
+                if have is not None:
+                    checks.append(
+                        _check(
+                            f"Overhead line ({need['label']}), {label}",
+                            have / 1000,
+                            need[key],
+                            "m",
+                            need["rule"],
+                            at_least=True,
+                            advisory=not binding("overheadLines"),
+                        )
+                    )
+    spec = code.openArea
+    if spec is None:
+        return
+    percent = open_area_percent(plan.use)
+    open_space = out["areas"]["openSpace"]
+    if percent is not None and open_space is not None:
+        checks.append(
+            _check(
+                "Open area",
+                open_space / area * 100,
+                percent,
+                "%",
+                _code_rule(spec.rule),
+                at_least=True,
+                advisory=not binding("openArea"),
+            )
+        )
+    if plan.unpavedArea is not None and spec.unpavedPercent:
+        # The minimum open space: the code's least open area, or the authority's (the plot less
+        # its maximum ground coverage) where that is larger.
+        minimum = area * (percent or 0) / 100
+        if allowed and allowed.get("allowed"):
+            minimum = max(minimum, area * (100 - allowed["mgc"]) / 100)
+        checks.append(
+            _check(
+                "Unpaved open area",
+                plan.unpavedArea,
+                minimum * spec.unpavedPercent / 100,
+                "m²",
+                _code_rule(spec.unpavedRule),
+                at_least=True,
+                advisory=not binding("unpaved"),
+            )
+        )
+
+
+def _height_checks(
+    out: dict[str, Any],
+    plan: Any,
+    code: Any,
+    road: float | None,
+    height: float | None,
+    storeys: int | None,
+    provided: dict[str, float],
+    construction: str,
+    binding: Any,
+) -> None:
+    """The building code's height limit by road width and construction type, and the open
+    spaces of a building of unlimited height or FAR."""
+    checks, notes = out["checks"], out["notes"]
+    out["constructionType"] = construction or None
+    unlimited = False
+    if code.height is not None and road is not None:
+        if not construction:
+            notes.append(
+                f"{_code_rule(code.height.rule)}: set the construction type (Project Settings, "
+                "Construction) to check the building's height."
+            )
+        elif unlimited_height(plan.use, construction, road, plan.approvedArea):
+            unlimited = True
+            notes.append(
+                f"{_code_rule(code.unlimited.rule)}: an approved area on a road at least "
+                f"{code.unlimited.minRoad:g} m wide: no height limit for type {construction}, "
+                "with the open spaces of a building of unlimited height."
+            )
+            out["heightLimit"] = None
+        else:
+            limit = height_limit(construction, road, provided["front"])
+            if limit is None:
+                notes.append(
+                    f"{_code_rule(code.height.rule)}: no height limit is given for construction "
+                    f"type {construction}."
+                )
+            else:
+                out["heightLimit"] = limit
+                notes.append(
+                    f"{limit['rule']}: {code.height.basis:g} × (road {road:g} m + front open "
+                    f"space {provided['front']:g} m) = {limit['basis']:g} m: {limit['column']} up "
+                    f"to {limit['storeys']} storeys and {limit['height']:g} m."
+                )
+                if limit.get("source"):
+                    notes.append(limit["source"])
+                if height is not None:
+                    checks.append(
+                        _check(
+                            "Building height",
+                            height,
+                            limit["height"],
+                            "m",
+                            limit["rule"],
+                            advisory=not binding("height"),
+                        )
+                    )
+                if storeys is not None:
+                    checks.append(
+                        _check(
+                            "Storeys",
+                            storeys,
+                            limit["storeys"],
+                            "",
+                            limit["rule"],
+                            advisory=not binding("height"),
+                        )
+                    )
+                if height is None and storeys is None:
+                    notes.append("Enter the building's height or storeys to check them.")
+    far_unlimited = (out.get("permitted") or {}).get("allowed") and (
+        out["permitted"].get("far") is None
+    )
+    if unlimited or far_unlimited:
+        spaces = unlimited_open_spaces(plan.use)
+        if spaces is None:
+            notes.append(
+                "A building of unlimited height or FAR: the code gives its open spaces for this "
+                "use by its other provisions."
+            )
+            return
+        labels = {"front": "Front", "rear": "Rear", "side": "Side"}
+        for key, label in labels.items():
+            checks.append(
+                _check(
+                    f"{label} open space (unlimited height or FAR)",
+                    provided[key],
+                    spaces[key],
+                    "m",
+                    spaces["rule"],
+                    at_least=True,
+                    advisory=not binding("unlimited"),
+                )
+            )

@@ -3132,7 +3132,7 @@ def _planning(parts: _Parts) -> dict[str, Any] | None:
     if report is None or isinstance(report, list):
         return None
     try:
-        return check(report.site, parts.text(BIM_FILE))
+        return check(report.site, parts.text(BIM_FILE), parts.text(SETTINGS_FILE))
     except Exception as error:  # noqa: BLE001 - the planning check must not fail the report
         parts.warnings.append(f"The planning compliance could not be checked: {error}")
         return None

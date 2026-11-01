@@ -1667,6 +1667,15 @@ def _planning(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
                 else "not permitted",
             ]
         )
+    limit = plan.get("heightLimit")
+    if limit:
+        rows.append(
+            [
+                "Height limit",
+                f"{limit['storeys']} storeys, {limit['height']:g} m "
+                + f"({limit['column']}; {limit['rule']})",
+            ]
+        )
     out.append(pairs(rows))
     areas, limits = plan.get("areas") or {}, plan.get("limits") or {}
     if areas:
@@ -1686,6 +1695,8 @@ def _planning(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         statement.append(["Gross floor area", num(areas.get("grossFloorArea")), ""])
         if areas.get("excluded"):
             statement.append(["Less excluded", num(areas["excluded"]), ""])
+        if areas.get("parking"):
+            statement.append(["Less parking floors", num(areas["parking"]), ""])
         far_limit = limits.get("floorArea") if limits else None
         statement.append(
             [
@@ -1711,14 +1722,14 @@ def _planning(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
                         c["sense"],
                         "not restricted" if c["limit"] is None else f"{c['limit']:g}",
                         c["unit"],
-                        "OK" if c["ok"] else "FAILS",
+                        "OK" if c["ok"] else ("advisory" if c.get("advisory") else "FAILS"),
                         c["rule"],
                     ]
                     for c in checks
                 ],
                 ["1fr", "auto", "auto", "auto", "auto", "auto", "30%"],
                 "lrcrlcl",
-                bad=[not c["ok"] for c in checks],
+                bad=[not c["ok"] and not c.get("advisory") for c in checks],
             ),
         ]
     if plan.get("notes"):

@@ -17596,6 +17596,64 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Liquefaction',
 			type: 'object',
 		},
+		OverheadLine: {
+			additionalProperties: false,
+			description: 'An overhead electric line near the building: its class (an id of the code pack\'s\n``planning.buildingCode.overheadLines.classes``), voltage and the distances to it.',
+			properties: {
+				kind: {
+					default: 'lowMedium',
+					description: 'Class of the line in the code pack: lowMedium (low to medium voltage and service lines) or high (high voltage).',
+					maxLength: 32,
+					minLength: 1,
+					title: 'Line',
+					type: 'string',
+				},
+				voltage: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of a high voltage line [kV].',
+					title: 'Voltage',
+				},
+				vertical: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'From the building or any part of it to the line [mm]; empty: not checked.',
+					title: 'Vertical distance',
+				},
+				horizontal: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'From the building or any part of it to the line [mm]; empty: not checked.',
+					title: 'Horizontal distance',
+				},
+			},
+			title: 'OverheadLine',
+			type: 'object',
+		},
 		Permeability: {
 			additionalProperties: false,
 			properties: {
@@ -17723,10 +17781,113 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				excludedArea: {
 					default: 0,
-					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, parking, services) [m²].',
+					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, services), other than the parking floors [m²].',
 					minimum: 0,
 					title: 'Excluded floor area',
 					type: 'number',
+				},
+				rules: {
+					default: 'authority',
+					description: 'authority: the planning authority\'s FAR, ground coverage and setbacks (the code pack\'s planning table), with the building code\'s own site rules; code: no authority rules apply, the building code\'s open area and setbacks instead.',
+					enum: ['authority', 'code'],
+					enumDescriptions: ['Planning authority', 'Building code only'],
+					title: 'Rules',
+					type: 'string',
+				},
+				typology: {
+					default: 'detached',
+					description: 'Detached, semi-detached (one side on the property line or a pounding gap) or row type: the building code\'s side and rear open spaces depend on it.',
+					enum: ['detached', 'semiDetached', 'row'],
+					enumDescriptions: ['Detached', 'Semi-detached', 'Row type'],
+					title: 'Typology',
+					type: 'string',
+				},
+				parkingArea: {
+					default: 0,
+					description: 'Area of the floors (basements included) used mainly for car parking and their accessory plant, which the building code leaves out of FAR [m²].',
+					minimum: 0,
+					title: 'Parking floor area',
+					type: 'number',
+				},
+				openArea: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Total open area: exterior open spaces and interior courtyards, not the light and ventilation shafts [m²]; empty: the plot less the ground coverage.',
+					title: 'Open area',
+				},
+				unpavedArea: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Open area left unpaved, with or without vegetation [m²]; empty: not checked.',
+					title: 'Unpaved area',
+				},
+				plinthHeight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plinth level above the surface of the road\'s centre line [mm]; empty: not checked.',
+					title: 'Plinth height',
+				},
+				formationHeight: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Formation level of the plot above the road\'s centre line [mm] (negative: below the road); empty: not checked.',
+					title: 'Formation height',
+				},
+				floodProne: {
+					default: false,
+					description: 'The area is prone to flood or surge: the plinth and formation levels are the development authority\'s.',
+					title: 'Flood prone',
+					type: 'boolean',
+				},
+				approvedArea: {
+					default: false,
+					description: 'The plot lies in an approved residential or business area (unlimited height on a wide road, by the building code).',
+					title: 'Approved area',
+					type: 'boolean',
+				},
+				overheadLine: {
+					anyOf: [
+						{
+							$ref: '#/$defs/OverheadLine',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The nearest overhead electric line and the building\'s distances to it.',
+					title: 'Overhead electric line',
 				},
 			},
 			title: 'Planning',
