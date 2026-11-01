@@ -421,12 +421,14 @@ def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[fl
     return PHI_SHEAR * vc, lambda_s
 
 
-def min_steel_ratio(fy: float) -> float:
-    """As,min / Ag of a slab (ACI 7.6.1.1, 8.6.1.1 by Table 24.4.3.2): 0.0020 below fy 420,
-    else the greater of 0.0018 x 420 / fy and 0.0014."""
-    if fy < 420:
-        return 0.0020
-    return max(0.0018 * 420 / fy, 0.0014)
+def min_steel_ratio(fy: float, aggregate: str | None = None) -> float:
+    """As,min / Ag of a slab: the shrinkage and temperature ratio of the code pack (B21,
+    :func:`saengine.design.rc_detailing.shrinkage_ratio`: BNBC 8.1.11.2 (a) 0.0020 below fy
+    420, else the greater of 0.0018 x 420 / fy and 0.0014), times the aggregate's factor
+    (8.1.11.2 (b): x 1.5 for brick aggregate). ``aggregate``: None, the project's."""
+    from saengine.design.rc_detailing import shrinkage_ratio
+
+    return shrinkage_ratio(fy, aggregate)[0]
 
 
 #: φ of a tension-controlled section (ACI Table 21.2.2), taken for the rebar contours.
@@ -1842,8 +1844,9 @@ def _min_reinforcement_check(
     Layers with no tension demand (e.g. light top or distribution bars) only count towards the
     total of their direction."""
     from saengine.design.check import _check
+    from saengine.design.rc_detailing import shrinkage_ratio
 
-    ratio = min_steel_ratio(fy)
+    ratio, how = shrinkage_ratio(fy)
     as_min = ratio * 1000 * h
     # (utilisation, required, provided, what)
     found: list[tuple[float, float, float, str]] = []
@@ -1867,9 +1870,9 @@ def _min_reinforcement_check(
             continue
         need(as_min, capacity.area, f"{name} (tension face), ACI 7.6.1.1 / 8.6.1.1")
     utilisation, required, provided, what = max(found, key=lambda item: item[0])
-    note = f"As,min = {ratio:.4f} Ag = {as_min:.0f} mm²/m; governing: {what}"
+    note = f"As,min = {ratio:.4f} Ag = {as_min:.0f} mm²/m ({how}); governing: {what}"
     if span is not None:
-        note += f"; one-way slab spanning {span}"
+        note += f"; one-way slab spanning {span}" + _integrity_note()
     return _check(
         "Min. reinforcement (ACI 7.6.1.1, 8.6.1.1)",
         required,
@@ -1899,7 +1902,9 @@ def _max_spacing_check(
         elif layer.name[-1] == span:
             limit, clause = min(3 * h, 450.0), "7.7.2.3: min(3h, 450 mm)"
         else:
-            limit, clause = min(5 * h, 450.0), "7.7.6.2.1, 24.4.3.3: min(5h, 450 mm)"
+            from saengine.design.rc_detailing import shrinkage_spacing
+
+            limit, clause = shrinkage_spacing(h)
         ratio = layer.spacing / limit
         if worst is None or ratio > worst[0]:
             worst = (ratio, layer, limit, clause)
@@ -1911,7 +1916,8 @@ def _max_spacing_check(
         limit,
         "mm",
         None,
-        f"{layer.name} at {layer.spacing:.0f} mm; ACI {clause}",
+        f"{layer.name} at {layer.spacing:.0f} mm; "
+        + (clause if clause[:1].isupper() else f"ACI {clause}"),
     )
 
 
@@ -2675,7 +2681,7 @@ def coefficient_design(
     neighbours: Sequence[Sequence[Sequence[float]]] = (),
     beams: Sequence[EdgeBeam] = (),
     ec: float | None = None,
-    brick_aggregate: bool = False,
+    brick_aggregate: bool | None = None,
 ) -> CoefficientDesign:
     """Design a slab on beams by BNBC's coefficient methods (:data:`COEFFICIENT_METHOD`).
 
@@ -2684,7 +2690,9 @@ def coefficient_design(
     its outline, axes and supports (and its minimum thickness, reported as by
     :func:`slab_checks`; its ``shear`` and ``notes`` are filled); ``neighbours``: the other
     slabs' outlines at its level; ``beams``: the beams at its level with their stiffness and
-    depth; ``ec``: the slab concrete's E [MPa] for αf (None: not checked).
+    depth; ``ec``: the slab concrete's E [MPa] for αf (None: not checked);
+    ``brick_aggregate``: whether the concrete has brick aggregate (None: the project's
+    Construction > Concrete aggregate, B21).
 
     Raises ValueError (the reason) for a flat slab, a panel the methods do not cover, or no
     combination."""
@@ -2935,7 +2943,7 @@ def _coefficient_checks(
     envelope: dict[str, tuple[float, str | None, str]],
     demand_shear: dict[str, tuple[float, str | None, str]],
     context: SlabContext,
-    brick_aggregate: bool,
+    brick_aggregate: bool | None,
     spacing: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """The checks of a coefficient design, in the shape of :func:`slab_checks`'s."""
@@ -3038,7 +3046,7 @@ def _coefficient_min_steel(
     fy: float,
     capacities: dict[str, LayerCapacity | None],
     envelope: dict[str, tuple[float, str | None, str]],
-    brick_aggregate: bool,
+    brick_aggregate: bool | None,
     span: str | None,
 ) -> dict[str, Any]:
     """As,min of BNBC 8.1.11.2 (by 6.5.8.6.1 two-way, 6.3.5.4 and 8.1.11.1 one-way) in both
@@ -3046,9 +3054,11 @@ def _coefficient_min_steel(
     bars) and in a top layer that resists a negative moment; x 1.5 with brick aggregate
     (8.1.11.2 (b))."""
     from saengine.design.check import _check
+    from saengine.design.rc_detailing import shrinkage_ratio
 
-    factor = float(coefficient_table()["brickAggregateFactor"]) if brick_aggregate else 1.0
-    ratio = min_steel_ratio(fy) * factor
+    # None: the project's aggregate; True/False: brick aggregate or not (B21).
+    aggregate = None if brick_aggregate is None else ("brick" if brick_aggregate else "")
+    ratio, how = shrinkage_ratio(fy, aggregate)
     as_min = ratio * 1000 * h
     found: list[tuple[float, float, float, str]] = []
     for name in LAYERS:
@@ -3059,11 +3069,9 @@ def _coefficient_min_steel(
         utilisation = as_min / provided if provided > 0 else math.inf
         found.append((utilisation, as_min, provided, name + ("" if capacity else " (no bars)")))
     utilisation, required, provided, what = max(found, key=lambda item: item[0])
-    note = f"As,min = {ratio:.4f} Ag = {as_min:.0f} mm²/m; governing: {what}"
-    if brick_aggregate:
-        note += "; brick aggregate: x 1.5 (8.1.11.2 (b))"
+    note = f"As,min = {ratio:.4f} Ag = {as_min:.0f} mm²/m ({how}); governing: {what}"
     if span is not None:
-        note += f"; one-way slab spanning {span}"
+        note += f"; one-way slab spanning {span}" + _integrity_note()
     return _check(
         "Min. reinforcement (BNBC 8.1.11.2)",
         required,
@@ -3107,3 +3115,13 @@ def _coefficient_spacing(
         None,
         f"{layer.name} at {layer.spacing:.0f} mm; {clause}",
     )
+
+
+def _integrity_note() -> str:
+    """B21: the continuous bottom bar of a one-way slab (the code pack's integrity clause): a
+    slab type's bottom mesh runs the whole slab, so the As,min check's bottom bars in the span
+    direction are continuous."""
+    from saengine.design.rc_detailing import clause
+
+    where = clause("detailing", "integritySlab")
+    return f"; the bottom bars run the whole slab, continuous ({where})" if where else ""

@@ -873,7 +873,8 @@ def geometry_checks(
 
 def min_ratio(fy: float, brick_aggregate: bool = False) -> float:
     """Shrinkage and temperature (and As,min) ratio of BNBC Sec 8.1.11.2(a), (b)."""
-    return slab_design.min_steel_ratio(fy) * (1.5 if brick_aggregate else 1.0)
+    # B21: the aggregate factor is the code pack's (the project's aggregate unless set here).
+    return slab_design.min_steel_ratio(fy, "brick" if brick_aggregate else None)
 
 
 def thickness_rule(demand: Demand, fy: float) -> tuple[float, str]:

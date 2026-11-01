@@ -293,6 +293,11 @@ def diaphragms_of(
                         "increase": increase,
                     }
                 )
+                # B21: shear friction across the wall's construction joint at the floor
+                # (saengine.design.rc_detailing), the wall's vertical bars crossing it.
+                joint = _wall_joint(wall, types, mats, increase * reaction, wall_length, axis)
+                if joint is not None:
+                    element["checks"].append(joint)
                 if length <= wall_length + _ON_LINE:
                     continue  # the wall spans its whole line: no collector
                 collector = reaction * (1 - wall_length / length)
@@ -363,6 +368,30 @@ def diaphragms_of(
                 f"({CLAUSES['wings']}); SAEngine does not work out the wings' own motion"
             )
     return found
+
+
+def _wall_joint(
+    wall: Any, types: dict[str, Any], mats: dict[str, Any], force: float, length: float, axis: str
+) -> dict[str, Any] | None:
+    """The shear-friction check of a floor-to-wall connection (B21), None for a wall type
+    without concrete or vertical bars."""
+    from saengine.design.rc_detailing import wall_joint_check
+
+    wall_type = types.get(wall.type)
+    concrete = mats.get(getattr(wall_type, "material", None))
+    properties = getattr(concrete, "concrete", None)
+    fy = _fy(wall_type, mats)
+    if properties is None or fy <= 0:
+        return None
+    return wall_joint_check(
+        f"Floor-to-wall joint at {wall.id}, force along {axis}",
+        force,
+        wall_type,
+        length,
+        float(properties.fc),
+        fy,
+        f"E{axis}",
+    )
 
 
 def _irregularity_label(kind: str) -> str:

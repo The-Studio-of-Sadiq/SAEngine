@@ -915,7 +915,7 @@ def _construction_choices() -> tuple[list[str], list[str]]:
 
 _CONSTRUCTION_IDS, _CONSTRUCTION_LABELS = _construction_choices()
 
-AggregateId = Literal["siliceous", "carbonate", "sandLightweight", "lightweight"]
+AggregateId = Literal["siliceous", "carbonate", "sandLightweight", "lightweight", "brick"]
 
 
 class Construction(_Model):
@@ -935,8 +935,12 @@ class Construction(_Model):
         default="siliceous",
         title="Concrete aggregate",
         description="Type of the concrete's coarse aggregate: it sets the least concrete sizes "
-        "for a fire rating. Siliceous is the least favourable.",
-        json_schema_extra=_labels(["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight"]),
+        "for a fire rating (siliceous is the least favourable) and, by the code pack, the "
+        "concrete's modulus Ec, its λ and the slabs' shrinkage and temperature steel (brick "
+        "chips: a lower Ec and more shrinkage steel).",
+        json_schema_extra=_labels(
+            ["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight", "Brick chips"]
+        ),
     )
     fireSeparation: float | None = Field(
         default=None,

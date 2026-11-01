@@ -268,9 +268,17 @@
       "type": "object"
     },
     "brickAggregateFactor": {
-      "minimum": 1,
-      "title": "Brickaggregatefactor",
-      "type": "number"
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Brickaggregatefactor"
     },
     "discontinuousEdgeShare": {
       "description": "SAEngine practice, not a BNBC clause: top bars at a discontinuous edge for this share of the positive moment.",
@@ -285,7 +293,6 @@
     "twoWayLimits",
     "oneWay",
     "maxSpacing",
-    "brickAggregateFactor",
     "discontinuousEdgeShare"
   ],
   "title": "SlabCoefficientsTable",

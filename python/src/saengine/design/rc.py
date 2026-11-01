@@ -392,6 +392,14 @@ def _rectangle_bars(
     return bars, notes
 
 
+def _elastic_modulus(fc: float) -> float:
+    """Ec [MPa] of the section's elastic profile: the code pack's for the project's concrete
+    aggregate (B21); the strength checks use the stress block and do not depend on it."""
+    from saengine.design.rc_detailing import concrete_modulus
+
+    return concrete_modulus(fc)[0]
+
+
 def _concrete_section(section: RcSection):
     from concreteproperties.material import Concrete, SteelBar
     from concreteproperties.pre import add_bar
@@ -405,7 +413,7 @@ def _concrete_section(section: RcSection):
     concrete = Concrete(
         name="concrete",
         density=2.4e-6,
-        stress_strain_profile=ConcreteLinear(elastic_modulus=4700 * math.sqrt(section.fc)),
+        stress_strain_profile=ConcreteLinear(elastic_modulus=_elastic_modulus(section.fc)),
         ultimate_stress_strain_profile=RectangularStressBlock(
             compressive_strength=section.fc,
             alpha=0.85,

@@ -12,6 +12,7 @@
     "combustible": "BNBC 2020 Part 3 Table 3.3.1(b)",
     "thickness": "BNBC 2020 Part 4 Table 4.1.1",
     "columnSize": "BNBC 2020 Part 4 Table 4.1.1",
+    "aggregateFallback": "SAEngine practice, not BNBC: Table 4.1.1 prints no rows for brick aggregate concrete (Part 6 Sec 5.2.2.3, 5.13.2.2); the siliceous rows, the least favourable of the table, are used",
     "masonryThickness": "BNBC 2020 Part 4 Table 4.1.1",
     "nonCombustibleAbove": "BNBC 2020 Part 3 Sec 3.1.1"
   },
@@ -174,7 +175,8 @@
     "siliceous": "Siliceous",
     "carbonate": "Carbonate",
     "sandLightweight": "Sand-lightweight",
-    "lightweight": "Lightweight"
+    "lightweight": "Lightweight",
+    "brick": "Brick chips"
   },
   "ratings": [1, 1.5, 2, 3, 4],
   "thickness": {
@@ -190,6 +192,9 @@
   },
   "columnSizeFallback": {
     "lightweight": "sandLightweight"
+  },
+  "aggregateFallback": {
+    "brick": "siliceous"
   },
   "masonryRatings": [0.5, 0.75, 1, 1.5, 2, 3, 4],
   "masonryThickness": {

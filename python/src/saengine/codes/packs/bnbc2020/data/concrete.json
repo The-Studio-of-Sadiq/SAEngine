@@ -216,7 +216,39 @@
     "cantileverBeam": 8.0,
     "cantileverSlab": 10.0
   },
+  "aggregates": {
+    "siliceous": { "modulus": "normal", "lambda": 1.0 },
+    "carbonate": { "modulus": "normal", "lambda": 1.0 },
+    "sandLightweight": { "modulus": "density", "lambda": 0.85 },
+    "lightweight": { "modulus": "density", "lambda": 0.75 },
+    "brick": { "modulus": "brick", "lambda": 1.0, "shrinkageFactor": 1.5 }
+  },
+  "modulus": {
+    "normal": 4700.0,
+    "brick": 3750.0,
+    "densityCoefficient": 0.043,
+    "densityExponent": 1.5,
+    "densityRange": [1440.0, 2560.0]
+  },
+  "shrinkage": {
+    "ratioLow": 0.002,
+    "referenceFy": 420.0,
+    "ratioReference": 0.0018,
+    "ratioMin": 0.0014
+  },
+  "clauses": {
+    "modulus": "Part 6 Sec 6.1.7.1",
+    "modulusBrick": "Part 6 Sec 5.13.2.2",
+    "modulusDensity": "Part 6 Sec 6.1.7.1, 5.13.2.1",
+    "lambda": "Part 6 Sec 6.1.8.1",
+    "shrinkage": "Part 6 Sec 8.1.11.2 (a)",
+    "shrinkageBrick": "Part 6 Sec 8.1.11.2 (b)",
+    "shrinkageSpacing": "Part 6 Sec 8.1.6.7, 8.1.11.2 (c)"
+  },
   "sources": {
+    "aggregates": "BNBC 2020 Part 6 Sec 5.13.2.1-5.13.2.2 (p. 856): Ec of stone and brick aggregate concrete; Sec 6.1.8.1 (p. 893): λ = 0.85 sand-lightweight, 0.75 all-lightweight, 1.0 normal weight (brick aggregate concrete is normal weight); Sec 8.1.11.2 (b) (p. 1075): shrinkage and temperature steel of brick aggregate concrete × 1.5",
+    "modulus": "BNBC 2020 Part 6 Sec 6.1.7.1 (p. 892) and 5.13.2.1 (p. 856): Ec = 0.043 wc^1.5 √f'c for wc 1440-2560 kg/m³ (5.13.2.1 prints the same as 44 wc^1.5 √f'c, wc 15-25 kN/m³), 4700 √f'c for normal weight; Sec 5.13.2.2 (p. 856): 3750 √f'c for brick aggregate",
+    "shrinkage": "BNBC 2020 Part 6 Sec 8.1.11.2 (a), (c) (p. 1075): 0.0020 for fy 275 and 350 MPa, 0.0018 for 420 MPa, 0.0018 × 420 / fy above 420, never below 0.0014 (the spacing of 8.1.11.2 (c), 5h and 450 mm, is slabCoefficients.maxSpacing.temperature). The clause prints no ratio between 350 and 420 MPa: 0.0020 is kept up to 420 (the more conservative of the two neighbours, owner decision 2026-11-01)",
     "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice); tank: the water and septic tanks' proposal; foundation: 9 Substructure's minimum mesh and sizing assistant",
     "spacingStep": "SAEngine practice",
     "minSlabSpacing": "SAEngine practice (site), not a code limit",

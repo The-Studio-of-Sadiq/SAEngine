@@ -1457,6 +1457,43 @@ class DeflectionLimitsGroup(_Group):
     cantileverSlab: Positive = Field(description="Least slab thickness of a cantilever: l/this.")
 
 
+# B21: the concrete's modulus and shrinkage steel by its aggregate (Project Settings >
+# Construction > Concrete aggregate).
+class AggregateRules(_Group):
+    """What an aggregate type (Project Settings > Construction) changes in the concrete."""
+
+    modulus: Literal["normal", "density", "brick"] = Field(
+        description="Ec rule: normal weight, the density form (lightweight), brick aggregate."
+    )
+    lambdaFactor: Share = Field(
+        alias="lambda", description="Lightweight modification factor λ on √f'c."
+    )
+    shrinkageFactor: float = Field(
+        default=1.0, ge=1, description="Shrinkage and temperature steel × this."
+    )
+
+
+class ModulusRules(_Group):
+    """Modulus of elasticity Ec of concrete [MPa] (f'c in MPa, wc in kg/m³)."""
+
+    normal: Positive = Field(description="Normal weight: Ec = this √f'c.")
+    brick: Positive = Field(description="Brick aggregate: Ec = this √f'c.")
+    densityCoefficient: Positive = Field(description="Ec = this wc^exponent √f'c.")
+    densityExponent: Positive
+    densityRange: tuple[Positive, Positive] = Field(
+        description="wc [kg/m³] within which the density form applies."
+    )
+
+
+class ShrinkageSteel(_Group):
+    """Shrinkage and temperature steel of slabs (ratios of the gross area)."""
+
+    ratioLow: Rho = Field(description="Below referenceFy.")
+    referenceFy: Positive = Field(description="[MPa]")
+    ratioReference: Rho = Field(description="At referenceFy and above: this × referenceFy / fy.")
+    ratioMin: Rho = Field(description="Never less than this.")
+
+
 class ConcreteTable(TableModel):
     barDiameters: BarDiameters = Field(description="Bar size sets [mm] by use.")
     spacingStep: float
@@ -1485,6 +1522,21 @@ class ConcreteTable(TableModel):
     )
     prestress: PrestressLimits | None = Field(
         default=None, description="Prestressed slabs (saengine.design.prestress)."
+    )
+    aggregates: dict[str, AggregateRules] | None = Field(
+        default=None,
+        description="B21: per aggregate type, its Ec rule, λ and shrinkage steel factor "
+        "(saengine.design.rc_detailing); None: normal weight for every type.",
+    )
+    modulus: ModulusRules | None = Field(
+        default=None, description="B21: Ec of concrete (None: the material's E only)."
+    )
+    shrinkage: ShrinkageSteel | None = Field(
+        default=None, description="B21: shrinkage and temperature steel of slabs."
+    )
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="B21: clause references of the results, by key (after the pack's edition).",
     )
 
     @model_validator(mode="after")
@@ -1571,6 +1623,69 @@ class BarSpacing(_Group):
     columnDb: Positive = Field(description="Column bars: at least this many db clear.")
 
 
+# B21: crack control, skin and flange steel, structural integrity and shear friction
+# (saengine.design.rc_detailing).
+class CrackControl(_Group):
+    """Spacing of the bars nearest the tension face: s <= coefficient (reference / fs) -
+    coverFactor cc, and <= cap (reference / fs) [mm, MPa]."""
+
+    coefficient: Positive
+    reference: Positive = Field(description="Reference stress [MPa].")
+    coverFactor: float = Field(ge=0)
+    cap: Positive
+    serviceStressShare: Share = Field(description="fs may be taken as this × fy.")
+
+
+class SkinSteel(_Group):
+    """Longitudinal skin steel on the side faces of deep beams."""
+
+    depthOver: Positive = Field(description="Needed where h exceeds this [mm].")
+    extentShare: Share = Field(description="Over this × h from the tension face.")
+
+
+class FlangeTension(_Group):
+    """Tension steel of T-beam flanges and the effective flange width."""
+
+    spanShare: Share = Field(description="Spread over at most this × span.")
+    bothSidesSpan: Share = Field(description="Slab both sides: bf <= this × span.")
+    bothSidesThickness: Positive = Field(description="... overhang <= this × hf each side.")
+    oneSideSpan: Share = Field(description="Slab one side: overhang <= this × span.")
+    oneSideThickness: Positive = Field(description="... and <= this × hf.")
+
+
+class StructuralIntegrity(_Group):
+    """Continuous bars of cast-in-place beams."""
+
+    perimeterTopShare: Share = Field(description="Perimeter beams: top >= this × As- at supports.")
+    perimeterBottomShare: Share = Field(description="... bottom >= this × As+ at midspan.")
+    otherBottomShare: Share = Field(description="Other beams: bottom >= this × As+ at midspan.")
+    minBars: int = Field(ge=1, description="... and never fewer bars than this.")
+
+
+class ShearFriction(_Group):
+    """Shear transfer across a plane: Vn = Avf fy μ (+ permanent compression), μ = factor λ."""
+
+    mu: dict[str, Positive] = Field(min_length=1, description="Surface -> μ / λ.")
+    roughLimits: tuple[Positive, Positive, Positive, Positive] = Field(
+        description="Monolithic or roughened normal weight: Vn <= min(a f'c, b + c f'c, d) Ac."
+    )
+    otherLimits: tuple[Positive, Positive] = Field(
+        description="Other cases: Vn <= min(a f'c, b) Ac."
+    )
+    roughSurfaces: list[str] = Field(description="The surfaces the rough limits apply to.")
+    fyMax: Positive = Field(description="fy of shear-friction steel at most [MPa].")
+    roughness: Positive = Field(description="Roughened to a full amplitude of about [mm].")
+
+
+class TendonSpacing(_Group):
+    """Bonded tendons of Class C members: Δfps in place of fs in the crack-control spacing."""
+
+    share: Share = Field(description="Tendons apart at most this × the bar spacing limit.")
+    mixedShare: Share = Field(description="A bar and a tendon apart at most this × the limit.")
+    deltaMax: Positive = Field(description="Δfps at most [MPa].")
+    deltaExempt: Positive = Field(description="Δfps up to this: (a) and (b) do not apply [MPa].")
+
+
 class DetailingTable(TableModel):
     special: SpecialFrames
     joints: Joints
@@ -1578,6 +1693,17 @@ class DetailingTable(TableModel):
     lintels: LintelLimits
     #: None in a pack that gives no bar spacing limits: the congestion check is then skipped.
     spacing: BarSpacing | None = None
+    #: B21; None in a pack without the rule: the check is shown as not covered.
+    crackControl: CrackControl | None = None
+    skin: SkinSteel | None = None
+    flangeTension: FlangeTension | None = None
+    integrity: StructuralIntegrity | None = None
+    shearFriction: ShearFriction | None = None
+    tendonSpacing: TendonSpacing | None = None
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="B21: clause references of the results, by key (after the pack's edition).",
+    )
 
 
 class SteelPhi(_Group):
@@ -2402,7 +2528,9 @@ class SlabCoefficientsTable(TableModel):
     oneWay: OneWayTable
     #: [times h, at most mm] per rule: twoWay, oneWay, temperature.
     maxSpacing: dict[str, tuple[Positive, Positive]]
-    brickAggregateFactor: float = Field(ge=1)
+    #: Superseded by the concrete table's ``aggregates.<type>.shrinkageFactor`` (B21); kept so
+    #: that older copies of a pack still load. Not read.
+    brickAggregateFactor: float | None = Field(default=None, ge=1)
     discontinuousEdgeShare: Share = Field(
         description="SAEngine practice, not a BNBC clause: top bars at a discontinuous edge "
         "for this share of the positive moment."
@@ -3214,6 +3342,11 @@ class FireResistanceTable(TableModel):
         default_factory=dict,
         description="Aggregate types without a column row: the row used instead.",
     )
+    aggregateFallback: dict[str, str] = Field(
+        default_factory=dict,
+        description="B21: aggregate types the table has no rows for at all (thickness and "
+        "column size): the type whose rows are used instead.",
+    )
     masonryRatings: list[Positive] = Field(
         default_factory=list, description="Ratings of the masonry rows [h]."
     )
@@ -3242,6 +3375,9 @@ class FireResistanceTable(TableModel):
         for key, to in self.columnSizeFallback.items():
             if to not in self.columnSize:
                 raise ValueError(f"columnSizeFallback.{key}: no column row '{to}'")
+        for key, to in self.aggregateFallback.items():
+            if to not in self.thickness or to not in self.columnSize:
+                raise ValueError(f"aggregateFallback.{key}: no rows for '{to}'")
         return self
 
 

@@ -1867,9 +1867,15 @@ def _concrete_column(object_type: Any, mats: dict[str, Any]) -> tuple[float, Any
 
 
 def concrete_modulus(concrete: Any) -> float:
-    """Ec [MPa]: the material's E, else 4700 √f'c (BNBC 6.1.7.1 / ACI 19.2.2.1)."""
+    """Ec [MPa]: the material's E, else the code pack's Ec of f'c, the density and the
+    project's concrete aggregate (B21, :func:`saengine.design.rc_detailing.concrete_modulus`)."""
+    from saengine.design.rc_detailing import concrete_modulus as code_modulus
+
     e = concrete.mechanical.E if concrete.mechanical else None
-    return float(e) if e else 4700 * math.sqrt(concrete.concrete.fc)
+    if e:
+        return float(e)
+    density = concrete.mechanical.density if concrete.mechanical else None
+    return code_modulus(concrete.concrete.fc, density)[0]
 
 
 def _axis_frame(

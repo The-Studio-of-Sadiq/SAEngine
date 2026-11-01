@@ -40,6 +40,7 @@ from saengine.design import (
     column_shear,
     deep_beams,
     live_reduction,
+    rc_detailing,
     seismic_rules,
     slab,
     slab_systems,
@@ -357,7 +358,35 @@ def design(
     ``slenderness``: how column slenderness is designed for
     (:class:`saengine.design.slender.SlenderOptions`, or the settings' dict of it); the
     project settings' (:func:`saengine.design.slender.options_from_settings`) when None. The storeys' stability (sway or nonsway) is returned as
-    ``"stability"`` (:func:`saengine.design.slender.storey_rows`)."""
+    ``"stability"`` (:func:`saengine.design.slender.storey_rows`).
+
+    B21: the project's concrete aggregate (Construction > Concrete aggregate) is in force for
+    the run (:func:`saengine.design.rc_detailing.using_aggregate`: Ec, shrinkage steel, λ),
+    and the notes say which concrete materials have an E that does not follow it."""
+    with rc_detailing.using_aggregate(settings):
+        result = _design_run(
+            project, out_dir, building, objects, materials, settings, collect, slenderness,
+            assumed,
+        )  # fmt: skip
+        extra_notes = rc_detailing.material_notes(materials)
+    for report in (result, (collect or {}).get("plain")):
+        if extra_notes and isinstance(report, dict) and isinstance(report.get("notes"), list):
+            report["notes"].extend(extra_notes)
+    return result
+
+
+def _design_run(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    building: BuildingModel,
+    objects: ObjectLibrary,
+    materials: MaterialLibrary,
+    settings: ProjectSettings,
+    collect: dict[str, Any] | None,
+    slenderness: slenderness_design.SlenderOptions | dict[str, Any] | None,
+    assumed: set[str] | None,
+) -> dict[str, Any]:
+    """The body of :func:`design`."""
     from saengine.design import seismic_detailing
     from saengine.fem import second_order, seismic_design
     from saengine.fem.combinations import set_flood_kind
@@ -945,6 +974,17 @@ def design(
                         concrete.concrete.fc,
                         bars.steel.fy,
                     )
+                    # B21: crack control, skin steel, flange tension steel and structural
+                    # integrity (saengine.design.rc_detailing); a beam with a slab on one side
+                    # only is a perimeter beam.
+                    hf, sides = framing.slab_beside(element, section.width)
+                    checks += rc_detailing.beam_checks(
+                        section,
+                        checks,
+                        perimeter=sides == 1,
+                        span=_longest_span(element, framing),
+                        flange=(hf, sides),
+                    )
                     if deep_rows:
                         for row in checks:
                             if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
@@ -989,11 +1029,14 @@ def design(
                     face_forces.annotate(checks, faced)
                 # Integrator glue (0.0.45): the shear of every column from the analysis forces
                 # with the axial force's effect on Vc (saengine.design.column_shear).
+                points = _shear_points(own, combinations, _turned(element, exact))
                 checks += column_shear.column_shear_checks(
-                    section,
-                    object_type.reinforcement.transverse,
-                    _shear_points(own, combinations, _turned(element, exact)),
+                    section, object_type.reinforcement.transverse, points
                 )
+                # B21: shear friction across the construction joint at the floor.
+                joint = rc_detailing.column_joint_check(section, points, bars.steel.fy)
+                if joint is not None:
+                    checks.append(joint)
                 faced_any = faced_any or faced.at_faces
             if live_row is not None:
                 checks.append(live_row)
@@ -1906,7 +1949,7 @@ def _design_slabs(
                 object_type.system,
                 slab_systems.design_depth(object_type),
                 fy,
-                concrete.mechanical.E or 4700 * math.sqrt(fc),
+                slenderness_design.concrete_modulus(concrete),
                 neighbours,
                 beams_at.get(round(level), []),
                 column_size=(
@@ -2052,7 +2095,7 @@ def _coefficient_slab(
     dead = self_weight + ((area_load.finish + area_load.partitions) if area_load else 0.0)
     live = area_load.live if area_load else 0.0
     context = slab.SlabContext(boundary=outline, axes=axes, supports=supports)
-    ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
+    ec = slenderness_design.concrete_modulus(concrete)
     try:
         context.thickness = slab.minimum_thickness(
             outline, axes, object_type.system, object_type.thickness, fy, ec, neighbours, beams
@@ -2849,6 +2892,14 @@ def _check(
         "note": note,
         "flag": flag,
     }
+
+
+def _longest_span(element: BeamElement, framing: _BeamFraming) -> float:
+    """The longest span [mm] of a beam between the supports along it (its length without)."""
+    a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+    length = float(np.linalg.norm(c - a))
+    stations = sorted({0.0, 1.0, *framing.support_stations(element)})
+    return max((t1 - t0) * length for t0, t1 in itertools.pairwise(stations))
 
 
 def _where(piece: _Piece, station: int, stations: int) -> str:

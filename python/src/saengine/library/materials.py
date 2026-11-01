@@ -375,17 +375,34 @@ def default_of(library: Any, category: Category) -> str | None:
 
 # ───────────────────────── values derived from f'c, and plausibility ─────────────────────────
 
-#: Ec = 4700 √f'c [MPa] for normal-weight concrete (BNBC 2020 Part 6 Sec 6.1.7.1).
-EC_COEFFICIENT = 4700.0
 #: Modulus of rupture fr = 0.62 λ √f'c [MPa] (BNBC 2020 Part 6 Sec 6.2.5.2.3, Eq. 6.6.3).
 FR_COEFFICIENT = 0.62
 #: How far an entered E or fr may differ from the code relation before it is flagged.
 DEVIATION_LIMIT = 0.10
 
 
+def _normal_modulus() -> float:
+    """The default pack's ``concrete.modulus.normal`` (B21). Read without the pack registry:
+    the default materials are built while packs load (their templates), where the registry
+    cannot be asked."""
+    from saengine.codes.registry import DEFAULT_PACK
+    from saengine.codes.tables import builtin_table
+
+    return float(builtin_table("concrete", DEFAULT_PACK).modulus.normal)
+
+
+def __getattr__(name: str) -> Any:
+    # B21: Ec = this √f'c of normal-weight concrete is the default pack's, read when used;
+    # ``EC_COEFFICIENT`` stays importable for the library export and the report worksheets.
+    if name == "EC_COEFFICIENT":
+        return _normal_modulus()
+    raise AttributeError(name)
+
+
 def concrete_modulus(fc: float) -> float:
-    """Ec of normal-weight concrete [MPa], rounded to 10 MPa as the defaults are."""
-    return round(EC_COEFFICIENT * math.sqrt(fc), -1)
+    """Ec of normal-weight concrete [MPa] by the default pack, rounded to 10 MPa as the
+    defaults are (the aggregate's Ec: :func:`saengine.design.rc_detailing.concrete_modulus`)."""
+    return round(_normal_modulus() * math.sqrt(fc), -1)
 
 
 def modulus_of_rupture(fc: float) -> float:
@@ -419,11 +436,15 @@ def _value(material: Material, path: str) -> float | None:
     return float(value) if isinstance(value, int | float) else None
 
 
-def plausibility(material: Material) -> list[tuple[str, str]]:
+def plausibility(material: Material, aggregate: str | None = None) -> list[tuple[str, str]]:
     """Values that pass the schema but are unlikely for the category (a typing slip, a value in
     the wrong unit), as (path, message): E and fr of concrete more than 10 % from the code
-    relations of f'c (BNBC 2020 Part 6 Sec 6.1.7.1 and Eq. 6.6.3), and values outside the usual
-    range of the category. Test results may justify a value; the message says what to check."""
+    relations of f'c (Ec by the concrete's ``aggregate``, default: the project's, B21; BNBC
+    2020 Part 6 Eq. 6.6.3), and values outside the usual range of the category. Test results
+    may justify a value; the message says what to check."""
+    from saengine.design.rc_detailing import concrete_modulus as code_modulus
+    from saengine.design.rc_detailing import current_aggregate
+
     out: list[tuple[str, str]] = []
     for path, low, high, what in _RANGES.get(material.category, ()):
         value = _value(material, path)
@@ -431,20 +452,22 @@ def plausibility(material: Material) -> list[tuple[str, str]]:
             out.append((path, f"{what} {value:g} is outside the usual {low:g} to {high:g}"))
     if material.category == Category.CONCRETE and material.concrete is not None:
         fc = material.concrete.fc
+        agg = aggregate or current_aggregate()
+        ec, ec_how = code_modulus(fc, material.mechanical.density, agg)
         for path, own, code, name, clause in (
             (
                 "mechanical.E",
                 material.mechanical.E,
-                concrete_modulus(fc),
+                round(ec, -1),
                 "E",
-                "Sec 6.1.7.1: Ec = 4700 √f'c",
+                f"{ec_how}, {agg} aggregate",
             ),
             (
                 "concrete.ft",
                 material.concrete.ft,
                 modulus_of_rupture(fc),
                 "fr",
-                "Eq. 6.6.3: fr = 0.62 √f'c",
+                "BNBC 2020 Part 6 Eq. 6.6.3: fr = 0.62 √f'c",
             ),
         ):
             if own is not None and code > 0 and abs(own - code) / code > DEVIATION_LIMIT:
@@ -453,7 +476,7 @@ def plausibility(material: Material) -> list[tuple[str, str]]:
                         path,
                         (
                             f"{name} = {own:g} MPa differs by {abs(own - code) / code:.0%} from "
-                            f"{code:g} MPa for f'c {fc:g} MPa (BNBC 2020 Part 6 {clause}); clear it "
+                            f"{code:g} MPa for f'c {fc:g} MPa ({clause}); clear it "
                             "to use the code value, or keep it if it comes from tests"
                         ),
                     )

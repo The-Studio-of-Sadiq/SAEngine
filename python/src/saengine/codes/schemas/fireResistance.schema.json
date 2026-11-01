@@ -371,6 +371,14 @@
       "title": "Columnsizefallback",
       "type": "object"
     },
+    "aggregateFallback": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: aggregate types the table has no rows for at all (thickness and column size): the type whose rows are used instead.",
+      "title": "Aggregatefallback",
+      "type": "object"
+    },
     "masonryRatings": {
       "description": "Ratings of the masonry rows [h].",
       "items": {
