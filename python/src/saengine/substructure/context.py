@@ -61,6 +61,8 @@ class Context:
             self.soil_text,
             self.settings.foundation,
             self.substructure.design.factorOfSafety.bearing,
+            self.substructure.design.presumptiveSoil,
+            self.substructure.earthPressure.designWaterTable,
         )
 
     @property

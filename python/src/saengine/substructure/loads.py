@@ -269,6 +269,10 @@ class BaseLoads:
     dead: dict[str, float]  # strength combination -> its dead-load factor
     strength_level_wind: bool
     unsupported: list[str] = field(default_factory=list)  # bases without a support node
+    #: Per base: the factor on its floor live load cases (L, LP...), the live load reduction
+    #: of the column it is (:func:`reduce_live_loads`); 1 when not reduced.
+    live_factors: dict[str, float] = field(default_factory=dict)
+    live_notes: dict[str, str] = field(default_factory=dict)
 
     def reaction(self, node: int, factors: dict[str, float]) -> np.ndarray:
         """The combined reaction of one support node [N, N·m]."""
@@ -342,3 +346,42 @@ def base_loads(
     return BaseLoads(
         cases, bases, strength, service_combinations(cases, level), dead, level, unsupported
     )
+
+
+def reduce_live_loads(loads: BaseLoads, building: BuildingModel, settings: ProjectSettings) -> None:
+    """The floor live load of each column base reduced as in the column's design (the "normal
+    live load" of the geotechnical design of shallow foundations): when Project Settings asks
+    for live load reduction, by the code pack's rule (:mod:`saengine.design.live_reduction`)
+    with the tributary area AT = the base's live reaction under L over the floors' live load
+    L0, the floors at and above the column's top, KLL of an interior or an edge column. Fills
+    ``loads.live_factors`` (under the code pack in force); walls are not reduced."""
+    from saengine.design import live_reduction
+
+    loads.live_factors.clear()
+    loads.live_notes.clear()
+    design = getattr(settings, "design", None)
+    if not getattr(design, "liveLoadReduction", False) or "L" not in loads.cases:
+        return
+    try:
+        scope = live_reduction.LiveScope.of(settings)
+        table = live_reduction._table()
+    except Exception:  # noqa: BLE001 - a pack without the rule reduces nothing
+        return
+    if scope.live <= 0:
+        return
+    for base_id, base in loads.bases.items():
+        element = base.element
+        if not isinstance(element, ColumnElement):
+            continue
+        live = -float(loads.resultant(base_id, {"L": 1.0}, base.nodes[0][1])[2])
+        area = live / (scope.live * 1e3)
+        if area <= 0:
+            continue
+        top = float(element.top)
+        floors = sum(1 for s in building.stories if float(s.elevation) >= top - 1.0)
+        interior = live_reduction._interior(element, building)
+        kll = table.kll.interiorColumn if interior else table.kll.cornerColumnCantilever
+        factor, why = live_reduction.reduction(kll, area, max(floors, 1), scope)
+        if factor < 1.0:
+            loads.live_factors[base_id] = factor
+            loads.live_notes[base_id] = why

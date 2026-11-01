@@ -115,6 +115,8 @@ export interface IFoundation {
 	/** The flat top of a sloped footing or the upper step, centred on the column [mm]. */
 	topLength?: number;
 	topWidth?: number;
+	/** Footings on or near a slope: from the centre to the slope face at the base level [mm]. */
+	slopeDistance?: number;
 	note?: string;
 	[key: string]: unknown;
 }
@@ -214,6 +216,14 @@ export interface ISubstructureDesign {
 	springsFrom?: 'soilReport' | number;
 	/** Raft springs: no tension (solved iteratively, the default) or linear. */
 	raftSprings?: 'noTension' | 'linear';
+	/** The row of the code pack's permissible settlements (rcc when empty). */
+	structureType?: string;
+	/** L/H of load bearing walls for their settlement limits (2 when empty). */
+	wallLengthHeight?: number;
+	/** A temporary structure: the code pack's least depth of its exterior footings. */
+	temporary?: boolean;
+	/** The code pack's presumptive bearing row used without a soil report. */
+	presumptiveSoil?: string;
 	[key: string]: unknown;
 }
 
@@ -1639,6 +1649,9 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 		if (f.allowableBearing !== undefined && !(num(f.allowableBearing) > 0)) {
 			error(at('allowableBearing'), localize('sub.p.qa', "{0}: the allowable bearing must be more than 0 kPa.", f.id));
+		}
+		if (f.slopeDistance !== undefined && !(num(f.slopeDistance) > 0)) {
+			error(at('slopeDistance'), localize('sub.p.slope', "{0}: the distance to the slope face must be more than 0 mm.", f.id));
 		}
 		if (f.material && concrete.size && !concrete.has(f.material)) {
 			warning(at('material'), localize('sub.p.material', "{0}: concrete {1} is not in 03 Materials.", f.id, f.material));

@@ -51,26 +51,527 @@
     "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
     "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
     "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10",
-    "retainingWall.sliding": "BNBC 2020 Part 6 Chapter 3 sets no factor for retaining walls; IBC 2021 Sec 1807.2.3: 1.5 against sliding and overturning",
-    "retainingWall.overturning": "IBC 2021 Sec 1807.2.3 (1.5)",
-    "retainingWall.seismic": "IBC 2021 Sec 1807.2.3: 1.1 where the load combinations include earthquake",
-    "retainingWall.passive": "Practice (NAVFAC DM 7.02 Ch 3): passive resistance divided by 2 for the movement it needs",
-    "retainingWall.flotation": "BNBC 2020 Part 6 Sec 2.6.5.2 (uplift, p680) sets no factor; 1.1 as the ground tanks (ASCE 7 0.6D + H practice)",
-    "retainingWall.baseFriction": "NAVFAC DM 7.02 Table 10-1 practice: tan δb with δb = 2/3 φ' for concrete cast on soil",
-    "retainingWall.adhesion": "NAVFAC DM 7.02 Table 10-1 practice: adhesion about 0.5 cu",
+    "retainingWall.sliding": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 801): 1.5 against sliding",
+    "retainingWall.overturning": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 800): 1.5 against overturning",
+    "retainingWall.seismic": "BNBC 2020 Part 6 Sec 3.14 and 3.16 (pp. 800-802): 1.5, no reduction with earthquake",
+    "retainingWall.passive": "BNBC 2020 Part 6 Sec 3.14(i) (p. 801): passive resistance is not counted where the abutting soil could be removed by excavation; counted in full only where the wall states that it cannot",
+    "retainingWall.flotation": "BNBC 2020 Part 6 Sec 3.9.2(a)(iii) (p. 727): 0.9 x Dead Load + Buoyancy Pressure, i.e. 0.9 W >= U",
+    "retainingWall.baseFriction": "SAEngine practice, not BNBC: tan(r φ'), used only when the pack gives no friction coefficient",
+    "retainingWall.adhesion": "SAEngine practice, not BNBC: used only when the pack gives no friction coefficient",
     "retainingWall.hFactor": "BNBC 2020 Part 6 Sec 2.7.3.1 (p685): 1.6H",
-    "retainingWall.yieldingKh": "AASHTO LRFD 11.6.5.2.2: kh = 0.5 kh0 for a wall free to move 25-50 mm",
-    "strutAndTie": "ACI 318-19 Tables 23.4.3, 23.9.2, Secs 23.2.7, 23.5.1 (the procedure BNBC 2020 Part 6 Sec 6.4.6 sends deep members to; φ in BNBC Sec 6.2.3.2, p. 897); tieArm is SAEngine practice"
+    "retainingWall.yieldingKh": "SAEngine practice, not BNBC (AASHTO LRFD 11.6.5.2.2: kh = 0.5 kh0 for a wall free to move 25-50 mm)",
+    "strutAndTie": "ACI 318-19 Tables 23.4.3, 23.9.2, Secs 23.2.7, 23.5.1 (the procedure BNBC 2020 Part 6 Sec 6.4.6 sends deep members to; φ in BNBC Sec 6.2.3.2, p. 897); tieArm is SAEngine practice",
+    "retainingWall.flotationDead": "BNBC 2020 Part 6 Sec 3.9.2(a)(iii) (p. 727)",
+    "retainingWall.frictionCoefficient": "BNBC 2020 Part 6 Sec 3.14(iii) (p. 801): friction factor 0.5; a greater value only if verified by analysis and test",
+    "shallow.bearingCombinations": "BNBC 2020 Part 6 Sec 3.9.2(a) (p. 727); Normal Live Load reduced as in column design (Sec 2.3.13)",
+    "shallow.stabilityCombinations": "BNBC 2020 Part 6 Sec 3.14 (p. 800)",
+    "shallow.settlementCombinations": "BNBC 2020 Part 6 Sec 3.9.2(b) and 3.9.4.4 (pp. 727, 731)",
+    "shallow.lateralIncrease": "BNBC 2020 Part 6 Sec 3.9.3 and 3.9.3.2 (p. 728): 33% with wind or earthquake, none for gravity loads alone",
+    "shallow.factorOfSafety": "BNBC 2020 Part 6 Sec 3.9.3 (p. 728): 2.0 to 3.0 on the bearing capacity",
+    "shallow.kern": "BNBC 2020 Part 6 Sec 3.9.1 (p. 727): resultant preferably within B/6 of the centre",
+    "shallow.overturning": "BNBC 2020 Part 6 Sec 3.14 (p. 800): 1.5 against overturning",
+    "shallow.sliding": "BNBC 2020 Part 6 Sec 3.14 (p. 801): 1.5 against sliding; (i) no passive where the soil could be removed; (ii) no base friction under pile-supported structures",
+    "shallow.friction": "BNBC 2020 Part 6 Sec 3.14(iii) (p. 801): 0.5",
+    "shallow.minDepth": "BNBC 2020 Part 6 Sec 3.8.2(d) (p. 723): 500 mm below natural ground level unless rock or other weather resistant material is at the surface",
+    "shallow.exteriorDepth": "BNBC 2020 Part 6 Sec 3.8.6 (p. 725): exterior footings of permanent structures 1.5 m in cohesive and 2 m in cohesionless soil, 400 mm for temporary ones; more on expansive soil",
+    "shallow.raftDepth": "BNBC 2020 Part 6 Sec 3.8.10 (p. 726): 1.5 m in cohesive and 2 m in cohesionless soil",
+    "shallow.slopeDistance": "BNBC 2020 Part 6 Sec 3.8.2 and 3.18 (pp. 724, 806): twice the footing width",
+    "shallow.spreadAngle": "BNBC 2020 Part 6 Sec 3.8.2 (p. 723): masonry 1/2, lime concrete 2/3, cement concrete 1 horizontal to 1 vertical (fractions read on the PDF page)",
+    "shallow.stepLap": "BNBC 2020 Part 6 Sec 3.8.2 and 3.18 (pp. 724, 806): the thickness of the foundation or three times the step height, whichever is greater",
+    "shallow.minThickness": "BNBC 2020 Part 6 Sec 3.8.3 (p. 724) and Sec 6.8.7 (p. 978): RC 150 mm above the bottom bars on soil, 300 mm on piles; plain concrete 200 mm; masonry 250 mm",
+    "shallow.presumptive": "BNBC 2020 Part 6 Sec 3.9.3.1 and Table 6.3.7 (pp. 728-729): two storeys or less in occupancy A-D, or the preliminary design of any structure",
+    "shallow.presumptiveWaterReduction": "BNBC 2020 Part 6 Table 6.3.7 note ** (p. 729)",
+    "shallow.subgrade": "BNBC 2020 Part 6 Sec 3.9.6.3 and Tables 6.3.9a-b (pp. 736-737): 300 mm plate, preliminary design",
+    "shallow.settlementLimits": "BNBC 2020 Part 6 Sec 3.9.4.7(d) and Table 6.3.8 (pp. 732-733), a guide",
+    "shallow.settlementGuide": "BNBC 2020 Part 6 Sec 3.9.4.7(d) (p. 732): isolated pad footings",
+    "shallow.columnBase": "BNBC 2020 Part 6 Sec 3.9.6.7-3.9.6.10 (pp. 738-739), Sec 6.3.14 (p. 918), Sec 6.2.3.2.5 (φ 0.65, p. 898), Sec 6.8.8.2.1 (p. 979)"
   },
   "retainingWall": {
     "sliding": 1.5,
     "overturning": 1.5,
-    "seismic": 1.1,
-    "passive": 2.0,
-    "flotation": 1.1,
+    "seismic": 1.5,
+    "passive": 1.0,
+    "flotation": 1.0,
     "baseFriction": 0.6667,
     "adhesion": 0.5,
     "hFactor": 1.6,
-    "yieldingKh": 0.5
+    "yieldingKh": 0.5,
+    "flotationDead": 0.9,
+    "frictionCoefficient": 0.5
+  },
+  "shallow": {
+    "bearingCombinations": [
+      {
+        "id": "i",
+        "name": "D + L",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(a)(i), Full Dead Load + Normal Live Load (p. 727)"
+      },
+      {
+        "id": "iiW",
+        "name": "D + L + W",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0,
+          "W": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(a)(ii) (p. 727)"
+      },
+      {
+        "id": "iiE",
+        "name": "D + L + E",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0,
+          "E": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(a)(ii) (p. 727)",
+        "note": "E (Sec 2.5.13, strength level) at 1.0 as printed, with the 33% increase of Sec 3.9.3.2; the general allowable stress combinations of Sec 2.7.2 take 0.7E"
+      },
+      {
+        "id": "iii",
+        "name": "0.9D + B",
+        "factors": {
+          "D": 0.9,
+          "B": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(a)(iii), 0.9 x (Full Dead Load) + Buoyancy Pressure (p. 727)"
+      }
+    ],
+    "stabilityCombinations": [
+      {
+        "id": "W",
+        "name": "D + W",
+        "factors": {
+          "D": 1.0,
+          "W": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.14: stability provided by the dead load of the building (p. 800)"
+      },
+      {
+        "id": "E",
+        "name": "D + E",
+        "factors": {
+          "D": 1.0,
+          "E": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.14 (p. 800); E at 1.0 as in Sec 3.9.2(a)(ii)"
+      }
+    ],
+    "settlementCombinations": {
+      "granular": {
+        "id": "sand",
+        "name": "D + L",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(b) SAND (i) (p. 727)",
+        "note": "the sustained combination; (ii) with W or E is transient"
+      },
+      "cohesive": {
+        "id": "clay",
+        "name": "D + 0.5L",
+        "factors": {
+          "D": 1.0,
+          "L": 0.5
+        },
+        "source": "BNBC 2020 Part 6 Sec 3.9.2(b) CLAY and Sec 3.9.4.4 (pp. 727, 731)"
+      }
+    },
+    "lateralIncrease": 1.33,
+    "factorOfSafety": [
+      2.0,
+      3.0
+    ],
+    "kern": 0.16666666666666666,
+    "overturning": 1.5,
+    "sliding": 1.5,
+    "friction": 0.5,
+    "minDepth": 500.0,
+    "exteriorDepth": {
+      "cohesive": 1500.0,
+      "granular": 2000.0,
+      "temporary": 400.0
+    },
+    "raftDepth": {
+      "cohesive": 1500.0,
+      "granular": 2000.0
+    },
+    "slopeDistance": 2.0,
+    "spreadAngle": {
+      "masonry": 0.5,
+      "limeConcrete": 0.6666666666666666,
+      "cementConcrete": 1.0
+    },
+    "stepLap": {
+      "thickness": 1.0,
+      "stepHeight": 3.0
+    },
+    "minThickness": {
+      "soil": 150.0,
+      "piles": 300.0,
+      "plainConcrete": 200.0,
+      "masonry": 250.0
+    },
+    "presumptive": [
+      {
+        "id": "softRock",
+        "name": "Soft rock or shale",
+        "qa": 440.0
+      },
+      {
+        "id": "gravel",
+        "name": "Gravel, sandy gravel, silty sandy gravel; very dense",
+        "groups": [
+          "GW",
+          "GP",
+          "GM",
+          "GC"
+        ],
+        "qa": 400.0,
+        "waterReduction": true
+      },
+      {
+        "id": "sand",
+        "name": "Sand (other than fine sand), gravelly sand, silty sand; dry",
+        "groups": [
+          "SW",
+          "SP",
+          "SM",
+          "SC"
+        ],
+        "qa": 200.0,
+        "waterReduction": true
+      },
+      {
+        "id": "fineSand",
+        "name": "Fine sand; loose and dry",
+        "groups": [
+          "SW",
+          "SP"
+        ],
+        "qa": 100.0,
+        "waterReduction": true
+      },
+      {
+        "id": "silt",
+        "name": "Silt, clayey silt, clayey sand; dry lumps crushed by finger",
+        "groups": [
+          "ML",
+          "SC",
+          "MH"
+        ],
+        "qa": 150.0
+      },
+      {
+        "id": "clay",
+        "name": "Clay, sandy clay; indented with strong thumb pressure",
+        "groups": [
+          "CL",
+          "CH"
+        ],
+        "qa": 150.0
+      },
+      {
+        "id": "softClay",
+        "name": "Soft clay; indented with modest thumb pressure",
+        "groups": [
+          "CL",
+          "CH"
+        ],
+        "qa": 100.0
+      },
+      {
+        "id": "verySoftClay",
+        "name": "Very soft clay; penetrated several cm with the thumb",
+        "groups": [
+          "CL",
+          "CH"
+        ],
+        "qa": 50.0
+      },
+      {
+        "id": "organic",
+        "name": "Organic clay and peat (by investigation)",
+        "groups": [
+          "OH",
+          "OL",
+          "Pt"
+        ]
+      },
+      {
+        "id": "fill",
+        "name": "Fills (by investigation)"
+      }
+    ],
+    "presumptiveWaterReduction": 0.5,
+    "subgrade": {
+      "granular": [
+        {
+          "id": "loose",
+          "name": "Loose",
+          "low": 0.0,
+          "high": 10.0,
+          "k": [
+            15000.0,
+            15000.0
+          ],
+          "submerged": [
+            9000.0,
+            9000.0
+          ]
+        },
+        {
+          "id": "medium",
+          "name": "Medium",
+          "low": 10.0,
+          "high": 30.0,
+          "k": [
+            15000.0,
+            47000.0
+          ],
+          "submerged": [
+            9000.0,
+            29000.0
+          ]
+        },
+        {
+          "id": "dense",
+          "name": "Dense",
+          "low": 30.0,
+          "k": [
+            47000.0,
+            180000.0
+          ],
+          "submerged": [
+            29000.0,
+            108000.0
+          ]
+        }
+      ],
+      "cohesive": [
+        {
+          "id": "stiff",
+          "name": "Stiff",
+          "low": 100.0,
+          "high": 200.0,
+          "k": [
+            27000.0,
+            27000.0
+          ]
+        },
+        {
+          "id": "veryStiff",
+          "name": "Very stiff",
+          "low": 200.0,
+          "high": 400.0,
+          "k": [
+            27000.0,
+            54000.0
+          ]
+        },
+        {
+          "id": "hard",
+          "name": "Hard",
+          "low": 400.0,
+          "k": [
+            54000.0,
+            108000.0
+          ]
+        }
+      ]
+    },
+    "settlementLimits": [
+      {
+        "id": "steel",
+        "name": "Steel structure",
+        "isolated": {
+          "sand": {
+            "total": 50,
+            "differential": 0.0033,
+            "angular": 0.0033333333333333335
+          },
+          "plasticClay": {
+            "total": 50,
+            "differential": 0.0033,
+            "angular": 0.0033333333333333335
+          }
+        },
+        "raft": {
+          "sand": {
+            "total": 75,
+            "differential": 0.0033,
+            "angular": 0.0033333333333333335
+          },
+          "plasticClay": {
+            "total": 100,
+            "differential": 0.0033,
+            "angular": 0.0033333333333333335
+          }
+        }
+      },
+      {
+        "id": "rcc",
+        "name": "RCC structures",
+        "isolated": {
+          "sand": {
+            "total": 50,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          },
+          "plasticClay": {
+            "total": 75,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          }
+        },
+        "raft": {
+          "sand": {
+            "total": 75,
+            "differential": 0.0021,
+            "angular": 0.002
+          },
+          "plasticClay": {
+            "total": 100,
+            "differential": 0.002,
+            "angular": 0.002
+          }
+        }
+      },
+      {
+        "id": "framed",
+        "name": "Multistoried RCC or steel framed building with panel walls",
+        "isolated": {
+          "sand": {
+            "total": 60,
+            "differential": 0.002,
+            "angular": 0.002
+          },
+          "plasticClay": {
+            "total": 75,
+            "differential": 0.002,
+            "angular": 0.002
+          }
+        },
+        "raft": {
+          "sand": {
+            "total": 75,
+            "differential": 0.0025,
+            "angular": 0.0025
+          },
+          "plasticClay": {
+            "total": 125,
+            "differential": 0.0033,
+            "angular": 0.0033333333333333335
+          }
+        }
+      },
+      {
+        "id": "loadBearingWalls2",
+        "name": "Multistoried load bearing walls, L/H = 2",
+        "lengthHeight": 2.0,
+        "isolated": {
+          "sand": {
+            "total": 60,
+            "differential": 0.0002,
+            "angular": 0.0002
+          },
+          "plasticClay": {
+            "total": 60,
+            "differential": 0.0002,
+            "angular": 0.0002
+          }
+        }
+      },
+      {
+        "id": "loadBearingWalls7",
+        "name": "Multistoried load bearing walls, L/H = 7",
+        "lengthHeight": 7.0,
+        "isolated": {
+          "sand": {
+            "total": 60,
+            "differential": 0.0004,
+            "angular": 0.0004
+          },
+          "plasticClay": {
+            "total": 60,
+            "differential": 0.0004,
+            "angular": 0.0004
+          }
+        }
+      },
+      {
+        "id": "silo",
+        "name": "Silos",
+        "isolated": {
+          "sand": {
+            "total": 50,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          },
+          "plasticClay": {
+            "total": 75,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          }
+        },
+        "raft": {
+          "sand": {
+            "total": 100,
+            "differential": 0.0025,
+            "angular": 0.0025
+          },
+          "plasticClay": {
+            "total": 125,
+            "differential": 0.0025,
+            "angular": 0.0025
+          }
+        }
+      },
+      {
+        "id": "waterTank",
+        "name": "Water tank",
+        "isolated": {
+          "sand": {
+            "total": 50,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          },
+          "plasticClay": {
+            "total": 75,
+            "differential": 0.0015,
+            "angular": 0.0015015015015015015
+          }
+        },
+        "raft": {
+          "sand": {
+            "total": 100,
+            "differential": 0.0025,
+            "angular": 0.0025
+          },
+          "plasticClay": {
+            "total": 125,
+            "differential": 0.0025,
+            "angular": 0.0025
+          }
+        }
+      }
+    ],
+    "settlementGuide": {
+      "sand": 25.0,
+      "clay": 40.0,
+      "differential": 20.0
+    },
+    "columnBase": {
+      "phi": 0.65,
+      "bearing": 0.85,
+      "areaRatioMax": 2.0,
+      "dowelRatio": 0.005,
+      "minBars": 4
+    }
   }
 }

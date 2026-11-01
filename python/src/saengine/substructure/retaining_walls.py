@@ -33,11 +33,13 @@ Loads (per metre run; BNBC 2020 Part 6 Sec 2.6.5 (p680))
 
 Stability of a cantilever wall (service loads; factors from the code pack's
 ``foundations.retainingWall``, see its sources)
-- sliding: ``FS = (μ ΣV + ca B + Pp / FSp + Pw,front) / ΣH`` with μ = tan(r φ') of the soil
-  under the base (r = 2/3), ca = 0.5 cu on a clay without φ', Pp the passive resistance in
-  front (only when ``passive``), ΣV net of the uplift;
+- sliding: ``FS = (μ ΣV + ca B + Pp / FSp + Pw,front) / ΣH`` with μ the pack's fixed friction
+  factor (0.5 in the default pack; the wall's verified value instead when given; without one
+  in the pack: tan(r φ') of the soil under the base and ca = r cu on a clay without φ'), Pp the
+  passive resistance in front, counted only when the wall states the soil in front cannot be
+  removed (``passive``), ΣV net of the uplift;
 - overturning about the toe: ``FS = ΣM_resisting / ΣM_overturning`` (the uplift overturns);
-- 1.5 and 1.5 (IBC 2021 Sec 1807.2.3), 1.1 with the seismic increment;
+- the least factors of the pack (1.5 and 1.5 in the default pack, also with earthquake);
 - bearing: the base pressure (linear, no tension) against the net allowable bearing pressure
   qa of 1 Soil Report at the founding level and the base width
   (:class:`saengine.substructure.shallow.SoilBearing`), less the overburden of the front side;
@@ -115,8 +117,11 @@ METHOD = [
         "on cantilever walls, Wood (kh = PGA, uniform) on basement walls; PGA = (2/3) Z S."
     ),
     (
-        "Stability of cantilever walls: sliding and overturning ≥ 1.5 (1.1 with earthquake), "
-        "IBC 2021 Sec 1807.2.3; bearing against qa of 1 Soil Report, resultant in the middle third."
+        "Stability of cantilever walls: sliding and overturning against the code pack's least "
+        "factors of safety (the same with earthquake), base friction by the pack's friction "
+        "factor, passive resistance only where the soil in front cannot be removed; bearing "
+        "against qa of 1 Soil Report, resultant in the middle third; flotation of the "
+        "basement with the pack's factor on the dead load."
     ),
     (
         "Stem and base: ACI 318-19 flexure and one-way shear (Table 22.5.5.1), 1.6H (BNBC 2020 Part 6 "
@@ -615,9 +620,22 @@ def factor_of_safety(resisting: float, driving: float) -> float:
     return min(resisting / driving, 99.0) if driving > 1e-9 else 99.0
 
 
-def base_soil(soil: Soil, s: Section) -> tuple[float, float, str]:
-    """μ, the adhesion [kPa] and a note for the soil under the base."""
+def base_soil(soil: Soil, s: Section, verified: float | None = None) -> tuple[float, float, str]:
+    """μ, the adhesion [kPa] and a note for the soil under the base: the wall's ``verified``
+    friction factor, else the code pack's fixed friction factor for every soil (no adhesion),
+    else tan(r φ') and the adhesion on a clay without φ'."""
     f = _factors()
+    if verified is not None:
+        return verified, 0.0, f"μ = {verified:g}, verified by analysis and test (the wall's)"
+    if f.frictionCoefficient is not None:
+        source = code_context.table("foundations").sources.get(
+            "retainingWall.frictionCoefficient", ""
+        )
+        return (
+            f.frictionCoefficient,
+            0.0,
+            f"μ = {f.frictionCoefficient:g}" + (f" ({source})" if source else ""),
+        )
     phi = soil.phi(s.retained_depth + 0.01)
     if phi is None:
         cu = soil.cohesion(s.retained_depth + 0.01)
@@ -652,7 +670,7 @@ def stability(
     notes: list[str] = []
     state = wall.state()
     forces, terms = wall_forces(wall, s, soil, state)
-    mu, ca, friction = base_soil(soil, s)
+    mu, ca, friction = base_soil(soil, s, getattr(wall, "frictionCoefficient", None))
     passive = 0.0
     if wall.passive:
         depth = s.retained_depth - s.front_offset
@@ -1148,9 +1166,10 @@ def _rounded(value: Any) -> Any:
 def flotation(ctx: Context, profiles: list[Any]) -> dict[str, Any] | None:
     """The flotation of the basement (BNBC 2020 Part 6 Sec 2.6.5.2, p680): the uplift
     ``U = γw hw A`` on each raft under the design water table against the dead load that holds
-    it down: the D and SD base reactions of the analysis and the rafts' own weight, ``FS = W /
-    U ≥ flotation`` (1.1). None when the substructure has no basement wall and no raft below
-    the water table."""
+    it down: the D and SD base reactions of the analysis and the rafts' own weight,
+    ``FS = k W / U ≥ flotation`` with k the pack's factor on the dead load (0.9 W ≥ U in the
+    default pack). None when the substructure has no basement wall and no raft below the water
+    table."""
     from saengine.library.substructure import polygon_area
 
     rafts = [r for r in ctx.substructure.foundations if r.type == "raft" and r.outline]
@@ -1178,15 +1197,17 @@ def flotation(ctx: Context, profiles: list[Any]) -> dict[str, Any] | None:
     dead = {"D": 1.0, "SD": 1.0}
     for base in ctx.loads.bases:
         weight += -float(ctx.loads.resultant(base, dead, [0.0, 0.0, 0.0])[2]) * 1e-3
-    fs = _factors().flotation
+    factors = _factors()
+    fs, share = factors.flotation, factors.flotationDead
+    source = code_context.table("foundations").sources.get("retainingWall.flotation", "")
     check = _check(
         "Flotation of the basement",
         fs,
-        factor_of_safety(weight, uplift),
+        factor_of_safety(share * weight, uplift),
         "FS",
-        "D + SD",
-        f"W = {weight:.0f} kN (D + SD reactions and the rafts) / U = {uplift:.0f} kN; "
-        + "; ".join(parts),
+        f"{share:g}D + B" if share != 1 else "D + SD",
+        f"{share:g} W / U with W = {weight:.0f} kN (D + SD reactions and the rafts), U = "
+        f"{uplift:.0f} kN" + (f" ({source})" if source else "") + "; " + "; ".join(parts),
     )
     return {"check": check, "note": ""}
 

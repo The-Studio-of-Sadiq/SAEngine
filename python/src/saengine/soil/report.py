@@ -369,6 +369,7 @@ def _soil_report(
     details: list[str] = []
     notes += check(report)
     design = report.design
+    notes += _factor_of_safety_note(design.factorOfSafety)
     profiles = []
     for b in report.boreholes:
         try:
@@ -558,10 +559,48 @@ def allowable_bearing(
         "Df": round(df * 1e3),
         "groundLevel": round(report.ground_level(bh)),
         "overburden": round(profile.sigma_v(max(df, 0.0)), 2),
+        # The soil at the founding level and the water table below the base [mm] (negative:
+        # above it; None: not measured), for the depth and presumptive-value rules.
+        "foundingSoil": _founding_soil(profile, max(df, 0.0)),
+        "waterDepth": (
+            None if profile.water_table is None else round((profile.water_table - df) * 1e3)
+        ),
         "method": bearing.method_text(report.design),
         "note": "; ".join(parts) + ".",
         "notes": result["notes"],
     }
+
+
+def _factor_of_safety_note(value: float) -> list[str]:
+    """A warning when the factor of safety on the bearing capacity lies outside the range of
+    the code pack in force (its ``foundations.shallow.factorOfSafety``); none when the pack
+    gives no range."""
+    from saengine.codes import context as code_context
+
+    try:
+        table = code_context.table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table gives no range
+        return []
+    shallow = getattr(table, "shallow", None)
+    if shallow is None:
+        return []
+    low, high = shallow.factorOfSafety
+    if low <= value <= high:
+        return []
+    where = table.sources.get("shallow.factorOfSafety", "")
+    return [
+        f"The factor of safety on the bearing capacity, {value:g}, is outside {low:g}-{high:g}"
+        + (f" ({where})" if where else "")
+    ]
+
+
+def _founding_soil(profile: Profile, df: float) -> str | None:
+    """ "cohesive" or "granular" for the layer at the founding level (rock counts as granular,
+    its depth rule being the cohesionless one or less); None when there is no layer."""
+    layer = profile.layer_at(df + 1e-3)
+    if layer is None:
+        return None
+    return "cohesive" if layer.behaviour == "cohesive" else "granular"
 
 
 def footing_settlement(

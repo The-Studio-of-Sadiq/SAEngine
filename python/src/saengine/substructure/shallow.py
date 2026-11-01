@@ -55,7 +55,8 @@ from saengine.substructure.loads import column_action
 G = 9.80665
 #: The least share of a footing's base in contact under a service combination before it is
 #: reported as a stability failure (close to overturning) rather than as a high bearing
-#: pressure: a limit of practice, not a clause of BNBC 2020 or ACI 318.
+#: pressure: SAEngine practice, not a code value, used only when the code pack has no
+#: overturning rule for shallow foundations (the default pack's FS 1.5 replaces it).
 MIN_CONTACT = 0.25
 #: A service combination with wind or earthquake (its name names the case: WX, WTY, EX...).
 LATERAL = re.compile(r"\b[\d.]*(W|E)T?[XY]\b")
@@ -77,8 +78,21 @@ SHALLOW_METHOD = [
         "and the soil above it inside the kern; beyond it partial contact, "
         "qmax = 2P / (3 B (L/2 - e)) for one eccentricity and the exact no-tension plane for "
         "two. The net pressure (gross minus γ Df, Df from the ground level to the underside) "
-        "is compared with the net allowable bearing pressure qa. Sliding and overturning are "
-        "not checked."
+        "is compared with the net allowable bearing pressure qa. A code pack with rules for "
+        "shallow foundations replaces these combinations by its own for the bearing (the "
+        "default pack: D + L, D + L + W, D + L + E and 0.9D + buoyancy, L the normal live "
+        "load reduced as in the column design when live load reduction is on), increases qa "
+        "with wind or earthquake by its lateral increase, and checks overturning (FS = B / 2e) "
+        "and sliding (μ V / H, no passive resistance; reported only for a footing tied to "
+        "others, the building's sliding counting) under its stability combinations with the "
+        "dead load resisting, the resultant within B/6 (reported only), the founding depth "
+        "(every footing, and exterior footings by the soil at the base), the depth above the "
+        "bottom bars, the distance to a slope face, the bearing at each column's base and the "
+        "bars across it, and the settlement of each footing (the settlement combination of the "
+        "soil at its base, at the nearest borehole) with the differential settlement and "
+        "angular distortion between neighbouring footings against its permissible values for "
+        "the type of structure. Without such rules, a footing keeping less than "
+        "MIN_CONTACT of its base in contact fails as close to overturning (SAEngine practice)."
     ),
     (
         "qa of each footing: its own override in 9 Substructure, else the override of Project "
@@ -676,6 +690,10 @@ class Bearing:
     overburden: float | None = None
     ground_level: float | None = None
     borehole: str | None = None
+    # The soil at the founding level ("cohesive" or "granular") and the water table below the
+    # base [mm] (negative: above it), when the soil report gives them.
+    founding_soil: str | None = None
+    water_depth: float | None = None
 
 
 def manual_bearing(foundation: Foundation) -> Bearing:
@@ -874,6 +892,56 @@ def _step_punching(
     )
 
 
+def _stability_checks(
+    spec: FootingSpec,
+    stability: Loads,
+    own_weight: float,
+    horizontal: dict[str, float],
+    tied: bool,
+    kern: tuple[float, str, float, float] | None,
+) -> list[dict[str, Any]]:
+    """The code pack's stability checks of a footing: overturning (FS = B / 2e about its edges)
+    and sliding (μ V / H) under its stability combinations, and the resultant within the kern
+    (reported only)."""
+    from saengine.substructure import shallow_rules
+
+    checks: list[dict[str, Any]] = []
+    worst_over: dict[str, Any] | None = None
+    worst_slide: dict[str, Any] | None = None
+    for name, loads in stability.items():
+        total, eu, ev = _eccentricity(spec, loads, own_weight * spec.length * spec.width)
+        if total <= 0:
+            found = shallow_rules.rules()
+            row = _check(
+                "Overturning (service)",
+                found.overturning if found is not None else 1.0,
+                0.0,
+                "FS",
+                name,
+                "the dead load does not hold the footing down: it lifts off",
+                utilisation=99.0,
+            )
+        else:
+            row = shallow_rules.overturning_check(name, eu, ev, spec.length, spec.width)
+            share = abs(eu) / spec.length + abs(ev) / spec.width
+            if kern is None or share > kern[0]:
+                kern = (share, name, eu, ev)
+        if row is not None and (
+            worst_over is None or row["utilisation"] > worst_over["utilisation"]
+        ):
+            worst_over = row
+        if name in horizontal:
+            row = shallow_rules.sliding_check(name, horizontal[name], max(total, 0.0), tied, None)
+            if row is not None and (
+                worst_slide is None or row["utilisation"] > worst_slide["utilisation"]
+            ):
+                worst_slide = row
+    checks += [r for r in (worst_over, worst_slide) if r is not None]
+    if kern is not None:
+        checks.append(shallow_rules.kern_check(kern[1], kern[2], kern[3], spec.length, spec.width))
+    return checks
+
+
 def design_footing(
     spec: FootingSpec,
     service: Loads,
@@ -881,13 +949,29 @@ def design_footing(
     foundation: Foundation,
     dead: dict[str, float] | None = None,
     bearing: Bearing | None = None,
+    stability: Loads | None = None,
+    horizontal: dict[str, float] | None = None,
+    buoyant: dict[str, tuple[float, float]] | None = None,
+    tied: bool = False,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """The checks of one footing and notes on it. ``dead`` gives, per strength combination,
     the factor on the weight of the footing and the soil above it (its dead-load factor;
     1.0 when not given). ``bearing`` is the footing's qa and its source (see
-    :func:`footing_bearing`); without it, the qa of ``foundation`` (:func:`manual_bearing`)."""
+    :func:`footing_bearing`); without it, the qa of ``foundation`` (:func:`manual_bearing`).
+
+    Under a code pack with rules for shallow foundations (:mod:`saengine.substructure.
+    shallow_rules`): ``service`` are its bearing combinations (qa increased with wind or
+    earthquake), ``buoyant`` gives per combination (the factor on the weight of the footing
+    and the soil above it, the uplift pressure of the water at the base [N/mm²]),
+    ``stability`` the overturning and sliding combinations and ``horizontal`` their horizontal
+    force at the base [N]; ``tied``: tie beams join the footing to others (sliding is the
+    building's)."""
+    from saengine.substructure import shallow_rules
+
     if bearing is None:
         bearing = manual_bearing(foundation)
+    code_rules = shallow_rules.rules()
+    buoyant = buoyant or {}
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
     length, width, h = spec.length, spec.width, spec.thickness
@@ -930,8 +1014,10 @@ def design_footing(
                     "from the soil report assumes the soil removed by the cut is still there; "
                     "check qa at the finished level"
                 )
-    worst: tuple[float, float, str, str] | None = None  # (utilisation, q net, combination, note)
+    # (utilisation, q net, combination, note, the qa allowed under it)
+    worst: tuple[float, float, str, str, float] | None = None
     qa = bearing.qa / 1e3 if bearing.qa else None
+    kern: tuple[float, str, float, float] | None = None  # (e/B share, name, eu, ev)
     # The resultant outside the base or the footing lifted off: reported as their own checks,
     # with the eccentricity against the half side (the bearing check takes the other cases).
     outside: tuple[float, float, float, str, str] | None = None  # (ratio, e, half, name, note)
@@ -939,8 +1025,18 @@ def design_footing(
     least: tuple[float, str, str] | None = None  # (share of the base in contact, name, note)
     lifted: tuple[float, str] | None = None  # gravity only: (share in contact, name)
     for name, loads in service.items():
-        pressure = _contact(spec, loads, own_weight)
+        weight = own_weight
+        if name in buoyant:
+            factor, uplift_pressure = buoyant[name]
+            weight = factor * own_weight - uplift_pressure
+        pressure = _contact(spec, loads, weight)
         note = f"eu = {pressure.eu:.0f} mm, ev = {pressure.ev:.0f} mm"
+        if name in buoyant and buoyant[name][1] > 0:
+            note += f"; buoyancy {buoyant[name][1] * 1e3:.1f} kPa at the base"
+        if pressure.state != "uplift":
+            share = abs(pressure.eu) / length + abs(pressure.ev) / width
+            if kern is None or share > kern[0]:
+                kern = (share, name, pressure.eu, pressure.ev)
         if pressure.state == "uplift":
             if uplift is None or -pressure.total > uplift[0]:
                 uplift = (-pressure.total, name)
@@ -958,8 +1054,11 @@ def design_footing(
             continue
         else:
             net = pressure.qmax - overburden
-            utilisation = net / qa if qa else 0.0
+            allowed, increase = shallow_rules.allowed(qa, name) if qa else (0.0, "")
+            utilisation = net / allowed if qa else 0.0
             note = f"gross qmax = {pressure.qmax * 1e3:.0f} kPa, " + note
+            if increase:
+                note += f"; {increase}"
             if pressure.state == "partial" and pressure.contact < 0.995:
                 note += f"; partial contact: only {pressure.contact:.0%} of the base"
                 if not LATERAL.search(name) and (lifted is None or pressure.contact < lifted[0]):
@@ -971,7 +1070,7 @@ def design_footing(
             or utilisation > worst[0]
             or (utilisation == worst[0] and math.isfinite(net) and net > worst[1])
         ):
-            worst = (utilisation, net, name, note)
+            worst = (utilisation, net, name, note, allowed if qa else 0.0)
     if outside is not None:
         ratio, e, half, name, note = outside
         checks.append(
@@ -985,7 +1084,7 @@ def design_footing(
                 utilisation=ratio,
             )
         )
-    if least is not None and least[0] < MIN_CONTACT:
+    if code_rules is None and least is not None and least[0] < MIN_CONTACT:
         share, name, note = least
         checks.append(
             _check(
@@ -1000,6 +1099,8 @@ def design_footing(
                 utilisation=MIN_CONTACT / max(share, 1e-6),
             )
         )
+    if code_rules is not None:
+        checks += _stability_checks(spec, stability or {}, own_weight, horizontal or {}, tied, kern)
     if uplift is not None:
         force, name = uplift
         checks.append(
@@ -1013,14 +1114,14 @@ def design_footing(
             )
         )
     if worst is not None:
-        utilisation, net, name, note = worst
+        utilisation, net, name, note, allowed = worst
         note += f"; {overburden_note}"
         if qa:
             checks.append(
                 _check(
                     "Bearing (service)",
                     net * 1e3 if math.isfinite(net) else 0.0,
-                    qa * 1e3,
+                    allowed * 1e3,
                     "kPa",
                     name,
                     f"{note}; {bearing.note}" if bearing.note else note,
@@ -1447,9 +1548,17 @@ class SoilBearing:
         soil_text: str | None,
         foundation: Foundation,
         factor_of_safety: float | None = None,
+        presumptive: str | None = None,
+        water_table: float | None = None,
     ) -> None:
+        """``presumptive``: the code pack's presumptive bearing row for projects without a soil
+        report (light structures and preliminary design); ``water_table``: the design water
+        table [m below the finished ground] for its reduction."""
         from saengine.soil.report import parse
 
+        self.presumptive = presumptive
+        self.water_table = water_table
+        self.report: Any = None
         if factor_of_safety is not None and soil_text and soil_text.strip():
             soil_text = _with_factor_of_safety(soil_text, factor_of_safety)
         self.text = soil_text
@@ -1466,6 +1575,7 @@ class SoilBearing:
 
                 self.boreholes = len(report.boreholes)
                 self.method = method_text(report.design)
+                self.report = report
 
     @property
     def used(self) -> bool:
@@ -1484,6 +1594,19 @@ class SoilBearing:
         if self.used and not self.foundation.allowableBearing:
             return [f"Allowable bearing pressures from 1 Soil Report: {self.method}"]
         return []
+
+    def _presumptive(self, founding_level: float, b: float, l_: float) -> Bearing:
+        """qa from the code pack's presumptive values (no soil report)."""
+        from saengine.substructure import shallow_rules
+
+        water = None
+        if self.water_table is not None:
+            water = self.foundation.groundLevel - self.water_table * 1e3 - founding_level
+        try:
+            qa, note = shallow_rules.presumptive(str(self.presumptive), water, min(b, l_))
+        except ValueError as error:
+            return Bearing(None, "none", str(error))
+        return Bearing(qa, "presumptive", f"qa = {qa:g} kPa: {note}", water_depth=water)
 
     def at(
         self,
@@ -1505,6 +1628,8 @@ class SoilBearing:
             )
         override = self.foundation.allowableBearing
         if not self.used:
+            if not override and self.presumptive:
+                return self._presumptive(founding_level, b, l_)
             return manual_bearing(self.foundation)
         from saengine.soil.report import allowable_bearing
 
@@ -1542,7 +1667,30 @@ class SoilBearing:
             _float(found.get("overburden")),
             _float(found.get("groundLevel")),
             found.get("borehole"),
+            found.get("foundingSoil"),
+            _float(found.get("waterDepth")),
         )
+
+
+def footing_settlement_at(
+    soil: SoilBearing, x: float, y: float, founding_level: float, b: float, l_: float, q: float
+) -> tuple[float, str, str] | None:
+    """The computed settlement [mm] of a footing B × L [mm] founded at ``founding_level`` under
+    a net pressure ``q`` [kPa], at the nearest borehole of the soil report, with its soil
+    column ("sand" or "plasticClay") and the borehole; None without a soil report."""
+    from saengine.soil.profile import Profile
+    from saengine.soil.settlement import settlement, soil_column
+
+    report = soil.report
+    if report is None or not report.boreholes:
+        return None
+    nearest = min(report.boreholes, key=lambda bh: math.hypot(bh.x - x, bh.y - y))
+    profile = Profile(report, nearest)
+    df = max((report.ground_level(nearest) - founding_level) / 1e3, 0.0)
+    bm, lm = min(b, l_) / 1e3, max(b, l_) / 1e3
+    found = settlement(profile, bm, lm, df, max(q, 0.0))
+    column = soil_column(profile, df, 2 * bm)
+    return float(found["total"]), column, nearest.id
 
 
 def _float(value: Any) -> float | None:
@@ -1767,12 +1915,26 @@ def _factors(cases: list[str], combinations: list[tuple[str, dict[str, float]]])
     return matrix
 
 
-def footing_loads(loads: Any, placed: Placed) -> tuple[Loads, Loads]:
-    """The service and strength loads ``[P, Cu, Cv]`` of each column of a placed footing.
+def footing_combinations(loads: Any) -> Any:
+    """The code pack's combinations of shallow foundations over the analysed cases
+    (:func:`saengine.substructure.shallow_rules.footing_combinations`), formed once per pack;
+    None when the pack does not cover them."""
+    from saengine.codes import context as code_context
+    from saengine.substructure import shallow_rules
 
-    All the combinations at once (factor matrix x the cases' column actions): the sizing
-    assistant calls this for every trial size, and a building has some 300 combinations of
-    some 60 cases (N-U4: one loop per combination took most of the 19 min of 20 columns)."""
+    cache = loads.__dict__.setdefault("_footing_combinations", {})
+    key = code_context.current().id
+    if key not in cache:
+        cache[key] = shallow_rules.footing_combinations(loads.cases, loads.strength_level_wind)
+    return cache[key]
+
+
+def _actions(loads: Any, placed: Placed) -> tuple[list[str], np.ndarray]:
+    """The analysed cases and each case's column actions ``[P, Cu, Cv]`` of the footing's
+    columns (case x column x 3); the floor live cases of a column scaled by its live load
+    reduction (``loads.live_factors``)."""
+    from saengine.design.live_reduction import is_live_case
+
     zero = np.zeros(6)
     cases = list(loads.cases)
     per_case = np.array(
@@ -1786,16 +1948,61 @@ def footing_loads(loads: Any, placed: Placed) -> tuple[Loads, Loads]:
             for case in cases
         ]
     ).reshape(len(cases), len(placed.spec.columns), 3)
+    factors = getattr(loads, "live_factors", None) or {}
+    if factors:
+        for k, case in enumerate(cases):
+            if not is_live_case(case):
+                continue
+            for j, column in enumerate(placed.spec.columns):
+                per_case[k, j] *= factors.get(column.id.split("#")[0], 1.0)
+    return cases, per_case
 
-    def combined(combinations: list[tuple[str, dict[str, float]]]) -> Loads:
-        key = (tuple(cases), id(combinations), len(combinations))
-        cache = loads.__dict__.setdefault("_factor_matrices", {})
-        if key not in cache:
-            cache[key] = _factors(cases, combinations)
-        values = np.einsum("kc,cjd->kjd", cache[key], per_case)
-        return {name: list(values[k]) for k, (name, _) in enumerate(combinations)}
 
-    return combined(loads.service), combined(loads.strength)
+def combination_loads(
+    loads: Any,
+    placed: Placed,
+    combinations: list[tuple[str, dict[str, float]]],
+    actions: tuple[list[str], np.ndarray] | None = None,
+) -> Loads:
+    """The loads ``[P, Cu, Cv]`` of each column of a placed footing under ``combinations``.
+
+    All the combinations at once (factor matrix x the cases' column actions): the sizing
+    assistant calls this for every trial size, and a building has some 300 combinations of
+    some 60 cases (N-U4: one loop per combination took most of the 19 min of 20 columns)."""
+    cases, per_case = actions if actions is not None else _actions(loads, placed)
+    key = (tuple(cases), id(combinations), len(combinations))
+    cache = loads.__dict__.setdefault("_factor_matrices", {})
+    if key not in cache:
+        cache[key] = _factors(cases, combinations)
+    values = np.einsum("kc,cjd->kjd", cache[key], per_case)
+    return {name: list(values[k]) for k, (name, _) in enumerate(combinations)}
+
+
+def footing_loads(loads: Any, placed: Placed) -> tuple[Loads, Loads]:
+    """The bearing and strength loads ``[P, Cu, Cv]`` of each column of a placed footing: the
+    code pack's bearing combinations of shallow foundations when it has them
+    (:func:`footing_combinations`), else the allowable-stress service combinations; and the
+    project's strength combinations."""
+    actions = _actions(loads, placed)
+    combos = footing_combinations(loads)
+    service = combos.bearing if combos is not None else loads.service
+    return (
+        combination_loads(loads, placed, service, actions),
+        combination_loads(loads, placed, loads.strength, actions),
+    )
+
+
+def footing_horizontal(
+    loads: Any, placed: Placed, combinations: list[tuple[str, dict[str, float]]]
+) -> dict[str, float]:
+    """The horizontal force [N] the columns of a placed footing put on it under each of
+    ``combinations``: the resultant of their support reactions in plan."""
+    nodes = list(dict.fromkeys(placed.nodes))
+    out = {}
+    for name, factors in combinations:
+        total = sum((loads.reaction(n, factors)[:2] for n in nodes), np.zeros(2))
+        out[name] = float(np.hypot(*total))
+    return out
 
 
 def summary(
@@ -1832,16 +2039,32 @@ def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]
         foundation.allowableBearing,
         foundation.id,
     )
+    combos = footing_combinations(ctx.loads)
+    extra: dict[str, Any] = {}
+    if combos is not None:
+        water = _water_depth(ctx, bearing, placed.founding_level)
+        uplift = GAMMA_W * max(-water, 0.0) if water is not None else 0.0
+        extra = {
+            "stability": combination_loads(ctx.loads, placed, combos.stability),
+            "horizontal": footing_horizontal(ctx.loads, placed, combos.stability),
+            "buoyant": {
+                name: (_dead_factor(combos.bearing, name), factor * uplift)
+                for name, factor in combos.buoyancy.items()
+            },
+            "tied": any(foundation.id in (t.from_, t.to) for t in ctx.substructure.tieBeams),
+        }
     checks, notes = design_footing(
-        spec, service, strength, ctx.settings.foundation, ctx.loads.dead, bearing
+        spec, service, strength, ctx.settings.foundation, ctx.loads.dead, bearing, **extra
     )
+    checks += footing_rule_checks(ctx, foundation, placed, strength, bearing)
     members = list(dict.fromkeys(c.id.split("#")[0] for c in spec.columns))
     bearing_check = next((c for c in checks if c["name"] == "Bearing (service)"), None)
     pressure = None
     if bearing_check is not None:
         pressure = {
             "net": bearing_check["demand"],
-            "qa": bearing_check["capacity"],
+            "qa": bearing.qa,
+            "allowed": bearing_check["capacity"],
             "combination": bearing_check["combination"],
             "source": bearing.source,
         }
@@ -1854,10 +2077,189 @@ def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]
         "rotation": round(math.degrees(math.atan2(placed.axis_u[1], placed.axis_u[0])), 3),
     }
     result = summary(foundation, checks, members, sizes=sizes, pressure=pressure)
+    if combos is not None:
+        found = footing_settlement(ctx, placed, combos, bearing)
+        if found is not None:
+            result["settlement"] = found
+        live_notes = getattr(ctx.loads, "live_notes", {}) or {}
+        reduced = {m: live_notes[m] for m in members if m in live_notes}
+        if reduced:
+            notes.append(
+                f"{foundation.id}: normal live load reduced as in the column design: "
+                + "; ".join(f"{m}: {why}" for m, why in reduced.items())
+            )
     if bearing_check is None and service:
         # No qa: the footing is not checked for what sizes it, whatever its other checks say.
         result["notChecked"] = ["bearing"]
     return result, placed.notes + notes
+
+
+#: Unit weight of water [N/mm³].
+GAMMA_W = 9.81e-6
+
+
+def _dead_factor(combinations: list[tuple[str, dict[str, float]]], name: str) -> float:
+    factors = dict(combinations).get(name, {})
+    return factors.get("D", factors.get("SD", 1.0))
+
+
+def _water_depth(ctx: Any, bearing: Bearing, founding_level: float) -> float | None:
+    """The design water table below a footing's base [mm] (negative: above it): the
+    substructure's design water table when given, else the soil report's measured level."""
+    level = ctx.substructure.earthPressure.designWaterTable
+    if level is not None:
+        return ctx.ground_level - level * 1e3 - founding_level
+    return bearing.water_depth
+
+
+def _natural_depth(ctx: Any, bearing: Bearing, founding_level: float) -> float:
+    """The founding depth below the natural ground [mm]: below the lower of the finished ground
+    and the borehole's ground (the natural one) when the soil report gives it."""
+    ground = ctx.ground_level
+    if bearing.ground_level is not None:
+        ground = min(ground, bearing.ground_level)
+    return ground - founding_level
+
+
+def _exterior(ctx: Any, foundation: Any) -> bool:
+    """Whether a footing is an exterior one: a column on it without floor all round its top,
+    or a wall on it (strip footings under walls)."""
+    from saengine.design.live_reduction import _interior
+    from saengine.library.bim import ColumnElement
+
+    for element_id in foundation.columns:
+        element = ctx.elements.get(element_id)
+        if not isinstance(element, ColumnElement):
+            return True
+        try:
+            if not _interior(element, ctx.building):
+                return True
+        except Exception:  # noqa: BLE001 - a building without slabs: take it as exterior
+            return True
+    return False
+
+
+def footing_rule_checks(
+    ctx: Any, foundation: Any, placed: Placed, strength: Loads, bearing: Bearing
+) -> list[dict[str, Any]]:
+    """The code pack's rules of shallow foundations on one footing: the founding depth (every
+    footing, and exterior ones by the soil at the base), the depth above the bottom bars, the
+    distance to a slope face and the force transfer at each column's base."""
+    from saengine.library.bim import ColumnElement
+    from saengine.library.objects import Column
+    from saengine.substructure import shallow_rules
+
+    if shallow_rules.rules() is None:
+        return []
+    spec = placed.spec
+    checks = shallow_rules.depth_check(
+        foundation.id,
+        _natural_depth(ctx, bearing, placed.founding_level),
+        _exterior(ctx, foundation),
+        bearing.founding_soil,
+        ctx.substructure.design.temporary,
+    )
+    edge = float(spec.edge_thickness) if spec.profiled else spec.thickness
+    dia_x = spec.bottom_x.dia if spec.bottom_x else 0.0
+    dia_y = spec.bottom_y.dia if spec.bottom_y else 0.0
+    row = shallow_rules.thickness_check(foundation.id, edge - spec.cover - dia_x - dia_y)
+    if row is not None:
+        checks.append(row)
+    distance = getattr(foundation, "slopeDistance", None)
+    if distance:
+        row = shallow_rules.slope_check(min(spec.length, spec.width), float(distance))
+        if row is not None:
+            checks.append(row)
+    for k, column in enumerate(spec.columns):
+        element = ctx.elements.get(column.id)
+        if not column.punching or not isinstance(element, ColumnElement):
+            continue
+        worst = max(
+            ((float(loads[k][0]), name) for name, loads in strength.items()),
+            default=(0.0, ""),
+        )
+        if worst[0] <= 0:
+            continue
+        column_type = ctx.types.get(element.type)
+        fc_column = spec.fc
+        bars_area = bars_count = None
+        if isinstance(column_type, Column):
+            material = ctx.mats.get(column_type.material)
+            if material is not None and material.concrete is not None:
+                fc_column = material.concrete.fc
+            reinforcement = column_type.reinforcement
+            if reinforcement is not None and reinforcement.longitudinal:
+                bars_count = sum(g.count for g in reinforcement.longitudinal)
+                bars_area = sum(
+                    g.count * math.pi * g.dia**2 / 4 for g in reinforcement.longitudinal
+                )
+        # A2: the largest area of the footing's top concentric with the column, its sides
+        # reaching no further than 2 h (a 1:2 frustum within the footing).
+        reach = min(
+            spec.length / 2 - abs(column.u) - column.cu / 2,
+            spec.width / 2 - abs(column.v) - column.cv / 2,
+            2 * spec.thickness,
+        )
+        reach = max(reach, 0.0)
+        a2 = (column.cu + 2 * reach) * (column.cv + 2 * reach)
+        checks += shallow_rules.column_base_checks(
+            column.id,
+            worst[0],
+            column.cu,
+            column.cv,
+            fc_column,
+            spec.fc,
+            a2,
+            bars_area,
+            bars_count,
+            spec.fy,
+            worst[1],
+        )
+    return checks
+
+
+def footing_settlement(
+    ctx: Any, placed: Placed, combos: Any, bearing: Bearing
+) -> dict[str, Any] | None:
+    """The computed settlement of a footing under the code pack's settlement combination of its
+    soil (granular or cohesive at the base), at the uniform net pressure (the column loads, the
+    footing and the soil above it, less the overburden), for the differential settlements
+    between footings; None without a soil report."""
+    spec = placed.spec
+    soil = bearing.founding_soil or "granular"
+    combination = combos.settlement.get(soil) or next(iter(combos.settlement.values()), None)
+    if combination is None or ctx.soil.report is None:
+        return None
+    loads = combination_loads(ctx.loads, placed, [combination])[combination[0]]
+    area = spec.length * spec.width
+    gamma = ctx.settings.foundation.soilUnitWeight * 1e-6
+    cover = max(0.0, ctx.ground_level - spec.elevation)
+    mean = spec.mean_thickness()
+    weight = spec.unit_weight * mean + gamma * (cover + spec.thickness - mean)
+    founding = max(0.0, ctx.ground_level - placed.founding_level)
+    overburden = gamma * founding
+    if bearing.overburden is not None:
+        overburden = min(overburden, bearing.overburden / 1e3)
+    q = (sum(float(f[0]) for f in loads) / area + weight - overburden) * 1e3  # kPa
+    found = footing_settlement_at(
+        ctx.soil,
+        float(placed.center[0]),
+        float(placed.center[1]),
+        placed.founding_level,
+        spec.width,
+        spec.length,
+        q,
+    )
+    if found is None:
+        return None
+    value, column, borehole = found
+    return {
+        "value": round(value, 1),
+        "soil": column,
+        "q": round(q, 1),
+        "combination": combination[0],
+        "borehole": borehole,
+    }
 
 
 # ─────────────────────────────────────────── tie beams ───────────────────────────────────────────

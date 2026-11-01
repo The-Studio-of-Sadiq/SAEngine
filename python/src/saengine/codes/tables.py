@@ -1174,13 +1174,26 @@ class RetainingWallFactors(_Group):
         default=1.1, ge=1, description="Least factor on sliding and overturning with earthquake."
     )
     passive: float = Field(
-        default=2.0, ge=1, description="Factor of safety on the passive resistance in front."
+        default=2.0,
+        ge=1,
+        description="Factor of safety on the passive resistance in front (counted only where "
+        "the soil in front cannot be removed).",
     )
     flotation: float = Field(
-        default=1.1, ge=1, description="Least factor of safety against flotation (uplift)."
+        default=1.1,
+        ge=1,
+        description="Least factor of safety against flotation: (flotationDead × W) / U.",
+    )
+    flotationDead: Share = Field(
+        default=1.0, description="Factor on the dead load holding the structure down (0.9D)."
     )
     baseFriction: Share = Field(
         default=2 / 3, description="Base friction angle as a share of φ' (tan δb, δb = r φ')."
+    )
+    frictionCoefficient: Positive | None = Field(
+        default=None,
+        description="A fixed friction factor μ between the base and the soil for every soil "
+        "(no adhesion); empty: tan(baseFriction φ') and the adhesion on clay.",
     )
     adhesion: Share = Field(
         default=0.5, description="Base adhesion as a share of cu on a clay without φ'."
@@ -1192,6 +1205,128 @@ class RetainingWallFactors(_Group):
         default=0.5,
         description="kh of a wall free to yield as a share of the peak ground acceleration.",
     )
+
+
+class FootingCombination(_Row):
+    """A load combination of the geotechnical design of shallow foundations: ``{case: factor}``
+    with D the dead load (D and SD), L the normal live load (L and Lr), W and E the wind and
+    earthquake (each direction, each sign), B the buoyancy (uplift) of the water at the base."""
+
+    id: str
+    name: str
+    factors: dict[str, float]
+    note: str | None = None
+
+
+class SettlementLimit(BaseModel):
+    """Permissible settlement of one column of the table: the maximum [mm], the differential
+    settlement as a share of L (the column spacing) and the angular distortion δ / L."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total: Positive
+    differential: Positive
+    angular: Positive
+
+
+class SettlementLimitRow(_Row):
+    """A type of structure: its limits by foundation (``isolated``, ``raft``) and soil column
+    (``sand`` = sand and hard clay, ``plasticClay``); a missing raft entry: not given."""
+
+    id: str
+    name: str
+    isolated: dict[Literal["sand", "plasticClay"], SettlementLimit]
+    raft: dict[Literal["sand", "plasticClay"], SettlementLimit] = Field(default_factory=dict)
+    lengthHeight: float | None = Field(
+        default=None, gt=0, description="L/H of a load-bearing wall row (interpolated between)."
+    )
+
+
+class PresumptiveBearing(_Row):
+    """A row of the presumptive (allowable) bearing values for lightly loaded structures."""
+
+    id: str
+    name: str
+    groups: list[str] = Field(default_factory=list, description="USCS groups of the row.")
+    qa: float | None = Field(default=None, gt=0, description="[kPa]; empty: by investigation.")
+    waterReduction: bool = Field(
+        default=False, description="Reduced by ``presumptiveWaterReduction`` near water."
+    )
+
+
+class SubgradeRow(_Row):
+    """A band of the indicative modulus of subgrade reaction (300 mm plate): granular soil by
+    SPT N, cohesive soil by the unconfined compressive strength qu [kPa]; ``k`` the range
+    [kN/m³] over the band (dry or moist), ``submerged`` below the water table."""
+
+    id: str
+    name: str
+    low: float = Field(ge=0)
+    high: float | None = Field(default=None, gt=0, description="Empty: open-ended.")
+    k: tuple[float, float]
+    submerged: tuple[float, float] | None = None
+
+
+class ColumnBaseTransfer(_Group):
+    phi: Phi = Field(description="φ of bearing on concrete.")
+    bearing: Share = Field(description="Bearing strength φ (this × f'c) A1.")
+    areaRatioMax: Positive = Field(description="√(A2/A1) at most this.")
+    dowelRatio: Rho = Field(description="Least area across the interface / Ag of the column.")
+    minBars: int = Field(ge=1, description="Least number of bars across the interface.")
+
+
+class ShallowFoundations(_Group):
+    """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
+    allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
+    moduli, permissible settlements and the force transfer at the column base."""
+
+    bearingCombinations: list[FootingCombination] = Field(
+        description="For the bearing pressure (shear strength) of footings and rafts."
+    )
+    stabilityCombinations: list[FootingCombination] = Field(
+        description="For overturning and sliding (the dead load resisting)."
+    )
+    settlementCombinations: dict[Literal["granular", "cohesive"], FootingCombination]
+    lateralIncrease: float = Field(
+        ge=1, description="qa × this with wind or earthquake (none for gravity alone)."
+    )
+    factorOfSafety: tuple[float, float] = Field(
+        description="Range of the factor of safety on the bearing capacity (warned outside)."
+    )
+    kern: Share = Field(description="Resultant preferably within this × B of the centre.")
+    overturning: float = Field(ge=1, description="Least FS against overturning.")
+    sliding: float = Field(ge=1, description="Least FS against sliding.")
+    friction: Positive = Field(description="Friction factor between foundation and soil.")
+    minDepth: Positive = Field(description="Least depth below the natural ground [mm].")
+    exteriorDepth: dict[Literal["cohesive", "granular", "temporary"], Positive] = Field(
+        description="Least depth of exterior footings [mm]."
+    )
+    raftDepth: dict[Literal["cohesive", "granular"], Positive] = Field(
+        description="Least depth of rafts [mm]."
+    )
+    slopeDistance: Positive = Field(
+        description="Distance from a footing's centre to the slope face at its base level, at "
+        "least this × B."
+    )
+    spreadAngle: dict[str, Positive] = Field(
+        description="Largest load spread (horizontal per vertical) by footing material."
+    )
+    stepLap: dict[Literal["thickness", "stepHeight"], Positive] = Field(
+        description="Lap at a change of level: at least this × the thickness or × the step."
+    )
+    minThickness: dict[Literal["soil", "piles", "plainConcrete", "masonry"], Positive] = Field(
+        description="Least depth above the bottom bars (RC on soil, on piles) or thickness [mm]."
+    )
+    presumptive: list[PresumptiveBearing]
+    presumptiveWaterReduction: Share = Field(
+        description="Share of the presumptive value with the water table within B of the base."
+    )
+    subgrade: dict[Literal["granular", "cohesive"], list[SubgradeRow]]
+    settlementLimits: list[SettlementLimitRow]
+    settlementGuide: dict[Literal["sand", "clay", "differential"], Positive] = Field(
+        description="The general rule for pad footings: total on sand, on clay, differential [mm]."
+    )
+    columnBase: ColumnBaseTransfer
 
 
 class FoundationsTable(TableModel):
@@ -1206,6 +1341,11 @@ class FoundationsTable(TableModel):
     retainingWall: RetainingWallFactors = Field(
         default_factory=RetainingWallFactors,
         description="Stability factors and load factors of retaining and basement walls.",
+    )
+    shallow: ShallowFoundations | None = Field(
+        default=None,
+        description="Shallow foundations; empty: the pack does not cover their geotechnical "
+        "rules (the engine's general checks only).",
     )
 
 
