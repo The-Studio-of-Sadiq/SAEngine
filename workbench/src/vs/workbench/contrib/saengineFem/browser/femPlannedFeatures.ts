@@ -15,10 +15,10 @@ import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedF
  * `saengineFem.contribution.ts`; the panels show chips to their pages where they will appear.
  */
 export const FemPlanned = {
-	/** T17: staged construction with all loads and time. */
-	stagedConstruction: 'fem.stagedConstruction',
-	creepShrinkage: 'fem.creepShrinkage',
-	columnShortening: 'fem.columnShortening',
+	/** T17 / B25: what stays planned of staged construction: construction loads and shoring, the creep and shrinkage forces as a load case, wall shortening. */
+	stagedConstructionLoads: 'fem.stagedConstructionLoads',
+	creepShrinkageForces: 'fem.creepShrinkageForces',
+	wallShortening: 'fem.wallShortening',
 	/** T21 / B20: what stays planned of the pushover: performance levels, other target methods, walls with openings. */
 	pushoverHinges: 'fem.pushoverHinges',
 	fibreWalls: 'fem.fibreWalls',

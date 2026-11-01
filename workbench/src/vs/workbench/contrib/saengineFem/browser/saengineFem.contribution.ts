@@ -207,75 +207,64 @@ registerWorkbenchContribution2(FemModelEditorResolverContribution.ID, FemModelEd
 // Analyses and designs that need a guide beyond BNBC 2020: shown, not computed, in this MVP.
 // Remove a registration in the PR that builds its feature.
 
-// T17: staged construction, creep, shrinkage and column shortening.
+// T17 / B25: the construction sequence's staged dead load and the column shortening with the code
+// pack's creep and shrinkage (fem/staged.py, fem/concrete_time.py) are built. Still planned: the
+// construction loads and shoring of the partly built structure, the creep and shrinkage forces as a
+// load case of the combinations, and the shortening of shell walls and cores.
 registerPlannedFeature({
-	id: FemPlanned.stagedConstruction,
+	id: FemPlanned.stagedConstructionLoads,
 	part: 'fem',
-	title: localize('planned.staged.title', "Staged Construction"),
-	summary: localize('planned.staged.summary', "Builds the model storey by storey in time, with every gravity load applied as it arrives (self-weight, finishes, partitions, live load), and adds or removes members and supports at each stage. Today's staged case is linear and carries self-weight only."),
+	title: localize('planned.stagedLoads.title', "Construction Loads and Shoring"),
+	summary: localize('planned.stagedLoads.summary', "Applies the erection and construction loads to the partly built structure stage by stage (wet concrete, formwork, stacked materials, equipment), with the shores and props that carry fresh floors added and removed at each stage. Today's construction sequence stages the self-weight only; the column shortening takes the finishes and sustained live load in time."),
 	steps: [
-		localize('planned.staged.step1', "Define the stages from the storeys: the members, supports and loads added or removed at each, and its duration."),
-		localize('planned.staged.step2', "Analyse the stages in sequence, each on the structure built so far, with time-dependent effects if chosen."),
-		localize('planned.staged.step3', "Review the forces and deflections at every stage on the stage slider."),
-		localize('planned.staged.step4', "Optionally use the final staged gravity state in place of the one-step gravity case in design."),
+		localize('planned.stagedLoads.step1', "Define the construction loads and the shoring of each stage."),
+		localize('planned.stagedLoads.step2', "Analyse the stages in sequence, adding and removing the shores."),
+		localize('planned.stagedLoads.step3', "Check the members of each stage under its construction loads."),
 	],
 	inputs: [
-		{ label: localize('planned.staged.cycle', "Floor cycle"), unit: localize('planned.unit.days', "days") },
-		{ label: localize('planned.staged.loads', "Loads applied per stage"), example: localize('planned.staged.loadsExample', "Self-weight, finishes, partitions") },
-		{ label: localize('planned.staged.design', "Use in design"), example: localize('planned.staged.designExample', "Staged gravity state") },
+		{ label: localize('planned.stagedLoads.load', "Construction live load"), unit: 'kN/m²' },
+		{ label: localize('planned.stagedLoads.shores', "Shored floors below the one cast"), example: '2' },
 	],
 	outputs: [
-		localize('planned.staged.out1', "Forces and deflections per stage in the results bar"),
-		localize('planned.staged.out2', "Staged gravity cases for the design checks"),
-		localize('planned.staged.out3', "A staged construction section in the design report"),
+		localize('planned.stagedLoads.out1', "Member forces of every construction stage"),
+		localize('planned.stagedLoads.out2', "Shore loads per floor"),
 	],
 	references: [
-		localize('planned.staged.ref1', "BNBC 2020 Part 6 Chapter 6 (concrete; it gives no staged analysis procedure)"),
-		localize('planned.staged.ref2', "ACI 209.2R-08 (time-dependent effects in concrete)"),
+		localize('planned.stagedLoads.ref1', "The code pack requires erection and construction loads to be considered but gives no values"),
+		localize('planned.stagedLoads.ref2', "ACI 347.2R (shoring and reshoring of multistorey buildings)"),
 	],
 });
 registerPlannedFeature({
-	id: FemPlanned.creepShrinkage,
+	id: FemPlanned.creepShrinkageForces,
 	part: 'fem',
-	title: localize('planned.creep.title', "Creep and Shrinkage"),
-	summary: localize('planned.creep.summary', "Adds the creep and shrinkage of concrete to the staged analysis by a chosen time-dependent model, so that forces redistribute and deflections grow with time."),
+	title: localize('planned.creepForces.title', "Creep and Shrinkage Forces"),
+	summary: localize('planned.creepForces.summary', "Turns the differential shortening into a load case of imposed strains, analysed with the long-term (age-adjusted) moduli, so that the forces it causes in the beams and slabs enter the design combinations as a self-straining action. Today the column shortening gives each beam's differential shortening and an indicative fixed-end moment."),
 	steps: [
-		localize('planned.creep.step1', "Pick the creep and shrinkage model, and the curing and exposure."),
-		localize('planned.creep.step2', "Give each concrete its age at loading from the stages."),
-		localize('planned.creep.step3', "Run the staged analysis with the model up to the chosen service life."),
-	],
-	inputs: [
-		{ label: localize('planned.creep.model', "Model"), example: localize('planned.creep.modelExample', "ACI 209 or CEB-FIP") },
-		{ label: localize('planned.creep.humidity', "Relative humidity"), unit: '%' },
-		{ label: localize('planned.creep.curing', "Moist curing"), unit: localize('planned.unit.days', "days") },
-		{ label: localize('planned.creep.life', "Service life"), unit: localize('planned.unit.years', "years") },
+		localize('planned.creepForces.step1', "Work out the column shortening after each floor is cast (built)."),
+		localize('planned.creepForces.step2', "Apply it as imposed strains with the age-adjusted effective moduli."),
+		localize('planned.creepForces.step3', "Add the case to the combinations with the self-straining factor."),
 	],
 	outputs: [
-		localize('planned.creep.out1', "Long-term deflections and redistributed forces"),
-		localize('planned.creep.out2', "Creep coefficient and shrinkage strain curves per concrete"),
+		localize('planned.creepForces.out1', "Creep and shrinkage forces in the members"),
+		localize('planned.creepForces.out2', "The self-straining case in the design combinations"),
 	],
 	references: [
-		localize('planned.creep.ref1', "ACI 209.2R-08"),
-		localize('planned.creep.ref2', "CEB-FIP Model Code 1990; fib Model Code 2010"),
+		localize('planned.creepForces.ref1', "Age-adjusted effective modulus method (Bazant 1972)"),
 	],
 });
 registerPlannedFeature({
-	id: FemPlanned.columnShortening,
+	id: FemPlanned.wallShortening,
 	part: 'fem',
-	title: localize('planned.shortening.title', "Column Shortening"),
-	summary: localize('planned.shortening.summary', "Works out the elastic, creep and shrinkage shortening of columns and walls storey by storey, and the differential shortening between neighbours that loads the beams and slabs between them."),
+	title: localize('planned.wallShortening.title', "Wall and Core Shortening"),
+	summary: localize('planned.wallShortening.summary', "Extends the column shortening to the shell walls and cores, storey by storey from their membrane forces, with their own effective thickness, and compares them with the columns next to them. Today the column shortening covers the frame columns."),
 	steps: [
-		localize('planned.shortening.step1', "Run the staged analysis with creep and shrinkage."),
-		localize('planned.shortening.step2', "Read each vertical member's shortening per storey, at casting and at the end of the service life."),
-		localize('planned.shortening.step3', "Compare neighbouring columns and walls, and give the level compensation to build in per storey."),
+		localize('planned.wallShortening.step1', "Sum each wall's vertical membrane force per storey from the staged results."),
+		localize('planned.wallShortening.step2', "Work out its elastic, creep and shrinkage shortening by the code pack's model."),
+		localize('planned.wallShortening.step3', "Compare it with the neighbouring columns."),
 	],
 	outputs: [
-		localize('planned.shortening.out1', "Shortening per column and storey (elastic, creep, shrinkage)"),
-		localize('planned.shortening.out2', "Differential shortening between neighbours, and the compensation per storey"),
-	],
-	references: [
-		localize('planned.shortening.ref1', "ACI 209.2R-08"),
-		localize('planned.shortening.ref2', "Fintel, Ghosh and Iyengar, Column Shortening in Tall Structures (PCA, 1987)"),
+		localize('planned.wallShortening.out1', "Shortening per wall and storey"),
+		localize('planned.wallShortening.out2', "Differential shortening between walls and columns"),
 	],
 });
 

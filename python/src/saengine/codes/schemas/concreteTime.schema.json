@@ -1,0 +1,549 @@
+{
+  "$defs": {
+    "ConcreteExposure": {
+      "additionalProperties": false,
+      "description": "Ambient conditions of the exposures the figures mark.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "indoor": {
+          "$ref": "#/$defs/ExposureClass"
+        },
+        "outdoor": {
+          "$ref": "#/$defs/ExposureClass"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "indoor",
+        "outdoor"
+      ],
+      "title": "ConcreteExposure",
+      "type": "object"
+    },
+    "CreepModel": {
+      "additionalProperties": false,
+      "description": "The final creep coefficient and its development in time (``fem.concrete_time``). Method\n``tabulatedCoefficient``: the coefficient tabulated by effective section thickness, ambient\nrelative humidity and age at loading (a digitised figure), developing by ``development``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "tabulatedCoefficient",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "finalAgeDays": {
+          "description": "Days under load the final coefficient is for.",
+          "exclusiveMinimum": 0,
+          "title": "Finalagedays",
+          "type": "number"
+        },
+        "sealedThickness": {
+          "description": "Effective thickness [mm] of a member that cannot dry (immersed or sealed).",
+          "exclusiveMinimum": 0,
+          "title": "Sealedthickness",
+          "type": "number"
+        },
+        "thicknesses": {
+          "description": "Effective thicknesses [mm].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Thicknesses",
+          "type": "array"
+        },
+        "relativeHumidity": {
+          "description": "Ambient RH [%].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Relativehumidity",
+          "type": "array"
+        },
+        "agesAtLoading": {
+          "description": "Ages at loading [days].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Agesatloading",
+          "type": "array"
+        },
+        "coefficients": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "description": "thickness -> age at loading -> coefficient at each relative humidity.",
+          "title": "Coefficients",
+          "type": "object"
+        },
+        "development": {
+          "description": "Share of the final creep after so many days under load.",
+          "items": {
+            "$ref": "#/$defs/TimeShare"
+          },
+          "minItems": 1,
+          "title": "Development",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "finalAgeDays",
+        "sealedThickness",
+        "thicknesses",
+        "relativeHumidity",
+        "agesAtLoading",
+        "coefficients",
+        "development"
+      ],
+      "title": "CreepModel",
+      "type": "object"
+    },
+    "ExposureClass": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "relativeHumidity": {
+          "description": "Ambient relative humidity [%].",
+          "exclusiveMinimum": 0,
+          "title": "Relativehumidity",
+          "type": "number"
+        },
+        "reinforcement": {
+          "description": "Key of shrinkage.reinforcementCoefficient.",
+          "title": "Reinforcement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relativeHumidity",
+        "reinforcement"
+      ],
+      "title": "ExposureClass",
+      "type": "object"
+    },
+    "PrestressTime": {
+      "additionalProperties": false,
+      "description": "Lump creep and shrinkage of the prestress losses (Part 8 prestressed design).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "creepAgesDays": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Creepagesdays",
+          "type": "array"
+        },
+        "creepCoefficients": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Creepcoefficients",
+          "type": "array"
+        },
+        "creepDevelopment": {
+          "items": {
+            "$ref": "#/$defs/TimeShare"
+          },
+          "title": "Creepdevelopment",
+          "type": "array"
+        },
+        "postTensionedCreepShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Posttensionedcreepshare",
+          "type": "number"
+        },
+        "pretensionedShrinkage": {
+          "exclusiveMinimum": 0,
+          "title": "Pretensionedshrinkage",
+          "type": "number"
+        },
+        "postTensionedShrinkage": {
+          "description": "Numerator of the post-tensioned shrinkage over log10(t + 2), t the age at transfer in days.",
+          "exclusiveMinimum": 0,
+          "title": "Posttensionedshrinkage",
+          "type": "number"
+        },
+        "shrinkageDevelopment": {
+          "items": {
+            "$ref": "#/$defs/TimeShare"
+          },
+          "title": "Shrinkagedevelopment",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "creepAgesDays",
+        "creepCoefficients",
+        "postTensionedCreepShare",
+        "pretensionedShrinkage",
+        "postTensionedShrinkage"
+      ],
+      "title": "PrestressTime",
+      "type": "object"
+    },
+    "ShrinkageModel": {
+      "additionalProperties": false,
+      "description": "Drying shrinkage of plain concrete and of reinforced sections (``fem.concrete_time``).\nMethod ``tabulatedStrain``: strains tabulated by thickness and humidity at a few drying\ntimes (a digitised figure); reinforced: ε / (1 + K ρ).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "tabulatedStrain",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "thicknesses": {
+          "description": "Effective thicknesses [mm].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Thicknesses",
+          "type": "array"
+        },
+        "relativeHumidity": {
+          "description": "Ambient RH [%].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Relativehumidity",
+          "type": "array"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/ShrinkagePoint"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        },
+        "strainUnit": {
+          "default": 1e-06,
+          "description": "Unit of the tabulated strains.",
+          "exclusiveMinimum": 0,
+          "title": "Strainunit",
+          "type": "number"
+        },
+        "referenceWater": {
+          "description": "Water content [litre/m³] the table is for; shrinkage is proportional to it.",
+          "exclusiveMinimum": 0,
+          "title": "Referencewater",
+          "type": "number"
+        },
+        "waterRange": {
+          "description": "Range [litre/m³] the proportionality holds in (water is clamped to it).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Waterrange",
+          "type": "array"
+        },
+        "reinforcementCoefficient": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "K of ε / (1 + K ρ) by exposure (internal, external).",
+          "title": "Reinforcementcoefficient",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "thicknesses",
+        "relativeHumidity",
+        "points",
+        "referenceWater",
+        "waterRange",
+        "reinforcementCoefficient"
+      ],
+      "title": "ShrinkageModel",
+      "type": "object"
+    },
+    "ShrinkagePoint": {
+      "additionalProperties": false,
+      "description": "Free shrinkage strains reached after ``days`` of drying, by thickness and humidity.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "days": {
+          "exclusiveMinimum": 0,
+          "title": "Days",
+          "type": "number"
+        },
+        "strains": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "thickness -> strain (× strainUnit) at each relative humidity; negative: swelling.",
+          "title": "Strains",
+          "type": "object"
+        }
+      },
+      "required": [
+        "days",
+        "strains"
+      ],
+      "title": "ShrinkagePoint",
+      "type": "object"
+    },
+    "StrengthGain": {
+      "additionalProperties": false,
+      "description": "Concrete strength at an age t (days) as a share of f'c: method ``hyperbolic``,\nt / (a + b t), capped at 1; Et from the concrete pack's Ec rule at that strength.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "hyperbolic",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "a": {
+          "exclusiveMinimum": 0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "exclusiveMinimum": 0,
+          "title": "B",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "a",
+        "b"
+      ],
+      "title": "StrengthGain",
+      "type": "object"
+    },
+    "TimeShare": {
+      "additionalProperties": false,
+      "description": "A point of a development curve: the share of the final value reached after ``days``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "days": {
+          "description": "Days under load (creep) or of drying (shrinkage).",
+          "exclusiveMinimum": 0,
+          "title": "Days",
+          "type": "number"
+        },
+        "share": {
+          "description": "Share of the final value reached by then.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        }
+      },
+      "required": [
+        "days",
+        "share"
+      ],
+      "title": "TimeShare",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Time-dependent properties of concrete: creep, shrinkage, exposure, the strength gain for\nthe modulus at the age of loading, and the lump values of the prestress losses.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "creep": {
+      "$ref": "#/$defs/CreepModel"
+    },
+    "shrinkage": {
+      "$ref": "#/$defs/ShrinkageModel"
+    },
+    "exposure": {
+      "$ref": "#/$defs/ConcreteExposure"
+    },
+    "strengthGain": {
+      "$ref": "#/$defs/StrengthGain"
+    },
+    "prestress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PrestressTime"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "creep",
+    "shrinkage",
+    "exposure",
+    "strengthGain"
+  ],
+  "title": "ConcreteTimeTable",
+  "type": "object",
+  "$id": "saengine.codePack.concreteTime/1"
+}

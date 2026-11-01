@@ -1313,6 +1313,13 @@ def _derive_fem(
         b.notes.append(
             "construction sequence: left out (it applies to buildings with levels above their base)"
         )
+    # B25: the column shortening (fem.staged) is worked out from the run; it takes the staged
+    # dead load when the construction sequence runs.
+    if getattr(getattr(options, "timeDependent", None), "enabled", False) and not staged:
+        b.notes.append(
+            "column shortening: without the construction sequence the dead load is taken as "
+            "applied at once on the completed frame"
+        )
     stage_patterns: dict[int, dict[str, Any]] = {}
 
     def stage_of(z: float) -> int:

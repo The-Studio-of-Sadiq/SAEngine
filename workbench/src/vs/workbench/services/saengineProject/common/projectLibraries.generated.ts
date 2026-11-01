@@ -6367,6 +6367,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/Settlement',
 					title: 'Support settlement',
 				},
+				timeDependent: {
+					$ref: '#/$defs/TimeDependent',
+					title: 'Creep, shrinkage and column shortening',
+				},
 				fireResistance: {
 					$ref: '#/$defs/FireResistance',
 					description: 'Least ratings the members\' sizes are checked for, on top of those of the construction type (Construction).',
@@ -8456,6 +8460,104 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Thermal',
 			type: 'object',
 		},
+		TimeDependent: {
+			additionalProperties: false,
+			description: 'Creep, shrinkage and column shortening (B25): the time-dependent shortening of the\nconcrete columns of a building built storey by storey, by the creep and shrinkage model of\nthe code pack in force (fem.concrete_time, fem.staged), worked out from the run.',
+			properties: {
+				enabled: {
+					default: false,
+					description: 'Work out the elastic, creep and shrinkage shortening of every concrete column line from the run, storey by storey in time, and the differential shortening of the beams between them. Uses the construction sequence\'s stages when it is on.',
+					title: 'Column shortening',
+					type: 'boolean',
+				},
+				exposure: {
+					default: 'indoor',
+					description: 'Ambient exposure of the columns: the relative humidity and the reinforced-section shrinkage coefficient of the code pack.',
+					enum: ['indoor', 'outdoor'],
+					enumDescriptions: ['Indoor', 'Outdoor'],
+					title: 'Exposure',
+					type: 'string',
+				},
+				relativeHumidity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 100,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ambient relative humidity [%]. Empty: the code pack\'s value of the exposure.',
+					title: 'Relative humidity',
+				},
+				cycleDays: {
+					default: 7.0,
+					description: 'Days between casting one floor and the next.',
+					exclusiveMinimum: 0,
+					maximum: 365,
+					title: 'Floor cycle',
+					type: 'number',
+				},
+				curingDays: {
+					default: 7.0,
+					description: 'Days before drying starts.',
+					maximum: 90,
+					minimum: 0,
+					title: 'Curing',
+					type: 'number',
+				},
+				superimposedAfterDays: {
+					default: 90.0,
+					description: 'Days after the frame is complete that the superimposed dead load and the sustained live load are applied.',
+					minimum: 0,
+					title: 'Finishes and occupancy',
+					type: 'number',
+				},
+				sustainedLive: {
+					default: 0.25,
+					description: 'Share of the live load L that acts for long enough to creep.',
+					maximum: 1,
+					minimum: 0,
+					title: 'Sustained live share',
+					type: 'number',
+				},
+				serviceLifeYears: {
+					default: 30.0,
+					description: 'Years after completion the final shortening is worked out at (at most the age the code pack\'s final creep is for).',
+					exclusiveMinimum: 0,
+					maximum: 100,
+					title: 'Service life',
+					type: 'number',
+				},
+				steelRatio: {
+					default: 0.01,
+					description: 'Longitudinal steel ratio ρ of the columns for the transformed section and the reinforced shrinkage (a lower ratio gives more shortening).',
+					maximum: 0.08,
+					minimum: 0,
+					title: 'Column steel ratio',
+					type: 'number',
+				},
+				waterContent: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Free water of the mix [litre/m³]. Empty: the code pack\'s reference mix.',
+					title: 'Water content',
+				},
+			},
+			title: 'TimeDependent',
+			type: 'object',
+		},
 		TimeHistory: {
 			additionalProperties: false,
 			description: 'A ground acceleration record run as a time-history analysis.',
@@ -9437,6 +9539,16 @@ export const DEFAULT_SETTINGS: object = {
 		settlement: {
 			enabled: false,
 			supports: [],
+		},
+		timeDependent: {
+			enabled: false,
+			exposure: 'indoor',
+			cycleDays: 7.0,
+			curingDays: 7.0,
+			superimposedAfterDays: 90.0,
+			sustainedLive: 0.25,
+			serviceLifeYears: 30.0,
+			steelRatio: 0.01,
 		},
 		fireResistance: {
 			columns: 0,
@@ -15214,6 +15326,18 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		settlement: {
 			enabled: false,
 			supports: [],
+		},
+		timeDependent: {
+			enabled: false,
+			exposure: 'indoor',
+			relativeHumidity: null,
+			cycleDays: 7.0,
+			curingDays: 7.0,
+			superimposedAfterDays: 90.0,
+			sustainedLive: 0.25,
+			serviceLifeYears: 30.0,
+			steelRatio: 0.01,
+			waterContent: null,
 		},
 		fireResistance: {
 			columns: 0,

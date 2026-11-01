@@ -191,7 +191,34 @@ export interface IFemStoryResponse {
 	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string; readonly timeHistory?: IFemTimeHistoryDesign | null } | null;
 	readonly pushover: readonly IFemPushoverCurve[];
 	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
+	/** B25: the column shortening with creep and shrinkage (`fem/staged.py`), when the settings ask for it. */
+	readonly columnShortening?: IFemColumnShortening | null;
 	readonly notes: readonly string[];
+}
+
+/** One level of a column line: shortening below it [m] at the end of the service life. */
+export interface IFemShorteningRow {
+	readonly level: string;
+	readonly z: number;
+	readonly elastic: number;
+	readonly creep: number;
+	readonly shrinkage: number;
+	readonly total: number;
+	/** What the storeys below shorten after this level's floor was cast. */
+	readonly afterCasting: number;
+}
+
+/** The column shortening of a run by the code pack's creep and shrinkage model (B25). */
+export interface IFemColumnShortening {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly inputs?: { readonly humidity: number; readonly exposure: string; readonly cycle: number; readonly superimposedAfter: number; readonly sustainedLive: number; readonly serviceLife: number; readonly steelRatio: number; readonly staged: boolean };
+	readonly times?: { readonly complete: number; readonly superimposed: number; readonly end: number };
+	readonly lines?: readonly { readonly line: string; readonly x: number; readonly y: number; readonly storeys: readonly { readonly storey: string; readonly thickness: number; readonly coefficient: number }[]; readonly rows: readonly IFemShorteningRow[] }[];
+	readonly differential?: readonly { readonly beam: string; readonly level: string; readonly length: number; readonly difference: number; readonly rotation: number; readonly moment: number }[];
+	readonly history?: { readonly days: readonly number[]; readonly lines: readonly { readonly line: string; readonly values: readonly number[] }[] };
+	readonly clauses?: { readonly [key: string]: string };
+	readonly notes?: readonly string[];
 }
 
 export interface IFemMemberResult {

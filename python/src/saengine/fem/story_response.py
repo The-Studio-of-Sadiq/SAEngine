@@ -721,6 +721,23 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 }
         except Exception as error:  # noqa: BLE001 - the charts show without the checks
             notes.append(f"the building irregularities could not be worked out: {error}")
+    # B25: the column shortening with creep and shrinkage (saengine.fem.staged), when the
+    # settings ask for it.
+    shortening = None
+    if project.get("meta", {}).get("author") == "SAEngine":
+        from saengine.fem.combinations import settings_beside
+
+        found = settings_beside(project_path)
+        options = getattr(getattr(found, "analysis", None), "timeDependent", None)
+        if options is not None and options.enabled:
+            from saengine.fem import staged
+
+            try:
+                shortening = staged.column_shortening(
+                    project, {code: v[1] for code, v in static.items()}, level_rows, options
+                )
+            except Exception as error:  # noqa: BLE001 - the charts show without it
+                notes.append(f"the column shortening could not be worked out: {error}")
     return _finite(
         {
             "levels": level_rows,
@@ -733,6 +750,7 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "spectrumDesign": design or None,
             "pushover": pushover,
             "histories": histories,
+            "columnShortening": shortening,
             "notes": notes,
         }
     )

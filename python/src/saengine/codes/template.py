@@ -55,6 +55,11 @@ TABLE_HELP: dict[str, str] = {
     "component importance factors, the component rows (amplification and response reduction), "
     "the default rows of drawn walls and equipment, the exemptions, the exterior panel "
     "connection factors and the least anchorage force of walls.",
+    "concreteTime": "Time-dependent concrete: the creep coefficient (creep: tabulatedCoefficient, "
+    "by thickness, humidity and age at loading, with its development in time), drying shrinkage "
+    "(shrinkage: tabulatedStrain, with the reinforced-section factor), the indoor and outdoor "
+    "humidities, the strength gain for the modulus at the age of loading and the lump creep and "
+    "shrinkage of the prestress losses.",
     "pushover": "Nonlinear static (pushover) analysis: the load pattern the code requires and how "
     "far to push (procedure), the target displacement method by id with its factors "
     "(targetDisplacement: coefficient) and the member acceptance method by id with its shares "
