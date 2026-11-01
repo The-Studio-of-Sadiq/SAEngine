@@ -140,7 +140,11 @@ def _wind_variants(cases: set[str]) -> Any:
             return [("", {case: sign})]
         out: list[tuple[str, dict[str, float]]] = []
         seen: set[tuple[tuple[str, float], ...]] = set()
-        for label, factors in fl.wind_design_variants({case: sign}, design_cases, torsion):
+        # Clad structures: the opposite direction's cases, the pressure variants and ±WI.
+        variants = fl.resolve_wind_cases(
+            fl.wind_design_variants({case: sign}, design_cases, torsion), cases
+        )
+        for label, factors in variants:
             factors = {c: f for c, f in factors.items() if f and c in cases}
             key = tuple(sorted((c, round(f, 9)) for c, f in factors.items()))
             if not factors or key in seen:
