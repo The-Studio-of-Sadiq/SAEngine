@@ -176,7 +176,8 @@
     ],
     "masonry": [
       "BNBC 2020 Part 6 Chapter 7 (masonry structures), Sec 7.2-7.8 (pp. 1003-1039): allowable stress design, with the strength design and earthquake values",
-      "TMS 602 / ACI 530.1 Tables 1-2: only the labelled f'm estimate from the unit strength (not BNBC)"
+      "TMS 602 / ACI 530.1 Tables 1-2: only the labelled f'm estimate from the unit strength (not BNBC)",
+      "BNBC 2020 Part 6 Sec 7.3.9 (embedded anchor bolts), 7.7 (strength design of slender walls and shear walls), 7.8.4-7.8.6 (earthquake detailing, Tables 6.7.15-6.7.17), 7.9 (high wind regions, Table 6.7.18), 7.11 (confined masonry) (pp. 1008-1011, 1030-1046, 1051-1061)"
     ],
     "cranes": [
       "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5(a)-(c) (pp. 541-542)",

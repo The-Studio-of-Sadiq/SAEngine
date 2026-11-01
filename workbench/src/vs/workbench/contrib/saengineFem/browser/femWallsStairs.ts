@@ -83,7 +83,7 @@ export type FemWallElement = IFemDesignElement & {
 	/** Curtains (layers) of reinforcement provided and required (two when Vu is large, Sec 8.3.6.2). */
 	readonly curtains?: number | null;
 	readonly curtainsRequired?: number | null;
-	/** "special" (Sec 8.3.6), "ordinary", "masonryPlain" or "masonryReinforced" (Part 6 Chapter 7). */
+	/** "special" (Sec 8.3.6), "ordinary", "masonryPlain", "masonryReinforced" or "masonryConfined" (the masonry chapter). */
 	readonly wallType?: string | null;
 	/** A masonry wall's masonry: "Plain clay masonry, f'm 9.9 MPa, Em 6941 MPa, type S mortar". */
 	readonly masonry?: string | null;
@@ -404,6 +404,7 @@ function wallTypeLabel(type: string): string {
 		: key.startsWith('ordinary') ? localize('femWalls.ordinary', "Ordinary structural wall")
 			: key === 'masonryplain' ? localize('femWalls.masonryPlain', "Plain masonry wall")
 				: key === 'masonryreinforced' ? localize('femWalls.masonryReinforced', "Reinforced masonry wall")
+					: key === 'masonryconfined' ? localize('femWalls.masonryConfined', "Confined masonry wall")
 					: type;
 }
 

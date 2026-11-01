@@ -518,8 +518,9 @@ def design_walls(
     concrete_designed = bool(elements)
     masonry_piers: dict[str, list[dict[str, Any]]] = piers_of
     masonry_lateral: frozenset[str] = frozenset(earthquake)
+    masonry_quake: frozenset[str] = frozenset(earthquake)
     if masonry_ready:
-        masonry_piers, masonry_lateral, masonry_notes = _masonry_forces(
+        masonry_piers, masonry_lateral, masonry_notes, masonry_quake = _masonry_forces(
             project, building, out_dir, piers_of, earthquake
         )
         notes += masonry_notes
@@ -533,14 +534,23 @@ def design_walls(
         skipped,
         masonry_lateral,
         len(building.stories),
+        # B34: the design combinations' piers (a wall choosing strength design), the earthquake
+        # combinations, the site's zone and wind speed.
+        strength_piers=piers_of,
+        earthquake=masonry_quake,
+        strength_earthquake=frozenset(earthquake),
+        settings=settings,
     )
     elements += masonry_elements
+    if masonry_elements:
+        notes += _confined_building(building, masonry_elements, masonry_ready, settings)
     return {
         "elements": elements,
         "skipped": skipped,
         "notes": notes,
         "designed": concrete_designed,
         "masonry": bool(masonry_elements),
+        "masonryMethods": sorted({str(e.get("masonryMethod")) for e in masonry_elements}),
     }
 
 
@@ -550,10 +560,10 @@ def _masonry_forces(
     out_dir: str | Path,
     piers_of: dict[str, list[dict[str, Any]]],
     earthquake: set[str],
-) -> tuple[dict[str, list[dict[str, Any]]], frozenset[str], list[str]]:
+) -> tuple[dict[str, list[dict[str, Any]]], frozenset[str], list[str], frozenset[str]]:
     """The masonry walls' pier forces under the combinations of the code pack's masonry method
     (:func:`saengine.design.masonry.combinations_kind`): ``(piers by wall, the combinations with
-    wind or earthquake, notes)``. The design combinations' piers (``piers_of``) serve a
+    wind or earthquake, notes, the combinations with earthquake)``. The design combinations' piers (``piers_of``) serve a
     strength method; an allowable stress method gets the pack's allowable stress combinations,
     the gravity cases the model lacks (SD, L, Lr) taken as zero and the combinations whose wind
     or earthquake cases have no results left out."""
@@ -562,12 +572,13 @@ def _masonry_forces(
     from saengine.fem.combinations import DesignCombination, allowable_combinations
 
     if M.combinations_kind() != "allowable":
-        return piers_of, frozenset(earthquake), []
+        return piers_of, frozenset(earthquake), [], frozenset(earthquake)
     notes: list[str] = []
     try:
         cases = wall_forces.case_shell_forces(project, out_dir)
     except (OSError, ValueError, KeyError) as error:
-        return {}, frozenset(), [f"masonry walls: the load cases' forces were not found: {error}"]
+        missing = [f"masonry walls: the load cases' forces were not found: {error}"]
+        return {}, frozenset(), missing, frozenset()
     present = set(cases)
     formed = allowable_combinations(present)
     combos: list[Any] = []
@@ -586,15 +597,19 @@ def _masonry_forces(
             "earthquake cases have no results)"
         )
     if not combos:
-        return {}, frozenset(), notes + ["masonry walls: no allowable stress combinations"]
+        none = notes + ["masonry walls: no allowable stress combinations"]
+        return {}, frozenset(), none, frozenset()
     found = wall_forces.wall_forces(project, building, cases, combos)
     lateral = frozenset(
         c.name for c in combos if any(k[:1] in ("W", "E") and v for k, v in c.factors.items())
     )
+    quake = frozenset(
+        c.name for c in combos if any(k[:1] == "E" and v for k, v in c.factors.items())
+    )
     out: dict[str, list[dict[str, Any]]] = {}
     for p in found["piers"]:
         out.setdefault(p["wall"], []).append(p)
-    return out, lateral, notes
+    return out, lateral, notes, quake
 
 
 def _design_masonry(
@@ -607,15 +622,31 @@ def _design_masonry(
     skipped: list[dict[str, Any]],
     lateral: frozenset[str] = frozenset(),
     storeys: int | None = None,
+    *,
+    strength_piers: dict[str, list[dict[str, Any]]] | None = None,
+    earthquake: frozenset[str] | None = None,
+    strength_earthquake: frozenset[str] | None = None,
+    settings: Any = None,
 ) -> list[dict[str, Any]]:
     """T31 integrator glue: the masonry walls' design elements (``kind`` "wall", ``wallType``
-    "masonryPlain" or "masonryReinforced"), each pier checked by
-    :func:`saengine.design.masonry.masonry_wall_checks` (the code pack's method) from the
-    forces of its combinations (``piers_of``; ``lateral`` those with wind or earthquake); walls
-    that cannot be checked go to ``skipped``."""
+    "masonryPlain", "masonryReinforced" or "masonryConfined"), each pier checked by
+    :func:`saengine.design.masonry.masonry_wall_checks` (the code pack's method, or the one the
+    wall type chooses among those the pack permits) or, for a confined wall, by
+    :func:`saengine.design.confined_masonry.panel_checks`, from the forces of its combinations
+    (``piers_of``: the pack method's; ``strength_piers``: the design combinations'; ``lateral``
+    those with wind or earthquake; ``earthquake`` those with earthquake); walls that cannot be
+    checked go to ``skipped``. B34: the site's zone and wind speed (``settings``) add the pack's
+    seismic and high wind rows."""
     from saengine.design import masonry as M
 
+    zone = M.site_zone(settings)
+    wind_kmh = M.site_wind_kmh(settings)
     out: list[dict[str, Any]] = []
+    # The storeys with masonry piers, from the top (Table 6.7.17 counts the storeys down).
+    levels = sorted(
+        {round(float(p["bottom"])) for ps in piers_of.values() for p in ps}, reverse=True
+    )
+    masonry_storeys = len(levels) or storeys
     for e, t, material in masonry_ready:
 
         def skip(reason: str, e: Any = e) -> None:
@@ -631,6 +662,29 @@ def _design_masonry(
             skip(str(error))
             continue
         bars = W.wall_bars(t.reinforcement) if t.reinforcement is not None else None
+        method = M.method_id(getattr(t, "masonryMethod", None))
+        strength = M.combinations_kind(method) == "strength"
+        own_piers = piers
+        if strength and M.combinations_kind() != "strength":
+            own_piers = (strength_piers or {}).get(e.id, [])
+            if not own_piers:
+                skip("strength design: the design combinations' forces were not found")
+                continue
+        allowable_piers = M.combinations_kind() == "allowable"
+        service = {p["pier"]: p for p in piers} if strength and allowable_piers else {}
+        quake = strength_earthquake if strength else earthquake
+        confinement = None
+        if getattr(t, "confinement", None) is not None:
+            from saengine.design import confined_masonry as C
+
+            if not C.covered():
+                skip("confined masonry is not covered by the code pack")
+                continue
+            try:
+                confinement = C.confinement_of(t.confinement, float(t.thickness), mats)
+            except DesignError as error:
+                skip(str(error))
+                continue
         fy = 420.0
         if bars is not None:
             steel = mats.get(t.reinforcement.material)
@@ -649,12 +703,59 @@ def _design_masonry(
         checks: list[dict[str, Any]] = []
         members: set[int] = set()
         notes: list[str] = []
-        for pier in piers:
+        wall_length = math.dist(e.start, e.end)
+        columns_of = (
+            _tie_columns(e, piers, spandrels_of.get(e.id, []), confinement.column.depth)
+            if confinement is not None
+            else {}
+        )
+        for pier in own_piers:
             name = pier["pier"]
             geometry = W.geometry_of(pier, wall_height=hw, **options)
-            forces = W.pier_rows(pier, None, ("bottom", "middle", "top"))
+            forces = W.pier_rows(pier, quake, ("bottom", "middle", "top"))
+            same = [p for p in piers if p.get("storey") == pier.get("storey")]
+            share = 1.0 - sum(float(p["lw"]) for p in same) / wall_length if wall_length else None
+            bottom_level = round(float(pier["bottom"]))
+            from_top = levels.index(bottom_level) if bottom_level in levels else None
             try:
-                d = M.masonry_wall_checks(geometry, bars, forces, m, fy, lateral, storeys)
+                if confinement is not None:
+                    from saengine.design import confined_masonry as C
+
+                    columns = columns_of.get(name, [])
+                    d = C.panel_checks(
+                        geometry, M.seismic_shear(forces, zone), m, confinement, columns,
+                        lateral, storeys,
+                    )  # fmt: skip
+                    from saengine.design import masonry_seismic as S
+
+                    rows, more = S.detailing(
+                        geometry, bars, m, zone=zone, wind_kmh=wind_kmh,
+                        storeys=masonry_storeys, storey_from_top=from_top,
+                        opening_share=share, bearing=any(f.P > 0 for f in forces),
+                        confined=True,
+                    )  # fmt: skip
+                    d.checks += rows
+                    d.notes += more
+                    d.utilisation = max(
+                        (c["utilisation"] for c in d.checks if not c["flag"]), default=0.0
+                    )
+                else:
+                    sp = service.get(name)
+                    d = M.masonry_wall_checks(
+                        geometry,
+                        bars,
+                        forces,
+                        m,
+                        fy,
+                        lateral if not strength else frozenset(),
+                        storeys,
+                        method=method,
+                        service=W.pier_rows(sp, None, ("middle",)) if sp else None,
+                        zone=zone,
+                        wind_kmh=wind_kmh,
+                        storey_from_top=from_top,
+                        opening_share=share,
+                    )
             except DesignError as error:
                 notes.append(f"{name}: not checked: {error}")
                 d = M.MasonryDesign(
@@ -691,7 +792,16 @@ def _design_masonry(
                 {"id": s["spandrel"], "kind": "spandrel", "type": e.type, "reason": reason}
             )
             notes.append(f"{s['spandrel']}: {reason}")
-        strength = [c for c in checks if not c["flag"]]
+        if confinement is not None:
+            from saengine.design import confined_masonry as C
+
+            checks += C.element_rows(confinement)
+            notes += C.details_text(confinement)
+        designed = [c for c in checks if not c["flag"]]
+        if confinement is not None:
+            wall_kind = "masonryConfined"
+        else:
+            wall_kind = "masonryReinforced" if bars is not None else "masonryPlain"
         out.append(
             {
                 "id": e.id,
@@ -699,9 +809,12 @@ def _design_masonry(
                 "type": e.type,
                 "members": sorted(members),
                 "checks": checks,
-                "utilisation": max((c["utilisation"] for c in strength), default=0.0),
-                "ok": all(c["ok"] for c in strength),
-                "wallType": "masonryReinforced" if bars is not None else "masonryPlain",
+                "utilisation": max((c["utilisation"] for c in designed), default=0.0),
+                "ok": all(c["ok"] for c in designed),
+                "wallType": wall_kind,
+                # B34: the method, and the tie columns of a confined wall.
+                "masonryMethod": "confinedPanels" if confinement is not None else method,
+                "tieColumns": columns_of or None,
                 "masonry": M.describe(m, bars is not None),
                 # B18: the masonry row of the fire checks (design/fire_resistance.py).
                 "fireMasonry": M.fire_row(m),
@@ -880,6 +993,89 @@ class _Wall:
                     "error": error,
                 }
             )
+
+
+def _tie_columns(
+    e: Any,
+    piers: list[dict[str, Any]],
+    spandrels: list[dict[str, Any]],
+    depth: float,
+) -> dict[str, list[float]]:
+    """B34: the tie column centres of each pier of a confined wall, from the pier's start: by
+    :func:`saengine.design.confined_masonry.tie_column_positions` over the wall's length, with
+    the gaps between a storey's piers as its openings (their height the storey's less the
+    spandrels over and under them)."""
+    from saengine.design import confined_masonry as C
+
+    length = math.dist(e.start, e.end)
+    out: dict[str, list[float]] = {}
+    storeys: dict[Any, list[dict[str, Any]]] = {}
+    for p in piers:
+        storeys.setdefault(p.get("storey"), []).append(p)
+    for storey, own in storeys.items():
+        own.sort(key=lambda p: float(p["start"]))
+        height = float(own[0]["top"]) - float(own[0]["bottom"])
+        openings = []
+        edges = [0.0] + [x for p in own for x in (float(p["start"]), float(p["end"]))] + [length]
+        for a, b in zip(edges[::2], edges[1::2], strict=False):
+            if b - a <= 1.0:
+                continue
+            closed = sum(
+                float(sp["top"]) - float(sp["bottom"])
+                for sp in spandrels
+                if sp.get("storey") == storey and float(sp["start"]) < b and float(sp["end"]) > a
+            )
+            openings.append((a, b, (b - a) * max(height - closed, 0.0) / 1e6))
+        columns = C.tie_column_positions(length, openings, depth)
+        for p in own:
+            start, end = float(p["start"]), float(p["end"])
+            out[p["pier"]] = C.pier_ends(start, end, columns, depth)[2]
+    return out
+
+
+def _confined_building(
+    building: Any,
+    elements: list[dict[str, Any]],
+    masonry_ready: list[tuple[Any, Any, Any]],
+    settings: Any,
+) -> list[str]:
+    """B34: the building rows of confined masonry (wall density, storeys, walls per direction)
+    added to every confined wall's checks; notes."""
+    from saengine.design import confined_masonry as C
+    from saengine.design import masonry as M
+    from saengine.library.bim import SlabElement
+
+    confined_ids = {e["id"] for e in elements if e.get("wallType") == "masonryConfined"}
+    if not confined_ids or not C.covered():
+        return []
+    lowest = min(float(e.bottom) for e, _t, _m in masonry_ready)
+    walls = [
+        {
+            "start": e.start,
+            "end": e.end,
+            "thickness": float(t.thickness),
+            "confined": e.id in confined_ids,
+            "lowest": abs(float(e.bottom) - lowest) < 1.0,
+        }
+        for e, t, _m in masonry_ready
+    ]
+    levels = {round(float(e.bottom)) for e, _t, _m in masonry_ready}
+    slabs = [x for x in building.elements if isinstance(x, SlabElement)]
+    xs = [float(v) for e, _t, _m in masonry_ready for v in (e.start[0], e.end[0])]
+    ys = [float(v) for e, _t, _m in masonry_ready for v in (e.start[1], e.end[1])]
+    footprint = (max(xs) - min(xs), max(ys) - min(ys))
+    floors = sum(C.polygon_area([tuple(map(float, q)) for q in s.boundary]) for s in slabs)
+    if floors <= 0:
+        floors = footprint[0] * footprint[1] * len(levels)
+    rows = C.building_rows(walls, floors, M.site_zone(settings), len(levels), footprint)
+    for el in elements:
+        if el["id"] in confined_ids:
+            el["checks"] = el["checks"] + [{**r, "note": f"building: {r['note']}"} for r in rows]
+            designed = [c for c in el["checks"] if not c["flag"]]
+            el["utilisation"] = max((c["utilisation"] for c in designed), default=0.0)
+            el["ok"] = all(c["ok"] for c in designed)
+    failed = [r["name"] for r in rows if not r["ok"] and not r["flag"]]
+    return [f"confined masonry: {', '.join(failed)} not met"] if failed else []
 
 
 def _wall_boundary(piers: list[dict[str, Any]]) -> dict[str, Any] | None:

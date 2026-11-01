@@ -583,10 +583,35 @@ def structural_wall_anchorage(
         result["exempt"] = None  # Sec 1.7.3.6 has no exemption: the minimum always applies
         result["exemptLabel"] = ""
         demand = 0.5 * (result["perMetre"] or 0.0)
-        result["anchorage"] = anchorage(demand, anchor_spacing, pack)
+        bolts = getattr(wall_type, "anchorBolts", None) if category == "masonry" else None
+        spacing = float(bolts.spacing) if bolts is not None else anchor_spacing
+        result["anchorage"] = anchorage(demand, spacing, pack)
+        if bolts is not None:  # B34: the masonry anchor bolts against the anchorage
+            result["anchorBolts"] = _masonry_bolts(bolts, material, mats, result["anchorage"])
         result["height"] = round(height, 1)
         out.append(result)
     return out
+
+
+def _masonry_bolts(
+    bolts: Any, material: Any, mats: dict[str, Any], anchorage_row: dict[str, Any]
+) -> dict[str, Any]:
+    """B34: the rows of a masonry wall's anchor bolts (:mod:`saengine.design.masonry_anchors`)
+    under its anchorage force: ``{"checks", "ok", "note"}``."""
+    from saengine.design import masonry as masonry_design
+    from saengine.design import masonry_anchors
+    from saengine.design.rc import DesignError
+
+    if not masonry_anchors.covered():
+        return {"checks": [], "ok": None, "note": "not covered by the code pack"}
+    try:
+        fm = masonry_design.masonry_of(material, mats).fm
+    except DesignError as error:
+        return {"checks": [], "ok": None, "note": str(error)}
+    rows = masonry_anchors.wall_anchorage_checks(
+        bolts, fm, float(anchorage_row["design"]), float(bolts.shearPerMetre)
+    )
+    return {"checks": rows, "ok": all(r["ok"] for r in rows), "note": ""}
 
 
 # ──────────────────────────────────── the project and report ────────────────────────────────────
@@ -779,6 +804,16 @@ def report_section(root: str | Path, pack: Any = None) -> dict[str, Any] | None:
                 f"{r['name']}: connection bodies {_f(c['body'])} kN, fasteners "
                 f"{_f(c['fasteners'])} kN{joint}"
             )
+    for r in found["structuralWalls"]:  # B34: masonry anchor bolts
+        bolts = r.get("anchorBolts")
+        if bolts and bolts["checks"]:
+            worst = max(bolts["checks"], key=lambda c: c["utilisation"])
+            notes.append(
+                f"{r['name']}: anchor bolts {'OK' if bolts['ok'] else 'NOT OK'}, governing "
+                f"{worst['name']} {worst['demand']:g} / {worst['capacity']:g} {worst['unit']}"
+            )
+        elif bolts and bolts.get("note"):
+            notes.append(f"{r['name']}: anchor bolts {bolts['note']}")
     for r in items:
         if r.get("note"):
             notes.append(f"{r['name']}: {r['note']}")

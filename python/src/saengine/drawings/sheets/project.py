@@ -845,7 +845,9 @@ def wall_detail(e: dict[str, Any], t: Any, bim: Any, levels: dict[str, Level]) -
     ]
     boundary = r.boundary if r is not None else None
     hoop = next((b for b in e.get("bars", []) if b.get("role") in ("hoop", "boundary hoop")), None)
+    confined = _confined(t, float(at.get("length", 1000)), openings)
     return WallDetail(
+        **confined,
         mark=str(e.get("member") or e["id"]),
         members=[str(e["id"])],
         length=float(at.get("length", 1000)),
@@ -866,6 +868,34 @@ def wall_detail(e: dict[str, Any], t: Any, bim: Any, levels: dict[str, Level]) -
         levels=names,
         lintels=lintel_details(e, bottom),
     )
+
+
+def _confined(
+    t: Any, length: float, openings: list[tuple[float, float, float, float]]
+) -> dict[str, Any]:
+    """B34: the tie columns and tie beam of a confined masonry wall type (placed by the code
+    pack's rules, :func:`saengine.design.confined_masonry.tie_column_positions`); {} otherwise."""
+    c = getattr(t, "confinement", None)
+    if c is None:
+        return {}
+    from saengine.design import confined_masonry as C
+
+    if not C.covered():
+        return {}
+    holes = [(x, x + w, w * h / 1e6) for x, _sill, w, h in openings]
+    col, beam = c.tieColumn, c.tieBeam
+
+    def text(el: Any, ends: bool) -> str:
+        end = f" ({el.endTieSpacing:g} AT THE ENDS)" if ends and el.endTieSpacing else ""
+        return f"{el.count}Ø{el.dia:g}, TIES Ø{el.tieDia:g}@{el.tieSpacing:g}{end}"
+
+    return {
+        "tie_columns": C.tie_column_positions(length, holes, float(col.depth)),
+        "tie_depth": float(col.depth),
+        "tie_beam_depth": float(beam.depth),
+        "tie_text": text(col, True),
+        "tie_beam_text": text(beam, False),
+    }
 
 
 def lintel_details(e: dict[str, Any], bottom: float) -> list[LintelDetail]:

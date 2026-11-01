@@ -9,8 +9,12 @@ beams); strip footings under the walls of each grid line. No columns or beams.
 - The structural system is the first masonry bearing wall system that BNBC 2020 Part 6 Table
   6.2.19 permits in the Seismic Design Category and height: ordinary plain masonry shear walls,
   else ordinary reinforced masonry shear walls (Sec 2.5.5.4). Neither is permitted in Category
-  D: the spec is refused with a note (confined masonry is a planned feature; an RC system
-  serves meanwhile).
+  D: the spec is refused with a note (the table lists no confined masonry system, so it has no
+  R for one; an RC system serves).
+- B34: plain masonry walls are confined (RC tie columns at every grid intersection, which are
+  the walls' ends, and a tie beam at every floor: the code pack's ``masonry.confined``) where
+  the site's zone allows confined masonry of the building's storeys; Design mode then checks
+  them by :mod:`saengine.design.confined_masonry`, with the wall density and storey limits.
 - The masonry is the default first-class brick (03 Materials ``BRICK-1``) with a unit strength
   of 17.2 MPa where none is entered (a first-class brick, SAEngine's assumption to replace with
   the test value); f'm is the code pack's estimate from the units and the mortar grade
@@ -64,6 +68,11 @@ THIN_STOREYS = 3
 LOW_RISE = 5
 #: Bars of a reinforced masonry wall: (dia, spacing) vertical and horizontal [mm].
 VERTICAL_BARS, HORIZONTAL_BARS = (16.0, 800.0), (12.0, 400.0)
+#: Confined masonry (B34): tie columns' and tie beams' depth [mm], bars (count, dia) and ties
+#: (dia, spacing) [mm] (rule of thumb within the code pack's least sizes).
+TIE_SIZE = 200.0
+TIE_BARS = (4, 12.0)
+TIE_TIES = (6.0, 150.0)
 
 
 def generate_masonry_building(
@@ -118,7 +127,7 @@ def generate_masonry_building(
         raise ValueError(
             f"no masonry bearing wall system is permitted in Seismic Design Category "
             f"{sdc or 'B'} at {height_m:.1f} m (BNBC 2020 Part 6 Table 6.2.19): choose an RC "
-            "system (confined masonry is planned)"
+            "system (the table lists no confined masonry system)"
         ) from error
     patch["seismic"] = {"system": system_id}
     patch["analysis"] = {"slabs": "shells"}  # no beams: the slabs carry their loads as shells
@@ -137,6 +146,20 @@ def generate_masonry_building(
             f"to {LOW_RISE} storeys); check the walls' axial strength and slenderness first.",
         )
     notes.append("PRELIMINARY sizes: the analysis and Design mode check every wall and slab.")
+    # B34: confine plain masonry where the pack's confined masonry allows the storeys here.
+    confined = False
+    rules = M.table().confined
+    if rules is not None and not reinforced and zone:
+        row = next((z for z in rules.zones if int(zone) in z.zones), None)
+        if row is not None and n <= row.storeys:
+            confined = True
+            notes.append(
+                f"Confined masonry ({M.clause('confined')}): RC tie columns {TIE_SIZE:g} mm deep "
+                f"at every grid intersection and a tie beam at every floor, {TIE_BARS[0]} bars of "
+                f"{TIE_BARS[1]:g} mm with {TIE_TIES[0]:g} mm ties at {TIE_TIES[1]:g} mm; Design "
+                f"mode checks the panels, the wall density (≥ {row.density:.0%} in Zone {zone}) "
+                f"and the storeys (≤ {row.storeys})."
+            )
 
     # ── grids and storeys ──
     xs = [0.0]
@@ -171,10 +194,25 @@ def generate_masonry_building(
         data = _template(
             "Wall",
             id=f"MW{t:g}",
-            name=f"{'Reinforced' if reinforced else 'Brick'} masonry wall {t:g}",
+            name=f"{'Reinforced' if reinforced else 'Confined' if confined else 'Brick'} "
+            f"masonry wall {t:g}",
             material=BRICK_ID,
             thickness=t,
         )
+        if confined:
+            element = {
+                "depth": TIE_SIZE,
+                "count": TIE_BARS[0],
+                "dia": TIE_BARS[1],
+                "tieDia": TIE_TIES[0],
+                "tieSpacing": TIE_TIES[1],
+            }
+            data["confinement"] = {
+                "concrete": s.concrete,
+                "rebar": s.rebar,
+                "tieColumn": {**element, "endTieSpacing": 100},
+                "tieBeam": element,
+            }
         if reinforced:
             data["reinforcement"] = {
                 "material": s.rebar,
@@ -375,6 +413,7 @@ def generate_masonry_building(
             "fm": round(masonry.fm, 2),
             "em": round(masonry.em, 0),
             "reinforced": reinforced,
+            "confined": confined,
         },
     }
     dump = {"mode": "json", "by_alias": True, "exclude_none": True}
