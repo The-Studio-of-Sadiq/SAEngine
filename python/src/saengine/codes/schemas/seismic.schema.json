@@ -611,6 +611,14 @@
       "title": "Driftlimits",
       "type": "array"
     },
+    "driftRedundancyCategories": {
+      "description": "Seismic Design Categories where the drift limit of systems of moment frames only is divided by the redundancy factor ρ.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Driftredundancycategories",
+      "type": "array"
+    },
     "siteSpecificStudy": {
       "$ref": "#/$defs/SiteSpecificStudy"
     },

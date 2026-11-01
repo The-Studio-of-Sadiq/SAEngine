@@ -90,7 +90,7 @@ OLD_TABLE_6_2_19 = {
     "rcSmf": ("C.4 (p. 623)", 8.0, 3.0, 5.5, (None, None, None), "special", False, True),
     "rcImf": ("C.5 (p. 623)", 5.0, 3.0, 4.5, (None, None, 0.0), "intermediate", False, True),
     "rcOmf": (
-        "C.5 (p. 623)",
+        "C.6 (p. 623)",  # B2: printed as a second row 5, the sixth row of group C
         3.0,
         3.0,
         2.5,
@@ -115,8 +115,41 @@ OLD_TABLE_6_2_19 = {
         False,
         False,
     ),
-    "masonryOrdinaryPlain": ("A.4 (p. 621)", 1.5, 2.5, 1.25, (None, 0.0, 0.0), None, False, False),
+    # B2: Table 6.2.19 A.4 (p. 621) limits plain masonry to 18 m in SDC B (was no limit).
+    "masonryOrdinaryPlain": ("A.4 (p. 621)", 1.5, 2.5, 1.25, (18.0, 0.0, 0.0), None, False, False),
 }
+#: B2: the other rows of Table 6.2.19 (pp. 621-624), in the pack's order.
+B2_TABLE_6_2_19 = {
+    "rcSpecialBearingWall": ("A.1 (p. 621)", 5.0, 2.5, 5.0, (None, None, 50.0), None, True, True),
+    "rcOrdinaryBearingWall": ("A.2 (p. 621)", 4.0, 2.5, 4.0, (None, None, 0.0), None, False, True),
+    "steelEbfMoment": ("B.1 (p. 622)", 8.0, 2.0, 4.0, (None, None, 50.0), None, False, False),
+    "steelEbf": ("B.2 (p. 622)", 7.0, 2.0, 4.0, (None, None, 50.0), None, False, False),
+    "steelOcbf": ("B.4 (p. 622)", 3.25, 2.0, 3.25, (None, None, 11.0), None, False, False),
+    "masonryOrdinaryReinforcedFrame": (
+        "B.7 (p. 622)", 2.0, 2.5, 2.0, (None, 50.0, 0.0), None, False, False,
+    ),
+    "masonryOrdinaryPlainFrame": (
+        "B.8 (p. 622)", 1.5, 2.5, 1.25, (18.0, 0.0, 0.0), None, False, False,
+    ),
+    "steelImf": ("C.2 (p. 622)", 4.5, 3.0, 4.0, (None, None, 35.0), None, False, False),
+    "steelDualSmfEbf": ("D.1 (p. 623)", 8.0, 2.5, 4.0, (None, None, None), None, False, False),
+    "steelDualSmfScbf": ("D.2 (p. 623)", 7.0, 2.5, 5.5, (None, None, None), None, False, False),
+    "rcDualSpecialOrdinaryWalls": (
+        "D.4 (p. 623)", 6.0, 2.5, 5.0, (None, None, 0.0), "special", False, True,
+    ),
+    "steelDualImfScbf": ("E.1 (p. 623)", 6.0, 2.5, 5.0, (None, None, 11.0), None, False, False),
+    "rcDualIntermediateSpecialWalls": (
+        "E.2 (p. 623)", 6.5, 2.5, 5.0, (None, None, 50.0), "intermediate", True, True,
+    ),
+    "masonryDualIntermediateFrame": (
+        "E.3 (p. 623)", 3.0, 3.0, 3.0, (None, 50.0, 0.0), "intermediate", False, True,
+    ),
+    "rcDualIntermediateOrdinaryWalls": (
+        "E.4 (p. 624)", 5.5, 2.5, 4.5, (None, None, 0.0), "intermediate", False, True,
+    ),
+    "rcDualOrdinary": ("F (p. 624)", 4.5, 2.5, 4.0, (None, 0.0, 0.0), "ordinary", False, True),
+    "steelNotDetailed": ("G (p. 624)", 3.0, 3.0, 3.0, (None, None, 0.0), None, False, False),
+}  # fmt: skip
 OLD_SITE_CLASSES = {
     "SA": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
     "SB": "Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)",
@@ -163,6 +196,7 @@ OLD_SITE_FACTORS = {
 OLD_PERIOD = {
     "concreteMomentFrame": (0.0466, 0.9),
     "steelMomentFrame": (0.0724, 0.8),
+    "eccentricallyBracedSteelFrame": (0.0731, 0.75),  # B2: Table 6.2.20 (p. 628)
     "other": (0.0488, 0.75),
 }
 OLD_PERIOD_FAMILY = {
@@ -171,6 +205,10 @@ OLD_PERIOD_FAMILY = {
     "rcOmf": "concreteMomentFrame",
     "steelSmf": "steelMomentFrame",
     "steelOmf": "steelMomentFrame",
+    # B2: the new rows of Table 6.2.19 with a Table 6.2.20 family of their own
+    "steelEbfMoment": "eccentricallyBracedSteelFrame",
+    "steelEbf": "eccentricallyBracedSteelFrame",
+    "steelImf": "steelMomentFrame",
 }
 OLD_EXPOSURE_PROFILES = {"A": (7.0, 365.76), "B": (9.5, 274.32), "C": (11.5, 213.36)}
 OLD_SCALARS = {
@@ -190,6 +228,15 @@ OLD_SCALARS = {
 #: Constants deleted from their modules, which read the pack instead: only the pack's value is
 #: checked against the frozen copy.
 PACK_ONLY = {
+    # B2: read from the pack in fem/seismic_design.py (no module constants left).
+    ("saengine.fem.seismic_design", "MINIMUM_FRACTION"),
+    ("saengine.fem.seismic_design", "ACCIDENTAL_ECCENTRICITY"),
+    ("saengine.fem.seismic_design", "ORTHOGONAL_SHARE"),
+    ("saengine.fem.seismic_design", "MASS_PARTICIPATION"),
+    ("saengine.fem.seismic_design", "TORSION_IRREGULAR"),
+    ("saengine.fem.seismic_design", "TORSION_EXTREME"),
+    ("saengine.fem.seismic_design", "AX_LIMIT"),
+    ("saengine.fem.seismic_design", "MOMENT_FRAMES"),
     ("saengine.fem.seismic_design", "_SDC"),
     ("saengine.fem.seismic_design", "ALLOWABLE_DRIFT"),
     ("saengine.design.seismic_rules", "REQUIRED_LEVEL"),
@@ -311,8 +358,9 @@ OLD_MODULE_CONSTANTS = {
         "III": 0.015,
         "IV": 0.010,
     },
+    # B2: the pack's momentFrame flag, with the intermediate steel moment frame (C.2) added.
     ("saengine.fem.seismic_design", "MOMENT_FRAMES"): frozenset(
-        {"rcSmf", "rcImf", "rcOmf", "steelSmf", "steelOmf"}
+        {"rcSmf", "rcImf", "rcOmf", "steelSmf", "steelOmf", "steelImf"}
     ),
     ("saengine.design.seismic_rules", "REQUIRED_LEVEL"): {
         "D": "special",
@@ -642,7 +690,8 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
     assert list(bnbc.OCCUPANCY_CATEGORIES) == list(OLD_OCCUPANCY)
     assert {k: tuple(v) for k, v in bnbc.AREA_USES.items()} == OLD_AREA_USES
     assert list(bnbc.AREA_USES) == list(OLD_AREA_USES)
-    systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS}
+    b2 = {k: (bnbc.STRUCTURAL_SYSTEMS[k].name, *v[1:4]) for k, v in B2_TABLE_6_2_19.items()}
+    systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS, **b2}
     assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == systems
     assert list(bnbc.STRUCTURAL_SYSTEMS) == list(systems)
     assert bnbc.STRUCTURAL_SYSTEMS["rcSmf"].omega == 3.0
@@ -676,8 +725,8 @@ def test_seismic_table_matches_the_old_system_rows_and_spectrum():
     from saengine.design.seismic_rules import system_row
 
     s = t("seismic")
-    assert set(s.systems) == set(OLD_TABLE_6_2_19)
-    for key, row in OLD_TABLE_6_2_19.items():
+    assert set(s.systems) == set(OLD_TABLE_6_2_19) | set(B2_TABLE_6_2_19)
+    for key, row in {**OLD_TABLE_6_2_19, **B2_TABLE_6_2_19}.items():
         current = system_row(key)
         assert current is not None
         assert tuple(current) == row

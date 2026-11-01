@@ -60,8 +60,21 @@ only their peak translations (combined and per mode), so the member forces are f
   unscaled, times Cd/I; each storey's drift is the modal combination of the modal drifts
   (not the difference of the combined peaks), at every plan position with a node at both
   levels (the largest, so the edges count: Sec 2.5.14.1, p. 647), plus the drift of the
-  accidental torsion case. The allowable storey drift is Table 6.2.21 (p. 648), "all other
-  structures", by occupancy category; Δa/ρ for moment frames in Category D (Sec 2.5.14.1).
+  accidental torsion case, each direction with the Cd of its own systems. The allowable
+  storey drift is the row of the pack's drift table (Table 6.2.21, p. 648: masonry
+  cantilever walls, other masonry walls, 4 storeys or less with drift-tolerant finishes, all
+  other structures) by occupancy category; Δa/ρ for moment frames in Category D (Sec
+  2.5.14.1).
+- **Diaphragm deflection** (Sec 2.5.14.2, p. 647): the floor's in-plane deflection relative to
+  the rigid motion of its vertical elements, against the permissible deflection of the attached
+  elements the engineer enters (the code gives no number).
+- **Separation** (Sec 2.5.14.3, pp. 648-649): the largest computed displacement δx = Cd·δxe/I
+  (Sec 2.5.7.7) against the gap to the property line and to the adjacent units (SRSS, × 0.7
+  for the same floor levels), by the pack's ``seismic.separation``.
+- **Site-specific study** (Sec 2.5.3.1, 2.5.4.3): S1 or S2 flagged by the soil report gives the
+  pack's warning in the notes and the category of its assumed class (SE).
+
+Every value and clause reference comes from the code pack in force (its ``seismic`` table).
 
 Units follow the model: m, N, N·m (the summary gives kN).
 """
@@ -129,6 +142,7 @@ def moment_frame_systems() -> frozenset[str]:
     """Systems "comprised solely of moment frames" (the pack's ``momentFrame`` flag): Δa/ρ in
     Category D."""
     return frozenset(k for k, v in _seismic().systems.items() if v.momentFrame)
+
 
 #: The envelope parts :class:`SeismicForces` gives: the scaled response spectrum in X and Y and
 #: the accidental torsion cases of the X and Y forces (all peaks, ≥ 0).
@@ -303,7 +317,9 @@ def allowable_drift_ratio(
 
 
 def settings_drift_limit(
-    settings: Any, category: str | None = None, storeys: int | None = None,
+    settings: Any,
+    category: str | None = None,
+    storeys: int | None = None,
     redundancy: float = 1.0,
 ) -> dict[str, Any]:
     """:func:`drift_limit` for the project: its occupancy, its systems in both directions
@@ -1095,10 +1111,7 @@ def _modal_values(data: dict[str, Any], nodes: list[int], a: int) -> tuple[np.nd
     used = [k for k, m in enumerate(data["modes"]) if m.get("angular_frequency", 0) > 0]
     omegas = [data["modes"][k]["angular_frequency"] for k in used]
     values = np.array(
-        [
-            [float(np.asarray(data["peaks"][k].get(n, np.zeros(3)))[a]) for n in nodes]
-            for k in used
-        ]
+        [[float(np.asarray(data["peaks"][k].get(n, np.zeros(3)))[a]) for n in nodes] for k in used]
     ).reshape(len(used), len(nodes))
     return values, omegas
 
@@ -1169,6 +1182,8 @@ def diaphragm_deflections(
             combined = np.abs(combine(own, omegas, data["damping"], data["rule"]))
             worst = int(np.argmax(combined))
             value = _amp(amplification, axis) * float(combined[worst])
+            if value < 1e-7:  # a rigid diaphragm: no in-plane deflection
+                continue
             rows.append(
                 {
                     "direction": axis,
@@ -1193,15 +1208,19 @@ def diaphragm_notes(rows: list[dict[str, Any]], limit_mm: float | None) -> list[
     if failing:
         bad = max(failing, key=lambda r: r["deflection"])
         return [
-            f"diaphragm in-plane deflection {1e3 * bad['deflection']:.1f} mm in "
-            f"{bad['direction']} at {bad['level']:g} m exceeds the permissible "
-            f"{1e3 * bad['limit']:.1f} mm of the attached elements ({clause})"
+            (
+                f"diaphragm in-plane deflection {1e3 * bad['deflection']:.1f} mm in "
+                f"{bad['direction']} at {bad['level']:g} m exceeds the permissible "
+                f"{1e3 * bad['limit']:.1f} mm of the attached elements ({clause})"
+            )
         ]
     if worst["limit"] is None and worst["deflection"] > 1e-4:
         return [
-            f"diaphragm in-plane deflection up to {1e3 * worst['deflection']:.1f} mm "
-            f"({worst['direction']} at {worst['level']:g} m): enter the permissible deflection "
-            f"of the attached elements (Project Settings, Seismic) to check it ({clause})"
+            (
+                f"diaphragm in-plane deflection up to {1e3 * worst['deflection']:.1f} mm "
+                f"({worst['direction']} at {worst['level']:g} m): enter the permissible deflection "
+                f"of the attached elements (Project Settings, Seismic) to check it ({clause})"
+            )
         ]
     return []
 
@@ -1279,12 +1298,8 @@ def separation_checks(
     for other in seismic.adjacent:
         theirs = other.displacement / 1e3
         if other.sameProperty:
-            required = (
-                math.hypot(delta, theirs) if rule.sameProperty == "srss" else delta + theirs
-            )
-            basis = (
-                "SRSS of the two δmax" if rule.sameProperty == "srss" else "sum of the two δmax"
-            )
+            required = math.hypot(delta, theirs) if rule.sameProperty == "srss" else delta + theirs
+            basis = "SRSS of the two δmax" if rule.sameProperty == "srss" else "sum of the two δmax"
         else:
             required = rule.propertyLineFactor * delta
             basis = "δmax of this building to the property line"
@@ -1424,7 +1439,11 @@ def torsional_irregularity(
                 u_max, u_avg = max(disp_ends), sum(disp_ends) / 2
                 ratio = d_max / d_avg if d_avg > 1e-12 else 1.0
                 if best is None or ratio > best["ratio"]:
-                    amp = (u_max / (_seismic().torsionIrregular * u_avg)) ** 2 if u_avg > 1e-12 else 1.0
+                    amp = (
+                        (u_max / (_seismic().torsionIrregular * u_avg)) ** 2
+                        if u_avg > 1e-12
+                        else 1.0
+                    )
                     best = {
                         "direction": axis,
                         "bottom": round(levels[k - 1], 3),
@@ -1436,7 +1455,9 @@ def torsional_irregularity(
                         "extreme": bool(ratio > _seismic().torsionExtreme + 1e-12),
                         "displacementMax": u_max,
                         "displacementAvg": u_avg,
-                        "amplification": float(min(_seismic().torsionAmplificationMax, max(1.0, amp))),
+                        "amplification": float(
+                            min(_seismic().torsionAmplificationMax, max(1.0, amp))
+                        ),
                     }
             if best is not None:
                 rows.append(best)
@@ -1766,9 +1787,13 @@ def seismic_design(
         for axis in ("X", "Y")
     }
     storeys = _levels(project, levels)
-    limit_row = settings_drift_limit(settings, category, max(len(storeys) - 1, 0), options.redundancy)
+    limit_row = settings_drift_limit(
+        settings, category, max(len(storeys) - 1, 0), options.redundancy
+    )
     allowable = limit_row["ratio"]
-    height_note = height_limit_note(settings, category, storeys[-1] - storeys[0] if storeys else 0.0)
+    height_note = height_limit_note(
+        settings, category, storeys[-1] - storeys[0] if storeys else 0.0
+    )
     if height_note:
         notes.append(height_note)
     # ── torsional irregularity and Ax (Sec 2.5.5.3.1(i), 2.5.7.6.2) ──

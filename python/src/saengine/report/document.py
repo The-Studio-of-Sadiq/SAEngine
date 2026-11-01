@@ -796,6 +796,37 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                     bad=rsd["driftFails"],
                 ),
             )
+            if rsd.get("driftRow"):
+                out.append(p(f"Allowable storey drift: {rsd['driftRow']}."))
+        if rsd.get("diaphragm"):
+            out += full(
+                p(
+                    "Diaphragm in-plane deflection: the largest floor displacement relative to "
+                    "the rigid motion of the floor's vertical elements, times Cd/I, against the "
+                    f"permissible deflection of the attached elements ({rsd['diaphragmClause']})."
+                ),
+                table(
+                    ["Dir.", "Level [m]", "Deflection [mm]", "Permissible [mm]", "Result"],
+                    rsd["diaphragm"],
+                    align="lrrrc",
+                    bad=rsd["diaphragmFails"],
+                ),
+            )
+        if rsd.get("separation"):
+            out += full(
+                p(
+                    "Separation from adjacent structures against pounding, with the largest "
+                    f"computed displacement δmax = {rsd['maxDisplacement']} mm "
+                    f"({rsd['separationClause']})."
+                ),
+                table(
+                    ["To", "Gap [mm]", "Required [mm]", "Basis", "Result"],
+                    rsd["separation"],
+                    ["1fr", "auto", "auto", "1fr", "auto"],
+                    "lrrlc",
+                    bad=rsd["separationFails"],
+                ),
+            )
         if rsd["notes"]:
             out.append(bullets(rsd["notes"], 8.5))
     so = results["secondOrder"]

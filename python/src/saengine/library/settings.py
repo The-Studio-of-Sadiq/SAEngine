@@ -1612,9 +1612,7 @@ def soil_flags(settings: ProjectSettings, soil_text: str | None = None) -> list[
         return []
 
 
-def category_site_class(
-    settings: ProjectSettings, site_class: str, flags: list[str] | None
-) -> str:
+def category_site_class(settings: ProjectSettings, site_class: str, flags: list[str] | None) -> str:
     """The site class the Seismic Design Category is read with: the pack's assumed class
     (``siteSpecificStudy.assumedClass``) when the soil report flags a class that needs a
     site-specific study, else ``site_class``."""

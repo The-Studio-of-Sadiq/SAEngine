@@ -305,7 +305,9 @@ class SeismicTable(TableModel):
     designCategories: DesignCategories
     requiredDetailing: dict[str, Literal["special", "intermediate", "ordinary"]]
     allowableDrift: dict[str, float] = Field(description="Δa/hsx by occupancy category.")
-    allowableDriftLabel: str = Field(default="", description="The structures allowableDrift is for.")
+    allowableDriftLabel: str = Field(
+        default="", description="The structures allowableDrift is for."
+    )
     driftLimits: list[DriftLimit] = Field(
         default_factory=list, description="Rows of the drift table before allowableDrift."
     )
