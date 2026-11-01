@@ -52,23 +52,26 @@ def method_text() -> list[str]:
     share = float(_t().quality.reducedShare)
     increase = float(_t().lateralIncrease.factor)
     return [
-        f"Masonry walls ({M.clause('chapter')}, allowable stress design): structural walls of "
-        "a masonry material, from the pier forces of the shell model (section cuts at the "
-        "bottom, middle and top of each storey band) under the code pack's allowable stress "
-        f"combinations. Allowable masonry stresses: Fa = {float(a.axial.fmShare):g} f'm [1 - "
-        f"(h'/{float(a.axial.slenderness):g}t)^{float(a.axial.exponent):g}] "
-        f"({M.clause('axial')}), Fb = {float(a.flexuralCompression.fmShare):g} f'm ≤ "
-        f"{float(a.flexuralCompression.cap):g} MPa ({M.clause('flexuralCompression')}), Ft "
-        f"({M.clause('flexuralTension')}), Fv ({M.clause('wallShearPlain')}; "
-        f"{M.clause('wallShearReinforced')}); {share:.0%} of them without special inspection "
-        f"and prism tests ({M.clause('quality')}); × {increase:.3g} with wind or earthquake "
-        f"({M.clause('lateralIncrease')}). Combined fa/Fa + fb/Fb ≤ 1 "
-        f"({M.clause('interaction')}). Plain masonry on the gross section; reinforced masonry "
-        "on the cracked transformed section (n = Es/Em, no masonry tension, bars in "
-        "compression not counted), steel Fs = 0.5 fy ≤ 165 MPa "
-        f"({M.clause('steel')}), shear fv = V/(t j d) ({M.clause('reinforcedShear')}). "
-        f"Slenderness h'/t ≤ {D.slenderness_limit('wall'):g} ({M.clause('slenderness')}), "
-        f"least bearing wall thickness ({M.clause('minimumThickness')})."
+        (
+            f"Masonry walls ({M.clause('chapter')}, allowable stress design): structural walls of "
+            "a masonry material, from the pier forces of the shell model (section cuts at the "
+            "bottom, middle and top of each storey band) under the code pack's allowable stress "
+            f"combinations. Allowable masonry stresses: Fa = {float(a.axial.fmShare):g} f'm [1 - "
+            f"(h'/{float(a.axial.slenderness):g}t)^{float(a.axial.exponent):g}] "
+            f"({M.clause('axial')}), Fb = {float(a.flexuralCompression.fmShare):g} f'm ≤ "
+            f"{float(a.flexuralCompression.cap):g} MPa ({M.clause('flexuralCompression')}), Ft "
+            f"({M.clause('flexuralTension')}), Fv ({M.clause('wallShearPlain')}; "
+            f"{M.clause('wallShearReinforced')}); {share:.0%} of them without special inspection "
+            f"and prism tests ({M.clause('quality')}); × {increase:.3g} with wind or earthquake "
+            f"({M.clause('lateralIncrease')}). Combined fa/Fa + fb/Fb ≤ 1 "
+            f"({M.clause('interaction')}). Plain masonry on the gross section; reinforced masonry "
+            "on the cracked transformed section (n = Es/Em, no masonry tension, bars in "
+            f"compression not counted), steel Fs = {float(a.steel.tensionDeformed.fyShare):g} fy ≤ "
+            f"{float(a.steel.tensionDeformed.cap):g} MPa "
+            f"({M.clause('steel')}), shear fv = V/(t j d) ({M.clause('reinforcedShear')}). "
+            f"Slenderness h'/t ≤ {D.slenderness_limit('wall'):g} ({M.clause('slenderness')}), "
+            f"least bearing wall thickness ({M.clause('minimumThickness')})."
+        )
     ]
 
 
@@ -81,7 +84,9 @@ def allowable_axial(fm: float, h_eff: float, t: float) -> float:
     return float(a.fmShare) * fm * (1.0 - (h_eff / (float(a.slenderness) * t)) ** float(a.exponent))
 
 
-def allowable_axial_column(fm: float, h_eff: float, t: float, steel: float, gross: float, fsc: float) -> float:
+def allowable_axial_column(
+    fm: float, h_eff: float, t: float, steel: float, gross: float, fsc: float
+) -> float:
     """Fa [MPa] of a reinforced masonry column (full value): (f'm/5 + As Fsc/(1.5 Ag)) [1 -
     (h'/42t)³]."""
     a = _t().allowable.axial
@@ -117,7 +122,9 @@ def allowable_flexural_tension(m: M.Masonry, normal_to: str = "bed") -> float:
 def allowable_beam_shear(fm: float, reinforced: bool = False) -> float:
     """Fv [MPa] of flexural members (full value): without shear reinforcement, or with it
     taking all the shear."""
-    row = _t().allowable.beamShear.reinforced if reinforced else _t().allowable.beamShear.unreinforced
+    row = (
+        _t().allowable.beamShear.reinforced if reinforced else _t().allowable.beamShear.unreinforced
+    )
     return min(float(row.factor) * math.sqrt(fm), float(row.cap))
 
 
@@ -225,7 +232,7 @@ def cracked_section(
         force, lever = resultants(c)
         return force * moment - lever * n_force
 
-    grid = [depth * 10 ** (k / 40.0 - 3.0) for k in range(0, 121)]  # 0.001 depth to 1 depth
+    grid = [depth * 10 ** (k / 40.0 - 3.0) for k in range(121)]  # 0.001 depth to 1 depth
     previous = None
     root = None
     for c in grid:

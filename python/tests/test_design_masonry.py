@@ -315,7 +315,9 @@ def test_plain_wall_checks():
     tension = next(c for c in d.checks if c["name"].startswith("Flexural tension"))
     assert not tension["ok"]
     # A thin wall fails the slenderness and the bearing thickness.
-    d = M.masonry_wall_checks(W.WallGeometry(4000, 125, 3000, 3000), None, _forces(50e3, 0, 0), inspected)
+    d = M.masonry_wall_checks(
+        W.WallGeometry(4000, 125, 3000, 3000), None, _forces(50e3, 0, 0), inspected
+    )
     assert not next(c for c in d.checks if c["name"].startswith("Slenderness"))["ok"]
     assert not next(c for c in d.checks if c["name"].startswith("Bearing wall"))["ok"]
 
@@ -384,3 +386,28 @@ def test_a_pack_without_masonry_method_is_refused():
     data["method"] = "strengthDesign"
     with pytest.raises(ValueError):
         MasonryTable.model_validate(data)
+
+
+def test_masonry_walls_take_the_allowable_stress_combinations(monkeypatch):
+    # Sec 7.4.8.5 (p. 1021): the combinations of Sec 2.7; the ASD set of Sec 2.7.2.1.
+    from saengine.design import wall_design, wall_forces
+
+    seen: dict[str, list] = {}
+
+    def forces(project, building, results, combinations, *args, **kwargs):
+        seen["combos"] = combinations
+        return {"piers": [{"wall": "W1", "pier": "W1/P1", "cuts": {}}]}
+
+    cases = {"D": {}, "L": {}, "EX": {}, "EY": {}}
+    monkeypatch.setattr(wall_forces, "case_shell_forces", lambda p, o: cases)
+    monkeypatch.setattr(wall_forces, "wall_forces", forces)
+    piers, lateral, notes = wall_design._masonry_forces({}, None, "out", {}, set())
+    combos = seen["combos"]
+    names = [c.name for c in combos]
+    assert "D" in names and "D + L" in names
+    assert all(not k.startswith("W") for c in combos for k in c.factors)  # no wind results
+    assert any(n.startswith("masonry walls:") for n in notes)  # the wind rows left out
+    assert lateral
+    assert all(any(k.startswith("E") for k in c.factors) for c in combos if c.name in lateral)
+    assert all("SD" not in c.factors for c in combos)  # SD has no results: zero
+    assert piers == {"W1": [{"wall": "W1", "pier": "W1/P1", "cuts": {}}]}

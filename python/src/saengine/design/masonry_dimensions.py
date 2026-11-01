@@ -106,7 +106,9 @@ def stiffening_coefficient(spacing_ratio: float, thickness_ratio: float) -> floa
     return _interp(s.spacingRatios, by_thickness, spacing_ratio)
 
 
-def effective_thickness_cavity(t1: float, t2: float, both_loaded: bool) -> float | tuple[float, float]:
+def effective_thickness_cavity(
+    t1: float, t2: float, both_loaded: bool
+) -> float | tuple[float, float]:
     """The effective thickness of a cavity wall: each limb's own when both are loaded (the
     pair returned), else √(t1² + t2²)."""
     if both_loaded:
@@ -130,7 +132,9 @@ def flange_width(intersected_thickness: float) -> float:
     return float(_dims().flangeWidth) * intersected_thickness
 
 
-def reinforced_effective_width(thickness: float, bar_spacing: float, bond: str = "running") -> float:
+def reinforced_effective_width(
+    thickness: float, bar_spacing: float, bond: str = "running"
+) -> float:
     """Effective width per bar in flexure of a reinforced wall: the bar spacing, at most the
     pack's multiple of the nominal thickness (running or stack bond)."""
     return min(bar_spacing, float(_dims().reinforcedWidth[bond]) * thickness)
@@ -214,7 +218,9 @@ def parapet_ok(thickness: float, height: float, wall_below: float | None = None)
     )
 
 
-def concentrated_load_length(bearing: float, thickness: float, spacing: float | None = None) -> float:
+def concentrated_load_length(
+    bearing: float, thickness: float, spacing: float | None = None
+) -> float:
     """The wall length that may carry a concentrated load at the allowable stress: the bearing
     width plus the pack's multiple of the wall thickness, at most the loads' spacing."""
     length = bearing + float(_dims().concentratedLoadThickness) * thickness
@@ -239,7 +245,9 @@ def corbel_slope_ok(angle: float) -> bool:
 # ─────────────────────────────────── bar details ───────────────────────────────────
 
 
-def development_length(db: float, fs: float, compression: bool = False, plain: bool = False) -> float:
+def development_length(
+    db: float, fs: float, compression: bool = False, plain: bool = False
+) -> float:
     """ld [mm] of a bar of diameter ``db`` at the stress ``fs`` [MPa]: tension or compression
     factor × db × fs; plain bars the pack's multiple of the tension length."""
     d = _bars().development

@@ -106,7 +106,9 @@ def mortar_rank(grade: str | None) -> int:
     return grades.index(grade) if grade in grades else len(grades) + 1
 
 
-def prism_estimate(unit_strength: float, kind: str = "clay", grade: str | None = None) -> float | None:
+def prism_estimate(
+    unit_strength: float, kind: str = "clay", grade: str | None = None
+) -> float | None:
     """f'm [MPa] estimated from the units' strength [MPa] by the code pack's ``prismEstimate``
     (linear between its rows, its top f'm above them); None where the pack has no estimate, the
     mortar grade is not one it may be used with, or the units are below its first row."""

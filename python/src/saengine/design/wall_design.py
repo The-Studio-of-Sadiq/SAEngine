@@ -573,7 +573,9 @@ def _masonry_forces(
     combos: list[Any] = []
     left_out = 0
     for name, factors in formed:
-        own = {c: v for c, v in factors.items() if v and (c in present or c not in ("SD", "L", "Lr"))}
+        own = {
+            c: v for c, v in factors.items() if v and (c in present or c not in ("SD", "L", "Lr"))
+        }
         if any(c not in present for c in own):
             left_out += 1
             continue
