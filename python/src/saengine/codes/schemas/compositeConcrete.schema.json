@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "RoughenedTiedLimit": {
+      "additionalProperties": false,
+      "description": "Vnh = (base + steelShare ρv fy) λ bv d, at most cap bv d [MPa terms].",
+      "properties": {
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "steelShare": {
+          "exclusiveMinimum": 0,
+          "title": "Steelshare",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base",
+        "steelShare",
+        "cap"
+      ],
+      "title": "RoughenedTiedLimit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Composite concrete flexural members (precast and cast-in-place concrete placed\nseparately): horizontal shear at the contact surface and its ties.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "roughenedLimit": {
+      "description": "Vnh <= this bv d [MPa], roughened, no ties.",
+      "exclusiveMinimum": 0,
+      "title": "Roughenedlimit",
+      "type": "number"
+    },
+    "tiedSmoothLimit": {
+      "description": "Vnh <= this bv d, minimum ties, not roughened.",
+      "exclusiveMinimum": 0,
+      "title": "Tiedsmoothlimit",
+      "type": "number"
+    },
+    "roughenedTied": {
+      "$ref": "#/$defs/RoughenedTiedLimit"
+    },
+    "minTies": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Av,min = max(sqrtShare √f'c, floor) bw s / fyt.",
+      "propertyNames": {
+        "enum": [
+          "sqrtShare",
+          "floor"
+        ]
+      },
+      "title": "Minties",
+      "type": "object"
+    },
+    "roughness": {
+      "description": "Full amplitude of the roughening [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Roughness",
+      "type": "number"
+    },
+    "tieSpacingFactor": {
+      "description": "Ties at most this × the least dimension.",
+      "exclusiveMinimum": 0,
+      "title": "Tiespacingfactor",
+      "type": "number"
+    },
+    "tieSpacingMax": {
+      "description": "Ties at most this far apart [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Tiespacingmax",
+      "type": "number"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "required": [
+    "roughenedLimit",
+    "tiedSmoothLimit",
+    "roughenedTied",
+    "minTies",
+    "roughness",
+    "tieSpacingFactor",
+    "tieSpacingMax"
+  ],
+  "title": "CompositeConcreteTable",
+  "type": "object",
+  "$id": "saengine.codePack.compositeConcrete/1"
+}

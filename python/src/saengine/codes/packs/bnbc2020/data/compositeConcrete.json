@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/compositeConcrete.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.12, Eq 6.6.104 (part 1 pp. 993-995, gazette pp. 3574-3576): composite concrete flexural members",
+    "BNBC 2020 Part 6 Sec 6.4.3.5.3, Eq 6.6.55 (part 1 p. 925, gazette p. 3506): least tie area"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 6.12 (pp. 993-995)",
+  "sources": {
+    "roughenedLimit": "BNBC 2020 Part 6 Sec 6.12.5.3.1 (p. 994): clean, free of laitance, intentionally roughened: Vnh <= 0.55 bv d",
+    "tiedSmoothLimit": "BNBC 2020 Part 6 Sec 6.12.5.3.2 (p. 994): minimum ties, clean, not intentionally roughened: Vnh <= 0.55 bv d",
+    "roughenedTied": "BNBC 2020 Part 6 Sec 6.12.5.3.3 (p. 995): ties and a surface roughened to about 6 mm: Vnh = (1.8 + 0.6 ρv fy) λ bv d <= 3.5 bv d; above φ 3.5 bv d shear friction by Sec 6.4.5.4 (6.12.5.3.4)",
+    "minTies": "BNBC 2020 Part 6 Sec 6.12.6.1 (p. 995) and Sec 6.4.3.5.3, Eq 6.6.55 (p. 925): Av,min = 0.062 √f'c bw s / fyt, not less than 0.35 bw s / fyt",
+    "tieSpacing": "BNBC 2020 Part 6 Sec 6.12.6.1 (p. 995): ties at most four times the least dimension of the supported element and 600 mm apart",
+    "tension": "BNBC 2020 Part 6 Sec 6.12.5.5 (p. 995): with tension across the contact surface, shear by contact only with the minimum ties"
+  },
+  "roughenedLimit": 0.55,
+  "tiedSmoothLimit": 0.55,
+  "roughenedTied": {
+    "base": 1.8,
+    "steelShare": 0.6,
+    "cap": 3.5
+  },
+  "minTies": {
+    "sqrtShare": 0.062,
+    "floor": 0.35
+  },
+  "roughness": 6,
+  "tieSpacingFactor": 4,
+  "tieSpacingMax": 600,
+  "clauses": {
+    "scope": "Part 6 Sec 6.12.1",
+    "vertical": "Part 6 Sec 6.12.4",
+    "horizontal": "Part 6 Sec 6.12.5.3, Eq 6.6.104",
+    "roughened": "Part 6 Sec 6.12.5.3.1",
+    "tiedSmooth": "Part 6 Sec 6.12.5.3.2",
+    "roughenedTied": "Part 6 Sec 6.12.5.3.3",
+    "shearFriction": "Part 6 Sec 6.12.5.3.4",
+    "forceChange": "Part 6 Sec 6.12.5.4",
+    "tension": "Part 6 Sec 6.12.5.5",
+    "ties": "Part 6 Sec 6.12.6.1",
+    "anchorage": "Part 6 Sec 6.12.6.3"
+  }
+}

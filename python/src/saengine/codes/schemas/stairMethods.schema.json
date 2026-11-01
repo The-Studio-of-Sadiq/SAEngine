@@ -1,0 +1,584 @@
+{
+  "$defs": {
+    "BuiltInStairRules": {
+      "additionalProperties": false,
+      "description": "Flights and landings built into walls and spanning along the flight.",
+      "properties": {
+        "embedmentMin": {
+          "description": "Built in at least this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Embedmentmin",
+          "type": "number"
+        },
+        "deductedStrip": {
+          "description": "Strip [mm] taken off the loaded width.",
+          "exclusiveMinimum": 0,
+          "title": "Deductedstrip",
+          "type": "number"
+        },
+        "addedBreadth": {
+          "description": "Effective breadth increased by this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Addedbreadth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "embedmentMin",
+        "deductedStrip",
+        "addedBreadth"
+      ],
+      "title": "BuiltInStairRules",
+      "type": "object"
+    },
+    "EmpiricalExpression": {
+      "additionalProperties": false,
+      "description": "value = factor × Π terms (service value of a free-standing stair).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "enum": [
+            "deflection",
+            "MS",
+            "MF",
+            "MK",
+            "Mo",
+            "AF",
+            "TF",
+            "MI",
+            "Vo"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "m",
+            "kN",
+            "kN·m"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "factor": {
+          "title": "Factor",
+          "type": "number"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/PowerTerm"
+          },
+          "title": "Terms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "unit",
+        "factor",
+        "terms"
+      ],
+      "title": "EmpiricalExpression",
+      "type": "object"
+    },
+    "FreeStandingRules": {
+      "additionalProperties": false,
+      "description": "Free-standing (landing unsupported) stairs by service-load expressions (method id\n``empiricalTable``), scaled to the live load and factored.",
+      "properties": {
+        "method": {
+          "const": "empiricalTable",
+          "default": "empiricalTable",
+          "title": "Method",
+          "type": "string"
+        },
+        "expressions": {
+          "items": {
+            "$ref": "#/$defs/EmpiricalExpression"
+          },
+          "minItems": 1,
+          "title": "Expressions",
+          "type": "array"
+        },
+        "ranges": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "propertyNames": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "L",
+              "H",
+              "T",
+              "fc"
+            ]
+          },
+          "title": "Ranges",
+          "type": "object"
+        },
+        "referenceLive": {
+          "description": "Live load [kN/m²] of the expressions.",
+          "exclusiveMinimum": 0,
+          "title": "Referencelive",
+          "type": "number"
+        },
+        "unitWeight": {
+          "description": "Concrete unit weight [kN/m³] of the expressions.",
+          "exclusiveMinimum": 0,
+          "title": "Unitweight",
+          "type": "number"
+        },
+        "liveScale": {
+          "description": "(a, b, c): values × (a T + LL + b) / (a T + c).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Livescale",
+          "type": "array"
+        },
+        "outerShareSupport": {
+          "description": "Share of the MS steel in the outer half.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Outersharesupport",
+          "type": "number"
+        },
+        "innerShareJunction": {
+          "description": "Share of the MK steel in the inner half.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Innersharejunction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "expressions",
+        "ranges",
+        "referenceLive",
+        "unitWeight",
+        "liveScale",
+        "outerShareSupport",
+        "innerShareJunction"
+      ],
+      "title": "FreeStandingRules",
+      "type": "object"
+    },
+    "HelicoidalChart": {
+      "additionalProperties": false,
+      "description": "One chart: the coefficients for one R1/R2 and b/h.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "radiusRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Radiusratio",
+          "type": "number"
+        },
+        "widthRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Widthratio",
+          "type": "number"
+        },
+        "betas": {
+          "description": "Total angle subtended in plan [°].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Betas",
+          "type": "array"
+        },
+        "curves": {
+          "items": {
+            "$ref": "#/$defs/HelicoidalCurve"
+          },
+          "minItems": 3,
+          "title": "Curves",
+          "type": "array"
+        }
+      },
+      "required": [
+        "radiusRatio",
+        "widthRatio",
+        "betas",
+        "curves"
+      ],
+      "title": "HelicoidalChart",
+      "type": "object"
+    },
+    "HelicoidalCurve": {
+      "additionalProperties": false,
+      "description": "Values of one redundant coefficient (k1, k2 or k3) by β for one helix slope φ.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "k": {
+          "enum": [
+            "k1",
+            "k2",
+            "k3"
+          ],
+          "title": "K",
+          "type": "string"
+        },
+        "phi": {
+          "description": "Slope of the helix [°].",
+          "exclusiveMinimum": 0,
+          "title": "Phi",
+          "type": "number"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "k",
+        "phi",
+        "values"
+      ],
+      "title": "HelicoidalCurve",
+      "type": "object"
+    },
+    "HelicoidalRules": {
+      "additionalProperties": false,
+      "description": "Helicoidal stairs: midspan redundants Mo = k1 n R2², H = k2 n R2 and the support moment\nMvs = k3 n R2² from charts (method id ``redundantCharts``), the forces along the helix by\nthe closed-form equations.",
+      "properties": {
+        "method": {
+          "const": "redundantCharts",
+          "default": "redundantCharts",
+          "title": "Method",
+          "type": "string"
+        },
+        "charts": {
+          "items": {
+            "$ref": "#/$defs/HelicoidalChart"
+          },
+          "minItems": 1,
+          "title": "Charts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "charts"
+      ],
+      "title": "HelicoidalRules",
+      "type": "object"
+    },
+    "PowerTerm": {
+      "additionalProperties": false,
+      "description": "One factor [base + coefficient (variable - offset)^exponent] of an empirical product\n(the sign of (variable - offset) is kept through the power).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "variable": {
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "L",
+            "H",
+            "T",
+            "fc"
+          ],
+          "title": "Variable",
+          "type": "string"
+        },
+        "base": {
+          "title": "Base",
+          "type": "number"
+        },
+        "coefficient": {
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "offset": {
+          "default": 0.0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "exponent": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "variable",
+        "base",
+        "coefficient"
+      ],
+      "title": "PowerTerm",
+      "type": "object"
+    },
+    "SawtoothCurve": {
+      "additionalProperties": false,
+      "description": "Support moment coefficients (magnitudes) by number of treads for one tread/riser\nstiffness ratio k (None: k infinite); None where the figure gives no value.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "k": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "K"
+        },
+        "coefficients": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Coefficients",
+          "type": "array"
+        }
+      },
+      "required": [
+        "k",
+        "coefficients"
+      ],
+      "title": "SawtoothCurve",
+      "type": "object"
+    },
+    "SawtoothRules": {
+      "additionalProperties": false,
+      "description": "Sawtooth (slabless) stairs: support moment Ms = coefficient n l² from a chart by the\nnumber of treads and the stiffness ratio (method id ``supportChart``).",
+      "properties": {
+        "method": {
+          "const": "supportChart",
+          "default": "supportChart",
+          "title": "Method",
+          "type": "string"
+        },
+        "treads": {
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "title": "Treads",
+          "type": "array"
+        },
+        "curves": {
+          "items": {
+            "$ref": "#/$defs/SawtoothCurve"
+          },
+          "minItems": 2,
+          "title": "Curves",
+          "type": "array"
+        },
+        "freeDivisor": {
+          "description": "Free moment n l² / divisor (× (j² + 1)/j² for odd j).",
+          "exclusiveMinimum": 0,
+          "title": "Freedivisor",
+          "type": "number"
+        },
+        "reentrantFactor": {
+          "description": "Re-entrant corners take this × the steel.",
+          "exclusiveMinimum": 0,
+          "title": "Reentrantfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "treads",
+        "curves",
+        "freeDivisor",
+        "reentrantFactor"
+      ],
+      "title": "SawtoothRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Load distribution rules and the methods of special stairs.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "builtIn": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BuiltInStairRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "openWellShare": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Load on areas common to two crossing spans, each way.",
+      "title": "Openwellshare"
+    },
+    "stringers": {
+      "default": false,
+      "description": "Stairs on stringer beams are covered.",
+      "title": "Stringers",
+      "type": "boolean"
+    },
+    "freeStanding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreeStandingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sawtooth": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SawtoothRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "helicoidal": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HelicoidalRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "title": "StairMethodsTable",
+  "type": "object",
+  "$id": "saengine.codePack.stairMethods/1"
+}

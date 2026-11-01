@@ -128,6 +128,17 @@ TABLE_HELP: dict[str, str] = {
     "guard rail, surcharge zone, machinery setback, adjoining structures, notices), the seepage "
     "method at the base, fills, waterproofing and formwork (loads, timber stress, camber, posts, "
     "standard sizes). A group left out is not covered.",
+    "slabMethods": "Two-way slab systems on columns, walls or flexible beams: the methods tried "
+    "in order (twoWayMethods: directDesign, equivalentFrame) with their limits and moment "
+    "shares, and the corner reinforcement and slab opening rules. A method or group left out is "
+    "not covered.",
+    "wallMethods": "Walls: the out-of-plane design of slender walls (slender: midheightMoment) "
+    "and walls designed as grade beams (gradeBeam: beam). A group left out is not covered.",
+    "stairMethods": "Stairs: flights built into walls, open wells, stringer beams and the "
+    "special stairs (freeStanding: empiricalTable, sawtooth: supportChart, helicoidal: "
+    "redundantCharts). A group left out is not covered.",
+    "compositeConcrete": "Composite concrete flexural members (precast and cast-in-place parts "
+    "placed separately): the horizontal shear limits at the contact surface and the ties.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

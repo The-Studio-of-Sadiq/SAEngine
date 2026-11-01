@@ -1,0 +1,537 @@
+{
+  "$defs": {
+    "CornerRules": {
+      "additionalProperties": false,
+      "description": "Corner reinforcement of two-way slabs at exterior corners.",
+      "properties": {
+        "alphaMin": {
+          "description": "Edge beams stiffer than this αf need corner steel.",
+          "exclusiveMinimum": 0,
+          "title": "Alphamin",
+          "type": "number"
+        },
+        "extentShare": {
+          "description": "Over this share of the longer span from the corner.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Extentshare",
+          "type": "number"
+        },
+        "spacingFactor": {
+          "description": "Bars at most this x h apart.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "alphaMin",
+        "extentShare",
+        "spacingFactor"
+      ],
+      "title": "CornerRules",
+      "type": "object"
+    },
+    "DirectDesignRules": {
+      "additionalProperties": false,
+      "description": "The direct design method of two-way slab systems on columns or walls (method id\n``directDesign``): its limits, the static moment and its distribution to the strips.",
+      "properties": {
+        "minSpans": {
+          "description": "Least continuous spans each way.",
+          "minimum": 1,
+          "title": "Minspans",
+          "type": "integer"
+        },
+        "maxPanelRatio": {
+          "description": "Longer over shorter span of a panel at most.",
+          "exclusiveMinimum": 0,
+          "title": "Maxpanelratio",
+          "type": "number"
+        },
+        "maxSpanDifference": {
+          "description": "Successive spans differ by at most this share of the longer.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maxspandifference",
+          "type": "number"
+        },
+        "maxColumnOffset": {
+          "description": "Columns off the line by at most this share of the span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maxcolumnoffset",
+          "type": "number"
+        },
+        "maxLiveToDead": {
+          "description": "Unfactored live load over dead load at most.",
+          "exclusiveMinimum": 0,
+          "title": "Maxlivetodead",
+          "type": "number"
+        },
+        "stiffnessRatioRange": {
+          "description": "αf1 l2² / (αf2 l1²) within these for panels with beams on all sides.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Stiffnessratiorange",
+          "type": "array"
+        },
+        "staticDivisor": {
+          "description": "Mo = wu l2 ln² / staticDivisor.",
+          "exclusiveMinimum": 0,
+          "title": "Staticdivisor",
+          "type": "number"
+        },
+        "minClearSpanShare": {
+          "description": "ln at least this share of l1.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minclearspanshare",
+          "type": "number"
+        },
+        "interiorNegative": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Interiornegative",
+          "type": "number"
+        },
+        "interiorPositive": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Interiorpositive",
+          "type": "number"
+        },
+        "endSpan": {
+          "$ref": "#/$defs/EndSpanShares"
+        },
+        "interiorStrip": {
+          "$ref": "#/$defs/StripShareTable"
+        },
+        "exteriorStrip": {
+          "$ref": "#/$defs/ExteriorStripShareTable"
+        },
+        "positiveStrip": {
+          "$ref": "#/$defs/StripShareTable"
+        },
+        "alphaLimit": {
+          "description": "αf1 l2/l1 from which the 'full' columns apply.",
+          "exclusiveMinimum": 0,
+          "title": "Alphalimit",
+          "type": "number"
+        },
+        "beamShare": {
+          "description": "Share of the column strip moment beams take at αf1 l2/l1 >= alphaLimit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beamshare",
+          "type": "number"
+        },
+        "uniformSupportShare": {
+          "description": "Supports at least this share of l2 wide spread the negative moment over l2.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Uniformsupportshare",
+          "type": "number"
+        },
+        "edgeTransferShare": {
+          "description": "Gravity moment to an edge column: this x Mo.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Edgetransfershare",
+          "type": "number"
+        },
+        "modification": {
+          "description": "Moments may be changed by this share if Mo is kept.",
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Modification",
+          "type": "number"
+        },
+        "columnMomentFactor": {
+          "description": "Msc = factor [(qDu + share qLu) l2 ln² - ...].",
+          "exclusiveMinimum": 0,
+          "title": "Columnmomentfactor",
+          "type": "number"
+        },
+        "columnMomentLiveShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnmomentliveshare",
+          "type": "number"
+        },
+        "torsionShape": {
+          "description": "C = Σ (1 - shape x/y) x³ y / 3.",
+          "exclusiveMinimum": 0,
+          "title": "Torsionshape",
+          "type": "number"
+        },
+        "wallEdgeMiddleFactor": {
+          "description": "A middle strip beside a wall-supported edge takes this times its half.",
+          "exclusiveMinimum": 0,
+          "title": "Walledgemiddlefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minSpans",
+        "maxPanelRatio",
+        "maxSpanDifference",
+        "maxColumnOffset",
+        "maxLiveToDead",
+        "stiffnessRatioRange",
+        "staticDivisor",
+        "minClearSpanShare",
+        "interiorNegative",
+        "interiorPositive",
+        "endSpan",
+        "interiorStrip",
+        "exteriorStrip",
+        "positiveStrip",
+        "alphaLimit",
+        "beamShare",
+        "uniformSupportShare",
+        "edgeTransferShare",
+        "modification",
+        "columnMomentFactor",
+        "columnMomentLiveShare",
+        "torsionShape",
+        "wallEdgeMiddleFactor"
+      ],
+      "title": "DirectDesignRules",
+      "type": "object"
+    },
+    "EndSpanShares": {
+      "additionalProperties": false,
+      "description": "Shares of Mo in an end span by the edge condition (Table 6.6.4 of BNBC 2020):\n``interiorNegative``, ``positive``, ``exteriorNegative``, each by the conditions of\n``conditions`` in that order.",
+      "properties": {
+        "conditions": {
+          "items": {
+            "enum": [
+              "unrestrained",
+              "beamsAll",
+              "noBeams",
+              "noBeamsEdgeBeam",
+              "restrained"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "interiorNegative": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "title": "Interiornegative",
+          "type": "array"
+        },
+        "positive": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "title": "Positive",
+          "type": "array"
+        },
+        "exteriorNegative": {
+          "items": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Exteriornegative",
+          "type": "array"
+        }
+      },
+      "required": [
+        "conditions",
+        "interiorNegative",
+        "positive",
+        "exteriorNegative"
+      ],
+      "title": "EndSpanShares",
+      "type": "object"
+    },
+    "EquivalentFrameRules": {
+      "additionalProperties": false,
+      "description": "The equivalent frame method (method id ``equivalentFrame``).",
+      "properties": {
+        "torsionFactor": {
+          "description": "Kt = Σ factor Ecs C / (l2 (1 - c2/l2)³).",
+          "exclusiveMinimum": 0,
+          "title": "Torsionfactor",
+          "type": "number"
+        },
+        "uniformLiveMax": {
+          "description": "Full live load on all panels when L <= this x D (else patterns).",
+          "exclusiveMinimum": 0,
+          "title": "Uniformlivemax",
+          "type": "number"
+        },
+        "patternLiveShare": {
+          "description": "The share of the live load of the patterns.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Patternliveshare",
+          "type": "number"
+        },
+        "faceLimit": {
+          "description": "Negative moment at the face, not farther than this x l1 from the column centre.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Facelimit",
+          "type": "number"
+        },
+        "farSpans": {
+          "description": "Spans each way taken in the analysis of one support.",
+          "minimum": 1,
+          "title": "Farspans",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "torsionFactor",
+        "uniformLiveMax",
+        "patternLiveShare",
+        "faceLimit",
+        "farSpans"
+      ],
+      "title": "EquivalentFrameRules",
+      "type": "object"
+    },
+    "ExteriorStripShareTable": {
+      "additionalProperties": false,
+      "description": "Percent of an exterior negative moment a column strip takes, by l2/l1, for αf1 l2/l1 = 0\nand >= ``alphaLimit`` and βt = 0 (``betaZero``: one value per ratio) and >= ``betaLimit``.",
+      "properties": {
+        "ratios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Ratios",
+          "type": "array"
+        },
+        "alphaZeroBetaZero": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphazerobetazero",
+          "type": "array"
+        },
+        "alphaZeroBetaFull": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphazerobetafull",
+          "type": "array"
+        },
+        "alphaFullBetaZero": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphafullbetazero",
+          "type": "array"
+        },
+        "alphaFullBetaFull": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphafullbetafull",
+          "type": "array"
+        },
+        "betaLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Betalimit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratios",
+        "alphaZeroBetaZero",
+        "alphaZeroBetaFull",
+        "alphaFullBetaZero",
+        "alphaFullBetaFull",
+        "betaLimit"
+      ],
+      "title": "ExteriorStripShareTable",
+      "type": "object"
+    },
+    "OpeningRules": {
+      "additionalProperties": false,
+      "description": "Openings in slabs without beams designed without an analysis of them.",
+      "properties": {
+        "columnColumnShare": {
+          "description": "Where column strips cross: at most this share of a column strip's width cut.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columncolumnshare",
+          "type": "number"
+        },
+        "columnMiddleShare": {
+          "description": "Where a column and a middle strip cross: at most this share of either's bars.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnmiddleshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "columnColumnShare",
+        "columnMiddleShare"
+      ],
+      "title": "OpeningRules",
+      "type": "object"
+    },
+    "StripShareTable": {
+      "additionalProperties": false,
+      "description": "Percent of a moment a column strip takes, by l2/l1 (``ratios``) for αf1 l2/l1 = 0\n(``alphaZero``) and >= ``alphaLimit`` (``alphaFull``), linear between (both ways).",
+      "properties": {
+        "ratios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Ratios",
+          "type": "array"
+        },
+        "alphaZero": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphazero",
+          "type": "array"
+        },
+        "alphaFull": {
+          "items": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Alphafull",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ratios",
+        "alphaZero",
+        "alphaFull"
+      ],
+      "title": "StripShareTable",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Analysis methods of two-way slab systems on columns, walls or flexible beams, chosen by\nid in ``twoWayMethods`` (tried in order: the first whose limits a slab meets), and the\ndetailing rules of two-way slabs (corners, openings).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "twoWayMethods": {
+      "items": {
+        "enum": [
+          "directDesign",
+          "equivalentFrame"
+        ],
+        "type": "string"
+      },
+      "title": "Twowaymethods",
+      "type": "array"
+    },
+    "directDesign": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DirectDesignRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "equivalentFrame": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EquivalentFrameRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "corner": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CornerRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "openings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpeningRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "title": "SlabMethodsTable",
+  "type": "object",
+  "$id": "saengine.codePack.slabMethods/1"
+}
