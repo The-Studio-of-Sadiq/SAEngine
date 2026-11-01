@@ -124,8 +124,7 @@ def clauses() -> dict[str, str]:
     """The clause references of the seismic results, from the code pack in force (its
     ``seismic.clauses``, each after the pack's name, e.g. "<code> Part 6 Sec 2.5.9.4")."""
     pack = code_context.current()
-    code = pack.edition or pack.name
-    return {key: f"{code} {text}" for key, text in _seismic().clauses.items()}
+    return {key: code_context.cite("seismic", key, pack) for key in _seismic().clauses}
 
 
 class _Clauses(dict):

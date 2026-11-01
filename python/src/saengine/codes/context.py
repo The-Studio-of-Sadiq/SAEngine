@@ -192,11 +192,15 @@ def clause(table_name: str, key: str, pack: CodePack | None = None) -> str:
 
 
 def cite(table_name: str, key: str, pack: CodePack | None = None) -> str:
-    """The clause reference ``key`` of table ``table_name`` after the code's name (e.g. "BNBC
-    2020 Part 6 Sec 2.5.7.3" in the default pack); '' when the pack has none."""
+    """The clause reference ``key`` of table ``table_name`` after the name of the code it comes
+    from (e.g. "BNBC 2020 Part 6 Sec 2.5.7.3" in the default pack; a clause a pack inherits
+    keeps its parent's name); '' when the pack has none."""
     p = pack or current()
     text = clause(table_name, key, p)
-    return f"{code_name(p)} {text}" if text else ""
+    if not text:
+        return ""
+    owner = p.clause_code(table_name, key) if hasattr(p, "clause_code") else None
+    return f"{owner or code_name(p)} {text}"
 
 
 def cited(table_name: str, key: str, pack: CodePack | None = None, sep: str = ", ") -> str:
