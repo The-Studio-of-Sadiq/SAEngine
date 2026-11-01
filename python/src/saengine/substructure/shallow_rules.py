@@ -64,6 +64,33 @@ def clause(key: str) -> str:
     return table.sources.get(f"shallow.{key}", "")
 
 
+def source(key: str) -> str:
+    """The clause ``key`` of the pack's ``foundations`` sources (empty when none)."""
+    pack = code_context.current()
+    try:
+        table = pack.table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table names no clause
+        return ""
+    return (getattr(table, "sources", None) or {}).get(key, "")
+
+
+def cite(key: str, default: str = "") -> str:
+    """The reference of ``foundations`` source ``key`` without its summary (the text before
+    the first colon); ``default`` when the pack names none."""
+    text = source(key)
+    return text.split(":")[0].strip() if text else default
+
+
+def foundations_value(name: str) -> Any | None:
+    """The pack's ``foundations.<name>`` (None when the pack has no such value)."""
+    pack = code_context.current()
+    try:
+        table = pack.table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table covers none of it
+        return None
+    return getattr(table, name, None)
+
+
 def code_name() -> str:
     pack = code_context.current()
     return pack.name or pack.id

@@ -3,7 +3,8 @@ foundations).
 
 A test (:class:`saengine.library.substructure.PileLoadTest`) is a pile type's curve of load
 [kN] against movement [mm] at the pile head. The code pack's ``foundations.piles.loadTests``
-group holds the criteria and its ``sources`` the clauses (BNBC 2020: Secs 3.10.1.17, 3.10.1.21,
+group holds the criteria and its ``sources`` the clauses (the default pack: Secs 3.10.1.17,
+3.10.1.21,
 3.11.2-3.11.4); a pack without it does not cover them. The load at a movement is interpolated
 on the curve; a criterion whose movement the test did not reach is taken at the largest test
 load (on the safe side) and says so.
