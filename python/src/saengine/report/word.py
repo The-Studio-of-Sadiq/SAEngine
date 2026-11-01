@@ -20,6 +20,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
 
+from saengine.i18n import number, report_labels
+
 INK = RGBColor(0x14, 0x14, 0x14)
 MUTED = RGBColor(0x5F, 0x5F, 0x5F)
 FAIL_INK = RGBColor(0xA1, 0x15, 0x0C)
@@ -36,7 +38,8 @@ ALIGN = {
     "r": WD_ALIGN_PARAGRAPH.RIGHT,
     "c": WD_ALIGN_PARAGRAPH.CENTER,
 }
-CHECK_HEAD = ["Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result"]
+#: The check table's head: keys of saengine.i18n.REPORT_LABELS.
+CHECK_HEAD = ["check", "demand", "capacity", "unit", "util", "combination", "result"]
 CHECK_ALIGN = "lrrlrlc"
 
 
@@ -59,6 +62,9 @@ class _Writer:
         self.warnings: list[str] = []
         self.numbers = [0, 0, 0]
         self.appendix = False
+        # the renderers' own texts in the project's language (saengine.i18n.localize_document)
+        self.labels = {**report_labels("en"), **(document.get("labels") or {})}
+        self.lang = document.get("lang", "en")
         self._styles()
 
     # ─────────────────────────── set-up ───────────────────────────
@@ -67,6 +73,13 @@ class _Writer:
         styles = self.doc.styles
         normal = styles["Normal"]
         normal.font.name = "Cambria"
+        if self.lang == "bn":
+            # Bangla is a complex script in Word: its glyphs come from the cs font.
+            fonts = normal.element.get_or_add_rPr().get_or_add_rFonts()
+            fonts.set(qn("w:cs"), "Nirmala UI")
+            language = OxmlElement("w:lang")
+            language.set(qn("w:bidi"), "bn-BD")
+            normal.element.get_or_add_rPr().append(language)
         normal.font.size = Pt(10)
         normal.font.color.rgb = INK
         normal.paragraph_format.space_after = Pt(4)
@@ -147,7 +160,7 @@ class _Writer:
         self._header_footer(section)
         if self.data.get("contents"):
             heading = self.doc.add_paragraph()
-            _font(heading.add_run("Contents"), 15, INK, bold=True)
+            _font(heading.add_run(self.labels["contents"]), 15, INK, bold=True)
             _field(self.doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', 10)
         first = True
         for s in self.data["sections"]:
@@ -175,7 +188,11 @@ class _Writer:
         if cover.get("subtitle"):
             _font(doc.add_paragraph().add_run(cover["subtitle"]), 13, MUTED)
         _bottom_rule(doc.add_paragraph(), size=8)
-        rows = [*meta.get("details", []), ["Code basis", meta["code"]], ["Date", meta["date"]]]
+        rows = [
+            *meta.get("details", []),
+            [self.labels["codeBasis"], meta["code"]],
+            [self.labels["date"], meta["date"]],
+        ]
         table = doc.add_table(rows=0, cols=2)
         for label, value in rows:
             cells = table.add_row().cells
@@ -206,27 +223,18 @@ class _Writer:
                 _font(cell.paragraphs[-1].add_run(value), 9, INK)
         if self.data["warnings"]:
             box = doc.add_paragraph()
-            _font(box.add_run("Read before use. "), 9, INK, bold=True)
-            _font(
-                box.add_run(
-                    f"This report carries {len(self.data['warnings'])} warning(s), listed in the "
-                    "Limitations section."
-                ),
-                9,
-                INK,
-            )
+            _font(box.add_run(self.labels["readBeforeUse"] + " "), 9, INK, bold=True)
+            count = number(len(self.data["warnings"]), self.lang)
+            _font(box.add_run(self.labels["warnings"].replace("{0}", count)), 9, INK)
             _shade(box, WARN_FILL)
         if cover.get("note"):
             _font(doc.add_paragraph().add_run(cover["note"]), 9.5, INK)
         tail = doc.add_paragraph()
-        _font(tail.add_run(f"Prepared with SAEngine {meta['version']} (AGPL-3.0). "), 9, MUTED)
+        prepared = self.labels["preparedWord"].replace("{0}", meta["version"])
+        _font(tail.add_run(prepared + " "), 9, MUTED)
         _font(tail.add_run(meta["units"]), 9, MUTED)
         _font(
-            doc.add_paragraph().add_run(
-                "This report presents the results of computer analysis and design. It shall be "
-                "reviewed, checked and signed by the structural engineer responsible for the "
-                "design."
-            ),
+            doc.add_paragraph().add_run(self.labels["disclaimer"]),
             9,
             MUTED,
         )
@@ -320,7 +328,7 @@ class _Writer:
             failing = bool(bad and r < len(bad) and bad[r])
             cells = table.add_row().cells
             for i, text in enumerate(row[: len(head)]):
-                fail_cell = failing and text == "FAIL"
+                fail_cell = failing and text == self.labels["fail"]
                 _cell_text(
                     cells[i],
                     text,
@@ -340,7 +348,8 @@ class _Writer:
         paragraph.paragraph_format.keep_with_next = True
         _font(paragraph.add_run(b["title"]), 9, INK if b["ok"] else FAIL_INK, bold=True)
         table = self.doc.add_table(rows=1, cols=7)
-        for i, (cell, text) in enumerate(zip(table.rows[0].cells, CHECK_HEAD, strict=False)):
+        head = [self.labels[k] for k in CHECK_HEAD]
+        for i, (cell, text) in enumerate(zip(table.rows[0].cells, head, strict=False)):
             _cell_text(cell, text, 7.5, INK, bold=True, align=CHECK_ALIGN[i])
             _cell_fill(cell, HEAD_FILL)
         _repeat_header(table.rows[0])

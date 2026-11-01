@@ -39,8 +39,8 @@ export const INDEX_URL_SETTING = 'saengine.packages.indexUrl';
 /** The index of the official packages: the newest release of the index repository. */
 export const DEFAULT_INDEX_URL = 'https://github.com/The-Studio-of-Sadiq/saengine-index/releases/latest/download/index.json';
 
-export type PackageKind = 'designCode' | 'structureTemplate' | 'buildingTemplate';
-export const PACKAGE_KINDS: readonly PackageKind[] = ['designCode', 'structureTemplate', 'buildingTemplate'];
+export type PackageKind = 'designCode' | 'structureTemplate' | 'buildingTemplate' | 'languagePack';
+export const PACKAGE_KINDS: readonly PackageKind[] = ['designCode', 'structureTemplate', 'buildingTemplate', 'languagePack'];
 
 /**
  * The TEST key of the index repository (keys/TEST-KEY-not-trusted-by-release-builds.pub.pem): its
@@ -298,6 +298,7 @@ export function kindLabel(kind: PackageKind): string {
 		case 'designCode': return localize('packages.kindDesignCode', "Design code");
 		case 'structureTemplate': return localize('packages.kindStructure', "Structure template");
 		case 'buildingTemplate': return localize('packages.kindBuilding', "Building template");
+		case 'languagePack': return localize('packages.kindLanguage', "Language pack");
 	}
 }
 
@@ -306,6 +307,7 @@ export function kindPluralLabel(kind: PackageKind): string {
 		case 'designCode': return localize('packages.kindsDesignCode', "Design codes");
 		case 'structureTemplate': return localize('packages.kindsStructure', "Structure templates");
 		case 'buildingTemplate': return localize('packages.kindsBuilding', "Building templates");
+		case 'languagePack': return localize('packages.kindsLanguage', "Language packs");
 	}
 }
 

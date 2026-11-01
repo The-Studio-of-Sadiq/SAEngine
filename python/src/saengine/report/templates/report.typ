@@ -10,6 +10,18 @@
 #let meta = doc.meta
 #let cover = doc.cover
 #let letterhead = doc.letterhead
+// The project's language (saengine.i18n.localize_document): the template's own texts.
+#let lang = doc.at("lang", default: "en")
+#let labels = doc.at("labels", default: (
+  check: "Check", demand: "Demand", capacity: "Capacity", unit: "Unit", util: "Util.",
+  combination: "Combination", result: "Result", codeBasis: "Code basis", date: "Date",
+  contents: "Contents", readBeforeUse: "Read before use.",
+  warnings: "This report carries {0} warning(s), listed in the Limitations section.",
+  preparedTypst: "Prepared with SAEngine {0} (AGPL-3.0), typeset with Typst.",
+  disclaimer: "This report presents the results of computer analysis and design. It shall be reviewed, checked and signed by the structural engineer responsible for the design.",
+  fail: "FAIL",
+))
+#let bn-digits(s) = if lang == "bn" { s.replace(regex("[0-9]"), d => "০১২৩৪৫৬৭৮৯".clusters().at(int(d.text))) } else { s }
 
 #let ink = luma(20)
 #let muted = luma(95)
@@ -20,7 +32,8 @@
 #let warn-fill = rgb("#fdf1d6")
 
 #set document(title: meta.title + " - " + meta.project, author: "SAEngine")
-#set text(font: ("Libertinus Serif", "New Computer Modern"), size: 10pt, fill: ink, lang: "en")
+// Bangla glyphs come from Nirmala UI, which Windows 10 and later ship.
+#set text(font: ("Libertinus Serif", "New Computer Modern") + if lang == "bn" { ("Nirmala UI",) } else { () }, size: 10pt, fill: ink, lang: lang)
 #set par(justify: true, leading: 0.62em)
 #set heading(numbering: "1.1")
 #show heading.where(level: 1): it => {
@@ -82,7 +95,7 @@
       v(-0.4em)
       grid(
         columns: (1fr, auto),
-        [SAEngine #meta.version, #meta.isoDate], counter(page).display("1 / 1", both: true),
+        [SAEngine #meta.version, #meta.isoDate], counter(page).display((..n) => bn-digits(n.pos().map(str).join(" / ")), both: true),
       )
     }
   },
@@ -116,7 +129,7 @@
     table.header(..head.map(h => text(weight: "bold", h))),
     ..b.rows.enumerate().map(((i, row)) => {
       let failing = bad != none and bad.at(i, default: false)
-      row.map(cell => if failing and (cell == "FAIL") {
+      row.map(cell => if failing and (cell == labels.fail) {
         text(weight: "bold", fill: fail-ink, cell)
       } else { cell })
     }).flatten(),
@@ -185,7 +198,7 @@
       bottom: if y == 0 { 0.6pt + ink } else { none },
     ),
     fill: (x, y) => if y == 0 { head-fill } else { fills.at(y - 1, default: none) },
-    table.header(..("Check", "Demand", "Capacity", "Unit", "Util.", "Combination", "Result")
+    table.header(..(labels.check, labels.demand, labels.capacity, labels.unit, labels.util, labels.combination, labels.result)
       .map(h => text(weight: "bold", h))),
     ..cells,
     table.hline(stroke: 0.6pt + ink),
@@ -260,8 +273,8 @@
         stroke: none,
         inset: (x: 0pt, y: 4pt),
         ..meta.details.map(((label, value)) => (text(fill: muted, label), value)).flatten(),
-        text(fill: muted, "Code basis"), meta.code,
-        text(fill: muted, "Date"), meta.date,
+        text(fill: muted, labels.codeBasis), meta.code,
+        text(fill: muted, labels.date), meta.date,
       )
     }
     #v(8mm)
@@ -298,7 +311,7 @@
       v(4mm)
     }
     #if doc.warnings.len() > 0 {
-      note("Read before use.", "This report carries " + str(doc.warnings.len()) + " warning(s), listed in the Limitations section.")
+      note(labels.readBeforeUse, labels.warnings.replace("{0}", bn-digits(str(doc.warnings.len()))))
       v(6mm)
     }
     #if cover.note != "" {
@@ -306,17 +319,16 @@
       v(4mm)
     }
     #set text(size: 9pt, fill: muted)
-    Prepared with SAEngine #meta.version (AGPL-3.0), typeset with Typst. \
+    #labels.preparedTypst.replace("{0}", meta.version) \
     #meta.units
     #v(3mm)
-    This report presents the results of computer analysis and design. It shall be reviewed,
-    checked and signed by the structural engineer responsible for the design.
+    #labels.disclaimer
   ]
 }
 
 #counter(page).update(if cover.show { 2 } else { 1 })
 #if doc.contents {
-  outline(title: [Contents], depth: 2, indent: auto)
+  outline(title: labels.contents, depth: 2, indent: auto)
 }
 
 // ───────────────────────────── sections ─────────────────────────────

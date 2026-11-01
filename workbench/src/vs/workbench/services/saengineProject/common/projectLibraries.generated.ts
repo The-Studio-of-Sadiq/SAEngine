@@ -5997,6 +5997,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Address',
 				},
+				language: {
+					default: 'en',
+					description: 'Language of the reports and drawings: labels, headings and notes, with Bengali digits in Bangla. Units, symbols and code clause numbers stay as they are. SAEngine\'s own screens follow the display language, which Project offers to match.',
+					enum: ['en', 'bn'],
+					enumDescriptions: ['English', 'বাংলা (Bangla)'],
+					title: 'Language',
+					type: 'string',
+				},
 			},
 			required: ['name'],
 			title: 'ProjectInfo',
@@ -6623,6 +6631,7 @@ export const DEFAULT_SETTINGS: object = {
 	schema: 'saengine.projectSettings/1',
 	project: {
 		name: 'Project',
+		language: 'en',
 	},
 	codePack: 'bnbc2020',
 	occupancy: {

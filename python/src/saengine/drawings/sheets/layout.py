@@ -27,6 +27,8 @@ import ezdxf
 from ezdxf.document import Drawing
 from ezdxf.enums import TextEntityAlignment
 
+from saengine import i18n
+
 # ─────────────────────────────────── paper ───────────────────────────────────
 
 PAPER: dict[str, tuple[float, float]] = {
@@ -53,6 +55,9 @@ CHAR_WIDTH = 0.9  # average advance of a character / text height (DXF height: th
 
 FONT = "arial.ttf"
 FONT_FAMILY = "Arial"
+#: The text font of the sheets in Bangla (Nirmala UI ships with Windows 10 and later).
+BENGALI_FONT = "Nirmala.ttc"
+BENGALI_FONT_FAMILY = "Nirmala UI"
 """The text font, a TrueType font every Windows has: AutoCAD, BricsCAD and the PDF
 (:mod:`saengine.drawings.sheets.render`) draw the same letters, whose widths :func:`text_width`
 estimates. LibreCAD, which reads no TrueType fonts, draws its own default font instead. No SHX
@@ -196,6 +201,8 @@ class TitleInfo:
     status: str = "FOR REVIEW"
     office: str = ""  # the office's address line under the firm (the office standard)
     disclaimer: str = ""  # printed above the status (the office standard)
+    # the language of the sheets' labels (Project Settings › Project › Language, saengine.i18n)
+    language: str = "en"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> TitleInfo:
@@ -519,6 +526,13 @@ class Sheet:
         self.standard = standard
         if standard is not None:
             standard.setup(self.doc)
+        self.language = i18n.normalize(info.language)
+        if self.language == "bn":
+            # The sheet's text in Bangla needs a font with Bengali glyphs (Windows: Nirmala UI).
+            for style in self.doc.styles:
+                if style.dxf.name in ("Standard", "SAE"):
+                    style.dxf.font = BENGALI_FONT
+                    style.set_extended_font_data(BENGALI_FONT_FAMILY)
         self.msp = self.doc.modelspace()
         self.labels = Labels()
         self.views: list[View] = []
@@ -574,7 +588,10 @@ class Sheet:
     ) -> int | None:
         """Text at paper position (x, y); several lines are written as separate TEXT entities
         (LibreCAD and every plotter render them alike). Returns the index of its reserved
-        rectangle (``labels.taken``)."""
+        rectangle (``labels.taken``). In a Bangla set the labels the catalogue knows are
+        translated and numbers get Bengali digits (:func:`saengine.i18n.translate`)."""
+        if self.language != "en":
+            text = i18n.translate(text, self.language)
         lines = text.split("\n")
         step = height * 1.6
         vertical = align[0]

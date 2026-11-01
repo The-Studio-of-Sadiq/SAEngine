@@ -136,6 +136,14 @@ limits in `docs/code-packs.md` (member design, generator and soil not yet follow
 must be stated on every design-code card until they are lifted: a user must not believe an
 installed pack changes the member design when it does not.
 
+**Language packs (`languagePack`).** Decided with track T48 (2026-11-01): a data package, like
+every other kind, never a VS Code extension from a gallery. `pack.json` gives `language` (BCP 47);
+`messages/*.json` hold the labels of the reports and drawings (English text → translation),
+merged over the built-in catalogue of `saengine.i18n`; `ui/*.i18n.json` hold screen strings in
+the workbench's language-pack format (validated now; applied to the screens in a later round, by
+writing a language-pack extension into the user's extensions folder). Installed for the user
+only. The format is in docs/packages.md, "Language pack".
+
 **Structure templates (`structureTemplate`).** Two levels:
 
 1. *Presets of a built-in shape* (data only): a JSON file per template that is a `ShapeInput`
@@ -327,9 +335,9 @@ Bangla. MEP is Python and TypeScript inside the core (`saengine.mep`, `hvac`, `p
 `electrical`, `fire`; one statically imported workbench contribution; a hard-coded
 `DISCIPLINES` dict in `library/mep.py`); its size is small next to the core and making it
 optional would need feature flags in many parts for little gain. BNBC is the default design code
-and must stay built-in. Bangla is already a VS Code language pack extension
-(`saengine-language-pack-bn`), small, and planned after the features are complete; it can become
-a setup component or a package then.
+and must stay built-in. Bangla is a VS Code language pack extension
+(`saengine-language-pack-bn`) built into the setup, small, so it stays in the core. More
+languages, and an office's own terms, come as packages of the kind `languagePack` (below).
 
 **Adding a component later** without reinstalling (round M6): the Packages page gains a
 *Components* section that lists the optional components with their state. Two options (D4):

@@ -15,6 +15,7 @@ in [sdk/README.md](sdk/README.md). Authors of packages: see
 | `designCode` (the default) | `data/<table>.json`, optional `hooks.py` | Project Settings › Design code |
 | `structureTemplate` | `templates/*.json`: presets of a built-in shape, or coded templates; optional `hooks.py` | the Generate panel |
 | `buildingTemplate` | `spec.json` (a building specification) or `template.civil` (a whole project, inputs only) | the New Building wizard; New Project from Template... |
+| `languagePack` | `messages/*.json` (report and drawing labels), `ui/*.i18n.json` (screens) | Project Settings › Project › Language |
 
 Every package may have `requires` (`{"saengine": ">=0.0.50", "packages": {"bnbc2020": ">=1.0.0"}}`),
 a `preview` image (PNG, JPEG or WebP, at most 256 KB) and must have a `licence` (SPDX). The JSON
@@ -55,6 +56,33 @@ Project from Template... refuse one that holds results, a soil report, exported 
 the version history, places the site more precisely than a town (latitude or longitude with more
 than two decimals, a plot outline), or names anyone on drawings or project files (drawn by,
 checked by, client...) other than the package's `author`.
+
+### Language pack
+
+A language pack translates what SAEngine prints. `pack.json` names the language (BCP 47):
+
+```json
+{ "schema": "saengine.codePack/1", "kind": "languagePack", "id": "bn-reports-extra",
+  "name": "Bangla report labels (extra)", "language": "bn", "version": "1.0.0",
+  "licence": "CC-BY-4.0", "contents": ["messages/*.json", "ui/*.i18n.json"] }
+```
+
+- `messages/<language>.json`: the labels of the reports and drawings, keyed by the English text
+  they replace: `{"language": "bn", "messages": {"Bearing pressure": "বিয়ারিং প্রেশার"}}`.
+  They are merged over SAEngine's own catalogue (`python/src/saengine/i18n/bn.json`), so a pack
+  can add labels or replace a term an office prefers. They are used by projects whose
+  Project Settings › Project › Language is that language.
+- `ui/<name>.i18n.json`: SAEngine's screens in the format of the workbench's language packs,
+  `{"contents": {"<module id>": {"<key>": "<text>"}}}`, the format of the built-in
+  `extensions/saengine-language-pack-bn/translations/main.i18n.json` (module ids and keys from
+  `workbench/build/saengine/i18n/bn/strings.bn.json`). Validated today; applying it to the screens
+  (writing a language-pack extension into the user's extensions folder) is planned.
+
+Every translation must keep the `{0}` placeholders of its English text; `saengine codepack
+validate --kind languagePack` checks it. Units, symbols and code clause numbers stay in Latin; in
+Bangla, SAEngine prints the numbers with Bengali digits (০-৯) and keeps clause numbers (`Sec
+8.3.5.2`), editions (`BNBC 2020`) and marks (`C1`, `S-101`) as they are. A language pack is
+installed for the user (`<user folder>/packages/language-packs`), never into a project.
 
 ## Safety
 

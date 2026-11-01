@@ -51,20 +51,24 @@ KNOWN_TABLES: tuple[str, ...] = (
 
 PACK_ID_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,63}$"
 
-Kind = Literal["designCode", "structureTemplate", "buildingTemplate"]
-KINDS: tuple[Kind, ...] = ("designCode", "structureTemplate", "buildingTemplate")
+Kind = Literal["designCode", "structureTemplate", "buildingTemplate", "languagePack"]
+KINDS: tuple[Kind, ...] = ("designCode", "structureTemplate", "buildingTemplate", "languagePack")
 DEFAULT_KIND: Kind = "designCode"
 KIND_NAMES: dict[str, str] = {
     "designCode": "design code",
     "structureTemplate": "structure template",
     "buildingTemplate": "building template",
+    "languagePack": "language pack",
 }
 # The files of each kind when pack.json gives no ``contents`` (globs relative to the folder).
 DEFAULT_CONTENTS: dict[str, tuple[str, ...]] = {
     "designCode": (f"{DATA_DIR}/*.json",),
     "structureTemplate": ("templates/*.json",),
     "buildingTemplate": ("spec.json", "template.civil"),
+    "languagePack": ("messages/*.json", "ui/*.i18n.json"),
 }
+#: The language tag of a language pack (BCP 47: a language, optionally a region), e.g. bn, bn-BD.
+LANGUAGE_PATTERN = r"^[a-z]{2,3}(-[A-Z]{2})?$"
 PREVIEW_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 
 # Files a package may never hold: programs, scripts and libraries that Windows or a shell would
@@ -158,7 +162,12 @@ class PackManifest(BaseModel):
     kind: Kind = Field(
         default=DEFAULT_KIND,
         description="What the package holds: a design code (default), a structure template "
-        "(presets of a parametric shape) or a building template.",
+        "(presets of a parametric shape), a building template or a language pack.",
+    )
+    language: str | None = Field(
+        default=None,
+        pattern=LANGUAGE_PATTERN,
+        description="Language pack: the language it translates to (BCP 47, e.g. 'bn').",
     )
     id: str = Field(
         pattern=PACK_ID_PATTERN,

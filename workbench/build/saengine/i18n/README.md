@@ -64,4 +64,9 @@ keeps its Bangla text but goes back to `review` with the old English in `note`.
 entry has Bangla or is marked untranslated, that placeholders match, that the pack is in
 sync with the table, and that the pack loads through the NLS resolver.
 
-Python backend messages are not covered yet.
+The reports and drawings are written by the Python backend in the project's language (Project
+Settings › Project › Language); their labels have their own catalogue,
+`python/src/saengine/i18n/bn.json` (see `saengine/i18n/__init__.py`). Project Settings also
+offers to switch the display language to the project's (it calls the workbench's locale service,
+which writes `argv.json` and restarts). Other Python messages (problems, warnings, progress) stay
+in English.

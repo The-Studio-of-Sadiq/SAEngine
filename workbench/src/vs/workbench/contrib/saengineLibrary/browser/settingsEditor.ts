@@ -13,6 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { language as displayLanguage } from '../../../../base/common/platform.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -34,6 +35,7 @@ import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js'
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
@@ -362,6 +364,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextFileService private readonly textFiles: ITextFileService,
 		@ISaenginePartStatusService private readonly partStatus: ISaenginePartStatusService,
+		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commands, editorService, textModels, project);
 		this.trackDeveloperMode(configurationService);
@@ -1182,10 +1185,35 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.seismicCell = section.keys.includes('seismic')
 			? this.sourceRow(form, undefined, localize('settings.designCategoryRow', "Design category"))
 			: undefined;
+		if (section.id === 'project') {
+			this.renderDisplayLanguage(this.sourceRow(form, fieldTitle('ProjectInfo', 'language'), localize('settings.displayLanguageRow', "SAEngine screens")));
+		}
 		if (section.id === 'drawings') {
 			this.renderTitleBlockSource(this.sourceRow(form, undefined, localize('settings.titleBlockRow', "Project number and engineer")));
 		}
 		this.renderSources();
+	}
+
+	/**
+	 * The project language picks the reports' and drawings' language (Python side); the screens
+	 * follow Code-OSS's display language (argv.json `locale`, the built-in Bangla language pack).
+	 * Shown under Language with a button that switches the display language to match (restarts).
+	 */
+	private renderDisplayLanguage(cell: HTMLElement): void {
+		const project = isObject(this.document?.project) ? this.document.project : {};
+		const wanted = project.language === 'bn' ? 'bn' : 'en';
+		const shown = displayLanguage.toLowerCase().startsWith('bn') ? 'bn' : 'en';
+		const names: Record<string, string> = { en: 'English', bn: 'বাংলা' };
+		append(cell, $('span.settings-source-value', undefined, wanted === shown
+			? localize('settings.displayLanguageSame', "{0}, like the reports and drawings.", names[shown])
+			: localize('settings.displayLanguageDiffers', "{0}. The reports and drawings are in {1}.", names[shown], names[wanted])));
+		if (wanted === shown) {
+			return;
+		}
+		const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
+		button.label = localize('settings.useDisplayLanguage', "Show Screens in {0}", names[wanted]);
+		button.setTitle(localize('settings.useDisplayLanguageHint', "Sets SAEngine's display language and restarts it. Every window of SAEngine uses it; strings not yet translated stay in English."));
+		this.pageDisposables.add(button.onDidClick(() => void this.localeService.setLocale({ id: wanted, label: names[wanted] })));
 	}
 
 	/** Drawings: the title block's project number and engineer come from Project (one home). */
