@@ -159,7 +159,7 @@ registerPlannedFeature({
 	id: 'substructure.lateralPileBroms',
 	part: 'substructure',
 	title: localize('planned.broms.title', "Lateral Pile Capacity (Broms)"),
-	summary: localize('planned.broms.summary', "The ultimate lateral resistance of a single pile and of the group, short or long, free or fixed head, in cohesive and granular soil, from the soil report's layers; it will also give the depth to fixity the pile section is designed with."),
+	summary: localize('planned.broms.summary', "The ultimate lateral resistance of a single pile and of the group against soil failure, short or long, free or fixed head, in cohesive and granular soil, from the soil report's layers; it will also give the depth to fixity the pile section is designed with. The code pack's other lateral rules are already checked: the head deflection on the soil springs with the group ratio of in-line piles, the pile section, unbraced piles as columns and lateral load tests."),
 	steps: [
 		localize('planned.broms.s1', "Take cu, φ' and the unit weights of the layers at the cap's nearest borehole from 1 Soil Report."),
 		localize('planned.broms.s2', "Classify the pile as short or long and find its ultimate lateral load for the head fixity."),

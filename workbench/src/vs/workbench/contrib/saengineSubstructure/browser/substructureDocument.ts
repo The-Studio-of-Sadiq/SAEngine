@@ -54,8 +54,18 @@ export const FOUNDATION_TYPES: readonly FoundationType[] = ['isolated', 'combine
 export type FootingSection = 'flat' | 'sloped' | 'stepped';
 export const FOOTING_SECTIONS: readonly FootingSection[] = ['flat', 'sloped', 'stepped'];
 
-export type PileKind = 'bored' | 'driven';
-export const PILE_KINDS: readonly PileKind[] = ['bored', 'driven'];
+export type PileKind = 'bored' | 'driven' | 'drivenCastInPlace';
+export const PILE_KINDS: readonly PileKind[] = ['bored', 'driven', 'drivenCastInPlace'];
+
+/** How a bored pile's concrete is placed: in a dry bore, or by tremie under water or slurry. */
+export type PilePlacement = 'dry' | 'submerged';
+export const PILE_PLACEMENTS: readonly PilePlacement[] = ['dry', 'submerged'];
+
+/** A pile load test's kind and stage. */
+export type PileTestKind = 'compression' | 'uplift' | 'lateral';
+export const PILE_TEST_KINDS: readonly PileTestKind[] = ['compression', 'uplift', 'lateral'];
+export type PileTestStage = 'initial' | 'routine';
+export const PILE_TEST_STAGES: readonly PileTestStage[] = ['initial', 'routine'];
 
 /** How the pile head is held by the cap: fixed (bars developed into it) or free (pinned). */
 export type PileFixity = 'fixed' | 'free';
@@ -170,6 +180,37 @@ export interface IPileType {
 	shaftConstruction?: string;
 	/** Drilled shafts in sand: the code pack's δ/φ construction id. */
 	shaftConcreting?: string;
+	/** Driven cast-in-place piles tapered to the tip: its diameter [mm]. */
+	tipDiameter?: number;
+	/** Bored piles: concrete placed in a dry bore or by tremie (the default). */
+	placement?: PilePlacement;
+	/** Driven piles: driving stresses above the code pack's limit. */
+	hardDriving?: boolean;
+	/** Length of the cage below the cut-off [mm]; empty: the full length. */
+	reinforcedLength?: number;
+	/** Bored piles: depth of the temporary casing below the cut-off [mm]. */
+	casingDepth?: number;
+	/** Length standing unbraced in air, water or scour below the cap [mm]. */
+	unbracedLength?: number;
+	/** The allowable lateral movement of the pile head [mm]; empty: the code pack's. */
+	lateralDeflection?: number;
+	[key: string]: unknown;
+}
+
+/** A static load test of a pile type at the site: its load-movement curve. */
+export interface IPileLoadTest {
+	id: string;
+	pileType: string;
+	kind?: PileTestKind;
+	test?: PileTestStage;
+	/** A compression test on a group of piles. */
+	group?: boolean;
+	/** [load kN, movement mm] at each stage of loading. */
+	points: [number, number][];
+	/** Uplift tests: the load at the clear break [kN]. */
+	breakLoad?: number;
+	/** Under-reamed piles: the bulb's diameter [mm]. */
+	bulbDiameter?: number;
 	[key: string]: unknown;
 }
 
@@ -230,6 +271,12 @@ export interface ISubstructureDesign {
 	temporary?: boolean;
 	/** The code pack's presumptive bearing row used without a soil report. */
 	presumptiveSoil?: string;
+	/** Check the piles for negative skin friction (default on). */
+	downdrag?: boolean;
+	/** Depth below the ground of the settling soil [mm]; empty: the soil report's layers. */
+	downdragDepth?: number;
+	/** Depth below the ground of the swelling zone in expansive soil [mm]. */
+	swellingDepth?: number;
 	[key: string]: unknown;
 }
 
@@ -244,6 +291,8 @@ export interface ISubstructure {
 	groundSlabs: IGroundSlab[];
 	/** Cantilever retaining walls and basement walls, designed per metre run (9 Substructure). */
 	retainingWalls?: IRetainingWall[];
+	/** Static pile load tests at the site. */
+	loadTests?: IPileLoadTest[];
 	design: ISubstructureDesign;
 	[key: string]: unknown;
 }
@@ -364,7 +413,7 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	if (value.schema !== SUBSTRUCTURE_SCHEMA_ID) {
 		return { kind: 'error', message: localize('sub.unexpected', "This file is not a SAEngine substructure ({0}).", SUBSTRUCTURE_SCHEMA_ID) };
 	}
-	for (const list of ['foundations', 'pileTypes', 'piles', 'tieBeams', 'groundSlabs']) {
+	for (const list of ['foundations', 'pileTypes', 'piles', 'tieBeams', 'groundSlabs', 'loadTests']) {
 		if (value[list] !== undefined && !Array.isArray(value[list])) {
 			return { kind: 'error', message: localize('sub.badList', "The substructure's {0} are not a list.", list) };
 		}
@@ -375,6 +424,9 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	document.tieBeams = (document.tieBeams ?? []).filter(isRecord) as ITieBeam[];
 	document.groundSlabs = (document.groundSlabs ?? []).filter(isRecord) as IGroundSlab[];
 	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
+	if (document.loadTests !== undefined) {
+		document.loadTests = (document.loadTests ?? []).filter(isRecord).map(test => ({ ...test, points: Array.isArray(test.points) ? test.points.filter(isPoint) : [] })) as IPileLoadTest[];
+	}
 	document.design = isRecord(document.design) ? document.design : {};
 	if ((document.design.pileCapacity as string | undefined) === 'bnbcSpt') {
 		document.design.pileCapacity = 'spt';
@@ -1483,8 +1535,57 @@ export function pileKindLabel(kind: PileKind | string): string {
 	switch (kind) {
 		case 'bored': return localize('sub.pile.bored', "Bored (cast in situ)");
 		case 'driven': return localize('sub.pile.driven', "Driven (precast, square)");
+		case 'drivenCastInPlace': return localize('sub.pile.drivenCastInPlace', "Driven (cast in place)");
 		default: return String(kind);
 	}
+}
+
+export function pilePlacementLabel(placement: PilePlacement | string): string {
+	switch (placement) {
+		case 'dry': return localize('sub.placement.dry', "Dry bore");
+		case 'submerged': return localize('sub.placement.submerged', "Tremie (water or slurry)");
+		default: return String(placement);
+	}
+}
+
+export function pileTestKindLabel(kind: PileTestKind | string): string {
+	switch (kind) {
+		case 'compression': return localize('sub.test.compression', "Compression");
+		case 'uplift': return localize('sub.test.uplift', "Uplift");
+		case 'lateral': return localize('sub.test.lateral', "Lateral");
+		default: return String(kind);
+	}
+}
+
+export function pileTestStageLabel(stage: PileTestStage | string): string {
+	switch (stage) {
+		case 'initial': return localize('sub.test.initial', "Initial (test pile)");
+		case 'routine': return localize('sub.test.routine', "Routine (working pile)");
+		default: return String(stage);
+	}
+}
+
+/** A load test's curve as text: "load movement; ..." (kN, mm). */
+export function formatTestCurve(points: readonly (readonly [number, number])[]): string {
+	return points.map(([load, movement]) => `${formatNumber(load, 1)} ${formatNumber(movement, 2)}`).join('; ');
+}
+
+/** A load test's curve from "load movement; ..." text, or undefined when it does not read. */
+export function parseTestCurve(text: string): [number, number][] | undefined {
+	const points: [number, number][] = [];
+	for (const part of text.split(';').map(s => s.trim()).filter(Boolean)) {
+		const values = part.split(/[\s,]+/).filter(Boolean).map(Number);
+		if (values.length !== 2 || values.some(v => !Number.isFinite(v) || v < 0)) {
+			return undefined;
+		}
+		points.push([values[0], values[1]]);
+	}
+	return points;
+}
+
+/** A new compression load test of the first pile type, its curve still to enter. */
+export function newLoadTest(document: ISubstructure): IPileLoadTest {
+	return { id: nextId('TP', (document.loadTests ?? []).map(t => t.id)), pileType: document.pileTypes[0]?.id ?? '', kind: 'compression', test: 'initial', points: [] };
 }
 
 /** "1.5 × 1.5 × 0.45 m", "4 piles · 2.4 × 2.4 m", "raft 0.6 m", for lists and the plan. */
@@ -1705,7 +1806,12 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 			error(at('length'), localize('sub.p.pileLength', "{0}: give the pile length.", p.id));
 		}
 		if (!PILE_KINDS.includes(p.kind)) {
-			error(at('kind'), localize('sub.p.kind', "{0}: the pile is bored or driven.", p.id));
+			error(at('kind'), localize('sub.p.kind', "{0}: the pile is bored, driven precast or driven cast in place.", p.id));
+		}
+		for (const field of ['tipDiameter', 'reinforcedLength', 'casingDepth', 'unbracedLength', 'lateralDeflection'] as const) {
+			if (p[field] !== undefined && !(num(p[field]) > 0)) {
+				error(at(field), localize('sub.p.positive', "{0}: {1} is positive, or leave it empty.", p.id, field));
+			}
 		}
 		if (p.headFixity !== undefined && !PILE_FIXITIES.includes(p.headFixity)) {
 			error(at('headFixity'), localize('sub.p.fixity', "{0}: the pile head is fixed in the cap or free.", p.id));
@@ -1716,7 +1822,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		if (p.reinforcement && !p.reinforcement.material) {
 			error(at('reinforcement.material'), localize('sub.p.pileBarMaterial', "{0}: the pile's bars need a rebar material (03 Materials).", p.id));
 		} else if (!p.reinforcement?.longitudinal?.length) {
-			warning(at('reinforcement'), localize('sub.p.pilePlain', "{0}: no bars: the pile is checked as plain concrete and cannot carry tension. BNBC 2020 Part 6 Table 6.3.11 gives the least bars of a bored pile.", p.id));
+			warning(at('reinforcement'), localize('sub.p.pilePlain', "{0}: no bars: the pile is checked as plain concrete and cannot carry tension; the code pack's least bars of the pile's kind are checked.", p.id));
 		}
 		if (!p.material) {
 			error(at('material'), localize('sub.p.pileMaterial', "{0}: choose the pile's concrete.", p.id));
@@ -1725,6 +1831,15 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 	});
 	pileLayoutProblems(document, pileTypes, error, warning);
+	(document.loadTests ?? []).forEach((test, i) => {
+		const at = (field: string) => `loadTests.${i}.${field}`;
+		if (!document.pileTypes.some(p => p.id === test.pileType)) {
+			error(at('pileType'), localize('sub.p.testType', "Load test {0}: pile type {1} does not exist.", test.id, test.pileType || '—'));
+		}
+		if ((test.points ?? []).length < 2) {
+			warning(at('points'), localize('sub.p.testPoints', "Load test {0}: enter its curve, load (kN) and movement (mm) at each stage.", test.id));
+		}
+	});
 	const foundationIds = new Set(document.foundations.map(f => f.id));
 	const beamTypes = new Set(context.beamTypes.map(b => b.id));
 	document.tieBeams.forEach((t, i) => {
