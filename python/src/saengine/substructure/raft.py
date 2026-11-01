@@ -586,7 +586,8 @@ def raft_design(
     dead_factor: dict[str, float] | None = None,
     strength_dead_factor: dict[str, float] | None = None,
     gravity: list[str] | None = None,
-    limits: tuple[float, float, float, str] | None = None,
+    structure: str = "rcc",
+    length_height: float | None = None,
 ) -> dict[str, Any]:
     """Analyse the raft under every combination and check it (see the module notes).
 
@@ -595,7 +596,9 @@ def raft_design(
     ``overburden`` [kPa] the soil pressure at the founding level the excavation removed;
     ``soil``: Table 6.3.8's column, "sand" or "plasticClay"; ``dead_factor`` /
     ``strength_dead_factor``: the dead-load factor per combination (default 1.0 / 1.2);
-    ``gravity``: the service combinations for the settlement (default: those without W or E).
+    ``gravity``: the service combinations for the settlement (default: those without W or E);
+    ``structure`` and ``length_height``: the row of the code pack's permissible settlements
+    (:func:`saengine.substructure.shallow_rules.settlement_limit`; none: not checked).
 
     Returns ``{"checks", "raft", "notes"}`` (``raft``: see the module notes)."""
     from saengine.design.check import _check
@@ -668,6 +671,14 @@ def raft_design(
         )
     soil_name = SOIL_NAMES[soil]
     max_settlement = float(settlement_env.max()) if len(settlement_env) else 0.0
+    # The code pack's permissible settlements of rafts for the type of structure.
+    from saengine.substructure.shallow_rules import settlement_limit
+
+    found_limit = settlement_limit(structure, "raft", soil, length_height)
+    limits = None
+    if found_limit is not None:
+        found, row = found_limit
+        limits = (found.total, found.differential, found.angular, row)
     if limits is None:
         notes.append(
             "settlement, differential settlement and angular distortion not checked: the code "
@@ -1299,18 +1310,11 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
     from saengine.substructure import shallow_rules
 
     design = ctx.substructure.design
-    found_limit = shallow_rules.settlement_limit(
-        design.structureType, "raft", soil, design.wallLengthHeight
-    )
-    limits = None
-    if found_limit is not None:
-        limit, row = found_limit
-        limits = (limit.total, limit.differential, limit.angular, row)
     with tempfile.TemporaryDirectory(prefix="saengine-raft-") as folder:
         try:
             out = raft_design(
                 spec, service, strength, folder, bearing.qa, overburden, soil, service_dead,
-                loads.dead, gravity, limits,
+                loads.dead, gravity, design.structureType, design.wallLengthHeight,
             )  # fmt: skip
         except RuntimeError as error:
             raise Skip(str(error)) from error
