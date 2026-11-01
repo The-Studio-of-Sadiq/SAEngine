@@ -7110,6 +7110,150 @@ class SteelSeismicTable(TableModel):
     practice: SteelSeismicPractice
 
 
+# ───────────────────────────────── seismically isolated buildings (B37) ─────────────────────────────────
+
+
+class IsolationDampingPoint(_Row):
+    """A row of the damping coefficient table: effective damping [% of critical] -> B."""
+
+    damping: float = Field(ge=0, description="Effective damping βD or βM [%].")
+    B: Positive = Field(description="Damping coefficient BD or BM.")
+
+
+class IsolationSpectrum(_Row):
+    """How the isolation displacements read the design spectrum."""
+
+    R: Positive = Field(description="R of the spectrum the displacements are read from.")
+    importance: Positive = Field(description="I of that spectrum.")
+    mceFactor: Positive = Field(
+        description="The maximum considered earthquake spectrum: this × the design spectrum."
+    )
+    mcePeriod: Literal["design", "maximum", "larger"] = Field(
+        description="Period SaM is read at: TD, TM or whichever gives the larger SaM."
+    )
+    note: str = ""
+
+
+class IsolationStaticLimits(_Row):
+    """Where the equivalent static analysis of an isolated building is permitted."""
+
+    siteClasses: list[str] = Field(description="Site classes it is permitted on.")
+    maxStoreys: int = Field(gt=0, description="Storeys above the isolation interface, at most.")
+    maxHeight: Positive = Field(description="Height above the isolation interface, at most [m].")
+    maxPeriodM: Positive = Field(description="TM at most [s].")
+    periodRatio: Positive = Field(description="TD greater than this × the fixed-base period.")
+    stiffnessRatio: Share = Field(
+        description="Effective stiffness at DD greater than this × that at stiffnessAtShare·DD."
+    )
+    stiffnessAtShare: Share = Field(description="Share of DD of the stiffness comparison.")
+
+
+class IsolationRestoring(_Row):
+    """The lateral restoring force: F(DTD) - F(atShare·DTD) at least forceShare·W."""
+
+    forceShare: Positive
+    atShare: Share
+
+
+class IsolationForces(_Row):
+    """The forces above (Vs) and below (Vb) the isolation system."""
+
+    importance: Positive = Field(description="Importance factor of isolated buildings.")
+    reductionShare: Positive = Field(description="RI = reductionShare × R, ...")
+    reductionMax: Positive = Field(description="... at most this ...")
+    reductionMin: Positive = Field(description="... and need not be less than this.")
+    activationFactor: Positive = Field(
+        description="Vs at least this × the force that fully activates the isolation system."
+    )
+    fixedBaseR: Literal["isolated", "system"] = Field(
+        description="R of the fixed-base minimum force at TD: RI ('isolated') or the system's R."
+    )
+    note: str = ""
+
+
+class IsolationDistribution(_Row):
+    exponent: float = Field(ge=0, description="Fx = Vs·wx·hx^k / Σ wi·hi^k with this k.")
+
+
+class IsolationDrift(_Row):
+    """Storey drift limits above the isolation system, as a share of the storey height."""
+
+    static: Share
+    spectrum: Share
+    history: Share
+
+
+class IsolationSpectrumAnalysis(_Row):
+    maxModalDamping: Positive = Field(description="Fundamental modal damping at most [%].")
+    orthogonalShare: Share = Field(description="Share of the perpendicular ground motion.")
+    dampedFromShare: Share = Field(
+        description="The damped spectrum applies from this × TD up (practice, see note)."
+    )
+    note: str = ""
+
+
+class IsolationHistory(_Row):
+    """Ground motions of the time-history option (Sec 2.5.16.3.2)."""
+
+    minRecords: int = Field(gt=0, description="Pairs of records, at least.")
+    averageFrom: int = Field(gt=0, description="With this many or more, the average is used.")
+    periodFromShare: Positive = Field(description="Scaling range from this × TD ...")
+    periodToShare: Positive = Field(description="... to this × TM.")
+    spectrumFactor: Positive = Field(description="Average SRSS spectrum at least this × design.")
+    tolerance: Share = Field(description="By more than this share it may not fall below.")
+    recordDamping: Share = Field(description="Damping of the record spectra.")
+
+
+class IsolationOverturning(_Row):
+    minimumFactor: Positive
+
+
+class IsolationTorsion(_Row):
+    method: Literal["rigidDeck"] = Field(description="Method id of the total displacements.")
+    note: str = ""
+
+
+class IsolationTestStep(_Row):
+    share: Positive
+    of: Literal["DD", "DM", "DTD", "DTM"]
+    cycles: int = Field(gt=0)
+
+
+class IsolationTesting(_Row):
+    liveShare: Share = Field(description="Test vertical load: dead load + this × live load.")
+    windCycles: int = Field(gt=0, description="Cycles at the wind design force.")
+    steps: list[IsolationTestStep]
+
+
+class IsolationRequirement(_Row):
+    id: str
+    text: str
+    check: Literal["computed", "bounds", "tests", "manual"] = Field(
+        description="How SAEngine treats it: computed, from the property bounds, by the "
+        "prototype tests, or a manual item for the engineer."
+    )
+
+
+class IsolationTable(TableModel):
+    """Seismically isolated buildings: damping coefficients, the static analysis limits, the
+    forces, the drift limits, the dynamic analysis rules, the tests and the review."""
+
+    dampingCoefficients: list[IsolationDampingPoint] = Field(min_length=2)
+    spectrum: IsolationSpectrum
+    staticLimits: IsolationStaticLimits
+    restoring: IsolationRestoring
+    forces: IsolationForces
+    distribution: IsolationDistribution
+    drift: IsolationDrift
+    spectrumAnalysis: IsolationSpectrumAnalysis
+    history: IsolationHistory
+    overturning: IsolationOverturning
+    torsion: IsolationTorsion
+    testing: IsolationTesting
+    requirements: list[IsolationRequirement]
+    review: list[str]
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -7156,6 +7300,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "stairMethods": StairMethodsTable,
     "compositeConcrete": CompositeConcreteTable,
     "steelSeismic": SteelSeismicTable,
+    "isolation": IsolationTable,
 }
 
 

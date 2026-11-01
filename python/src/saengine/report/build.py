@@ -1661,6 +1661,8 @@ def _results(
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
     # B15: seismic forces on nonstructural components and the anchorage of structural walls.
     out["nonstructural"] = _nonstructural(parts.root, warnings)
+    # B37: the isolation system of a seismically isolated building.
+    out["isolation"] = _isolation(model_path.parent)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     # B20: the pushovers' target displacement and member acceptance.
@@ -1919,6 +1921,94 @@ def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
     except Exception as e:  # noqa: BLE001 - one section must not stop the report
         warnings.append(f"Nonstructural components: not computed ({e}).")
         return None
+
+
+def _isolation(model_folder: Path) -> dict[str, Any] | None:
+    """B37: the isolation design beside the model (``08 FEM/isolation.json``,
+    :mod:`saengine.fem.isolation`) as report rows; None for a building without isolators."""
+    from saengine.fem import isolation as iso
+
+    found = iso.load(model_folder)
+    if found is None:
+        return None
+
+    def ok(value: Any) -> str:
+        return "OK" if value is True else "FAIL" if value is False else "–"
+
+    d, m, t = found["design"], found["maximum"], found["total"]
+    cl = found.get("clauses", {})
+    summary = [
+        ["Seismic weight above the isolators W [kN]", fmt(found["weight_kN"], 0), ""],
+        ["Design displacement DD [mm]", fmt(d["D_mm"], 0), cl.get("designDisplacement", "")],
+        ["Effective period TD [s]", fmt(d["T"], 2), cl.get("designPeriod", "")],
+        ["Effective damping βD [%] / BD", f"{fmt(100 * d['beta'], 1)} / {fmt(d['B'], 2)}",
+         cl.get("dampingCoefficient", "")],
+        ["kDmin / kDmax [kN/m]", f"{fmt(d['kMin_kNm'], 0)} / {fmt(d['kMax_kNm'], 0)}", ""],
+        ["Maximum displacement DM [mm]", fmt(m["D_mm"], 0), cl.get("maximumDisplacement", "")],
+        ["Effective period TM [s]", fmt(m["T"], 2), cl.get("maximumPeriod", "")],
+        ["Effective damping βM [%] / BM", f"{fmt(100 * m['beta'], 1)} / {fmt(m['B'], 2)}", ""],
+        ["Total design / maximum displacement DTD / DTM [mm]",
+         f"{fmt(t['DTD_mm'], 0)} / {fmt(t['DTM_mm'], 0)}", cl.get("totalDisplacement", "")],
+    ]  # fmt: skip
+    forces = []
+    for axis in ("X", "Y"):
+        f = found["forces"][axis]
+        mins = f["minima_kN"]
+        forces.append(
+            [axis, fmt(f["R"], 2), fmt(f["RI"], 2), fmt(f["Vb_kN"], 0), fmt(f["VsFormula_kN"], 0),
+             fmt(mins["fixedBase"], 0), fmt(mins["wind"], 0), fmt(mins["activation"], 0),
+             fmt(f["Vs_kN"], 0), f["governs"]]
+        )  # fmt: skip
+    checks = [
+        [c["label"], "–" if c["value"] is None else str(c["value"]), str(c["limit"]), ok(c["ok"]),
+         c.get("clause", "")]
+        for c in found["checks"]
+    ]  # fmt: skip
+    static = found["staticAnalysis"]
+    tests = [
+        [row["type"], s["label"],
+         fmt(s["displacement_mm"], 0) + " mm" if "displacement_mm" in s else fmt(s["force_kN"], 1) + " kN",
+         str(s["cycles"]), fmt(row["verticalLoad_kN"], 0)]
+        for row in found["testing"]
+        for s in row["steps"]
+    ]  # fmt: skip
+    return {
+        "summary": summary,
+        "forces": forces,
+        "forcesClause": f"{cl.get('forceAbove', '')}; {cl.get('minimumForce', '')}",
+        "checks": checks,
+        "checkFails": [c["ok"] is False for c in found["checks"]],
+        "static": [[c["id"], c["label"], ok(c["ok"])] for c in static["conditions"]],
+        "staticPermitted": bool(static["permitted"]),
+        "staticClause": cl.get("staticLimits", ""),
+        "units": [
+            [
+                u["column"],
+                u["kind"],
+                fmt(u["kDmax_kNm"], 0),
+                fmt(u["DTD_mm"], 0),
+                fmt(u["DTM_mm"], 0),
+                "–" if u["capacity_mm"] is None else fmt(u["capacity_mm"], 0),
+            ]
+            for u in found["units"]
+        ],
+        "tests": tests,
+        "testsClause": cl.get("testing", ""),
+        "requirements": [
+            [r["id"], r["text"], r["check"], ok(r["ok"])] for r in found["requirements"]
+        ],
+        "requirementsClause": cl.get("requirements", ""),
+        "review": list(found.get("review", [])),
+        "reviewClause": cl.get("review", ""),
+        "drift": (
+            f"Storey drift above the isolators with Cd = RI ({fmt(found['drift']['Cd']['X'], 2)} / "
+            f"{fmt(found['drift']['Cd']['Y'], 2)}) and I = {fmt(found['drift']['importance'], 1)}: "
+            f"at most {found['drift']['limits']['static']:g} hsx (static, response spectrum) and "
+            f"{found['drift']['limits']['history']:g} hsx (time history) "
+            f"({cl.get('staticDrift', '')}; {cl.get('dynamicDrift', '')})"
+        ),
+        "notes": [str(n) for n in found.get("notes", [])],
+    }
 
 
 def _irregularity(

@@ -1,0 +1,138 @@
+{
+  "$schema": "../../../schemas/isolation.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.16-2.5.16.5, Eqs 6.2.62-6.2.68, Table 6.2.24 (part 1 pp. 652-666, gazette pp. 3233-3247): seismically isolated buildings",
+    "BNBC 2020 Part 6 Sec 2.5.4.3, Eq 6.2.34 (pp. 612-613): the design spectrum the isolation displacements are read from (R = 1, I = 1, eta = 1)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5.16 (Design for Seismically Isolated Buildings)",
+  "sources": {
+    "general": "BNBC 2020 Part 6 Sec 2.5.16 (p. 652): isolated buildings designed to Sec 2.5.16",
+    "requirements": "BNBC 2020 Part 6 Sec 2.5.16.1 (1)-(13) (pp. 653-654): general requirements for the isolation system",
+    "restoring": "BNBC 2020 Part 6 Sec 2.5.16.1 (4) (p. 653): force at the total design displacement at least 0.025 W more than at 50 % of it",
+    "restraint": "BNBC 2020 Part 6 Sec 2.5.16.1 (5) (p. 653): no restraint below the total maximum displacement",
+    "stability": "BNBC 2020 Part 6 Sec 2.5.16.1 (6) (p. 653): each unit stable under the design vertical load at the total maximum displacement",
+    "overturning": "BNBC 2020 Part 6 Sec 2.5.16.1 (7) (p. 653): factor of safety against overturning at the isolation interface at least 1.0, MCE forces",
+    "uplift": "BNBC 2020 Part 6 Sec 2.5.16.1 (8) (p. 653): local uplift of units permitted without overstress or instability",
+    "staticLimits": "BNBC 2020 Part 6 Sec 2.5.16.2 (1)-(6) (p. 658): where the equivalent static analysis is permitted",
+    "designDisplacement": "BNBC 2020 Part 6 Sec 2.5.16.2.1, Eq 6.2.62 (p. 658)",
+    "designPeriod": "BNBC 2020 Part 6 Sec 2.5.16.2.1, Eq 6.2.63 (p. 659)",
+    "dampingCoefficient": "BNBC 2020 Part 6 Table 6.2.24 (p. 659), linear interpolation (note b)",
+    "maximumDisplacement": "BNBC 2020 Part 6 Sec 2.5.16.2.1, Eq 6.2.64 (p. 660)",
+    "maximumPeriod": "BNBC 2020 Part 6 Sec 2.5.16.2.1, Eq 6.2.65 (p. 660)",
+    "totalDisplacement": "BNBC 2020 Part 6 Sec 2.5.16.2.1 (p. 660): total design and maximum displacements with inherent and accidental torsion",
+    "forceAbove": "BNBC 2020 Part 6 Sec 2.5.16.2.2, Eq 6.2.66 (pp. 660-661)",
+    "reduction": "BNBC 2020 Part 6 Sec 2.5.16.2.2 (p. 661): RI the lesser of 3/8 R (Table 6.2.19) and 2.0, at least 1.0",
+    "minimumForce": "BNBC 2020 Part 6 Sec 2.5.16.2.2 (1)-(3) (p. 661): Vs at least the fixed-base force at TD, the factored wind and 1.5 times the activation force",
+    "forceBelow": "BNBC 2020 Part 6 Sec 2.5.16.2.2, Eq 6.2.67 (p. 661)",
+    "distribution": "BNBC 2020 Part 6 Sec 2.5.16.2.3, Eq 6.2.68 (pp. 661-662)",
+    "staticDrift": "BNBC 2020 Part 6 Sec 2.5.16.2.4 (p. 662): Cd = RI, I = 1.0, drift at most 0.015 hsx",
+    "dynamic": "BNBC 2020 Part 6 Sec 2.5.16.3 (p. 662): response spectrum where the isolators are equivalent linear, else nonlinear time history; linear model on the maximum effective stiffness",
+    "spectrum": "BNBC 2020 Part 6 Sec 2.5.16.3.1 (p. 663): fundamental modal damping at most the isolation damping or 30 %, 100 % + 30 %, MCE spectrum at least 1.5 times the design spectrum, iteration on the effective stiffness, storey shears at least Eq 6.2.68",
+    "history": "BNBC 2020 Part 6 Sec 2.5.16.3.2 (pp. 663-664): at least three pairs, scaled between 0.5 TD and 1.25 TM to 1.3 times the design spectrum (within 10 %), average of seven or more, else the maximum",
+    "dynamicDrift": "BNBC 2020 Part 6 Sec 2.5.16.3.3 (p. 664): 0.015 hsx by response spectrum, 0.020 hsx by nonlinear time history, Cd = RI, I = 1.0",
+    "testing": "BNBC 2020 Part 6 Sec 2.5.16.4 (p. 665): prototype tests, effective stiffness the secant and damping from the loop area at the design displacement",
+    "review": "BNBC 2020 Part 6 Sec 2.5.16.5 (pp. 665-666): design review by an independent team"
+  },
+  "dampingCoefficients": [
+    { "damping": 2.0, "B": 0.8 },
+    { "damping": 5.0, "B": 1.0 },
+    { "damping": 10.0, "B": 1.2 },
+    { "damping": 20.0, "B": 1.5 },
+    { "damping": 30.0, "B": 1.7 },
+    { "damping": 40.0, "B": 1.9 },
+    { "damping": 50.0, "B": 2.0 }
+  ],
+  "spectrum": {
+    "R": 1.0,
+    "importance": 1.0,
+    "mceFactor": 1.5,
+    "mcePeriod": "larger",
+    "note": "Sa and SaM by Eq 6.2.34 with R = 1, I = 1 and the 5 % spectrum (eta = 1). The MCE spectrum is 1.5 times the design spectrum (Sec 2.5.16.3.1; Eq 6.2.34's 2/3 is the DBE share of the MCE). Sec 2.5.16.2.1 prints SaM 'for period TD' though DM uses TM: the larger of Sa at TD and at TM is used (the more conservative of the printed and the evident reading)."
+  },
+  "staticLimits": {
+    "siteClasses": ["SA", "SB", "SC", "SD", "SE"],
+    "maxStoreys": 4,
+    "maxHeight": 20.0,
+    "maxPeriodM": 3.0,
+    "periodRatio": 3.0,
+    "stiffnessRatio": 0.3333333333,
+    "stiffnessAtShare": 0.2
+  },
+  "restoring": {
+    "forceShare": 0.025,
+    "atShare": 0.5
+  },
+  "forces": {
+    "importance": 1.0,
+    "reductionShare": 0.375,
+    "reductionMax": 2.0,
+    "reductionMin": 1.0,
+    "activationFactor": 1.5,
+    "fixedBaseR": "isolated",
+    "note": "Minimum (1): the Sec 2.5.7 force at T = TD with I = 1.0 and R = RI ('isolated'), the more conservative of the readings, since the clause does not say which R."
+  },
+  "distribution": {
+    "exponent": 1.0
+  },
+  "drift": {
+    "static": 0.015,
+    "spectrum": 0.015,
+    "history": 0.020
+  },
+  "spectrumAnalysis": {
+    "maxModalDamping": 30.0,
+    "orthogonalShare": 0.3,
+    "dampedFromShare": 0.8,
+    "note": "dampedFromShare is SAEngine practice, not BNBC: the analysis spectrum takes the isolation damping (÷ B of the lesser of the effective damping and 30 %) from 0.8 TD up, the 5 % spectrum below, so the isolated modes take the isolation damping and the higher modes the fixed-base damping. BNBC sets the damping per mode but not how one spectrum carries it."
+  },
+  "history": {
+    "minRecords": 3,
+    "averageFrom": 7,
+    "periodFromShare": 0.5,
+    "periodToShare": 1.25,
+    "spectrumFactor": 1.3,
+    "tolerance": 0.1,
+    "recordDamping": 0.05
+  },
+  "overturning": {
+    "minimumFactor": 1.0
+  },
+  "torsion": {
+    "method": "rigidDeck",
+    "note": "The total displacements of Sec 2.5.16.2.1: the deck above the isolators rotates rigidly about the centre of rigidity of the isolators; the eccentricity is the actual one plus the accidental share of Sec 2.5.7.6.2 (the seismic table's) of the isolators' plan extent across the motion. BNBC asks for the spatial distribution of the isolators' stiffness and the most disadvantageous eccentric mass but gives no formula."
+  },
+  "testing": {
+    "liveShare": 0.5,
+    "windCycles": 20,
+    "steps": [
+      { "share": 0.25, "of": "DD", "cycles": 3 },
+      { "share": 0.5, "of": "DD", "cycles": 3 },
+      { "share": 1.0, "of": "DD", "cycles": 3 },
+      { "share": 1.0, "of": "DM", "cycles": 3 },
+      { "share": 1.0, "of": "DTM", "cycles": 3 },
+      { "share": 1.0, "of": "DTD", "cycles": 10 }
+    ]
+  },
+  "requirements": [
+    { "id": "1", "text": "Property variation over the life (ageing, contamination, moisture, temperature, creep, fatigue)", "check": "bounds" },
+    { "id": "2", "text": "Wind above the isolation interface, and a wind restraint limiting the isolator drift to the storey drift", "check": "manual" },
+    { "id": "3", "text": "Fire rating of the isolators as for the columns and walls around them", "check": "manual" },
+    { "id": "4", "text": "Lateral restoring force", "check": "computed" },
+    { "id": "5", "text": "No displacement restraint below the total maximum displacement", "check": "computed" },
+    { "id": "6", "text": "Each unit stable under the design vertical load at the total maximum displacement", "check": "tests" },
+    { "id": "7", "text": "Overturning at the isolation interface under the MCE", "check": "computed" },
+    { "id": "8", "text": "Local uplift without overstress or instability", "check": "manual" },
+    { "id": "9", "text": "Access for inspection and replacement", "check": "manual" },
+    { "id": "10", "text": "Quality control tests of every unit before installation", "check": "manual" },
+    { "id": "11", "text": "Final inspection of the separations and the components crossing the interface", "check": "manual" },
+    { "id": "12", "text": "Periodic monitoring, inspection and maintenance programme", "check": "manual" },
+    { "id": "13", "text": "Work at the isolation interface under an experienced design professional", "check": "manual" }
+  ],
+  "review": [
+    "Site-specific seismic criteria, spectra and ground motions",
+    "Preliminary design: total design displacement and lateral force level",
+    "Prototype testing",
+    "Final design of the whole structural system and its analyses",
+    "Quality control testing programme of the isolators"
+  ]
+}

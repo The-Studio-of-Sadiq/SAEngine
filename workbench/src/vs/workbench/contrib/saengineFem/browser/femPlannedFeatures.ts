@@ -29,8 +29,7 @@ export const FemPlanned = {
 	/** T35: nonlinear time history. */
 	nonlinearTimeHistory: 'fem.nonlinearTimeHistory',
 	recordScaling: 'fem.recordScaling',
-	/** T36: isolators and dampers. */
-	baseIsolation: 'fem.baseIsolation',
+	/** T36: dampers (seismic isolators are built: B37). */
 	dampers: 'fem.dampers',
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
 	crackedSlabDeflection: 'fem.crackedSlabDeflection',

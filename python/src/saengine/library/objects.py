@@ -1251,6 +1251,73 @@ class MasonryAnchorBolts(_Model):
     )
 
 
+# ─────────────────────────── seismic isolators (B37, saengine.fem.isolation) ───────────────────────────
+
+
+class SeismicIsolator(_Model):
+    """A seismic isolator under a column's base, by its bilinear force-displacement curve from
+    the prototype tests: the effective stiffness (secant) and the effective damping (from the
+    loop area) at any displacement follow from it. The values here are only a starting point:
+    enter the tested values of the units used."""
+
+    kind: Literal["leadRubber", "elastomeric", "slidingPendulum", "other"] = Field(
+        default="leadRubber",
+        description="The isolator type (a label: the curve below is what the analysis uses).",
+    )
+    characteristicStrength: float = Field(
+        default=60,
+        ge=0,
+        description="Qd: the force at zero displacement of the bilinear loop [kN] (lead core "
+        "yield, or the friction force of a sliding unit).",
+    )
+    postYieldStiffness: float = Field(
+        default=800, gt=0, description="Kd: the stiffness after yield [kN/m]."
+    )
+    yieldDisplacement: float = Field(
+        default=15, gt=0, description="Dy: the displacement at yield [mm]."
+    )
+    verticalStiffness: float = Field(
+        default=1.0e6, gt=0, description="Kv: the axial stiffness of the unit [kN/m]."
+    )
+    lowerBoundFactor: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        description="Factor on Qd and Kd for the lower-bound properties over the building's "
+        "life (displacements); 1: no variation entered.",
+    )
+    upperBoundFactor: float = Field(
+        default=1.0,
+        ge=1,
+        description="Factor on Qd and Kd for the upper-bound properties over the building's "
+        "life (forces); 1: no variation entered.",
+    )
+    displacementCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        description="The largest displacement the unit takes (or a restraint allows) [mm]; "
+        "none: not checked against the total maximum displacement.",
+    )
+    verticalCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        description="The tested vertical load the unit is stable under at the total maximum "
+        "displacement [kN]; none: not entered.",
+    )
+    activationForce: float | None = Field(
+        default=None,
+        gt=0,
+        description="The force that fully activates the unit (yield, break-away friction or a "
+        "sacrificial wind restraint) [kN]; none: Qd + Kd·Dy.",
+    )
+    testVerticalLoad: float | None = Field(
+        default=None,
+        gt=0,
+        description="Vertical load of the prototype tests (average dead load plus half the "
+        "live load on the units of this type) [kN]; none: the seismic weight per unit.",
+    )
+
+
 # ─────────────────────────────────── object types ───────────────────────────────────
 
 
@@ -1438,6 +1505,13 @@ class Column(_ObjectBase):
         default=None,
         title="Design overwrites",
         description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
+    isolator: SeismicIsolator | None = Field(
+        default=None,
+        title="Seismic isolator",
+        description="An isolator under the base of each column of this type that stands on a "
+        "support: the analysis puts the column on it and designs the isolated building "
+        "(08 FEM); none: a fixed base.",
     )
 
 
