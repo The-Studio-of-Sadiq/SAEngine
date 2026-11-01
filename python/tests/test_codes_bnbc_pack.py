@@ -44,8 +44,9 @@ OLD_AREA_USES = {
     "office": ("Office", 2.4),
     "officeLobby": ("Office: lobbies and first-floor corridors", 4.8),
     "corridorAbove": ("Corridors above the first floor", 3.8),
-    "classroom": ("School: classrooms", 1.9),
-    "hospitalWard": ("Hospital: patient rooms", 1.9),
+    # Corrected to Table 6.2.3 (B1): classrooms and patient rooms 2.00 kN/m² (pp. 534, 536).
+    "classroom": ("School: classrooms", 2.0),
+    "hospitalWard": ("Hospital: patient rooms", 2.0),
     "operatingRoom": ("Hospital: operating rooms, laboratories", 2.9),
     "assemblyFixed": ("Assembly: fixed seats", 2.9),
     "assemblyMovable": ("Assembly: movable seats, lobbies", 4.8),
@@ -53,7 +54,8 @@ OLD_AREA_USES = {
     "retailUpper": ("Retail: upper floors", 3.6),
     "storageLight": ("Storage: light", 6.0),
     "storageHeavy": ("Storage: heavy", 12.0),
-    "parking": ("Parking: passenger vehicles", 1.9),
+    # Corrected to Table 6.2.3 (B1): garages 2.0 kN/m² (p. 534).
+    "parking": ("Parking: passenger vehicles", 2.0),
     "stairs": ("Stairs and exits", 4.8),
     "roof": ("Roof: ordinary flat, pitched or curved", 1.0),
     "roofGarden": ("Roof: gardens and assembly use", 4.8),
@@ -176,15 +178,16 @@ OLD_LOAD_CASES = {
     "F": "Fluids (equipment contents)",
     "T": "Temperature",
 }
+# B1: F and H are explicit in the pack rows now (they were the LoadCombination defaults).
 OLD_STRENGTH = [
-    ("1.4D", {"D": 1.4}),
-    ("1.2D + 1.6L + 0.5Lr", {"D": 1.2, "L": 1.6, "Lr": 0.5}),
-    ("1.2D + 1.6Lr + 1.0L", {"D": 1.2, "Lr": 1.6, "L": 1.0}),
-    ("1.2D + 1.6Lr + 0.8W", {"D": 1.2, "Lr": 1.6, "W": 0.8}),
-    ("1.2D + 1.6W + 1.0L + 0.5Lr", {"D": 1.2, "W": 1.6, "L": 1.0, "Lr": 0.5}),
-    ("1.2D + 1.0E + 1.0L", {"D": 1.2, "E": 1.0, "L": 1.0}),
-    ("0.9D + 1.6W", {"D": 0.9, "W": 1.6}),
-    ("0.9D + 1.0E", {"D": 0.9, "E": 1.0}),
+    ("1.4D", {"D": 1.4, "F": 1.4}),
+    ("1.2D + 1.6L + 0.5Lr", {"D": 1.2, "F": 1.2, "L": 1.6, "H": 1.6, "Lr": 0.5}),
+    ("1.2D + 1.6Lr + 1.0L", {"D": 1.2, "F": 1.2, "Lr": 1.6, "L": 1.0}),
+    ("1.2D + 1.6Lr + 0.8W", {"D": 1.2, "F": 1.2, "Lr": 1.6, "W": 0.8}),
+    ("1.2D + 1.6W + 1.0L + 0.5Lr", {"D": 1.2, "F": 1.2, "W": 1.6, "L": 1.0, "Lr": 0.5}),
+    ("1.2D + 1.0E + 1.0L", {"D": 1.2, "F": 1.2, "E": 1.0, "L": 1.0}),
+    ("0.9D + 1.6W", {"D": 0.9, "W": 1.6, "H": 1.6}),
+    ("0.9D + 1.0E", {"D": 0.9, "E": 1.0, "H": 1.6}),
 ]
 OLD_SITE_FACTORS = {
     "SA": (1.00, 0.15, 0.40, 2.0),
@@ -688,8 +691,9 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
     assert bnbc.LOCATIONS["dhaka"].wind_speed == 65.7
     assert {k: tuple(v) for k, v in bnbc.OCCUPANCY_CATEGORIES.items()} == OLD_OCCUPANCY
     assert list(bnbc.OCCUPANCY_CATEGORIES) == list(OLD_OCCUPANCY)
-    assert {k: tuple(v) for k, v in bnbc.AREA_USES.items()} == OLD_AREA_USES
-    assert list(bnbc.AREA_USES) == list(OLD_AREA_USES)
+    # B1 adds the other rows of Table 6.2.3 after the old ones.
+    assert {k: tuple(bnbc.AREA_USES[k]) for k in OLD_AREA_USES} == OLD_AREA_USES
+    assert list(bnbc.AREA_USES)[: len(OLD_AREA_USES)] == list(OLD_AREA_USES)
     b2 = {k: (bnbc.STRUCTURAL_SYSTEMS[k].name, *v[1:4]) for k, v in B2_TABLE_6_2_19.items()}
     systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS, **b2}
     assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == systems

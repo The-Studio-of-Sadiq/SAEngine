@@ -1,81 +1,517 @@
 {
   "$schema": "../../../schemas/areaLoads.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539)"
+    "BNBC 2020 Part 6 Sec 2.3.3-2.3.12, Tables 6.2.3-6.2.6 (pp. 533-542)"
   ],
-  "source": "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539, a selection)",
+  "source": "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-538): minimum uniformly distributed and concentrated live loads",
   "uses": {
     "residential": {
       "name": "Residential: rooms and private corridors",
-      "live": 2.0
+      "live": 2.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Residential, private rooms and corridors (p. 535)"
     },
     "residentialPublic": {
       "name": "Residential: public rooms and corridors",
-      "live": 4.8
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Residential, public rooms (p. 535)"
     },
     "office": {
       "name": "Office",
-      "live": 2.4
+      "live": 2.4,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Office buildings, offices (p. 535)"
     },
     "officeLobby": {
       "name": "Office: lobbies and first-floor corridors",
-      "live": 4.8
+      "live": 4.8,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
     },
     "corridorAbove": {
       "name": "Corridors above the first floor",
-      "live": 3.8
+      "live": 3.8,
+      "concentrated": 4.5,
+      "note": "Office corridors take 9.0 kN: use 'Office: corridors above the first floor'.",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, corridors above the first floor of hospitals, libraries and schools (pp. 534-536)"
     },
     "classroom": {
       "name": "School: classrooms",
-      "live": 1.9
+      "live": 2.0,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Schools, classrooms (p. 536)"
     },
     "hospitalWard": {
       "name": "Hospital: patient rooms",
-      "live": 1.9
+      "live": 2.0,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Hospitals, patient rooms (p. 534)"
     },
     "operatingRoom": {
       "name": "Hospital: operating rooms, laboratories",
-      "live": 2.9
+      "live": 2.9,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
     },
     "assemblyFixed": {
       "name": "Assembly: fixed seats",
-      "live": 2.9
+      "live": 2.9,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Assembly areas (p. 534)"
     },
     "assemblyMovable": {
       "name": "Assembly: movable seats, lobbies",
-      "live": 4.8
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Assembly areas (p. 534)"
     },
     "retailGround": {
       "name": "Retail: first floor",
-      "live": 4.8
+      "live": 4.8,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Stores (p. 537)"
     },
     "retailUpper": {
       "name": "Retail: upper floors",
-      "live": 3.6
+      "live": 3.6,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Stores (p. 537)"
     },
     "storageLight": {
       "name": "Storage: light",
-      "live": 6.0
+      "live": 6.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Storage warehouses (p. 537)"
     },
     "storageHeavy": {
       "name": "Storage: heavy",
-      "live": 12.0
+      "live": 12.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Storage warehouses (p. 537)"
     },
     "parking": {
       "name": "Parking: passenger vehicles",
-      "live": 1.9
+      "live": 2.0,
+      "concentrated": 13.35,
+      "patch": 114,
+      "note": "Also the wheel loads of Sec 2.3.5 (vehicle loads); mechanical parking without a slab: 10 kN per wheel (note b); trucks and buses by an approved method (note c).",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Garages, notes b and c (pp. 534, 537)"
     },
     "stairs": {
       "name": "Stairs and exits",
-      "live": 4.8
+      "live": 4.8,
+      "concentrated": 1.33,
+      "patch": 50.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Stairs and exit ways; note l: 1.33 kN on 2,580 mm² of a tread (pp. 536, 538)"
     },
     "roof": {
       "name": "Roof: ordinary flat, pitched or curved",
-      "live": 1.0
+      "live": 1.0,
+      "concentrated": 1.33,
+      "roof": true,
+      "note": "Pitched and curved roofs: by slope (roof live loads); the concentrated load is not needed on roofs that spread it, such as RC slabs.",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Roofs, ordinary flat roof; 1.33 kN on roof surfaces subject to maintenance workers (p. 536)"
     },
     "roofGarden": {
       "name": "Roof: gardens and assembly use",
-      "live": 4.8
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, Roofs (p. 536)"
+    },
+    "accessFloorOffice": {
+      "name": "Access floors: office use",
+      "live": 2.4,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 533)"
+    },
+    "accessFloorComputer": {
+      "name": "Access floors: computer use",
+      "live": 4.8,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 533)"
+    },
+    "armories": {
+      "name": "Armories and drill rooms",
+      "live": 7.2,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 533)"
+    },
+    "assemblyPlatform": {
+      "name": "Assembly: platforms",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "stageFloor": {
+      "name": "Assembly: stage floors",
+      "live": 7.2,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "balcony": {
+      "name": "Balconies (exterior)",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "balconySmallDwelling": {
+      "name": "Balconies: one- and two-family residences, up to 19.3 m²",
+      "live": 2.9,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "recreation": {
+      "name": "Bowling alleys, poolrooms and similar",
+      "live": 3.6,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "catwalk": {
+      "name": "Catwalks for maintenance access",
+      "live": 2.0,
+      "concentrated": 1.33,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "corridorFirst": {
+      "name": "Corridors: first floor",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "danceHall": {
+      "name": "Dance halls and ballrooms",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "dining": {
+      "name": "Dining rooms and restaurants",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "fireEscape": {
+      "name": "Fire escapes",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "fireEscapeDwelling": {
+      "name": "Fire escapes: single-family dwellings only",
+      "live": 2.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "gymnasium": {
+      "name": "Gymnasiums: main floors and balconies",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "hospitalCorridor": {
+      "name": "Hospital: corridors above the first floor",
+      "live": 3.8,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 534)"
+    },
+    "libraryReading": {
+      "name": "Library: reading rooms",
+      "live": 2.9,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "libraryStacks": {
+      "name": "Library: stack rooms",
+      "live": 7.2,
+      "concentrated": 4.5,
+      "note": "Stacks at most 2290 mm high, shelves at most 300 mm deep per face, aisles at least 900 mm (note d).",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note d (pp. 535, 537)"
+    },
+    "libraryCorridor": {
+      "name": "Library: corridors above the first floor",
+      "live": 3.8,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "manufacturingLight": {
+      "name": "Manufacturing: light",
+      "live": 4.0,
+      "concentrated": 6.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "manufacturingMedium": {
+      "name": "Manufacturing: medium",
+      "live": 6.0,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "manufacturingHeavy": {
+      "name": "Manufacturing: heavy",
+      "live": 12.0,
+      "concentrated": 13.4,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "garmentsFloor": {
+      "name": "Garments manufacturing floor (not stacking or storage)",
+      "live": 4.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note e (pp. 535, 538)"
+    },
+    "garmentsStorage": {
+      "name": "Garments manufacturing: stacking or storage",
+      "live": 6.0,
+      "concentrated": 10.0,
+      "note": "For floor heights up to 3.5 m; increase in proportion for higher floors (note f).",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note f (pp. 535, 538)"
+    },
+    "marquee": {
+      "name": "Marquees",
+      "live": 3.6,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "officeCorridor": {
+      "name": "Office: corridors above the first floor",
+      "live": 3.8,
+      "concentrated": 9.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "cellBlock": {
+      "name": "Penal institutions: cell blocks",
+      "live": 2.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "penalCorridor": {
+      "name": "Penal institutions: corridors",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "atticNoStorage": {
+      "name": "Dwellings: uninhabitable attics without storage",
+      "live": 0.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "atticStorage": {
+      "name": "Dwellings: uninhabitable attics with storage",
+      "live": 1.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "atticHabitable": {
+      "name": "Dwellings: habitable attics and sleeping areas",
+      "live": 1.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "dwelling": {
+      "name": "Dwellings (one- and two-family): all other areas",
+      "live": 2.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 535)"
+    },
+    "grandstand": {
+      "name": "Reviewing stands, grandstands and bleachers",
+      "live": 4.8,
+      "note": "Plus sway forces on the seats: 0.35 kN/m parallel and 0.15 kN/m perpendicular to each row, not together (note g).",
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note g (pp. 535, 538)"
+    },
+    "roofPromenade": {
+      "name": "Roof: promenade",
+      "live": 2.9,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 536)"
+    },
+    "awningFabric": {
+      "name": "Awnings and canopies: fabric on a light rigid frame",
+      "live": 0.24,
+      "reducible": false,
+      "roof": true,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, nonreducible (p. 536)"
+    },
+    "awning": {
+      "name": "Awnings and canopies: all other construction",
+      "live": 1.0,
+      "roof": true,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 536)"
+    },
+    "schoolCorridorAbove": {
+      "name": "School: corridors above the first floor",
+      "live": 3.8,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 536)"
+    },
+    "schoolCorridorFirst": {
+      "name": "School: first-floor corridors",
+      "live": 4.8,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 536)"
+    },
+    "driveway": {
+      "name": "Sidewalks, vehicular driveways and yards subject to trucking",
+      "live": 12.0,
+      "concentrated": 35.6,
+      "patch": 114,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, notes j and k (pp. 536, 538)"
+    },
+    "stadiumBleachers": {
+      "name": "Stadiums and arenas: bleachers",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note g (p. 536)"
+    },
+    "stadiumFixed": {
+      "name": "Stadiums and arenas: fixed seats",
+      "live": 2.9,
+      "source": "BNBC 2020 Part 6 Table 6.2.3, note g (p. 536)"
+    },
+    "stairsDwelling": {
+      "name": "Stairs: one- and two-family residences only",
+      "live": 2.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 536)"
+    },
+    "storageAboveCeiling": {
+      "name": "Storage areas above ceilings",
+      "live": 1.0,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 537)"
+    },
+    "wholesale": {
+      "name": "Stores: wholesale, all floors",
+      "live": 6.0,
+      "concentrated": 4.5,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 537)"
+    },
+    "walkway": {
+      "name": "Walkways and elevated platforms (not exit ways)",
+      "live": 2.9,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 537)"
+    },
+    "terrace": {
+      "name": "Yards and terraces, pedestrian",
+      "live": 4.8,
+      "source": "BNBC 2020 Part 6 Table 6.2.3 (p. 537)"
     }
+  },
+  "concentratedPatch": 300,
+  "roofLive": [
+    {
+      "id": "I",
+      "name": "Flat roof (slope 0): as the floor table",
+      "slopeMin": 0,
+      "slopeMax": 0.0001
+    },
+    {
+      "id": "II",
+      "name": "Pitched roof (slope below 1/3) or arch/dome (rise below 1/8 span)",
+      "live": 1.0,
+      "concentrated": 0.9,
+      "slopeMin": 0.0001,
+      "slopeMax": 0.333333,
+      "riseMin": 0,
+      "riseMax": 0.125
+    },
+    {
+      "id": "III",
+      "name": "Pitched roof (slope 1/3 to below 1) or arch/dome (rise 1/8 to below 3/8 span)",
+      "live": 0.8,
+      "concentrated": 0.9,
+      "slopeMin": 0.333333,
+      "slopeMax": 1.0,
+      "riseMin": 0.125,
+      "riseMax": 0.375
+    },
+    {
+      "id": "IV",
+      "name": "Pitched roof (slope 1 or more) or arch/dome (rise 3/8 span or more)",
+      "live": 0.6,
+      "concentrated": 0.9,
+      "slopeMin": 1.0,
+      "riseMin": 0.375
+    },
+    {
+      "id": "V",
+      "name": "Greenhouses and agriculture buildings",
+      "live": 0.5,
+      "concentrated": 0.9
+    }
+  ],
+  "partitions": {
+    "share": 0.33,
+    "minimum": 1.2,
+    "lightMax": 5.5
+  },
+  "vehicles": {
+    "vehicleShare": 0.4,
+    "spacing": 1.5,
+    "patch": 750,
+    "wheel": 9.0,
+    "jack": 13.35,
+    "jackPatch": 114,
+    "mechanicalWheel": 10.0
+  },
+  "barriers": {
+    "rows": [
+      {
+        "id": "A.a.i",
+        "name": "Light access stairs, gangways: width up to 0.6 m",
+        "load": 0.25,
+        "widthMax": 0.6
+      },
+      {
+        "id": "A.a.ii",
+        "name": "Light access stairs, gangways: width over 0.6 m",
+        "load": 0.35,
+        "widthMin": 0.6
+      },
+      {
+        "id": "A.b.i",
+        "name": "Stairs, ramps, balconies: single dwelling and private",
+        "load": 0.35
+      },
+      {
+        "id": "A.b.ii",
+        "name": "Staircases in residential buildings",
+        "load": 0.35
+      },
+      {
+        "id": "A.b.iii",
+        "name": "Balconies and stands with fixed seats within 0.55 m of the barrier",
+        "load": 1.5
+      },
+      {
+        "id": "A.b.iv",
+        "name": "Public assembly buildings (theatres, halls, stadiums, mosques, schools ...)",
+        "load": 3.0
+      },
+      {
+        "id": "A.b.v",
+        "name": "Other buildings and occupancies",
+        "load": 0.75
+      },
+      {
+        "id": "B.a",
+        "name": "Vehicle barriers: vehicles up to 2500 kg",
+        "load": 100,
+        "unit": "kN",
+        "massMax": 2500
+      },
+      {
+        "id": "B.b",
+        "name": "Vehicle barriers: vehicles over 2500 kg",
+        "load": 165,
+        "unit": "kN",
+        "massMin": 2500
+      }
+    ],
+    "vehicleLength": 1.5,
+    "bumperHeight": 375,
+    "rampShare": 0.5,
+    "rampHeight": 610,
+    "longRampLength": 20,
+    "longRampFactor": 2.0
+  },
+  "impact": [
+    {
+      "id": "1",
+      "name": "Lifts, hoists and related operating machinery",
+      "vertical": 1.0
+    },
+    {
+      "id": "2",
+      "name": "Light machinery (shaft or motor driven)",
+      "vertical": 0.2
+    },
+    {
+      "id": "3",
+      "name": "Reciprocating machinery, or power driven units",
+      "vertical": 0.5
+    },
+    {
+      "id": "4",
+      "name": "Hangers supporting floors and balconies",
+      "vertical": 0.33
+    }
+  ],
+  "sources": {
+    "concentratedPatch": "BNBC 2020 Part 6 Sec 2.3.5 (p. 533): on 300 mm x 300 mm unless the table says otherwise, not with the uniform load",
+    "roofLive": "BNBC 2020 Part 6 Sec 2.3.8, Table 6.2.4 and its note (1) (p. 539): the greater of this and the rain load (Sec 2.6.2) is the roof live load; the concentrated load on 300 mm x 300 mm, not with the distributed load, not needed on roofs that spread it (RC slabs)",
+    "partitions": "BNBC 2020 Part 6 Sec 2.3.6 (p. 538): light partitions (up to 5.5 kN per metre run) not on the plans: a uniform live load of at least 33 % of the weight per metre run, and at least 1.2 kN/m2",
+    "vehicles": "BNBC 2020 Part 6 Sec 2.3.5 (p. 533): loads 1.5 m apart, each 40 % of the heaviest vehicle, on 750 mm x 750 mm; private vehicles: 9 kN wheel loads; Table 6.2.3 note b (p. 537): 13.35 kN on a 114 mm x 114 mm jack footprint; mechanical parking without a slab: 10 kN per wheel",
+    "barriers": "BNBC 2020 Part 6 Sec 2.3.11, Table 6.2.5 and its notes (pp. 540-541): handrail loads horizontal or vertical, not together; vehicle barrier forces horizontal over any 1.5 m at bumper height (375 mm for light vehicles); ramps 50 % at 610 mm; straight exit ramps over 20 m long twice",
+    "impact": "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 rows 1-4 (p. 541): additional load as a share of the static load including self-weight, increased if the manufacturer recommends (note 1); row 5, cranes, is in cranes.json"
   }
 }

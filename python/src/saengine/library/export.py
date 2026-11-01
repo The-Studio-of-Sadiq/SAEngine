@@ -137,6 +137,28 @@ def _ts(value: Any, indent: int = 0) -> str:
     return json.dumps(value)
 
 
+def reduced_live() -> dict[str, Any]:
+    """The code pack's reduced live load factor (its ``exceptions`` on L) for the settings
+    editor: the strength combinations with it and its conditions; empty when the pack has none."""
+    from saengine.codes import context as code_context
+
+    table = code_context.current().table("combinations")
+    exception = next((e for e in (table.exceptions or {}).values() if e.case == "L"), None)
+    if exception is None:
+        return {}
+    settings = default_project_settings()
+    settings.analysis.reducedLiveFactor = True
+    return {
+        "combinations": [
+            c.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for c in strength_combinations(settings=settings)
+        ],
+        "liveMax": exception.liveMax,
+        "excludedUses": list(exception.excludedUses),
+        "source": exception.source or table.source,
+    }
+
+
 def bnbc_tables() -> dict[str, Any]:
     """BNBC 2020 tables the settings editor shows derived values from."""
     seismic = builtin_table("seismic", bnbc.PACK_ID)
@@ -213,6 +235,7 @@ def generate_typescript() -> str:
                 if c.ST
             ],
         ),
+        ("REDUCED_LIVE", "object", reduced_live()),
         ("BNBC", "IBnbcTables", bnbc_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),

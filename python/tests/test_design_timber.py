@@ -46,7 +46,8 @@ def test_duration_factor():
 
 
 def test_allowable_combinations_expand_wind_and_earthquake():
-    combos = dict(T.allowable_combinations())
+    # A model without F, H and T: Sec 2.7.2.1 combination 2, D + H + F + L + T, is D + L.
+    combos = dict(T.allowable_combinations({"D", "SD", "L", "Lr", "WX", "WY", "EX", "EY"}))
     assert combos["D + L"] == {"D": 1.0, "SD": 1.0, "L": 1.0}
     assert combos["D + WX"] == {"D": 1.0, "SD": 1.0, "WX": 1.0}
     assert combos["0.6D + 0.7(-EY)"]["EY"] == pytest.approx(-0.7)

@@ -134,6 +134,8 @@ METHOD = [
 SERVICE_CASES = ("D", "SD", "L", "Lr")
 #: The static lateral cases whose forces the allowable stress combinations take (T45).
 LATERAL_CASES = ("WX", "WY", "EX", "EY")
+#: The fluid and earth pressure cases the allowable stress combinations also take.
+OTHER_CASES = ("F", "H")
 
 
 @dataclass
@@ -156,6 +158,9 @@ class _Piece:
     #: Per combination, the part of ``forces`` from the floor live load cases (L, LP1, ...),
     #: for the live load reduction (:mod:`saengine.design.live_reduction`); None when not formed.
     live: list[np.ndarray] | None = None
+    #: Per combination, the part of ``forces`` from the roof live load case Lr, for the roof
+    #: live load reduction; None when not formed.
+    roof: list[np.ndarray] | None = None
 
 
 def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
@@ -395,6 +400,9 @@ def design(
     # (Sec 2.4.11.3) and the live load arrangements of Sec 6.1.12.2, from the cases the model
     # has (saengine.fem.combinations).
     from saengine.fem.combinations import (
+        CANTILEVER_PREFIX,
+        alternate_combinations,
+        cantilever_uplift,
         model_cases,
         pattern_live_combinations,
         wind_case_combinations,
@@ -403,6 +411,24 @@ def design(
     present = model_cases(project)
     formed = list(with_omega.combinations)
     pre_notes: list[str] = []
+    # The code pack's alternates ("Lr or R": the rain case R where the model has it) and its
+    # net upward force on horizontal cantilevers in the Seismic Design Categories it names
+    # (applied to the beams with a free end only, below).
+    by_alternate = alternate_combinations(formed, present)
+    if by_alternate is not None and len(by_alternate) > len(formed):
+        pre_notes.append(
+            "roof live load: each combination with Lr is also checked with R in its place"
+        )
+        formed = by_alternate
+    from saengine.design.seismic_rules import seismic_design_category
+
+    try:
+        uplift = cantilever_uplift(seismic_design_category(resolved)[0])
+    except (ValueError, KeyError, AttributeError, TypeError):
+        uplift = None
+    cantilevers = _cantilever_beams(building, objects) if uplift is not None else set()
+    if uplift is not None and cantilevers:
+        formed.append(uplift)
     by_wind = wind_case_combinations(formed, present)
     if by_wind is not None and len(by_wind) > len(formed):
         pre_notes.append(
@@ -535,6 +561,19 @@ def design(
         if omega_extra["ids"]:
             notes.append(overstrength.em_factors(settings)["clause"])
     notes += omega_extra["notes"]
+    uplift_indices = [
+        c for c, name in enumerate(combinations) if name.startswith(CANTILEVER_PREFIX)
+    ]
+    if uplift_indices:
+        # The upward force acts on the horizontal cantilevers only.
+        _drop_combinations(
+            pieces, shell_forces, uplift_indices, keep=cantilevers, keep_shells=set()
+        )
+        notes.append(
+            f"{combinations[uplift_indices[0]]} applied to the cantilever beams "
+            + ", ".join(sorted(cantilevers))
+            + f" ({code_context.pack_table('combinations').cantileverUplift.source})"
+        )
     slender_options = (
         slenderness_design.SlenderOptions.of(slenderness)
         if slenderness is not None
@@ -685,8 +724,8 @@ def design(
             continue
         es = bars.mechanical.E or 200_000.0
         # Integrator glue (T9): the floor live load reduced by the member's influence area
-        # (saengine.design.live_reduction, BNBC 2020 Part 6 Sec 2.3.13), or by its overwrite.
-        live_row = None
+        # (saengine.design.live_reduction, the code pack's liveReduction), or by its overwrite.
+        live_row = roof_row = None
         given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
             "liveLoadReduction"
         )
@@ -715,6 +754,29 @@ def design(
                     "",
                     None,
                     found_factor[1],
+                    flag=True,
+                )
+            # The roof live load Lr by the pack's roof rule (tributary area and slope).
+            roof_factor = (
+                live_reduction.roof_member_factor(
+                    "beam" if isinstance(object_type, Beam) else "column",
+                    own,
+                    service,
+                    live_scope,
+                    float(getattr(settings.analysis, "roofSlope", 0.0) or 0.0),
+                )
+                if given_factor is None
+                else None
+            )
+            if roof_factor is not None and roof_factor[0] < 1.0:
+                own = live_reduction.reduced(own, roof_factor[0], "roof")
+                roof_row = _check(
+                    "Roof live load reduction Lr / L0",
+                    roof_factor[0],
+                    1.0,
+                    "",
+                    None,
+                    roof_factor[1],
                     flag=True,
                 )
         joints_own = own
@@ -853,6 +915,8 @@ def design(
                 faced_any = faced_any or faced.at_faces
             if live_row is not None:
                 checks.append(live_row)
+            if roof_row is not None:
+                checks.append(roof_row)
             given = resolved_overwrites.get(member_id)
             if given:
                 notes.extend(f"{member_id}: {note}" for note in given.notes())
@@ -1103,7 +1167,7 @@ def _design_timber(
     from saengine.design import timber as timber_design
 
     case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
-    formed = timber_design.allowable_combinations()
+    formed = timber_design.allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
 
     def skip(member_id: str, object_type: Any, reason: str) -> None:
         skipped.append(
@@ -2086,7 +2150,7 @@ def _demands(
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
 
-    from saengine.design.live_reduction import is_live_case
+    from saengine.design.live_reduction import is_live_case, is_roof_case
     from saengine.fem import tension_only
     from saengine.fem.combinations import combination_factors
     from saengine.fem.display import (
@@ -2198,6 +2262,7 @@ def _demands(
         for factors in factors_of
     ]
     live = [{c: f for c, f in factors.items() if is_live_case(c)} for factors in factors_of]
+    roof = [{c: f for c, f in factors.items() if is_roof_case(c)} for factors in factors_of]
     if extra is not None:
         extra["factors"] = factors_of
         stacks = _displacement_stacks(displacements)
@@ -2210,7 +2275,9 @@ def _demands(
             "displacements": {c: displacements[c] for c in SERVICE_CASES if c in displacements},
             # T45: the wind and earthquake cases' forces, for the allowable stress
             # combinations of timber (saengine.design.timber).
-            "lateralForces": {c: by_case[c] for c in LATERAL_CASES if c in by_case},
+            "lateralForces": {
+                c: by_case[c] for c in (*LATERAL_CASES, *OTHER_CASES) if c in by_case
+            },
         }
 
     # Each combination of all the elements of one shape at once: the same sums element by
@@ -2223,6 +2290,7 @@ def _demands(
     sway_of = _combined_stacks(by_case, [e.id for e in elements], lateral, parts=True)
     sustained_of = _combined_stacks(by_case, [e.id for e in elements], sustained, parts=True)
     live_of = _combined_stacks(by_case, [e.id for e in elements], live, parts=True)
+    roof_of = _combined_stacks(by_case, [e.id for e in elements], roof, parts=True)
     pieces: dict[str, list[_Piece]] = {}
     for e in elements:
         a, b = coords[e.i], coords[e.j]
@@ -2241,6 +2309,7 @@ def _demands(
                 sway=sway_of[e.id],
                 sustained=sustained_of[e.id],
                 live=live_of[e.id],
+                roof=roof_of[e.id],
             )
         )
 
@@ -2319,6 +2388,32 @@ def _shells_of(project: dict[str, Any], ids: set[str]) -> set[int]:
         for e in project.get("elements", [])
         if e.get("type") == "Shell" and (e.get("name") or "").split("#")[0] in ids
     }
+
+
+def _cantilever_beams(building: BuildingModel, objects: Any) -> set[str]:
+    """The ids of the beams with a free end: an end past the last support that is neither held
+    by another beam nor continued by one (horizontal cantilevers)."""
+    types = {o.id: o for o in objects.objects}
+    framing = _BeamFraming(building, types)
+    out: set[str] = set()
+    for element in building.elements:
+        if not isinstance(element, BeamElement):
+            continue
+        try:
+            supports = framing.support_stations(element)
+        except (ValueError, KeyError, AttributeError, TypeError):
+            continue
+        if not supports:
+            continue
+        for end in (0, 1):
+            edge = supports[0] if end == 0 else supports[-1]
+            if (
+                abs(edge - end) > 1e-3
+                and not framing.end_held(element, end)
+                and not framing.continues(element, end)
+            ):
+                out.add(element.id)
+    return out
 
 
 def _drop_combinations(

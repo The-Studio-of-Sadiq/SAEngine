@@ -99,6 +99,12 @@ class Occupancy(_Model):
             ]
         ),
     )
+    cycloneShelter: bool = Field(
+        default=False,
+        title="Cyclone shelter",
+        description="The building is a cyclone shelter: its live loads are never reduced where "
+        "the code pack says so (liveReduction.notReducedBuildings).",
+    )
     category: Literal["I", "II", "III", "IV"] = Field(
         default="II",
         title="Occupancy category",
@@ -796,11 +802,24 @@ class Analysis(_Model):
     liveLoadReduction: bool = Field(
         default=False,
         title="Live load reduction",
-        description="Reduce the floor live load of beams and columns by their influence area "
-        "(BNBC 2020 Part 6 Sec 2.3.13): L = L0 (0.25 + 4.57 / √(KLL AT)), at least 0.5 L0 "
-        "(one floor) or 0.4 L0 (two or more); none for assembly uses, and only 20 % for heavy "
-        "live loads and parking on members carrying two or more floors. A member's design "
-        "overwrite can give its own factor.",
+        description="Reduce the live loads of beams and columns by the code pack's rule "
+        "(liveReduction): the floor live load by the influence area KLL AT, the ordinary roof "
+        "live load Lr by the tributary area and the roof slope. A member's design overwrite can "
+        "give its own factor.",
+    )
+    reducedLiveFactor: bool = Field(
+        default=False,
+        title="Reduced live load factor",
+        description="Take the code pack's permitted lower factor on L in the strength "
+        "combinations it names, where its conditions hold (the floor live loads and uses). "
+        "Applied when the load combinations are reset to the code's.",
+    )
+    roofSlope: float = Field(
+        default=0.0,
+        ge=0,
+        title="Roof slope",
+        description="Slope of a pitched roof in per cent (rise / run × 100), for the roof live "
+        "load by slope and its reduction; 0 for a flat roof.",
     )
     periodMethod: Literal["approximate", "analysis"] = Field(
         default="approximate",
@@ -1084,7 +1103,7 @@ class LoadCombination(_Model):
     D: float = Field(
         default=0,
         description="Factor on the dead load D, which includes the superimposed dead load SD "
-        "(floor finish, partitions; BNBC 2020 Part 6 Sec 2.7.3).",
+        "(floor finish, partitions).",
     )
     L: float = Field(default=0, description="Factor on the live load L.")
     Lr: float = Field(default=0, description="Factor on the roof live load Lr.")
@@ -1108,19 +1127,17 @@ class LoadCombination(_Model):
     F: float | None = Field(
         default=None,
         title="F",
-        description="Factor on the fluid loads (the contents of equipment in 07 MEP). Empty: the "
-        "D factor where it is above 1.0, else 0 (BNBC 2020 2.7.3.1: F with D in 1.4(D + F) and "
-        "1.2(D + F + T) + ...; none in the 0.9D combinations, as a tank may be empty). 1.2F in "
-        "the other 1.2D combinations is an SAEngine adoption, on the safe side for gravity.",
+        description="Factor on the fluid loads (the contents of equipment in 07 MEP), as the "
+        "code pack's combination gives it (see its notes). Empty (older files): the D factor "
+        "where it is above 1.0, else 0.",
     )
 
     H: float | None = Field(
         default=None,
         title="H",
         description="Factor on the lateral earth and groundwater pressure on the basement walls "
-        "(case H, 9 Substructure). Empty: 1.6 in the combinations with 1.6L and in the 0.9D "
-        "ones, else 0 (BNBC 2020 Part 6 Sec 2.7.3.1 (p685), as ASCE 7-05 2.3.2: 1.2(D + F + T) "
-        "+ 1.6(L + H) + 0.5Lr, 0.9D + 1.6W + 1.6H, 0.9D + 1.0E + 1.6H).",
+        "(case H, 9 Substructure), as the code pack's combination gives it. Empty (older "
+        "files): 1.6 in the combinations with 1.6L and in the 0.9D ones, else 0.",
     )
 
     @model_validator(mode="after")
@@ -1376,47 +1393,72 @@ class ProjectSettings(_Model):
 
 
 def strength_combinations(
-    thermal: bool = False, pack: CodePack | None = None, settlement: bool = False
+    thermal: bool = False,
+    pack: CodePack | None = None,
+    settlement: bool = False,
+    settings: ProjectSettings | None = None,
 ) -> list[LoadCombination]:
-    """The code pack's strength combinations (BNBC 2020 2.7.3 by default), with wind and
-    earthquake in ±X and ±Y; with ``thermal``, combination 2 also with ±T
-    (:func:`saengine.fem.thermal.strength_combinations_with_t`) right after it, the combination
-    without T kept. The fluid factor F follows D (see :class:`LoadCombination`)."""
+    """The code pack's strength combinations, with wind and earthquake in ±X and ±Y
+    (:func:`saengine.fem.combinations.expand_rows`); with ``thermal``, combination 2 also with
+    ±T (:func:`saengine.fem.thermal.strength_combinations_with_t`) right after it, the
+    combination without T kept. A pack row without F or H gives them no factor.
+
+    With ``settings``, the pack's permitted factor changes (``exceptions``) apply where their
+    conditions hold: the reduced live load factor when ``analysis.reducedLiveFactor`` is on,
+    and the wind factor of concrete frames when the wind is not reduced by directionality
+    (:func:`saengine.fem.combinations.exception_applies`)."""
+    from saengine.fem import combinations as fc
+
     pack = pack or code_context.current()
     table = pack.table("combinations")
-    result = []
-    for name, factors in ((c.name, dict(c.factors)) for c in table.strength):
-        lateral = next((case for case in ("W", "E") if case in factors), None)
-        if lateral is None:
-            result.append(LoadCombination(name=name, **factors))
-            if thermal and name == "1.2D + 1.6L + 0.5Lr":
-                from saengine.fem.thermal import strength_combinations_with_t
-
-                for t_name, t_factors in strength_combinations_with_t():
-                    result.append(LoadCombination(name=t_name, **t_factors))
-            if settlement and name == "1.2D + 1.6L + 0.5Lr":
-                from saengine.fem.settlement import strength_combinations_with_st
-
-                for st_name, st_factors in strength_combinations_with_st(thermal):
-                    result.append(LoadCombination(name=st_name, **st_factors))
+    rows = list(table.strength)
+    for name, exception in (getattr(table, "exceptions", None) or {}).items():
+        if settings is None or not _exception_wanted(name, exception, settings, pack):
             continue
-        base = {k: v for k, v in factors.items() if k != lateral}
-        for axis in ("X", "Y"):
-            for sign in (1, -1):
-                label = (
-                    f"{name.replace(lateral, f'{lateral}{axis}', 1)}"
-                    if sign > 0
-                    else f"{name.replace(lateral, f'(-{lateral}{axis})', 1)}"
-                )
-                result.append(
-                    LoadCombination(
-                        name=label, **base, **{f"{lateral}{axis}": sign * factors[lateral]}
-                    )
-                )
+        rows = [fc.apply_exception(row, exception) for row in rows]
+    first = rows[1].name if len(rows) > 1 else None  # combination 2: where T and ST go
+    result = []
+    for label, factors, row in fc.expand_rows(rows):
+        result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
+        if row.name != first:
+            continue
+        if thermal:
+            from saengine.fem.thermal import strength_combinations_with_t
+
+            for t_name, t_factors in strength_combinations_with_t():
+                result.append(LoadCombination(name=t_name, **t_factors))
+        if settlement:
+            from saengine.fem.settlement import strength_combinations_with_st
+
+            for st_name, st_factors in strength_combinations_with_st(thermal):
+                result.append(LoadCombination(name=st_name, **st_factors))
     return result
 
 
+def _exception_wanted(name: str, exception: Any, settings: ProjectSettings, pack: CodePack) -> bool:
+    """Whether the project takes the pack's factor exception ``name``: one on the live load
+    when ``analysis.reducedLiveFactor`` is chosen, one on the wind when its conditions hold."""
+    from saengine.fem.combinations import exception_applies
+
+    if exception.case == "L":
+        if not getattr(settings.analysis, "reducedLiveFactor", False):
+            return False
+        loads = [(a.use, float(a.live)) for a in settings.areaLoads]
+        return exception_applies(exception, live_loads=loads)[0]
+    directionality = None
+    if pack.has("wind"):
+        directionality = getattr(pack.table("wind"), "directionality", None)
+    system = (
+        pack.table("seismic").systems.get(settings.seismic.system) if pack.has("seismic") else None
+    )
+    material = "concrete" if system is not None and system.concrete and not system.masonry else None
+    return exception_applies(exception, directionality=directionality, material=material)[0]
+
+
 def default_area_loads() -> list[AreaLoad]:
+    # The partition allowance: the code pack's least uniform allowance for partitions not on
+    # the plans (1.0 kN/m² when the pack sets none).
+    allowance = getattr(code_context.current().table("areaLoads"), "partitions", None)
     return [
         AreaLoad(
             id="FL",
@@ -1424,7 +1466,7 @@ def default_area_loads() -> list[AreaLoad]:
             use="residential",
             live=bnbc.AREA_USES["residential"].live,
             finish=1.2,
-            partitions=1.0,
+            partitions=allowance.minimum if allowance is not None else 1.0,
         ),
         AreaLoad(
             id="ST", name="Stairs", use="stairs", live=bnbc.AREA_USES["stairs"].live, finish=1.2
@@ -1720,8 +1762,10 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
 def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
     """The settings against the tables of the code pack."""
     out: list[tuple[str, str]] = []
-    uses = pack.table("areaLoads").uses
+    area_table = pack.table("areaLoads")
+    uses = area_table.uses
     edition = pack.edition or pack.name
+    partitions = getattr(area_table, "partitions", None)
     for index, load in enumerate(settings.areaLoads):
         use = uses.get(load.use)
         if use and load.live < use.live:
@@ -1730,10 +1774,24 @@ def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str,
                     f"areaLoads.{index}.live",
                     (
                         f"{load.id}: live load {load.live:g} kN/m² is below the {edition} minimum "
-                        f"of {use.live:g} kN/m² for {use.name.lower()} (Table 6.2.3)"
+                        f"of {use.live:g} kN/m² for {use.name.lower()} "
+                        f"({use.source or area_table.source})"
                     ),
                 )
             )
+        # The allowance for partitions not on the plans: at least the pack's minimum.
+        if partitions is not None and 0 < load.partitions < partitions.minimum - 1e-9:
+            out.append(
+                (
+                    f"areaLoads.{index}.partitions",
+                    (
+                        f"{load.id}: partition allowance {load.partitions:g} kN/m² is below the "
+                        f"{edition} minimum of {partitions.minimum:g} kN/m² "
+                        f"({area_table.sources.get('partitions', area_table.source).split(':')[0]})"
+                    ),
+                )
+            )
+    out += _exception_problems(settings, pack)
     locations = pack.table("locations").locations
     if settings.site.location != "custom" and settings.site.location not in locations:
         out.append(
@@ -1779,6 +1837,26 @@ def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str,
         )
     if settings.seismic.system in pack.table("seismic").systems:
         out.extend(_system_problems(settings, pack))
+    return out
+
+
+def _exception_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The reduced live load factor chosen where the pack's conditions do not hold."""
+    from saengine.fem.combinations import exception_applies
+
+    if not getattr(settings.analysis, "reducedLiveFactor", False):
+        return []
+    table = pack.table("combinations")
+    loads = [(a.use, float(a.live)) for a in settings.areaLoads]
+    out = []
+    for exception in (getattr(table, "exceptions", None) or {}).values():
+        if exception.case != "L":
+            continue
+        ok, why = exception_applies(exception, live_loads=loads)
+        if not ok:
+            where = (exception.source or table.source).split(":")[0]
+            message = f"the reduced live load factor does not apply: {why} ({where})"
+            out.append(("analysis.reducedLiveFactor", f"{message}; the full factor is kept"))
     return out
 
 

@@ -1,25 +1,32 @@
 {
   "$schema": "../../../schemas/liveReduction.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 2.3.13"
+    "BNBC 2020 Part 6 Sec 2.3.13-2.3.14, Eqs 6.2.1-6.2.2, Table 6.2.7 (pp. 542-544)"
   ],
-  "source": "BNBC 2020 Part 6 Sec 2.3.13 (reduction of live loads)",
+  "source": "BNBC 2020 Part 6 Sec 2.3.13 (reduction of live loads, pp. 542-543)",
   "influenceMin": 37.16,
   "constant": 0.25,
   "coefficient": 4.57,
   "minOneFloor": 0.5,
   "minFloors": 0.4,
-  "heavyLive": 4.79,
+  "heavyLive": 4.8,
   "heavyFactor": 0.8,
   "notReduced": [
     "assemblyFixed",
-    "assemblyMovable"
+    "assemblyMovable",
+    "assemblyPlatform",
+    "stadiumFixed",
+    "stadiumBleachers",
+    "grandstand"
   ],
+  "assemblyMax": 4.8,
   "twoFloorsOnly": [
-    "parking",
-    "storageLight",
-    "storageHeavy"
+    "parking"
   ],
+  "notReducedBuildings": [
+    "cycloneShelter"
+  ],
+  "oneWaySlabWidth": 1.5,
   "kll": {
     "interiorColumn": 4,
     "exteriorColumn": 4,
@@ -29,13 +36,36 @@
     "edgeBeam": 2,
     "other": 1
   },
+  "roof": {
+    "areaLow": 18.58,
+    "areaHigh": 55.74,
+    "r1Constant": 1.2,
+    "r1Coefficient": 0.011,
+    "r1Min": 0.6,
+    "riseLow": 4,
+    "riseHigh": 12,
+    "r2Constant": 1.2,
+    "r2Coefficient": 0.05,
+    "r2Min": 0.6,
+    "slopeF": 0.12,
+    "archF": 32,
+    "minimum": 0.6,
+    "maximum": 1.0,
+    "uses": [
+      "roof",
+      "awning"
+    ]
+  },
   "sources": {
-    "influenceMin": "BNBC 2020 Part 6 Sec 2.3.13: members with KLL AT of 37.16 m² or more may be reduced (ASCE 7-05 Sec 4.8.1, SI)",
-    "constant": "BNBC 2020 Part 6 Sec 2.3.13, L = L0 (0.25 + 4.57 / √(KLL AT))",
-    "minOneFloor": "BNBC 2020 Part 6 Sec 2.3.13: at least 0.5 L0 for members supporting one floor, 0.4 L0 for two or more",
-    "heavyLive": "BNBC 2020 Part 6 Sec 2.3.13: live loads over 4.79 kN/m² not reduced, except by 20 % on members supporting two or more floors",
-    "notReduced": "BNBC 2020 Part 6 Sec 2.3.13: assembly uses not reduced",
-    "twoFloorsOnly": "BNBC 2020 Part 6 Sec 2.3.13: passenger car garages (and heavy storage, over 4.79 kN/m²) only by 20 % on members supporting two or more floors",
-    "kll": "BNBC 2020 Part 6 Sec 2.3.13, live load element factor KLL (ASCE 7-05 Table 4-2)"
+    "influenceMin": "BNBC 2020 Part 6 Sec 2.3.13.1 (p. 542): members with KLL AT of 37.16 m2 or more may be reduced; roof uniform live loads are not reduced by this rule (Sec 2.3.13)",
+    "constant": "BNBC 2020 Part 6 Sec 2.3.13.1, Eq 6.2.1 (p. 542): L = L0 (0.25 + 4.57 / sqrt(KLL AT)). The equation is printed in a symbol font that the text layer garbles; its coefficient is three distinct digit glyphs around the point (a.bc), which with the SI form of 15/sqrt(ft2) (15 x 0.3048 = 4.57) confirms 4.57",
+    "minOneFloor": "BNBC 2020 Part 6 Sec 2.3.13.1 (p. 542): at least 0.50 L0 for members supporting one floor, 0.40 L0 for two or more",
+    "heavyLive": "BNBC 2020 Part 6 Sec 2.3.13.2 (p. 543): live loads over 4.80 kN/m2 are not reduced, except by 20 % on members supporting two or more floors",
+    "notReduced": "BNBC 2020 Part 6 Sec 2.3.13.4(a) (p. 543): live loads of 4.80 kN/m2 or less are not reduced in public assembly occupancies",
+    "twoFloorsOnly": "BNBC 2020 Part 6 Sec 2.3.13.3 (p. 543): passenger car garages not reduced, except by 20 % on members supporting two or more floors",
+    "notReducedBuildings": "BNBC 2020 Part 6 Sec 2.3.13.4(b) (p. 543): no reduction of live loads for cyclone shelters",
+    "oneWaySlabWidth": "BNBC 2020 Part 6 Sec 2.3.13.5 (p. 543): AT of a one-way slab at most the span times 1.5 spans",
+    "kll": "BNBC 2020 Part 6 Table 6.2.7 (pp. 542-543), live load element factor KLL",
+    "roof": "BNBC 2020 Part 6 Sec 2.3.14.1, Eq 6.2.2 (pp. 543-544): Lr = L0 R1 R2, 0.60 <= Lr <= 1.00; R1 = 1 (AT <= 18.58 m2), 1.2 - 0.011 AT, 0.6 (AT >= 55.74 m2); R2 = 1 (F <= 4), 1.2 - 0.05 F, 0.6 (F >= 12); F = 0.12 x slope in per cent, or 32 x rise / span of an arch or dome. Special purpose roofs (gardens, assembly) follow Sec 2.3.13 (2.3.14.2)"
   }
 }

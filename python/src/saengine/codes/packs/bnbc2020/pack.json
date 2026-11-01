@@ -58,13 +58,13 @@
       "Table 6.2.17 (p. 616)"
     ],
     "areaLoads": [
-      "BNBC 2020 Part 6 Table 6.2.3 (pp. 533-539)"
+      "BNBC 2020 Part 6 Sec 2.3.3-2.3.12, Tables 6.2.3-6.2.6 (pp. 533-542)"
     ],
     "deadLoads": [
       "BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"
     ],
     "combinations": [
-      "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685)"
+      "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685), 2.5.13.5-2.5.13.6 (p. 647), 1.5.9 (p. 500)"
     ],
     "seismic": [
       "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
@@ -132,7 +132,7 @@
       "EN 10219 (SHS, RHS, CHS)"
     ],
     "liveReduction": [
-      "BNBC 2020 Part 6 Sec 2.3.13"
+      "BNBC 2020 Part 6 Sec 2.3.13-2.3.14, Eqs 6.2.1-6.2.2, Table 6.2.7 (pp. 542-544)"
     ],
     "fireResistance": [
       "ACI 216.1-14 (BNBC 2020 Part 6 gives no table; the ratings come from Part 4)"

@@ -2,7 +2,7 @@
 design, as IS 883 gives it).
 
 The member's forces are the allowable stress (service level) combinations of the code pack
-(``combinations.allowable``, BNBC 2020 Part 6 Sec 2.7.3.2) formed from the analysis's load
+(``combinations.allowable``) formed from the analysis's load
 cases, not the strength combinations. Per member, at every station of every combination:
 
 - bending about both axes, f = M / Z against Fb, times the depth factor K3 for beams deeper
@@ -389,31 +389,12 @@ def asd_pieces(
     return out
 
 
-#: The load cases each factor of a pack combination stands for (W and E expand by direction).
-_CASES = {"D": ("D", "SD"), "L": ("L",), "Lr": ("Lr",), "F": ("F",), "H": ("H",), "T": ("T",)}
+def allowable_combinations(
+    present: set[str] | frozenset[str] | None = None,
+) -> list[tuple[str, dict[str, float]]]:
+    """The code pack's allowable stress combinations as ``(name, {case: factor})``, wind and
+    earthquake in ±X and ±Y (formed by :func:`saengine.fem.combinations.allowable_combinations`;
+    with ``present``, the optional cases the model lacks are left out)."""
+    from saengine.fem.combinations import allowable_combinations as formed
 
-
-def allowable_combinations() -> list[tuple[str, dict[str, float]]]:
-    """The code pack's allowable stress combinations (``combinations.allowable``, BNBC 2020
-    Part 6 Sec 2.7.3.2) as ``(name, {case: factor})``, wind and earthquake in ±X and ±Y."""
-    table = code_context.pack_table("combinations")
-    out: list[tuple[str, dict[str, float]]] = []
-    for c in getattr(table, "allowable", None) or []:
-        factors = dict(c.factors)
-        base: dict[str, float] = {}
-        for key, value in factors.items():
-            for case in _CASES.get(key, ()):
-                base[case] = value
-        lateral = next((k for k in ("W", "E") if k in factors), None)
-        if lateral is None:
-            out.append((c.name, base))
-            continue
-        for axis in ("X", "Y"):
-            for sign in (1, -1):
-                label = (
-                    c.name.replace(lateral, f"{lateral}{axis}", 1)
-                    if sign > 0
-                    else c.name.replace(lateral, f"(-{lateral}{axis})", 1)
-                )
-                out.append((label, {**base, f"{lateral}{axis}": sign * factors[lateral]}))
-    return out
+    return formed(present)

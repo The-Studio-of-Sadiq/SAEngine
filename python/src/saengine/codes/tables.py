@@ -94,12 +94,118 @@ class OccupancyCategoriesTable(TableModel):
 class AreaUse(_Row):
     name: str
     live: float = Field(ge=0, description="Minimum uniformly distributed live load [kN/m²].")
+    concentrated: float | None = Field(
+        default=None,
+        ge=0,
+        description="Minimum concentrated live load [kN], applied alone (not with the uniform "
+        "load) on the patch ``patch``; empty: none.",
+    )
+    patch: float | None = Field(
+        default=None,
+        gt=0,
+        description="Side of the square the concentrated load acts on [mm]; empty: the table's "
+        "``concentratedPatch``.",
+    )
+    reducible: bool = Field(
+        default=True, description="False: the uniform load is never reduced (a nonreducible row)."
+    )
+    roof: bool = Field(
+        default=False,
+        description="A roof live load (case Lr): reduced by the roof rule, not the floor rule.",
+    )
+    note: str | None = Field(default=None, description="The row's notes, for the user.")
+
+
+class RoofLiveRow(_Row):
+    """A row of the minimum roof live loads by type and slope (pitched roofs by slope = rise /
+    run, arched roofs and domes by rise / span)."""
+
+    id: str
+    name: str
+    live: float | None = Field(
+        default=None, ge=0, description="Distributed load [kN/m²]; empty: as the floor table."
+    )
+    concentrated: float | None = Field(default=None, ge=0, description="Concentrated load [kN].")
+    slopeMin: float | None = Field(default=None, ge=0, description="Least slope (rise / run).")
+    slopeMax: float | None = Field(
+        default=None, gt=0, description="Slope (rise / run) the row stops below."
+    )
+    riseMin: float | None = Field(
+        default=None, ge=0, description="Least rise / span of an arched roof or dome."
+    )
+    riseMax: float | None = Field(
+        default=None, gt=0, description="Rise / span the row stops below."
+    )
+
+
+class PartitionAllowance(_Row):
+    """Uniform live load in lieu of light partitions not shown on the plans."""
+
+    share: Share = Field(description="Uniform load per kN/m of partition weight [kN/m² per kN/m].")
+    minimum: Positive = Field(description="Least uniform partition allowance [kN/m²].")
+    lightMax: Positive = Field(
+        description="Heaviest partition [kN/m] the uniform allowance stands in for."
+    )
+
+
+class VehicleLoads(_Row):
+    """Concentrated loads where vehicles are used or stored, applied without the uniform load."""
+
+    vehicleShare: Share = Field(description="Each load as a share of the heaviest vehicle.")
+    spacing: Positive = Field(description="Spacing of the loads [m].")
+    patch: Positive = Field(description="Side of the square each load acts on [mm].")
+    wheel: Positive = Field(description="Least wheel load of private vehicle storage [kN].")
+    jack: Positive = Field(description="Jack load of passenger vehicle garages [kN].")
+    jackPatch: Positive = Field(description="Side of the jack footprint [mm].")
+    mechanicalWheel: Positive = Field(
+        description="Load per wheel of mechanical parking without a slab [kN]."
+    )
+
+
+class BarrierRow(_Row):
+    id: str
+    name: str
+    load: Positive = Field(description="Line load [kN/m] or vehicle barrier force [kN].")
+    unit: Literal["kN/m", "kN"] = "kN/m"
+    widthMax: float | None = Field(default=None, gt=0, description="Applies up to this width [m].")
+    widthMin: float | None = Field(default=None, gt=0, description="Applies above this width [m].")
+    massMax: float | None = Field(default=None, gt=0, description="Vehicle gross mass up to [kg].")
+    massMin: float | None = Field(default=None, gt=0, description="Vehicle gross mass above [kg].")
+
+
+class BarrierLoads(_Row):
+    """Live loads on handrails, parapets and vehicle barriers."""
+
+    rows: list[BarrierRow]
+    vehicleLength: Positive = Field(description="Length a vehicle force spreads over [m].")
+    bumperHeight: Positive = Field(description="Bumper height of light vehicles [mm].")
+    rampShare: Share = Field(description="Ramp barrier force as a share of the row's.")
+    rampHeight: Positive = Field(description="Height of the ramp barrier force [mm].")
+    longRampLength: Positive = Field(description="Straight exit ramps longer than this [m] ...")
+    longRampFactor: Positive = Field(description="... take the row's force times this.")
+
+
+class ImpactRow(_Row):
+    id: str
+    name: str
+    vertical: float = Field(ge=0, description="Vertical impact, share of the static load.")
+    horizontal: float | None = Field(default=None, ge=0, description="Horizontal share.")
 
 
 class AreaLoadsTable(TableModel):
-    """Minimum live loads by use of the floor area."""
+    """Minimum live loads by use of the floor area, with their concentrated loads, the roof
+    live loads by slope, the partition allowance, vehicle and barrier loads, and the impact of
+    equipment."""
 
     uses: dict[str, AreaUse]
+    concentratedPatch: float | None = Field(
+        default=None, gt=0, description="Side of the square a concentrated load acts on [mm]."
+    )
+    roofLive: list[RoofLiveRow] = Field(default_factory=list)
+    partitions: PartitionAllowance | None = None
+    vehicles: VehicleLoads | None = None
+    barriers: BarrierLoads | None = None
+    impact: list[ImpactRow] = Field(default_factory=list)
 
 
 class WallTypeRow(_Row):
@@ -134,10 +240,45 @@ class DeadLoadsTable(TableModel):
 
 
 class Combination(_Row):
+    #: The code's number of the combination ("2", "5W" ...), for the exceptions and the report.
+    id: str | None = None
     name: str
     #: Load case kind -> factor. Kinds: D (incl. SD), L, Lr, W, E, F, T, H, R, ... ("W" and "E"
-    #: expand to the plan directions and signs in the program).
+    #: expand to the plan directions and signs in the program, "T" to + and -).
     factors: dict[str, float]
+    note: str | None = Field(
+        default=None,
+        description="What the row adds beyond the code (an adoption), shown with it in the report.",
+    )
+
+
+class FactorException(_Row):
+    """A code's permitted change of one factor in some combinations (``rows``: their ids)."""
+
+    case: str = Field(description="Load case kind whose factor changes (L, W ...).")
+    to: float = Field(description="The factor it may take instead.")
+    rows: list[str] = Field(description="Ids of the strength combinations it applies to.")
+    liveMax: float | None = Field(
+        default=None, gt=0, description="Only where every floor live load L0 ≤ this [kN/m²]."
+    )
+    excludedUses: list[str] = Field(
+        default_factory=list, description="Area uses (garages, assembly) it never applies to."
+    )
+    directionality: float | None = Field(
+        default=None,
+        gt=0,
+        description="Only when the wind's directionality factor is this (W not reduced by it).",
+    )
+    material: str | None = Field(
+        default=None, description="Only for members of this material category (concrete)."
+    )
+
+
+class CantileverUplift(_Row):
+    """A net upward force on horizontal cantilevers, in addition to the combinations."""
+
+    factor: Positive = Field(description="Upward force as a share of the dead load.")
+    categories: list[str] = Field(description="Seismic Design Categories it applies in.")
 
 
 class CombinationsTable(TableModel):
@@ -167,6 +308,36 @@ class CombinationsTable(TableModel):
         default="",
         description="How Em applies: text for the report (Ω0 from the seismic systems table).",
     )
+    optionalCases: list[str] = Field(
+        default_factory=lambda: ["F", "H", "T", "R"],
+        description="Load case kinds a combination is formed without when the model has no such "
+        "case (a model without basement walls has no H).",
+    )
+    alternates: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="A case and the cases that may take its place at the same factor ('Lr or "
+        "R'): each combination with the case is also formed with each alternate the model has.",
+    )
+    exceptions: dict[str, FactorException] = Field(
+        default_factory=dict,
+        description="Permitted factor changes of the strength combinations, by name.",
+    )
+    allowableStressIncrease: float | None = Field(
+        default=None,
+        ge=1,
+        description="Allowable stress increase with the overstrength seismic load Em in the "
+        "allowable stress combinations ``allowableStressIncreaseRows``.",
+    )
+    allowableStressIncreaseRows: list[str] = Field(
+        default_factory=list, description="Ids of the allowable stress combinations it applies to."
+    )
+    upliftDeadFactor: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="Factor on the dead load that resists uplift in allowable stress design.",
+    )
+    cantileverUplift: CantileverUplift | None = None
 
 
 # ─────────────────────────────────────────── seismic ───────────────────────────────────────────
@@ -1744,6 +1915,26 @@ class LiveElementFactors(_Group):
     other: Positive = Field(description="All other members (one-way slabs, cantilevers ...).")
 
 
+class RoofReduction(_Group):
+    """Lr = L0 R1 R2 within [minimum, maximum]: R1 from the tributary area, R2 from the slope."""
+
+    areaLow: Positive = Field(description="R1 = 1 up to this tributary area [m²].")
+    areaHigh: Positive = Field(description="R1 = r1Min from this tributary area [m²].")
+    r1Constant: Positive = Field(description="a of R1 = a - b AT between the two.")
+    r1Coefficient: Positive = Field(description="b of R1 = a - b AT [1/m²].")
+    r1Min: Share
+    riseLow: Positive = Field(description="R2 = 1 up to this F.")
+    riseHigh: Positive = Field(description="R2 = r2Min from this F.")
+    r2Constant: Positive = Field(description="a of R2 = a - b F between the two.")
+    r2Coefficient: Positive = Field(description="b of R2 = a - b F.")
+    r2Min: Share
+    slopeF: Positive = Field(description="Pitched roof: F = this × slope in per cent.")
+    archF: Positive = Field(description="Arch or dome: F = this × rise / span.")
+    minimum: Positive = Field(description="Least reduced roof live load [kN/m²].")
+    maximum: Positive = Field(description="Most reduced roof live load [kN/m²].")
+    uses: list[str] = Field(description="Area uses the rule reduces (ordinary roofs).")
+
+
 class LiveReductionTable(TableModel):
     """Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13)."""
 
@@ -1755,8 +1946,26 @@ class LiveReductionTable(TableModel):
     heavyLive: Positive = Field(description="Live loads above this [kN/m²] are not reduced.")
     heavyFactor: Share = Field(description="L / L0 of heavy loads on members of 2+ floors.")
     notReduced: list[str] = Field(description="Area uses never reduced.")
+    assemblyMax: float | None = Field(
+        default=None,
+        gt=0,
+        description="The ``notReduced`` uses are not reduced up to this L0 [kN/m²] (above it the "
+        "heavy load rule applies); empty: never reduced.",
+    )
     twoFloorsOnly: list[str] = Field(description="Area uses reduced only on 2+ floors.")
+    notReducedBuildings: list[str] = Field(
+        default_factory=list,
+        description="Building kinds (project occupancy flags such as cycloneShelter) whose live "
+        "loads are never reduced.",
+    )
+    oneWaySlabWidth: Positive | None = Field(
+        default=None,
+        description="AT of a one-way slab at most its span times this many spans wide.",
+    )
     kll: LiveElementFactors
+    roof: RoofReduction | None = Field(
+        default=None, description="Reduction of the ordinary roof live load (Lr)."
+    )
 
 
 class FireResistanceTable(TableModel):
