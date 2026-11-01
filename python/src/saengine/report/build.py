@@ -1156,6 +1156,7 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         )
     rows += _wind_gust_rows(wind.get("gust") or {})
     rows += _wind_cladding_rows(wind.get("cladding") or {})
+    rows += _flood_rows(values.get("flood") or {}, values.get("specialLoads") or {})  # B16
     live = values.get("patternLive") or {}
     if live.get("cases"):
         rows.append(
@@ -1184,6 +1185,140 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         check = None
     if isinstance(check, dict) and check.get("note"):
         rows.append(["Mesh check", str(check["note"])])
+    return rows
+
+
+def _flood_rows(flood: dict[str, Any], special: dict[str, Any]) -> list[list[str]]:
+    """B16: the design flood, the flood loads Fa, the stability under wind and flood, and the
+    rain, helipad, explosion and shelter loads, with the code pack's clauses."""
+    rows: list[list[str]] = []
+    cite = flood.get("sources") or {}
+    if flood.get("Hm_m") is not None:
+        parts = [f"Hm = {fmt(flood['Hm_m'], 2)} m ({flood.get('period')}-year)"]
+        if flood.get("hs_m") is not None:
+            parts.append(f"hs = {fmt(flood['hs_m'], 2)} m")
+        if flood.get("hf_m") is not None:
+            parts.append(f"hf = {fmt(flood['hf_m'], 2)} m")
+        rows.append(
+            [
+                "Design flood depth",
+                ", ".join(parts) + f" ({cite.get('waterLevels') or flood.get('source', '')})",
+            ]
+        )
+        rows.append(
+            [
+                "Hydrostatic pressure at the ground",
+                (
+                    f"{fmt(flood.get('hydrostaticBase_kPa', 0), 1)} kN/m² to the depth "
+                    f"{fmt(flood.get('freeWaterDepth_m', 0), 2)} m ({cite.get('freeWaterIncrease', '')})"
+                ),
+            ]
+        )
+        if flood.get("dh_m") is not None:
+            rows.append(
+                [
+                    "Hydrodynamic surcharge dh",
+                    (
+                        f"{fmt(flood['dh_m'], 2)} m at V = {fmt(flood.get('velocity_ms', 0), 2)} m/s: "
+                        f"{fmt(flood.get('dynamicPressure_kPa', 0), 2)} kN/m² "
+                        f"({cite.get('hydrodynamic', '')})"
+                    ),
+                ]
+            )
+        wave = flood.get("breakingWave") or {}
+        if wave:
+            text = f"ds = {fmt(wave.get('ds_m', 0), 2)} m, Hb = {fmt(wave.get('Hb_m', 0), 2)} m"
+            if "Ft" in wave:
+                text += (
+                    f", Pmax = {fmt(wave['Pmax'], 1)} kN/m², Ft = {fmt(wave['Ft'], 1)} kN/m "
+                    "on the walls"
+                )
+            rows.append(["Breaking waves", f"{text} ({cite.get('breakingWave', '')})"])
+        for axis in "XY":
+            if flood.get(f"total{axis}_kN") is not None:
+                rows.append(
+                    [
+                        f"Flood load Fa{axis}",
+                        (
+                            f"{fmt(flood[f'total{axis}_kN'], 1)} kN, of which "
+                            f"{fmt(flood.get(f'ground{axis}_kN', 0), 1)} kN straight into the ground"
+                        ),
+                    ]
+                )
+        impact = flood.get("impact") or {}
+        if impact:
+            rows.append(
+                [
+                    "Debris impact",
+                    (
+                        f"{fmt(impact['F_N'] / 1e3, 1)} kN (CI {impact['CI']:g}, CD "
+                        f"{fmt(impact['CD'], 2)}, CB {fmt(impact['CB'], 2)}, Rmax {impact['Rmax']:g}; "
+                        f"{cite.get('impact', '')})"
+                    ),
+                ]
+            )
+        for row in flood.get("stability") or []:
+            rows.append(
+                [
+                    f"Overturning, W + Fa along {row['direction']}",
+                    f"FS = {fmt(row['factor'], 2)} (at least {row['required']:g}"
+                    + ("" if row["ok"] else ", not met")
+                    + f"); sliding needs μ ≥ {fmt(row['slidingFriction'], 2)} "
+                    f"({cite.get('stabilityFactor', '')})",
+                ]
+            )
+        floating = flood.get("flotation") or {}
+        if floating:
+            rows.append(
+                [
+                    "Flotation (dry floodproofed)",
+                    f"buoyancy {fmt(floating['U_kN'], 0)} kN, dead load / buoyancy "
+                    f"{fmt(floating['factor'], 2)} (at least {floating['required']:g}"
+                    + ("" if floating["ok"] else ", not met")
+                    + f"; {floating.get('note', '')})",
+                ]
+            )
+    clauses = special.get("sources") or {}
+    if special.get("rain_kPa"):
+        rows.append(
+            [
+                "Rain load R",
+                f"{fmt(special['rain_kPa'], 2)} kN/m² on the roof ({clauses.get('rain', '')})",
+            ]
+        )
+    helipad = special.get("helipad") or {}
+    if helipad:
+        rows.append(
+            [
+                "Helicopter landing area",
+                (
+                    f"L1 = {fmt(helipad['L1_kN'], 1)} kN, L2 = {fmt(helipad['L2_kN'], 1)} kN on "
+                    f"{helipad['patch_mm']:g} mm square, L3 = {fmt(helipad['L3_kPa'], 1)} kN/m² "
+                    f"({clauses.get('helipad', '')})"
+                ),
+            ]
+        )
+    for room in special.get("explosionRooms") or []:
+        rows.append(
+            [
+                f"Gas explosion, {room['name']}",
+                (
+                    f"q0 = {fmt(room['q0_kPa'], 0)} kN/m² at A0/v = {fmt(room['ratio'], 3)} 1/m; "
+                    f"design {fmt(room['design_kPa'], 0)} kN/m² ({clauses.get('explosion', '')})"
+                ),
+            ]
+        )
+    shelter = special.get("airRaidShelter") or {}
+    if shelter:
+        rows.append(
+            [
+                "Air raid shelter",
+                (
+                    f"{fmt(shelter['load_kPa'], 1)} kN/m² ({shelter['storeys']} storeys above; "
+                    f"{clauses.get('shelter', '')})"
+                ),
+            ]
+        )
     return rows
 
 

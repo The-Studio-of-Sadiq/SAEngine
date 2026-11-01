@@ -17,6 +17,7 @@ import dataclasses
 import itertools
 import re
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -45,12 +46,14 @@ _FACTOR_CASES = {
     "EYN": ("EYN",),
     "WTX": ("WTX",),
     "WTY": ("WTY",),
+    "FaX": ("FaX",),
+    "FaY": ("FaY",),
 }
 #: Cases a combination may name that a model need not have: the fluid case F exists only when
 #: 07 MEP puts equipment contents in it, so a combination without its results is formed without
 #: it (a model without F has no fluid loads). So is the earth pressure case H (only a model with
 #: basement walls has it). T is not optional: its combinations need its case.
-OPTIONAL_CASES = frozenset({"F", "H"})
+OPTIONAL_CASES = frozenset({"F", "H", "FaX", "FaY"})
 _DOF = ["Ux", "Uy", "Uz", "Rx", "Ry", "Rz"]
 _FORCES = ["Fx", "Fy", "Fz", "Mx", "My", "Mz"]
 _END_FORCES = ["N", "Vy", "Vz", "T", "My", "Mz"]
@@ -125,18 +128,35 @@ def exception_applies(
     return True, ""
 
 
-def expand_rows(rows: list[Any]) -> list[tuple[str, dict[str, float], Any]]:
+def _with_lateral() -> tuple[str, ...]:
+    """The pack's kinds that act in the direction of a row's wind or earthquake (B16: the
+    flood load Fa with the wind that drives it)."""
+    try:
+        return tuple(getattr(_pack(), "withLateral", None) or ())
+    except Exception:  # noqa: BLE001 - no pack machinery
+        return ()
+
+
+def expand_rows(
+    rows: list[Any], with_lateral: tuple[str, ...] | None = None
+) -> list[tuple[str, dict[str, float], Any]]:
     """``(name, {kind: factor}, row)`` of pack rows, a row with W or E once per plan direction
     and sign: ``1.2D + 1.6WX + ...``, ``1.2D + 1.6(-WX) + ...`` (kinds W, E become WX, WY, EX,
-    EY; the other kinds stay)."""
+    EY; the other kinds stay). The kinds ``with_lateral`` (default: the pack's ``withLateral``,
+    the flood load Fa) take the same direction and sign (FaX, FaY); a row with one of them
+    and no W or E expands on it alone."""
+    following = _with_lateral() if with_lateral is None else with_lateral
     out: list[tuple[str, dict[str, float], Any]] = []
     for row in rows:
         factors = dict(row.factors)
         lateral = next((kind for kind in DIRECTIONAL if kind in factors), None)
         if lateral is None:
+            lateral = next((kind for kind in following if kind in factors), None)
+        if lateral is None:
             out.append((row.name, factors, row))
             continue
-        base = {k: v for k, v in factors.items() if k != lateral}
+        along = [k for k in following if k in factors and k != lateral]
+        base = {k: v for k, v in factors.items() if k != lateral and k not in along}
         for axis in ("X", "Y"):
             for sign in (1, -1):
                 label = (
@@ -144,20 +164,31 @@ def expand_rows(rows: list[Any]) -> list[tuple[str, dict[str, float], Any]]:
                     if sign > 0
                     else row.name.replace(lateral, f"(-{lateral}{axis})", 1)
                 )
-                out.append((label, {**base, f"{lateral}{axis}": sign * factors[lateral]}, row))
+                expanded = {**base, f"{lateral}{axis}": sign * factors[lateral]}
+                for kind in along:
+                    label = (
+                        label.replace(kind, f"{kind}{axis}", 1)
+                        if sign > 0
+                        else label.replace(kind, f"(-{kind}{axis})", 1)
+                    )
+                    expanded[f"{kind}{axis}"] = sign * factors[kind]
+                out.append((label, expanded, row))
     return out
 
 
 def allowable_combinations(
     present: set[str] | frozenset[str] | None = None,
+    flood: str | None = None,
 ) -> list[tuple[str, dict[str, float]]]:
     """The code pack's allowable stress combinations (``combinations.allowable``) as ``(name,
     {analysis case: factor})``: wind and earthquake in ±X and ±Y, D on D and SD, T as a rise
     and a fall. With ``present`` (the cases that have results), the pack's optional cases
     (F, H, T, R) the model lacks are left out of a combination (the combination with a load
     not acting, as the code asks), and each combination with Lr is also formed on its
-    alternate R when the model has it."""
-    return [(name, cases) for name, cases, _row in _formed("allowable", present)]
+    alternate R when the model has it. With ``flood`` (the kind of the project's flood zone,
+    :func:`saengine.fem.flood.zone_kind`), the pack's flood rows of that zone follow (B16)."""
+    kind = flood if flood is not None else _FLOOD_KIND.get()
+    return [(name, cases) for name, cases, _row in _formed("allowable", present, kind)]
 
 
 def service_combinations(
@@ -174,17 +205,48 @@ def service_combinations(
     ]
 
 
+#: B16: the kind of the project's flood zone (coastal, inland) the allowable stress
+#: combinations take their flood rows of when the caller names none; set by the design check
+#: (:func:`set_flood_kind`) from the project settings.
+_FLOOD_KIND: ContextVar[str | None] = ContextVar("saengine_flood_kind", default=None)
+
+
+def set_flood_kind(settings: Any) -> None:
+    """The project's flood zone kind for :func:`allowable_combinations` (None outside one)."""
+    from saengine.fem.flood import zone_kind
+
+    flood = getattr(getattr(settings, "site", None), "flood", None)
+    _FLOOD_KIND.set(zone_kind(getattr(flood, "zone", None)))
+
+
+def flood_rows(category: str, flood: str | None) -> list[Any]:
+    """The code pack's ``category`` rows (strength, allowable) of a flood zone of kind
+    ``flood`` (coastal, inland; :func:`saengine.fem.flood.zone_kind`); [] for none (B16)."""
+    if not flood:
+        return []
+    group = (getattr(_pack(), "flood", None) or {}).get(flood)
+    return list(getattr(group, category, None) or []) if group is not None else []
+
+
 def _formed(
-    category: str, present: set[str] | frozenset[str] | None
+    category: str, present: set[str] | frozenset[str] | None, flood: str | None = None
 ) -> list[tuple[str, dict[str, float], Any]]:
-    """The rows of the pack's ``category`` as ``(name, {analysis case: factor}, row)``."""
+    """The rows of the pack's ``category`` as ``(name, {analysis case: factor}, row)``; the
+    flood zone's rows after them (``flood``). A flood case (FaX, FaY) the model lacks is left
+    out like the optional cases."""
     table = _pack()
     optional = set(getattr(table, "optionalCases", ()) or ())
+    following = set(_with_lateral())
+    rows = list(getattr(table, category, None) or []) + flood_rows(category, flood)
     out: list[tuple[str, dict[str, float], Any]] = []
-    for name, factors, row in expand_rows(list(getattr(table, category, None) or [])):
+    for name, factors, row in expand_rows(rows):
         cases: dict[str, float] = {}
         for kind, value in factors.items():
-            if present is not None and kind in optional and kind not in present:
+            if (
+                present is not None
+                and (kind in optional or kind[:-1] in following)
+                and kind not in present
+            ):
                 continue
             for case in KIND_CASES.get(kind, (kind,)):
                 cases[case] = value
