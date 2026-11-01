@@ -13,7 +13,8 @@ How it is called::
 
 Sheet order and numbers (``S-101`` on): general notes and tables; the foundation plan (with
 piles, the pile layout plan and the pile cap schedule); the framing plans per level; the slab
-reinforcement plans; the column schedule; the beam elevations; the footing, wall and stair
+reinforcement plans; with slab tendons (:mod:`.pt`), the post-tensioning plans, the tendon
+profiles and the tendon and stressing schedule; the column schedule; the beam elevations; the footing, wall and stair
 details; the bar bending schedule; then, with structural steel
 (:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
 connection details; then, with an architecture (:mod:`.architecture`), the architectural
@@ -37,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from saengine.drawings.sheets import architecture as ar
-from saengine.drawings.sheets import details, plans, schedules
+from saengine.drawings.sheets import details, plans, pt, schedules
 from saengine.drawings.sheets import mep as mp
 from saengine.drawings.sheets import steel as st
 from saengine.drawings.sheets.layout import (
@@ -197,6 +198,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
             by_scale.setdefault(spec.scale, []).append(spec)
     for scale, specs in by_scale.items():
         out.append(_Category("Slab reinforcement plans", scale, specs, plan=True))
+    out += _pt_categories(data, settings, area, problems)
     # schedules and details
     size = (area[2] - area[0], height)
     specs = schedules.column_schedule(data.columns, b.levels, settings.detail_scale, size)
@@ -378,6 +380,52 @@ def members_of(page: Sequence[tuple[ViewSpec, float, float]], data: DrawingSet) 
         elif kind in by_kind:
             found.update(by_kind[kind].get(mark, []))
     return sorted(found)
+
+
+def _pt_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The post-tensioning sheets (:mod:`.pt`), after the slab reinforcement plans: the tendon
+    plan of each level with tendons, the tendon profiles and the tendon and stressing schedule.
+    None without slab tendons."""
+    if not data.pt:
+        return []
+    b = data.building
+    out: list[_Category] = []
+    by_scale: dict[float, list[ViewSpec]] = {}
+    for lv in sorted(b.levels, key=lambda lv: lv.elevation):
+        if any(item.level == lv.id for item in data.pt):
+            spec, p = _fit_plan(
+                lambda s, lv=lv: pt.tendon_plan(b, lv, data.pt, s), settings.plan_scale, area
+            )
+            problems += p
+            if spec is not None:
+                by_scale.setdefault(spec.scale, []).append(spec)
+    for scale, specs in by_scale.items():
+        out.append(_Category("Post-tensioning plans", scale, specs, plan=True, notes=pt.PLAN_NOTES))
+    specs = _details(pt.tendon_profile, data.pt, settings.elevation_scale, area, problems)
+    if specs:
+        out.append(
+            _Category(
+                "Tendon profiles",
+                settings.elevation_scale,
+                specs,
+                scale_text=f"1:{settings.elevation_scale:g}",
+                notes=pt.PROFILE_NOTES,
+            )
+        )
+    specs = schedules.table_specs(
+        pt.stressing_table(data.pt, b),
+        area[3] - area[1],
+        key="pt-schedule",
+        max_width=area[2] - area[0],
+    )
+    out.append(
+        _Category(
+            "Tendon and stressing schedule", 1, specs, scale_text="NTS", notes=pt.SCHEDULE_NOTES
+        )
+    )
+    return out
 
 
 def _steel_categories(

@@ -1088,6 +1088,11 @@ def drawing_set(
         else:
             if architecture.walls:
                 data.architecture = architecture
+    if bim.additions.slabTendons:
+        from saengine.drawings.sheets.pt import pt_tendons
+
+        data.pt, problems = pt_tendons(bim, objects, materials)
+        data.problems += problems
     if texts["mep"]:
         from saengine.drawings.sheets.mep import mep_drawing
 
