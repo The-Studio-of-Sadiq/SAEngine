@@ -14,21 +14,23 @@ vertical (the batter on the front face). The retained ground is at ``retainedLev
 finished ground by default), the ground in front at ``frontLevel`` (the top of the base by
 default). The depths of the soil column are measured from the retained ground.
 
-Loads (per metre run; BNBC 2020 Part 6 Sec 2.6.5 (p680))
+Loads (per metre run; the code pack's earth pressure rules, the default pack's BNBC 2020 Part 6
+Sec 2.6.5)
 - H, the lateral earth and water pressure (:mod:`saengine.substructure.earth_pressure`): on a
   cantilever wall active by default, on the vertical plane through the heel's end down to the
   underside of the base (Rankine, inclined at the backfill slope β; or Coulomb, at the wall
   friction δ), with the surcharge q; on a basement wall at rest on the stem. Below the design
-  water table the soil is submerged and the full hydrostatic pressure added (Sec 2.6.5.1); a
-  ``drained`` wall carries no water.
-- uplift under the base (Sec 2.6.5.2, p680): the water pressure at the underside, linear from
+  water table the soil is submerged and the full hydrostatic pressure added (the pack's
+  ``retainingWall.pressure`` clause); a ``drained`` wall carries no water.
+- uplift under the base (``retainingWall.uplift``): the water pressure at the underside, linear from
   the heel (retained side) to the toe (the water no higher than the front ground there), and
   the water in front pushing back on the toe.
-- D: the concrete (``concreteUnitWeight`` 24 kN/m³), the soil over the heel (total unit
+- D: the concrete (24 kN/m³, SAEngine practice), the soil over the heel (total unit
   weight: γ, γsat below the water table) and over the toe; the surcharge over the heel counts
   only where it does not help (bearing, the heel's design).
 - E (``seismic``): the increment of :func:`saengine.substructure.earth_pressure.seismic_increment`
-  at the site's peak ground acceleration (2/3) Z S (BNBC 2020 Part 6 Sec 2.5.4.3), with the
+  at the site's peak ground acceleration (the pack's ``pgaFactor`` Z S, (2/3) Z S in the
+  default pack), with the
   inertia of the wall (kh times its weight).
 
 Stability of a cantilever wall (service loads; factors from the code pack's
@@ -50,24 +52,26 @@ pinned) at the raft: a one-way vertical span at rest, solved as a continuous bea
 (:func:`beam_actions`); their stability is the building's, and the flotation of the basement
 is checked once for all of them (:func:`flotation`).
 
-RC design per metre run (strength: ACI 318-19, which BNBC 2020 Part 6 Chapter 6 adopts)
-- combinations (BNBC 2020 Part 6 Sec 2.7.3.1, p685): 1.2D + 1.6H + 1.6L (the surcharge as L)
-  and 0.9D + 1.6H for the base (the envelope of the two), 1.6H for the stem; with earthquake
-  0.9D + 1.0E + 1.6H (ASCE 7-05 2.3.2 (7)). The uplift with the water pressure (1.6H).
+RC design per metre run (strength: ACI 318-19, which the default pack's code adopts)
+- combinations with the pack's load factor on H (``retainingWall.hFactor``; the default pack's
+  Sec 2.7.3.1): 1.2D + 1.6H + 1.6L (the surcharge as L) and 0.9D + 1.6H for the base (the
+  envelope of the two), 1.6H for the stem; with earthquake 0.9D + 1.0E + 1.6H (ASCE 7-05 2.3.2
+  (7)). The uplift with the water pressure (1.6H).
 - flexure: the ACI rectangular block (:func:`saengine.plumbing.tanks.flexure_area`) at the
   stem's base (and the supports and spans of a basement wall), the heel's top at the stem's
   back face, the toe's bottom at its front face;
 - one-way shear without shear reinforcement (ACI 318-19 Table 22.5.5.1 (c),
   :func:`saengine.design.slab.one_way_shear`): the stem d above the base (d from the supports),
   the toe d from the stem, the heel at the stem's face (a support in tension);
-- minimum: BNBC 2020 Part 6 Sec 6.6.3.2 / 6.6.3.3 (walls: vertical 0.0012 / 0.0015,
-  horizontal 0.0020 / 0.0025 of the gross section, p969), ACI 318-19 7.6.1.1 for the base;
+- minimum: the pack's wall steel (``concrete.walls``; the default pack's Sec 6.6.3.2 / 6.6.3.3:
+  vertical 0.0012 / 0.0015, horizontal 0.0020 / 0.0025 of the gross section), ACI 318-19
+  7.6.1.1 for the base;
 - crack control (service: D + H + L): the crack width of EN 1992-1-1:2004 7.3.4 at the soil
   face (:func:`saengine.plumbing.tanks.crack_width`) against ``crackLimit`` (0.3 mm; 0.2 mm
   watertight, EN 1992-3 Table 7.105) and the ACI 318-19 Table 24.3.2 spacing
   ``s ≤ 380 (280/fs) - 2.5 cc ≤ 300 (280/fs)`` with fs = 2/3 fy;
-- cover: 50 mm (``reinforcement.cover``) at the stem, 75 mm under the base (BNBC 2020 Part 6
-  Sec 8.1.7.2 (a), cast against earth);
+- cover: 50 mm (``reinforcement.cover``) at the stem, the pack's cover cast against earth
+  under the base (``retainingWall.baseCover``, 75 mm; the wall's cover without one);
 - bars: the wall's ``reinforcement`` where given, else proposed (the lightest of 10-25 mm bars
   at 100-300 mm that gives the strength, the minimum and the crack width).
 
@@ -96,11 +100,9 @@ from saengine.substructure.earth_pressure import (
     soil_column,
 )
 
-#: Unit weight of reinforced concrete [kN/m³] (BNBC 2020 Part 6 Table 6.2.1, p521: 23.6;
-#: 24 as the tanks).
+#: Unit weight of reinforced concrete [kN/m³]: 24 as the tanks (SAEngine practice; the default
+#: pack's dead load table gives 23.6).
 CONCRETE_UNIT_WEIGHT = 24.0
-#: BNBC 2020 Part 6 Sec 8.1.7.2 (a): cast against and permanently exposed to earth [mm].
-COVER_UNDER_BASE = 75.0
 #: Bars the proposal tries [mm] and the spacings [mm].
 DIAS = (10.0, 12.0, 16.0, 20.0, 25.0)
 SPACINGS = (300.0, 250.0, 200.0, 175.0, 150.0, 125.0, 100.0)
@@ -109,12 +111,13 @@ METHOD = [
     (
         "Retaining and basement walls: per metre run; earth pressure from the one engine "
         "(at rest K0 = 1 - sin φ', active Rankine/Coulomb, passive Rankine; submerged soil and "
-        "full hydrostatic pressure below the design water table, BNBC 2020 Part 6 Sec 2.6.5.1, "
-        "uplift Sec 2.6.5.2, p680); soil from the nearest borehole of 1 Soil Report."
+        "full hydrostatic pressure below the design water table, and the uplift, as the code "
+        "pack asks); soil from the nearest borehole of 1 Soil Report."
     ),
     (
         "Seismic earth pressure: Mononobe-Okabe (kh = ½ PGA, increment at 0.6 H, Seed & Whitman) "
-        "on cantilever walls, Wood (kh = PGA, uniform) on basement walls; PGA = (2/3) Z S."
+        "on cantilever walls, Wood (kh = PGA, uniform) on basement walls; PGA of the code "
+        "pack (pgaFactor Z S)."
     ),
     (
         "Stability of cantilever walls: sliding and overturning against the code pack's least "
@@ -124,9 +127,9 @@ METHOD = [
         "basement with the pack's factor on the dead load."
     ),
     (
-        "Stem and base: ACI 318-19 flexure and one-way shear (Table 22.5.5.1), 1.6H (BNBC 2020 Part 6 "
-        "Sec 2.7.3.1), BNBC 6.6.3.2-6.6.3.3 wall minimum, crack width EN 1992-1-1 7.3.4 and the "
-        "ACI 318-19 Table 24.3.2 spacing."
+        "Stem and base: ACI 318-19 flexure and one-way shear (Table 22.5.5.1), the code "
+        "pack's load factor on H and its wall minimum steel, crack width EN 1992-1-1 7.3.4 and "
+        "the ACI 318-19 Table 24.3.2 spacing."
     ),
 ]
 
@@ -134,6 +137,27 @@ METHOD = [
 def _factors() -> Any:
     """The pack's ``foundations.retainingWall`` factors."""
     return code_context.table("foundations").retainingWall
+
+
+def _clause(key: str) -> str:
+    """The reference of the pack's ``foundations`` source ``key`` (empty when none)."""
+    from saengine.substructure.shallow_rules import cite
+
+    return cite(key)
+
+
+def base_cover(wall_cover: float) -> float:
+    """Clear cover [mm] under the base: the pack's cover cast against earth (the default
+    pack: 75 mm), else the wall's own cover."""
+    value = _factors().baseCover
+    return wall_cover if value is None else float(value)
+
+
+def _wall_steel() -> tuple[Any, str]:
+    """The pack's least steel of walls (``concrete.walls``) and its clause."""
+    concrete = code_context.table("concrete")
+    clause = (getattr(concrete, "sources", None) or {}).get("walls", "")
+    return concrete.walls, clause.split(":")[0].strip()
 
 
 # ───────────────────────────────────── geometry ─────────────────────────────────────
@@ -294,7 +318,7 @@ class Strip:
     cover: float
     vu: float = 0.0
     where: str = ""
-    wall: bool = True  # a wall (BNBC vertical minimum) or a slab (ACI 7.6.1.1)
+    wall: bool = True  # a wall (the pack's vertical wall minimum) or a slab (ACI 7.6.1.1)
 
 
 def _flexure_area(m: float, d: float, fc: float, fy: float) -> float | None:
@@ -330,11 +354,14 @@ def aci_crack_spacing(fy: float, cover: float) -> float:
 
 
 def minimum_area(strip: Strip, fy: float, dia: float) -> float:
-    """The least bars at the face [mm²/m]: BNBC 2020 Part 6 Sec 6.6.3.2 vertical wall bars
-    (0.0012 for bars ≤ 16 mm of fy ≥ 420, else 0.0015, of the gross section, p969), or ACI
-    318-19 7.6.1.1 for the base (a slab on soil); the whole minimum at the face designed."""
+    """The least bars at the face [mm²/m]: the pack's vertical wall bars (``concrete.walls``;
+    the default pack's Sec 6.6.3.2: 0.0012 for bars ≤ 16 mm of fy ≥ 420, else 0.0015, of the
+    gross section), or ACI 318-19 7.6.1.1 for the base (a slab on soil); the whole minimum at
+    the face designed."""
     if strip.wall:
-        ratio = 0.0012 if dia <= 16 and fy >= 420 else 0.0015
+        walls, _ = _wall_steel()
+        small = dia <= walls.smallBarMax and fy >= walls.smallBarFy
+        ratio = float((walls.rhoSmallBars if small else walls.rhoOtherBars)[0])
     else:
         ratio = min_steel_ratio(fy)
     return ratio * 1000 * strip.h
@@ -417,7 +444,9 @@ def design_strip(
             area,
             "mm²/m",
             None,
-            "BNBC 2020 Part 6 Sec 6.6.3.2 (p969)" if strip.wall else "ACI 318-19 7.6.1.1",
+            (_wall_steel()[1] or "the code pack's wall minimum")
+            if strip.wall
+            else "ACI 318-19 7.6.1.1",
         )
     )
     wk = _crack(strip, dia, spacing, fc, ec)
@@ -919,10 +948,12 @@ def design_retaining_wall(
         )
         detail["stemFront"] = bars
         checks += found
-    # Horizontal bars: BNBC 2020 Part 6 Sec 6.6.3.3, 0.0020 (≤ 16 mm, fy ≥ 420) else 0.0025,
-    # half at each face.
+    # Horizontal bars: the pack's wall minimum (the default pack's Sec 6.6.3.3: 0.0020 for bars
+    # ≤ 16 mm of fy ≥ 420, else 0.0025), half at each face.
     horizontal = bars_given.horizontal if bars_given is not None else None
-    ratio = 0.0020 if (horizontal is None or horizontal.dia <= 16) and fy >= 420 else 0.0025
+    walls, walls_clause = _wall_steel()
+    small = (horizontal is None or horizontal.dia <= walls.smallBarMax) and fy >= walls.smallBarFy
+    ratio = float((walls.rhoSmallBars if small else walls.rhoOtherBars)[1])
     need = ratio * 1000 * h_base / 2
     if horizontal is None:
         dia = 12.0
@@ -950,7 +981,7 @@ def design_retaining_wall(
             detail["horizontal"]["area"],
             "mm²/m",
             None,
-            f"BNBC 2020 Part 6 Sec 6.6.3.3, {ratio:.4f} of the gross section, half per face (p969)",
+            f"{walls_clause or 'the code pack'}, {ratio:.4f} of the gross section, half per face",
         )
     )
     actions = {
@@ -972,8 +1003,13 @@ def design_retaining_wall(
         stable = {"uplift": round(u, 2)}
         if u > 0:
             notes.append(
-                f"{wall.id}: uplift {u:.1f} kPa under the base at the founding level (BNBC 2020 "
-                "Part 6 Sec 2.6.5.2); the flotation of the basement is checked with the raft"
+                f"{wall.id}: uplift {u:.1f} kPa under the base at the founding level"
+                + (
+                    f" ({_clause('retainingWall.uplift')})"
+                    if _clause("retainingWall.uplift")
+                    else ""
+                )
+                + "; the flotation of the basement is checked with the raft"
             )
     governing = max((c["utilisation"] for c in checks if not c["flag"]), default=0.0)
     ok = all(c["ok"] for c in checks if not c["flag"])
@@ -1073,7 +1109,7 @@ def _base_design(
         heel_m = float(_integral(np.where(on_heel, -net * (xs - s.back), 0.0), xs))
         pv = next((i.v for i in items if i.name == "earth pressure"), 0.0)
         heel_m += pv * s.heel
-        d_toe = (s.base * 1e3 - COVER_UNDER_BASE - 8) * 1e-3
+        d_toe = (s.base * 1e3 - base_cover(cover) - 8) * 1e-3
         toe_v = float(_integral(np.where(xs <= max(s.toe - d_toe, 0.0), net, 0.0), xs))
         heel_v = float(_integral(np.where(on_heel, -net, 0.0), xs)) + pv
         results[name] = {"toeM": toe_m, "heelM": heel_m, "toeV": toe_v, "heelV": heel_v}
@@ -1086,7 +1122,7 @@ def _base_design(
         max(r["toeM"] for r in strength),
         max(service["toeM"], 0.0),
         h,
-        COVER_UNDER_BASE,
+        base_cover(cover),
         max(abs(r["toeV"]) for r in strength),
         "stem's front face",
         wall=False,
@@ -1164,7 +1200,7 @@ def _rounded(value: Any) -> Any:
 
 
 def flotation(ctx: Context, profiles: list[Any]) -> dict[str, Any] | None:
-    """The flotation of the basement (BNBC 2020 Part 6 Sec 2.6.5.2, p680): the uplift
+    """The flotation of the basement (the pack's ``retainingWall.uplift`` clause): the uplift
     ``U = γw hw A`` on each raft under the design water table against the dead load that holds
     it down: the D and SD base reactions of the analysis and the rafts' own weight,
     ``FS = k W / U ≥ flotation`` with k the pack's factor on the dead load (0.9 W ≥ U in the

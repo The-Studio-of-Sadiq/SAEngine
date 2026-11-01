@@ -12,14 +12,15 @@ resultant's moments about the centroid (for a doubly symmetric group the familia
 ``P/n ± Mv u/Σu² ± Mu v/Σv²``). A group whose piles lie in one line (or a single pile) takes
 no moment across that line: it is reported and must be restrained by tie beams. The cap's own
 weight and the soil above it (``soil_above``) add to P under the service combinations
-(times the combination's dead-load factor). The soil under the cap carries nothing (BNBC 2020
-Part 6 Sec 3.10.1.20).
+(times the combination's dead-load factor). The soil under the cap carries nothing (the code
+pack's ``pileCap`` rules; the default pack: BNBC 2020 Part 6 Sec 3.10.1.20).
 
 Group checks (service combinations):
 
 - the largest pile load against the single pile's allowable compression and the least against
   its allowable uplift (:func:`saengine.substructure.piles.single_pile`);
-- group efficiency, BNBC Sec 3.10.1.19: 1.0, except for friction piles in cohesive soil (here:
+- group efficiency (the default pack's Sec 3.10.1.19): 1.0, except for friction piles in
+  cohesive soil (here:
   skin friction above end bearing, most of it in cohesive layers), where the Converse-Labarre
   formula is used (the code gives no formula): ``Eg = 1 - θ ((n - 1) m + (m - 1) n) / (90 m
   n)``, θ = atan(D/s) in degrees, m rows of n piles; the group's capacity Eg n Qa against the
@@ -28,9 +29,11 @@ Group checks (service combinations):
   Lg``, Nc = 5 (1 + 0.2 L/Bg)(1 + 0.2 Bg/Lg) ≤ 9 (Skempton 1951), Bg × Lg the outline of the
   outer piles' faces (a tip in granular soil: the base at the pile's unit end bearing), divided
   by the compression factor of safety;
-- spacing: at least 2.5 D (Sec 3.10.1.19) and 750 mm (Sec 3.10.1.30), 3 D for friction piles
-  (Sec 3.10.1.30); the cap at least 100 mm beyond the piles' faces and a bottom cover of at
-  least 50 mm (Sec 3.10.1.20); piles embedded at least 75 mm (noted);
+- the pack's ``foundations.pileCap`` rules (the default pack's Secs 3.10.1.20 and 3.10.1.30):
+  spacing at least ``spacing`` D and ``spacingMin`` (2.5 D and 750 mm), ``frictionSpacing`` D
+  for friction piles (3 D); the cap at least ``edgeDistance`` beyond the piles' faces (100 mm)
+  and a bottom cover of at least the pack's pile cap cover (50 mm); piles embedded at least
+  ``embedment`` (75 mm, noted). A pack without them does not cover these checks;
 - drilled shafts (bored piles wider than the pack's ``drilledShaft.minDiameter``): the group
   capacity is the lesser of Σ ζ Qult (ζ by spacing, in clay or sand) and the equivalent pier
   over the group's outline (:mod:`saengine.substructure.pile_static`), a weaker layer below the
@@ -40,13 +43,15 @@ Group checks (service combinations):
   piles, long term with the group as a solid foundation at the pack's share of the pile length
   (consolidation of the clay layers with the 2:1 spread, the modulus number method for the
   others), under the largest gravity service load, shown with the shallow foundations'
-  permissible settlement (BNBC Sec 3.10.5 refers to them as "Table 6.3.7", an evident
-  misprint for Table 6.3.8, which is used: see the pack's ``piles.settlement.limits`` note);
+  permissible settlement (the default pack's Sec 3.10.5 refers to them as "Table 6.3.7", an
+  evident misprint for Table 6.3.8, which is used: see the pack's ``piles.settlement.limits``
+  note);
 - the cap's depth above the bottom bars against the pack's least on piles
   (:func:`saengine.substructure.shallow_rules.thickness_check`).
 
-Cap design (strength combinations, ACI 318-19; BNBC 2020 Part 6 Ch 6 follows an earlier ACI 318
-without the size factor λs, so ACI 318-19 is the more conservative), with the pile reactions
+Cap design (strength combinations, ACI 318-19; the default pack's code, BNBC 2020 Part 6 Ch 6,
+follows an earlier ACI 318 without the size factor λs, so ACI 318-19 is the more conservative),
+with the pile reactions
 of the column loads alone (the cap's own factored weight adds to the reactions and loads the
 cap back in nearly the same places, so both are left out):
 
@@ -60,15 +65,17 @@ cap back in nearly the same places, so both are left out):
 - the pile reactions on a section (13.4.2.5): a pile whose centre is D/2 or more outside the
   section counts fully, D/2 or more inside not at all, linearly in between;
 - deep caps: when the shear span a (column face to the farthest pile centre beyond it) is less
-  than d in a direction, the cap is a deep member there and the strut-and-tie method (ACI 318-19
-  Chapter 23) governs: the sectional flexure and one-way shear are reported for reference and
-  flagged, and a simple strut-and-tie model is checked in their place: the tie (the bottom bars
-  of that direction over the cap width) for ``T = M / z``, M the moment of the pile reactions
-  beyond the column's quarter point (the column load split in two halves at c/4 from its centre,
-  where the struts start), z = 0.9 d, against φ As fy (23.7.2.1, φ = 0.75 of Table 21.2.1); the
-  node under each column (C-C-C, βn = 1.0, Anz the column's section) and over the most loaded
-  pile (C-C-T, βn = 0.8, Anz the pile's area) against φ 0.85 βn f'c Anz (23.9.1, Table 23.9.2,
-  βc = 1 on the safe side). Punching, minimum steel and the hogging check always count;
+  than d in a direction, the cap is a deep member there and the code pack's strut-and-tie method
+  governs (:mod:`saengine.design.stm`, ``foundations.strutAndTie`` with its clauses; the default
+  pack: BNBC 2020 Part 6 Appendix I): the sectional flexure and one-way shear are reported for
+  reference and flagged, and a simple strut-and-tie model is checked in their place: the tie
+  (the bottom bars of that direction over the cap width) for ``T = M / z``, M the moment of the
+  pile reactions beyond the column's quarter point (the column load split in two halves at c/4
+  from its centre, where the struts start), z = ``tieArm`` d (0.9 d), against φ As fy (φ the
+  pack's strut-and-tie φ, 0.75); the node under each column (C-C-C, βn of the pack, 1.0, Anz
+  the column's section) and over the most loaded pile (C-C-T, 0.8, Anz the pile's area)
+  against φ ``effective`` βn f'c Anz (0.85; βc = 1 on the safe side). Punching, minimum steel
+  and the hogging check always count;
 - As,min = 0.0018 Ag (fy 420; Table 7.6.1.1) in each direction with the bottom bars.
 
 Units: mm, N, N·mm and MPa inside; reported in kN, kN·m, kPa, mm.
@@ -112,10 +119,26 @@ from saengine.substructure.shallow import (
 G = 9.80665
 #: Shear span over effective depth below which a cap is a deep member (strut-and-tie).
 DEEP_RATIO = 1.0
-#: Least clear distance from a pile's face to the cap's edge [mm] (BNBC Sec 3.10.1.20).
-EDGE_DISTANCE = 100.0
-#: Least embedment of the piles in the cap [mm] (BNBC Sec 3.10.1.20).
-PILE_EMBEDMENT = 75.0
+
+
+def cap_rules() -> Any | None:
+    """The pack's ``foundations.pileCap`` rules (spacing, edge distance, embedment), or None
+    when the pack does not cover them."""
+    return shallow_rules.foundations_value("pileCap")
+
+
+def uplift_skin() -> float | None:
+    """The pack's share of the skin friction resisting uplift (``foundations.upliftSkin``)."""
+    return shallow_rules.foundations_value("upliftSkin")
+
+
+def _uplift_rule() -> str:
+    """How the allowable uplift of a pile is found, with the pack's share and clause."""
+    share = uplift_skin()
+    if share is None:
+        return "Ta = W/FS (" + shallow_rules.not_covered("skin friction in uplift") + ")"
+    clause = shallow_rules.cite("upliftSkin")
+    return f"Ta = ({share:g} Qs + W)/FS" + (f" ({clause})" if clause else "")
 
 
 @dataclass
@@ -442,10 +465,11 @@ def cap_checks(
                     f"no top {bars} bars: plain concrete, φMn = 0.60 × 0.42 √f'c Sm with "
                     f"h - 50 = {spec.thickness - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7)"
                 )
-                if "E" in (hog[1] or ""):
+                uplift_clause = shallow_rules.cite("pileCap.upliftTopBars")
+                if "E" in (hog[1] or "") and uplift_clause:
                     hog_note += (
-                        "; under earthquake uplift BNBC 2020 Part 6 Sec 8.3.11.2 asks for top "
-                        "flexural reinforcement in the pile cap"
+                        f"; under earthquake uplift {uplift_clause} asks for top flexural "
+                        "reinforcement in the pile cap"
                     )
             checks.append(
                 _check(
@@ -494,11 +518,19 @@ def cap_checks(
     if flags:
         detail["note"] = (
             f"shear span a < d along {', '.join(flags)}: a deep cap; checked by the strut-and-tie "
-            "method (ACI 318-19 Chapter 23: the bottom bars as the tie, the nodes at the column "
-            "and the pile heads; the sectional flexure and one-way shear are for reference). "
-            "Anchor the tie bars beyond the outer piles with hooks or heads (ACI 23.8.3)"
+            f"method ({_stm_clause()}: the bottom bars as the tie, the nodes at the "
+            "column and the pile heads; the sectional flexure and one-way shear are for "
+            "reference). Anchor the tie bars beyond the outer piles with hooks or heads "
+            f"({_stm_clause('anchorage')})"
         )
     return checks, detail
+
+
+def _stm_clause(key: str | None = None) -> str:
+    """The pack's clause of strut-and-tie ``key`` (:func:`saengine.design.stm.cite`; without a
+    key the method's own clause), else the pack's name."""
+    found = stm.cite(key) if key else shallow_rules.source("strutAndTie").split(" (")[0]
+    return found or f"the strut-and-tie method of {shallow_rules.code_name()}"
 
 
 def _phi_stm() -> float:
@@ -523,7 +555,8 @@ def _tie_check(
 ) -> list[dict[str, Any]]:
     """The tie of a deep cap along ``axis``: ``T = M / z``, M the moment of the pile reactions
     beyond the column's quarter point (the struts start from the column's load split in two
-    halves, each at c/4 from its centre), z = 0.9 d; against φ As fy (ACI 23.7.2.1)."""
+    halves, each at c/4 from its centre), z = ``tieArm`` d; against φ As fy (the pack's
+    strut-and-tie tie strength)."""
     from saengine.design.check import _check
 
     tie_arm, phi = _strut_and_tie("tieArm"), _phi_stm()
@@ -552,7 +585,7 @@ def _tie_check(
             combination,
             f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
             f"{tie_arm:g} d = {z:.0f} mm; φ As fy, φ = {phi:g}, As = {area:.0f} mm² over "
-            f"{width:.0f} mm (ACI 318-19 23.7.2.1, 21.2.1); {where}",
+            f"{width:.0f} mm ({_stm_clause('deltaFpBonded')}); {where}",
         )
     ]
 
@@ -560,12 +593,13 @@ def _tie_check(
 def _node_checks(
     spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
 ) -> list[dict[str, Any]]:
-    """Bearing on the nodes of a deep cap (ACI 318-19 23.9): the column's C-C-C node and the
-    pile heads' C-C-T nodes, fce = 0.85 βn f'c (βc = 1, on the safe side)."""
+    """Bearing on the nodes of a deep cap (the pack's nodal zones): the column's C-C-C node
+    and the pile heads' C-C-T nodes, fce = ``effective`` βn f'c (βc = 1, on the safe side)."""
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
     beta_ccc, beta_cct = _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
+    effective = _strut_and_tie("effective")
     for k, column in enumerate(spec.columns):
         area = column.cu * column.cv
         worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
@@ -578,8 +612,8 @@ def _node_checks(
                 stm.node_capacity(spec.fc, area, "CCC") / 1e3,
                 "kN",
                 worst[1],
-                f"C-C-C node, φ 0.85 βn f'c Anz with βn = {beta_ccc:g}, Anz = the column "
-                f"{column.cu:.0f} × {column.cv:.0f} mm (ACI 318-19 23.9.1, Table 23.9.2)",
+                f"C-C-C node, φ {effective:g} βn f'c Anz with βn = {beta_ccc:g}, Anz = the "
+                f"column {column.cu:.0f} × {column.cv:.0f} mm ({_stm_clause('betaCCC')})",
             )
         )
     area = math.pi * spec.pile_diameter**2 / 4
@@ -594,8 +628,9 @@ def _node_checks(
                 stm.node_capacity(spec.fc, area, "CCT") / 1e3,
                 "kN",
                 worst_pile[1],
-                f"C-C-T node at the pile head, φ 0.85 βn f'c Anz with βn = {beta_cct:g}, Anz = "
-                f"the pile's area (Ø{spec.pile_diameter:.0f}) (ACI 318-19 23.9.1, Table 23.9.2)",
+                f"C-C-T node at the pile head, φ {effective:g} βn f'c Anz with βn = "
+                f"{beta_cct:g}, Anz = the pile's area (Ø{spec.pile_diameter:.0f}) "
+                f"({_stm_clause('betaCCT')})",
             )
         )
     return checks
@@ -775,7 +810,7 @@ def pile_cap_design(
                 ta,
                 "kN",
                 worst_t[1],
-                f"least pile load {worst_t[0] / 1e3:.1f} kN; Ta = (0.7 Qs + W)/FS (BNBC Eq 6.3.12)",
+                f"least pile load {worst_t[0] / 1e3:.1f} kN; {_uplift_rule()}",
             )
         )
 
@@ -800,7 +835,12 @@ def pile_cap_design(
         )
     else:
         eg = 1.0
-        efficiency_note = "1.0 (BNBC Sec 3.10.1.19: not friction piles in cohesive soil)"
+        clause = shallow_rules.cite("pileCap.bracing")
+        efficiency_note = (
+            f"1.0 ({clause}: not friction piles in cohesive soil)"
+            if clause
+            else "1.0 (not friction piles in cohesive soil)"
+        )
     if total_max[1] is not None:
         checks.append(
             _check(
@@ -854,29 +894,39 @@ def pile_cap_design(
                     f"{settlement['q']:.0f} kPa; {permissible.get('source', '')}",
                 )
             )
-    # Spacing and edges (BNBC Secs 3.10.1.19, 3.10.1.20, 3.10.1.30).
-    if n > 1:
+    # Spacing and edges (the pack's pileCap rules).
+    cap = cap_rules()
+    spacing_clause = shallow_rules.cite("pileCap.spacing")
+    cap_clause = shallow_rules.cite("pileCap")
+    if cap is None:
+        notes.append(shallow_rules.not_covered("Pile spacing, cap edges and embedment"))
+    if n > 1 and cap is not None:
         s = min_spacing(piles)
-        need = max(2.5 * dia, 750.0, 3.0 * dia if pile["Qs"] > pile["Qb"] else 0.0)
-        rule = (
-            "3 D for friction piles (Sec 3.10.1.30)"
-            if pile["Qs"] > pile["Qb"]
-            else "2.5 D (Sec 3.10.1.19) and 750 mm (Sec 3.10.1.30)"
+        friction = pile["Qs"] > pile["Qb"]
+        need = max(
+            cap.spacing * dia, cap.spacingMin, cap.frictionSpacing * dia if friction else 0.0
         )
+        rule = (
+            f"{cap.frictionSpacing:g} D for friction piles"
+            if friction
+            else f"{cap.spacing:g} D and {cap.spacingMin:g} mm"
+        ) + (f" ({spacing_clause})" if spacing_clause else "")
         checks.append(_check("Pile spacing", need, s, "mm", None, f"least c/c; at least {rule}"))
     edge = min(
         min(spec.length / 2 - abs(u), spec.width / 2 - abs(v)) - dia / 2 for u, v in spec.piles
     )
-    checks.append(
-        _check(
-            "Cap edge beyond the piles",
-            EDGE_DISTANCE,
-            edge,
-            "mm",
-            None,
-            "BNBC Sec 3.10.1.20: the cap extends at least 100 mm beyond the edge of all piles",
+    if cap is not None:
+        checks.append(
+            _check(
+                "Cap edge beyond the piles",
+                cap.edgeDistance,
+                edge,
+                "mm",
+                None,
+                (f"{cap_clause}: " if cap_clause else "")
+                + f"the cap extends at least {cap.edgeDistance:g} mm beyond the edge of all piles",
+            )
         )
-    )
     dia_x = spec.bottom_x.dia if spec.bottom_x else 0.0
     dia_y = spec.bottom_y.dia if spec.bottom_y else 0.0
     thickness_row = shallow_rules.thickness_check(
@@ -884,32 +934,44 @@ def pile_cap_design(
     )
     if thickness_row is not None:
         checks.append(thickness_row)
-    checks.append(
-        _check(
-            "Cover of the cap's main bars",
-            # least clear cover of the cap's main bars (BNBC 2020 Sec 3.10.1.20: 50 mm)
-            max(float(code_context.table("concrete").cover["pileCap"]), PILE_EMBEDMENT),
-            spec.cover,
-            "mm",
-            None,
-            "BNBC Sec 3.10.1.20: clear cover at least 50 mm over a 75 mm levelling course, and "
-            "the pile heads embedded at least 75 mm: the bars run over the pile heads, so their "
-            "cover to the cap's underside is at least 75 mm (d is taken from this cover)",
+    # The least clear cover of the cap's main bars (the pack's pile cap cover), and the bars run
+    # over the pile heads embedded in the cap.
+    cover = float(code_context.table("concrete").cover["pileCap"])
+    if cap is not None:
+        embedment = cap.embedment
+        checks.append(
+            _check(
+                "Cover of the cap's main bars",
+                max(cover, embedment),
+                spec.cover,
+                "mm",
+                None,
+                (f"{cap_clause}: " if cap_clause else "")
+                + f"clear cover at least {cover:g} mm over a 75 mm levelling course, and the pile "
+                f"heads embedded at least {embedment:g} mm: the bars run over the pile heads, so "
+                f"their cover to the cap's underside is at least {max(cover, embedment):g} mm (d "
+                "is taken from this cover)",
+            )
         )
-    )
-    notes.append(
-        "pile heads: cut back to sound concrete and embedded at least 75 mm in the cap (BNBC Sec "
-        "3.10.1.20); the pile bars run into the cap over their development length (ACI 318-19 "
-        "25.4), in tension when the pile can be pulled"
-    )
-    if n == 1:
         notes.append(
-            "a single pile under a column: BNBC Sec 3.10.4.11 does not recommend it unless the "
-            "diameter is 600 mm or more; tie beams must brace it in both directions"
+            f"pile heads: cut back to sound concrete and embedded at least {embedment:g} mm in "
+            f"the cap{f' ({cap_clause})' if cap_clause else ''}; the pile bars run into the cap "
+            "over their development length (ACI 318-19 25.4), in tension when the pile can be "
+            "pulled"
+        )
+    single = None if cap is None else cap.singlePileDiameter
+    if n == 1 and single is not None:
+        clause = shallow_rules.cite("pileCap.singlePileDiameter", shallow_rules.code_name())
+        notes.append(
+            f"a single pile under a column: {clause} does not recommend it unless the diameter "
+            f"is {single:g} mm or more; tie beams must brace it in both directions"
         )
     elif n == 2:
+        clause = shallow_rules.cite("pileCap.bracing")
         notes.append(
-            "two piles are braced along their axis only (BNBC Sec 3.10.1.19): tie beams across"
+            "two piles are braced along their axis only"
+            + (f" ({clause})" if clause else "")
+            + ": tie beams across"
         )
 
     # ── strength: factored pile loads (structure) and the cap ──
@@ -1084,7 +1146,8 @@ def group_settlement(
     profile: Any, head: float, length: float, bg: float, lg: float, load: float
 ) -> dict[str, Any]:
     """Settlement [mm] of a pile group as a solid block Bg × Lg [m] at 2/3 of the pile
-    ``length`` below its ``head`` [m] under the total ``load`` [kN] (BNBC Sec 3.10.5), the block
+    ``length`` below its ``head`` [m] under the total ``load`` [kN] (the default pack's Sec
+    3.10.5), the block
     alone; the design uses :func:`saengine.substructure.pile_settlement.group_settlement`,
     which adds the short-term settlement of the piles."""
     from saengine.soil.settlement import rounded, settlement
@@ -1093,7 +1156,7 @@ def group_settlement(
     q = load / (bg * lg)
     result = rounded(settlement(profile, bg, lg, df, q))
     result["method"] = (
-        "equivalent raft at 2/3 L (BNBC Sec 3.10.5): immediate (Schmertmann / Steinbrenner) "
+        "equivalent raft at 2/3 L: immediate (Schmertmann / Steinbrenner) "
         "and consolidation (2:1 spread) below it; the piles' elastic shortening is not included"
     )
     return result
@@ -1101,46 +1164,71 @@ def group_settlement(
 
 # ─────────────────────────────────────── in the report ───────────────────────────────────────
 
-PILE_CAP_METHOD = [
-    (
-        "Pile caps: the columns' support reactions, reversed, in the cap's axes (as footings); "
-        "pile loads of a rigid cap, P/n ± M u'/Σu'² ± M v'/Σv'² about the piles' centroid "
-        "(the cap's weight and the soil on it under the service combinations), against the "
-        "allowable compression and uplift of one pile at the borehole nearest the cap. Group: "
-        "efficiency 1.0 (BNBC 2020 Part 6 Sec 3.10.1.19) or Converse-Labarre for friction piles "
-        "in clay, block failure in clay (Terzaghi & Peck), spacing ≥ 2.5 D and 750 mm (3 D for "
-        "friction piles, Secs 3.10.1.19, 3.10.1.30), the cap 100 mm beyond the piles and 50 mm "
-        "cover (Sec 3.10.1.20). Drilled shafts (bored piles wider than the code pack's limit): "
-        "the group capacity the lesser of Σ ζ Qult (ζ by spacing) and the equivalent pier, a "
-        "weaker layer below the tips reducing its base. Group settlement: short term from the "
-        "single pile's (axial shortening, tip and skin friction) by the group's width or "
-        "number of piles; long term with the group as a solid block at the pack's share of L, "
-        "consolidation of clay with Cc and e0 and the modulus number method for the other "
-        "layers; against the shallow foundations' permissible settlement."
-    ),
-    (
-        "Pile cap design (ACI 318-19): flexure at the column faces by the beam method, one-way "
-        "shear at d from them, punching at d/2 round the columns and the piles (corner and edge "
-        "sections cut by the cap), the pile reactions on a section by 13.4.2.5, As,min of Table "
-        "7.6.1.1; a cap whose shear span is less than d is deep: the sectional flexure and "
-        "one-way shear are flagged as reference values and the strut-and-tie method (Chapter "
-        "23) is checked instead: the bottom bars as the tie, T = M/z with M beyond the column's "
-        "quarter point and z = 0.9 d, against 0.75 As fy, and the nodes under the column (βn "
-        "1.0) and over the piles (βn 0.8) against 0.75 × 0.85 βn f'c."
-    ),
-    PILE_HEAD_METHOD,
-    PRECAST_METHOD,
-    (
-        "Pile rules of the code pack: structural detailing by pile kind (least f'c, diameter, "
-        "longitudinal steel, bars, cover, hoops or ties, cage length, cement content; the cover "
-        "on a corrosive site); lateral load the least of the head deflection on the Winkler "
-        "springs (Khh by the head fixity, times the group ratio of in-line piles), the pile "
-        "section and a lateral load test, unbraced piles designed as columns; load tests "
-        "interpreted by the pack's criteria, a compression test giving the factor of safety "
-        "with a test and capping the allowable load; negative skin friction to the neutral "
-        "point and swelling uplift in expansive soil. Lateral soil failure (Broms) is planned."
-    ),
-]
+
+def _pile_cap_method() -> list[str]:
+    """The pile caps' method lines, with the pack in force's rules and clauses."""
+    cap = cap_rules()
+    spacing = shallow_rules.cite("pileCap.spacing")
+    cap_clause = shallow_rules.cite("pileCap")
+    bracing = shallow_rules.cite("pileCap.bracing")
+    cover = float(code_context.table("concrete").cover["pileCap"])
+    rules = (
+        f"spacing ≥ {cap.spacing:g} D and {cap.spacingMin:g} mm ({cap.frictionSpacing:g} D for "
+        f"friction piles{f', {spacing}' if spacing else ''}), the cap {cap.edgeDistance:g} mm "
+        f"beyond the piles and {cover:g} mm cover{f' ({cap_clause})' if cap_clause else ''}"
+        if cap is not None
+        else shallow_rules.not_covered("spacing, cap edges and embedment")
+    )
+    phi = _phi_stm()
+    return [
+        (
+            "Pile caps: the columns' support reactions, reversed, in the cap's axes (as "
+            "footings); pile loads of a rigid cap, P/n ± M u'/Σu'² ± M v'/Σv'² about the piles' "
+            "centroid (the cap's weight and the soil on it under the service combinations), "
+            "against the allowable compression and uplift of one pile at the borehole nearest "
+            f"the cap. Group: efficiency 1.0{f' ({bracing})' if bracing else ''} or "
+            "Converse-Labarre for friction piles in clay, block failure in clay (Terzaghi & "
+            f"Peck), {rules}. Drilled shafts (bored piles wider than the code pack's limit): "
+            "the group capacity the lesser of Σ ζ Qult (ζ by spacing) and the equivalent pier, a "
+            "weaker layer below the tips reducing its base. Group settlement: short term from "
+            "the single pile's (axial shortening, tip and skin friction) by the group's width or "
+            "number of piles; long term with the group as a solid block at the pack's share of "
+            "L, consolidation of clay with Cc and e0 and the modulus number method for the other "
+            "layers; against the shallow foundations' permissible settlement."
+        ),
+        (
+            "Pile cap design (ACI 318-19): flexure at the column faces by the beam method, "
+            "one-way shear at d from them, punching at d/2 round the columns and the piles "
+            "(corner and edge sections cut by the cap), the pile reactions on a section by "
+            "13.4.2.5, As,min of Table 7.6.1.1; a cap whose shear span is less than d is deep: "
+            "the sectional flexure and one-way shear are flagged as reference values and the "
+            f"strut-and-tie method of the code pack ({_stm_clause()}) is checked "
+            "instead: the bottom bars as the tie, T = M/z with M beyond the column's quarter "
+            f"point and z = {_strut_and_tie('tieArm'):g} d, against {phi:g} As fy, and the nodes "
+            f"under the column (βn {_strut_and_tie('betaCCC'):g}) and over the piles (βn "
+            f"{_strut_and_tie('betaCCT'):g}) against {phi:g} × "
+            f"{_strut_and_tie('effective'):g} βn f'c."
+        ),
+        PILE_HEAD_METHOD,
+        PRECAST_METHOD,
+        (
+            "Pile rules of the code pack: structural detailing by pile kind (least f'c, "
+            "diameter, longitudinal steel, bars, cover, hoops or ties, cage length, cement "
+            "content; the cover on a corrosive site); lateral load the least of the head "
+            "deflection on the Winkler "
+            "springs (Khh by the head fixity, times the group ratio of in-line piles), the pile "
+            "section and a lateral load test, unbraced piles designed as columns; load tests "
+            "interpreted by the pack's criteria, a compression test giving the factor of safety "
+            "with a test and capping the allowable load; negative skin friction to the neutral "
+            "point and swelling uplift in expansive soil. Lateral soil failure (Broms) is planned."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "PILE_CAP_METHOD":  # the former constant, with the pack in force
+        return _pile_cap_method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _apply_tests(pile: dict[str, Any], tests: dict[str, Any]) -> None:

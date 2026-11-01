@@ -10,7 +10,7 @@ below its head (``PileType.fixityDepth``, from the geotechnical report; the late
 analysis that finds it, by Broms or by p-y springs, is a planned feature). Statics of a member
 of length Lf under a head shear H:
 
-- head fixed in the cap (the pile bars developed into it, BNBC 2020 Part 6 Sec 3.10.1.20): the
+- head fixed in the cap (the pile bars developed into it, the default pack's Sec 3.10.1.20): the
   head translates without rotating, so the moment is ``H Lf / 2`` at the head and, reversed, at
   the depth to fixity;
 - head free (pinned): no moment at the head, ``H Lf`` at the depth to fixity.
@@ -18,9 +18,10 @@ of length Lf under a head shear H:
 The pile section is designed for the larger of the two (``M = H Lf / 2`` fixed, ``H Lf`` free)
 with the pile's factored axial forces, the largest compression and the largest tension of each
 strength combination, on the P-M interaction surface of the circular section
-(:class:`saengine.design.rc.InteractionSurface`, ACI 318-19 22.4 with φ of Table 21.2.2; BNBC
-2020 Part 6 Sec 6.3 follows the same strength design). The pile is fully embedded, so it is not
-a long column where cu > 10 kPa (BNBC Sec 3.10.1.31): no moment magnification. The shear of the
+(:class:`saengine.design.rc.InteractionSurface`, ACI 318-19 22.4 with φ of Table 21.2.2; the
+default pack's code follows the same strength design). The pile is fully embedded, so it is not
+a long column where cu exceeds the pack's ``piles.lateral.unbracedCu`` (10 kPa; the default
+pack's Sec 3.10.1.31): no moment magnification. The shear of the
 section: ACI 318-19 22.5.2.2 for a circle (bw = D, d = 0.8 D), Vc of Table 22.5.5.1 (a) with
 at least Av,min (9.6.3.4) and (c) without (ρw of the bars on the tension half), Vs = Av fyt d / s
 with the two legs of a hoop or spiral, φ = 0.75.
@@ -48,12 +49,21 @@ FYT_MAX = 420.0
 
 FIXITIES = ("fixed", "free")
 
+
+def _long_column_clause() -> str:
+    """ " (clause)" of the pack's rule that a fully embedded pile is not a long column."""
+    from saengine.substructure.shallow_rules import cite
+
+    clause = cite("piles.lateral.unbracedCu")
+    return f" ({clause})" if clause else ""
+
+
 METHOD = (
     "Pile heads: the columns' horizontal reactions shared equally by the cap's piles (rigid "
     "cap, piles of one type); head moment by the equivalent cantilever to the depth to fixity "
     "Lf from the geotechnical report: H Lf / 2 at a head fixed in the cap, H Lf at the depth to "
     "fixity for a free head. The pile section (ACI 318-19 22.4, P-M surface of the circle; "
-    "fully embedded, not a long column, BNBC 2020 Part 6 Sec 3.10.1.31) for that moment with "
+    "fully embedded, not a long column by the code pack's pile rules) for that moment with "
     "the largest factored compression and tension, and its shear by 22.5 (bw = D, d = 0.8 D). "
     "Fixed heads add Σ H Lf / 2 of the piles beyond each face to the cap's face moments."
 )
@@ -228,8 +238,8 @@ def section_checks(
                     "kN·m",
                     name,
                     f"ACI 318-19 22.4 P-M surface of the {shape} section, {bars}, at Pu = "
-                    f"{pu / 1e3:.0f} kN; {where}; fully embedded: not a long column (BNBC 2020 "
-                    "Part 6 Sec 3.10.1.31)",
+                    f"{pu / 1e3:.0f} kN; {where}; fully embedded: not a long column"
+                    + _long_column_clause(),
                     utilisation=ratio,
                 )
             )

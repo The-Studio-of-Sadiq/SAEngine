@@ -1,8 +1,9 @@
-"""The site on the map: coordinates, the BNBC location suggestion and the QGIS exchange.
+"""The site on the map: coordinates, the code pack's location suggestion and the QGIS
+exchange.
 
 - :mod:`saengine.gis.crs`: WGS 84 (EPSG:4326), Bangladesh Transverse Mercator (EPSG:9678) and
   the project grid (mm) through the site's georeference, with pyproj (PROJ);
-- :mod:`saengine.gis.towns`: district towns of BNBC 2020 Tables 6.2.8 and 6.2.15 with their
+- :mod:`saengine.gis.towns`: the towns of the code pack's zone and wind tables with their
   coordinates, and the nearest one to the site;
 - :mod:`saengine.gis.geojson`: GeoJSON (RFC 7946) writing and reading;
 - :mod:`saengine.gis.gpkg`: OGC GeoPackage writing and reading with Python's sqlite3;

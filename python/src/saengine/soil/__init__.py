@@ -1,7 +1,7 @@
 """Part 1, the soil report: what the boreholes give the foundation design.
 
 - :mod:`saengine.soil.profile`: stresses, SPT corrections and layer parameters of a borehole;
-- :mod:`saengine.soil.site_class`: BNBC 2020 site class from the top 30 m;
+- :mod:`saengine.soil.site_class`: the code pack's site class from the SPT;
 - :mod:`saengine.soil.bearing`: allowable bearing pressure of spread footings;
 - :mod:`saengine.soil.settlement`: immediate and consolidation settlement;
 - :mod:`saengine.soil.liquefaction`: SPT liquefaction screening (Idriss & Boulanger 2014);

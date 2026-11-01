@@ -32,7 +32,7 @@ MATERIALS_FILE = "03 Materials/materials.json"
 
 def bar_dias() -> tuple[float, ...]:
     """The bar diameters a minimum mesh is chosen from [mm], as the sizing assistant's: the code
-    pack's ``concrete.barDiameters["foundation"]`` (BNBC 2020: 12, 16, 20, 25)."""
+    pack's ``concrete.barDiameters["foundation"]`` (the default pack: 12, 16, 20, 25)."""
     from saengine.design.bars import diameters
 
     return diameters("foundation")

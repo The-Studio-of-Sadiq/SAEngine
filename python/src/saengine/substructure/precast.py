@@ -1,5 +1,5 @@
 """Driven precast concrete piles: the square section, handling and the reinforcement
-(Part 9, deep foundations; BNBC 2020 Part 6 Ch 3).
+(Part 9, deep foundations; the code pack's pile rules, the default pack's Part 6 Ch 3).
 
 A driven pile of 9 Substructure is a square precast pile of side B (``PileType.diameter``),
 as the BOQ measures it: shaft perimeter 4B and area B² in its capacity

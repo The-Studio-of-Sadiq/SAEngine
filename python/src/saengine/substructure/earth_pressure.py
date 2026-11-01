@@ -6,9 +6,9 @@ case H, :mod:`saengine.fem.derive`) and, later, excavation shoring take their pr
 here. The soil is a column of layers from 1 Soil Report (Part 1: the nearest borehole's
 layers, linked, never copied; :func:`soil_column`) or assumed values.
 
-Pressure at depth z below the retained ground (z in m, kPa; BNBC 2020 Part 6 Sec 2.6.5.1
-(p680): "the submerged unit weight of soil, plus full hydrostatic pressure" below the water
-table)::
+Pressure at depth z below the retained ground (z in m, kPa; the submerged unit weight of the
+soil plus the full hydrostatic pressure below the water table, as the default pack's BNBC 2020
+Part 6 Sec 2.6.5.1 asks)::
 
     p(z) = K σ'v(z) ∓ 2 c' √K + K q + u(z)
 
@@ -29,16 +29,16 @@ table)::
   (undrained) for the passive state.
 - q: a uniform surcharge on the retained ground (kPa), times K at every depth.
 
-Seismic increment (BNBC 2020 Part 6 has no clause on seismic earth pressure; the public
-methods it rests on):
+Seismic increment (the default pack's code has no clause on seismic earth pressure; the
+public methods it rests on):
 - a wall that can yield: Mononobe-Okabe (Okabe 1926, Mononobe & Matsuo 1929; AASHTO LRFD
   11.6.5.3 and Appendix A11), ``ΔKae = Kae - Ka`` with kh = half the peak ground acceleration
   (AASHTO LRFD 11.6.5.2.2, a wall free to move 25-50 mm), the increment
   ``ΔPae = ½ γ H² ΔKae`` acting at 0.6 H above the base (Seed & Whitman 1970);
 - a wall that cannot yield (basement walls): Wood (1973), ``ΔPe = kh γ H²`` with kh the full
   peak ground acceleration, acting at 0.5 H (a uniform pressure ``kh γ H``).
-The peak ground acceleration is the project's ``(2/3) Z S`` (BNBC 2020 Part 6 Sec 2.5.4.3,
-:func:`saengine.fem.ssi.peak_acceleration`).
+The peak ground acceleration is the project's, by the code pack's ``seismic.pgaFactor``
+(``(2/3) Z S`` in the default pack; :func:`saengine.fem.ssi.peak_acceleration`).
 
 Units: depths in m below the retained ground, kPa, kN/m³, kN/m and kN·m/m per metre run.
 """

@@ -542,7 +542,7 @@ def bnbc_liquefaction_case(_: Path) -> Outcome:
     result = liquefaction.screen(profile, amax_code, note)
     point = result["points"][0]
     test = profile.spt[0]
-    raw = liquefaction.point_bnbc(
+    raw = liquefaction.point_code(
         8.0, test.n60, test.sigma_v, test.sigma_v_eff, 10.0, amax_code, 7.5
     )
 
@@ -766,7 +766,7 @@ CASES = [
         "FL = CRR/CSR with the code's CSR (Eq 6.3.8, rd = 1 - 0.015 z) and the CRR of Youd et "
         "al. (2001) at one depth; amax = (2/3) Z S, the design PGA from the zoning map and the site factor.",
         "Sand, FC = 10 %, water table at 2 m, N = 15 at 8 m (ER 60 %), M = 7.5, Z = 0.20, SD; "
-        "liquefaction.amax_from, liquefaction.screen and liquefaction.point_bnbc.",
+        "liquefaction.amax_from, liquefaction.screen and liquefaction.point_code.",
         bnbc_liquefaction_case,
     ),
     Case(

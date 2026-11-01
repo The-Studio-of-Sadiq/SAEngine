@@ -1,14 +1,16 @@
 """Planning compliance of the plot (1 Soil Report, site): FAR, maximum ground coverage (MGC),
 setbacks and the area statement.
 
-The rules are the code pack's ``planning`` table: for BNBC 2020 the planning authority's rules
-that BNBC Part 3 Chapter 1 defers to, for Dhaka (RAJUK) the Imarat Nirman Bidhimala 2008
+The rules are the code pack's ``planning`` table: in the default pack (BNBC 2020) the planning
+authority's rules that its Part 3 Chapter 1 defers to, for Dhaka (RAJUK) the Imarat Nirman
+Bidhimala 2008
 (Rule 46 and Table 2: setbacks; Rule 50: ground coverage; Rule 51 and Tables 3(A)-3(F): FAR and
 MGC by use, plot size and road width). The table is pack data: another authority's rules are
 another pack's table, and a project may edit its copy.
 
 Beside the authority's rules the table's ``buildingCode`` block holds the building code's own
-site rules (for BNBC 2020 Part 3 Chapter 1): the plinth and formation levels, the distances to
+site rules (the default pack: BNBC 2020 Part 3 Chapter 1): the plinth and formation levels, the
+distances to
 overhead electric lines, the least open and unpaved area, the fallback open spaces where no
 authority's rules apply, the height by road width and construction type (the project setting
 ``construction.constructionType``), the open spaces of a building of unlimited height or FAR and
@@ -42,9 +44,33 @@ if TYPE_CHECKING:
 UNRESTRICTED = math.inf
 
 
+def planning_table() -> Any | None:
+    """The planning table of the pack in force; None when the pack does not cover planning
+    (a user copy of the default pack written before the table existed reads the built-in
+    one)."""
+    pack = code_context.current()
+    if pack.has("planning"):
+        return pack.table("planning")
+    from saengine.codes.registry import DEFAULT_PACK
+
+    if pack.id == DEFAULT_PACK:
+        from saengine.codes.tables import builtin_table
+
+        return builtin_table("planning", DEFAULT_PACK)
+    return None
+
+
+def not_covered() -> str:
+    pack = code_context.current()
+    return f"Planning compliance: not covered by the code pack {pack.name or pack.id}"
+
+
 def rules() -> Any:
-    """The planning table of the pack in force (BNBC 2020's when the pack has none)."""
-    return code_context.pack_table("planning")
+    """The planning table of the pack in force; ValueError when the pack does not cover it."""
+    found = planning_table()
+    if found is None:
+        raise ValueError(not_covered())
+    return found
 
 
 def _clause(key: str) -> str:
@@ -228,7 +254,8 @@ def required_setbacks(
 
 
 # ─────────────────────────── the building code's own site rules (B23) ───────────────────────────
-# The pack's ``planning.buildingCode`` (for BNBC 2020: Part 3 Chapter 1): the plinth and formation
+# The pack's ``planning.buildingCode`` (the default pack: Part 3 Chapter 1): the plinth and
+# formation
 # levels, overhead lines, the open area, the fallback setbacks, the height by road width and
 # construction type, and the parking floors left out of FAR.
 
@@ -549,7 +576,9 @@ def check(
     plan = site.plot.planning if site is not None and site.plot is not None else None
     if plan is None:
         return None
-    table = rules()
+    table = planning_table()
+    if table is None:
+        return {"checks": [], "notes": [], "problems": [not_covered() + "."]}
     code = table.buildingCode
     by_code = plan.rules == "code"
     problems: list[str] = []

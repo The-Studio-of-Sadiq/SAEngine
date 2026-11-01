@@ -1,6 +1,6 @@
 """Problem soils: organic, expansive, collapsible, dispersive and soft clays.
 
-The criteria are the code pack's (``siteInvestigation``; with BNBC 2020: Sec 3.5.4-3.5.8,
+The criteria are the code pack's (``siteInvestigation``; the default pack: Sec 3.5.4-3.5.8,
 Table 6.3.3, Eqs 6.3.1-6.3.5, Table 6.3.4 and Appendix E). Each function reads what the sample
 has and returns None when it has nothing the criterion uses:
 

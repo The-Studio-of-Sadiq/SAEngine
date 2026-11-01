@@ -1,6 +1,7 @@
 """Lateral load on piles by the code pack (Part 9, deep foundations).
 
-The code pack's ``foundations.piles.lateral`` group holds the rules (BNBC 2020: Sec 3.10.1.21
+The code pack's ``foundations.piles.lateral`` group holds the rules (the default pack: Sec
+3.10.1.21
 for single piles, Sec 3.10.6.15 and Table 6.3.16 for groups, Sec 3.11.4 for load tests); a
 pack without it does not cover them. The allowable lateral load of a pile is the least of
 soil failure, the structure of the pile and the deflection of its head:

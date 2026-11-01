@@ -1460,6 +1460,65 @@
       "title": "MachineSpeedClass",
       "type": "object"
     },
+    "PileCapRules": {
+      "additionalProperties": false,
+      "description": "Pile spacing and the cap's edges and pile embedment.",
+      "properties": {
+        "spacing": {
+          "description": "Least c/c spacing × D.",
+          "exclusiveMinimum": 0,
+          "title": "Spacing",
+          "type": "number"
+        },
+        "spacingMin": {
+          "description": "Least c/c spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmin",
+          "type": "number"
+        },
+        "frictionSpacing": {
+          "description": "Least c/c spacing × D of friction piles.",
+          "exclusiveMinimum": 0,
+          "title": "Frictionspacing",
+          "type": "number"
+        },
+        "edgeDistance": {
+          "description": "Least clear distance pile face to cap edge [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Edgedistance",
+          "type": "number"
+        },
+        "embedment": {
+          "description": "Least embedment of the piles in the cap [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Embedment",
+          "type": "number"
+        },
+        "singlePileDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A single pile under a column at least this diameter [mm].",
+          "title": "Singlepilediameter"
+        }
+      },
+      "required": [
+        "spacing",
+        "spacingMin",
+        "frictionSpacing",
+        "edgeDistance",
+        "embedment"
+      ],
+      "title": "PileCapRules",
+      "type": "object"
+    },
     "PileDetailing": {
       "additionalProperties": false,
       "description": "Structural detailing of piles by kind, and the foundation concrete.",
@@ -2208,6 +2267,20 @@
           "maximum": 1,
           "title": "Yieldingkh",
           "type": "number"
+        },
+        "baseCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clear cover [mm] of the base's bars cast against the earth; empty: the wall's own cover.",
+          "title": "Basecover"
         }
       },
       "title": "RetainingWallFactors",
@@ -2572,6 +2645,18 @@
         },
         "columnBase": {
           "$ref": "#/$defs/ColumnBaseTransfer"
+        },
+        "tieBeams": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TieBeamRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tie beams between foundations; empty: not covered."
         }
       },
       "required": [
@@ -2921,6 +3006,47 @@
       "title": "TestLoadFactors",
       "type": "object"
     },
+    "TieBeamRules": {
+      "additionalProperties": false,
+      "description": "Tie beams between foundations: the strut-tie force and the least size.",
+      "properties": {
+        "forceShare": {
+          "description": "Force: this × the larger footing or column load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Forceshare",
+          "type": "number"
+        },
+        "zones": {
+          "description": "Seismic zones that require them (else reported only).",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Zones",
+          "type": "array"
+        },
+        "spanDivisor": {
+          "description": "Least dimension: the clear span / this ...",
+          "exclusiveMinimum": 0,
+          "title": "Spandivisor",
+          "type": "number"
+        },
+        "sizeMax": {
+          "description": "... need not exceed this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Sizemax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "forceShare",
+        "zones",
+        "spanDivisor",
+        "sizeMax"
+      ],
+      "title": "TieBeamRules",
+      "type": "object"
+    },
     "UpliftTestRules": {
       "additionalProperties": false,
       "properties": {
@@ -3085,6 +3211,33 @@
       ],
       "default": null,
       "description": "Machine foundations under dynamic forces; empty: not covered by the pack."
+    },
+    "upliftSkin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Share of the skin friction resisting uplift: Tult = this × Qs + W; empty: the pack gives none (the pile's weight alone).",
+      "title": "Upliftskin"
+    },
+    "pileCap": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PileCapRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Pile spacing, cap edges and embedment; empty: not covered."
     }
   },
   "required": [
