@@ -1,7 +1,7 @@
 """Soil chemistry: the ground's aggression to buried concrete and steel.
 
 Every limit, band and score is the code pack's (``siteInvestigation``, :mod:`saengine.soil.
-code_data`); with the BNBC 2020 pack:
+code_data`); with the default pack (BNBC 2020):
 
 - **sulphate exposure** of concrete (Table 6.5.2): the class by water-soluble SO4 in the soil
   [% by weight] or in the ground water [ppm], the most severe of the two, with its cement and

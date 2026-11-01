@@ -201,5 +201,58 @@
     "items": ["landslide", "subsidence", "earthquake", "erosionScour", "contaminatedFill", "groundwaterContamination"],
     "clause": "BNBC 2020 Part 6 Sec 3.21 (p. 814)",
     "note": "A preliminary review of the site for each hazard; a detailed analysis only where the review finds a significant threat."
+  },
+  "liquefaction": {
+    "method": "linearRdYoud",
+    "rdSlope": 0.015,
+    "csrFactor": 1.0,
+    "fieldNLimit": 30,
+    "clause": "BNBC 2020 Sec 3.9.5",
+    "note": "The code obtains Eq 6.3.8 by dividing Eq 6.3.7a by the effective vertical stress, so its CSR carries no 0.65 factor (the peak stress ratio): on the safe side of the CRR curve calibrated against 0.65 tmax. CRR 'can be obtained by several procedures' and is most commonly taken from the SPT; the code prescribes none: Youd et al. (2001), SAEngine's choice. The rule of thumb is read with the field N as measured (Sec 3.9.5 does not say which N; the SPT value of the site classes, Sec 2.5.3.2, is the field N).",
+    "sources": {
+      "section": "BNBC 2020 Part 6 Sec 3.9.5 (pp. 733-735)",
+      "fs": "Eq 6.3.6",
+      "rd": "Eq 6.3.7b",
+      "csr": "Eq 6.3.8",
+      "fieldNLimit": "BNBC 3.9.5's rule of thumb",
+      "clays": "BNBC 3.9.5: clays do not liquefy except sensitive clays",
+      "finn": "as BNBC 3.9.5 quotes it",
+      "pga": "BNBC 2020 Sec 2.5.13.2; Sec 2.5.3.1 asks for liquefaction under design earthquake ground motions",
+      "zone": "seismic zoning map: the maximum considered PGA on rock, Sec 2.5.4.2 and Table 6.2.14",
+      "siteFactor": "Table 6.2.16",
+      "amplification": "as Sec 3.9.5 asks"
+    }
+  },
+  "siteClassification": {
+    "method": "harmonicMeans",
+    "clause": "BNBC 2020 Table 6.2.13",
+    "table": "Table 6.2.13",
+    "depth": 30.0,
+    "nMax": 100.0,
+    "suMax": 250.0,
+    "order": ["SA", "SB", "SC", "SD", "SE"],
+    "byN": [
+      { "siteClass": "SB", "above": 50 },
+      { "siteClass": "SC", "atLeast": 15 },
+      { "siteClass": "SD" }
+    ],
+    "bySu": [
+      { "siteClass": "SB", "above": 250 },
+      { "siteClass": "SC", "atLeast": 70 },
+      { "siteClass": "SD" }
+    ],
+    "rockClass": "SB",
+    "rockShallow": 5.0,
+    "rockDeep": 20.0,
+    "rockDeepClass": "SE",
+    "rockVs": 800.0,
+    "soft": { "siteClass": "S1", "suRange": [10.0, 20.0], "thickness": 10.0, "pi": 40.0 },
+    "liquefiableClass": "S2",
+    "liquefiableAssumed": "SD",
+    "note": "N is the field blow count (uncorrected) and the means are harmonic (Eqs 6.2.31-6.2.33); nMax 100 is ASCE 7-16 20.4's cap, SAEngine practice. SA needs a measured shear wave velocity; SE needs the Vs of the alluvium and of the material below; S1's high water content is not checked.",
+    "sources": {
+      "table": "BNBC 2020 Part 6 Table 6.2.13 (p. 609) and Eqs 6.2.31-6.2.33 (p. 608)",
+      "nMax": "SAEngine practice, not BNBC (ASCE 7-16 20.4)"
+    }
   }
 }

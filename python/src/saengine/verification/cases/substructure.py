@@ -322,7 +322,7 @@ def tie_beam_case(_: Path) -> Outcome:
         [
             Quantity("Tie force", "kN", force, c["Tie force (tension)"]["demand"], EXACT),
             Quantity("φTn", "kN", phi_tn, c["Tie force (tension)"]["capacity"], EXACT),
-            Quantity("Least side", "mm", size, c["Size (BNBC 8.3.11.3)"]["demand"], EXACT),
+            Quantity("Least side", "mm", size, c["Least size"]["demand"], EXACT),
             Quantity(
                 "Settlement moment", "kN·m", moment, c["Flexure from settlement"]["demand"], EXACT
             ),

@@ -32,7 +32,9 @@ force (``foundations``, its ``piles`` group) and every clause from its ``sources
   is at least the pack's ``sptSafety``.
 
 Capacity (the default pack's Eqs 6.3.11 to 6.3.14): Qs = As fs, Qb = Ab fb,
-``Qult = Qs + Qb - W`` in compression, ``Qult ≤ 0.7 Qs + W`` in uplift, ``Qallow = Qult / FS``,
+``Qult = Qs + Qb - W`` in compression, ``Qult ≤ upliftSkin Qs + W`` in uplift (the pack's
+``foundations.upliftSkin``, 0.7; a pack without it: the pile's weight alone),
+``Qallow = Qult / FS``,
 W the pile's weight (γc A L, buoyancy ignored: on the safe side in compression, not in uplift,
 where W counts fully as the code writes it). The least overall factor of safety is the pack's
 ``noLoadTestSafety`` (3.0), or ``loadTestSafety`` (2.0) when the design rests on a load test at
@@ -46,12 +48,14 @@ the allowable load being the minimum of the two: ``Qa = min(Qult / FS, Qs/1.5 + 
 
 Structural capacity of the pile section (:func:`structural_checks`): with reinforcement, the
 ACI 318-19 22.4.2 limit φPn,max of the circular section (:class:`saengine.design.rc.RcSection`,
-tied or spiral by the transverse bars; the pile is fully embedded, which BNBC Sec 3.10.1.31
-says is not limited as a long column where cu > 10 kPa; softer soil and unbraced lengths are
+tied or spiral by the transverse bars; the pile is fully embedded, which the default pack's
+Sec 3.10.1.31 says is not limited as a long column where cu > 10 kPa; softer soil and
+unbraced lengths are
 designed as columns by :mod:`saengine.substructure.pile_lateral`) and φ fy As in tension;
 without reinforcement, the plain concrete strength φPn = 0.60 × 0.60 f'c Ag (ACI 318-19
 14.5.3.1 without the slenderness term, φ of Table 21.2.1) and no tension. Driven precast piles
-also get the pack's service stress limit (BNBC 2020: 0.33 f'c on the gross area). A driven
+also get the pack's service stress limit (the default pack: 0.33 f'c on the gross area). A
+driven
 cast-in-place pile (``drivenCastInPlace``) takes the unit values of a driven pile
 (:func:`capacity_kind`) on the round section of a bored one.
 
@@ -79,12 +83,24 @@ from saengine.substructure import pile_static
 SLICE = 0.1
 #: Unit weight of the pile concrete [kN/m³].
 CONCRETE_UNIT_WEIGHT = 24.0
-#: Uplift: the share of the skin friction that resists pulling out (BNBC Eq 6.3.12).
-UPLIFT_SKIN = 0.7
 
 #: The capacity methods (``design.pileCapacity``); "bnbcSpt" is the former name of "spt".
 METHODS = ("soilReport", "static", "spt")
 ALIASES = {"bnbcSpt": "spt"}
+
+
+def uplift_skin() -> float:
+    """The pack's share of the skin friction that resists pulling out (``foundations.
+    upliftSkin``; the default pack: 0.7, BNBC 2020 Eq 6.3.12); 0 when the pack gives none (the
+    pile's weight alone resists)."""
+    value = _foundations().upliftSkin if code_context.current().has("foundations") else None
+    return 0.0 if value is None else float(value)
+
+
+def __getattr__(name: str) -> Any:
+    if name == "UPLIFT_SKIN":  # the former constant, with the pack in force
+        return uplift_skin()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def method_id(method: str) -> str:
@@ -98,8 +114,10 @@ def method_text(method: str) -> str:
     code = soil_piles.pack_name()
     clause = soil_piles.pile_clause
     common = (
-        f"Qult = Qs + Qb - W, uplift 0.7 Qs + W; Qa = min(Qult/FS, Qs/1.5 + Qb/3.0 - W), FS at "
-        f"least 3.0 in compression without a load test at the site, 2.0 with one ({code})."
+        f"Qult = Qs + Qb - W, uplift {uplift_skin():g} Qs + W; Qa = min(Qult/FS, "
+        f"Qs/{_safety('partialSkin'):g} + Qb/{_safety('partialBase'):g} - W), FS at least "
+        f"{_safety('noLoadTestSafety'):g} in compression without a load test at the site, "
+        f"{_safety('loadTestSafety'):g} with one ({code})."
     )
     if method == "spt":
         return (
@@ -131,12 +149,13 @@ def method_text(method: str) -> str:
 
 
 def _foundations() -> Any:
-    """The pack's ``foundations`` table (BNBC 2020 Part 6 Sec 3.10.1)."""
+    """The pack's ``foundations`` table (the default pack: BNBC 2020 Part 6 Sec 3.10.1)."""
     return code_context.table("foundations")
 
 
 def _safety(name: str) -> float:
-    """The pack's ``foundations.<name>`` factor of safety. BNBC 2020: ``partialSkin`` 1.5 and
+    """The pack's ``foundations.<name>`` factor of safety. The default pack: ``partialSkin`` 1.5
+    and
     ``partialBase`` 3.0, the partial factors on skin friction and end bearing (Sec 3.10.1.18);
     ``sptSafety`` 3.5, the SPT relations (Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7);
     ``noLoadTestSafety`` 3.0 / ``loadTestSafety`` 2.0, the least overall factor without / with
@@ -146,14 +165,15 @@ def _safety(name: str) -> float:
 
 
 def _permanent_normal() -> float:
-    """Table 6.3.10a's factor for a permanent structure under normal control (BNBC 2020: 2.5)."""
+    """The pack's factor for a permanent structure under normal control (the default pack's
+    Table 6.3.10a: 2.5)."""
     return table_factor()
 
 
 @dataclass(frozen=True)
 class FactorsOfSafety:
     """Overall factors of safety in compression and uplift, the partial factors, and whether
-    the design rests on a load test at the site (BNBC Sec 3.10.1.18)."""
+    the design rests on a load test at the site (the default pack's Sec 3.10.1.18)."""
 
     compression: float = field(default_factory=_permanent_normal)
     uplift: float = field(default_factory=_permanent_normal)
@@ -205,8 +225,16 @@ class FactorsOfSafety:
         return "; ".join(notes) or None
 
 
+def _not_covered_uplift() -> str:
+    pack = code_context.current()
+    return (
+        "skin friction in uplift: not covered by the code pack "
+        f"{pack.name or pack.id} (the pile's weight alone resists)"
+    )
+
+
 def table_factor(structure: str = "permanent", control: str = "normal") -> float:
-    """The pack's ``foundations.pileSafety`` factor of safety (BNBC 2020 Part 6 Table 6.3.10a,
+    """The pack's ``foundations.pileSafety`` factor of safety (the default pack's Table 6.3.10a,
     design factor of safety for deep foundations, downward and upward load: structure ->
     (good, normal, poor, very poor control), e.g. permanent 2.00, 2.50, 2.80, 3.00), the
     control's place in ``foundations.pileControls`` (good, normal, poor, veryPoor)."""
@@ -394,7 +422,10 @@ def single_pile(
     overall = q_ult / factors.compression
     partial = qs / factors.skin + qb_force / factors.base - weight
     qa = max(0.0, min(overall, partial))
-    t_ult = UPLIFT_SKIN * qs + weight
+    share = uplift_skin()
+    if share == 0.0 and qs > 0:
+        notes.append(_not_covered_uplift())
+    t_ult = share * qs + weight
     ta = t_ult / factors.uplift
     if profile.bottom < tip + 3 * diameter - 1e-9:
         notes.append(

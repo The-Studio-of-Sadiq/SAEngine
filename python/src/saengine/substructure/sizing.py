@@ -85,7 +85,7 @@ OVERHANG = 300.0
 #: Footings covering more than this share of the plan of their columns are replaced by a raft:
 #: the usual rule of practice (a mat when spread footings would cover more than about half the
 #: building area; e.g. Bowles, Foundation Analysis and Design, 5th ed., section 10-1). Not a
-#: BNBC value.
+#: code pack value.
 RAFT_RATIO = 0.5
 #: A proposed raft's edge beyond the outer column centre lines [mm].
 RAFT_OVERHANG = 1000.0
@@ -795,8 +795,8 @@ def punching_depth(vu: float, c: float, fc: float) -> float:
     ``c`` [mm] under ``vu`` [N], the soil reaction inside the section left out (conservative):
     phi vc b0 d >= Vu with b0 = 4 (c + d), vc and phi as the footing checks take them
     (:func:`~saengine.substructure.shallow.punching_stress`: ACI 318-19 Table 22.6.5.2 with the
-    size factor lambda_s, as BNBC 2020 Part 6 Ch 6 follows ACI 318, page not checked; phi of
-    shear 0.75, BNBC 2020 Part 6 Sec 6.2.3.2, p. 897)."""
+    size factor lambda_s; phi of shear 0.75, ACI 318-19 Table 21.2.1, as the default pack's
+    code)."""
     d = 5.0
     while d < 5000.0:
         b0 = 4 * (c + d)
