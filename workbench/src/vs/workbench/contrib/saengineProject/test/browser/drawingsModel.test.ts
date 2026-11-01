@@ -163,22 +163,22 @@ suite('SAEngine - drawings', () => {
 		], [
 			{
 				client: undefined, firm: undefined, engineer: 'A. Engineer', checkedBy: undefined, approvedBy: undefined, projectNumber: 'P-0042', revision: undefined,
-				sheetSize: 'A1', planScale: '1:100', detailScale: '1:25', present: false, conflicts: [],
+				sheetSize: 'A1', planScale: '1:100', detailScale: '1:25', standard: undefined, present: false, conflicts: [],
 			},
 			{
 				client: 'Example Developers', firm: 'Example Consultants', engineer: 'B. Designer', checkedBy: 'C. Checker', approvedBy: 'D. Approver', projectNumber: 'EC-7',
 				revision: { code: 'A', date: '2026-10-23', description: 'For construction' },
-				sheetSize: 'A2', planScale: '1:100', detailScale: '1:50', present: true, conflicts: CONFLICTS,
+				sheetSize: 'A2', planScale: '1:100', detailScale: '1:50', standard: undefined, present: true, conflicts: CONFLICTS,
 			},
 			{
 				client: undefined, firm: undefined, engineer: undefined, checkedBy: undefined, approvedBy: undefined, projectNumber: undefined,
 				revision: { code: 'B', date: undefined, description: undefined },
-				sheetSize: 'A1', planScale: '1:200', detailScale: '1:25', present: true, conflicts: [],
+				sheetSize: 'A1', planScale: '1:200', detailScale: '1:25', standard: undefined, present: true, conflicts: [],
 			},
 			['1:50', '1:25', '1:100', undefined, undefined],
 			[
 				'Client: Example Developers', 'Firm: Example Consultants', 'Engineer: B. Designer', 'Checked by: C. Checker', 'Approved by: D. Approver', 'Project number: EC-7',
-				'Revision: A · 2026-10-23 · For construction', 'Sheet size: A2', 'Scales: plans 1:100, details 1:50',
+				'Revision: A · 2026-10-23 · For construction', 'Sheet size: A2', 'Scales: plans 1:100, details 1:50', 'Office standard: -',
 			],
 		]);
 	});

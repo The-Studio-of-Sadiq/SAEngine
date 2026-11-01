@@ -262,9 +262,13 @@ def user_entities(old_doc: Any, index: SheetIndex | None, scale: float) -> tuple
     return unknown, False
 
 
-def carry_edits(sheet: Sheet, old_dxf: Path, index: SheetIndex | None) -> Carried:
+def carry_edits(
+    sheet: Sheet, old_dxf: Path, index: SheetIndex | None, renames: dict[str, str] | None = None
+) -> Carried:
     """Copies the engineer's own entities of the earlier ``old_dxf`` of this sheet into
-    ``sheet`` (with the layers, styles and blocks they use)."""
+    ``sheet`` (with the layers, styles and blocks they use). ``renames``: the office layer
+    names the earlier sheet was written with (SAEngine layer -> name, the drafting standard of
+    :mod:`.standards`): they are named back first, so that SAEngine's own entities are known."""
     import ezdxf
     from ezdxf.addons import Importer
 
@@ -275,6 +279,10 @@ def carry_edits(sheet: Sheet, old_dxf: Path, index: SheetIndex | None) -> Carrie
         old = ezdxf.readfile(old_dxf)
     except (OSError, ezdxf.DXFError):
         return result
+    if renames:
+        from saengine.drawings.sheets.standards import restore_names
+
+        restore_names(old, renames)
     entities, result.resaved = user_entities(old, index, sheet.scale)
     if not entities:
         return result
