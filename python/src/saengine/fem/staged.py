@@ -465,3 +465,29 @@ def _differential(
         )
     rows.sort(key=lambda r: -r["difference"])
     return rows[:DIFFERENTIAL_ROWS]
+
+
+def from_run(out_dir: Any, project_path: Any) -> dict[str, Any] | None:
+    """:func:`column_shortening` of a finished run (``<model>.results``) of a SAEngine model,
+    with the settings beside it; None when the settings do not ask for it."""
+    import json
+    from pathlib import Path
+
+    from saengine.fem.combinations import settings_beside
+    from saengine.fem.display import _manifest
+    from saengine.fem.story_response import load_cached, storey_levels
+
+    found = settings_beside(project_path)
+    options = getattr(getattr(found, "analysis", None), "timeDependent", None)
+    if options is None or not options.enabled:
+        return None
+    manifest = _manifest(out_dir)
+    if manifest is None:
+        return {"available": False, "reason": "there are no results; run the analysis first"}
+    project = json.loads(Path(project_path).read_text(encoding="utf-8"))
+    results = {}
+    for entry in manifest["cases"]:
+        code = _code(entry.get("case_name", ""))
+        if code in ("D", "SD", "L"):
+            results[code] = load_cached(entry, out_dir)
+    return column_shortening(project, results, storey_levels(project, project_path), options)

@@ -763,6 +763,43 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
     return out
 
 
+def _column_shortening_blocks(cs: dict[str, Any]) -> list[Block]:
+    """B25: the column shortening with creep and shrinkage."""
+    if not cs:
+        return []
+    out: list[Block] = [h(2, "Column shortening (creep and shrinkage)")]
+    if not cs.get("available"):
+        out.append(p(f"Not worked out: {cs.get('reason', '')}."))
+        return out
+    out.append(p(str(cs.get("intro", ""))))
+    heads = ["Elastic [mm]", "Creep [mm]", "Shrinkage [mm]", "Total [mm]", "After casting [mm]"]
+    if cs.get("levels"):
+        out.append(
+            table(
+                ["Level (largest of the lines)", *heads],
+                cs["levels"],
+                ["1fr"] + ["auto"] * 5,
+                "lrrrrr",
+            )
+        )
+    if cs.get("lines"):
+        out.append(
+            table(["Column line (top)", *heads], cs["lines"], ["1fr"] + ["auto"] * 5, "lrrrrr")
+        )
+    if cs.get("differential"):
+        out.append(
+            table(
+                ["Beam", "Level", "Span [m]", "Differential [mm]", "6EIΔ/L² [kN·m]"],
+                cs["differential"],
+                ["1fr"] + ["auto"] * 4,
+                "llrrr",
+            )
+        )
+    if cs.get("notes"):
+        out.append(bullets(cs["notes"], 8.5))
+    return out
+
+
 def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     """B15: seismic forces on nonstructural components and the anchorage of structural walls."""
     if not ns:
@@ -914,6 +951,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _pushover_blocks(results.get("pushover") or [])
+    out += _column_shortening_blocks(results.get("columnShortening") or {})
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

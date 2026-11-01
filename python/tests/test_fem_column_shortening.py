@@ -29,11 +29,6 @@ def test_section_perimeter_of_rectangles_and_circles() -> None:
     assert staged.section_perimeter(odd) == pytest.approx(1.6)  # a square of the same area
 
 
-def _options(**kw):
-    s = settings().analysis.timeDependent.model_copy(update={"enabled": True, **kw})
-    return s
-
-
 def _run(root: Path, sequence: bool) -> tuple[Path, Path]:
     d = derivation(sequence)
     model = root / "08 FEM" / "model.osmodel"
@@ -61,9 +56,30 @@ def _run(root: Path, sequence: bool) -> tuple[Path, Path]:
 
 
 @pytest.fixture(scope="module")
-def response(tmp_path_factory: pytest.TempPathFactory) -> dict:
-    model, out = _run(tmp_path_factory.mktemp("shortening"), True)
+def run(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+    return _run(tmp_path_factory.mktemp("shortening"), True)
+
+
+@pytest.fixture(scope="module")
+def response(run) -> dict:
+    model, out = run
     return work_out_story_response(out, model)
+
+
+def test_report_rows(run) -> None:
+    from saengine.report.build import _column_shortening
+    from saengine.report.document import _column_shortening_blocks
+
+    model, out = run
+    warnings: list[str] = []
+    rows = _column_shortening(model, out, warnings)
+    assert not warnings and rows["available"]
+    assert [r[0] for r in rows["levels"]] == ["Level 1", "Level 2", "Level 3"]
+    assert len(rows["lines"]) == 6 and rows["differential"]
+    assert "Figure 6.5.1" in rows["intro"] and "Eq 6.5.4" in rows["intro"]
+    assert _column_shortening_blocks(rows)
+    direct = staged.from_run(out, model)
+    assert direct and direct["available"]
 
 
 def test_shortening_of_every_column_line(response) -> None:

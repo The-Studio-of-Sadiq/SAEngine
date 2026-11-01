@@ -1665,7 +1665,79 @@ def _results(
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     # B20: the pushovers' target displacement and member acceptance.
     out["pushover"] = _pushover(model_path.parent, warnings)
+    # B25: the column shortening with creep and shrinkage.
+    out["columnShortening"] = _column_shortening(model_path, results_dir, warnings)
     return out
+
+
+def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:
+    """B25: the column shortening of the run (:func:`saengine.fem.staged.from_run`) as report
+    rows, when the settings ask for it. Lengths in mm, moments in kN·m."""
+    from saengine.fem import staged
+
+    try:
+        found = staged.from_run(results_dir, model_path)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The column shortening could not be worked out: {error}")
+        return {}
+    if not found:
+        return {}
+    if not found.get("available"):
+        return {"available": False, "reason": str(found.get("reason", ""))}
+    inputs, clauses = found["inputs"], found["clauses"]
+    levels: dict[str, list[float]] = {}
+    for line in found["lines"]:
+        for row in line["rows"]:
+            worst = levels.setdefault(row["level"], [0.0, 0.0, 0.0, 0.0, 0.0])
+            for k, key in enumerate(("elastic", "creep", "shrinkage", "total", "afterCasting")):
+                worst[k] = max(worst[k], row[key])
+    level_rows = [[name, *(fmt(1e3 * v, 1) for v in vals)] for name, vals in levels.items()]
+    lines = [
+        [
+            line["line"],
+            *(
+                fmt(1e3 * line["rows"][-1][k], 1)
+                for k in ("elastic", "creep", "shrinkage", "total", "afterCasting")
+            ),
+        ]
+        for line in found["lines"]
+        if line["rows"]
+    ]
+    differential = [
+        [
+            r["beam"],
+            r["level"],
+            fmt(r["length"], 2),
+            fmt(1e3 * r["difference"], 1),
+            fmt(r["moment"] / 1e3, 1),
+        ]
+        for r in found["differential"][:10]
+    ]
+    exposure = "internal" if inputs["exposure"] == "internal" else "external"
+    intro = (
+        f"Shortening of the concrete column lines at {fmt(inputs['serviceLife'], 0)} years, "
+        f"built on a {fmt(inputs['cycle'], 0)} day floor cycle "
+        + (
+            "(the construction sequence's staged dead load)"
+            if inputs["staged"]
+            else "(dead load at completion)"
+        )
+        + f", relative humidity {fmt(inputs['humidity'], 0)} % ({exposure} exposure), "
+        f"superimposed dead and {fmt(100 * inputs['sustainedLive'], 0)} % of the live load "
+        f"{fmt(inputs['superimposedAfter'], 0)} days after completion, column steel ratio "
+        f"{fmt(100 * inputs['steelRatio'], 2)} %. Creep: {clauses.get('creep', '')}, "
+        f"{clauses.get('creepFigure', '')}, {clauses.get('creepDevelopment', '')}. Shrinkage: "
+        f"{clauses.get('shrinkageFigure', '')}, {clauses.get('reinforced', '')}. Required by "
+        f"{clauses.get('phased', '')}; {clauses.get('effects', '')}."
+    )
+    return {
+        "available": True,
+        "intro": intro,
+        "levels": level_rows,
+        "lines": lines,
+        "differential": differential,
+        "notes": [str(n) for n in found.get("notes", [])],
+    }
 
 
 def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
