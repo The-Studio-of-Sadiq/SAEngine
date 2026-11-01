@@ -64,6 +64,35 @@ What the derivation does:
   mesh and on one twice as coarse; a change above 5 % shows a warning (*Mesh check: ... the mesh
   is not converged*), written to `08 FEM/model.results/mesh-check.json`. It never stops Run All.
 
+## Seismically isolated buildings
+
+A column type (04 Objects) can have a **Seismic isolator**: its bilinear curve from the prototype
+tests (Qd, Kd, Dy, vertical stiffness), the lower- and upper-bound factors for the property
+variation over the building's life, and optionally the displacement capacity, the tested
+vertical capacity, the activation force and the test vertical load. Every column of that type
+standing on a support then stands on an isolator. Isolation is available where the code pack
+covers it (BNBC 2020: Part 6 Sec 2.5.16); with a pack that does not, the columns stay fixed and
+the derivation says so.
+
+When the model is derived:
+
+- the design and maximum displacements DD, DM (with their effective periods and damping) are
+  found by iteration on the effective stiffness, and the total displacements DTD, DTM add the
+  torsion of the deck above the isolators;
+- the forces below (Vb) and above (Vs, with RI and its three minimums) are worked out, and the
+  equivalent static cases EX, EY are re-distributed over the height above the isolators;
+- each isolated base gets a spring of the unit's upper-bound effective stiffness at DD; with the
+  response spectrum on, its spectrum becomes the isolated building's (R = RI, I = 1, the
+  isolation damping on the long periods);
+- the restoring force, the displacement capacity and the overturning under the maximum
+  considered earthquake are checked, the conditions of the equivalent static analysis are
+  listed, and the prototype test programme and the design review items are written out.
+
+The design is saved in `08 FEM/isolation.json`; the response spectrum design then takes the
+drift with Cd = RI and I = 1 against the isolation limit and gives the isolators'
+displacements from RX, RY at 100 % + 30 %. The report has a *Seismic isolation* section.
+Viscous dampers are still planned.
+
 ## Load cases
 
 Load cases are created by SAEngine; you do not define them.
