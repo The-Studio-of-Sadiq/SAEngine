@@ -595,7 +595,8 @@ def derive_fem(
     """The analysis model (``model.osmodel`` text) of the building model with the settings' loads.
 
     Returns ``{"text", "notes", "summary"}`` (and ``"pushoverText"``, the pushover model, when
-    the settings ask for pushovers; ``"thermalText"``, the temperature case's fixed-end forces
+    the settings ask for pushovers; ``"historyText"``, the nonlinear time history model, when
+    they ask for it; ``"thermalText"``, the temperature case's fixed-end forces
     for ``08 FEM/thermal.json``, when the settings have the case T; ``"ssiText"``, the soil
     springs for ``08 FEM/ssi.json``, when the column supports are soil springs), or
     ``{"problems"}`` when an input has errors.
@@ -742,6 +743,8 @@ def derive_fem(
     }
     if derivation.pushover is not None:
         result["pushoverText"] = model_text(derivation.pushover)
+    if derivation.history is not None:  # B36
+        result["historyText"] = model_text(derivation.history)
     if derivation.thermal is not None:
         result["thermalText"] = json.dumps(derivation.thermal)
     if derivation.ssi is not None:

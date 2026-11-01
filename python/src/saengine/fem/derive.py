@@ -522,6 +522,8 @@ class Derivation:
     summary: dict[str, Any] = field(default_factory=dict)
     #: The pushover model (frames as fiber elements), when the settings ask for pushovers.
     pushover: dict[str, Any] | None = None
+    #: B36: the nonlinear time history model, when the settings ask for it.
+    history: dict[str, Any] | None = None
     #: The temperature case's fixed-end forces to add back (``08 FEM/thermal.json``).
     thermal: dict[str, Any] | None = None
     #: The soil springs of the column bases (``08 FEM/ssi.json``), with ``supports`` "soilSprings".
@@ -2542,6 +2544,8 @@ def _derive_fem(
     time_series: list[dict[str, Any]] = [{"id": 1, "name": "", "type": "Linear", "factor": 1.0}]
     spectra: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
+    #: B36: the time series of each time history (index in the settings), for the nonlinear model.
+    series_of_history: dict[int, list[int]] = {}
     if any(node_weight.values()):
         modal_id = len(analyses) + 1
         analyses.append(
@@ -2636,6 +2640,7 @@ def _derive_fem(
             for part, found, axis in components:
                 records.append(found)
                 series_id = len(time_series) + 1
+                series_of_history.setdefault(index, []).append(series_id)  # B36
                 time_series.append(
                     {
                         "id": series_id,
@@ -2730,6 +2735,56 @@ def _derive_fem(
         ]
         pushover, more = pushover_model(
             project, keys, types, mats, node_weight, base * MM, options.pushover, wall_specs
+        )
+        b.notes.extend(more)
+    # ── B36: the nonlinear time history model, its records scaled to the code pack's nonlinear
+    # target (saengine.fem.records, procedure "nonlinear") ──
+    history_project = None
+    if options.nonlinearHistory is not None:
+        from saengine.fem import nonlinear_history
+        from saengine.fem.nonlinear import WallSpec, history_model
+
+        nl_factors: dict[int, float] = {}
+        if options.timeHistories and model_dir is not None:
+            from saengine.fem.records import suite_factors
+
+            nl_factors, nl_notes = suite_factors(
+                options.timeHistories,
+                settings,
+                Path(model_dir).parent,
+                {"X": approximate, "Y": approximate_y},
+                procedure=nonlinear_history.target_procedure(),
+                mean_from=nonlinear_history.mean_from(),
+            )
+            b.notes.extend(nl_notes)
+        amplitudes = {
+            series: nl_factors.get(index, history.scale) * (G if history.units == "g" else 1.0)
+            for index, history in enumerate(options.timeHistories)
+            for series in series_of_history.get(index, [])
+        }
+        keys = {
+            sid: key[:3] for key, sid in b.section_ids.items() if key[0] not in ("plate", "embed")
+        }
+        wall_specs = [
+            WallSpec(
+                e.id,
+                e.type,
+                (e.start[0] * MM, e.start[1] * MM),
+                (e.end[0] * MM, e.end[1] * MM),
+                bool(wall_openings.get(e.id)),
+            )
+            for e in building.elements
+            if isinstance(e, WallElement)
+        ]
+        history_project, more = history_model(
+            project,
+            keys,
+            types,
+            mats,
+            node_weight,
+            options.nonlinearHistory,
+            wall_specs,
+            amplitudes,
         )
         b.notes.extend(more)
 
@@ -2883,6 +2938,7 @@ def _derive_fem(
         notes=b.notes,
         summary=summary,
         pushover=pushover,
+        history=history_project,
         thermal=thermal_corrections,
         ssi=ssi_json,
         faces=faces if faces and faces["elements"] else None,

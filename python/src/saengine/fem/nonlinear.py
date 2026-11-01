@@ -413,42 +413,26 @@ def _steel(profile: Any, mat: int) -> _Section | None:
 LIVE_SHARE = 0.25
 
 
-def pushover_model(
+def nonlinear_copy(
     linear: dict[str, Any],
     section_keys: dict[int, tuple[str, int, bool]],
     types: dict[str, Any],
     materials: dict[str, Material],
     node_weight: dict[int, float],
-    base: float,
-    options: Any,
+    fibre_walls_on: bool,
     walls: list[WallSpec] | None = None,
-    modes: Callable[[dict[str, Any], list[str]], dict[str, dict[int, float]]] | None = None,
-) -> tuple[dict[str, Any] | None, list[str]]:
-    """The pushover model (``08 FEM/pushover.osmodel``) of the derived analysis model ``linear``.
-
-    The same nodes, floors, supports and loads; frames become force-based fiber elements
-    (``section_keys`` maps each elastic section id to its object type, quarter turns and
-    whether it is vertical); reinforced concrete walls without openings (``walls``) become
-    fibre wall elements (:func:`fibre_walls`); slabs stay elastic shells. It holds one gravity
-    case (D + SD + 0.25 L) and a pushover per direction, driving the roof to
-    ``options.targetDrift`` percent of the height above ``base`` [m] after the gravity loads.
-
-    The lateral load follows ``options.pattern``: ``firstMode`` the fundamental mode of the
-    linear model in the direction times the masses (``modes(linear, directions)`` gives the
-    forces per node; :func:`fundamental_mode_forces` by default), ``seismic`` the storey forces
-    of the linear model, ``uniform`` the masses.
-    """
+    label: str = "pushover",
+) -> tuple[dict[str, Any] | None, list[str], dict[int, int], dict[int, float]]:
+    """A copy of the derived analysis model ``linear`` with its members nonlinear: frames as
+    force-based fiber elements (``section_keys`` maps each elastic section id to its object
+    type, quarter turns and whether it is vertical), reinforced concrete walls without openings
+    (``walls``) as fibre wall elements (:func:`fibre_walls`) when ``fibre_walls_on``; slabs stay
+    elastic shells. Shared by the pushover and the nonlinear time histories (B36); ``label``
+    starts the notes. Returns ``(model or None, notes, {dropped node: node it moved to}, the
+    node weights with the dropped nodes moved)``."""
     import copy
 
     notes: list[str] = []
-    mode_forces: dict[str, dict[int, float]] = {}
-    pattern_kind = getattr(options, "pattern", "seismic")
-    if pattern_kind == "firstMode":
-        try:
-            mode_forces = (modes or fundamental_mode_forces)(linear, list(options.directions))
-        except Exception as error:  # noqa: BLE001 - the pushover falls back to the storey forces
-            notes.append(f"pushover: the fundamental modes could not be worked out ({error})")
-            mode_forces = {}
     project = copy.deepcopy(linear)
     own = project.get("materials", [])
     library = FiberMaterials(offset=max((m["id"] for m in own), default=0))
@@ -476,7 +460,7 @@ def pushover_model(
         fiber_of[elastic_id] = section["id"]
     if elastic_types:
         notes.append(
-            "pushover: members of "
+            f"{label}: members of "
             + ", ".join(sorted(elastic_types))
             + " stay elastic (concrete without reinforcement, or a profile or material without "
             "a fiber section)"
@@ -508,25 +492,38 @@ def pushover_model(
         element.pop("consistent_mass", None)
     moved: dict[int, int] = {}
     walled = 0
-    if walls and getattr(options, "fibreWalls", True):
+    if walls and fibre_walls_on:
         walled, moved = fibre_walls(project, walls, types, materials, library, notes)
         project["materials"] = [*own, *library.materials]
         node_weight = _moved_weights(node_weight, moved)
+    if label != "pushover":
+        notes[:] = [n.replace("pushover:", f"{label}:", 1) for n in notes]
     if not frames and not walled:
-        return None, [*notes, "pushover: no frame member has a fiber section; no pushover model"]
+        return (
+            None,
+            [*notes, f"{label}: no frame member has a fiber section; no {label} model"],
+            {},
+            {},
+        )
     shells = {e["name"].split("#")[0] for e in project["elements"] if e["type"] == "Shell"}
     elastic_walls = sorted(w.id for w in walls or [] if w.id in shells)
     if elastic_walls:
         notes.append(
-            "pushover: walls "
+            f"{label}: walls "
             + ", ".join(elastic_walls)
             + " stay elastic shells, which the code's nonlinear model asks for only where an "
             "element stays elastic; check that they do"
         )
     if any(e["type"] == "Shell" for e in project["elements"]):
-        notes.append("pushover: shell slabs stay elastic")
+        notes.append(f"{label}: shell slabs stay elastic")
+    return project, notes, moved, node_weight
 
-    # ── loads: gravity (D + SD + 0.25 L) and the lateral patterns ──
+
+def gravity_pattern(project: dict[str, Any], keep_records: bool = False) -> int:
+    """Add the gravity load pattern G (D + SD + :data:`LIVE_SHARE` L) of a nonlinear copy and
+    return its id. The other load patterns, time series, spectra and records go, except the
+    plain patterns (and with ``keep_records`` the ground motions, their time series and
+    uniform excitations)."""
     by_name = {p["name"]: p for p in project["load_patterns"]}
     nodal: dict[int, list[float]] = {}
     element_loads: dict[int, list[float]] = {}
@@ -540,10 +537,12 @@ def pushover_model(
             total = element_loads.setdefault(load["element_id"], [0.0] * 3)
             for k, key in enumerate(("wx", "wy", "wz")):
                 total[k] += factor * load.get(key, 0.0)
-    project["time_series"] = [s for s in project["time_series"] if s["id"] == 1]
-    project["load_patterns"] = [p for p in project["load_patterns"] if p["type"] == "Plain"]
+    kept = {"Plain", "UniformExcitation"} if keep_records else {"Plain"}
+    if not keep_records:
+        project["time_series"] = [s for s in project["time_series"] if s["id"] == 1]
+        project["ground_motions"] = []
+    project["load_patterns"] = [p for p in project["load_patterns"] if p["type"] in kept]
     project["spectra"] = []
-    project["ground_motions"] = []
     gravity_id = max(p["id"] for p in project["load_patterns"]) + 1
     project["load_patterns"].append(
         {
@@ -560,6 +559,72 @@ def pushover_model(
             ],
         }
     )
+    return gravity_id
+
+
+def gravity_case(case_id: int, pattern_id: int) -> dict[str, Any]:
+    """The gravity case of a nonlinear model: the pattern G in ten load steps."""
+    return {
+        "id": case_id,
+        "name": "G: Gravity (D + SD + 0.25L)",
+        "type": "Static",
+        "pattern_ids": [pattern_id],
+        "n_steps": 10,
+        "load_factor_increment": 0.1,
+        "system": "BandGeneral",
+        "constraints": "Plain",
+        "integrator": "LoadControl",
+        "algorithm": "Newton",
+        "test": "NormDispIncr",
+        "tolerance": 1e-8,
+        "max_iter": 50,
+    }
+
+
+def pushover_model(
+    linear: dict[str, Any],
+    section_keys: dict[int, tuple[str, int, bool]],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    node_weight: dict[int, float],
+    base: float,
+    options: Any,
+    walls: list[WallSpec] | None = None,
+    modes: Callable[[dict[str, Any], list[str]], dict[str, dict[int, float]]] | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The pushover model (``08 FEM/pushover.osmodel``) of the derived analysis model ``linear``.
+
+    The same nodes, floors, supports and loads; members nonlinear (:func:`nonlinear_copy`). It
+    holds one gravity case (D + SD + 0.25 L) and a pushover per direction, driving the roof to
+    ``options.targetDrift`` percent of the height above ``base`` [m] after the gravity loads.
+
+    The lateral load follows ``options.pattern``: ``firstMode`` the fundamental mode of the
+    linear model in the direction times the masses (``modes(linear, directions)`` gives the
+    forces per node; :func:`fundamental_mode_forces` by default), ``seismic`` the storey forces
+    of the linear model, ``uniform`` the masses.
+    """
+    notes: list[str] = []
+    mode_forces: dict[str, dict[int, float]] = {}
+    pattern_kind = getattr(options, "pattern", "seismic")
+    if pattern_kind == "firstMode":
+        try:
+            mode_forces = (modes or fundamental_mode_forces)(linear, list(options.directions))
+        except Exception as error:  # noqa: BLE001 - the pushover falls back to the storey forces
+            notes.append(f"pushover: the fundamental modes could not be worked out ({error})")
+            mode_forces = {}
+    project, more, moved, node_weight = nonlinear_copy(
+        linear,
+        section_keys,
+        types,
+        materials,
+        node_weight,
+        getattr(options, "fibreWalls", True),
+        walls,
+    )
+    notes += more
+    if project is None:
+        return None, notes
+    gravity_id = gravity_pattern(project)
 
     coords = {n["id"]: n["coords"] for n in project["nodes"]}
     supports = [n["id"] for n in project["nodes"] if all(n.get("restraint") or [])]
@@ -569,23 +634,7 @@ def pushover_model(
         return None, [*notes, "pushover: the structure has no height above its supports"]
     target = options.targetDrift / 100 * height
 
-    analyses: list[dict[str, Any]] = [
-        {
-            "id": 1,
-            "name": "G: Gravity (D + SD + 0.25L)",
-            "type": "Static",
-            "pattern_ids": [gravity_id],
-            "n_steps": 10,
-            "load_factor_increment": 0.1,
-            "system": "BandGeneral",
-            "constraints": "Plain",
-            "integrator": "LoadControl",
-            "algorithm": "Newton",
-            "test": "NormDispIncr",
-            "tolerance": 1e-8,
-            "max_iter": 50,
-        }
-    ]
+    analyses: list[dict[str, Any]] = [gravity_case(1, gravity_id)]
     for axis in options.directions:
         dof = 1 if axis == "X" else 2
         forces = _moved_weights(mode_forces.get(axis, {}), moved)
@@ -711,6 +760,102 @@ def _moved_weights(values: dict[int, float], moved: dict[int, int]) -> dict[int,
         target = moved.get(node, node)
         result[target] = result.get(target, 0.0) + value
     return result
+
+
+# ───────────────────────── the nonlinear time history model (B36) ─────────────────────────
+
+#: Modes of the nonlinear time history model's modal case (the fundamental periods).
+HISTORY_MODES = 12
+
+
+def history_model(
+    linear: dict[str, Any],
+    section_keys: dict[int, tuple[str, int, bool]],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    node_weight: dict[int, float],
+    options: Any,
+    walls: list[WallSpec] | None = None,
+    amplitudes: dict[int, float] | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The nonlinear time history model (``08 FEM/nonlinear-history.osmodel``) of the derived
+    analysis model ``linear``: its members nonlinear (:func:`nonlinear_copy`), its records,
+    their time series and uniform excitations kept, with the time series' factors replaced by
+    ``amplitudes`` (series id -> factor: the records scaled to the code pack's nonlinear
+    target, :func:`saengine.fem.records.suite_factors`).
+
+    Cases: the gravity loads G (D + SD + 0.25 L); a modal case (the fundamental periods of the
+    suite check); per time history of ``linear`` a Transient case after G, damped on its first
+    mode in proportion to the committed stiffness (``options.damping`` or the record's own),
+    keeping the peak strains of the fibres of the members' end sections (the acceptance,
+    :mod:`saengine.fem.acceptance`)."""
+    histories = [a for a in linear.get("analyses", []) if a.get("type") == "Transient"]
+    if not histories:
+        return None, ["nonlinear time history: the model has no time history; add records"]
+    project, notes, _, _ = nonlinear_copy(
+        linear,
+        section_keys,
+        types,
+        materials,
+        node_weight,
+        getattr(options, "fibreWalls", True),
+        walls,
+        label="nonlinear time history",
+    )
+    if project is None:
+        return None, notes
+    gravity_id = gravity_pattern(project, keep_records=True)
+    for series in project["time_series"]:
+        if amplitudes and int(series["id"]) in amplitudes:
+            series["factor"] = float(amplitudes[int(series["id"])])
+    analyses: list[dict[str, Any]] = [
+        gravity_case(1, gravity_id),
+        {
+            "id": 2,
+            "name": "Modal (initial stiffness)",
+            "type": "Modal",
+            "n_modes": HISTORY_MODES,
+            "solver": "auto",
+        },
+    ]
+    damping = getattr(options, "damping", None)
+    for history in histories:
+        name = str(history.get("name", "")).removeprefix("TH: ")
+        analyses.append(
+            {
+                "id": len(analyses) + 1,
+                "name": f"NTH: {name}",
+                "type": "Transient",
+                "pattern_ids": list(history["pattern_ids"]),
+                "dt": history["dt"],
+                "n_steps": history["n_steps"],
+                "system": "BandGeneral",
+                "algorithm": "Newton",
+                "test": "NormDispIncr",
+                "tolerance": 1e-6,
+                "max_iter": 50,
+                "rayleigh_mode1_damping": damping
+                if damping is not None
+                else history.get("rayleigh_mode1_damping", 0.05),
+                "rayleigh_mode1_stiffness": "committed",
+                "record_fibre_peaks": True,
+                "preload_case_ids": [1],
+            }
+        )
+    project["analyses"] = analyses
+    meta = project["meta"]
+    project["meta"] = {
+        **meta,
+        "name": f"{meta['name']} (nonlinear time history)",
+        "description": meta["description"].replace(
+            "Derived by SAEngine", "Nonlinear time history model derived by SAEngine", 1
+        ),
+    }
+    notes.append(
+        f"nonlinear time history: {len(histories)} record{'s' if len(histories) != 1 else ''} "
+        "after the gravity loads, with the fibre members"
+    )
+    return project, notes
 
 
 # ─────────────────────────── the fundamental mode (load pattern) ───────────────────────────

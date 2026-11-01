@@ -738,6 +738,17 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 )
             except Exception as error:  # noqa: BLE001 - the charts show without it
                 notes.append(f"the column shortening could not be worked out: {error}")
+    # B36: the nonlinear time history design (saengine.fem.nonlinear_history), for the
+    # project's nonlinear time history model.
+    nonlinear = None
+    if project.get("meta", {}).get("author") == "SAEngine":
+        from saengine.fem import nonlinear_history
+
+        if nonlinear_history.is_history_model(project_path):
+            try:
+                nonlinear = nonlinear_history.evaluate(out_dir, project_path)
+            except Exception as error:  # noqa: BLE001 - the charts show without it
+                notes.append(f"the nonlinear time history design could not be worked out: {error}")
     return _finite(
         {
             "levels": level_rows,
@@ -751,6 +762,7 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "pushover": pushover,
             "histories": histories,
             "columnShortening": shortening,
+            "nonlinearHistory": nonlinear,
             "notes": notes,
         }
     )

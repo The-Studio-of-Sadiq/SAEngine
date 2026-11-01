@@ -75,20 +75,25 @@ def suites(histories: Sequence[Any]) -> dict[str, list[int]]:
     return out
 
 
-def scaled_to_code(history: Any, settings: Any) -> bool:
+def scaled_to_code(history: Any, settings: Any, procedure: str = "linear") -> bool:
     """Whether a history is scaled to the code spectrum: its ``scaling`` "code", or "auto"
-    when the earthquake design uses the time histories."""
+    when the earthquake design uses the time histories or for the nonlinear procedure (B36),
+    whose records must match the real design spectrum."""
     scaling = getattr(history, "scaling", "manual")
+    if scaling == "auto" and procedure == "nonlinear":
+        return True
     if scaling == "auto":
         analysis = getattr(settings, "analysis", None)
         return getattr(analysis, "seismicDesign", "static") == "timeHistory"
     return scaling == "code"
 
 
-def design_rule(count: int) -> str:
-    """ "max" below the pack's ``meanFrom`` records (or pairs), "mean" from it."""
-    found = rules()
-    mean_from = found.meanFrom if found is not None else 7
+def design_rule(count: int, mean_from: int | None = None) -> str:
+    """ "max" below the pack's ``meanFrom`` records (or pairs), "mean" from it (``mean_from``:
+    another procedure's own number)."""
+    if mean_from is None:
+        found = rules()
+        mean_from = found.meanFrom if found is not None else 7
     return "mean" if count >= mean_from else "max"
 
 
@@ -352,27 +357,34 @@ def suite_factors(
     project_dir: str | Path,
     periods: dict[str, float],
     procedure: str = "linear",
+    mean_from: int | None = None,
 ) -> tuple[dict[int, float], list[str]]:
     """The code scale factors (in g, on the record and on its orthogonal component) of the
     ``histories`` scaled to the code spectrum (:func:`scaled_to_code`), suite by suite:
     ``({history index: factor}, notes)``. ``project_dir``: the project folder the record paths
     are relative to; ``periods``: the fundamental period [s] per direction ("X", "Y"), the
     settings' ``analysis.timeHistoryPeriod`` overriding it (pairs: the longer of the two). A
-    suite that cannot be scaled keeps its manual factors, with a note."""
+    suite that cannot be scaled keeps its manual factors, with a note. ``procedure``: the
+    pack's target ("linear", or "nonlinear" for B36, R = 1 and I = 1); ``mean_from``: the
+    procedure's own number of records from which the mean governs (the notes)."""
     out: dict[int, float] = {}
     notes: list[str] = []
     if rules() is None:
-        if any(scaled_to_code(h, settings) for h in histories):
+        if any(scaled_to_code(h, settings, procedure) for h in histories):
             notes.append(
                 "time histories: the code pack in force has no record scaling rules; the "
                 "manual factors are used"
             )
         return out, notes
+    nonlinear = procedure == "nonlinear"
+    label = "nonlinear time-history suite" if nonlinear else "time-history suite"
+    spectrum = "real design spectrum (R = 1, I = 1)" if nonlinear else "design spectrum"
+    source = clause("nonlinearRecords" if nonlinear else "records") or clause("records")
     analysis = getattr(settings, "analysis", None)
     given = getattr(analysis, "timeHistoryPeriod", None)
     individual = getattr(analysis, "timeHistoryScaling", "individual") == "individual"
     for key, members in suites(histories).items():
-        members = [k for k in members if scaled_to_code(histories[k], settings)]
+        members = [k for k in members if scaled_to_code(histories[k], settings, procedure)]
         if not members:
             continue
         period = given or (
@@ -396,23 +408,27 @@ def suite_factors(
             target = target_spectrum(settings, "XY" if key == "XY" else key, procedure)
             factors = scale_suite(records, target, period, pairs or None, individual)
         except (OSError, ValueError, KeyError) as error:
-            notes.append(f"time-history suite {key} not scaled to the code spectrum: {error}")
+            notes.append(f"{label} {key} not scaled to the code spectrum: {error}")
             continue
         step = 2 if key == "XY" else 1
         for n, k in enumerate(members):
             out[k] = factors[n * step]
         found = rules()
         count = len(members)
-        rule = "the largest response" if design_rule(count) == "max" else "the mean response"
+        rule = (
+            "the largest response"
+            if design_rule(count, mean_from) == "max"
+            else "the mean response"
+        )
         notes.append(
-            f"time-history suite {key}: {count} {'pairs' if key == 'XY' else 'records'} scaled "
-            f"to the design spectrum over {found.periodLower:g}T to {found.periodUpper:g}T, "
-            f"T = {period:.3f} s ({clause('records')}); design value: {rule}"
+            f"{label} {key}: {count} {'pairs' if key == 'XY' else 'records'} scaled "
+            f"to the {spectrum} over {found.periodLower:g}T to {found.periodUpper:g}T, "
+            f"T = {period:.3f} s ({source}); design value: {rule}"
         )
         if found is not None and count < found.minimumRecords:
             notes.append(
-                f"time-history suite {key}: {count} {'pairs' if key == 'XY' else 'records'}, "
+                f"{label} {key}: {count} {'pairs' if key == 'XY' else 'records'}, "
                 f"fewer than the {found.minimumRecords} the code pack asks for "
-                f"({clause('records')}); the suite is not used in design"
+                f"({source}); the suite is not used in design"
             )
     return out, notes

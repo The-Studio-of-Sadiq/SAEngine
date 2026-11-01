@@ -935,6 +935,26 @@ class Pushover(_Model):
     steps: int = Field(default=100, ge=10, le=2000, description="Steps to the target drift.")
 
 
+class NonlinearHistory(_Model):
+    """B36: nonlinear time history analyses of the time histories above, with the frames and
+    walls as fibre elements (08 FEM/nonlinear-history.osmodel)."""
+
+    fibreWalls: bool = Field(
+        default=True,
+        title="Fibre walls",
+        description="Reinforced concrete walls without openings become fibre wall elements "
+        "(as in the pushover); off: walls stay elastic shells.",
+    )
+    damping: float | None = Field(
+        default=None,
+        ge=0,
+        le=0.3,
+        title="Damping ratio",
+        description="Damping ratio of the first mode [-], in proportion to the committed "
+        "stiffness. Empty: each time history's own.",
+    )
+
+
 class TimeHistory(_Model):
     """A ground acceleration record run as a time-history analysis."""
 
@@ -1678,6 +1698,14 @@ class Analysis(_Model):
         default=None,
         description="Pushover analyses: the frames as fiber elements that crack and yield, "
         "pushed sideways after the gravity loads (08 FEM/pushover.osmodel).",
+    )
+    nonlinearHistory: NonlinearHistory | None = Field(
+        default=None,
+        title="Nonlinear time history",
+        description="Nonlinear time history analyses: the time histories above run through "
+        "the frames and walls as fibre elements that crack and yield, the records scaled to "
+        "the code pack's real design spectrum (08 FEM/nonlinear-history.osmodel); the results "
+        "check the storey drifts and the members' deformations by the code pack's rules.",
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")

@@ -2337,11 +2337,7 @@ class OpenSeesRunner:
         from opensees_studio.core import DispBeamColumn, ForceBeamColumn
 
         fibre_elements = (
-            [
-                el
-                for el in self.project.elements
-                if isinstance(el, ForceBeamColumn | DispBeamColumn)
-            ]
+            [el for el in self.project.elements if isinstance(el, ForceBeamColumn | DispBeamColumn)]
             if getattr(case, "record_fibre_peaks", False)
             else []
         )
