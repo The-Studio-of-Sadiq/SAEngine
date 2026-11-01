@@ -1235,7 +1235,7 @@ def _wind_cladding_rows(cladding: dict[str, Any]) -> list[list[str]]:
                 + _ENCLOSURES.get(cladding.get("enclosure", ""), "enclosed")
                 + f" (GCpi = ±{fmt(cladding.get('GCpi', 0), 2)}), effective wind area "
                 + (f"{fmt(area, 2)} m²" if area else "the smallest (largest pressures)")
-                + " (BNBC 2020 Part 6 Sec 2.4.11.5; ASCE 7-05 Figures 6-11, 6-17)"
+                + (f" ({cladding['figure']})" if cladding.get("figure") else "")
             ),
         ]
     ]
