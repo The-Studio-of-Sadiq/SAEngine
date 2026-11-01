@@ -607,6 +607,141 @@ class ColumnBasePlate(_Model):
     electrode: float = Field(default=480, gt=0, description="FEXX [MPa].")
 
 
+# ───────────────────────────── timber members and joints ─────────────────────────────
+# Checked by saengine.design.timber (permissible stress design of the code pack's ``timber``
+# table); the models live here so the beam, column and brace types can carry them.
+
+
+class TimberNotch(_Model):
+    """A notch at the member's supports (both ends)."""
+
+    face: Literal["tension", "compression"] = Field(
+        default="tension", description="Tension (bottom) or compression (top) face."
+    )
+    depth: Length = Field(description="Depth of the notch D2 [mm].")
+    length: Length = Field(
+        description="Inner edge of the support to the far edge of the notch, e [mm]."
+    )
+
+
+class TimberSpaced(_Model):
+    """A spaced column: ``pieces`` members of the type's profile, packed apart and connected
+    at the ends (and between)."""
+
+    pieces: int = Field(default=2, ge=2, le=4)
+    connectors: Literal["end20", "end10to20"] = Field(
+        default="end20",
+        description="Centroid of the end fasteners at S/20 from the end, or S/10 to S/20.",
+        json_schema_extra={"enumDescriptions": ["At S/20 from the end", "S/10 to S/20"]},
+    )
+
+
+class TimberMember(_Model):
+    """Design data of a timber beam, column or brace beyond its section and material."""
+
+    brittleFinishes: bool = Field(
+        default=False,
+        description="Supports brittle finishes (gypsum ceilings, slates, tiles, asbestos "
+        "sheets): the stricter deflection limit.",
+    )
+    freeEnd: Literal["none", "start", "end"] = Field(
+        default="none",
+        description="A cantilever: the end that is free (deflection of the free length).",
+        json_schema_extra={"enumDescriptions": ["Supported at both ends", "Start", "End"]},
+    )
+    bearingLength: float | None = Field(
+        default=None,
+        gt=0,
+        description="Bearing length at each end support [mm]; none: not checked.",
+    )
+    notch: TimberNotch | None = None
+    restraintSpacing: float | None = Field(
+        default=None,
+        gt=0,
+        description="Lateral restraints against twisting [mm]; none: only at the ends.",
+    )
+    diagonalLoading: bool = Field(
+        default=False, description="Square section loaded in the direction of its diagonal."
+    )
+    spaced: TimberSpaced | None = None
+
+
+class _TimberJointBase(_Model):
+    joint: Literal["node", "lengthening"] = Field(
+        default="node",
+        description="Node (members meeting) or lengthening (splice) joint at each end.",
+        json_schema_extra={"enumDescriptions": ["Node joint", "Lengthening joint"]},
+    )
+    count: int = Field(default=4, ge=1, le=200, description="Fasteners at each end.")
+
+
+class TimberNailedJoint(_TimberJointBase):
+    """Common wire nails in double shear through splice or gusset plates on both faces."""
+
+    type: Literal["nails"] = "nails"
+    size: Literal["3.55", "4", "5"] = Field(default="3.55", description="Shank diameter [mm].")
+    temporary: bool = Field(default=False, description="Temporary structure.")
+    clenched: bool = Field(default=False, description="Points clenched across the grain.")
+    sideThickness: Length = Field(default=25, description="Each splice or gusset plate [mm].")
+    endDistance: Length = Field(default=50, description="[mm]")
+    spacing: Length = Field(default=40, description="Along the grain [mm].")
+    edgeDistance: Length = Field(default=20, description="[mm]")
+    rowSpacing: Length = Field(default=20, description="Between rows, across the grain [mm].")
+    species: str | None = Field(
+        default=None, description="Species of the nail table; none: the member's."
+    )
+
+
+class TimberBoltedJoint(_TimberJointBase):
+    """Bolts through the member and wooden splice plates."""
+
+    type: Literal["bolts"] = "bolts"
+    diameter: Literal[6, 10, 12, 16, 20, 22, 25] = Field(default=16, description="[mm]")
+    shear: Literal["double", "single"] = "double"
+    mainThickness: float | None = Field(
+        default=None, gt=0, description="Main member t' [mm]; none: the member's width."
+    )
+    sideThickness: Length = Field(default=40, description="Each side member [mm].")
+    rows: int = Field(default=2, ge=1, le=20, description="Rows of bolts.")
+    spacing: Length = Field(default=64, description="Bolts in a row [mm].")
+    rowSpacing: Length = Field(default=40, description="Between rows [mm].")
+    endDistance: Length = Field(default=112, description="[mm]")
+    edgeDistance: Length = Field(default=40, description="[mm]")
+    hardwood: bool = Field(default=True, description="Hardwood (else softwood): end distance.")
+
+
+class TimberSplitRingJoint(_TimberJointBase):
+    """Metallic split-ring connectors with a bolt each."""
+
+    type: Literal["splitRing"] = "splitRing"
+    diameter: Length = Field(default=100, description="Ring diameter [mm].")
+    mainThickness: float | None = Field(
+        default=None, gt=0, description="[mm]; none: the member's width."
+    )
+    sideThickness: Length = Field(default=38, description="[mm]")
+    edgeDistance: Length = Field(default=100, description="Loaded edge [mm].")
+    endDistance: Length = Field(default=175, description="[mm]")
+
+
+class TimberDiscDowelJoint(_TimberJointBase):
+    """Hardwood disc-dowels with a mild steel bolt each."""
+
+    type: Literal["discDowel"] = "discDowel"
+    diameter: Length = Field(default=100, description="Mid diameter d [mm].")
+    thickness: Length = Field(default=30, description="t [mm].")
+    edgeClearance: Length = Field(default=15, description="[mm]")
+    endClearance: Length = Field(default=100, description="[mm]")
+    species: str | None = Field(
+        default=None, description="Species of the dowels; none: the member's timber."
+    )
+
+
+TimberJoint = Annotated[
+    TimberNailedJoint | TimberBoltedJoint | TimberSplitRingJoint | TimberDiscDowelJoint,
+    Field(discriminator="type"),
+]
+
+
 # ─────────────────────────────────── object types ───────────────────────────────────
 
 
@@ -631,6 +766,17 @@ class Beam(_ObjectBase):
     )
     splice: SteelSplice | None = Field(
         default=None, description="Steel I-beams: a bolted cover-plate splice; none: no splice."
+    )
+    timber: TimberMember | None = Field(
+        default=None,
+        description="Timber members: bearing, notches, restraints, cantilever, spaced column; "
+        "none: the defaults.",
+    )
+    timberJoint: TimberJoint | None = Field(
+        default=None,
+        title="Timber joint",
+        description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
+        "ends; none: not checked.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -659,6 +805,17 @@ class Column(_ObjectBase):
         default=None,
         description="Steel columns: the base plate and anchor rods where the column stands on "
         "a support; none: not checked.",
+    )
+    timber: TimberMember | None = Field(
+        default=None,
+        description="Timber members: bearing, notches, restraints, cantilever, spaced column; "
+        "none: the defaults.",
+    )
+    timberJoint: TimberJoint | None = Field(
+        default=None,
+        title="Timber joint",
+        description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
+        "ends; none: not checked.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -689,6 +846,17 @@ class Brace(_ObjectBase):
         description="Rods and slender angles that buckle at a negligible load: each load "
         "combination releases the members it would compress, and they are designed for "
         "tension alone.",
+    )
+    timber: TimberMember | None = Field(
+        default=None,
+        description="Timber members: bearing, notches, restraints, cantilever, spaced column; "
+        "none: the defaults.",
+    )
+    timberJoint: TimberJoint | None = Field(
+        default=None,
+        title="Timber joint",
+        description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
+        "ends; none: not checked.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,

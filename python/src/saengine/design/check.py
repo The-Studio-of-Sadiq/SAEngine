@@ -1008,7 +1008,7 @@ def design(
 
     timber_seen = False
     if timber_todo:
-        timber_seen = _design_timber(timber_todo, service, checked, skipped, notes)
+        timber_seen = _design_timber(timber_todo, service, checked, skipped, notes, project)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
@@ -1168,6 +1168,7 @@ def _design_timber(
     checked: list[dict[str, Any]],
     skipped: list[dict[str, Any]],
     notes: list[str],
+    project: dict[str, Any] | None = None,
 ) -> bool:
     """T45 integrator glue: the timber members of ``todo`` (``(id, object type, material,
     pieces, turned)``) under the code pack's allowable stress combinations, formed from the
@@ -1202,7 +1203,6 @@ def _design_timber(
     ]
     names = [n for n, _ in usable]
     factors = [f for _, f in usable]
-    lateral = timber_design.lateral_kinds(factors, names)
     left_out = len(formed) - len(usable)
     if left_out:
         notes.append(
@@ -1219,8 +1219,9 @@ def _design_timber(
                 material,
                 timber_design.asd_pieces(own, case_forces, factors),
                 names,
-                lateral,
+                factors,
                 turned,
+                *_timber_profiles(own, service, project),
             )
         except timber_design.TimberDesignError as error:
             skip(member_id, object_type, str(error))
@@ -1228,6 +1229,40 @@ def _design_timber(
         checked.append(entry)
         seen = True
     return seen
+
+
+def _timber_profiles(
+    pieces: list[_Piece], service: dict[str, Any], project: dict[str, Any] | None
+) -> tuple[dict[str, list[tuple[float, float]]] | None, float | None]:
+    """B6 glue: a timber member's nodes' downward deflections per service case ({case: [(s
+    [m], deflection [mm])]}, from ``service["displacements"]``) and the analysis's E [MPa] of
+    its section; (None, None) when not found."""
+    moved = service.get("displacements") or {}
+    if not project or "D" not in moved or not pieces:
+        return None, None
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    order: list[int] = []
+    for piece in pieces:
+        for node in nodes_of.get(piece.id) or []:
+            if node not in order:
+                order.append(node)
+    if len(order) < 2 or any(n not in coords for n in order):
+        return None, None
+    start = coords[order[0]]
+    order.sort(key=lambda n: float(np.linalg.norm(coords[n] - start)))
+    s = [float(np.linalg.norm(coords[n] - start)) for n in order]
+    profiles: dict[str, list[tuple[float, float]]] = {}
+    for case in SERVICE_CASES:
+        if case in moved:
+            values = moved[case]
+            profiles[case] = [
+                (x, -float(values.get(n, np.zeros(6))[2]) * 1e3) for x, n in zip(s, order)
+            ]
+    section_of = {e["id"]: e.get("section_id") for e in project.get("elements", [])}
+    sections = {x["id"]: x for x in project.get("sections", [])}
+    e = sections.get(section_of.get(pieces[0].id), {}).get("E")
+    return profiles, (float(e) / 1e6 if e else None)
 
 
 def _assemble(
@@ -1272,7 +1307,7 @@ def _assemble(
     if timber_seen:
         from saengine.design import timber as timber_design
 
-        method += timber_design.METHOD
+        method += timber_design.method()
     if "shells" in slabs_seen:
         method += slab.METHOD
     if "coefficients" in slabs_seen:

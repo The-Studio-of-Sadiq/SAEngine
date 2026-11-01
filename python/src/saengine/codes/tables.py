@@ -2320,6 +2320,7 @@ class TimberTable(TableModel):
     connectors: TimberConnectors
     clauses: dict[str, str] = Field(default_factory=dict)
 
+
 # ───────────────────────────────────────── masonry ─────────────────────────────────────────
 
 

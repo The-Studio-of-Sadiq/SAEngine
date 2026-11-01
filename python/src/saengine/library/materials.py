@@ -142,9 +142,14 @@ class MasonryProperties(_Model):
 
 
 class TimberProperties(_Model):
-    """Sawn structural timber (BNBC 2020 Part 6 Chapter 11)."""
+    """Sawn structural timber, designed with the code pack's ``timber`` table."""
 
-    species: str | None = Field(default=None, description="Species, e.g. Sal, Garjan, Teak.")
+    species: str | None = Field(
+        default=None,
+        description="Species of the code pack's table (id, trade or botanical name, e.g. Teak "
+        "or Tectona grandis): its own stresses where the table gives them, else the strength "
+        "group's.",
+    )
     group: Literal["A", "B", "C"] = Field(
         default="B",
         title="Strength group",
@@ -158,6 +163,33 @@ class TimberProperties(_Model):
         title="Location of use",
         description="Inside (dry), outside (exposed to the weather) or wet (always damp).",
         json_schema_extra={"enumDescriptions": ["Inside", "Outside", "Wet"]},
+    )
+    grade: Literal["select", "I", "II"] = Field(
+        default="I",
+        description="Grade of the cut sizes by their permissible defects (the stresses are "
+        "Grade I's times the code's grade factor).",
+        json_schema_extra={"enumDescriptions": ["Select grade", "Grade I", "Grade II"]},
+    )
+    lowDurability: bool | None = Field(
+        default=None,
+        title="Low durability",
+        description="Low durability timber (outside: stresses reduced); none: from the "
+        "species' durability class, else no.",
+    )
+    slopeOfGrain: float | None = Field(
+        default=None,
+        gt=0,
+        title="Slope of grain (1 in)",
+        description="Ungraded timber with defects: the slope of grain 1 in this (K1); none: "
+        "graded timber.",
+    )
+    liveLoadDuration: Literal["continuous", "twoMonths", "sevenDays", "impact"] = Field(
+        default="continuous",
+        title="Live load duration",
+        description="Duration of the live loads, for the load duration factor K2.",
+        json_schema_extra={
+            "enumDescriptions": ["Continuous", "Two months", "Seven days", "Impact"]
+        },
     )
 
 
