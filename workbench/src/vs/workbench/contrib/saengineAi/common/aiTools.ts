@@ -27,6 +27,29 @@ export interface IAiTool {
 	readonly edits?: boolean;
 	/** Only reads: never changes the window or the project. */
 	readonly readOnly?: boolean;
+	/**
+	 * Offered to the built-in assistant too, with what its result sends to the provider: the
+	 * engineer chooses which of these the assistant may read (see {@link ContextScope}).
+	 * Tools without it are for MCP clients on this computer only.
+	 */
+	readonly assistant?: ContextScope;
+}
+
+/**
+ * What a tool's result tells the built-in assistant's provider: `code` (passages of the code pack
+ * and the manual: no project data), `project` (the project's name, parts and their status, the
+ * open editors), `document` (the active editor's document), `results` (design and analysis
+ * results), `local` (nothing leaves the computer but the assistant's own words: opening a part,
+ * revealing a member, proposing a change set the engineer previews).
+ */
+export type ContextScope = 'code' | 'project' | 'document' | 'results' | 'local';
+/** The scopes the engineer can turn off (code and local are always on). */
+export const OPTIONAL_SCOPES = ['project', 'document', 'results'] as const;
+export type OptionalScope = typeof OPTIONAL_SCOPES[number];
+
+/** The tools the built-in assistant may use with `allowed` scopes. */
+export function assistantTools(allowed: ReadonlySet<OptionalScope>): readonly IAiTool[] {
+	return AI_TOOLS.filter(tool => tool.assistant !== undefined && (tool.assistant === 'code' || tool.assistant === 'local' || allowed.has(tool.assistant)));
 }
 
 const PART_IDS = ALL_PARTS.map(part => part.id);
@@ -37,6 +60,7 @@ export type ResultKind = typeof RESULT_KINDS[number];
 export const AI_TOOLS: readonly IAiTool[] = [
 	{
 		name: 'get_project',
+		assistant: 'project',
 		title: 'Project info',
 		description: 'The open SAEngine project: name, folder, type, and every part (Soil Report, Floor Plan, FEM, ...) with its status (notStarted, inProgress, done, stale, failed, error) and hint. Also the open editors and whether edits are allowed.',
 		inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -44,6 +68,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'list_editors',
+		assistant: 'project',
 		title: 'Open editors',
 		description: 'The editors open in the window (title, file relative to the project, part, unsaved) and which one is active.',
 		inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -51,6 +76,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'open_part',
+		assistant: 'local',
 		title: 'Open a part',
 		description: 'Opens a part of the project in its editor, as clicking it in the Project sidebar does.',
 		inputSchema: {
@@ -62,6 +88,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'open_file',
+		assistant: 'local',
 		title: 'Open a project file',
 		description: 'Opens a file of the project (path relative to the project folder, e.g. "08 FEM/model.results/design-summary.json") in its editor.',
 		inputSchema: {
@@ -73,6 +100,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'read_active_document',
+		assistant: 'document',
 		title: 'Read the active document',
 		description: 'The document of the active editor as the engineer sees it, unsaved edits included (JSON parts are returned parsed), with the text selection and the selected model item (member, story, grid line or object type).',
 		inputSchema: {
@@ -84,6 +112,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'read_results',
+		assistant: 'results',
 		title: 'Read results',
 		description: 'A results summary of the project: "design" (design checks: checked, passed, failed, governing member), "fem" (the analysis run manifest), "substructure" (footing sizing summary), "mep" (MEP summary) or "boq" (the bill of quantities).',
 		inputSchema: {
@@ -135,6 +164,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'reveal_element',
+		assistant: 'local',
 		title: 'Reveal an element',
 		description: 'Selects and shows an item of the model in its editor, as clicking it does: a member of the floor plan (kind "member" with group and id, e.g. group "columns", id "C1"), a story (kind "story", id), a grid line (kind "gridLine", axis "x"/"y", label) or an object type (kind "objectType", id).',
 		inputSchema: {
@@ -166,6 +196,93 @@ export const AI_TOOLS: readonly IAiTool[] = [
 			additionalProperties: false,
 		},
 		edits: true,
+	},
+	{
+		name: 'search_code',
+		assistant: 'code',
+		title: 'Search the design code',
+		description: 'Searches the code pack in force (BNBC 2020 unless the project chooses another) and the SAEngine manual for passages that answer a question, each with the clauses, tables and pages it comes from. Answer code questions ONLY from these passages and cite their clauses; when "found" is false or no passage answers it, say the code pack does not cover it. Never quote a clause from memory.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				query: { type: 'string', maxLength: 500, description: 'The question or its key words and clause numbers, e.g. "minimum cover beams" or "Table 6.2.14".' },
+				limit: { type: 'integer', minimum: 1, maximum: 20, description: 'Most passages (default 8).' },
+			},
+			required: ['query'],
+			additionalProperties: false,
+		},
+		readOnly: true,
+	},
+	{
+		name: 'explain_results',
+		assistant: 'results',
+		title: 'Design checks of members',
+		description: 'The design checks of the last run, per element: each check (name, demand, capacity, unit, utilisation, load combination, ok, note) with the governing one (highest utilisation) first. Give "member" (an element id such as "C1", or an analysis member id) for one element, or "onlyFailing" for the failing ones. Use it to explain why a member fails and what governs. "stale" says the project changed since the run.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				member: { type: 'string', maxLength: 100, description: 'Element id (or one of its analysis members); omit for all.' },
+				onlyFailing: { type: 'boolean', description: 'Only elements that fail (default false).' },
+				limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Most elements, highest utilisation first (default 20).' },
+			},
+			additionalProperties: false,
+		},
+		readOnly: true,
+	},
+	{
+		name: 'propose_changes',
+		assistant: 'local',
+		title: 'Propose a change set',
+		description: 'Proposes edits to the project\'s JSON part files (e.g. "04 Objects/objects.json", "05 Floor Plan/floor-plan.json", "02 Project Settings/project-settings.json") as ONE change set the engineer previews (each value before and after) and then accepts or rejects. Nothing changes until the engineer accepts; accepted, it is one undoable step (Undo in the preview or Ctrl+Z) and stays unsaved until saved. Read the file first (open_file then read_active_document) so the paths are right. Returns whether the engineer accepted, rejected or has not decided yet.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				title: { type: 'string', maxLength: 200, description: 'What the change set does, e.g. "Raise the typical storey height to 3.2 m".' },
+				changes: {
+					type: 'array',
+					description: 'The edits, applied in order.',
+					items: {
+						type: 'object',
+						properties: {
+							file: { type: 'string', description: 'A .json file relative to the project folder.' },
+							path: { type: 'array', items: { type: ['string', 'integer'] }, description: 'JSON path, e.g. ["stories", 1, "elevation"]. Missing objects are created.' },
+							value: { description: 'The new value (any JSON).' },
+							remove: { type: 'boolean', description: 'Delete the property or array item instead.' },
+							reason: { type: 'string', description: 'Why, shown to the engineer.' },
+						},
+						required: ['file', 'path'],
+					},
+				},
+			},
+			required: ['title', 'changes'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'propose_building',
+		assistant: 'local',
+		title: 'Propose a new building',
+		description: 'Opens the New Building wizard filled with a building described in words: grids, storeys, structural system, materials, footings, site and occupancy. The engineer sees the plan and the summary, may change any field, and clicks Generate to create the project (a new folder; nothing else changes). Lengths in mm.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				name: { type: 'string', maxLength: 100, description: 'Project name.' },
+				gridsX: { type: 'array', items: { type: 'number' }, description: 'Spacings between the X grid lines (A, B, ...) [mm], e.g. [6000, 6000, 4500].' },
+				gridsY: { type: 'array', items: { type: 'number' }, description: 'Spacings between the Y grid lines (1, 2, ...) [mm].' },
+				storyCount: { type: 'integer', minimum: 1, maximum: 80 },
+				groundHeight: { type: 'number', description: 'Ground storey height [mm].' },
+				typicalHeight: { type: 'number', description: 'Typical storey height [mm].' },
+				system: { type: 'string', enum: ['rcFrame', 'rcFrameCore', 'flatSlab', 'masonry'] },
+				footing: { type: 'string', enum: ['isolated', 'mat', 'none'] },
+				concrete: { type: 'string', description: 'Concrete material id of 03 Materials, e.g. "C24.1".' },
+				rebar: { type: 'string', description: 'Rebar material id, e.g. "B420DWR".' },
+				location: { type: 'string', description: 'BNBC location id (a town, e.g. "dhaka").' },
+				siteClass: { type: 'string', enum: ['SA', 'SB', 'SC', 'SD', 'SE'] },
+				occupancy: { type: 'string', description: 'Building use, e.g. "residential", "office".' },
+				occupancyCategory: { type: 'string', enum: ['I', 'II', 'III', 'IV'] },
+			},
+			additionalProperties: false,
+		},
 	},
 ];
 

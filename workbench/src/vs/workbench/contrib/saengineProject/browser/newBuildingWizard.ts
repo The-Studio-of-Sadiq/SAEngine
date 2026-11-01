@@ -99,6 +99,13 @@ export class NewBuildingWizardInput extends EditorInput {
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return super.matches(other) || other instanceof NewBuildingWizardInput;
 	}
+
+	/**
+	 * A building specification to fill the form with when the wizard shows next (the AI
+	 * assistant's propose_building): applied over the starting template, then cleared. The
+	 * engineer still reviews it and clicks Generate.
+	 */
+	prefill: { readonly [key: string]: unknown } | undefined;
 }
 
 interface IChoice<T extends string> {
@@ -201,6 +208,11 @@ export class NewBuildingWizard extends EditorPane {
 				this.form = { ...formFromSpec(start.spec, this.form) };
 				this.templateApplied = start.package;
 			}
+		}
+		const prefill = input.prefill;
+		if (prefill) {
+			input.prefill = undefined;
+			this.form = { ...formFromSpec(prefill, this.form), ...(typeof prefill.name === 'string' && prefill.name.trim() ? { name: prefill.name.trim() } : {}) };
 		}
 		this.renderForm();
 		// The plot needs the backend (a second or two): the form shows at once, then again with it.

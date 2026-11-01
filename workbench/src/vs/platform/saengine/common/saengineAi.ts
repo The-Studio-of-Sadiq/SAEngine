@@ -116,3 +116,62 @@ export function constantTimeEquals(a: string, b: string): boolean {
 }
 
 //#endregion
+
+//#region The built-in assistant's provider requests (window -> shared process)
+
+/**
+ * One request of the built-in AI assistant to the model provider the engineer configured,
+ * sent by the shared process (Node, no browser CORS) on the window's behalf: `httpPost` on
+ * {@link SAENGINE_AI_CHANNEL}. The window decides what is sent and only after the engineer
+ * agreed; the shared process only checks the address and forwards the request.
+ */
+export interface ISaengineAiHttpRequest {
+	/** Lets the window cancel it with `cancelHttp`. */
+	readonly id: string;
+	/** https, or http to this computer only (a self-hosted model). */
+	readonly url: string;
+	readonly headers: { readonly [name: string]: string };
+	/** The JSON body as text. */
+	readonly body: string;
+	/** Default and largest: {@link MAX_PROVIDER_TIMEOUT}. */
+	readonly timeoutMs?: number;
+}
+
+export interface ISaengineAiHttpResponse {
+	/** HTTP status; 0 when the request did not reach the provider. */
+	readonly status: number;
+	readonly body: string;
+	/** Why it failed before an answer (network, timeout, cancelled, refused address). */
+	readonly error?: string;
+}
+
+/** Longest a provider request may take [ms]: a long answer with thinking. */
+export const MAX_PROVIDER_TIMEOUT = 10 * 60 * 1000;
+/** Largest answer read [characters]. */
+export const MAX_PROVIDER_RESPONSE = 8 * 1024 * 1024;
+
+/**
+ * Whether the assistant may send to `url`: https anywhere, or plain http only to this computer
+ * (a self-hosted model on localhost); no other scheme, no credentials in the URL.
+ */
+export function checkProviderUrl(url: string): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return { ok: false, reason: 'not a URL' };
+	}
+	if (parsed.username || parsed.password) {
+		return { ok: false, reason: 'credentials in the URL' };
+	}
+	if (parsed.protocol === 'https:') {
+		return { ok: true };
+	}
+	const host = parsed.hostname.toLowerCase();
+	if (parsed.protocol === 'http:' && (host === '127.0.0.1' || host === 'localhost' || host === '[::1]' || host === '::1')) {
+		return { ok: true };
+	}
+	return { ok: false, reason: 'only https, or http to this computer' };
+}
+
+//#endregion

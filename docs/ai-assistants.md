@@ -98,6 +98,10 @@ unauthenticated control of the window, so SAEngine does not open it.
 | `show_message` | A notification for you, always shown as "AI assistant: …". |
 | `reveal_element` | Selects and shows a member (`columns`/`beams`/… and id), story, grid line or object type in its editor. |
 | `set_json_value` | **Edits only.** Changes one value in a project JSON file through the editor (see below). |
+| `search_code` | Passages of the code pack in force (BNBC 2020 unless the project chooses another) and of this manual that answer a question, each with its clauses, tables and pages. |
+| `explain_results` | The design checks of the last run per element, governing check first (demand, capacity, utilisation, combination), for one member or the failing ones. |
+| `propose_changes` | A change set to the project's JSON files that you preview (each value before and after) and accept or reject in the AI Assistant view; accepted, it is one undoable step. Works without the edits switch, because nothing changes until you accept. |
+| `propose_building` | Fills the New Building wizard with a building described in words; you check it and click Generate. |
 
 ### Commands the assistant may run
 
@@ -136,3 +140,55 @@ Palette) turns them on until you stop them or the server stops. Then:
 
 The protocol handling is Code-OSS's own MCP gateway session; SAEngine adds the HTTP checks
 (`src/vs/platform/saengine/{common,node}/saengineAi*.ts`) and the tools (`src/vs/workbench/contrib/saengineAi`).
+
+## The built-in AI Assistant
+
+SAEngine also has its own assistant, in the **AI Assistant** view of the secondary side bar
+(Command Palette → **SAEngine: Open AI Assistant**). It is part of the setup's optional **AI
+assistant** component; without it the view offers *Add AI Component...*. It uses the same tools as
+the MCP clients above (one set of tools, logged in the same **AI Activity** output), but only these:
+`search_code`, `explain_results`, `read_results`, `get_project`, `list_editors`,
+`read_active_document`, `open_part`, `open_file`, `reveal_element`, `propose_changes` and
+`propose_building`. It never runs commands, takes screenshots or edits directly.
+
+What it does:
+
+- **BNBC 2020 questions** are answered only from the passages `search_code` finds in the code pack
+  and the manual, with their clauses (e.g. "BNBC 2020 Part 6 Table 6.2.14 (p. 615)"). When nothing
+  matches, it says the code pack does not cover the question instead of answering from memory.
+- **Results**: why a member fails, which check governs, under which combination
+  (`explain_results`); it says when the results are stale.
+- **Changes** in words ("make the typical storey 3.2 m", "use C28 for the columns") come as a change
+  set in the view with every value before and after. **Accept** applies it as one undoable step
+  (Undo in the view, or Ctrl+Z); it stays unsaved until you save. **Reject** changes nothing.
+  A new building comes as the New Building wizard filled in.
+
+### Provider and key
+
+**SAEngine: Choose AI Assistant Provider...** (or *Provider…* in the view):
+
+- **Anthropic** (the default): Claude models through the Anthropic API — `claude-opus-5-5`
+  (default), `claude-sonnet-5-5` or `claude-haiku-5-5` (setting `saengine.ai.assistant.anthropicModel`;
+  `saengine.ai.assistant.effort` sets how hard it thinks). Needs your own Anthropic API key.
+- **OpenAI-compatible endpoint**: any server with the chat completions API, for example a model you
+  host yourself (`saengine.ai.assistant.endpoint` such as `http://localhost:11434/v1` and
+  `saengine.ai.assistant.model`). https, or plain http to this computer only. The model must
+  support tool calls.
+
+**SAEngine: Set AI Assistant API Key...** keeps the key in the operating system's secret store
+(Windows: DPAPI through the app's safe storage), never in settings or project files; **Remove AI
+Assistant API Key** deletes it. These settings are application-wide and cannot be set by a
+project's own settings.
+
+### What is sent, and when
+
+Nothing is sent until you agree. Before the first question to an address SAEngine asks: *Allow for
+This Session* or *Always Allow* that address (**SAEngine: Ask Again Before the AI Assistant Sends**
+forgets the "always"). Above the input the view always shows where questions go and what goes with
+them. The switches **Project overview**, **Open document** and **Results** decide what the assistant
+may read; with a switch off, the tools behind it are not offered and a call is refused. Code pack
+passages are always allowed (they hold no project data). Each tool the assistant used is listed in
+the conversation with a *sent:* label, and each request (host, model, size) in **AI Activity**.
+
+The requests go from SAEngine's shared process to the provider (no browser in between). The
+conversation is kept in the window only and is gone when it closes.

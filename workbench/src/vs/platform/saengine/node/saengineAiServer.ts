@@ -15,7 +15,7 @@ import { IChannel, IPCServer, IServerChannel } from '../../../base/parts/ipc/com
 import { ILogService } from '../../log/common/log.js';
 import { MCP } from '../../mcp/common/modelContextProtocol.js';
 import { isInitializeMessage, McpGatewaySession } from '../../mcp/node/mcpGatewaySession.js';
-import { checkRequest, ISaengineAiBroker, ISaengineAiClientEvent, ISaengineAiServerInfo, ISaengineAiStartOptions, SAENGINE_AI_BROKER_CHANNEL, SAENGINE_AI_PATH } from '../common/saengineAi.js';
+import { checkProviderUrl, checkRequest, ISaengineAiBroker, ISaengineAiClientEvent, ISaengineAiHttpRequest, ISaengineAiHttpResponse, ISaengineAiServerInfo, ISaengineAiStartOptions, MAX_PROVIDER_RESPONSE, MAX_PROVIDER_TIMEOUT, SAENGINE_AI_BROKER_CHANNEL, SAENGINE_AI_PATH } from '../common/saengineAi.js';
 
 /** Largest request body accepted [bytes]. */
 const MAX_BODY = 1024 * 1024;
@@ -306,8 +306,49 @@ export class SaengineAiChannel extends Disposable implements IServerChannel<stri
 			case 'stop': this.stop(ctx); return undefined as T;
 			case 'info': return this.servers.get(ctx)?.info as T;
 			case 'toolsChanged': this.servers.get(ctx)?.toolsChanged(); return undefined as T;
+			case 'httpPost': return await this.httpPost(ctx, arg as ISaengineAiHttpRequest) as T;
+			case 'cancelHttp': this.requests.get(`${ctx}/${String(arg)}`)?.abort(); return undefined as T;
 		}
 		throw new Error(`Invalid call: ${command}`);
+	}
+
+	/** The built-in assistant's requests in flight, by window and id. */
+	private readonly requests = new Map<string, AbortController>();
+
+	/**
+	 * Sends one request of the built-in assistant to its provider (see ISaengineAiHttpRequest).
+	 * The key is in the headers and never logged; only the host and the status are.
+	 */
+	private async httpPost(ctx: string, request: ISaengineAiHttpRequest): Promise<ISaengineAiHttpResponse> {
+		const check = checkProviderUrl(request?.url ?? '');
+		if (!check.ok) {
+			return { status: 0, body: '', error: check.reason };
+		}
+		const key = `${ctx}/${request.id}`;
+		const controller = new AbortController();
+		this.requests.set(key, controller);
+		const timeout = Math.min(Math.max(request.timeoutMs ?? MAX_PROVIDER_TIMEOUT, 1000), MAX_PROVIDER_TIMEOUT);
+		const timer = setTimeout(() => controller.abort(), timeout);
+		const host = new URL(request.url).host;
+		try {
+			const response = await fetch(request.url, {
+				method: 'POST',
+				headers: { ...request.headers, 'content-type': 'application/json' },
+				body: request.body,
+				signal: controller.signal,
+				redirect: 'error',
+			});
+			const text = await response.text();
+			this.logService.info(`[saengineAi] assistant request to ${host}: ${response.status}`);
+			return { status: response.status, body: text.length > MAX_PROVIDER_RESPONSE ? text.slice(0, MAX_PROVIDER_RESPONSE) : text };
+		} catch (error) {
+			const aborted = controller.signal.aborted;
+			this.logService.warn(`[saengineAi] assistant request to ${host} failed: ${aborted ? 'cancelled or timed out' : String(error)}`);
+			return { status: 0, body: '', error: aborted ? 'cancelled or timed out' : (error instanceof Error ? error.message : String(error)) };
+		} finally {
+			clearTimeout(timer);
+			this.requests.delete(key);
+		}
 	}
 
 	private async start(ctx: string, options: ISaengineAiStartOptions): Promise<ISaengineAiServerInfo> {

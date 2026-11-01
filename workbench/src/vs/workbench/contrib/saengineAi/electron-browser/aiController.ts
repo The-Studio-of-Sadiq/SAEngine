@@ -318,6 +318,7 @@ const INSTRUCTIONS = [
 	'Start with get_project to see the project and the status of each part. Use show_message to tell the engineer what you are about to do; they are watching the window.',
 	'Commands run exactly as from the menus (run_command, see list_commands). Edits to the model are off unless the engineer allows them; edits are undoable and stay unsaved until the engineer saves.',
 	'Every call is listed in the window\'s "AI Activity" output. Never claim a design is adequate without the design results (read_results "design").',
+	'Design code questions: answer only from search_code passages and cite their clauses; if it finds nothing, say the code pack does not cover it. Explain failing members with explain_results. Propose model changes with propose_changes (the engineer previews and accepts them) and new buildings with propose_building.',
 ].join(' ');
 
 function textOf(result: MCP.CallToolResult): string {
