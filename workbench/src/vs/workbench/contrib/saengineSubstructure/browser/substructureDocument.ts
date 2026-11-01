@@ -166,6 +166,10 @@ export interface IPileType {
 	headFixity?: PileFixity;
 	/** Depth to fixity below the head [mm], from the geotechnical report; none: axial only. */
 	fixityDepth?: number;
+	/** Drilled shafts in sand: the code pack's K/K0 construction id (with `shaftConcreting`). */
+	shaftConstruction?: string;
+	/** Drilled shafts in sand: the code pack's δ/φ construction id. */
+	shaftConcreting?: string;
 	[key: string]: unknown;
 }
 
@@ -206,7 +210,9 @@ export interface ITieBeam {
 	[key: string]: unknown;
 }
 
-export type PileCapacitySource = 'soilReport' | 'bnbcSpt';
+/** Soil report's unit values, the code pack's static method or its SPT relations ('bnbcSpt', the
+ * SPT method's former id, is read as 'spt'). */
+export type PileCapacitySource = 'soilReport' | 'static' | 'spt';
 
 export interface ISubstructureDesign {
 	pileCapacity?: PileCapacitySource;
@@ -290,13 +296,13 @@ export const PILE_FACTOR_OF_SAFETY = 2.5;
  */
 export const PILE_FS_NO_LOAD_TEST = 3.0;
 export const PILE_FS_LOAD_TEST = 2.0;
-/** The least factor of safety with the BNBC SPT relations, as the backend applies it. */
+/** The least factor of safety with the code pack's SPT relations, as the backend applies it. */
 export const PILE_FS_SPT = 3.5;
 
 /**
  * The overall factors of safety of a pile the design uses (as the backend's
  * `FactorsOfSafety.for_method`): the given or default compression factor raised to 3.0 without a
- * load test at the site (2.0 with one), both raised to 3.5 with the BNBC SPT relations. `raised`
+ * load test at the site (2.0 with one), both raised to 3.5 with the SPT relations. `raised`
  * says why the compression factor is above the one given, if it is.
  */
 export function pileFactorsUsed(design: ISubstructureDesign): { readonly compression: number; readonly uplift: number; readonly given: number; readonly raised?: 'loadTest' | 'spt' } {
@@ -304,7 +310,7 @@ export function pileFactorsUsed(design: ISubstructureDesign): { readonly compres
 	const given = typeof fs.pileCompression === 'number' ? fs.pileCompression : PILE_FACTOR_OF_SAFETY;
 	const uplift = typeof fs.pileUplift === 'number' ? fs.pileUplift : PILE_FACTOR_OF_SAFETY;
 	const least = Math.max(given, fs.pileLoadTest === true ? PILE_FS_LOAD_TEST : PILE_FS_NO_LOAD_TEST);
-	const spt = design.pileCapacity === 'bnbcSpt';
+	const spt = design.pileCapacity === 'spt' || (design.pileCapacity as string | undefined) === 'bnbcSpt';
 	const compression = spt ? Math.max(least, PILE_FS_SPT) : least;
 	const raised = compression <= given ? undefined : spt && compression === PILE_FS_SPT ? 'spt' : 'loadTest';
 	return { compression, uplift: spt ? Math.max(uplift, PILE_FS_SPT) : uplift, given, raised };
@@ -370,6 +376,9 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	document.groundSlabs = (document.groundSlabs ?? []).filter(isRecord) as IGroundSlab[];
 	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
 	document.design = isRecord(document.design) ? document.design : {};
+	if ((document.design.pileCapacity as string | undefined) === 'bnbcSpt') {
+		document.design.pileCapacity = 'spt';
+	}
 	if (document.pileGrid !== undefined) {
 		const grid = document.pileGrid as unknown;
 		if (isRecord(grid)) {
@@ -1736,8 +1745,8 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 	});
 	const design = document.design;
-	if (design.pileCapacity !== undefined && design.pileCapacity !== 'soilReport' && design.pileCapacity !== 'bnbcSpt') {
-		error('design.pileCapacity', localize('sub.p.capacitySource', "The pile capacity comes from the soil report or the BNBC SPT equations."));
+	if (design.pileCapacity !== undefined && design.pileCapacity !== 'soilReport' && design.pileCapacity !== 'static' && design.pileCapacity !== 'spt') {
+		error('design.pileCapacity', localize('sub.p.capacitySource', "The pile capacity comes from the soil report, the code pack's static method or its SPT relations."));
 	}
 	for (const key of ['pileCompression', 'pileUplift', 'pileSkin', 'pileEndBearing', 'bearing']) {
 		const value = design.factorOfSafety?.[key];

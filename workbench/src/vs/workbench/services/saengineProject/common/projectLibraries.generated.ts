@@ -17770,9 +17770,9 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			properties: {
 				pileCapacity: {
 					default: 'soilReport',
-					description: 'From the soil report\'s per-layer skin friction and end bearing (Part 1), or from the SPT N values by BNBC 2020 Eqs 6.3.29 and 6.3.31-32.',
-					enum: ['soilReport', 'bnbcSpt'],
-					enumDescriptions: ['Soil report (per layer)', 'BNBC 2020 SPT equations'],
+					description: 'From the soil report\'s per-layer skin friction and end bearing (Part 1), by the code pack\'s static method (α in clay, β and Nq in sand), or by the code pack\'s SPT relations. The former value \'bnbcSpt\' is read as \'spt\'.',
+					enum: ['soilReport', 'static', 'spt'],
+					enumDescriptions: ['Soil report (per layer)', 'Static method (code pack)', 'SPT relations (code pack)'],
 					title: 'Pile capacity',
 					type: 'string',
 				},
@@ -18608,6 +18608,32 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					enumDescriptions: ['Fixed in the cap', 'Free (pinned)'],
 					title: 'Head fixity',
 					type: 'string',
+				},
+				shaftConstruction: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drilled shafts in sand: the code pack\'s construction method for K/K0 (e.g. openHole, slurryLight, slurryHeavy, permanentCasing); with the concreting method, β = K tan δ instead of the empirical depth relation. Empty: the depth relation.',
+					title: 'Shaft construction (K/K0)',
+				},
+				shaftConcreting: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drilled shafts in sand: the code pack\'s construction method for δ/φ (e.g. dry, slurryGood, slurryPoor, casingUnderWater).',
+					title: 'Shaft concreting (δ/φ)',
 				},
 				fixityDepth: {
 					anyOf: [
