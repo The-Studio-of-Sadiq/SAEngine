@@ -1,4 +1,4 @@
-"""Deep beams and transfer girders (BNBC 2020 Part 6 Sec 6.4.6).
+"""Deep beams and transfer girders (default pack BNBC 2020 Part 6 Sec 6.4.6).
 
 A beam span is deep (Sec 6.4.6.1, ACI 318-11 Sec 11.7.1) when its clear span ln is at most 4 h,
 or when a concentrated load lies within 2 h of a support's face, with the beam loaded on one
@@ -14,7 +14,7 @@ beam is flagged as reference: the strut-and-tie model governs):
 - the least distributed web steel: vertical Av >= 0.0025 bw s, horizontal Avh >= 0.0015 bw s2,
   s and s2 at most d/5 and 300 mm (Sec 6.4.6.3, 6.4.6.4);
 - a strut-and-tie model, the one of the deep pile caps (:mod:`saengine.design.stm`, the
-  pack's strut-and-tie procedure: BNBC 2020 Appendix I, which Sec 6.3.7.1 and 6.4.6 send deep
+  pack's strut-and-tie procedure: the default pack's BNBC 2020 Appendix I, which Sec 6.3.7.1 and 6.4.6 send deep
   beams to; φ = 0.75 of Sec 6.2.3.2.6): at each
   support a strut from the support's node to the load, the bottom bars as the tie at z = 0.9 d
   (the pack's ``tieArm``) over the span. The load of a span is the landing column's (the jump

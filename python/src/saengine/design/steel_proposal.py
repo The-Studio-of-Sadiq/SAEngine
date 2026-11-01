@@ -9,7 +9,7 @@ utilisation under the proposed section is the governing member. When no section 
 passes, the type is reported ``tooSmall`` with the other families' lightest passing sections
 as suggestions; nothing is changed for it.
 
-The member checks are :func:`saengine.design.steel.check_member` (BNBC 2020 Part 6 Chapter 10:
+The member checks are :func:`saengine.design.steel.check_member` (default pack BNBC 2020 Part 6 Chapter 10:
 local buckling classes, flexural and torsional buckling, lateral-torsional buckling with the
 member's brace points and Cb, shear, H1 interaction), through :func:`steel_member_checker`. Each
 candidate is checked in the orientation of the type's profile (an RHS lying on its side is
@@ -139,7 +139,7 @@ def _shear_area(s: SteelSection) -> tuple[float, float]:
 
 
 def compression_capacity(area: float, m: SteelMaterial, kl_r: float) -> float:
-    """φcPn for flexural buckling, BNBC 2020 Part 6 Sec 10.5.3 Eq 6.10.16-6.10.19 (part 2
+    """φcPn for flexural buckling, the default pack's BNBC 2020 Part 6 Sec 10.5.3 Eq 6.10.16-6.10.19 (part 2
     p. 60), φc = 0.90; no slender-element reduction."""
     if kl_r <= 0:
         return 0.9 * m.fy * area
@@ -155,7 +155,7 @@ def stub_member_checks(
     lengths: MemberLengths,
     kind: str = "member",
 ) -> list[dict[str, Any]]:
-    """A reduced stand-in for stream T's checks: tension yielding, flexural buckling (BNBC
+    """A reduced stand-in for stream T's checks: tension yielding, flexural buckling (default pack BNBC
     10.5.3), plastic flexure about both axes (no lateral-torsional or local buckling), shear
     and the H1-1 interaction (from memory of AISC 360). Used only when
     :mod:`saengine.design.steel` cannot be imported, and in tests."""
@@ -264,7 +264,7 @@ def steel_member_checker(
     kind: str = "member",
     options: Any = None,
 ) -> list[dict[str, Any]]:
-    """The BNBC 2020 Chapter 10 checks of one member with a candidate section:
+    """The default pack's BNBC 2020 Chapter 10 checks of one member with a candidate section:
     :func:`saengine.design.steel.check_member` on the shape of the candidate's 04 Objects
     profile (in its orientation; ERW design wall thickness for hollow sections), the material
     as :class:`saengine.design.steel.Steel`, the forces as Stations (:func:`to_stations`) and
@@ -363,7 +363,7 @@ def _trial(
 
 
 def slender_elements(s: SteelSection, material: SteelMaterial) -> list[str]:
-    """The compression elements of ``s`` that are slender in uniform compression (λ > λr, BNBC
+    """The compression elements of ``s`` that are slender in uniform compression (λ > λr, the default pack's BNBC
     2020 Part 6 Sec 10.2.4, Table 6.10.1, pp 3825-3829), described; empty when none, or when the
     shape cannot be classified."""
     from pydantic import TypeAdapter, ValidationError

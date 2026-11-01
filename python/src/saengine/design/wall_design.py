@@ -7,7 +7,7 @@ one design element of ``kind`` "wall": its piers (one per storey band, more wher
 windows split it, bottom up) each checked by :func:`saengine.design.walls.wall_checks` from its
 bottom, middle and top cuts; under a window or opening that leaves the wall continuous at a
 level, the whole wall at the band's bottom level as one more "pier" (the continuous section,
-the critical section of BNBC 2020 Part 6 Sec 8.3.6.6(b) at a wall's base); and for special
+the critical section of the default pack's BNBC 2020 Part 6 Sec 8.3.6.6(b) at a wall's base); and for special
 structural walls (the seismic scope puts Sec 8.3.6 in force, :func:`walls.special_applies`)
 the boundary elements and the coupling beams (the spandrels over openings between two piers,
 :func:`walls.coupling_beam_checks`). Spandrels over an opening between two piers that no

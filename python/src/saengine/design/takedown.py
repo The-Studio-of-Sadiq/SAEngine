@@ -2,7 +2,7 @@
 gravity case at the column's foot (cumulative, all the floors above) and what the storey adds.
 
 The loads come from the analysis (the unfactored cases D, SD, L and Lr of the analysis model;
-BNBC 2020 Part 6 Sec 2.2 and 2.3 loads), so they include the frame's redistribution, unlike a
+the default pack's BNBC 2020 Part 6 Sec 2.2 and 2.3 loads), so they include the frame's redistribution, unlike a
 tributary-area takedown. A column line is the columns standing on one another (the same plan
 position, each one's foot at the top of the one below). The unfactored total D + SD + L + Lr and
 the factored 1.2(D + SD) + 1.6L + 0.5Lr (Sec 2.7.3.1, combination 2) are given with them; the

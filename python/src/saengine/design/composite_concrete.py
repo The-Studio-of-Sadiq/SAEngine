@@ -1,6 +1,6 @@
 """Composite concrete flexural members: precast and cast-in-place concrete (or two cast-in-place
 placements) built separately and tied to act as one (the code pack's ``compositeConcrete``;
-BNBC 2020 Part 6 Sec 6.12) (B33).
+the default pack's BNBC 2020 Part 6 Sec 6.12) (B33).
 
 Not to be confused with steel-concrete composite members (steel beams with a slab, encased
 and filled columns), which :mod:`saengine.design.steel.composite` designs.

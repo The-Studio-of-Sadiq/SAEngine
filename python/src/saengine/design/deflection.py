@@ -1,4 +1,4 @@
-"""Deflection of reinforced-concrete beams and slabs under service loads: BNBC 2020 Part 6
+"""Deflection of reinforced-concrete beams and slabs under service loads: the default pack's BNBC 2020 Part 6
 Sec 6.2.5 (pp. 899-903). Units: N, mm, MPa, N·mm.
 
 - Immediate deflection with Ec (Sec 6.1.7.1: 4700 √f'c for normal weight concrete, or the

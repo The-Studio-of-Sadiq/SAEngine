@@ -2,7 +2,7 @@
 building blocks of the design mode (:mod:`saengine.design.required`,
 :mod:`saengine.design.proposal`).
 
-Code basis ACI 318-19 (adopted by BNBC 2020 Part 6 Chapter 6), the same factors as
+Code basis ACI 318-19 (adopted by the default pack's BNBC 2020 Part 6 Chapter 6), the same factors as
 :mod:`saengine.design.rc`:
 
 - Flexure, rectangular stress block (22.2): a singly reinforced section needs
@@ -47,11 +47,11 @@ EPS_T_SLAB = 0.004
 
 
 def diameters(kind: str) -> tuple[float, ...]:
-    """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. BNBC 2020
+    """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. The default pack's BNBC 2020
     (BDS ISO 6935-2 sizes in common Bangladeshi practice): "all" 10, 12, 16, 20, 25, 32; "main"
     (beam and column main bars, the practical subset) 12 to 32; "column" 16 to 32; "slab" 10,
     12, 16; "stirrup" 8, 10, 12; "tank" (water and septic tanks) 10 to 25; "foundation" (9
-    Substructure's minimum mesh and sizing) 12 to 25. A pack without the set reads BNBC 2020's."""
+    Substructure's minimum mesh and sizing) 12 to 25. A pack without the set reads the default pack's (BNBC 2020)."""
     sets = code_context.table("concrete").barDiameters
     if kind not in sets:
         from saengine.codes.tables import builtin_table
@@ -66,25 +66,25 @@ diameters_of = diameters
 
 def spacing_step() -> float:
     """Bar spacings of slabs and footings, and stirrup spacings, are multiples of this [mm]
-    (the pack's ``concrete.spacingStep``; BNBC 2020: 25 mm)."""
+    (the pack's ``concrete.spacingStep``; the default pack's BNBC 2020: 25 mm)."""
     return float(code_context.table("concrete").spacingStep)
 
 
 def min_slab_spacing() -> float:
     """Least practical spacing of slab and footing bars [mm] (site practice, not a code limit;
-    the pack's ``concrete.minSlabSpacing``; BNBC 2020: 100 mm)."""
+    the pack's ``concrete.minSlabSpacing``; the default pack's BNBC 2020: 100 mm)."""
     return float(code_context.table("concrete").minSlabSpacing)
 
 
 def min_stirrup_spacing() -> float:
     """Least practical spacing of stirrups [mm] (site practice, not a code limit; the pack's
-    ``concrete.minStirrupSpacing``; BNBC 2020: 75 mm)."""
+    ``concrete.minStirrupSpacing``; the default pack's BNBC 2020: 75 mm)."""
     return float(code_context.table("concrete").minStirrupSpacing)
 
 
 def column_rho() -> tuple[float, float]:
     """(least, largest) column steel ratio (ACI 10.6.1.1; the pack's ``concrete.columnRho``;
-    BNBC 2020: 0.01, 0.08)."""
+    the default pack's BNBC 2020: 0.01, 0.08)."""
     low, high = code_context.table("concrete").columnRho
     return float(low), float(high)
 
@@ -92,7 +92,7 @@ def column_rho() -> tuple[float, float]:
 def beam_ratio_max() -> float:
     """Largest tension steel of a beam, as a share of b h, before the section is called too
     small: a practical limit (congestion), not an ACI clause (the pack's
-    ``concrete.beamRatioMax``; BNBC 2020: 0.04)."""
+    ``concrete.beamRatioMax``; the default pack's BNBC 2020: 0.04)."""
     return float(code_context.table("concrete").beamRatioMax)
 
 

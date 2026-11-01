@@ -1,7 +1,7 @@
 """Design forces at the faces of the supports (beams at the column faces, columns at the beam
 soffit and the top of the slab), from the analysis's support face offsets.
 
-BNBC 2020 Part 6 (part 1 of the code, p 892) Sec 6.1.6.2 takes the span centre to centre of
+The default pack's BNBC 2020 Part 6 (part 1 of the code, p 892) Sec 6.1.6.2 takes the span centre to centre of
 the supports for the analysis of frames, and Sec 6.1.6.3 permits "design on the basis of
 moments at faces of support" for beams built integrally with their supports. Sec 6.4.1.3
 (p 922) lets sections closer than d to the face of a support be designed for the shear at d
@@ -615,7 +615,7 @@ def at_faces(
 ) -> Faced:
     """The member's ``pieces`` with the forces inside its supports taken at their faces (see the
     module notes): copies, the originals untouched. ``shear_depth`` [m]: the shear is taken at
-    d from each face (BNBC 6.4.1.3.1), else at the face. ``face_rows``: per piece id the
+    d from each face (default pack BNBC 6.4.1.3.1), else at the face. ``face_rows``: per piece id the
     analysis's forces at its faces per combination (:func:`combined_face_rows`), else they are
     interpolated from the stations. ``face_offsets``: per element id (int or str) ``{"i": mm,
     "j": mm}`` (the face forces file's ``faceOffsets``), else read from ``project``. The rigid

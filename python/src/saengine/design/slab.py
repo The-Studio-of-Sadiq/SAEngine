@@ -1,5 +1,5 @@
 """Design checks of reinforced-concrete slabs from the shell forces of the analysis (ACI 318-19
-strength design, which BNBC 2020 Part 6 Chapter 6 adopts).
+strength design, which the default pack's BNBC 2020 Part 6 Chapter 6 adopts).
 
 Slabs are designed when the analysis meshes them as shells (Analysis settings: slabs as
 shells). Flexure and one-way shear are designed by design strips, as SAFE and ETABS do (ACI
@@ -171,21 +171,21 @@ LAYERS = ("bottomX", "bottomY", "topX", "topY")
 
 def _eps_t_min() -> float:
     """Least net tensile strain of a nonprestressed slab, the pack's ``concrete.slabStrainMin``
-    (BNBC 2020: 0.004, ACI 7.3.3.1, 8.3.3.1)."""
+    (default pack BNBC 2020: 0.004, ACI 7.3.3.1, 8.3.3.1)."""
     return float(code_context.table("concrete").slabStrainMin)
 
 
 def _phi_punching() -> float:
-    """φ of two-way (punching) shear, the pack's ``factors.phi.punching`` (BNBC 2020: 0.75, as
+    """φ of two-way (punching) shear, the pack's ``factors.phi.punching`` (default pack BNBC 2020: 0.75, as
     the shear φ)."""
     return float(code_context.table("factors").phi["punching"])
 
 
 def _two_way_thickness(drop: bool = False) -> dict[float, tuple[float, float, float]]:
     """ACI Table 8.3.1.1 (without drop panels), the pack's ``concrete.twoWayThickness``: fy ->
-    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (BNBC
+    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (default pack BNBC
     2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31). With ``drop``: the
-    columns with drop panels, ``concrete.twoWayThicknessDrop`` (BNBC 2020 Table 6.6.3: 280 ->
+    columns with drop panels, ``concrete.twoWayThicknessDrop`` (default pack BNBC 2020 Table 6.6.3: 280 ->
     36, 40, 40; 420 -> 33, 36, 36; 520 -> 31, 34, 34)."""
     table = code_context.table("concrete")
     if drop:
@@ -425,7 +425,7 @@ def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[fl
 
 def min_steel_ratio(fy: float, aggregate: str | None = None) -> float:
     """As,min / Ag of a slab: the shrinkage and temperature ratio of the code pack (B21,
-    :func:`saengine.design.rc_detailing.shrinkage_ratio`: BNBC 8.1.11.2 (a) 0.0020 below fy
+    :func:`saengine.design.rc_detailing.shrinkage_ratio`: the default pack's BNBC 8.1.11.2 (a) 0.0020 below fy
     420, else the greater of 0.0018 x 420 / fy and 0.0014), times the aggregate's factor
     (8.1.11.2 (b): x 1.5 for brick aggregate). ``aggregate``: None, the project's."""
     from saengine.design.rc_detailing import shrinkage_ratio
@@ -638,7 +638,7 @@ def one_way_thickness(
 ) -> Thickness:
     """ACI Table 7.3.1.1: l/20 simply supported, l/24 one end continuous, l/28 both ends
     continuous, times (0.4 + fy / 700) for fy other than 420 MPa. ``ribbed``: the row of beams
-    and ribbed one-way slabs of BNBC 2020 Table 6.6.1 (p. 900), the pack's
+    and ribbed one-way slabs of the default pack's BNBC 2020 Table 6.6.1 (p. 900), the pack's
     ``concrete.beamThickness`` (l/16, l/18.5, l/21), against the total depth."""
     if ribbed:
         rows = code_context.table("concrete").beamThickness
@@ -2167,7 +2167,7 @@ def _punching_with_reinforcement(
 #
 # With the analysis's slabs as "loadsToBeams" (the default) the slabs are not in the analysis
 # model: they hand their loads to the beams. Such a slab is designed here from its own loads by
-# the methods BNBC 2020 Part 6 gives for slabs on beams and walls:
+# the methods the default pack's BNBC 2020 Part 6 gives for slabs on beams and walls:
 #
 # - two-way panels: Sec 6.5.8 (pp. 960-966), the coefficient method of Tables 6.6.8 (negative
 #   moments, w = dead + live), 6.6.9 (dead load positive), 6.6.10 (live load positive) and 6.6.11
@@ -2467,7 +2467,7 @@ def coefficient_panel(
 
 
 def two_way_case(long_continuous: int, short_continuous: int) -> int:
-    """The case (1-9) of BNBC Tables 6.6.8-6.6.11 for the number of continuous long edges
+    """The case (1-9) of the default pack's BNBC Tables 6.6.8-6.6.11 for the number of continuous long edges
     (length lb, at the ends of the short span la) and continuous short edges."""
     cases = coefficient_table()["twoWay"]["cases"]
     for case, (n_long, n_short) in cases.items():
@@ -2494,7 +2494,7 @@ class TwoWayCoefficients:
 
 
 def two_way_coefficients(m: float, case: int) -> TwoWayCoefficients:
-    """BNBC Tables 6.6.8-6.6.11 at ``m`` (0.5 <= m <= 1; linear between the tabulated
+    """The default pack's BNBC Tables 6.6.8-6.6.11 at ``m`` (0.5 <= m <= 1; linear between the tabulated
     ratios) for ``case``."""
     table = coefficient_table()["twoWay"]
     ratios = [float(r) for r in table["ratios"]]
@@ -2545,7 +2545,7 @@ class OneWayEnd:
 
 @dataclass(frozen=True)
 class OneWaySpan:
-    """The coefficients of a one-way span (BNBC 6.1.4.3): the positive moment w ln² /
+    """The coefficients of a one-way span (default pack BNBC 6.1.4.3): the positive moment w ln² /
     ``positive``, the two ends, and whether its limits held (else the bounds w l²/8)."""
 
     direction: str  # "X" or "Y"
@@ -2563,7 +2563,7 @@ def one_way_span(
     dead: float,
     live: float,
 ) -> OneWaySpan:
-    """The BNBC 6.1.4.3 coefficients of ``panel`` spanning along ``direction``. ``neighbours``:
+    """The default pack's BNBC 6.1.4.3 coefficients of ``panel`` spanning along ``direction``. ``neighbours``:
     the other slabs (by the sides' neighbour index): their panels, or for one that is not a
     panel its :class:`NeighbourExtent` (the limits are then taken as not met, with its extent as
     its span, and where it may cantilever beyond that support the larger of the bound and w
@@ -2671,7 +2671,7 @@ def one_way_span(
 class CoefficientDesign:
     """A slab on beams designed by the coefficient methods (:func:`coefficient_design`).
 
-    ``method``: "twoWay" (BNBC 6.5.8) or "oneWay" (6.1.4.3); ``envelope``: the design moment of
+    ``method``: "twoWay" (default pack BNBC 6.5.8) or "oneWay" (6.1.4.3); ``envelope``: the design moment of
     each layer [N·m/m] and ``shear`` the one-way shear each layer's ρ resists [N/m], as (value,
     combination, where) like :attr:`SlabContext.shear`; ``span``: the one-way span direction;
     ``side_shares``: the load per metre [kN/m] each side hands to its support under 1 kN/m²
@@ -2704,7 +2704,7 @@ def coefficient_design(
     ec: float | None = None,
     brick_aggregate: bool | None = None,
 ) -> CoefficientDesign:
-    """Design a slab on beams by BNBC's coefficient methods (:data:`COEFFICIENT_METHOD`).
+    """Design a slab on beams by the default pack's (BNBC) coefficient methods (:data:`COEFFICIENT_METHOD`).
 
     ``dead``, ``live``: its service loads [kN/m²] (self-weight + finishes + partitions; live,
     or roof live); ``combinations``: their factors (:func:`gravity_combinations`); ``context``:
@@ -2965,7 +2965,7 @@ def _corner_checks(
 def _two_way_scope(
     panel: CoefficientPanel, h: float, ec: float | None, limits: dict[str, Any]
 ) -> None:
-    """BNBC 6.5.8.2.1 (beams at least 3h deep; walls pass) and 6.5.8.2.3 (αf1 l2/l1 >= 1,
+    """The default pack's BNBC 6.5.8.2.1 (beams at least 3h deep; walls pass) and 6.5.8.2.3 (αf1 l2/l1 >= 1,
     αf of the beam's own section over the slab width to the panels' centre lines, the mean of
     the two sides along l1, each by its most flexible beam; a side on walls only counts as
     infinitely stiff). Raises ValueError."""
@@ -3119,7 +3119,7 @@ def _coefficient_min_steel(
     brick_aggregate: bool | None,
     span: str | None,
 ) -> dict[str, Any]:
-    """As,min of BNBC 8.1.11.2 (by 6.5.8.6.1 two-way, 6.3.5.4 and 8.1.11.1 one-way) in both
+    """As,min of the default pack's BNBC 8.1.11.2 (by 6.5.8.6.1 two-way, 6.3.5.4 and 8.1.11.1 one-way) in both
     bottom layers (the span directions; across a one-way span the shrinkage and temperature
     bars) and in a top layer that resists a negative moment; x 1.5 with brick aggregate
     (8.1.11.2 (b))."""
@@ -3156,7 +3156,7 @@ def _coefficient_min_steel(
 def _coefficient_spacing(
     h: float, layers: dict[str, Layer | None], method: str, span: str | None, limits: dict
 ) -> dict[str, Any]:
-    """Largest bar spacing: two-way min(2h, 450 mm) (BNBC 6.5.8.6.2, 8.1.6.6); one-way
+    """Largest bar spacing: two-way min(2h, 450 mm) (default pack BNBC 6.5.8.6.2, 8.1.6.6); one-way
     min(3h, 450 mm) along the span (8.1.6.5), min(5h, 450 mm) across it (8.1.6.7)."""
     from saengine.design.check import _check
 

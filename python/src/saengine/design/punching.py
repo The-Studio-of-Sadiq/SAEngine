@@ -1,7 +1,7 @@
 """Two-way (punching) shear at columns of flat slabs, footings and mats, with shear
 reinforcement where the concrete alone is not enough.
 
-Code basis BNBC 2020 Part 6 Chapter 6, Sec 6.4.10 (pdf pp. 937-943), which follows ACI 318:
+Code basis the default pack's BNBC 2020 Part 6 Chapter 6, Sec 6.4.10 (pdf pp. 937-943), which follows ACI 318:
 
 - Critical section at d/2 from the column faces, its perimeter b0 a minimum (6.4.10.1.2, p. 937),
   four straight sides for rectangular columns (6.4.10.1.3); sides beyond a free edge are left out
@@ -9,7 +9,7 @@ Code basis BNBC 2020 Part 6 Chapter 6, Sec 6.4.10 (pdf pp. 937-943), which follo
 - vc without shear reinforcement: the least of 0.17 (1 + 2/β), 0.083 (αs d / b0 + 2) and 0.33
   times λ √f'c (Eq. 6.6.72-6.6.74, p. 938), αs 40 / 30 / 20 for interior / edge / corner
   columns. As the rest of SAEngine (:func:`saengine.design.slab.punching_capacity`) these are
-  also multiplied by the size factor λs of ACI 318-19 22.5.5.1.3, which BNBC does not have
+  also multiplied by the size factor λs of ACI 318-19 22.5.5.1.3, which the default pack's BNBC does not have
   (conservative).
 - Openings closer than 10 h to the column: the part of the critical section between the
   straight lines from the column centroid tangent to the opening is ineffective (6.4.10.6.1,

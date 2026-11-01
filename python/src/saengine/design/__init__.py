@@ -1,5 +1,5 @@
 """Member design checks of the analysed model (Part 8): reinforced-concrete beams, columns and
-slabs (Wood-Armer flexure, one-way shear, punching of flat slabs) by strength design (BNBC 2020
+slabs (Wood-Armer flexure, one-way shear, punching of flat slabs) by strength design (default pack BNBC 2020
 Part 6 Chapter 6 / ACI 318-19); and the design mode: the steel each element requires and the
 bars proposed per object type (:mod:`saengine.design.required`,
 :mod:`saengine.design.proposal`)."""

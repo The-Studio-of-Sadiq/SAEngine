@@ -12,7 +12,7 @@ two agree to the fillets).
 Assumptions (stated in the design notes):
 
 - Fillets and corner radii are left out of A, I, S and Z (a few per cent on the safe side for
-  rolled I-shapes); they do shorten the flat widths used for local buckling (BNBC 2020 Part 6
+  rolled I-shapes); they do shorten the flat widths used for local buckling (default pack BNBC 2020 Part 6
   Sec 10.2.4.2(a), (d)).
 - Hollow sections use the design wall thickness of Sec 10.2.3.12: 0.93 t for electric-
   resistance-welded (ERW) HSS (the default: cold-formed ERW tubes are what the market sells),

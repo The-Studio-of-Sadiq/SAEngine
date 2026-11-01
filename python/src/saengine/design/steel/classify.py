@@ -1,4 +1,4 @@
-"""Local buckling classification of steel shapes: BNBC 2020 Part 6 Sec 10.2.4 and Table 6.10.1
+"""Local buckling classification of steel shapes: the default pack's BNBC 2020 Part 6 Sec 10.2.4 and Table 6.10.1
 (pp 3825-3829, the limits of AISC 360-05 Table B4.1).
 
 Each compression element of a shape gets its width-thickness ratio λ and the limits λp

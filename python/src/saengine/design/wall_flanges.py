@@ -1,8 +1,8 @@
 """Flanged structural walls: walls that meet in plan (L, T, C, box and X shapes) designed as one
-composite section, to BNBC 2020 Part 6 (bnbc-2020-part1.pdf).
+composite section, to the default pack's BNBC 2020 Part 6 (the code PDF).
 
 :mod:`saengine.design.walls` checks each pier of a wall as a rectangle. Where walls of 06 BIM
-meet at a corner or a T in a storey, BNBC asks for the section they make together:
+meet at a corner or a T in a storey, the default pack's BNBC asks for the section they make together:
 
 - Sec 8.3.6.5(a) (p. 1102): walls under flexure and axial load by 6.3.2 and 6.3.3; "concrete and
   developed longitudinal reinforcement within effective flange widths, boundary elements, and
@@ -17,7 +17,7 @@ meet at a corner or a T in a storey, BNBC asks for the section they make togethe
   extreme compression fibre; (d)(ii) (p. 1103) in flanged sections it includes the effective
   flange width in compression and extends at least 300 mm into the web.
 
-BNBC's Chapter 6 (ordinary walls) gives no flange rule: the same effective widths are used for
+the default pack's (BNBC) Chapter 6 (ordinary walls) gives no flange rule: the same effective widths are used for
 ordinary walls (stated in the method).
 
 **Groups.** Walls whose centre lines meet (an end on the other wall's line within half its

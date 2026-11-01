@@ -1,4 +1,4 @@
-"""Strength of steel members by LRFD to BNBC 2020 Part 6 Chapter 10 (Bangladesh Gazette,
+"""Strength of steel members by LRFD to the default pack's BNBC 2020 Part 6 Chapter 10 (Bangladesh Gazette,
 February 11 2021, pp 3825-3880; the provisions follow AISC 360-05).
 
 Limit states and clauses (page numbers of the Gazette):
@@ -65,19 +65,19 @@ from saengine.library import steel_sections
 
 
 def _shear_modulus() -> float:
-    """G of structural steel [MPa], the pack's ``materials.steelShearModulus`` (BNBC 2020:
+    """G of structural steel [MPa], the pack's ``materials.steelShearModulus`` (default pack BNBC 2020:
     77 200 MPa, Sec 10.5.4, p 3843)."""
     return float(code_context.table("materials").steelShearModulus)
 
 
 def _phi(name: str) -> float:
-    """φ ``name`` of the pack's ``steel`` table (BNBC 2020: tensionYield 0.90, tensionRupture
+    """φ ``name`` of the pack's ``steel`` table (default pack BNBC 2020: tensionYield 0.90, tensionRupture
     0.75, compression, flexure and shear 0.90)."""
     return float(code_context.table("steel").phi[name])
 
 
 def _slenderness(name: str) -> float:
-    """The pack's slenderness limit ``name`` (BNBC 2020: KL/r of compression members 150, Sec
+    """The pack's slenderness limit ``name`` (default pack BNBC 2020: KL/r of compression members 150, Sec
     10.5.2; L/r of tension members 300, Sec 10.4.1)."""
     return float(code_context.table("steel").slenderness[name])
 
@@ -610,7 +610,7 @@ def _members_table() -> Any:
 
 
 def _bar_flexure(shape: ShapeProperties, steel: Steel, axis: str, lb: float, cb: float) -> Capacity:
-    """Rectangular bars and rounds (the pack's ``members.bars``; BNBC 2020 Sec 10.6.11):
+    """Rectangular bars and rounds (the pack's ``members.bars``; the default pack's BNBC 2020 Sec 10.6.11):
     yielding Mp = Fy Z <= 1.6 My, and lateral-torsional buckling of a bar bent about its major
     axis by Lb d / t² (d the depth across the axis, t the width along it)."""
     from saengine.design.steel.torsion import clause
@@ -645,7 +645,7 @@ def _bar_flexure(shape: ShapeProperties, steel: Steel, axis: str, lb: float, cb:
 def flexure_unsymmetric(
     s_least: float, fy: float, fcr_ltb: float | None = None, fcr_local: float | None = None
 ) -> Capacity:
-    """Unsymmetrical shapes other than single angles (BNBC 2020 Sec 10.6.12, Eqs 6.10.125-128):
+    """Unsymmetrical shapes other than single angles (default pack BNBC 2020 Sec 10.6.12, Eqs 6.10.125-128):
     Mn = Fn S with S the least elastic modulus, Fn = Fy (yielding) or the lateral-torsional and
     local buckling stresses Fcr <= Fy that an analysis of the section gives (None: that limit
     state not given). No shape of the section table is of this kind (B31): the method is ready
@@ -908,7 +908,7 @@ def _bar_shear(shape: ShapeProperties, steel: Steel) -> Capacity:
 
 def stiffened_web(shape: ShapeProperties, steel: Steel, a: float) -> dict[str, Any] | None:
     """kv and tension field data of an I-shape or channel web with transverse stiffeners at
-    the clear spacing ``a`` [mm] (the pack's ``members.tensionField``; BNBC 2020 Secs 10.7.2.1,
+    the clear spacing ``a`` [mm] (the pack's ``members.tensionField``; the default pack's BNBC 2020 Secs 10.7.2.1,
     10.7.3.1): ``{kv, aspect, tfa, why}``, ``tfa`` whether tension field action may be counted
     (not in end panels: the caller decides those); None without the pack's data."""
     from saengine.design.steel.torsion import members_data
@@ -1044,7 +1044,7 @@ def _stiffened_shear(
 def stiffener_requirements(
     shape: ShapeProperties, steel: Steel, a: float, vr_vc: float, tension_field: bool
 ) -> list[str]:
-    """What the transverse stiffeners at ``a`` [mm] must provide (BNBC 2020 Secs 10.7.2.2,
+    """What the transverse stiffeners at ``a`` [mm] must provide (default pack BNBC 2020 Secs 10.7.2.2,
     10.7.3.3: Eqs 6.10.141, 6.10.144), for the member's notes; ``vr_vc`` the largest Vr / Vc of
     the panels with tension field action. Pairs of stiffeners of the web's steel assumed."""
     from saengine.design.steel.torsion import clause, members_data

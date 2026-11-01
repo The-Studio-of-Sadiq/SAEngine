@@ -1,6 +1,6 @@
 """Slenderness of reinforced-concrete columns, designed for by moment magnification.
 
-BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisions, its
+The default pack's BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisions, its
 6.2.5 and 6.6.4) is followed clause by clause:
 
 - Unsupported length lu (6.3.10.1.1): per bending direction, the column is cut at every joint
@@ -60,8 +60,8 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   load cases of the combination; δs = 1 / (1 - Q) >= 1 (Eq. 6.6.27; above 1.5 the column needs
   a second-order analysis or Eq. 6.6.28, which is the option "sumPc":
   δs = 1 / (1 - ΣPu / (0.75 ΣPc)) over the storey's sway columns, each Pc with k from the
-  sway chart and EI of 6.3.10.6.1 (the EI option over 1 + βdns of the combination), as BNBC
-  6.3.10.7.4 (p 915) says; ACI 318-19 6.6.4.6.2 takes βds there instead, which BNBC does not).
+  sway chart and EI of 6.3.10.6.1 (the EI option over 1 + βdns of the combination), as the default pack's BNBC
+  6.3.10.7.4 (p 915) says; ACI 318-19 6.6.4.6.2 takes βds there instead, which the default pack's BNBC does not).
   Along the length the nonsway procedure applies to the magnified end moments (6.3.10.2.2).
 - Response spectrum combinations (saengine.fem.seismic_design, E = ± the envelope): the modal
   moments have no sign, so a column cannot be told to be in single or double curvature from
@@ -74,7 +74,7 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   magnified by δns (6.3.10.2.2).
 - Limits: total moment with second-order effects <= 1.4 times the first-order moment
   (6.3.10.2.1, the first-order moment taken as max(M2, M2,min)); k lu / r <= 100 (ACI 318-19
-  6.2.6: above it a nonlinear second-order analysis is required; BNBC has no such clause).
+  6.2.6: above it a nonlinear second-order analysis is required; the default pack's BNBC has no such clause).
 - Design overwrites (:mod:`saengine.design.overwrites`, per member or object type): k and lu
   per axis replace the values above, ``framing`` "braced" designs the column as nonsway and
   "sway" as sway whatever Q says (with the alignment chart's sway k, or k = 2, the
@@ -155,7 +155,7 @@ ORTHOGONAL_SHARE = 0.25
 """... and at least this share of the same combination's storey shear in the other direction
 (a combination loading the other direction defines no Q here with its by-product shear and
 drift; 100 % + 30 % orthogonal combinations still do)."""
-# The cracked-section factors (BNBC 6.3.10.4.1: columns, beams, flat plates and cracked walls,
+# The cracked-section factors (default pack BNBC 6.3.10.4.1: columns, beams, flat plates and cracked walls,
 # the walls' share of a storey's drift) are the pack's: code_context.cracked_factors().
 PLATE_CONE = 0.3
 """A slab's span from a column runs to the nearest column (or wall node) within this offset
@@ -174,7 +174,7 @@ def is_lateral(code: str) -> bool:
 class SlenderOptions:
     """How slenderness is designed for (the project's settings; see the module notes)."""
 
-    #: Nonsway k: "unity" (k = 1, BNBC 6.3.10.6.3) or "chart" (the alignment chart).
+    #: Nonsway k: "unity" (k = 1, the default pack's BNBC 6.3.10.6.3) or "chart" (the alignment chart).
     effective_length: str = "unity"
     #: Sway magnifier: "Q" (δs = 1/(1 - Q), Eq. 6.6.27) or "sumPc" (Eq. 6.6.28).
     sway_magnifier: str = "Q"
@@ -253,7 +253,7 @@ def _psi(psi: float) -> float:
 
 def k_nonsway(psi_a: float, psi_b: float) -> float:
     """k of a braced column from the end restraints ψA, ψB: the nonsway alignment chart
-    (BNBC Figure 6.6.5 (a)), the root in 0.5 <= k <= 1 of
+    (default pack BNBC Figure 6.6.5 (a)), the root in 0.5 <= k <= 1 of
 
     ψA ψB / 4 (π/k)² + (ψA + ψB)/2 (1 - (π/k) / tan(π/k)) + 2 tan(π/2k) / (π/k) - 1 = 0.
     """
@@ -269,7 +269,7 @@ def k_nonsway(psi_a: float, psi_b: float) -> float:
 
 
 def k_sway(psi_a: float, psi_b: float) -> float:
-    """k of an unbraced column: the sway alignment chart (BNBC Figure 6.6.5 (b)), the root
+    """k of an unbraced column: the sway alignment chart (default pack BNBC Figure 6.6.5 (b)), the root
     k >= 1 of (ψA ψB (π/k)² - 36) / (6 (ψA + ψB)) - (π/k) / tan(π/k) = 0."""
     from scipy.optimize import brentq
 
@@ -1305,7 +1305,7 @@ class SlenderContext:
 
     def _sum_pc(self, building: Any) -> None:
         """ΣPc of each storey's sway columns per combination (Eq. 6.6.28): Pc from Eq. 6.6.20
-        with k of 6.3.10.7.2 (the sway chart) and EI of 6.3.10.6.1 as BNBC 6.3.10.7.4 says
+        with k of 6.3.10.7.2 (the sway chart) and EI of 6.3.10.6.1 as the default pack's BNBC 6.3.10.7.4 says
         (p 915): the project's EI option (Eq. 6.6.22, or Eq. 6.6.21 with the column's bars)
         over (1 + βdns), βdns that combination's sustained over total axial force of the
         column. A column cut by an intermediate beam counts once, with its smallest segment

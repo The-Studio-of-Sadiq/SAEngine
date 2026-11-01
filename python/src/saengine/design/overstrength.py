@@ -1,6 +1,6 @@
 """The load combinations with the overstrength factor Ω0 and the elements that need them.
 
-BNBC 2020 Part 6 Chapter 2:
+The default pack's BNBC 2020 Part 6 Chapter 2:
 
 - Sec 2.5.5.6.1 (p. 625): columns, beams, trusses or slabs supporting discontinuous walls or
   frames (horizontal irregularity Type IV, out-of-plane offsets, p. 618; vertical irregularity
@@ -10,7 +10,7 @@ BNBC 2020 Part 6 Chapter 2:
 - Sec 2.5.13.4 (p. 646): in load combination 5 of Sec 2.7.3 (1.2D + 1.0E + 1.0L) E = Em =
   Ω0 Eh + Ev, in combination 7 (0.9D + 1.0E) Em = Ω0 Eh - Ev, Ev = 0.5 a_h D (Sec 2.5.13.2,
   eq. 6.2.56, a_h = (2/3) Z S), the 100 % + 30 % directions of 2.5.13.1(b) also for Emh; Emh
-  need not exceed what a plastic mechanism or nonlinear analysis gives. (BNBC's Ev is 0.5 a_h D,
+  need not exceed what a plastic mechanism or nonlinear analysis gives. (the default pack's (BNBC) Ev is 0.5 a_h D,
   not ASCE 7's 0.2 SDS D.) Ω0 of the system from Table 6.2.19 (pp. 621-624): 3 for RC special
   moment frames.
 

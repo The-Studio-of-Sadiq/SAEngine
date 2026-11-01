@@ -1,4 +1,4 @@
-"""Integrator glue: the earthquake-resistant detailing of BNBC 2020 Part 6 Sec 8.3 (pp.
+"""Integrator glue: the earthquake-resistant detailing of the default pack's BNBC 2020 Part 6 Sec 8.3 (pp.
 1088-1123) in the design report of :mod:`saengine.design.check`.
 
 This module only wires the three rule modules into the design: it decides nothing of its own
@@ -13,7 +13,7 @@ beyond what each needs from the analysis and the building model.
   8.3.5.2, joints Sec 8.3.7, capacity shear Sec 8.3.8 and 8.3.10.3, members outside the
   seismic force-resisting system Sec 8.3.9.1, 8.3.12).
 
-What this glue derives from the model, where BNBC gives no rule for it (SAEngine choices):
+What this glue derives from the model, where the default pack's BNBC gives no rule for it (SAEngine choices):
 
 - the clear span ln of a beam: the smallest distance between the faces of consecutive
   supporting columns (frame joints along it), else its length less half of the end columns;
@@ -913,7 +913,7 @@ def _non_sfrs_beam(
             sway = profile_forces(
                 piece, d.turned, piece.sway[c] if piece.sway else np.zeros_like(piece.forces[c])
             )
-            # The elastic lateral part: the factored E of the combination (1.0 E in BNBC's).
+            # The elastic lateral part: the factored E of the combination (1.0 E in the default pack, BNBC).
             moment = max(moment, dj.induced_forces(total["Mx"] - sway["Mx"], sway["Mx"], factor))
             shear_force = max(
                 shear_force, dj.induced_forces(total["Vy"] - sway["Vy"], sway["Vy"], factor)

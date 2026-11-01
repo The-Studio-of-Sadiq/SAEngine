@@ -25,14 +25,11 @@ TABLE = "designClauses"
 
 
 def _table() -> Any:
-    pack = code_context.current()
-    if pack.has(TABLE):
-        return pack.table(TABLE)
-    if pack.id == code_context.DEFAULT_PACK or pack.replaces_builtin:
-        from saengine.codes.tables import builtin_table
-
-        return builtin_table(TABLE, code_context.DEFAULT_PACK)
-    return None
+    """The clause table of the pack in force; None when the pack has none."""
+    try:
+        return pack_table(TABLE)
+    except NotCovered:
+        return None
 
 
 class NotCovered(DesignError):
@@ -81,12 +78,12 @@ def text(group: str, key: str) -> str:
 
 
 def clause(group: str, key: str) -> str:
-    """ "<code> <clause>": the pack's display name and the clause of ``key`` in ``group``."""
+    """The pack's display name and the clause of ``key`` in ``group`` ("<code> <clause>")."""
     return f"{code_name()} {text(group, key)}".strip()
 
 
 def short_clause(group: str, key: str) -> str:
-    """ "<short> <clause>": the short name and the clause of ``key`` in ``group``."""
+    """The code's short name and the clause of ``key`` in ``group`` ("<short> <clause>")."""
     return f"{short_name() or code_name()} {text(group, key)}".strip()
 
 

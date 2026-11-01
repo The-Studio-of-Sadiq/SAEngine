@@ -1,12 +1,12 @@
-"""Design of reinforced-concrete waist-slab stairs (BNBC 2020 Part 6 Sec 6.7, with the stair
+"""Design of reinforced-concrete waist-slab stairs (default pack BNBC 2020 Part 6 Sec 6.7, with the stair
 geometry rules of Part 3 Sec 1.14.5 and Part 4 Sec 3.10).
 
 Stairs are not in the analysis model (``saengine.fem.derive`` reports them as not modelled), so
 they are designed by hand methods, as a structural office does: each flight is a one-way slab
-spanning horizontally (BNBC Sec 6.7.1.1: "the effective span of stairs without stringer beams
+spanning horizontally (default pack BNBC Sec 6.7.1.1: "the effective span of stairs without stringer beams
 shall be taken as the following horizontal distances"), loaded per plan area.
 
-Pages cited are those of the BNBC 2020 PDF (Bangladesh Gazette, 11 February 2021).
+Pages cited are those of the default pack's BNBC 2020 PDF (Bangladesh Gazette, 11 February 2021).
 
 Geometry (:func:`stair_geometry`). A ``Stair`` of 06 BIM rises from its base story to its top
 story; its type (04 Objects, ``Staircase``) gives the riser, tread, waist and flight width.
@@ -27,15 +27,15 @@ Effective span (Sec 6.7.1.1, pp. 972-973; ``spanning`` of the type):
 - "withLandings" (c): the landings span in the direction of the flight: centre to centre of
   the supporting beams or walls, landing + going + landing + supportWidth;
 - "landingsThreeSides" (d): landings at right angles supported on three sides: the going;
-  positive and negative moments wl²/8 (BNBC's own rule); the landings span across.
+  positive and negative moments wl²/8 (the default pack's (BNBC) own rule); the landings span across.
 
 A type without ``spanning`` is (a): the BIM stair is a flight from floor to floor with no
 landings drawn, so the floor beams at its ends are its supports.
 
 Loads (:func:`loads_from_settings`): the stairs area load of the project settings (use
-"stairs"), else BNBC Table 6.2.3 (p. 536) "Stairs and exit ways" 4.80 kN/m² (2.00 for one-
+"stairs"), else the default pack's BNBC Table 6.2.3 (p. 536) "Stairs and exit ways" 4.80 kN/m² (2.00 for one-
 and two-family residences only); its floor finish on plan. Self weight: the concrete
-material's density x g (as the analysis takes it; BNBC Table 6.2.1, p. 530: 22.8 kN/m³ stone
+material's density x g (as the analysis takes it; the default pack's BNBC Table 6.2.1, p. 530: 22.8 kN/m³ stone
 aggregate plain concrete, plus 0.63 kN/m³ per 1% of steel). Strength combinations: the gravity
 combinations of the settings (no wind, earthquake or temperature), else 1.4D and 1.2D + 1.6L
 (Sec 2.7.3.1, p. 685); Sec 6.7.1.2 (p. 973) refers stairs to them.
@@ -43,7 +43,7 @@ combinations of the settings (no wind, earthquake or temperature), else 1.4D and
 Strength (per metre width, Sec 6.7.1.5.1, p. 974: the rules for beams and one-way slabs):
 the moment of a simply supported beam with the flight and landing loads as patches (both ends
 simple: no end restraint is counted; at an end entered as continuous a support moment of
-w L² / 10 with w the mean load is designed for, an SAEngine adoption, not a BNBC clause; for
+w L² / 10 with w the mean load is designed for, an SAEngine adoption, not a default-pack (BNBC) clause; for
 (d) wl²/8 at both ends). Flexure by the rectangular stress block (saengine.design.slab /
 bars, the slab strip code of the design mode). As,min = the shrinkage and temperature ratio of
 Sec 8.1.11.2(a) (p. 1075: 0.0020 for fy 275 or 350, 0.0018 for 420, 0.0018 x 420 / fy above,
@@ -144,7 +144,7 @@ def __getattr__(name: str) -> Any:
 
 def gravity_combinations() -> tuple[tuple[str, float, float], ...]:
     """The strength combinations with gravity loads only, as (name, D factor, L factor): the
-    pack's ``combinations.gravity`` (BNBC 2020 Part 6 Sec 2.7.3.1, p. 685: 1.4D and
+    pack's ``combinations.gravity`` (default pack BNBC 2020 Part 6 Sec 2.7.3.1, p. 685: 1.4D and
     1.2D + 1.6L)."""
     return tuple(
         (c.name, c.factors["D"], c.factors.get("L", 0.0))
@@ -154,7 +154,7 @@ def gravity_combinations() -> tuple[tuple[str, float, float], ...]:
 
 def _cover() -> float:
     """Cover [mm] assumed when no reinforcement is entered (as the design mode's slabs): the
-    pack's ``concrete.cover.stair`` (BNBC 2020: 20 mm)."""
+    pack's ``concrete.cover.stair`` (default pack BNBC 2020: 20 mm)."""
     return float(code_context.table("concrete").cover["stair"])
 
 
@@ -376,7 +376,7 @@ class StairLoads:
 
 def loads_from_settings(settings: Any | None) -> StairLoads:
     """The stairs area load (use "stairs") and gravity combinations of the project settings,
-    with BNBC's values where the settings have none (see the module notes)."""
+    with the default pack's (BNBC) values where the settings have none (see the module notes)."""
     area = None
     combos: list[tuple[str, float, float]] = []
     use = None
@@ -799,7 +799,7 @@ def _range_check(name: str, value: float, lo: float, hi: float, unit: str, note:
 
 
 def table_tread(riser: float) -> float:
-    """The tread of BNBC Part 4 Table 4.3.5 for ``riser``, interpolated between its rows in
+    """The tread of the default pack's BNBC Part 4 Table 4.3.5 for ``riser``, interpolated between its rows in
     riser order (the printed 171/324 row is left out of the interpolation: out of sequence)."""
     geometry = _geometry()
     skip = {tuple(row) for row in geometry.riserTreadSkip}
@@ -813,7 +813,7 @@ def table_tread(riser: float) -> float:
 
 
 def minimum_width(use: str | None, occupants: int | None = None) -> tuple[float | None, str]:
-    """The least stair width of BNBC Part 4 Table 4.3.6 (p. 311) for the building use of the
+    """The least stair width of the default pack's BNBC Part 4 Table 4.3.6 (p. 311) for the building use of the
     settings, or None where the table gives none ("as per provisions of this Code")."""
     g = _geometry()
     if use == "residential":
@@ -844,7 +844,7 @@ def geometry_checks(
     use: str | None = None,
     occupants: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """The BNBC stair geometry checks (design report format) and notes on what is not checked."""
+    """The default pack's BNBC stair geometry checks (design report format) and notes on what is not checked."""
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
@@ -987,7 +987,7 @@ def geometry_checks(
 
 
 def min_ratio(fy: float, brick_aggregate: bool = False) -> float:
-    """Shrinkage and temperature (and As,min) ratio of BNBC Sec 8.1.11.2(a), (b)."""
+    """Shrinkage and temperature (and As,min) ratio of the default pack's BNBC Sec 8.1.11.2(a), (b)."""
     # B21: the aggregate factor is the code pack's (the project's aggregate unless set here).
     return slab_design.min_steel_ratio(fy, "brick" if brick_aggregate else None)
 

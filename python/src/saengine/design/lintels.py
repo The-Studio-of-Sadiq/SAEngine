@@ -1,5 +1,5 @@
 """Lintels over door and window openings, and the spandrels of reinforced-concrete walls designed
-as beams, to BNBC 2020 Part 6 (bnbc-2020-part1.pdf).
+as beams, to the default pack's BNBC 2020 Part 6 (the code PDF).
 
 **Lintels** (:func:`design_lintel`, :func:`lintels_of`): an RC beam over each opening of 06 BIM
 (``additions.wallOpenings``) in a wall that is not a structural concrete wall (masonry infill,
@@ -107,7 +107,7 @@ G = 9.80665
 
 
 def lintel_limit(name: str) -> float:
-    """The pack's ``detailing.lintels`` value ``name`` (BNBC 2020: minBearing 100 mm, the least
+    """The pack's ``detailing.lintels`` value ``name`` (default pack BNBC 2020: minBearing 100 mm, the least
     bearing of a lintel on each end, and bearing 150 mm, the default bearing (7.4.3.2);
     deflectionRatio 600, members supporting masonry deflect at most clear span / 600 (7.4.3.2);
     probable 1.25, the probable moment's bars at 1.25 fy (notation p. 882, 8.3.8.1))."""
@@ -115,12 +115,12 @@ def lintel_limit(name: str) -> float:
 
 
 def lintel_cover() -> float:
-    """The pack's clear cover of lintels and spandrels designed as beams [mm] (BNBC 2020: 25)."""
+    """The pack's clear cover of lintels and spandrels designed as beams [mm] (default pack BNBC 2020: 25)."""
     return float(code_context.table("concrete").cover["lintel"])
 
 
 def lintel_diameters() -> tuple[float, ...]:
-    """The pack's main bar sizes of lintels [mm] (BNBC 2020: 10, 12, 16, 20, 25)."""
+    """The pack's main bar sizes of lintels [mm] (default pack BNBC 2020: 10, 12, 16, 20, 25)."""
     return tuple(float(d) for d in code_context.table("concrete").barDiameters["lintel"])
 
 
@@ -186,7 +186,7 @@ def lintel_loads(
 ) -> LintelLoads:
     """The loads on a lintel ``width`` x ``depth`` over an opening ``clear`` wide [mm] with
     ``height_above`` [mm] of masonry above it (unit weights in kN/m³, the floor's line loads in
-    kN/m = N/mm): see the module notes. ``bearing``: default the pack's (BNBC 2020: 150 mm)."""
+    kN/m = N/mm): see the module notes. ``bearing``: default the pack's (BNBC 2020 in the default pack: 150 mm)."""
     bearing = lintel_limit("bearing") if bearing is None else bearing
     span = clear + bearing
     rise = span / 2 * math.tan(math.radians(angle))
@@ -633,7 +633,7 @@ def lintels_of(
     ``MaterialLibrary.default_concrete`` / ``default_rebar``; default: the first concrete with
     f'c and the first reinforcing steel of ``mats``); ``floor_loads``: per wall id the floor's
     line load on the wall (dead, live) [kN/m] used where the arch cannot form (default 0 where
-    a beam runs over the wall, else 0 with a note); ``bearing``: default the pack's (BNBC 2020:
+    a beam runs over the wall, else 0 with a note); ``bearing``: default the pack's (BNBC 2020 in the default pack:
     150 mm)."""
     from saengine.design.stairs import loads_from_settings
     from saengine.library.bim import WallElement

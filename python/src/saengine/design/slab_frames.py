@@ -16,7 +16,7 @@ designed from shells only (the analysis's slabs as shells).
 Frames (:func:`build_frames`). The frame lines along a direction are the lines of columns (and
 of beams and walls) running that way (:func:`saengine.design.slab.support_lines`), the supports
 along a frame the lines across it. A frame's width l2 reaches half way to the next line on each
-side, or to the slab's edge (BNBC 6.5.6.2.3-6.5.6.2.4, 6.5.7.2.2-6.5.7.2.4). Where the slab
+side, or to the slab's edge (default pack BNBC 6.5.6.2.3-6.5.6.2.4, 6.5.7.2.2-6.5.7.2.4). Where the slab
 continues past its first or last support (a neighbouring slab at the same level), the frame is
 extended by that slab's span, so the span next to it is not taken as an end span. A frame
 whose crossing lines have no column, wall or beam where it crosses them is not a frame (an
@@ -165,7 +165,7 @@ class SlabFrame:
     def column_strip(self, k: int) -> tuple[float, float]:
         """Widths of the column strip and the middle strip(s) of span ``k`` [mm]: the column
         strip 0.25 min(l1, l2) each side of the line (the inside half only at an edge), the
-        middle strips the rest of l2 (BNBC 6.5.2.1-6.5.2.2)."""
+        middle strips the rest of l2 (default pack BNBC 6.5.2.1-6.5.2.2)."""
         l1 = self.spans[k]
         half = 0.0
         for side in (self.half_before, self.half_after):
@@ -245,7 +245,7 @@ def _column_k(column: FrameColumn, h: float, along: float, across: float) -> flo
 
 def _beam_alpha(beam: FrameBeam, h: float, width: float, ecs: float) -> float:
     """αf = Ecb Ib / (Ecs Is): Ib of the beam with the slab each side of it as far as its
-    projection below the slab and at most 4h (BNBC 6.5.2.4), Is = width h³ / 12."""
+    projection below the slab and at most 4h (default pack BNBC 6.5.2.4), Is = width h³ / 12."""
     stem = max(beam.depth - h, 0.0)
     flange = min(stem, 4 * h)
     bf = beam.width + 2 * flange
@@ -292,8 +292,10 @@ def build_frames(
     problems: list[str] = []
     if len(lines) < 1 or len(across) < 2:
         return [], [
-            (f"no grid of supports along {direction} (frame lines {len(lines)}, supports "
-            f"across {len(across)})")
+            (
+                f"no grid of supports along {direction} (frame lines {len(lines)}, supports "
+                f"across {len(across)})"
+            )
         ]
     lo_t, hi_t = extent[2 * (1 - along)], extent[2 * (1 - along) + 1]
     lo_s, hi_s = extent[2 * along], extent[2 * along + 1]
@@ -607,8 +609,10 @@ def design_slab(
                     shear[key] = (
                         vu,
                         name,
-                        (f"{frame.name}, span {k - frame.own[0] + 1}: "
-                        f"qu (ln/2 - d), ln = {ln:.0f} mm"),
+                        (
+                            f"{frame.name}, span {k - frame.own[0] + 1}: "
+                            f"qu (ln/2 - d), ln = {ln:.0f} mm"
+                        ),
                     )
     table = slab.coefficient_table()
     title = {"directDesign": "direct design method", "equivalentFrame": "equivalent frame"}

@@ -33,7 +33,7 @@ a slab too thin for one-way shear without shear bars), the type is reported ``to
 the next practical section as information (depth in 50 mm steps for beams, both sides in
 50 mm steps for columns, thickness in 25 mm steps for slabs); nothing is changed for it.
 
-Joints of special moment frames (BNBC 2020 Part 6 Sec 8.3.7): the joint shear Vj comes from
+Joints of special moment frames (default pack BNBC 2020 Part 6 Sec 8.3.7): the joint shear Vj comes from
 1.25 fy of the beam bars framing in, less the column shear, against φ γ √f'c Aj, which bars
 cannot raise. Every joint the checks check is checked with the proposed beam bars (the checks'
 own :func:`saengine.design.ductile_joints.joint_checks`); where one fails, the beam types
@@ -116,7 +116,7 @@ class BeamLoads:
     sag: float  # N·mm
     hog: float
     shear: float  # N
-    #: Torsion (saengine.design.torsion, BNBC 2020 Part 6 Sec 6.4.4): At/s per leg of the closed
+    #: Torsion (saengine.design.torsion, the default pack's BNBC 2020 Part 6 Sec 6.4.4): At/s per leg of the closed
     #: stirrups [mm²/mm], the longitudinal Al [mm²] and the stirrups' largest spacing [mm].
     at_s: float = 0.0
     al: float = 0.0
@@ -476,7 +476,7 @@ def _fewer_bars(search: ColumnSearch, index: int, points: list[Point]) -> int:
 
 
 def _ties_hold(pick: Pick, obj: Any, members: list[dict[str, Any]], opts: Options) -> bool:
-    """Whether the seismic ties of BNBC Sec 8.3 can be made for ``pick`` (no tie legs beyond
+    """Whether the seismic ties of the default pack's BNBC Sec 8.3 can be made for ``pick`` (no tie legs beyond
     the bars of a face, hx ≤ 350 mm, the hoop spacing at least the least spacing; see
     :func:`seismic_transverse`)."""
     if pick.reinforcement is None or not _seismic_members(members):
@@ -575,7 +575,7 @@ def _bigger_column(search: ColumnSearch, points: list[Point]) -> str:
 
 @dataclass
 class _JointCase:
-    """A joint the checks found joint shear at (special moment frames, BNBC Sec 8.3.7), as
+    """A joint the checks found joint shear at (special moment frames, the default pack's BNBC Sec 8.3.7), as
     :func:`saengine.design.ductile_joints.joint_checks` takes it: its beams' ``type`` is the
     beam member's id, so every beam can carry bars of its own."""
 
@@ -1706,7 +1706,7 @@ def seismic_transverse(
     aggregate: float | None,
     opts: Options,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """The proposed reinforcement with the hoop zones of BNBC Sec 8.3 for the type's members
+    """The proposed reinforcement with the hoop zones of the default pack's BNBC Sec 8.3 for the type's members
     (their detailing contexts, :class:`saengine.design.seismic_detailing.Designed`), and what
     the detailing asks of the type: ``{"zones", "sectionTooSmall", "notes"}`` (None when no
     member has a Sec 8.3 rule).

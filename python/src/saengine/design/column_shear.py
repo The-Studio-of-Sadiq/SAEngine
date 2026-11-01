@@ -1,5 +1,5 @@
 """Shear of reinforced-concrete columns from the analysis forces, with the axial force's
-effect on Vc: BNBC 2020 Part 6 Sec 6.4 (pp. 921-927). Units: N, mm, MPa.
+effect on Vc: the default pack's BNBC 2020 Part 6 Sec 6.4 (pp. 921-927). Units: N, mm, MPa.
 
 This is the strength check of every column (gravity columns, ordinary frames, and the
 analysis shear of the others); the capacity-design shear of special and intermediate moment
@@ -19,7 +19,7 @@ frames stays in :mod:`saengine.design.ductile_joints` (Sec 8.3.8, 8.3.10.3).
   the shear (``legs`` run along the profile's y, ``legsX`` along x).
 - Where shear reinforcement is needed (Vu > φVc, Sec 6.4.3.6.1) the tie spacing must not exceed
   d/2 nor 600 mm, halved where Vs > 0.33 √f'c bw d (Sec 6.4.3.4.1, 6.4.3.4.3, p. 924).
-- Minimum shear reinforcement: BNBC Sec 6.4.3.5.1 is written for flexural members. Where
+- Minimum shear reinforcement: the default pack's BNBC Sec 6.4.3.5.1 is written for flexural members. Where
   Vu > 0.5 φ Vc and the ties give less than Av,min (Eq. 6.6.55) a reported-only row (``flag``)
   says so (ACI 318-19 10.6.2.1 asks it of columns; from memory, to be checked).
 """
@@ -37,7 +37,7 @@ from saengine.design.clauses import limits, short_clause
 from saengine.design.rc import DesignError, RcSection, bar_area
 from saengine.library.objects import CircleProfile, RectangleProfile
 
-#: √f'c used in shear is capped at this [MPa] (BNBC 2020 Part 6 Sec 6.4.1.2).
+#: √f'c used in shear is capped at this [MPa] (default pack BNBC 2020 Part 6 Sec 6.4.1.2).
 
 
 def _root_fc_max() -> float:

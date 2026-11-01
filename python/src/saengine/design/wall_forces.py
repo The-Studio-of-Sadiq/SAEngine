@@ -59,7 +59,7 @@ resultant combined over the modes: for each mode the cut of the modal-force run'
 (:class:`saengine.fem.seismic_design.SeismicForces`, the static response to ω²·M·u of each
 mode), combined by the response spectrum case's rule (CQC or SRSS,
 :func:`saengine.fem.seismic_design.combine`) and scaled (Sec 2.5.9.4), the accidental torsion
-cases in absolute value. BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635): every response quantity is the
+cases in absolute value. The default pack's BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635): every response quantity is the
 combination of its modal values; the pier forces are not formed from the shells' combined
 peaks (which have no common sign and would not equilibrate).
 

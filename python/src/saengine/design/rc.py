@@ -1,6 +1,6 @@
 """Section capacities of reinforced-concrete members by strength design.
 
-The code basis is ACI 318-19, which BNBC 2020 Part 6 Chapter 6 adopts: the same clauses and
+The code basis is ACI 318-19, which the default pack's BNBC 2020 Part 6 Chapter 6 adopts: the same clauses and
 factors apply to both.
 
 - Flexure and axial force: strain compatibility with the ACI rectangular stress block

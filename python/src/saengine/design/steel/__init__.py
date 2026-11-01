@@ -1,4 +1,4 @@
-"""Steel member design to BNBC 2020 Part 6 Chapter 10 (LRFD, the provisions of AISC 360-05).
+"""Steel member design to the default pack's BNBC 2020 Part 6 Chapter 10 (LRFD, the provisions of AISC 360-05).
 
 - :mod:`.properties`: section properties of rolled and hollow shapes from their plates;
 - :mod:`.classify`: local buckling classes (Sec 10.2.4, Table 6.10.1);

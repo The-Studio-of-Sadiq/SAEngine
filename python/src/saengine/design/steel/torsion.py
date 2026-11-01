@@ -1,6 +1,6 @@
 """Torsion of steel members and its combination with axial force, flexure and shear (B31).
 
-What the code pack's ``steel.members.torsion`` gives (BNBC 2020: Part 6 Sec 10.8.3, Eqs
+What the code pack's ``steel.members.torsion`` gives (default pack BNBC 2020: Part 6 Sec 10.8.3, Eqs
 6.10.150-158) and what is worked out here:
 
 - Hollow sections (rectangular and round HSS): the design torsional strength φT Tn, Tn = Fcr C

@@ -1,4 +1,4 @@
-"""Design of reinforced-concrete walls and coupling beams to BNBC 2020 Part 6 (bnbc-2020-part1.pdf).
+"""Design of reinforced-concrete walls and coupling beams to the default pack's BNBC 2020 Part 6 (the code PDF).
 
 Pure functions over a wall pier's geometry, its object type's bars and the pier forces at its
 cuts (one row per load combination and cut: ``{P, V2, M3, V3, M2}``, see :class:`PierForces`).
@@ -46,7 +46,7 @@ Special structural walls (Sec 8.3.6, pp. 1100-1107), when the seismic scope says
 - 8.3.6.2(a): ρl, ρt >= 0.0025, except that where Vu <= 0.083 Acv λ √f'c the values of (i)/(ii)
   (those of 6.6.3) apply; spacing each way <= 450 mm. (b) two curtains where Vu > 0.17 Acv λ
   √f'c.
-- 8.3.6.3: Vu from the analysis (BNBC sets no shear amplification for walls).
+- 8.3.6.3: Vu from the analysis (default pack BNBC sets no shear amplification for walls).
 - 8.3.6.4(a): Vn = Acv (αc λ √f'c + ρt fy) (Eq. 6.8.9), αc = 0.25 for hw/lw <= 1.5, 0.17 for
   hw/lw >= 2.0, linear between; (b) hw/lw the larger of the entire wall's and the segment's;
   (c) ρl >= ρt where hw/lw <= 2.0; (d) Vn <= 0.83 Acw √f'c for one segment (the 0.66 Acv √f'c
@@ -128,7 +128,7 @@ CLAUSES: Clauses = Clauses("walls")
 
 
 def steel_limit(name: str) -> float:
-    """The pack's ``concrete.walls`` value ``name`` (BNBC 2020: smallBarMax 16 mm and smallBarFy
+    """The pack's ``concrete.walls`` value ``name`` (default pack BNBC 2020: smallBarMax 16 mm and smallBarFy
     420 MPa, the bars of the small-bar ratios of 6.6.3.2 / 6.6.3.3; rhoShear 0.0025 of
     6.4.8.9.2, 6.4.8.9.4 and 8.3.6.2(a); twoLayerThickness 250 mm, above which the bars go in
     two layers (6.6.3.4); spacingMax 450 mm (6.6.3.5, 8.3.6.2(a)))."""
@@ -137,14 +137,14 @@ def steel_limit(name: str) -> float:
 
 def least_ratios(name: str) -> tuple[float, float]:
     """The pack's least ratios (vertical, horizontal) ``name`` of 6.6.3.2 / 6.6.3.3 and
-    8.3.6.2(a)(i)/(ii) (BNBC 2020: rhoSmallBars (0.0012, 0.0020), bars not larger than 16 mm
+    8.3.6.2(a)(i)/(ii) (default pack BNBC 2020: rhoSmallBars (0.0012, 0.0020), bars not larger than 16 mm
     with fy not less than 420 MPa; rhoOtherBars (0.0015, 0.0025), other deformed bars)."""
     rho = code_context.table("concrete").walls[name]
     return (float(rho[0]), float(rho[1]))
 
 
 def special_limit(name: str) -> float:
-    """The pack's ``detailing.walls`` value ``name`` (BNBC 2020: relaxedShare 0.083 and
+    """The pack's ``detailing.walls`` value ``name`` (default pack BNBC 2020: relaxedShare 0.083 and
     twoCurtainShare 0.17, shear thresholds of 8.3.6.2 as x Acv λ √f'c; driftMin 0.007, the
     least δu/hw of displacement-based boundary elements (8.3.6.6(b)(i)); stressRequired 0.2 and
     stressStop 0.15, stress-based boundary elements required above / may stop below x f'c
@@ -153,14 +153,14 @@ def special_limit(name: str) -> float:
 
 
 def wall_phi(name: str) -> float:
-    """The pack's φ ``name`` (BNBC 2020: shearSeismic 0.60, shear of members whose Vn is below
+    """The pack's φ ``name`` (default pack BNBC 2020: shearSeismic 0.60, shear of members whose Vn is below
     the shear at Mn (6.2.3.3(a)); diagonalCoupling 0.85, diagonally reinforced coupling beams
     (6.2.3.3(c)))."""
     return float(code_context.table("factors").phi[name])
 
 
 def bar_sizes(name: str) -> tuple[float, ...]:
-    """The pack's bar size set ``name`` [mm] of the design mode (BNBC 2020: wall (10, 12, 16,
+    """The pack's bar size set ``name`` [mm] of the design mode (default pack BNBC 2020: wall (10, 12, 16,
     20), the horizontal and vertical wall bars; boundary (16, 20, 25, 32); hoop (10, 12))."""
     return tuple(float(d) for d in code_context.table("concrete").barDiameters[name])
 
@@ -784,7 +784,7 @@ def wall_checks(
     ``grade_beam`` (the type's ``GradeBeamWall``), the wall as a grade beam
     (:func:`grade_beam_checks`).
 
-    ``drift``: δu/hw of the wall (the design displacement at its top over its height, BNBC
+    ``drift``: δu/hw of the wall (the design displacement at its top over its height, the default pack's BNBC
     2.5.9 Cd δe / I) for the displacement-based boundary elements; None: the stress-based method
     (8.3.6.6(c)). ``surface``: the pier section's interaction surface when the caller caches it
     per type and length. ``fyt``: the hoops' yield strength (default ``fy``)."""

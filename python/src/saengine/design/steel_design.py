@@ -2,7 +2,7 @@
 
 Joins the steel modules to :mod:`saengine.design.check` and :mod:`saengine.design.proposal`:
 
-- :func:`design_member`: one steel beam, column or brace of the analysis, checked to BNBC 2020
+- :func:`design_member`: one steel beam, column or brace of the analysis, checked to the default pack's BNBC 2020
   Part 6 Chapter 10 by :func:`saengine.design.steel.design_steel_member`, with the simple
   connection of its object type (``connection`` of 04 Objects, :mod:`saengine.design.
   steel_connections`) checked for the member's end forces: beams for the end shears along the

@@ -1,4 +1,4 @@
-"""Corbels and brackets (BNBC 2020 Part 6 Sec 6.4.7, which follows ACI 318-11 Sec 11.8).
+"""Corbels and brackets (default pack BNBC 2020 Part 6 Sec 6.4.7, which follows ACI 318-11 Sec 11.8).
 
 A corbel is given on a beam's end in the building model (:class:`saengine.library.modifiers.
 Corbel`); the beam's end shear from the analysis is its Vu. The section at the column face is

@@ -518,7 +518,7 @@ def beam_rows(member: dict[str, Any], demand: BeamDemand, assumed: bool) -> list
 
 
 def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
-    """The closed stirrups and longitudinal steel a beam's torsion needs (BNBC 2020 Part 6
+    """The closed stirrups and longitudinal steel a beam's torsion needs (default pack BNBC 2020 Part 6
     Sec 6.4.4), from the torsion design of its checks (``member["torsion"]``, saengine.design.
     torsion; none below the threshold)."""
     design = member.get("torsion")
@@ -853,7 +853,7 @@ def column_rows(
 
 
 def detailing_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
-    """The hoop zones BNBC 2020 Part 6 Sec 8.3 asks of a beam or column (the design report's
+    """The hoop zones the default pack's BNBC 2020 Part 6 Sec 8.3 asks of a beam or column (the design report's
     ``detailing``, :mod:`saengine.design.seismic_detailing`): the largest spacing within lo and
     elsewhere, and lo, against the type's ``transverse`` (its ``zone`` when given)."""
     info = member.get("detailing") or {}

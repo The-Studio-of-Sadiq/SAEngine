@@ -17,7 +17,7 @@ The member's ends are taken as braced in every direction when a frame element or
 meets them. An end only a shell meets is braced only in the directions the shell braces (its
 plane; for lateral-torsional buckling only the flange the slab is attached to, the top one),
 and free in the others; an end nothing meets is free in every direction (a cantilever). A
-segment with a free end gets K = 2.0 for compression and Cb = 1.0 (BNBC 2020 Part 6 Sec 10.6.1,
+segment with a free end gets K = 2.0 for compression and Cb = 1.0 (default pack BNBC 2020 Part 6 Sec 10.6.1,
 p 3853, "For cantilevers or overhangs where the free end is unbraced, Cb = 1.0"): a cantilever
 carrying a slab at its tip is free about x and for hogging LTB (bottom flange in compression).
 

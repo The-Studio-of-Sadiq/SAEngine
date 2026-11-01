@@ -1,5 +1,5 @@
 """Which earthquake-resistant detailing provisions apply, and the general requirements, to
-BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. 1088-1123 of the code PDF) with the system rules of
+the default pack's BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. 1088-1123 of the code PDF) with the system rules of
 Part 6 Chapter 2 Sec 2.5 (pp. 617-625, 646).
 
 What this module decides, from the project settings, materials, object types and building:
@@ -108,7 +108,7 @@ def required_level(sdc: str | None) -> FrameType | None:
     return code_context.table("seismic").requiredDetailing.get(sdc)
 
 
-# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (BNBC 2020:
+# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (default pack BNBC 2020:
 # f'c at least 21 MPa, lightweight concrete (density at most 1850 kg/m³, Sec 6.1 definitions,
 # p. 868) at most 35 MPa; the permitted grades fy 275, 300, 350, 400, 420 MPa (ASTM A706 Grade
 # 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420), at most 420;
@@ -196,7 +196,7 @@ def seismic_design_category(settings: Any) -> tuple[str | None, int | None]:
 
 def building_height(building: Any) -> float | None:
     """Height of the structure [m]: the highest column or wall top or beam level over the lowest
-    column or wall bottom (BNBC's height above the base, taken from the elements); None without
+    column or wall bottom (the default pack's (BNBC) height above the base, taken from the elements); None without
     columns or walls."""
     if building is None:
         return None
@@ -795,7 +795,7 @@ def _member_provisions(kind: str, role: str, row: SystemRow | None, sdc: str | N
     Members not part of the seismic force-resisting system: in Category D, 8.3.2(b) puts
     8.3.3 in force, and 8.3.3.1(d) (p. 1089) sends them to 8.3.9; 8.3.12.1(a) (p. 1122) adds
     8.3.12 in D. In B, 8.3.2(d) makes 8.3.9 apply to all RC structures. In C, 8.3.2(c) asks for
-    8.3.10 only, and 8.3.10.1 covers the frames proportioned to resist earthquake: BNBC sets no
+    8.3.10 only, and 8.3.10.1 covers the frames proportioned to resist earthquake: the default pack's BNBC sets no
     8.3 provision for gravity members there (Chapter 6 only)."""
     level = detailing_level(row, sdc)
     if level is None:
@@ -905,7 +905,7 @@ def seismic_detailing_scope(
     overrides: dict[str, dict[str, str]] | None = None,
     height: float | None = None,
 ) -> dict[str, Any]:
-    """Which provisions of BNBC 2020 Part 6 Sec 8.3 apply to the project, and its general
+    """Which provisions of the default pack's BNBC 2020 Part 6 Sec 8.3 apply to the project, and its general
     requirements: ``{"system", "systemName", "sdc", "zone", "R", "Cd", "Omega0", "frameType"
     (the level of the system's RC moment frames; None for building frame and steel systems),
     "detailingLevel" (the level members marked lateral are detailed to), "requiredFrameType", "systemFrameType", "height", "applies": {section: {"applies", "page",

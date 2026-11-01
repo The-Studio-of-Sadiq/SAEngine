@@ -2036,7 +2036,7 @@ def anchor_capacities(c: ColumnBasePlate) -> tuple[float, float, float, float]:
 def bearing_on_concrete(c: ColumnBasePlate) -> float:
     """φc Pp [N] (Sec 10.10.8, Eqs 6.10.183-184): Pp = full × f'c A1 on the full concrete area,
     partial × f'c A1 √(A2/A1) <= max × f'c A1 on part of it (the pack's ``concreteBearing*``:
-    0.8 / 0.8 / 1.7 as printed in BNBC 2020)."""
+    0.8 / 0.8 / 1.7 as printed in the default pack's BNBC 2020)."""
     data = connection_data()
     a1 = c.length * c.width
     a2 = max((c.supportLength or c.length) * (c.supportWidth or c.width), a1)

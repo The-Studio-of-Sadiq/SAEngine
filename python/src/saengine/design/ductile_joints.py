@@ -2,9 +2,9 @@
 column / weak beam, beam-column joints, capacity-design shear, foundations and members that are
 not part of the seismic-force-resisting system.
 
-Code basis: BNBC 2020 Part 6 Chapter 8, Sec 8.3 "Earthquake-Resistant Design Provisions"
-(bnbc-2020-part1.pdf pages 1088-1123), and Chapter 6 where Sec 8.3 sends there. Every rule
-below names its clause and page; where BNBC refers to ACI or is silent, the docstring says so.
+Code basis: the default pack's BNBC 2020 Part 6 Chapter 8, Sec 8.3 "Earthquake-Resistant Design Provisions"
+(the code PDF) pages 1088-1123), and Chapter 6 where Sec 8.3 sends there. Every rule
+below names its clause and page; where the default pack's BNBC refers to ACI or is silent, the docstring says so.
 
 - Probable moment Mpr (notation, p 882; Sec 8.3.8.1, p 1111): the bars at fs = 1.25 fy, φ = 1.0
   (:func:`probable_moments`, :func:`column_moment`).
@@ -65,7 +65,7 @@ from saengine.design.rc import value as rc_value
 from saengine.library.objects import CircleProfile, RectangleProfile
 
 # The plain numbers of special moment frame joints are the pack's ``detailing.joints`` group
-# and the joint φ its ``factors.phi.joint``, read when the checks run (BNBC 2020):
+# and the joint φ its ``factors.phi.joint``, read when the checks run (default pack BNBC 2020):
 # ``probableStress`` 1.25, the stress of the beam bars for probable moments and joint forces as
 # a multiple of fy (Sec 8.3.7.1(a), p 1108; the notation of Mpr, p 882); ``strongColumnRatio``
 # 1.2, Eq. 6.8.5 (Sec 8.3.5.2(b), p 1096): ΣMnc ≥ 1.2 ΣMnb; ``axialLimit`` 0.1, columns of
@@ -77,7 +77,7 @@ from saengine.library.objects import CircleProfile, RectangleProfile
 
 
 def _joints(name: str) -> float:
-    """The pack's ``detailing.joints`` number ``name`` (BNBC 2020: see above)."""
+    """The pack's ``detailing.joints`` number ``name`` (default pack BNBC 2020: see above)."""
     return float(code_context.table("detailing").joints[name])
 
 
@@ -87,7 +87,7 @@ def _gamma(key: int | str) -> float:
 
 
 def _phi_joint() -> float:
-    """The pack's φ for joint shear (BNBC 2020 Sec 6.2.3.3(c), p 898: 0.85)."""
+    """The pack's φ for joint shear (default pack BNBC 2020 Sec 6.2.3.3(c), p 898: 0.85)."""
     return float(code_context.table("factors").phi["joint"])
 
 
@@ -467,7 +467,7 @@ def strong_column_checks(
     force (:func:`lowest_column_moment`).
 
     Not required, a row flagged, when neither column carries more than 0.1 Ag f'c (8.3.5.2(a)).
-    BNBC does not say whether slab bars count in ΣMnb; ACI 318-19 18.7.3.2 adds the slab bars
+    The default pack's BNBC does not say whether slab bars count in ΣMnb; ACI 318-19 18.7.3.2 adds the slab bars
     within the effective flange width when the slab is in tension: not included here."""
     directions, notes = _directions(joint, beams, below.rotation)
     rows: list[dict[str, Any]] = []
@@ -526,7 +526,7 @@ def joint_confinement(
     its width (Sec 8.3.7.3, p 1110). γ = 1.7 for four faces, 1.2 for three or two opposite
     faces, 1.0 otherwise. 8.3.7.2(b): members on all four sides, each at least three quarters
     of the column width (here: the face's width), allow half of the 8.3.5.4(a) hoops within the
-    depth of the shallowest member and their spacing up to 150 mm. BNBC (like ACI 318-08)
+    depth of the shallowest member and their spacing up to 150 mm. The default pack's BNBC (like ACI 318-08)
     counts the width only; ACI 318-19 Table 18.8.4.1 also asks for the beam depth and
     distinguishes columns continuing above: not applied."""
     ex, ey = column_axes(rotation)
@@ -557,7 +557,7 @@ def joint_confinement(
 def hooked_anchorage_seismic(db: float, fy: float, fc: float, lam: float = 1.0) -> float:
     """ldh [mm] of a bar with a standard 90° hook in a joint of a special moment frame (Sec
     8.3.7.4(a), p 1111, Eq. 6.8.12): max(8 db, 150 mm, fy db / (5.4 √f'c)); lightweight
-    concrete (λ < 1): max(10 db, 190 mm, 1.25 times Eq. 6.8.12). BNBC gives it for bars of
+    concrete (λ < 1): max(10 db, 190 mm, 1.25 times Eq. 6.8.12). The default pack's BNBC gives it for bars of
     10-36 mm (the text says "Eq. 6.8.9": the formula printed is Eq. 6.8.12)."""
     basic = fy * db / (5.4 * math.sqrt(fc))
     if lam < 1:
@@ -579,11 +579,11 @@ def joint_checks(
     - shear: Vj = T1 + T2 - Vcol, T = 1.25 fy As of the beam bars in tension on each side for
       the sway sense giving the larger Vj (8.3.7.1(a)), against φ γ √f'c Aj, φ = 0.85 (6.2.3.3(c),
       p 898), γ from :func:`joint_confinement`. Aj = h bj, h the column dimension along the
-      beams; BNBC defines Aj only as "the effective cross-sectional area within a joint in a
+      beams; the default pack's BNBC defines Aj only as "the effective cross-sectional area within a joint in a
       plane parallel to the plane of the reinforcement generating shear" (notation, p 873):
       bj = min(column width, narrowest beam width + h) follows ACI 318-19 18.8.4.3 for a beam
       on the column's axis. Vcol = ΣMpr / (the mid-heights of the columns above and below:
-      contraflexure at mid-height), BNBC is silent on it.
+      contraflexure at mid-height), the default pack's BNBC is silent on it.
     - beam bars passing through: h ≥ 20 db of the largest beam bar (26 db lightweight,
       8.3.7.1(d));
     - beam bars ending in the joint (a beam on one side only): hooked anchorage
@@ -775,7 +775,7 @@ def beam_capacity_shear(
 
     - ``level`` "special" (Sec 8.3.8.1(a), p 1111): Ve = (Mpr,hog + Mpr,sag) / ln + Vg: moments
       of opposite sign at the two faces (the same section at both ends), ``gravity_shear`` Vg
-      [N] the shear of the factored tributary gravity load at the face (BNBC says "factored
+      [N] the shear of the factored tributary gravity load at the face (default pack BNBC says "factored
       tributary gravity load"; the gravity part 1.2D + 1.0L of the combination with E is what
       the caller passes); at least the analysis shear ``analysis_shear`` (as 8.3.8.1(b) says
       for columns). Vc = 0 by 8.3.8.2(a) with ``axial`` the factored compression [N].
@@ -836,7 +836,7 @@ def beam_capacity_shear(
 def _column_shear_depth(section: RcSection, frame: ColumnFrame) -> tuple[float, float]:
     """(bw, d) of a column for shear along ``frame``'s direction: d from the compression face
     to the centroid of the bars of the far half; circles bw = D, d = 0.8 D (ACI 318-19
-    22.5.2.2, BNBC is silent)."""
+    22.5.2.2, the default pack's BNBC is silent)."""
     if isinstance(section.profile, CircleProfile):
         diameter = 2 * section.profile.radius
         return diameter, 0.8 * diameter
@@ -943,7 +943,7 @@ def beam_limited_column_shear(
     not exceed those determined from joint strengths based on the probable moment strength
     Mpr of the transverse members framing into the joint"): (share_top ΣMpr,top +
     share_bottom ΣMpr,bottom) / lu, each joint's ΣMpr shared between the columns above and
-    below it (0.5 each by default, 1 where the column ends; BNBC does not say how to share)."""
+    below it (0.5 each by default, 1 where the column ends; the default pack's BNBC does not say how to share)."""
     return (share_top * mpr_beams_top + share_bottom * mpr_beams_bottom) / clear_height
 
 
@@ -1137,7 +1137,7 @@ def pile_confined_length(
       times its cross-section dimension and 1.8 m, plus the length in soil unable to support it
       laterally, air or water (``unsupported``);
     - Sec 1.8.5.1 (p 507, seismic zones 2, 3 and 4): the criteria and detailing of Sec 8.3 over
-      120 percent of the flexural length, when ``flexural_length`` [mm] is given. BNBC does not
+      120 percent of the flexural length, when ``flexural_length`` [mm] is given. The default pack's BNBC does not
       define the flexural length; the depth to the pile's lowest point of zero moment (or of
       fixity) under the lateral load is what the caller passes.
 
@@ -1154,7 +1154,7 @@ def pile_confined_length(
 def induced_forces(gravity: np.ndarray, lateral: np.ndarray, factor: float) -> float:
     """The largest |gravity ± factor × lateral| over the stations: the moments or shears of a
     member following the design displacement. ``factor``: Cd / I for the design displacement
-    δu of Sec 8.3.12 (the analysis' lateral case gives the elastic δxe; BNBC Part 6 Chapter 2
+    δu of Sec 8.3.12 (the analysis' lateral case gives the elastic δxe; the default pack's BNBC Part 6 Chapter 2
     amplifies it by Cd / I), 2 for "twice the lateral displacement under the factored lateral
     forces" of Sec 8.3.9.1 (p 1113)."""
     g = np.abs(np.asarray(gravity, dtype=float))
