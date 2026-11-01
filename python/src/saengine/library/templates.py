@@ -81,6 +81,8 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "TimberProperties": {"group": "B", "location": "inside"},
     # timber members and joints (saengine.design.timber)
     "TimberMember": {},
+    # steel beams' deflection limits (B9, saengine.design.steel.members.deflection_checks)
+    "MemberServiceability": {},
     "TimberNotch": {"face": "tension", "depth": 30, "length": 100},
     "TimberSpaced": {"pieces": 2, "connectors": "end20"},
     "TimberNailedJoint": {"type": "nails", "size": "3.55", "count": 8},

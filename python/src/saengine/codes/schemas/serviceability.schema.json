@@ -170,6 +170,14 @@
           "maximum": 1,
           "title": "Unreinforcedmasonry",
           "type": "number"
+        },
+        "unreinforcedMasonrySystems": {
+          "description": "Seismic system ids (the seismic table's) that are unreinforced masonry.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Unreinforcedmasonrysystems",
+          "type": "array"
         }
       },
       "required": [

@@ -13189,6 +13189,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		location: 'inside',
 	},
 	TimberMember: {},
+	MemberServiceability: {},
 	TimberNotch: {
 		face: 'tension',
 		depth: 30,

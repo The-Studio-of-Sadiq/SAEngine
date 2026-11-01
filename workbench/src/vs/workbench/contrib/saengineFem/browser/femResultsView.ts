@@ -714,7 +714,17 @@ export class FemResultsEditor extends EditorPane {
 			const guides = quantity === 'drift' && limit !== undefined && (isEarthquakeResult(result.label) || spectrum)
 				? [{ axis: 'x' as const, value: limit, label: localize('femResults.driftLimit', "BNBC limit {0}", limit.toFixed(5)), color: 'red' as const }]
 				: [];
-			if (quantity === 'drift' && response.driftLimit && guides.length) {
+			// B9: a service wind combination: the code pack's storey drift limit for loads other than earthquake, and the top sway limit.
+			if (result.kind === 'service' && quantity === 'drift' && typeof result.windDriftLimit === 'number') {
+				guides.push({ axis: 'x' as const, value: result.windDriftLimit, label: localize('femResults.windDriftLimit', "Wind drift limit {0}", result.windDriftLimit.toFixed(4)), color: 'red' as const });
+				captions.push(localize('femResults.windDriftCaption', "Limit: storey drift Δ/h ≤ {0} under the service wind combination (loads other than earthquake).", result.windDriftLimit));
+			}
+			if (result.kind === 'service' && quantity === 'disp' && typeof result.swayLimit === 'number' && response.levels.length > 1) {
+				const height = response.levels[response.levels.length - 1].z - response.levels[0].z;
+				const allowed = result.swayLimit * height;
+				captions.push(localize('femResults.swayCaption', "Top sway limit: H × {0} = {1} {2} along {3}.", result.swayLimit, fixed(allowed * unit.scale, 1), unit.unit, result.direction ?? '–'));
+			}
+			if (quantity === 'drift' && response.driftLimit && guides.length && result.kind !== 'service') {
 				captions.push(localize('femResults.driftLimitCaption', "Limit: Δa/hsx = {0} (Table 6.2.21) on the design drift Cd·δ/I, so {1} on the analysis drift (Cd = {2}, I = {3}).", response.driftLimit.ratio, limit!.toFixed(5), response.driftLimit.cd ?? '–', response.driftLimit.importance ?? '–'));
 			}
 			if (quantity === 'drift' && spectrum) {

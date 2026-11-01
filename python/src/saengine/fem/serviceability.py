@@ -118,9 +118,7 @@ def base_shear_periods(summary: Mapping[str, Any] | None) -> dict[str, float | N
     return out
 
 
-def _combined(
-    arrays: Mapping[str, np.ndarray], factors: Mapping[str, float]
-) -> np.ndarray | None:
+def _combined(arrays: Mapping[str, np.ndarray], factors: Mapping[str, float]) -> np.ndarray | None:
     """Σ factor × the case's displacement array; None when a lateral case has no results
     (gravity cases the model lacks are left out: they do not act)."""
     total = None

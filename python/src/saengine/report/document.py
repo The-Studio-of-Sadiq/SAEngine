@@ -710,7 +710,14 @@ def _serviceability_blocks(sv: dict[str, Any]) -> list[Block]:
                 f"supports ({sv['overturningClause']}). {sv['overturningNote']}"
             ),
             table(
-                ["Case", "M overturning [kN·m]", "M resisting [kN·m]", "Factor", "Required", "Result"],
+                [
+                    "Case",
+                    "M overturning [kN·m]",
+                    "M resisting [kN·m]",
+                    "Factor",
+                    "Required",
+                    "Result",
+                ],
                 sv["overturning"],
                 ["1fr"] + ["auto"] * 5,
                 "lrrrrc",

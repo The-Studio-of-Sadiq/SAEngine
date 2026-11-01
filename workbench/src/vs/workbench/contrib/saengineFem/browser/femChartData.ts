@@ -50,7 +50,7 @@ export interface IFemStoreyRow {
 export interface IFemStoryResult {
 	readonly key: string;
 	readonly label: string;
-	readonly kind: 'static' | 'combination' | 'spectrum';
+	readonly kind: 'static' | 'combination' | 'spectrum' | 'service';
 	/** Bottom up, the base first. */
 	readonly storeys: readonly IFemStoreyRow[];
 	/** Sum over the supports: Fx, Fy, Fz, Mx, My, Mz; null for a response spectrum case. */
@@ -60,6 +60,10 @@ export interface IFemStoryResult {
 	 * by (the spectrum design's 0.85·V/V_rs, BNBC 2020 Part 6 Sec 2.5.9.4); null when unscaled.
 	 */
 	readonly forceScale?: number | null;
+	/** A service wind combination (kind 'service'): its wind direction and the code pack's storey drift (Δ/h) and top sway (/H) limits. */
+	readonly direction?: 'X' | 'Y';
+	readonly windDriftLimit?: number | null;
+	readonly swayLimit?: number | null;
 }
 
 /** A storey of the response spectrum design's drift check (Cd·δ/I with the accidental torsion). */

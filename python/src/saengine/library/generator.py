@@ -644,9 +644,7 @@ def stiffness_estimate(
             for v, f in zip(shears(wind.get(axis, [0.0] * n)), flex, strict=True)
         )
         # B9: the pack's service wind combination (its factor on W) and sway limit.
-        out.windRatio[axis] = (
-            sway[1] * roof / (sway[0] * tops[-1]) if sway is not None else 0.0
-        )
+        out.windRatio[axis] = sway[1] * roof / (sway[0] * tops[-1]) if sway is not None else 0.0
     return out
 
 
