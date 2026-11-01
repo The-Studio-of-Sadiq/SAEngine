@@ -82,12 +82,14 @@ def bored_pile_case(_: Path) -> Outcome:
     g1, g2 = 18 - GAMMA_W, 19 - GAMMA_W
     a, b = 10 * g1 - 10 * g2, g2
 
+    k = 0.135 / math.sqrt(0.3)  # β = 1.5 - 0.135 √(z/Br), Br = 0.3 m
+
     def integral(z: float) -> float:
-        return 1.5 * (a * z + b * z * z / 2) - 0.245 * (a * z**1.5 / 1.5 + b * z**2.5 / 2.5)
+        return 1.5 * (a * z + b * z * z / 2) - k * (a * z**1.5 / 1.5 + b * z**2.5 / 2.5)
 
     qs_sand = perimeter * (integral(tip) - integral(10.0))
     qs = qs_clay + qs_sand
-    qb = 57.5 * 20 * area
+    qb = 0.60 * 100 * 20 * area
     weight = 24 * area * length
     q_ult = qs + qb - weight
     qa = min(q_ult / 3.0, qs / 1.5 + qb / 3.0 - weight)
@@ -98,15 +100,18 @@ def bored_pile_case(_: Path) -> Outcome:
             "cu = 50 kPa (γ 18) to 10 m on sand N60 = 20 (γ 19), water table at the ground"
         ),
         (
-            f"Clay, α = 0.55 (cu/pa ≤ 1.5), no side resistance over the top 1.5 m of the shaft: "
+            f"Clay, α = 0.55 (cu ≤ 190 kPa), no side resistance over the top 1.5 m of the shaft: "
             f"Qs = 0.55 × 50 × π 0.5 × (10 - 3) = {fmt(qs_clay)} kN"
         ),
         (
-            f"Sand, β = 1.5 - 0.245 √z (0.88 to 0.42 here, within 0.25-1.2), σ'v = "
+            f"Sand, β = 1.5 - 0.135 √(z/0.3) (0.72 to 0.41 here, below 1.2), σ'v = "
             f"{fmt(10 * g1)} + {fmt(g2)} (z - 10) kPa: Qs = π D ∫ β σ'v dz from 10 to 19.5 m = "
             f"{fmt(qs_sand)} kN (closed form)"
         ),
-        f"Qb = 57.5 N60 × A = 1150 × {fmt(area)} = {fmt(qb)} kN; W = 24 A L = {fmt(weight)} kN",
+        (
+            f"Qb = 0.60 σr N60 × A = 0.60 × 100 × 20 = 1200 kPa (≤ 4500; N60 the test below the "
+            f"base) × {fmt(area)} = {fmt(qb)} kN; W = 24 A L = {fmt(weight)} kN"
+        ),
         (
             "No load test at the site: BNBC Sec 3.10.1.18 asks an overall FS of at least 3.0 in "
             "compression (Table 6.3.10a's 2.5 for normal control assumes load test data, Table "
@@ -120,9 +125,9 @@ def bored_pile_case(_: Path) -> Outcome:
     ]
     return Outcome(
         Reference(
-            source="O'Neill & Reese (1999), FHWA-IF-99-025 (α and β methods, Nc*); BNBC 2020 "
-            "Part 6 Eqs 6.3.11-6.3.13, Sec 3.10.1.18 (FS ≥ 3.0 without a load test; partial 1.5 "
-            "and 3.0) and Sec 3.11.3 (uplift FS ≥ 3.0 by analysis)",
+            source="BNBC 2020 Part 6 Sec 3.10.6.7, Eqs 6.3.42, 6.3.47 and 6.3.48 (drilled "
+            "shafts: α, β, qb); Eqs 6.3.11-6.3.13, Sec 3.10.1.18 (FS ≥ 3.0 without a load test; "
+            "partial 1.5 and 3.0) and Sec 3.11.3 (uplift FS ≥ 3.0 by analysis)",
             formula="Qs = π D ∫ fs dz, Qb = qb A, Qult = Qs + Qb - W, Qa = min(Qult/FS, Qs/1.5 + "
             "Qb/3 - W), Ta = (0.7 Qs + W)/FS",
             steps=steps,
@@ -163,7 +168,7 @@ def spt_pile_case(_: Path) -> Outcome:
         ],
     }
     profile = _profile(borehole, spt={"rodLength": False})
-    result = single_pile(profile, "bored", 0.6, 20.0, 1.0, "bnbcSpt")
+    result = single_pile(profile, "bored", 0.6, 20.0, 1.0, "spt")
     d, area = 0.6, math.pi * 0.36 / 4
     perimeter = math.pi * d
     fs_clay = min(1.2 * 10, 70)
@@ -212,6 +217,150 @@ def spt_pile_case(_: Path) -> Outcome:
                 "meaning); here 13 m, so the 150 N60 cap governs either way."
             )
         ],
+    )
+
+
+# ─────────────────────────────── DP5: static method ───────────────────────────────
+
+#: TWO_LAYERS with φ' = 35° given in the sand.
+STATIC_LAYERS = {
+    **TWO_LAYERS,
+    "layers": [TWO_LAYERS["layers"][0], {**TWO_LAYERS["layers"][1], "phi": 35}],
+}
+
+
+def _static_hand() -> dict[str, float]:
+    """DP5 by hand: driven 0.4 m square pile, 14 m from 1 m (tip 15 m, 5 m into the sand)."""
+    b, length, head = 0.4, 14.0, 1.0
+    perimeter, area = 4 * b, b * b
+    alpha = 1 - (50 - 25) / 70  # Eq 6.3.16, 25 < cu < 70
+    qs_clay = alpha * 50 * perimeter * (10.0 - head)
+    beta = 0.20  # Eq 6.3.23 at φ' 35°
+    zc = 15 * b  # medium dense sand (10 ≤ N60 < 30): Dc = 15 D = 6 m
+    sigma_c = zc * (18 - GAMMA_W)  # σ'v at 6 m, in the clay
+    qs_sand = beta * sigma_c * perimeter * 5.0
+    nq = min(12 + (40 - 12) * (20 - 10) / (30 - 10), 73.8)  # Eq 6.3.24 range; Fig 6.3.2: 73.8
+    fb = min(sigma_c, 240) * nq
+    qs = qs_clay + qs_sand
+    qb = fb * area
+    weight = 24 * area * length
+    return {
+        "alpha": alpha,
+        "qs_clay": qs_clay,
+        "sigma_c": sigma_c,
+        "qs_sand": qs_sand,
+        "nq": nq,
+        "fb": fb,
+        "Qs": qs,
+        "Qb": qb,
+        "W": weight,
+        "Qult": qs + qb - weight,
+    }
+
+
+def static_pile_case(_: Path) -> Outcome:
+    from saengine.substructure.piles import single_pile
+
+    result = single_pile(_profile(STATIC_LAYERS), "driven", 0.4, 14.0, 1.0, "static")
+    h = _static_hand()
+    steps = [
+        (
+            "Driven precast pile 0.4 m square (perimeter 1.6 m, area 0.16 m²), L = 14 m from 1 m "
+            "(tip at 15 m); clay cu 50 kPa (γ 18) to 10 m on sand N60 20, φ' 35° (γ 19); water "
+            "at the ground"
+        ),
+        (
+            f"Clay, Eq 6.3.16: α = 1 - (50 - 25)/70 = {h['alpha']:.4f}; Qs = α cu × 1.6 × 9 = "
+            f"{fmt(h['qs_clay'])} kN"
+        ),
+        (
+            "Sand, Eq 6.3.23: β = 0.20 at φ' 35°; medium dense (N60 20): critical depth 15 D = "
+            f"6 m (Sec 3.10.1.15), so σ'v = 6 × 8.19 = {fmt(h['sigma_c'])} kPa below it; "
+            f"Qs = 0.20 × σ'v × 1.6 × 5 = {fmt(h['qs_sand'])} kN"
+        ),
+        (
+            f"Base, Eq 6.3.24: Nq = the lesser of 12 + 28 (20 - 10)/20 = 26 (medium sand) and "
+            f"Fig 6.3.2 at 35° (73.8) = {fmt(h['nq'])}; fb = σ'v Nq = {fmt(h['fb'])} kPa "
+            f"(σ'v ≤ 240); Qb = {fmt(h['Qb'])} kN"
+        ),
+        f"Qult = Qs + Qb - W = {fmt(h['Qult'])} kN",
+    ]
+    return Outcome(
+        Reference(
+            source="BNBC 2020 Part 6 Secs 3.10.1.11-3.10.1.15, Eqs 6.3.16, 6.3.23, 6.3.24, Fig "
+            "6.3.2; Table 6.3.9a (sand density by N)",
+            formula="fs = α cu (clay), β σ'v (sand); fb = σ'v Nq; σ'v constant below Dc",
+            steps=steps,
+        ),
+        [
+            Quantity("Skin friction Qs", "kN", h["Qs"], result["Qs"], CLOSE),
+            Quantity("Unit end bearing fb", "kPa", h["fb"], result["qb"], CLOSE),
+            Quantity("Ultimate capacity Qult", "kN", h["Qult"], result["Qult"], CLOSE),
+        ],
+        notes=[
+            "The critical depth is measured from the ground; the clay above the sand is "
+            "shallower than 6 m only in part, so the sand's σ'v is that at 6 m throughout."
+        ],
+    )
+
+
+# ─────────────────────────────── DP6: pile settlement ───────────────────────────────
+
+
+def settlement_case(_: Path) -> Outcome:
+    from saengine.substructure import pile_settlement
+    from saengine.substructure.piles import single_pile
+
+    profile = _profile(STATIC_LAYERS)
+    pile = single_pile(profile, "driven", 0.4, 14.0, 1.0, "static")
+    ep = 4700 * math.sqrt(30)
+    single = pile_settlement.single_settlement(pile, 300.0, profile, ep)
+    h = _static_hand()
+    b, length, area = 0.4, 14.0, 0.16
+    qp = 300 * h["Qb"] / (h["Qs"] + h["Qb"])
+    qs = 300 - qp
+    share = h["qs_clay"] / h["Qs"]
+    a = share * 0.5 + (1 - share) * 0.67
+    s_ax = (qp + a * qs) * length / (area * ep * 1e3)
+    cp = 0.04  # Table 6.3.13, driven pile, loose sand (N60 20 is below 30: not dense)
+    s_pt = cp * qp / (b * h["fb"])
+    cs = (0.93 + 0.16 * length / b) * cp
+    s_sf = cs * qs / (length * h["fb"])
+    st = (s_ax + s_pt + s_sf) * 1e3
+    group = pile_settlement.group_settlement(profile, pile, 4, 2.0, 2.0, 1200.0, ep)
+    short = max(st * (2.0 / b) ** 0.5, st * 4**0.5)
+    steps = [
+        (
+            f"The DP5 pile under Q = 300 kN: Qp = Q Qb/(Qs + Qb) = {fmt(qp)} kN, Qs = "
+            f"{fmt(qs)} kN; a = {a:.3f} (0.5 over the clay's share of Qs, 0.67 over the sand's)"
+        ),
+        (
+            f"Eq 6.3.35b: Sax = (Qp + a Qs) L / (A Ep) = {fmt(s_ax * 1e3)} mm, Ep = 4700 √30 "
+            f"= {fmt(ep)} MPa"
+        ),
+        f"Eq 6.3.35c: Spt = Cp Qp / (D qo), Cp 0.04 (loose sand, driven) = {fmt(s_pt * 1e3)} mm",
+        (
+            f"Eq 6.3.36: Cs = (0.93 + 0.16 L/D) Cp = {cs:.4f}; Ssf = Cs Qs / (L qo) = "
+            f"{fmt(s_sf * 1e3)} mm (L for the printed D: see the code pack's note)"
+        ),
+        f"St = {fmt(st)} mm",
+        (
+            f"Group of 4, 2 × 2 m: Eq 6.3.37 St (B/D)^0.5 = {fmt(st * 5**0.5)} mm, Eq 6.3.38 "
+            f"St n^0.5 = {fmt(st * 2)} mm; the larger {fmt(short)} mm"
+        ),
+    ]
+    return Outcome(
+        Reference(
+            source="BNBC 2020 Part 6 Sec 3.10.5, Eqs 6.3.35a-c, 6.3.36, 6.3.37, 6.3.38, Table "
+            "6.3.13",
+            formula="St = Sax + Spt + Ssf; Sg = max(St (B/D)^0.5, St n^0.5)",
+            steps=steps,
+        ),
+        [
+            Quantity("Single pile settlement St", "mm", st, single["total"], 0.01),
+            Quantity("Group short-term settlement", "mm", short, group["shortTerm"], 0.01),
+        ],
+        notes=["Settlements are rounded to 0.01 mm."],
     )
 
 
@@ -386,7 +535,7 @@ CASES = [
         "Skin friction by Eqs 6.3.29 (clay) and 6.3.31 (sand), end bearing by Eq 6.3.33 with "
         "its caps, factor of safety 3.5.",
         "Bored Ø0.6 m × 20 m from 1 m; clay N60 10 to 8 m on sand N60 25; "
-        "substructure.piles.single_pile (bnbcSpt).",
+        "substructure.piles.single_pile (spt).",
         spt_pile_case,
     ),
     Case(
@@ -398,6 +547,26 @@ CASES = [
         "Cap 2.5 × 2.5 × 0.9 m, four Ø500 piles at ±0.75 m, column 0.5 m, Pu 2500 kN, Mu 200 "
         "and Mv 300 kN·m; substructure.pilecap.pile_reactions and cap_checks.",
         pile_cap_case,
+    ),
+    Case(
+        "DP5",
+        "Driven pile capacity by the static method (α in clay, β and Nq in sand)",
+        "design",
+        "α of Eq 6.3.16 in clay, β of Eq 6.3.23 and Nq of Eq 6.3.24 / Fig 6.3.2 in sand with "
+        "σ'v held at the critical depth (Sec 3.10.1.15).",
+        "Driven 0.4 m square × 14 m from 1 m; clay cu 50 kPa to 10 m on sand N60 20, φ' 35°; "
+        "substructure.piles.single_pile (static).",
+        static_pile_case,
+    ),
+    Case(
+        "DP6",
+        "Settlement of a single pile and of a pile group (short term)",
+        "design",
+        "Eqs 6.3.35a-c and 6.3.36 (Cp of Table 6.3.13) for one pile, Eqs 6.3.37-6.3.38 for "
+        "the group (the larger).",
+        "The DP5 pile under 300 kN, Ep = 4700 √30; a 2 × 2 m group of 4; "
+        "substructure.pile_settlement.",
+        settlement_case,
     ),
     Case(
         "DP4",

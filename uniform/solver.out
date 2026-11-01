@@ -1,0 +1,6 @@
+{"type": "log", "message": "Building model: 70 nodes, 59 elements."}
+{"type": "case_started", "case_id": 1, "case_type": "StaticCase", "case_name": "q"}
+{"type": "log", "message": "Running case 'q' (StaticCase) ..."}
+{"type": "progress", "case_id": 1, "step": 1, "total": 1}
+{"type": "log", "message": "Analysis complete."}
+{"type": "case_finished", "case_id": 1, "case_name": "q", "result_type": "StaticResults", "files": ["case_1.results.h5"], "completed_steps": 1, "early_stop": false, "warnings": []}

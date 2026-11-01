@@ -575,6 +575,15 @@
           "title": "Csslope",
           "type": "number"
         },
+        "skinDenominator": {
+          "description": "Ssf = Cs Qs / (X qo) with X the embedded length or the diameter.",
+          "enum": [
+            "length",
+            "diameter"
+          ],
+          "title": "Skindenominator",
+          "type": "string"
+        },
         "groupWidthExponent": {
           "description": "Sg = St (B/D)^this.",
           "exclusiveMinimum": 0,
@@ -613,6 +622,7 @@
         "cp",
         "csIntercept",
         "csSlope",
+        "skinDenominator",
         "groupWidthExponent",
         "groupCountExponent",
         "blockDepth",

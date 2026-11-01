@@ -1455,6 +1455,9 @@ class PileSettlement(_Group):
     cp: dict[Literal["driven", "bored"], dict[PileSoil, Positive]]
     csIntercept: Positive
     csSlope: Positive = Field(description="Cs = (intercept + slope L/D) Cp.")
+    skinDenominator: Literal["length", "diameter"] = Field(
+        description="Ssf = Cs Qs / (X qo) with X the embedded length or the diameter."
+    )
     groupWidthExponent: Positive = Field(description="Sg = St (B/D)^this.")
     groupCountExponent: Positive = Field(description="Rs = n^this.")
     blockDepth: Share = Field(description="The group as a block at this × L below its head.")

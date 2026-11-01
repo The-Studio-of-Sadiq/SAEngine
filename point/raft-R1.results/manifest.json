@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "project": "point\\raft-R1.osmodel",
+  "cases": [
+    {
+      "case_id": 1,
+      "case_name": "P",
+      "result_type": "StaticResults",
+      "files": [
+        "case_1.results.h5"
+      ],
+      "completed_steps": 1,
+      "early_stop": false,
+      "warnings": []
+    }
+  ]
+}

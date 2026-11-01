@@ -13,8 +13,9 @@ Qb), Qs,w = Q - Qp):
 - at the tip ``Spt = Cp Qp / (D qo)``, Cp from the pack's table by pile kind and the soil at
   the tip (sand and silt by density, clay by consistency, :func:`saengine.soil.piles.
   density_class`), qo the ultimate unit end bearing;
-- by the skin friction ``Ssf = Cs Qs,w / (D qo)`` with ``Cs = (intercept + slope L/D) Cp``
-  (as the default pack prints its Eq 6.3.36, see :data:`SKIN_NOTE`);
+- by the skin friction ``Ssf = Cs Qs,w / (X qo)`` with ``Cs = (intercept + slope L/D) Cp``
+  and X the embedded length L or the diameter D by the pack's ``skinDenominator`` (the default
+  pack: L, see its note on Eq 6.3.36);
 - ``St = Sax + Spt + Ssf``.
 
 Pile group (:func:`group_settlement`):
@@ -39,10 +40,6 @@ from typing import Any
 
 from saengine.soil import piles as soil_piles
 from saengine.soil.profile import Profile, SoilLayer
-
-#: Eq 6.3.36's denominator: the default pack prints D qo; the length of the shaft carrying
-#: Qs is the usual one (Vesic). The printed D is kept (the more conservative for L > D).
-SKIN_NOTE = "Ssf = Cs Qs / (D qo) as printed"
 
 
 def rules() -> Any | None:
@@ -102,7 +99,8 @@ def single_settlement(
     else:
         s_pt = cp * qp / (d * qo)
         cs = (found.csIntercept + found.csSlope * length / d) * cp
-        s_sf = cs * qs / (d * qo)
+        span = length if found.skinDenominator == "length" else d
+        s_sf = cs * qs / (span * qo)
         note = None
     total = s_ax + s_pt + s_sf
     return {
@@ -118,7 +116,11 @@ def single_settlement(
         "Ssf": round(s_sf * 1e3, 2),
         "total": round(total * 1e3, 2),
         "note": note,
-        "method": f"St = Sax + Spt + Ssf; {SKIN_NOTE}",
+        "method": (
+            f"St = Sax + Spt + Ssf; Ssf = Cs Qs / ({'L' if span == length else 'D'} qo)"
+            if qo > 0
+            else "St = Sax"
+        ),
     }
 
 
