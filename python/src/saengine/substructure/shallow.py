@@ -161,8 +161,7 @@ def _tie_beam_method() -> str:
     """The tie beams' method line, with the pack in force's rules and clauses."""
     from saengine.substructure import shallow_rules
 
-    found = shallow_rules.rules()
-    ties = None if found is None else found.tieBeams
+    ties = _tie_rules()
     common = (
         "A given differential settlement Δ between the ends adds M = 6 E (0.35 Ig) Δ / L² and "
         "V = 2M / L (both ends fixed; 0.35 Ig per ACI 318-19 Table 6.6.3.1.1), checked with the "
@@ -2338,11 +2337,12 @@ def tie_force(
 
 
 def _tie_rules() -> Any | None:
-    """The pack's tie beam rules (``foundations.shallow.tieBeams``), or None."""
+    """The pack's tie beam rules (``foundations.shallow.tieBeams``), or None. Read on their
+    own: they do not depend on the shallow foundations' geotechnical rules being used."""
     from saengine.substructure import shallow_rules
 
-    found = shallow_rules.rules()
-    return None if found is None else found.tieBeams
+    shallow = shallow_rules.foundations_value("shallow")
+    return None if shallow is None else shallow.tieBeams
 
 
 def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:

@@ -71,7 +71,8 @@ default pack's Sec 3.9.5):
 
 Only saturated soil (below the water table measured in the borehole) within 20 m of the
 ground is screened, with both methods (the depth range of the LPI and of the field data
-behind both CRR curves; the default pack's code states none). A layer without a fines content is taken as clean
+behind both CRR curves; the default pack's code states none). A layer without a fines content
+is taken as clean
 (FC = 0 %, no fines correction, which errs on the safe side) and silt as FC = 35 %; the result
 says so.
 

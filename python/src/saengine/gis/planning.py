@@ -9,7 +9,8 @@ MGC by use, plot size and road width). The table is pack data: another authority
 another pack's table, and a project may edit its copy.
 
 Beside the authority's rules the table's ``buildingCode`` block holds the building code's own
-site rules (the default pack: BNBC 2020 Part 3 Chapter 1): the plinth and formation levels, the distances to
+site rules (the default pack: BNBC 2020 Part 3 Chapter 1): the plinth and formation levels, the
+distances to
 overhead electric lines, the least open and unpaved area, the fallback open spaces where no
 authority's rules apply, the height by road width and construction type (the project setting
 ``construction.constructionType``), the open spaces of a building of unlimited height or FAR and
@@ -253,7 +254,8 @@ def required_setbacks(
 
 
 # ─────────────────────────── the building code's own site rules (B23) ───────────────────────────
-# The pack's ``planning.buildingCode`` (the default pack: Part 3 Chapter 1): the plinth and formation
+# The pack's ``planning.buildingCode`` (the default pack: Part 3 Chapter 1): the plinth and
+# formation
 # levels, overhead lines, the open area, the fallback setbacks, the height by road width and
 # construction type, and the parking floors left out of FAR.
 
