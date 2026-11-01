@@ -1,11 +1,12 @@
-"""Lightning protection and earthing of the building (BNBC 2020 Part 8 Sec 1.3.32-1.3.33) and
+"""Lightning protection and earthing of the building (the code pack's Sec 1.3.32-1.3.33: BNBC
+2020 Part 8 in the default pack) and
 what they ask of the structure.
 
 - Need: the risk index, the sum of the indices A to G of Table 8.1.27 (use, construction,
   contents, isolation, terrain, height, thunderstorm days), against the marginal index 40 of
   Sec 1.3.33.5 (the examples of Table 8.1.28); a structure higher than 53 m requires protection
   in all cases (Table 8.1.27(c) note c). Thunderstorm days default to over 21 a year, the index
-  BNBC's own examples use.
+  default pack's own examples use.
 - Air termination: at least one air spike for every 80 m² of roof to begin with (Sec 1.3.33.7),
   each at least 300 mm above the highest point (Sec 1.3.33.6(a)); roof conductors round the
   roof's periphery and across it so that no part of the roof is more than 9 m from the nearest
@@ -21,7 +22,7 @@ what they ask of the structure.
   electrical system earth around 1 ohm (Sec 1.3.32.7); electrodes at least 1.8 m apart; an earth
   inspection box for each down conductor 1000 mm above the plinth (Sec 1.3.33.6(e)). The
   clearance from a conductor to other metal: D = 0.3 R + H / (15 n) (Eq 8.1.1), else bonding.
-- Reinforcement as a down conductor (BNBC says nothing of it): IEC 62305-3, the vertical bars
+- Reinforcement as a down conductor (the default pack says nothing of it): IEC 62305-3, the bars
   made continuous (welded or clamped laps) with an overall resistance of at most 0.2 ohm from
   the top to the ground level (from memory, to be checked).
 """

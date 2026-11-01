@@ -1,4 +1,5 @@
-"""The fire protection report of a project (BNBC 2020 Part 4), for the structure's coordination.
+"""The fire protection report of a project (the code pack's fire protection: BNBC 2020 Part 4 in
+the default pack), for the structure's coordination.
 
 :func:`fire_report` reads ``07 MEP/mep.json`` (its ``fire``, and ``plumbing`` where the fire water
 is the plumbing tanks' reserve), ``06 BIM/bim.json`` (stories, slabs, beams), ``04 Objects``
@@ -29,6 +30,7 @@ from saengine.fire import tables as T
 from saengine.fire.requirements import extinguishers, requirements
 from saengine.fire.sprinklers import floor_sprinklers, hand_demand, schedule_size
 from saengine.library.mep import FIRE_PUMP_DUTIES, MEP_FILE, MepModel, parse
+from saengine.mep import code_pack
 from saengine.plumbing import tables as plumbing_tables
 from saengine.plumbing.building import Building
 
@@ -42,37 +44,62 @@ FIRE_ENGINE = 160.0
 HEAD_BELOW = 0.3
 STOREY = 3.0
 
-METHOD = [
-    (
-        "Systems (BNBC 2020 Part 4 Chapter 5, p346-p355): by the occupancy of each story (Part 3 "
-        "groups), the storeys, the floor and undivided areas and whether the building is "
-        "high-rise (more than 10 storeys or 33 m, Part 1 p6, Part 3 Sec 2.4.4); where the code "
-        "allows 'portable extinguishers or hydrants', the hydrant choice decides."
-    ),
-    (
-        "Water (Table 4.4.1, Sec 4.2.3.2, 4.2.3.5): standpipe flow of the hazard for the first "
-        "standpipe + 1000 l/min each other (at most eight); sprinklers the more of Table 4.4.1 "
-        "and the hydraulic demand; each for the duration of the building's height; the "
-        "reservoir holds it for fire fighting only (Sec 4.2.3.7)."
-    ),
-    (
-        "Hydraulics (Sec 4.2.1, 4.2.3.4): EPANET 2.2 through WNTR, Hazen-Williams C 120 (steel), "
-        "fittings of BNBC Tables 8.O.2; standpipe outlets at 300 kPa (200 kPa first aid, Sec "
-        "4.2.3.3) 1.5 m above the floor; sprinkler heads as emitters of K 80 in the design area "
-        "of NFPA 13 (density, area, K and the hose allowance from memory, to be checked)."
-    ),
-    (
-        "Pumps (Sec 4.2.2.5, Table 4.4.2): main pump of the next Table 4.4.2 rating, net "
-        "pressure at least 272 kPa, a standby pump, a jockey pump (NFPA 20 practice, from "
-        "memory); no static suction lift for centrifugal pumps. Sets' sizes and weights typical."
-    ),
-    (
-        "Structure: the fire tanks designed as the plumbing tanks (OpenSees shells); an "
-        "overhead fire tank and the pump sets load their floors once (07 MEP equipment); riser "
-        "supports and hangers carry the water-filled pipe + 110 kg (x5 for hangers, Sec "
-        "4.2.3.13-4.2.3.14, 4.2.10.6); sleeves through the slabs and beams by command."
-    ),
-]
+def method() -> list[str]:
+    """How the report works, with the values and clauses of the code pack in force (the
+    clause numbers are those of the default pack's Part 4)."""
+    hose = T.HOSE_PRESSURE
+    return [
+        (
+            f"Systems ({T.PAGES.get('5', code_pack.code_name())}): by the occupancy of each "
+            "story (Part 3 groups), the storeys, the floor and undivided areas and whether the "
+            f"building is high-rise (more than {T.HIGH_RISE_STOREYS:g} storeys or "
+            f"{T.HIGH_RISE_HEIGHT:g} m, {T.PAGES.get('high-rise', '')}); where the code "
+            "allows 'portable extinguishers or hydrants', the hydrant choice decides."
+        ),
+        (
+            "Water (Table 4.4.1, Sec 4.2.3.2, 4.2.3.5): standpipe flow of the hazard for the "
+            f"first standpipe + {T.ADDITIONAL_STANDPIPE_FLOW:g} l/min each other (at most "
+            f"{_count(T.MAX_ADDITIONAL_STANDPIPES)}); sprinklers the more of Table 4.4.1 "
+            "and the hydraulic demand; each for the duration of the building's height; the "
+            "reservoir holds it for fire fighting only (Sec 4.2.3.7)."
+        ),
+        (
+            "Hydraulics (Sec 4.2.1, 4.2.3.4): EPANET 2.2 through WNTR, Hazen-Williams C "
+            f"{T.HAZEN_C['steel']:g} (steel), fittings of "
+            f"{plumbing_tables.PAGES.get('8.O.2', 'the plumbing fitting tables')}; standpipe "
+            f"outlets at {hose['large']:g} kPa ({hose['firstAid']:g} kPa first aid, Sec "
+            f"4.2.3.3) {T.OUTLET_HEIGHT:g} m above the floor; sprinkler heads as emitters of "
+            f"K {T.K_FACTOR:g} in the design area "
+            "of NFPA 13 (density, area, K and the hose allowance from memory, to be checked)."
+        ),
+        (
+            "Pumps (Sec 4.2.2.5, Table 4.4.2): main pump of the next Table 4.4.2 rating, net "
+            f"pressure at least {T.PUMP_MIN_NET:g} kPa, a standby pump, a jockey pump (NFPA 20 "
+            "practice, from memory); no static suction lift for centrifugal pumps. Sets' sizes "
+            "and weights typical."
+        ),
+        (
+            "Structure: the fire tanks designed as the plumbing tanks (OpenSees shells); an "
+            "overhead fire tank and the pump sets load their floors once (07 MEP equipment); "
+            f"riser supports and hangers carry the water-filled pipe + {T.SUPPORT_EXTRA:g} kg "
+            f"(x{T.HANGER_FACTOR:g} for hangers, Sec "
+            "4.2.3.13-4.2.3.14, 4.2.10.6); sleeves through the slabs and beams by command."
+        ),
+    ]
+
+
+_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+
+
+def _count(n: float) -> str:
+    """A small count in words, as the method text prints it."""
+    return _WORDS[int(n)] if float(n).is_integer() and 0 <= n < len(_WORDS) else f"{n:g}"
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":  # the former constant: the method of the pack in force
+        return method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _check(name: str, demand: float, capacity: float | None, unit: str, ok: bool, note: str,
@@ -199,7 +226,7 @@ def _empty(problems: list[str], note: str) -> dict[str, Any]:
         "pumpRoom": None, "storage": None, "tankDesigns": [], "supports": [],
         "testPressures": [], "openings": [], "crossings": [], "proposals": {"tanks": [],
         "pumps": []}, "quantities": {}, "checks": [], "summary": [], "notes": [note],
-        "problems": problems, "method": METHOD,
+        "problems": problems, "method": method() if code_pack.covers("fire") else [],
     }  # fmt: skip
 
 
@@ -218,6 +245,8 @@ def fire_results(
     fire = mep.fire
     if fire is None:
         return _empty(problems, "07 MEP has no fire section")
+    if not code_pack.covers("fire"):
+        return _empty(problems, code_pack.not_covered("Fire protection"))
     entries, notes = fire_stories(mep)
     checks: list[dict[str, Any]] = []
     order = building.ordered([s.story for s in entries]) if building.known else [
@@ -523,7 +552,7 @@ def fire_results(
         "summary": summary,
         "notes": notes,
         "problems": problems,
-        "method": METHOD,
+        "method": method(),
     }
 
 
@@ -912,7 +941,7 @@ def _pressure_checks(hyd: dict[str, Any], rows: list[dict[str, Any]], water_z: f
     checks.append(_check(
         "Velocity in the fire mains", hyd["maxVelocity"], T.MAX_VELOCITY, "m/s",
         hyd["maxVelocity"] <= T.MAX_VELOCITY + 1e-6,
-        "SAEngine practice limit; BNBC sizes by the hydraulic calculation", T.PAGES["4.2.3.4"],
+        "SAEngine practice limit; the code sizes by the hydraulic calculation", T.PAGES["4.2.3.4"],
     ))  # fmt: skip
     for r in hyd["risers"]:
         if r["system"] != "sprinkler" and r["size"] < T.WET_RISER_MIN:

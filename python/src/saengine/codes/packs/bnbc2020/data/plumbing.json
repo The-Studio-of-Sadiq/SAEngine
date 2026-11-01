@@ -52,7 +52,8 @@
     "R": "BNBC 2020 Part 8 Appendix R Figure 8.R.1 (p1213)",
     "S": "BNBC 2020 Part 8 Appendix S Eq 8.S.1 and Table 8.S.1 (p1214-1215)",
     "4.4.1": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
-    "3:2.4.4": "BNBC 2020 Part 3 Sec 2.4.4 (p94)"
+    "3:2.4.4": "BNBC 2020 Part 3 Sec 2.4.4 (p94)",
+    "8.O.2": "BNBC 2020 Part 8 Appendix O Tables 8.O.2(a)-(c) (p1197-1199)"
   },
   "occupancies": {
     "singleFamily": {

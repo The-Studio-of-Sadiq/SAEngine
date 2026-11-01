@@ -1,4 +1,5 @@
-"""Fire water: the demand, the reservoir, the fire pumps and their room (BNBC 2020 Part 4).
+"""Fire water: the demand, the reservoir, the fire pumps and their room (the code pack's fire
+protection: BNBC 2020 Part 4 in the default pack).
 
 - Demand (Table 4.4.1, p322; Sec 4.2.3.2, p326-327; Sec 4.2.3.5, p328): the standpipe flow of the
   hazard for the first standpipe plus 1000 l/min for each other (at most eight); the sprinkler
@@ -171,7 +172,7 @@ def pumps(flow: float, head: float, standby: str) -> list[dict[str, Any]]:
 
 def pump_room(sets: list[dict[str, Any]]) -> dict[str, Any]:
     """The pump room the sets need [mm, m²]: side by side with the clear space round each and
-    a strip for the controllers (SAEngine practice; BNBC asks a readily accessible room of
+    a strip for the controllers (SAEngine practice; the default pack asks a readily accessible room of
     non-combustible construction, Sec 4.2.2.5)."""
     if not sets:
         return {"length": 0.0, "width": 0.0, "area": 0.0}

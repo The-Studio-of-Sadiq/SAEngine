@@ -1,4 +1,5 @@
-"""Fire protection coordination to BNBC 2020 Part 4 for the structure (Part 7).
+"""Fire protection coordination to the code pack's fire protection (BNBC 2020 Part 4 in the
+default pack) for the structure (Part 7).
 
 The structural engineer coordinates the fire protection services with the structure: which
 systems the building needs (portable extinguishers, alarm and detection, the hydrant or
@@ -8,7 +9,7 @@ stands on a floor), the fire pumps and their room, the sleeves the risers and ma
 the slabs and beams, and the hanger and riser-support loads the code gives. This package works
 these out from what ``07 MEP/mep.json`` records under ``fire``.
 
-- :mod:`saengine.fire.tables` the BNBC 2020 Part 4 tables and rules as data, each with its page,
+- :mod:`saengine.fire.tables` the code pack's fire tables and rules as data, each with its page,
   and the values taken from NFPA from memory (flagged "from memory, to be checked")
 - :mod:`saengine.fire.requirements` occupancy, height and area: the systems required, by clause
 - :mod:`saengine.fire.sprinklers` hazard class, heads per floor, the design area, pipe schedule

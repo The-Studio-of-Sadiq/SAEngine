@@ -1,4 +1,5 @@
-"""Electrical coordination to BNBC 2020 Part 8 Chapter 1 for the structure (Part 7).
+"""Electrical coordination to the code pack's electrical services (BNBC 2020 Part 8 Chapter 1
+in the default pack) for the structure (Part 7).
 
 The structural engineer coordinates the electrical services with the structure: the weight of
 the transformers, switchgear, generators and fuel tanks on the floors, the substation and
@@ -7,7 +8,7 @@ cable trays need through the slabs and beams, and the lightning protection that 
 columns' reinforcement as down conductors and the foundations as earth electrodes. This package
 works these out from what ``07 MEP/mep.json`` records under ``electrical``.
 
-- :mod:`saengine.electrical.tables` the BNBC 2020 Part 8 Chapter 1 tables and rules as data,
+- :mod:`saengine.electrical.tables` the code pack's electrical tables and rules as data,
   each with its page, and the typical equipment data (labelled typical)
 - :mod:`saengine.electrical.demand` connected load and maximum demand per story
 - :mod:`saengine.electrical.supply` substation, transformer, standby generator and fuel, UPS
