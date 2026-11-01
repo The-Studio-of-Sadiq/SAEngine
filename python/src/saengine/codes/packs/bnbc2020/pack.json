@@ -33,7 +33,8 @@
     "planning",
     "timber",
     "masonry",
-    "cranes"
+    "cranes",
+    "siteInvestigation"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -152,6 +153,13 @@
     "cranes": [
       "BNBC 2020 Part 6 Sec 2.3 (crane loads; clause number and page to be checked)",
       "ASCE 7-05 Sec 4.10 (crane loads), the same provisions"
+    ],
+    "siteInvestigation": [
+      "BNBC 2020 Part 6 Sec 3.4.4-3.4.5 (pp. 702-704): number, spacing and depth of the borings",
+      "BNBC 2020 Part 6 Sec 3.5.3-3.5.8, Tables 6.3.2-6.3.4 (pp. 707-714) and Appendix E: organic, expansive, collapsible, dispersive and soft soils",
+      "BNBC 2020 Part 6 Sec 3.6.2, Tables 6.3.6a-6.3.6b (pp. 715-718) and Sec 3.10.1.29 (pp. 754-755): corrosivity and corrosive sites",
+      "BNBC 2020 Part 6 Sec 5.5.1-5.5.2, Table 6.5.2 (pp. 844-846): concrete in sulphate and chloride exposure",
+      "BNBC 2020 Part 6 Sec 3.21 (p. 814): geo-hazards"
     ]
   },
   "basis": {

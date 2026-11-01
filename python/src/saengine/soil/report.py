@@ -21,7 +21,16 @@ from pydantic import ValidationError
 
 from saengine.library.settings import ProjectSettings, default_project_settings, derived
 from saengine.library.soil import SoilReport, check, is_placeholder
-from saengine.soil import bearing, lab, liquefaction, piles, site_class
+from saengine.soil import (
+    bearing,
+    chemistry,
+    investigation,
+    lab,
+    liquefaction,
+    piles,
+    site_class,
+    special_soils,
+)
 from saengine.soil.profile import SPT_METHODS, Profile
 from saengine.soil.settlement import permissible as settlement_permissible
 from saengine.soil.settlement import permissible_text, rounded, settlement, soil_column
@@ -127,12 +136,17 @@ def _failure(borehole: str, exc: Exception, problems: list[str], details: list[s
 
 def _settings(settings_text: str | None) -> tuple[ProjectSettings, list[str]]:
     if not settings_text:
-        return default_project_settings(), ["No project settings: the BNBC defaults are used."]
+        return default_project_settings(), [
+            "No project settings: the default code pack's values are used."
+        ]
     try:
         return ProjectSettings.model_validate_json(settings_text), []
     except ValidationError:
         return default_project_settings(), [
-            "The project settings have errors: the BNBC defaults are used for Z and the site class."
+            (
+                "The project settings have errors: the default code pack's values are used for "
+                "Z and the site class."
+            )
         ]
 
 
@@ -182,6 +196,7 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
             )
         )
     notes = _table_notes(rows)
+    problem = problem_soils(profile)
     return {
         "id": profile.id,
         "x": profile.borehole.x,
@@ -221,13 +236,60 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
         "pileType": design.pile.type,
         "pileNote": piles.PILE_NOTES[design.pile.type],
         "lab": [lab.summary(s) for s in profile.borehole.samples],
+        "problemSoils": problem,
         "notes": profile.notes
         + [
             f"{s.number or f'sample at {s.depth:g} mm'}: {flag}"
             for s in profile.borehole.samples
             for flag in lab.chemistry_flags(s)
+        ]
+        + [
+            f"layer {soft['layer'] + 1} ({soft['top'] / 1e3:g}-{soft['bottom'] / 1e3:g} m): "
+            f"{soft['consistency']} clay ({', '.join(soft['by'])}; {soft['clause']}): large and "
+            "time-dependent settlement of shallow foundations, stability to check"
+            for soft in problem["softClay"]
         ],
     }
+
+
+def problem_soils(profile: Profile) -> dict[str, Any]:
+    """The borehole's problem soils by the code pack's criteria: per sample the organic,
+    expansive, collapsible and dispersive results (:mod:`saengine.soil.special_soils`), and the
+    soft clay layers (by the layer's mean field N and its cu)."""
+    samples = []
+    for sample in profile.borehole.samples:
+        grading = lab.grading_summary(sample.grading) if sample.grading is not None else None
+        row = {
+            "sample": sample.number,
+            "depth": sample.depth,
+            "organic": special_soils.organic(sample),
+            "expansive": special_soils.expansive(sample, grading),
+            "collapsible": special_soils.collapsible(sample),
+            "dispersive": special_soils.dispersive(sample),
+        }
+        if any(row[k] is not None for k in ("organic", "expansive", "collapsible", "dispersive")):
+            samples.append(row)
+    soft = []
+    for layer in profile.layers:
+        blows = [
+            r.blows
+            for r in profile.borehole.spt
+            if layer.top <= r.depth / 1e3 < layer.bottom and r.blows
+        ]
+        n = sum(blows) / len(blows) if blows else None
+        found = special_soils.soft_clay(layer.behaviour, n, layer.cu)
+        if found is not None:
+            soft.append(
+                {
+                    "layer": layer.index,
+                    "top": round(layer.top * 1e3),
+                    "bottom": round(layer.bottom * 1e3),
+                    "N": None if n is None else round(n, 1),
+                    "cu": layer.cu,
+                    **found,
+                }
+            )
+    return {"samples": samples, "softClay": soft}
 
 
 def classify(
@@ -284,8 +346,27 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
     report, problems, skipped = parse_boreholes(soil_text)
     if report is None:
         return {"problems": problems}
-    details: list[str] = []
     settings, notes = _settings(settings_text)
+    from saengine.codes import context as code_context
+    from saengine.codes.registry import CodePackError
+
+    try:
+        pack = code_context.pack_for(settings)
+    except CodePackError as exc:
+        pack = None
+        notes.append(f"The project's code pack cannot be used ({exc}): the default pack is used.")
+    with code_context.using(pack):
+        return _soil_report(report, problems, skipped, settings, notes)
+
+
+def _soil_report(
+    report: SoilReport,
+    problems: list[str],
+    skipped: list[str],
+    settings: ProjectSettings,
+    notes: list[str],
+) -> dict[str, Any]:
+    details: list[str] = []
     notes += check(report)
     design = report.design
     profiles = []
@@ -333,6 +414,11 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
             + " Shallow foundations on liquefiable layers need ground improvement or piles "
             "through them."
         )
+    adequacy = investigation.check(report)
+    notes += adequacy.get("notes", [])
+    site_chemistry = chemistry.site(report, *_sample_groups(profiles))
+    if site_chemistry.get("concrete"):
+        notes.append(chemistry.requirement_text(site_chemistry["concrete"]))
     governing_bh = next((b for b in boreholes if b["id"] == project_site.get("governing")), None)
     permissible = governing_bh["permissibleSettlement"] if governing_bh else None
     try:
@@ -344,6 +430,8 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
         notes.append(f"The 3D stratigraphy could not be built: {exc}")
     return {
         "stratigraphy": strata_model,
+        "investigation": adequacy,
+        "chemistry": site_chemistry,
         "boreholes": boreholes,
         "siteClass": project_site,
         "amax": amax,
@@ -369,6 +457,28 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
         "skipped": skipped,
         "details": details,
     }
+
+
+def _sample_groups(
+    profiles: list[Profile],
+) -> tuple[dict[tuple[str, int], str | None], dict[tuple[str, int], str | None]]:
+    """Each sample's USCS group (the log's, else the suggested one) and the soil type of the
+    layer it was taken in, by (borehole id, sample index), for the corrosivity score."""
+    groups: dict[tuple[str, int], str | None] = {}
+    types: dict[tuple[str, int], str | None] = {}
+    for profile in profiles:
+        hole = profile.borehole
+        for i, sample in enumerate(hole.samples):
+            layer = next(
+                (lay for lay in hole.layers if lay.top <= sample.mid < lay.bottom),
+                hole.layers[-1] if hole.layers else None,
+            )
+            suggested = lab.uscs_of(sample)
+            groups[(hole.id, i)] = (layer.uscs if layer is not None and layer.uscs else None) or (
+                suggested["symbol"] if suggested else None
+            )
+            types[(hole.id, i)] = layer.soilType if layer is not None else None
+    return groups, types
 
 
 def allowable_bearing(
