@@ -1,22 +1,40 @@
 {
   "$schema": "../../../schemas/cranes.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 2.3 (live loads: crane loads; clause number and page to be checked against the BNBC text)",
-    "ASCE 7-05 Sec 4.10 (crane loads), the same provisions"
+    "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5(a)-(c) (pp. 541-542): crane impact and horizontal forces",
+    "BNBC 2020 Part 6 Sec 1.6.6(i) (p. 502): moving loads for crane movements"
   ],
-  "source": "BNBC 2020 Part 6 Sec 2.3, crane loads (page not checked): maximum wheel loads with vertical impact, lateral force on the runway beams, longitudinal force",
+  "source": "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5 (pp. 541-542)",
   "impact": {
     "monorail": 0.25,
     "cabOperated": 0.25,
     "remoteOperated": 0.25,
-    "pendantOperated": 0.1,
-    "handGeared": 0.0
+    "pendantOperated": 0.25,
+    "handGeared": 0.125
   },
   "lateral": 0.2,
   "longitudinal": 0.1,
+  "horizontalScale": {
+    "handGeared": 0.5
+  },
+  "combination": {
+    "factorOf": "L",
+    "gravity": [["V", "T"], ["V", "B"]],
+    "lateral": [["V"]],
+    "note": "SAEngine practice, not BNBC: Table 6.2.6 gives the crane forces but not which act together; the vertical load acts with the transverse or the longitudinal force (each both ways) in the combinations without wind or earthquake, and alone in those with them. Crane loads take the live load factor (Table 6.2.6 is a live load table, Sec 2.3.12)."
+  },
   "sources": {
-    "impact": "Vertical impact: powered monorail, cab-operated or remotely operated bridge cranes 25 %, pendant-operated bridge cranes 10 %, hand-geared bridge, trolley and hoist 0 %",
-    "lateral": "20 % of the rated capacity plus the weight of the hoist and trolley, at the top of the rails, shared by the runway beams by their lateral stiffness, either direction",
-    "longitudinal": "10 % of the maximum wheel loads, at the top of the rail (bridge cranes with hand-geared bridges excepted)"
+    "impact": "BNBC 2020 Part 6 Table 6.2.6 row 5(a) (p. 541): electric overhead cranes 25 % of the maximum wheel load; row 5(b) (p. 542): manually operated cranes 50 % of the row 5(a) values (12.5 %); row 5(c) (p. 542): cab-operated travelling cranes 25 %",
+    "lateral": "BNBC 2020 Part 6 Table 6.2.6 row 5(a)(i) (p. 541): transverse to the rail, 20 % of the weight of the trolley and lifted load only, one-half at the top of each rail",
+    "longitudinal": "BNBC 2020 Part 6 Table 6.2.6 row 5(a)(ii) (p. 541): along the rail, 10 % of the maximum wheel load at the top of each rail",
+    "horizontalScale": "BNBC 2020 Part 6 Table 6.2.6 row 5(b) (p. 542): manually operated cranes, 50 % of the row 5(a) horizontal values (transverse 10 %, longitudinal 5 %)",
+    "combination": "BNBC 2020 Part 6 Sec 1.6.6(i) (p. 502): moving loads for crane movements"
+  },
+  "notes": {
+    "pendantOperated": "A pendant-operated bridge crane is an electric overhead crane: Table 6.2.6 row 5(a), 25 %",
+    "remoteOperated": "A remotely operated bridge crane is an electric overhead crane: Table 6.2.6 row 5(a), 25 %",
+    "cabOperated": "Table 6.2.6 row 5(c) lists cab-operated travelling cranes at 25 % vertical with the horizontal forces not applicable; a cab-operated overhead crane is also an electric overhead crane under row 5(a), so the row 5(a) horizontal forces are applied (the more conservative reading)",
+    "monorail": "SAEngine practice, not BNBC: BNBC has no monorail row; a powered monorail takes the Table 6.2.6 row 5(a) electric overhead crane values",
+    "lateral": "SAEngine practice, not BNBC: BNBC takes the trolley and lifted load only; SAEngine also counts the hoist (the trolley weight entered includes it), on the safe side"
   }
 }

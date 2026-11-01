@@ -393,6 +393,66 @@ def pattern_live_combinations(
     return out
 
 
+#: A moving crane load case (:func:`saengine.fem.cranes.crane_load_cases`): crane, part (V
+#: vertical, T transverse, B longitudinal), position along the runway, trolley side.
+CRANE_CASE = re.compile(r"^C(\d+)([VTB])(\d+)([ab])$")
+
+
+def crane_combinations(
+    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+) -> list[LoadCombination] | None:
+    """The combinations followed by their crane variants: for each combination with the factor
+    kind the code pack's crane rule names (``cranes.combination.factorOf``, the live load),
+    each crane position and trolley side, and each set of parts the rule lets act together
+    (``gravity`` for rows without wind or earthquake, ``lateral`` for rows with them), one
+    combination with the crane cases at that factor, the transverse and longitudinal parts
+    both ways, named "<name> [C1 3a V+T]". None when the model has no crane cases."""
+    from saengine.codes import context as code_context
+
+    found: dict[tuple[str, str, str], set[str]] = {}
+    for case in present:
+        match = CRANE_CASE.match(case)
+        if match:
+            crane, part, position, side = match.groups()
+            found.setdefault((crane, position, side), set()).add(part)
+    if not found:
+        return None
+    rule = getattr(code_context.table("cranes"), "combination", None)
+    if rule is None:
+        return None
+    out = list(combinations)
+    keys = sorted(found, key=lambda k: (int(k[0]), int(k[1]), k[2]))
+    for combination in combinations:
+        factor = float(getattr(combination, rule.factorOf, 0) or 0)
+        if factor <= 0:
+            continue
+        lateral = any(case[:1] in "WE" for case in combination_factors(combination))
+        sets = rule.lateral if lateral else rule.gravity
+        data = combination.model_dump(by_alias=True)
+        for crane, position, side in keys:
+            parts = found[(crane, position, side)]
+            for group in sets:
+                if not set(group) <= parts:
+                    continue
+                signed = [p for p in group if p != "V"]
+                for signs in itertools.product((1, -1), repeat=len(signed)):
+                    sign_of = dict(zip(signed, signs, strict=True))
+                    cases = {
+                        f"C{crane}{p}{position}{side}": factor * sign_of.get(p, 1) for p in group
+                    }
+                    label = "+".join(p if sign_of.get(p, 1) > 0 else f"(-{p})" for p in group)
+                    out.append(
+                        CaseCombination(
+                            **{
+                                **data,
+                                "cases": {**(data.get("cases") or {}), **cases},
+                                "name": f"{combination.name} [C{crane} {position}{side} {label}]",
+                            }
+                        )
+                    )
+    return out
+
+
 #: The eccentric static earthquake cases (``analysis.accidentalEccentricity``,
 #: :data:`saengine.fem.derive.ECCENTRIC_CASES`) of each static case.
 ECCENTRIC_OF = {"EX": ("EXP", "EXN"), "EY": ("EYP", "EYN")}

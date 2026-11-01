@@ -34,6 +34,7 @@
     "timber",
     "masonry",
     "cranes",
+    "fatigue",
     "siteInvestigation"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
@@ -151,8 +152,11 @@
       "TMS 402 / ACI 530-08 Chapter 3 (strength design) and TMS 602 / ACI 530.1-08 Tables 1-2, where the clauses are transcribed from"
     ],
     "cranes": [
-      "BNBC 2020 Part 6 Sec 2.3 (crane loads; clause number and page to be checked)",
-      "ASCE 7-05 Sec 4.10 (crane loads), the same provisions"
+      "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5(a)-(c) (pp. 541-542)",
+      "BNBC 2020 Part 6 Sec 1.6.6(i) (p. 502): moving loads for crane movements"
+    ],
+    "fatigue": [
+      "BNBC 2020 Part 6 Sec 10.17, Eqs 6.10.276-6.10.277 and Table 6.10.14a (gazette part 2 pp. 196-210)"
     ],
     "siteInvestigation": [
       "BNBC 2020 Part 6 Sec 3.4.4-3.4.5 (pp. 702-704): number, spacing and depth of the borings",

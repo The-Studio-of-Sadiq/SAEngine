@@ -1,6 +1,59 @@
 {
+  "$defs": {
+    "CraneCombination": {
+      "additionalProperties": false,
+      "description": "Which crane load cases act together in the load combinations.",
+      "properties": {
+        "factorOf": {
+          "default": "L",
+          "description": "Factor kind of a combination row the crane cases take (crane loads are live loads).",
+          "title": "Factorof",
+          "type": "string"
+        },
+        "gravity": {
+          "description": "Parts that act together in rows without wind or earthquake: V vertical with impact, T transverse (lateral, both signs), B longitudinal (both signs).",
+          "items": {
+            "items": {
+              "enum": [
+                "V",
+                "T",
+                "B"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Gravity",
+          "type": "array"
+        },
+        "lateral": {
+          "description": "Parts that act together in rows with wind or earthquake (none: the crane is left out of those rows).",
+          "items": {
+            "items": {
+              "enum": [
+                "V",
+                "T",
+                "B"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Lateral",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "CraneCombination",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
-  "description": "Crane loads (BNBC 2020 Part 6 Sec 2.3, crane loads, the provisions of ASCE 7-05 Sec\n4.10): the vertical impact by kind of crane, the lateral force on the runway beams and the\nlongitudinal force.",
+  "description": "Crane loads: the vertical impact by kind of crane, the transverse (lateral) force on the\nrunway beams, the longitudinal force, the share of these horizontal forces by kind of crane,\nand which crane load cases the combinations take together.",
   "properties": {
     "source": {
       "default": "",
@@ -25,7 +78,7 @@
       "type": "object"
     },
     "lateral": {
-      "description": "Lateral force: share of the rated capacity plus hoist and trolley.",
+      "description": "Transverse force: share of the lifted load plus the trolley (and hoist).",
       "exclusiveMinimum": 0,
       "title": "Lateral",
       "type": "number"
@@ -35,6 +88,34 @@
       "exclusiveMinimum": 0,
       "title": "Longitudinal",
       "type": "number"
+    },
+    "horizontalScale": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Factor on the transverse and longitudinal forces by crane kind (default 1).",
+      "title": "Horizontalscale",
+      "type": "object"
+    },
+    "notes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Labels of entries that are not the code's own text: {key: note}.",
+      "title": "Notes",
+      "type": "object"
+    },
+    "combination": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CraneCombination"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Crane load cases in the combinations (none: no crane cases)."
     }
   },
   "required": [

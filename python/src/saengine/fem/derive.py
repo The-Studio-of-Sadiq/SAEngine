@@ -847,6 +847,20 @@ def _derive_fem(
     supports: list[tuple[float, float, float]] = []
     partitions: list[tuple[WallElement, float]] = []  # non-structural walls, N/m
 
+    # Crane runways (saengine.fem.cranes): the columns on their runway lines get a node at the
+    # rail level, where the moving crane load cases are applied.
+    from saengine.fem import cranes as fc
+
+    crane_columns = [
+        fc.Column(e.id, float(e.position[0]), float(e.position[1]), e.bottom, e.top)
+        for e in building.elements
+        if isinstance(e, ColumnElement)
+    ] + [
+        fc.Column(m.id, m.x1, m.y1, min(m.z1, m.z2), max(m.z1, m.z2))
+        for m in building.additions.members
+        if abs(m.x1 - m.x2) < 1e-6 and abs(m.y1 - m.y2) < 1e-6 and abs(m.z1 - m.z2) > 1e-6
+    ]
+    crane_levels = fc.bracket_points(settings.cranes, crane_columns) if settings.cranes else {}
     member_vecxz: dict[str, tuple[float, float, float]] = {}
     exact_angles = bool(option(options, "exactColumnRotation", False))
     for element in building.elements:
@@ -875,7 +889,10 @@ def _derive_fem(
         # Split at every level the column passes, so each floor has its node.
         stops = [
             element.bottom,
-            *[lv for lv in levels if element.bottom < lv < element.top],
+            *sorted(
+                {lv for lv in levels if element.bottom < lv < element.top}
+                | {z for z in crane_levels.get(element.id, []) if element.bottom < z < element.top}
+            ),
             element.top,
         ]
         for k, (z0, z1) in enumerate(pairwise(stops)):
@@ -929,6 +946,15 @@ def _derive_fem(
         for member, points in arch_set.cuts.items():
             found = cuts.setdefault(member, [])
             found += [p for p in points if p not in found]
+    # The crane brackets on vertical added members (their rail level node).
+    added_ids = {m.id for m in building.additions.members}
+    for column in crane_columns:
+        for z in crane_levels.get(column.id, []) if column.id in added_ids else []:
+            if column.bottom < z < column.top:
+                found = cuts.setdefault(column.id, [])
+                point = (round(column.x, 3), round(column.y, 3), round(z, 3))
+                if point not in found:
+                    found.append(point)
     # Beams that carry slabs' load shapes (slabs not in the model as plates): cut into members
     # of the mesh size, so the triangles and trapezoids reach their moments
     # (saengine.fem.slab_load_shapes.division_points). The end members keep the joint zone
@@ -2138,12 +2164,28 @@ def _derive_fem(
     if special:
         wind_open = _open_structure_wind(b, building, types, settings, values, add_element_load)
         summary.update(wind_open)
+    crane_cases: list[tuple[str, str]] = []  # (code, label) of the moving crane load cases
     if settings.cranes:
         from saengine.fem.cranes import crane_summary
 
         crane_rows, crane_notes = crane_summary(settings.cranes, types, mats)
         summary["cranes"] = crane_rows
         b.notes.extend(crane_notes)
+        # The moving crane load cases at the bracket nodes (saengine.fem.cranes).
+        moving, moving_notes = fc.crane_load_cases(settings.cranes, crane_columns)
+        b.notes.extend(moving_notes)
+        for crane_case in moving:
+            nodal = patterns.setdefault(crane_case.code, {"nodal": {}, "element": {}})["nodal"]
+            for point, vector in crane_case.loads.items():
+                node_id = b.nodes.get(tuple(round(v) for v in point))  # type: ignore[arg-type]
+                if node_id is None:
+                    b.notes.append(
+                        f"{crane_case.code}: no node at the bracket {point} mm; load left out"
+                    )
+                    continue
+                nodal.setdefault(node_id, np.zeros(6))[:] += vector
+            if nodal:
+                crane_cases.append((crane_case.code, crane_case.label))
     if special:
         b.notes.append(
             "special structure: no equivalent static earthquake loads (they suit buildings "
@@ -2298,6 +2340,9 @@ def _derive_fem(
     cases += [c for c in fl.WIND_TORSION_CASES.values() if c in patterns]
     cases += [p.name for p in live_cases]
     extra_labels = {p.name: p.label for p in live_cases}
+    # The moving crane load cases (saengine.fem.cranes) after them.
+    cases += [code for code, _ in crane_cases]
+    extra_labels.update(dict(crane_cases))
     # The release cases of the tension-only members (saengine.fem.tension_only): a unit pair of
     # forces pulling each such element's ends apart, last so the other cases keep their ids.
     for code, element_name, pair in tension_only_cases(elements, b.coords, tension_sources):
