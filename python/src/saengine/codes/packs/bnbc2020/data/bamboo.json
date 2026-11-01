@@ -1,0 +1,92 @@
+{
+  "$schema": "../../../schemas/bamboo.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 4 (bamboo structures), gazette part 1 pp. 815-839"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 4: permissible stress design of round bamboo. Safe working stresses (Sec 4.4.2, 4.5.4, Table 6.4.6, green condition), group limits (Table 6.4.7), stresses by density (Table 6.4.8), factors of safety (Sec 4.5.1), load duration (Sec 4.5.5), members and columns (Sec 4.6.6-4.6.7), trusses (Sec 4.6.8), joints (Sec 4.7).",
+  "method": "permissibleStress",
+  "species": {
+    "bambusaGlaucescens": {"name": "Bambusa glaucescens (syn. B. nana)", "group": "A", "bending": 20.7, "E": 3280.0, "compression": 15.4},
+    "dendrocalamusStrictus": {"name": "Dendrocalamus strictus", "group": "A", "bending": 18.4, "E": 2660.0, "compression": 10.3},
+    "oxytenantheraAbyssinica": {"name": "Oxytenanthera abyssinica", "group": "A", "bending": 20.9, "E": 3310.0, "compression": 13.3},
+    "bambusaBalcooa": {"name": "Bambusa balcooa", "group": "B", "bending": 16.05, "E": 1620.0, "compression": 13.3},
+    "bambusaPallida": {"name": "Bambusa pallida", "group": "B", "bending": 13.8, "E": 2870.0, "compression": 15.4},
+    "bambusaNutans": {"name": "Bambusa nutans", "group": "B", "bending": 13.2, "E": 1470.0, "compression": 13.0},
+    "bambusaTulda": {"name": "Bambusa tulda", "group": "B", "bending": 13.3, "E": 1770.0, "compression": 11.6},
+    "bambusaAuriculata": {"name": "Bambusa auriculata", "group": "B", "bending": 16.3, "E": 3340.0, "compression": 10.5},
+    "bambusaBurmanica": {"name": "Bambusa burmanica", "group": "B", "bending": 14.9, "E": 2450.0, "compression": 11.4},
+    "cephalostachyumPergracile": {"name": "Cephalostachyum pergracile", "group": "B", "bending": 13.2, "E": 2480.0, "compression": 10.5},
+    "melocannaBaccifera": {"name": "Melocanna baccifera (syn. M. bambusoides)", "group": "B", "bending": 13.3, "E": 2530.0, "compression": 15.4},
+    "thyrsostachysOliveri": {"name": "Thyrsostachys oliveri", "group": "B", "bending": 15.5, "E": 2160.0, "compression": 13.4},
+    "bambusaArundinacea": {"name": "Bambusa arundinacea (syn. B. bambos)", "group": "C", "bending": 14.6, "E": 1320.0, "compression": 10.1},
+    "bambusaPolymorpha": {"name": "Bambusa polymorpha", "group": "C", "bending": 9.15, "E": 1710.0, "compression": 8.97},
+    "bambusaVentricosa": {"name": "Bambusa ventricosa", "group": "C", "bending": 8.5, "E": 750.0, "compression": 10.3},
+    "bambusaVulgaris": {"name": "Bambusa vulgaris", "group": "C", "bending": 10.4, "E": 640.0, "compression": 11.0},
+    "dendrocalamusLongispathus": {"name": "Dendrocalamus longispathus", "group": "C", "bending": 8.3, "E": 1220.0, "compression": 12.0},
+    "oxytenantheraNigrociliata": {"name": "Oxytenanthera nigrociliata", "group": "C", "bending": 10.18, "E": 2600.0, "compression": 7.2}
+  },
+  "groupLimits": {
+    "A": {"rupture": 70.0, "E": 9000.0},
+    "B": {"rupture": 50.0, "E": 6000.0},
+    "C": {"rupture": 30.0, "E": 3000.0}
+  },
+  "densityFactors": {
+    "green": {"compression": 0.011, "bending": 0.015, "shear": null},
+    "airDry": {"compression": 0.013, "bending": 0.020, "shear": 0.003}
+  },
+  "safetyFactors": {"bending": 4.0, "E": 4.5, "compression": 3.5},
+  "duration": {"continuous": 1.0, "medium": 1.25, "short": 1.5},
+  "column": {"maxSlenderness": 50.0, "inertiaFactor": 0.9, "initialCurvature": 0.0125},
+  "trussForceIncrease": 1.1,
+  "minWallThickness": 8.0,
+  "joints": {
+    "kinds": {
+      "lap": {"label": "Lap joint (full or half lapped over at least one internode)", "group": "lengthening", "source": "Sec 4.7.1.1.1(a), Fig 6.4.2"},
+      "butt": {"label": "Butt joint with side plates (two or more internodes)", "group": "lengthening", "source": "Sec 4.7.1.1.1(b), Fig 6.4.3"},
+      "sleeve": {"label": "Sleeve or insert", "group": "lengthening", "source": "Sec 4.7.1.1.1(c), Fig 6.4.4"},
+      "scarf": {"label": "Scarf joint, slope 1 in 4 to 6", "group": "lengthening", "source": "Sec 4.7.1.1.1(d), Fig 6.4.5"},
+      "saddle": {"label": "Bearing butt (saddle) joint close to a node", "group": "bearing", "source": "Sec 4.7.1.1.2(a), Fig 6.4.6"},
+      "tenon": {"label": "Tenon joint", "group": "bearing", "source": "Sec 4.7.1.1.2(b), Fig 6.4.7"},
+      "crossOver": {"label": "Cross-over joint", "group": "bearing", "source": "Sec 4.7.1.1.2(c), Fig 6.4.8"},
+      "angled": {"label": "Angled joint", "group": "bearing", "source": "Sec 4.7.1.1.2(d), Fig 6.4.9"},
+      "gusset": {"label": "Plywood or timber gusset plates, plugged ends", "group": "modern", "source": "Sec 4.7.1.2(a), Fig 6.4.10"},
+      "insert": {"label": "Wooden end inserts or steel band clamps", "group": "modern", "source": "Sec 4.7.1.2(b)"}
+    },
+    "fastenings": {
+      "lashing": {"label": "Galvanized iron wire lashing", "wireDiameter": 1.6, "source": "Sec 4.7.1.3.1"},
+      "wireBound": {"label": "Wire bound through two drilled holes per piece", "wireDiameter": 2.0, "source": "Sec 4.7.1.3.2"},
+      "pinAndWire": {"label": "Bamboo pins bound with wire", "pinDiameter": 12.0, "wireDiameter": 2.0, "source": "Sec 4.7.1.3.3"},
+      "fishPlate": {"label": "Fish or gusset plates with solid bamboo pins", "plateThickness": 25.0, "plywoodThickness": 12.0, "source": "Sec 4.7.1.3.4"},
+      "horned": {"label": "Horned joint, wire bound", "source": "Sec 4.7.1.3.5"}
+    },
+    "capacity": "tested"
+  },
+  "clauses": {
+    "chapter": "Part 6 Chapter 4 (bamboo structures)",
+    "stresses": "Part 6 Sec 4.5.4, Table 6.4.6",
+    "density": "Part 6 Sec 4.4.2, Table 6.4.8",
+    "tested": "Part 6 Sec 4.5.1",
+    "duration": "Part 6 Sec 4.5.5",
+    "section": "Part 6 Sec 4.6.5.2(b), 4.6.6.3",
+    "bending": "Part 6 Sec 4.6.6.4",
+    "shear": "Part 6 Sec 4.6.6.5, Table 6.4.8",
+    "slenderness": "Part 6 Sec 4.6.7.2(b)(ii)",
+    "buckling": "Part 6 Sec 4.6.7.3",
+    "combined": "Part 6 Sec 4.6.7.2(b)(iii)",
+    "truss": "Part 6 Sec 4.6.8.4-4.6.8.5",
+    "wall": "Part 6 Sec 4.4.5.2",
+    "joint": "Part 6 Sec 4.7.1.4"
+  },
+  "sources": {
+    "species": "BNBC 2020 Part 6 Table 6.4.6 (part 1 pp. 824-825): safe working stresses, green condition; Table 6.4.6 note (1)",
+    "groupLimits": "BNBC 2020 Part 6 Table 6.4.7 (part 1 p. 825)",
+    "densityFactors": "BNBC 2020 Part 6 Sec 4.4.2, Table 6.4.8 (part 1 pp. 822, 826): allowable long-term stress per unit density",
+    "safetyFactors": "BNBC 2020 Part 6 Sec 4.5.1 (part 1 p. 828)",
+    "duration": "BNBC 2020 Part 6 Sec 4.5.5 (part 1 p. 828)",
+    "column": "BNBC 2020 Part 6 Sec 4.6.7.2(b)(ii) slenderness 50, 4.6.7.3 Euler with 90% of I (part 1 p. 831); initial curvature 75 mm in 6 m, the grading limit of Sec 4.4.5.1 (p. 826), used for the bending of Sec 4.6.7.2(b)(iii)",
+    "trussForceIncrease": "BNBC 2020 Part 6 Sec 4.6.8.5 (part 1 p. 832)",
+    "minWallThickness": "BNBC 2020 Part 6 Sec 4.4.5.2 (part 1 p. 826): preferably 8 mm for load-bearing members",
+    "joints": "BNBC 2020 Part 6 Sec 4.7 (part 1 pp. 832-835): joint data from full-scale tests (Sec 4.7.1.4-4.7.1.5)",
+    "section": "BNBC 2020 Part 6 Sec 4.3 (part 1 p. 820) prints I = π/64 (D² - d²); the hollow circle's I = π/64 (D⁴ - d⁴) is used (a misprint)"
+  }
+}

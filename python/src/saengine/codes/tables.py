@@ -7254,6 +7254,186 @@ class IsolationTable(TableModel):
     review: list[str]
 
 
+# ───────────────────────────────────────── bamboo (B39) ─────────────────────────────────────────
+
+BambooGroupId = Literal["A", "B", "C"]
+
+
+class BambooSpecies(_Row):
+    """A species of the code's safe working stresses table (green condition) [MPa]."""
+
+    name: str = Field(description="Botanical name (with synonyms) as the code prints it.")
+    group: BambooGroupId
+    bending: Positive = Field(description="Extreme fibre stress in bending [MPa].")
+    E: Positive = Field(description="Permissible modulus of elasticity [MPa].")
+    compression: Positive = Field(description="Allowable compressive stress [MPa].")
+
+
+class BambooGroupLimit(_Group):
+    """Least modulus of rupture and E of a group (green condition) [MPa]."""
+
+    rupture: Positive
+    E: Positive
+
+
+class BambooDensityFactors(_Group):
+    """Allowable long-term stress per unit density [MPa per kg/m³]; none: not given."""
+
+    compression: Positive
+    bending: Positive
+    shear: Positive | None = None
+
+
+class BambooSafetyFactors(_Group):
+    """Factors of safety from the ultimate (tested) values to the permissible ones."""
+
+    bending: Positive
+    E: Positive
+    compression: Positive
+
+
+class BambooDuration(_Group):
+    """Factors on the permissible stresses by load duration."""
+
+    continuous: Positive
+    medium: Positive = Field(description="Imposed (live) or medium term loading.")
+    short: Positive = Field(description="Short-term loading (wind, earthquake).")
+
+
+class BambooColumn(_Group):
+    maxSlenderness: Positive = Field(description="Largest l/r of members in compression.")
+    inertiaFactor: Share = Field(description="Share of I in the Euler buckling load (taper).")
+    initialCurvature: Positive = Field(
+        description="Initial bow as a share of the length (the grading's largest curvature)."
+    )
+
+
+class BambooJointKind(_Row):
+    label: str
+    group: Literal["lengthening", "bearing", "modern"]
+
+
+class BambooFastening(_Row):
+    label: str
+    wireDiameter: Positive | None = Field(default=None, description="[mm]")
+    pinDiameter: Positive | None = Field(default=None, description="[mm]")
+    plateThickness: Positive | None = Field(
+        default=None, description="Least hardwood splice plate [mm]."
+    )
+    plywoodThickness: Positive | None = Field(
+        default=None, description="Least structural plywood plate [mm]."
+    )
+
+
+class BambooJoints(_Group):
+    kinds: dict[str, BambooJointKind] = Field(min_length=1)
+    fastenings: dict[str, BambooFastening] = Field(min_length=1)
+    capacity: Literal["tested"] = Field(
+        default="tested", description="Joint capacities come from full-scale tests."
+    )
+
+
+class BambooTable(TableModel):
+    """Permissible stress design of round bamboo members: safe working stresses by species, by
+    density or from tests with the factors of safety, load duration factors, columns (Euler
+    with a reduced I, slenderness limit, initial curvature), truss force increase and the
+    joints, whose capacities come from tests. ``clauses``: the clause of each check."""
+
+    method: Literal["permissibleStress"] = "permissibleStress"
+    species: dict[str, BambooSpecies] = Field(min_length=1)
+    groupLimits: dict[BambooGroupId, BambooGroupLimit]
+    densityFactors: dict[Literal["green", "airDry"], BambooDensityFactors]
+    safetyFactors: BambooSafetyFactors
+    duration: BambooDuration
+    column: BambooColumn
+    trussForceIncrease: float = Field(ge=1, description="Truss compression and joint forces ×.")
+    minWallThickness: Positive = Field(description="Least wall of load-bearing culms [mm].")
+    joints: BambooJoints
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+# ─────────────────────────────────────── ferrocement (B39) ───────────────────────────────────────
+
+FerrocementMeshId = Literal["wovenSquare", "weldedSquare", "hexagonal", "expanded"]
+FerrocementExposure = Literal["noncorrosive", "corrosive", "waterRetaining"]
+
+
+class FerrocementEfficiency(_Group):
+    """Global efficiency factor η by the loading direction."""
+
+    longitudinal: float = Field(ge=0, le=1)
+    transverse: float = Field(ge=0, le=1)
+    diagonal: float = Field(ge=0, le=1)
+
+
+class FerrocementMesh(_Row):
+    """A reinforcement type: design yield strength and effective moduli [MPa], η, and how its
+    volume fraction is found (``wires``: from the wire diameter and spacings; ``weight``: from
+    the mesh weight per unit area)."""
+
+    label: str
+    fy: Positive
+    Erl: Positive = Field(description="Effective modulus, longitudinal [MPa].")
+    Ert: Positive | None = Field(default=None, description="Effective modulus, transverse.")
+    eta: FerrocementEfficiency
+    volumeFraction: Literal["wires", "weight"] = "wires"
+
+
+class FerrocementStrength(_Group):
+    strainLimit: Positive = Field(description="Mortar strain at the extreme fibre.")
+    stressBlock: Share = Field(description="Stress of the rectangular block × f'c.")
+    compressionShare: Share = Field(description="Uniform compression × f'c (mortar alone).")
+    phiFlexure: str = Field(description="Key of the factors table's φ: tension-controlled.")
+    phiCompression: str = Field(description="Key of the factors table's φ: compression.")
+    fyMax: Positive = Field(description="Largest design yield strength of the mesh [MPa].")
+    efficiencyThickness: Positive = Field(
+        description="η of the table only for sections this thick or less [mm]."
+    )
+
+
+class FerrocementService(_Group):
+    steelShare: Share = Field(description="Allowable mesh tension × fy.")
+    liquidRetaining: Positive = Field(description="Allowable mesh tension, liquid retaining.")
+    mortarShare: Share = Field(description="Allowable mortar compression × f'c.")
+
+
+class FerrocementDetailing(_Group):
+    coverWireFactor: Positive = Field(description="Cover about this × the wire diameter.")
+    thinSection: Positive = Field(description="Thinner than this [mm]: the thin-section cover.")
+    thinCover: Positive = Field(description="Cover of thin sections [mm].")
+    minLayers: int = Field(ge=1)
+    waterVolumeFraction: Share = Field(description="Least Vf, water retaining.")
+    waterSpecificSurface: Positive = Field(description="Least Sr [mm²/mm³], water retaining.")
+    skeletalShare: Share = Field(description="Skeletal steel at most this × the thickness.")
+    minMortarStrength: Positive = Field(description="f'c for most applications [MPa].")
+
+
+class FerrocementDesignAid(_Group):
+    """Mn / (f'c b h² η) = a + b X - c X², X = Vf fy / f'c."""
+
+    a: float
+    b: float
+    c: float
+
+
+class FerrocementTable(TableModel):
+    """Ferrocement members: the mesh types (yield strength, effective moduli, η), strength
+    design of the layered section, service load stresses, crack width and fatigue limits, the
+    detailing rules and the design aid. ``clauses``: the clause of each check."""
+
+    method: Literal["layeredSection"] = "layeredSection"
+    meshes: dict[FerrocementMeshId, FerrocementMesh]
+    bars: FerrocementMesh
+    strength: FerrocementStrength
+    service: FerrocementService
+    crackWidth: dict[FerrocementExposure, Positive]
+    fatigue: dict[Literal["oneMillion", "twoMillion"], Positive]
+    detailing: FerrocementDetailing
+    designAid: FerrocementDesignAid
+    steelUnitWeight: Positive = Field(description="[kN/m³], for Vf from the mesh weight.")
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -7301,6 +7481,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "compositeConcrete": CompositeConcreteTable,
     "steelSeismic": SteelSeismicTable,
     "isolation": IsolationTable,
+    "bamboo": BambooTable,
+    "ferrocement": FerrocementTable,
 }
 
 

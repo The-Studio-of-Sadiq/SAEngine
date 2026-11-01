@@ -1,0 +1,394 @@
+{
+  "$defs": {
+    "FerrocementDesignAid": {
+      "additionalProperties": false,
+      "description": "Mn / (f'c b h² η) = a + b X - c X², X = Vf fy / f'c.",
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c"
+      ],
+      "title": "FerrocementDesignAid",
+      "type": "object"
+    },
+    "FerrocementDetailing": {
+      "additionalProperties": false,
+      "properties": {
+        "coverWireFactor": {
+          "description": "Cover about this × the wire diameter.",
+          "exclusiveMinimum": 0,
+          "title": "Coverwirefactor",
+          "type": "number"
+        },
+        "thinSection": {
+          "description": "Thinner than this [mm]: the thin-section cover.",
+          "exclusiveMinimum": 0,
+          "title": "Thinsection",
+          "type": "number"
+        },
+        "thinCover": {
+          "description": "Cover of thin sections [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Thincover",
+          "type": "number"
+        },
+        "minLayers": {
+          "minimum": 1,
+          "title": "Minlayers",
+          "type": "integer"
+        },
+        "waterVolumeFraction": {
+          "description": "Least Vf, water retaining.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Watervolumefraction",
+          "type": "number"
+        },
+        "waterSpecificSurface": {
+          "description": "Least Sr [mm²/mm³], water retaining.",
+          "exclusiveMinimum": 0,
+          "title": "Waterspecificsurface",
+          "type": "number"
+        },
+        "skeletalShare": {
+          "description": "Skeletal steel at most this × the thickness.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Skeletalshare",
+          "type": "number"
+        },
+        "minMortarStrength": {
+          "description": "f'c for most applications [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minmortarstrength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coverWireFactor",
+        "thinSection",
+        "thinCover",
+        "minLayers",
+        "waterVolumeFraction",
+        "waterSpecificSurface",
+        "skeletalShare",
+        "minMortarStrength"
+      ],
+      "title": "FerrocementDetailing",
+      "type": "object"
+    },
+    "FerrocementEfficiency": {
+      "additionalProperties": false,
+      "description": "Global efficiency factor η by the loading direction.",
+      "properties": {
+        "longitudinal": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Longitudinal",
+          "type": "number"
+        },
+        "transverse": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Transverse",
+          "type": "number"
+        },
+        "diagonal": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Diagonal",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudinal",
+        "transverse",
+        "diagonal"
+      ],
+      "title": "FerrocementEfficiency",
+      "type": "object"
+    },
+    "FerrocementMesh": {
+      "additionalProperties": false,
+      "description": "A reinforcement type: design yield strength and effective moduli [MPa], η, and how its\nvolume fraction is found (``wires``: from the wire diameter and spacings; ``weight``: from\nthe mesh weight per unit area).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "fy": {
+          "exclusiveMinimum": 0,
+          "title": "Fy",
+          "type": "number"
+        },
+        "Erl": {
+          "description": "Effective modulus, longitudinal [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Erl",
+          "type": "number"
+        },
+        "Ert": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Effective modulus, transverse.",
+          "title": "Ert"
+        },
+        "eta": {
+          "$ref": "#/$defs/FerrocementEfficiency"
+        },
+        "volumeFraction": {
+          "default": "wires",
+          "enum": [
+            "wires",
+            "weight"
+          ],
+          "title": "Volumefraction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "fy",
+        "Erl",
+        "eta"
+      ],
+      "title": "FerrocementMesh",
+      "type": "object"
+    },
+    "FerrocementService": {
+      "additionalProperties": false,
+      "properties": {
+        "steelShare": {
+          "description": "Allowable mesh tension × fy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelshare",
+          "type": "number"
+        },
+        "liquidRetaining": {
+          "description": "Allowable mesh tension, liquid retaining.",
+          "exclusiveMinimum": 0,
+          "title": "Liquidretaining",
+          "type": "number"
+        },
+        "mortarShare": {
+          "description": "Allowable mortar compression × f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mortarshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steelShare",
+        "liquidRetaining",
+        "mortarShare"
+      ],
+      "title": "FerrocementService",
+      "type": "object"
+    },
+    "FerrocementStrength": {
+      "additionalProperties": false,
+      "properties": {
+        "strainLimit": {
+          "description": "Mortar strain at the extreme fibre.",
+          "exclusiveMinimum": 0,
+          "title": "Strainlimit",
+          "type": "number"
+        },
+        "stressBlock": {
+          "description": "Stress of the rectangular block × f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressblock",
+          "type": "number"
+        },
+        "compressionShare": {
+          "description": "Uniform compression × f'c (mortar alone).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressionshare",
+          "type": "number"
+        },
+        "phiFlexure": {
+          "description": "Key of the factors table's φ: tension-controlled.",
+          "title": "Phiflexure",
+          "type": "string"
+        },
+        "phiCompression": {
+          "description": "Key of the factors table's φ: compression.",
+          "title": "Phicompression",
+          "type": "string"
+        },
+        "fyMax": {
+          "description": "Largest design yield strength of the mesh [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        },
+        "efficiencyThickness": {
+          "description": "η of the table only for sections this thick or less [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Efficiencythickness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strainLimit",
+        "stressBlock",
+        "compressionShare",
+        "phiFlexure",
+        "phiCompression",
+        "fyMax",
+        "efficiencyThickness"
+      ],
+      "title": "FerrocementStrength",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Ferrocement members: the mesh types (yield strength, effective moduli, η), strength\ndesign of the layered section, service load stresses, crack width and fatigue limits, the\ndetailing rules and the design aid. ``clauses``: the clause of each check.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "method": {
+      "const": "layeredSection",
+      "default": "layeredSection",
+      "title": "Method",
+      "type": "string"
+    },
+    "meshes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FerrocementMesh"
+      },
+      "propertyNames": {
+        "enum": [
+          "wovenSquare",
+          "weldedSquare",
+          "hexagonal",
+          "expanded"
+        ]
+      },
+      "title": "Meshes",
+      "type": "object"
+    },
+    "bars": {
+      "$ref": "#/$defs/FerrocementMesh"
+    },
+    "strength": {
+      "$ref": "#/$defs/FerrocementStrength"
+    },
+    "service": {
+      "$ref": "#/$defs/FerrocementService"
+    },
+    "crackWidth": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "propertyNames": {
+        "enum": [
+          "noncorrosive",
+          "corrosive",
+          "waterRetaining"
+        ]
+      },
+      "title": "Crackwidth",
+      "type": "object"
+    },
+    "fatigue": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "propertyNames": {
+        "enum": [
+          "oneMillion",
+          "twoMillion"
+        ]
+      },
+      "title": "Fatigue",
+      "type": "object"
+    },
+    "detailing": {
+      "$ref": "#/$defs/FerrocementDetailing"
+    },
+    "designAid": {
+      "$ref": "#/$defs/FerrocementDesignAid"
+    },
+    "steelUnitWeight": {
+      "description": "[kN/m³], for Vf from the mesh weight.",
+      "exclusiveMinimum": 0,
+      "title": "Steelunitweight",
+      "type": "number"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "required": [
+    "meshes",
+    "bars",
+    "strength",
+    "service",
+    "crackWidth",
+    "fatigue",
+    "detailing",
+    "designAid",
+    "steelUnitWeight"
+  ],
+  "title": "FerrocementTable",
+  "type": "object",
+  "$id": "saengine.codePack.ferrocement/1"
+}
