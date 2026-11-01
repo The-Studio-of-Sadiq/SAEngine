@@ -1458,6 +1458,7 @@ def apply(
 
     # Columns: the capacity-design axial force from the braces (BRBF, slender SCBF braces) and
     # the links above (EBF), against φPn; the splices of SCBF and BRBF.
+    in_bays = {cid for _link, panel, _beam in links for cid in (panel.left, panel.right)}
     for m in members:
         if m.kind != "column" or m.id not in info or not lateral(m):
             continue
@@ -1465,6 +1466,16 @@ def apply(
         if col is None:
             continue
         position, top = col.position, col.top
+        # The columns of the braced bays: a brace end on the column (or a link's bay), or
+        # marked lateral; the other columns are gravity columns.
+        touched = m.id in in_bays or any(
+            np.linalg.norm(p[:2] - position) <= TOL
+            and col.bottom - _level_tolerance() <= p[2] <= col.top + _level_tolerance()
+            for g in geometry.values()
+            for p in g
+        )
+        if not touched and S._role(m) != "lateral":
+            continue
         i = info[m.id]
         st = i["stations"]
         p_grav = max(
