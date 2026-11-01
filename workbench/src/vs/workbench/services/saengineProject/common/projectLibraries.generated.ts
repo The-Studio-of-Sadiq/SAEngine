@@ -5088,6 +5088,166 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Codes',
 			type: 'object',
 		},
+		DraftingStandard: {
+			additionalProperties: false,
+			description: 'The office\'s drafting standard: layer names, colours and lineweights, the text font, the\ndimension arrows, the sheet number prefixes and the office lines of the title block. Saved\nas a file (Drawings, Office standard) it carries over to the office\'s other projects.',
+			properties: {
+				name: {
+					default: '',
+					description: 'The standard\'s name, e.g. the office\'s.',
+					title: 'Name',
+					type: 'string',
+				},
+				font: {
+					default: 'Arial',
+					description: 'TrueType font of the text (Windows fonts; LibreCAD draws its own).',
+					enum: ['Arial', 'Arial Narrow', 'Calibri', 'Segoe UI', 'Tahoma'],
+					title: 'Font',
+					type: 'string',
+				},
+				arrows: {
+					default: 'tick',
+					enum: ['tick', 'closed', 'dot', 'oblique'],
+					enumDescriptions: ['Architectural tick', 'Closed filled arrow', 'Small dot', 'Oblique stroke'],
+					title: 'Dimension arrows',
+					type: 'string',
+				},
+				layerPrefix: {
+					default: '',
+					description: 'Put before every layer name, e.g. \'XY-\' (a layer\'s office name wins).',
+					title: 'Layer prefix',
+					type: 'string',
+				},
+				layers: {
+					description: 'Layers drawn other than the scheme.',
+					items: {
+						$ref: '#/$defs/DrawingLayer',
+					},
+					title: 'Layers',
+					type: 'array',
+				},
+				structuralPrefix: {
+					default: 'S-',
+					title: 'Structural sheets',
+					type: 'string',
+				},
+				architecturalPrefix: {
+					default: 'A-',
+					title: 'Architectural sheets',
+					type: 'string',
+				},
+				plumbingPrefix: {
+					default: 'P-',
+					title: 'Plumbing sheets',
+					type: 'string',
+				},
+				mechanicalPrefix: {
+					default: 'M-',
+					title: 'HVAC sheets',
+					type: 'string',
+				},
+				electricalPrefix: {
+					default: 'E-',
+					title: 'Electrical sheets',
+					type: 'string',
+				},
+				firePrefix: {
+					default: 'FP-',
+					title: 'Fire protection sheets',
+					type: 'string',
+				},
+				coordinationPrefix: {
+					default: 'MC-',
+					title: 'MEP coordination sheets',
+					type: 'string',
+				},
+				officeLine: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Under the firm\'s name in the title block: address, phone, licence no.',
+					title: 'Office address line',
+				},
+				disclaimer: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Printed above the status in the title block, e.g. \'Do not scale.\'',
+					title: 'Disclaimer',
+				},
+			},
+			title: 'DraftingStandard',
+			type: 'object',
+		},
+		DrawingLayer: {
+			additionalProperties: false,
+			description: 'One layer of SAEngine\'s scheme (docs/drawings-layers.md) as the office draws it.',
+			properties: {
+				layer: {
+					description: 'A layer of SAEngine\'s scheme: S-GRID, S-COLS, A-WALL, P-DOMW, ...',
+					minLength: 1,
+					title: 'SAEngine layer',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The office\'s name for it; empty: the scheme\'s (with the layer prefix).',
+					title: 'Office name',
+				},
+				color: {
+					anyOf: [
+						{
+							maximum: 255,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'AutoCAD Colour Index 1-255.',
+					title: 'Colour',
+				},
+				lineweight: {
+					anyOf: [
+						{
+							enum: [0.09, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0],
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plotted lineweight [mm].',
+					title: 'Lineweight',
+				},
+			},
+			required: ['layer'],
+			title: 'DrawingLayer',
+			type: 'object',
+		},
 		DrawingRevision: {
 			additionalProperties: false,
 			description: 'One revision of the drawing set, as the title block\'s revision table lists it.',
@@ -5287,6 +5447,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Stop the extra top bars of beams past the supports; off: every bar runs the full length.',
 					title: 'Cut off beam top bars',
 					type: 'boolean',
+				},
+				standard: {
+					$ref: '#/$defs/DraftingStandard',
+					description: 'Layers, font, arrows, sheet numbers and title block lines of the office.',
+					title: 'Office standard',
 				},
 			},
 			title: 'Drawings',
@@ -6747,6 +6912,20 @@ export const DEFAULT_SETTINGS: object = {
 		detailScale: 25,
 		developmentLength: 'simplified',
 		curtail: true,
+		standard: {
+			name: '',
+			font: 'Arial',
+			arrows: 'tick',
+			layerPrefix: '',
+			layers: [],
+			structuralPrefix: 'S-',
+			architecturalPrefix: 'A-',
+			plumbingPrefix: 'P-',
+			mechanicalPrefix: 'M-',
+			electricalPrefix: 'E-',
+			firePrefix: 'FP-',
+			coordinationPrefix: 'MC-',
+		},
 	},
 	report: {
 		appendix: 'governing',

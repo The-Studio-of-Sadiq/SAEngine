@@ -286,6 +286,13 @@
 	display: none;
 }
 
+/* the office drafting standard: save it to a file, load one into the project */
+.saengine-exports-editor .drawings-settings:not(.closed) .drawings-standard-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3, 12px);
+}
+
 /* The drawings' own engineer or project number differs from Project's. */
 .saengine-exports-editor .drawings-settings-note.stale {
 	color: var(--sa-warn);

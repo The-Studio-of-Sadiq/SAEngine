@@ -117,6 +117,19 @@ LAYERS: tuple[tuple[str, int, str, int, str, bool], ...] = (
     ("A-ELEV", 7, "Continuous", 25, "Elevations and sections: what is seen beyond the cut", True),
     ("A-SECT", 7, "Continuous", 50, "Sections: what the cut passes through; the ground line", True),
     ("A-ANNO-SYMB", 7, "Continuous", 25, "Section lines (phantom) and their marks", True),
+    ("P-DOMW", 5, "Continuous", 35, "Plumbing: water risers and pump mains", True),
+    ("P-SANR", 3, "Continuous", 35, "Plumbing: soil, waste and vent stacks", True),
+    ("P-STRM", 4, "Continuous", 35, "Plumbing: rainwater leaders and roof drains", True),
+    ("P-EQPM", 5, "Continuous", 35, "Plumbing: tanks, reservoirs, septic tanks, wet rooms", True),
+    ("M-DUCT", 30, "Continuous", 35, "HVAC ducts and duct risers", True),
+    ("M-EQPM", 3, "Continuous", 35, "HVAC plant and other equipment", True),
+    ("E-CABL", 2, "Continuous", 35, "Electrical: cable trays, busbar and cable risers", True),
+    ("E-EQPM", 1, "Continuous", 35, "Electrical: equipment, electrical rooms", True),
+    ("F-PROT", 1, "Continuous", 35, "Fire protection: risers and mains", True),
+    ("F-EQPM", 1, "Continuous", 35, "Fire protection: pumps, tanks, the pump room", True),
+    ("M-SHFT", 8, "PHANTOM", 25, "Service shafts", True),
+    ("M-SLEV", 6, "Continuous", 25, "Sleeves and openings for services", True),
+    ("M-ANNO", 7, "Continuous", 25, "MEP tags: marks, sizes, systems", True),
     ("S-REV", 6, "Continuous", 35, "Revision clouds and their triangles (redrawn each run)", True),
     ("S-VIEWPORT", 8, "Continuous", 9, "Viewports (not plotted)", False),
 )
@@ -178,6 +191,8 @@ class TitleInfo:
     revision: str = "0"
     revisions: list[Revision] = field(default_factory=list)
     status: str = "FOR REVIEW"
+    office: str = ""  # the office's address line under the firm (the office standard)
+    disclaimer: str = ""  # printed above the status (the office standard)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> TitleInfo:
@@ -486,6 +501,7 @@ class Sheet:
         info: TitleInfo,
         scale_text: str | None = None,
         north: float | None = None,
+        standard: Any = None,
     ) -> None:
         self.number = number
         self.title = title
@@ -495,6 +511,11 @@ class Sheet:
         self.scale_text = scale_text or f"1:{scale:g}"
         self.width, self.height = paper_size(self.size)
         self.doc = new_document(self.scale)
+        # the office's drafting standard (saengine.drawings.sheets.standards): its font and
+        # arrows now, its layer names when the sheet is written
+        self.standard = standard
+        if standard is not None:
+            standard.setup(self.doc)
         self.msp = self.doc.modelspace()
         self.labels = Labels()
         self.views: list[View] = []
@@ -654,10 +675,13 @@ class Sheet:
         self.p_text(project, x0 + pad, b + pad, TEXT_LARGE, "BL")
         b, t = row(12)
         field_("Address / location", info.address, x0, b, tw, 12)
-        # firm
-        b, t = row(16)
+        # firm (and the office's address line of the office standard)
+        b, t = row(22 if info.office else 16)
         self.p_text("CONSULTING ENGINEERS", x0 + pad, t - pad, TEXT, "TL")
-        self.p_text(_fit(info.firm or "-", tw - 2 * pad, 5.0), x0 + pad, b + pad, 5.0, "BL")
+        lift = TEXT * 1.6 if info.office else 0.0
+        self.p_text(_fit(info.firm or "-", tw - 2 * pad, 5.0), x0 + pad, b + pad + lift, 5.0, "BL")
+        if info.office:
+            self.p_text(_fit(info.office, tw - 2 * pad, TEXT), x0 + pad, b + pad, TEXT, "BL")
         # revision table
         rows = 5
         b, t = row(6 * (rows + 1))
@@ -669,7 +693,11 @@ class Sheet:
         for (c0, c1), head in zip(itertools.pairwise(cols), ("REV", "DATE", "DESCRIPTION", "BY")):
             self.p_text(head, x0 + (c0 + c1) / 2 * tw, t - 3, TEXT, "MC")
         self._revision_table = (x0, t, tw, cols, rows)
-        # status
+        # the office's disclaimer, then the status
+        if info.disclaimer:
+            text = _wrap(info.disclaimer, tw - 2 * pad, TEXT, 2)
+            b, t = row(5 + TEXT * 1.6 * (text.count("\n") + 1))
+            self.p_text(text, x0 + tw / 2, (b + t) / 2, TEXT, "MC")
         b, t = row(10)
         self.p_text(info.status.upper(), x0 + tw / 2, (b + t) / 2, TEXT_LARGE, "MC")
         # credit at the very top of the strip, north arrow under it
