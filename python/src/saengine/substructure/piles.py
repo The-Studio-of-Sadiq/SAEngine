@@ -2,56 +2,47 @@
 
 A pile of diameter D and length L whose head (the underside of its cap) is ``head`` below the
 borehole's ground is checked with the soil of that borehole (:class:`saengine.soil.profile.
-Profile`, the nearest borehole to the cap: :func:`nearest_profile`). Two ways to get the
-ultimate resistances (``design.pileCapacity``):
+Profile`, the nearest borehole to the cap: :func:`nearest_profile`). Three ways to get the
+ultimate resistances (``design.pileCapacity``); every number comes from the code pack in
+force (``foundations``, its ``piles`` group) and every clause from its ``sources``:
 
-- ``"soilReport"``: the unit values of Part 1 (:mod:`saengine.soil.piles`: bored piles by
-  O'Neill & Reese 1999, driven piles by API RP 2A in clay and Meyerhof 1976 in sand),
+- ``"soilReport"``: the unit values of Part 1 (:mod:`saengine.soil.piles`: bored piles by the
+  pack's drilled-shaft values, driven piles by API RP 2A in clay and Meyerhof 1976 in sand),
   evaluated slice by slice down the shaft (:data:`SLICE` m slices, each with the effective
   stress and depth at its middle, not the layer's mid-depth value) and summed over the shaft
   area. Where a layer's row carries ``sideExclusion`` (bored piles in cohesive soil) the top
-  1.5 m of the shaft and its bottom one diameter carry no side resistance. Fill and organic
-  layers carry none either (Part 1: "normally ignored for capacity"), nor does rock (a socket
-  needs the rock's strength). End bearing is the unit value of the layer at the tip; for a
-  driven pile in sand Meyerhof's limit 4 pa N60 is reached at 10 D of embedment in the layer
-  and taken in proportion below that.
-- ``"bnbcSpt"``: BNBC 2020 Part 6's SPT relations for concrete piles, with N̄60 the layer's
-  mean N60 for each slice (BNBC's "average N-value over the pile shaft length", taken layer by
-  layer) and N60 at the tip the mean of the tests from the tip down to 3 D below it (else the
-  nearest test below the tip, else the layer's mean):
+  of the shaft and its bottom diameters carry no side resistance. Fill and organic layers carry
+  none either (Part 1: "normally ignored for capacity"), nor does rock (a socket needs the
+  rock's strength). End bearing is the unit value of the layer at the tip (for a bored pile
+  with the pile's L/Db, the N60 below its base and the large-base reductions); for a driven
+  pile in sand Meyerhof's limit 4 pa N60 is reached at 10 D of embedment in the layer and
+  taken in proportion below that.
+- ``"static"``: the pack's static method (:mod:`saengine.substructure.pile_static`, chosen by
+  ``foundations.piles.staticMethod``; the default pack's ``alphaBeta``: α in clay, β and Nq in
+  sand with the critical depth, bored piles by shares of the driven values, drilled shafts by
+  their own values), slice by slice as above; drilled shafts in cohesive soil leave out the
+  same zones.
+- ``"spt"`` (formerly ``"bnbcSpt"``): the pack's SPT relations for concrete piles
+  (``foundations.piles.spt``: fs = a N̄60 ≤ max, fb = b N60 (× L/D in sand and non-plastic
+  silt, then ≤ c N60) ≤ max), with N̄60 the layer's mean N60 for each slice (the "average
+  N-value over the pile shaft length", taken layer by layer) and N60 at the tip the mean of the
+  tests from the tip down to 3 D below it (else the nearest test below the tip, else the
+  layer's mean). L/D is taken with L the embedment in the bearing layer (Meyerhof's meaning;
+  the code does not define L there, and its caps are reached at L/D = 10). The overall factor
+  is at least the pack's ``sptSafety``.
 
-  ======================  ======================================  ==============================
-  Unit value [kPa]        Bored (Secs 3.10.4.5, 3.10.4.7)         Driven (3.10.1.13, 3.10.1.16)
-  ======================  ======================================  ==============================
-  Clay, fs                1.2 N̄60 ≤ 70 (Eq 6.3.29)                1.8 N̄60 ≤ 70 (Eq 6.3.21)
-  Clay, fb                25 N60 ≤ 4000 (Eq 6.3.30)               45 N60 ≤ 4000 (Eq 6.3.22)
-  Sand, fs                1.0 N̄60 ≤ 60 (Eq 6.3.31)                2 N̄60 ≤ 60 (Eq 6.3.25)
-  Non-plastic silt, fs    0.9 N̄60 ≤ 60 (Eq 6.3.32)                1.7 N̄60 ≤ 60 (Eq 6.3.26)
-  Sand, fb                15 N60 L/D ≤ 150 N60, 4000 (6.3.33)     40 N60 L/D ≤ 400 N60, 11000
-                                                                  (6.3.27)
-  Non-plastic silt, fb    10 N60 L/D ≤ 100 N60, 4000 (6.3.34)     30 N60 L/D ≤ 300 N60, 11000
-                                                                  (6.3.28)
-  ======================  ======================================  ==============================
-
-  L/D is taken with L the embedment in the bearing layer (Meyerhof's meaning; the code does not
-  define L there, and its caps are reached at L/D = 10). BNBC asks for a factor of safety of
-  3.5 with these relations: the overall factor is at least 3.5.
-
-Capacity (BNBC 2020 Part 6 Sec 3.10.1.10, Eqs 6.3.11 to 6.3.14): Qs = As fs, Qb = Ab fb,
+Capacity (the default pack's Eqs 6.3.11 to 6.3.14): Qs = As fs, Qb = Ab fb,
 ``Qult = Qs + Qb - W`` in compression, ``Qult ≤ 0.7 Qs + W`` in uplift, ``Qallow = Qult / FS``,
 W the pile's weight (γc A L, buoyancy ignored: on the safe side in compression, not in uplift,
-where W counts fully as the code writes it). Sec 3.10.1.18: a minimum overall factor of safety
-of 3.0 against bearing failure, or 2.0 when the design rests on a load test at the site with
-good quality control (``FactorsOfSafety.load_test``); Table 6.3.10a's factors by construction
-control (Permanent structure: 2.0 good, 2.5 normal, 2.8 poor, 3.0 very poor;
-:func:`table_factor`) assume load test data (Table 6.3.10b), so without a load test the
-compression factor is raised to at least 3.0 (a note says so). Sec 3.11.3 (part1 p796) asks
-the same of uplift: a factor of safety of at least 3.0 on an uplift capacity found by analysis,
-2.0 on one from a load test (2.0 and 1.5 where the uplift comes from wind or earthquake; not
-used, the uplift checks mix the cases), so the uplift factor is raised alike. Partial
-factors of 1.5 on skin friction and 3.0 on end bearing may be used independently, the
-allowable load being the minimum of the two: ``Qa = min(Qult / FS, Qs/1.5 + Qb/3.0 - W)``
-(W is not factored in the partial form). Sec 3.10.4.10: the same factors apply to bored piles.
+where W counts fully as the code writes it). The least overall factor of safety is the pack's
+``noLoadTestSafety`` (3.0), or ``loadTestSafety`` (2.0) when the design rests on a load test at
+the site with good quality control (``FactorsOfSafety.load_test``); the pack's ``pileSafety``
+factors by construction control (permanent structure: 2.0 good, 2.5 normal, 2.8 poor, 3.0 very
+poor; :func:`table_factor`) assume load test data, so without a load test the compression
+factor is raised to at least 3.0 (a note says so). Uplift alike. Partial factors on skin
+friction and end bearing (``partialSkin`` 1.5, ``partialBase`` 3.0) may be used independently,
+the allowable load being the minimum of the two: ``Qa = min(Qult / FS, Qs/1.5 + Qb/3.0 - W)``
+(W is not factored in the partial form).
 
 Structural capacity of the pile section (:func:`structural_checks`): with reinforcement, the
 ACI 318-19 22.4.2 limit φPn,max of the circular section (:class:`saengine.design.rc.RcSection`,
@@ -79,6 +70,7 @@ from typing import Any
 from saengine.codes import context as code_context
 from saengine.soil import piles as soil_piles
 from saengine.soil.profile import Profile, SoilLayer
+from saengine.substructure import pile_static
 
 #: Slice thickness of the shaft integration [m].
 SLICE = 0.1
@@ -87,25 +79,52 @@ CONCRETE_UNIT_WEIGHT = 24.0
 #: Uplift: the share of the skin friction that resists pulling out (BNBC Eq 6.3.12).
 UPLIFT_SKIN = 0.7
 
-METHODS = {
-    "soilReport": (
-        "Pile capacity from the soil report's unit values (Part 1: O'Neill & Reese 1999 for "
-        "bored piles, API RP 2A / Meyerhof 1976 for driven piles), integrated over the shaft in "
-        f"{SLICE * 1e3:.0f} mm slices with the stresses at each slice; bored piles in cohesive "
-        "soil without side resistance over the top 1.5 m of the shaft and the bottom 1 D; fill, "
-        "organic soil and rock carry no side resistance. BNBC 2020 Part 6 Eqs 6.3.11-6.3.14: "
-        "Qult = Qs + Qb - W, uplift 0.7 Qs + W; Qa = min(Qult/FS, Qs/1.5 + Qb/3.0 - W) "
-        "(Sec 3.10.1.18, FS of Table 6.3.10a, at least 3.0 in compression without a load test "
-        "at the site, 2.0 with one)."
-    ),
-    "bnbcSpt": (
-        "Pile capacity by BNBC 2020 Part 6's SPT relations (bored: Eqs 6.3.29-6.3.34; driven: "
-        "Eqs 6.3.21-6.3.22, 6.3.25-6.3.28), N̄60 the layer's mean N60 slice by slice, N60 at the "
-        "tip the mean over 3 D below it, L/D with L the embedment in the bearing layer; FS at "
-        "least 3.5 as the code asks for these relations. Qult = Qs + Qb - W, uplift 0.7 Qs + W "
-        "(Eqs 6.3.11-6.3.12)."
-    ),
-}
+#: The capacity methods (``design.pileCapacity``); "bnbcSpt" is the former name of "spt".
+METHODS = ("soilReport", "static", "spt")
+ALIASES = {"bnbcSpt": "spt"}
+
+
+def method_id(method: str) -> str:
+    """The current id of a capacity method (a former name mapped)."""
+    return ALIASES.get(method, method)
+
+
+def method_text(method: str) -> str:
+    """How a capacity method works, with the active pack's name and clauses."""
+    method = method_id(method)
+    code = soil_piles.pack_name()
+    clause = soil_piles.pile_clause
+    common = (
+        f"Qult = Qs + Qb - W, uplift 0.7 Qs + W; Qa = min(Qult/FS, Qs/1.5 + Qb/3.0 - W), FS at "
+        f"least 3.0 in compression without a load test at the site, 2.0 with one ({code})."
+    )
+    if method == "spt":
+        return (
+            f"Pile capacity by the SPT relations of {code} ({clause('spt')}), N̄60 the layer's "
+            "mean N60 slice by slice, N60 at the tip the mean over 3 D below it, L/D with L the "
+            f"embedment in the bearing layer; FS at least the pack's SPT factor. {common}"
+        )
+    if method == "static":
+        found = pile_static.rules()
+        if found is None:
+            return pile_static.not_covered("Static pile capacity")
+        return (
+            f"Pile capacity by the static method '{found.staticMethod}' of {code} "
+            f"({clause('staticMethod')}): α method in clay, β method and Nq in sand with the "
+            f"critical depth, integrated over the shaft in {SLICE * 1e3:.0f} mm slices; bored "
+            f"piles up to {found.drilledShaft.minDiameter:g} mm take "
+            f"{found.static.boredSkin:.3g} of the driven fs and {found.static.boredBase:.3g} of "
+            "its fb, wider ones the drilled-shaft values (no side resistance in clay over the "
+            f"top {found.drilledShaft.sideTop:g} mm and the bottom "
+            f"{found.drilledShaft.sideBottom:g} D). {common}"
+        )
+    return (
+        "Pile capacity from the soil report's unit values (Part 1: drilled-shaft values of "
+        f"{code} for bored piles, API RP 2A / Meyerhof 1976 for driven piles), integrated over "
+        f"the shaft in {SLICE * 1e3:.0f} mm slices with the stresses at each slice; bored piles "
+        "in cohesive soil without side resistance over the top of the shaft and the bottom "
+        f"diameter; fill, organic soil and rock carry no side resistance. {common}"
+    )
 
 
 def _foundations() -> Any:
@@ -143,37 +162,42 @@ class FactorsOfSafety:
         """The least overall factors: 3.0 without a load test at the site, 2.0 with one, in
         compression (Sec 3.10.1.18, bored piles by Sec 3.10.4.10) and in uplift (Sec 3.11.3);
         3.5 with the SPT relations."""
+        method = method_id(method)
         least = _safety("loadTestSafety" if self.load_test else "noLoadTestSafety")
         compression = max(self.compression, least)
         uplift = max(self.uplift, least)
-        if method == "bnbcSpt":
+        if method == "spt":
             spt = _safety("sptSafety")
             compression, uplift = max(compression, spt), max(uplift, spt)
         return FactorsOfSafety(compression, uplift, self.skin, self.base, self.load_test)
 
     def raised(self, method: str) -> str | None:
         """A note when :meth:`for_method` raises the compression or the uplift factor."""
+        method = method_id(method)
         factors = self.for_method(method)
         used = factors.compression
         notes = []
         spt = _safety("sptSafety")
+        sources = _foundations().sources
+        code = soil_piles.pack_name()
         if used > self.compression:
-            if method == "bnbcSpt" and used == spt:
+            if method == "spt" and used == spt:
                 notes.append(
-                    f"FS in compression raised from {self.compression:g} to {spt:g}: BNBC "
-                    "asks for 3.5 with the SPT relations"
+                    f"FS in compression raised from {self.compression:g} to {spt:g}: {code} "
+                    f"asks for {spt:g} with the SPT relations ({sources.get('sptSafety', '')})"
                 )
             else:
                 notes.append(
-                    f"FS in compression raised from {self.compression:g} to {used:g}: BNBC 2020 "
-                    "Sec 3.10.1.18 asks at least 3.0 unless the design rests on a load test at "
-                    "the site (Table 6.3.10a's values assume load test data, Table 6.3.10b)"
+                    f"FS in compression raised from {self.compression:g} to {used:g}: {code} "
+                    f"asks at least {used:g} unless the design rests on a load test at the site "
+                    f"({sources.get('noLoadTestSafety', '')}; the construction-control factors "
+                    "assume load test data)"
                 )
-        if method != "bnbcSpt" and factors.uplift > self.uplift:
+        if method != "spt" and factors.uplift > self.uplift:
             notes.append(
-                f"FS in uplift raised from {self.uplift:g} to {factors.uplift:g}: BNBC 2020 Sec "
-                "3.11.3 asks at least 3.0 on an uplift capacity found by analysis, 2.0 from a "
-                "load test"
+                f"FS in uplift raised from {self.uplift:g} to {factors.uplift:g}: {code} asks "
+                f"at least {factors.uplift:g} on an uplift capacity found by analysis "
+                f"({sources.get('noLoadTestSafety', '')})"
             )
         return "; ".join(notes) or None
 
@@ -210,39 +234,50 @@ def _is_silt(layer: SoilLayer) -> bool:
     return layer.soil_type == "silt"
 
 
+def _spt_relation(layer: SoilLayer, kind: str) -> tuple[Any | None, str]:
+    """The pack's SPT relation of a layer (clay, sand or non-plastic silt) for a pile kind."""
+    found = pile_static.rules()
+    if found is None:
+        return None, pile_static.not_covered("SPT relations")
+    if layer.behaviour == "cohesive":
+        soil = "clay"
+    else:
+        soil = "silt" if _is_silt(layer) else "sand"
+    relation = found.spt.get(kind, {}).get(soil)
+    if relation is None:
+        return None, pile_static.not_covered(f"SPT relation of {kind} piles in {soil}")
+    return relation, soil
+
+
 def spt_skin(layer: SoilLayer, kind: str) -> tuple[float | None, str]:
-    """BNBC's unit skin friction [kPa] of a layer from its mean N60, and the equation."""
+    """The pack's unit skin friction [kPa] of a layer from its mean N60, and the relation."""
     n = layer.n60
     if n is None:
         return None, "no SPT in the layer"
-    if layer.behaviour == "cohesive":
-        if kind == "bored":
-            return min(70.0, 1.2 * n), "Eq 6.3.29: 1.2 N̄60 ≤ 70 kPa"
-        return min(70.0, 1.8 * n), "Eq 6.3.21: 1.8 N̄60 ≤ 70 kPa"
-    if _is_silt(layer):
-        if kind == "bored":
-            return min(60.0, 0.9 * n), "Eq 6.3.32: 0.9 N̄60 ≤ 60 kPa"
-        return min(60.0, 1.7 * n), "Eq 6.3.26: 1.7 N̄60 ≤ 60 kPa"
-    if kind == "bored":
-        return min(60.0, 1.0 * n), "Eq 6.3.31: 1.0 N̄60 ≤ 60 kPa"
-    return min(60.0, 2.0 * n), "Eq 6.3.25: 2 N̄60 ≤ 60 kPa"
+    relation, soil = _spt_relation(layer, kind)
+    if relation is None:
+        return None, soil
+    return (
+        min(relation.skinMax, relation.skin * n),
+        f"SPT, {soil}: fs = {relation.skin:g} N̄60 ≤ {relation.skinMax:g} kPa",
+    )
 
 
 def spt_base(layer: SoilLayer, kind: str, n60: float, embed_d: float) -> tuple[float, str]:
-    """BNBC's unit end bearing [kPa] from N60 at the tip and the embedment ratio L/D."""
-    if layer.behaviour == "cohesive":
-        if kind == "bored":
-            return min(4000.0, 25 * n60), "Eq 6.3.30: 25 N60 ≤ 4000 kPa"
-        return min(4000.0, 45 * n60), "Eq 6.3.22: 45 N60 ≤ 4000 kPa"
-    silt = _is_silt(layer)
-    if kind == "bored":
-        a, cap, eq = (10.0, 100.0, "6.3.34") if silt else (15.0, 150.0, "6.3.33")
-        limit = 4000.0
-    else:
-        a, cap, eq = (30.0, 300.0, "6.3.28") if silt else (40.0, 400.0, "6.3.27")
-        limit = 11000.0
-    value = min(a * n60 * embed_d, cap * n60, limit)
-    return value, f"Eq {eq}: {a:g} N60 L/D ≤ {cap:g} N60, ≤ {limit:g} kPa"
+    """The pack's unit end bearing [kPa] from N60 at the tip and the embedment ratio L/D."""
+    relation, soil = _spt_relation(layer, kind)
+    if relation is None:
+        return 0.0, soil
+    if relation.baseCapN is None:
+        return (
+            min(relation.baseMax, relation.base * n60),
+            f"SPT, {soil}: fb = {relation.base:g} N60 ≤ {relation.baseMax:g} kPa",
+        )
+    value = min(relation.base * n60 * embed_d, relation.baseCapN * n60, relation.baseMax)
+    return value, (
+        f"SPT, {soil}: fb = {relation.base:g} N60 L/D ≤ {relation.baseCapN:g} N60, "
+        f"≤ {relation.baseMax:g} kPa"
+    )
 
 
 def tip_n60(profile: Profile, tip: float, diameter: float, layer: SoilLayer) -> float | None:
@@ -269,15 +304,24 @@ def single_pile(
     method: str = "soilReport",
     factors: FactorsOfSafety | None = None,
     unit_weight: float = CONCRETE_UNIT_WEIGHT,
+    construction: tuple[str, str] | None = None,
 ) -> dict[str, Any]:
     """Ultimate and allowable axial capacity [kN] of a circular pile D × L [m] whose head is
-    ``head`` m below the borehole's ground (see the module notes)."""
+    ``head`` m below the borehole's ground (see the module notes). ``construction``: the
+    drilled shaft's (K/K0, δ/φ) construction ids of the pack, for its β in sand."""
     if kind not in ("bored", "driven"):
         raise ValueError(f"pile kind {kind!r}: bored or driven")
+    method = method_id(method)
     if method not in METHODS:
-        raise ValueError(f"pile capacity method {method!r}: soilReport or bnbcSpt")
+        raise ValueError(f"pile capacity method {method!r}: {', '.join(METHODS)}")
     if diameter <= 0 or length <= 0:
         raise ValueError("the pile needs a diameter and a length")
+    static = None
+    if method == "static":
+        static = pile_static.method()
+        if static is None:
+            raise ValueError(pile_static.not_covered("Static pile capacity"))
+    ctx = _Pile(kind, diameter, length, head, method, static, construction)
     given = factors or FactorsOfSafety()
     factors = given.for_method(method)
     tip = head + length
@@ -310,15 +354,13 @@ def single_pile(
             },
         )
         row["bottom"] = z + dz / 2
-        fs, why = _slice_skin(profile, layer, kind, z, method)
+        fs, why = _slice_skin(profile, layer, ctx, z)
         if fs is None:
             skipped.add(f"layer {layer.index + 1} ({layer.soil_type}): {why}")
             fs = 0.0
         else:
             row["method"] = why
-        excluded = method == "soilReport" and _excluded(
-            profile, layer, kind, z, head, tip, diameter
-        )
+        excluded = _excluded(profile, layer, ctx, z)
         if excluded:
             row["excluded"] += dz
             fs = 0.0
@@ -330,7 +372,7 @@ def single_pile(
     base_layer = profile.layer_at(tip + 1e-6)
     qb, base_note, n_tip = 0.0, "no layer at the tip", None
     if base_layer is not None:
-        qb, base_note, n_tip = _base(profile, base_layer, kind, tip, head, diameter, method)
+        qb, base_note, n_tip = _base(profile, base_layer, ctx)
     qb_force = qb * area
     weight = unit_weight * area * length
     q_ult = qs + qb_force - weight
@@ -392,77 +434,113 @@ def single_pile(
         },
         "layers": layers,
         "governs": "overall" if overall <= partial else "partial",
-        "methodText": METHODS[method],
+        "methodText": method_text(method),
         "notes": notes,
     }
 
 
+@dataclass(frozen=True)
+class _Pile:
+    """The pile being integrated and how."""
+
+    kind: str
+    diameter: float
+    length: float
+    head: float
+    method: str
+    static: Any = None
+    construction: tuple[str, str] | None = None
+
+    @property
+    def tip(self) -> float:
+        return self.head + self.length
+
+    @property
+    def shaft(self) -> bool:
+        return pile_static.is_shaft(self.kind, self.diameter)
+
+
 def _slice_skin(
-    profile: Profile, layer: SoilLayer, kind: str, z: float, method: str
+    profile: Profile, layer: SoilLayer, pile: _Pile, z: float
 ) -> tuple[float | None, str]:
     """Unit skin friction [kPa] of a slice at depth ``z``, or None with the reason."""
     if layer.behaviour == "rock":
         return None, "rock: no side resistance (a socket needs the rock's strength)"
     if layer.soil_type in ("fill", "organic"):
         return None, f"{layer.soil_type}: ignored for capacity (check downdrag)"
-    if method == "bnbcSpt":
-        return spt_skin(layer, kind)
-    values = (soil_piles.bored if kind == "bored" else soil_piles.driven)(
-        layer, z, profile.sigma_v_eff(z)
-    )
+    if pile.method == "spt":
+        return spt_skin(layer, pile.kind)
+    if pile.method == "static":
+        return pile.static.skin(profile, layer, pile.kind, z, pile.diameter, pile.construction)
+    if pile.kind == "bored":
+        values = soil_piles.bored(
+            layer,
+            z,
+            profile.sigma_v_eff(z),
+            diameter=pile.diameter,
+            construction=pile.construction,
+        )
+    else:
+        values = soil_piles.driven(layer, z, profile.sigma_v_eff(z))
     if values.get("fs") is None:
         return None, values.get("note") or "no unit skin friction"
     return float(values["fs"]), str(values.get("method"))
 
 
-def _excluded(
-    profile: Profile,
-    layer: SoilLayer,
-    kind: str,
-    z: float,
-    head: float,
-    tip: float,
-    diameter: float,
-) -> bool:
-    """Whether a slice lies in a zone without side resistance (Part 1's ``sideExclusion``)."""
-    if layer.behaviour == "rock" or layer.soil_type in ("fill", "organic"):
+def _excluded(profile: Profile, layer: SoilLayer, pile: _Pile, z: float) -> bool:
+    """Whether a slice lies in a zone without side resistance: Part 1's ``sideExclusion`` of
+    bored piles in cohesive soil (the soil report's values, and drilled shafts by the static
+    method)."""
+    if pile.kind != "bored" or pile.method == "spt":
         return False
-    values = (soil_piles.bored if kind == "bored" else soil_piles.driven)(
-        layer, z, profile.sigma_v_eff(z)
-    )
+    if pile.method == "static" and not pile.shaft:
+        return False
+    if layer.behaviour != "cohesive" or layer.soil_type in ("fill", "organic"):
+        return False
+    values = soil_piles.bored(layer, z, profile.sigma_v_eff(z))
     zone = values.get("sideExclusion")
     if not zone:
         return False
-    return z - head < zone["top"] / 1e3 or tip - z < zone["bottomDiameters"] * diameter
+    return (
+        z - pile.head < zone["top"] / 1e3 or pile.tip - z < zone["bottomDiameters"] * pile.diameter
+    )
 
 
-def _base(
-    profile: Profile,
-    layer: SoilLayer,
-    kind: str,
-    tip: float,
-    head: float,
-    diameter: float,
-    method: str,
-) -> tuple[float, str, float | None]:
+def _base(profile: Profile, layer: SoilLayer, pile: _Pile) -> tuple[float, str, float | None]:
     """Unit end bearing [kPa] at the tip, its source and the N60 used."""
     if layer.behaviour == "rock":
         return 0.0, "rock at the tip: socket design needs the rock strength (not covered)", None
-    embed = tip - max(layer.top, head)
-    if method == "bnbcSpt":
+    kind, tip, diameter = pile.kind, pile.tip, pile.diameter
+    embed = tip - max(layer.top, pile.head)
+    if pile.method == "spt":
         n = tip_n60(profile, tip, diameter, layer)
         if n is None:
             return 0.0, "no SPT near the tip", None
         value, text = spt_base(layer, kind, n, embed / diameter)
         return value, text, n
-    values = (soil_piles.bored if kind == "bored" else soil_piles.driven)(
-        layer, tip, profile.sigma_v_eff(tip)
-    )
+    if pile.method == "static":
+        return pile.static.base(profile, layer, kind, tip, diameter, pile.length)
+    if kind == "bored":
+        found = pile_static.rules()
+        depth = (found.drilledShaft.sandBaseDepth if found else 2.0) * diameter
+        n = pile_static.mean_n60_below(profile, tip, depth, layer)
+        values = soil_piles.bored(
+            layer,
+            tip,
+            profile.sigma_v_eff(tip),
+            length=pile.length,
+            diameter=diameter,
+            n_base=n,
+        )
+        if values.get("qb") is None:
+            return 0.0, values.get("note") or "no unit end bearing", n
+        return float(values["qb"]), str(values.get("method")), n
+    values = soil_piles.driven(layer, tip, profile.sigma_v_eff(tip))
     if values.get("qb") is None:
         return 0.0, values.get("note") or "no unit end bearing", layer.n60
     qb = float(values["qb"])
     text = str(values.get("method"))
-    if kind == "driven" and layer.behaviour == "granular":
+    if layer.behaviour == "granular":
         share = min(1.0, embed / (10 * diameter))
         if share < 1.0:
             text += f"; {embed:.2f} m in the layer < 10 D: × {share:.2f}"
@@ -478,14 +556,25 @@ def capacity_table(
     head: float,
     method: str = "soilReport",
     factors: FactorsOfSafety | None = None,
+    construction: tuple[str, str] | None = None,
 ) -> dict[str, Any]:
     """Allowable compression and uplift [kN] for each diameter × length [mm], as the soil
     reports tabulate them: ``{"diameters", "lengths", "rows", "borehole", "head", "method"}``,
     each row ``{"D", "L", "Qs", "Qb", "W", "Qult", "Qa", "Ta"}``."""
+    method = method_id(method)
     rows = []
     for d in diameters:
         for length in lengths:
-            r = single_pile(profile, kind, d / 1e3, length / 1e3, head, method, factors)
+            r = single_pile(
+                profile,
+                kind,
+                d / 1e3,
+                length / 1e3,
+                head,
+                method,
+                factors,
+                construction=construction,
+            )
             rows.append(
                 {
                     "D": d,
@@ -501,7 +590,7 @@ def capacity_table(
         "diameters": list(diameters),
         "lengths": list(lengths),
         "rows": rows,
-        "methodText": METHODS[method],
+        "methodText": method_text(method),
     }
 
 
@@ -665,6 +754,13 @@ def table_sizes(
     return diameters, sorted(lengths)
 
 
+def shaft_construction(pile_type: Any) -> tuple[str, str] | None:
+    """The (K/K0, δ/φ) construction ids of a pile type's drilled shaft, or None."""
+    k_id = getattr(pile_type, "shaftConstruction", None)
+    d_id = getattr(pile_type, "shaftConcreting", None)
+    return (k_id, d_id) if k_id and d_id else None
+
+
 def capacity_tables(
     soil_text: str | None,
     pile_types: list[Any],
@@ -694,7 +790,14 @@ def capacity_tables(
             available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
             diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
             table = capacity_table(
-                profile, pile_type.kind, diameters, lengths, head, method, factors
+                profile,
+                pile_type.kind,
+                diameters,
+                lengths,
+                head,
+                method,
+                factors,
+                shaft_construction(pile_type),
             )
             tables.append({"pileType": pile_type.id, **table})
     return {"tables": tables, "notes": notes}

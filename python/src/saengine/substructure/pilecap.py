@@ -31,11 +31,19 @@ Group checks (service combinations):
 - spacing: at least 2.5 D (Sec 3.10.1.19) and 750 mm (Sec 3.10.1.30), 3 D for friction piles
   (Sec 3.10.1.30); the cap at least 100 mm beyond the piles' faces and a bottom cover of at
   least 50 mm (Sec 3.10.1.20); piles embedded at least 75 mm (noted);
-- group settlement: the group as a solid foundation at 2/3 of the pile length (BNBC Sec 3.10.5,
-  Long term settlement for pile group), Bg × Lg, under the largest gravity service load,
-  computed by :func:`saengine.soil.settlement.settlement` (consolidation of the clay layers with
-  the 2:1 spread, Schmertmann in sand) and shown with BNBC Table 6.3.8's limit (Sec 3.10.5
-  refers to the shallow foundations' limits).
+- drilled shafts (bored piles wider than the pack's ``drilledShaft.minDiameter``): the group
+  capacity is the lesser of Σ ζ Qult (ζ by spacing, in clay or sand) and the equivalent pier
+  over the group's outline (:mod:`saengine.substructure.pile_static`), a weaker layer below the
+  tips reducing the pier's base; in place of the efficiency above;
+- group settlement (:mod:`saengine.substructure.pile_settlement`): short term from the single
+  pile's settlement (axial shortening, tip and skin friction) by the group's width or number of
+  piles, long term with the group as a solid foundation at the pack's share of the pile length
+  (consolidation of the clay layers with the 2:1 spread, the modulus number method for the
+  others), under the largest gravity service load, shown with the shallow foundations'
+  permissible settlement (BNBC Sec 3.10.5 refers to them as "Table 6.3.7", an evident
+  misprint for Table 6.3.8, which is used: see the pack's ``piles.settlement.limits`` note);
+- the cap's depth above the bottom bars against the pack's least on piles
+  (:func:`saengine.substructure.shallow_rules.thickness_check`).
 
 Cap design (strength combinations, ACI 318-19; BNBC 2020 Part 6 Ch 6 follows an earlier ACI 318
 without the size factor λs, so ACI 318-19 is the more conservative), with the pile reactions
@@ -78,7 +86,9 @@ from saengine.codes import context as code_context
 from saengine.design import stm
 from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
+from saengine.library.materials import concrete_modulus
 from saengine.library.objects import BarMesh
+from saengine.substructure import pile_settlement, pile_static, shallow_rules
 from saengine.substructure.pilehead import METHOD as PILE_HEAD_METHOD
 from saengine.substructure.precast import PRECAST_METHOD
 from saengine.substructure.shallow import (
@@ -683,6 +693,7 @@ def pile_cap_design(
     strength_dead_factor: dict[str, float] | None = None,
     kind: str = "bored",
     lateral: dict[str, Any] | None = None,
+    pile_modulus: float | None = None,
 ) -> dict[str, Any]:
     """All checks of a pile cap and its piles (see the module notes).
 
@@ -694,7 +705,8 @@ def pile_cap_design(
     (default 1.0 and 1.2). ``lateral``: ``{"shears", "fixity", "depth"}``, the cap's horizontal
     force ``[Hu, Hv]`` [N] per strength combination (:func:`saengine.substructure.pilehead.
     cap_shears`), the piles' head fixity and depth to fixity [mm]: the pile heads' shear and
-    moment (:mod:`saengine.substructure.pilehead`).
+    moment (:mod:`saengine.substructure.pilehead`). ``pile_modulus``: Ep of the pile [MPa] for
+    the settlement of the piles (default from the pile's f'c, or 4700 √25).
 
     Returns ``{"checks", "piles", "group", "cap", "notes"}``: ``piles`` per pile its offsets
     [mm] and the largest and least service and factored loads [kN]."""
@@ -758,7 +770,18 @@ def pile_cap_design(
 
     # ── group ──
     friction_clay = _friction_in_clay(pile, profile)
-    if friction_clay and n > 1:
+    shaft_group = None
+    if n > 1 and profile is not None and pile_static.is_shaft(kind, dia / 1e3):
+        shaft_group = _shaft_group(spec, pile, profile, piles)
+    if shaft_group is not None:
+        eg = shaft_group["efficiency"]
+        pier = shaft_group["pier"]
+        efficiency_note = (
+            f"{shaft_group['note']}: Σ ζ Qult = {shaft_group['sum']:.0f} kN, pier "
+            f"{'-' if pier is None else pier} kN; {shaft_group['pierNote']} "
+            f"({shaft_group['clause']})"
+        )
+    elif friction_clay and n > 1:
         eg, m_rows, n_cols, s = converse_labarre(piles, dia)
         efficiency_note = (
             f"friction piles in cohesive soil: Converse-Labarre, {m_rows} × {n_cols}, "
@@ -778,6 +801,7 @@ def pile_cap_design(
                 f"Eg n Qa with Eg = {eg:.3f}: {efficiency_note}",
             )
         )
+
     bg, lg = group_outline(spec)
     block = None
     if profile is not None and n > 1 and total_max[1] is not None:
@@ -798,24 +822,27 @@ def pile_cap_design(
             )
     settlement = None
     if profile is not None and gravity_max[1] is not None:
-        settlement = group_settlement(
-            profile, pile["head"] / 1e3, pile["length"] / 1e3, bg / 1e3, lg / 1e3,
-            gravity_max[0] / 1e3,
-        )  # fmt: skip
-        settlement["combination"] = gravity_max[1]
-        limit = settlement["permissible"]["value"]
-        checks.append(
-            _check(
-                "Group settlement",
-                settlement["total"],
-                limit,
-                "mm",
-                gravity_max[1],
-                f"solid block at 2/3 L ({settlement['Df']:.0f} mm below the ground), "
-                f"{bg:.0f} × {lg:.0f} mm, q = {settlement['q']:.0f} kPa (BNBC Sec 3.10.5); "
-                f"{settlement['permissible']['source']}",
-            )
+        modulus = pile_modulus or concrete_modulus((pile_section or {}).get("fc", 25.0))
+        settlement = pile_settlement.group_settlement(
+            profile, pile, n, bg / 1e3, lg / 1e3, gravity_max[0] / 1e3, modulus
         )
+        settlement["combination"] = gravity_max[1]
+        permissible = settlement.get("permissible") or {}
+        limit = permissible.get("value")
+        if limit is not None:
+            checks.append(
+                _check(
+                    "Group settlement",
+                    settlement["total"],
+                    limit,
+                    "mm",
+                    gravity_max[1],
+                    f"short term {settlement.get('shortTerm', 0):.1f} mm + long term "
+                    f"{settlement.get('longTerm', settlement['total']):.1f} mm; block at "
+                    f"{settlement['Df']:.0f} mm below the ground, {bg:.0f} × {lg:.0f} mm, q = "
+                    f"{settlement['q']:.0f} kPa; {permissible.get('source', '')}",
+                )
+            )
     # Spacing and edges (BNBC Secs 3.10.1.19, 3.10.1.20, 3.10.1.30).
     if n > 1:
         s = min_spacing(piles)
@@ -839,6 +866,13 @@ def pile_cap_design(
             "BNBC Sec 3.10.1.20: the cap extends at least 100 mm beyond the edge of all piles",
         )
     )
+    dia_x = spec.bottom_x.dia if spec.bottom_x else 0.0
+    dia_y = spec.bottom_y.dia if spec.bottom_y else 0.0
+    thickness_row = shallow_rules.thickness_check(
+        spec.id, spec.thickness - spec.cover - dia_x - dia_y, on_piles=True
+    )
+    if thickness_row is not None:
+        checks.append(thickness_row)
     checks.append(
         _check(
             "Cover of the cap's main bars",
@@ -975,6 +1009,52 @@ def pile_cap_design(
     }
 
 
+def _shaft_group(
+    spec: CapSpec, pile: dict[str, Any], profile: Any, piles: np.ndarray
+) -> dict[str, Any] | None:
+    """Group capacity [kN] of drilled shafts: the lesser of Σ ζ Qult and the equivalent
+    pier; ``efficiency`` its ratio to n Qult (None when the pack does not cover it)."""
+    n = len(piles)
+    dia = spec.pile_diameter
+    cohesive = _mostly_cohesive(pile, profile)
+    z = pile_static.zeta(min_spacing(piles), dia, cohesive)
+    if z is None:
+        return None
+    bg, lg = group_outline(spec)
+    q_ult = max(pile["Qult"], 0.0)
+    total = n * z * q_ult
+    pier, pier_note = pile_static.equivalent_pier(
+        profile, pile["head"] / 1e3, pile["length"] / 1e3, bg / 1e3, lg / 1e3
+    )
+    governing = total if pier is None else min(total, pier)
+    from saengine.soil.piles import pile_clause
+
+    return {
+        "zeta": round(z, 3),
+        "sum": total,
+        "pier": None if pier is None else round(pier),
+        "pierNote": pier_note,
+        "Qult": governing,
+        "efficiency": governing / (n * q_ult) if q_ult > 0 else 1.0,
+        "clause": pile_clause("drilledShaft.zetaLow").split(":")[0],
+        "note": (
+            f"drilled shafts in {'clay' if cohesive else 'sand'}: ζ = {z:.3f} at s = "
+            f"{min_spacing(piles):.0f} mm, the lesser of Σ ζ Qult and the equivalent pier"
+        ),
+    }
+
+
+def _mostly_cohesive(pile: dict[str, Any], profile: Any) -> bool:
+    """Whether most of the pile's skin friction is in cohesive layers."""
+    by_index = {layer.index: layer for layer in profile.layers}
+    cohesive = sum(
+        r["Qs"]
+        for r in pile["layers"]
+        if getattr(by_index.get(r["layer"]), "behaviour", "") == "cohesive"
+    )
+    return pile["Qs"] > 0 and cohesive > pile["Qs"] / 2
+
+
 def _kn(value: float) -> float | None:
     return round(float(value) / 1e3, 1) if math.isfinite(value) else None
 
@@ -983,7 +1063,9 @@ def group_settlement(
     profile: Any, head: float, length: float, bg: float, lg: float, load: float
 ) -> dict[str, Any]:
     """Settlement [mm] of a pile group as a solid block Bg × Lg [m] at 2/3 of the pile
-    ``length`` below its ``head`` [m] under the total ``load`` [kN] (BNBC Sec 3.10.5)."""
+    ``length`` below its ``head`` [m] under the total ``load`` [kN] (BNBC Sec 3.10.5), the block
+    alone; the design uses :func:`saengine.substructure.pile_settlement.group_settlement`,
+    which adds the short-term settlement of the piles."""
     from saengine.soil.settlement import rounded, settlement
 
     df = head + 2 * length / 3
@@ -1007,8 +1089,13 @@ PILE_CAP_METHOD = [
         "efficiency 1.0 (BNBC 2020 Part 6 Sec 3.10.1.19) or Converse-Labarre for friction piles "
         "in clay, block failure in clay (Terzaghi & Peck), spacing ≥ 2.5 D and 750 mm (3 D for "
         "friction piles, Secs 3.10.1.19, 3.10.1.30), the cap 100 mm beyond the piles and 50 mm "
-        "cover (Sec 3.10.1.20), settlement of the group as a solid block at 2/3 L (Sec 3.10.5) "
-        "against Table 6.3.8."
+        "cover (Sec 3.10.1.20). Drilled shafts (bored piles wider than the code pack's limit): "
+        "the group capacity the lesser of Σ ζ Qult (ζ by spacing) and the equivalent pier, a "
+        "weaker layer below the tips reducing its base. Group settlement: short term from the "
+        "single pile's (axial shortening, tip and skin friction) by the group's width or "
+        "number of piles; long term with the group as a solid block at the pack's share of L, "
+        "consolidation of clay with Cc and e0 and the modulus number method for the other "
+        "layers; against the shallow foundations' permissible settlement."
     ),
     (
         "Pile cap design (ACI 318-19): flexure at the column faces by the beam method, one-way "
@@ -1037,6 +1124,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         capacity_table,
         nearest_profile,
         profiles_of,
+        shaft_construction,
         single_pile,
         table_sizes,
     )
@@ -1075,16 +1163,21 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         bool(getattr(fos, "pileLoadTest", False)),  # optional field (see the integration notes)
     )
     kind = pile_type.kind
-    pile = single_pile(
-        profile,
-        kind,
-        pile_type.diameter / 1e3,
-        pile_type.length / 1e3,
-        head,
-        design.pileCapacity,
-        factors,
-        (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
-    )
+    construction = shaft_construction(pile_type)
+    try:
+        pile = single_pile(
+            profile,
+            kind,
+            pile_type.diameter / 1e3,
+            pile_type.length / 1e3,
+            head,
+            design.pileCapacity,
+            factors,
+            (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
+            construction,
+        )
+    except ValueError as error:
+        raise Skip(str(error)) from error
     pile["distance"] = round(distance)
     notes += [f"{foundation.id}, pile {pile_type.id}: {n}" for n in pile["notes"]]
     foundation_settings = ctx.settings.foundation
@@ -1140,10 +1233,13 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
             "fixity": getattr(pile_type, "headFixity", "fixed"),
             "depth": getattr(pile_type, "fixityDepth", None),
         },
+        pile_concrete.mechanical.E or concrete_modulus(pile_concrete.concrete.fc),
     )
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
-    table = capacity_table(profile, kind, diameters, lengths, head, design.pileCapacity, factors)
+    table = capacity_table(
+        profile, kind, diameters, lengths, head, design.pileCapacity, factors, construction
+    )
     members = list(dict.fromkeys(c.id for c in spec.columns))
     # The piles need not be centred on the columns (the cap is formed over piles on their own
     # grid): the offset of the columns' centroid from the piles' is in the pile loads above

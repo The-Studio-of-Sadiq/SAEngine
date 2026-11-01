@@ -50,7 +50,7 @@
     "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
     "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
     "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
-    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10",
+    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10; uplift Sec 3.11.3 (p. 796)",
     "retainingWall.sliding": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 801): 1.5 against sliding",
     "retainingWall.overturning": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 800): 1.5 against overturning",
     "retainingWall.seismic": "BNBC 2020 Part 6 Sec 3.14 and 3.16 (pp. 800-802): 1.5, no reduction with earthquake",

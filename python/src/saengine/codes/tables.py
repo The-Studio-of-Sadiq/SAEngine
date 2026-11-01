@@ -1473,9 +1473,7 @@ class PileRules(_Group):
     soilClasses: PileSoilClasses
     static: PileStatic
     drilledShaft: DrilledShaft
-    spt: dict[
-        Literal["bored", "driven"], dict[Literal["clay", "sand", "silt"], SptRelation]
-    ]
+    spt: dict[Literal["bored", "driven"], dict[Literal["clay", "sand", "silt"], SptRelation]]
     settlement: PileSettlement
 
 
