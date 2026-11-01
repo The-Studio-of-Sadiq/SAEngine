@@ -680,7 +680,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 		},
 		TimberProperties: {
 			additionalProperties: false,
-			description: 'Sawn structural timber (BNBC 2020 Part 6 Chapter 11).',
+			description: 'Sawn structural timber, designed with the code pack\'s ``timber`` table.',
 			properties: {
 				species: {
 					anyOf: [
@@ -692,7 +692,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Species, e.g. Sal, Garjan, Teak.',
+					description: 'Species of the code pack\'s table (id, trade or botanical name, e.g. Teak or Tectona grandis): its own stresses where the table gives them, else the strength group\'s.',
 					title: 'Species',
 				},
 				group: {
@@ -709,6 +709,49 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					enum: ['inside', 'outside', 'wet'],
 					enumDescriptions: ['Inside', 'Outside', 'Wet'],
 					title: 'Location of use',
+					type: 'string',
+				},
+				grade: {
+					default: 'I',
+					description: 'Grade of the cut sizes by their permissible defects (the stresses are Grade I\'s times the code\'s grade factor).',
+					enum: ['select', 'I', 'II'],
+					enumDescriptions: ['Select grade', 'Grade I', 'Grade II'],
+					title: 'Grade',
+					type: 'string',
+				},
+				lowDurability: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Low durability timber (outside: stresses reduced); none: from the species\' durability class, else no.',
+					title: 'Low durability',
+				},
+				slopeOfGrain: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ungraded timber with defects: the slope of grain 1 in this (K1); none: graded timber.',
+					title: 'Slope of grain (1 in)',
+				},
+				liveLoadDuration: {
+					default: 'continuous',
+					description: 'Duration of the live loads, for the load duration factor K2.',
+					enum: ['continuous', 'twoMonths', 'sevenDays', 'impact'],
+					enumDescriptions: ['Continuous', 'Two months', 'Seven days', 'Impact'],
+					title: 'Live load duration',
 					type: 'string',
 				},
 			},
@@ -938,6 +981,45 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel I-beams: a bolted cover-plate splice; none: no splice.',
 					title: 'Splice',
 				},
+				timber: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: bearing, notches, restraints, cantilever, spaced column; none: the defaults.',
+					title: 'Timber',
+				},
+				timberJoint: {
+					anyOf: [
+						{
+							oneOf: [
+								{
+									$ref: '#/$defs/TimberNailedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberBoltedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberSplitRingJoint',
+								},
+								{
+									$ref: '#/$defs/TimberDiscDowelJoint',
+								},
+							],
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
+					title: 'Timber joint',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -1112,6 +1194,45 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Rods and slender angles that buckle at a negligible load: each load combination releases the members it would compress, and they are designed for tension alone.',
 					title: 'Tension only',
 					type: 'boolean',
+				},
+				timber: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: bearing, notches, restraints, cantilever, spaced column; none: the defaults.',
+					title: 'Timber',
+				},
+				timberJoint: {
+					anyOf: [
+						{
+							oneOf: [
+								{
+									$ref: '#/$defs/TimberNailedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberBoltedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberSplitRingJoint',
+								},
+								{
+									$ref: '#/$defs/TimberDiscDowelJoint',
+								},
+							],
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
+					title: 'Timber joint',
 				},
 				modifiers: {
 					anyOf: [
@@ -1484,6 +1605,45 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Steel columns: the base plate and anchor rods where the column stands on a support; none: not checked.',
 					title: 'Base plate',
+				},
+				timber: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: bearing, notches, restraints, cantilever, spaced column; none: the defaults.',
+					title: 'Timber',
+				},
+				timberJoint: {
+					anyOf: [
+						{
+							oneOf: [
+								{
+									$ref: '#/$defs/TimberNailedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberBoltedJoint',
+								},
+								{
+									$ref: '#/$defs/TimberSplitRingJoint',
+								},
+								{
+									$ref: '#/$defs/TimberDiscDowelJoint',
+								},
+							],
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
+					title: 'Timber joint',
 				},
 				modifiers: {
 					anyOf: [
@@ -3872,6 +4032,483 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['depth', 'flangeWidth', 'webThickness', 'flangeThickness'],
 			title: 'TShapeProfile',
+			type: 'object',
+		},
+		TimberBoltedJoint: {
+			additionalProperties: false,
+			description: 'Bolts through the member and wooden splice plates.',
+			properties: {
+				joint: {
+					default: 'node',
+					description: 'Node (members meeting) or lengthening (splice) joint at each end.',
+					enum: ['node', 'lengthening'],
+					enumDescriptions: ['Node joint', 'Lengthening joint'],
+					title: 'Joint',
+					type: 'string',
+				},
+				count: {
+					default: 4,
+					description: 'Fasteners at each end.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				type: {
+					const: 'bolts',
+					default: 'bolts',
+					title: 'Type',
+					type: 'string',
+				},
+				diameter: {
+					default: 16,
+					description: '[mm]',
+					enum: [6, 10, 12, 16, 20, 22, 25],
+					title: 'Diameter',
+					type: 'integer',
+				},
+				shear: {
+					default: 'double',
+					enum: ['double', 'single'],
+					title: 'Shear',
+					type: 'string',
+				},
+				mainThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Main member t\' [mm]; none: the member\'s width.',
+					title: 'Main thickness',
+				},
+				sideThickness: {
+					default: 40,
+					description: 'Each side member [mm].',
+					exclusiveMinimum: 0,
+					title: 'Side thickness',
+					type: 'number',
+				},
+				rows: {
+					default: 2,
+					description: 'Rows of bolts.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Rows',
+					type: 'integer',
+				},
+				spacing: {
+					default: 64,
+					description: 'Bolts in a row [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				rowSpacing: {
+					default: 40,
+					description: 'Between rows [mm].',
+					exclusiveMinimum: 0,
+					title: 'Row spacing',
+					type: 'number',
+				},
+				endDistance: {
+					default: 112,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 40,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				hardwood: {
+					default: true,
+					description: 'Hardwood (else softwood): end distance.',
+					title: 'Hardwood',
+					type: 'boolean',
+				},
+			},
+			title: 'TimberBoltedJoint',
+			type: 'object',
+		},
+		TimberDiscDowelJoint: {
+			additionalProperties: false,
+			description: 'Hardwood disc-dowels with a mild steel bolt each.',
+			properties: {
+				joint: {
+					default: 'node',
+					description: 'Node (members meeting) or lengthening (splice) joint at each end.',
+					enum: ['node', 'lengthening'],
+					enumDescriptions: ['Node joint', 'Lengthening joint'],
+					title: 'Joint',
+					type: 'string',
+				},
+				count: {
+					default: 4,
+					description: 'Fasteners at each end.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				type: {
+					const: 'discDowel',
+					default: 'discDowel',
+					title: 'Type',
+					type: 'string',
+				},
+				diameter: {
+					default: 100,
+					description: 'Mid diameter d [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				thickness: {
+					default: 30,
+					description: 't [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				edgeClearance: {
+					default: 15,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Edge clearance',
+					type: 'number',
+				},
+				endClearance: {
+					default: 100,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'End clearance',
+					type: 'number',
+				},
+				species: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Species of the dowels; none: the member\'s timber.',
+					title: 'Species',
+				},
+			},
+			title: 'TimberDiscDowelJoint',
+			type: 'object',
+		},
+		TimberMember: {
+			additionalProperties: false,
+			description: 'Design data of a timber beam, column or brace beyond its section and material.',
+			properties: {
+				brittleFinishes: {
+					default: false,
+					description: 'Supports brittle finishes (gypsum ceilings, slates, tiles, asbestos sheets): the stricter deflection limit.',
+					title: 'Brittle finishes',
+					type: 'boolean',
+				},
+				freeEnd: {
+					default: 'none',
+					description: 'A cantilever: the end that is free (deflection of the free length).',
+					enum: ['none', 'start', 'end'],
+					enumDescriptions: ['Supported at both ends', 'Start', 'End'],
+					title: 'Free end',
+					type: 'string',
+				},
+				bearingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing length at each end support [mm]; none: not checked.',
+					title: 'Bearing length',
+				},
+				notch: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberNotch',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Notch',
+				},
+				restraintSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Lateral restraints against twisting [mm]; none: only at the ends.',
+					title: 'Restraint spacing',
+				},
+				diagonalLoading: {
+					default: false,
+					description: 'Square section loaded in the direction of its diagonal.',
+					title: 'Diagonal loading',
+					type: 'boolean',
+				},
+				spaced: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberSpaced',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Spaced',
+				},
+			},
+			title: 'TimberMember',
+			type: 'object',
+		},
+		TimberNailedJoint: {
+			additionalProperties: false,
+			description: 'Common wire nails in double shear through splice or gusset plates on both faces.',
+			properties: {
+				joint: {
+					default: 'node',
+					description: 'Node (members meeting) or lengthening (splice) joint at each end.',
+					enum: ['node', 'lengthening'],
+					enumDescriptions: ['Node joint', 'Lengthening joint'],
+					title: 'Joint',
+					type: 'string',
+				},
+				count: {
+					default: 4,
+					description: 'Fasteners at each end.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				type: {
+					const: 'nails',
+					default: 'nails',
+					title: 'Type',
+					type: 'string',
+				},
+				size: {
+					default: '3.55',
+					description: 'Shank diameter [mm].',
+					enum: ['3.55', '4', '5'],
+					title: 'Size',
+					type: 'string',
+				},
+				temporary: {
+					default: false,
+					description: 'Temporary structure.',
+					title: 'Temporary',
+					type: 'boolean',
+				},
+				clenched: {
+					default: false,
+					description: 'Points clenched across the grain.',
+					title: 'Clenched',
+					type: 'boolean',
+				},
+				sideThickness: {
+					default: 25,
+					description: 'Each splice or gusset plate [mm].',
+					exclusiveMinimum: 0,
+					title: 'Side thickness',
+					type: 'number',
+				},
+				endDistance: {
+					default: 50,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				spacing: {
+					default: 40,
+					description: 'Along the grain [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 20,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				rowSpacing: {
+					default: 20,
+					description: 'Between rows, across the grain [mm].',
+					exclusiveMinimum: 0,
+					title: 'Row spacing',
+					type: 'number',
+				},
+				species: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Species of the nail table; none: the member\'s.',
+					title: 'Species',
+				},
+			},
+			title: 'TimberNailedJoint',
+			type: 'object',
+		},
+		TimberNotch: {
+			additionalProperties: false,
+			description: 'A notch at the member\'s supports (both ends).',
+			properties: {
+				face: {
+					default: 'tension',
+					description: 'Tension (bottom) or compression (top) face.',
+					enum: ['tension', 'compression'],
+					title: 'Face',
+					type: 'string',
+				},
+				depth: {
+					description: 'Depth of the notch D2 [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				length: {
+					description: 'Inner edge of the support to the far edge of the notch, e [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+			},
+			required: ['depth', 'length'],
+			title: 'TimberNotch',
+			type: 'object',
+		},
+		TimberSpaced: {
+			additionalProperties: false,
+			description: 'A spaced column: ``pieces`` members of the type\'s profile, packed apart and connected\nat the ends (and between).',
+			properties: {
+				pieces: {
+					default: 2,
+					maximum: 4,
+					minimum: 2,
+					title: 'Pieces',
+					type: 'integer',
+				},
+				connectors: {
+					default: 'end20',
+					description: 'Centroid of the end fasteners at S/20 from the end, or S/10 to S/20.',
+					enum: ['end20', 'end10to20'],
+					enumDescriptions: ['At S/20 from the end', 'S/10 to S/20'],
+					title: 'Connectors',
+					type: 'string',
+				},
+			},
+			title: 'TimberSpaced',
+			type: 'object',
+		},
+		TimberSplitRingJoint: {
+			additionalProperties: false,
+			description: 'Metallic split-ring connectors with a bolt each.',
+			properties: {
+				joint: {
+					default: 'node',
+					description: 'Node (members meeting) or lengthening (splice) joint at each end.',
+					enum: ['node', 'lengthening'],
+					enumDescriptions: ['Node joint', 'Lengthening joint'],
+					title: 'Joint',
+					type: 'string',
+				},
+				count: {
+					default: 4,
+					description: 'Fasteners at each end.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				type: {
+					const: 'splitRing',
+					default: 'splitRing',
+					title: 'Type',
+					type: 'string',
+				},
+				diameter: {
+					default: 100,
+					description: 'Ring diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				mainThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]; none: the member\'s width.',
+					title: 'Main thickness',
+				},
+				sideThickness: {
+					default: 38,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Side thickness',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 100,
+					description: 'Loaded edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				endDistance: {
+					default: 175,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+			},
+			title: 'TimberSplitRingJoint',
 			type: 'object',
 		},
 		Transverse: {
@@ -12506,6 +13143,37 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	TimberProperties: {
 		group: 'B',
 		location: 'inside',
+	},
+	TimberMember: {},
+	TimberNotch: {
+		face: 'tension',
+		depth: 30,
+		length: 100,
+	},
+	TimberSpaced: {
+		pieces: 2,
+		connectors: 'end20',
+	},
+	TimberNailedJoint: {
+		type: 'nails',
+		size: '3.55',
+		count: 8,
+	},
+	TimberBoltedJoint: {
+		type: 'bolts',
+		diameter: 16,
+		count: 4,
+	},
+	TimberSplitRingJoint: {
+		type: 'splitRing',
+		diameter: 100,
+		count: 2,
+	},
+	TimberDiscDowelJoint: {
+		type: 'discDowel',
+		diameter: 100,
+		thickness: 30,
+		count: 2,
 	},
 	NominalMix: {
 		method: 'nominal',

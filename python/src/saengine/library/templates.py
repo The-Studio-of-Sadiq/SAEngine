@@ -79,6 +79,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "SteelProperties": {"fy": 420},
     "MasonryProperties": {"unit": "first-class burnt clay brick"},
     "TimberProperties": {"group": "B", "location": "inside"},
+    # timber members and joints (saengine.design.timber)
+    "TimberMember": {},
+    "TimberNotch": {"face": "tension", "depth": 30, "length": 100},
+    "TimberSpaced": {"pieces": 2, "connectors": "end20"},
+    "TimberNailedJoint": {"type": "nails", "size": "3.55", "count": 8},
+    "TimberBoltedJoint": {"type": "bolts", "diameter": 16, "count": 4},
+    "TimberSplitRingJoint": {"type": "splitRing", "diameter": 100, "count": 2},
+    "TimberDiscDowelJoint": {"type": "discDowel", "diameter": 100, "thickness": 30, "count": 2},
     "NominalMix": {
         "method": "nominal",
         "ratio": [1, 1.5, 3],

@@ -1662,7 +1662,7 @@ export class FemResultsBar extends Disposable {
 		if (steel.length) {
 			this.appendPlanned(container, [FemPlanned.compositeBeams, FemPlanned.compositeColumns]);
 		}
-		// A timber member's section, group and permissible stresses (T45), then its connections (planned).
+		// A timber member's section, stresses and end joint, then the joints still planned (screws).
 		const timber = timberSection(element);
 		this.renderDetailing(container, timber);
 		if (timber.length) {

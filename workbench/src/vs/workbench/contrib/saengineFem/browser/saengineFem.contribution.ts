@@ -920,31 +920,28 @@ registerPlannedFeature({
 	],
 });
 
-// T45: timber connections (MVP: the members are designed to BNBC 2020 Part 6 Chapter 11; the
-// fastener tables of the connections are not yet transcribed into the code pack).
+// B6: timber joints. Nailed, bolted (wooden splice plates), split-ring and disc-dowel joints are
+// checked with the code pack's timber table (saengine.design.timber.connections); wood screws and
+// steel side plates stay planned: the pack gives no design values for them.
 registerPlannedFeature({
 	id: FemPlanned.timberConnections,
 	part: 'fem',
-	title: localize('fem.planned.timberConnections.title', "Timber Connections"),
-	summary: localize('fem.planned.timberConnections.summary', "Checks the nailed, screwed and bolted joints at the ends of timber members, from the member forces under the allowable stress combinations."),
+	title: localize('fem.planned.timberScrews.title', "Timber Screwed Joints and Steel Side Plates"),
+	summary: localize('fem.planned.timberScrews.summary', "Checks wood-screw joints and bolted joints with steel side plates at the ends of timber members. The active code pack gives no design values for them; nailed, bolted (wooden splice plates), split-ring and disc-dowel joints are already checked."),
 	steps: [
-		localize('fem.planned.timberConnections.step1', "Choose the joint on the timber member's type: nails, wood screws or bolts, with or without steel side plates."),
-		localize('fem.planned.timberConnections.step2', "Take the end forces of the member under the allowable stress combinations."),
-		localize('fem.planned.timberConnections.step3', "Check the fasteners' permissible loads for the strength group, the load angle to the grain and the spacing, edge and end distances."),
-		localize('fem.planned.timberConnections.step4', "List the joint with the member's design checks."),
+		localize('fem.planned.timberScrews.step1', "Choose wood screws, or bolts through steel side plates, as the joint of the timber member's type."),
+		localize('fem.planned.timberScrews.step2', "Take the end forces of the member under the allowable stress combinations."),
+		localize('fem.planned.timberScrews.step3', "Check the fasteners' permissible loads, the load angle to the grain and the spacing, edge and end distances."),
 	],
 	inputs: [
-		{ label: localize('fem.planned.timberConnections.fastener', "Fastener"), example: localize('fem.planned.timberConnections.bolt', "M16 bolts") },
-		{ label: localize('fem.planned.timberConnections.count', "Fasteners per joint"), example: '4' },
-		{ label: localize('fem.planned.timberConnections.plates', "Side plates"), example: localize('fem.planned.timberConnections.steelPlates', "6 mm steel") },
+		{ label: localize('fem.planned.timberScrews.fastener', "Fastener"), example: localize('fem.planned.timberScrews.screw', "No. 12 wood screws") },
+		{ label: localize('fem.planned.timberScrews.plates', "Side plates"), example: localize('fem.planned.timberScrews.steelPlates', "6 mm steel") },
 	],
 	outputs: [
-		localize('fem.planned.timberConnections.out1', "Joint capacity and utilisation per end"),
-		localize('fem.planned.timberConnections.out2', "Spacing, edge and end distance checks"),
+		localize('fem.planned.timberScrews.out1', "Joint capacity and utilisation per end"),
 	],
 	references: [
-		'BNBC 2020 Part 6 Chapter 11 (fastener tables to be transcribed)',
-		'IS 883:1994 Sec 8 (joints)',
+		localize('fem.planned.timberScrews.ref', "Not covered by the active code pack's timber table: it gives no screw or steel side-plate design values"),
 	],
 });
 
