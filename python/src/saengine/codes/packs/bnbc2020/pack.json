@@ -32,7 +32,8 @@
     "fireResistance",
     "planning",
     "timber",
-    "masonry"
+    "masonry",
+    "cranes"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -72,7 +73,8 @@
       "BNBC 2020 Part 6 Sec 2.4",
       "Sec 2.4.11.3 and Figure 6.2.9 (pp. 559, 574-575): design wind load cases",
       "Sec 2.4.8.2 and Table 6.2.10: gust-effect factor Gf of flexible buildings",
-      "Sec 2.4.11.5: components and cladding (GCp) by zone"
+      "Sec 2.4.11.5: components and cladding (GCp) by zone",
+      "Other structures (open signs and lattice frameworks, trussed towers): force coefficients Cf (page not checked)"
     ],
     "materials": [
       "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"
@@ -146,6 +148,10 @@
     "masonry": [
       "BNBC 2020 Part 6 Chapter 7 (masonry structures)",
       "TMS 402 / ACI 530-08 Chapter 3 (strength design) and TMS 602 / ACI 530.1-08 Tables 1-2, where the clauses are transcribed from"
+    ],
+    "cranes": [
+      "BNBC 2020 Part 6 Sec 2.3 (crane loads; clause number and page to be checked)",
+      "ASCE 7-05 Sec 4.10 (crane loads), the same provisions"
     ]
   },
   "basis": {

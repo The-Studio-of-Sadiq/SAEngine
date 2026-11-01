@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../schemas/cranes.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.3 (live loads: crane loads; clause number and page to be checked against the BNBC text)",
+    "ASCE 7-05 Sec 4.10 (crane loads), the same provisions"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.3, crane loads (page not checked): maximum wheel loads with vertical impact, lateral force on the runway beams, longitudinal force",
+  "impact": {
+    "monorail": 0.25,
+    "cabOperated": 0.25,
+    "remoteOperated": 0.25,
+    "pendantOperated": 0.1,
+    "handGeared": 0.0
+  },
+  "lateral": 0.2,
+  "longitudinal": 0.1,
+  "sources": {
+    "impact": "Vertical impact: powered monorail, cab-operated or remotely operated bridge cranes 25 %, pendant-operated bridge cranes 10 %, hand-geared bridge, trolley and hoist 0 %",
+    "lateral": "20 % of the rated capacity plus the weight of the hoist and trolley, at the top of the rails, shared by the runway beams by their lateral stiffness, either direction",
+    "longitudinal": "10 % of the maximum wheel loads, at the top of the rail (bridge cranes with hand-geared bridges excepted)"
+  }
+}

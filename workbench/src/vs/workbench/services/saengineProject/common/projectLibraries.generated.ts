@@ -5094,6 +5094,116 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Codes',
 			type: 'object',
 		},
+		CraneRunway: {
+			additionalProperties: false,
+			description: 'A bridge or monorail crane on a pair of runway beams (BNBC 2020 Part 6 Sec 2.3, crane\nloads; :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'pendantOperated',
+					description: 'Sets the vertical impact.',
+					enum: ['cabOperated', 'remoteOperated', 'pendantOperated', 'handGeared', 'monorail'],
+					enumDescriptions: ['Cab-operated bridge crane (25 %)', 'Remotely operated bridge crane (25 %)', 'Pendant-operated bridge crane (10 %)', 'Hand-geared bridge crane (0 %)', 'Powered monorail (25 %)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				capacity: {
+					description: 'Rated capacity [kN].',
+					exclusiveMinimum: 0,
+					title: 'Capacity',
+					type: 'number',
+				},
+				bridgeWeight: {
+					description: 'Crane bridge [kN].',
+					minimum: 0,
+					title: 'Bridge weight',
+					type: 'number',
+				},
+				trolleyWeight: {
+					description: 'Hoist and trolley [kN].',
+					minimum: 0,
+					title: 'Hoist and trolley weight',
+					type: 'number',
+				},
+				span: {
+					description: 'Between the rail centre lines [mm].',
+					exclusiveMinimum: 0,
+					title: 'Span',
+					type: 'number',
+				},
+				hookApproach: {
+					default: 1000,
+					description: 'Closest the hook comes to a rail [mm].',
+					minimum: 0,
+					title: 'Hook approach',
+					type: 'number',
+				},
+				wheels: {
+					default: 2,
+					description: 'Wheels on each rail.',
+					maximum: 4,
+					minimum: 1,
+					title: 'Wheels',
+					type: 'integer',
+				},
+				wheelBase: {
+					default: 3000,
+					description: 'Between the wheels on a rail [mm].',
+					minimum: 0,
+					title: 'Wheel base',
+					type: 'number',
+				},
+				runwaySpan: {
+					description: 'Between the columns (the bay), simply supported runway beams [mm].',
+					exclusiveMinimum: 0,
+					title: 'Runway beam span',
+					type: 'number',
+				},
+				railLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Top of the rail [mm], for the report.',
+					title: 'Rail level',
+				},
+				beamType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beam type of the runway beams, checked for the wheel loads; empty: loads only.',
+					title: 'Runway beam type',
+				},
+			},
+			required: ['id', 'capacity', 'bridgeWeight', 'trolleyWeight', 'span', 'runwaySpan'],
+			title: 'CraneRunway',
+			type: 'object',
+		},
 		DrawingRevision: {
 			additionalProperties: false,
 			description: 'One revision of the drawing set, as the title block\'s revision table lists it.',
@@ -5591,6 +5701,43 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Occupancy',
+			type: 'object',
+		},
+		OpenStructureWind: {
+			additionalProperties: false,
+			description: 'Wind on the members of a special structure by force coefficients (BNBC 2020 Part 6 Sec\n2.4, design wind loads on other structures: open signs and lattice frameworks, trussed\ntowers; :mod:`saengine.fem.open_wind`).',
+			properties: {
+				form: {
+					default: 'lattice',
+					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; none: no wind on special structures.',
+					enum: ['lattice', 'squareTower', 'triangularTower', 'none'],
+					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'None'],
+					title: 'Form',
+					type: 'string',
+				},
+				solidity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Solid area over gross area of the face. Empty: from the model, in each wind direction (the members\' projected area over their projected outline).',
+					title: 'Solidity ratio ε',
+				},
+				roundMembers: {
+					default: false,
+					description: 'Members are round (pipes, rods): the rounded-member coefficients.',
+					title: 'Rounded members',
+					type: 'boolean',
+				},
+			},
+			title: 'OpenStructureWind',
 			type: 'object',
 		},
 		PDeltaFactors: {
@@ -6191,6 +6338,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 into zone 2; the parapet\'s own pressures are given too.',
 					title: 'Parapet height',
 				},
+				openStructure: {
+					$ref: '#/$defs/OpenStructureWind',
+					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other structures).',
+					title: 'Open structures',
+				},
 			},
 			title: 'Wind',
 			type: 'object',
@@ -6271,6 +6423,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Load combinations',
 			type: 'array',
 		},
+		cranes: {
+			description: 'Overhead and monorail cranes: wheel loads with impact, lateral and longitudinal forces, runway beam checks and the loads on the columns.',
+			items: {
+				$ref: '#/$defs/CraneRunway',
+			},
+			title: 'Crane runways',
+			type: 'array',
+		},
 		analysis: {
 			$ref: '#/$defs/Analysis',
 			title: 'Analysis model',
@@ -6315,6 +6475,10 @@ export const DEFAULT_SETTINGS: object = {
 	wind: {
 		exposure: 'A',
 		enclosure: 'enclosed',
+		openStructure: {
+			form: 'lattice',
+			roundMembers: false,
+		},
 	},
 	areaLoads: [
 		{
@@ -6668,6 +6832,7 @@ export const DEFAULT_SETTINGS: object = {
 			H: 1.6,
 		},
 	],
+	cranes: [],
 	analysis: {
 		slabs: 'loadsToBeams',
 		diaphragm: 'rigid',
@@ -11569,6 +11734,15 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		name: '1.2D + 1.6L',
 		D: 1.2,
 		L: 1.6,
+	},
+	CraneRunway: {
+		id: 'CR1',
+		name: '10 t overhead crane',
+		capacity: 100.0,
+		bridgeWeight: 80.0,
+		trolleyWeight: 15.0,
+		span: 20000.0,
+		runwaySpan: 6000.0,
 	},
 	FrameModifiers: {
 		I33: 0.35,
