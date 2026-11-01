@@ -19171,6 +19171,66 @@ export const DEFAULT_SOIL: object = {
 
 export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 	$defs: {
+		AdjoiningStructure: {
+			additionalProperties: false,
+			description: 'A building or structure next to an excavation: its foundation decides whether it is\nunderpinned or its added load provided for, and the notices and monitoring it needs.',
+			properties: {
+				id: {
+					description: 'Its mark, e.g. AB1.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'What it is, e.g. \'Four-storey house\'.',
+					title: 'Name',
+				},
+				distance: {
+					default: 0,
+					description: 'Clear distance in plan from the excavation\'s edge to its foundation [mm].',
+					minimum: 0,
+					title: 'Distance',
+					type: 'number',
+				},
+				foundingLevel: {
+					description: 'Underside of its foundation [mm, project datum].',
+					title: 'Founding level',
+					type: 'number',
+				},
+				underpinned: {
+					default: false,
+					description: 'Its foundation is underpinned or otherwise protected against settlement before the excavation.',
+					title: 'Underpinned',
+					type: 'boolean',
+				},
+				otherProperty: {
+					default: true,
+					description: 'It stands on another owner\'s property (written notice before excavating).',
+					title: 'Another owner\'s property',
+					type: 'boolean',
+				},
+				sensitive: {
+					default: false,
+					description: 'An old structure likely to be damaged by piling or excavation (tell-tales while piling).',
+					title: 'Old or likely to be damaged',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'foundingLevel'],
+			title: 'AdjoiningStructure',
+			type: 'object',
+		},
 		Backfill: {
 			additionalProperties: false,
 			description: 'The soil placed behind the wall, when it is not the ground of the soil report.',
@@ -19432,6 +19492,240 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'EarthPressure',
 			type: 'object',
 		},
+		Excavation: {
+			additionalProperties: false,
+			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work; the design of an embedded wall and its supports is a\nseparate (planned) feature.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							minItems: 3,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline of its edge [[x, y], ...] mm (the foundations near it are checked against it).',
+					title: 'Outline',
+				},
+				groundLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the adjacent ground [mm, project datum]; empty: the project\'s.',
+					title: 'Ground level',
+				},
+				bottomLevel: {
+					description: 'Deepest point of the excavation [mm, project datum].',
+					title: 'Bottom level',
+					type: 'number',
+				},
+				permanent: {
+					default: false,
+					description: 'A permanent excavation (kept after the work).',
+					title: 'Permanent',
+					type: 'boolean',
+				},
+				support: {
+					default: 'sloped',
+					description: 'How its sides are kept.',
+					enum: ['sloped', 'stepped', 'shored', 'sheetPiles', 'retainingWall', 'rock', 'none'],
+					enumDescriptions: ['Sloped sides', 'Stepped sides', 'Shoring, bracing and sheeting', 'Sheet piles', 'Retaining wall', 'Rock cut', 'Vertical, unsupported'],
+					title: 'Sides',
+					type: 'string',
+				},
+				sideSlope: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Horizontal per vertical of a sloped side, or the average of a stepped one.',
+					title: 'Side slope (H per V)',
+				},
+				stepHeight: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Highest step of a stepped side [mm].',
+					title: 'Step height',
+				},
+				sheetPileTop: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height of the sheet piles above the natural ground [mm].',
+					title: 'Sheet piles above ground',
+				},
+				cutoffLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Toe of the sheet piles or cut-off wall [mm, project datum] (seepage).',
+					title: 'Cut-off toe level',
+				},
+				guardRail: {
+					default: false,
+					description: 'A guard rail or solid enclosure at least the code\'s height along the open sides.',
+					title: 'Guard rail',
+					type: 'boolean',
+				},
+				accessPrecluded: {
+					default: false,
+					description: 'Access to the area round the excavation is precluded (no guard rail needed).',
+					title: 'Access precluded',
+					type: 'boolean',
+				},
+				designWaterTable: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the adjacent ground [m]; empty: the nearest borehole\'s.',
+					title: 'Design water table',
+				},
+				dewatered: {
+					default: false,
+					description: 'The ground water is lowered below the bottom while the excavation is open.',
+					title: 'Dewatered',
+					type: 'boolean',
+				},
+				erraticSoil: {
+					default: false,
+					description: 'The soil is erratic (the soft soil of the soil report is found by itself).',
+					title: 'Erratic soil',
+					type: 'boolean',
+				},
+				piling: {
+					default: false,
+					description: 'Piles are bored or driven near the adjoining structures.',
+					title: 'Piling',
+					type: 'boolean',
+				},
+				loads: {
+					description: 'Spoil, materials and machinery beside it.',
+					items: {
+						$ref: '#/$defs/ExcavationLoad',
+					},
+					title: 'Loads',
+					type: 'array',
+				},
+				adjoining: {
+					description: 'Buildings next to it.',
+					items: {
+						$ref: '#/$defs/AdjoiningStructure',
+					},
+					title: 'Adjoining structures',
+					type: 'array',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'bottomLevel'],
+			title: 'Excavation',
+			type: 'object',
+		},
+		ExcavationLoad: {
+			additionalProperties: false,
+			description: 'Spoil, materials, equipment or machinery placed beside an excavation.',
+			properties: {
+				kind: {
+					default: 'spoil',
+					description: 'Spoil or materials, equipment such as trucks, or heavy excavating machinery.',
+					enum: ['spoil', 'materials', 'equipment', 'machinery'],
+					enumDescriptions: ['Excavated spoil', 'Construction materials', 'Equipment, trucks', 'Heavy machinery'],
+					title: 'Kind',
+					type: 'string',
+				},
+				distance: {
+					description: 'From the edge of the excavation (the toe of a sloped side) [mm].',
+					minimum: 0,
+					title: 'Distance',
+					type: 'number',
+				},
+				pressure: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its surcharge on the ground [kPa] (for the shoring).',
+					title: 'Pressure',
+				},
+			},
+			required: ['distance'],
+			title: 'ExcavationLoad',
+			type: 'object',
+		},
 		FactorOfSafety: {
 			additionalProperties: false,
 			description: 'Factors of safety of the geotechnical capacities.',
@@ -19491,6 +19785,138 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'FactorOfSafety',
+			type: 'object',
+		},
+		Formwork: {
+			additionalProperties: false,
+			description: 'The slab formwork the design checks against the code pack\'s loads and timber stress:\nsheeting on joists on posts.',
+			properties: {
+				slabThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]; empty: the thickest slab type of 04 Objects.',
+					title: 'Slab thickness',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete material id (03 Materials): a unit weight above the code\'s wet concrete weight governs.',
+					title: 'Material',
+				},
+				liveLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load of workmen and vibrating [kPa]; empty: the heavy end of the code pack\'s range.',
+					title: 'Workers and placing',
+				},
+				sheeting: {
+					default: 25,
+					description: 'Sheeting thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Sheeting',
+					type: 'number',
+				},
+				joistWidth: {
+					default: 50,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Joist width',
+					type: 'number',
+				},
+				joistDepth: {
+					default: 100,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Joist depth',
+					type: 'number',
+				},
+				joistSpacing: {
+					default: 500,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Joist spacing',
+					type: 'number',
+				},
+				joistSpan: {
+					default: 1000,
+					description: 'Between ledgers or posts [mm].',
+					exclusiveMinimum: 0,
+					title: 'Joist span',
+					type: 'number',
+				},
+				span: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Largest clear span the formwork bridges [mm] (the standard sizes apply up to the code\'s limit).',
+					title: 'Span',
+				},
+				postKind: {
+					default: 'timber',
+					enum: ['bamboo', 'timber', 'ballie', 'steel'],
+					enumDescriptions: ['Bamboo', 'Timber', 'Ballie', 'Steel centering'],
+					title: 'Posts',
+					type: 'string',
+				},
+				postHeight: {
+					default: 3000,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Post height',
+					type: 'number',
+				},
+				postDiameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Least diameter of a round post [mm] (steel: empty).',
+					title: 'Post diameter',
+				},
+			},
+			title: 'Formwork',
 			type: 'object',
 		},
 		Foundation: {
@@ -21192,6 +21618,27 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 		design: {
 			$ref: '#/$defs/Design',
 		},
+		excavations: {
+			description: 'Excavations for the foundations and basements: their sides, the loads and buildings beside them, and the ground water at the base.',
+			items: {
+				$ref: '#/$defs/Excavation',
+			},
+			title: 'Excavations',
+			type: 'array',
+		},
+		formwork: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Formwork',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The slab formwork, checked against the code pack\'s construction loads.',
+			title: 'Formwork',
+		},
 	},
 	title: 'SAEngine substructure',
 	type: 'object',
@@ -21228,6 +21675,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		raftSprings: 'noTension',
 		downdrag: true,
 	},
+	excavations: [],
 };
 
 export const MEP_SCHEMA: IJSONSchema = {
