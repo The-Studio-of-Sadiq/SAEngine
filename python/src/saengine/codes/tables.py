@@ -1138,10 +1138,137 @@ class SteelSlenderness(_Group):
     tension: Positive = Field(description="L/r limit of tension members.")
 
 
+# ── steel connections, stability bracing and ponding (design/steel_connections.py,
+# design/steel/members.py, design/steel/ponding.py) ──
+
+
+class SteelBoltGrade(_Group):
+    """Nominal stresses of a bolt grade or a threaded part [MPa]: fixed values, or shares of the
+    part's Fu (threaded parts)."""
+
+    Fnt: Positive | None = Field(default=None, description="Nominal tensile stress [MPa].")
+    Fnv: Positive | None = Field(
+        default=None, description="Nominal shear stress, bearing-type [MPa]."
+    )
+    FntOfFu: Share | None = Field(default=None, description="Fnt as a share of Fu.")
+    FnvOfFu: Share | None = Field(default=None, description="Fnv as a share of Fu.")
+    pretension: str | None = Field(
+        default=None, description="Key of ``pretension`` (the bolt family); none: not pretensioned."
+    )
+
+
+class SteelSlip(_Group):
+    """Slip-critical connections: Rn = μ Du hsc Tb Ns."""
+
+    phiServiceability: Phi = Field(description="φ, slip prevented as a serviceability limit.")
+    phiStrength: Phi = Field(description="φ, slip prevented at the required strength.")
+    mu: dict[str, Positive] = Field(description="Mean slip coefficient by surface class.")
+    Du: Positive = Field(description="Mean installed / specified minimum pretension.")
+    hsc: dict[str, Positive] = Field(description="Hole factor by hole type.")
+
+
+class SteelConnectionData(_Group):
+    """Bolts, holes, edges and fillet welds of steel connections."""
+
+    boltGrades: dict[str, SteelBoltGrade]
+    boltAliases: dict[str, str] = Field(
+        default_factory=dict,
+        description="Other grade names taken as a grade of ``boltGrades`` (labelled in "
+        "``sources.boltAliases``).",
+    )
+    pretension: dict[str, dict[int, Positive]] = Field(
+        description="Minimum bolt pretension Tb [kN] by bolt family and diameter [mm]."
+    )
+    slip: SteelSlip
+    holes: dict[int, Positive] = Field(description="Standard hole diameter [mm] by bolt diameter.")
+    holeOver: Positive = Field(description="Larger bolts: standard hole d + this [mm].")
+    netHoleAllowance: float = Field(ge=0, description="Hole width + this for net areas [mm].")
+    edgeRolled: dict[int, Positive] = Field(description="Minimum edge distance, rolled [mm].")
+    edgeSheared: dict[int, Positive] = Field(description="Minimum edge distance, sheared [mm].")
+    edgeOverRolled: Positive = Field(description="Larger bolts, rolled edges: this × d.")
+    edgeOverSheared: Positive = Field(description="Larger bolts, sheared edges: this × d.")
+    minSpacing: Positive = Field(description="Least bolt spacing as a multiple of d.")
+    maxEdgeThickness: Positive = Field(description="Largest edge distance: this × t ...")
+    maxEdge: Positive = Field(description="... and at most this [mm].")
+    longJointLength: Positive = Field(
+        description="Tension splices: bolt pattern longer than this [mm] ..."
+    )
+    longJointFactor: Share = Field(description="... has Fnv times this.")
+    filletMin: list[tuple[float | None, Positive]] = Field(
+        description="Minimum fillet weld leg by the thinner part: [[t up to (null: above), leg "
+        "[mm]], ...]."
+    )
+    filletMaxThin: Positive = Field(
+        description="Along edges thinner than this, the leg is at most the thickness [mm] ..."
+    )
+    filletMaxReduce: float = Field(ge=0, description="... else the thickness less this [mm].")
+    concreteBearingFull: Positive = Field(description="Pp / (f'c A1) on the full concrete area.")
+    concreteBearingPartial: Positive = Field(
+        description="Pp / (f'c A1 √(A2/A1)) on part of the concrete area ..."
+    )
+    concreteBearingMax: Positive = Field(description="... and Pp / (f'c A1) at most this.")
+    methods: dict[str, str] = Field(
+        default_factory=dict,
+        description="Method ids where the code gives a requirement but no method (e.g. "
+        "``prying``: ``tStub``); a missing key: the check is not made.",
+    )
+
+
+class SteelBracingRow(_Group):
+    """Required brace strength Pbr = strength × Pr (columns) or × Mr Cd / ho (beams), stiffness
+    βbr = stiffness × Pr / Lb (or × Mr Cd / (Lb ho)) / φ."""
+
+    strength: Positive
+    stiffness: Positive
+
+
+class SteelBracing(_Group):
+    """Stability bracing of columns and beams (K = 1 between the braces)."""
+
+    phi: Phi
+    columnRelative: SteelBracingRow
+    columnNodal: SteelBracingRow
+    beamRelative: SteelBracingRow
+    beamNodal: SteelBracingRow
+    torsionalMoment: Positive = Field(description="Mbr = this × Mr L / (n Cb Lb).")
+    torsionalStiffness: Positive = Field(description="βT = this × L Mr² / (n E Iy Cb²) / φ.")
+    distortional: Positive = Field(description="βsec = this × E / ho × (...).")
+    slenderness: Positive = Field(description="L/r limit of stability bracing.")
+
+
+class PondingCurve(_Group):
+    param: float = Field(ge=0, description="The curve's flexibility constant (Cs or Cp).")
+    points: list[tuple[float, float]] = Field(
+        description="[stress index U, upper limit of the other flexibility constant] pairs."
+    )
+
+
+class SteelPonding(_Group):
+    """Roof ponding: the simplified stiffness limits and the digitised limit curves."""
+
+    limit: Positive = Field(description="Cp + secondary × Cs at most this.")
+    secondary: Positive = Field(description="Factor on Cs.")
+    coefficient: Positive = Field(description="C = this × Ls Lp⁴ / Ip (m, mm⁴).")
+    deck: Positive = Field(description="Id at least this × S⁴ (mm⁴/m, m).")
+    trussFactor: Share = Field(description="Is of trusses and steel joists taken times this.")
+    stressLimit: Share = Field(description="U = (this × Fy - fo) / fo.")
+    primary: list[PondingCurve] = Field(
+        description="Limiting Cp by Up, one curve per Cs (the primary-system figure)."
+    )
+    secondaryCurves: list[PondingCurve] = Field(
+        description="Limiting Cs by Us, one curve per Cp (the secondary-system figure)."
+    )
+
+
 class SteelTable(TableModel):
     phi: SteelPhi
     slenderness: SteelSlenderness
     netAreaMax: Share
+    #: None in a pack without the data: the connection, bracing or ponding checks are then
+    #: those of the default pack (connections) or not made (bracing, ponding).
+    connections: SteelConnectionData | None = None
+    bracing: SteelBracing | None = None
+    ponding: SteelPonding | None = None
 
 
 class StrutAndTie(_Group):
