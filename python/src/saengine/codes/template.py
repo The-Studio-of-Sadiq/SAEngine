@@ -55,6 +55,10 @@ TABLE_HELP: dict[str, str] = {
     "component importance factors, the component rows (amplification and response reduction), "
     "the default rows of drawn walls and equipment, the exemptions, the exterior panel "
     "connection factors and the least anchorage force of walls.",
+    "pushover": "Nonlinear static (pushover) analysis: the load pattern the code requires and how "
+    "far to push (procedure), the target displacement method by id with its factors "
+    "(targetDisplacement: coefficient) and the member acceptance method by id with its shares "
+    "and strains (acceptance: fibreStrain).",
     "serviceability": "Serviceability: the storey drift and top sway limits under the service "
     "wind combination, member deflection limits (span divisors) by use of the member, and the "
     "factor of safety of the whole building against overturning.",

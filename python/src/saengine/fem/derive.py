@@ -2704,13 +2704,25 @@ def _derive_fem(
     )
     pushover = None
     if options.pushover is not None:
-        from saengine.fem.nonlinear import pushover_model
+        from saengine.fem.nonlinear import WallSpec, pushover_model
 
         keys = {
             sid: key[:3] for key, sid in b.section_ids.items() if key[0] not in ("plate", "embed")
         }
+        # B20: the structural walls, for their fibre wall elements.
+        wall_specs = [
+            WallSpec(
+                e.id,
+                e.type,
+                (e.start[0] * MM, e.start[1] * MM),
+                (e.end[0] * MM, e.end[1] * MM),
+                bool(wall_openings.get(e.id)),
+            )
+            for e in building.elements
+            if isinstance(e, WallElement)
+        ]
         pushover, more = pushover_model(
-            project, keys, types, mats, node_weight, base * MM, options.pushover
+            project, keys, types, mats, node_weight, base * MM, options.pushover, wall_specs
         )
         b.notes.extend(more)
 

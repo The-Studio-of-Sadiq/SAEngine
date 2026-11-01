@@ -213,9 +213,9 @@ def test_pushover_of_a_one_story_bay(tmp_path: Path) -> None:
     (gravity, push) = model["analyses"]
     assert gravity["name"].startswith("G: Gravity") and push["name"] == "PX: Pushover X"
     assert push["target_disp"] == pytest.approx(0.02 * 3.2)
-    assert push["pattern_ids"] == [
-        next(p["id"] for p in model["load_patterns"] if p["name"] == "EX")
-    ]
+    # B20: the lateral load follows the fundamental mode in X (BNBC 2020 Sec 2.5.12.2).
+    (mode,) = [p for p in model["load_patterns"] if p["id"] in push["pattern_ids"]]
+    assert mode["name"] == "MX" and all(load["forces"][0] > 0 for load in mode["nodal_loads"])
 
     from opensees_studio.services.persistence import load_project
 
@@ -272,3 +272,17 @@ def test_pushover_of_a_one_story_bay(tmp_path: Path) -> None:
     assert view["kind"] == "pushover" and len(view["reactions"]) == len(bases)
     assert -sum(r[1] for r in view["reactions"]) == pytest.approx(peak["shear"], rel=1e-3)
     assert all("forces" in e for e in view["elements"])
+
+    # B20: the target displacement (coefficient method) and the members' acceptance.
+    from saengine.fem import acceptance, pushover_target
+
+    assert results.element_start_fibers and results.element_end_fibers
+    target = pushover_target.evaluate(model, push, results, SETTINGS)
+    assert target["available"] and target["patternOk"]
+    assert 0 < target["target"] < results.control_disp[-1]
+    assert target["Te"] >= target["T1"] * 0.999 and target["C0"] == pytest.approx(1.0, abs=0.05)
+    accepted = acceptance.evaluate(model, results, target)
+    assert accepted["available"] and accepted["rows"]
+    assert {r["member"] for r in accepted["rows"]} <= {
+        e["name"].split("#")[0] for e in model["elements"]
+    }

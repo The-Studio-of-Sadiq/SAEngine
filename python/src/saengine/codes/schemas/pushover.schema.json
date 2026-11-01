@@ -1,0 +1,262 @@
+{
+  "$defs": {
+    "PushoverAcceptance": {
+      "additionalProperties": false,
+      "description": "Acceptance of the members at the target displacement (``fem.acceptance``). Method\n``fibreStrain``: each fibre's strain at the member's end sections against a share of the\nstrain at which its material loses strength.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "fibreStrain",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "deformationShare": {
+          "description": "A member's deformation may reach at most this × the deformation at which it fails (gravity loss, or strength below residualStrengthShare).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deformationshare",
+          "type": "number"
+        },
+        "residualStrengthShare": {
+          "description": "Strength (share of the peak) below which the component has failed.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Residualstrengthshare",
+          "type": "number"
+        },
+        "reinforcementFractureStrain": {
+          "description": "Strain at which a reinforcing bar is taken as lost (fracture or buckling): the fibre model's bars do not degrade.",
+          "exclusiveMinimum": 0,
+          "title": "Reinforcementfracturestrain",
+          "type": "number"
+        },
+        "steelFractureStrain": {
+          "description": "Strain at which a structural steel fibre is taken as lost (fracture or local buckling): the fibre model's steel does not degrade.",
+          "exclusiveMinimum": 0,
+          "title": "Steelfracturestrain",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "deformationShare",
+        "residualStrengthShare",
+        "reinforcementFractureStrain",
+        "steelFractureStrain"
+      ],
+      "title": "PushoverAcceptance",
+      "type": "object"
+    },
+    "PushoverProcedure": {
+      "additionalProperties": false,
+      "description": "How the pushover is run: the lateral load pattern the code requires, how far the control\npoint is pushed and the no-drop rule of the capacity curve.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "loadPattern": {
+          "description": "Lateral load pattern the code requires (firstMode: proportional to the fundamental mode's shape times the masses, applied at the centres of mass).",
+          "enum": [
+            "firstMode",
+            "seismic",
+            "uniform"
+          ],
+          "title": "Loadpattern",
+          "type": "string"
+        },
+        "pushToTarget": {
+          "description": "Push the control point to at least this × the target displacement.",
+          "exclusiveMinimum": 0,
+          "title": "Pushtotarget",
+          "type": "number"
+        },
+        "noDropToTarget": {
+          "description": "The base shear may not drop in any step up to this × the target displacement.",
+          "exclusiveMinimum": 0,
+          "title": "Nodroptotarget",
+          "type": "number"
+        },
+        "pDelta": {
+          "default": true,
+          "description": "P-Delta effects in the analysis.",
+          "title": "Pdelta",
+          "type": "boolean"
+        },
+        "expectedStrengths": {
+          "default": "nominal",
+          "description": "Material strengths of the nonlinear model: nominal (never above the expected strengths the code caps them at) or expected.",
+          "enum": [
+            "nominal",
+            "expected"
+          ],
+          "title": "Expectedstrengths",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "loadPattern",
+        "pushToTarget",
+        "noDropToTarget"
+      ],
+      "title": "PushoverProcedure",
+      "type": "object"
+    },
+    "TargetDisplacement": {
+      "additionalProperties": false,
+      "description": "The target displacement of the control point (``fem.pushover_target``). Method\n``coefficient``: a bilinear fit of the capacity curve, the effective period\nTe = T1·√(K1/Ke) and δt = C0·C1·Sa(Te)·(Te/2π)²·g.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "coefficient",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "bilinearFitShare": {
+          "description": "The bilinear curve's first segment meets the capacity curve at this × the effective yield strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bilinearfitshare",
+          "type": "number"
+        },
+        "spectrumR": {
+          "description": "R of the spectrum Sa is read from (1: the real, unreduced spectrum).",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumr",
+          "type": "number"
+        },
+        "spectrumImportance": {
+          "description": "I of the spectrum Sa is read from.",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumimportance",
+          "type": "number"
+        },
+        "c1PeriodLimit": {
+          "description": "C1 = 1 where Te exceeds this corner period of the site class.",
+          "enum": [
+            "TB",
+            "TC",
+            "TD"
+          ],
+          "title": "C1Periodlimit",
+          "type": "string"
+        },
+        "c1Period": {
+          "description": "The corner period Ts of the C1 formula C1 = [1 + (Rd - 1)·Ts/Te] / Rd.",
+          "enum": [
+            "TB",
+            "TC",
+            "TD"
+          ],
+          "title": "C1Period",
+          "type": "string"
+        },
+        "minimumRd": {
+          "default": 1.0,
+          "description": "Rd is taken as at least this (below 1 the structure stays elastic and the C1 formula has no meaning).",
+          "exclusiveMinimum": 0,
+          "title": "Minimumrd",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "bilinearFitShare",
+        "spectrumR",
+        "spectrumImportance",
+        "c1PeriodLimit",
+        "c1Period"
+      ],
+      "title": "TargetDisplacement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Nonlinear static (pushover) analysis: the procedure, the target displacement method and\nthe acceptance of the members.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "procedure": {
+      "$ref": "#/$defs/PushoverProcedure"
+    },
+    "targetDisplacement": {
+      "$ref": "#/$defs/TargetDisplacement"
+    },
+    "acceptance": {
+      "$ref": "#/$defs/PushoverAcceptance"
+    }
+  },
+  "required": [
+    "procedure",
+    "targetDisplacement",
+    "acceptance"
+  ],
+  "title": "PushoverTable",
+  "type": "object",
+  "$id": "saengine.codePack.pushover/1"
+}

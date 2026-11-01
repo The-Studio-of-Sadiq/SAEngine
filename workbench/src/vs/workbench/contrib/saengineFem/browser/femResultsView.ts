@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemPushoverCurve, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -589,6 +589,90 @@ export class FemResultsEditor extends EditorPane {
 		this.resultGroup.classList.toggle('hidden', !options.length);
 	}
 
+	/** A length or force of the model in the charts' units, with the unit. */
+	private format(kind: 'length' | 'force', value: number): string {
+		const unit = this.units[kind];
+		const text = fixed(value * unit.scale, kind === 'length' ? 1 : 0);
+		return unit.unit ? `${text} ${unit.unit}` : text;
+	}
+
+	/**
+	 * A pushover: its capacity curve with the bilinear fit and the target displacement (and the
+	 * 125 % and 150 % marks the code pack sets), the values of the target displacement, and the
+	 * members' acceptance at the target, by the code pack's methods.
+	 */
+	private renderPushover(curve: IFemPushoverCurve): void {
+		const section = this.section(localize('femResults.pushoverHeading', "Pushover: {0}", curve.label));
+		const length = this.units.length.scale, force = this.units.force.scale;
+		const start = curve.displacement[0] ?? 0;
+		const target = curve.target?.available ? curve.target : undefined;
+		const series: IChartSeries[] = [{ name: curve.label, color: 'blue', points: curve.displacement.map((d, k) => [d * length, Math.abs(curve.shear[k]) * force]) }];
+		const guides: { axis: 'x'; value: number; label: string; color?: ChartColor }[] = [];
+		if (target?.bilinear && target.target !== undefined) {
+			series.push({ name: localize('femResults.bilinear', "Bilinear fit"), color: 'orange', style: 'dashed', points: target.bilinear.map(p => [(start + p[0]) * length, p[1] * force]) });
+			guides.push({ axis: 'x', value: (start + target.target) * length, label: localize('femResults.targetMark', "δt"), color: 'red' });
+			if (target.noDropTo !== undefined) {
+				guides.push({ axis: 'x', value: (start + target.noDropTo) * length, label: localize('femResults.noDropMark', "no drop"), color: 'foreground' });
+			}
+			if (target.required !== undefined) {
+				guides.push({ axis: 'x', value: (start + target.required) * length, label: localize('femResults.pushToMark', "push to"), color: 'foreground' });
+			}
+		}
+		renderChart(this.grid(section), {
+			title: localize('femResults.capacity', "Capacity Curve"),
+			xLabel: withUnit(localize('femResults.controlDisp', "Control displacement"), this.units.length),
+			yLabel: withUnit(localize('femResults.baseShear', "Base shear"), this.units.force),
+			series,
+			guides,
+			caption: target?.target !== undefined ? localize('femResults.targetCaption', "Target displacement δt = {0}", this.format('length', target.target)) : undefined,
+		});
+		if (curve.target && !curve.target.available) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noTarget', "No target displacement: {0}", curve.target.reason ?? '')));
+		}
+		if (target) {
+			const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no");
+			const clauses = target.clauses ?? {};
+			const value = (v: number | undefined, digits: number) => v === undefined ? '' : v.toFixed(digits);
+			renderSheet(section, {
+				name: localize('femResults.targetTable', "Target displacement"),
+				columns: [localize('femResults.quantityCol', "Quantity"), localize('femResults.valueCol', "Value"), localize('femResults.clauseCol', "Clause")],
+				rows: [
+					[localize('femResults.t1', "Period of the first increment T1 [s]"), value(target.T1, 3), ''],
+					[localize('femResults.vy', "Effective yield strength Vy"), this.format('force', target.Vy ?? 0), ''],
+					[localize('femResults.dy', "Effective yield displacement δy"), this.format('length', target.dy ?? 0), ''],
+					[localize('femResults.te', "Effective period Te [s]"), value(target.Te, 3), clauses.period ?? ''],
+					[localize('femResults.sa', "Spectral acceleration Sa(Te) [g]"), value(target.Sa, 3), ''],
+					[localize('femResults.c0', "C0"), value(target.C0, 3), clauses.c0 ?? ''],
+					[localize('femResults.rd', "Rd"), value(target.Rd, 3), clauses.rd ?? ''],
+					[localize('femResults.c1', "C1"), value(target.C1, 3), clauses.c1 ?? ''],
+					[localize('femResults.dt', "Target displacement δt"), this.format('length', target.target ?? 0), clauses.target ?? ''],
+					[localize('femResults.pushedTo', "Pushed to (at least {0})", this.format('length', target.required ?? 0)), this.format('length', target.pushedTo ?? 0) + ' ' + (target.reached ? yes : no), clauses.pushTo ?? ''],
+					[localize('femResults.noDrop', "No drop of the base shear up to {0}", this.format('length', target.noDropTo ?? 0)), target.noDrop === null || target.noDrop === undefined ? localize('femResults.notReached', "not reached") : target.noDrop ? yes : no, clauses.noDrop ?? ''],
+				],
+				notes: [...(target.notes ?? []), ...(target.note ? [target.note] : [])],
+			});
+		}
+		const acceptance = curve.acceptance;
+		if (acceptance?.available && acceptance.rows) {
+			const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no");
+			const kinds: { [kind: string]: string } = {
+				concrete: localize('femResults.fibreConcrete', "concrete"),
+				bar: localize('femResults.fibreBar', "reinforcing bar"),
+				steel: localize('femResults.fibreSteel', "steel"),
+			};
+			renderSheet(section, {
+				name: localize('femResults.acceptanceTable', "Member acceptance at the target displacement ({0} of {1} members fail)", acceptance.failed ?? 0, acceptance.rows.length),
+				columns: [localize('femResults.memberCol', "Member"), localize('femResults.endCol', "End"), localize('femResults.fibreCol', "Fibre"), localize('femResults.strainCol', "Strain"), localize('femResults.limitCol', "Limit"), localize('femResults.ratioCol', "Ratio"), localize('femResults.okCol', "OK")],
+				rows: acceptance.rows.map(r => [r.member, r.end, kinds[r.fibre] ?? r.fibre, r.strain, r.limit, r.ratio, r.ok ? yes : no]),
+				notes: [...(acceptance.clause ? [acceptance.clause] : []), ...(acceptance.notes ?? []), ...(acceptance.note ? [acceptance.note] : [])],
+			});
+		} else if (acceptance && !acceptance.available) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noAcceptance', "No member acceptance: {0}", acceptance.reason ?? '')));
+		}
+		// What stays planned: the performance levels and other target displacement methods.
+		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.performancePoint, FemPlanned.pushoverHinges, FemPlanned.fibreWalls], this.commandService));
+	}
+
 	private section(title: string, help?: string): HTMLElement {
 		const section = append(this.body, $('section.fem-results-section'));
 		append(section, $('h2.fem-results-heading', undefined, title));
@@ -632,15 +716,7 @@ export class FemResultsEditor extends EditorPane {
 			renderSheet(section, reactions);
 		}
 		for (const curve of response.pushover) {
-			const section = this.section(localize('femResults.pushoverHeading', "Pushover: {0}", curve.label));
-			renderChart(this.grid(section), {
-				title: localize('femResults.capacity', "Capacity Curve"),
-				xLabel: withUnit(localize('femResults.controlDisp', "Control displacement"), this.units.length),
-				yLabel: withUnit(localize('femResults.baseShear', "Base shear"), this.units.force),
-				series: [{ name: curve.label, color: 'blue', points: curve.displacement.map((d, k) => [d * this.units.length.scale, Math.abs(curve.shear[k]) * this.units.force.scale]) }],
-			});
-			// Where the performance point and the hinge states will show.
-			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.performancePoint, FemPlanned.pushoverHinges, FemPlanned.fibreWalls], this.commandService));
+			this.renderPushover(curve);
 		}
 		for (const history of response.histories) {
 			const section = this.section(localize('femResults.historyHeading', "Time History: {0}", history.label));

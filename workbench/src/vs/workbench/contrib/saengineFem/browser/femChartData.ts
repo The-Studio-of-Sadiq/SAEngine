@@ -114,6 +114,73 @@ export interface IFemModeRow {
 	readonly sumUY: number | null;
 }
 
+/**
+ * The target displacement of a pushover by the code pack's method (`fem/pushover_target.py`):
+ * lengths in m, forces in N, periods in s, Sa in g.
+ */
+export interface IFemPushoverTarget {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly method?: string;
+	readonly T1?: number;
+	readonly Te?: number;
+	readonly Vy?: number;
+	readonly dy?: number;
+	readonly Sa?: number;
+	readonly C0?: number;
+	readonly C1?: number;
+	readonly Rd?: number;
+	readonly W?: number;
+	readonly target?: number;
+	readonly bilinear?: readonly (readonly number[])[];
+	readonly pushedTo?: number;
+	readonly required?: number;
+	readonly reached?: boolean;
+	readonly noDropTo?: number;
+	readonly noDrop?: boolean | null;
+	readonly targetStep?: number | null;
+	readonly ok?: boolean;
+	readonly clauses?: { readonly [key: string]: string };
+	readonly note?: string;
+	readonly notes?: readonly string[];
+}
+
+/** One member's governing fibre at the target displacement (`fem/acceptance.py`). */
+export interface IFemAcceptanceRow {
+	readonly member: string;
+	readonly element: number;
+	readonly end: 'i' | 'j';
+	readonly fibre: 'concrete' | 'bar' | 'steel';
+	readonly strain: number;
+	readonly limit: number;
+	readonly ratio: number;
+	readonly gravity: boolean;
+	readonly ok: boolean;
+}
+
+export interface IFemPushoverAcceptance {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly step?: number;
+	readonly rows?: readonly IFemAcceptanceRow[];
+	readonly failed?: number;
+	readonly ok?: boolean;
+	readonly share?: number;
+	readonly residual?: number;
+	readonly clause?: string;
+	readonly note?: string;
+	readonly notes?: readonly string[];
+}
+
+export interface IFemPushoverCurve {
+	readonly key: string;
+	readonly label: string;
+	readonly displacement: readonly number[];
+	readonly shear: readonly number[];
+	readonly target?: IFemPushoverTarget;
+	readonly acceptance?: IFemPushoverAcceptance;
+}
+
 export interface IFemStoryResponse {
 	readonly levels: readonly { readonly z: number; readonly name: string }[];
 	readonly results: readonly IFemStoryResult[];
@@ -122,7 +189,7 @@ export interface IFemStoryResponse {
 	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
 	/** The response spectrum design of this run, when it has been worked out. */
 	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string; readonly timeHistory?: IFemTimeHistoryDesign | null } | null;
-	readonly pushover: readonly { readonly key: string; readonly label: string; readonly displacement: readonly number[]; readonly shear: readonly number[] }[];
+	readonly pushover: readonly IFemPushoverCurve[];
 	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
 	readonly notes: readonly string[];
 }

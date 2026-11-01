@@ -619,14 +619,27 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 }
             )
         elif isinstance(r, PushoverResults):
-            pushover.append(
-                {
-                    "key": key,
-                    "label": entry["case_name"],
-                    "displacement": [float(v) for v in np.asarray(r.control_disp)],
-                    "shear": [float(v) for v in np.asarray(r.base_shear)],
-                }
-            )
+            curve = {
+                "key": key,
+                "label": entry["case_name"],
+                "displacement": [float(v) for v in np.asarray(r.control_disp)],
+                "shear": [float(v) for v in np.asarray(r.base_shear)],
+            }
+            # B20: the target displacement and the member acceptance (fem.pushover_target,
+            # fem.acceptance), by the methods of the code pack in force.
+            analysis = analyses.get(int(entry["case_id"]))
+            if analysis is not None and analysis.get("type") == "Pushover":
+                from saengine.fem import acceptance
+
+                try:
+                    curve.update(
+                        acceptance.evaluate_run(
+                            project, analysis, r, acceptance.analysis_settings(project_path)
+                        )
+                    )
+                except Exception as error:  # noqa: BLE001 - the curve shows without them
+                    notes.append(f"{entry['case_name']}: no target displacement ({error})")
+            pushover.append(curve)
         elif isinstance(r, TransientResults):
             history = _roof_history(r, level_nodes[-1] if level_nodes else [])
             if history is not None:

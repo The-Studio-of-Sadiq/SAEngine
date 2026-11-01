@@ -214,6 +214,7 @@ def write_results(results: AnyResults, out_dir: str | Path) -> dict[str, Any]:
             _write_int_dict(f, "node_disp", results.node_disp)
             _write_int_dict(f, "node_reaction", results.node_reaction)
             _write_int_dict(f, "element_end_fibers", results.element_end_fibers)
+            _write_int_dict(f, "element_start_fibers", results.element_start_fibers)
             _write_int_dict(f, "element_forces", results.element_forces)
         elif isinstance(results, ModalResults):
             entry["completed_steps"] = len(results.eigenvalues)
@@ -319,6 +320,7 @@ def load_results(entry: dict[str, Any], out_dir: str | Path) -> AnyResults:
                 node_disp=_read_int_dict(f, "node_disp"),
                 node_reaction=_read_int_dict(f, "node_reaction"),
                 element_end_fibers=_read_int_dict(f, "element_end_fibers"),
+                element_start_fibers=_read_int_dict(f, "element_start_fibers"),
                 element_forces=_read_int_dict(f, "element_forces"),
                 n_steps_requested=int(entry.get("n_steps_requested", 0)),
             )

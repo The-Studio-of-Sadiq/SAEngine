@@ -279,17 +279,20 @@ registerPlannedFeature({
 	],
 });
 
-// T21: pushover acceptance criteria and performance point.
+// T21 / B20: the pushover's target displacement, fibre walls and member acceptance follow the code
+// pack's methods (fem/pushover_target.py, fem/acceptance.py). Still planned: the performance levels
+// and hinge backbones of performance-based assessment, other target displacement methods, and
+// walls with openings as nonlinear piers and spandrels.
 registerPlannedFeature({
 	id: FemPlanned.pushoverHinges,
 	part: 'fem',
-	title: localize('planned.hinges.title', "Pushover Hinges and Acceptance"),
-	summary: localize('planned.hinges.summary', "Gives beams and columns plastic hinges with performance-based backbone curves, and checks each hinge's rotation against the Immediate Occupancy, Life Safety and Collapse Prevention limits. Today's pushover uses fibre frames and gives the capacity curve only."),
+	title: localize('planned.hinges.title', "Performance Levels (IO, LS, CP)"),
+	summary: localize('planned.hinges.summary', "Gives beams and columns plastic hinges with performance-based backbone curves, and checks each hinge's rotation against the Immediate Occupancy, Life Safety and Collapse Prevention limits. Today's pushover checks the members' fibre strains against the code pack's acceptance rule at the target displacement."),
 	steps: [
 		localize('planned.hinges.step1', "Assign hinges to the members from their sections, bars and axial load."),
 		localize('planned.hinges.step2', "Run the pushover with the hinges."),
 		localize('planned.hinges.step3', "Colour the hinges in the view by state (B, IO, LS, CP, C, E) at each step."),
-		localize('planned.hinges.step4', "Report each hinge's rotation against its acceptance limit at the performance point."),
+		localize('planned.hinges.step4', "Report each hinge's rotation against the limit of the chosen performance level."),
 	],
 	inputs: [
 		{ label: localize('planned.hinges.target', "Target performance level"), example: localize('planned.hinges.targetExample', "Life Safety") },
@@ -297,37 +300,35 @@ registerPlannedFeature({
 	],
 	outputs: [
 		localize('planned.hinges.out1', "Hinge states in the 3D view, step by step"),
-		localize('planned.hinges.out2', "A hinge acceptance table"),
-		localize('planned.hinges.out3', "A pushover section in the design report"),
+		localize('planned.hinges.out2', "A hinge table by performance level"),
 	],
 	references: [
-		localize('planned.hinges.ref1', "BNBC 2020 Part 6 Sec 2.5 (earthquake loads, pp. 609-648)"),
 		localize('planned.hinges.ref2', "ASCE/SEI 41-17 Ch 7 and Ch 10 (nonlinear procedures; concrete hinges and acceptance)"),
 	],
 });
 registerPlannedFeature({
 	id: FemPlanned.fibreWalls,
 	part: 'fem',
-	title: localize('planned.fibreWalls.title', "Fibre Walls in Pushover"),
-	summary: localize('planned.fibreWalls.summary', "Models shear walls with fibre sections (confined and unconfined concrete, bars) in the pushover model, so walls crack and yield instead of staying elastic."),
+	title: localize('planned.fibreWalls.title', "Nonlinear Walls with Openings"),
+	summary: localize('planned.fibreWalls.summary', "Models walls with openings as nonlinear piers and spandrels (coupling beams) in the pushover model. Today walls without openings become fibre wall elements, and walls with openings stay elastic shells, with a note."),
 	steps: [
-		localize('planned.fibreWalls.step1', "Mesh each wall into fibre wall elements from its section and bars."),
-		localize('planned.fibreWalls.step2', "Run the pushover with the walls nonlinear."),
-		localize('planned.fibreWalls.step3', "Check wall strains and shear against the acceptance limits."),
+		localize('planned.fibreWalls.step1', "Split each wall with openings into piers and spandrels from its openings."),
+		localize('planned.fibreWalls.step2', "Give the piers fibre sections and the spandrels diagonal or flexural models from their bars."),
+		localize('planned.fibreWalls.step3', "Check their strains and shear in the member acceptance."),
 	],
 	outputs: [
-		localize('planned.fibreWalls.out1', "Wall strains and pier forces per step"),
-		localize('planned.fibreWalls.out2', "Wall acceptance in the hinge table"),
+		localize('planned.fibreWalls.out1', "Pier and spandrel forces per step"),
+		localize('planned.fibreWalls.out2', "Their acceptance in the member acceptance table"),
 	],
 	references: [
-		localize('planned.fibreWalls.ref1', "ASCE/SEI 41-17 Sec 10.7 (concrete shear walls)"),
+		localize('planned.fibreWalls.ref1', "ASCE/SEI 41-17 Sec 10.7 (concrete shear walls and coupling beams)"),
 	],
 });
 registerPlannedFeature({
 	id: FemPlanned.performancePoint,
 	part: 'fem',
-	title: localize('planned.perfPoint.title', "Performance Point"),
-	summary: localize('planned.perfPoint.summary', "Finds where the capacity curve meets the demand of the project's design spectrum, by the N2 method or the FEMA 440 improved procedures, and gives the target displacement at which the hinges are checked."),
+	title: localize('planned.perfPoint.title', "Other Target Displacement Methods"),
+	summary: localize('planned.perfPoint.summary', "Finds the performance point by the N2 method or the FEMA 440 improved procedures, as alternatives to the code pack's own target displacement method, which the pushover already uses."),
 	steps: [
 		localize('planned.perfPoint.step1', "Convert the capacity curve to the equivalent single-degree-of-freedom system."),
 		localize('planned.perfPoint.step2', "Take the demand from the project's design spectrum."),
