@@ -7823,3 +7823,32 @@ def _register_with_registry() -> None:
 
 
 _register_with_registry()
+
+
+# ─────────────────────── designClauses (clause references of saengine.design) ───────────────────────
+
+
+class DesignClausesTable(TableModel):
+    """Clause references of the member and connection design (``saengine.design``), grouped by
+    module: ``clauses.<group>.<key>`` is the clause without the code's name (the design puts the
+    pack's display name before it). ``shortName``: the code's name in compact notes (e.g.
+    "<short> 6.1.4.3"). A pack without this table names only itself in the design notes."""
+
+    shortName: str = Field(default="", description="The code's short name in compact notes.")
+    clauses: dict[str, dict[str, str]] = Field(
+        default_factory=dict, description="Clause reference of each check: {group: {key: clause}}."
+    )
+
+
+TABLE_MODELS["designClauses"] = DesignClausesTable
+
+
+def _register_design_clauses() -> None:
+    try:
+        from saengine.codes.registry import register
+    except ImportError:  # the registry is optional for the readers of the built-in pack
+        return
+    register("designClauses", DesignClausesTable, MERGE_KEYS.get("designClauses"))
+
+
+_register_design_clauses()

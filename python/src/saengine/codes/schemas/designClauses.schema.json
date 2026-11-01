@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "description": "Clause references of the member and connection design (``saengine.design``), grouped by\nmodule: ``clauses.<group>.<key>`` is the clause without the code's name (the design puts the\npack's display name before it). ``shortName``: the code's name in compact notes (e.g.\n\"<short> 6.1.4.3\"). A pack without this table names only itself in the design notes.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "shortName": {
+      "default": "",
+      "description": "The code's short name in compact notes.",
+      "title": "Shortname",
+      "type": "string"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "description": "Clause reference of each check: {group: {key: clause}}.",
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "title": "DesignClausesTable",
+  "type": "object",
+  "$id": "saengine.codePack.designClauses/1"
+}
