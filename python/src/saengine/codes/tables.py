@@ -467,6 +467,121 @@ class DiaphragmDeflection(BaseModel):
     limit: float | None = Field(default=None, gt=0)
 
 
+# ── B12: building irregularities, dynamic analysis trigger, soft storey ──
+
+
+class StoreyRatio(BaseModel):
+    """A storey irregular when its value is below ``storeyAbove`` × the storey above's, or
+    below ``threeAbove`` × the mean of the three storeys above (empty: not checked)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    storeyAbove: float | None = Field(default=None, gt=0, le=1)
+    threeAbove: float | None = Field(default=None, gt=0, le=1)
+
+
+class AdjacentRatio(BaseModel):
+    """Irregular when a storey's value is more than ``adjacent`` × an adjacent storey's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    adjacent: float = Field(gt=1)
+    #: Mass: a roof lighter than the floor below is not compared. Geometry: a one-storey
+    #: penthouse is not compared.
+    topExempt: bool = True
+
+
+class StoreyStrength(BaseModel):
+    """How a storey's lateral strength is estimated for the weak storey check. ``shearStrength``:
+    the sum of the nominal shear strengths of the storey's columns and structural walls in the
+    direction, Vn = concreteFactor·λ·√f'c·bw·d + Av·fyt·d/s, d = depthFactor × the depth."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["shearStrength"] = "shearStrength"
+    concreteFactor: float = Field(gt=0)
+    depthFactor: float = Field(gt=0, le=1)
+
+
+class Irregularities(BaseModel):
+    """Plan and vertical irregularity thresholds (each block empty: not checked)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Re-entrant corner: both projections beyond it more than this share of the plan dimension.
+    reentrantProjection: float | None = Field(default=None, gt=0, lt=1)
+    #: Diaphragm discontinuity: open area more than this share of the gross enclosed area.
+    openingShare: float | None = Field(default=None, gt=0, lt=1)
+    #: Diaphragm discontinuity: effective stiffness changing by more than this share.
+    diaphragmStiffnessChange: float | None = Field(default=None, gt=0, lt=1)
+    #: Non-parallel systems: an element more than this many degrees off the major axes.
+    nonparallelTolerance: float | None = Field(default=None, gt=0, lt=45)
+    #: Out-of-plane offsets (plan) and in-plane discontinuity (vertical): checked when True.
+    offsets: bool = False
+    #: In-plane discontinuity: an in-plane offset more than this × the element's length.
+    inPlaneOffset: float | None = Field(default=None, gt=0)
+    soft: StoreyRatio | None = None
+    extremeSoft: StoreyRatio | None = None
+    mass: AdjacentRatio | None = None
+    geometry: AdjacentRatio | None = None
+    weak: StoreyRatio | None = None
+    extremeWeak: StoreyRatio | None = None
+    strength: StoreyStrength | None = None
+    #: Which irregularity types count as plan ("plan") or vertical ("vertical") ones, with the
+    #: pack's display label: type id -> {"group", "label"}.
+    labels: dict[str, dict[str, str]] = Field(default_factory=dict)
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class DynamicAnalysis(BaseModel):
+    """When the equivalent static method is not enough. ``regularHeights`` and
+    ``irregularHeights``: height [m] above which dynamic analysis is required, by seismic zone
+    ("1".."4"); ``recommendedIrregular``: zones where it is recommended for an irregular building
+    below that height. The static procedure also needs T below ``periodTcFactor`` × TC and
+    ``periodMax`` and no vertical irregularity (``verticalIrregularity``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    regularHeights: dict[str, float] = Field(default_factory=dict)
+    irregularHeights: dict[str, float] = Field(default_factory=dict)
+    recommendedIrregular: list[str] = Field(default_factory=list)
+    periodTcFactor: float | None = Field(default=None, gt=0)
+    periodMax: float | None = Field(default=None, gt=0)
+    verticalIrregularity: bool = False
+    clause: str = ""
+    staticClause: str = ""
+
+
+class SoftStoreyDesign(BaseModel):
+    """Design of a soft storey without the overstrength factor. ``forceFactors``: the soft
+    storey's columns and beams take ``frameFactor`` × the earthquake forces, its structural walls
+    ``wallFactor`` ×; ``types``: the irregularity types that make a storey soft."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["forceFactors"] = "forceFactors"
+    frameFactor: float = Field(gt=1)
+    wallFactor: float = Field(gt=1)
+    types: list[str] = Field(default_factory=list)
+    clause: str = ""
+
+
+class DiaphragmConnections(BaseModel):
+    """The connection force increase of irregular buildings (the factor is the pack's
+    ``transfer.diaphragm.irregularIncrease``): in the ``categories`` with an irregularity of
+    ``types``. ``wingTypes``: irregularities whose projecting wings need chords and collectors
+    for independent motion, satisfied by a dynamic 3D analysis when ``wingsDynamicExempt``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    categories: list[str] = Field(default_factory=list)
+    types: list[str] = Field(default_factory=list)
+    wingTypes: list[str] = Field(default_factory=list)
+    wingsDynamicExempt: bool = False
+    clause: str = ""
+    wingsClause: str = ""
+
+
 class SeismicTable(TableModel):
     """Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis."""
 
@@ -493,6 +608,11 @@ class SeismicTable(TableModel):
     systemCombination: SystemCombination = Field(default_factory=SystemCombination)
     separation: Separation = Field(default_factory=Separation)
     diaphragmDeflection: DiaphragmDeflection = Field(default_factory=DiaphragmDeflection)
+    # B12: empty in a pack that does not cover them (the feature is then not covered).
+    irregularities: Irregularities | None = None
+    dynamicAnalysis: DynamicAnalysis | None = None
+    softStorey: SoftStoreyDesign | None = None
+    diaphragmConnections: DiaphragmConnections | None = None
     clauses: dict[str, str] = Field(
         default_factory=dict, description="Clause references of the seismic results, by key."
     )

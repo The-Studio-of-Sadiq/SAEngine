@@ -769,6 +769,165 @@
   "diaphragmDeflection": {
     "limit": null
   },
+  "irregularities": {
+    "reentrantProjection": 0.15,
+    "openingShare": 0.5,
+    "diaphragmStiffnessChange": 0.5,
+    "nonparallelTolerance": 5.0,
+    "offsets": true,
+    "inPlaneOffset": 1.0,
+    "soft": {
+      "storeyAbove": 0.7,
+      "threeAbove": 0.8
+    },
+    "extremeSoft": {
+      "storeyAbove": 0.6,
+      "threeAbove": 0.7
+    },
+    "mass": {
+      "adjacent": 1.5,
+      "topExempt": true
+    },
+    "geometry": {
+      "adjacent": 1.3,
+      "topExempt": true
+    },
+    "weak": {
+      "storeyAbove": 0.8
+    },
+    "extremeWeak": {
+      "storeyAbove": 0.65
+    },
+    "strength": {
+      "method": "shearStrength",
+      "concreteFactor": 0.17,
+      "depthFactor": 0.8
+    },
+    "labels": {
+      "torsion": {
+        "group": "plan",
+        "label": "Torsional irregularity (plan type I.a)"
+      },
+      "extremeTorsion": {
+        "group": "plan",
+        "label": "Extreme torsional irregularity (plan type I.b)"
+      },
+      "reentrantCorner": {
+        "group": "plan",
+        "label": "Re-entrant corners (plan type II)"
+      },
+      "diaphragmDiscontinuity": {
+        "group": "plan",
+        "label": "Diaphragm discontinuity (plan type III)"
+      },
+      "outOfPlaneOffset": {
+        "group": "plan",
+        "label": "Out-of-plane offsets (plan type IV)"
+      },
+      "nonparallel": {
+        "group": "plan",
+        "label": "Non-parallel systems (plan type V)"
+      },
+      "soft": {
+        "group": "vertical",
+        "label": "Soft storey (vertical type I.a)"
+      },
+      "extremeSoft": {
+        "group": "vertical",
+        "label": "Extreme soft storey (vertical type I.b)"
+      },
+      "mass": {
+        "group": "vertical",
+        "label": "Mass irregularity (vertical type II)"
+      },
+      "geometry": {
+        "group": "vertical",
+        "label": "Vertical geometric irregularity (vertical type III)"
+      },
+      "inPlaneDiscontinuity": {
+        "group": "vertical",
+        "label": "In-plane discontinuity (vertical type IV)"
+      },
+      "weak": {
+        "group": "vertical",
+        "label": "Weak storey (vertical type V.a)"
+      },
+      "extremeWeak": {
+        "group": "vertical",
+        "label": "Extreme weak storey (vertical type V.b)"
+      }
+    },
+    "clauses": {
+      "plan": "Part 6 Sec 2.5.5.3.1 (pp. 617-618), Table 6.1.5 (p. 491), Figure 6.2.27 (pp. 619-620)",
+      "vertical": "Part 6 Sec 2.5.5.3.2 (p. 618), Table 6.1.4 (p. 490), Figure 6.2.28 (pp. 620-621)",
+      "torsion": "Part 6 Sec 2.5.5.3.1(i) (p. 617)",
+      "extremeTorsion": "Part 6 Sec 2.5.5.3.1(i) (p. 617)",
+      "reentrantCorner": "Part 6 Sec 2.5.5.3.1(ii) (p. 617)",
+      "diaphragmDiscontinuity": "Part 6 Sec 2.5.5.3.1(iii) (p. 618)",
+      "outOfPlaneOffset": "Part 6 Sec 2.5.5.3.1(iv) (p. 618)",
+      "nonparallel": "Part 6 Sec 2.5.5.3.1(v) (p. 618)",
+      "soft": "Part 6 Sec 2.5.5.3.2(i) (p. 618)",
+      "extremeSoft": "Part 6 Sec 2.5.5.3.2(i) (p. 618)",
+      "mass": "Part 6 Table 6.1.4 type II (p. 490)",
+      "geometry": "Part 6 Table 6.1.4 type III (p. 490), Figure 6.2.28(c) (p. 620)",
+      "inPlaneDiscontinuity": "Part 6 Sec 2.5.5.3.2(iv) (p. 618)",
+      "weak": "Part 6 Sec 2.5.5.3.2(v) (p. 618)",
+      "extremeWeak": "Part 6 Sec 2.5.5.3.2(v) (p. 618)",
+      "strength": "Part 6 Sec 6.4.2.1.1, Eq. 6.6.49 (p. 922); Sec 6.4.8.4-6.4.8.5 (p. 936)",
+      "orthogonal": "Part 6 Sec 2.5.13.1(b) (p. 645)"
+    }
+  },
+  "dynamicAnalysis": {
+    "regularHeights": {
+      "1": 90.0,
+      "2": 40.0,
+      "3": 40.0,
+      "4": 40.0
+    },
+    "irregularHeights": {
+      "1": 40.0,
+      "2": 12.0,
+      "3": 12.0,
+      "4": 12.0
+    },
+    "recommendedIrregular": [
+      "1"
+    ],
+    "periodTcFactor": 4.0,
+    "periodMax": 2.0,
+    "verticalIrregularity": true,
+    "clause": "Part 6 Sec 2.5.8.1 (p. 633)",
+    "staticClause": "Part 6 Sec 2.5.6 (p. 626)"
+  },
+  "softStorey": {
+    "method": "forceFactors",
+    "frameFactor": 2.5,
+    "wallFactor": 1.5,
+    "types": [
+      "soft",
+      "extremeSoft"
+    ],
+    "clause": "Part 6 Sec 2.5.17 (2) (p. 666)"
+  },
+  "diaphragmConnections": {
+    "categories": [
+      "D"
+    ],
+    "types": [
+      "torsion",
+      "extremeTorsion",
+      "reentrantCorner",
+      "diaphragmDiscontinuity",
+      "outOfPlaneOffset",
+      "inPlaneDiscontinuity"
+    ],
+    "wingTypes": [
+      "reentrantCorner"
+    ],
+    "wingsDynamicExempt": true,
+    "clause": "Part 6 Sec 1.7.3.8(d)(i) (p. 505) and Sec 2.5.5.6.2 (p. 625)",
+    "wingsClause": "Part 6 Sec 1.7.3.8(d)(ii) (p. 506)"
+  },
   "liveShare": 0.25,
   "heavyLiveLimit": 3.0,
   "heavyLiveShare": 0.5,
@@ -810,7 +969,11 @@
     "systemCombination": "BNBC 2020 Part 6 Sec 2.5.5.5.1 (p. 624) and 2.5.5.5.2 (p. 625): least R, largest Cd, the more stringent limitation; the largest Omega0 is SAEngine practice, not BNBC (the clause names R and Cd only)",
     "separation": "BNBC 2020 Part 6 Sec 2.5.14.3 (i)-(iii) (pp. 648-649)",
     "diaphragmDeflection": "BNBC 2020 Part 6 Sec 2.5.14.2 (p. 647) and Sec 1.7.3.8 (p. 505): the permissible deflection of the attached elements; the code gives no number",
-    "clauses": "BNBC 2020 Part 6 Sec 2.5 clause references of the seismic results"
+    "clauses": "BNBC 2020 Part 6 Sec 2.5 clause references of the seismic results",
+    "irregularities": "BNBC 2020 Part 6 Sec 2.5.5.3 (pp. 617-618) with Tables 6.1.4-6.1.5 (pp. 490-491) and Figures 6.2.27-6.2.28 (pp. 619-621): re-entrant projections 15 %; openings 50 % of the gross enclosed area or a 50 % change of diaphragm stiffness; soft storey 70 % of the storey above or 80 % of the three above, extreme 60 % / 70 %; weak storey 80 % of the storey above, extreme 65 %; in-plane offset greater than the element's length; vertical geometric 130 % of an adjacent storey (Table 6.1.4 type III and Figure 6.2.28(c), L2 > 1.3 L1), a one-storey penthouse not considered. Mass: Sec 2.5.5.3.2(ii) prints twice an adjacent storey (also Figure 6.2.28(b)), Table 6.1.4 type II prints 150 percent of an adjacent storey; the more conservative 150 % is used (owner decision 2026-11-01 on apparent misprints), a roof lighter than the floor below not considered. nonparallelTolerance (5 degrees off the major axes) is SAEngine practice, not BNBC (the code gives no tolerance). strength: the storey lateral strength of the weak storey check estimated by the vertical elements' nominal shear strength, Vc = 0.17 lambda sqrt(f'c) bw d (Sec 6.4.2.1.1, Eq. 6.6.49, p. 922; walls Sec 6.4.8.5 with d = 0.8 lw, Sec 6.4.8.4, p. 936) plus the ties; d = 0.8 h of a column is SAEngine practice, not BNBC; the flexural strength of the elements can govern and is not counted (an estimate)",
+    "dynamicAnalysis": "BNBC 2020 Part 6 Sec 2.5.8.1 (p. 633): dynamic analysis for regular buildings above 40 m in Zones 2-4 and 90 m in Zone 1, irregular buildings (Sec 2.5.5.3) above 12 m in Zones 2-4 and 40 m in Zone 1, recommended for irregular buildings below 40 m in Zone 1; Sec 2.5.6 (p. 626): the equivalent static method only where T < 4 TC and 2 s in both directions and the building has no irregularity in elevation",
+    "softStorey": "BNBC 2020 Part 6 Sec 2.5.17 (p. 666), approach (2), when Omega0 is not included: the soft storey's columns and beams for 2.5 times the storey shears and moments of the earthquake analysis (infill neglected), its symmetrically placed shear walls for 1.5 times the lateral shear; approach (1), a dynamic analysis with the infill walls and the members' inelastic deformation, is not done by SAEngine",
+    "diaphragmConnections": "BNBC 2020 Part 6 Sec 1.7.3.8(d)(i) (p. 505) and Sec 2.5.5.6.2 (p. 625): Seismic Design Category D with plan irregularity type I.a, I.b, II, III or IV or vertical type IV, the Sec 2.5.7 forces of the diaphragm-to-vertical-element and collector connections +25 % (transfer.diaphragm.irregularIncrease); collectors too unless they take the Omega0 combinations. Sec 1.7.3.8(d)(ii) (p. 506): with plan type II the chords and collectors take the projecting wings moving in the same and in opposite directions, unless a dynamic analysis (Sec 2.5.8) on a three-dimensional model gives the forces"
   },
   "clauses": {
     "scale": "Part 6 Sec 2.5.9.4 (p. 635)",
@@ -830,6 +993,9 @@
     "diaphragmDeflection": "Part 6 Sec 2.5.14.2 (p. 647) and Sec 1.7.3.8 (p. 505)",
     "separation": "Part 6 Sec 2.5.14.3 (pp. 648-649) and Sec 1.5.7 (p. 500)",
     "displacement": "Part 6 Sec 2.5.7.7, Eq. 6.2.45 (p. 631)",
-    "orthogonalOneShift": "Part 6 Sec 2.5.7.6.3 (p. 631)"
+    "orthogonalOneShift": "Part 6 Sec 2.5.7.6.3 (p. 631)",
+    "irregularities": "Part 6 Sec 2.5.5.3 (pp. 617-618)",
+    "dynamicAnalysis": "Part 6 Sec 2.5.8.1 (p. 633)",
+    "softStorey": "Part 6 Sec 2.5.17 (p. 666)"
   }
 }
