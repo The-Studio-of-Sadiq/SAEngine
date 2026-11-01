@@ -82,9 +82,9 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 
 /** The material categories each kind of object type can be made of (members never of rebar or mortar alone). */
 const KIND_MATERIALS: { readonly [kind: string]: readonly string[] } = {
-	beam: ['concrete', 'steel', 'other'],
-	column: ['concrete', 'steel', 'masonry', 'other'],
-	brace: ['steel', 'other'],
+	beam: ['concrete', 'steel', 'timber', 'other'],
+	column: ['concrete', 'steel', 'masonry', 'timber', 'other'],
+	brace: ['steel', 'timber', 'other'],
 	slab: ['concrete', 'other'],
 	wall: ['concrete', 'masonry', 'other'],
 	staircase: ['concrete', 'other'],
@@ -785,8 +785,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 			return undefined;
 		}
 		const category = item.category;
-		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry' }[String(category)];
-		if (path === 'concrete' || path === 'steel' || path === 'masonry') {
+		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry', timber: 'timber' }[String(category)];
+		if (path === 'concrete' || path === 'steel' || path === 'masonry' || path === 'timber') {
 			return path === group ? 'required' : 'hidden';
 		}
 		if (path === 'composition' && category !== 'concrete' && category !== 'mortar') {

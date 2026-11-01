@@ -90,6 +90,12 @@ TABLE_HELP: dict[str, str] = {
     "constants, the least factors, the uses not reduced and the live load element factors KLL.",
     "fireResistance": "Least sizes and covers of concrete members by fire resistance rating "
     "(slabs, walls, beams, columns).",
+    "timber": "Sawn timber (permissible stress design): stresses by strength group and "
+    "location of use, the column formulas, the depth factor, load duration factors and "
+    "deflection limits.",
+    "masonry": "Masonry walls (strength design): phi, Em and the ultimate strain by unit, the "
+    "stress block, axial strength and slenderness, the modulus of rupture, shear, the steel "
+    "limits and f'm from the unit strength and mortar type.",
     "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
     "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
     "the walls rolled for them, the density. SAEngine computes the properties from them.",

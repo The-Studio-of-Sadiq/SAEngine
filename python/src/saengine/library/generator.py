@@ -69,7 +69,7 @@ from saengine.library.templates import TEMPLATES
 # ─────────────────────────────────────────── the spec ───────────────────────────────────────────
 
 Spacing = Annotated[float, Field(gt=0, description="[mm]")]
-SystemKind = Literal["rcFrame", "rcFrameWithWalls", "flatSlab"]
+SystemKind = Literal["rcFrame", "rcFrameWithWalls", "flatSlab", "masonry"]
 FootingKind = Literal["isolated", "mat", "none"]
 OccupancyUse = Literal[
     "residential",
@@ -327,6 +327,7 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
         "rcFrame": ["rcOmf", "rcImf", "rcSmf"],
         "rcFrameWithWalls": ["rcOrdinaryWallFrame", "rcDualSpecial"],
         "flatSlab": ["rcOmf", "rcImf", "rcSpecialWallFrame", "rcDualSpecial"],
+        "masonry": ["masonryOrdinaryPlain", "masonryOrdinaryReinforced"],
     }[kind]
     category = sdc or "B"
     notes: list[str] = []
@@ -1161,33 +1162,13 @@ def lateral_column_sizes(
 
 
 @code_context.in_project_pack()
-def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None) -> dict[str, Any]:
-    """The parts of a building generated from ``spec`` (a :class:`BuildingSpec` or its JSON).
-
-    ``settings``: the project settings to start from (a :class:`ProjectSettings` or its JSON);
-    none: :func:`default_project_settings`.
-
-    Returns ``{"materials", "objects", "floorPlan", "substructure", "settings",
-    "settingsPatch", "notes", "summary"}``; the parts as JSON (validated by their models).
-    """
-    s = spec if isinstance(spec, BuildingSpec) else BuildingSpec.model_validate(spec)
-    notes: list[str] = []
-
-    # ── materials ──
-    materials = default_material_library()
-    concrete = materials.get(s.concrete)
-    if concrete is None or concrete.category != Category.CONCRETE or concrete.concrete is None:
-        raise ValueError(f"'{s.concrete}' is not a concrete of the default materials")
-    rebar = materials.get(s.rebar)
-    if rebar is None or rebar.category != Category.REBAR or rebar.steel is None:
-        raise ValueError(f"'{s.rebar}' is not a rebar of the default materials")
-    # The chosen concrete and bars, recorded: the types are generated without bars, so this is
-    # what the design proposes them with (and the BOQ bills), not the library's first rebar.
-    materials.defaults = MaterialDefaults(concrete=s.concrete, rebar=s.rebar)
-    fc, fy = concrete.concrete.fc, rebar.steel.fy
-    gamma = (concrete.mechanical.density or 2400.0) * G / 1000.0  # kN/m³
-
-    # ── settings ──
+def settings_patch(
+    s: BuildingSpec, settings: Any, notes: list[str]
+) -> tuple[dict[str, Any], dict[str, Any], str | None, int | None]:
+    """(the starting settings as JSON, the patch of the occupancy, site and floor live load,
+    the Seismic Design Category and zone) of ``spec`` on ``settings`` (see
+    :func:`generate_building`); the assumptions go to ``notes``. Shared by the generators of
+    the RC systems and of masonry buildings (:mod:`saengine.library.masonry_building`)."""
     if settings is None:
         base = default_project_settings(s.name)
     elif isinstance(settings, ProjectSettings):
@@ -1249,6 +1230,42 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
 
     trial = ProjectSettings.model_validate(_deep_merge(base_json, patch))
     sdc, zone = seismic_design_category(trial)
+    return base_json, patch, sdc, zone
+
+
+def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None) -> dict[str, Any]:
+    """The parts of a building generated from ``spec`` (a :class:`BuildingSpec` or its JSON).
+
+    ``settings``: the project settings to start from (a :class:`ProjectSettings` or its JSON);
+    none: :func:`default_project_settings`.
+
+    Returns ``{"materials", "objects", "floorPlan", "substructure", "settings",
+    "settingsPatch", "notes", "summary"}``; the parts as JSON (validated by their models).
+    """
+    s = spec if isinstance(spec, BuildingSpec) else BuildingSpec.model_validate(spec)
+    if s.system == "masonry":
+        # T31: load-bearing masonry walls, a generator of their own.
+        from saengine.library.masonry_building import generate_masonry_building
+
+        return generate_masonry_building(s, settings)
+    notes: list[str] = []
+
+    # ── materials ──
+    materials = default_material_library()
+    concrete = materials.get(s.concrete)
+    if concrete is None or concrete.category != Category.CONCRETE or concrete.concrete is None:
+        raise ValueError(f"'{s.concrete}' is not a concrete of the default materials")
+    rebar = materials.get(s.rebar)
+    if rebar is None or rebar.category != Category.REBAR or rebar.steel is None:
+        raise ValueError(f"'{s.rebar}' is not a rebar of the default materials")
+    # The chosen concrete and bars, recorded: the types are generated without bars, so this is
+    # what the design proposes them with (and the BOQ bills), not the library's first rebar.
+    materials.defaults = MaterialDefaults(concrete=s.concrete, rebar=s.rebar)
+    fc, fy = concrete.concrete.fc, rebar.steel.fy
+    gamma = (concrete.mechanical.density or 2400.0) * G / 1000.0  # kN/m³
+
+    # ── settings ──
+    base_json, patch, sdc, zone = settings_patch(s, settings, notes)
     stories = s.story_list()
     height_m = sum(st.height for st in stories) / 1000
     system_id, walls_needed, system_notes = _system(s.system, sdc, height_m)

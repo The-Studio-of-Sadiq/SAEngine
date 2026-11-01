@@ -31,6 +31,7 @@ import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
 import { appendPlannedChips, FemPlanned, STEEL_CONNECTIONS_PLANNED, STEEL_STABILITY_PLANNED } from './femPlannedFeatures.js';
+import { timberSection } from './femTimberDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 
 export { resultsFolder } from './femDesign.js';
@@ -1661,6 +1662,12 @@ export class FemResultsBar extends Disposable {
 		if (steel.length) {
 			this.appendPlanned(container, [FemPlanned.compositeBeams, FemPlanned.compositeColumns]);
 		}
+		// A timber member's section, group and permissible stresses (T45), then its connections (planned).
+		const timber = timberSection(element);
+		this.renderDetailing(container, timber);
+		if (timber.length) {
+			this.appendPlanned(container, [FemPlanned.timberConnections]);
+		}
 		this.renderDetailing(container, detailingSection(report, element, this.model));
 		if (isWall(element)) {
 			const diagram = pierDiagram(element, selection.id);
@@ -1669,6 +1676,9 @@ export class FemResultsBar extends Disposable {
 				this.renderPierDiagram(container, diagram);
 			}
 			this.renderDetailing(container, wallSection(element, selection.id));
+			if (String(element.wallType ?? '').startsWith('masonry')) {
+				this.appendPlanned(container, [FemPlanned.confinedMasonry]);
+			}
 		} else if (isStaircase(element)) {
 			this.renderDetailing(container, staircaseSection(element));
 		}

@@ -1,0 +1,105 @@
+{
+  "$schema": "../../../schemas/masonry.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 7",
+    "TMS 402 / ACI 530 (MSJC 2008) Chapter 3, strength design",
+    "TMS 602 / ACI 530.1 (MSJC 2008) Tables 1 and 2"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 7 (masonry structures), strength design of unreinforced and reinforced masonry walls as the MSJC (TMS 402 / ACI 530-08 Chapter 3) gives it; SI values converted from the psi of the standard (1 psi = 0.006895 MPa, c √f'm psi = 0.083 c √f'm MPa). Section and page numbers of the BNBC text are to be checked.",
+  "phi": {
+    "axialFlexureReinforced": 0.9,
+    "axialFlexureUnreinforced": 0.6,
+    "shear": 0.8,
+    "bearing": 0.6
+  },
+  "modulusRatio": {
+    "clay": 700.0,
+    "concrete": 900.0
+  },
+  "ultimateStrain": {
+    "clay": 0.0035,
+    "concrete": 0.0025
+  },
+  "stressBlock": {
+    "stress": 0.8,
+    "depth": 0.8
+  },
+  "axial": {
+    "reduction": 0.8,
+    "slendernessBreak": 99.0,
+    "short": 140.0,
+    "long": 70.0
+  },
+  "fmRange": {
+    "clay": [10.34, 41.37],
+    "concrete": [10.34, 27.58]
+  },
+  "modulusOfRupture": {
+    "solid": {"M": 0.689, "S": 0.689, "N": 0.517},
+    "hollow": {"M": 0.434, "S": 0.434, "N": 0.331},
+    "grouted": {"M": 1.124, "S": 1.124, "N": 1.089}
+  },
+  "plainShear": {
+    "root": 0.316,
+    "cap": 2.07,
+    "runningBond": 0.386,
+    "runningBondGrouted": 0.621,
+    "stackBond": 0.159,
+    "axialShare": 0.45
+  },
+  "reinforcedShear": {
+    "masonry": 0.083,
+    "first": 4.0,
+    "slope": 1.75,
+    "axialShare": 0.25,
+    "steelShare": 0.5,
+    "maxLow": 0.5,
+    "maxHigh": 0.332
+  },
+  "maxSteelStrain": {
+    "ordinary": 1.5,
+    "intermediate": 3.0,
+    "special": 4.0
+  },
+  "slenderWall": {
+    "axialMax": 0.2,
+    "axialSlender": 0.05,
+    "heightThickness": 30.0
+  },
+  "ordinaryWalls": {
+    "maxSpacing": 3048.0,
+    "leastBarArea": 129.0
+  },
+  "mortarFromMix": {
+    "M": 3.0,
+    "S": 4.5
+  },
+  "prismStrength": {
+    "clay": {
+      "fm": [6.9, 10.3, 13.8, 17.2, 20.7, 24.1, 27.6],
+      "MS": [11.7, 17.9, 23.4, 30.0, 35.9, 42.1, 47.6],
+      "N": [14.5, 22.8, 30.3, 37.9, 45.5, 53.1, 60.7]
+    },
+    "concrete": {
+      "fm": [9.3, 10.3, 12.1, 13.8, 15.5, 17.2, 19.0, 20.7],
+      "MS": [8.6, 13.1, 19.3, 25.9, 33.1, 40.7, 49.6, 57.9],
+      "N": [9.0, 14.8, 21.0, 27.9, 36.2, 45.2, 56.2, 68.3]
+    }
+  },
+  "sources": {
+    "phi": "TMS 402 / ACI 530-08 Sec 3.1.4: combinations of flexure and axial load 0.90 reinforced, 0.60 unreinforced; shear 0.80; bearing 0.60",
+    "modulusRatio": "TMS 402 / ACI 530-08 Sec 1.8.2.2.1: Em = 700 f'm (clay), 900 f'm (concrete masonry)",
+    "ultimateStrain": "TMS 402 / ACI 530-08 Sec 3.3.2(c): εmu 0.0035 clay, 0.0025 concrete masonry",
+    "stressBlock": "TMS 402 / ACI 530-08 Sec 3.3.2(f)-(g): 0.80 f'm over a = 0.80 c",
+    "axial": "TMS 402 / ACI 530-08 Eqs. 3-15, 3-16 (unreinforced) and 3-18, 3-19 (reinforced): Pn = 0.80 [0.80 An f'm] (1 - (h/140r)²) for h/r ≤ 99, (70 r/h)² above",
+    "fmRange": "TMS 402 / ACI 530-08 Sec 3.1.8.1.1: f'm of strength design, clay 1500-6000 psi, concrete 1500-4000 psi",
+    "modulusOfRupture": "TMS 402 / ACI 530-08 Table 3.1.8.2, normal to bed joints, Portland cement/lime or mortar cement mortar (solid units; hollow units ungrouted or partly grouted; fully grouted)",
+    "plainShear": "TMS 402 / ACI 530-08 Sec 3.2.4: Vn the least of 3.8 An √f'm, 300 An, 56 An + 0.45 Nu (running bond, not solidly grouted), 90 An + 0.45 Nu (running bond, solidly grouted), 23 An (stack bond) psi",
+    "reinforcedShear": "TMS 402 / ACI 530-08 Sec 3.3.4.1.2: Vnm = [4.0 - 1.75 (Mu/(Vu dv))] An √f'm + 0.25 Pu, Vns = 0.5 (Av/s) fy dv; Vn ≤ 6 An √f'm at Mu/(Vu dv) ≤ 0.25, 4 An √f'm at ≥ 1.0 (psi)",
+    "maxSteelStrain": "TMS 402 / ACI 530-08 Sec 3.3.3.5: the extreme tension steel strain at εmu is at least α εy, α 1.5 (ordinary), 3 (intermediate walls in-plane), 4 (special walls in-plane)",
+    "slenderWall": "TMS 402 / ACI 530-08 Sec 3.3.5.1-3.3.5.3: Pu/Ag ≤ 0.20 f'm; where Pu/Ag > 0.05 f'm, h/t ≤ 30",
+    "ordinaryWalls": "TMS 402 / ACI 530-08 Sec 1.17.3.2.3.1: ordinary reinforced masonry shear walls, bars of at least 0.2 in² (129 mm²) at most 120 in (3048 mm) apart",
+    "mortarFromMix": "SAEngine practice where the mortar type is not entered: a cement : sand mix of up to 1 : 3 is taken as type M, up to 1 : 4.5 as type S, leaner as type N (ASTM C270 proportions, approximately)",
+    "prismStrength": "TMS 602 / ACI 530.1-08 Tables 1 (clay) and 2 (concrete masonry): f'm on the net area from the unit's net-area strength by mortar type, in MPa (from memory, to be checked)"
+  }
+}

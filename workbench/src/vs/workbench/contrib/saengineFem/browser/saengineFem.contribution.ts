@@ -890,3 +890,59 @@ registerPlannedFeature({
 		'BNBC 2020 Part 6 Sec 6.2.3.2 (φ = 0.75)',
 	],
 });
+
+// T45: timber connections (MVP: the members are designed to BNBC 2020 Part 6 Chapter 11; the
+// fastener tables of the connections are not yet transcribed into the code pack).
+registerPlannedFeature({
+	id: FemPlanned.timberConnections,
+	part: 'fem',
+	title: localize('fem.planned.timberConnections.title', "Timber Connections"),
+	summary: localize('fem.planned.timberConnections.summary', "Checks the nailed, screwed and bolted joints at the ends of timber members, from the member forces under the allowable stress combinations."),
+	steps: [
+		localize('fem.planned.timberConnections.step1', "Choose the joint on the timber member's type: nails, wood screws or bolts, with or without steel side plates."),
+		localize('fem.planned.timberConnections.step2', "Take the end forces of the member under the allowable stress combinations."),
+		localize('fem.planned.timberConnections.step3', "Check the fasteners' permissible loads for the strength group, the load angle to the grain and the spacing, edge and end distances."),
+		localize('fem.planned.timberConnections.step4', "List the joint with the member's design checks."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.timberConnections.fastener', "Fastener"), example: localize('fem.planned.timberConnections.bolt', "M16 bolts") },
+		{ label: localize('fem.planned.timberConnections.count', "Fasteners per joint"), example: '4' },
+		{ label: localize('fem.planned.timberConnections.plates', "Side plates"), example: localize('fem.planned.timberConnections.steelPlates', "6 mm steel") },
+	],
+	outputs: [
+		localize('fem.planned.timberConnections.out1', "Joint capacity and utilisation per end"),
+		localize('fem.planned.timberConnections.out2', "Spacing, edge and end distance checks"),
+	],
+	references: [
+		'BNBC 2020 Part 6 Chapter 11 (fastener tables to be transcribed)',
+		'IS 883:1994 Sec 8 (joints)',
+	],
+});
+
+// T31: confined masonry (MVP: BNBC 2020 Part 6 Chapter 7 gives the plain and reinforced masonry
+// walls SAEngine designs; confined masonry needs guides BNBC does not give).
+registerPlannedFeature({
+	id: FemPlanned.confinedMasonry,
+	part: 'fem',
+	title: localize('fem.planned.confinedMasonry.title', "Confined Masonry Walls"),
+	summary: localize('fem.planned.confinedMasonry.summary', "Designs masonry walls built first and then confined by cast-in-place RC tie columns at their ends and openings and tie beams at each floor, the usual low-rise system where plain masonry is not permitted."),
+	steps: [
+		localize('fem.planned.confinedMasonry.step1', "Mark the masonry walls that are confined and place the tie columns and tie beams round each panel."),
+		localize('fem.planned.confinedMasonry.step2', "Check the wall density of each storey in each direction against the seismic demand."),
+		localize('fem.planned.confinedMasonry.step3', "Check each panel's in-plane shear and the tie columns' tension and shear from the panel forces."),
+		localize('fem.planned.confinedMasonry.step4', "Size the tie columns' and tie beams' bars and ties, and their spacing limits."),
+	],
+	inputs: [
+		{ label: localize('fem.planned.confinedMasonry.tieColumn', "Tie column size"), unit: 'mm', example: '250 × 250' },
+		{ label: localize('fem.planned.confinedMasonry.tieBeam', "Tie beam depth"), unit: 'mm', example: '250' },
+		{ label: localize('fem.planned.confinedMasonry.spacing', "Largest tie column spacing"), unit: 'mm', example: '4000' },
+	],
+	outputs: [
+		localize('fem.planned.confinedMasonry.out1', "Wall density per storey and direction"),
+		localize('fem.planned.confinedMasonry.out2', "Panel shear checks and the tie columns' and tie beams' bars"),
+	],
+	references: [
+		'Eurocode 8 Part 1 Sec 9.5 (confined masonry)',
+		'Seismic design guide for low-rise confined masonry buildings (Confined Masonry Network, EERI)',
+	],
+});

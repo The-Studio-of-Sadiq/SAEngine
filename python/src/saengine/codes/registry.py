@@ -120,6 +120,7 @@ DEFAULT_MERGE_KEYS: dict[str, dict[str, str]] = {
     "combinations": {
         "strength": "name",
         "service": "name",
+        "allowable": "name",
         "temperature": "name",
         "gravity": "name",
     },

@@ -55,7 +55,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			type: 'object',
 		},
 		Category: {
-			enum: ['concrete', 'rebar', 'steel', 'masonry', 'mortar', 'other'],
+			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'other'],
 			title: 'Category',
 			type: 'string',
 		},
@@ -233,6 +233,52 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					description: 'Id of the mortar material.',
 					title: 'Mortar',
 				},
+				unitKind: {
+					default: 'clay',
+					description: 'Burnt clay bricks or concrete blocks: sets Em and the ultimate strain of the masonry design (BNBC 2020 Part 6 Chapter 7).',
+					enum: ['clay', 'concrete'],
+					enumDescriptions: ['Clay brick', 'Concrete block'],
+					title: 'Unit kind',
+					type: 'string',
+				},
+				mortarType: {
+					anyOf: [
+						{
+							enum: ['M', 'S', 'N'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'M, S or N; empty: from the mortar material\'s cement : sand mix.',
+					title: 'Mortar type',
+				},
+				units: {
+					default: 'solid',
+					description: 'Solid units (bricks) or hollow units (blocks).',
+					enum: ['solid', 'hollow'],
+					enumDescriptions: ['Solid', 'Hollow'],
+					title: 'Units',
+					type: 'string',
+				},
+				grouting: {
+					default: 'none',
+					description: 'Grout in the cores or cavities: none, at the bars only, or every cell.',
+					enum: ['none', 'partial', 'full'],
+					enumDescriptions: ['Not grouted', 'Partly grouted', 'Fully grouted'],
+					title: 'Grouting',
+					type: 'string',
+				},
+				bond: {
+					default: 'running',
+					description: 'Running bond (staggered head joints) or stack bond.',
+					enum: ['running', 'stack'],
+					enumDescriptions: ['Running bond', 'Stack bond'],
+					title: 'Bond',
+					type: 'string',
+				},
 			},
 			required: ['unit'],
 			title: 'MasonryProperties',
@@ -306,6 +352,18 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Masonry',
+				},
+				timber: {
+					anyOf: [
+						{
+							$ref: '#/$defs/TimberProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Timber',
 				},
 				composition: {
 					anyOf: [
@@ -618,6 +676,43 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			},
 			required: ['fy'],
 			title: 'SteelProperties',
+			type: 'object',
+		},
+		TimberProperties: {
+			additionalProperties: false,
+			description: 'Sawn structural timber (BNBC 2020 Part 6 Chapter 11).',
+			properties: {
+				species: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Species, e.g. Sal, Garjan, Teak.',
+					title: 'Species',
+				},
+				group: {
+					default: 'B',
+					description: 'Strength group by modulus of elasticity: A (E at least 12.6 GPa), B (9.8-12.6 GPa), C (5.6-9.8 GPa); the code pack gives each group\'s permissible stresses.',
+					enum: ['A', 'B', 'C'],
+					enumDescriptions: ['Group A', 'Group B', 'Group C'],
+					title: 'Strength group',
+					type: 'string',
+				},
+				location: {
+					default: 'inside',
+					description: 'Inside (dry), outside (exposed to the weather) or wet (always damp).',
+					enum: ['inside', 'outside', 'wet'],
+					enumDescriptions: ['Inside', 'Outside', 'Wet'],
+					title: 'Location of use',
+					type: 'string',
+				},
+			},
+			title: 'TimberProperties',
 			type: 'object',
 		},
 	},
@@ -4441,6 +4536,10 @@ export const DEFAULT_MATERIALS: object = {
 			masonry: {
 				unit: 'first-class burnt clay brick',
 				mortar: 'M1-4',
+				unitKind: 'clay',
+				units: 'solid',
+				grouting: 'none',
+				bond: 'running',
 			},
 			source: {
 				note: 'Typical unit weight ~18.85 kN/m³. Enter unit and prism strengths from tests.',
@@ -5661,8 +5760,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				system: {
 					default: 'rcSmf',
 					description: 'Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and the seismic detailing of the members; it must be permitted in the Seismic Design Category of the site (Table 6.2.18).',
-					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf'],
-					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame'],
+					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain'],
+					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls'],
 					title: 'Structural system',
 					type: 'string',
 				},
@@ -7255,6 +7354,32 @@ export const BNBC: IBnbcTables = {
 				B: null,
 				C: null,
 				D: 50.0,
+			},
+			frame: null,
+		},
+		masonryOrdinaryReinforced: {
+			name: 'Bearing walls: ordinary reinforced masonry shear walls',
+			r: 2.0,
+			omega: 2.5,
+			cd: 1.75,
+			row: 'A.3 (p. 621)',
+			heightLimits: {
+				B: null,
+				C: 50.0,
+				D: 0.0,
+			},
+			frame: null,
+		},
+		masonryOrdinaryPlain: {
+			name: 'Bearing walls: ordinary plain (unreinforced) masonry shear walls',
+			r: 1.5,
+			omega: 2.5,
+			cd: 1.25,
+			row: 'A.4 (p. 621)',
+			heightLimits: {
+				B: null,
+				C: 0.0,
+				D: 0.0,
 			},
 			frame: null,
 		},
@@ -10997,9 +11122,26 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		masonry: {
 			unit: 'first-class burnt clay brick',
 			mortar: 'M1-4',
+			unitKind: 'clay',
+			units: 'solid',
+			grouting: 'none',
+			bond: 'running',
 		},
 		source: {
 			note: 'Typical unit weight ~18.85 kN/m³. Enter unit and prism strengths from tests.',
+		},
+	},
+	'Material:timber': {
+		id: 'TIMBER-B',
+		name: 'Sawn timber, group B',
+		category: 'timber',
+		mechanical: {
+			E: 9800,
+			density: 650,
+		},
+		timber: {
+			group: 'B',
+			location: 'inside',
 		},
 	},
 	'Material:other': {
@@ -11017,6 +11159,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	MasonryProperties: {
 		unit: 'first-class burnt clay brick',
+	},
+	TimberProperties: {
+		group: 'B',
+		location: 'inside',
 	},
 	NominalMix: {
 		method: 'nominal',
