@@ -36,7 +36,8 @@
     "cranes",
     "fatigue",
     "siteInvestigation",
-    "serviceability"
+    "serviceability",
+    "flood"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -172,6 +173,11 @@
       "BNBC 2020 Part 6 Sec 1.5.6.1(a), 1.5.6.2 (pp. 499-500): storey drift and sway under wind",
       "BNBC 2020 Part 6 Sec 1.2.10 (p. 485), 1.5.5 (p. 499), 1.8.4 (p. 507), 2.5.7.8 (p. 632): overturning",
       "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations; Sec 10.12.3-10.12.4 (part 2 p. 172): steel"
+    ],
+    "flood": [
+      "BNBC 2020 Part 6 Sec 1.6.4-1.6.5 (p. 501): flood, surge and rain; stability factor 1.5",
+      "BNBC 2020 Part 6 Sec 2.6.2-2.6.3, Eqs 6.2.69-6.2.81, Tables 6.2.25-6.2.27 (pp. 667-679): rain, flood and surge",
+      "BNBC 2020 Part 6 Sec 2.6.6-2.6.8, Table 6.2.28, Figure 6.2.33, Eqs 6.2.82a-c (pp. 680-683): explosions, air raid shelters, helicopter landing areas"
     ]
   },
   "basis": {
