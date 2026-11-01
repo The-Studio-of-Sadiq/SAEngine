@@ -230,3 +230,85 @@ def test_panel_zone_drift_model():
     assert not ss.panel_zone_model_check(_settings(), "smf", T)["ok"]
     assert ss.panel_zone_model_check(_settings(factor=0.0), "smf", T)["ok"]
     assert ss.panel_zone_model_check(_settings(rsa=False), "smf", T) is None
+
+
+# ─────────────────────────────── integration: a steel moment portal ───────────────────────────────
+
+
+def test_moment_portal_gets_the_seismic_checks(tmp_path):
+    from saengine.design import steel_design
+    from saengine.design.check import _demands
+    from saengine.library.settings import LoadCombination
+    from saengine.verification.cases.common import (
+        MATERIALS,
+        derive,
+        node_at,
+        objects,
+        point,
+        run_model,
+        settings,
+        structure,
+    )
+    from saengine.verification.cases.common import building as building_of
+
+    w = {
+        "shape": "I",
+        "overallWidth": 254,
+        "overallDepth": 254,
+        "webThickness": 8.6,
+        "flangeThickness": 14.2,
+    }
+    types = objects(
+        {"id": "COL", "name": "W col", "kind": "column", "material": "A992", "profile": w},
+        {"id": "BM", "name": "W beam", "kind": "beam", "material": "A992", "profile": w},
+    )
+    model = structure(
+        members=[
+            {"id": "C1", "type": "COL", "start": point(0, 0, 0), "end": point(0, 0, 3200)},
+            {"id": "C2", "type": "COL", "start": point(6000, 0, 0), "end": point(6000, 0, 3200)},
+            {"id": "B1", "type": "BM", "start": point(0, 0, 3200), "end": point(6000, 0, 3200)},
+        ],
+        supports=[{"id": "S1", "at": point(0, 0, 0)}, {"id": "S2", "at": point(6000, 0, 0)}],
+    )
+    building = building_of(model)
+    s = settings(system="steelSmf")
+    project = derive(building, types, MATERIALS, s).project
+    top = node_at(project, (0, 0, 3.2))
+    wx = next(p for p in project["load_patterns"] if p["name"] == "WX")
+    wx["nodal_loads"] = [{"node_id": top, "forces": [50e3, 0, 0, 0, 0, 0]}]
+    static = [a["id"] for a in project["analyses"] if a["type"] == "Static"]
+    _, out, _ = run_model(project, tmp_path, static)
+    s = s.model_copy(update={"combinations": [LoadCombination(name="1.2D+1.0WX", D=1.2, WX=1.0)]})
+    combinations, pieces, _, _ = _demands(project, out, s)
+    by_type = {t.id: t for t in types.objects}
+    mats = {m.id: m for m in MATERIALS.materials}
+    members = []
+    for element in building.elements:
+        t = by_type[element.type]
+        entry, _ = steel_design.design_member(
+            element.id,
+            t.kind,
+            t,
+            mats[t.material],
+            mats,
+            pieces[element.id],
+            combinations,
+            False,
+            project,
+        )
+        members.append(
+            ss.SteelMember(
+                element.id, t.kind, element, t, mats[t.material], pieces[element.id], False, entry
+            )
+        )
+    found = ss.apply(project, building, by_type, mats, members, combinations, [], s)
+    assert found["applies"] and found["frame"] == "smf"
+    assert found["members"]["B1"]["Ry"] == 1.1  # A992, Table 6.10.17
+    beam = next(m.entry for m in members if m.id == "B1")
+    names = {c["name"] for c in beam["checks"]}
+    assert "Seismic: connection shear at the expected moments" in names
+    assert any(n.startswith("Seismic: flange width-thickness") for n in names)
+    column = next(m.entry for m in members if m.id == "C1")
+    assert any(c["name"].startswith("Seismic: ") for c in column["checks"])
+    # The default rigid zone factor 0.5 leaves the panel zones out of the drift.
+    assert not found["checks"][0]["ok"]
