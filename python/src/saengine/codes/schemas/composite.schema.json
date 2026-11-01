@@ -1,0 +1,1028 @@
+{
+  "$defs": {
+    "CompositeBeamRules": {
+      "additionalProperties": false,
+      "properties": {
+        "spanShare": {
+          "description": "Effective width per side at most this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spanshare",
+          "type": "number"
+        },
+        "spacingShare": {
+          "description": "... and this × the distance to the next beam.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spacingshare",
+          "type": "number"
+        },
+        "webCompact": {
+          "description": "Plastic when h/tw ≤ this × √(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Webcompact",
+          "type": "number"
+        },
+        "constructionStrength": {
+          "description": "Steel alone until f'c reaches this share.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Constructionstrength",
+          "type": "number"
+        },
+        "constructionDeadFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Constructiondeadfactor",
+          "type": "number"
+        },
+        "constructionLiveFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Constructionlivefactor",
+          "type": "number"
+        },
+        "deck": {
+          "$ref": "#/$defs/CompositeDeck"
+        },
+        "studs": {
+          "$ref": "#/$defs/CompositeStuds"
+        },
+        "channel": {
+          "$ref": "#/$defs/CompositeChannel"
+        },
+        "spacing": {
+          "$ref": "#/$defs/CompositeSpacing"
+        },
+        "deflection": {
+          "$ref": "#/$defs/CompositeDeflection"
+        },
+        "slab": {
+          "$ref": "#/$defs/CompositeSlab"
+        }
+      },
+      "required": [
+        "spanShare",
+        "spacingShare",
+        "webCompact",
+        "constructionStrength",
+        "constructionDeadFactor",
+        "constructionLiveFactor",
+        "deck",
+        "studs",
+        "channel",
+        "spacing",
+        "deflection",
+        "slab"
+      ],
+      "title": "CompositeBeamRules",
+      "type": "object"
+    },
+    "CompositeBuckling": {
+      "additionalProperties": false,
+      "properties": {
+        "ratio": {
+          "description": "Inelastic buckling when Pe ≥ this × Po.",
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "base": {
+          "description": "Pn = Po × this^(Po/Pe).",
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "elastic": {
+          "description": "Pn = this × Pe otherwise.",
+          "exclusiveMinimum": 0,
+          "title": "Elastic",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio",
+        "base",
+        "elastic"
+      ],
+      "title": "CompositeBuckling",
+      "type": "object"
+    },
+    "CompositeChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "description": "Qn = this × (tf + webShare tw) Lc √(f'c Ec).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "webShare": {
+          "exclusiveMinimum": 0,
+          "title": "Webshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "webShare"
+      ],
+      "title": "CompositeChannel",
+      "type": "object"
+    },
+    "CompositeColumnRules": {
+      "additionalProperties": false,
+      "properties": {
+        "steelShareMin": {
+          "description": "Least As / Ag.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelsharemin",
+          "type": "number"
+        },
+        "buckling": {
+          "$ref": "#/$defs/CompositeBuckling"
+        },
+        "bearingCoefficient": {
+          "description": "Pp = this × f'c × A_B.",
+          "exclusiveMinimum": 0,
+          "title": "Bearingcoefficient",
+          "type": "number"
+        },
+        "encased": {
+          "$ref": "#/$defs/CompositeEncased"
+        },
+        "filled": {
+          "$ref": "#/$defs/CompositeFilled"
+        },
+        "connectorSpacingMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Connectorspacingmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steelShareMin",
+        "buckling",
+        "bearingCoefficient",
+        "encased",
+        "filled",
+        "connectorSpacingMax"
+      ],
+      "title": "CompositeColumnRules",
+      "type": "object"
+    },
+    "CompositeConnections": {
+      "additionalProperties": false,
+      "properties": {
+        "seismicReduction": {
+          "description": "Bearing and shear friction reduced by this share in seismic systems.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Seismicreduction",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seismicReduction"
+      ],
+      "title": "CompositeConnections",
+      "type": "object"
+    },
+    "CompositeDeck": {
+      "additionalProperties": false,
+      "properties": {
+        "ribHeightMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Ribheightmax",
+          "type": "number"
+        },
+        "ribWidthMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Ribwidthmin",
+          "type": "number"
+        },
+        "studDiameterMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Studdiametermax",
+          "type": "number"
+        },
+        "studAboveDeck": {
+          "description": "Studs extend at least this above the deck [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Studabovedeck",
+          "type": "number"
+        },
+        "studCover": {
+          "description": "Concrete above the studs [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Studcover",
+          "type": "number"
+        },
+        "slabAboveDeck": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Slababovedeck",
+          "type": "number"
+        },
+        "anchorageSpacing": {
+          "description": "Deck anchored at most this apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Anchoragespacing",
+          "type": "number"
+        },
+        "haunchDepth": {
+          "description": "Parallel decks this deep need the haunch [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Haunchdepth",
+          "type": "number"
+        },
+        "haunchWidthFirst": {
+          "description": "[mm] for the first stud in a row.",
+          "exclusiveMinimum": 0,
+          "title": "Haunchwidthfirst",
+          "type": "number"
+        },
+        "haunchWidthPerStud": {
+          "description": "× stud diameter per further stud.",
+          "exclusiveMinimum": 0,
+          "title": "Haunchwidthperstud",
+          "type": "number"
+        },
+        "ribRatio": {
+          "description": "wr / hr limit of the Rg cases.",
+          "exclusiveMinimum": 0,
+          "title": "Ribratio",
+          "type": "number"
+        },
+        "emidHt": {
+          "description": "e_mid-ht limit of the Rp cases [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Emidht",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ribHeightMax",
+        "ribWidthMin",
+        "studDiameterMax",
+        "studAboveDeck",
+        "studCover",
+        "slabAboveDeck",
+        "anchorageSpacing",
+        "haunchDepth",
+        "haunchWidthFirst",
+        "haunchWidthPerStud",
+        "ribRatio",
+        "emidHt"
+      ],
+      "title": "CompositeDeck",
+      "type": "object"
+    },
+    "CompositeDeflection": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "description": "Ie = Is + this × p^exponent × (It - Is).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "creep": {
+          "description": "Long-term deflection increase (share).",
+          "exclusiveMinimum": 0,
+          "title": "Creep",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "creep"
+      ],
+      "title": "CompositeDeflection",
+      "type": "object"
+    },
+    "CompositeEncased": {
+      "additionalProperties": false,
+      "properties": {
+        "barRatioMin": {
+          "description": "Least ρsr = Asr / Ag (scope).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Barratiomin",
+          "type": "number"
+        },
+        "barRatioDetailing": {
+          "description": "Least bar area / Ag (detailing).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Barratiodetailing",
+          "type": "number"
+        },
+        "barRatioMax": {
+          "description": "Largest bar area / net concrete area.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Barratiomax",
+          "type": "number"
+        },
+        "barStiffnessShare": {
+          "description": "EIeff = Es Is + this × Es Isr + C1 Ec Ic.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Barstiffnessshare",
+          "type": "number"
+        },
+        "c1Base": {
+          "exclusiveMinimum": 0,
+          "title": "C1Base",
+          "type": "number"
+        },
+        "c1Slope": {
+          "exclusiveMinimum": 0,
+          "title": "C1Slope",
+          "type": "number"
+        },
+        "c1Max": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "C1Max",
+          "type": "number"
+        },
+        "tieAreaPerSpacing": {
+          "description": "Least tie area per tie spacing [mm²/mm].",
+          "exclusiveMinimum": 0,
+          "title": "Tieareaperspacing",
+          "type": "number"
+        },
+        "cover": {
+          "description": "Least clear cover [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "barSpacingLeastShare": {
+          "description": "Bar spacing at most this × least side.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Barspacingleastshare",
+          "type": "number"
+        },
+        "tieLarge": {
+          "description": "Tie bar [mm] when a side exceeds tieSmallSideMax.",
+          "exclusiveMinimum": 0,
+          "title": "Tielarge",
+          "type": "number"
+        },
+        "tieSmall": {
+          "description": "Least tie bar [mm] otherwise.",
+          "exclusiveMinimum": 0,
+          "title": "Tiesmall",
+          "type": "number"
+        },
+        "tieSmallSideMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Tiesmallsidemax",
+          "type": "number"
+        },
+        "tieGreatestSideShare": {
+          "description": "Tie at least this × the greatest side.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiegreatestsideshare",
+          "type": "number"
+        },
+        "tieRequiredMax": {
+          "description": "A tie larger than this [mm] is never required.",
+          "exclusiveMinimum": 0,
+          "title": "Tierequiredmax",
+          "type": "number"
+        },
+        "tieSpacingLeastShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiespacingleastshare",
+          "type": "number"
+        },
+        "tieSpacingBarDiameters": {
+          "exclusiveMinimum": 0,
+          "title": "Tiespacingbardiameters",
+          "type": "number"
+        },
+        "tieSpacingMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Tiespacingmax",
+          "type": "number"
+        },
+        "tieSpacingTieDiameters": {
+          "exclusiveMinimum": 0,
+          "title": "Tiespacingtiediameters",
+          "type": "number"
+        },
+        "tieSpacingLeastHalf": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiespacingleasthalf",
+          "type": "number"
+        },
+        "coreFyMaxTied": {
+          "description": "Core Fy limit of the Chapter 6 method [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Corefymaxtied",
+          "type": "number"
+        },
+        "connectorLength": {
+          "description": "Connectors over this × the depth each side.",
+          "exclusiveMinimum": 0,
+          "title": "Connectorlength",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "barRatioMin",
+        "barRatioDetailing",
+        "barRatioMax",
+        "barStiffnessShare",
+        "c1Base",
+        "c1Slope",
+        "c1Max",
+        "tieAreaPerSpacing",
+        "cover",
+        "barSpacingLeastShare",
+        "tieLarge",
+        "tieSmall",
+        "tieSmallSideMax",
+        "tieGreatestSideShare",
+        "tieRequiredMax",
+        "tieSpacingLeastShare",
+        "tieSpacingBarDiameters",
+        "tieSpacingMax",
+        "tieSpacingTieDiameters",
+        "tieSpacingLeastHalf",
+        "coreFyMaxTied",
+        "connectorLength"
+      ],
+      "title": "CompositeEncased",
+      "type": "object"
+    },
+    "CompositeFactors": {
+      "additionalProperties": true,
+      "description": "φ (LRFD) or Ω (ASD) by limit state.",
+      "properties": {
+        "compression": {
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "tension": {
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        },
+        "flexure": {
+          "exclusiveMinimum": 0,
+          "title": "Flexure",
+          "type": "number"
+        },
+        "flexureEncasedComposite": {
+          "description": "Encased and filled members by the plastic composite section (Sec 13.3.4(c)).",
+          "exclusiveMinimum": 0,
+          "title": "Flexureencasedcomposite",
+          "type": "number"
+        },
+        "bearing": {
+          "exclusiveMinimum": 0,
+          "title": "Bearing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "compression",
+        "tension",
+        "flexure",
+        "flexureEncasedComposite",
+        "bearing"
+      ],
+      "title": "CompositeFactors",
+      "type": "object"
+    },
+    "CompositeFilled": {
+      "additionalProperties": false,
+      "properties": {
+        "c2Rectangular": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "C2Rectangular",
+          "type": "number"
+        },
+        "c2Circular": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "C2Circular",
+          "type": "number"
+        },
+        "c3Base": {
+          "exclusiveMinimum": 0,
+          "title": "C3Base",
+          "type": "number"
+        },
+        "c3Slope": {
+          "exclusiveMinimum": 0,
+          "title": "C3Slope",
+          "type": "number"
+        },
+        "c3Max": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "C3Max",
+          "type": "number"
+        },
+        "rectSlenderness": {
+          "description": "b/t at most this / √Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Rectslenderness",
+          "type": "number"
+        },
+        "roundSlenderness": {
+          "description": "D/t at most this / Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Roundslenderness",
+          "type": "number"
+        },
+        "concreteAxialMin": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Concreteaxialmin",
+          "type": "number"
+        },
+        "concreteAxialMax": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Concreteaxialmax",
+          "type": "number"
+        },
+        "concreteBendingMin": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Concretebendingmin",
+          "type": "number"
+        },
+        "concreteBendingMax": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Concretebendingmax",
+          "type": "number"
+        },
+        "wallRectangular": {
+          "description": "t ≥ b √(fy / (this × Es)).",
+          "exclusiveMinimum": 0,
+          "title": "Wallrectangular",
+          "type": "number"
+        },
+        "wallCircular": {
+          "description": "t ≥ D √(fy / (this × Es)).",
+          "exclusiveMinimum": 0,
+          "title": "Wallcircular",
+          "type": "number"
+        },
+        "connectorLength": {
+          "description": "Connectors over this × the width each side.",
+          "exclusiveMinimum": 0,
+          "title": "Connectorlength",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "c2Rectangular",
+        "c2Circular",
+        "c3Base",
+        "c3Slope",
+        "c3Max",
+        "rectSlenderness",
+        "roundSlenderness",
+        "concreteAxialMin",
+        "concreteAxialMax",
+        "concreteBendingMin",
+        "concreteBendingMax",
+        "wallRectangular",
+        "wallCircular",
+        "connectorLength"
+      ],
+      "title": "CompositeFilled",
+      "type": "object"
+    },
+    "CompositeMaterials": {
+      "additionalProperties": false,
+      "properties": {
+        "concreteMin": {
+          "description": "Least f'c for the available strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemin",
+          "type": "number"
+        },
+        "concreteMaxNormal": {
+          "description": "Largest f'c, normal weight [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemaxnormal",
+          "type": "number"
+        },
+        "concreteMaxLight": {
+          "description": "Largest f'c, lightweight [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemaxlight",
+          "type": "number"
+        },
+        "lightweightBelow": {
+          "description": "Density below this is lightweight [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Lightweightbelow",
+          "type": "number"
+        },
+        "steelFyMax": {
+          "description": "Fy of steel and bars used at most this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Steelfymax",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "concreteMin",
+        "concreteMaxNormal",
+        "concreteMaxLight",
+        "lightweightBelow",
+        "steelFyMax"
+      ],
+      "title": "CompositeMaterials",
+      "type": "object"
+    },
+    "CompositeModulus": {
+      "additionalProperties": false,
+      "properties": {
+        "steel": {
+          "description": "Es [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Steel",
+          "type": "number"
+        },
+        "concreteCoefficient": {
+          "description": "Ec = this × wc^exponent × √f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretecoefficient",
+          "type": "number"
+        },
+        "concreteExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Concreteexponent",
+          "type": "number"
+        },
+        "densityMin": {
+          "description": "wc taken at least this [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Densitymin",
+          "type": "number"
+        },
+        "densityMax": {
+          "description": "wc taken at most this [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Densitymax",
+          "type": "number"
+        },
+        "densityDefault": {
+          "description": "wc when the material gives none [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Densitydefault",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "steel",
+        "concreteCoefficient",
+        "concreteExponent",
+        "densityMin",
+        "densityMax",
+        "densityDefault"
+      ],
+      "title": "CompositeModulus",
+      "type": "object"
+    },
+    "CompositeSlab": {
+      "additionalProperties": false,
+      "properties": {
+        "transverseOnDeck": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Transverseondeck",
+          "type": "number"
+        },
+        "transverseParallel": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Transverseparallel",
+          "type": "number"
+        },
+        "transversePerpendicular": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Transverseperpendicular",
+          "type": "number"
+        },
+        "endBars": {
+          "description": "Bars at the ends of beams with perpendicular ribs.",
+          "exclusiveMinimum": 0,
+          "title": "Endbars",
+          "type": "number"
+        },
+        "endBarDiameter": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Endbardiameter",
+          "type": "number"
+        }
+      },
+      "required": [
+        "transverseOnDeck",
+        "transverseParallel",
+        "transversePerpendicular",
+        "endBars",
+        "endBarDiameter"
+      ],
+      "title": "CompositeSlab",
+      "type": "object"
+    },
+    "CompositeSpacing": {
+      "additionalProperties": false,
+      "properties": {
+        "longitudinal": {
+          "description": "Least spacing along the beam / d.",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinal",
+          "type": "number"
+        },
+        "transverse": {
+          "description": "Least spacing across the beam / d.",
+          "exclusiveMinimum": 0,
+          "title": "Transverse",
+          "type": "number"
+        },
+        "ribs": {
+          "description": "Least spacing in perpendicular deck ribs / d.",
+          "exclusiveMinimum": 0,
+          "title": "Ribs",
+          "type": "number"
+        },
+        "slabMultiple": {
+          "description": "Largest spacing / total slab thickness.",
+          "exclusiveMinimum": 0,
+          "title": "Slabmultiple",
+          "type": "number"
+        },
+        "max": {
+          "description": "Largest spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Max",
+          "type": "number"
+        },
+        "flangeRatio": {
+          "description": "d at most this × flange thickness off the web.",
+          "exclusiveMinimum": 0,
+          "title": "Flangeratio",
+          "type": "number"
+        },
+        "lateralCover": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Lateralcover",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudinal",
+        "transverse",
+        "ribs",
+        "slabMultiple",
+        "max",
+        "flangeRatio",
+        "lateralCover"
+      ],
+      "title": "CompositeSpacing",
+      "type": "object"
+    },
+    "CompositeStressBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "concrete": {
+          "description": "Concrete stress of the plastic distribution / f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concrete",
+          "type": "number"
+        },
+        "roundFilled": {
+          "description": "Round filled HSS in uniform compression / f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Roundfilled",
+          "type": "number"
+        },
+        "strainLimit": {
+          "description": "Concrete strain of the strain-compatibility method.",
+          "exclusiveMinimum": 0,
+          "title": "Strainlimit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concrete",
+        "roundFilled",
+        "strainLimit"
+      ],
+      "title": "CompositeStressBlock",
+      "type": "object"
+    },
+    "CompositeStuds": {
+      "additionalProperties": false,
+      "properties": {
+        "lengthMin": {
+          "description": "Stud length at least this × its diameter.",
+          "exclusiveMinimum": 0,
+          "title": "Lengthmin",
+          "type": "number"
+        },
+        "coefficient": {
+          "description": "Qn = this × Asc √(f'c Ec).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "rgOne": {
+          "exclusiveMinimum": 0,
+          "title": "Rgone",
+          "type": "number"
+        },
+        "rgTwo": {
+          "exclusiveMinimum": 0,
+          "title": "Rgtwo",
+          "type": "number"
+        },
+        "rgThreeOrMore": {
+          "exclusiveMinimum": 0,
+          "title": "Rgthreeormore",
+          "type": "number"
+        },
+        "rgDirect": {
+          "exclusiveMinimum": 0,
+          "title": "Rgdirect",
+          "type": "number"
+        },
+        "rgParallelWide": {
+          "exclusiveMinimum": 0,
+          "title": "Rgparallelwide",
+          "type": "number"
+        },
+        "rgParallelNarrow": {
+          "exclusiveMinimum": 0,
+          "title": "Rgparallelnarrow",
+          "type": "number"
+        },
+        "rpDirect": {
+          "exclusiveMinimum": 0,
+          "title": "Rpdirect",
+          "type": "number"
+        },
+        "rpStrong": {
+          "exclusiveMinimum": 0,
+          "title": "Rpstrong",
+          "type": "number"
+        },
+        "rpParallel": {
+          "exclusiveMinimum": 0,
+          "title": "Rpparallel",
+          "type": "number"
+        },
+        "rpWeak": {
+          "exclusiveMinimum": 0,
+          "title": "Rpweak",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lengthMin",
+        "coefficient",
+        "rgOne",
+        "rgTwo",
+        "rgThreeOrMore",
+        "rgDirect",
+        "rgParallelWide",
+        "rgParallelNarrow",
+        "rpDirect",
+        "rpStrong",
+        "rpParallel",
+        "rpWeak"
+      ],
+      "title": "CompositeStuds",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Steel-concrete composite members: composite beams with shear connectors on solid slabs\nand formed steel deck, encased and filled composite columns, their load transfer,\ndetailing and connections. ``method``: how the nominal section strength is found (the\nengine's ``plasticStress`` implementation).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "method": {
+      "const": "plasticStress",
+      "description": "Method id.",
+      "title": "Method",
+      "type": "string"
+    },
+    "materials": {
+      "$ref": "#/$defs/CompositeMaterials"
+    },
+    "modulus": {
+      "$ref": "#/$defs/CompositeModulus"
+    },
+    "stressBlock": {
+      "$ref": "#/$defs/CompositeStressBlock"
+    },
+    "phi": {
+      "$ref": "#/$defs/CompositeFactors"
+    },
+    "omega": {
+      "$ref": "#/$defs/CompositeFactors"
+    },
+    "column": {
+      "$ref": "#/$defs/CompositeColumnRules"
+    },
+    "beam": {
+      "$ref": "#/$defs/CompositeBeamRules"
+    },
+    "connections": {
+      "$ref": "#/$defs/CompositeConnections"
+    }
+  },
+  "required": [
+    "method",
+    "materials",
+    "modulus",
+    "stressBlock",
+    "phi",
+    "omega",
+    "column",
+    "beam",
+    "connections"
+  ],
+  "title": "CompositeTable",
+  "type": "object",
+  "$id": "saengine.codePack.composite/1"
+}

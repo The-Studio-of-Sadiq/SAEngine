@@ -1241,6 +1241,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel beams: the member use the deflection limits follow and a cantilever\'s free end; none: the code pack\'s default use, supported at both ends.',
 					title: 'Deflection limits',
 				},
+				composite: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CompositeBeam',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: acting with the slab through shear connectors; none: the steel alone.',
+					title: 'Composite',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -1865,6 +1878,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Rectangular HSS columns: a cap plate at the top carrying a beam that bears on it; none: not checked.',
 					title: 'Cap plate',
 				},
+				composite: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CompositeColumn',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel columns: encased in reinforced concrete or a concrete-filled HSS; none: the steel alone.',
+					title: 'Composite',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -2098,6 +2124,378 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['size', 'depth'],
 			title: 'ColumnCapital',
+			type: 'object',
+		},
+		CompositeBeam: {
+			additionalProperties: false,
+			description: 'A steel beam acting with the concrete slab through shear connectors.',
+			properties: {
+				type: {
+					const: 'compositeBeam',
+					default: 'compositeBeam',
+					title: 'Type',
+					type: 'string',
+				},
+				concrete: {
+					description: '03 Materials id of the slab concrete.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				slabThickness: {
+					default: 130,
+					description: 'Total slab depth tc, to the top of the deck [mm].',
+					exclusiveMinimum: 0,
+					title: 'Slab thickness',
+					type: 'number',
+				},
+				deck: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CompositeDeck',
+						},
+						{
+							type: 'null',
+						},
+					],
+					description: 'The formed steel deck; none: a solid slab.',
+					title: 'Deck',
+				},
+				spacingLeft: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 3000,
+					description: 'To the next beam on the left [mm]; none: no beam.',
+					title: 'Spacing left',
+				},
+				spacingRight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 3000,
+					description: 'To the next beam on the right [mm]; none: no beam.',
+					title: 'Spacing right',
+				},
+				edgeLeft: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'To the slab edge on the left [mm]; none: no edge.',
+					title: 'Edge left',
+				},
+				edgeRight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'To the slab edge on the right [mm]; none: no edge.',
+					title: 'Edge right',
+				},
+				connectors: {
+					$ref: '#/$defs/ShearConnectors',
+					title: 'Connectors',
+				},
+				shored: {
+					default: false,
+					description: 'Temporary shores carry the wet concrete (else the steel).',
+					title: 'Shored',
+					type: 'boolean',
+				},
+				constructionLive: {
+					default: 0,
+					description: 'Erection load on the wet slab during the construction [kN/m²].',
+					minimum: 0,
+					title: 'Construction live',
+					type: 'number',
+				},
+				slabBars: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Developed longitudinal bars in the effective width over the supports [mm²]; none: negative flexure on the steel alone.',
+					title: 'Slab bars',
+				},
+				slabBarFy: {
+					default: 415,
+					description: 'fy of the slab bars [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Slab bar fy',
+					type: 'number',
+				},
+				sustainedLive: {
+					default: 0,
+					description: 'Share of the live load that is long-term [-].',
+					maximum: 1,
+					minimum: 0,
+					title: 'Sustained live',
+					type: 'number',
+				},
+				shrinkage: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SlabShrinkage',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The shrinkage deflection\'s inputs; none: not computed.',
+					title: 'Shrinkage',
+				},
+				embeddedEnds: {
+					default: false,
+					description: 'The beam ends are embedded in reinforced concrete columns or walls.',
+					title: 'Embedded ends',
+					type: 'boolean',
+				},
+			},
+			required: ['concrete'],
+			title: 'CompositeBeam',
+			type: 'object',
+		},
+		CompositeColumn: {
+			additionalProperties: false,
+			description: 'A steel column encased in reinforced concrete, or a concrete-filled HSS.',
+			properties: {
+				type: {
+					const: 'compositeColumn',
+					default: 'compositeColumn',
+					title: 'Type',
+					type: 'string',
+				},
+				form: {
+					default: 'encased',
+					enum: ['encased', 'filled'],
+					enumDescriptions: ['Encased in concrete', 'Concrete-filled HSS'],
+					title: 'Form',
+					type: 'string',
+				},
+				concrete: {
+					description: '03 Materials id of the concrete.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				width: {
+					default: 500,
+					description: 'Encased: concrete width across the flanges [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					default: 500,
+					description: 'Encased: concrete depth along the web [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				bars: {
+					default: 4,
+					description: 'Longitudinal bars (4 at the corners).',
+					minimum: 0,
+					title: 'Bars',
+					type: 'integer',
+				},
+				barDiameter: {
+					default: 20,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				barFy: {
+					default: 415,
+					description: 'fy of the bars [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Bar fy',
+					type: 'number',
+				},
+				cover: {
+					default: 40,
+					description: 'Clear cover to the ties [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				tieDiameter: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie diameter',
+					type: 'number',
+				},
+				tieSpacing: {
+					default: 200,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie spacing',
+					type: 'number',
+				},
+				loadApplied: {
+					default: 'steel',
+					description: 'Where the floor\'s force enters the column.',
+					enum: ['steel', 'concrete', 'bearing'],
+					enumDescriptions: ['To the steel (studs transfer the concrete\'s share)', 'To the concrete (studs transfer the steel\'s share)', 'Bearing on the concrete'],
+					title: 'Load applied',
+					type: 'string',
+				},
+				bearingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing: the loaded concrete area [mm²].',
+					title: 'Bearing area',
+				},
+				transferForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The force the floor brings into the column at a connection [kN]; none: the column\'s largest compression (conservative).',
+					title: 'Transfer force',
+				},
+				studDiameter: {
+					default: 19,
+					description: 'Transfer studs [mm].',
+					exclusiveMinimum: 0,
+					title: 'Stud diameter',
+					type: 'number',
+				},
+				studFu: {
+					default: 450,
+					description: 'Transfer studs\' Fu [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Stud fu',
+					type: 'number',
+				},
+				studSpacing: {
+					default: 300,
+					description: 'Transfer studs\' centres [mm].',
+					exclusiveMinimum: 0,
+					title: 'Stud spacing',
+					type: 'number',
+				},
+				studFaces: {
+					default: 2,
+					description: 'Faces of the steel shape with transfer studs.',
+					maximum: 4,
+					minimum: 1,
+					title: 'Stud faces',
+					type: 'integer',
+				},
+			},
+			required: ['concrete'],
+			title: 'CompositeColumn',
+			type: 'object',
+		},
+		CompositeDeck: {
+			additionalProperties: false,
+			description: 'The formed steel deck under the slab (none: a solid slab).',
+			properties: {
+				orientation: {
+					default: 'perpendicular',
+					description: 'The deck ribs run across the beam or along it.',
+					enum: ['perpendicular', 'parallel'],
+					enumDescriptions: ['Across the beam', 'Along the beam'],
+					title: 'Orientation',
+					type: 'string',
+				},
+				ribHeight: {
+					default: 50,
+					description: 'Nominal rib height hr [mm].',
+					exclusiveMinimum: 0,
+					title: 'Rib height',
+					type: 'number',
+				},
+				ribWidth: {
+					default: 150,
+					description: 'Average width of the concrete rib or haunch wr [mm] (no more than the least clear width near the top of the deck).',
+					exclusiveMinimum: 0,
+					title: 'Rib width',
+					type: 'number',
+				},
+				ribPitch: {
+					default: 300,
+					description: 'Centres of the ribs [mm].',
+					exclusiveMinimum: 0,
+					title: 'Rib pitch',
+					type: 'number',
+				},
+				weight: {
+					default: 0.1,
+					description: 'Self weight of the deck [kN/m²].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				anchorageSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Deck anchored to the beams at these centres [mm].',
+					title: 'Anchorage spacing',
+				},
+			},
+			title: 'CompositeDeck',
 			type: 'object',
 		},
 		CouplingDiagonal: {
@@ -3928,6 +4326,119 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'RectangleProfile',
 			type: 'object',
 		},
+		ShearConnectors: {
+			additionalProperties: false,
+			description: 'The shear connectors on the top flange: headed studs (or hot-rolled channels).',
+			properties: {
+				kind: {
+					default: 'stud',
+					enum: ['stud', 'channel'],
+					enumDescriptions: ['Headed stud', 'Hot-rolled channel'],
+					title: 'Kind',
+					type: 'string',
+				},
+				diameter: {
+					default: 19,
+					description: 'Stud shank diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				height: {
+					default: 100,
+					description: 'Stud length after welding [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				fu: {
+					default: 450,
+					description: 'Specified tensile strength of the studs Fu [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Tensile strength fu',
+					type: 'number',
+				},
+				perRow: {
+					default: 1,
+					description: 'Studs side by side in a row (or in one deck rib).',
+					maximum: 4,
+					minimum: 1,
+					title: 'Per row',
+					type: 'integer',
+				},
+				transverseSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centres of the studs of a row [mm].',
+					title: 'Transverse spacing',
+				},
+				spacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rows along the beam at these centres [mm]; none: the least number of rows that carries the moment is designed (at the rib pitch on a perpendicular deck).',
+					title: 'Spacing',
+				},
+				eMidHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stud shank to the deck web at mid-height of the rib, in the stud\'s load direction [mm]; none: the weak position.',
+					title: 'e mid-ht',
+				},
+				overWeb: {
+					default: true,
+					description: 'The studs stand over the beam web.',
+					title: 'Over web',
+					type: 'boolean',
+				},
+				channelFlange: {
+					default: 8,
+					description: 'Channel flange thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Channel flange',
+					type: 'number',
+				},
+				channelWeb: {
+					default: 5,
+					description: 'Channel web thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Channel web',
+					type: 'number',
+				},
+				channelLength: {
+					default: 100,
+					description: 'Channel length Lc [mm].',
+					exclusiveMinimum: 0,
+					title: 'Channel length',
+					type: 'number',
+				},
+			},
+			title: 'ShearConnectors',
+			type: 'object',
+		},
 		ShellModifiers: {
 			additionalProperties: false,
 			description: 'Factors on a shell\'s (slab\'s, wall\'s) stiffness, mass and weight (empty: inherit).',
@@ -4161,6 +4672,41 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'SlabRibs',
+			type: 'object',
+		},
+		SlabShrinkage: {
+			additionalProperties: false,
+			description: 'The inputs of the shrinkage deflection of a simply supported composite beam.',
+			properties: {
+				freeStrain: {
+					description: 'Free shrinkage strain εf [-].',
+					exclusiveMaximum: 0.01,
+					exclusiveMinimum: 0,
+					title: 'Free strain',
+					type: 'number',
+				},
+				coefficient: {
+					description: 'Empirical coefficient c matching theory with tests [-].',
+					exclusiveMinimum: 0,
+					title: 'Coefficient',
+					type: 'number',
+				},
+				aging: {
+					description: 'Aging coefficient χ [-].',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Aging',
+					type: 'number',
+				},
+				creep: {
+					description: 'Creep coefficient φ [-].',
+					minimum: 0,
+					title: 'Creep',
+					type: 'number',
+				},
+			},
+			required: ['freeStrain', 'coefficient', 'aging', 'creep'],
+			title: 'SlabShrinkage',
 			type: 'object',
 		},
 		Solid: {
@@ -14791,6 +15337,21 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	TimberMember: {},
 	MemberServiceability: {},
+	CompositeBeam: {
+		type: 'compositeBeam',
+		concrete: 'C20.7',
+	},
+	CompositeColumn: {
+		type: 'compositeColumn',
+		concrete: 'C20.7',
+	},
+	CompositeDeck: {},
+	SlabShrinkage: {
+		freeStrain: 0.0004,
+		coefficient: 1.0,
+		aging: 0.8,
+		creep: 2.0,
+	},
 	TimberNotch: {
 		face: 'tension',
 		depth: 30,

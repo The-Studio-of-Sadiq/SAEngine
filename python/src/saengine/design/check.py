@@ -1423,6 +1423,9 @@ def _steel_deflection(
         for case, values in moved.items()
     }
     options = getattr(object_type, "serviceability", None)
+    from saengine.design.steel import composite  # B32: a composite beam's stiffness
+
+    profiles = composite.scale_profiles(entry, profiles)
     rows = deflection_checks(
         s,
         axis,
@@ -1430,6 +1433,7 @@ def _steel_deflection(
         getattr(options, "use", None),
         getattr(options, "freeEnd", "none") or "none",
     )
+    rows = composite.adjust_deflection_rows(entry, rows)
     if not rows:
         return
     entry["checks"] += rows
