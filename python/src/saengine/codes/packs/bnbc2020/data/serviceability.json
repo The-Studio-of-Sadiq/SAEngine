@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/serviceability.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 1.2.5, Table 6.1.2 and notes a-h (pp. 482-483)",
+    "BNBC 2020 Part 6 Sec 1.5.5, 1.5.6.1, 1.5.6.2 (pp. 499-500)",
+    "BNBC 2020 Part 6 Sec 1.8.4 (p. 507), Sec 2.5.7.8 (p. 632), Sec 2.7.5 (p. 686)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 1.2.5 (p. 482): member deflections within Table 6.1.2, storey drift and sway by Sec 1.5.6, under the service combinations of Sec 2.7.5",
+  "storeyDrift": {
+    "combination": "3",
+    "periodSplit": 0.7,
+    "shortPeriod": 0.005,
+    "longPeriod": 0.004,
+    "unreinforcedMasonry": 0.0025,
+    "unreinforcedMasonrySystems": ["masonryOrdinaryPlain", "masonryOrdinaryPlainFrame"],
+    "source": "BNBC 2020 Part 6 Sec 1.5.6.1(a) (pp. 499-500): storey drift for loads other than earthquake ≤ 0.005h for T < 0.7 s, 0.004h for T ≥ 0.7 s, 0.0025h for unreinforced masonry; T as used for the base shear (Sec 2.5.7.2); under the wind service combination D + 0.5L + 0.7W (Sec 2.7.5, p. 686)"
+  },
+  "sway": {
+    "combination": "3",
+    "ratio": 0.002,
+    "source": "BNBC 2020 Part 6 Sec 1.5.6.2 (p. 500): overall sway at the top level due to wind ≤ H/500, H the height above ground, under D + 0.5L + 0.7W (Sec 2.7.5 combination 3, p. 686)"
+  },
+  "deflection": {
+    "default": "floor",
+    "cantileverSpan": 2.0,
+    "combination": "1",
+    "uses": {
+      "roofPlasterCeiling": {"label": "Roof member supporting a plaster ceiling", "live": 360, "wind": 360, "deadLive": 240},
+      "roofOtherCeiling": {"label": "Roof member supporting a non-plaster ceiling", "live": 240, "wind": 240, "deadLive": 180},
+      "roofNoCeiling": {"label": "Roof member not supporting a ceiling", "live": 180, "wind": 180, "deadLive": 120},
+      "floor": {"label": "Floor member", "live": 360, "deadLive": 240},
+      "wallBrittle": {"label": "Exterior wall or interior partition member, brittle finishes", "wind": 240},
+      "wallFlexible": {"label": "Exterior wall or interior partition member, flexible finishes", "wind": 120},
+      "farm": {"label": "Farm building member", "deadLive": 180},
+      "greenhouse": {"label": "Greenhouse member", "deadLive": 120},
+      "metalSheeting": {"label": "Structural roofing or siding of formed metal sheets", "deadLive": 60, "source": "BNBC 2020 Part 6 Table 6.1.2 note a (p. 482): total load deflection ≤ l/60"},
+      "metalRoofSecondary": {"label": "Secondary roof member (purlin) supporting formed metal roofing", "live": 150, "source": "BNBC 2020 Part 6 Table 6.1.2 note a (p. 482): live load deflection ≤ l/150; only where the metal sheets have no roof covering"},
+      "metalWallSecondary": {"label": "Secondary wall member (girt) supporting formed metal siding", "wind": 90, "source": "BNBC 2020 Part 6 Table 6.1.2 note a (p. 482): design wind load deflection ≤ l/90"}
+    },
+    "source": "BNBC 2020 Part 6 Sec 1.2.5, Table 6.1.2 (pp. 482-483), columns L, W (note f) and D + L (notes d, g); note c: a cantilever's l is twice its length; Sec 10.12.3 (part 2 p. 172) refers steel members to these limits"
+  },
+  "overturning": {
+    "factorOfSafety": 1.5,
+    "resisting": ["D"],
+    "lateralFactors": {"W": 1.0, "E": 1.0},
+    "note": "the base overturning moment (Eq 6.1.1, Eq 6.2.47) at most 2/3 of the dead load resisting moment, so a factor of safety of 1.5; the weight of earth over the footings that the code allows is left out and E is taken at its design level (1.0E), both on the safe side; foundations themselves may be designed for 3/4 of the seismic overturning moment (Sec 2.5.7.8)",
+    "source": "BNBC 2020 Part 6 Sec 1.2.10 (p. 485), Sec 1.5.5 Eq 6.1.1 (p. 499), Sec 1.8.4 (p. 507): base overturning moment ≤ 2/3 of the dead load resisting moment; Sec 2.5.7.8 Eq 6.2.47 (p. 632)"
+  }
+}

@@ -500,7 +500,7 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
     "baseReaction": [Fx, Fy, Fz, Mx, My, Mz] | None, "forceScale"?}], "modal", "spectrum",
     "driftLimit", "spectrumDesign" (:func:`_spectrum_scale`), "pushover": [{"key", "label",
     "displacement", "shear"}], "histories": [{"key", "label", "node", "time", "displacement":
-    [[ux, uy]]}], "notes"}``. Result keys are those of
+    [[ux, uy]]}], "serviceability" (:func:`_serviceability`), "notes"}``. Result keys are those of
     :func:`saengine.fem.display.result_list`."""
     from opensees_studio.services.results import (
         PushoverResults,
@@ -673,10 +673,20 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                     ),
                 }
             )
+    # B9: the code pack's service wind combinations, the wind drift and sway limits and the
+    # overturning stability of the whole building (saengine.fem.serviceability).
+    serviceability = None
+    try:
+        serviceability = _serviceability(
+            project, project_path, arrays, node_index, levels, names, level_nodes, static, results
+        )
+    except Exception as error:  # noqa: BLE001 - the charts show without the checks
+        notes.append(f"the serviceability checks could not be worked out: {error}")
     return _finite(
         {
             "levels": level_rows,
             "results": results,
+            "serviceability": serviceability,
             "modal": _modal(project_path, loaded, notes),
             "spectrum": _spectrum_curve(project),
             "driftLimit": _drift_limit(project_path),
@@ -686,6 +696,99 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "notes": notes,
         }
     )
+
+
+def _serviceability(
+    project: dict[str, Any],
+    project_path: str | Path,
+    arrays: dict[str, np.ndarray],
+    node_index: dict[int, int],
+    levels: list[float],
+    names: list[str],
+    level_nodes: list[list[int]],
+    static: dict[str, tuple[dict[str, Any], Any, list[tuple]]],
+    results: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """B9: the serviceability checks of the code pack (:mod:`saengine.fem.serviceability`) on
+    this run, and the pack's service wind combinations added to ``results`` (kind "service",
+    with the drift and sway limits of their direction). None when the pack has no
+    serviceability table."""
+    from saengine.fem import serviceability as sv
+    from saengine.fem.combinations import service_combinations, settings_beside
+    from saengine.fem.display import _last
+
+    found = sv.table()
+    if found is None:
+        return None
+    settings = settings_beside(project_path)
+    periods = sv.base_shear_periods(_derivation_summary(project, project_path))
+    plain = sv.unreinforced_axes(settings) if settings and found.storeyDrift else {}
+    wind = sv.wind_checks(project, arrays, node_index, levels, periods, plain, _Rows)
+    # The service wind combinations as results (the charts draw their limits).
+    wanted = {g.combination for g in (found.storeyDrift, found.sway) if g is not None}
+    for row_id in sorted(wanted):
+        for name, factors, _row in service_combinations(set(arrays), row_id):
+            winds = [c for c in factors if c in sv.WIND_AXES]
+            if len(winds) != 1 or any(c not in arrays for c in winds):
+                continue
+            used = {c: f for c, f in factors.items() if c in arrays}
+            disp = _Rows(node_index, sum(f * arrays[c] for c, f in used.items()))
+            loads = [(z, f * x, f * y) for c, f in used.items() for z, x, y in static[c][2]]
+            fx, fy = _storey_loads(loads, levels)
+            dx, dy = _drifts(project, disp, levels)
+            direction = "XY"[sv.WIND_AXES[winds[0]]]
+            drift_limit = (
+                sv.storey_drift_limit(periods.get(direction), bool(plain.get(direction)))[0]
+                if found.storeyDrift
+                else None
+            )
+            results.append(
+                {
+                    "key": f"service:{name}",
+                    "label": name,
+                    "kind": "service",
+                    "storeys": _storeys(
+                        names,
+                        levels,
+                        _displacements(disp, level_nodes),
+                        dx,
+                        dy,
+                        fx,
+                        fy,
+                        _shears(fx),
+                        _shears(fy),
+                    ),
+                    "baseReaction": None,
+                    "direction": direction,
+                    "windDriftLimit": drift_limit,
+                    "swayLimit": float(found.sway.ratio) if found.sway else None,
+                }
+            )
+    # Overturning: each lateral case's level forces along its axis, the dead load's supports.
+    level_forces = {}
+    for case, axis in sv.LATERAL_CASES.items():
+        if case in static:
+            fx, fy = _storey_loads(static[case][2], levels)
+            level_forces[case] = fx if axis == 0 else fy
+    reactions = {
+        case: (lambda node, r=static[case][1]: _last(r.node_reaction, node, 6))
+        for case in ("D", "SD")
+        if case in static
+    }
+    supports = sv.dead_supports(project, reactions) if reactions else []
+    overturning = sv.overturning_checks(level_forces, levels, supports)
+    return {"wind": wind, "overturning": overturning, "periods": periods}
+
+
+def _derivation_summary(project: dict[str, Any], project_path: str | Path) -> dict[str, Any]:
+    """The kept derivation's code values of this model (the periods the base shear used)."""
+    try:
+        from saengine.report.build import kept_derivation
+
+        kept = kept_derivation(Path(project_path).resolve().parent.parent, project)
+    except Exception:  # noqa: BLE001 - no periods: the stricter drift limit
+        return {}
+    return dict(kept.summary) if kept is not None else {}
 
 
 def _roof_history(results: Any, roof: list[int]) -> dict[str, Any] | None:

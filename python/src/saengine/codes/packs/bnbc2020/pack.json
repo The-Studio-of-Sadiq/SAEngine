@@ -35,7 +35,8 @@
     "masonry",
     "cranes",
     "fatigue",
-    "siteInvestigation"
+    "siteInvestigation",
+    "serviceability"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -66,7 +67,8 @@
       "BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"
     ],
     "combinations": [
-      "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685), 2.5.13.5-2.5.13.6 (p. 647), 1.5.9 (p. 500)"
+      "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685), 2.5.13.5-2.5.13.6 (p. 647), 1.5.9 (p. 500)",
+      "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations"
     ],
     "seismic": [
       "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
@@ -163,6 +165,12 @@
       "BNBC 2020 Part 6 Sec 3.6.2, Tables 6.3.6a-6.3.6b (pp. 715-718) and Sec 3.10.1.29 (pp. 754-755): corrosivity and corrosive sites",
       "BNBC 2020 Part 6 Sec 5.5.1-5.5.2, Table 6.5.2 (pp. 844-846): concrete in sulphate and chloride exposure",
       "BNBC 2020 Part 6 Sec 3.21 (p. 814): geo-hazards"
+    ],
+    "serviceability": [
+      "BNBC 2020 Part 6 Sec 1.2.5, Table 6.1.2 and notes (pp. 482-483): member deflection limits",
+      "BNBC 2020 Part 6 Sec 1.5.6.1(a), 1.5.6.2 (pp. 499-500): storey drift and sway under wind",
+      "BNBC 2020 Part 6 Sec 1.2.10 (p. 485), 1.5.5 (p. 499), 1.8.4 (p. 507), 2.5.7.8 (p. 632): overturning",
+      "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations; Sec 10.12.3-10.12.4 (part 2 p. 172): steel"
     ]
   },
   "basis": {

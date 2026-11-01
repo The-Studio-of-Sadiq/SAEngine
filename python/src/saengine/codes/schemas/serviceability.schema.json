@@ -1,0 +1,340 @@
+{
+  "$defs": {
+    "MemberDeflection": {
+      "additionalProperties": false,
+      "description": "Deflection limits of members by use (steel and other members without their own).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "uses": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MemberDeflectionUse"
+          },
+          "description": "Use id -> span divisors.",
+          "title": "Uses",
+          "type": "object"
+        },
+        "default": {
+          "type": "string",
+          "description": "Use id of a member whose use is not set.",
+          "title": "Default"
+        },
+        "cantileverSpan": {
+          "default": 2.0,
+          "description": "Span of a cantilever as a multiple of its length.",
+          "exclusiveMinimum": 0,
+          "title": "Cantileverspan",
+          "type": "number"
+        },
+        "combination": {
+          "description": "Id of the service combination of the dead + live load limit.",
+          "title": "Combination",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uses",
+        "default",
+        "combination"
+      ],
+      "title": "MemberDeflection",
+      "type": "object"
+    },
+    "MemberDeflectionUse": {
+      "additionalProperties": false,
+      "description": "Span divisors of one kind of member: deflection <= span / divisor under the live load,\nthe wind load and the dead plus live load (empty: no limit of that kind).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "description": "What the member is, for the report.",
+          "title": "Label",
+          "type": "string"
+        },
+        "live": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live load: span / this.",
+          "title": "Live"
+        },
+        "wind": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wind load: span / this.",
+          "title": "Wind"
+        },
+        "deadLive": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dead + live load: span / this.",
+          "title": "Deadlive"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "MemberDeflectionUse",
+      "type": "object"
+    },
+    "NonSeismicDrift": {
+      "additionalProperties": false,
+      "description": "Storey drift limit under the loads other than earthquake, as Δ / storey height: one\nratio below the period split, another at or above it, and one for unreinforced masonry.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "combination": {
+          "description": "Id of the service combination the drift is taken under.",
+          "title": "Combination",
+          "type": "string"
+        },
+        "periodSplit": {
+          "description": "Period [s] (the one the base shear uses) splitting short and long.",
+          "exclusiveMinimum": 0,
+          "title": "Periodsplit",
+          "type": "number"
+        },
+        "shortPeriod": {
+          "description": "Δ / h for a period below the split.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shortperiod",
+          "type": "number"
+        },
+        "longPeriod": {
+          "description": "Δ / h for a period at or above the split.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Longperiod",
+          "type": "number"
+        },
+        "unreinforcedMasonry": {
+          "description": "Δ / h of unreinforced masonry structures.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Unreinforcedmasonry",
+          "type": "number"
+        }
+      },
+      "required": [
+        "combination",
+        "periodSplit",
+        "shortPeriod",
+        "longPeriod",
+        "unreinforcedMasonry"
+      ],
+      "title": "NonSeismicDrift",
+      "type": "object"
+    },
+    "OverturningStability": {
+      "additionalProperties": false,
+      "description": "Overturning of the building as a whole: the dead load's resisting moment about the\nedge of the supports over the overturning moment of each lateral case.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factorOfSafety": {
+          "description": "Least resisting / overturning moment.",
+          "minimum": 1,
+          "title": "Factorofsafety",
+          "type": "number"
+        },
+        "resisting": {
+          "description": "Load case kinds that resist (dead only).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Resisting",
+          "type": "array"
+        },
+        "lateralFactors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Factor on each lateral load kind (W, E) for this check.",
+          "title": "Lateralfactors",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "description": "How the check reads the code, for the report.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "factorOfSafety"
+      ],
+      "title": "OverturningStability",
+      "type": "object"
+    },
+    "WindSway": {
+      "additionalProperties": false,
+      "description": "Overall sway at the top under the service wind combination, as a share of the height.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "combination": {
+          "description": "Id of the service combination the sway is taken under.",
+          "title": "Combination",
+          "type": "string"
+        },
+        "ratio": {
+          "description": "Top deflection / height above the base.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "combination",
+        "ratio"
+      ],
+      "title": "WindSway",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Serviceability of the building: storey drift and top sway under the service wind, member\ndeflection limits by use, and the stability of the whole building against overturning.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "storeyDrift": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonSeismicDrift"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sway": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WindSway"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "deflection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemberDeflection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "overturning": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OverturningStability"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "ServiceabilityTable",
+  "type": "object",
+  "$id": "saengine.codePack.serviceability/1"
+}

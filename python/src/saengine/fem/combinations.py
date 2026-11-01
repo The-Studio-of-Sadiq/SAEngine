@@ -157,10 +157,31 @@ def allowable_combinations(
     (F, H, T, R) the model lacks are left out of a combination (the combination with a load
     not acting, as the code asks), and each combination with Lr is also formed on its
     alternate R when the model has it."""
+    return [(name, cases) for name, cases, _row in _formed("allowable", present)]
+
+
+def service_combinations(
+    present: set[str] | frozenset[str] | None = None, row_id: str | None = None
+) -> list[tuple[str, dict[str, float], Any]]:
+    """The code pack's serviceability combinations (``combinations.service``, unfactored; B9)
+    as ``(name, {analysis case: factor}, pack row)``, formed as :func:`allowable_combinations`
+    forms its rows (W in ±X and ±Y, D on D and SD, the optional cases the model lacks left
+    out); with ``row_id`` only that row's. Never strength combinations."""
+    return [
+        formed
+        for formed in _formed("service", present)
+        if row_id is None or getattr(formed[2], "id", None) == row_id
+    ]
+
+
+def _formed(
+    category: str, present: set[str] | frozenset[str] | None
+) -> list[tuple[str, dict[str, float], Any]]:
+    """The rows of the pack's ``category`` as ``(name, {analysis case: factor}, row)``."""
     table = _pack()
     optional = set(getattr(table, "optionalCases", ()) or ())
-    out: list[tuple[str, dict[str, float]]] = []
-    for name, factors, _row in expand_rows(list(getattr(table, "allowable", None) or [])):
+    out: list[tuple[str, dict[str, float], Any]] = []
+    for name, factors, row in expand_rows(list(getattr(table, category, None) or [])):
         cases: dict[str, float] = {}
         for kind, value in factors.items():
             if present is not None and kind in optional and kind not in present:
@@ -175,7 +196,7 @@ def allowable_combinations(
                 (f"{name} − {_token(temperature, 'T')}", {**cases, "T": -temperature}),
             ]
         for label, combination in signs:
-            out.append((label, combination))
+            out.append((label, combination, row))
             for case, alternates in (getattr(table, "alternates", None) or {}).items():
                 if not combination.get(case):
                     continue
@@ -184,7 +205,7 @@ def allowable_combinations(
                         continue
                     twin = {k: v for k, v in combination.items() if k != case}
                     twin[alternate] = combination[case]
-                    out.append((f"{label} [{case} → {alternate}]", twin))
+                    out.append((f"{label} [{case} → {alternate}]", twin, row))
     return out
 
 

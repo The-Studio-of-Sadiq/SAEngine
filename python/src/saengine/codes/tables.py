@@ -2758,6 +2758,81 @@ class SiteInvestigationTable(TableModel):
     geoHazards: GeoHazards | None = None
 
 
+# ─────────────────────────────────────── serviceability ───────────────────────────────────────
+
+
+class NonSeismicDrift(_Row):
+    """Storey drift limit under the loads other than earthquake, as Δ / storey height: one
+    ratio below the period split, another at or above it, and one for unreinforced masonry."""
+
+    combination: str = Field(description="Id of the service combination the drift is taken under.")
+    periodSplit: Positive = Field(
+        description="Period [s] (the one the base shear uses) splitting short and long."
+    )
+    shortPeriod: Share = Field(description="Δ / h for a period below the split.")
+    longPeriod: Share = Field(description="Δ / h for a period at or above the split.")
+    unreinforcedMasonry: Share = Field(description="Δ / h of unreinforced masonry structures.")
+    unreinforcedMasonrySystems: list[str] = Field(
+        default_factory=list,
+        description="Seismic system ids (the seismic table's) that are unreinforced masonry.",
+    )
+
+
+class WindSway(_Row):
+    """Overall sway at the top under the service wind combination, as a share of the height."""
+
+    combination: str = Field(description="Id of the service combination the sway is taken under.")
+    ratio: Share = Field(description="Top deflection / height above the base.")
+
+
+class MemberDeflectionUse(_Row):
+    """Span divisors of one kind of member: deflection <= span / divisor under the live load,
+    the wind load and the dead plus live load (empty: no limit of that kind)."""
+
+    label: str = Field(description="What the member is, for the report.")
+    live: Positive | None = Field(default=None, description="Live load: span / this.")
+    wind: Positive | None = Field(default=None, description="Wind load: span / this.")
+    deadLive: Positive | None = Field(default=None, description="Dead + live load: span / this.")
+
+
+class MemberDeflection(_Row):
+    """Deflection limits of members by use (steel and other members without their own)."""
+
+    uses: dict[str, MemberDeflectionUse] = Field(description="Use id -> span divisors.")
+    default: str = Field(description="Use id of a member whose use is not set.")
+    cantileverSpan: Positive = Field(
+        default=2.0, description="Span of a cantilever as a multiple of its length."
+    )
+    combination: str = Field(
+        description="Id of the service combination of the dead + live load limit."
+    )
+
+
+class OverturningStability(_Row):
+    """Overturning of the building as a whole: the dead load's resisting moment about the
+    edge of the supports over the overturning moment of each lateral case."""
+
+    factorOfSafety: float = Field(ge=1, description="Least resisting / overturning moment.")
+    resisting: list[str] = Field(
+        default_factory=lambda: ["D"], description="Load case kinds that resist (dead only)."
+    )
+    lateralFactors: dict[str, float] = Field(
+        default_factory=lambda: {"W": 1.0, "E": 1.0},
+        description="Factor on each lateral load kind (W, E) for this check.",
+    )
+    note: str = Field(default="", description="How the check reads the code, for the report.")
+
+
+class ServiceabilityTable(TableModel):
+    """Serviceability of the building: storey drift and top sway under the service wind, member
+    deflection limits by use, and the stability of the whole building against overturning."""
+
+    storeyDrift: NonSeismicDrift | None = None
+    sway: WindSway | None = None
+    deflection: MemberDeflection | None = None
+    overturning: OverturningStability | None = None
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -2789,6 +2864,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "cranes": CranesTable,
     "fatigue": FatigueTable,
     "siteInvestigation": SiteInvestigationTable,
+    "serviceability": ServiceabilityTable,
 }
 
 

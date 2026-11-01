@@ -1487,15 +1487,93 @@ def _results(
             "Story drift: the largest difference of the horizontal displacement in the load's "
             "direction between nodes on one plan position at consecutive story levels, divided "
             "by the story height (elastic, from the analysis). For earthquake cases the design "
-            "drift Cd·δ/I is compared with the allowable story drift Δa/hsx of BNBC 2020 Part 6 "
-            "Table 6.2.21 (p. 648, all other structures) for the occupancy category; for moment "
-            "frames in Seismic Design Category D it is divided by ρ (Sec 2.5.14.1), as the "
-            "response spectrum's design drifts below. BNBC sets no drift limit for wind."
+            "drift Cd·δ/I is compared with the allowable story drift Δa/hsx of the code pack's "
+            "drift table for the occupancy category; for moment frames in Seismic Design "
+            "Category D it is divided by ρ, as the response spectrum's design drifts below. "
+            "The wind cases are listed unfactored here; their storey drift and sway limits are "
+            "checked under the service wind combination (Serviceability, below)."
         )
+    # B9: storey drift and sway under the service wind, overturning of the whole building.
+    out["serviceability"] = _serviceability(model_path, results_dir, warnings)
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     return out
+
+
+def _serviceability(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:
+    """B9: the serviceability checks of the storey response (:mod:`saengine.fem.serviceability`
+    through :func:`saengine.fem.story_response.story_response`, one computation for the charts
+    and the report) as report rows: the governing storey drift and the sway per direction under
+    the service wind combination, and the overturning stability per lateral case.
+    ``{"available": False, "reason"}`` when the code pack does not cover them."""
+    from saengine.fem import serviceability as sv
+    from saengine.fem.story_response import story_response
+
+    if sv.table() is None:
+        return {
+            "available": False,
+            "reason": f"Serviceability is not covered by the code pack "
+            f"{code_context.current().name}.",
+        }
+    try:
+        found = (story_response(results_dir, model_path) or {}).get("serviceability")
+    except Exception as error:  # noqa: BLE001 - the report goes on without these checks
+        warnings.append(f"The serviceability checks could not be worked out: {error}")
+        return {"available": False, "reason": str(error)}
+    if not found:
+        return {"available": False, "reason": "No serviceability results."}
+    wind, over = found["wind"], found["overturning"]
+    drift = [
+        [
+            r["direction"],
+            r["combination"],
+            f"{fmt(r['from'], 2)} to {fmt(r['to'], 2)} m",
+            fmt(100 * r["drift"], 3),
+            fmt(100 * r["limit"], 3),
+            r["basis"],
+            "OK" if r["ok"] else "FAIL",
+        ]
+        for r in sv.worst(wind["drift"], "drift")
+    ]
+    sway = [
+        [
+            r["direction"],
+            r["combination"],
+            fmt(1e3 * r["displacement"], 1),
+            fmt(r["height"], 2),
+            f"H/{1 / r['ratio']:.0f}" if r["ratio"] > 0 else "–",
+            f"H/{1 / r['limit']:.0f}",
+            "OK" if r["ok"] else "FAIL",
+        ]
+        for r in sv.worst(wind["sway"], "ratio")
+    ]
+    overturning = [
+        [
+            r["case"],
+            fmt(r["overturning"] / 1e3, 0),
+            fmt(r["resisting"] / 1e3, 0),
+            fmt(r["factor"], 2),
+            fmt(r["required"], 2),
+            "OK" if r["ok"] else "FAIL",
+        ]
+        for r in over["rows"]
+    ]
+    return {
+        "available": True,
+        "drift": drift,
+        "driftFails": [row[-1] == "FAIL" for row in drift],
+        "sway": sway,
+        "swayFails": [row[-1] == "FAIL" for row in sway],
+        "combinations": wind["combinations"],
+        "driftClause": wind["clauses"].get("drift", ""),
+        "swayClause": wind["clauses"].get("sway", ""),
+        "overturning": overturning,
+        "overturningFails": [row[-1] == "FAIL" for row in overturning],
+        "overturningClause": over.get("clause", ""),
+        "overturningNote": over.get("note", ""),
+        "notes": list(wind.get("notes") or []),
+    }
 
 
 def _seismic_design(

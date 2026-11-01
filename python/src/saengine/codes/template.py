@@ -49,7 +49,11 @@ TABLE_HELP: dict[str, str] = {
     "combinations": "Load cases (loadCases); the strength, temperature and gravity combinations, "
     "lists matched by name; the dead load factors of the seismic combinations "
     "(seismicDeadUpper, seismicDeadLower); and the overstrength (Omega0) note (overstrength). "
-    "There are no service combinations in this table.",
+    "The service combinations (service) are unfactored and used only by the serviceability "
+    "checks (serviceability).",
+    "serviceability": "Serviceability: the storey drift and top sway limits under the service "
+    "wind combination, member deflection limits (span divisors) by use of the member, and the "
+    "factor of safety of the whole building against overturning.",
     "seismic": "Site classes (soil factor, corner periods), structural systems (R, Omega0, Cd, "
     "height limits), period coefficients Ct and m, seismic design category table, drift limits "
     "and the other plain numbers of the seismic analysis.",
