@@ -24,7 +24,7 @@ of the old constants and checks every value of the pack against it.
 | `factors.json` | φ of concrete design | Sec 6.2.3 (pp. 897-898) |
 | `concrete.json` | Bar sizes, spacings, steel ratios, minimum thickness tables, assumed covers, cracked stiffness, slenderness limits, wall steel | Chapter 6 (Tables 6.6.1, 6.6.3, pp. 900-902) |
 | `detailing.json` | Special moment frames, joints, special walls, lintels | Sec 8.3 (pp. 1088-1122) |
-| `steel.json` | φ, slenderness limits, An ≤ 0.85 Ag | Chapter 10 |
+| `steel.json` | φ, slenderness limits, An ≤ 0.85 Ag; connections: bolt grades, pretension, slip, holes, edges, spacing, fillet welds, concrete bearing (0.8 f'c as printed), practice methods labelled; stability bracing; ponding limits and the digitised Figures 6.10.1-6.10.2 | Chapter 10 (Secs 10.10-10.11, 10.16, 10.19; Tables 6.10.7-6.10.12) |
 | `foundations.json` | Pile factors of safety, strut-and-tie factors (shared by pile caps and deep beams) | Chapter 3, Table 6.3.10a (p. 750); Sec 6.2.3.2 (p. 897) with ACI 318-19 Chapter 23 |
 | `transfer.json` | Deep beams and transfer girders (when a beam is deep, Vn limit, web steel), corbels and brackets (shear friction limits, least steel, ties), diaphragm force bounds and collectors | Secs 6.4.6, 6.4.7, 2.5.5.6 (p. 625); ASCE 7-05 Sec 12.10.1.1 where BNBC is silent |
 | `plumbing.json` | Water demand (Table 8.5.1), storage, supply fixture units and Hunter's curve, velocity and pressure limits, drainage units, stacks, drains and vents, septic tank and soak pit, rainwater leaders, gutters and storm drains; SAEngine's pipe diameters, Hazen-Williams C, sleeves and wet-room fixtures | Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215), Part 3 Sec 2.4.4 (p. 94) |

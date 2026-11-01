@@ -431,6 +431,28 @@ class _Bolted(_Model):
     shearedEdges: bool = Field(
         default=False, description="Sheared plate edges (else rolled or thermally cut)."
     )
+    slipCritical: Literal["none", "serviceability", "strength"] = Field(
+        default="none",
+        title="Slip-critical",
+        description="Bearing-type (none), or pretensioned bolts designed against slip as a "
+        "serviceability limit (standard holes, slots across the load) or at the required "
+        "strength (oversized holes, slots along the load).",
+        json_schema_extra={
+            "enumDescriptions": ["Bearing-type", "Slip: serviceability", "Slip: strength"]
+        },
+    )
+    surfaceClass: Literal["A", "B"] = Field(
+        default="A",
+        title="Faying surface",
+        description="Slip-critical: class A (clean mill scale, class A coatings, galvanized "
+        "and roughened) or B (blast-cleaned, class B coatings).",
+    )
+    holeType: Literal["standard", "oversized", "shortSlot", "longSlot"] = Field(
+        default="standard",
+        title="Holes",
+        description="Hole type of the slip-critical plies (bearing-type connections use "
+        "standard holes).",
+    )
 
 
 class FinPlateConnection(_Bolted):
@@ -439,6 +461,14 @@ class FinPlateConnection(_Bolted):
     type: Literal["finPlate"] = "finPlate"
     boltLineOffset: float = Field(
         default=60, gt=0, description="Support face (weld) to the bolt line, a [mm]."
+    )
+    supportSection: str | None = Field(
+        default=None,
+        description="A rectangular HSS column the plate is welded to (steel sections table), "
+        "for the HSS wall check of a plate along its axis; none: an open section or a wall.",
+    )
+    supportMaterial: str | None = Field(
+        default=None, description="03 Materials id of the HSS support; none: the beam's material."
     )
 
 
@@ -505,8 +535,46 @@ class FlangePlateConnection(_Bolted):
     )
     columnStiffeners: bool = Field(
         default=False,
-        description="Continuity plates opposite the beam flanges (then the column flange and "
-        "web local checks are left to them; their design is not checked).",
+        description="A pair of transverse stiffeners (continuity plates) opposite each beam "
+        "flange, designed for the force the column flange and web cannot take.",
+    )
+    stiffenerWidth: float = Field(
+        default=0, ge=0, description="Width of each stiffener [mm]; 0: the beam flange's reach."
+    )
+    stiffenerThickness: float = Field(
+        default=0, ge=0, description="Stiffener thickness [mm]; 0: the flange plate's."
+    )
+    doublerThickness: float = Field(
+        default=0, ge=0, description="Web doubler plate on the panel zone [mm]; 0: none."
+    )
+    doubleSided: bool = Field(
+        default=False,
+        description="Beams on both column flanges at this level (the web takes a pair of "
+        "compressive forces: web compression buckling).",
+    )
+    columnEndDistance: float | None = Field(
+        default=None,
+        ge=0,
+        description="Column end (top) to the beam flange [mm], for the reduced strengths near "
+        "a member end; none: far from the end.",
+    )
+    columnAxialRatio: float = Field(
+        default=0,
+        ge=0,
+        le=1,
+        description="Column axial force Pr / Py at the joint, for the panel zone strength.",
+    )
+    panelZoneInAnalysis: bool = Field(
+        default=False,
+        description="The analysis includes the plastic panel-zone deformation (frame "
+        "stability), which allows the higher panel zone strength.",
+    )
+    columnUtilisation: float = Field(
+        default=0,
+        ge=0,
+        le=1,
+        description="HSS columns: chord utilisation U (axial and bending) at the joint, for the "
+        "chord stress factor Qf (column in compression).",
     )
 
 
@@ -521,12 +589,29 @@ class HssJointConnection(_Model):
     chordMaterial: str | None = Field(
         default=None, description="03 Materials id of the chord; none: the brace's material."
     )
-    joint: Literal["TY", "X", "K"] = Field(
+    joint: Literal["TY", "X", "K", "KOverlap"] = Field(
         default="K",
-        description="T or Y (one branch), X (branches on both faces), K (two branches, gapped).",
+        description="T or Y (one branch), X (branches on both faces), K (two branches, gapped) "
+        "or overlapped K (this brace overlaps the other branch).",
+        json_schema_extra={"enumDescriptions": ["T or Y", "Cross (X)", "Gapped K", "Overlapped K"]},
     )
     angle: float = Field(default=45, ge=30, le=90, description="Branch to chord angle θ [°].")
     gap: float = Field(default=20, ge=0, description="K joints: gap between the branches [mm].")
+    overlap: float = Field(
+        default=50,
+        ge=0,
+        le=100,
+        description="Overlapped K joints: overlap Ov = q / p [%] (q the overlap length on the "
+        "chord face, p the brace's projected length).",
+    )
+    overlappedSection: str | None = Field(
+        default=None,
+        description="Overlapped K joints: the other (overlapped, thru) branch's section; none: "
+        "this brace's section.",
+    )
+    overlappedMaterial: str | None = Field(
+        default=None, description="03 Materials id of the overlapped branch; none: the brace's."
+    )
     chordCompression: bool = Field(default=True, description="Chord in compression at the joint.")
     chordUtilisation: float = Field(
         default=0.5,
@@ -538,12 +623,49 @@ class HssJointConnection(_Model):
     plateMaterial: str | None = Field(default=None, description="Not used (no plates).")
 
 
+class HssMomentConnection(_Model):
+    """A welded HSS-to-HSS moment connection at the beam ends: the beam (the branch) welded to
+    an HSS column (the chord) that passes through, both round or both rectangular. Checked for
+    the beam's axial force and its in-plane and out-of-plane end moments; the ends are kept
+    rigid in the analysis."""
+
+    type: Literal["hssMoment"] = "hssMoment"
+    chordSection: str | None = Field(
+        default=None, description="The column's (chord's) section (steel sections table)."
+    )
+    chordMaterial: str | None = Field(
+        default=None, description="03 Materials id of the chord; none: the beam's material."
+    )
+    joint: Literal["T", "X"] = Field(
+        default="T",
+        description="T or Y (one beam at the chord) or cross (beams on opposite faces).",
+        json_schema_extra={"enumDescriptions": ["T or Y", "Cross (X)"]},
+    )
+    angle: float = Field(
+        default=90, ge=30, le=90, description="Branch to chord angle θ [°] (rectangular: 90)."
+    )
+    chordCompression: bool = Field(default=True, description="Chord in compression at the joint.")
+    chordUtilisation: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description="Chord utilisation U at the joint (axial and bending), for Qf.",
+    )
+    distortionPrevented: bool = Field(
+        default=False,
+        description="Rectangular T joints: chord distortion prevented by other means (no "
+        "distortional check).",
+    )
+    plateMaterial: str | None = Field(default=None, description="Not used (no plates).")
+
+
 SteelConnection = Annotated[
     FinPlateConnection
     | EndPlateConnection
     | BraceGussetConnection
     | FlangePlateConnection
-    | HssJointConnection,
+    | HssJointConnection
+    | HssMomentConnection,
     Field(discriminator="type"),
 ]
 
@@ -605,6 +727,19 @@ class ColumnBasePlate(_Model):
     )
     weldSize: float = Field(default=8, gt=0, description="Column-to-plate fillet weld leg [mm].")
     electrode: float = Field(default=480, gt=0, description="FEXX [MPa].")
+
+
+class HssCapPlate(_Model):
+    """A cap plate on the top of a rectangular HSS column carrying a beam (or a bearing plate)
+    that bears on it: the column walls under the concentrated axial force."""
+
+    type: Literal["capPlate"] = "capPlate"
+    thickness: float = Field(default=20, gt=0, description="Cap plate thickness tp [mm].")
+    bearingLength: float = Field(
+        default=150,
+        gt=0,
+        description="Bearing length N of the load on the cap plate, across the column [mm].",
+    )
 
 
 # ───────────────────────────── timber members and joints ─────────────────────────────
@@ -810,8 +945,8 @@ class Beam(_ObjectBase):
     connection: SteelConnection | None = Field(
         default=None,
         description="Steel beams: the connection at both ends (fin plate or shear end plate: "
-        "simple, the ends pinned in the analysis; flange plates: a moment connection, the ends "
-        "kept rigid); none: not checked.",
+        "simple, the ends pinned in the analysis; flange plates or a welded HSS moment "
+        "connection: the ends kept rigid); none: not checked.",
     )
     splice: SteelSplice | None = Field(
         default=None, description="Steel I-beams: a bolted cover-plate splice; none: no splice."
@@ -860,6 +995,12 @@ class Column(_ObjectBase):
         default=None,
         description="Steel columns: the base plate and anchor rods where the column stands on "
         "a support; none: not checked.",
+    )
+    capPlate: HssCapPlate | None = Field(
+        default=None,
+        title="Cap plate",
+        description="Rectangular HSS columns: a cap plate at the top carrying a beam that "
+        "bears on it; none: not checked.",
     )
     timber: TimberMember | None = Field(
         default=None,

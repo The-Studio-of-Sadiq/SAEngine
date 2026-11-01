@@ -29,7 +29,7 @@ METHOD = [
     *steel_members.METHOD,
     (
         "Steel connections (when the object type sets one): fin plate, shear end plate or brace "
-        "gusset checked for the member's end shears or axial forces, BNBC 2020 Part 6 Sec 10.10 "
+        "gusset checked for the member's end shears or axial forces, Part 6 Sec 10.10 of the code pack "
         "(bolts, bearing, block shear, welds, the Whitmore section); listed as 'Connection: ...' "
         "checks of the member. The analysis pins these member ends (no end moment); an end "
         "kept rigid (at a support or a free end) is flagged as 'end moment at a simple "
@@ -37,7 +37,9 @@ METHOD = [
         "flange, web and panel zone checks of Sec 10.10.10), cover-plate splices (Sec "
         "10.10.6), column base plates on concrete (bearing Sec 10.10.8, anchor rod steel) and "
         "welded HSS truss joints (Sec 10.11.2) are checked the same way when the type sets "
-        "them."
+        "them; also slip-critical bolts, end plates under axial tension (prying), the column "
+        "stiffeners and doublers (Sec 10.10.10.8-9), plates and cap plates on HSS (Sec 10.11.1), "
+        "overlapped K joints and HSS moment connections (Sec 10.11.3)."
     ),
 ]
 
@@ -134,7 +136,37 @@ DESCRIPTIONS = {
     "hssJoint": "welded HSS truss joint at both ends",
     "coverPlate": "bolted cover-plate splice",
     "basePlate": "column base plate and anchor rods",
+    "hssMoment": "welded HSS moment connection at both ends",
+    "capPlate": "cap plate on the HSS column top",
 }
+
+
+def _end_forces(stations: list[Any]) -> list[tuple[str | None, float, float]]:
+    """``(combination, V [N], N [N] tension +)`` at both ends of every combination."""
+    rows = []
+    for st in stations:
+        if not len(st.s):
+            continue
+        for k in (0, -1):
+            rows.append((st.combination, float(st.Vy[k]), -float(st.P[k])))
+    return rows
+
+
+def _end_moment_rows(stations: list[Any]) -> list[tuple[str | None, float, float, float]]:
+    """``(combination, N [N] tension +, M in-plane (major) [N·mm], M out-of-plane (minor))`` at
+    both ends of every combination."""
+    rows = []
+    for st in stations:
+        if not len(st.s):
+            continue
+        for k in (0, -1):
+            rows.append((st.combination, -float(st.P[k]), float(st.Mx[k]), float(st.My[k])))
+    return rows
+
+
+def _top_rows(stations: list[Any]) -> list[tuple[str | None, float]]:
+    """``(combination, P [N] compression +)`` at the member's upper (last) end."""
+    return [(st.combination, float(st.P[-1])) for st in stations if len(st.s)]
 
 
 def _end_rows(stations: list[Any]) -> list[tuple[str | None, float, float]]:
@@ -234,11 +266,47 @@ def connection_results(
                 chord,
                 _steel_of(mats, connection.chordMaterial, "chord"),
                 _connection_demands(stations, "brace"),
+                _section_named(connection.overlappedSection, "overlapped branch"),
+                _steel_of(mats, connection.overlappedMaterial, "overlapped branch"),
+            )
+        elif connection.type == "hssMoment":
+            if kind != "beam":
+                raise ValueError("HSS moment connections are for beams")
+            chord = _section_named(connection.chordSection, "chord")
+            if chord is None:
+                raise ValueError("the HSS moment connection has no chord section")
+            result = sc.check_hss_moment(
+                connection,
+                section,
+                member,
+                chord,
+                _steel_of(mats, connection.chordMaterial, "chord"),
+                _end_moment_rows(stations),
+            )
+        elif connection.type == "finPlate":
+            result = sc.check_fin_plate(
+                connection,
+                section,
+                member,
+                plate,
+                _connection_demands(stations, kind),
+                _section_named(connection.supportSection, "support"),
+                _steel_of(mats, connection.supportMaterial, "support"),
+            )
+        elif connection.type == "endPlate":
+            result = sc.check_end_plate(
+                connection,
+                section,
+                member,
+                plate,
+                _connection_demands(stations, kind),
+                _end_forces(stations),
             )
         else:
             result = sc.check_connection(
                 connection, section, member, plate, _connection_demands(stations, kind)
             )
+        if connection.type in ("finPlate", "endPlate", "gusset"):
             moment = _end_moment_check(stations)
             if moment is not None:
                 result["checks"].append(moment)
@@ -271,6 +339,14 @@ def connection_results(
             )
             result["end"] = None
             result["description"] = DESCRIPTIONS["basePlate"]
+            results.append(result)
+    cap = getattr(object_type, "capPlate", None)
+    if cap is not None and kind == "column":
+        rows = _top_rows(stations)
+        if rows:
+            result = sc.check_cap_plate(cap, section, member, rows)
+            result["end"] = None
+            result["description"] = DESCRIPTIONS["capPlate"]
             results.append(result)
     return results
 

@@ -1,5 +1,409 @@
 {
   "$defs": {
+    "PondingCurve": {
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "description": "The curve's flexibility constant (Cs or Cp).",
+          "minimum": 0,
+          "title": "Param",
+          "type": "number"
+        },
+        "points": {
+          "description": "[stress index U, upper limit of the other flexibility constant] pairs.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "param",
+        "points"
+      ],
+      "title": "PondingCurve",
+      "type": "object"
+    },
+    "SteelBoltGrade": {
+      "additionalProperties": false,
+      "description": "Nominal stresses of a bolt grade or a threaded part [MPa]: fixed values, or shares of the\npart's Fu (threaded parts).",
+      "properties": {
+        "Fnt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nominal tensile stress [MPa].",
+          "title": "Fnt"
+        },
+        "Fnv": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nominal shear stress, bearing-type [MPa].",
+          "title": "Fnv"
+        },
+        "FntOfFu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fnt as a share of Fu.",
+          "title": "Fntoffu"
+        },
+        "FnvOfFu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fnv as a share of Fu.",
+          "title": "Fnvoffu"
+        },
+        "pretension": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Key of ``pretension`` (the bolt family); none: not pretensioned.",
+          "title": "Pretension"
+        }
+      },
+      "title": "SteelBoltGrade",
+      "type": "object"
+    },
+    "SteelBracing": {
+      "additionalProperties": false,
+      "description": "Stability bracing of columns and beams (K = 1 between the braces).",
+      "properties": {
+        "phi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "columnRelative": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "columnNodal": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "beamRelative": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "beamNodal": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "torsionalMoment": {
+          "description": "Mbr = this × Mr L / (n Cb Lb).",
+          "exclusiveMinimum": 0,
+          "title": "Torsionalmoment",
+          "type": "number"
+        },
+        "torsionalStiffness": {
+          "description": "βT = this × L Mr² / (n E Iy Cb²) / φ.",
+          "exclusiveMinimum": 0,
+          "title": "Torsionalstiffness",
+          "type": "number"
+        },
+        "distortional": {
+          "description": "βsec = this × E / ho × (...).",
+          "exclusiveMinimum": 0,
+          "title": "Distortional",
+          "type": "number"
+        },
+        "slenderness": {
+          "description": "L/r limit of stability bracing.",
+          "exclusiveMinimum": 0,
+          "title": "Slenderness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "phi",
+        "columnRelative",
+        "columnNodal",
+        "beamRelative",
+        "beamNodal",
+        "torsionalMoment",
+        "torsionalStiffness",
+        "distortional",
+        "slenderness"
+      ],
+      "title": "SteelBracing",
+      "type": "object"
+    },
+    "SteelBracingRow": {
+      "additionalProperties": false,
+      "description": "Required brace strength Pbr = strength × Pr (columns) or × Mr Cd / ho (beams), stiffness\nβbr = stiffness × Pr / Lb (or × Mr Cd / (Lb ho)) / φ.",
+      "properties": {
+        "strength": {
+          "exclusiveMinimum": 0,
+          "title": "Strength",
+          "type": "number"
+        },
+        "stiffness": {
+          "exclusiveMinimum": 0,
+          "title": "Stiffness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strength",
+        "stiffness"
+      ],
+      "title": "SteelBracingRow",
+      "type": "object"
+    },
+    "SteelConnectionData": {
+      "additionalProperties": false,
+      "description": "Bolts, holes, edges and fillet welds of steel connections.",
+      "properties": {
+        "boltGrades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelBoltGrade"
+          },
+          "title": "Boltgrades",
+          "type": "object"
+        },
+        "boltAliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Other grade names taken as a grade of ``boltGrades`` (labelled in ``sources.boltAliases``).",
+          "title": "Boltaliases",
+          "type": "object"
+        },
+        "pretension": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "Minimum bolt pretension Tb [kN] by bolt family and diameter [mm].",
+          "title": "Pretension",
+          "type": "object"
+        },
+        "slip": {
+          "$ref": "#/$defs/SteelSlip"
+        },
+        "holes": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Standard hole diameter [mm] by bolt diameter.",
+          "title": "Holes",
+          "type": "object"
+        },
+        "holeOver": {
+          "description": "Larger bolts: standard hole d + this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Holeover",
+          "type": "number"
+        },
+        "netHoleAllowance": {
+          "description": "Hole width + this for net areas [mm].",
+          "minimum": 0,
+          "title": "Netholeallowance",
+          "type": "number"
+        },
+        "edgeRolled": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Minimum edge distance, rolled [mm].",
+          "title": "Edgerolled",
+          "type": "object"
+        },
+        "edgeSheared": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Minimum edge distance, sheared [mm].",
+          "title": "Edgesheared",
+          "type": "object"
+        },
+        "edgeOverRolled": {
+          "description": "Larger bolts, rolled edges: this × d.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeoverrolled",
+          "type": "number"
+        },
+        "edgeOverSheared": {
+          "description": "Larger bolts, sheared edges: this × d.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeoversheared",
+          "type": "number"
+        },
+        "minSpacing": {
+          "description": "Least bolt spacing as a multiple of d.",
+          "exclusiveMinimum": 0,
+          "title": "Minspacing",
+          "type": "number"
+        },
+        "maxEdgeThickness": {
+          "description": "Largest edge distance: this × t ...",
+          "exclusiveMinimum": 0,
+          "title": "Maxedgethickness",
+          "type": "number"
+        },
+        "maxEdge": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Maxedge",
+          "type": "number"
+        },
+        "longJointLength": {
+          "description": "Tension splices: bolt pattern longer than this [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Longjointlength",
+          "type": "number"
+        },
+        "longJointFactor": {
+          "description": "... has Fnv times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Longjointfactor",
+          "type": "number"
+        },
+        "filletMin": {
+          "description": "Minimum fillet weld leg by the thinner part: [[t up to (null: above), leg [mm]], ...].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Filletmin",
+          "type": "array"
+        },
+        "filletMaxThin": {
+          "description": "Along edges thinner than this, the leg is at most the thickness [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Filletmaxthin",
+          "type": "number"
+        },
+        "filletMaxReduce": {
+          "description": "... else the thickness less this [mm].",
+          "minimum": 0,
+          "title": "Filletmaxreduce",
+          "type": "number"
+        },
+        "concreteBearingFull": {
+          "description": "Pp / (f'c A1) on the full concrete area.",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingfull",
+          "type": "number"
+        },
+        "concreteBearingPartial": {
+          "description": "Pp / (f'c A1 √(A2/A1)) on part of the concrete area ...",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingpartial",
+          "type": "number"
+        },
+        "concreteBearingMax": {
+          "description": "... and Pp / (f'c A1) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingmax",
+          "type": "number"
+        },
+        "methods": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Method ids where the code gives a requirement but no method (e.g. ``prying``: ``tStub``); a missing key: the check is not made.",
+          "title": "Methods",
+          "type": "object"
+        }
+      },
+      "required": [
+        "boltGrades",
+        "pretension",
+        "slip",
+        "holes",
+        "holeOver",
+        "netHoleAllowance",
+        "edgeRolled",
+        "edgeSheared",
+        "edgeOverRolled",
+        "edgeOverSheared",
+        "minSpacing",
+        "maxEdgeThickness",
+        "maxEdge",
+        "longJointLength",
+        "longJointFactor",
+        "filletMin",
+        "filletMaxThin",
+        "filletMaxReduce",
+        "concreteBearingFull",
+        "concreteBearingPartial",
+        "concreteBearingMax"
+      ],
+      "title": "SteelConnectionData",
+      "type": "object"
+    },
     "SteelPhi": {
       "additionalProperties": {
         "exclusiveMinimum": 0,
@@ -84,6 +488,78 @@
       "title": "SteelPhi",
       "type": "object"
     },
+    "SteelPonding": {
+      "additionalProperties": false,
+      "description": "Roof ponding: the simplified stiffness limits and the digitised limit curves.",
+      "properties": {
+        "limit": {
+          "description": "Cp + secondary × Cs at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Limit",
+          "type": "number"
+        },
+        "secondary": {
+          "description": "Factor on Cs.",
+          "exclusiveMinimum": 0,
+          "title": "Secondary",
+          "type": "number"
+        },
+        "coefficient": {
+          "description": "C = this × Ls Lp⁴ / Ip (m, mm⁴).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "deck": {
+          "description": "Id at least this × S⁴ (mm⁴/m, m).",
+          "exclusiveMinimum": 0,
+          "title": "Deck",
+          "type": "number"
+        },
+        "trussFactor": {
+          "description": "Is of trusses and steel joists taken times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Trussfactor",
+          "type": "number"
+        },
+        "stressLimit": {
+          "description": "U = (this × Fy - fo) / fo.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stresslimit",
+          "type": "number"
+        },
+        "primary": {
+          "description": "Limiting Cp by Up, one curve per Cs (the primary-system figure).",
+          "items": {
+            "$ref": "#/$defs/PondingCurve"
+          },
+          "title": "Primary",
+          "type": "array"
+        },
+        "secondaryCurves": {
+          "description": "Limiting Cs by Us, one curve per Cp (the secondary-system figure).",
+          "items": {
+            "$ref": "#/$defs/PondingCurve"
+          },
+          "title": "Secondarycurves",
+          "type": "array"
+        }
+      },
+      "required": [
+        "limit",
+        "secondary",
+        "coefficient",
+        "deck",
+        "trussFactor",
+        "stressLimit",
+        "primary",
+        "secondaryCurves"
+      ],
+      "title": "SteelPonding",
+      "type": "object"
+    },
     "SteelSlenderness": {
       "additionalProperties": false,
       "properties": {
@@ -105,6 +581,59 @@
         "tension"
       ],
       "title": "SteelSlenderness",
+      "type": "object"
+    },
+    "SteelSlip": {
+      "additionalProperties": false,
+      "description": "Slip-critical connections: Rn = μ Du hsc Tb Ns.",
+      "properties": {
+        "phiServiceability": {
+          "description": "φ, slip prevented as a serviceability limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phiserviceability",
+          "type": "number"
+        },
+        "phiStrength": {
+          "description": "φ, slip prevented at the required strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phistrength",
+          "type": "number"
+        },
+        "mu": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Mean slip coefficient by surface class.",
+          "title": "Mu",
+          "type": "object"
+        },
+        "Du": {
+          "description": "Mean installed / specified minimum pretension.",
+          "exclusiveMinimum": 0,
+          "title": "Du",
+          "type": "number"
+        },
+        "hsc": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Hole factor by hole type.",
+          "title": "Hsc",
+          "type": "object"
+        }
+      },
+      "required": [
+        "phiServiceability",
+        "phiStrength",
+        "mu",
+        "Du",
+        "hsc"
+      ],
+      "title": "SteelSlip",
       "type": "object"
     }
   },
@@ -135,6 +664,39 @@
       "maximum": 1,
       "title": "Netareamax",
       "type": "number"
+    },
+    "connections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelConnectionData"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bracing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelBracing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ponding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelPonding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
