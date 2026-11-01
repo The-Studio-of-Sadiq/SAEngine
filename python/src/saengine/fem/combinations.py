@@ -354,6 +354,8 @@ def wind_case_combinations(
         if len(variants) == 1 and variants[0][0] == "":
             out.append(combination)
             continue
+        # Clad structures: the opposite direction's cases, the pressure variants and ±WI.
+        variants = fl.resolve_wind_cases(variants, present)
         data = combination.model_dump(by_alias=True)
         seen: set[tuple[tuple[str, float], ...]] = set()
         for label, factors in variants:
@@ -361,7 +363,7 @@ def wind_case_combinations(
             if key in seen:
                 continue
             seen.add(key)
-            if label == "Case 1":
+            if label == "Case 1" and set(factors) <= {"WX", "WY"}:
                 out.append(combination)
                 continue
             extra = {k: v for k, v in factors.items() if k not in ("WX", "WY")}

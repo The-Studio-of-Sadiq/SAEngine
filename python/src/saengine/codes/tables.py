@@ -700,6 +700,82 @@ class CladdingCurve(_Row):
     gcp2: float
 
 
+class CladdingPointCurve(_Row):
+    """One external pressure coefficient (GCp) of components and cladding by effective wind area:
+    (area [m²], GCp) points, linear in log A between them, the end values beyond the ends."""
+
+    zone: str
+    sign: Literal["positive", "negative"]
+    points: list[tuple[float, float]] = Field(min_length=1)
+
+
+class CladdingRoofTable(_Row):
+    """The (GCp) of the roofs of one form over a range of roof angles θ (angleFrom < θ ≤
+    angleTo) for low-rise buildings (read by :func:`saengine.fem.loads.cladding_pressures`)."""
+
+    forms: list[str] = Field(
+        min_length=1, description="Roof forms this figure covers (gable, hip, monoslope, ...)."
+    )
+    angleFrom: float = Field(ge=0, description="θ above this [°] ...")
+    angleTo: float = Field(gt=0, description="... up to this [°].")
+    roof: list[CladdingPointCurve] = Field(
+        default_factory=list, description="Roof zones; empty: the low-rise flat-roof curves."
+    )
+    overhang: list[CladdingPointCurve] = Field(
+        default_factory=list, description="Roof overhangs (top and bottom surfaces together)."
+    )
+    zoneLabels: dict[str, str] = Field(
+        default_factory=dict, description="What each zone of this figure is (its plan)."
+    )
+    cornerAsEdge: dict[str, float] = Field(
+        default_factory=dict,
+        description="Form -> θ [°] up to which roof zone 3 is treated as zone 2 (hip roofs).",
+    )
+    parapetCornerAsEdge: bool = Field(
+        default=False,
+        description="A parapet of at least the cladding table's parapetCorner turns zone 3 into "
+        "zone 2 on this figure's roofs.",
+    )
+    envelopeForm: str | None = Field(
+        default=None,
+        description="Also take the larger magnitude of this form's figure at the same angle "
+        "(zone by its number), where the code's text points to both.",
+    )
+    note: str | None = None
+
+
+class CladdingSteppedRoof(_Row):
+    """The lower level of a flat stepped roof: its zones at the roof-upper wall intersection
+    renamed (``zoneMap``), and the wall's positive (GCp) on a strip b = widthFactor·h1 ≤
+    widthMax wide; the figure's limits on h1 and the ratios."""
+
+    zoneMap: dict[str, str]
+    widthFactor: float = Field(gt=0)
+    widthMax: float = Field(gt=0, description="b at most this [m].")
+    minUpperHeight: float = Field(gt=0, description="h1 at least this [m].")
+    heightRatio: tuple[float, float] = Field(description="hi/h range.")
+    widthRatio: tuple[float, float] = Field(description="Wi/W range.")
+
+
+class CladdingDomeTable(_Row):
+    """Domes on a circular base: (GCp) by the angle θ from the springline (0) to the top (90),
+    with q at the top of the dome; the figure's range of hD/D and f/D."""
+
+    negative: float = Field(lt=0, description="(GCp) suction over the whole dome.")
+    positive: list[tuple[float, float]] = Field(
+        min_length=1, description="(θ up to [°], positive GCp) bands."
+    )
+    baseMax: float = Field(gt=0, description="hD/D up to this.")
+    riseRange: tuple[float, float] = Field(description="f/D range.")
+
+
+class CladdingArchedTable(_Row):
+    """Arched roofs: at the perimeter, the roof figures with θ the springline slope; elsewhere
+    the MWFRS arched roof Cp times ``interiorFactor``."""
+
+    interiorFactor: float = Field(gt=0)
+
+
 class CladdingTable(_Row):
     """Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and
     flat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal
@@ -711,7 +787,10 @@ class CladdingTable(_Row):
     lowRiseWallFactor: float = Field(
         gt=0, le=1, description="Factor on the low-rise wall (GCp) for a roof θ ≤ 10°."
     )
-    internal: dict[str, float] = Field(description="(GCpi) magnitude by enclosure.")
+    internal: dict[str, float] | None = Field(
+        default=None,
+        description="(GCpi) magnitude by enclosure; None: the wind table's internalPressure.",
+    )
     edgeFraction: float = Field(gt=0, description="a ≤ edgeFraction · least plan dimension.")
     edgeHeightFraction: float = Field(gt=0, description="Low-rise: a ≤ this · h.")
     edgeMinFraction: float = Field(gt=0, description="a ≥ this · least plan dimension.")
@@ -719,6 +798,238 @@ class CladdingTable(_Row):
     parapetCorner: float = Field(
         gt=0, description="A parapet this high [m] or more turns roof zone 3 into zone 2."
     )
+    # B14: pitched and other roof forms (low-rise figures), and their limits.
+    wallFactorMaxAngle: float | None = Field(
+        default=None, description="lowRiseWallFactor only for a roof θ up to this [°]; None: any."
+    )
+    roofs: list[CladdingRoofTable] = Field(
+        default_factory=list, description="Roof figures by form and angle; empty: flat roofs only."
+    )
+    highRiseRoofsFrom: float | None = Field(
+        default=None,
+        description="h above lowRiseHeight with a roof θ above this [°]: the low-rise roof "
+        "figures with qh; None: the high-rise flat-roof curves at any θ.",
+    )
+    parapetPositive: dict[str, str] = Field(
+        default_factory=dict,
+        description="With a parapet (as parapetCorner): roof zone -> wall zone whose positive "
+        "(GCp) the roof zone takes.",
+    )
+    stepped: CladdingSteppedRoof | None = None
+    domes: CladdingDomeTable | None = None
+    arched: CladdingArchedTable | None = None
+
+
+class InternalPressureTable(_Row):
+    """Internal pressure coefficients (GCpi) by enclosure classification and the reduction
+    factor Ri of a partially enclosed building with one unpartitioned large volume:
+    Ri = reductionBase·(1 + 1/√(1 + Vi/(volumeFactor·Aog))) ≤ 1, Vi the internal volume [m³],
+    Aog the total area of openings in the envelope [m²]
+    (read by :func:`saengine.fem.loads.internal_pressure_coefficient`)."""
+
+    coefficients: dict[str, float] = Field(description="(GCpi) magnitude by enclosure.")
+    reducedEnclosures: list[str] = Field(
+        default_factory=list, description="Enclosures whose (GCpi) Ri may reduce."
+    )
+    reductionBase: float = Field(default=0.5, gt=0, le=1)
+    volumeFactor: float = Field(gt=0, description="The constant before Aog in Ri [m].")
+
+
+class RoofCpRow(_Row):
+    """One h/L row of a roof pressure coefficient table: per tabulated angle, the first
+    (suction) and second (pressure, where two are listed) Cp; None where none is printed (0.0 for
+    interpolation)."""
+
+    hOverL: float = Field(ge=0)
+    first: list[float | None]
+    second: list[float | None] | None = None
+
+
+class RoofParallelZone(_Row):
+    """A zone of the roof by its horizontal distance from the windward edge (in multiples of
+    h): Cp values listed (one or two)."""
+
+    upTo: float | None = Field(
+        default=None, description="Zone ends this many h from the windward edge; None: the rest."
+    )
+    cp: list[float] = Field(min_length=1)
+
+
+class RoofParallelRow(_Row):
+    hOverL: float = Field(ge=0)
+    zones: list[RoofParallelZone] = Field(min_length=1)
+
+
+class RoofCpTable(_Row):
+    """Roof pressure coefficients Cp of the main wind-force resisting system (all heights): the
+    windward and leeward slopes for wind normal to the ridge (θ ≥ ``flatAngle``) by θ and h/L,
+    and the zones by distance from the windward edge for θ < ``flatAngle`` and wind parallel to
+    the ridge. Values between rows and angles are interpolated linearly between values of the
+    same column."""
+
+    angles: list[float] = Field(min_length=2, description="Windward slope angles θ [°].")
+    windward: list[RoofCpRow] = Field(min_length=1)
+    steepFrom: float = Field(description="θ [°] from which Cp = steepFactor·θ.")
+    steepFactor: float
+    verticalFrom: float = Field(description="θ [°] above which the slope takes verticalCp.")
+    verticalCp: float
+    leewardAngles: list[float] = Field(min_length=1)
+    leeward: list[RoofCpRow] = Field(min_length=1)
+    flatAngle: float = Field(gt=0, description="θ [°] below which the roof is flat.")
+    parallel: list[RoofParallelRow] = Field(min_length=1)
+    reducible: float | None = Field(
+        default=None, description="The Cp value that may be reduced with its area."
+    )
+    areaReduction: list[tuple[float, float]] = Field(
+        default_factory=list, description="(area [m²], factor) points of that reduction."
+    )
+
+
+class DomeCurve(_Row):
+    """Cp at one point of a dome (A windward springline, B top, C leeward springline) against
+    f/D, for one hD/D."""
+
+    hdOverD: float = Field(ge=0)
+    points: list[tuple[float, float]] = Field(min_length=2, description="(f/D, Cp) points.")
+
+
+class DomeTable(_Row):
+    """Domed roofs on a circular base: Cp at A, B and C by f/D and hD/D, Case A interpolated
+    along arcs A-B-C, Case B constant A up to ``caseBAngle`` then to B and C."""
+
+    minRise: float = Field(gt=0, description="Below this f/D, the planar roof table holds.")
+    caseBAngle: float = Field(gt=0, lt=90)
+    A: list[DomeCurve] = Field(min_length=1)
+    B: list[DomeCurve] = Field(min_length=1)
+    C: list[DomeCurve] = Field(min_length=1)
+
+
+class ArchRow(_Row):
+    """A rise-to-span range of an arched roof: windward quarter Cp = a·r + b (and the alternate
+    coefficient that shall also be used, where given)."""
+
+    elevated: bool = Field(description="Roof on an elevated structure (else from the ground).")
+    riseFrom: float = Field(ge=0)
+    riseTo: float = Field(gt=0)
+    windward: tuple[float, float]
+    alternate: tuple[float, float] | None = None
+
+
+class ArchedTable(_Row):
+    """Arched roofs: windward quarter by r, centre half Cp = a·r + b, leeward quarter Cp."""
+
+    rows: list[ArchRow] = Field(min_length=1)
+    centre: tuple[float, float]
+    leeward: float
+
+
+class LowRiseRow(_Row):
+    angle: float = Field(ge=0, le=90, description="Roof angle θ [°].")
+    gcpf: dict[str, float] = Field(description="(GCpf) by building surface (1-6, 1E-4E).")
+
+
+class LowRiseTable(_Row):
+    """Low-rise buildings: the combined (GCpf) by building surface and roof angle, the end
+    zones 2a wide, the zone 2 extent, the torsional load cases' share."""
+
+    maxHeight: float = Field(gt=0, description="Low-rise: mean roof height h up to this [m].")
+    rows: list[LowRiseRow] = Field(min_length=2)
+    endZoneFactor: float = Field(gt=0, description="E zones extend endZoneFactor·a.")
+    zone2Fraction: float = Field(gt=0, description="Negative zone 2: up to this · L ...")
+    zone2EaveFactor: float = Field(gt=0, description="... or this · he, the less.")
+    torsionalShare: float = Field(gt=0, le=1, description="Zones 1T-4T: this · zones 1-4.")
+    exemptHeight: float = Field(gt=0, description="One storey up to this h: no torsional cases.")
+
+
+class MwfrsTable(_Row):
+    """External pressures of the main wind-force resisting system on walls and roofs of
+    enclosed and partially enclosed buildings (read by :mod:`saengine.fem.loads` and
+    :mod:`saengine.fem.open_wind`)."""
+
+    sideWall: float = Field(description="Side wall Cp.")
+    overhang: float = Field(description="Cp on the underside of a windward roof overhang.")
+    roof: RoofCpTable
+    domes: DomeTable | None = None
+    arched: ArchedTable | None = None
+    lowRise: LowRiseTable | None = None
+
+
+class OpenRoofRow(_Row):
+    """One roof angle and load case of an open building's free roof, wind normal to the ridge:
+    (CNW, CNL) the net pressure coefficients of the windward and leeward halves, by blockage;
+    ``...Reverse`` for γ = 180° where the figure gives it (a monoslope roof: γ = 0° the wind
+    blows from the high eave down the slope, 180° up it)."""
+
+    angle: float = Field(ge=0, le=90)
+    case: str
+    clear: tuple[float, float]
+    obstructed: tuple[float, float]
+    clearReverse: tuple[float, float] | None = None
+    obstructedReverse: tuple[float, float] | None = None
+
+
+class OpenRoofAlongZone(_Row):
+    """A zone of a free roof by its horizontal distance from the windward edge (multiples of
+    h), wind parallel to the ridge: CN by load case, then by blockage."""
+
+    upTo: float | None = Field(default=None, description="Ends this many h from the edge.")
+    cases: dict[str, dict[str, float]]
+
+
+class OpenRoofAlong(_Row):
+    zones: list[OpenRoofAlongZone] = Field(min_length=1)
+    flatMonoslopeAngle: float = Field(
+        gt=0, description="A monoslope roof below this θ [°] takes these zones ..."
+    )
+    flatMonoslopeRatio: tuple[float, float] = Field(
+        description="... for the wind normal to its slope too, with h/L in this range."
+    )
+
+
+class OpenRoofMwfrs(_Row):
+    """Net pressure coefficients CN of the main wind-force resisting system of free roofs."""
+
+    monoslope: list[OpenRoofRow] = Field(min_length=2)
+    pitched: list[OpenRoofRow] = Field(min_length=2)
+    troughed: list[OpenRoofRow] = Field(min_length=2)
+    along: OpenRoofAlong
+
+
+class OpenRoofCladdingRow(_Row):
+    """CN of the components and cladding of a free roof at one angle: per blockage, per zone,
+    the (positive, negative) pair of each effective-area band."""
+
+    angle: float = Field(ge=0, le=90)
+    clear: dict[str, list[tuple[float, float]]]
+    obstructed: dict[str, list[tuple[float, float]]]
+    note: str | None = None
+
+
+class OpenRoofCladding(_Row):
+    areaBands: list[float] = Field(
+        min_length=1, description="Band upper limits as multiples of a² (the last band: above)."
+    )
+    ridgeEdgeFrom: float = Field(
+        description="θ [°] from which a pitched or troughed roof's ridge (valley) is an edge."
+    )
+    zoneLabels: dict[str, str] = Field(default_factory=dict)
+    monoslope: list[OpenRoofCladdingRow] = Field(min_length=2)
+    pitched: list[OpenRoofCladdingRow] = Field(min_length=2)
+    troughed: list[OpenRoofCladdingRow] = Field(min_length=2)
+
+
+class OpenBuildingsTable(_Row):
+    """Open buildings with monoslope, pitched or troughed free roofs: p = qh·G·CN for the
+    main wind-force resisting system and the components and cladding (read by
+    :mod:`saengine.fem.open_wind`)."""
+
+    maxAngle: float = Field(gt=0, description="Roof θ up to this [°].")
+    minAngle: float = Field(
+        ge=0, description="Below this θ [°], every form takes the monoslope's first row."
+    )
+    hOverL: tuple[float, float] = Field(description="h/L range of the figures.")
+    mwfrs: OpenRoofMwfrs
+    cladding: OpenRoofCladding | None = None
 
 
 class WindTable(TableModel):
@@ -739,6 +1050,19 @@ class WindTable(TableModel):
     )
     cladding: CladdingTable | None = Field(
         default=None, description="Components and cladding pressures; None: not computed."
+    )
+    internalPressure: InternalPressureTable | None = Field(
+        default=None, description="Internal pressure coefficients and Ri; None: cladding's."
+    )
+    mwfrs: MwfrsTable | None = Field(
+        default=None,
+        description="Wall and roof pressures of the main wind-force resisting system; None: "
+        "storey forces only and no wind on clad special structures.",
+    )
+    openBuildings: OpenBuildingsTable | None = Field(
+        default=None,
+        description="Net pressures on the free roofs of open buildings; None: an open clad "
+        "structure takes force coefficients on its members instead.",
     )
     openStructures: OpenStructuresTable | None = Field(
         default=None,
@@ -1260,10 +1584,137 @@ class SteelSlenderness(_Group):
     tension: Positive = Field(description="L/r limit of tension members.")
 
 
+# ── steel connections, stability bracing and ponding (design/steel_connections.py,
+# design/steel/members.py, design/steel/ponding.py) ──
+
+
+class SteelBoltGrade(_Group):
+    """Nominal stresses of a bolt grade or a threaded part [MPa]: fixed values, or shares of the
+    part's Fu (threaded parts)."""
+
+    Fnt: Positive | None = Field(default=None, description="Nominal tensile stress [MPa].")
+    Fnv: Positive | None = Field(
+        default=None, description="Nominal shear stress, bearing-type [MPa]."
+    )
+    FntOfFu: Share | None = Field(default=None, description="Fnt as a share of Fu.")
+    FnvOfFu: Share | None = Field(default=None, description="Fnv as a share of Fu.")
+    pretension: str | None = Field(
+        default=None, description="Key of ``pretension`` (the bolt family); none: not pretensioned."
+    )
+
+
+class SteelSlip(_Group):
+    """Slip-critical connections: Rn = μ Du hsc Tb Ns."""
+
+    phiServiceability: Phi = Field(description="φ, slip prevented as a serviceability limit.")
+    phiStrength: Phi = Field(description="φ, slip prevented at the required strength.")
+    mu: dict[str, Positive] = Field(description="Mean slip coefficient by surface class.")
+    Du: Positive = Field(description="Mean installed / specified minimum pretension.")
+    hsc: dict[str, Positive] = Field(description="Hole factor by hole type.")
+
+
+class SteelConnectionData(_Group):
+    """Bolts, holes, edges and fillet welds of steel connections."""
+
+    boltGrades: dict[str, SteelBoltGrade]
+    boltAliases: dict[str, str] = Field(
+        default_factory=dict,
+        description="Other grade names taken as a grade of ``boltGrades`` (labelled in "
+        "``sources.boltAliases``).",
+    )
+    pretension: dict[str, dict[int, Positive]] = Field(
+        description="Minimum bolt pretension Tb [kN] by bolt family and diameter [mm]."
+    )
+    slip: SteelSlip
+    holes: dict[int, Positive] = Field(description="Standard hole diameter [mm] by bolt diameter.")
+    holeOver: Positive = Field(description="Larger bolts: standard hole d + this [mm].")
+    netHoleAllowance: float = Field(ge=0, description="Hole width + this for net areas [mm].")
+    edgeRolled: dict[int, Positive] = Field(description="Minimum edge distance, rolled [mm].")
+    edgeSheared: dict[int, Positive] = Field(description="Minimum edge distance, sheared [mm].")
+    edgeOverRolled: Positive = Field(description="Larger bolts, rolled edges: this × d.")
+    edgeOverSheared: Positive = Field(description="Larger bolts, sheared edges: this × d.")
+    minSpacing: Positive = Field(description="Least bolt spacing as a multiple of d.")
+    maxEdgeThickness: Positive = Field(description="Largest edge distance: this × t ...")
+    maxEdge: Positive = Field(description="... and at most this [mm].")
+    longJointLength: Positive = Field(
+        description="Tension splices: bolt pattern longer than this [mm] ..."
+    )
+    longJointFactor: Share = Field(description="... has Fnv times this.")
+    filletMin: list[tuple[float | None, Positive]] = Field(
+        description="Minimum fillet weld leg by the thinner part: [[t up to (null: above), leg "
+        "[mm]], ...]."
+    )
+    filletMaxThin: Positive = Field(
+        description="Along edges thinner than this, the leg is at most the thickness [mm] ..."
+    )
+    filletMaxReduce: float = Field(ge=0, description="... else the thickness less this [mm].")
+    concreteBearingFull: Positive = Field(description="Pp / (f'c A1) on the full concrete area.")
+    concreteBearingPartial: Positive = Field(
+        description="Pp / (f'c A1 √(A2/A1)) on part of the concrete area ..."
+    )
+    concreteBearingMax: Positive = Field(description="... and Pp / (f'c A1) at most this.")
+    methods: dict[str, str] = Field(
+        default_factory=dict,
+        description="Method ids where the code gives a requirement but no method (e.g. "
+        "``prying``: ``tStub``); a missing key: the check is not made.",
+    )
+
+
+class SteelBracingRow(_Group):
+    """Required brace strength Pbr = strength × Pr (columns) or × Mr Cd / ho (beams), stiffness
+    βbr = stiffness × Pr / Lb (or × Mr Cd / (Lb ho)) / φ."""
+
+    strength: Positive
+    stiffness: Positive
+
+
+class SteelBracing(_Group):
+    """Stability bracing of columns and beams (K = 1 between the braces)."""
+
+    phi: Phi
+    columnRelative: SteelBracingRow
+    columnNodal: SteelBracingRow
+    beamRelative: SteelBracingRow
+    beamNodal: SteelBracingRow
+    torsionalMoment: Positive = Field(description="Mbr = this × Mr L / (n Cb Lb).")
+    torsionalStiffness: Positive = Field(description="βT = this × L Mr² / (n E Iy Cb²) / φ.")
+    distortional: Positive = Field(description="βsec = this × E / ho × (...).")
+    slenderness: Positive = Field(description="L/r limit of stability bracing.")
+
+
+class PondingCurve(_Group):
+    param: float = Field(ge=0, description="The curve's flexibility constant (Cs or Cp).")
+    points: list[tuple[float, float]] = Field(
+        description="[stress index U, upper limit of the other flexibility constant] pairs."
+    )
+
+
+class SteelPonding(_Group):
+    """Roof ponding: the simplified stiffness limits and the digitised limit curves."""
+
+    limit: Positive = Field(description="Cp + secondary × Cs at most this.")
+    secondary: Positive = Field(description="Factor on Cs.")
+    coefficient: Positive = Field(description="C = this × Ls Lp⁴ / Ip (m, mm⁴).")
+    deck: Positive = Field(description="Id at least this × S⁴ (mm⁴/m, m).")
+    trussFactor: Share = Field(description="Is of trusses and steel joists taken times this.")
+    stressLimit: Share = Field(description="U = (this × Fy - fo) / fo.")
+    primary: list[PondingCurve] = Field(
+        description="Limiting Cp by Up, one curve per Cs (the primary-system figure)."
+    )
+    secondaryCurves: list[PondingCurve] = Field(
+        description="Limiting Cs by Us, one curve per Cp (the secondary-system figure)."
+    )
+
+
 class SteelTable(TableModel):
     phi: SteelPhi
     slenderness: SteelSlenderness
     netAreaMax: Share
+    #: None in a pack without the data: the connection, bracing or ponding checks are then
+    #: those of the default pack (connections) or not made (bracing, ponding).
+    connections: SteelConnectionData | None = None
+    bracing: SteelBracing | None = None
+    ponding: SteelPonding | None = None
 
 
 class StrutAndTie(_Group):

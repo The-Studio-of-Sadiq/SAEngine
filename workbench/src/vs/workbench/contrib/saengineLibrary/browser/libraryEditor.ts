@@ -776,7 +776,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 	/** Material property groups follow the category, mirroring the Python model's rules. */
 	private fieldMode(path: string): 'hidden' | 'required' | undefined {
 		const item = this.selected;
-		if (this.config?.listKey === 'objects' && item && (path === 'connection' || path === 'splice' || path === 'basePlate' || path === 'serviceability') && item[path] === undefined) {
+		if (this.config?.listKey === 'objects' && item && (path === 'connection' || path === 'splice' || path === 'basePlate' || path === 'capPlate' || path === 'serviceability') && item[path] === undefined) {
 			// Connections, splices, base plates and the deflection limits' member use are steel members'.
 			const material = this.materialIds.members.find(m => m.id === item.material);
 			return material?.category === 'steel' ? undefined : 'hidden';

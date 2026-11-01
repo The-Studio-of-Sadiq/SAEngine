@@ -964,6 +964,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 								{
 									$ref: '#/$defs/HssJointConnection',
 								},
+								{
+									$ref: '#/$defs/HssMomentConnection',
+								},
 							],
 						},
 						{
@@ -971,7 +974,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Steel beams: the connection at both ends (fin plate or shear end plate: simple, the ends pinned in the analysis; flange plates: a moment connection, the ends kept rigid); none: not checked.',
+					description: 'Steel beams: the connection at both ends (fin plate or shear end plate: simple, the ends pinned in the analysis; flange plates or a welded HSS moment connection: the ends kept rigid); none: not checked.',
 					title: 'Connection',
 				},
 				splice: {
@@ -1198,6 +1201,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 								{
 									$ref: '#/$defs/HssJointConnection',
 								},
+								{
+									$ref: '#/$defs/HssMomentConnection',
+								},
 							],
 						},
 						{
@@ -1370,6 +1376,28 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Sheared plate edges (else rolled or thermally cut).',
 					title: 'Sheared edges',
 					type: 'boolean',
+				},
+				slipCritical: {
+					default: 'none',
+					description: 'Bearing-type (none), or pretensioned bolts designed against slip as a serviceability limit (standard holes, slots across the load) or at the required strength (oversized holes, slots along the load).',
+					enum: ['none', 'serviceability', 'strength'],
+					enumDescriptions: ['Bearing-type', 'Slip: serviceability', 'Slip: strength'],
+					title: 'Slip-critical',
+					type: 'string',
+				},
+				surfaceClass: {
+					default: 'A',
+					description: 'Slip-critical: class A (clean mill scale, class A coatings, galvanized and roughened) or B (blast-cleaned, class B coatings).',
+					enum: ['A', 'B'],
+					title: 'Faying surface',
+					type: 'string',
+				},
+				holeType: {
+					default: 'standard',
+					description: 'Hole type of the slip-critical plies (bearing-type connections use standard holes).',
+					enum: ['standard', 'oversized', 'shortSlot', 'longSlot'],
+					title: 'Holes',
+					type: 'string',
 				},
 				type: {
 					const: 'gusset',
@@ -1624,6 +1652,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Steel columns: the base plate and anchor rods where the column stands on a support; none: not checked.',
 					title: 'Base plate',
+				},
+				capPlate: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HssCapPlate',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rectangular HSS columns: a cap plate at the top carrying a beam that bears on it; none: not checked.',
+					title: 'Cap plate',
 				},
 				timber: {
 					anyOf: [
@@ -2136,6 +2177,28 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Sheared edges',
 					type: 'boolean',
 				},
+				slipCritical: {
+					default: 'none',
+					description: 'Bearing-type (none), or pretensioned bolts designed against slip as a serviceability limit (standard holes, slots across the load) or at the required strength (oversized holes, slots along the load).',
+					enum: ['none', 'serviceability', 'strength'],
+					enumDescriptions: ['Bearing-type', 'Slip: serviceability', 'Slip: strength'],
+					title: 'Slip-critical',
+					type: 'string',
+				},
+				surfaceClass: {
+					default: 'A',
+					description: 'Slip-critical: class A (clean mill scale, class A coatings, galvanized and roughened) or B (blast-cleaned, class B coatings).',
+					enum: ['A', 'B'],
+					title: 'Faying surface',
+					type: 'string',
+				},
+				holeType: {
+					default: 'standard',
+					description: 'Hole type of the slip-critical plies (bearing-type connections use standard holes).',
+					enum: ['standard', 'oversized', 'shortSlot', 'longSlot'],
+					title: 'Holes',
+					type: 'string',
+				},
 				type: {
 					const: 'endPlate',
 					default: 'endPlate',
@@ -2254,6 +2317,28 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Sheared edges',
 					type: 'boolean',
 				},
+				slipCritical: {
+					default: 'none',
+					description: 'Bearing-type (none), or pretensioned bolts designed against slip as a serviceability limit (standard holes, slots across the load) or at the required strength (oversized holes, slots along the load).',
+					enum: ['none', 'serviceability', 'strength'],
+					enumDescriptions: ['Bearing-type', 'Slip: serviceability', 'Slip: strength'],
+					title: 'Slip-critical',
+					type: 'string',
+				},
+				surfaceClass: {
+					default: 'A',
+					description: 'Slip-critical: class A (clean mill scale, class A coatings, galvanized and roughened) or B (blast-cleaned, class B coatings).',
+					enum: ['A', 'B'],
+					title: 'Faying surface',
+					type: 'string',
+				},
+				holeType: {
+					default: 'standard',
+					description: 'Hole type of the slip-critical plies (bearing-type connections use standard holes).',
+					enum: ['standard', 'oversized', 'shortSlot', 'longSlot'],
+					title: 'Holes',
+					type: 'string',
+				},
 				type: {
 					const: 'finPlate',
 					default: 'finPlate',
@@ -2266,6 +2351,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					exclusiveMinimum: 0,
 					title: 'Bolt line offset',
 					type: 'number',
+				},
+				supportSection: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A rectangular HSS column the plate is welded to (steel sections table), for the HSS wall check of a plate along its axis; none: an open section or a wall.',
+					title: 'Support section',
+				},
+				supportMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the HSS support; none: the beam\'s material.',
+					title: 'Support material',
 				},
 			},
 			title: 'FinPlateConnection',
@@ -2358,6 +2469,28 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Sheared edges',
 					type: 'boolean',
 				},
+				slipCritical: {
+					default: 'none',
+					description: 'Bearing-type (none), or pretensioned bolts designed against slip as a serviceability limit (standard holes, slots across the load) or at the required strength (oversized holes, slots along the load).',
+					enum: ['none', 'serviceability', 'strength'],
+					enumDescriptions: ['Bearing-type', 'Slip: serviceability', 'Slip: strength'],
+					title: 'Slip-critical',
+					type: 'string',
+				},
+				surfaceClass: {
+					default: 'A',
+					description: 'Slip-critical: class A (clean mill scale, class A coatings, galvanized and roughened) or B (blast-cleaned, class B coatings).',
+					enum: ['A', 'B'],
+					title: 'Faying surface',
+					type: 'string',
+				},
+				holeType: {
+					default: 'standard',
+					description: 'Hole type of the slip-critical plies (bearing-type connections use standard holes).',
+					enum: ['standard', 'oversized', 'shortSlot', 'longSlot'],
+					title: 'Holes',
+					type: 'string',
+				},
 				type: {
 					const: 'flangePlate',
 					default: 'flangePlate',
@@ -2443,9 +2576,72 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				columnStiffeners: {
 					default: false,
-					description: 'Continuity plates opposite the beam flanges (then the column flange and web local checks are left to them; their design is not checked).',
+					description: 'A pair of transverse stiffeners (continuity plates) opposite each beam flange, designed for the force the column flange and web cannot take.',
 					title: 'Column stiffeners',
 					type: 'boolean',
+				},
+				stiffenerWidth: {
+					default: 0,
+					description: 'Width of each stiffener [mm]; 0: the beam flange\'s reach.',
+					minimum: 0,
+					title: 'Stiffener width',
+					type: 'number',
+				},
+				stiffenerThickness: {
+					default: 0,
+					description: 'Stiffener thickness [mm]; 0: the flange plate\'s.',
+					minimum: 0,
+					title: 'Stiffener thickness',
+					type: 'number',
+				},
+				doublerThickness: {
+					default: 0,
+					description: 'Web doubler plate on the panel zone [mm]; 0: none.',
+					minimum: 0,
+					title: 'Doubler thickness',
+					type: 'number',
+				},
+				doubleSided: {
+					default: false,
+					description: 'Beams on both column flanges at this level (the web takes a pair of compressive forces: web compression buckling).',
+					title: 'Double sided',
+					type: 'boolean',
+				},
+				columnEndDistance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column end (top) to the beam flange [mm], for the reduced strengths near a member end; none: far from the end.',
+					title: 'Column end distance',
+				},
+				columnAxialRatio: {
+					default: 0,
+					description: 'Column axial force Pr / Py at the joint, for the panel zone strength.',
+					maximum: 1,
+					minimum: 0,
+					title: 'Column axial ratio',
+					type: 'number',
+				},
+				panelZoneInAnalysis: {
+					default: false,
+					description: 'The analysis includes the plastic panel-zone deformation (frame stability), which allows the higher panel zone strength.',
+					title: 'Panel zone in analysis',
+					type: 'boolean',
+				},
+				columnUtilisation: {
+					default: 0,
+					description: 'HSS columns: chord utilisation U (axial and bending) at the joint, for the chord stress factor Qf (column in compression).',
+					maximum: 1,
+					minimum: 0,
+					title: 'Column utilisation',
+					type: 'number',
 				},
 			},
 			title: 'FlangePlateConnection',
@@ -2652,6 +2848,34 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'FrameModifiers',
 			type: 'object',
 		},
+		HssCapPlate: {
+			additionalProperties: false,
+			description: 'A cap plate on the top of a rectangular HSS column carrying a beam (or a bearing plate)\nthat bears on it: the column walls under the concentrated axial force.',
+			properties: {
+				type: {
+					const: 'capPlate',
+					default: 'capPlate',
+					title: 'Type',
+					type: 'string',
+				},
+				thickness: {
+					default: 20,
+					description: 'Cap plate thickness tp [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				bearingLength: {
+					default: 150,
+					description: 'Bearing length N of the load on the cap plate, across the column [mm].',
+					exclusiveMinimum: 0,
+					title: 'Bearing length',
+					type: 'number',
+				},
+			},
+			title: 'HssCapPlate',
+			type: 'object',
+		},
 		HssJointConnection: {
 			additionalProperties: false,
 			description: 'A welded HSS-to-HSS truss joint at the brace end: the brace (the branch) welded to an\nHSS chord, both round or both rectangular. Checked for the brace axial forces.',
@@ -2690,8 +2914,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				joint: {
 					default: 'K',
-					description: 'T or Y (one branch), X (branches on both faces), K (two branches, gapped).',
-					enum: ['TY', 'X', 'K'],
+					description: 'T or Y (one branch), X (branches on both faces), K (two branches, gapped) or overlapped K (this brace overlaps the other branch).',
+					enum: ['TY', 'X', 'K', 'KOverlap'],
+					enumDescriptions: ['T or Y', 'Cross (X)', 'Gapped K', 'Overlapped K'],
 					title: 'Joint',
 					type: 'string',
 				},
@@ -2709,6 +2934,40 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					minimum: 0,
 					title: 'Gap',
 					type: 'number',
+				},
+				overlap: {
+					default: 50,
+					description: 'Overlapped K joints: overlap Ov = q / p [%] (q the overlap length on the chord face, p the brace\'s projected length).',
+					maximum: 100,
+					minimum: 0,
+					title: 'Overlap',
+					type: 'number',
+				},
+				overlappedSection: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overlapped K joints: the other (overlapped, thru) branch\'s section; none: this brace\'s section.',
+					title: 'Overlapped section',
+				},
+				overlappedMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the overlapped branch; none: the brace\'s.',
+					title: 'Overlapped material',
 				},
 				chordCompression: {
 					default: true,
@@ -2739,6 +2998,95 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'HssJointConnection',
+			type: 'object',
+		},
+		HssMomentConnection: {
+			additionalProperties: false,
+			description: 'A welded HSS-to-HSS moment connection at the beam ends: the beam (the branch) welded to\nan HSS column (the chord) that passes through, both round or both rectangular. Checked for\nthe beam\'s axial force and its in-plane and out-of-plane end moments; the ends are kept\nrigid in the analysis.',
+			properties: {
+				type: {
+					const: 'hssMoment',
+					default: 'hssMoment',
+					title: 'Type',
+					type: 'string',
+				},
+				chordSection: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The column\'s (chord\'s) section (steel sections table).',
+					title: 'Chord section',
+				},
+				chordMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the chord; none: the beam\'s material.',
+					title: 'Chord material',
+				},
+				joint: {
+					default: 'T',
+					description: 'T or Y (one beam at the chord) or cross (beams on opposite faces).',
+					enum: ['T', 'X'],
+					enumDescriptions: ['T or Y', 'Cross (X)'],
+					title: 'Joint',
+					type: 'string',
+				},
+				angle: {
+					default: 90,
+					description: 'Branch to chord angle θ [°] (rectangular: 90).',
+					maximum: 90,
+					minimum: 30,
+					title: 'Angle',
+					type: 'number',
+				},
+				chordCompression: {
+					default: true,
+					description: 'Chord in compression at the joint.',
+					title: 'Chord compression',
+					type: 'boolean',
+				},
+				chordUtilisation: {
+					default: 0.5,
+					description: 'Chord utilisation U at the joint (axial and bending), for Qf.',
+					maximum: 1,
+					minimum: 0,
+					title: 'Chord utilisation',
+					type: 'number',
+				},
+				distortionPrevented: {
+					default: false,
+					description: 'Rectangular T joints: chord distortion prevented by other means (no distortional check).',
+					title: 'Distortion prevented',
+					type: 'boolean',
+				},
+				plateMaterial: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Not used (no plates).',
+					title: 'Plate material',
+				},
+			},
+			title: 'HssMomentConnection',
 			type: 'object',
 		},
 		IShapeProfile: {
@@ -3963,6 +4311,28 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Sheared plate edges (else rolled or thermally cut).',
 					title: 'Sheared edges',
 					type: 'boolean',
+				},
+				slipCritical: {
+					default: 'none',
+					description: 'Bearing-type (none), or pretensioned bolts designed against slip as a serviceability limit (standard holes, slots across the load) or at the required strength (oversized holes, slots along the load).',
+					enum: ['none', 'serviceability', 'strength'],
+					enumDescriptions: ['Bearing-type', 'Slip: serviceability', 'Slip: strength'],
+					title: 'Slip-critical',
+					type: 'string',
+				},
+				surfaceClass: {
+					default: 'A',
+					description: 'Slip-critical: class A (clean mill scale, class A coatings, galvanized and roughened) or B (blast-cleaned, class B coatings).',
+					enum: ['A', 'B'],
+					title: 'Faying surface',
+					type: 'string',
+				},
+				holeType: {
+					default: 'standard',
+					description: 'Hole type of the slip-critical plies (bearing-type connections use standard holes).',
+					enum: ['standard', 'oversized', 'shortSlot', 'longSlot'],
+					title: 'Holes',
+					type: 'string',
 				},
 				type: {
 					const: 'coverPlate',
@@ -5801,6 +6171,65 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'AreaLoad',
 			type: 'object',
 		},
+		CladdingRoof: {
+			additionalProperties: false,
+			description: 'The building\'s roof as the components-and-cladding figures see it (B14;\n:func:`saengine.fem.loads.cladding_pressures`).',
+			properties: {
+				form: {
+					default: 'flat',
+					description: 'Roof form: its zones and coefficients come from the code pack\'s figure for that form and angle.',
+					enum: ['flat', 'gable', 'hip', 'monoslope', 'multispan', 'sawtooth', 'stepped', 'arched', 'dome'],
+					enumDescriptions: ['Flat', 'Gable', 'Hip', 'Monoslope', 'Multispan gable', 'Sawtooth', 'Stepped (flat, two levels)', 'Arched', 'Dome'],
+					title: 'Form',
+					type: 'string',
+				},
+				angle: {
+					anyOf: [
+						{
+							maximum: 90,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Angle of the roof plane from horizontal [°]; arched roofs: the slope at the springline. Empty: 0 (flat).',
+					title: 'Roof angle θ',
+				},
+				rise: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Arched roofs: rise to span r; domes: rise to diameter f/D.',
+					title: 'Rise ratio',
+				},
+				stepHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stepped roofs: height of the upper part above the lower roof [m].',
+					title: 'Step height h1',
+				},
+			},
+			title: 'CladdingRoof',
+			type: 'object',
+		},
 		Codes: {
 			additionalProperties: false,
 			description: 'Deprecated: the design code is the code pack (codePack); the report states the labels of\nits basis. Old files keep validating; the value is not read and not written back.',
@@ -6713,10 +7142,26 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				form: {
 					default: 'lattice',
-					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; none: no wind on special structures.',
-					enum: ['lattice', 'squareTower', 'triangularTower', 'none'],
-					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'None'],
+					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) the free roof\'s net pressures; none: no wind on special structures.',
+					enum: ['lattice', 'squareTower', 'triangularTower', 'clad', 'none'],
+					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building or canopy (pressures on its panels)', 'None'],
 					title: 'Form',
+					type: 'string',
+				},
+				method: {
+					default: 'allHeights',
+					description: 'All heights: q·G·Cp of walls and roofs; low-rise: the combined (GCpf) of low-rise buildings with their load patterns (where the building is low-rise).',
+					enum: ['allHeights', 'lowRise'],
+					enumDescriptions: ['All heights (Cp)', 'Low-rise (GCpf)'],
+					title: 'Clad: pressure method',
+					type: 'string',
+				},
+				roof: {
+					default: 'planar',
+					description: 'Planar: flat, gable, hip or monoslope roofs; arched: a barrel vault or arch roof; dome: a dome on a circular base.',
+					enum: ['planar', 'arched', 'dome'],
+					enumDescriptions: ['Flat, gable, hip, monoslope', 'Arched', 'Dome'],
+					title: 'Clad: roof form',
 					type: 'string',
 				},
 				solidity: {
@@ -6739,6 +7184,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Members are round (pipes, rods): the rounded-member coefficients.',
 					title: 'Rounded members',
 					type: 'boolean',
+				},
+				blockage: {
+					default: 'clear',
+					description: 'An open clad structure (a canopy, a free roof; enclosure open) takes the net pressures of free roofs: clear when at most half the space under the roof is blocked (by goods, vehicles, walls), obstructed when more is.',
+					enum: ['clear', 'obstructed'],
+					enumDescriptions: ['Clear (≤ 50 % blocked)', 'Obstructed (> 50 % blocked)'],
+					title: 'Clad, open: wind flow under the roof',
+					type: 'string',
 				},
 			},
 			title: 'OpenStructureWind',
@@ -7462,6 +7915,39 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 into zone 2; the parapet\'s own pressures are given too.',
 					title: 'Parapet height',
 				},
+				openingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Total area of openings in the envelope (walls and roof) [m²] of a partially enclosed building with one unpartitioned large volume: reduces (GCpi) by the code\'s Ri. Empty: no reduction.',
+					title: 'Area of openings Aog',
+				},
+				internalVolume: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unpartitioned internal volume [m³] for Ri. Empty: from the model (the volume under the roof of a clad special structure).',
+					title: 'Internal volume Vi',
+				},
+				claddingRoof: {
+					$ref: '#/$defs/CladdingRoof',
+					description: 'The building\'s roof for the components and cladding pressures (the code pack\'s roof figures by form and angle).',
+					title: 'Cladding: roof form',
+				},
 				openStructure: {
 					$ref: '#/$defs/OpenStructureWind',
 					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other structures).',
@@ -7608,9 +8094,15 @@ export const DEFAULT_SETTINGS: object = {
 	wind: {
 		exposure: 'A',
 		enclosure: 'enclosed',
+		claddingRoof: {
+			form: 'flat',
+		},
 		openStructure: {
 			form: 'lattice',
+			method: 'allHeights',
+			roof: 'planar',
 			roundMembers: false,
+			blockage: 'clear',
 		},
 	},
 	areaLoads: [
@@ -14125,6 +14617,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		girtSpacing: 1800.0,
 		bracedBays: [],
 		roofBracingPanels: 2,
+		overhang: 0.0,
 		supports: 'pinned',
 		origin: {
 			x: 0.0,
@@ -14858,6 +15351,29 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Wall type of side wall cladding panels; none adds no panels.',
 					title: 'Wall panel type',
+				},
+				endWallPanelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall type of the gable end walls\' cladding panels (between the end posts, up to the roof); none adds no panels. With roof and side wall panels the shed is clad all round: its wind can be the wall and roof pressures (wind form \'clad\').',
+					title: 'End wall panel type',
+				},
+				overhang: {
+					default: 0,
+					description: 'The roof (rafters, panels and an edge purlin) runs on past each eave by this, in plan [mm]; a windward overhang also takes the wind on its underside.',
+					minimum: 0,
+					title: 'Eave overhang',
+					type: 'number',
 				},
 				supports: {
 					default: 'pinned',
