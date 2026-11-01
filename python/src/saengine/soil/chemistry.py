@@ -260,7 +260,8 @@ def flags(sample: Sample) -> list[str]:
         )
         out.append(
             f"chloride {chloride}: reinforced concrete in brackish ground, w/c ≤ "
-            f"{c.maxWaterCement:g}{extra} ({c.clause})"
+            f"{c.maxWaterCement:g}{extra} ({c.clause}; ground taken as brackish by its chloride: "
+            "SAEngine practice)"
         )
     out += steel_pile_notes(sample)
     return out
@@ -319,11 +320,14 @@ def concrete_requirement(samples: list[Sample], below_water: bool = False) -> di
     if table.chloride is not None:
         brackish = next((c for c in map(_chloride_brackish, samples) if c), None)
         if brackish:
-            limit(table.chloride.maxWaterCement, f"chloride {brackish} ({table.chloride.clause})")
+            limit(
+                table.chloride.maxWaterCement,
+                f"chloride {brackish}, taken as brackish (SAEngine practice; {table.chloride.clause})",
+            )
         if below_water and table.chloride.lowPermeabilityWaterCement is not None:
             limit(
                 table.chloride.lowPermeabilityWaterCement,
-                f"concrete below the water table ({table.chloride.clause})",
+                f"concrete below the water table (SAEngine practice; {table.chloride.clause})",
             )
     if wc is None:
         return None
