@@ -2713,13 +2713,19 @@ def _derive_fem(
         from saengine.fem.notional_loads import add_notional_cases
 
         b.notes.extend(
-            add_notional_cases(project, notional, float(getattr(options, "notionalDrift", 0.0)))
+            add_notional_cases(
+                project,
+                notional,
+                float(getattr(options, "notionalDrift", 0.0)),
+                getattr(options, "directAnalysisTau", "additive"),  # B17
+            )
         )
 
     # ── cracked stiffness and P-Delta (saengine.fem.second_order), after every case exists ──
     from saengine.fem import second_order
 
     concrete_sections = set()
+    steel_sections = set()  # B17: the direct analysis method's reduced stiffness
     for key, section_id in b.section_ids.items():
         if not key or key[0] == "embed":
             continue
@@ -2727,11 +2733,14 @@ def _derive_fem(
         material = mats.get(getattr(object_type, "material", None)) if object_type else None
         if material is not None and material.category.value in ("concrete", "masonry"):
             concrete_sections.add(section_id)
+        elif material is not None and material.category.value == "steel" and key[0] != "plate":
+            steel_sections.add(section_id)
     so = second_order.apply_second_order(
         project,
         second_order.options_from_settings(settings),
         concrete_sections=concrete_sections,
         modified=b.modified,
+        steel_sections=steel_sections,
     )
     project = so.project
     b.notes.extend(so.notes)

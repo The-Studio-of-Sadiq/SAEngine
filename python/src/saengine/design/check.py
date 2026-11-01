@@ -480,11 +480,19 @@ def design(
     # model has their cases (saengine.fem.notional_loads).
     from saengine.fem.notional_loads import notional_combinations
 
-    every = getattr(getattr(settings, "analysis", None), "notionalLoads", "none") == "firstOrder"
+    stability_settings = getattr(settings, "analysis", None)
+    stability_method = getattr(stability_settings, "notionalLoads", "none")
+    # B17: the direct analysis method puts them in every combination, unless the engineer
+    # chose the gravity-only ones (which the steel checks then hold to the drift ratio limit).
+    every = stability_method == "firstOrder" or (
+        stability_method == "directAnalysis"
+        and getattr(stability_settings, "directAnalysisNotional", "allCombinations")
+        != "gravityOnly"
+    )
     by_notional = notional_combinations(formed, present, every)
     if by_notional is not None:
         pre_notes.append(
-            "notional loads (BNBC 2020 Part 6 Sec 10.3.2.2): each gravity-only combination is "
+            "notional loads: each gravity-only combination is "
             "also checked with its notional loads in +X, -X, +Y and -Y"
             + (
                 "; every combination with a lateral load takes them in its direction"
@@ -700,6 +708,7 @@ def design(
     skipped: list[dict[str, Any]] = []
     designed: list[seismic_detailing.Designed] = []
     steel_seen = False
+    steel_stability = None
     from saengine.design import timber as timber_design
 
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
@@ -730,6 +739,11 @@ def design(
             if not combinations:
                 skip("no load combination could be formed")
                 continue
+            if steel_stability is None:  # B17: the stability design method, once per run
+                from saengine.design.steel.stability import stability_for_run
+
+                steel_stability = stability_for_run(settings, project, out_dir, building)
+                notes.extend(steel_stability.notes)
             try:
                 entry, steel_collected = steel_design.design_member(
                     member_id,
@@ -741,7 +755,9 @@ def design(
                     combinations,
                     _turned(element, exact),
                     project,
-                    design_overwrites.steel_options(resolved_overwrites.get(member_id)),
+                    design_overwrites.steel_options(
+                        resolved_overwrites.get(member_id), {"stability": steel_stability}
+                    ),
                 )
             except SteelDesignError as error:
                 skip(str(error))
@@ -1189,6 +1205,7 @@ def design(
             context,
             slender_options,
             timber_seen,
+            steel_stability,
         )
 
     # Integrator glue (T9): fire resistance by least sizes and covers
@@ -1390,6 +1407,7 @@ def _assemble(
     context: slenderness_design.SlenderContext,
     slender_options: slenderness_design.SlenderOptions,
     timber_seen: bool = False,
+    steel_stability: Any = None,
 ) -> dict[str, Any]:
     """The report of :func:`design` from its elements, notes and what it designed."""
     from saengine.design import face_forces, seismic_detailing, wall_design
@@ -1409,7 +1427,9 @@ def _assemble(
     elif frames_seen:
         notes.append(face_forces.JOINT_NOTE)
     if steel_seen:
-        method += steel_design.METHOD
+        from saengine.design.steel.stability import method_lines
+
+        method += steel_design.METHOD + method_lines(steel_stability)
     if timber_seen:
         from saengine.design import timber as timber_design
 

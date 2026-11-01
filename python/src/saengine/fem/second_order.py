@@ -63,6 +63,18 @@ without P-Delta, their ratio (the measured amplification, about 1 / (1 - θ) for
 gravity loads) and, for the earthquake cases, the stability coefficient θ of BNBC Eq 6.2.48
 computed as BNBC defines it (unfactored Px, the drift of the centres of mass, δxe / I; p 631-633).
 
+Direct analysis method (``notionalLoads = "directAnalysis"``, the code pack's
+``steelStability.directAnalysis``; BNBC 2020 Part 6 Sec 10.14, part 2 pp. 187-189): the
+P-Delta analysis above with its first-order reference cases, and the steel frame sections
+reduced to EA* = 0.8 EA and EI* = 0.8 τb EI with τb = 1 (Eqs 6.10.263-6.10.264) for the static
+cases, which give the required strengths; the modal, response spectrum, time history and
+temperature cases keep the nominal steel sections as ``section_overrides``. The reduced
+sections are named with :data:`DIRECT_ANALYSIS_TAG`, which marks the model
+(:func:`is_direct_analysis`). P-small-delta along the members is the B1 amplifier of the
+member checks on the reduced stiffness (Sec 10.14.3 (1) permits B1 and B2 on it), with the
+check of Eq 6.10.262 for neglecting P-δ in the lateral displacement
+(:mod:`saengine.design.steel.stability`).
+
 Response spectrum forces from the modes: the modes (and the RS peaks) are found on the
 preloaded, cracked stiffness. A static run loaded with a mode's ω²·M·φ (to get its member
 forces) must use the same stiffness, or it returns (1 - K⁻¹ K_G) φ (about 0.70 φ with the
@@ -102,6 +114,12 @@ CONCRETE_E_MAX = 50e9
 #: A frame more vertical than this (|dz| / L) is a column; a shell whose normal is more vertical
 #: than this (|nz|) is a slab.
 VERTICAL = math.sin(math.radians(45))
+#: The direct analysis method's id (``settings.analysis.notionalLoads``,
+#: saengine.fem.notional_loads.DIRECT_ANALYSIS).
+DIRECT_ANALYSIS = "directAnalysis"
+#: The name suffix of a steel section with the direct analysis method's reduced stiffness: it
+#: marks the model as derived for that method (:func:`is_direct_analysis`).
+DIRECT_ANALYSIS_TAG = " [direct analysis]"
 
 
 @dataclass
@@ -115,6 +133,9 @@ class SecondOrderOptions:
     wallsCracked: bool = False
     pDeltaFactors: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_PDELTA_FACTORS))
     firstOrderReference: bool = True
+    #: The direct analysis method (``notionalLoads = "directAnalysis"``): the steel members'
+    #: reduced stiffness, with P-Delta and the first-order reference cases.
+    directAnalysis: bool = False
 
 
 @dataclass
@@ -144,13 +165,17 @@ def options_from_settings(settings: Any) -> SecondOrderOptions:
     """The options of ``settings.analysis``, their defaults where it has none."""
     analysis = getattr(settings, "analysis", None)
     factors = getattr(analysis, "pDeltaFactors", None)
+    # The direct analysis method is a second-order analysis, and its design needs the ratio of
+    # second- to first-order drift (the first-order reference cases).
+    direct = getattr(analysis, "notionalLoads", "none") == DIRECT_ANALYSIS
     return SecondOrderOptions(
-        secondOrder=getattr(analysis, "secondOrder", "none") or "none",
+        secondOrder="pDelta" if direct else getattr(analysis, "secondOrder", "none") or "none",
         stiffness=getattr(analysis, "stiffness", "gross") or "gross",
         crackedFor=getattr(analysis, "crackedFor", "all") or "all",
         wallsCracked=bool(getattr(analysis, "wallsCracked", False)),
         pDeltaFactors=dict(factors) if factors else dict(DEFAULT_PDELTA_FACTORS),
-        firstOrderReference=bool(getattr(analysis, "firstOrderReference", True)),
+        firstOrderReference=direct or bool(getattr(analysis, "firstOrderReference", True)),
+        directAnalysis=direct,
     )
 
 
@@ -247,6 +272,7 @@ def apply_second_order(
     options: SecondOrderOptions,
     concrete_sections: set[int] | None = None,
     modified: dict[int, set[str]] | None = None,
+    steel_sections: set[int] | None = None,
 ) -> SecondOrderModel:
     """``project`` with the cracked stiffness and the P-Delta analysis of ``options``.
 
@@ -254,6 +280,9 @@ def apply_second_order(
     ACI factors reduce; None takes the sections with E up to :data:`CONCRETE_E_MAX`.
     ``modified``: per section id the properties set by stiffness modifiers ("Iz", "Iy", "E",
     "Ep_mod"), which keep their value (no cracked factor on top).
+    ``steel_sections``: the ids of the structural steel frame sections, whose stiffness the
+    direct analysis method reduces (:func:`_direct_analysis_stiffness`); None takes the frame
+    sections with E above :data:`CONCRETE_E_MAX`.
     The input is not changed.
     """
     notes: list[str] = []
@@ -266,8 +295,13 @@ def apply_second_order(
         "preloadCaseId": None,
         "preloadFactors": None,
         "referenceCases": {},
+        "directAnalysis": None,
     }
-    if options.secondOrder == "none" and options.stiffness == "gross":
+    if (
+        options.secondOrder == "none"
+        and options.stiffness == "gross"
+        and not options.directAnalysis
+    ):
         return SecondOrderModel(project=project, notes=notes, summary=summary)
     p = json_copy(project)
     coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in p.get("nodes", [])}
@@ -368,6 +402,11 @@ def apply_second_order(
             notes.append("cracked stiffness: no concrete frame or shell section to reduce")
 
     lateral_overrides = overrides if options.crackedFor == "lateral" else []
+
+    # ── the direct analysis method's reduced stiffness of the steel members ──
+    nominal_steel: list[dict[str, Any]] = []
+    if options.directAnalysis:
+        nominal_steel = _direct_analysis_stiffness(p, roles, steel_sections, notes, summary)
 
     def is_lateral(analysis: dict[str, Any]) -> bool:
         code = _code(analysis.get("name", ""))
@@ -486,7 +525,99 @@ def apply_second_order(
             if is_lateral(a):
                 a["section_overrides"] = copy.deepcopy(lateral_overrides)
         # The P-Delta preload of a lateral case runs on that case's (cracked) model.
+    if nominal_steel:
+        # The reduced stiffness is for the required strengths: the modes (the period, the
+        # response spectrum), the time histories and the temperature case (its equivalent
+        # loads come from the nominal E I) keep the steel members' nominal stiffness.
+        ids = {s["id"] for s in nominal_steel}
+        for a in analyses:
+            if a.get("type") in ("Modal", "ResponseSpectrum", "Transient") or (
+                _code(a.get("name", "")) == THERMAL_CODE or a.get("release_diaphragms")
+            ):
+                kept = [s for s in a.get("section_overrides") or [] if s["id"] not in ids]
+                a["section_overrides"] = kept + copy.deepcopy(nominal_steel)
     return SecondOrderModel(project=p, notes=notes, summary=summary)
+
+
+def _direct_analysis_stiffness(
+    p: dict[str, Any],
+    roles: dict[int, str | None],
+    steel_sections: set[int] | None,
+    notes: list[str],
+    summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Reduce, in place in the model ``p``, the steel frame sections to the direct analysis
+    method's EA* = f_a EA and EI* = f_b τb EI with τb = 1 (the code pack's ``steelStability.
+    directAnalysis``; BNBC 2020: 0.8 and 0.8, Eqs 6.10.263-6.10.264). Every steel frame
+    member takes it (the members whose stiffness contributes to the lateral stability, and
+    the others, which the method permits). τb = 1: with the additive notional load, or checked
+    per column by the design (:mod:`saengine.design.steel.stability`). Returns the nominal
+    sections (for the cases that keep them)."""
+    from saengine.fem.notional_loads import stability_table
+
+    table = stability_table()
+    da = table.directAnalysis if table is not None else None
+    if da is None:
+        notes.append(
+            "direct analysis method: the code pack does not cover it; the steel members keep "
+            "their nominal stiffness"
+        )
+        return []
+    sections = {s["id"]: s for s in p.get("sections", [])}
+    used = {
+        e.get("section_id")
+        for e in p.get("elements", [])
+        if e.get("type") == "ElasticBeamColumn" and roles.get(e["id"]) is not None
+    }
+
+    def steel(sid: int) -> bool:
+        if steel_sections is not None:
+            return sid in steel_sections
+        return float(sections[sid].get("E", 0.0)) > CONCRETE_E_MAX
+
+    nominal: list[dict[str, Any]] = []
+    other = 0
+    for sid in sorted(s for s in used if s in sections and steel(s)):
+        section = sections[sid]
+        if section.get("type") != "ElasticSection":
+            other += 1
+            continue
+        nominal.append(copy.deepcopy(section))
+        section["A"] = section["A"] * da.axialStiffnessFactor
+        for key in ("Iz", "Iy"):
+            if section.get(key) is not None:
+                section[key] = section[key] * da.flexuralStiffnessFactor
+        section["name"] = f"{section.get('name', '')}{DIRECT_ANALYSIS_TAG}"
+    summary["directAnalysis"] = {
+        "sections": len(nominal),
+        "axialFactor": da.axialStiffnessFactor,
+        "flexuralFactor": da.flexuralStiffnessFactor,
+        "clause": table.sources.get("stiffness") or table.source,
+    }
+    if nominal:
+        notes.append(
+            f"direct analysis method: {len(nominal)} steel section(s) with EA* = "
+            f"{da.axialStiffnessFactor:g} EA and EI* = {da.flexuralStiffnessFactor:g} τb EI, "
+            "τb = 1, for the static cases (the required strengths); the modal, response "
+            "spectrum, time history and temperature cases keep the nominal stiffness; P-Delta "
+            f"on the columns, P-small-delta by B1 in the member checks ({summary['directAnalysis']['clause']})"
+        )
+    else:
+        notes.append("direct analysis method: the model has no steel frame section to reduce")
+    if other:
+        notes.append(
+            f"direct analysis method: {other} steel section(s) not of the elastic type keep "
+            "their nominal stiffness"
+        )
+    return nominal
+
+
+def is_direct_analysis(project: dict[str, Any]) -> bool:
+    """Whether ``project`` was derived for the direct analysis method (a steel section with
+    the reduced stiffness, :data:`DIRECT_ANALYSIS_TAG`)."""
+    return any(
+        str(s.get("name", "")).endswith(DIRECT_ANALYSIS_TAG) for s in project.get("sections", [])
+    )
 
 
 def match_modal_stiffness(project: dict[str, Any], model: dict[str, Any]) -> dict[str, Any]:
@@ -841,11 +972,13 @@ def drift_amplification(
 
 __all__ = [
     "DEFAULT_PDELTA_FACTORS",
+    "DIRECT_ANALYSIS_TAG",
     "STABILITY_GRAVITY_FACTORS",
     "SecondOrderModel",
     "SecondOrderOptions",
     "apply_second_order",
     "drift_amplification",
+    "is_direct_analysis",
     "is_second_order",
     "level_displacement",
     "loads_above",

@@ -1066,17 +1066,27 @@ class Analysis(_Model):
         "for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec "
         "2.5.7.9 in the report.",
     )
-    notionalLoads: Literal["none", "secondOrder", "firstOrder"] = Field(
+    notionalLoads: Literal["none", "secondOrder", "firstOrder", "directAnalysis"] = Field(
         default="none",
-        title="Notional loads (steel stability)",
-        description="Lateral notional loads Ni at each level for the stability design of steel "
-        "frames (BNBC 2020 Part 6 Sec 10.3.2.2), as the cases NXD, NYD (from D and SD), NXL, "
-        "NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. "
-        "Second-order analysis: Ni = 0.002 Yi, added to the gravity-only combinations in ±X and "
-        "±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, added to every combination "
-        "(with the lateral load's direction; gravity-only ones in ±X and ±Y).",
+        title="Steel stability design method",
+        description="How steel frames are designed for stability (the code pack's steel "
+        "stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD "
+        "(from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each "
+        "combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the "
+        "gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= "
+        "0.0042 Yi in every combination (with the lateral load's direction; gravity-only ones "
+        "in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the "
+        "reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every "
+        "combination, and every steel member checked with K = 1; required by the code where "
+        "the second-order drift exceeds 1.5 times the first-order drift. The coefficients are "
+        "the active code pack's (the values above are BNBC 2020's).",
         json_schema_extra=_labels(
-            ["None", "Second-order analysis (0.002 Yi)", "First-order analysis (2.1 Δ/L Yi)"]
+            [
+                "None",
+                "Second-order analysis (0.002 Yi)",
+                "First-order analysis (2.1 Δ/L Yi)",
+                "Direct analysis method (reduced stiffness, K = 1)",
+            ]
         ),
     )
     notionalDrift: float = Field(
@@ -1086,6 +1096,27 @@ class Analysis(_Model):
         title="First-order drift ratio Δ/L",
         description="First-order analysis: the largest storey drift ratio under the strength "
         "load combinations, for Ni = 2.1 (Δ/L) Yi (at least 0.0042 Yi). 0: the minimum.",
+    )
+    directAnalysisTau: Literal["additive", "checked"] = Field(
+        default="additive",
+        title="Direct analysis: τb",
+        description="τb of the reduced flexural stiffness 0.8 τb EI. Additive: τb = 1 for "
+        "every member with the additive notional load 0.001 Yi on top of 0.002 Yi, valid "
+        "whatever the axial forces. Checked: τb = 1 without the additive load, and each steel "
+        "column is checked for αPr <= 0.5 Py, where τb = 1 holds (a column above it fails: "
+        "use Additive or a heavier section).",
+        json_schema_extra=_labels(
+            ["τb = 1 with the additive notional load", "τb = 1, checked per column"]
+        ),
+    )
+    directAnalysisNotional: Literal["allCombinations", "gravityOnly"] = Field(
+        default="allCombinations",
+        title="Direct analysis: notional loads in",
+        description="All combinations: the notional loads are added to every combination, "
+        "in the direction of its lateral load (the gravity-only ones in ±X and ±Y). "
+        "Gravity-only combinations: allowed where the second-order drift is at most 1.5 times "
+        "the first-order drift, which the design then checks.",
+        json_schema_extra=_labels(["All combinations", "Gravity-only combinations"]),
     )
     slenderness: Slenderness = Field(default_factory=Slenderness, title="Column slenderness")
     seismicDesign: Literal["static", "responseSpectrum"] = Field(

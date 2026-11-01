@@ -32,7 +32,9 @@ Effective length factor: K = 1.0 (Sec 10.3.1.2.1 for braced frames and shear-wal
 Sec 10.3.2.2.2 for design by first-order analysis, which the member checks flag with its
 condition αPr <= 0.5 Py, Eq 6.10.9). Sway moment frames analysed to first order with no
 notional loads need K from a sidesway buckling analysis or the alignment chart instead; a
-``k`` override per axis is accepted for them (:class:`LengthOptions`).
+``k`` override per axis is accepted for them (:class:`LengthOptions`). With the direct analysis
+method every segment takes the code pack's K (1.0, Sec 10.14.1), overrides and free ends
+included (:meth:`MemberLengths.effective` with ``unit_k``).
 
 Cb, Eq 6.10.55 (p 3852): 12.5 Mmax / (2.5 Mmax + 3 MA + 4 MB + 3 MC) Rm <= 3.0, Rm = 1.0
 (doubly symmetric members, singly symmetric in single curvature), from the moment diagram of
@@ -173,13 +175,17 @@ class MemberLengths:
             {"x": 1.0, "y": 1.0, "z": 1.0, **(k or {})},
         )
 
-    def effective(self, axis: str, s: float) -> tuple[float, float, bool]:
-        """(K, L [mm], free end) for buckling about ``axis`` ("x", "y", "z") at ``s`` [m]."""
+    def effective(
+        self, axis: str, s: float, unit_k: float | None = None
+    ) -> tuple[float, float, bool]:
+        """(K, L [mm], free end) for buckling about ``axis`` ("x", "y", "z") at ``s`` [m].
+        ``unit_k``: the K of every segment, free ends and overrides included (the direct
+        analysis method's K = 1.0, :mod:`saengine.design.steel.stability`)."""
         segments = self.x if axis == "x" else self.y
-        k0 = self.k.get(axis, 1.0)
+        k0 = self.k.get(axis, 1.0) if unit_k is None else unit_k
         best = (k0, 0.0, False)
         for a, b, free in segments.around_all(s):
-            k = max(k0, 2.0) if free else k0
+            k = max(k0, 2.0) if free and unit_k is None else k0
             if k * (b - a) * 1e3 > best[0] * best[1]:
                 best = (k, (b - a) * 1e3, free)
         return best

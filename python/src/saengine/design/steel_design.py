@@ -418,6 +418,10 @@ def design_member(
         "material": material,
         "lengths": member_lengths(project, pieces, turned, options.lengths),
         "stations": stations,
+        # B17: the stability design method, for the design mode's re-checks.
+        "options": steel_members.SteelOptions(stability=options.stability)
+        if options.stability is not None
+        else None,
         "checks": entry["checks"],
     }
     return entry, collected
@@ -442,7 +446,7 @@ def proposal_entries(
     materials: dict[str, SteelMaterial] = {}
     for m in collected:
         demands.setdefault(m["type"], []).append(
-            SteelMemberDemand(m["id"], m["lengths"], m["stations"], m["kind"])
+            SteelMemberDemand(m["id"], m["lengths"], m["stations"], m["kind"], m.get("options"))
         )
         materials[m["material"].id] = SteelMaterial.from_material(m["material"])
     types = [originals[t] for t in demands if t in originals]

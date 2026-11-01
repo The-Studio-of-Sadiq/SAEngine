@@ -1,20 +1,23 @@
 """Notional loads for the stability design of steel frames (Project Settings -> Analysis:
-``notionalLoads``, ``notionalDrift``).
+``notionalLoads``, ``notionalDrift``, ``directAnalysisTau``, ``directAnalysisNotional``).
 
-BNBC 2020 Part 6 Sec 10.3.2.2 (design for stability; the provisions of AISC 360-05 Sec C2.2,
-which BNBC 2020 Part 6 Chapter 10 adopts) applies a lateral notional load at each level,
+The code pack's ``steelStability`` table gives the coefficients (BNBC 2020: Part 6 Sec 10.3.2.2
+and Sec 10.14.3, part 2 pp. 52-53 and 188-189). A lateral notional load at each level,
 proportional to the gravity load Yi applied at that level:
 
-- design by second-order analysis (Sec 10.3.2.2.1): Ni = 0.002 Yi, in the gravity-only load
-  combinations;
-- design by first-order analysis (Sec 10.3.2.2.2): Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, in every
-  load combination, Δ/L the largest first-order storey drift ratio under the strength
+- design by second-order analysis (``"secondOrder"``): Ni = ``notional.secondOrder`` Yi
+  (BNBC 2020: 0.002), in the gravity-only load combinations;
+- design by first-order analysis (``"firstOrder"``): Ni = ``notional.firstOrderDriftFactor``
+  (Δ/L) Yi >= ``notional.firstOrderMinimum`` Yi (BNBC 2020: 2.1 and 0.0042, Eq 6.10.10), in
+  every load combination, Δ/L the largest first-order storey drift ratio under the strength
   combinations (the members then take K = 1 when αPr <= 0.5 Py, which the steel member checks
-  flag).
-
-From memory of AISC 360-05 C2.2, to be checked against the BNBC text: the coefficients 0.002,
-2.1 and 0.0042, and which combinations take them. The direct analysis method (AISC 360-05
-Appendix 7: stiffness reduction 0.8 τb EI) is a planned feature.
+  flag);
+- the direct analysis method (``"directAnalysis"``): Ni = ``directAnalysis.notionalCoefficient``
+  Yi (BNBC 2020: 0.002) in every combination, or in the gravity-only ones where the ratio of
+  second- to first-order drift allows it (the design checks the ratio); with τb = 1 for every
+  member (``tau = "additive"``) the additive ``additiveNotionalCoefficient`` Yi (0.001) on top.
+  The reduced stiffness is :func:`saengine.fem.second_order.apply_second_order`'s, the member
+  checks with K = 1 are :mod:`saengine.design.steel.stability`'s.
 
 The notional load acts where the gravity load acts: at every node of a gravity case, a
 horizontal force of the coefficient times the node's vertical load (a frame's uniform load
@@ -30,12 +33,30 @@ from typing import Any
 
 import numpy as np
 
-#: Sec 10.3.2.2.1: Ni = 0.002 Yi (second-order analysis).
-SECOND_ORDER_COEFFICIENT = 0.002
-#: Sec 10.3.2.2.2: Ni = 2.1 (Δ/L) Yi, at least 0.0042 Yi (first-order analysis).
-FIRST_ORDER_DRIFT_FACTOR = 2.1
-FIRST_ORDER_MINIMUM = 0.0042
-CLAUSE = "BNBC 2020 Part 6 Sec 10.3.2.2"
+from saengine.codes import context as code_context
+
+#: The direct analysis method's id (``settings.analysis.notionalLoads``).
+DIRECT_ANALYSIS = "directAnalysis"
+
+
+def stability_table() -> Any | None:
+    """The code pack's ``steelStability`` table; None when the pack in force has none."""
+    pack = code_context.current()
+    return pack.table("steelStability") if pack.has("steelStability") else None
+
+
+def _clause(method: str) -> str:
+    """The pack's clause of ``method``, for the notes."""
+    table = stability_table()
+    if table is None:
+        return ""
+    key = {
+        DIRECT_ANALYSIS: "notional",
+        "secondOrder": "secondOrderNotional",
+        "firstOrder": "firstOrderNotional",
+    }.get(method, "")
+    return table.sources.get(key) or table.source
+
 
 #: The notional cases: (code, direction axis, the gravity cases it is formed from, the
 #: combination factor that scales it).
@@ -49,12 +70,24 @@ NOTIONAL_CASES = (
 )
 
 
-def coefficient(method: str, drift: float = 0.0) -> float:
-    """Ni / Yi of ``method`` ("secondOrder" or "firstOrder"); 0 for "none"."""
+def coefficient(method: str, drift: float = 0.0, tau: str = "additive") -> float:
+    """Ni / Yi of ``method`` ("secondOrder", "firstOrder" or "directAnalysis", with ``tau``
+    "additive": τb = 1 for every member and the additive notional load); 0 for "none" or a
+    method the code pack does not cover."""
+    table = stability_table()
+    if table is None:
+        return 0.0
     if method == "secondOrder":
-        return SECOND_ORDER_COEFFICIENT
+        return float(table.notional.secondOrder)
     if method == "firstOrder":
-        return max(FIRST_ORDER_DRIFT_FACTOR * max(drift, 0.0), FIRST_ORDER_MINIMUM)
+        return max(
+            float(table.notional.firstOrderDriftFactor) * max(drift, 0.0),
+            float(table.notional.firstOrderMinimum),
+        )
+    if method == DIRECT_ANALYSIS and table.directAnalysis is not None:
+        da = table.directAnalysis
+        extra = float(da.additiveNotionalCoefficient) if tau == "additive" else 0.0
+        return float(da.notionalCoefficient) + extra
     return 0.0
 
 
@@ -102,13 +135,18 @@ def level_loads(
     return rows
 
 
-def add_notional_cases(project: dict[str, Any], method: str, drift: float = 0.0) -> list[str]:
+def add_notional_cases(
+    project: dict[str, Any], method: str, drift: float = 0.0, tau: str = "additive"
+) -> list[str]:
     """Add the notional cases (:data:`NOTIONAL_CASES`) to an OpenSees Studio ``project`` in
     place: one plain pattern and one static analysis each, for the gravity cases the model has.
     Returns the notes (empty when ``method`` is "none")."""
-    k = coefficient(method, drift)
-    if k <= 0:
+    if method in (None, "", "none"):
         return []
+    k = coefficient(method, drift, tau)
+    if k <= 0:
+        return [f"notional loads: the code pack does not cover the method '{method}'"]
+    clause = _clause(method)
     patterns = project.setdefault("load_patterns", [])
     analyses = project.setdefault("analyses", [])
     template = next((a for a in analyses if a.get("type") == "Static"), None)
@@ -161,18 +199,18 @@ def add_notional_cases(project: dict[str, Any], method: str, drift: float = 0.0)
         added.append(code)
         totals[code] = k * sum(gravity.values())
     if not added:
-        return [f"notional loads: no gravity case to form them from ({CLAUSE})"]
-    rule = (
-        f"Ni = {k:g} Yi (second-order analysis, Sec 10.3.2.2.1)"
-        if method == "secondOrder"
-        else f"Ni = max(2.1 × {drift:g}, 0.0042) Yi = {k:g} Yi (first-order analysis, "
-        "Sec 10.3.2.2.2)"
-    )
+        return [f"notional loads: no gravity case to form them from ({clause})"]
+    rule = {
+        "secondOrder": f"Ni = {k:g} Yi (design by second-order analysis)",
+        "firstOrder": f"Ni = {k:g} Yi (design by first-order analysis, Δ/L = {drift:g})",
+        DIRECT_ANALYSIS: f"Ni = {k:g} Yi (direct analysis method"
+        + (", τb = 1 with the additive notional load)" if tau == "additive" else ")"),
+    }[method]
     return [
         f"notional loads: cases {', '.join(added)} with {rule}, at the nodes of the gravity "
         "loads; total "
         + ", ".join(f"{c} {v / 1e3:.1f} kN" for c, v in totals.items() if c.startswith("NX"))
-        + f" ({CLAUSE})"
+        + f" ({clause})"
     ]
 
 

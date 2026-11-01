@@ -953,13 +953,16 @@ def moment_coefficient(s: np.ndarray, m: np.ndarray, start: float, end: float) -
 class SteelOptions:
     """``erw``: hollow sections are ERW (0.93 t); ``net_ratio``: An / Ag of tension members;
     ``shear_lag``: U (default per shape, :func:`default_shear_lag`); ``lengths``: bracing
-    overrides; ``amplify``: moments of members in compression by B1."""
+    overrides; ``amplify``: moments of members in compression by B1; ``stability``: the
+    stability design method of the run (:class:`saengine.design.steel.stability.Stability`;
+    None: K from the bracing, no stability checks)."""
 
     erw: bool = True
     net_ratio: float = 1.0
     shear_lag: float | None = None
     lengths: LengthOptions = field(default_factory=LengthOptions)
     amplify: bool = True
+    stability: Any = None
 
     @classmethod
     def of(cls, value: SteelOptions | dict[str, Any] | None) -> SteelOptions:
@@ -1087,6 +1090,12 @@ def check_member(
 
     compression_cache: dict[tuple[float, float, float], Capacity] = {}
     flexure_cache: dict[tuple[float, float, bool], Capacity] = {}
+    # The stability design method (saengine.design.steel.stability): the direct analysis
+    # method's K and reduced stiffness for B1.
+    stability = options.stability
+    unit_k = getattr(stability, "unit_k", None)
+    direct = bool(getattr(stability, "direct", False))
+    py_member = steel.fy * shape.area
 
     def comp(klx: float, kly: float, klz: float) -> Capacity:
         key = (round(klx, 1), round(kly, 1), round(klz, 1))
@@ -1109,9 +1118,9 @@ def check_member(
         for k in range(len(s)):
             p = float(st.P[k])
             where = st.where[k]
-            kx, lx, _ = lengths.effective("x", float(s[k]))
-            ky, ly, _ = lengths.effective("y", float(s[k]))
-            kz = lengths.k.get("z", 1.0)
+            kx, lx, _ = lengths.effective("x", float(s[k]), unit_k)
+            ky, ly, _ = lengths.effective("y", float(s[k]), unit_k)
+            kz = lengths.k.get("z", 1.0) if unit_k is None else unit_k
             if p < 0:
                 tensioned = True
                 t = -p
@@ -1156,20 +1165,28 @@ def check_member(
                     klr,
                     _slenderness("compression"),
                     st.combination,
-                    f"K = {kx:g}{source_tag(lengths, 'kx')} / {ky:g}{source_tag(lengths, 'ky')}, "
-                    f"L = {lx:.0f}{source_tag(lengths, 'Lx')} / {ly:.0f}"
+                    (
+                        f"K = {kx:g} / {ky:g} (direct analysis method), "
+                        if direct
+                        else f"K = {kx:g}{source_tag(lengths, 'kx')} / "
+                        f"{ky:g}{source_tag(lengths, 'ky')}, "
+                    )
+                    + f"L = {lx:.0f}{source_tag(lengths, 'Lx')} / {ly:.0f}"
                     f"{source_tag(lengths, 'Ly')} mm; {where}",
                     S + "Sec 10.5.2",
                 )
-                if kind == "column":
-                    py = steel.fy * shape.area
+                if kind == "column" and not direct:
+                    share = getattr(stability, "first_order_axial", 0.5)
                     worst["k1"].offer(
-                        _ratio(p, 0.5 * py),
+                        _ratio(p, share * py_member),
                         p,
-                        0.5 * py,
+                        share * py_member,
                         st.combination,
-                        "K = 1 by first-order analysis needs αPr ≤ 0.5 Py; otherwise use K from a sidesway analysis",
-                        S + "Sec 10.3.2.2.2(a), Eq 6.10.9",
+                        f"K = 1 by first-order analysis needs αPr ≤ {share:g} Py; otherwise use "
+                        "K from a sidesway analysis",
+                        stability.clause("firstOrderUnitK")
+                        if stability is not None
+                        else S + "Sec 10.3.2.2.2(a), Eq 6.10.9",
                     )
 
             # Flexure about x: the unbraced length of the flange in compression.
@@ -1189,11 +1206,13 @@ def check_member(
             if p > 0 and options.amplify:
                 xa, xb, _ = lengths.x.around(float(s[k]))
                 ya, yb, _ = lengths.y.around(float(s[k]))
+                # Direct analysis method: Pe1 on the reduced stiffness 0.8 τb EI.
+                e1 = e * (stability.flexural_stiffness(p, py_member) if direct else 1.0)
                 b1x = amplifier_b1(
-                    moment_coefficient(s, st.Mx, xa, xb), p, _euler_load(e, shape.ix, kx * lx)
+                    moment_coefficient(s, st.Mx, xa, xb), p, _euler_load(e1, shape.ix, kx * lx)
                 )
                 b1y = amplifier_b1(
-                    moment_coefficient(s, st.My, ya, yb), p, _euler_load(e, shape.iy, ky * ly)
+                    moment_coefficient(s, st.My, ya, yb), p, _euler_load(e1, shape.iy, ky * ly)
                 )
             mrx, mry = abs(mx) * b1x, abs(my) * b1y
             note_b1 = f"; B1 = {b1x:.2f} / {b1y:.2f}" if (b1x > 1 or b1y > 1) else ""
@@ -1265,12 +1284,21 @@ def check_member(
         checks.append(_check("Slenderness KL/r (compression)", worst["klr"], "", 1.0, flag=beam))
     if tensioned:
         checks.append(_check("Slenderness L/r (tension)", worst["lr"], "", 1.0, flag=beam))
-    if compressed and kind == "column":
+    if compressed and kind == "column" and not direct:
+        share = getattr(stability, "first_order_axial", 0.5)
         checks.append(
             _check(
-                "K = 1 by first-order analysis (αPr ≤ 0.5 Py)", worst["k1"], "kN", 1e3, flag=True
+                f"K = 1 by first-order analysis (αPr ≤ {share:g} Py)",
+                worst["k1"],
+                "kN",
+                1e3,
+                flag=True,
             )
         )
+    if stability is not None:
+        from saengine.design.steel.stability import member_checks
+
+        checks.extend(member_checks(stability, shape, steel, stations, lengths.length, kind))
     for c in checks:
         if c["utilisation"] < 0:
             c.update(utilisation=0.0, ok=True, demand=0.0)
