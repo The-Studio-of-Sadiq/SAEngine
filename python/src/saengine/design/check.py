@@ -757,6 +757,7 @@ def _design_run(
     from saengine.design import timber as timber_design
 
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
+    b39_todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]] = {}  # B39
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
@@ -840,6 +841,17 @@ def _design_run(
                 skip("not in the analysis results")
                 continue
             timber_todo.append(
+                (member_id, object_type, steel_material, own, _turned(element, exact))
+            )
+            continue
+        # B39: bamboo beams, columns and braces, ferrocement beams and columns (designed after
+        # this loop by saengine.design.bamboo / saengine.design.ferrocement).
+        b39_kind = _b39_kind(object_type, steel_material)
+        if b39_kind is not None:
+            if not own:
+                skip("not in the analysis results")
+                continue
+            b39_todo.setdefault(b39_kind, []).append(
                 (member_id, object_type, steel_material, own, _turned(element, exact))
             )
             continue
@@ -1176,6 +1188,8 @@ def _design_run(
     timber_seen = False
     if timber_todo:
         timber_seen = _design_timber(timber_todo, service, checked, skipped, notes, project)
+    if b39_todo:
+        _design_b39(b39_todo, combinations, service, checked, skipped, notes)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
@@ -1347,38 +1361,16 @@ def _design_timber(
     member was checked."""
     from saengine.design import timber as timber_design
 
-    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
-    formed = timber_design.allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
-
     def skip(member_id: str, object_type: Any, reason: str) -> None:
         skipped.append(
             {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
         )
 
-    if not formed or not case_forces:
-        reason = (
-            "the code pack has no allowable stress combinations"
-            if not formed
-            else "the load cases' forces were not found"
-        )
+    case_forces, names, factors, reason = _allowable_forces(service, notes, "timber")
+    if reason:
         for member_id, object_type, *_ in todo:
             skip(member_id, object_type, f"timber not checked: {reason}")
         return False
-    # Combinations whose lateral cases have no results (no wind or earthquake in the model)
-    # are left out.
-    usable = [
-        (name, f)
-        for name, f in formed
-        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
-    ]
-    names = [n for n, _ in usable]
-    factors = [f for _, f in usable]
-    left_out = len(formed) - len(usable)
-    if left_out:
-        notes.append(
-            f"timber: {left_out} allowable stress combinations left out (their wind or "
-            "earthquake cases have no results)"
-        )
     seen = False
     for member_id, object_type, material, own, turned in todo:
         try:
@@ -1399,6 +1391,91 @@ def _design_timber(
         checked.append(entry)
         seen = True
     return seen
+
+
+def _allowable_forces(
+    service: dict[str, Any], notes: list[str], what: str
+) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
+    """The analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``)
+    and the code pack's allowable stress combinations formed from them, ``(case forces, names,
+    factors, "")``; the combinations whose wind or earthquake cases have no results are left out
+    (a note for ``what`` says so). With no combinations or forces the reason is the last item."""
+    from saengine.fem.combinations import allowable_combinations
+
+    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
+    formed = allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
+    if not formed or not case_forces:
+        reason = (
+            "the code pack has no allowable stress combinations"
+            if not formed
+            else "the load cases' forces were not found"
+        )
+        return case_forces, [], [], reason
+    usable = [
+        (name, f)
+        for name, f in formed
+        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
+    ]
+    left_out = len(formed) - len(usable)
+    if left_out:
+        notes.append(
+            f"{what}: {left_out} allowable stress combinations left out (their wind or "
+            "earthquake cases have no results)"
+        )
+    return case_forces, [n for n, _ in usable], [f for _, f in usable], ""
+
+
+def _b39_kind(object_type: Any, material: Any) -> str | None:
+    """B39: "bamboo" or "ferrocement" for a member designed by that module, else None."""
+    from saengine.design import bamboo, ferrocement
+
+    if isinstance(object_type, (Beam, Column, Brace)) and bamboo.is_bamboo(material):
+        return "bamboo"
+    if isinstance(object_type, (Beam, Column)) and ferrocement.is_ferrocement(material):
+        return "ferrocement"
+    return None
+
+
+def _design_b39(
+    todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]],
+    combinations: list[str],
+    service: dict[str, Any],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+) -> None:
+    """B39 glue: bamboo members under the allowable stress combinations, ferrocement members
+    under the strength combinations (their service stresses under the allowable ones). A pack
+    that does not cover a material leaves its members skipped."""
+    from saengine.design import bamboo, ferrocement
+
+    modules = {"bamboo": bamboo, "ferrocement": ferrocement}
+    for kind, items in todo.items():
+        module = modules[kind]
+        case_forces, names, factors, reason = _allowable_forces(service, notes, kind)
+        if not module.covered():
+            reason = "not covered by this code pack"
+        elif kind == "ferrocement" and combinations:
+            if reason:
+                notes.append(f"ferrocement: service load stresses not checked ({reason})")
+            module.design_members(
+                items, combinations, case_forces, names, factors, checked, skipped
+            )
+            continue
+        elif kind == "ferrocement":
+            reason = "no load combination could be formed"
+        elif not reason:
+            module.design_members(items, case_forces, names, factors, checked, skipped)
+            continue
+        for member_id, object_type, *_ in items:
+            skipped.append(
+                {
+                    "id": member_id,
+                    "kind": object_type.kind,
+                    "type": object_type.id,
+                    "reason": f"{kind} not checked: {reason}",
+                }
+            )
 
 
 def _timber_profiles(
@@ -1540,6 +1617,11 @@ def _assemble(
         from saengine.design import timber as timber_design
 
         method += timber_design.method()
+    for key in ("bamboo", "ferrocement"):  # B39: the entries carry their material's block
+        if any(key in e for e in checked):
+            from importlib import import_module
+
+            method += import_module(f"saengine.design.{key}").method()
     if "shells" in slabs_seen:
         method += slab.METHOD
     if "coefficients" in slabs_seen:

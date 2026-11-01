@@ -54,8 +54,77 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			title: 'Admixture',
 			type: 'object',
 		},
+		BambooProperties: {
+			additionalProperties: false,
+			description: 'Round bamboo culms, designed with the code pack\'s ``bamboo`` table (B39).',
+			properties: {
+				species: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Species of the code pack\'s table (id or botanical name, e.g. Bambusa tulda): its safe working stresses. None: tested values, else from the density.',
+					title: 'Species',
+				},
+				condition: {
+					default: 'green',
+					description: 'Green or air dry (about 12% moisture): the stresses by density.',
+					enum: ['green', 'airDry'],
+					enumDescriptions: ['Green', 'Air dry'],
+					title: 'Condition',
+					type: 'string',
+				},
+				tested: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooTested',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Values from tests of the culms; none: not tested.',
+					title: 'Tested',
+				},
+			},
+			title: 'BambooProperties',
+			type: 'object',
+		},
+		BambooTested: {
+			additionalProperties: false,
+			description: 'Ultimate values of the culms from tests [MPa]: the permissible ones are these over the\ncode pack\'s factors of safety.',
+			properties: {
+				rupture: {
+					description: '[MPa]',
+					exclusiveMinimum: 0,
+					title: 'Modulus of rupture',
+					type: 'number',
+				},
+				E: {
+					description: 'In bending [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Modulus of elasticity',
+					type: 'number',
+				},
+				compression: {
+					description: 'Parallel to the fibres [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Compressive strength',
+					type: 'number',
+				},
+			},
+			required: ['rupture', 'E', 'compression'],
+			title: 'BambooTested',
+			type: 'object',
+		},
 		Category: {
-			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'other'],
+			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'bamboo', 'ferrocement', 'other'],
 			title: 'Category',
 			type: 'string',
 		},
@@ -179,6 +248,21 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			},
 			required: ['cement', 'water', 'fineAggregate'],
 			title: 'DesignMix',
+			type: 'object',
+		},
+		FerrocementProperties: {
+			additionalProperties: false,
+			description: 'Ferrocement mortar (B39): the mesh layers are the member type\'s.',
+			properties: {
+				fc: {
+					description: 'Specified compressive strength of the mortar (75 x 150 mm cylinders) [MPa].',
+					exclusiveMinimum: 0,
+					title: 'f\'c of the mortar',
+					type: 'number',
+				},
+			},
+			required: ['fc'],
+			title: 'FerrocementProperties',
 			type: 'object',
 		},
 		MasonryProperties: {
@@ -370,6 +454,30 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Timber',
+				},
+				bamboo: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bamboo',
+				},
+				ferrocement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FerrocementProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ferrocement',
 				},
 				composition: {
 					anyOf: [
@@ -999,6 +1107,77 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'AnchorConcrete',
 			type: 'object',
 		},
+		BambooJoint: {
+			additionalProperties: false,
+			description: 'The joint at both ends of a bamboo member: its kind and fastening as the code describes\nthem, with the capacity found by full-scale tests.',
+			properties: {
+				kind: {
+					default: 'gusset',
+					enum: ['lap', 'butt', 'sleeve', 'scarf', 'saddle', 'tenon', 'crossOver', 'angled', 'gusset', 'insert'],
+					enumDescriptions: ['Lap', 'Butt with side plates', 'Sleeve or insert', 'Scarf', 'Saddle (bearing butt)', 'Tenon', 'Cross-over', 'Angled', 'Gusset plates', 'End inserts or band clamps'],
+					title: 'Kind',
+					type: 'string',
+				},
+				fastening: {
+					default: 'fishPlate',
+					enum: ['lashing', 'wireBound', 'pinAndWire', 'fishPlate', 'horned'],
+					enumDescriptions: ['Wire lashing', 'Wire bound', 'Pins and wire', 'Fish or gusset plates', 'Horned'],
+					title: 'Fastening',
+					type: 'string',
+				},
+				testedCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Safe axial load of the joint from full-scale tests [kN]; none: not checked (the code requires the tests).',
+					title: 'Tested capacity',
+				},
+			},
+			title: 'BambooJoint',
+			type: 'object',
+		},
+		BambooMember: {
+			additionalProperties: false,
+			description: 'Design data of a bamboo beam, column or brace beyond its culm (a hollow or solid circle\nprofile) and material.',
+			properties: {
+				culms: {
+					default: 1,
+					description: 'Culms tied together as a bundle column (each takes its share; no composite action).',
+					maximum: 12,
+					minimum: 1,
+					title: 'Culms',
+					type: 'integer',
+				},
+				truss: {
+					default: false,
+					description: 'A truss member: the axial forces of compression and of the joints increased as the code requires.',
+					title: 'Truss',
+					type: 'boolean',
+				},
+				joint: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooJoint',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'None: the joints not checked.',
+					title: 'Joint',
+				},
+			},
+			title: 'BambooMember',
+			type: 'object',
+		},
 		BarGroup: {
 			additionalProperties: false,
 			description: 'Longitudinal bars of a linear member.',
@@ -1227,6 +1406,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
 					title: 'Timber joint',
+				},
+				bamboo: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bamboo members: bundle, truss member, joints (B39).',
+					title: 'Bamboo',
+				},
+				ferrocement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FerrocementMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ferrocement members: the mesh layers (B39).',
+					title: 'Ferrocement',
 				},
 				serviceability: {
 					anyOf: [
@@ -1483,6 +1688,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
 					title: 'Timber joint',
+				},
+				bamboo: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bamboo members: bundle, truss member, joints (B39).',
+					title: 'Bamboo',
 				},
 				modifiers: {
 					anyOf: [
@@ -2133,6 +2351,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
 					title: 'Timber joint',
+				},
+				bamboo: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BambooMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bamboo members: bundle, truss member, joints (B39).',
+					title: 'Bamboo',
+				},
+				ferrocement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FerrocementMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ferrocement members: the mesh layers (B39).',
+					title: 'Ferrocement',
 				},
 				modifiers: {
 					anyOf: [
@@ -3223,6 +3467,165 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'EndPlateConnection',
+			type: 'object',
+		},
+		FerrocementBars: {
+			additionalProperties: false,
+			description: 'Skeletal bars along the member at mid-thickness.',
+			properties: {
+				diameter: {
+					default: 6,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				spacing: {
+					default: 100,
+					description: 'Centres across the width [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+			},
+			title: 'FerrocementBars',
+			type: 'object',
+		},
+		FerrocementMember: {
+			additionalProperties: false,
+			description: 'The mesh layers of a ferrocement member (a rectangle profile: width × thickness).',
+			properties: {
+				mesh: {
+					default: 'wovenSquare',
+					enum: ['wovenSquare', 'weldedSquare', 'hexagonal', 'expanded'],
+					enumDescriptions: ['Woven square', 'Welded square', 'Hexagonal', 'Expanded metal'],
+					title: 'Mesh',
+					type: 'string',
+				},
+				layers: {
+					default: 4,
+					description: 'Mesh layers through the thickness.',
+					maximum: 40,
+					minimum: 1,
+					title: 'Layers',
+					type: 'integer',
+				},
+				wireDiameter: {
+					default: 1.0,
+					description: 'Wire diameter, or the sheet thickness of expanded metal [mm].',
+					exclusiveMinimum: 0,
+					title: 'Wire diameter',
+					type: 'number',
+				},
+				spacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 13,
+					description: 'Square or rectangular mesh: centres of the wires along the member [mm].',
+					title: 'Spacing',
+				},
+				spacingTransverse: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rectangular mesh: centres of the wires across [mm].',
+					title: 'Spacing transverse',
+				},
+				meshWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hexagonal and expanded mesh: weight per layer and unit area [N/m²].',
+					title: 'Mesh weight',
+				},
+				direction: {
+					default: 'longitudinal',
+					description: 'The mesh\'s roll direction relative to the member\'s span.',
+					enum: ['longitudinal', 'transverse', 'diagonal'],
+					enumDescriptions: ['Along the span', 'Across the span', 'At 45°'],
+					title: 'Direction',
+					type: 'string',
+				},
+				cover: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Clear cover to the first layer [mm]; none: the least.',
+					title: 'Cover',
+				},
+				fy: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Yield strength from tests [MPa]; none: the code\'s.',
+					title: 'Yield strength fy',
+				},
+				bars: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FerrocementBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Bars',
+				},
+				exposure: {
+					default: 'noncorrosive',
+					enum: ['noncorrosive', 'corrosive', 'waterRetaining'],
+					enumDescriptions: ['Noncorrosive', 'Corrosive', 'Water or liquid retaining'],
+					title: 'Exposure',
+					type: 'string',
+				},
+				fatigueCycles: {
+					default: 'none',
+					enum: ['none', 'oneMillion', 'twoMillion'],
+					enumDescriptions: ['Not checked', '1 million', '2 million'],
+					title: 'Fatigue',
+					type: 'string',
+				},
+			},
+			title: 'FerrocementMember',
 			type: 'object',
 		},
 		FinPlateConnection: {
@@ -16602,6 +17005,31 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			location: 'inside',
 		},
 	},
+	'Material:bamboo': {
+		id: 'BAMBOO',
+		name: 'Bamboo, Bambusa tulda',
+		category: 'bamboo',
+		mechanical: {
+			E: 10300,
+			density: 610,
+		},
+		bamboo: {
+			species: 'Bambusa tulda',
+			condition: 'green',
+		},
+	},
+	'Material:ferrocement': {
+		id: 'FERRO35',
+		name: 'Ferrocement mortar, f\'c 35 MPa',
+		category: 'ferrocement',
+		mechanical: {
+			E: 27800,
+			density: 2400,
+		},
+		ferrocement: {
+			fc: 35,
+		},
+	},
 	'Material:other': {
 		id: 'MAT',
 		name: 'New material',
@@ -16623,6 +17051,32 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		location: 'inside',
 	},
 	TimberMember: {},
+	BambooProperties: {
+		condition: 'green',
+	},
+	BambooTested: {
+		rupture: 60,
+		E: 10000,
+		compression: 40,
+	},
+	FerrocementProperties: {
+		fc: 35,
+	},
+	BambooMember: {},
+	BambooJoint: {
+		kind: 'gusset',
+		fastening: 'fishPlate',
+	},
+	FerrocementMember: {
+		mesh: 'wovenSquare',
+		layers: 4,
+		wireDiameter: 1.0,
+		spacing: 13,
+	},
+	FerrocementBars: {
+		diameter: 6,
+		spacing: 100,
+	},
 	MemberServiceability: {},
 	CompositeBeam: {
 		type: 'compositeBeam',
