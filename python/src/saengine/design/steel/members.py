@@ -955,7 +955,9 @@ class SteelOptions:
     ``shear_lag``: U (default per shape, :func:`default_shear_lag`); ``lengths``: bracing
     overrides; ``amplify``: moments of members in compression by B1; ``stability``: the
     stability design method of the run (:class:`saengine.design.steel.stability.Stability`;
-    None: K from the bracing, no stability checks)."""
+    None: K from the bracing, no stability checks); ``anchors``: the earthquake side of the run
+    for the anchors in concrete (:class:`saengine.design.anchors.SeismicContext`; None: no
+    seismic anchor rules)."""
 
     erw: bool = True
     net_ratio: float = 1.0
@@ -963,6 +965,7 @@ class SteelOptions:
     lengths: LengthOptions = field(default_factory=LengthOptions)
     amplify: bool = True
     stability: Any = None
+    anchors: Any = None
 
     @classmethod
     def of(cls, value: SteelOptions | dict[str, Any] | None) -> SteelOptions:

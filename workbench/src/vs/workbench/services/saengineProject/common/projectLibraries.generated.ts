@@ -800,6 +800,205 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 
 export const OBJECTS_SCHEMA: IJSONSchema = {
 	$defs: {
+		AnchorConcrete: {
+			additionalProperties: false,
+			description: 'The concrete side of a group of anchors (a base plate\'s anchor rods, an embedded plate\'s\nstuds): checked by :mod:`saengine.design.anchors` for steel, concrete breakout, pullout,\nside-face blowout and pryout under the code pack\'s anchoring rules.',
+			properties: {
+				kind: {
+					default: 'headedBolt',
+					description: 'Cast-in headed bolt, headed stud or hooked (J/L) bolt, or a post-installed undercut, torque-controlled or displacement-controlled expansion anchor.',
+					enum: ['headedBolt', 'headedStud', 'hookedBolt', 'undercut', 'torqueControlled', 'displacementControlled'],
+					title: 'Kind',
+					type: 'string',
+				},
+				category: {
+					default: 1,
+					description: 'Post-installed anchors: the installation category of the product\'s qualification tests (1: low sensitivity to installation).',
+					enum: [1, 2, 3],
+					title: 'Category',
+					type: 'integer',
+				},
+				embedment: {
+					default: 300,
+					description: 'Effective embedment depth hef [mm].',
+					exclusiveMinimum: 0,
+					title: 'Embedment',
+					type: 'number',
+				},
+				headBearingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Net bearing area of the head or nut Abrg [mm²]; none: estimated from a hex nut of the rod.',
+					title: 'Head bearing area',
+				},
+				hookExtension: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hooked bolts: the hook extension eh past the bend [mm]; none: 4.5 da.',
+					title: 'Hook extension',
+				},
+				pulloutStrength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Post-installed anchors: the pullout strength Np of the product\'s tests [kN]; none: pullout not checked.',
+					title: 'Pullout strength',
+				},
+				memberThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thickness ha of the concrete member (pedestal or footing depth) [mm]; none: deep.',
+					title: 'Member thickness',
+				},
+				edgeN: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plate centre to the concrete edges along N, both sides [mm]; none: half the concrete support\'s length (far without one).',
+					title: 'Edge n',
+				},
+				edgeB: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plate centre to the concrete edges along B, both sides [mm]; none: half the concrete support\'s width (far without one).',
+					title: 'Edge b',
+				},
+				cracked: {
+					default: true,
+					description: 'The concrete may crack at service loads (the usual case).',
+					title: 'Cracked',
+					type: 'boolean',
+				},
+				supplementaryReinforcement: {
+					default: false,
+					description: 'Supplementary reinforcement restrains the breakout (Condition A).',
+					title: 'Supplementary reinforcement',
+					type: 'boolean',
+				},
+				shearEdgeReinforcement: {
+					default: 'none',
+					description: 'Cracked concrete: an edge bar of 13 mm or more between the anchors and the edge, and whether stirrups enclose it.',
+					enum: ['none', 'edgeBar', 'edgeBarStirrups'],
+					title: 'Shear edge reinforcement',
+					type: 'string',
+				},
+				anchorReinforcementTension: {
+					default: 0,
+					description: 'Area of anchor reinforcement developed both sides of the tension breakout [mm²]; 0: none (the breakout is checked).',
+					minimum: 0,
+					title: 'Anchor reinforcement tension',
+					type: 'number',
+				},
+				anchorReinforcementShear: {
+					default: 0,
+					description: 'Area of anchor reinforcement for the shear breakout [mm²]; 0: none.',
+					minimum: 0,
+					title: 'Anchor reinforcement shear',
+					type: 'number',
+				},
+				anchorReinforcementFy: {
+					default: 415,
+					description: 'Yield strength of the anchor reinforcement [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Anchor reinforcement fy',
+					type: 'number',
+				},
+				lightweightFactor: {
+					default: 1.0,
+					description: 'λ of lightweight concrete (1: normal weight).',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Lightweight factor',
+					type: 'number',
+				},
+				groutPad: {
+					default: true,
+					description: 'The plate sits on a built-up grout pad.',
+					title: 'Grout pad',
+					type: 'boolean',
+				},
+				torqued: {
+					default: false,
+					description: 'Cast-in anchors that will be torqued.',
+					title: 'Torqued',
+					type: 'boolean',
+				},
+				ductile: {
+					default: true,
+					description: 'The anchor steel is ductile (elongation >= 14 % and area reduction >= 30 %; mild steel rods are).',
+					title: 'Ductile',
+					type: 'boolean',
+				},
+				welded: {
+					default: false,
+					description: 'Cast-in anchors welded to the attachment (embedded plates).',
+					title: 'Welded',
+					type: 'boolean',
+				},
+				cover: {
+					default: 40,
+					description: 'Specified cover of the reinforcement [mm]: the least edge distance of untorqued cast-in anchors.',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				seismicDesign: {
+					default: 'ductileSteel',
+					description: 'Earthquake combinations in the categories the code names: the steel of a ductile anchor governs (checked), the attachment yields first (stated), or the reduced design strength (stud bearing walls: their own factor).',
+					enum: ['ductileSteel', 'yieldingAttachment', 'reducedStrength', 'studWall'],
+					title: 'Seismic design',
+					type: 'string',
+				},
+			},
+			title: 'AnchorConcrete',
+			type: 'object',
+		},
 		BarGroup: {
 			additionalProperties: false,
 			description: 'Longitudinal bars of a linear member.',
@@ -1738,7 +1937,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		ColumnBasePlate: {
 			additionalProperties: false,
-			description: 'Base plate of a steel column on concrete, with anchor rods. Checked for the column\'s\nforces at a support: bearing on the concrete, the anchor rods (steel) and the welds.',
+			description: 'Base plate of a steel column on concrete, with anchor rods. Checked for the column\'s\nforces at a support: bearing on the concrete (with the base moment), the anchor rods\'\ntension from uplift and moment, their steel and their anchorage in the concrete, and the\nwelds.',
 			properties: {
 				type: {
 					const: 'basePlate',
@@ -1856,6 +2055,25 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					exclusiveMinimum: 0,
 					title: 'Electrode',
 					type: 'number',
+				},
+				anchorFy: {
+					default: 250,
+					description: 'Anchor rod yield strength [MPa] (250: grade 36).',
+					exclusiveMinimum: 0,
+					title: 'Anchor fy',
+					type: 'number',
+				},
+				anchorEdge: {
+					default: 50,
+					description: 'Plate edge to the anchor rod centres [mm]: the rods stand in two rows across B at ±(N/2 - this), spread evenly across B within ±(B/2 - this).',
+					exclusiveMinimum: 0,
+					title: 'Anchor edge',
+					type: 'number',
+				},
+				anchorage: {
+					$ref: '#/$defs/AnchorConcrete',
+					description: 'The anchor rods in the concrete: embedment, edges, cracking, reinforcement.',
+					title: 'Anchorage in concrete',
 				},
 			},
 			title: 'ColumnBasePlate',

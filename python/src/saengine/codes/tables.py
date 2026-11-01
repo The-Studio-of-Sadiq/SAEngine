@@ -5323,6 +5323,155 @@ class AccessibilityTable(TableModel):
     )
 
 
+# ───────────────────────────────── anchoring to concrete (B26) ─────────────────────────────────
+# Read by saengine.design.anchors (the concrete capacity of cast-in and post-installed anchors:
+# steel, breakout, pullout, side-face blowout and pryout, their interaction and the edge rules).
+
+
+class AnchorConditionPhi(_Group):
+    """φ of a concrete failure mode: Condition A (supplementary reinforcement) and B (none)."""
+
+    A: Phi
+    B: Phi
+
+
+class AnchorPhi(_Group):
+    steelTensionDuctile: Phi
+    steelShearDuctile: Phi
+    steelTensionBrittle: Phi
+    steelShearBrittle: Phi
+    concreteShear: AnchorConditionPhi
+    concreteTension: dict[str, AnchorConditionPhi] = Field(
+        description="By anchor: castIn, and the post-installed categories category1-3."
+    )
+    anchorReinforcement: Phi
+
+
+class AnchorSteel(_Group):
+    futaOfFya: Positive = Field(description="futa is at most this × fya.")
+    futaMax: Positive = Field(description="futa is at most this [MPa].")
+    shearStud: Positive = Field(description="Vsa / (Ase futa) of cast-in headed studs.")
+    shearBolt: Positive = Field(description="Vsa / (Ase futa) of bolts and post-installed anchors.")
+    groutPad: Share = Field(description="Factor on the steel shear with a built-up grout pad.")
+    threadConstant: Positive = Field(description="Ase = π/4 (da - this / nt)².")
+
+
+class AnchorBreakoutTension(_Group):
+    kc: dict[str, Positive] = Field(description="kc of Nb by castIn / postInstalled.")
+    kcMaxPostInstalled: Positive
+    exponent: Positive = Field(description="Nb = kc λ √f'c hef^exponent.")
+    deepCoefficient: Positive = Field(description="The deep cast-in headed form's coefficient.")
+    deepExponent: Positive
+    deepHefMin: Positive = Field(description="[mm]")
+    deepHefMax: Positive = Field(description="[mm]")
+    projection: Positive = Field(description="The breakout projects this × hef [-].")
+    edgeBase: Positive
+    edgeSlope: Positive
+    uncrackedCastIn: Positive
+    uncrackedPostInstalled: Positive
+    narrowEdges: int = Field(ge=1, description="Edges within the projection that limit hef.")
+    spacingShare: Share = Field(description="The limited hef is at least this × the spacing.")
+    eccentricity: Positive = Field(description="ψec = 1 / (1 + this × e'/hef).")
+
+
+class AnchorPullout(_Group):
+    headed: Positive = Field(description="Np = this × Abrg f'c.")
+    hooked: Positive = Field(description="Np = this × f'c eh da.")
+    hookMin: Positive = Field(description="eh at least this × da.")
+    hookMax: Positive = Field(description="eh taken at most this × da.")
+    uncracked: Positive = Field(description="ψc,P in uncracked concrete.")
+
+
+class AnchorSideFace(_Group):
+    coefficient: Positive = Field(description="Nsb = this × ca1 √Abrg λ √f'c.")
+    deepRatio: Positive = Field(description="Checked where hef > this × ca1.")
+    cornerRatioMax: Positive = Field(description="ca2/ca1 below this reduces Nsb.")
+    cornerDivisor: Positive = Field(description="× (1 + ca2/ca1) / this.")
+    groupSpacing: Positive = Field(description="Groups with s < this × ca1.")
+
+
+class AnchorBreakoutShear(_Group):
+    coefficient: Positive
+    weldedCoefficient: Positive
+    weldedMinThickness: Positive = Field(description="[mm]")
+    weldedMinSpacing: Positive = Field(description="[mm]")
+    lengthExponent: Positive
+    exponent: Positive
+    bearingLengthMax: Positive = Field(description="le at most this × da.")
+    projectedArea: Positive = Field(description="AVco = this × ca1².")
+    projection: Positive = Field(description="The breakout projects this × ca1 [-].")
+    edgeBase: Positive
+    edgeSlope: Positive
+    parallel: Positive = Field(description="Shear parallel to an edge: this × the perpendicular.")
+    uncracked: Positive
+    crackedNoBar: Positive
+    crackedEdgeBar: Positive
+    crackedEdgeBarStirrups: Positive
+    edgeBarMin: Positive = Field(description="Least edge bar for the cracked factors [mm].")
+    stirrupSpacingMax: Positive = Field(description="Stirrups at most this [mm].")
+    narrowEdges: int = Field(ge=1)
+    eccentricity: Positive = Field(description="ψec,V = 1 / (1 + this × e'/ca1).")
+
+
+class AnchorPryout(_Group):
+    shortHef: Positive = Field(description="[mm]")
+    kcpShort: Positive
+    kcpLong: Positive
+
+
+class AnchorInteraction(_Group):
+    threshold: Share = Field(description="A ratio up to this needs no interaction.")
+    limit: Positive = Field(description="Nua/φNn + Vua/φVn at most this.")
+
+
+class AnchorApplicability(_Group):
+    diameterMax: Positive = Field(description="[mm]")
+    embedmentMax: Positive = Field(description="[mm]")
+
+
+class AnchorSpacing(_Group):
+    untorquedCastIn: Positive = Field(description="Least spacing / da.")
+    torqued: Positive = Field(description="Least spacing / da, torqued or post-installed.")
+    edgeTorquedCastIn: Positive = Field(description="Least edge / da.")
+    edgePostInstalled: dict[str, Positive]
+    criticalEdge: dict[str, Positive] = Field(description="cac / hef by post-installed kind.")
+    postInstalledDepthShare: Share
+    postInstalledDepthLess: Positive = Field(description="[mm]")
+
+
+class AnchorSeismic(_Group):
+    categories: list[str] = Field(description="Seismic Design Categories the rules apply in.")
+    concreteFactor: Share
+    reducedFactor: Share
+    studWallFactor: Share
+
+
+class AnchorEstimates(_Group):
+    nutAcrossFlats: Positive = Field(description="Nut across the flats / da.")
+    threadPitch: dict[str, Positive] = Field(description="Pitch [mm] by diameter [mm].")
+    note: str = ""
+
+
+class AnchorsTable(TableModel):
+    """Anchoring to concrete: the strength of cast-in and post-installed anchors in tension and
+    shear (steel, breakout, pullout, side-face blowout, pryout), their interaction, the
+    seismic rules and the least spacings and edge distances."""
+
+    phi: AnchorPhi
+    steel: AnchorSteel
+    concreteStrengthMax: dict[str, Positive] = Field(description="[MPa] by castIn/postInstalled.")
+    breakoutTension: AnchorBreakoutTension
+    pullout: AnchorPullout
+    sideFace: AnchorSideFace
+    breakoutShear: AnchorBreakoutShear
+    pryout: AnchorPryout
+    interaction: AnchorInteraction
+    applicability: AnchorApplicability
+    spacing: AnchorSpacing
+    seismic: AnchorSeismic
+    estimates: AnchorEstimates
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -5360,6 +5509,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "flood": FloodTable,
     "pushover": PushoverTable,
     "accessibility": AccessibilityTable,
+    "anchors": AnchorsTable,
 }
 
 

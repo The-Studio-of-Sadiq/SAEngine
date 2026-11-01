@@ -229,6 +229,7 @@ def connection_results(
     kind: str,
     pieces: list[Any] | None = None,
     project: dict[str, Any] | None = None,
+    seismic: Any = None,
 ) -> list[dict[str, Any]]:
     """The checks of the type's connection, splice and base plate, the end connection first
     (each with ``end`` and a ``description``). Raises ``ValueError`` or ``TypeError`` when one
@@ -335,7 +336,7 @@ def connection_results(
         rows = _base_rows(stations, pieces or [], project)
         if rows:
             result = sc.check_base_plate(
-                base, section, member, _steel_of(mats, base.plateMaterial, "plate"), rows
+                base, section, member, _steel_of(mats, base.plateMaterial, "plate"), rows, seismic
             )
             result["end"] = None
             result["description"] = DESCRIPTIONS["basePlate"]
@@ -394,7 +395,7 @@ def design_member(
     stations = steel_members.member_stations(pieces, combinations, turned)
     try:
         connections = connection_results(
-            object_type, material, mats, stations, kind, pieces, project
+            object_type, material, mats, stations, kind, pieces, project, options.anchors
         )
     except (ValueError, TypeError, KeyError) as error:
         connections = []

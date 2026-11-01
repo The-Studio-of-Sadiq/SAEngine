@@ -696,10 +696,127 @@ class SteelSplice(_Bolted):
 
 AnchorDiameter = Literal[16, 20, 24, 30, 36]
 
+AnchorKind = Literal[
+    "headedBolt",
+    "headedStud",
+    "hookedBolt",
+    "undercut",
+    "torqueControlled",
+    "displacementControlled",
+]
+
+
+class AnchorConcrete(_Model):
+    """The concrete side of a group of anchors (a base plate's anchor rods, an embedded plate's
+    studs): checked by :mod:`saengine.design.anchors` for steel, concrete breakout, pullout,
+    side-face blowout and pryout under the code pack's anchoring rules."""
+
+    kind: AnchorKind = Field(
+        default="headedBolt",
+        description="Cast-in headed bolt, headed stud or hooked (J/L) bolt, or a post-installed "
+        "undercut, torque-controlled or displacement-controlled expansion anchor.",
+    )
+    category: Literal[1, 2, 3] = Field(
+        default=1,
+        description="Post-installed anchors: the installation category of the product's "
+        "qualification tests (1: low sensitivity to installation).",
+    )
+    embedment: float = Field(default=300, gt=0, description="Effective embedment depth hef [mm].")
+    headBearingArea: float | None = Field(
+        default=None,
+        gt=0,
+        description="Net bearing area of the head or nut Abrg [mm²]; none: estimated from a "
+        "hex nut of the rod.",
+    )
+    hookExtension: float | None = Field(
+        default=None,
+        gt=0,
+        description="Hooked bolts: the hook extension eh past the bend [mm]; none: 4.5 da.",
+    )
+    pulloutStrength: float | None = Field(
+        default=None,
+        gt=0,
+        description="Post-installed anchors: the pullout strength Np of the product's tests "
+        "[kN]; none: pullout not checked.",
+    )
+    memberThickness: float | None = Field(
+        default=None,
+        gt=0,
+        description="Thickness ha of the concrete member (pedestal or footing depth) [mm]; "
+        "none: deep.",
+    )
+    edgeN: float | None = Field(
+        default=None,
+        gt=0,
+        description="Plate centre to the concrete edges along N, both sides [mm]; none: half "
+        "the concrete support's length (far without one).",
+    )
+    edgeB: float | None = Field(
+        default=None,
+        gt=0,
+        description="Plate centre to the concrete edges along B, both sides [mm]; none: half "
+        "the concrete support's width (far without one).",
+    )
+    cracked: bool = Field(
+        default=True, description="The concrete may crack at service loads (the usual case)."
+    )
+    supplementaryReinforcement: bool = Field(
+        default=False,
+        description="Supplementary reinforcement restrains the breakout (Condition A).",
+    )
+    shearEdgeReinforcement: Literal["none", "edgeBar", "edgeBarStirrups"] = Field(
+        default="none",
+        description="Cracked concrete: an edge bar of 13 mm or more between the anchors and the "
+        "edge, and whether stirrups enclose it.",
+    )
+    anchorReinforcementTension: float = Field(
+        default=0,
+        ge=0,
+        description="Area of anchor reinforcement developed both sides of the tension "
+        "breakout [mm²]; 0: none (the breakout is checked).",
+    )
+    anchorReinforcementShear: float = Field(
+        default=0,
+        ge=0,
+        description="Area of anchor reinforcement for the shear breakout [mm²]; 0: none.",
+    )
+    anchorReinforcementFy: float = Field(
+        default=415, gt=0, description="Yield strength of the anchor reinforcement [MPa]."
+    )
+    lightweightFactor: float = Field(
+        default=1.0, gt=0, le=1, description="λ of lightweight concrete (1: normal weight)."
+    )
+    groutPad: bool = Field(default=True, description="The plate sits on a built-up grout pad.")
+    torqued: bool = Field(default=False, description="Cast-in anchors that will be torqued.")
+    ductile: bool = Field(
+        default=True,
+        description="The anchor steel is ductile (elongation >= 14 % and area reduction "
+        ">= 30 %; mild steel rods are).",
+    )
+    welded: bool = Field(
+        default=False, description="Cast-in anchors welded to the attachment (embedded plates)."
+    )
+    cover: float = Field(
+        default=40,
+        gt=0,
+        description="Specified cover of the reinforcement [mm]: the least edge distance of "
+        "untorqued cast-in anchors.",
+    )
+    seismicDesign: Literal["ductileSteel", "yieldingAttachment", "reducedStrength", "studWall"] = (
+        Field(
+            default="ductileSteel",
+            description="Earthquake combinations in the categories the code names: the steel "
+            "of a ductile anchor governs (checked), the attachment yields first (stated), or the "
+            "reduced design strength (stud bearing walls: their own factor).",
+        )
+    )
+
 
 class ColumnBasePlate(_Model):
     """Base plate of a steel column on concrete, with anchor rods. Checked for the column's
-    forces at a support: bearing on the concrete, the anchor rods (steel) and the welds."""
+    forces at a support: bearing on the concrete (with the base moment), the anchor rods'
+    tension from uplift and moment, their steel and their anchorage in the concrete, and the
+    welds."""
 
     type: Literal["basePlate"] = "basePlate"
     length: float = Field(default=400, gt=0, description="Along the column depth, N [mm].")
@@ -727,6 +844,20 @@ class ColumnBasePlate(_Model):
     )
     weldSize: float = Field(default=8, gt=0, description="Column-to-plate fillet weld leg [mm].")
     electrode: float = Field(default=480, gt=0, description="FEXX [MPa].")
+    anchorFy: float = Field(
+        default=250, gt=0, description="Anchor rod yield strength [MPa] (250: grade 36)."
+    )
+    anchorEdge: float = Field(
+        default=50,
+        gt=0,
+        description="Plate edge to the anchor rod centres [mm]: the rods stand in two rows "
+        "across B at ±(N/2 - this), spread evenly across B within ±(B/2 - this).",
+    )
+    anchorage: AnchorConcrete = Field(
+        default_factory=AnchorConcrete,
+        title="Anchorage in concrete",
+        description="The anchor rods in the concrete: embedment, edges, cracking, reinforcement.",
+    )
 
 
 class HssCapPlate(_Model):

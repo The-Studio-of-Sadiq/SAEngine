@@ -41,7 +41,8 @@
     "steelStability",
     "flood",
     "pushover",
-    "accessibility"
+    "accessibility",
+    "anchors"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -208,6 +209,10 @@
       "BNBC 2020 Part 3 Appendix D Sec D.5.2, Table 3.D.2 (pp. 227-228), D.11.1 (p. 236): accessible ramps",
       "BNBC 2020 Part 3 Appendix F Sec F.7.3.1-F.7.3.3, Table 3.F.5 (pp. 272-273): carriageway and parking ramps",
       "BNBC 2020 Part 4 Sec 3.11.1-3.11.9 (p. 315): ramps in means of escape"
+    ],
+    "anchors": [
+      "BNBC 2020 Part 6 Appendix K Sec K.1-K.9, Eqs 6.K.1-6.K.32 (part 2 pp. 526-564): anchoring to concrete",
+      "BNBC 2020 Part 6 Sec 10.10.9 (part 2 p. 138): anchor rods and embedments"
     ]
   },
   "basis": {
