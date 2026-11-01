@@ -66,9 +66,11 @@ chapter J and K structure):
 - ``basePlate`` (columns at a support, :func:`check_base_plate`): concrete bearing φc Pp,
   Pp = 0.8 f'c A1 √(A2/A1) <= 1.7 f'c A1 (Sec 10.10.8, as printed), the anchor rods' steel in tension and
   shear as threaded parts (Table 6.10.10: Fnt 0.75 Fu, Fnv 0.40 / 0.50 Fu; combined Sec
-  10.10.3.7) and the column-to-plate fillet welds. The plate thickness by the cantilever
-  method of the steel design guides, moment bases and the anchors' concrete capacity (ACI
-  318 Chapter 17) are planned features: stated, not checked.
+  10.10.3.7) and the column-to-plate fillet welds. Track B26: the rods' tension from uplift and
+  the base moment (Sec 10.10.9; method ``bearingBlock`` of the pack, a rigid plate on a
+  rectangular bearing block) and their anchorage in the concrete by the shared anchor engine
+  :mod:`saengine.design.anchors` (Appendix K). The plate thickness by the cantilever method of
+  the steel design guides is a planned feature: stated, not checked.
 - ``hssJoint`` (braces, :func:`check_hss_joint`): a welded HSS-to-HSS truss joint, Sec 10.11.2:
   round chords (chord plastification of T/Y, X and gapped K joints, punching shear) and
   rectangular chords (chord wall plastification, punching shear, sidewall yielding and
@@ -2047,16 +2049,115 @@ def bearing_on_concrete(c: ColumnBasePlate) -> float:
     return phi("concreteBearing", 0.6) * pp
 
 
+def anchor_points(c: ColumnBasePlate) -> list[tuple[float, float]]:
+    """The anchor rods' positions [mm] from the plate centre (x along N, y along B): two rows
+    across B at x = ±(N/2 - anchorEdge), each spread evenly within ±(B/2 - anchorEdge) (one rod
+    in a row: on the axis)."""
+    gx = max(c.length / 2 - c.anchorEdge, 0.0)
+    gy = max(c.width / 2 - c.anchorEdge, 0.0)
+    rows = (c.anchors - c.anchors // 2, c.anchors // 2)
+    points = []
+    for x, count in zip((-gx, gx), rows, strict=True):
+        for k in range(count):
+            y = 0.0 if count == 1 else -gy + 2 * gy * k / (count - 1)
+            points.append((x, y))
+    return points
+
+
+def rod_tensions(
+    c: ColumnBasePlate, points: list[tuple[float, float]], p: float, m: float
+) -> tuple[list[float], dict[str, Any]]:
+    """Tension of each anchor rod [N] under the axial force ``p`` (compression +) and the base
+    moment ``m`` [N·mm] (a resultant: applied about each plate axis in turn, the worse kept),
+    by the pack's ``momentBase`` method, and what it found: ``{"axis", "e", "Y", "need",
+    "lever"}`` (``need`` > ``lever``: the plate cannot carry the moment by bearing).
+
+    Method ``bearingBlock``: a rigid plate on a rectangular bearing block of stress
+    q = φc Pp / A1 (Sec 10.10.8) over the bearing length Y. No rod tension while
+    e = M/P <= N/2 - P/(2qB), Y = N - 2e; beyond it the rods of the outer line on the tension
+    side (at f from the centre) balance it: Y = (f + N/2) - √((f + N/2)² - 2P(e + f)/(qB)),
+    T = qBY - P. When no bearing length balances it (``need`` > ``lever``), the rods take it about
+    the opposite rod line, T = P(e - f)/2f. Under net uplift the rods alone take P and M
+    elastically (T = -P/n + M x / Σx²)."""
+    if method("momentBase") != "bearingBlock":
+        raise ValueError("the code pack names no moment base method")
+    n = len(points)
+    fp = bearing_on_concrete(c) / (c.length * c.width)
+    m = abs(m)
+    best: tuple[list[float], dict[str, Any]] | None = None
+    for axis, length, width in ((0, c.length, c.width), (1, c.width, c.length)):
+        coords = [pt[axis] for pt in points]
+        info: dict[str, Any] = {"axis": "N" if axis == 0 else "B", "e": 0.0, "Y": None}
+        if p <= 0:
+            sxx = sum(x * x for x in coords)
+            tension = [max(-p / n + (m * x / sxx if sxx > 0 else 0.0), 0.0) for x in coords]
+        else:
+            q = fp * width
+            e = m / p
+            info["e"] = e
+            if e <= length / 2 - p / (2 * q):
+                info["Y"] = length - 2 * e
+                tension = [0.0] * n
+            else:
+                f = max(coords)
+                outer = [i for i, x in enumerate(coords) if x >= f - 1.0]
+                lever = f + length / 2
+                need = math.sqrt(2 * p * (e + f) / q)
+                info.update(need=need, lever=lever)
+                if need > lever or f <= 0:
+                    total = max(p * (e - f) / (2 * f), 0.0) if f > 0 else math.inf
+                    info["Y"] = None
+                else:
+                    y = lever - math.sqrt(lever**2 - need**2)
+                    total = q * y - p
+                    info["Y"] = y
+                tension = [total / len(outer) if i in outer else 0.0 for i in range(n)]
+        worse = best is None or max(tension, default=0.0) > max(best[0], default=0.0)
+        if best is not None and "need" in info and "need" not in best[1]:
+            worse = worse or info["need"] > info["lever"]
+        if worse:
+            best = (tension, info)
+    assert best is not None
+    return best
+
+
+def _anchor_group(c: ColumnBasePlate, points: list[tuple[float, float]]) -> Any:
+    """The rods as an anchor group (:class:`saengine.design.anchors.Group`): the concrete edges
+    are the anchorage's ``edgeN``/``edgeB``, else half the concrete support (far without one)."""
+    from saengine.design import anchors
+
+    a = c.anchorage
+    en = a.edgeN or ((c.supportLength / 2) if c.supportLength else math.inf)
+    eb = a.edgeB or ((c.supportWidth / 2) if c.supportWidth else math.inf)
+    return anchors.Group(
+        points=points,
+        diameter=float(c.anchorDiameter),
+        fu=c.anchorFu,
+        fy=c.anchorFy,
+        concrete=c.concreteStrength,
+        spec=a,
+        edges=(en, en, eb, eb),
+        attachment_thickness=c.thickness,
+    )
+
+
 def check_base_plate(
     c: ColumnBasePlate,
     column: SteelSection,
     column_material: SteelMaterial,
     plate_material: SteelMaterial | None,
     demands: list[tuple[str | None, float, float, float]],
+    seismic: Any = None,
 ) -> dict[str, Any]:
     """Checks of a column base plate for the base forces ``[(combination, P [N] compression
-    +, V [N] resultant, M [N·mm] resultant)]``."""
+    +, V [N] resultant, M [N·mm] resultant)]``: bearing (with the base moment), the anchor rods'
+    tension from uplift and moment (Sec 10.10.9) and their steel as threaded parts, their
+    anchorage in the concrete (:mod:`saengine.design.anchors`; ``seismic`` its
+    :class:`~saengine.design.anchors.SeismicContext`), and the welds."""
+    from saengine.design import anchors
+
     checks: list[dict[str, Any]] = []
+    data = connection_data()
     comp = _governing_vector(demands, 1, 1)
     if comp is not None:
         comb, p, _, m = comp
@@ -2067,30 +2168,37 @@ def check_base_plate(
                 bearing_on_concrete(c) / 1e3,
                 "kN",
                 comb,
-                "Sec 10.10.8 Eqs 6.10.183-184: φc Pp, Pp = "
-                f"{connection_data().concreteBearingPartial:g} f'c A1 √(A2/A1) <= "
-                f"{connection_data().concreteBearingMax:g} f'c A1",
+                f"{clause('concreteBearing').split(' (')[0]}: φc Pp, Pp = "
+                f"{data.concreteBearingPartial:g} f'c A1 √(A2/A1) <= "
+                f"{data.concreteBearingMax:g} f'c A1",
             )
         )
-        e = abs(m) / p if p > 0 else 0.0
+    points = anchor_points(c)
+    n = len(points)
+    rows: list[tuple[str | None, list[float], float]] = []
+    block: tuple[float, float, str | None] | None = None
+    for comb, p, v, m in demands:
+        tension, info = rod_tensions(c, points, p, m)
+        rows.append((comb, tension, v))
+        if "need" in info and (block is None or info["need"] / info["lever"] > block[0] / block[1]):
+            block = (info["need"], info["lever"], comb)
+    if block is not None:
         checks.append(
             _check(
-                "eccentricity M / P within N / 6",
-                e,
-                c.length / 6,
+                "moment base: plate length for the bearing block",
+                block[0],
+                block[1],
                 "mm",
-                comb,
-                "beyond N / 6 the bearing is not uniform: a moment base (planned)",
-                flag=True,
+                block[2],
+                "√(2P(e + f)/(qB)) <= f + N/2, q = φc Pp / A1 (method bearingBlock: "
+                f"{clause('methods').split(' (')[0]})",
             )
         )
     t_rod, v_rod, fnt, fnv = anchor_capacities(c)
-    n = c.anchors
-    uplift = _governing_vector(demands, 1, -1)
-    shear = _governing_vector(demands, 2)
-    if uplift is not None:
-        comb, p, v, _ = uplift
-        frt = -p / n
+    governing = max(rows, key=lambda r: max(r[1], default=0.0), default=None)
+    if governing is not None and max(governing[1], default=0.0) > 0:
+        comb, tension, v = governing
+        frt = max(tension)
         checks.append(
             _check(
                 "anchor rod tension",
@@ -2098,7 +2206,8 @@ def check_base_plate(
                 t_rod / 1e3,
                 "kN",
                 comb,
-                "Eq 6.10.168, Table 6.10.10: 0.75 Fu",
+                f"{clause('anchorRods').split(' (')[0]}, Eq 6.10.168, Table 6.10.10: 0.75 Fu; "
+                "from uplift and the base moment",
             )
         )
         # Combined tension and shear, Sec 10.10.3.7: F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt.
@@ -2116,6 +2225,7 @@ def check_base_plate(
                 "Sec 10.10.3.7: F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt",
             )
         )
+    shear = _governing_vector(demands, 2)
     if shear is not None and abs(shear[2]) > 0:
         comb, _, v, _ = shear
         checks.append(
@@ -2129,6 +2239,13 @@ def check_base_plate(
                 + ("0.50 Fu (threads excluded)" if c.threadsExcluded else "0.40 Fu"),
             )
         )
+    # The rods' anchorage in the concrete (the shared anchor engine).
+    anchorage = anchors.check_group(
+        _anchor_group(c, points),
+        [anchors.Demand(comb, tension, v) for comb, tension, v in rows],
+        seismic,
+    )
+    checks += [{**k, "name": f"anchorage: {k['name']}"} for k in anchorage["checks"]]
     # Column-to-plate fillet welds: all round the profile.
     if column.shape == "I":
         web = column.h - 2 * column.tf
@@ -2167,12 +2284,16 @@ def check_base_plate(
                 "column ends finished to bear on the plate: compression by bearing, the welds for "
                 "uplift and shear"
             ),
-            "uniform bearing on the area A1 = N × B (a concentric axial load)",
-            "the base shear taken by the anchor rods in bearing (no friction, no shear key)",
             (
-                "not checked (planned features): the plate thickness by the cantilever method, "
-                "moment bases, and the anchors' concrete capacity (ACI 318 Chapter 17)"
+                f"{n} anchor rods in two rows across B, {c.anchorEdge:g} mm in from the plate "
+                "edges; the base moment (the resultant of both axes) about each plate axis in "
+                "turn, the worse kept: a rigid plate on a rectangular bearing block at φc Pp / A1 "
+                "with the outer rods in tension (SAEngine practice); under net uplift the rods "
+                "alone"
             ),
+            "the base shear taken by the anchor rods in bearing (no friction, no shear key)",
+            *anchorage["assumptions"],
+            "not checked (planned feature): the plate thickness (cantilever method)",
         ],
     )
 

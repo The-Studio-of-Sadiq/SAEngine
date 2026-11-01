@@ -741,6 +741,7 @@ def _design_run(
     designed: list[seismic_detailing.Designed] = []
     steel_seen = False
     steel_stability = None
+    anchor_seismic = None
     from saengine.design import timber as timber_design
 
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
@@ -776,6 +777,8 @@ def _design_run(
 
                 steel_stability = stability_for_run(settings, project, out_dir, building)
                 notes.extend(steel_stability.notes)
+            if anchor_seismic is None:  # B26: the earthquake side of the anchors in concrete
+                anchor_seismic = _anchor_seismic(resolved, combinations, extra)
             try:
                 entry, steel_collected = steel_design.design_member(
                     member_id,
@@ -788,7 +791,8 @@ def _design_run(
                     _turned(element, exact),
                     project,
                     design_overwrites.steel_options(
-                        resolved_overwrites.get(member_id), {"stability": steel_stability}
+                        resolved_overwrites.get(member_id),
+                        {"stability": steel_stability, "anchors": anchor_seismic},
                     ),
                 )
             except SteelDesignError as error:
@@ -2692,6 +2696,21 @@ def _cantilever_beams(building: BuildingModel, objects: Any) -> set[str]:
             ):
                 out.add(element.id)
     return out
+
+
+def _anchor_seismic(settings: Any, combinations: list[str], extra: dict[str, Any]) -> Any:
+    """B26: the Seismic Design Category and the earthquake combinations, for the seismic rules
+    of anchors in concrete (:class:`saengine.design.anchors.SeismicContext`)."""
+    from saengine.design.anchors import SeismicContext
+    from saengine.design.seismic_detailing import earthquake_indices
+    from saengine.design.seismic_rules import seismic_design_category
+
+    try:
+        category = seismic_design_category(settings)[0]
+    except Exception:  # noqa: BLE001 - no zone: no category, no seismic anchor rules
+        category = None
+    names = frozenset(combinations[i] for i in earthquake_indices(extra, len(combinations)))
+    return SeismicContext(category, names)
 
 
 def _drop_combinations(

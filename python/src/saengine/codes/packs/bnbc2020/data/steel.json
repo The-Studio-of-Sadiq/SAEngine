@@ -105,7 +105,8 @@
       "boltGroup": "elastic",
       "weldGroup": "elasticLine",
       "gussetSpread": "whitmore30",
-      "plateFlexure": "plastic"
+      "plateFlexure": "plastic",
+      "momentBase": "bearingBlock"
     }
   },
   "bracing": {
@@ -164,7 +165,8 @@
     "filletMin": "BNBC 2020 Part 6 Table 6.10.7 (part2 p. 116)",
     "filletMax": "BNBC 2020 Part 6 Sec 10.10.2.2.2 (part2 p. 116): along edges under 6 mm the thickness, else the thickness - 2 mm",
     "concreteBearing": "BNBC 2020 Part 6 Sec 10.10.8 Eqs 6.10.183-184 (part2 p. 138): Pp = 0.8 f'c A1 (full area), 0.8 f'c A1 √(A2/A1) <= 1.7 f'c A1. 0.8 is printed (AISC 360-05 J8 has 0.85); the printed, lower value is used (owner decision)",
-    "methods": "SAEngine practice, not BNBC (BNBC requires the effect but gives no method): prying by the T-stub method of the steel design manuals (Sec 10.10.3.6 requires prying in the bolt tension); the elastic method for eccentric bolt groups and weld lines; the Whitmore section (30° spread) and gusset buckling K for gussets; plate flexure φ 0.90 Fy Z",
+    "anchorRods": "BNBC 2020 Part 6 Sec 10.10.9 (part2 p. 138): anchor rods for the net tension of the base moments, as threaded parts of Table 6.10.10; their concrete anchorage by the anchors table (Appendix K)",
+    "methods": "SAEngine practice, not BNBC (BNBC requires the effect but gives no method): prying by the T-stub method of the steel design manuals (Sec 10.10.3.6 requires prying in the bolt tension); the elastic method for eccentric bolt groups and weld lines; the Whitmore section (30° spread) and gusset buckling K for gussets; plate flexure φ 0.90 Fy Z; the anchor rod tension of moment bases (Sec 10.10.9 requires it) from a rigid plate on a rectangular bearing block at φc Pp / A1 (method bearingBlock)",
     "bracing": "BNBC 2020 Part 6 Sec 10.19 (part2 pp. 222-227): columns relative Eqs 6.10.285-286, nodal Eqs 6.10.287-288; beams lateral relative Eqs 6.10.289-290, nodal Eqs 6.10.291-292, torsional Eqs 6.10.293-297; φ 0.75; Sec 10.19.4 L/r <= 180",
     "ponding": "BNBC 2020 Part 6 Sec 10.16 (part2 pp. 194-195): simplified Eqs 6.10.272-273 (Cp = 504 Ls Lp⁴ / Ip, Cs = 504 S Ls⁴ / Is, trusses and joists Is - 15 %), improved Eqs 6.10.274-275 with Figures 6.10.1 and 6.10.2 (part2 p. 197) digitised at about ±0.01 from the printed curves. The printed figures label their lowest curve 'Cp = 0' (Figure 6.10.1) and 'Cs = 0' (Figure 6.10.2): read here, as the text says, as Cs (Figure 6.10.1) and Cp (Figure 6.10.2)"
   }

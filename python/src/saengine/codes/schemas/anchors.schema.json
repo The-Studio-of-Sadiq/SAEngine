@@ -1,0 +1,764 @@
+{
+  "$defs": {
+    "AnchorApplicability": {
+      "additionalProperties": false,
+      "properties": {
+        "diameterMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Diametermax",
+          "type": "number"
+        },
+        "embedmentMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Embedmentmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "diameterMax",
+        "embedmentMax"
+      ],
+      "title": "AnchorApplicability",
+      "type": "object"
+    },
+    "AnchorBreakoutShear": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "weldedCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Weldedcoefficient",
+          "type": "number"
+        },
+        "weldedMinThickness": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Weldedminthickness",
+          "type": "number"
+        },
+        "weldedMinSpacing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Weldedminspacing",
+          "type": "number"
+        },
+        "lengthExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthexponent",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "bearingLengthMax": {
+          "description": "le at most this × da.",
+          "exclusiveMinimum": 0,
+          "title": "Bearinglengthmax",
+          "type": "number"
+        },
+        "projectedArea": {
+          "description": "AVco = this × ca1².",
+          "exclusiveMinimum": 0,
+          "title": "Projectedarea",
+          "type": "number"
+        },
+        "projection": {
+          "description": "The breakout projects this × ca1 [-].",
+          "exclusiveMinimum": 0,
+          "title": "Projection",
+          "type": "number"
+        },
+        "edgeBase": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebase",
+          "type": "number"
+        },
+        "edgeSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Edgeslope",
+          "type": "number"
+        },
+        "parallel": {
+          "description": "Shear parallel to an edge: this × the perpendicular.",
+          "exclusiveMinimum": 0,
+          "title": "Parallel",
+          "type": "number"
+        },
+        "uncracked": {
+          "exclusiveMinimum": 0,
+          "title": "Uncracked",
+          "type": "number"
+        },
+        "crackedNoBar": {
+          "exclusiveMinimum": 0,
+          "title": "Crackednobar",
+          "type": "number"
+        },
+        "crackedEdgeBar": {
+          "exclusiveMinimum": 0,
+          "title": "Crackededgebar",
+          "type": "number"
+        },
+        "crackedEdgeBarStirrups": {
+          "exclusiveMinimum": 0,
+          "title": "Crackededgebarstirrups",
+          "type": "number"
+        },
+        "edgeBarMin": {
+          "description": "Least edge bar for the cracked factors [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Edgebarmin",
+          "type": "number"
+        },
+        "stirrupSpacingMax": {
+          "description": "Stirrups at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Stirrupspacingmax",
+          "type": "number"
+        },
+        "narrowEdges": {
+          "minimum": 1,
+          "title": "Narrowedges",
+          "type": "integer"
+        },
+        "eccentricity": {
+          "description": "ψec,V = 1 / (1 + this × e'/ca1).",
+          "exclusiveMinimum": 0,
+          "title": "Eccentricity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "weldedCoefficient",
+        "weldedMinThickness",
+        "weldedMinSpacing",
+        "lengthExponent",
+        "exponent",
+        "bearingLengthMax",
+        "projectedArea",
+        "projection",
+        "edgeBase",
+        "edgeSlope",
+        "parallel",
+        "uncracked",
+        "crackedNoBar",
+        "crackedEdgeBar",
+        "crackedEdgeBarStirrups",
+        "edgeBarMin",
+        "stirrupSpacingMax",
+        "narrowEdges",
+        "eccentricity"
+      ],
+      "title": "AnchorBreakoutShear",
+      "type": "object"
+    },
+    "AnchorBreakoutTension": {
+      "additionalProperties": false,
+      "properties": {
+        "kc": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "kc of Nb by castIn / postInstalled.",
+          "title": "Kc",
+          "type": "object"
+        },
+        "kcMaxPostInstalled": {
+          "exclusiveMinimum": 0,
+          "title": "Kcmaxpostinstalled",
+          "type": "number"
+        },
+        "exponent": {
+          "description": "Nb = kc λ √f'c hef^exponent.",
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "deepCoefficient": {
+          "description": "The deep cast-in headed form's coefficient.",
+          "exclusiveMinimum": 0,
+          "title": "Deepcoefficient",
+          "type": "number"
+        },
+        "deepExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Deepexponent",
+          "type": "number"
+        },
+        "deepHefMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Deephefmin",
+          "type": "number"
+        },
+        "deepHefMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Deephefmax",
+          "type": "number"
+        },
+        "projection": {
+          "description": "The breakout projects this × hef [-].",
+          "exclusiveMinimum": 0,
+          "title": "Projection",
+          "type": "number"
+        },
+        "edgeBase": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebase",
+          "type": "number"
+        },
+        "edgeSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Edgeslope",
+          "type": "number"
+        },
+        "uncrackedCastIn": {
+          "exclusiveMinimum": 0,
+          "title": "Uncrackedcastin",
+          "type": "number"
+        },
+        "uncrackedPostInstalled": {
+          "exclusiveMinimum": 0,
+          "title": "Uncrackedpostinstalled",
+          "type": "number"
+        },
+        "narrowEdges": {
+          "description": "Edges within the projection that limit hef.",
+          "minimum": 1,
+          "title": "Narrowedges",
+          "type": "integer"
+        },
+        "spacingShare": {
+          "description": "The limited hef is at least this × the spacing.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spacingshare",
+          "type": "number"
+        },
+        "eccentricity": {
+          "description": "ψec = 1 / (1 + this × e'/hef).",
+          "exclusiveMinimum": 0,
+          "title": "Eccentricity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kc",
+        "kcMaxPostInstalled",
+        "exponent",
+        "deepCoefficient",
+        "deepExponent",
+        "deepHefMin",
+        "deepHefMax",
+        "projection",
+        "edgeBase",
+        "edgeSlope",
+        "uncrackedCastIn",
+        "uncrackedPostInstalled",
+        "narrowEdges",
+        "spacingShare",
+        "eccentricity"
+      ],
+      "title": "AnchorBreakoutTension",
+      "type": "object"
+    },
+    "AnchorConditionPhi": {
+      "additionalProperties": false,
+      "description": "φ of a concrete failure mode: Condition A (supplementary reinforcement) and B (none).",
+      "properties": {
+        "A": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "A",
+          "type": "number"
+        },
+        "B": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": [
+        "A",
+        "B"
+      ],
+      "title": "AnchorConditionPhi",
+      "type": "object"
+    },
+    "AnchorEstimates": {
+      "additionalProperties": false,
+      "properties": {
+        "nutAcrossFlats": {
+          "description": "Nut across the flats / da.",
+          "exclusiveMinimum": 0,
+          "title": "Nutacrossflats",
+          "type": "number"
+        },
+        "threadPitch": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Pitch [mm] by diameter [mm].",
+          "title": "Threadpitch",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nutAcrossFlats",
+        "threadPitch"
+      ],
+      "title": "AnchorEstimates",
+      "type": "object"
+    },
+    "AnchorInteraction": {
+      "additionalProperties": false,
+      "properties": {
+        "threshold": {
+          "description": "A ratio up to this needs no interaction.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "limit": {
+          "description": "Nua/φNn + Vua/φVn at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Limit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "threshold",
+        "limit"
+      ],
+      "title": "AnchorInteraction",
+      "type": "object"
+    },
+    "AnchorPhi": {
+      "additionalProperties": false,
+      "properties": {
+        "steelTensionDuctile": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steeltensionductile",
+          "type": "number"
+        },
+        "steelShearDuctile": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelshearductile",
+          "type": "number"
+        },
+        "steelTensionBrittle": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steeltensionbrittle",
+          "type": "number"
+        },
+        "steelShearBrittle": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelshearbrittle",
+          "type": "number"
+        },
+        "concreteShear": {
+          "$ref": "#/$defs/AnchorConditionPhi"
+        },
+        "concreteTension": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AnchorConditionPhi"
+          },
+          "description": "By anchor: castIn, and the post-installed categories category1-3.",
+          "title": "Concretetension",
+          "type": "object"
+        },
+        "anchorReinforcement": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Anchorreinforcement",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steelTensionDuctile",
+        "steelShearDuctile",
+        "steelTensionBrittle",
+        "steelShearBrittle",
+        "concreteShear",
+        "concreteTension",
+        "anchorReinforcement"
+      ],
+      "title": "AnchorPhi",
+      "type": "object"
+    },
+    "AnchorPryout": {
+      "additionalProperties": false,
+      "properties": {
+        "shortHef": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Shorthef",
+          "type": "number"
+        },
+        "kcpShort": {
+          "exclusiveMinimum": 0,
+          "title": "Kcpshort",
+          "type": "number"
+        },
+        "kcpLong": {
+          "exclusiveMinimum": 0,
+          "title": "Kcplong",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shortHef",
+        "kcpShort",
+        "kcpLong"
+      ],
+      "title": "AnchorPryout",
+      "type": "object"
+    },
+    "AnchorPullout": {
+      "additionalProperties": false,
+      "properties": {
+        "headed": {
+          "description": "Np = this × Abrg f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Headed",
+          "type": "number"
+        },
+        "hooked": {
+          "description": "Np = this × f'c eh da.",
+          "exclusiveMinimum": 0,
+          "title": "Hooked",
+          "type": "number"
+        },
+        "hookMin": {
+          "description": "eh at least this × da.",
+          "exclusiveMinimum": 0,
+          "title": "Hookmin",
+          "type": "number"
+        },
+        "hookMax": {
+          "description": "eh taken at most this × da.",
+          "exclusiveMinimum": 0,
+          "title": "Hookmax",
+          "type": "number"
+        },
+        "uncracked": {
+          "description": "ψc,P in uncracked concrete.",
+          "exclusiveMinimum": 0,
+          "title": "Uncracked",
+          "type": "number"
+        }
+      },
+      "required": [
+        "headed",
+        "hooked",
+        "hookMin",
+        "hookMax",
+        "uncracked"
+      ],
+      "title": "AnchorPullout",
+      "type": "object"
+    },
+    "AnchorSeismic": {
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "description": "Seismic Design Categories the rules apply in.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "concreteFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concretefactor",
+          "type": "number"
+        },
+        "reducedFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Reducedfactor",
+          "type": "number"
+        },
+        "studWallFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Studwallfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "categories",
+        "concreteFactor",
+        "reducedFactor",
+        "studWallFactor"
+      ],
+      "title": "AnchorSeismic",
+      "type": "object"
+    },
+    "AnchorSideFace": {
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "description": "Nsb = this × ca1 √Abrg λ √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "deepRatio": {
+          "description": "Checked where hef > this × ca1.",
+          "exclusiveMinimum": 0,
+          "title": "Deepratio",
+          "type": "number"
+        },
+        "cornerRatioMax": {
+          "description": "ca2/ca1 below this reduces Nsb.",
+          "exclusiveMinimum": 0,
+          "title": "Cornerratiomax",
+          "type": "number"
+        },
+        "cornerDivisor": {
+          "description": "× (1 + ca2/ca1) / this.",
+          "exclusiveMinimum": 0,
+          "title": "Cornerdivisor",
+          "type": "number"
+        },
+        "groupSpacing": {
+          "description": "Groups with s < this × ca1.",
+          "exclusiveMinimum": 0,
+          "title": "Groupspacing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "deepRatio",
+        "cornerRatioMax",
+        "cornerDivisor",
+        "groupSpacing"
+      ],
+      "title": "AnchorSideFace",
+      "type": "object"
+    },
+    "AnchorSpacing": {
+      "additionalProperties": false,
+      "properties": {
+        "untorquedCastIn": {
+          "description": "Least spacing / da.",
+          "exclusiveMinimum": 0,
+          "title": "Untorquedcastin",
+          "type": "number"
+        },
+        "torqued": {
+          "description": "Least spacing / da, torqued or post-installed.",
+          "exclusiveMinimum": 0,
+          "title": "Torqued",
+          "type": "number"
+        },
+        "edgeTorquedCastIn": {
+          "description": "Least edge / da.",
+          "exclusiveMinimum": 0,
+          "title": "Edgetorquedcastin",
+          "type": "number"
+        },
+        "edgePostInstalled": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Edgepostinstalled",
+          "type": "object"
+        },
+        "criticalEdge": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "cac / hef by post-installed kind.",
+          "title": "Criticaledge",
+          "type": "object"
+        },
+        "postInstalledDepthShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Postinstalleddepthshare",
+          "type": "number"
+        },
+        "postInstalledDepthLess": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Postinstalleddepthless",
+          "type": "number"
+        }
+      },
+      "required": [
+        "untorquedCastIn",
+        "torqued",
+        "edgeTorquedCastIn",
+        "edgePostInstalled",
+        "criticalEdge",
+        "postInstalledDepthShare",
+        "postInstalledDepthLess"
+      ],
+      "title": "AnchorSpacing",
+      "type": "object"
+    },
+    "AnchorSteel": {
+      "additionalProperties": false,
+      "properties": {
+        "futaOfFya": {
+          "description": "futa is at most this × fya.",
+          "exclusiveMinimum": 0,
+          "title": "Futaoffya",
+          "type": "number"
+        },
+        "futaMax": {
+          "description": "futa is at most this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Futamax",
+          "type": "number"
+        },
+        "shearStud": {
+          "description": "Vsa / (Ase futa) of cast-in headed studs.",
+          "exclusiveMinimum": 0,
+          "title": "Shearstud",
+          "type": "number"
+        },
+        "shearBolt": {
+          "description": "Vsa / (Ase futa) of bolts and post-installed anchors.",
+          "exclusiveMinimum": 0,
+          "title": "Shearbolt",
+          "type": "number"
+        },
+        "groutPad": {
+          "description": "Factor on the steel shear with a built-up grout pad.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Groutpad",
+          "type": "number"
+        },
+        "threadConstant": {
+          "description": "Ase = π/4 (da - this / nt)².",
+          "exclusiveMinimum": 0,
+          "title": "Threadconstant",
+          "type": "number"
+        }
+      },
+      "required": [
+        "futaOfFya",
+        "futaMax",
+        "shearStud",
+        "shearBolt",
+        "groutPad",
+        "threadConstant"
+      ],
+      "title": "AnchorSteel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Anchoring to concrete: the strength of cast-in and post-installed anchors in tension and\nshear (steel, breakout, pullout, side-face blowout, pryout), their interaction, the\nseismic rules and the least spacings and edge distances.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "phi": {
+      "$ref": "#/$defs/AnchorPhi"
+    },
+    "steel": {
+      "$ref": "#/$defs/AnchorSteel"
+    },
+    "concreteStrengthMax": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "[MPa] by castIn/postInstalled.",
+      "title": "Concretestrengthmax",
+      "type": "object"
+    },
+    "breakoutTension": {
+      "$ref": "#/$defs/AnchorBreakoutTension"
+    },
+    "pullout": {
+      "$ref": "#/$defs/AnchorPullout"
+    },
+    "sideFace": {
+      "$ref": "#/$defs/AnchorSideFace"
+    },
+    "breakoutShear": {
+      "$ref": "#/$defs/AnchorBreakoutShear"
+    },
+    "pryout": {
+      "$ref": "#/$defs/AnchorPryout"
+    },
+    "interaction": {
+      "$ref": "#/$defs/AnchorInteraction"
+    },
+    "applicability": {
+      "$ref": "#/$defs/AnchorApplicability"
+    },
+    "spacing": {
+      "$ref": "#/$defs/AnchorSpacing"
+    },
+    "seismic": {
+      "$ref": "#/$defs/AnchorSeismic"
+    },
+    "estimates": {
+      "$ref": "#/$defs/AnchorEstimates"
+    }
+  },
+  "required": [
+    "phi",
+    "steel",
+    "concreteStrengthMax",
+    "breakoutTension",
+    "pullout",
+    "sideFace",
+    "breakoutShear",
+    "pryout",
+    "interaction",
+    "applicability",
+    "spacing",
+    "seismic",
+    "estimates"
+  ],
+  "title": "AnchorsTable",
+  "type": "object",
+  "$id": "saengine.codePack.anchors/1"
+}
