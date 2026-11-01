@@ -346,6 +346,65 @@ class WindTable(TableModel):
     cladding: CladdingTable | None = Field(
         default=None, description="Components and cladding pressures; None: not computed."
     )
+    openStructures: OpenStructuresTable | None = Field(
+        default=None,
+        description="Force coefficients of open structures (lattice frameworks, trussed "
+        "towers); None: special structures get no wind.",
+    )
+
+
+class LatticeCfRow(_Row):
+    """Force coefficient Cf of an open sign or lattice framework up to a solidity ratio ε: by
+    member shape, flat-sided or rounded (small and large D√qz)."""
+
+    solidityMax: float = Field(gt=0, le=1, description="Row holds for ε below this.")
+    flat: float = Field(gt=0, description="Cf, flat-sided members.")
+    roundSmall: float = Field(gt=0, description="Cf, rounded members, D√qz up to the limit.")
+    roundLarge: float = Field(gt=0, description="Cf, rounded members, D√qz above the limit.")
+
+
+class TowerCf(_Row):
+    """Cf = a·ε² + b·ε + c of a trussed tower's face."""
+
+    a: float
+    b: float
+    c: float
+
+
+class OpenStructuresTable(_Row):
+    """Design wind loads on other structures, F = qz·G·Cf·Af (BNBC 2020 Part 6 Sec 2.4, the
+    provisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice
+    frameworks, and trussed towers."""
+
+    lattice: list[LatticeCfRow] = Field(min_length=1)
+    roundLimit: float = Field(
+        gt=0, description="D√qz limit between the rounded-member columns, in ft·√psf."
+    )
+    squareTower: TowerCf
+    triangularTower: TowerCf
+    diagonalFactor: tuple[float, float] = Field(
+        description="Square tower, wind on the diagonal: Cf × (1 + k·ε), at most the cap."
+    )
+    roundTower: TowerCf = Field(
+        description="Factor on Cf of a tower of rounded members (a·ε² + b·ε + c), at most 1."
+    )
+
+
+# ─────────────────────────────────────── crane loads ───────────────────────────────────────
+
+
+class CranesTable(TableModel):
+    """Crane loads (BNBC 2020 Part 6 Sec 2.3, crane loads, the provisions of ASCE 7-05 Sec
+    4.10): the vertical impact by kind of crane, the lateral force on the runway beams and the
+    longitudinal force."""
+
+    impact: dict[str, float] = Field(
+        description="Vertical impact: share of the maximum wheel loads added, by crane kind."
+    )
+    lateral: float = Field(
+        gt=0, description="Lateral force: share of the rated capacity plus hoist and trolley."
+    )
+    longitudinal: float = Field(gt=0, description="Longitudinal force: share of the wheel loads.")
 
 
 # ─────────────────────────────────────── materials, factors ───────────────────────────────────────
@@ -1922,6 +1981,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "planning": PlanningTable,
     "timber": TimberTable,
     "masonry": MasonryTable,
+    "cranes": CranesTable,
 }
 
 

@@ -356,6 +356,164 @@
       "title": "FlexibleGustRow",
       "type": "object"
     },
+    "LatticeCfRow": {
+      "additionalProperties": false,
+      "description": "Force coefficient Cf of an open sign or lattice framework up to a solidity ratio ε: by\nmember shape, flat-sided or rounded (small and large D√qz).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "solidityMax": {
+          "description": "Row holds for ε below this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Soliditymax",
+          "type": "number"
+        },
+        "flat": {
+          "description": "Cf, flat-sided members.",
+          "exclusiveMinimum": 0,
+          "title": "Flat",
+          "type": "number"
+        },
+        "roundSmall": {
+          "description": "Cf, rounded members, D√qz up to the limit.",
+          "exclusiveMinimum": 0,
+          "title": "Roundsmall",
+          "type": "number"
+        },
+        "roundLarge": {
+          "description": "Cf, rounded members, D√qz above the limit.",
+          "exclusiveMinimum": 0,
+          "title": "Roundlarge",
+          "type": "number"
+        }
+      },
+      "required": [
+        "solidityMax",
+        "flat",
+        "roundSmall",
+        "roundLarge"
+      ],
+      "title": "LatticeCfRow",
+      "type": "object"
+    },
+    "OpenStructuresTable": {
+      "additionalProperties": false,
+      "description": "Design wind loads on other structures, F = qz·G·Cf·Af (BNBC 2020 Part 6 Sec 2.4, the\nprovisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice\nframeworks, and trussed towers.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "lattice": {
+          "items": {
+            "$ref": "#/$defs/LatticeCfRow"
+          },
+          "minItems": 1,
+          "title": "Lattice",
+          "type": "array"
+        },
+        "roundLimit": {
+          "description": "D√qz limit between the rounded-member columns, in ft·√psf.",
+          "exclusiveMinimum": 0,
+          "title": "Roundlimit",
+          "type": "number"
+        },
+        "squareTower": {
+          "$ref": "#/$defs/TowerCf"
+        },
+        "triangularTower": {
+          "$ref": "#/$defs/TowerCf"
+        },
+        "diagonalFactor": {
+          "description": "Square tower, wind on the diagonal: Cf × (1 + k·ε), at most the cap.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Diagonalfactor",
+          "type": "array"
+        },
+        "roundTower": {
+          "$ref": "#/$defs/TowerCf",
+          "description": "Factor on Cf of a tower of rounded members (a·ε² + b·ε + c), at most 1."
+        }
+      },
+      "required": [
+        "lattice",
+        "roundLimit",
+        "squareTower",
+        "triangularTower",
+        "diagonalFactor",
+        "roundTower"
+      ],
+      "title": "OpenStructuresTable",
+      "type": "object"
+    },
+    "TowerCf": {
+      "additionalProperties": false,
+      "description": "Cf = a·ε² + b·ε + c of a trussed tower's face.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c"
+      ],
+      "title": "TowerCf",
+      "type": "object"
+    },
     "WindDesignCasesRow": {
       "additionalProperties": false,
       "description": "The design wind load cases of the main wind-force resisting system (BNBC 2020 Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
@@ -512,6 +670,18 @@
       ],
       "default": null,
       "description": "Components and cladding pressures; None: not computed."
+    },
+    "openStructures": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpenStructuresTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Force coefficients of open structures (lattice frameworks, trussed towers); None: special structures get no wind."
     }
   },
   "required": [

@@ -74,7 +74,8 @@
     "designCases": "BNBC 2020 Part 6 Sec 2.4.11.3 (p. 559) and Figure 6.2.9 (pp. 574-575)",
     "exposureTerrain": "BNBC 2020 Part 6 Table 6.2.10 (terrain exposure constants, page not checked); ASCE 7-05 Table 6-2 (Exposures B, C, D = BNBC A, B, C)",
     "flexible": "BNBC 2020 Part 6 Sec 2.4.8.2, Eq. 6.2.8-6.2.16 (p. 553, page not checked); ASCE 7-05 Sec 6.5.8.2. Damping β = 2 % for concrete buildings (ASCE 7-05 Commentary C6.5.8; 1 % for steel)",
-    "cladding": "BNBC 2020 Part 6 Sec 2.4.11.5 and the components-and-cladding figures (pages not checked); ASCE 7-05 Figures 6-11A (walls, h ≤ 60 ft), 6-11B (roofs θ ≤ 7°), 6-17 (h > 60 ft, θ ≤ 10°); internal pressure (GCpi): BNBC 2020 Part 6 Figure 6.2.5, ASCE 7-05 Figure 6-5; parapets: ASCE 7-05 Sec 6.5.12.4.4"
+    "cladding": "BNBC 2020 Part 6 Sec 2.4.11.5 and the components-and-cladding figures (pages not checked); ASCE 7-05 Figures 6-11A (walls, h ≤ 60 ft), 6-11B (roofs θ ≤ 7°), 6-17 (h > 60 ft, θ ≤ 10°); internal pressure (GCpi): BNBC 2020 Part 6 Figure 6.2.5, ASCE 7-05 Figure 6-5; parapets: ASCE 7-05 Sec 6.5.12.4.4",
+    "openStructures": "BNBC 2020 Part 6 Sec 2.4 (other structures; page not checked) = ASCE 7-05 Sec 6.5.15, Eq 6-28 and Figures 6-22 (open signs and lattice frameworks), 6-23 (trussed towers)"
   },
   "flexible": {
     "frequencyLimit": 1.0,
@@ -254,5 +255,48 @@
     "edgeMinFraction": 0.04,
     "edgeMin": 0.9,
     "parapetCorner": 0.9
+  },
+  "openStructures": {
+    "source": "BNBC 2020 Part 6 Sec 2.4, design wind loads on other structures (figure numbers and pages to be checked against the BNBC text); the values of ASCE 7-05 Sec 6.5.15, Figures 6-22 and 6-23, which BNBC 2020 Sec 2.4 follows",
+    "lattice": [
+      {
+        "solidityMax": 0.1,
+        "flat": 2.0,
+        "roundSmall": 1.2,
+        "roundLarge": 0.8
+      },
+      {
+        "solidityMax": 0.3,
+        "flat": 1.8,
+        "roundSmall": 1.3,
+        "roundLarge": 0.9
+      },
+      {
+        "solidityMax": 0.7,
+        "flat": 1.6,
+        "roundSmall": 1.5,
+        "roundLarge": 1.1
+      }
+    ],
+    "roundLimit": 2.5,
+    "squareTower": {
+      "a": 4.0,
+      "b": -5.9,
+      "c": 4.0
+    },
+    "triangularTower": {
+      "a": 3.4,
+      "b": -4.7,
+      "c": 3.4
+    },
+    "diagonalFactor": [
+      0.75,
+      1.2
+    ],
+    "roundTower": {
+      "a": 0.51,
+      "b": 0.0,
+      "c": 0.57
+    }
   }
 }

@@ -2107,9 +2107,19 @@ def _derive_fem(
             )
         b.notes.extend(wind_notes)
     if special:
+        wind_open = _open_structure_wind(b, building, types, settings, values, add_element_load)
+        summary.update(wind_open)
+    if settings.cranes:
+        from saengine.fem.cranes import crane_summary
+
+        crane_rows, crane_notes = crane_summary(settings.cranes, types, mats)
+        summary["cranes"] = crane_rows
+        b.notes.extend(crane_notes)
+    if special:
         b.notes.append(
-            "special structure: no equivalent static wind or earthquake loads (they suit "
-            "buildings with floors); gravity loads only for now"
+            "special structure: no equivalent static earthquake loads (they suit buildings "
+            "with floors)"
+            + ("" if wind_open else "; no wind loads (no basic wind speed, or form 'none')")
         )
     elif not heights:
         b.notes.append("no lateral loads: the building has no levels above its base")
@@ -2948,6 +2958,79 @@ def _torsion_forces(
         dx, dy = coords[n][:2] - centre
         out[n] = np.array([-alpha * s * dy, alpha * s * dx, 0.0, 0.0, 0.0, 0.0])
     return out
+
+
+def _open_structure_wind(
+    b: _Builder,
+    building: BuildingModel,
+    types: dict[str, Any],
+    settings: ProjectSettings,
+    values: dict[str, Any],
+    add_element_load: Any,
+) -> dict[str, Any]:
+    """The wind cases WX and WY of a special structure: member loads by force coefficients
+    (:mod:`saengine.fem.open_wind`, BNBC 2020 Part 6 Sec 2.4, other structures). Returns the
+    summary entry ``{"openWind": ...}``, empty when there is no wind."""
+    from saengine.fem import open_wind as ow
+    from saengine.fem.loads import velocity_pressure, wind_factor, wind_overrides
+
+    options = settings.wind.openStructure
+    table = getattr(code_context.table("wind"), "openStructures", None)
+    if not values.get("windSpeed") or options.form == "none":
+        return {}
+    if table is None:
+        b.notes.append(
+            "wind: the code pack has no force coefficients of open structures; the special "
+            "structure has no wind loads"
+        )
+        return {}
+    type_of = {e.id: e.type for e in building.elements if isinstance(e, MemberElement)}
+    members = []
+    unknown: set[str] = set()
+    for index, member in enumerate(b.members):
+        source = member.source.split("/")[0]
+        object_type = types.get(type_of.get(source, ""))
+        width = ow.outer_width(getattr(object_type, "profile", None)) * MM
+        if width <= 0:
+            unknown.add(source)
+            continue
+        members.append(ow.WindMember(index, b.coords[member.i], b.coords[member.j], width))
+    if not members:
+        return {}
+    base = min(float(c[2]) for c in b.coords.values())
+    speed, importance = float(values["windSpeed"]), float(values["windImportance"])
+    with wind_overrides(settings.wind):
+        gust = wind_factor("gust")
+        result = ow.open_structure_wind(
+            members,
+            lambda z: (
+                1000.0 * velocity_pressure(z - base, speed, settings.wind.exposure, importance)
+            ),
+            gust,
+            table,
+            options.form,
+            options.solidity,
+            options.roundMembers,
+        )
+    for case, loads in result.loads.items():
+        for index, vector in loads:
+            add_element_load(case, index, vector)
+    b.notes.extend(f"wind (open structure): {n}" for n in result.notes)
+    if unknown:
+        b.notes.append(
+            f"wind (open structure): {len(unknown)} member(s) without a profile width carry no "
+            "wind (e.g. " + ", ".join(sorted(unknown)[:5]) + ")"
+        )
+    b.notes.append(
+        "wind (open structure): F = qz·G·Cf·Af on every member (BNBC 2020 Part 6 Sec 2.4, other "
+        f"structures; {options.form}, G {gust:g}); "
+        + "; ".join(
+            f"{case}: ε {s['solidity']:g}, Cf {s['Cf']:g}, {s['force_kN']:g} kN"
+            for case, s in result.summary.items()
+        )
+        + ". Panels (cladding) take no wind here"
+    )
+    return {"openWind": {"form": options.form, "gust": gust, "cases": result.summary}}
 
 
 def _wind_loads(

@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "description": "Crane loads (BNBC 2020 Part 6 Sec 2.3, crane loads, the provisions of ASCE 7-05 Sec\n4.10): the vertical impact by kind of crane, the lateral force on the runway beams and the\nlongitudinal force.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "impact": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Vertical impact: share of the maximum wheel loads added, by crane kind.",
+      "title": "Impact",
+      "type": "object"
+    },
+    "lateral": {
+      "description": "Lateral force: share of the rated capacity plus hoist and trolley.",
+      "exclusiveMinimum": 0,
+      "title": "Lateral",
+      "type": "number"
+    },
+    "longitudinal": {
+      "description": "Longitudinal force: share of the wheel loads.",
+      "exclusiveMinimum": 0,
+      "title": "Longitudinal",
+      "type": "number"
+    }
+  },
+  "required": [
+    "impact",
+    "lateral",
+    "longitudinal"
+  ],
+  "title": "CranesTable",
+  "type": "object",
+  "$id": "saengine.codePack.cranes/1"
+}

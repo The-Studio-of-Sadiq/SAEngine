@@ -243,6 +243,94 @@ class Wind(_Model):
         description="Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 "
         "into zone 2; the parapet's own pressures are given too.",
     )
+    openStructure: OpenStructureWind = Field(
+        default_factory=lambda: OpenStructureWind(),
+        title="Open structures",
+        description="Wind on the members of a special structure (trusses, frames, towers, "
+        "canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other "
+        "structures).",
+    )
+
+
+class OpenStructureWind(_Model):
+    """Wind on the members of a special structure by force coefficients (BNBC 2020 Part 6 Sec
+    2.4, design wind loads on other structures: open signs and lattice frameworks, trussed
+    towers; :mod:`saengine.fem.open_wind`)."""
+
+    form: Literal["lattice", "squareTower", "triangularTower", "none"] = Field(
+        default="lattice",
+        description="Lattice: an open framework (trusses, frames); towers: Cf of a trussed "
+        "tower's face; none: no wind on special structures.",
+        json_schema_extra=_labels(
+            ["Lattice framework", "Square trussed tower", "Triangular trussed tower", "None"]
+        ),
+    )
+    solidity: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Solidity ratio ε",
+        description="Solid area over gross area of the face. Empty: from the model, in each "
+        "wind direction (the members' projected area over their projected outline).",
+    )
+    roundMembers: bool = Field(
+        default=False,
+        title="Rounded members",
+        description="Members are round (pipes, rods): the rounded-member coefficients.",
+    )
+
+
+class CraneRunway(_Model):
+    """A bridge or monorail crane on a pair of runway beams (BNBC 2020 Part 6 Sec 2.3, crane
+    loads; :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm."""
+
+    id: Id
+    name: str = ""
+    kind: Literal["cabOperated", "remoteOperated", "pendantOperated", "handGeared", "monorail"] = (
+        Field(
+            default="pendantOperated",
+            description="Sets the vertical impact.",
+            json_schema_extra=_labels(
+                [
+                    "Cab-operated bridge crane (25 %)",
+                    "Remotely operated bridge crane (25 %)",
+                    "Pendant-operated bridge crane (10 %)",
+                    "Hand-geared bridge crane (0 %)",
+                    "Powered monorail (25 %)",
+                ]
+            ),
+        )
+    )
+    capacity: float = Field(gt=0, description="Rated capacity [kN].")
+    bridgeWeight: float = Field(ge=0, title="Bridge weight", description="Crane bridge [kN].")
+    trolleyWeight: float = Field(
+        ge=0, title="Hoist and trolley weight", description="Hoist and trolley [kN]."
+    )
+    span: float = Field(gt=0, description="Between the rail centre lines [mm].")
+    hookApproach: float = Field(
+        default=1000,
+        ge=0,
+        title="Hook approach",
+        description="Closest the hook comes to a rail [mm].",
+    )
+    wheels: int = Field(default=2, ge=1, le=4, description="Wheels on each rail.")
+    wheelBase: float = Field(
+        default=3000, ge=0, title="Wheel base", description="Between the wheels on a rail [mm]."
+    )
+    runwaySpan: float = Field(
+        gt=0,
+        title="Runway beam span",
+        description="Between the columns (the bay), simply supported runway beams [mm].",
+    )
+    railLevel: float | None = Field(
+        default=None, title="Rail level", description="Top of the rail [mm], for the report."
+    )
+    beamType: Id | None = Field(
+        default=None,
+        title="Runway beam type",
+        description="Steel beam type of the runway beams, checked for the wheel loads; empty: "
+        "loads only.",
+    )
 
 
 class Pushover(_Model):
@@ -1169,6 +1257,12 @@ class ProjectSettings(_Model):
     )
     roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
     combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
+    cranes: list[CraneRunway] = Field(
+        default_factory=list,
+        title="Crane runways",
+        description="Overhead and monorail cranes: wheel loads with impact, lateral and "
+        "longitudinal forces, runway beam checks and the loads on the columns.",
+    )
     analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
     foundation: Foundation = Field(
         default_factory=Foundation,

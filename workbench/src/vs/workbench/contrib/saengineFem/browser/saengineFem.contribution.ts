@@ -862,6 +862,35 @@ registerPlannedFeature({
 	],
 });
 
+// T30: cold-formed steel purlins and girts. BNBC 2020 Part 6 Chapter 10 covers hot-rolled and
+// built-up members only; cold-formed sections need AISI S100.
+registerPlannedFeature({
+	id: FemPlanned.coldFormedSteel,
+	part: 'fem',
+	title: localize('planned.coldFormed.title', "Cold-Formed Purlins and Girts"),
+	summary: localize('planned.coldFormed.summary', "Designs cold-formed C and Z purlins and girts of steel sheds: effective section properties of thin, slender elements, flexure with lateral-torsional and distortional buckling, the restraint from the sheeting, laps and continuity over the frames, and the wind uplift case."),
+	steps: [
+		localize('planned.coldFormed.step1', "Pick a C or Z section from the cold-formed section table, its span arrangement (simple, lapped or continuous) and the sag rods."),
+		localize('planned.coldFormed.step2', "Take the roof and wall loads with the wind pressure and uplift from the cladding areas."),
+		localize('planned.coldFormed.step3', "Work out the effective section, then check flexure, shear, web crippling at the supports and the combined actions, for downward load and uplift."),
+		localize('planned.coldFormed.step4', "Check the deflection and list the purlins and girts with their sizes for the BOQ."),
+	],
+	inputs: [
+		{ label: localize('planned.coldFormed.section', "Section"), example: 'Z200×2.0' },
+		{ label: localize('planned.coldFormed.spacing', "Spacing"), unit: 'mm', example: '1500' },
+		{ label: localize('planned.coldFormed.continuity', "Continuity"), example: localize('planned.coldFormed.continuityExample', "Lapped over the frames") },
+		{ label: localize('planned.coldFormed.restraint', "Sheeting restraint"), example: localize('planned.coldFormed.restraintExample', "Through-fastened sheeting") },
+	],
+	outputs: [
+		localize('planned.coldFormed.out1', "Purlin and girt design ratios for gravity and uplift"),
+		localize('planned.coldFormed.out2', "A purlin and girt schedule"),
+	],
+	references: [
+		localize('planned.coldFormed.ref1', "BNBC 2020 Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions)"),
+		localize('planned.coldFormed.ref2', "AISI S100 (North American specification for cold-formed steel structural members)"),
+	],
+});
+
 // Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
 // model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
 registerPlannedFeature({

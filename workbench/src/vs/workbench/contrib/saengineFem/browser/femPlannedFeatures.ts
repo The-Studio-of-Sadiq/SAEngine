@@ -56,6 +56,8 @@ export const FemPlanned = {
 	directAnalysis: 'fem.directAnalysis',
 	steelSeismic: 'fem.steelSeismic',
 	steelTorsion: 'fem.steelTorsion',
+	/** T30: cold-formed purlins and girts (AISI S100). */
+	coldFormedSteel: 'fem.coldFormedSteel',
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */
@@ -63,6 +65,9 @@ export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlat
 
 /** The planned steel stability and seismic features, shown with the steel members' checks. */
 export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.directAnalysis, FemPlanned.steelSeismic, FemPlanned.steelTorsion];
+
+/** The planned steel shed features (cold-formed purlins and girts), shown with the steel members' checks. */
+export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedSteel];
 
 /**
  * A row of "Planned" chips, under a Properties panel heading when `heading` is given. The
