@@ -729,6 +729,26 @@ def _serviceability_blocks(sv: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
+    """B15: seismic forces on nonstructural components and the anchorage of structural walls."""
+    if not ns:
+        return []
+    out: list[Block] = [h(2, str(ns.get("title") or "Nonstructural components"))]
+    if ns.get("intro"):
+        out.append(p(str(ns["intro"])))
+    if ns.get("rows"):
+        n = len(ns["headers"])
+        out.append(table(ns["headers"], ns["rows"], ["1fr"] + ["auto"] * (n - 1), "l" * n))
+    if ns.get("anchorage"):
+        n = len(ns["anchorageHeaders"])
+        out.append(
+            table(ns["anchorageHeaders"], ns["anchorage"], ["1fr"] + ["auto"] * (n - 1), "l" * n)
+        )
+    if ns.get("notes"):
+        out.append(bullets([str(n) for n in ns["notes"]], 8.5))
+    return out
+
+
 def _irregularity_blocks(ir: dict[str, Any]) -> list[Block]:
     """B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections."""
     if not ir:
@@ -858,6 +878,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out.append(bullets(results["notes"], 8.5))
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _irregularity_blocks(results.get("irregularity") or {})
+    out += _nonstructural_blocks(results.get("nonstructural") or {})
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

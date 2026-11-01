@@ -1498,6 +1498,8 @@ def _results(
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
+    # B15: seismic forces on nonstructural components and the anchorage of structural walls.
+    out["nonstructural"] = _nonstructural(parts.root, warnings)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     return out
@@ -1576,6 +1578,19 @@ def _serviceability(model_path: Path, results_dir: Path, warnings: list[str]) ->
         "overturningNote": over.get("note", ""),
         "notes": list(wind.get("notes") or []),
     }
+
+
+def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """B15: the section on nonstructural components (:func:`saengine.design.nonstructural.
+    report_section`); None when the project has none, or when it cannot be computed (a
+    warning)."""
+    from saengine.design import nonstructural
+
+    try:
+        return nonstructural.report_section(root)
+    except Exception as e:  # noqa: BLE001 - one section must not stop the report
+        warnings.append(f"Nonstructural components: not computed ({e}).")
+        return None
 
 
 def _irregularity(
