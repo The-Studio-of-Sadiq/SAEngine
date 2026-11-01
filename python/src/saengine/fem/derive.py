@@ -100,6 +100,9 @@ UNITS = "SI (m, N, kg, s, Pa)"
 #: Substructure, :mod:`saengine.substructure.basement_loads`). The temperature case T is added after them when the settings
 #: ask for it (:mod:`saengine.fem.thermal`).
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
+#: B16: the rain case R on the roof (Site → Rain) and the flood and surge cases FaX, FaY (Site
+#: → Flood and surge, :mod:`saengine.fem.flood`); after the crane cases, only when loaded.
+SPECIAL_CASES = ("R", "FaX", "FaY")
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -128,6 +131,8 @@ _CASE_LABELS = {
     "EYN": "Earthquake in Y, masses shifted -5 % along X",
     "WTX": "Torsion of the wind in X (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
     "WTY": "Torsion of the wind in Y (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
+    "FaX": "Flood and surge along X (with the wind along X)",
+    "FaY": "Flood and surge along Y (with the wind along Y)",
 }
 
 #: Seismic weight (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628): live loads above 3 kN/m² (the pack's
@@ -1295,6 +1300,9 @@ def _derive_fem(
 
     # ── loads ──
     patterns: dict[str, dict[str, Any]] = {case: {"nodal": {}, "element": {}} for case in CASES}
+    # B16: the rain case R and the flood cases FaX, FaY (only in the model when loaded).
+    for case in SPECIAL_CASES:
+        patterns[case] = {"nodal": {}, "element": {}}
     node_weight: dict[int, float] = {}  # N, D + SD + share of L, for masses and lateral forces
 
     # Construction sequence: the self-weight (D) also goes, per element, to the stage of the
@@ -1583,6 +1591,28 @@ def _derive_fem(
             shell_pressure(shell, "SD", (area_load.finish + area_load.partitions) * 1e3)
             shell_pressure(shell, "L", area_load.live * 1e3)
     top = levels[-1] if levels else 0.0
+    # B16: the rain load R on the roof and a helicopter landing area (saengine.fem.special_loads).
+    from saengine.fem import special_loads as spl
+
+    try:
+        rain_kpa = spl.project_rain_load(settings)
+        helipad = spl.helipad_loads(getattr(settings.site, "helipad", None))
+    except Exception as error:  # noqa: BLE001 - a pack without the rule: no such loads
+        rain_kpa, helipad = None, None
+        b.notes.append(f"rain and helipad loads: not applied ({error})")
+    helipad_slabs = set(getattr(getattr(settings.site, "helipad", None), "slabs", None) or [])
+    if rain_kpa:
+        b.notes.append(
+            f"rain R = {rain_kpa:.2f} kN/m² on the roof slabs (primary drains blocked, water "
+            "to the secondary drainage); the combinations take R in place of Lr"
+        )
+    if helipad is not None:
+        b.notes.append(
+            f"helicopter landing area: L3 = {helipad['L3_kPa']:g} kN/m² as the live load of "
+            f"its slabs; L1 = {helipad['L1_kN']:g} kN on the contact areas and L2 = "
+            f"{helipad['L2_kN']:g} kN (k = {helipad['k']:g}) on {helipad['patch_mm']:g} mm "
+            "square anywhere on it for the slab's local design (reported)"
+        )
     story_of_level = {round(st.elevation): st.id for st in building.stories}
     walled = arch_set.walled if arch_set is not None and partition_mode != "allowance" else set()
     if arch_set is not None:
@@ -1625,11 +1655,16 @@ def _derive_fem(
         live_case = "Lr" if roof else "L"
         finish = area_load.finish if area_load else 0.0
         live = area_load.live if area_load else 0.0
+        # B16: a helicopter landing area's distributed live load L3 where it is larger.
+        if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
+            live = max(live, helipad["L3_kPa"])
         pressures = {
             "D": self_weight,
             "SD": (finish + partitions) * 1e3,
             live_case: live * 1e3,
         }
+        if roof and rain_kpa:
+            pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
 
         def room_pressures(
             room: Any,
@@ -1646,7 +1681,7 @@ def _derive_fem(
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
             for case, pressure in pressures.items():
-                if case != "D" and rooms_here:
+                if case not in ("D", "R") and rooms_here:
                     continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
@@ -2161,6 +2196,29 @@ def _derive_fem(
                 settings=settings.wind,
             )
         b.notes.extend(wind_notes)
+    # ── B16: flood and surge (cases FaX, FaY; saengine.fem.flood) ──
+    if heights and settings.site.flood.zone != "none":
+        b.notes.extend(
+            _flood_loads(
+                b,
+                building,
+                types,
+                heights,
+                base_m,
+                level_nodes,
+                retained_of,
+                level_shares,
+                patterns,
+                summary,
+                settings,
+                node_parts,
+            )
+        )
+    # ── B16: rain, helipad, gas explosions and air raid shelters (summary and report) ──
+    special_loads, special_notes = _special_loads_summary(settings, rain_kpa, helipad)
+    if special_loads:
+        summary["specialLoads"] = special_loads
+    b.notes.extend(special_notes)
     if special:
         wind_open = _open_structure_wind(
             b, building, types, settings, values, add_element_load, patterns
@@ -2348,6 +2406,12 @@ def _derive_fem(
     # The moving crane load cases (saengine.fem.cranes) after them.
     cases += [code for code, _ in crane_cases]
     extra_labels.update(dict(crane_cases))
+    # B16: the rain case R and the flood cases FaX, FaY when they have loads.
+    cases += [
+        c
+        for c in SPECIAL_CASES
+        if c in patterns and (patterns[c]["nodal"] or patterns[c]["element"])
+    ]
     # The release cases of the tension-only members (saengine.fem.tension_only): a unit pair of
     # forces pulling each such element's ends apart, last so the other cases keep their ids.
     for code, element_name, pair in tension_only_cases(elements, b.coords, tension_sources):
@@ -3390,6 +3454,202 @@ def _free_roof_wind(
             )
         )
     return {"cladWind": {**s, "labels": result.labels}}
+
+
+def _profile_width(profile: Any) -> tuple[float, bool]:
+    """(width facing the water [m], round) of a column's profile: a circle's diameter, else
+    the larger side (on the safe side)."""
+    radius = getattr(profile, "radius", None)
+    if radius:
+        return 2 * float(radius) * MM, True
+    sides = [
+        float(getattr(profile, name, 0) or 0)
+        for name in ("xDim", "yDim", "overallWidth", "overallDepth", "width", "depth")
+    ]
+    return max(sides) * MM, False
+
+
+def _special_loads_summary(
+    settings: Any, rain_kpa: float | None, helipad: dict[str, Any] | None
+) -> tuple[dict[str, Any], list[str]]:
+    """The miscellaneous loads of :mod:`saengine.fem.special_loads` for the summary: the rain
+    load R, the helicopter landing area, the gas explosion rooms and the air raid shelter."""
+    from saengine.fem import special_loads as spl
+    from saengine.fem.flood import FloodNotCovered
+
+    out: dict[str, Any] = {}
+    notes: list[str] = []
+    if rain_kpa:
+        out["rain_kPa"] = rain_kpa
+    if helipad is not None:
+        out["helipad"] = helipad
+    site = settings.site
+    try:
+        rooms = []
+        for room in getattr(site, "explosionRooms", None) or []:
+            found = spl.explosion_pressure(room.ventArea, room.volume)
+            rooms.append({"name": room.name, **found})
+            notes.append(
+                f"gas explosion in {room.name}: A0/v = {found['ratio']:.3f} 1/m, q0 = "
+                f"{found['q0_kPa']:.0f} kN/m², design {found['design_kPa']:.0f} kN/m² as a "
+                "static pressure on all its walls and floors at once (reported for their design)"
+                + "".join(f"; {n}" for n in found["notes"])
+            )
+        if rooms:
+            out["explosionRooms"] = rooms
+        shelter = getattr(site, "airRaidShelter", None)
+        if shelter is not None:
+            mean = shelter.meanLive
+            if mean is None:
+                floor = next((a for a in settings.areaLoads if a.id == settings.floorLoad), None)
+                mean = float(floor.live) if floor is not None else 0.0
+            found = spl.shelter_load(shelter.storeysAbove, shelter.stableConstruction, mean)
+            out["airRaidShelter"] = {"storeys": shelter.storeysAbove, **found}
+            notes.append(
+                f"air raid shelter under {shelter.storeysAbove} storey(s): characteristic "
+                f"vertical load {found['load_kPa']:.1f} kN/m² on its roof slab (reported)"
+            )
+        if out:
+            from saengine.fem.flood import table as flood_table
+
+            out["sources"] = dict(flood_table().sources)
+    except FloodNotCovered as error:
+        notes.append(f"explosion and shelter loads: {error}")
+    return out, notes
+
+
+def _flood_loads(
+    b: _Builder,
+    building: Any,
+    types: dict[str, Any],
+    heights: list[float],
+    base_m: float,
+    level_nodes: dict[float, list[int]],
+    retained_of: dict[float, int],
+    level_shares: Any,
+    patterns: dict[str, dict[str, Any]],
+    summary: dict[str, Any],
+    settings: Any,
+    node_parts: dict[int, dict[str, float]],
+) -> list[str]:
+    """The flood and surge cases FaX and FaY (:func:`saengine.fem.flood.flood_loads`) into
+    ``patterns``, shared among each level's nodes like the wind, at the centre of the level's
+    face; the summary's ``flood`` (the design flood, the loads, the stability of the building
+    under the wind and the flood together, dead load only); returns the notes."""
+    from saengine.fem import flood as ff
+
+    flood = settings.site.flood
+    try:
+        data = ff.table()
+    except ff.FloodNotCovered:
+        return ["flood and surge: not covered by the code pack in force; no flood loads"]
+    ground = float(flood.groundElevation) * MM if flood.groundElevation is not None else base_m
+    kept = [h for h in heights if h - ground > 1e-9]
+    rel = [h - ground for h in kept]
+    extents = {}
+    for h in kept:
+        xy = np.array([b.coords[n][:2] for n in level_nodes[h]], dtype=float)
+        extents[h] = (xy.min(axis=0), xy.max(axis=0))
+    widths = {
+        axis: [float(extents[h][1][1 - axis] - extents[h][0][1 - axis]) for h in kept]
+        for axis in (0, 1)
+    }
+    columns = []
+    for element in building.elements:
+        if getattr(element, "kind", None) != "column":
+            continue
+        width, round_ = _profile_width(getattr(types.get(element.type), "profile", None))
+        if width > 0:
+            columns.append((element.bottom * MM - ground, element.top * MM - ground, width, round_))
+    depth, loads, flood_summary, notes = ff.flood_loads(
+        flood, settings.occupancy.category, rel, widths, columns, data
+    )
+    if depth is None:
+        return notes
+    for load in loads:
+        case = "FaX" if load.axis == 0 else "FaY"
+        across = 1 - load.axis
+        target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
+        for h, force_kn in zip(kept, load.level_forces, strict=True):
+            if not force_kn:
+                continue
+            shares = level_shares(h)
+            total = sum(shares.values())
+            centre = sum(b.coords[n][:2] * s for n, s in shares.items()) / total
+            force = force_kn * 1e3  # kN -> N
+            for node_id, share in shares.items():
+                target.setdefault(node_id, np.zeros(6))[load.axis] += force * share
+            lo, hi = extents[h]
+            offset = float(lo[across] + hi[across]) / 2 - float(centre[across])
+            couple = force * offset * (-1 if load.axis == 0 else 1)
+            for node_id, vector in _torsion_forces(
+                b.coords, shares, retained_of.get(h), couple
+            ).items():
+                target.setdefault(node_id, np.zeros(6))[:] += vector
+        flood_summary[f"levels{'XY'[load.axis]}"] = load.rows
+    # Overturning and sliding under the (service) wind and the flood together, dead load only.
+    dead = 0.0
+    moment = np.zeros(2)
+    xy_all = []
+    for node_id, parts in node_parts.items():
+        w = parts.get("D", 0.0) + parts.get("SD", 0.0)
+        dead += w
+        moment += w * b.coords[node_id][:2]
+        xy_all.append(b.coords[node_id][:2])
+    if dead > 0 and xy_all:
+        centre = moment / dead
+        lo = np.min(np.array(xy_all), axis=0)
+        hi = np.max(np.array(xy_all), axis=0)
+        lever = {
+            axis: float(min(centre[axis] - lo[axis], hi[axis] - centre[axis])) for axis in (0, 1)
+        }
+        wind_levels = (summary.get("wind") or {}).get("levels") or {}
+        lateral: dict[int, list[tuple[float, float]]] = {}
+        for load in loads:
+            rows = [(f, z) for f, z in zip(load.level_forces, rel, strict=True)]
+            wind = wind_levels.get("WX" if load.axis == 0 else "WY") or []
+            rows += [(float(r["force_kN"]), float(r["z"]) - ground) for r in wind]
+            lateral[load.axis] = rows
+        flood_summary["stability"] = ff.stability(lateral, dead / 1e3, lever, data)
+        for row in flood_summary["stability"]:
+            notes.append(
+                f"flood: overturning under W + Fa along {row['direction']}, dead load only: "
+                f"FS = {row['factor']:.2f} (at least {row['required']:g}"
+                + ("" if row["ok"] else ", NOT MET")
+                + f"); sliding needs a friction coefficient of {row['slidingFriction']:.2f} "
+                "at the foundations"
+            )
+        # Flotation of a dry floodproofed building (substructure: the buoyancy with Hm).
+        from saengine.substructure.loads import flood_uplift
+
+        base_xy = np.array(
+            [b.coords[n][:2] for n in b.restraints if abs(b.coords[n][2] - base_m) < 1e-6] or xy_all
+        )
+        area = float(np.prod(base_xy.max(axis=0) - base_xy.min(axis=0)))
+        floating = flood_uplift(
+            dead / 1e3, area, depth.hm, max(0.0, ground - base_m), depth.gamma, flood.floodOpenings
+        )
+        if floating is not None:
+            flood_summary["flotation"] = floating
+            notes.append(
+                f"flood: buoyancy {floating['U_kN']:.0f} kN on the {area:.0f} m² plan of a dry "
+                f"floodproofed building against its dead load {floating['dead_kN']:.0f} kN: "
+                f"factor {floating['factor']:.2f} (at least {floating['required']:g}"
+                + ("" if floating["ok"] else ", NOT MET")
+                + ")"
+            )
+    notes.insert(
+        0,
+        f"flood and surge ({depth.kind}, {depth.period}-year): Hm = {depth.hm:.2f} m above the "
+        f"ground; FaX {flood_summary.get('totalX_kN', 0.0):.0f} kN, FaY "
+        f"{flood_summary.get('totalY_kN', 0.0):.0f} kN (with the wind in the combinations of "
+        f"a flood zone); hydrostatic pressure at the ground "
+        f"{flood_summary.get('hydrostaticBase_kPa', 0.0):.1f} kN/m² on the walls (free water, "
+        f"Hm + {float(data.freeWaterIncrease):g} m) and the buoyancy go to the walls and "
+        "foundations",
+    )
+    summary["flood"] = flood_summary
+    return notes
 
 
 def _wind_loads(

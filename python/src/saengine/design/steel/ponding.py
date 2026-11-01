@@ -14,8 +14,9 @@ Two methods, both from the pack's ``ponding`` data:
   (secondary members on an infinitely stiff support) use Figure 6.10.2 with Cp = 0; a metal
   deck on beams is a secondary member of 1 m width (S = 1).
 
-The rain load R comes from the user (or the rain load of the project once it is built): the
-methods only check the stiffness and the stress indexes given. Units: m for the spans and
+The rain load R is the project's (Site → Rain: :func:`saengine.fem.special_loads.
+project_rain_load`, the analysis case R on the roof), so fo is the stress of the analysis
+under D + R; the methods only check the stiffness and the stress indexes given. Units: m for the spans and
 spacing, mm⁴ for the inertias, MPa for the stresses.
 """
 

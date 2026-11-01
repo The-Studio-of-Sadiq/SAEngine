@@ -5773,6 +5773,41 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'AdjacentStructure',
 			type: 'object',
 		},
+		AirRaidShelter: {
+			additionalProperties: false,
+			description: 'An air raid shelter below the building (basement).',
+			properties: {
+				storeysAbove: {
+					description: 'Usable storeys above it.',
+					minimum: 0,
+					title: 'Storeys above',
+					type: 'integer',
+				},
+				stableConstruction: {
+					default: true,
+					description: 'Bearing structure of reinforced in-situ concrete.',
+					title: 'Particularly stable construction',
+					type: 'boolean',
+				},
+				meanLive: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mean live load of the storeys above [kN/m²]; empty: the floors\' area load.',
+					title: 'Mean live load above',
+				},
+			},
+			required: ['storeysAbove'],
+			title: 'AirRaidShelter',
+			type: 'object',
+		},
 		Analysis: {
 			additionalProperties: false,
 			description: 'How the analysis model (Part 8) represents the building.',
@@ -6890,6 +6925,32 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Drawings',
 			type: 'object',
 		},
+		ExplosionRoom: {
+			additionalProperties: false,
+			description: 'A room where a gas explosion is to be designed for (internal overpressure).',
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				ventArea: {
+					description: '[m²]',
+					exclusiveMinimum: 0,
+					title: 'Window area A0',
+					type: 'number',
+				},
+				volume: {
+					description: '[m³]',
+					exclusiveMinimum: 0,
+					title: 'Room volume v',
+					type: 'number',
+				},
+			},
+			required: ['name', 'ventArea', 'volume'],
+			title: 'ExplosionRoom',
+			type: 'object',
+		},
 		ExtraMass: {
 			additionalProperties: false,
 			description: 'A weight added to the seismic mass of a story (equipment not modelled, a tank\'s water).',
@@ -6989,6 +7050,180 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'FireResistance',
 			type: 'object',
 		},
+		FloodSite: {
+			additionalProperties: false,
+			description: 'Flood and surge at the site: the loads Fa on the structure (hydrodynamic and wave\nloads, in the wind\'s direction), the hydrostatic pressure and the buoyancy for the walls\nand foundations, and the combinations of a flood or tidal surge zone.',
+			properties: {
+				zone: {
+					default: 'none',
+					description: 'Inland: riverine flood. Coastal: the cyclone storm surge risk areas of the code\'s coastal map (risk area, or the high risk strip and the off-shore islands).',
+					enum: ['none', 'inland', 'coastalRisk', 'coastalHighRisk'],
+					enumDescriptions: ['Not in a flood or surge zone', 'Inland flood', 'Coastal risk area', 'Coastal high risk area'],
+					title: 'Flood zone',
+					type: 'string',
+				},
+				groundLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation of the ground at the site [m above the datum of the water levels].',
+					title: 'Ground level yg',
+				},
+				floodLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Inland: the flood elevation of the return period the occupancy category asks for [m above the datum]; coastal: a site-specific extreme water level yT that replaces the location\'s.',
+					title: 'Flood level',
+				},
+				surgeRegion: {
+					anyOf: [
+						{
+							enum: ['teknafCoxsBazar', 'chakariaAnwara', 'chittagongNoakhali', 'sandwipHatiya', 'bholaBarguna', 'sarankholaShyamnagar'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The coastal region of the design surge height at the sea coast hT.',
+					enumDescriptions: ['Teknaf to Cox\'s Bazar', 'Chakaria to Anwara, and Maheshkhali-Kutubdia Islands', 'Chittagong to Noakhali', 'Sandwip, Hatiya and all islands in this region', 'Bhola to Barguna', 'Sarankhola to Shyamnagar'],
+					title: 'Coastal region',
+				},
+				distance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'From the spring tide high-water limit on the sea coast [km].',
+					title: 'Distance from the coast',
+				},
+				surgeHeight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A site-specific maximum surge height [m] in place of the coastal region\'s.',
+					title: 'Surge height hs',
+				},
+				waterLevelStation: {
+					anyOf: [
+						{
+							enum: ['teknaf', 'coxsBazar', 'shaflapur', 'lemsikhali', 'banigram', 'chittagong', 'patenga', 'sonapur', 'sandwip', 'companyganj', 'hatiya', 'daulatkhan', 'dashmina', 'galachipa', 'patuakhali', 'khepupara', 'bamna', 'patharghata', 'raenda', 'chardouni', 'mongla', 'kobodak', 'kaikhali'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The nearest coastal location of the extreme surface water levels yT.',
+					enumDescriptions: ['Teknaf', 'Cox\'s Bazar', 'Shaflapur', 'Lemsikhali', 'Banigram', 'Chittagong', 'Patenga', 'Sonapur', 'Sandwip', 'Companyganj', 'Hatiya', 'Daulatkhan', 'Dashmina', 'Galachipa', 'Patuakhali', 'Khepupara', 'Bamna', 'Patharghata', 'Raenda', 'Chardouni', 'Mongla', 'Kobodak (river estuary)', 'Kaikhali'],
+					title: 'Water level location',
+				},
+				velocity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Average velocity of the flood water [m/s]. Empty: the upper estimate √(g ds) of the code (coastal); inland, no moving water.',
+					title: 'Water velocity V',
+				},
+				dragCoefficient: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Shape factor of the equivalent surcharge depth; empty: the code\'s least.',
+					title: 'Drag coefficient a',
+				},
+				saltWater: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unit weight of salt water. Empty: salt in coastal zones, fresh inland.',
+					title: 'Salt water',
+				},
+				floodOpenings: {
+					default: false,
+					description: 'The enclosed spaces below the flood level let water in and out (wet floodproofing): reduced uplift and lateral loads; columns, not walls, take the waves. Off: a dry floodproofed building, with buoyancy and the full hydrostatic pressure.',
+					title: 'Openings for flood water',
+					type: 'boolean',
+				},
+				groundElevation: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation of the ground surface in the building model [mm]; empty: the base of the model.',
+					title: 'Ground in the model',
+				},
+				channelWidth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Width of the upstream flow channel within 30 m of the building [m], for the debris impact load; empty: no blockage reduction.',
+					title: 'Upstream channel width',
+				},
+			},
+			title: 'FloodSite',
+			type: 'object',
+		},
 		Foundation: {
 			additionalProperties: false,
 			description: 'Soil values of the footing design. The net allowable bearing pressure of each footing\ncomes from 1 Soil Report (its nearest boreholes, at the footing\'s founding level and size)\nunless it is overridden here.',
@@ -7022,6 +7257,43 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Foundation',
+			type: 'object',
+		},
+		Helipad: {
+			additionalProperties: false,
+			description: 'A helicopter landing or touch-down area.',
+			properties: {
+				slabs: {
+					description: 'Slabs of the landing area; empty: the roof slabs.',
+					items: {
+						type: 'string',
+					},
+					title: 'Slabs',
+					type: 'array',
+				},
+				weight: {
+					default: 0.0,
+					description: '[kN]',
+					minimum: 0,
+					title: 'Helicopter weight W1',
+					type: 'number',
+				},
+				loadedWeight: {
+					default: 0.0,
+					description: '[kN]',
+					minimum: 0,
+					title: 'Fully loaded weight W2',
+					type: 'number',
+				},
+				gear: {
+					default: 'rigid',
+					enum: ['hydraulic', 'rigid'],
+					enumDescriptions: ['Hydraulic shock absorbers', 'Rigid or skid-type landing gear'],
+					title: 'Landing gear',
+					type: 'string',
+				},
+			},
+			title: 'Helipad',
 			type: 'object',
 		},
 		LoadCombination: {
@@ -7112,6 +7384,18 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Factor on the lateral earth and groundwater pressure on the basement walls (case H, 9 Substructure), as the code pack\'s combination gives it. Empty (older files): 1.6 in the combinations with 1.6L and in the 0.9D ones, else 0.',
 					title: 'H',
+				},
+				FaX: {
+					default: 0,
+					description: 'Factor on the flood and surge load along X (Site → Flood and surge), acting with the wind along X.',
+					title: 'FaX',
+					type: 'number',
+				},
+				FaY: {
+					default: 0,
+					description: 'The same along Y.',
+					title: 'FaY',
+					type: 'number',
 				},
 			},
 			required: ['name'],
@@ -7397,6 +7681,34 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Pushover',
+			type: 'object',
+		},
+		RainSite: {
+			additionalProperties: false,
+			description: 'Rain on the roof with its primary drains blocked (case R).',
+			properties: {
+				depth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth of rainwater on the undeflected roof [mm] up to the inlet of the secondary (overflow) drainage, or to the top of the parapet where there is none. Empty: no rain case R.',
+					title: 'Water depth to the secondary drains',
+				},
+				controlledDrainage: {
+					default: false,
+					description: 'The roof has controlled drainage: the code\'s allowance is added.',
+					title: 'Controlled drainage',
+					type: 'boolean',
+				},
+			},
+			title: 'RainSite',
 			type: 'object',
 		},
 		Report: {
@@ -7691,6 +8003,46 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Overrides the location\'s value [m/s] (BNBC 2020 Table 6.2.8).',
 					title: 'Basic wind speed',
+				},
+				flood: {
+					$ref: '#/$defs/FloodSite',
+					title: 'Flood and surge',
+				},
+				rain: {
+					$ref: '#/$defs/RainSite',
+					title: 'Rain',
+				},
+				helipad: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Helipad',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Helicopter landing area',
+				},
+				explosionRooms: {
+					description: 'Rooms designed for an internal gas explosion (walls and floors).',
+					items: {
+						$ref: '#/$defs/ExplosionRoom',
+					},
+					title: 'Gas explosion rooms',
+					type: 'array',
+				},
+				airRaidShelter: {
+					anyOf: [
+						{
+							$ref: '#/$defs/AirRaidShelter',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Air raid shelter',
 				},
 			},
 			title: 'Site',
@@ -8143,6 +8495,14 @@ export const DEFAULT_SETTINGS: object = {
 		location: 'dhaka',
 		siteClassSource: 'soilReport',
 		siteClass: 'SD',
+		flood: {
+			zone: 'none',
+			floodOpenings: false,
+		},
+		rain: {
+			controlledDrainage: false,
+		},
+		explosionRooms: [],
 	},
 	seismic: {
 		system: 'rcSmf',
@@ -8210,6 +8570,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.4,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6L + 0.5Lr',
@@ -8224,6 +8586,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 1.0L',
@@ -8238,6 +8602,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WX',
@@ -8252,6 +8618,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WX)',
@@ -8266,6 +8634,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WY',
@@ -8280,6 +8650,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WY)',
@@ -8294,6 +8666,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WX + 1.0L + 0.5Lr',
@@ -8308,6 +8682,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WX) + 1.0L + 0.5Lr',
@@ -8322,6 +8698,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WY + 1.0L + 0.5Lr',
@@ -8336,6 +8714,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WY) + 1.0L + 0.5Lr',
@@ -8350,6 +8730,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EX + 1.0L',
@@ -8364,6 +8746,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EX) + 1.0L',
@@ -8378,6 +8762,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EY + 1.0L',
@@ -8392,6 +8778,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EY) + 1.0L',
@@ -8406,6 +8794,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WX',
@@ -8420,6 +8810,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WX)',
@@ -8434,6 +8826,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WY',
@@ -8448,6 +8842,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WY)',
@@ -8462,6 +8858,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EX',
@@ -8476,6 +8874,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EX)',
@@ -8490,6 +8890,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EY',
@@ -8504,6 +8906,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EY)',
@@ -8518,6 +8922,8 @@ export const DEFAULT_SETTINGS: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 	],
 	cranes: [],
@@ -8645,6 +9051,8 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		ST: 0.0,
 		F: 1.2,
 		H: 1.6,
+		FaX: 0.0,
+		FaY: 0.0,
 	},
 	{
 		name: '1.2D - 1.2T + 1.6L + 0.5Lr',
@@ -8659,6 +9067,8 @@ export const THERMAL_COMBINATIONS: readonly object[] = [
 		ST: 0.0,
 		F: 1.2,
 		H: 1.6,
+		FaX: 0.0,
+		FaY: 0.0,
 	},
 ];
 
@@ -8676,6 +9086,8 @@ export const SETTLEMENT_COMBINATIONS: readonly object[] = [
 		ST: 1.2,
 		F: 1.2,
 		H: 1.6,
+		FaX: 0.0,
+		FaY: 0.0,
 	},
 ];
 
@@ -8694,6 +9106,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.4,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6L + 0.5Lr',
@@ -8708,6 +9122,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.5L',
@@ -8722,6 +9138,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WX',
@@ -8736,6 +9154,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WX)',
@@ -8750,6 +9170,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8WY',
@@ -8764,6 +9186,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6Lr + 0.8(-WY)',
@@ -8778,6 +9202,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WX + 0.5L + 0.5Lr',
@@ -8792,6 +9218,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WX) + 0.5L + 0.5Lr',
@@ -8806,6 +9234,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6WY + 0.5L + 0.5Lr',
@@ -8820,6 +9250,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.6(-WY) + 0.5L + 0.5Lr',
@@ -8834,6 +9266,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EX + 0.5L',
@@ -8848,6 +9282,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EX) + 0.5L',
@@ -8862,6 +9298,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0EY + 0.5L',
@@ -8876,6 +9314,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '1.2D + 1.0(-EY) + 0.5L',
@@ -8890,6 +9330,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 1.2,
 			H: 0.0,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WX',
@@ -8904,6 +9346,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WX)',
@@ -8918,6 +9362,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6WY',
@@ -8932,6 +9378,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.6(-WY)',
@@ -8946,6 +9394,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EX',
@@ -8960,6 +9410,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EX)',
@@ -8974,6 +9426,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0EY',
@@ -8988,6 +9442,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 		{
 			name: '0.9D + 1.0(-EY)',
@@ -9002,6 +9458,8 @@ export const REDUCED_LIVE: object = {
 			ST: 0.0,
 			F: 0.0,
 			H: 1.6,
+			FaX: 0.0,
+			FaY: 0.0,
 		},
 	],
 	liveMax: 5.0,
@@ -10063,6 +10521,8 @@ export const BNBC: IBnbcTables = {
 		F: 'Fluids (equipment contents)',
 		H: 'Lateral earth and groundwater pressure (basement walls)',
 		T: 'Temperature',
+		R: 'Rain (blocked drains, to the secondary drainage level)',
+		Fa: 'Flood and surge (hydrodynamic and wave loads, in the direction of the wind)',
 	},
 };
 

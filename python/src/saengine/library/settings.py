@@ -115,6 +115,178 @@ class Occupancy(_Model):
     )
 
 
+# ── B16: flood and surge, rain, helicopter landing areas and the other special loads ──
+def _flood_ids(key: str) -> tuple[list[str], list[str]]:
+    """(ids, labels) of the default code pack's flood table entries ``key`` (surge regions,
+    water level stations), for the editors' lists; the pack in force validates the choice."""
+    from saengine.codes.tables import builtin_table
+
+    rows = getattr(builtin_table("flood"), key)
+    return list(rows), [getattr(r, "name", k) for k, r in rows.items()]
+
+
+_SURGE_IDS, _SURGE_LABELS = _flood_ids("surgeRegions")
+_STATION_IDS, _STATION_LABELS = _flood_ids("waterLevels")
+SurgeRegionId = Literal[tuple(_SURGE_IDS)]  # type: ignore[valid-type]
+WaterLevelId = Literal[tuple(_STATION_IDS)]  # type: ignore[valid-type]
+
+
+class FloodSite(_Model):
+    """Flood and surge at the site: the loads Fa on the structure (hydrodynamic and wave
+    loads, in the wind's direction), the hydrostatic pressure and the buoyancy for the walls
+    and foundations, and the combinations of a flood or tidal surge zone."""
+
+    zone: Literal["none", "inland", "coastalRisk", "coastalHighRisk"] = Field(
+        default="none",
+        title="Flood zone",
+        description="Inland: riverine flood. Coastal: the cyclone storm surge risk areas of the "
+        "code's coastal map (risk area, or the high risk strip and the off-shore islands).",
+        json_schema_extra=_labels(
+            [
+                "Not in a flood or surge zone",
+                "Inland flood",
+                "Coastal risk area",
+                "Coastal high risk area",
+            ]
+        ),
+    )
+    groundLevel: float | None = Field(
+        default=None,
+        title="Ground level yg",
+        description="Elevation of the ground at the site [m above the datum of the water levels].",
+    )
+    floodLevel: float | None = Field(
+        default=None,
+        title="Flood level",
+        description="Inland: the flood elevation of the return period the occupancy category "
+        "asks for [m above the datum]; coastal: a site-specific extreme water level yT that "
+        "replaces the location's.",
+    )
+    surgeRegion: SurgeRegionId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Coastal region",
+        description="The coastal region of the design surge height at the sea coast hT.",
+        json_schema_extra=_labels(_SURGE_LABELS),
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance from the coast",
+        description="From the spring tide high-water limit on the sea coast [km].",
+    )
+    surgeHeight: float | None = Field(
+        default=None,
+        ge=0,
+        title="Surge height hs",
+        description="A site-specific maximum surge height [m] in place of the coastal region's.",
+    )
+    waterLevelStation: WaterLevelId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Water level location",
+        description="The nearest coastal location of the extreme surface water levels yT.",
+        json_schema_extra=_labels(_STATION_LABELS),
+    )
+    velocity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Water velocity V",
+        description="Average velocity of the flood water [m/s]. Empty: the upper estimate "
+        "√(g ds) of the code (coastal); inland, no moving water.",
+    )
+    dragCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        title="Drag coefficient a",
+        description="Shape factor of the equivalent surcharge depth; empty: the code's least.",
+    )
+    saltWater: bool | None = Field(
+        default=None,
+        title="Salt water",
+        description="Unit weight of salt water. Empty: salt in coastal zones, fresh inland.",
+    )
+    floodOpenings: bool = Field(
+        default=False,
+        title="Openings for flood water",
+        description="The enclosed spaces below the flood level let water in and out (wet "
+        "floodproofing): reduced uplift and lateral loads; columns, not walls, take the waves. "
+        "Off: a dry floodproofed building, with buoyancy and the full hydrostatic pressure.",
+    )
+    groundElevation: float | None = Field(
+        default=None,
+        title="Ground in the model",
+        description="Elevation of the ground surface in the building model [mm]; empty: the "
+        "base of the model.",
+    )
+    channelWidth: float | None = Field(
+        default=None,
+        ge=0,
+        title="Upstream channel width",
+        description="Width of the upstream flow channel within 30 m of the building [m], for "
+        "the debris impact load; empty: no blockage reduction.",
+    )
+
+
+class RainSite(_Model):
+    """Rain on the roof with its primary drains blocked (case R)."""
+
+    depth: float | None = Field(
+        default=None,
+        ge=0,
+        title="Water depth to the secondary drains",
+        description="Depth of rainwater on the undeflected roof [mm] up to the inlet of the "
+        "secondary (overflow) drainage, or to the top of the parapet where there is none. "
+        "Empty: no rain case R.",
+    )
+    controlledDrainage: bool = Field(
+        default=False,
+        title="Controlled drainage",
+        description="The roof has controlled drainage: the code's allowance is added.",
+    )
+
+
+class Helipad(_Model):
+    """A helicopter landing or touch-down area."""
+
+    slabs: list[str] = Field(
+        default_factory=list,
+        description="Slabs of the landing area; empty: the roof slabs.",
+    )
+    weight: float = Field(default=0.0, ge=0, title="Helicopter weight W1", description="[kN]")
+    loadedWeight: float = Field(
+        default=0.0, ge=0, title="Fully loaded weight W2", description="[kN]"
+    )
+    gear: Literal["hydraulic", "rigid"] = Field(
+        default="rigid",
+        title="Landing gear",
+        json_schema_extra=_labels(["Hydraulic shock absorbers", "Rigid or skid-type landing gear"]),
+    )
+
+
+class ExplosionRoom(_Model):
+    """A room where a gas explosion is to be designed for (internal overpressure)."""
+
+    name: str = Field(min_length=1)
+    ventArea: float = Field(gt=0, title="Window area A0", description="[m²]")
+    volume: float = Field(gt=0, title="Room volume v", description="[m³]")
+
+
+class AirRaidShelter(_Model):
+    """An air raid shelter below the building (basement)."""
+
+    storeysAbove: int = Field(ge=0, title="Storeys above", description="Usable storeys above it.")
+    stableConstruction: bool = Field(
+        default=True,
+        title="Particularly stable construction",
+        description="Bearing structure of reinforced in-situ concrete.",
+    )
+    meanLive: float | None = Field(
+        default=None,
+        ge=0,
+        title="Mean live load above",
+        description="Mean live load of the storeys above [kN/m²]; empty: the floors' area load.",
+    )
+
+
 class Site(_Model):
     location: LocationId = Field(  # type: ignore[valid-type]
         default="dhaka",
@@ -158,6 +330,16 @@ class Site(_Model):
         title="Basic wind speed",
         description="Overrides the location's value [m/s] (BNBC 2020 Table 6.2.8).",
     )
+    # B16: flood and surge, rain and the other special loads.
+    flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
+    rain: RainSite = Field(default_factory=RainSite, title="Rain")
+    helipad: Helipad | None = Field(default=None, title="Helicopter landing area")
+    explosionRooms: list[ExplosionRoom] = Field(
+        default_factory=list,
+        title="Gas explosion rooms",
+        description="Rooms designed for an internal gas explosion (walls and floors).",
+    )
+    airRaidShelter: AirRaidShelter | None = Field(default=None, title="Air raid shelter")
 
 
 class AdjacentStructure(_Model):
@@ -1383,6 +1565,14 @@ class LoadCombination(_Model):
         "files): 1.6 in the combinations with 1.6L and in the 0.9D ones, else 0.",
     )
 
+    FaX: float = Field(
+        default=0,
+        title="FaX",
+        description="Factor on the flood and surge load along X (Site → Flood and surge), "
+        "acting with the wind along X.",
+    )
+    FaY: float = Field(default=0, title="FaY", description="The same along Y.")
+
     @model_validator(mode="after")
     def _fluid_factor(self) -> LoadCombination:
         if self.F is None:
@@ -1680,6 +1870,18 @@ def strength_combinations(
 
             for st_name, st_factors in strength_combinations_with_st(thermal):
                 result.append(LoadCombination(name=st_name, **st_factors))
+    # B16: the pack's combinations of the project's flood or tidal surge zone (Fa with the
+    # wind in its direction), with the same permitted factor changes.
+    if settings is not None:
+        from saengine.fem.flood import zone_kind
+
+        group = (getattr(table, "flood", None) or {}).get(zone_kind(settings.site.flood.zone))
+        flood_rows = list(group.strength) if group is not None else []
+        for name, exception in (getattr(table, "exceptions", None) or {}).items():
+            if flood_rows and _exception_wanted(name, exception, settings, pack):
+                flood_rows = [fc.apply_exception(row, exception) for row in flood_rows]
+        for label, factors, _row in fc.expand_rows(flood_rows):
+            result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
     return result
 
 

@@ -35,7 +35,9 @@ from saengine.library.settings import ProjectSettings
 
 
 def service_combinations(
-    cases: set[str] | list[str] | dict[str, Any], strength_level_wind: bool = False
+    cases: set[str] | list[str] | dict[str, Any],
+    strength_level_wind: bool = False,
+    flood: str | None = None,
 ) -> list[tuple[str, dict[str, float]]]:
     """The allowable-stress combinations of :func:`_service_combinations`, then those with the
     temperature case T when it was analysed (BNBC 2020 Part 6 Sec 2.7.2.1 combinations 2 and 4,
@@ -57,7 +59,67 @@ def service_combinations(
             else (name, factors)
             for name, factors in result
         ]
+    # B16: the allowable stress combinations of the project's flood zone (``flood``: coastal,
+    # inland), the flood case Fa with the wind in its direction, when the model has Fa.
+    result += flood_service_combinations(cases, flood)
     return result
+
+
+def flood_service_combinations(
+    cases: set[str] | list[str] | dict[str, Any], flood: str | None
+) -> list[tuple[str, dict[str, float]]]:
+    """The code pack's allowable stress combinations of a flood zone of kind ``flood``
+    (:func:`saengine.fem.flood.zone_kind`) as (name, {case: factor}), the cases the model lacks
+    (H, F, the other direction's Fa) left out; [] without flood cases."""
+    from saengine.fem.combinations import KIND_CASES, expand_rows, flood_rows
+
+    cases = set(cases)
+    if not flood or not ({"FaX", "FaY"} & cases):
+        return []
+    out = []
+    for name, factors, _row in expand_rows(flood_rows("allowable", flood)):
+        if any(k[:2] == "Fa" and k not in cases for k in factors):
+            continue  # no flood load in this direction
+        formed: dict[str, float] = {}
+        for kind, value in factors.items():
+            for case in KIND_CASES.get(kind, (kind,)):
+                if case in cases:
+                    formed[case] = value
+        out.append((name, formed))
+    return out
+
+
+def flood_uplift(
+    dead: float,
+    area: float,
+    hm: float,
+    below_ground: float = 0.0,
+    gamma: float | None = None,
+    openings: bool = False,
+) -> dict[str, Any] | None:
+    """Flotation of a dry floodproofed building (the code pack's ``flood`` table, its
+    ``flotationFactor``): the buoyancy U = γw (Hm + ``below_ground``) A [kN] of the water to the design depth
+    Hm above the ground on the plan area ``area`` [m²] whose underside is ``below_ground`` [m]
+    under the ground, against the dead load ``dead`` [kN] alone: {"U_kN", "factor",
+    "required", "ok"}. A building with ``openings`` for the flood water (wet floodproofed)
+    takes no buoyancy beyond its own members: None. None without the pack's factor."""
+    from saengine.fem import flood as ff
+
+    data = ff.table()
+    required = getattr(data, "flotationFactor", None)
+    if openings or required is None or hm <= 0 or area <= 0:
+        return None
+    gamma = float(gamma) if gamma is not None else ff.unit_weight(False, data)
+    uplift = gamma * (float(hm) + max(0.0, float(below_ground))) * float(area)
+    factor = dead / uplift if uplift > 0 else float("inf")
+    return {
+        "U_kN": uplift,
+        "dead_kN": dead,
+        "factor": factor,
+        "required": float(required),
+        "ok": factor >= float(required) - 1e-9,
+        "note": data.notes.get("flotationFactor", ""),
+    }
 
 
 def _service_combinations(
@@ -347,8 +409,11 @@ def base_loads(
     strength = strength_combinations(settings, cases)
     level = is_strength_level_wind(strength)
     dead = {name: factors.get("D", factors.get("SD", 0.0)) for name, factors in strength}
+    from saengine.fem.flood import zone_kind
+
+    flood = zone_kind(getattr(getattr(settings.site, "flood", None), "zone", None))
     return BaseLoads(
-        cases, bases, strength, service_combinations(cases, level), dead, level, unsupported
+        cases, bases, strength, service_combinations(cases, level, flood), dead, level, unsupported
     )
 
 

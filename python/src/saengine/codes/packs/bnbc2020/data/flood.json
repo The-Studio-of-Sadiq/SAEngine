@@ -1,0 +1,128 @@
+{
+  "$schema": "../../../schemas/flood.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 1.6.4-1.6.5 (p. 501): flood, tidal/storm surge and tsunami; rain loads",
+    "BNBC 2020 Part 6 Sec 2.6.2-2.6.3, Eqs 6.2.69-6.2.81, Tables 6.2.25-6.2.27, Figure 6.2.30 (pp. 667-679)",
+    "BNBC 2020 Part 6 Sec 2.6.6-2.6.8, Table 6.2.28, Figure 6.2.33, Eqs 6.2.82a-c (pp. 680-683)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.6.2-2.6.8 (pp. 667-683)",
+  "returnPeriod": {"I": 50, "II": 50, "III": 50, "IV": 100},
+  "waterLevelReturnPeriod": {"I": 100, "II": 100, "III": 100, "IV": 100},
+  "waterUnitWeight": {"fresh": 9.80, "salt": 10.05},
+  "surgeRegions": {
+    "teknafCoxsBazar": {"name": "Teknaf to Cox's Bazar", "height50": 4.5, "height100": 5.8, "decay": 0.5},
+    "chakariaAnwara": {"name": "Chakaria to Anwara, and Maheshkhali-Kutubdia Islands", "height50": 7.1, "height100": 8.6, "decay": 0.5},
+    "chittagongNoakhali": {"name": "Chittagong to Noakhali", "height50": 7.9, "height100": 9.6, "decay": 0.33, "note": "k = 0.33: the Chittagong end is on the Chittagong-Cox's Bazar-Teknaf coast (0.5), the Noakhali end is not; the smaller rate (the higher surge inland) is taken for the whole region"},
+    "sandwipHatiya": {"name": "Sandwip, Hatiya and all islands in this region", "height50": 7.9, "height100": 9.6, "decay": 0.33},
+    "bholaBarguna": {"name": "Bhola to Barguna", "height50": 6.2, "height100": 7.7, "decay": 0.33},
+    "sarankholaShyamnagar": {"name": "Sarankhola to Shyamnagar", "height50": 5.3, "height100": 6.4, "decay": 0.33}
+  },
+  "minDistance": 1.0,
+  "waterLevels": {
+    "teknaf": {"name": "Teknaf", "thana": "Teknaf", "level50": 2.33, "level100": 2.44},
+    "coxsBazar": {"name": "Cox's Bazar", "thana": "Cox's Bazar", "level50": 3.84, "level100": 3.88},
+    "shaflapur": {"name": "Shaflapur", "thana": "Moheshkhali", "level50": 4.67, "level100": 4.87},
+    "lemsikhali": {"name": "Lemsikhali", "thana": "Kutubdia", "level50": 4.95, "level100": 5.19},
+    "banigram": {"name": "Banigram", "thana": "Patiya", "level50": 5.05, "level100": 5.24},
+    "chittagong": {"name": "Chittagong", "thana": "Bandar", "level50": 4.72, "level100": 4.88},
+    "patenga": {"name": "Patenga", "thana": "Bandar", "level50": 4.08, "level100": 4.16},
+    "sonapur": {"name": "Sonapur", "thana": "Sonagazi", "level50": 7.02, "level100": 7.11},
+    "sandwip": {"name": "Sandwip", "thana": "Sandwip", "level50": 6.09, "level100": 6.2},
+    "companyganj": {"name": "Companyganj", "thana": "Companyganj", "level50": 7.53, "level100": 7.94},
+    "hatiya": {"name": "Hatiya", "thana": "Hatiya", "level50": 5.55, "level100": 5.76},
+    "daulatkhan": {"name": "Daulatkhan", "thana": "Daulatkhan", "level50": 4.62, "level100": 4.72},
+    "dashmina": {"name": "Dashmina", "thana": "Dashmina", "level50": 3.60, "level100": 3.73},
+    "galachipa": {"name": "Galachipa", "thana": "Galachipa", "level50": 3.79, "level100": 3.92},
+    "patuakhali": {"name": "Patuakhali", "thana": "Patuakhali", "level50": 2.87, "level100": 3.03},
+    "khepupara": {"name": "Khepupara", "thana": "Kalapara", "level50": 2.93, "level100": 3.02},
+    "bamna": {"name": "Bamna", "thana": "Bamna", "level50": 3.32, "level100": 3.37},
+    "patharghata": {"name": "Patharghata", "thana": "Patharghata", "level50": 3.65, "level100": 3.84},
+    "raenda": {"name": "Raenda", "thana": "Sarankhola", "level50": 3.66, "level100": 3.75},
+    "chardouni": {"name": "Chardouni", "thana": "Patharghata", "level50": 4.41, "level100": 4.66},
+    "mongla": {"name": "Mongla", "thana": "Mongla port", "level50": 3.23, "level100": 3.36},
+    "kobodak": {"name": "Kobodak (river estuary)", "thana": "Shyamnagar", "level50": 3.51, "level100": 3.87},
+    "kaikhali": {"name": "Kaikhali", "thana": "Shyamnagar", "level50": 3.94, "level100": 4.12}
+  },
+  "freeWaterIncrease": 0.30,
+  "hydrodynamic": {
+    "waveShare": 0.25,
+    "minWave": 1.0,
+    "windSpeed": {"50": 80.0, "100": 90.0},
+    "maxVelocity": 3.0,
+    "minDrag": 1.25,
+    "gravity": 9.81
+  },
+  "breakingWave": {
+    "heightRatio": 0.78,
+    "depthRatio": 0.65,
+    "dragRound": 1.75,
+    "dragSquare": 2.25,
+    "squareWidth": 1.4,
+    "dynamicPressure": {"I": 1.6, "II": 2.8, "III": 3.2, "IV": 3.5},
+    "staticFactor": 1.2,
+    "forceDynamic": 1.1,
+    "forceStatic": 2.4,
+    "forceStaticWet": 1.9
+  },
+  "impact": {
+    "debrisWeight": 4448.0,
+    "duration": 0.03,
+    "importance": {"I": 0.6, "II": 1.0, "III": 1.2, "IV": 1.3},
+    "orientation": 0.8,
+    "depth": [[0.3, 0.0], [1.5, 1.0]],
+    "blockage": [[1.5, 0.0], [9.1, 1.0]],
+    "responseRatio": [
+      [0.0, 0.0], [0.1, 0.4], [0.2, 0.8], [0.3, 1.1], [0.4, 1.4], [0.5, 1.5], [0.6, 1.7],
+      [0.7, 1.8], [0.8, 1.8], [0.9, 1.8], [1.0, 1.7], [1.1, 1.7], [1.2, 1.6], [1.3, 1.6],
+      [1.4, 1.5]
+    ]
+  },
+  "breakaway": {"minPressure": 0.50, "maxCollapse": 1.0},
+  "stabilityFactor": 1.5,
+  "flotationFactor": 1.5,
+  "rain": {"controlledAllowance": 0.25, "unitWeight": 9.80},
+  "helipad": {"distributed": 5.0, "impact": {"hydraulic": 0.75, "rigid": 1.5}, "patch": 300.0},
+  "explosion": {
+    "ventCurve": [
+      [0.03333, 70.0], [0.04, 57.0], [0.05, 47.0], [0.06667, 37.0], [0.1, 32.0], [0.2, 27.0]
+    ],
+    "glassPressure": 4.0,
+    "minPressure": 5.0,
+    "reliefPressure": 1.0,
+    "rise": [0.1, 1.0],
+    "decay": [1.0, 10.0]
+  },
+  "shelter": {
+    "rows": [
+      {"maxStoreys": 1, "load": 28.0},
+      {"maxStoreys": 4, "load": 34.0},
+      {"maxStoreys": null, "load": 41.0}
+    ],
+    "stable": 28.0,
+    "liveThreshold": 5.0
+  },
+  "notes": {
+    "waterLevelReturnPeriod": "Table 6.2.26 notes (p. 672) give the 50-year column for category IV and the 100-year one for I-III, the reverse of Sec 2.6.3 (p. 667) and of the notes of Table 6.2.25 (p. 671); the larger 100-year level is taken for every category (the more conservative reading)",
+    "flotationFactor": "SAEngine practice, not BNBC: Sec 1.6.4 asks the building to resist flotation but gives no factor; the factor of safety of 1.5 of Sec 1.6.4 against overturning and sliding is used for flotation too",
+    "shelter": "Table 6.2.28 rows read '< 2' and '3 - 4' storeys; 2 storeys falls in neither, so it takes the larger 34 kN/m² (the more conservative reading); the text of Sec 2.6.7.1 cites the table as 6.2.27",
+    "explosion": "Figure 6.2.33(a) digitised at the axis ticks 1/30 ... 1/5 (its scale is not linear); 70 kN/m² below 1/30, the figure ends at 1/5 (held beyond, with a note); a guide only (Sec 2.6.6.1 (b))",
+    "chittagongNoakhali": "see the region's note"
+  },
+  "sources": {
+    "returnPeriod": "BNBC 2020 Part 6 Sec 2.6.3 (p. 667): 100-year values for essential facilities and the hazardous facilities of Table 6.1.1, 50-year for other structures",
+    "waterUnitWeight": "BNBC 2020 Part 6 Sec 2.6.3.4.1 (p. 674): γw = 9.80 kN/m³ fresh water, 10.05 kN/m³ salt water",
+    "surgeRegions": "BNBC 2020 Part 6 Table 6.2.25 (p. 670); Eq 6.2.71 hs = hT - (x - 1)k, k = 0.5 for the Chittagong-Cox's Bazar-Teknaf coast and 0.33 for other coastal areas (p. 670)",
+    "minDistance": "BNBC 2020 Part 6 Sec 2.6.3.2.1 (i) (p. 670): x = 1 if x < 1",
+    "waterLevels": "BNBC 2020 Part 6 Table 6.2.26 (pp. 671-672): extreme surface water levels above PWD datum during monsoon; Eq 6.2.70 hf = yT - yg; Eq 6.2.69 Hm = max(hs, hf) (p. 668)",
+    "freeWaterIncrease": "BNBC 2020 Part 6 Sec 2.6.3.2.1 (p. 670): surfaces exposed to free water, design depth Hm + 0.30 m",
+    "hydrodynamic": "BNBC 2020 Part 6 Sec 2.6.3.2.2 (pp. 672-673): wave amplitude hw = hs/4 ≥ 1 m; wind 80 or 90 m/s; V ≤ 3.0 m/s: equivalent surcharge dh = aV²/2g (Eq 6.2.72), a ≥ 1.25, ds ≤ V ≤ √(g ds)",
+    "breakingWave": "BNBC 2020 Part 6 Sec 2.6.3.4-2.6.3.4.2 (pp. 674-676): Hb = 0.78 ds (Eq 6.2.73), ds = 0.65 Hm (Eq 6.2.74), FD = 0.5 γw CD D Hb² (Eq 6.2.75), Pmax = Cp γw ds + 1.2 γw ds (Eq 6.2.76), Ft = 1.1 Cp γw ds² + 2.4 γw ds² (Eq 6.2.77) or + 1.9 γw ds² with water behind (Eq 6.2.78)",
+    "impact": "BNBC 2020 Part 6 Sec 2.6.3.5 Eq 6.2.81 (p. 677), Table 6.2.27 (p. 679)",
+    "breakaway": "BNBC 2020 Part 6 Sec 2.6.3.3 (p. 673)",
+    "stabilityFactor": "BNBC 2020 Part 6 Sec 1.6.4 (p. 501): overturning and sliding under wind and flood or surge together, factor of safety 1.5 on dead load only",
+    "rain": "BNBC 2020 Part 6 Sec 1.6.5 (p. 501), Sec 2.6.2.1-2.6.2.2 (p. 667): all the rainwater to the level of the secondary drainage with the primary drains blocked, plus 0.25 kN/m² with controlled drainage; ponding instability considered; γw of Sec 2.6.3.4.1 (p. 674)",
+    "helipad": "BNBC 2020 Part 6 Sec 2.6.8 Eqs 6.2.82a-c (p. 683): L1 = W1 on the contact areas, L2 = k W2 on 300 mm × 300 mm (k 0.75 hydraulic shock absorbers, 1.5 rigid or skid gear), L3 = 5.0 kN/m²",
+    "explosion": "BNBC 2020 Part 6 Sec 2.6.6.1-2.6.6.3, Figure 6.2.33 (pp. 680-682): q0 by A0/v, vent glass breaking at 4 kN/m²; least internal pressure or suction 5 kN/m²; relief vents at 1.0 kN/m²",
+    "shelter": "BNBC 2020 Part 6 Sec 2.6.7.1, Table 6.2.28 (p. 682)"
+  }
+}

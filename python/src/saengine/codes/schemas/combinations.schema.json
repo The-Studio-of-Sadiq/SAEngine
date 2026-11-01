@@ -191,6 +191,53 @@
       ],
       "title": "FactorException",
       "type": "object"
+    },
+    "FloodCombinations": {
+      "additionalProperties": false,
+      "description": "The combinations of one kind of flood zone.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "strength": {
+          "items": {
+            "$ref": "#/$defs/Combination"
+          },
+          "title": "Strength",
+          "type": "array"
+        },
+        "allowable": {
+          "items": {
+            "$ref": "#/$defs/Combination"
+          },
+          "title": "Allowable",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "title": "FloodCombinations",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -347,6 +394,22 @@
         }
       ],
       "default": null
+    },
+    "withLateral": {
+      "description": "Case kinds that act in the direction of a row's wind or earthquake (the flood load Fa with the wind that drives it): they expand with it.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Withlateral",
+      "type": "array"
+    },
+    "flood": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FloodCombinations"
+      },
+      "description": "Combinations formed in a flood or tidal surge zone, by kind of zone (coastal, inland); the project's flood zone chooses one.",
+      "title": "Flood",
+      "type": "object"
     }
   },
   "required": [

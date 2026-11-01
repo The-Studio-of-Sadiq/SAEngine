@@ -1,0 +1,758 @@
+{
+  "$defs": {
+    "BreakawayWalls": {
+      "additionalProperties": false,
+      "properties": {
+        "minPressure": {
+          "description": "Least design pressure on the wall [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Minpressure",
+          "type": "number"
+        },
+        "maxCollapse": {
+          "description": "Greatest collapse load [kN/m²] unless the conditions of the code are met.",
+          "exclusiveMinimum": 0,
+          "title": "Maxcollapse",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minPressure",
+        "maxCollapse"
+      ],
+      "title": "BreakawayWalls",
+      "type": "object"
+    },
+    "BreakingWave": {
+      "additionalProperties": false,
+      "description": "Breaking wave loads on piles, columns and vertical walls.",
+      "properties": {
+        "heightRatio": {
+          "description": "Hb / ds.",
+          "exclusiveMinimum": 0,
+          "title": "Heightratio",
+          "type": "number"
+        },
+        "depthRatio": {
+          "description": "Still water depth ds / Hm.",
+          "exclusiveMinimum": 0,
+          "title": "Depthratio",
+          "type": "number"
+        },
+        "dragRound": {
+          "description": "Drag coefficient CD of round piles and columns.",
+          "exclusiveMinimum": 0,
+          "title": "Draground",
+          "type": "number"
+        },
+        "dragSquare": {
+          "description": "CD of square piles and columns.",
+          "exclusiveMinimum": 0,
+          "title": "Dragsquare",
+          "type": "number"
+        },
+        "squareWidth": {
+          "description": "D of a square pile as a multiple of its width.",
+          "exclusiveMinimum": 0,
+          "title": "Squarewidth",
+          "type": "number"
+        },
+        "dynamicPressure": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Dynamic pressure coefficient Cp by occupancy category.",
+          "title": "Dynamicpressure",
+          "type": "object"
+        },
+        "staticFactor": {
+          "description": "Static pressure γw ds × this (Eq for Pmax).",
+          "exclusiveMinimum": 0,
+          "title": "Staticfactor",
+          "type": "number"
+        },
+        "forceDynamic": {
+          "description": "Ft = this × Cp γw ds² + ...",
+          "exclusiveMinimum": 0,
+          "title": "Forcedynamic",
+          "type": "number"
+        },
+        "forceStatic": {
+          "description": "... + this × γw ds², dry behind the wall.",
+          "exclusiveMinimum": 0,
+          "title": "Forcestatic",
+          "type": "number"
+        },
+        "forceStaticWet": {
+          "description": "... + this × γw ds², water behind the wall.",
+          "exclusiveMinimum": 0,
+          "title": "Forcestaticwet",
+          "type": "number"
+        }
+      },
+      "required": [
+        "heightRatio",
+        "depthRatio",
+        "dragRound",
+        "dragSquare",
+        "squareWidth",
+        "dynamicPressure",
+        "staticFactor",
+        "forceDynamic",
+        "forceStatic",
+        "forceStaticWet"
+      ],
+      "title": "BreakingWave",
+      "type": "object"
+    },
+    "ExplosionRule": {
+      "additionalProperties": false,
+      "description": "Internal gas explosion in closed rooms, and the least design pressure.",
+      "properties": {
+        "ventCurve": {
+          "description": "Overpressure q0 [kN/m²] by A0/v [1/m], digitised from the figure.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Ventcurve",
+          "type": "array"
+        },
+        "glassPressure": {
+          "description": "Breaking pressure of the vent glass [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Glasspressure",
+          "type": "number"
+        },
+        "minPressure": {
+          "description": "Least internal pressure or suction [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Minpressure",
+          "type": "number"
+        },
+        "reliefPressure": {
+          "description": "Relief vents open by this pressure [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Reliefpressure",
+          "type": "number"
+        },
+        "rise": {
+          "description": "Interval of t1 [s].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rise",
+          "type": "array"
+        },
+        "decay": {
+          "description": "Interval of t2 [s].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Decay",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ventCurve",
+        "glassPressure",
+        "minPressure",
+        "reliefPressure",
+        "rise",
+        "decay"
+      ],
+      "title": "ExplosionRule",
+      "type": "object"
+    },
+    "FloodHydrodynamic": {
+      "additionalProperties": false,
+      "description": "Hydrodynamic loads of moving water and wind-induced waves.",
+      "properties": {
+        "waveShare": {
+          "description": "Local wave amplitude hw as a share of hs.",
+          "exclusiveMinimum": 0,
+          "title": "Waveshare",
+          "type": "number"
+        },
+        "minWave": {
+          "description": "Least local wave amplitude hw [m].",
+          "exclusiveMinimum": 0,
+          "title": "Minwave",
+          "type": "number"
+        },
+        "windSpeed": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "3-s gust wind speed of the waves by return period.",
+          "title": "Windspeed",
+          "type": "object"
+        },
+        "maxVelocity": {
+          "description": "Water velocity [m/s] up to which the equivalent surcharge depth applies.",
+          "exclusiveMinimum": 0,
+          "title": "Maxvelocity",
+          "type": "number"
+        },
+        "minDrag": {
+          "description": "Least drag coefficient (shape factor) a.",
+          "exclusiveMinimum": 0,
+          "title": "Mindrag",
+          "type": "number"
+        },
+        "gravity": {
+          "description": "Acceleration due to gravity g [m/s²].",
+          "exclusiveMinimum": 0,
+          "title": "Gravity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "waveShare",
+        "minWave",
+        "maxVelocity",
+        "minDrag",
+        "gravity"
+      ],
+      "title": "FloodHydrodynamic",
+      "type": "object"
+    },
+    "FloodImpact": {
+      "additionalProperties": false,
+      "description": "Debris impact load F = π W Vb CI CO CD CB Rmax / (2 g Δt).",
+      "properties": {
+        "debrisWeight": {
+          "description": "Debris weight W [N].",
+          "exclusiveMinimum": 0,
+          "title": "Debrisweight",
+          "type": "number"
+        },
+        "duration": {
+          "description": "Duration of the impact Δt [s].",
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "importance": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "CI by occupancy category.",
+          "title": "Importance",
+          "type": "object"
+        },
+        "orientation": {
+          "description": "CO.",
+          "exclusiveMinimum": 0,
+          "title": "Orientation",
+          "type": "number"
+        },
+        "depth": {
+          "description": "CD by water depth [m]: (depth, CD), linear between, held beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Depth",
+          "type": "array"
+        },
+        "blockage": {
+          "description": "CB by upstream flow channel width [m]: (width, CB), linear, held beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Blockage",
+          "type": "array"
+        },
+        "responseRatio": {
+          "description": "Rmax by the ratio of the impulse duration to the natural period.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Responseratio",
+          "type": "array"
+        }
+      },
+      "required": [
+        "debrisWeight",
+        "duration",
+        "importance",
+        "orientation",
+        "depth",
+        "blockage",
+        "responseRatio"
+      ],
+      "title": "FloodImpact",
+      "type": "object"
+    },
+    "HelipadRule": {
+      "additionalProperties": false,
+      "description": "Live loads on helicopter landing areas: L1 = W1, L2 = k W2, L3 = w.",
+      "properties": {
+        "distributed": {
+          "description": "Distributed load w [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Distributed",
+          "type": "number"
+        },
+        "impact": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "k by landing gear: hydraulic, rigid.",
+          "title": "Impact",
+          "type": "object"
+        },
+        "patch": {
+          "description": "Side of the square L2 acts on [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Patch",
+          "type": "number"
+        }
+      },
+      "required": [
+        "distributed",
+        "impact",
+        "patch"
+      ],
+      "title": "HelipadRule",
+      "type": "object"
+    },
+    "RainRule": {
+      "additionalProperties": false,
+      "description": "Rain load on roofs with blocked or controlled drainage.",
+      "properties": {
+        "controlledAllowance": {
+          "description": "Added above the secondary drainage level with controlled drainage.",
+          "minimum": 0,
+          "title": "Controlledallowance",
+          "type": "number"
+        },
+        "unitWeight": {
+          "description": "Unit weight of rainwater [kN/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Unitweight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlledAllowance",
+        "unitWeight"
+      ],
+      "title": "RainRule",
+      "type": "object"
+    },
+    "ShelterRow": {
+      "additionalProperties": false,
+      "properties": {
+        "maxStoreys": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Up to this many storeys above (None: more).",
+          "title": "Maxstoreys"
+        },
+        "load": {
+          "description": "Characteristic vertical load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Load",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxStoreys",
+        "load"
+      ],
+      "title": "ShelterRow",
+      "type": "object"
+    },
+    "ShelterRule": {
+      "additionalProperties": false,
+      "description": "Characteristic vertical loads on air raid shelters below a building.",
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ShelterRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "stable": {
+          "description": "Load in buildings of particularly stable construction [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Stable",
+          "type": "number"
+        },
+        "liveThreshold": {
+          "description": "Floors with more live load add the excess of the storeys' mean [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Livethreshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rows",
+        "stable",
+        "liveThreshold"
+      ],
+      "title": "ShelterRule",
+      "type": "object"
+    },
+    "SurgeRegion": {
+      "additionalProperties": false,
+      "description": "A coastal region's design surge height at the sea coast and its decay inland.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "height50": {
+          "description": "Surge height hT at the coast, 50-year [m].",
+          "exclusiveMinimum": 0,
+          "title": "Height50",
+          "type": "number"
+        },
+        "height100": {
+          "description": "Surge height hT at the coast, 100-year [m].",
+          "exclusiveMinimum": 0,
+          "title": "Height100",
+          "type": "number"
+        },
+        "decay": {
+          "description": "Rate of decrease k of the surge height inland [m/km].",
+          "exclusiveMinimum": 0,
+          "title": "Decay",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "name",
+        "height50",
+        "height100",
+        "decay"
+      ],
+      "title": "SurgeRegion",
+      "type": "object"
+    },
+    "WaterLevelStation": {
+      "additionalProperties": false,
+      "description": "Extreme surface water level yT above the datum at a coastal location.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "thana": {
+          "default": "",
+          "title": "Thana",
+          "type": "string"
+        },
+        "level50": {
+          "description": "yT, 50-year [m above the datum].",
+          "title": "Level50",
+          "type": "number"
+        },
+        "level100": {
+          "description": "yT, 100-year [m above the datum].",
+          "title": "Level100",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "level50",
+        "level100"
+      ],
+      "title": "WaterLevelStation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Flood and surge loads (hydrostatic, hydrodynamic, waves, impact), the stability of the\nbuilding against them, and the other miscellaneous loads: rain, helicopter landing areas,\nexplosions and air raid shelters.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "returnPeriod": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "Return period [years] of the flood levels, surge heights and wind by occupancy category.",
+      "title": "Returnperiod",
+      "type": "object"
+    },
+    "waterLevelReturnPeriod": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "Column of the extreme surface water level table by occupancy category (empty: returnPeriod).",
+      "title": "Waterlevelreturnperiod",
+      "type": "object"
+    },
+    "waterUnitWeight": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Unit weight of water γw [kN/m³]: fresh, salt.",
+      "title": "Waterunitweight",
+      "type": "object"
+    },
+    "surgeRegions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SurgeRegion"
+      },
+      "title": "Surgeregions",
+      "type": "object"
+    },
+    "minDistance": {
+      "description": "Distance x [km] below which x is taken as this.",
+      "exclusiveMinimum": 0,
+      "title": "Mindistance",
+      "type": "number"
+    },
+    "waterLevels": {
+      "additionalProperties": {
+        "$ref": "#/$defs/WaterLevelStation"
+      },
+      "title": "Waterlevels",
+      "type": "object"
+    },
+    "freeWaterIncrease": {
+      "description": "Added to Hm for surfaces exposed to free water [m].",
+      "minimum": 0,
+      "title": "Freewaterincrease",
+      "type": "number"
+    },
+    "hydrodynamic": {
+      "$ref": "#/$defs/FloodHydrodynamic"
+    },
+    "breakingWave": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BreakingWave"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "impact": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FloodImpact"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "breakaway": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BreakawayWalls"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "stabilityFactor": {
+      "description": "Least factor of safety against overturning and sliding under wind and flood together, dead load only.",
+      "exclusiveMinimum": 0,
+      "title": "Stabilityfactor",
+      "type": "number"
+    },
+    "flotationFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least dead load / buoyancy of a dry floodproofed building.",
+      "title": "Flotationfactor"
+    },
+    "rain": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RainRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "helipad": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HelipadRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "explosion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExplosionRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shelter": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShelterRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "notes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Labels of entries that are not the code's own text, or read with care.",
+      "title": "Notes",
+      "type": "object"
+    }
+  },
+  "required": [
+    "returnPeriod",
+    "waterUnitWeight",
+    "minDistance",
+    "freeWaterIncrease",
+    "hydrodynamic",
+    "stabilityFactor"
+  ],
+  "title": "FloodTable",
+  "type": "object",
+  "$id": "saengine.codePack.flood/1"
+}

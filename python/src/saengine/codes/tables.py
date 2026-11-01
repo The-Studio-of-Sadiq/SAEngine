@@ -281,6 +281,14 @@ class CantileverUplift(_Row):
     categories: list[str] = Field(description="Seismic Design Categories it applies in.")
 
 
+class FloodCombinations(_Row):
+    """The combinations of one kind of flood zone."""
+
+    strength: list[Combination] = Field(default_factory=list)
+    allowable: list[Combination] = Field(default_factory=list)
+    note: str | None = None
+
+
 class CombinationsTable(TableModel):
     """Load cases and load combinations by category."""
 
@@ -338,6 +346,17 @@ class CombinationsTable(TableModel):
         description="Factor on the dead load that resists uplift in allowable stress design.",
     )
     cantileverUplift: CantileverUplift | None = None
+    # B16: the combinations of a structure in a flood or tidal surge zone.
+    withLateral: list[str] = Field(
+        default_factory=list,
+        description="Case kinds that act in the direction of a row's wind or earthquake (the "
+        "flood load Fa with the wind that drives it): they expand with it.",
+    )
+    flood: dict[str, FloodCombinations] = Field(
+        default_factory=dict,
+        description="Combinations formed in a flood or tidal surge zone, by kind of zone "
+        "(coastal, inland); the project's flood zone chooses one.",
+    )
 
 
 # ─────────────────────────────────────────── seismic ───────────────────────────────────────────
@@ -4453,6 +4472,194 @@ class SteelStabilityTable(TableModel):
     directAnalysis: DirectAnalysis | None = None
 
 
+# ───────────────────── flood, surge, rain, helipads and special loads (B16) ─────────────────────
+
+
+class SurgeRegion(_Row):
+    """A coastal region's design surge height at the sea coast and its decay inland."""
+
+    name: str
+    height50: Positive = Field(description="Surge height hT at the coast, 50-year [m].")
+    height100: Positive = Field(description="Surge height hT at the coast, 100-year [m].")
+    decay: Positive = Field(description="Rate of decrease k of the surge height inland [m/km].")
+    note: str | None = None
+
+
+class WaterLevelStation(_Row):
+    """Extreme surface water level yT above the datum at a coastal location."""
+
+    name: str
+    thana: str = ""
+    level50: float = Field(description="yT, 50-year [m above the datum].")
+    level100: float = Field(description="yT, 100-year [m above the datum].")
+
+
+class FloodHydrodynamic(BaseModel):
+    """Hydrodynamic loads of moving water and wind-induced waves."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    waveShare: Positive = Field(description="Local wave amplitude hw as a share of hs.")
+    minWave: Positive = Field(description="Least local wave amplitude hw [m].")
+    windSpeed: dict[str, Positive] = Field(
+        default_factory=dict, description="3-s gust wind speed of the waves by return period."
+    )
+    maxVelocity: Positive = Field(
+        description="Water velocity [m/s] up to which the equivalent surcharge depth applies."
+    )
+    minDrag: Positive = Field(description="Least drag coefficient (shape factor) a.")
+    gravity: Positive = Field(description="Acceleration due to gravity g [m/s²].")
+
+
+class BreakingWave(BaseModel):
+    """Breaking wave loads on piles, columns and vertical walls."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    heightRatio: Positive = Field(description="Hb / ds.")
+    depthRatio: Positive = Field(description="Still water depth ds / Hm.")
+    dragRound: Positive = Field(description="Drag coefficient CD of round piles and columns.")
+    dragSquare: Positive = Field(description="CD of square piles and columns.")
+    squareWidth: Positive = Field(description="D of a square pile as a multiple of its width.")
+    dynamicPressure: dict[str, Positive] = Field(
+        description="Dynamic pressure coefficient Cp by occupancy category."
+    )
+    staticFactor: Positive = Field(description="Static pressure γw ds × this (Eq for Pmax).")
+    forceDynamic: Positive = Field(description="Ft = this × Cp γw ds² + ...")
+    forceStatic: Positive = Field(description="... + this × γw ds², dry behind the wall.")
+    forceStaticWet: Positive = Field(description="... + this × γw ds², water behind the wall.")
+
+
+class FloodImpact(BaseModel):
+    """Debris impact load F = π W Vb CI CO CD CB Rmax / (2 g Δt)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    debrisWeight: Positive = Field(description="Debris weight W [N].")
+    duration: Positive = Field(description="Duration of the impact Δt [s].")
+    importance: dict[str, Positive] = Field(description="CI by occupancy category.")
+    orientation: Positive = Field(description="CO.")
+    depth: list[tuple[float, float]] = Field(
+        description="CD by water depth [m]: (depth, CD), linear between, held beyond."
+    )
+    blockage: list[tuple[float, float]] = Field(
+        description="CB by upstream flow channel width [m]: (width, CB), linear, held beyond."
+    )
+    responseRatio: list[tuple[float, float]] = Field(
+        description="Rmax by the ratio of the impulse duration to the natural period."
+    )
+
+
+class BreakawayWalls(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    minPressure: Positive = Field(description="Least design pressure on the wall [kN/m²].")
+    maxCollapse: Positive = Field(
+        description="Greatest collapse load [kN/m²] unless the conditions of the code are met."
+    )
+
+
+class RainRule(BaseModel):
+    """Rain load on roofs with blocked or controlled drainage."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    controlledAllowance: float = Field(
+        ge=0, description="Added above the secondary drainage level with controlled drainage."
+    )
+    unitWeight: Positive = Field(description="Unit weight of rainwater [kN/m³].")
+
+
+class HelipadRule(BaseModel):
+    """Live loads on helicopter landing areas: L1 = W1, L2 = k W2, L3 = w."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    distributed: Positive = Field(description="Distributed load w [kN/m²].")
+    impact: dict[str, Positive] = Field(description="k by landing gear: hydraulic, rigid.")
+    patch: Positive = Field(description="Side of the square L2 acts on [mm].")
+
+
+class ExplosionRule(BaseModel):
+    """Internal gas explosion in closed rooms, and the least design pressure."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    ventCurve: list[tuple[float, float]] = Field(
+        description="Overpressure q0 [kN/m²] by A0/v [1/m], digitised from the figure."
+    )
+    glassPressure: Positive = Field(description="Breaking pressure of the vent glass [kN/m²].")
+    minPressure: Positive = Field(description="Least internal pressure or suction [kN/m²].")
+    reliefPressure: Positive = Field(description="Relief vents open by this pressure [kN/m²].")
+    rise: tuple[float, float] = Field(description="Interval of t1 [s].")
+    decay: tuple[float, float] = Field(description="Interval of t2 [s].")
+
+
+class ShelterRow(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    maxStoreys: int | None = Field(description="Up to this many storeys above (None: more).")
+    load: Positive = Field(description="Characteristic vertical load [kN/m²].")
+
+
+class ShelterRule(BaseModel):
+    """Characteristic vertical loads on air raid shelters below a building."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    rows: list[ShelterRow] = Field(min_length=1)
+    stable: Positive = Field(
+        description="Load in buildings of particularly stable construction [kN/m²]."
+    )
+    liveThreshold: Positive = Field(
+        description="Floors with more live load add the excess of the storeys' mean [kN/m²]."
+    )
+
+
+class FloodTable(TableModel):
+    """Flood and surge loads (hydrostatic, hydrodynamic, waves, impact), the stability of the
+    building against them, and the other miscellaneous loads: rain, helicopter landing areas,
+    explosions and air raid shelters."""
+
+    returnPeriod: dict[str, int] = Field(
+        description="Return period [years] of the flood levels, surge heights and wind by "
+        "occupancy category."
+    )
+    waterLevelReturnPeriod: dict[str, int] = Field(
+        default_factory=dict,
+        description="Column of the extreme surface water level table by occupancy category "
+        "(empty: returnPeriod).",
+    )
+    waterUnitWeight: dict[str, Positive] = Field(
+        description="Unit weight of water γw [kN/m³]: fresh, salt."
+    )
+    surgeRegions: dict[str, SurgeRegion] = Field(default_factory=dict)
+    minDistance: Positive = Field(description="Distance x [km] below which x is taken as this.")
+    waterLevels: dict[str, WaterLevelStation] = Field(default_factory=dict)
+    freeWaterIncrease: float = Field(
+        ge=0, description="Added to Hm for surfaces exposed to free water [m]."
+    )
+    hydrodynamic: FloodHydrodynamic
+    breakingWave: BreakingWave | None = None
+    impact: FloodImpact | None = None
+    breakaway: BreakawayWalls | None = None
+    stabilityFactor: Positive = Field(
+        description="Least factor of safety against overturning and sliding under wind and "
+        "flood together, dead load only."
+    )
+    flotationFactor: Positive | None = Field(
+        default=None, description="Least dead load / buoyancy of a dry floodproofed building."
+    )
+    rain: RainRule | None = None
+    helipad: HelipadRule | None = None
+    explosion: ExplosionRule | None = None
+    shelter: ShelterRule | None = None
+    notes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Labels of entries that are not the code's own text, or read with care.",
+    )
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -4487,6 +4694,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "serviceability": ServiceabilityTable,
     "nonstructural": NonstructuralTable,
     "steelStability": SteelStabilityTable,
+    "flood": FloodTable,
 }
 
 

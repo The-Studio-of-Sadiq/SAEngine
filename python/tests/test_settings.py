@@ -87,6 +87,8 @@ def test_strength_combinations() -> None:
         "ST": 0,
         "F": 1.2,
         "H": 1.6,
+        "FaX": 0,  # B16: the flood cases, only in a flood zone's combinations
+        "FaY": 0,
     }
     assert combinations["0.9D + 1.0(-EY)"].EY == -1.0
     assert combinations["1.2D + 1.6WX + 1.0L + 0.5Lr"].WX == 1.6

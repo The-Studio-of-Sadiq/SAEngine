@@ -360,7 +360,10 @@ def design(
     ``"stability"`` (:func:`saengine.design.slender.storey_rows`)."""
     from saengine.design import seismic_detailing
     from saengine.fem import second_order, seismic_design
+    from saengine.fem.combinations import set_flood_kind
 
+    # B16: the flood zone's allowable stress combinations for the timber and masonry members.
+    set_flood_kind(settings)
     # Integrator glue: which provisions of BNBC Sec 8.3 apply (saengine.design.seismic_rules),
     # with the site class the analysis used; the elements needing the Ω0 combinations get them.
     root = Path(out_dir).resolve().parent.parent

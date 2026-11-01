@@ -16,7 +16,9 @@
     "EY": "Earthquake in Y",
     "F": "Fluids (equipment contents)",
     "H": "Lateral earth and groundwater pressure (basement walls)",
-    "T": "Temperature"
+    "T": "Temperature",
+    "R": "Rain (blocked drains, to the secondary drainage level)",
+    "Fa": "Flood and surge (hydrodynamic and wave loads, in the direction of the wind)"
   },
   "strength": [
     {
@@ -175,11 +177,85 @@
   "overstrength": "Em = Ω0 Eh ± Ev in the combinations with E (Sec 2.5.13.4, p. 646): 1.2D + Ω0 Eh + Ev + L and 0.9D + Ω0 Eh − Ev",
   "optionalCases": ["F", "H", "T", "R"],
   "alternates": {"Lr": ["R"]},
+  "withLateral": ["Fa"],
+  "flood": {
+    "coastal": {
+      "source": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1, flood and tidal surge zones, item 1 (pp. 684-685): coastal zones vulnerable to tidal surges",
+      "strength": [
+        {
+          "id": "4Fa",
+          "name": "1.2D + 1.6W + 2.0Fa + 1.0L + 0.5Lr",
+          "factors": {"D": 1.2, "F": 1.2, "W": 1.6, "Fa": 2.0, "L": 1.0, "Lr": 0.5},
+          "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685), coastal zones: 1.6W replaced by 1.6W + 2.0Fa in combination 4",
+          "note": "1.2F: SAEngine practice, not BNBC (as in combination 4); the 1.3W of exception 3 is not taken with Fa"
+        },
+        {
+          "id": "6Fa",
+          "name": "0.9D + 1.6W + 2.0Fa",
+          "factors": {"D": 0.9, "W": 1.6, "Fa": 2.0, "H": 1.6},
+          "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685), coastal zones: 1.6W replaced by 1.6W + 2.0Fa in combination 6",
+          "note": "the 1.3W of exception 3 is not taken with Fa"
+        }
+      ],
+      "allowable": [
+        {
+          "id": "5Fa",
+          "name": "D + W + 1.5Fa",
+          "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0, "Fa": 1.5},
+          "source": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), coastal zones: 1.5Fa added to combination 5, E set to zero"
+        },
+        {
+          "id": "6Fa",
+          "name": "D + 0.75W + 0.75L + 0.75Lr + 1.5Fa",
+          "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 0.75, "L": 0.75, "Lr": 0.75, "Fa": 1.5},
+          "source": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), coastal zones: 1.5Fa added to combination 6, E set to zero"
+        }
+      ]
+    },
+    "inland": {
+      "source": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1, flood and tidal surge zones, item 2 (pp. 684-685): non-coastal zones",
+      "strength": [
+        {
+          "id": "4Fa",
+          "name": "1.2D + 0.8W + 1.0Fa + 1.0L + 0.5Lr",
+          "factors": {"D": 1.2, "F": 1.2, "W": 0.8, "Fa": 1.0, "L": 1.0, "Lr": 0.5},
+          "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685), non-coastal zones: 1.6W replaced by 0.8W + 1.0Fa in combination 4",
+          "note": "1.2F: SAEngine practice, not BNBC (as in combination 4)"
+        },
+        {
+          "id": "6Fa",
+          "name": "0.9D + 0.8W + 1.0Fa",
+          "factors": {"D": 0.9, "W": 0.8, "Fa": 1.0, "H": 1.6},
+          "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685), non-coastal zones: 1.6W replaced by 0.8W + 1.0Fa in combination 6"
+        }
+      ],
+      "allowable": [
+        {
+          "id": "5Fa",
+          "name": "D + W + 0.75Fa",
+          "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0, "Fa": 0.75},
+          "source": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), non-coastal zones: 0.75Fa added to combination 5, E set to zero"
+        },
+        {
+          "id": "6Fa",
+          "name": "D + 0.75W + 0.75L + 0.75Lr + 0.75Fa",
+          "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 0.75, "L": 0.75, "Lr": 0.75, "Fa": 0.75},
+          "source": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), non-coastal zones: 0.75Fa added to combination 6, E set to zero"
+        },
+        {
+          "id": "7Fa",
+          "name": "0.6D + W + 0.75Fa",
+          "factors": {"D": 0.6, "W": 1.0, "H": 1.0, "Fa": 0.75},
+          "source": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), non-coastal zones: 0.75Fa added to combination 7"
+        }
+      ]
+    }
+  },
   "exceptions": {
     "reducedLive": {
       "case": "L",
       "to": 0.5,
-      "rows": ["3L", "4", "5"],
+      "rows": ["3L", "4", "5", "4Fa"],
       "liveMax": 5.0,
       "excludedUses": [
         "parking",
@@ -217,6 +293,8 @@
     "temperature": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 2 with T, 1.2(D + F + T) (p. 685)",
     "seismicDeadUpper": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 5 (p. 685)",
     "seismicDeadLower": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 7 (p. 685)",
+    "flood": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1 (pp. 684-685): a structure in a flood or tidal surge zone; Fa the flood load of Sec 2.6.3 (pp. 667-677), taken in the direction of the wind with it",
+    "withLateral": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1 (pp. 684-685): Fa is combined with the wind; SAEngine takes the wind-driven flood load in the wind's direction and sign",
     "alternates": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1 '(Lr or R)' (pp. 684-685); Table 6.2.4 note (1) (p. 539): the greater of the roof live load and the rain load",
     "allowableStressIncrease": "BNBC 2020 Part 6 Sec 2.5.13.5 (p. 647): allowable stresses may be increased by 1.2 with Em (Sec 2.5.13.4) in allowable stress combinations 5, 6 and 8, not with other increases or reductions",
     "upliftDeadFactor": "BNBC 2020 Part 6 Sec 1.5.9 (p. 500): in allowable stress design the dead loads that reduce uplift are taken at 0.85; allowable stress combinations 7 and 8 (0.6D) are on the safe side of it"
