@@ -4433,6 +4433,203 @@ class MasonrySeismic(BaseModel):
     leanestMortar: str
     zone23: dict[str, Positive]
     zone4: dict[str, Positive]
+    # B34: the openings, the strengthening arrangements, the bands and the corner bars.
+    openings: MasonryOpenings | None = None
+    strengthening: list[MasonryStrengthening] = Field(default_factory=list)
+    bands: MasonryBands | None = None
+    cornerBars: MasonryCornerBars | None = None
+
+
+# ── B34: masonry part 2 (seismic detailing, high wind, anchor bolts, confined masonry) ──
+
+
+class MasonryOpenings(BaseModel):
+    """Openings in bearing walls in the seismic zones: the total width at most ``maxShare`` of
+    the wall between cross walls, the clear distance to a corner and between openings as shares
+    of the opening height by zone group, the vertical distance between openings."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    maxShare: Share
+    cornerShare: dict[str, Positive] = Field(description="Zone group ('zone23', 'zone4') -> share.")
+    betweenShare: dict[str, Positive] = Field(description="Zone group -> share.")
+    verticalGap: Positive = Field(description="[mm]")
+    note: str = ""
+
+
+class MasonryStrengthening(BaseModel):
+    """One row of the strengthening arrangements: the zones, the most storeys and the
+    arrangements (``mortar``, ``bands``, ``cornerBars``, ``jambBars``, ``roofBracing``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[int] = Field(min_length=1)
+    storeysMax: int = Field(gt=0)
+    items: list[Literal["mortar", "bands", "cornerBars", "jambBars", "roofBracing"]]
+    note: str = ""
+
+
+class MasonryBandRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[int] = Field(min_length=1)
+    plain: tuple[int, Positive] = Field(description="(bars, diameter [mm]) of plain mild steel.")
+    deformed: tuple[int, Positive] = Field(description="(bars, diameter [mm]) of deformed bars.")
+    link: tuple[Positive, Positive] = Field(description="(diameter, spacing) of the links [mm].")
+
+
+class MasonryBands(BaseModel):
+    """Lintel and roof bands: least concrete strength and depth, the bars by zone."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    concreteMin: Positive = Field(description="Least f'c of an RC band [MPa].")
+    depthMin: Positive = Field(description="[mm]")
+    rows: list[MasonryBandRow] = Field(min_length=1)
+
+
+class MasonryCornerRow(BaseModel):
+    """Vertical bars at corners and junctions of a building of ``storeys`` storeys, from the
+    top storey down (null: none), by bar kind and zone group."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    storeys: int = Field(gt=0)
+    plain: dict[str, list[Positive | None]]
+    deformed: dict[str, list[Positive | None]]
+
+
+class MasonryCornerBars(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thickWall: Positive = Field(
+        description="Walls up to this thickness [mm] take the table's bars; thicker walls an "
+        "area increased in proportion."
+    )
+    rows: list[MasonryCornerRow] = Field(min_length=1)
+
+
+class MasonryHighWind(BaseModel):
+    """Masonry in regions where the basic wind speed exceeds ``speed``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    speed: Positive = Field(description="Basic wind speed above which the rules apply [km/h].")
+    unitStrengthMin: Positive = Field(description="Burnt clay units [MPa].")
+    groutStrengthMin: Positive = Field(description="[MPa]")
+    mortars: list[str] = Field(min_length=1, description="Mortar grades allowed.")
+    footingThickness: Positive = Field(description="[mm]")
+    footingDepth: Positive = Field(description="Below the undisturbed ground [mm].")
+    minThickness: dict[
+        Literal["unreinforcedGrouted", "reinforcedBearing", "unreinforced", "interiorNonbearing"],
+        Positive,
+    ] = Field(description="Least wall thickness by wall type [mm].")
+    maxUnsupportedHeight: Positive = Field(description="[mm]")
+    gableHeight: Positive = Field(description="At the peak [mm].")
+    lintelSpan: Positive = Field(description="[mm]")
+    lintelExtension: Positive = Field(description="[mm]")
+    exteriorWallShare: Share = Field(description="Of each side's parallel dimension.")
+    solidElementMin: Positive = Field(description="Least width of a required element [mm].")
+    crossWallLength: Positive = Field(description="[mm]")
+    crossWallSpacing: Positive = Field(description="[mm]")
+
+
+class MasonryAnchorTable(BaseModel):
+    """Allowable loads [kN] by f'm (rows) and a second argument (columns)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fm: list[Positive] = Field(min_length=1)
+    columns: list[Positive] = Field(min_length=1)
+    values: list[list[Positive]] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _shape(self) -> MasonryAnchorTable:
+        rows = len(self.values) != len(self.fm)
+        if rows or any(len(r) != len(self.columns) for r in self.values):
+            raise ValueError("one row per f'm and one value per column")
+        return self
+
+
+class MasonryAnchorBolts(BaseModel):
+    """Embedded anchor bolts in masonry (allowable loads): Bv = shear.factor (f'm Ab)^exponent
+    [N] or shear.steelShare Ab fy, reduced to zero at ``edgeZero`` when the edge distance is
+    below edgeDiameters db and to spacingShare at spacingMin db when closer than
+    spacingDiameters db; Bt = tension.factor Ap √f'm or tension.steelShare Ab fy with Ap = π
+    min(lb, lbe)²; the tables' values where they apply; combined bt/Bt + bv/Bv ≤ interaction."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shear: dict[
+        Literal[
+            "factor",
+            "exponent",
+            "steelShare",
+            "edgeDiameters",
+            "edgeZero",
+            "spacingDiameters",
+            "spacingMin",
+            "spacingShare",
+        ],
+        Positive,
+    ]
+    tension: dict[Literal["factor", "steelShare", "overlapShare"], Positive]
+    interaction: Positive
+    edgeMin: Positive = Field(description="[mm]")
+    embedDiameters: Positive
+    embedMin: Positive = Field(description="[mm]")
+    spacingDiameters: Positive
+    groutMin: Positive = Field(description="Grout around the bolt [mm].")
+    shearTable: MasonryAnchorTable | None = Field(default=None, description="Columns: bolt dia.")
+    tensionTable: MasonryAnchorTable | None = Field(
+        default=None, description="Columns: embedment or edge distance [mm]."
+    )
+    steelTension: MasonryAnchorTable | None = Field(
+        default=None, description="One row (fm ignored); columns: bolt dia."
+    )
+    note: str = ""
+
+
+class MasonryConfinedZone(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[int] = Field(min_length=1)
+    density: Share = Field(description="Least wall density in each direction.")
+    storeys: int = Field(gt=0, description="Most storeys.")
+
+
+class MasonryConfined(BaseModel):
+    """Confined masonry (``method`` names the engine method): the wall density and storeys by
+    zone, the layout, the placement and least sizes of the confining elements, the walls, and
+    the allowable shear stress of their concrete."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["confinedPanels"]
+    zones: list[MasonryConfinedZone] = Field(min_length=1)
+    wallsPerDirection: int = Field(gt=0)
+    aspectMax: Positive = Field(description="Building length / width.")
+    tieColumns: dict[Literal["openingArea", "maxSpacing", "intersection"], Positive]
+    tieBeams: dict[Literal["maxSpacing"], Positive]
+    element: dict[
+        Literal[
+            "areaMin",
+            "dimensionMin",
+            "steelAreaMin",
+            "steelRatioMin",
+            "tieDiaMin",
+            "tieSpacingMax",
+            "endTieSpacing",
+            "hookLength",
+            "lapDiameters",
+            "lapMin",
+            "lintelOpening",
+        ],
+        Positive,
+    ]
+    wall: dict[Literal["thicknessMin", "heightThicknessMax"], Positive]
+    concreteShear: Positive = Field(description="Allowable vc = this × √f'c [MPa].")
+    note: str = ""
 
 
 class MasonryPrisms(BaseModel):
@@ -4467,9 +4664,9 @@ class MasonryTable(TableModel):
     the dimension rules, the reinforcement details and the values of the strength design and
     the earthquake provisions."""
 
-    method: Literal["allowableStress"] = Field(
+    method: Literal["allowableStress", "strength"] = Field(
         description="The masonry design method: 'allowableStress' (working stress, linear "
-        "stress-strain)."
+        "stress-strain) or 'strength' (strength design of reinforced walls)."
     )
     mortars: dict[str, MasonryMortar] = Field(min_length=1, description="Mortar grades by id.")
     quality: MasonryQuality
@@ -4485,6 +4682,15 @@ class MasonryTable(TableModel):
     )
     prismEstimate: MasonryPrismEstimate | None = None
     clauses: dict[str, str] = Field(description="Clause reference of each check, by key.")
+    # B34: the methods a wall type may choose instead of ``method``; high wind; anchor bolts;
+    # confined masonry. A pack without one does not cover it.
+    alternatives: list[Literal["allowableStress", "strength"]] = Field(
+        default_factory=list,
+        description="Methods a wall type may choose in lieu of 'method' (none: only 'method').",
+    )
+    highWind: MasonryHighWind | None = None
+    anchorBolts: MasonryAnchorBolts | None = None
+    confined: MasonryConfined | None = None
 
     @model_validator(mode="after")
     def _known_mortars(self) -> MasonryTable:
@@ -4497,6 +4703,7 @@ class MasonryTable(TableModel):
             self.dimensions.basement.leanestMortar,
             self.dimensions.freeStanding.leanestMortar,
             self.seismic.leanestMortar,
+            *(self.highWind.mortars if self.highWind else []),
         ]
         unknown = sorted(set(used) - known)
         if unknown:
