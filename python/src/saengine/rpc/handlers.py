@@ -1960,6 +1960,80 @@ def versions_mark_issued(
     return _versions_call(lambda: versions.mark_issued(project_root, version, label, author=author))
 
 
+# ─────────────────────────────────────── shared projects ───────────────────────────────────────
+
+
+def share_status(project_root: str, user: str | None = None, fetch: bool = True) -> dict[str, Any]:
+    """The office copy: ``{shared, location, kind, ahead, behind, locks, people, problems}``."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.status(project_root, user=user, fetch=fetch))
+
+
+def share_connect(project_root: str, location: str, author: str | None = None) -> dict[str, Any]:
+    """Shares the project at a shared folder or git server address, then syncs."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.connect(project_root, location, author=author))
+
+
+def share_disconnect(project_root: str) -> dict[str, Any]:
+    """Stops syncing this copy."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.disconnect(project_root))
+
+
+def share_join(location: str, target: str) -> dict[str, Any]:
+    """Copies a shared project into the new folder ``target``: ``{projectRoot}``."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.join(location, target))
+
+
+def share_sync(
+    project_root: str,
+    author: str | None = None,
+    resolutions: dict[str, str] | None = None,
+    user: str | None = None,
+) -> dict[str, Any]:
+    """Saves, fetches, merges per part file and sends: ``{state, received, sent, conflicts}``."""
+    from saengine.project import share
+
+    return _versions_call(
+        lambda: share.sync(project_root, author=author, resolutions=resolutions, user=user)
+    )
+
+
+def share_lock(
+    project_root: str, part: str, user: str | None = None, note: str | None = None
+) -> dict[str, Any]:
+    """Takes the lock of a part in the shared folder: ``{lock}``."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.lock(project_root, part, user=user, note=note or ""))
+
+
+def share_unlock(
+    project_root: str, part: str, user: str | None = None, force: bool = False
+) -> dict[str, Any]:
+    """Releases (or with ``force`` breaks) the lock of a part: ``{released, was}``."""
+    from saengine.project import share
+
+    return _versions_call(lambda: share.unlock(project_root, part, user=user, force=force))
+
+
+def share_heartbeat(
+    project_root: str, user: str | None = None, part: str | None = None, leaving: bool = False
+) -> dict[str, Any]:
+    """Keeps (or with ``leaving`` ends) this engineer's presence: ``{available, people}``."""
+    from saengine.project import share
+
+    return _versions_call(
+        lambda: share.heartbeat(project_root, user=user, part=part, leaving=leaving)
+    )
+
+
 # ─────────────────────────────────────── design mode ───────────────────────────────────────
 
 

@@ -22,10 +22,15 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IFemSolverService, SETUP_COMPONENTS, SetupComponent } from '../../../../platform/saengine/common/femSolver.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { Extensions as ViewExtensions, IViewsRegistry } from '../../../common/views.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
 import { CAD_PROGRAM_SETTING } from '../../saengineProject/electron-browser/projectBackend.contribution.js';
-import { COMPONENTS_ADD_COMMAND, COMPONENTS_SHOW_COMMAND, COMPONENTS_STATES_COMMAND, componentLabel, componentPurpose, componentStateText, IComponentStates, IComponentStatus, readComponentStatus, releasesPage, setupComponents } from '../common/components.js';
+import { addComponentLink, COMPONENTS_ADD_COMMAND, COMPONENTS_SHOW_COMMAND, COMPONENTS_STATES_COMMAND, componentContextKey, componentLabel, componentPurpose, componentStateText, EXTENSION_COMPONENTS, ExtensionComponent, IComponentStates, IComponentStatus, readComponentStatus, releasesPage, setupComponents } from '../common/components.js';
 import { compareVersions, parseSha256File, runningVersion, SETUP_ASSET } from '../common/updateCheck.js';
 
 /*
@@ -34,16 +39,6 @@ import { compareVersions, parseSha256File, runningVersion, SETUP_ASSET } from '.
  * chooses the SAEngine setup (SAEngine downloads no program by itself, D7), its SHA-256 is checked
  * against the release's `.sha256` beside it, and the shared process runs it with `/COMPONENTS=`.
  */
-
-/**
- * The extension that tells whether each extension component is installed (`workbench/extensions/<name>`;
- * `code.iss` lists every folder of a component).
- */
-const COMPONENT_EXTENSIONS = {
-	ai: 'GitHub.copilot-chat',
-	git: 'vscode.git',
-	collaboration: 'vscode.tunnel-forwarding',
-} as const;
 
 /** The setup's copy is a built-in extension; one the user installed is found elsewhere. */
 function extensionStatus(extension: IExtensionDescription | undefined): IComponentStatus {
@@ -73,9 +68,9 @@ async function componentStates(accessor: ServicesAccessor): Promise<IComponentSt
 			return undefined;
 		}),
 		solver.cadProgram(configured).catch(() => undefined),
-		extensionService.getExtension(COMPONENT_EXTENSIONS.ai),
-		extensionService.getExtension(COMPONENT_EXTENSIONS.git),
-		extensionService.getExtension(COMPONENT_EXTENSIONS.collaboration),
+		extensionService.getExtension(EXTENSION_COMPONENTS.ai),
+		extensionService.getExtension(EXTENSION_COMPONENTS.git),
+		extensionService.getExtension(EXTENSION_COMPONENTS.collaboration),
 	]);
 	const answer = (backend ?? {}) as { readonly energyplus?: unknown; readonly libredwg?: unknown };
 	return {
@@ -233,4 +228,42 @@ registerAction2(class extends Action2 {
 	override run(accessor: ServicesAccessor): Promise<boolean> {
 		return accessor.get(IInstantiationService).invokeFunction(showComponents);
 	}
+});
+
+/**
+ * The extension components' states as context keys (`saengine.component.ai`, `.git`,
+ * `.collaboration`), kept up to date as extensions come and go, so the places that use a
+ * component offer *Add Component...* when it is missing instead of an empty view.
+ */
+class ExtensionComponentContextKeys extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengineComponentContextKeys';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+	) {
+		super();
+		const keys = (Object.keys(EXTENSION_COMPONENTS) as ExtensionComponent[]).map(component => ({
+			component,
+			key: contextKeyService.createKey<string>(componentContextKey(component), 'unknown'),
+		}));
+		const update = async () => {
+			for (const { component, key } of keys) {
+				key.set(extensionStatus(await this.extensionService.getExtension(EXTENSION_COMPONENTS[component])).state);
+			}
+		};
+		this.extensionService.whenInstalledExtensionsRegistered().then(update);
+		this._register(this.extensionService.onDidChangeExtensions(() => update()));
+	}
+}
+
+registerWorkbenchContribution2(ExtensionComponentContextKeys.ID, ExtensionComponentContextKeys, WorkbenchPhase.AfterRestored);
+
+// Source Control without the Git component: say so and offer to add it (the project's own
+// versions, Project > Versions, need no Git).
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViewWelcomeContent('workbench.scm', {
+	content: localize('components.scmGitMissing', "Git is an optional component of the SAEngine setup and is not installed. The project's own versions (Project › Versions) work without it.\n[Add Git Component...]({0})", addComponentLink('git')),
+	when: ContextKeyExpr.equals(componentContextKey('git'), 'missing'),
+	order: -1,
 });

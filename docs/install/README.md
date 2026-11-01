@@ -65,7 +65,9 @@ components was 711 MB.
 **A missing component is a state, not an error.** Where SAEngine uses the program it says it
 is not installed and offers **Add Component...**: the HVAC results and *Calculate Loads*
 (EnergyPlus), *Open in CAD* (LibreCAD, once, with *Don't Show Again*), a DWG underlay in the
-floor plan (LibreDWG). **Help › Installer Components...** lists all six with their state:
+floor plan (LibreDWG), opening the chat (the AI assistant: SAEngine has no extension gallery,
+so the chat's own install step is replaced by *Add Component...*), and the Source Control view
+(Git). **Help › Installer Components...** lists all six with their state:
 *installed*, *not installed*, or *not installed by the setup; using ...* when SAEngine finds
 the program elsewhere (`SAENGINE_ENERGYPLUS`, `SAENGINE_LIBREDWG`, the `saengine.cad.program`
 setting, or a LibreCAD in `%ProgramFiles%`).

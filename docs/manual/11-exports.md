@@ -141,6 +141,57 @@ opens a sheet in the LibreCAD bundled with SAEngine (or the program in the setti
 `saengine.cad.program`). **Open DXF in CAD...** (File menu) opens any DXF. DXF files also open inside SAEngine
 in a read-only CAD Drawing Editor.
 
+### Post-tensioning sheets
+
+When slabs have post-tensioning tendons (06 BIM, Additions, Slab tendons), the set gets the PT
+sheets after the slab reinforcement plans, drawn from the tendons and their forces as the PT slab
+design works them out:
+
+- **Post-tensioning plan** of each level with tendons: the tendons of each group as lines
+  (distributed over their strip; banded at 300 mm centres at most, the final band positions
+  being the PT supplier's), the live end as a filled triangle and the dead end as a filled
+  square, and the CGS height above the soffit at each profile point;
+- **Tendon profiles** at the elevation scale, heights exaggerated five times: the slab, the CGS
+  (parabolic between the points), the supports at the high points, the distances and heights;
+- **Tendon and stressing schedule**: per group the tendons and strands, strand area and fpu,
+  bond, length, the live end(s), the live and dead anchors, the jacking force per tendon
+  (fpj Aps), the lock-off force at the live anchor after the anchor set, the elongation to
+  measure at each live end (∫P(x)dx / Ep Aps with the friction of ACI 318-11 18.6.2.1;
+  measured elongations within 7 %, 18.20.1) and the f'ci at stressing.
+
+### MEP sheets
+
+When the project has building services in 07 MEP, the set gets MEP sheets after the structural
+and architectural ones, drawn from `07 MEP/mep.json` as entered (nothing is sized or routed
+again):
+
+- **Plumbing and drainage plans** (`P-101` on): water, soil, waste, vent and rainwater risers on
+  every story they rise through, with their size (entered, or *sized* by the plumbing sizing),
+  the tanks, the roof drains and the wet rooms with their fixtures;
+- **HVAC plans** (`M-`): ducts with their size, system and bottom level, duct risers, plant;
+- **Electrical plans** (`E-`): equipment with its rating, electrical rooms, cable trays, busbar
+  and cable risers, the lightning air terminals on the roof;
+- **Fire protection plans** (`FP-`): risers, mains, pumps, the pump room, fire tanks;
+- **MEP coordination plans** (`MC-`): every service on one plan with the shafts and the sleeves
+  and openings through the beams, slabs and walls;
+- **MEP schedules** (`MC-`): risers, equipment (with operating weights), tanks (with the water
+  they hold) and the sleeves and openings.
+
+Each plan is drawn over the grids, columns, walls and slab edges of the story and the
+architectural walls, at the plan scale. The MEP sheets go stale when 07 MEP changes.
+
+### Office standard
+
+Project Settings → Drawings → **Office standard** sets the office's drafting standard: the
+layer names (a prefix for all, or a name of its own per layer), colours and lineweights, the
+text font, the dimension arrows, the sheet number prefixes of each discipline, an office address
+line under the firm in the title block and a disclaimer above the status. **Save Office
+Standard...** (Title block and sheets) writes it to a file; **Load Office Standard...** puts a
+saved one into another project. The sheets keep SAEngine's layers while they are drawn and take
+the office's names when they are written, so your own edits on a sheet are still kept when it is
+drawn again. A name the standard cannot use (a name of SAEngine's scheme, one given twice, or
+characters DXF does not allow) is skipped and listed with the drawings' problems.
+
 ### Bar bending schedule
 
 `bbs.csv` lists member, bar mark, type and size, BS 8666 shape code, dimensions, number, cutting

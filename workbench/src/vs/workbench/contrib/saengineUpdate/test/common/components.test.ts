@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IComponentStates, readComponentStatus, releasesPage, setupComponents } from '../../common/components.js';
+import { addComponentLink, componentContextKey, IComponentStates, isUsable, readComponentStatus, releasesPage, setupComponents } from '../../common/components.js';
 import { runningVersion } from '../../common/updateCheck.js';
 
 suite('SAEngine - installer components', () => {
@@ -44,5 +44,14 @@ suite('SAEngine - installer components', () => {
 	test('the running version', () => {
 		assert.strictEqual(runningVersion({ version: '1.108.0', saengineVersion: '0.0.47-alpha.8' }), '0.0.47-alpha.8');
 		assert.strictEqual(runningVersion({ version: '1.108.0' }), '1.108.0');
+	});
+
+	test('extension components: context keys, usable states and the Add Component link', () => {
+		assert.strictEqual(componentContextKey('git'), 'saengine.component.git');
+		assert.strictEqual(addComponentLink('git'), 'command:saengine.components.add?%5B%22git%22%5D');
+		assert.strictEqual(isUsable({ state: 'installed' }), true);
+		assert.strictEqual(isUsable({ state: 'elsewhere', path: 'x' }), true);
+		assert.strictEqual(isUsable({ state: 'missing' }), false);
+		assert.strictEqual(isUsable({ state: 'unknown' }), false);
 	});
 });

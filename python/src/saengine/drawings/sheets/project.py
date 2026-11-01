@@ -62,6 +62,7 @@ FILES = {
     "architecture": "05 Floor Plan/architecture.json",
     "bim": "06 BIM/bim.json",
     "substructure": "09 Substructure/substructure.json",
+    "mep": "07 MEP/mep.json",
 }
 
 
@@ -1087,6 +1088,24 @@ def drawing_set(
         else:
             if architecture.walls:
                 data.architecture = architecture
+    if bim.additions.slabTendons:
+        from saengine.drawings.sheets.pt import pt_tendons
+
+        data.pt, problems = pt_tendons(bim, objects, materials)
+        data.problems += problems
+    if texts["mep"]:
+        from saengine.drawings.sheets.mep import mep_drawing
+
+        arch = None
+        if texts["architecture"]:
+            from saengine.library import architecture as arch_lib
+
+            try:
+                arch = arch_lib.parse(texts["architecture"])
+            except ValueError:
+                arch = None
+        data.mep, problems = mep_drawing(texts["mep"], bim, arch)
+        data.problems += problems
     if materials is not None:
         from saengine.drawings.sheets.steel import steel_set
 

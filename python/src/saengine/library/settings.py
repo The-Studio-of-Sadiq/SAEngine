@@ -1045,6 +1045,74 @@ class DrawingRevision(_Model):
     by: str | None = Field(default=None, title="By", description="Initials of who revised it.")
 
 
+DRAFTING_FONTS = ("Arial", "Arial Narrow", "Calibri", "Segoe UI", "Tahoma")
+LINEWEIGHTS = (0.09, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0)
+
+
+class DrawingLayer(_Model):
+    """One layer of SAEngine's scheme (docs/drawings-layers.md) as the office draws it."""
+
+    layer: str = Field(
+        min_length=1,
+        title="SAEngine layer",
+        description="A layer of SAEngine's scheme: S-GRID, S-COLS, A-WALL, P-DOMW, ...",
+    )
+    name: str | None = Field(
+        default=None,
+        title="Office name",
+        description="The office's name for it; empty: the scheme's (with the layer prefix).",
+    )
+    color: int | None = Field(
+        default=None, ge=1, le=255, title="Colour", description="AutoCAD Colour Index 1-255."
+    )
+    lineweight: Literal[LINEWEIGHTS] | None = Field(  # type: ignore[valid-type]
+        default=None, title="Lineweight", description="Plotted lineweight [mm]."
+    )
+
+
+class DraftingStandard(_Model):
+    """The office's drafting standard: layer names, colours and lineweights, the text font, the
+    dimension arrows, the sheet number prefixes and the office lines of the title block. Saved
+    as a file (Drawings, Office standard) it carries over to the office's other projects."""
+
+    name: str = Field(default="", description="The standard's name, e.g. the office's.")
+    font: Literal[DRAFTING_FONTS] = Field(  # type: ignore[valid-type]
+        default="Arial",
+        description="TrueType font of the text (Windows fonts; LibreCAD draws its own).",
+    )
+    arrows: Literal["tick", "closed", "dot", "oblique"] = Field(
+        default="tick",
+        title="Dimension arrows",
+        json_schema_extra=_labels(
+            ["Architectural tick", "Closed filled arrow", "Small dot", "Oblique stroke"]
+        ),
+    )
+    layerPrefix: str = Field(
+        default="",
+        title="Layer prefix",
+        description="Put before every layer name, e.g. 'XY-' (a layer's office name wins).",
+    )
+    layers: list[DrawingLayer] = Field(
+        default_factory=list, description="Layers drawn other than the scheme."
+    )
+    structuralPrefix: str = Field(default="S-", title="Structural sheets")
+    architecturalPrefix: str = Field(default="A-", title="Architectural sheets")
+    plumbingPrefix: str = Field(default="P-", title="Plumbing sheets")
+    mechanicalPrefix: str = Field(default="M-", title="HVAC sheets")
+    electricalPrefix: str = Field(default="E-", title="Electrical sheets")
+    firePrefix: str = Field(default="FP-", title="Fire protection sheets")
+    coordinationPrefix: str = Field(default="MC-", title="MEP coordination sheets")
+    officeLine: str | None = Field(
+        default=None,
+        title="Office address line",
+        description="Under the firm's name in the title block: address, phone, licence no.",
+    )
+    disclaimer: str | None = Field(
+        default=None,
+        description="Printed above the status in the title block, e.g. 'Do not scale.'",
+    )
+
+
 PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250)
 DETAIL_SCALES = (10, 20, 25, 50)
 
@@ -1120,6 +1188,11 @@ class Drawings(_Model):
         title="Cut off beam top bars",
         description="Stop the extra top bars of beams past the supports; off: every bar runs "
         "the full length.",
+    )
+    standard: DraftingStandard = Field(
+        default_factory=DraftingStandard,
+        title="Office standard",
+        description="Layers, font, arrows, sheet numbers and title block lines of the office.",
     )
 
     @model_validator(mode="before")

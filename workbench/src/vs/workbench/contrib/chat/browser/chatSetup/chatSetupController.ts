@@ -13,7 +13,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isObject, isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -42,6 +42,9 @@ const defaultChat = {
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? 'github-enterprise.uri',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
+
+/** SAEngine's *Add Component...* (contrib/saengineUpdate; not imported, chat stays independent of it). */
+const SAENGINE_COMPONENTS_ADD_COMMAND = 'saengine.components.add';
 
 export interface IChatSetupControllerOptions {
 	readonly forceSignIn?: boolean;
@@ -96,6 +99,14 @@ export class ChatSetupController extends Disposable {
 	}
 
 	async setup(options: IChatSetupControllerOptions = {}): Promise<ChatSetupResultValue> {
+		// SAEngine: the AI assistant is an optional component of the setup and SAEngine has no
+		// extension gallery to download it from, so a missing assistant is added by Add Component...
+		// (the setup run again with the component ticked) instead of an install that cannot work.
+		if (!this.context.state.installed && !this.productService.extensionsGallery?.serviceUrl && CommandsRegistry.getCommand(SAENGINE_COMPONENTS_ADD_COMMAND)) {
+			await this.commandService.executeCommand(SAENGINE_COMPONENTS_ADD_COMMAND, 'ai');
+			return undefined;
+		}
+
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting chat ready...");
 		const badge = this.activityService.showViewContainerActivity(ChatViewContainerId, {

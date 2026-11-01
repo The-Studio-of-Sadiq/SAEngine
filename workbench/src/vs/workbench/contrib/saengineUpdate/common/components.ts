@@ -27,6 +27,40 @@ export const COMPONENTS_STATES_COMMAND = 'saengine.components.states';
 export const COMPONENTS_SHOW_COMMAND = 'saengine.components.show';
 
 /**
+ * The components that are built-in extensions (`code.iss` installs their folders under
+ * `resources\app\extensions`), each with the extension whose presence tells its state.
+ */
+export const EXTENSION_COMPONENTS = {
+	ai: 'GitHub.copilot-chat',
+	git: 'vscode.git',
+	collaboration: 'vscode.tunnel-forwarding',
+} as const satisfies { readonly [K in SetupComponent]?: string };
+
+export type ExtensionComponent = keyof typeof EXTENSION_COMPONENTS;
+
+/**
+ * The context key that holds an extension component's state (`installed`, `elsewhere`,
+ * `missing`), so menus and view welcomes can offer *Add Component...* where the component is
+ * used, e.g. `saengine.component.git == missing` in Source Control.
+ */
+export function componentContextKey(component: ExtensionComponent): string {
+	return `saengine.component.${component}`;
+}
+
+/** Whether the part that uses the component can use it (the setup's copy or one found elsewhere). */
+export function isUsable(status: IComponentStatus): boolean {
+	return status.state === 'installed' || status.state === 'elsewhere';
+}
+
+/**
+ * The command link of *Add Component...* for a view welcome or a Markdown message
+ * (`command:saengine.components.add?["git"]`).
+ */
+export function addComponentLink(component: SetupComponent): string {
+	return `command:${COMPONENTS_ADD_COMMAND}?${encodeURIComponent(JSON.stringify([component]))}`;
+}
+
+/**
  * `installed`: the setup's copy in the app folder; `elsewhere`: found another way (an environment
  * variable, a setting, a program installed separately), which works too; `missing`: none, the
  * part works without it in a reduced way; `unknown`: the backend could not be asked.
@@ -61,7 +95,7 @@ export function componentPurpose(component: SetupComponent): string {
 		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports) and writes the drawing sheets as DWG. Without it a DWG must be saved as DXF first, and the sheets are DXF only.");
 		case 'ai': return localize('component.aiPurpose', "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
 		case 'git': return localize('component.gitPurpose', "Project history with Git and GitHub, in Developer Mode. Without it SAEngine keeps its own versions of the project.");
-		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access; live collaboration will be added here. Without it SAEngine works on this computer only.");
+		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access, and live co-editing of a shared project once its engine is added. Shared projects (office copy, sync, part locks, presence) work without it.");
 	}
 }
 
