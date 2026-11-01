@@ -207,7 +207,10 @@ def test_silt_without_pi_or_cu_is_granular_with_a_note() -> None:
     assert p.notes == [note]
     # The note reaches the results' notes, which the Soil editor shows.
     result = soil_report(json.dumps({"boreholes": [hole]}), None)
-    assert result["boreholes"][0]["notes"] == p.notes
+    notes = result["boreholes"][0]["notes"]
+    assert notes[0] == note
+    # The cu 30 kPa clay is a soft clay (BNBC 2020 Sec 3.5.8): its note follows.
+    assert len(notes) == 2 and "soft clay (cu 30 kPa" in notes[1]
 
 
 # ─────────────────────────────── site class ───────────────────────────────
@@ -417,7 +420,8 @@ def test_unknown_layer_under_the_base_withholds_qa() -> None:
     assert any("layer 2 (fill): no strength" in n and "no qa" in n for n in r["notes"])
     # Founded below the unknown fill: the sand governs.
     assert bearing.allowable(profile(hole), 2.0, 2.0, 2.5)["qa"] is not None
-    # The unknown layer counts within 2B below the base (BNBC Sec 3.4.2.3(a)), not beyond.
+    # The unknown layer counts within the exploration depth below the base (BNBC 2020
+    # Sec 3.4.5(i): 2B for a square footing), not beyond.
     deep = {
         "id": "BH",
         "layers": [
