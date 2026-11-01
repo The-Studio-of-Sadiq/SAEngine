@@ -2,10 +2,10 @@
 
 Special structures (Part 5: trusses, space frames, portal frames, towers, canopy frames) have no
 floors to take storey wind forces, so their wind is applied member by member as for "other
-structures" (BNBC 2020 Part 6 Sec 2.4, design wind loads on other structures, which follows
-ASCE 7-05 Sec 6.5.15; the coefficients are the code pack's ``wind.openStructures``):
+structures" (BNBC 2020 Part 6 Sec 2.4.14; the coefficients are the code pack's
+``wind.openStructures``, Figures 6.2.22-6.2.23, and ``wind.chimneys``, Figure 6.2.21):
 
-    F = qz · G · Cf · Af                                    (ASCE 7-05 Eq 6-28)
+    F = qz · G · Cf · Af                                    (Eq 6.2.30)
 
 - qz, the velocity pressure at the height z of each member's middle (BNBC Sec 2.4.6,
   :func:`saengine.fem.loads.velocity_pressure`), G the gust factor of a rigid structure;
@@ -13,8 +13,14 @@ ASCE 7-05 Sec 6.5.15; the coefficients are the code pack's ``wind.openStructures
   outer dimension of its profile, so either way it faces the wind) times its length times
   sin φ, φ the angle between the member and the wind;
 - Cf of an open framework by its solidity ratio ε (solid area / gross area of the face; flat
-  or rounded members, Figure 6-22), or of a trussed tower's face (square or triangular,
-  Figure 6-23, with the factor for rounded members and the diagonal wind on a square tower).
+  or rounded members, Figure 6.2.22), or of a trussed tower's face (square or triangular,
+  Figure 6.2.23, with the factor for rounded members and the diagonal wind on a square tower),
+  or of a chimney, tank or similar structure (form ``chimney``: Figure 6.2.21 by its
+  cross-section and h/D, each member's width its D).
+
+Further down: solid freestanding walls and signs (Sec 2.4.13, Figure 6.2.20,
+:func:`solid_sign_wind`), chimneys and tanks (:func:`chimney_cf`) and rooftop equipment on low
+buildings (Sec 2.4.15, :func:`rooftop_equipment_wind`).
 
 Each member then carries a uniform load w = qz·G·Cf·d·sin φ along the wind (in N/m of its
 length). ε is taken from the settings or computed in each direction from the model: the sum of
@@ -39,12 +45,11 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any
 
 import numpy as np
 
-#: ft·√psf to m·√Pa (the D√qz limit of the rounded-member coefficients).
-FT_SQRT_PSF = 0.3048 * math.sqrt(47.880259)
 #: Directions of the wind cases.
 DIRECTIONS = {"WX": np.array([1.0, 0.0, 0.0]), "WY": np.array([0.0, 1.0, 0.0])}
 #: A trussed tower face's share of the projected area of all the members in the wind.
@@ -52,20 +57,20 @@ TOWER_FACE_SHARE = 0.5
 
 
 def lattice_cf(table: Any, solidity: float, rounded: bool = False, d_sqrt_qz: float = 0.0) -> float:
-    """Cf of an open sign or lattice framework (Figure 6-22): by the solidity ratio ε, flat or
-    rounded members; for rounded ones by D√qz [m·√Pa] against the table's limit."""
+    """Cf of an open sign or lattice framework (Figure 6.2.22): by the solidity ratio ε, flat or
+    rounded members; for rounded ones by D√qz (D in m, qz in N/m²) against the table's limit."""
     rows = sorted(table.lattice, key=lambda r: r.solidityMax)
     row = next((r for r in rows if solidity < r.solidityMax), rows[-1])
     if not rounded:
         return float(row.flat)
-    small = d_sqrt_qz <= table.roundLimit * FT_SQRT_PSF
+    small = d_sqrt_qz <= table.roundLimit
     return float(row.roundSmall if small else row.roundLarge)
 
 
 def tower_cf(
     table: Any, solidity: float, shape: str, rounded: bool = False, diagonal: bool = False
 ) -> float:
-    """Cf of a trussed tower's face (Figure 6-23): a·ε² + b·ε + c for a square or triangular
+    """Cf of a trussed tower's face (Figure 6.2.23): a·ε² + b·ε + c for a square or triangular
     cross-section; × (0.51ε² + 0.57, at most 1) for rounded members; a square tower's wind on
     the diagonal × (1 + 0.75ε, at most 1.2)."""
     coeff = table.squareTower if shape == "square" else table.triangularTower
@@ -158,9 +163,16 @@ def open_structure_wind(
     form: str = "lattice",
     solidity: float | None = None,
     rounded: bool = False,
+    section: str = "square",
+    surface: str = "all",
+    chimneys: Any = None,
 ) -> OpenWind:
     """The uniform member loads of the wind cases WX and WY (+X and +Y; the combinations take
-    them with ±). ``qz_of(z)``: the velocity pressure [Pa] at height z [m]."""
+    them with ±). ``qz_of(z)``: the velocity pressure [Pa] at height z [m]. Form ``chimney``:
+    every member takes Cf of the ``chimneys`` table (Figure 6.2.21) for ``section`` and
+    ``surface``, its width D and the structure's height h."""
+    if form == "chimney":
+        return _chimney_structure_wind(members, qz_of, gust, chimneys, section, surface)
     result = OpenWind()
     last = max(r.solidityMax for r in table.lattice)
     for case, wind in DIRECTIONS.items():
@@ -208,7 +220,266 @@ def open_structure_wind(
     return result
 
 
-# ───────────────────── clad structures: pressures on the panels (MWFRS) ─────────────────────
+def _chimney_structure_wind(
+    members: list[WindMember], qz_of: Any, gust: float, table: Any, section: str, surface: str
+) -> OpenWind:
+    """Form ``chimney`` of :func:`open_structure_wind`: w = qz·G·Cf·D·sin φ on each member, Cf
+    of Figure 6.2.21 by h/D (h the structure's height, D the member's width) and, for a round
+    section, D√qz."""
+    result = OpenWind()
+    if table is None:
+        result.notes.append("the code pack has no force coefficients of chimneys and tanks")
+        return result
+    zs = [float(p[2]) for m in members for p in (m.start, m.end)]
+    height = (max(zs) - min(zs)) if zs else 0.0
+    for case, wind in DIRECTIONS.items():
+        facing = [m for m in members if m.sin_to(wind) > 1e-6 and m.width > 0]
+        if not facing:
+            continue
+        loads, total, cfs = [], 0.0, []
+        for m in facing:
+            z = float(m.start[2] + m.end[2]) / 2
+            qz = float(qz_of(max(z, 0.0)))
+            cf = chimney_cf(
+                table, section, surface, height / m.width, m.width * math.sqrt(max(qz, 0.0))
+            )
+            w = qz * gust * cf * m.width * m.sin_to(wind)
+            loads.append((m.index, wind * w))
+            total += w * m.length
+            cfs.append(cf)
+        result.loads[case] = loads
+        result.summary[case] = {
+            "solidity": 1.0,
+            "Cf": round(max(cfs), 3),
+            "area_m2": round(projected_area(facing, wind), 2),
+            "force_kN": round(total / 1e3, 2),
+        }
+    result.notes.append(
+        f"chimney or tank ({section}, {surface} surface): Cf by h/D with h = {height:.2f} m "
+        f"({table.source})"
+    )
+    return result
+
+
+# ─────────────── other structures: chimneys, tanks, solid signs, rooftop equipment ───────────────
+
+
+def chimney_cf(
+    table: Any, section: str, surface: str = "all", h_over_d: float = 1.0, d_sqrt_qz: float = 0.0
+) -> float:
+    """Cf of a chimney, tank, rooftop equipment or similar structure (BNBC 2020 Part 6 Figure
+    6.2.21, the code pack's ``wind.chimneys``) of cross-section ``section`` (square, its wind on
+    the diagonal squareDiagonal, polygonal: hexagonal or octagonal, round) by h/D (linear,
+    note 2; held at the figure's ends). A round section takes the row of its ``surface`` when
+    D√qz (D in m, qz in N/m²) is above the limit, else the one row of all surfaces."""
+    if section == "round" and d_sqrt_qz <= table.roundLimit:
+        row = next(r for r in table.rows if r.section == "round" and r.small)
+    else:
+        wanted = surface if section == "round" else "all"
+        row = next(
+            (r for r in table.rows if r.section == section and r.surface == wanted and not r.small),
+            None,
+        )
+        if row is None:
+            raise ValueError(f"no force coefficient for a {section} section, {surface} surface")
+    return _lerp(h_over_d, list(table.hOverD), list(row.cf))
+
+
+def _table_value(xs: list[float], ys: list[float | None], x: float) -> float | None:
+    """Linear in ``xs`` where both neighbours have a value; the one that has one otherwise."""
+    pairs = list(zip(xs, ys, strict=True))
+    if x <= xs[0]:
+        return ys[0]
+    for (x0, y0), (x1, y1) in pairwise(pairs):
+        if x <= x1:
+            if y0 is None or y1 is None:
+                return y1 if y0 is None else y0
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return ys[-1]
+
+
+def solid_sign_cf(table: Any, s_over_h: float, b_over_s: float) -> float:
+    """Cf of cases A and B of a solid freestanding wall or sign (BNBC 2020 Part 6 Figure 6.2.20,
+    the code pack's ``wind.solidSigns``) by its clearance ratio s/h and aspect ratio B/s, linear
+    in both (note 5) and held at the figure's ends."""
+    order = sorted(range(len(table.clearance)), key=lambda i: table.clearance[i])
+    rows = [table.caseAB[i] for i in order]
+    clearances = [table.clearance[i] for i in order]
+    by_row = [_lerp(b_over_s, list(table.aspect), list(r)) for r in rows]
+    return _lerp(s_over_h, clearances, by_row)
+
+
+def solid_sign_case_c(
+    table: Any, s_over_h: float, b_over_s: float, return_corner: float | None = None
+) -> list[dict[str, float]]:
+    """Case C of a long solid wall or sign (B/s ≥ 2, Figure 6.2.20): its regions by distance
+    from the windward edge in multiples of s, ``[{"from_s", "to_s", "Cf"}]``, each Cf × (1.8 −
+    s/h) when s/h > 0.8 (note 4) and the first × the return-corner factor of Lr/s
+    ``return_corner`` where the figure marks it (B/s ≥ 5; none below the figure's least Lr/s).
+    Empty below the table's least B/s."""
+    c = table.caseC
+    if b_over_s < c.minAspect:
+        return []
+    factor = (c.reductionConstant - s_over_h) if s_over_h > c.reductionAbove else 1.0
+    out = []
+    start = 0.0
+    for i, region in enumerate(c.regions):
+        if start >= b_over_s:
+            break
+        end = b_over_s if region.end is None else min(region.end, b_over_s)
+        cf = _table_value(list(c.aspect), list(region.cf), b_over_s)
+        if cf is not None:
+            value = cf * factor
+            corner = table.returnCorner
+            if i == 0 and return_corner and corner and b_over_s >= corner.fromAspect:
+                points = [tuple(p) for p in corner.factors]
+                if return_corner >= points[0][0]:
+                    value *= _lerp(return_corner, [p[0] for p in points], [p[1] for p in points])
+            out.append({"from_s": start, "to_s": end, "Cf": round(value, 4)})
+        start = end if region.end is not None else b_over_s
+    return out
+
+
+def solid_sign_wind(
+    qh: float,
+    gust: float,
+    width: float,
+    depth: float,
+    height: float,
+    solidity: float = 1.0,
+    return_corner: float | None = None,
+    open_table: Any = None,
+) -> dict[str, Any]:
+    """The design wind force on a solid freestanding wall or sign (BNBC 2020 Part 6 Sec 2.4.13,
+    Eq 6.2.29: F = qh·G·Cf·As, Figure 6.2.20) of ``width`` B, ``depth`` s (its vertical
+    dimension) and top at ``height`` h [m], ``qh`` the velocity pressure at h [kN/m²]:
+
+    - cases A and B: F through the geometric centre, and 0.2·B toward the windward edge (for
+      s/h = 1 both 0.05·s above the centre);
+    - case C (B/s ≥ 2): the force of each region at its centre;
+    - a sign with openings (``solidity`` ε below 1) takes Cf × (1 − (1 − ε)^1.5) (note 2); one
+      with 30 % or more open (ε ≤ 0.7) is an open sign: Figure 6.2.22's flat-member Cf on
+      its solid area (``open_table``, the pack's ``openStructures``)."""
+    table = _wind_block("solidSigns")
+    s_over_h, b_over_s = depth / height, width / depth
+    gross = width * depth
+    lift = table.fullHeightLift * depth if s_over_h >= 0.999 else 0.0
+    centre = height - depth / 2 + lift
+    notes: list[str] = []
+    if solidity <= table.solidMin and open_table is not None:
+        cf = lattice_cf(open_table, solidity)
+        area = gross * solidity
+        force = qh * gust * cf * area
+        notes.append(
+            f"ε = {solidity:g} ≤ {table.solidMin:g}: an open sign, Cf of open signs on the solid "
+            f"area ({open_table.source})"
+        )
+        return {
+            "kind": "open",
+            "s_h": s_over_h,
+            "B_s": b_over_s,
+            "Cf": cf,
+            "As_m2": area,
+            "cases": {"A": {"F_kN": force, "z_m": centre, "offset_m": 0.0}},
+            "caseC": [],
+            "notes": notes,
+        }
+    reduction = 1.0
+    if solidity < 1.0:
+        reduction = 1.0 - (1.0 - solidity) ** table.openingExponent
+        notes.append(f"openings: Cf × {reduction:.3f} (1 − (1 − ε)^{table.openingExponent:g})")
+    cf = solid_sign_cf(table, s_over_h, b_over_s) * reduction
+    force = qh * gust * cf * gross
+    cases = {
+        "A": {"F_kN": force, "z_m": centre, "offset_m": 0.0},
+        "B": {"F_kN": force, "z_m": centre, "offset_m": table.caseBOffset * width},
+    }
+    regions = []
+    for r in solid_sign_case_c(table, s_over_h, b_over_s, return_corner):
+        length = (r["to_s"] - r["from_s"]) * depth
+        cf_r = r["Cf"] * reduction
+        regions.append(
+            {
+                **r,
+                "Cf": cf_r,
+                "F_kN": qh * gust * cf_r * length * depth,
+                "x_m": (r["from_s"] + r["to_s"]) / 2 * depth,
+                "z_m": centre,
+            }
+        )
+    return {
+        "kind": "solid",
+        "s_h": s_over_h,
+        "B_s": b_over_s,
+        "Cf": cf,
+        "As_m2": gross,
+        "cases": cases,
+        "caseC": regions,
+        "notes": notes,
+    }
+
+
+def _wind_block(name: str) -> Any:
+    """The code pack's ``wind.<name>`` block; ValueError when the pack has none."""
+    from saengine.codes import context as code_context
+
+    block = getattr(code_context.table("wind"), name, None)
+    if block is None:
+        raise ValueError(f"the code pack in force has no wind table '{name}'")
+    return block
+
+
+@dataclass
+class RooftopItem:
+    """A rooftop structure or piece of equipment: plan ``size`` (along X, along Y) and
+    ``height`` [m], its cross-section and surface for Figure 6.2.21, how many."""
+
+    name: str
+    size: tuple[float, float]
+    height: float
+    section: str = "square"
+    surface: str = "all"
+    count: int = 1
+
+
+def rooftop_equipment_wind(
+    items: Iterable[RooftopItem],
+    roof_height: float,
+    widths: dict[str, float],
+    qz_of: Any,
+    gust: float,
+) -> dict[str, Any]:
+    """The wind force on rooftop structures and equipment of a building with mean roof height
+    ``roof_height`` h (BNBC 2020 Part 6 Sec 2.4.14-2.4.15): F = qz·G·Cf·Af (Eq 6.2.30) with qz
+    at the centroid of Af (h + half the item's height, ``qz_of(z)`` [kN/m²]) and Cf of Figure
+    6.2.21 (h/D of the item, D its least plan dimension), × the factor of Sec 2.4.15
+    (:func:`saengine.fem.loads.rooftop_factor`, B = ``widths[case]``, the building's width
+    across the wind). Returns ``{"WX": kN, "WY": kN, "items": [...]}``."""
+    from saengine.fem.loads import rooftop_factor
+
+    table = _wind_block("chimneys")
+    out: dict[str, Any] = {"WX": 0.0, "WY": 0.0, "items": []}
+    for item in items:
+        lx, ly = item.size
+        least = min(lx, ly)
+        if least <= 0 or item.height <= 0:
+            continue
+        z = roof_height + item.height / 2
+        qz = float(qz_of(z))
+        row: dict[str, Any] = {"name": item.name, "count": item.count, "z_m": z, "qz_kPa": qz}
+        for case, face in (("WX", ly), ("WY", lx)):
+            area = face * item.height
+            cf = chimney_cf(
+                table, item.section, item.surface, item.height / least, least * math.sqrt(qz * 1e3)
+            )
+            factor = rooftop_factor(area, widths.get(case, 0.0), roof_height)
+            force = qz * gust * cf * area * factor * item.count
+            row[case] = {"Af_m2": area, "Cf": cf, "factor": factor, "F_kN": force}
+            out[case] += force
+        out["items"].append(row)
+    return out
+
+
 #
 # A special structure that is clad (a shed of portal frames with roof and wall sheeting, a clad
 # barrel vault or dome) is an enclosed or partially enclosed building, not an open framework:

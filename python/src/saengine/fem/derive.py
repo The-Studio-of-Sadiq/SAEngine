@@ -3226,6 +3226,10 @@ def _open_structure_wind(
             options.form,
             options.solidity,
             options.roundMembers,
+            # B22: a chimney, stack or tank (Figure 6.2.21).
+            section=options.chimneySection,
+            surface=options.chimneySurface,
+            chimneys=getattr(code_context.table("wind"), "chimneys", None),
         )
     for case, loads in result.loads.items():
         for index, vector in loads:
@@ -3237,8 +3241,8 @@ def _open_structure_wind(
             "wind (e.g. " + ", ".join(sorted(unknown)[:5]) + ")"
         )
     b.notes.append(
-        "wind (open structure): F = qz·G·Cf·Af on every member (BNBC 2020 Part 6 Sec 2.4, other "
-        f"structures; {options.form}, G {gust:g}); "
+        "wind (open structure): F = qz·G·Cf·Af on every member ("
+        f"{table.source or 'other structures'}; {options.form}, G {gust:g}); "
         + "; ".join(
             f"{case}: ε {s['solidity']:g}, Cf {s['Cf']:g}, {s['force_kN']:g} kN"
             for case, s in result.summary.items()
@@ -3755,6 +3759,10 @@ def _wind_loads(
     totals: dict[str, float] = {}
     no_width: dict[str, list[str]] = {}
     depth_of: dict[str, float] = {}
+    # B22: topography (Kzt at each height) and rooftop equipment (added to the roof level).
+    topography, rooftop = _wind_site_extras(
+        rel[-1], extents[-1], speed, exposure, importance, settings, notes
+    )
     for axis, case in ((0, "WX"), (1, "WY")):
         across = 1 - axis
         spans = [(float(lo[across]), float(hi[across])) for lo, hi in extents]
@@ -3782,6 +3790,8 @@ def _wind_loads(
             )
             no_width[case] = flat
         levels = fl.wind_levels(rel, spans, depths, speed, exposure, importance)
+        if rooftop and rooftop.get(case):
+            levels[-1] = dataclasses.replace(levels[-1], force=levels[-1].force + rooftop[case])
         moments = (
             fl.wind_torsion_moments(levels, cases.eccentricity)
             if with_torsion and cases is not None
@@ -3835,6 +3845,10 @@ def _wind_loads(
         "depth_m": depth_of,
         "base_m": base_m,
     }
+    if topography is not None:
+        summary["wind"]["topography"] = topography
+    if rooftop:
+        summary["wind"]["rooftop"] = rooftop
     # Components and cladding (Sec 2.4.11.5) at the roof, the least dimension of the whole
     # building's plan setting the edge zones' width a.
     low = np.min([lo for lo, _ in extents], axis=0)
@@ -3913,6 +3927,119 @@ def _wind_loads(
     return notes
 
 
+def _flexible_twist(
+    levels: list[dict[str, Any]], terms: dict[str, float], offset: float | None
+) -> dict[str, Any] | None:
+    """The torsional eccentricity of a flexible building at each level (BNBC 2020 Part 6 Sec
+    2.4.11.3, Eq 6.2.23, :func:`saengine.fem.loads.flexible_eccentricity`) from its rigid e
+    (``e_m`` of the level rows) and ``offset`` eR [m]: ``{"eR_m", "ratio": {z: e / eQ},
+    "levels": [{"z", "eQ_m", "e_m"}]}``; None without eR, torsion rows or the pack's method."""
+    if offset is None:
+        return None
+    ratio: dict[float, float] = {}
+    rows = []
+    for row in levels:
+        rigid = row.get("e_m")
+        if not rigid:
+            continue
+        e = fl.flexible_eccentricity(float(rigid), float(offset), terms)
+        if e is None:
+            return None
+        z = round(float(row["z"]), 6)
+        ratio[z] = e / float(rigid)
+        rows.append({"z": z, "eQ_m": float(rigid), "e_m": e})
+    return {"eR_m": float(offset), "ratio": ratio, "levels": rows} if rows else None
+
+
+def _wind_site_extras(
+    roof: float,
+    extent: tuple[np.ndarray, np.ndarray],
+    speed: float,
+    exposure: str,
+    importance: float,
+    settings: Any,
+    notes: list[str],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """B22: the site's topography (Kzt of the code pack's topographic effects at the roof
+    height ``roof`` [m]; every qz takes its own height's, :func:`saengine.fem.loads.
+    velocity_pressure`) and the rooftop equipment's wind force in WX and WY (the code pack's
+    other structures and rooftop increase, :func:`saengine.fem.open_wind.
+    rooftop_equipment_wind`) with ``extent`` the roof level's plan (low, high). Called inside
+    :func:`saengine.fem.loads.wind_overrides`. Returns (topography, rooftop), each None when
+    absent; the notes go to ``notes``."""
+    from saengine.fem import open_wind as ow
+
+    wind = code_context.table("wind")
+    topography = None
+    topo_settings = getattr(settings, "topography", None)
+    feature = getattr(topo_settings, "feature", "none")
+    if feature not in (None, "none"):
+        source = getattr(getattr(wind, "topography", None), "source", "")
+        if getattr(settings, "topographic", None) is not None:
+            notes.append(f"wind topography ({feature}): the Kzt given in the settings is used")
+        elif not getattr(topo_settings, "isolated", True):
+            notes.append(
+                f"wind topography ({feature}): not isolated or not near the crest, so no "
+                f"speed-up (Kzt 1; {source})"
+            )
+        else:
+            terms = fl.topographic_terms(roof, exposure)
+            if terms is None:
+                notes.append(
+                    f"wind topography ({feature}): the code pack has no topographic multipliers "
+                    "or H and Lh are missing; Kzt of flat terrain is used"
+                )
+            elif not terms["applies"]:
+                topography = terms
+                notes.append(
+                    f"wind topography ({feature}): {terms['reason']}, so no speed-up (Kzt 1; "
+                    f"{source})"
+                )
+            else:
+                topography = {**terms, "z_m": roof, "Kzt_base": fl.topographic_factor(0, exposure)}
+                notes.append(
+                    f"wind topography ({feature}, {source}): K1 {terms['K1']:.3f}, K2 "
+                    f"{terms['K2']:.3f}; Kzt = (1 + K1·K2·K3)² from "
+                    f"{topography['Kzt_base']:.3f} at the ground to {terms['Kzt']:.3f} at the "
+                    f"roof (h = {roof:.1f} m)"
+                )
+    items = list(getattr(settings, "rooftopEquipment", None) or [])
+    if not items or roof <= 0:
+        return topography, None
+    if getattr(wind, "chimneys", None) is None:
+        notes.append(
+            "wind: the code pack has no force coefficients of rooftop equipment; the "
+            f"{len(items)} rooftop item(s) carry no wind"
+        )
+        return topography, None
+    low, high = extent
+    rooftop = ow.rooftop_equipment_wind(
+        [
+            ow.RooftopItem(
+                e.name or f"item {k}",
+                (float(e.sizeX), float(e.sizeY)),
+                float(e.height),
+                e.section,
+                e.surface,
+                int(e.count),
+            )
+            for k, e in enumerate(items, start=1)
+        ],
+        roof,
+        {"WX": float(high[1] - low[1]), "WY": float(high[0] - low[0])},
+        lambda z: fl.velocity_pressure(z, speed, exposure, importance),
+        fl.wind_factor("gust"),
+    )
+    factors = sorted({round(r[c]["factor"], 3) for r in rooftop["items"] for c in ("WX", "WY")})
+    notes.append(
+        f"wind on rooftop equipment ({wind.chimneys.source}; "
+        f"{getattr(getattr(wind, 'rooftop', None), 'source', '')}): "
+        f"{rooftop['WX']:.1f} kN in X, {rooftop['WY']:.1f} kN in Y added to the roof level "
+        f"(factor {', '.join(f'{f:g}' for f in factors)}), shared like its storey force"
+    )
+    return topography, rooftop
+
+
 def _wind_gust(
     project: dict[str, Any],
     summary: dict[str, Any],
@@ -3980,14 +4107,40 @@ def _wind_gust(
         entry.update(terms)
         entry["G"] = terms["Gf"]
         factor = terms["Gf"] / rigid
+        # B22: the flexible building's eccentricity (Sec 2.4.11.3, Eq 6.2.23) per level, from
+        # the rigid e (eQ) and the settings' eR; the torsion case's loads × e / eQ.
+        twist = _flexible_twist(levels, terms, getattr(settings, "shearCentreDistance", None))
+        if twist:
+            entry["eccentricity"] = {k: v for k, v in twist.items() if k != "ratio"}
+            low, high = min(twist["ratio"].values()), max(twist["ratio"].values())
+            cite = code_context.table("wind").sources.get("flexibleEccentricity", "")
+            notes.append(
+                f"wind {axis}: flexible building, torsional eccentricity e from eQ and eR = "
+                f"{twist['eR_m']:g} m ({cite}): e / eQ {low:.3f}"
+                + (f" to {high:.3f}" if high - low > 5e-4 else "")
+            )
+        elif getattr(settings, "shearCentreDistance", None) is None and any(
+            "e_m" in row for row in levels
+        ):
+            notes.append(
+                f"wind {axis}: flexible building; its torsional eccentricity keeps the rigid e "
+                "(give the shear centre offset eR in Project Settings > Wind for the flexible e)"
+            )
+        z_of = {n["id"]: round(float(n["coords"][2]), 6) for n in project.get("nodes", [])}
         for name in (case, fl.WIND_TORSION_CASES[case]):
             pattern = by_name.get(name)
             for load in (pattern or {}).get("nodal_loads", []):
-                load["forces"] = [round(float(f) * factor, 3) for f in load["forces"]]
+                f = factor
+                if twist and name != case:
+                    f *= twist["ratio"].get(z_of.get(load["node_id"]), 1.0)
+                load["forces"] = [round(float(v) * f, 3) for v in load["forces"]]
         for row in levels:
             row["force_kN"] *= factor
             if "torsion_kNm" in row:
-                row["torsion_kNm"] *= factor
+                ratio = twist["ratio"].get(round(row["z"], 6), 1.0) if twist else 1.0
+                row["torsion_kNm"] *= factor * ratio
+                if "e_m" in row:
+                    row["e_m"] *= ratio
         summary[f"wind_{axis}_kN"] = summary.get(f"wind_{axis}_kN", 0.0) * factor
     wind["gust"] = gust
     notes.append(

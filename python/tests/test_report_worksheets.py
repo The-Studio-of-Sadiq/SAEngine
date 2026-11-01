@@ -102,10 +102,46 @@ def test_seismic_base_shear() -> None:
 
 
 def test_wind_on_a_sign() -> None:
-    # F = qh G Cf As with qh = 0.000613 Kz Kzt Kd V² I (BNBC 2020 Part 6 Sec 2.4)
-    result = calculate("wind-sign", {"speed": 65.7, "height": 8, "depth": 3, "width": 6, "cf": 1.8})
+    # F = qh G Cf As (Sec 2.4.13, Eq 6.2.29); Cf of Figure 6.2.20 at s/h 0.375, B/s 2:
+    # between s/h 0.3 (1.80) and 0.5 (1.70).
+    result = calculate("wind-sign", {"speed": 65.7, "height": 8, "depth": 3, "width": 6})
     qh = _step(result, "qh")
-    assert _step(result, "F") == pytest.approx(qh * 0.85 * 1.8 * 18)
+    cf = 1.80 + (1.70 - 1.80) * (0.375 - 0.3) / 0.2
+    assert _step(result, "Cf (cases A, B)") == pytest.approx(cf)
+    assert _step(result, "F") == pytest.approx(qh * 0.85 * cf * 18)
+    assert _step(result, "Case B offset") == pytest.approx(1.2)
+
+
+def test_wind_on_a_sign_on_a_hill() -> None:
+    flat = calculate("wind-sign", {"height": 8, "depth": 3, "width": 6})
+    hill = calculate(
+        "wind-sign",
+        {
+            "height": 8,
+            "depth": 3,
+            "width": 6,
+            "feature": "ridge",
+            "hillHeight": 30,
+            "hillLength": 100,
+        },
+    )
+    kzt = _step(hill, "Kzt")
+    assert kzt == pytest.approx((1 + 1.45 * 0.3 * math.exp(-3 * 8 / 100)) ** 2)
+    assert _step(hill, "qh") == pytest.approx(_step(flat, "qh") * kzt)
+
+
+def test_wind_on_a_chimney() -> None:
+    # Figure 6.2.21: round, moderately smooth, h/D 4 (D√qz > 5.3): 0.5 + (0.6 − 0.5)·3/6.
+    result = calculate("wind-chimney", {"diameter": 3, "tall": 12})
+    assert _step(result, "Cf") == pytest.approx(0.55)
+    qz = _step(result, "qz")
+    assert _step(result, "F") == pytest.approx(qz * 0.85 * 0.55 * 36)
+    # On a 10 m roof of a 20 m wide building: × 1.9 (Sec 2.4.15).
+    roof = calculate(
+        "wind-chimney",
+        {"diameter": 1, "tall": 2, "section": "square", "base": 10, "buildingHeight": 10},
+    )
+    assert _step(roof, "Rooftop factor") == pytest.approx(1.9)
 
 
 def test_retaining_wall_pressure() -> None:

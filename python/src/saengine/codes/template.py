@@ -66,7 +66,8 @@ TABLE_HELP: dict[str, str] = {
     "height limits), period coefficients Ct and m, seismic design category table, drift limits "
     "and the other plain numbers of the seismic analysis.",
     "wind": "Exposure categories and profiles, directionality, topographic and gust factors, "
-    "pressure coefficients.",
+    "pressure coefficients, topographic speed-up, force coefficients of other structures "
+    "(signs and walls, chimneys and tanks, lattices and towers) and rooftop equipment.",
     "materials": "Material constants and limits: concrete strain, steel modulus, the grades "
     "permitted in seismic members, grade tolerances.",
     "factors": "Strength reduction factors phi of reinforced concrete: flexure, shear, "

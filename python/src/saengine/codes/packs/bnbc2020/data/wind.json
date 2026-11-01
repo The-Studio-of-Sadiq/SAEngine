@@ -75,10 +75,15 @@
     "exposureTerrain": "BNBC 2020 Part 6 Table 6.2.10 (terrain exposure constants, page not checked); ASCE 7-05 Table 6-2 (Exposures B, C, D = BNBC A, B, C)",
     "flexible": "BNBC 2020 Part 6 Sec 2.4.8.2, Eq. 6.2.8-6.2.16 (p. 553, page not checked); ASCE 7-05 Sec 6.5.8.2. Damping β = 2 % for concrete buildings (ASCE 7-05 Commentary C6.5.8; 1 % for steel)",
     "cladding": "BNBC 2020 Part 6 Sec 2.4.11.4 (Eqs 6.2.24-6.2.25, p. 560), Figures 6.2.11(a) walls (p. 578), 6.2.11(b) roofs θ ≤ 7° (p. 579), 6.2.17 h > 18.3 m (p. 588); pitched and other roofs: the table's roofs (Figures 6.2.11(b)-(d), 6.2.13-6.2.15, pp. 579-586), stepped (Figure 6.2.12, p. 582), domes (Figure 6.2.16, p. 587), arched (Figure 6.2.8 note 4, p. 574); internal pressure (GCpi): the table internalPressure; parapets: Sec 2.4.11.5, Eq 6.2.26 (p. 561); roof zones 2 and 3 with a parapet take the positive (GCp) of wall zones 4 and 5 (Figure 6.2.11(b) note 5, printed 'Zones 2 and 4': the roof has no zone 4)",
-    "openStructures": "BNBC 2020 Part 6 Sec 2.4 (other structures; page not checked) = ASCE 7-05 Sec 6.5.15, Eq 6-28 and Figures 6-22 (open signs and lattice frameworks), 6-23 (trussed towers)",
+    "openStructures": "BNBC 2020 Part 6 Sec 2.4.14, Eq 6.2.30 (p. 563), F = qz·G·Cf·Af; Figure 6.2.22 (p. 599) open signs and lattice frameworks (ε < 0.1, 0.1-0.29, 0.3-0.7; rounded members by D√qz ≤ 5.3 or > 5.3, D in m, qz in N/m²); Figure 6.2.23 (p. 601) trussed towers, notes 3 (rounded members 0.51ε² + 0.57 ≤ 1.0) and 4 (square tower, wind on the diagonal, 1 + 0.75ε ≤ 1.2)",
     "internalPressure": "BNBC 2020 Part 6 Sec 2.4.10.1 and Figure 6.2.5 (p. 570) (GCpi); Eq 6.2.18 (p. 556) Ri; enclosure classes Sec 2.1.3 (pp. 513-514) and Sec 2.4.9",
     "mwfrs": "BNBC 2020 Part 6 Sec 2.4.10.2, 2.4.10.4, 2.4.11.2 (Eqs 6.2.19-6.2.20, pp. 557-558); Figures 6.2.6 (pp. 571-572), 6.2.7 (p. 573), 6.2.8 (p. 574), 6.2.10 (pp. 576-577)",
-    "openBuildings": "BNBC 2020 Part 6 Sec 2.4.12 (pp. 561-562), Figures 6.2.18(a)-(d) and 6.2.19(a)-(c) (pp. 589-595)"
+    "openBuildings": "BNBC 2020 Part 6 Sec 2.4.12 (pp. 561-562), Figures 6.2.18(a)-(d) and 6.2.19(a)-(c) (pp. 589-595)",
+    "topography": "BNBC 2020 Part 6 Sec 2.4.7 (p. 553), Eq 6.2.5 and Figure 6.2.4 (pp. 569-570): Kzt = (1 + K1·K2·K3)², K1 = (K1/(H/Lh))·H/Lh, K2 = 1 − |x|/(μ·Lh), K3 = e^(−γ·z/Lh); Sec 2.4.7.1 conditions (iv) H/Lh ≥ 0.2 and (v) H ≥ 4.5 m (Exposures B, C) or 18.3 m (Exposure A); note 2: H/Lh > 0.5 takes 0.5 for K1 and 2H for Lh in K2 and K3",
+    "flexibleEccentricity": "BNBC 2020 Part 6 Sec 2.4.11.3, Eq 6.2.23 (p. 559): e = (eQ + 1.7·Iz̄·√((gQ·Q·eQ)² + (gR·R·eR)²)) / (1 + 1.7·Iz̄·√((gQ·Q)² + (gR·R)²))",
+    "solidSigns": "BNBC 2020 Part 6 Sec 2.4.13, Eq 6.2.29 (pp. 562-563) and Figure 6.2.20 (pp. 596-597): F = qh·G·Cf·As; cases A, B (0.2 B toward the windward edge) and C (B/s ≥ 2), notes 2-5",
+    "chimneys": "BNBC 2020 Part 6 Sec 2.4.14, Eq 6.2.30 (p. 563) and Figure 6.2.21 (p. 598): chimneys, tanks, rooftop equipment and similar structures",
+    "rooftop": "BNBC 2020 Part 6 Sec 2.4.15 (p. 563): rooftop structures and equipment on buildings with h ≤ 18.3 m: × 1.9 for Af < 0.1·B·h, reduced linearly to 1.0 at Af = B·h"
   },
   "flexible": {
     "frequencyLimit": 1.0,
@@ -86,7 +91,8 @@
     "gv": 3.4,
     "heightFactor": 0.6,
     "lead": 0.925,
-    "damping": 0.02
+    "damping": 0.02,
+    "eccentricity": "gustWeighted"
   },
   "cladding": {
     "lowRiseHeight": 18.3,
@@ -3227,7 +3233,7 @@
     }
   },
   "openStructures": {
-    "source": "BNBC 2020 Part 6 Sec 2.4, design wind loads on other structures (figure numbers and pages to be checked against the BNBC text); the values of ASCE 7-05 Sec 6.5.15, Figures 6-22 and 6-23, which BNBC 2020 Sec 2.4 follows",
+    "source": "BNBC 2020 Part 6 Sec 2.4.14, Eq 6.2.30 (p. 563): open signs and lattice frameworks Figure 6.2.22 (p. 599), trussed towers Figure 6.2.23 (p. 601)",
     "lattice": [
       {
         "solidityMax": 0.1,
@@ -3248,7 +3254,7 @@
         "roundLarge": 1.1
       }
     ],
-    "roundLimit": 2.5,
+    "roundLimit": 5.3,
     "squareTower": {
       "a": 4.0,
       "b": -5.9,
@@ -3742,5 +3748,410 @@
       "torsionalShare": 0.25,
       "exemptHeight": 9.1
     }
+  },
+  "topography": {
+    "source": "BNBC 2020 Part 6 Sec 2.4.7 (p. 553), Eq 6.2.5 and Figure 6.2.4 (pp. 569-570)",
+    "shapes": {
+      "ridge": {
+        "k1": {
+          "A": 1.3,
+          "B": 1.45,
+          "C": 1.55
+        },
+        "gamma": 3.0,
+        "muUpwind": 1.5,
+        "muDownwind": 1.5
+      },
+      "escarpment": {
+        "k1": {
+          "A": 0.75,
+          "B": 0.85,
+          "C": 0.95
+        },
+        "gamma": 2.5,
+        "muUpwind": 1.5,
+        "muDownwind": 4.0
+      },
+      "hill": {
+        "k1": {
+          "A": 0.95,
+          "B": 1.05,
+          "C": 1.15
+        },
+        "gamma": 4.0,
+        "muUpwind": 1.5,
+        "muDownwind": 1.5
+      }
+    },
+    "minSlope": 0.2,
+    "maxSlope": 0.5,
+    "minHeight": {
+      "A": 18.3,
+      "B": 4.5,
+      "C": 4.5
+    }
+  },
+  "solidSigns": {
+    "source": "BNBC 2020 Part 6 Sec 2.4.13, Eq 6.2.29 (pp. 562-563) and Figure 6.2.20 (pp. 596-597)",
+    "clearance": [
+      1.0,
+      0.9,
+      0.7,
+      0.5,
+      0.3,
+      0.2,
+      0.16
+    ],
+    "aspect": [
+      0.05,
+      0.1,
+      0.2,
+      0.5,
+      1,
+      2,
+      4,
+      5,
+      10,
+      20,
+      30,
+      45
+    ],
+    "caseAB": [
+      [
+        1.8,
+        1.7,
+        1.65,
+        1.55,
+        1.45,
+        1.4,
+        1.35,
+        1.35,
+        1.3,
+        1.3,
+        1.3,
+        1.3
+      ],
+      [
+        1.85,
+        1.75,
+        1.7,
+        1.6,
+        1.55,
+        1.5,
+        1.45,
+        1.45,
+        1.4,
+        1.4,
+        1.4,
+        1.4
+      ],
+      [
+        1.9,
+        1.85,
+        1.75,
+        1.7,
+        1.65,
+        1.6,
+        1.6,
+        1.55,
+        1.55,
+        1.55,
+        1.55,
+        1.55
+      ],
+      [
+        1.95,
+        1.85,
+        1.8,
+        1.75,
+        1.75,
+        1.7,
+        1.7,
+        1.7,
+        1.7,
+        1.7,
+        1.7,
+        1.75
+      ],
+      [
+        1.95,
+        1.9,
+        1.85,
+        1.8,
+        1.8,
+        1.8,
+        1.8,
+        1.8,
+        1.8,
+        1.85,
+        1.85,
+        1.85
+      ],
+      [
+        1.95,
+        1.9,
+        1.85,
+        1.8,
+        1.8,
+        1.8,
+        1.8,
+        1.8,
+        1.85,
+        1.9,
+        1.9,
+        1.95
+      ],
+      [
+        1.95,
+        1.9,
+        1.85,
+        1.85,
+        1.8,
+        1.8,
+        1.85,
+        1.85,
+        1.85,
+        1.9,
+        1.9,
+        1.95
+      ]
+    ],
+    "caseC": {
+      "aspect": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        13,
+        45
+      ],
+      "regions": [
+        {
+          "end": 1,
+          "cf": [
+            2.25,
+            2.6,
+            2.9,
+            3.1,
+            3.3,
+            3.4,
+            3.55,
+            3.65,
+            3.75,
+            4.0,
+            4.3
+          ]
+        },
+        {
+          "end": 2,
+          "cf": [
+            1.5,
+            1.7,
+            1.9,
+            2.0,
+            2.15,
+            2.25,
+            2.3,
+            2.35,
+            2.45,
+            2.6,
+            2.55
+          ]
+        },
+        {
+          "end": 3,
+          "cf": [
+            null,
+            1.15,
+            1.3,
+            1.45,
+            1.55,
+            1.65,
+            1.7,
+            1.75,
+            1.85,
+            2.0,
+            1.95
+          ]
+        },
+        {
+          "end": 4,
+          "cf": [
+            null,
+            null,
+            1.1,
+            1.05,
+            1.05,
+            1.05,
+            1.05,
+            1.0,
+            0.95,
+            1.5,
+            1.85
+          ]
+        },
+        {
+          "end": 5,
+          "cf": [
+            null,
+            null,
+            1.1,
+            1.05,
+            1.05,
+            1.05,
+            1.05,
+            1.0,
+            0.95,
+            1.35,
+            1.85
+          ]
+        },
+        {
+          "end": 10,
+          "cf": [
+            null,
+            null,
+            1.1,
+            1.05,
+            1.05,
+            1.05,
+            1.05,
+            1.0,
+            0.95,
+            0.9,
+            1.1
+          ]
+        },
+        {
+          "end": null,
+          "cf": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0.55,
+            0.55
+          ]
+        }
+      ],
+      "minAspect": 2.0,
+      "reductionAbove": 0.8,
+      "reductionConstant": 1.8
+    },
+    "returnCorner": {
+      "fromAspect": 5.0,
+      "factors": [
+        [
+          0.3,
+          0.9
+        ],
+        [
+          1.0,
+          0.75
+        ],
+        [
+          2.0,
+          0.6
+        ]
+      ]
+    },
+    "solidMin": 0.7,
+    "openingExponent": 1.5,
+    "caseBOffset": 0.2,
+    "fullHeightLift": 0.05,
+    "note": "Case C regions are distances from the windward edge in multiples of s (null where the sign is not that long; the figure's 3s to 10s for B/s ≤ 10 is split at 4s and 5s with the same value). The figure's starred values (0 to s, B/s ≥ 5) take the return-corner factor."
+  },
+  "chimneys": {
+    "source": "BNBC 2020 Part 6 Sec 2.4.14, Eq 6.2.30 (p. 563) and Figure 6.2.21 (p. 598): chimneys, tanks, rooftop equipment and similar structures",
+    "hOverD": [
+      1,
+      7,
+      25
+    ],
+    "roundLimit": 5.3,
+    "rows": [
+      {
+        "section": "square",
+        "surface": "all",
+        "cf": [
+          1.3,
+          1.4,
+          2.0
+        ]
+      },
+      {
+        "section": "squareDiagonal",
+        "surface": "all",
+        "cf": [
+          1.0,
+          1.1,
+          1.5
+        ]
+      },
+      {
+        "section": "polygonal",
+        "surface": "all",
+        "cf": [
+          1.0,
+          1.2,
+          1.4
+        ]
+      },
+      {
+        "section": "round",
+        "surface": "moderatelySmooth",
+        "cf": [
+          0.5,
+          0.6,
+          0.7
+        ]
+      },
+      {
+        "section": "round",
+        "surface": "rough",
+        "cf": [
+          0.7,
+          0.8,
+          0.9
+        ]
+      },
+      {
+        "section": "round",
+        "surface": "veryRough",
+        "cf": [
+          0.8,
+          1.0,
+          1.2
+        ],
+        "note": "Figure 6.2.21 prints 0.2 at h/D = 25 for a very rough round section, below its own 1.0 at h/D = 7 and the rough row's 0.9: an apparent misprint. The more conservative 1.2 is used (the owner's rule for misprints)."
+      },
+      {
+        "section": "round",
+        "surface": "all",
+        "small": true,
+        "cf": [
+          0.7,
+          0.8,
+          1.2
+        ]
+      }
+    ]
+  },
+  "rooftop": {
+    "source": "BNBC 2020 Part 6 Sec 2.4.15 (p. 563): rooftop structures and equipment on buildings with h ≤ 18.3 m",
+    "maxHeight": 18.3,
+    "factor": 1.9,
+    "fullShare": 0.1,
+    "noneShare": 1.0
   }
 }

@@ -1,5 +1,5 @@
 """Wind on open structures by force coefficients (BNBC 2020 Part 6 Sec 2.4, other structures:
-the values of ASCE 7-05 Figures 6-22 and 6-23; saengine.fem.open_wind)."""
+Sec 2.4.14, Figures 6.2.22 and 6.2.23; saengine.fem.open_wind)."""
 
 from __future__ import annotations
 
@@ -20,10 +20,9 @@ def test_lattice_coefficients_by_solidity():
     assert ow.lattice_cf(t, 0.05) == 2.0
     assert ow.lattice_cf(t, 0.2) == 1.8
     assert ow.lattice_cf(t, 0.5) == 1.6
-    # Rounded members: D√qz up to 2.5 ft·√psf (5.27 m·√Pa) and above.
+    # Rounded members: D√qz up to 5.3 (D in m, qz in N/m², Figure 6.2.22) and above.
     assert ow.lattice_cf(t, 0.2, rounded=True, d_sqrt_qz=1.0) == 1.3
     assert ow.lattice_cf(t, 0.2, rounded=True, d_sqrt_qz=10.0) == 0.9
-    assert ow.FT_SQRT_PSF * 2.5 == pytest.approx(5.27, abs=0.01)
 
 
 def test_trussed_tower_coefficients():

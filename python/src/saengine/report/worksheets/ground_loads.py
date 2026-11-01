@@ -8,6 +8,8 @@ The footing uses the capacities of :mod:`saengine.substructure.shallow`, the bea
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
+from typing import Any
 
 from saengine.codes import context as code_context
 from saengine.codes.context import default_pack
@@ -15,6 +17,7 @@ from saengine.design import bars as B
 from saengine.design import slab as S
 from saengine.design.rc import PHI_SHEAR, bar_area
 from saengine.fem import loads as L
+from saengine.fem import open_wind as OW
 from saengine.report.worksheets.concrete import BAR_GROUP, LOAD_GROUP, SECTION_GROUP, _aci, _bnbc
 from saengine.report.worksheets.core import (
     Sheet,
@@ -324,6 +327,81 @@ def _categories() -> list[tuple[str, str]]:
     return [(k, f"{k}: {v.description}") for k, v in table.categories.items()]
 
 
+def _topography_inputs() -> list[Any]:
+    group = "Topography"
+    return [
+        choice(
+            "feature",
+            "Topographic feature",
+            "none",
+            [
+                ("none", "None (flat terrain)"),
+                ("ridge", "2-D ridge"),
+                ("escarpment", "2-D escarpment"),
+                ("hill", "3-D axisymmetrical hill"),
+            ],
+            group=group,
+        ),
+        number("hillHeight", "Height of the feature H", 20, "m", minimum=0.1, group=group),
+        number("hillLength", "Half-height distance Lh", 60, "m", minimum=0.1, group=group),
+        number("crest", "Distance from the crest x", 0, "m", minimum=0, group=group),
+        flag("downwind", "Downwind of the crest", False, group=group),
+    ]
+
+
+def _topography_settings(s: Sheet) -> Any:
+    """The worksheet's topography inputs as the wind settings :func:`L.wind_overrides` reads."""
+    topo = SimpleNamespace(
+        feature=s["feature"],
+        height=s["hillHeight"],
+        length=s["hillLength"],
+        distance=s["crest"],
+        side="downwind" if s["downwind"] else "upwind",
+        isolated=True,
+    )
+    return SimpleNamespace(topography=topo)
+
+
+def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
+    """The steps I, Kz, Kzt, Kd and qz at height ``z``; returns (qz, Kz)."""
+    importance = code_context.table("occupancyCategories").categories[s["category"]]
+    i_w = s.step("I", importance.windImportance, "", "wind importance", _bnbc("Table 6.2.9"))
+    kz = s.step(
+        f"Kz at {where}",
+        L.exposure_coefficient(z, s["exposure"]),
+        "",
+        "2.01 (z/zg)^(2/α)",
+        _bnbc("Table 6.2.11"),
+    )
+    terms = L.topographic_terms(z, s["exposure"])
+    if terms is not None and terms["applies"]:
+        s.step(
+            "K1, K2, K3",
+            f"{terms['K1']:.3f}, {terms['K2']:.3f}, {terms['K3']:.3f}",
+            "",
+            "speed-up multipliers",
+            code_context.table("wind").topography.source,
+        )
+    elif terms is not None:
+        s.note(f"Topography: {terms['reason']}, so Kzt = 1.")
+    s.step(
+        "Kzt",
+        L.topographic_factor(z, s["exposure"]),
+        "",
+        "(1 + K1 K2 K3)²" if terms and terms["applies"] else "topographic factor",
+        _bnbc("Sec 2.4.7"),
+    )
+    s.step("Kd", L.wind_factor("directionality"), "", "directionality", _bnbc("Table 6.2.12"))
+    q = s.step(
+        "qz" if where != "h" else "qh",
+        L.velocity_pressure(z, s["speed"], s["exposure"], i_w),
+        "kN/m²",
+        "0.000613 Kz Kzt Kd V² I",
+        _bnbc("Sec 2.4.6"),
+    )
+    return float(q), float(kz)
+
+
 @worksheet(
     "wind-sign",
     "Wind on a freestanding sign or wall",
@@ -347,50 +425,188 @@ def _categories() -> list[tuple[str, str]]:
         number("depth", "Sign depth s (vertical)", 3, "m", minimum=0.1, group="Sign"),
         number("width", "Sign width B (horizontal)", 6, "m", minimum=0.1, group="Sign"),
         number(
-            "cf",
-            "Force coefficient Cf",
-            1.8,
-            minimum=0.5,
-            maximum=3,
+            "solidity",
+            "Solidity ratio ε (solid / gross area)",
+            1.0,
+            minimum=0.05,
+            maximum=1,
             group="Sign",
-            help="From BNBC 2020 Part 6's force coefficients for solid freestanding walls "
-            "and signs, for s/h and B/s.",
+            help="1 for a solid wall or sign. Openings reduce Cf; a sign 30 % or more open is "
+            "an open sign.",
         ),
+        number(
+            "corner",
+            "Return corner Lr",
+            0,
+            "m",
+            minimum=0,
+            group="Sign",
+            help="Length of a return corner at the end of a long wall (0: none).",
+        ),
+        *_topography_inputs(),
     ],
-    references=(_bnbc("Sec 2.4 (Tables 6.2.8, 6.2.9, 6.2.11, 6.2.12; Sec 2.4.7, 2.4.8.1)"),),
+    references=(
+        _bnbc(
+            "Sec 2.4.13, Eq 6.2.29, Figure 6.2.20 (Tables 6.2.8, 6.2.9, 6.2.11, 6.2.12; "
+            "Sec 2.4.7, 2.4.8.1)"
+        ),
+    ),
 )
 def _wind_sign(s: Sheet) -> None:
     h, sd, b = s["height"], s["depth"], s["width"]
     if sd > h:
         raise WorksheetInputError("the sign is deeper than its height to the top")
-    importance = code_context.table("occupancyCategories").categories[s["category"]]
-    i_w = s.step("I", importance.windImportance, "", "wind importance", _bnbc("Table 6.2.9"))
-    kz = s.step(
-        "Kz at h",
-        L.exposure_coefficient(h, s["exposure"]),
+    wind = code_context.table("wind")
+    if getattr(wind, "solidSigns", None) is None:
+        raise WorksheetInputError("the code pack in force has no force coefficients of signs")
+    with L.wind_overrides(_topography_settings(s)):
+        qh, kz = _velocity_steps(s, h, "h")
+        g = s.step(
+            "G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _bnbc("Sec 2.4.8.1")
+        )
+    s.step("s/h, B/s", f"{sd / h:.2f}, {b / sd:.2f}", "", "clearance and aspect ratios")
+    corner = s["corner"] / sd if s["corner"] > 0 else None
+    result = OW.solid_sign_wind(
+        qh, g, b, sd, h, s["solidity"], corner, getattr(wind, "openStructures", None)
+    )
+    source = wind.solidSigns.source
+    cf = s.step("Cf (cases A, B)", result["Cf"], "", "by s/h and B/s", source)
+    area = s.step("As", result["As_m2"], "m²", "B s" if result["kind"] == "solid" else "ε B s")
+    force = s.step("F", qh * g * cf * area, "kN", "qh G Cf As", source)
+    a = result["cases"]["A"]
+    s.step("Height of F", a["z_m"], "m", "the sign's centre (+0.05 s when s/h = 1)")
+    s.step("Moment at the ground", force * a["z_m"], "kN·m", "F × height")
+    if "B" in result["cases"]:
+        s.step(
+            "Case B offset",
+            result["cases"]["B"]["offset_m"],
+            "m",
+            "0.2 B from the centre toward the windward edge",
+            source,
+        )
+        s.step("Case B torsion", force * result["cases"]["B"]["offset_m"], "kN·m", "F × offset")
+    if result["caseC"]:
+        s.heading("Case C (B/s ≥ 2): each region's force at its centre")
+        for r in result["caseC"]:
+            s.step(
+                f"Cf, {r['from_s']:g}s to {r['to_s']:g}s",
+                r["Cf"],
+                "",
+                f"F = {r['F_kN']:.2f} kN at {r['x_m']:.2f} m from the windward edge",
+                source,
+            )
+        s.step("Case C total", sum(r["F_kN"] for r in result["caseC"]), "kN", "Σ F")
+    for n in result["notes"]:
+        s.note(n)
+    s.note(f"Kz = {kz:.3f}.")
+
+
+# ─────────────────────────────── wind on chimneys, tanks, rooftop units ───────────────────────────
+
+
+@worksheet(
+    "wind-chimney",
+    "Wind on a chimney, tank or rooftop unit",
+    group="Loads",
+    summary="Force coefficient by cross-section and h/D and the design wind force F = qz G Cf "
+    "Af on a chimney, tank, rooftop equipment or similar structure, with the increase for "
+    "rooftop equipment on low buildings.",
+    inputs=[
+        number("speed", "Basic wind speed V", 65.7, "m/s", minimum=20, maximum=100, group="Site"),
+        choice("exposure", "Exposure", "B", [("A", "A"), ("B", "B"), ("C", "C")], group="Site"),
+        choice("category", "Occupancy category", "II", _categories(), group="Site"),
+        choice(
+            "section",
+            "Cross-section",
+            "round",
+            [
+                ("square", "Square, wind normal to a face"),
+                ("squareDiagonal", "Square, wind along the diagonal"),
+                ("polygonal", "Hexagonal or octagonal"),
+                ("round", "Round"),
+            ],
+            group="Structure",
+        ),
+        choice(
+            "surface",
+            "Surface (round)",
+            "moderatelySmooth",
+            [
+                ("moderatelySmooth", "Moderately smooth"),
+                ("rough", "Rough"),
+                ("veryRough", "Very rough"),
+            ],
+            group="Structure",
+        ),
+        number("diameter", "D (diameter or least width)", 3, "m", minimum=0.05, group="Structure"),
+        number("tall", "Height of the structure", 12, "m", minimum=0.1, group="Structure"),
+        number(
+            "base",
+            "Base above the ground",
+            0,
+            "m",
+            minimum=0,
+            group="Structure",
+            help="0 on the ground; the roof height for rooftop equipment.",
+        ),
+        number(
+            "buildingHeight",
+            "Building mean roof height h",
+            0,
+            "m",
+            minimum=0,
+            group="Rooftop",
+            help="0: not on a roof.",
+        ),
+        number(
+            "buildingWidth",
+            "Building width B across the wind",
+            20,
+            "m",
+            minimum=0.1,
+            group="Rooftop",
+        ),
+        *_topography_inputs(),
+    ],
+    references=(_bnbc("Sec 2.4.14-2.4.15, Eq 6.2.30, Figure 6.2.21"),),
+)
+def _wind_chimney(s: Sheet) -> None:
+    wind = code_context.table("wind")
+    table = getattr(wind, "chimneys", None)
+    if table is None:
+        raise WorksheetInputError("the code pack in force has no force coefficients of chimneys")
+    d, tall, base = s["diameter"], s["tall"], s["base"]
+    z = base + tall / 2
+    with L.wind_overrides(_topography_settings(s)):
+        qz, _ = _velocity_steps(s, z, "z (centroid of Af)")
+        g = s.step(
+            "G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _bnbc("Sec 2.4.8.1")
+        )
+    ratio = s.step("h/D", tall / d, "", "height over D")
+    root = s.step("D√qz", d * math.sqrt(qz * 1e3), "", "D in m, qz in N/m²")
+    cf = s.step(
+        "Cf",
+        OW.chimney_cf(table, s["section"], s["surface"], ratio, root),
         "",
-        "2.01 (z/zg)^(2/α)",
-        _bnbc("Table 6.2.11"),
+        f"{s['section']}, by h/D",
+        table.source,
     )
-    s.step("Kzt", L.wind_factor("topographic"), "", "topographic factor", _bnbc("Sec 2.4.7"))
-    s.step("Kd", L.wind_factor("directionality"), "", "directionality", _bnbc("Table 6.2.12"))
-    qh = s.step(
-        "qh",
-        L.velocity_pressure(h, s["speed"], s["exposure"], i_w),
-        "kN/m²",
-        "0.000613 Kz Kzt Kd V² I",
-        _bnbc("Sec 2.4"),
-    )
-    g = s.step("G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _bnbc("Sec 2.4.8.1"))
-    s.step("s/h, B/s", f"{sd / h:.2f}, {b / sd:.2f}", "", "for Cf")
-    area = s.step("As", b * sd, "m²", "B s")
-    force = s.step("F", qh * g * s["cf"] * area, "kN", "qh G Cf As", _bnbc("Sec 2.4"))
-    s.step("Height of F (case A)", h - sd / 2, "m", "at the sign's mid-height")
-    s.step("Moment at the ground", force * (h - sd / 2), "kN·m", "F × height (case A)")
-    s.note(
-        f"Kz = {kz:.3f}. Check the eccentric case (B, resultant at 0.2 B from the centre) "
-        "and, for B/s ≥ 2, case C as BNBC's figure for signs requires."
-    )
+    area = s.step("Af", d * tall, "m²", "D × height (projected)")
+    factor = 1.0
+    roof = s["buildingHeight"]
+    if roof > 0:
+        factor = s.step(
+            "Rooftop factor",
+            L.rooftop_factor(area, s["buildingWidth"], roof),
+            "",
+            "1.9 for Af ≤ 0.1 B h, to 1.0 at B h (h ≤ 18.3 m)",
+            getattr(getattr(wind, "rooftop", None), "source", ""),
+        )
+    force = s.step("F", qz * g * cf * area * factor, "kN", "qz G Cf Af × factor", table.source)
+    s.step("Moment at the base", force * tall / 2, "kN·m", "F × height / 2")
+    for row in table.rows:
+        if row.note and row.section == s["section"] and row.surface == s["surface"]:
+            s.note(row.note)
 
 
 # ─────────────────────────────────────── seismic base shear ───────────────────────────────
