@@ -627,6 +627,9 @@ class DrawingSet:
     # the architecture (05 Floor Plan/architecture.json, saengine.library.architecture's model)
     # its sheets draw; None: no architectural sheets
     architecture: Any = None
+    # the building services (07 MEP/mep.json, saengine.drawings.sheets.mep.MepDrawing) its MEP
+    # sheets draw; None: no MEP sheets
+    mep: Any = None
     problems: list[str] = field(default_factory=list)
     # members without reinforcement (never designed): {kind: {object type: count}}; while there
     # are any the sheets are not for construction

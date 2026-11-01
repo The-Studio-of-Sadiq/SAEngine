@@ -18,8 +18,10 @@ details; the bar bending schedule; then, with structural steel
 (:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
 connection details; then, with an architecture (:mod:`.architecture`), the architectural
 sheets numbered on their own (``A-101`` on): plans, elevations, sections, the door and window
-schedule and the room finish schedule. A category takes as many sheets as its views need; small views share a
-sheet.
+schedule and the room finish schedule; then, with building services in 07 MEP (:mod:`.mep`), the
+plumbing, HVAC, electrical, fire protection and coordination plans and the MEP schedules (``P-``,
+``M-``, ``E-``, ``FP-``, ``MC-``). The office standard (:mod:`.standards`) may rename the prefixes
+and the layers. A category takes as many sheets as its views need; small views share a sheet.
 
 Why one DXF per sheet in model space: LibreCAD 2.2 edits the model space only (it has no paper
 space layouts), so every sheet is complete there, plans at real size; each DXF also carries a
@@ -36,6 +38,7 @@ from typing import Any
 
 from saengine.drawings.sheets import architecture as ar
 from saengine.drawings.sheets import details, plans, schedules
+from saengine.drawings.sheets import mep as mp
 from saengine.drawings.sheets import steel as st
 from saengine.drawings.sheets.layout import (
     Sheet,
@@ -276,6 +279,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
         out.append(_Category("Bar bending schedule", 1, specs, scale_text="NTS"))
     out += _steel_categories(data, settings, area, problems)
     out += _architecture_categories(data, settings, area, problems)
+    out += _mep_categories(data, settings, area, problems)
     for category in out:
         for spec in category.specs:
             if not fits(spec, area):
@@ -495,6 +499,57 @@ def _architecture_categories(
             )
         if specs:
             out.append(_Category(title, 1, specs, scale_text="NTS", notes=[], prefix=ar.PREFIX))
+    return out
+
+
+def _mep_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The MEP sheets (:mod:`.mep`), after the architectural ones: per discipline the plans of
+    the stories that have its services (plumbing and drainage P-, HVAC M-, electrical E-, fire
+    protection FP-), the coordination plans (MC-) and the MEP schedules. None without 07 MEP."""
+    drawing = data.mep
+    if drawing is None:
+        return []
+    b = data.building
+    items = mp.items_by_level(drawing, b)
+    if not items:
+        return []
+    arch = data.architecture
+    out: list[_Category] = []
+    for discipline, title, prefix in mp.DISCIPLINES:
+        by_scale: dict[float, list[ViewSpec]] = {}
+        for lv in sorted(b.levels, key=lambda lv: lv.elevation):
+            on_level = items.get(lv.id, [])
+            if not mp.has_plan(on_level, discipline):
+                continue
+            spec, p = _fit_plan(
+                lambda s, lv=lv, on_level=on_level, discipline=discipline, title=title: mp.mep_plan(
+                    b, on_level, lv, discipline, title.removesuffix("s"), s, arch
+                ),
+                settings.plan_scale,
+                area,
+            )
+            problems += p
+            if spec is not None:
+                by_scale.setdefault(spec.scale, []).append(spec)
+        for scale, specs in by_scale.items():
+            out.append(
+                _Category(title, scale, specs, plan=True, notes=mp.PLAN_NOTES[discipline],
+                          prefix=prefix)
+            )  # fmt: skip
+    height = area[3] - area[1]
+    width = area[2] - area[0]
+    specs = []
+    for table in mp.schedule_tables(drawing, b):
+        specs += schedules.table_specs(
+            table, height, key=f"mep-table:{table.title}", max_width=width
+        )
+    if specs:
+        out.append(
+            _Category("MEP schedules", 1, specs, scale_text="NTS", notes=mp.SCHEDULE_NOTES,
+                      prefix=mp.SCHEDULE_PREFIX)
+        )  # fmt: skip
     return out
 
 

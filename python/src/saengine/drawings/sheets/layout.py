@@ -679,9 +679,7 @@ class Sheet:
         b, t = row(22 if info.office else 16)
         self.p_text("CONSULTING ENGINEERS", x0 + pad, t - pad, TEXT, "TL")
         lift = TEXT * 1.6 if info.office else 0.0
-        self.p_text(
-            _fit(info.firm or "-", tw - 2 * pad, 5.0), x0 + pad, b + pad + lift, 5.0, "BL"
-        )
+        self.p_text(_fit(info.firm or "-", tw - 2 * pad, 5.0), x0 + pad, b + pad + lift, 5.0, "BL")
         if info.office:
             self.p_text(_fit(info.office, tw - 2 * pad, TEXT), x0 + pad, b + pad, TEXT, "BL")
         # revision table
@@ -698,8 +696,7 @@ class Sheet:
         # the office's disclaimer, then the status
         if info.disclaimer:
             text = _wrap(info.disclaimer, tw - 2 * pad, TEXT, 2)
-            b, t = row(5 + TEXT * 1.6 * (text.count("
-") + 1))
+            b, t = row(5 + TEXT * 1.6 * (text.count("\n") + 1))
             self.p_text(text, x0 + tw / 2, (b + t) / 2, TEXT, "MC")
         b, t = row(10)
         self.p_text(info.status.upper(), x0 + tw / 2, (b + t) / 2, TEXT_LARGE, "MC")

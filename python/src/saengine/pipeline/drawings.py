@@ -8,8 +8,10 @@ DXF sheets, the PDF set and the PNG previews).
 What a generation writes into ``11 Exports/Drawings``:
 
 - one DXF per sheet (``S-101 General notes.dxf``, ..., then ``A-101 Architectural plan -
-  Base.dxf``, ... when ``05 Floor Plan/architecture.json`` has walls), for AutoCAD, BricsCAD
-  or LibreCAD;
+  Base.dxf``, ... when ``05 Floor Plan/architecture.json`` has walls, then the MEP plans and
+  schedules ``P-``, ``M-``, ``E-``, ``FP-``, ``MC-`` when ``07 MEP/mep.json`` has services), for
+  AutoCAD, BricsCAD or LibreCAD; with the office standard of Project Settings (its layer names,
+  font, arrows and sheet prefixes; ``drawings.json`` keeps the layer names used);
 - ``drawings.pdf``: every sheet, one page each; ``previews/S-101.png``, ...: the previews;
 - ``bbs.csv``: the bar bending schedule (UTF-8 with a byte order mark, for Excel);
 - ``rebar-congestion.csv``: the bar congestion checks of the beams, columns and their joints
@@ -26,8 +28,8 @@ What a generation writes into ``11 Exports/Drawings``:
   (:func:`export_dwg`, with LibreDWG's ``dxf2dwg`` run as a separate program).
 
 Staleness: the stamps (:func:`saengine.library.bim.source_stamp`) of Project Settings,
-Materials, Object Types, the floor plan, the architecture, the building model and the
-substructure, and of the
+Materials, Object Types, the floor plan, the architecture, the building model, the
+substructure and the building services (07 MEP), and of the
 analysis results' manifest when the design checks were used. Any change of one makes the
 sheets drawn before it out of date. Generating some sheets only rewrites their DXF and preview
 (and their stamps); the PDF set is then older than those sheets until the whole set is drawn.
@@ -77,6 +79,7 @@ SOURCES: tuple[tuple[str, str, str], ...] = (
     ("architecture", "05 Floor Plan/architecture.json", "Architecture"),
     ("bim", "06 BIM/bim.json", "Building Model"),
     ("substructure", "09 Substructure/substructure.json", "Substructure"),
+    ("mep", "07 MEP/mep.json", "MEP"),
 )
 RESULTS_LABEL = "Analysis results"
 
