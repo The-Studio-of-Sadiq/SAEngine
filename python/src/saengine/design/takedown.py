@@ -2,7 +2,7 @@
 gravity case at the column's foot (cumulative, all the floors above) and what the storey adds.
 
 The loads come from the analysis (the unfactored cases D, SD, L and Lr of the analysis model;
-the default pack's BNBC 2020 Part 6 Sec 2.2 and 2.3 loads), so they include the frame's redistribution, unlike a
+the code pack's loads), so they include the frame's redistribution, unlike a
 tributary-area takedown. A column line is the columns standing on one another (the same plan
 position, each one's foot at the top of the one below). The unfactored total D + SD + L + Lr and
 the factored 1.2(D + SD) + 1.6L + 0.5Lr (Sec 2.7.3.1, combination 2) are given with them; the
@@ -20,6 +20,24 @@ import numpy as np
 from saengine.design.clauses import clause
 
 __all__ = ["CASES", "NOTE", "takedown"]  # noqa: F822 - NOTE: module __getattr__
+
+
+def _note() -> str:
+    """The method note of the takedown table, with the clauses of the pack in force."""
+    loads = clause("takedown", "loads")
+    return (
+        "The loads come from the analysis (the unfactored cases D, SD, L and Lr of the analysis "
+        "model;\n"
+        f"{loads} loads), so they include the frame's redistribution, unlike a\n"
+        "tributary-area takedown. A column line is the columns standing on one another (the same "
+        "plan\n"
+        "position, each one's foot at the top of the one below). The unfactored total D + SD + L "
+        "+ Lr and\n"
+        "the factored 1.2(D + SD) + 1.6L + 0.5Lr (Sec 2.7.3.1, combination 2) are given with "
+        "them; the\n"
+        "live load is the analysis's, unreduced (Sec 2.3.13 reduces it member by member in the "
+        "design)."
+    )
 
 
 def __getattr__(name: str) -> str:
@@ -58,7 +76,7 @@ def takedown(
 
     by_case = service.get("forces") or {}
     cases = [c for c in CASES if c in by_case]
-    found: dict[str, Any] = {"lines": [], "cases": cases, "note": __doc__.split("\n\n")[1]}
+    found: dict[str, Any] = {"lines": [], "cases": cases, "note": _note()}
     if not cases:
         return found
     stories = sorted(building.stories, key=lambda s: float(s.elevation))

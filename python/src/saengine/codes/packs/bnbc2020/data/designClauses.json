@@ -141,7 +141,8 @@
       "chapter": "Part 6 Sec 8.3"
     },
     "takedown": {
-      "combinations": "Part 6 Sec 2.7.3.1"
+      "combinations": "Part 6 Sec 2.7.3.1",
+      "loads": "Part 6 Sec 2.2 and 2.3"
     },
     "wallForces": {
       "responseScale": "Part 6 Sec 2.5.9.4 (p. 635)"
