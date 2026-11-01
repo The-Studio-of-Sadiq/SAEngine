@@ -22,6 +22,7 @@
     "diagonalCoupling": "BNBC 2020 Part 6 Sec 6.2.3.3(c)",
     "joint": "BNBC 2020 Part 6 Sec 6.2.3.3(c) (p. 898)",
     "stiffnessReduction": "BNBC 2020 Part 6 Eqs. 6.6.19 and 6.6.28",
-    "bearing": "BNBC 2020 Part 6 Sec 6.2.3.2 (p. 897): bearing on concrete"
+    "bearing": "BNBC 2020 Part 6 Sec 6.2.3.2.5 (p. 898): bearing on concrete (except post-tensioned anchorage zones and strut-and-tie models)",
+    "strutAndTie": "BNBC 2020 Part 6 Sec 6.2.3.2.6 (p. 898): strut-and-tie models of Appendix I, and the struts, ties, nodal zones and bearing areas in such models"
   }
 }
