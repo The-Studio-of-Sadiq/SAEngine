@@ -103,6 +103,7 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | D10 | SPT corrections of the Bangladesh consultant practice: σ'v per row, CN, N60 with rod-length factors, (N1)60 and the dilatancy N' | Peck, Hanson and Thornburn (1974) CN; Terzaghi and Peck dilatancy correction |
 | D11 | Settlement-limited allowable bearing pressure with N' averaged over the zone from Df - B/2 to Df + 2B | Meyerhof (1965) as modified by Bowles, 25 mm |
 | D12 | Liquefaction factor of safety at one SPT test with amax = (2/3) Z S | BNBC 2020 Sec 3.9.5 (Eqs 6.3.6-6.3.8, rd = 1 - 0.015z, no 0.65 factor), CRR by Youd et al. (2001) |
+| D13 | Depth of boring below a long footing and the soil corrosivity score of one sample | BNBC 2020 Sec 3.4.5(i) (2B to 4B by L/B), Tables 6.3.6a-6.3.6b |
 | AN1 | Slab load on a beam: the 45° triangle of a square two-way panel applied member by member (`cases/correctness.py`): edge total, fixed-end and midspan moments, simple-span midspan moment | 5 w L²/96, w L²/32, w L²/12 (BNBC 2020 Part 6 Sec 6.5.6.8.1, p. 955) |
 | DN1 | Two-way slab by the coefficient method, case 4, m = 0.80 and the interpolation at m = 0.825 | BNBC 2020 Part 6 Tables 6.6.8-6.6.10 (pp. 961-964), values read from the code |
 | AN2 | Live load arrangement on three equal spans: end-span and support moments of the envelope and of the full load | Three-moment equation: 0.10125 wL², 7 wL²/60; 0.08 wL², wL²/10 (BNBC 2020 Part 6 Sec 6.1.12.2, p. 894) |
