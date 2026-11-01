@@ -1,105 +1,267 @@
 {
   "$schema": "../../../schemas/masonry.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Chapter 7",
-    "TMS 402 / ACI 530 (MSJC 2008) Chapter 3, strength design",
-    "TMS 602 / ACI 530.1 (MSJC 2008) Tables 1 and 2"
+    "BNBC 2020 Part 6 Chapter 7, masonry structures (pp. 1003-1039)",
+    "BNBC 2020 Part 6 Sec 2.7.2.1-2.7.2.2, allowable stress design combinations (p. 684)",
+    "TMS 602 / ACI 530.1 Tables 1-2 (prismEstimate only: an SAEngine estimate, not BNBC)"
   ],
-  "source": "BNBC 2020 Part 6 Chapter 7 (masonry structures), strength design of unreinforced and reinforced masonry walls as the MSJC (TMS 402 / ACI 530-08 Chapter 3) gives it; SI values converted from the psi of the standard (1 psi = 0.006895 MPa, c √f'm psi = 0.083 c √f'm MPa). Section and page numbers of the BNBC text are to be checked.",
-  "phi": {
-    "axialFlexureReinforced": 0.9,
-    "axialFlexureUnreinforced": 0.6,
-    "shear": 0.8,
-    "bearing": 0.6
+  "source": "BNBC 2020 Part 6 Chapter 7 (masonry structures): allowable (working) stress design of unreinforced and reinforced masonry (Sec 7.3-7.6), with the values of the strength design of slender walls and shear walls (Sec 7.7) and of the earthquake provisions (Sec 7.8) that the strength and seismic checks read. The method is chosen by 'method'.",
+  "method": "allowableStress",
+  "mortars": {
+    "M1": {"cement": 1.0, "sand": 3.0, "strength": 10.0},
+    "M2": {"cement": 1.0, "sand": 4.0, "strength": 7.5},
+    "M3": {"cement": 1.0, "sand": 5.0, "strength": 5.0},
+    "M4": {"cement": 1.0, "sand": 6.0, "strength": 3.0},
+    "M5": {"cement": 1.0, "sand": 7.0, "strength": 2.0},
+    "M6": {"cement": 1.0, "sand": 8.0, "strength": 1.0}
   },
-  "modulusRatio": {
-    "clay": 700.0,
-    "concrete": 900.0
+  "quality": {
+    "reducedShare": 0.5,
+    "reusedUnitsShare": 0.5,
+    "prismsBeforeConstruction": 5,
+    "prismsDuringConstruction": 3,
+    "wallAreaPerSet": 500.0,
+    "note": "Full allowable stresses need special inspection (Sec 7.3.5) and prism tests during construction (Sec 7.3.3.1(b)); without them, or with f'm not from prism tests, the masonry stresses are halved. The two 50 % reductions are the same reduction and are not compounded."
   },
-  "ultimateStrain": {
-    "clay": 0.0035,
-    "concrete": 0.0025
+  "lateralIncrease": {
+    "factor": 1.3333333,
+    "note": "Sec 7.3.1 permits a one-third increase of the allowable stresses for wind or earthquake acting alone or with vertical loads (not for vertical loads alone); Sec 2.7.2.2 forbids increases with the Sec 2.7.2.1 combinations 'unless permitted elsewhere in this Code', and Sec 7.3.1 is such a permission. Applied to the combinations with W or E."
   },
-  "stressBlock": {
-    "stress": 0.8,
-    "depth": 0.8
+  "allowable": {
+    "axial": {"fmShare": 0.2, "slenderness": 42.0, "exponent": 3.0, "columnSteelArea": 1.5},
+    "flexuralCompression": {"fmShare": 0.33, "cap": 10.0},
+    "flexuralTension": {
+      "bedJoints": {"solid": 0.20, "hollow": 0.12},
+      "headJoints": {"solid": 0.40, "hollow": 0.25},
+      "headJointsByUnit": {
+        "clay": {"solid": 0.35, "hollow": 0.22},
+        "concrete": {"solid": 0.40, "hollow": 0.25}
+      },
+      "fullMortars": ["M1", "M2"],
+      "reducedMortars": ["M3", "M4"],
+      "reduction": 0.25,
+      "note": "Tables 6.7.2-6.7.3 give the values for M1 or M2 mortar and 25 % less for M3 and M4; none for M5 or M6, so SAEngine allows no flexural tension with them (more conservative). No tension across head joints in stack bond."
+    },
+    "bond": {"plain": 0.30, "deformed": 1.0},
+    "beamShear": {
+      "unreinforced": {"factor": 0.083, "cap": 0.25},
+      "reinforced": {"factor": 0.25, "cap": 0.75}
+    },
+    "wallShearPlain": {
+      "clay": {"factor": 0.025, "cap": 0.40},
+      "concrete": {"M1": 0.20, "M2": 0.20, "M3": 0.12},
+      "note": "Concrete units: Sec 7.3.5(f)(i) gives values for M1, M2 and M3 mortar only; with a leaner mortar SAEngine allows no shear stress (the wall needs reinforcement)."
+    },
+    "wallShearReinforced": {
+      "masonry": {"divisor": 36.0, "first": 4.0, "above": 0.083, "maxFirst": 0.4, "maxSlope": 0.2, "maxAbove": 0.17},
+      "reinforcement": {"divisor": 24.0, "first": 4.0, "above": 0.125, "maxFirst": 0.6, "maxSlope": 0.2, "maxAbove": 0.37}
+    },
+    "steel": {
+      "tensionDeformed": {"fyShare": 0.5, "cap": 165.0},
+      "tensionPlain": {"fyShare": 0.4, "cap": 135.0},
+      "compressionWalls": {"fyShare": 0.4, "cap": 165.0},
+      "compressionFlexural": {"fyShare": 0.5, "cap": 165.0}
+    },
+    "interaction": 1.0
   },
-  "axial": {
-    "reduction": 0.8,
-    "slendernessBreak": 99.0,
-    "short": 140.0,
-    "long": 70.0
+  "elastic": {"emRatio": 750.0, "emCap": 15000.0, "es": 200000.0, "shearRatio": 0.4},
+  "dimensions": {
+    "effectiveHeight": {
+      "unsupportedTop": 2.0,
+      "columnUnsupported": 2.0,
+      "openingFullRestraint": {"spanShare": 0.75, "openingShare": 0.25},
+      "openingPartialRestraint": {"openingLimit": 0.5, "above": 2.0, "inPlane": 2.0}
+    },
+    "effectiveLength": {
+      "continuousBothEnds": 0.8,
+      "supportedContinuous": 0.9,
+      "supportedBothEnds": 1.0,
+      "freeContinuous": 1.5,
+      "freeSupported": 2.0,
+      "openingClearShare": 0.125
+    },
+    "stiffening": {
+      "spacingRatios": [6.0, 8.0, 10.0, 15.0, 20.0],
+      "thicknessRatios": [1.0, 2.0, 3.0],
+      "k": [[1.0, 1.4, 2.0], [1.0, 1.3, 1.7], [1.0, 1.2, 1.4], [1.0, 1.1, 1.2], [1.0, 1.0, 1.0]]
+    },
+    "slenderness": {"wall": 20.0, "column": 12.0},
+    "heightThicknessAnalysis": 30.0,
+    "flangeWidth": 6.0,
+    "reinforcedWidth": {"running": 6.0, "stack": 3.0},
+    "beamLateralSupport": 32.0,
+    "bedJoint": {"min": 6.0, "max": 25.0},
+    "supportDeflection": 600.0,
+    "lintelBearing": 100.0,
+    "lateralSupport": {"bearing": 100.0, "crossWallThicknessShare": 0.5, "crossWallThicknessMin": 125.0, "crossWallLengthShare": 0.2},
+    "stability": {
+      "lateralShare": 0.025,
+      "maxStoreys": 5,
+      "heightWidth": 2.0,
+      "openingWallShare": 0.2,
+      "lengthNeedingAnalysis": 8000.0,
+      "stiffeningWalls": [
+        {"wall": 100.0, "storeyHeight": 3200.0, "thickness": 100.0, "thicknessUpper": null, "spacing": 4500.0},
+        {"wall": 200.0, "storeyHeight": 3200.0, "thickness": 100.0, "thicknessUpper": 200.0, "spacing": 6000.0},
+        {"wall": 300.0, "storeyHeight": 3400.0, "thickness": 100.0, "thicknessUpper": 200.0, "spacing": 8000.0},
+        {"wall": null, "storeyHeight": 5000.0, "thickness": 100.0, "thicknessUpper": 200.0, "spacing": 8000.0}
+      ],
+      "upperStoreys": 4
+    },
+    "basement": {
+      "unitStrength": 5.0,
+      "leanestMortar": "M3",
+      "clearHeight": 2600.0,
+      "traffic": 5.0,
+      "loadLimit": 50.0,
+      "rows": [
+        {"thickness": 375.0, "light": 2000.0, "heavy": 2500.0},
+        {"thickness": 250.0, "light": 1400.0, "heavy": 1800.0}
+      ]
+    },
+    "freeStanding": {
+      "zones": [1, 2],
+      "leanestMortar": "M3",
+      "belowGround": 150.0,
+      "rows": [
+        {"pressure": 300.0, "ratio": 10.0},
+        {"pressure": 600.0, "ratio": 7.0},
+        {"pressure": 900.0, "ratio": 5.0},
+        {"pressure": 1100.0, "ratio": 4.0}
+      ]
+    },
+    "minimumThickness": {"bearing": 250.0, "oneStorey": 165.0, "oneStoreyHeight": 3000.0, "gable": 1500.0},
+    "parapet": {"thickness": 200.0, "heightThickness": 4.0},
+    "loadDispersion": 30.0,
+    "concentratedLoadThickness": 4.0,
+    "corbelSlope": 60.0,
+    "archThrust": 0.3333333
   },
-  "fmRange": {
-    "clay": [10.34, 41.37],
-    "concrete": [10.34, 27.58]
+  "reinforcement": {
+    "plainBarMax": 6.0,
+    "shearSpacing": {"depthShare": 0.5, "max": 600.0, "inclinedShare": 0.375},
+    "column": {"minRatio": 0.005, "maxRatio": 0.04, "minBars": 4, "minBarDia": 10.0, "barSupport": 150.0, "coverMin": 40.0, "coverMax": 125.0, "tieBars": 16.0, "tieTies": 48.0, "tieMax": 450.0, "tieSmall": 6.0, "tieLarge": 10.0, "tieBarLimit": 22.0, "anchorTieArea": 250.0, "anchorTieZone": 125.0, "anchorTieTop": 50.0},
+    "maxBarDia": 35.0,
+    "cellArea": {"noSplice": 0.06, "splice": 0.12},
+    "clearSpacing": {"diameters": 1.0, "min": 25.0, "columnDiameters": 2.5},
+    "groutClearance": {"fine": 6.0, "coarse": 12.0},
+    "cover": {"interior": 20.0, "weather": 40.0, "soil": 50.0},
+    "development": {"tension": 0.29, "compression": 0.22, "plainFactor": 2.0},
+    "extension": {"diameters": 12.0, "negativeShare": 0.3333333, "spanShare": 0.0625, "positiveSimple": 0.3333333, "positiveContinuous": 0.25, "intoSupport": 150.0},
+    "spliceIncrease": {"stressShare": 0.8, "increase": 0.5},
+    "hooks": {"turn180": 4.0, "turn180Min": 65.0, "turn90": 12.0, "stirrup": 6.0, "stirrupMin": 65.0, "stress": 50.0},
+    "bends": [
+      {"from": 6.0, "to": 6.0, "diameters": 6.0},
+      {"from": 8.0, "to": 35.0, "diameters": 8.0}
+    ],
+    "bendStirrups": {"smallMax": 12.0, "small": 4.0},
+    "laps": {"compression": 30.0, "tension": 40.0, "mechanical": 1.25, "closeSpacing": 75.0, "closeIncrease": 0.3, "stagger": 24.0}
   },
-  "modulusOfRupture": {
-    "solid": {"M": 0.689, "S": 0.689, "N": 0.517},
-    "hollow": {"M": 0.434, "S": 0.434, "N": 0.331},
-    "grouted": {"M": 1.124, "S": 1.124, "N": 1.089}
+  "strength": {
+    "phi": {
+      "slenderFlexure": 0.80,
+      "axial": 0.65,
+      "axialMax": 0.85,
+      "axialIncreaseFyMax": 410.0,
+      "axialIncreaseArea": 0.10,
+      "axialIncreaseBalanced": 0.25,
+      "shear": 0.60,
+      "shearFlexure": 0.80
+    },
+    "ultimateStrain": 0.003,
+    "stressBlock": {"stress": 0.85, "depth": 0.85},
+    "axial": {"masonry": 0.85, "reduction": 0.80},
+    "fmRange": {"shearWall": [7.0, 20.0], "slenderWallMax": 40.0},
+    "modulusOfRupture": {
+      "solid": {"full": {"factor": 0.17, "cap": 0.65}, "partial": null},
+      "hollow": {"full": {"factor": 0.33, "cap": 1.2}, "partial": {"factor": 0.21, "cap": 0.65}}
+    },
+    "shear": {
+      "masonry": 0.083,
+      "cdLow": 2.4,
+      "cdHigh": 1.2,
+      "ratioLow": 0.25,
+      "ratioHigh": 1.0,
+      "maxLow": 0.498,
+      "maxHigh": 0.332,
+      "maxPrinted": [72.0, 48.0],
+      "note": "Table 6.7.14 prints Vn/(Ae √f'm) ≤ 72.0 and 48.0, which cannot be MPa (Vn would be far above the crushing strength): an apparent misprint of 6.0 and 4.0 in √psi units. SAEngine uses their SI values 0.083 × 6 = 0.498 and 0.083 × 4 = 0.332 (the more conservative)."
+    },
+    "slenderWall": {"axialMax": 0.04, "minThickness": 150.0, "deflection": 0.007, "maxSteelRatio": 0.5},
+    "shearWall": {"crackingFull": 1.8, "crackingPartial": 3.0, "verticalShare": 0.5, "horizontalSpacingThickness": 3.0, "horizontalSpacingMax": 600.0, "lapLambda": 0.5},
+    "boundary": {"stress": 0.2, "discontinue": 0.15, "confine": 0.4, "lengthThickness": 3.0, "barMin": 10.0, "spacingMax": 200.0}
   },
-  "plainShear": {
-    "root": 0.316,
-    "cap": 2.07,
-    "runningBond": 0.386,
-    "runningBondGrouted": 0.621,
-    "stackBond": 0.159,
-    "axialShare": 0.45
+  "seismic": {
+    "zones": [2, 3, 4],
+    "unitStrengthMin": 12.0,
+    "leanestMortar": "M3",
+    "zone23": {"barMin": 12.0, "verticalSpacing": 1200.0, "horizontalSpacing": 3000.0, "openingDiameters": 40.0, "openingMin": 600.0, "stackBondRatio": 0.0007, "stackBondSpacing": 1200.0},
+    "zone4": {"totalRatio": 0.002, "eachRatio": 0.0007, "maxSpacing": 1200.0, "barMin": 10.0, "stackBondRatio": 0.0015, "stackBondOpenEndRatio": 0.0007, "columnTieSpacing": 225.0, "bearingThickness": 150.0, "column": 375.0, "columnReduced": 250.0, "shearForceFactor": 1.5}
   },
-  "reinforcedShear": {
-    "masonry": 0.083,
-    "first": 4.0,
-    "slope": 1.75,
-    "axialShare": 0.25,
-    "steelShare": 0.5,
-    "maxLow": 0.5,
-    "maxHigh": 0.332
-  },
-  "maxSteelStrain": {
-    "ordinary": 1.5,
-    "intermediate": 3.0,
-    "special": 4.0
-  },
-  "slenderWall": {
-    "axialMax": 0.2,
-    "axialSlender": 0.05,
-    "heightThickness": 30.0
-  },
-  "ordinaryWalls": {
-    "maxSpacing": 3048.0,
-    "leastBarArea": 129.0
-  },
-  "mortarFromMix": {
-    "M": 3.0,
-    "S": 4.5
-  },
-  "prismStrength": {
+  "mortarFromMix": "grades",
+  "prismEstimate": {
+    "label": "SAEngine estimate, not BNBC: f'm from the unit strength by TMS 602 / ACI 530.1 Tables 1 (clay) and 2 (concrete masonry), the type N mortar column for every grade it is used with (the leaner mortar of the tables, on the safe side). BNBC Sec 7.3.3 asks for prism tests (ASTM E447); an estimated f'm is therefore used only with the reduced allowable stresses.",
+    "grades": ["M1", "M2", "M3"],
     "clay": {
       "fm": [6.9, 10.3, 13.8, 17.2, 20.7, 24.1, 27.6],
-      "MS": [11.7, 17.9, 23.4, 30.0, 35.9, 42.1, 47.6],
-      "N": [14.5, 22.8, 30.3, 37.9, 45.5, 53.1, 60.7]
+      "units": [14.5, 22.8, 30.3, 37.9, 45.5, 53.1, 60.7]
     },
     "concrete": {
       "fm": [9.3, 10.3, 12.1, 13.8, 15.5, 17.2, 19.0, 20.7],
-      "MS": [8.6, 13.1, 19.3, 25.9, 33.1, 40.7, 49.6, 57.9],
-      "N": [9.0, 14.8, 21.0, 27.9, 36.2, 45.2, 56.2, 68.3]
+      "units": [9.0, 14.8, 21.0, 27.9, 36.2, 45.2, 56.2, 68.3]
     }
   },
+  "clauses": {
+    "chapter": "BNBC 2020 Part 6 Ch 7",
+    "mortars": "BNBC 2020 Part 6 Sec 7.2.3, Table 6.7.1 (p. 1004)",
+    "prisms": "BNBC 2020 Part 6 Sec 7.3.3 (pp. 1004-1005)",
+    "quality": "BNBC 2020 Part 6 Sec 7.3.3.1(b) and 7.3.5 (p. 1005)",
+    "lateralIncrease": "BNBC 2020 Part 6 Sec 7.3.1 (p. 1004)",
+    "axial": "BNBC 2020 Part 6 Sec 7.3.5(a), Eq 6.7.1 (p. 1005)",
+    "axialColumn": "BNBC 2020 Part 6 Sec 7.3.5(a)(ii), Eq 6.7.2 (p. 1005)",
+    "flexuralCompression": "BNBC 2020 Part 6 Sec 7.3.5(b), Eq 6.7.3 (p. 1005)",
+    "flexuralTension": "BNBC 2020 Part 6 Sec 7.3.5(c), Tables 6.7.2-6.7.3 (p. 1006)",
+    "wallShearPlain": "BNBC 2020 Part 6 Sec 7.3.5(f)(i), Eq 6.7.6 (pp. 1006-1007)",
+    "wallShearReinforced": "BNBC 2020 Part 6 Sec 7.3.5(f)(ii), Table 6.7.4 (p. 1007)",
+    "steel": "BNBC 2020 Part 6 Sec 7.3.6, Eqs 6.7.7-6.7.10 (p. 1007)",
+    "interaction": "BNBC 2020 Part 6 Sec 7.3.7, Eq 6.7.11 (p. 1007)",
+    "elastic": "BNBC 2020 Part 6 Sec 7.3.8, Eqs 6.7.12-6.7.14 (p. 1008)",
+    "effectiveHeight": "BNBC 2020 Part 6 Sec 7.4.2.2 (p. 1012)",
+    "effectiveLength": "BNBC 2020 Part 6 Sec 7.4.2.3, Table 6.7.8 (pp. 1012, 1014)",
+    "stiffening": "BNBC 2020 Part 6 Sec 7.4.2.4(d) (p. 1013)",
+    "slenderness": "BNBC 2020 Part 6 Sec 7.4.2.5 (p. 1014)",
+    "effectiveArea": "BNBC 2020 Part 6 Sec 7.4.2.6 (p. 1014)",
+    "stability": "BNBC 2020 Part 6 Sec 7.4.4, Table 6.7.9 (pp. 1016-1017)",
+    "lengthNeedingAnalysis": "BNBC 2020 Part 6 Sec 7.4.4.2 (p. 1017)",
+    "basement": "BNBC 2020 Part 6 Sec 7.4.4.6, Table 6.7.10 (pp. 1017-1018)",
+    "freeStanding": "BNBC 2020 Part 6 Sec 7.4.4.7, Table 6.7.11 (p. 1018)",
+    "minimumThickness": "BNBC 2020 Part 6 Sec 7.4.9.1 (p. 1021)",
+    "parapet": "BNBC 2020 Part 6 Sec 7.4.9.4 (p. 1021)",
+    "plainStresses": "BNBC 2020 Part 6 Sec 7.5.2-7.5.5, Eqs 6.7.22-6.7.24 (p. 1022)",
+    "arches": "BNBC 2020 Part 6 Sec 7.5.6 (pp. 1022-1023)",
+    "corbels": "BNBC 2020 Part 6 Sec 7.5.7 (p. 1023)",
+    "reinforcedAxial": "BNBC 2020 Part 6 Sec 7.6.2, Eq 6.7.25 (p. 1023)",
+    "reinforcedCombined": "BNBC 2020 Part 6 Sec 7.6.3 (p. 1024)",
+    "reinforcedShear": "BNBC 2020 Part 6 Sec 7.6.4, Eqs 6.7.26-6.7.27 (p. 1024)",
+    "reinforcedFlexure": "BNBC 2020 Part 6 Sec 7.6.5, Eqs 6.7.28-6.7.32 (pp. 1024-1025)",
+    "reinforcedWidth": "BNBC 2020 Part 6 Sec 7.6.5.4 (p. 1025)",
+    "details": "BNBC 2020 Part 6 Sec 7.6.6 (pp. 1025-1030)",
+    "bends": "BNBC 2020 Part 6 Sec 7.6.6.6, Table 6.7.12 (p. 1029)",
+    "strength": "BNBC 2020 Part 6 Sec 7.7 (pp. 1030-1036)",
+    "seismic": "BNBC 2020 Part 6 Sec 7.8 (pp. 1036-1039)"
+  },
   "sources": {
-    "phi": "TMS 402 / ACI 530-08 Sec 3.1.4: combinations of flexure and axial load 0.90 reinforced, 0.60 unreinforced; shear 0.80; bearing 0.60",
-    "modulusRatio": "TMS 402 / ACI 530-08 Sec 1.8.2.2.1: Em = 700 f'm (clay), 900 f'm (concrete masonry)",
-    "ultimateStrain": "TMS 402 / ACI 530-08 Sec 3.3.2(c): εmu 0.0035 clay, 0.0025 concrete masonry",
-    "stressBlock": "TMS 402 / ACI 530-08 Sec 3.3.2(f)-(g): 0.80 f'm over a = 0.80 c",
-    "axial": "TMS 402 / ACI 530-08 Eqs. 3-15, 3-16 (unreinforced) and 3-18, 3-19 (reinforced): Pn = 0.80 [0.80 An f'm] (1 - (h/140r)²) for h/r ≤ 99, (70 r/h)² above",
-    "fmRange": "TMS 402 / ACI 530-08 Sec 3.1.8.1.1: f'm of strength design, clay 1500-6000 psi, concrete 1500-4000 psi",
-    "modulusOfRupture": "TMS 402 / ACI 530-08 Table 3.1.8.2, normal to bed joints, Portland cement/lime or mortar cement mortar (solid units; hollow units ungrouted or partly grouted; fully grouted)",
-    "plainShear": "TMS 402 / ACI 530-08 Sec 3.2.4: Vn the least of 3.8 An √f'm, 300 An, 56 An + 0.45 Nu (running bond, not solidly grouted), 90 An + 0.45 Nu (running bond, solidly grouted), 23 An (stack bond) psi",
-    "reinforcedShear": "TMS 402 / ACI 530-08 Sec 3.3.4.1.2: Vnm = [4.0 - 1.75 (Mu/(Vu dv))] An √f'm + 0.25 Pu, Vns = 0.5 (Av/s) fy dv; Vn ≤ 6 An √f'm at Mu/(Vu dv) ≤ 0.25, 4 An √f'm at ≥ 1.0 (psi)",
-    "maxSteelStrain": "TMS 402 / ACI 530-08 Sec 3.3.3.5: the extreme tension steel strain at εmu is at least α εy, α 1.5 (ordinary), 3 (intermediate walls in-plane), 4 (special walls in-plane)",
-    "slenderWall": "TMS 402 / ACI 530-08 Sec 3.3.5.1-3.3.5.3: Pu/Ag ≤ 0.20 f'm; where Pu/Ag > 0.05 f'm, h/t ≤ 30",
-    "ordinaryWalls": "TMS 402 / ACI 530-08 Sec 1.17.3.2.3.1: ordinary reinforced masonry shear walls, bars of at least 0.2 in² (129 mm²) at most 120 in (3048 mm) apart",
-    "mortarFromMix": "SAEngine practice where the mortar type is not entered: a cement : sand mix of up to 1 : 3 is taken as type M, up to 1 : 4.5 as type S, leaner as type N (ASTM C270 proportions, approximately)",
-    "prismStrength": "TMS 602 / ACI 530.1-08 Tables 1 (clay) and 2 (concrete masonry): f'm on the net area from the unit's net-area strength by mortar type, in MPa (from memory, to be checked)"
+    "method": "BNBC 2020 Part 6 Sec 7.4.2.1 (p. 1011): masonry is designed by working stress with a linear stress-strain distribution (Sec 7.5 unreinforced, 7.6 reinforced); slender walls and shear walls may instead be designed by the strength design of Sec 7.7",
+    "mortars": "BNBC 2020 Part 6 Table 6.7.1 (p. 1004): grades M1-M6, cement : sand 1:3 to 1:8 by loose volume, least 28-day strength 10, 7.5, 5, 3, 2, 1 N/mm²",
+    "quality": "BNBC 2020 Part 6 Sec 7.3.5 (p. 1005): without special inspection the allowable masonry stresses are reduced by 50 %; Sec 7.3.3.1 (pp. 1004-1005): 5 prisms before construction, 3 per 500 m² of wall during construction unless 50 % of the allowable stresses are used; Sec 7.3.11 (p. 1011): reused units at most 50 %; Sec 7.3.8 (p. 1008): E is not reduced",
+    "allowable": "BNBC 2020 Part 6 Sec 7.3.5 (pp. 1005-1007): Fa = (f'm/5)[1 - (h'/42t)³] (Eq 6.7.1; columns Eq 6.7.2 with As Fsc / 1.5Ag), Fb = 0.33 f'm ≤ 10 (Eq 6.7.3), Ft Tables 6.7.2-6.7.3, bond 0.30 plain / 1.0 deformed, beams Fv = 0.083√f'm ≤ 0.25 or 0.25√f'm ≤ 0.75 (Eqs 6.7.4-6.7.5), plain shear walls clay 0.025√f'm ≤ 0.40 (Eq 6.7.6), concrete units 0.20 (M1, M2) and 0.12 (M3), reinforced shear walls Table 6.7.4; Sec 7.3.6 (p. 1007) Fs 0.5fy ≤ 165, 0.4fy ≤ 135, Fsc 0.4fy ≤ 165 walls and columns, 0.5fy ≤ 165 flexural; Sec 7.3.7 Eq 6.7.11 fa/Fa + fb/Fb ≤ 1",
+    "elastic": "BNBC 2020 Part 6 Sec 7.3.8 (p. 1008): Em = 750 f'm ≤ 15,000 N/mm² (Eq 6.7.12), Es = 200,000 N/mm² (Eq 6.7.13), G = 0.4 Em (Eq 6.7.14)",
+    "dimensions": "BNBC 2020 Part 6 Sec 7.4.2-7.4.9 (pp. 1011-1021): effective height (7.4.2.2), Table 6.7.8 effective length with no opening within H/8 of the cross wall, stiffening coefficient k (7.4.2.4(d), linear interpolation), slenderness 20 walls and 12 columns (7.4.2.5), flange 6t (7.4.2.8), bed joint 6-25 mm and supports deflecting ≤ 1/600, lintel bearing ≥ 100 mm (7.4.3), lateral supports (7.4.3.3), 2.5 % of the vertical load and Table 6.7.9 (7.4.4), walls over 8 m long by analysis (7.4.4.2), basements Table 6.7.10 (7.4.4.6), free-standing walls Table 6.7.11 in Zones 1 and 2 (7.4.4.7), load dispersion ≤ 30° and concentrated loads over the bearing + 4t (7.4.8.2-7.4.8.3), bearing walls ≥ 250 mm or 165 mm one-storey up to 3 m (+1.5 m gable) (7.4.9.1), parapets ≥ 200 mm and h ≤ 4t (7.4.9.4); Sec 7.5.6-7.5.7 (pp. 1022-1023) line of thrust in the middle third, corbel slope ≥ 60°; Sec 7.6.3 (p. 1024) h/t > 30 by analysis; Sec 7.6.5.3-7.6.5.4 (p. 1025)",
+    "reinforcement": "BNBC 2020 Part 6 Sec 7.6.1 (p. 1023) plain bars ≤ 6 mm; 7.6.4 (p. 1024) shear spacing ≤ d/2 and 600 mm, inclined 0.375d(1 + cot α); 7.6.6.1-7.6.6.3 (pp. 1025-1027) columns, bars ≤ 35 mm, 6 %/12 % of the cell, clear spacing, cover 20/40/50 mm; 7.6.6.4 (pp. 1027-1028) ld = 0.29 db fs tension, 0.22 db fs compression (Eqs 6.7.34-6.7.35), plain bars ×2; 7.6.6.6 (p. 1029) hooks and Table 6.7.12; 7.6.6.7 (p. 1030) laps 30/40 db, 125 % fy, +30 % within 75 mm or stagger 24 db",
+    "bends": "BNBC 2020 Part 6 Table 6.7.12 (p. 1029) prints 6 to 25 mm: 6 db and 8 to 35 mm: 8 db; the ranges overlap (apparent misprint of 28 to 35 mm), so SAEngine uses the more conservative 8 db from 8 mm up",
+    "strength": "BNBC 2020 Part 6 Sec 7.7 (pp. 1030-1036): slender walls Pu/Ag ≤ 0.04 f'm, f'm ≤ 40, t ≥ 150 mm, ρ ≤ 0.5 ρb, φ 0.80, εmu 0.003, 0.85 f'm over a = 0.85c, Δs ≤ 0.007h (Eqs 6.7.36-6.7.41), fr Table 6.7.13; shear walls φ 0.65 (to 0.85), shear 0.60 (0.80), f'm 7-20 MPa, Po = 0.85 f'm (Ae - As) + fy As, Pu ≤ φ 0.80 Po (Eqs 6.7.44-6.7.45), Vm = 0.083 Cd Amv √f'm with Cd 2.4 to 1.2, Vs = Amv ρn fy (Eqs 6.7.46-6.7.49), Table 6.7.14, 7.7.2.6 reinforcement, 7.7.2.7 boundary members",
+    "seismic": "BNBC 2020 Part 6 Sec 7.8 (pp. 1036-1039): Zones 2, 3 and 4; units ≥ 12 N/mm², mortar not leaner than M3 (7.8.3); Zones 2 and 3: bars ≥ 12 mm, vertical ≤ 1.2 m, horizontal ≤ 3.0 m, openings 40 db ≥ 600 mm, stack bond 0.0007 (7.8.4); Zone 4: ρh + ρv ≥ 0.002, each ≥ 0.0007, spacing ≤ 1.2 m, bars ≥ 10 mm, ties 225 mm, stack bond 0.0015 (0.0007 open-end grouted), walls ≥ 150 mm, columns ≥ 375 mm (250 mm at 50 % stresses), shear 1.5 × the forces (7.8.5)",
+    "mortarFromMix": "BNBC 2020 Part 6 Table 6.7.1 (p. 1004): a cement : sand mix is given the richest grade whose sand parts are at least the mix's (a 1:4.5 mix is M3); a mix leaner than M6 has no grade",
+    "prismEstimate": "TMS 602 / ACI 530.1 Tables 1-2, type N mortar column (an SAEngine estimate, not BNBC; BNBC Sec 7.3.3 asks for prism tests)"
   }
 }

@@ -115,14 +115,23 @@ class MasonryProperties(_Model):
     unitKind: Literal["clay", "concrete"] = Field(
         default="clay",
         title="Unit kind",
-        description="Burnt clay bricks or concrete blocks: sets Em and the ultimate strain of "
-        "the masonry design (BNBC 2020 Part 6 Chapter 7).",
+        description="Burnt clay bricks or concrete blocks: sets the allowable shear and "
+        "tension of the masonry design (the code pack's masonry table).",
         json_schema_extra={"enumDescriptions": ["Clay brick", "Concrete block"]},
     )
-    mortarType: Literal["M", "S", "N"] | None = Field(
+    mortarType: str | None = Field(
         default=None,
-        title="Mortar type",
-        description="M, S or N; empty: from the mortar material's cement : sand mix.",
+        max_length=16,
+        title="Mortar grade",
+        description="A mortar grade of the code pack (e.g. M1 to M6); empty: from the mortar "
+        "material's cement : sand mix.",
+    )
+    specialInspection: bool = Field(
+        default=False,
+        title="Special inspection and prism tests",
+        description="The masonry is built under special inspection with prism tests during "
+        "construction and f'm is from prism tests: the full allowable stresses. Otherwise the "
+        "code pack's reduced share of them (e.g. 50 %).",
     )
     units: Literal["solid", "hollow"] = Field(
         default="solid",

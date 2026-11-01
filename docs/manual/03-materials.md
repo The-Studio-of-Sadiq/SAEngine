@@ -28,7 +28,7 @@ File: `03 Materials/materials.json`. Open it with **3 Materials**.
 | Mechanical | Young's modulus E (MPa), Poisson's ratio ν, Density (kg/m³), Thermal expansion α (1/°C) |
 | Concrete | Compressive strength f′c, tensile strength fr (MPa), max. aggregate size (mm), exposure |
 | Rebar / Steel | Grade, fy, fu (MPa), elongation, actual fy and fu from mill tests |
-| Masonry | Unit, unit strength, f′m, mortar (a mortar material) |
+| Masonry | Unit, unit strength, f′m, mortar (a mortar material), mortar grade of the code pack (empty: from the mortar's mix), unit kind, solid or hollow units, grouting, bond, special inspection and prism tests (without them, or with f′m estimated from the unit strength, the walls are checked at the code pack's reduced allowable stresses) |
 | Composition (concrete and mortar) | *None*, *Nominal* (volume ratio such as 1:1.5:3, water/cement ratio, cement type) or *Design* (cement, water, fine and coarse aggregate in kg/m³, admixtures) |
 | Source | Standard, note |
 

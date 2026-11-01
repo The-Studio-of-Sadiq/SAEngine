@@ -148,8 +148,8 @@
       "IS 883:1994 (permissible stresses by strength group, columns, modification factors), which the chapter follows"
     ],
     "masonry": [
-      "BNBC 2020 Part 6 Chapter 7 (masonry structures)",
-      "TMS 402 / ACI 530-08 Chapter 3 (strength design) and TMS 602 / ACI 530.1-08 Tables 1-2, where the clauses are transcribed from"
+      "BNBC 2020 Part 6 Chapter 7 (masonry structures), Sec 7.2-7.8 (pp. 1003-1039): allowable stress design, with the strength design and earthquake values",
+      "TMS 602 / ACI 530.1 Tables 1-2: only the labelled f'm estimate from the unit strength (not BNBC)"
     ],
     "cranes": [
       "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5(a)-(c) (pp. 541-542)",

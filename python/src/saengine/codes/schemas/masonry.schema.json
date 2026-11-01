@@ -1,153 +1,735 @@
 {
   "$defs": {
-    "MasonryAxial": {
+    "MasonryAllowable": {
       "additionalProperties": false,
       "properties": {
+        "axial": {
+          "$ref": "#/$defs/MasonryAllowableAxial"
+        },
+        "flexuralCompression": {
+          "$ref": "#/$defs/MasonryShareCap"
+        },
+        "flexuralTension": {
+          "$ref": "#/$defs/MasonryFlexuralTension"
+        },
+        "bond": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "plain",
+              "deformed"
+            ]
+          },
+          "title": "Bond",
+          "type": "object"
+        },
+        "beamShear": {
+          "$ref": "#/$defs/MasonryBeamShear"
+        },
+        "wallShearPlain": {
+          "$ref": "#/$defs/MasonryPlainWallShear"
+        },
+        "wallShearReinforced": {
+          "$ref": "#/$defs/MasonryReinforcedWallShear"
+        },
+        "steel": {
+          "$ref": "#/$defs/MasonryAllowableSteel"
+        },
+        "interaction": {
+          "description": "fa/Fa + fb/Fb at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Interaction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "axial",
+        "flexuralCompression",
+        "flexuralTension",
+        "bond",
+        "beamShear",
+        "wallShearPlain",
+        "wallShearReinforced",
+        "steel",
+        "interaction"
+      ],
+      "title": "MasonryAllowable",
+      "type": "object"
+    },
+    "MasonryAllowableAxial": {
+      "additionalProperties": false,
+      "description": "Fa = fmShare f'm [1 - (h'/(slenderness t))^exponent]; columns + As Fsc/(columnSteelArea\nAg).",
+      "properties": {
+        "fmShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fmshare",
+          "type": "number"
+        },
+        "slenderness": {
+          "exclusiveMinimum": 0,
+          "title": "Slenderness",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "columnSteelArea": {
+          "exclusiveMinimum": 0,
+          "title": "Columnsteelarea",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fmShare",
+        "slenderness",
+        "exponent",
+        "columnSteelArea"
+      ],
+      "title": "MasonryAllowableAxial",
+      "type": "object"
+    },
+    "MasonryAllowableSteel": {
+      "additionalProperties": false,
+      "properties": {
+        "tensionDeformed": {
+          "$ref": "#/$defs/MasonrySteelCap"
+        },
+        "tensionPlain": {
+          "$ref": "#/$defs/MasonrySteelCap"
+        },
+        "compressionWalls": {
+          "$ref": "#/$defs/MasonrySteelCap"
+        },
+        "compressionFlexural": {
+          "$ref": "#/$defs/MasonrySteelCap"
+        }
+      },
+      "required": [
+        "tensionDeformed",
+        "tensionPlain",
+        "compressionWalls",
+        "compressionFlexural"
+      ],
+      "title": "MasonryAllowableSteel",
+      "type": "object"
+    },
+    "MasonryBasement": {
+      "additionalProperties": false,
+      "properties": {
+        "unitStrength": {
+          "exclusiveMinimum": 0,
+          "title": "Unitstrength",
+          "type": "number"
+        },
+        "leanestMortar": {
+          "title": "Leanestmortar",
+          "type": "string"
+        },
+        "clearHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Clearheight",
+          "type": "number"
+        },
+        "traffic": {
+          "description": "Largest traffic load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Traffic",
+          "type": "number"
+        },
+        "loadLimit": {
+          "description": "Permanent wall load between the columns [kN/m].",
+          "exclusiveMinimum": 0,
+          "title": "Loadlimit",
+          "type": "number"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/MasonryBasementRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "unitStrength",
+        "leanestMortar",
+        "clearHeight",
+        "traffic",
+        "loadLimit",
+        "rows"
+      ],
+      "title": "MasonryBasement",
+      "type": "object"
+    },
+    "MasonryBasementRow": {
+      "additionalProperties": false,
+      "properties": {
+        "thickness": {
+          "exclusiveMinimum": 0,
+          "title": "Thickness",
+          "type": "number"
+        },
+        "light": {
+          "description": "Largest ground height, light wall loading [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Light",
+          "type": "number"
+        },
+        "heavy": {
+          "description": "Largest ground height, heavy wall loading [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Heavy",
+          "type": "number"
+        }
+      },
+      "required": [
+        "thickness",
+        "light",
+        "heavy"
+      ],
+      "title": "MasonryBasementRow",
+      "type": "object"
+    },
+    "MasonryBeamShear": {
+      "additionalProperties": false,
+      "properties": {
+        "unreinforced": {
+          "$ref": "#/$defs/MasonryRootCap"
+        },
+        "reinforced": {
+          "$ref": "#/$defs/MasonryRootCap"
+        }
+      },
+      "required": [
+        "unreinforced",
+        "reinforced"
+      ],
+      "title": "MasonryBeamShear",
+      "type": "object"
+    },
+    "MasonryBend": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "Bar diameter from [mm].",
+          "exclusiveMinimum": 0,
+          "title": "From",
+          "type": "number"
+        },
+        "to": {
+          "exclusiveMinimum": 0,
+          "title": "To",
+          "type": "number"
+        },
+        "diameters": {
+          "exclusiveMinimum": 0,
+          "title": "Diameters",
+          "type": "number"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "diameters"
+      ],
+      "title": "MasonryBend",
+      "type": "object"
+    },
+    "MasonryDimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveHeight": {
+          "additionalProperties": true,
+          "title": "Effectiveheight",
+          "type": "object"
+        },
+        "effectiveLength": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Effectivelength",
+          "type": "object"
+        },
+        "stiffening": {
+          "$ref": "#/$defs/MasonryStiffening"
+        },
+        "slenderness": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "wall",
+              "column"
+            ]
+          },
+          "title": "Slenderness",
+          "type": "object"
+        },
+        "heightThicknessAnalysis": {
+          "exclusiveMinimum": 0,
+          "title": "Heightthicknessanalysis",
+          "type": "number"
+        },
+        "flangeWidth": {
+          "exclusiveMinimum": 0,
+          "title": "Flangewidth",
+          "type": "number"
+        },
+        "reinforcedWidth": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "running",
+              "stack"
+            ]
+          },
+          "title": "Reinforcedwidth",
+          "type": "object"
+        },
+        "beamLateralSupport": {
+          "exclusiveMinimum": 0,
+          "title": "Beamlateralsupport",
+          "type": "number"
+        },
+        "bedJoint": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "min",
+              "max"
+            ]
+          },
+          "title": "Bedjoint",
+          "type": "object"
+        },
+        "supportDeflection": {
+          "exclusiveMinimum": 0,
+          "title": "Supportdeflection",
+          "type": "number"
+        },
+        "lintelBearing": {
+          "exclusiveMinimum": 0,
+          "title": "Lintelbearing",
+          "type": "number"
+        },
+        "lateralSupport": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Lateralsupport",
+          "type": "object"
+        },
+        "stability": {
+          "$ref": "#/$defs/MasonryStability"
+        },
+        "basement": {
+          "$ref": "#/$defs/MasonryBasement"
+        },
+        "freeStanding": {
+          "$ref": "#/$defs/MasonryFreeStanding"
+        },
+        "minimumThickness": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "bearing",
+              "oneStorey",
+              "oneStoreyHeight",
+              "gable"
+            ]
+          },
+          "title": "Minimumthickness",
+          "type": "object"
+        },
+        "parapet": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "thickness",
+              "heightThickness"
+            ]
+          },
+          "title": "Parapet",
+          "type": "object"
+        },
+        "loadDispersion": {
+          "exclusiveMinimum": 0,
+          "title": "Loaddispersion",
+          "type": "number"
+        },
+        "concentratedLoadThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Concentratedloadthickness",
+          "type": "number"
+        },
+        "corbelSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Corbelslope",
+          "type": "number"
+        },
+        "archThrust": {
+          "description": "Line of thrust within this share of the section.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Archthrust",
+          "type": "number"
+        }
+      },
+      "required": [
+        "effectiveHeight",
+        "effectiveLength",
+        "stiffening",
+        "slenderness",
+        "heightThicknessAnalysis",
+        "flangeWidth",
+        "reinforcedWidth",
+        "beamLateralSupport",
+        "bedJoint",
+        "supportDeflection",
+        "lintelBearing",
+        "lateralSupport",
+        "stability",
+        "basement",
+        "freeStanding",
+        "minimumThickness",
+        "parapet",
+        "loadDispersion",
+        "concentratedLoadThickness",
+        "corbelSlope",
+        "archThrust"
+      ],
+      "title": "MasonryDimensions",
+      "type": "object"
+    },
+    "MasonryElastic": {
+      "additionalProperties": false,
+      "properties": {
+        "emRatio": {
+          "description": "Em = emRatio × f'm.",
+          "exclusiveMinimum": 0,
+          "title": "Emratio",
+          "type": "number"
+        },
+        "emCap": {
+          "description": "Em at most this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Emcap",
+          "type": "number"
+        },
+        "es": {
+          "description": "Es [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Es",
+          "type": "number"
+        },
+        "shearRatio": {
+          "description": "G = shearRatio × Em.",
+          "exclusiveMinimum": 0,
+          "title": "Shearratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "emRatio",
+        "emCap",
+        "es",
+        "shearRatio"
+      ],
+      "title": "MasonryElastic",
+      "type": "object"
+    },
+    "MasonryFlexuralTension": {
+      "additionalProperties": false,
+      "properties": {
+        "bedJoints": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Normal to bed joints [MPa].",
+          "propertyNames": {
+            "enum": [
+              "solid",
+              "hollow"
+            ]
+          },
+          "title": "Bedjoints",
+          "type": "object"
+        },
+        "headJoints": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Normal to head joints [MPa].",
+          "propertyNames": {
+            "enum": [
+              "solid",
+              "hollow"
+            ]
+          },
+          "title": "Headjoints",
+          "type": "object"
+        },
+        "headJointsByUnit": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "solid",
+                "hollow"
+              ]
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "enum": [
+              "clay",
+              "concrete"
+            ]
+          },
+          "title": "Headjointsbyunit",
+          "type": "object"
+        },
+        "fullMortars": {
+          "description": "Mortar grades with the full values.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Fullmortars",
+          "type": "array"
+        },
+        "reducedMortars": {
+          "description": "Mortar grades with the reduced values.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Reducedmortars",
+          "type": "array"
+        },
         "reduction": {
-          "description": "Pn = reduction × [stress × An f'm] × R(h/r).",
+          "description": "Reduction of the values for reducedMortars.",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "title": "Reduction",
           "type": "number"
         },
-        "slendernessBreak": {
-          "description": "h/r where the long-wall formula starts.",
-          "exclusiveMinimum": 0,
-          "title": "Slendernessbreak",
-          "type": "number"
-        },
-        "short": {
-          "description": "R = 1 - (h / (short r))² up to the break.",
-          "exclusiveMinimum": 0,
-          "title": "Short",
-          "type": "number"
-        },
-        "long": {
-          "description": "R = (long r / h)² above the break.",
-          "exclusiveMinimum": 0,
-          "title": "Long",
-          "type": "number"
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
         }
       },
       "required": [
-        "reduction",
-        "slendernessBreak",
-        "short",
-        "long"
+        "bedJoints",
+        "headJoints",
+        "headJointsByUnit",
+        "fullMortars",
+        "reducedMortars",
+        "reduction"
       ],
-      "title": "MasonryAxial",
+      "title": "MasonryFlexuralTension",
       "type": "object"
     },
-    "MasonryOrdinaryWalls": {
+    "MasonryFreeStanding": {
       "additionalProperties": false,
       "properties": {
-        "maxSpacing": {
-          "description": "Largest bar spacing, each way [mm].",
+        "zones": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Zones",
+          "type": "array"
+        },
+        "leanestMortar": {
+          "title": "Leanestmortar",
+          "type": "string"
+        },
+        "belowGround": {
           "exclusiveMinimum": 0,
-          "title": "Maxspacing",
+          "title": "Belowground",
           "type": "number"
         },
-        "leastBarArea": {
-          "description": "Least area of a vertical bar [mm²].",
-          "exclusiveMinimum": 0,
-          "title": "Leastbararea",
-          "type": "number"
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/MasonryFreeStandingRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
         }
       },
       "required": [
-        "maxSpacing",
-        "leastBarArea"
+        "zones",
+        "leanestMortar",
+        "belowGround",
+        "rows"
       ],
-      "title": "MasonryOrdinaryWalls",
+      "title": "MasonryFreeStanding",
       "type": "object"
     },
-    "MasonryPhi": {
+    "MasonryFreeStandingRow": {
       "additionalProperties": false,
-      "description": "φ of masonry (strength design).",
       "properties": {
-        "axialFlexureReinforced": {
+        "pressure": {
+          "description": "Design wind pressure up to [N/m²].",
           "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Axialflexurereinforced",
+          "title": "Pressure",
           "type": "number"
         },
-        "axialFlexureUnreinforced": {
+        "ratio": {
+          "description": "Largest height / thickness.",
           "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Axialflexureunreinforced",
-          "type": "number"
-        },
-        "shear": {
-          "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Shear",
-          "type": "number"
-        },
-        "bearing": {
-          "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Bearing",
+          "title": "Ratio",
           "type": "number"
         }
       },
       "required": [
-        "axialFlexureReinforced",
-        "axialFlexureUnreinforced",
-        "shear",
-        "bearing"
+        "pressure",
+        "ratio"
       ],
-      "title": "MasonryPhi",
+      "title": "MasonryFreeStandingRow",
       "type": "object"
     },
-    "MasonryPlainShear": {
+    "MasonryLateralIncrease": {
       "additionalProperties": false,
-      "description": "Vn of unreinforced masonry [MPa]: the least of root √f'm, cap, and the bond's\nconstant + axialShare Nu/An.",
       "properties": {
-        "root": {
-          "exclusiveMinimum": 0,
-          "title": "Root",
+        "factor": {
+          "description": "Allowable stresses × this with wind or earthquake.",
+          "minimum": 1,
+          "title": "Factor",
           "type": "number"
         },
-        "cap": {
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "MasonryLateralIncrease",
+      "type": "object"
+    },
+    "MasonryMortar": {
+      "additionalProperties": false,
+      "description": "One mortar grade: the cement : sand mix by volume and its least strength [MPa].",
+      "properties": {
+        "cement": {
           "exclusiveMinimum": 0,
-          "title": "Cap",
+          "title": "Cement",
           "type": "number"
         },
-        "runningBond": {
+        "sand": {
           "exclusiveMinimum": 0,
-          "title": "Runningbond",
+          "title": "Sand",
           "type": "number"
         },
-        "runningBondGrouted": {
+        "strength": {
+          "description": "Least 28-day compressive strength [MPa].",
           "exclusiveMinimum": 0,
-          "title": "Runningbondgrouted",
-          "type": "number"
-        },
-        "stackBond": {
-          "exclusiveMinimum": 0,
-          "title": "Stackbond",
-          "type": "number"
-        },
-        "axialShare": {
-          "exclusiveMinimum": 0,
-          "title": "Axialshare",
+          "title": "Strength",
           "type": "number"
         }
       },
       "required": [
-        "root",
-        "cap",
-        "runningBond",
-        "runningBondGrouted",
-        "stackBond",
-        "axialShare"
+        "cement",
+        "sand",
+        "strength"
       ],
-      "title": "MasonryPlainShear",
+      "title": "MasonryMortar",
+      "type": "object"
+    },
+    "MasonryPlainWallShear": {
+      "additionalProperties": false,
+      "properties": {
+        "clay": {
+          "$ref": "#/$defs/MasonryRootCap"
+        },
+        "concrete": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Fv by mortar grade [MPa].",
+          "title": "Concrete",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clay",
+        "concrete"
+      ],
+      "title": "MasonryPlainWallShear",
+      "type": "object"
+    },
+    "MasonryPrismEstimate": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "description": "What the estimate is (shown with the f'm it gives).",
+          "title": "Label",
+          "type": "string"
+        },
+        "grades": {
+          "description": "Mortar grades the estimate may be used with.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Grades",
+          "type": "array"
+        },
+        "clay": {
+          "$ref": "#/$defs/MasonryPrisms"
+        },
+        "concrete": {
+          "$ref": "#/$defs/MasonryPrisms"
+        }
+      },
+      "required": [
+        "label",
+        "grades",
+        "clay",
+        "concrete"
+      ],
+      "title": "MasonryPrismEstimate",
       "type": "object"
     },
     "MasonryPrisms": {
       "additionalProperties": false,
-      "description": "f'm from the unit's strength by mortar type (MPa), one value per entry of ``fm``.",
+      "description": "f'm (MPa) from the unit's strength (MPa), one unit strength per entry of ``fm``.",
       "properties": {
         "fm": {
           "items": {
@@ -158,40 +740,374 @@
           "title": "Fm",
           "type": "array"
         },
-        "MS": {
-          "description": "Unit strength with type M or S mortar.",
+        "units": {
+          "description": "Unit strength giving each f'm.",
           "items": {
             "exclusiveMinimum": 0,
             "type": "number"
           },
-          "title": "Ms",
-          "type": "array"
-        },
-        "N": {
-          "description": "Unit strength with type N mortar.",
-          "items": {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          "title": "N",
+          "title": "Units",
           "type": "array"
         }
       },
       "required": [
         "fm",
-        "MS",
-        "N"
+        "units"
       ],
       "title": "MasonryPrisms",
       "type": "object"
     },
-    "MasonryReinforcedShear": {
+    "MasonryQuality": {
       "additionalProperties": false,
-      "description": "Vnm = masonry [first - slope Mu/(Vu dv)] An √f'm + axialShare Pu; Vns = steelShare\n(Av/s) fy dv; Vn ≤ maxLow An √f'm at Mu/(Vu dv) ≤ 0.25, maxHigh at ≥ 1 [MPa].",
+      "properties": {
+        "reducedShare": {
+          "description": "Share of the allowable masonry stresses without special inspection or prism tests during construction.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Reducedshare",
+          "type": "number"
+        },
+        "reusedUnitsShare": {
+          "description": "Largest share for reused units.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Reusedunitsshare",
+          "type": "number"
+        },
+        "prismsBeforeConstruction": {
+          "exclusiveMinimum": 0,
+          "title": "Prismsbeforeconstruction",
+          "type": "integer"
+        },
+        "prismsDuringConstruction": {
+          "exclusiveMinimum": 0,
+          "title": "Prismsduringconstruction",
+          "type": "integer"
+        },
+        "wallAreaPerSet": {
+          "description": "Wall area per set of prisms [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Wallareaperset",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reducedShare",
+        "reusedUnitsShare",
+        "prismsBeforeConstruction",
+        "prismsDuringConstruction",
+        "wallAreaPerSet"
+      ],
+      "title": "MasonryQuality",
+      "type": "object"
+    },
+    "MasonryReinforcedWallShear": {
+      "additionalProperties": false,
       "properties": {
         "masonry": {
+          "$ref": "#/$defs/MasonryShearRow"
+        },
+        "reinforcement": {
+          "$ref": "#/$defs/MasonryShearRow"
+        }
+      },
+      "required": [
+        "masonry",
+        "reinforcement"
+      ],
+      "title": "MasonryReinforcedWallShear",
+      "type": "object"
+    },
+    "MasonryReinforcement": {
+      "additionalProperties": false,
+      "properties": {
+        "plainBarMax": {
           "exclusiveMinimum": 0,
-          "title": "Masonry",
+          "title": "Plainbarmax",
+          "type": "number"
+        },
+        "shearSpacing": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Shearspacing",
+          "type": "object"
+        },
+        "column": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Column",
+          "type": "object"
+        },
+        "maxBarDia": {
+          "exclusiveMinimum": 0,
+          "title": "Maxbardia",
+          "type": "number"
+        },
+        "cellArea": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "noSplice",
+              "splice"
+            ]
+          },
+          "title": "Cellarea",
+          "type": "object"
+        },
+        "clearSpacing": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Clearspacing",
+          "type": "object"
+        },
+        "groutClearance": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "fine",
+              "coarse"
+            ]
+          },
+          "title": "Groutclearance",
+          "type": "object"
+        },
+        "cover": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "interior",
+              "weather",
+              "soil"
+            ]
+          },
+          "title": "Cover",
+          "type": "object"
+        },
+        "development": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "tension",
+              "compression",
+              "plainFactor"
+            ]
+          },
+          "title": "Development",
+          "type": "object"
+        },
+        "extension": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Extension",
+          "type": "object"
+        },
+        "spliceIncrease": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Spliceincrease",
+          "type": "object"
+        },
+        "hooks": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Hooks",
+          "type": "object"
+        },
+        "bends": {
+          "items": {
+            "$ref": "#/$defs/MasonryBend"
+          },
+          "minItems": 1,
+          "title": "Bends",
+          "type": "array"
+        },
+        "bendStirrups": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Bendstirrups",
+          "type": "object"
+        },
+        "laps": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Laps",
+          "type": "object"
+        }
+      },
+      "required": [
+        "plainBarMax",
+        "shearSpacing",
+        "column",
+        "maxBarDia",
+        "cellArea",
+        "clearSpacing",
+        "groutClearance",
+        "cover",
+        "development",
+        "extension",
+        "spliceIncrease",
+        "hooks",
+        "bends",
+        "bendStirrups",
+        "laps"
+      ],
+      "title": "MasonryReinforcement",
+      "type": "object"
+    },
+    "MasonryRootCap": {
+      "additionalProperties": false,
+      "properties": {
+        "factor": {
+          "description": "× √f'm [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "cap"
+      ],
+      "title": "MasonryRootCap",
+      "type": "object"
+    },
+    "MasonryRupture": {
+      "additionalProperties": false,
+      "properties": {
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "cap"
+      ],
+      "title": "MasonryRupture",
+      "type": "object"
+    },
+    "MasonrySeismic": {
+      "additionalProperties": false,
+      "description": "Values of the earthquake provisions (the seismic detailing checks).",
+      "properties": {
+        "zones": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Zones",
+          "type": "array"
+        },
+        "unitStrengthMin": {
+          "exclusiveMinimum": 0,
+          "title": "Unitstrengthmin",
+          "type": "number"
+        },
+        "leanestMortar": {
+          "title": "Leanestmortar",
+          "type": "string"
+        },
+        "zone23": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Zone23",
+          "type": "object"
+        },
+        "zone4": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Zone4",
+          "type": "object"
+        }
+      },
+      "required": [
+        "zones",
+        "unitStrengthMin",
+        "leanestMortar",
+        "zone23",
+        "zone4"
+      ],
+      "title": "MasonrySeismic",
+      "type": "object"
+    },
+    "MasonryShareCap": {
+      "additionalProperties": false,
+      "description": "A stress fmShare × f'm (or factor × √f'm) at most cap [MPa].",
+      "properties": {
+        "fmShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fmshare",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fmShare",
+        "cap"
+      ],
+      "title": "MasonryShareCap",
+      "type": "object"
+    },
+    "MasonryShearRow": {
+      "additionalProperties": false,
+      "description": "Fv = (1/divisor)(first - M/Vd) √f'm ≤ maxFirst - maxSlope M/Vd below M/Vd = 1;\nabove √f'm ≤ maxAbove at M/Vd ≥ 1 [MPa].",
+      "properties": {
+        "divisor": {
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
           "type": "number"
         },
         "first": {
@@ -199,132 +1115,348 @@
           "title": "First",
           "type": "number"
         },
-        "slope": {
+        "above": {
           "exclusiveMinimum": 0,
-          "title": "Slope",
+          "title": "Above",
           "type": "number"
         },
-        "axialShare": {
+        "maxFirst": {
           "exclusiveMinimum": 0,
-          "title": "Axialshare",
+          "title": "Maxfirst",
           "type": "number"
         },
-        "steelShare": {
+        "maxSlope": {
           "exclusiveMinimum": 0,
-          "title": "Steelshare",
+          "title": "Maxslope",
           "type": "number"
         },
-        "maxLow": {
+        "maxAbove": {
           "exclusiveMinimum": 0,
-          "title": "Maxlow",
-          "type": "number"
-        },
-        "maxHigh": {
-          "exclusiveMinimum": 0,
-          "title": "Maxhigh",
+          "title": "Maxabove",
           "type": "number"
         }
       },
       "required": [
-        "masonry",
+        "divisor",
         "first",
-        "slope",
-        "axialShare",
-        "steelShare",
-        "maxLow",
-        "maxHigh"
+        "above",
+        "maxFirst",
+        "maxSlope",
+        "maxAbove"
       ],
-      "title": "MasonryReinforcedShear",
+      "title": "MasonryShearRow",
       "type": "object"
     },
-    "MasonrySlenderWall": {
+    "MasonryStability": {
       "additionalProperties": false,
       "properties": {
-        "axialMax": {
-          "description": "Pu/Ag at most this × f'm.",
+        "lateralShare": {
+          "description": "Lateral load at a support, × the vertical load.",
           "exclusiveMinimum": 0,
           "maximum": 1,
-          "title": "Axialmax",
+          "title": "Lateralshare",
           "type": "number"
         },
-        "axialSlender": {
-          "description": "Above this × f'm, h/t is limited.",
+        "maxStoreys": {
+          "exclusiveMinimum": 0,
+          "title": "Maxstoreys",
+          "type": "integer"
+        },
+        "heightWidth": {
+          "exclusiveMinimum": 0,
+          "title": "Heightwidth",
+          "type": "number"
+        },
+        "openingWallShare": {
           "exclusiveMinimum": 0,
           "maximum": 1,
-          "title": "Axialslender",
+          "title": "Openingwallshare",
           "type": "number"
         },
-        "heightThickness": {
-          "description": "Largest h/t above axialSlender.",
+        "lengthNeedingAnalysis": {
+          "description": "Longer walls need analysis [mm].",
           "exclusiveMinimum": 0,
-          "title": "Heightthickness",
+          "title": "Lengthneedinganalysis",
+          "type": "number"
+        },
+        "stiffeningWalls": {
+          "items": {
+            "$ref": "#/$defs/MasonryStiffeningWall"
+          },
+          "title": "Stiffeningwalls",
+          "type": "array"
+        },
+        "upperStoreys": {
+          "description": "From this many storeys: thicknessUpper.",
+          "exclusiveMinimum": 0,
+          "title": "Upperstoreys",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lateralShare",
+        "maxStoreys",
+        "heightWidth",
+        "openingWallShare",
+        "lengthNeedingAnalysis",
+        "stiffeningWalls",
+        "upperStoreys"
+      ],
+      "title": "MasonryStability",
+      "type": "object"
+    },
+    "MasonrySteelCap": {
+      "additionalProperties": false,
+      "description": "A steel stress fyShare × fy at most cap [MPa].",
+      "properties": {
+        "fyShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fyshare",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
           "type": "number"
         }
       },
       "required": [
-        "axialMax",
-        "axialSlender",
-        "heightThickness"
+        "fyShare",
+        "cap"
       ],
-      "title": "MasonrySlenderWall",
+      "title": "MasonrySteelCap",
       "type": "object"
     },
-    "MasonrySteelStrain": {
+    "MasonryStiffening": {
       "additionalProperties": false,
-      "description": "α of the extreme tension steel strain α εy at εmu, by wall detailing.",
+      "description": "Stiffening coefficient k by pilaster spacing / width (rows) and pilaster / wall\nthickness (columns), linear between.",
       "properties": {
-        "ordinary": {
+        "spacingRatios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Spacingratios",
+          "type": "array"
+        },
+        "thicknessRatios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Thicknessratios",
+          "type": "array"
+        },
+        "k": {
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "K",
+          "type": "array"
+        }
+      },
+      "required": [
+        "spacingRatios",
+        "thicknessRatios",
+        "k"
+      ],
+      "title": "MasonryStiffening",
+      "type": "object"
+    },
+    "MasonryStiffeningWall": {
+      "additionalProperties": false,
+      "properties": {
+        "wall": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Wall thickness up to [mm]; null: any above.",
+          "title": "Wall"
+        },
+        "storeyHeight": {
+          "description": "Largest storey height [mm].",
           "exclusiveMinimum": 0,
-          "title": "Ordinary",
+          "title": "Storeyheight",
           "type": "number"
         },
-        "intermediate": {
+        "thickness": {
+          "description": "Least stiffening wall, 1 to 3 storeys [mm].",
           "exclusiveMinimum": 0,
-          "title": "Intermediate",
+          "title": "Thickness",
           "type": "number"
         },
-        "special": {
+        "thicknessUpper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Least stiffening wall, 4 and 5 storeys [mm]; null: not allowed.",
+          "title": "Thicknessupper"
+        },
+        "spacing": {
+          "description": "Largest spacing of the stiffening walls [mm].",
           "exclusiveMinimum": 0,
-          "title": "Special",
+          "title": "Spacing",
           "type": "number"
         }
       },
       "required": [
-        "ordinary",
-        "intermediate",
-        "special"
+        "wall",
+        "storeyHeight",
+        "thickness",
+        "thicknessUpper",
+        "spacing"
       ],
-      "title": "MasonrySteelStrain",
+      "title": "MasonryStiffeningWall",
       "type": "object"
     },
-    "MasonryStressBlock": {
+    "MasonryStrength": {
       "additionalProperties": false,
+      "description": "Values of the strength design of slender walls and shear walls (the strength checks).",
       "properties": {
-        "stress": {
-          "description": "Stress of the block as a share of f'm.",
+        "phi": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Phi",
+          "type": "object"
+        },
+        "ultimateStrain": {
           "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Stress",
+          "title": "Ultimatestrain",
           "type": "number"
         },
-        "depth": {
-          "description": "Depth of the block a as a share of c.",
-          "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Depth",
-          "type": "number"
+        "stressBlock": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "stress",
+              "depth"
+            ]
+          },
+          "title": "Stressblock",
+          "type": "object"
+        },
+        "axial": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "masonry",
+              "reduction"
+            ]
+          },
+          "title": "Axial",
+          "type": "object"
+        },
+        "fmRange": {
+          "additionalProperties": true,
+          "title": "Fmrange",
+          "type": "object"
+        },
+        "modulusOfRupture": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MasonryRupture"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "full",
+                "partial"
+              ]
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "enum": [
+              "solid",
+              "hollow"
+            ]
+          },
+          "title": "Modulusofrupture",
+          "type": "object"
+        },
+        "shear": {
+          "additionalProperties": true,
+          "title": "Shear",
+          "type": "object"
+        },
+        "slenderWall": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Slenderwall",
+          "type": "object"
+        },
+        "shearWall": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Shearwall",
+          "type": "object"
+        },
+        "boundary": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Boundary",
+          "type": "object"
         }
       },
       "required": [
-        "stress",
-        "depth"
+        "phi",
+        "ultimateStrain",
+        "stressBlock",
+        "axial",
+        "fmRange",
+        "modulusOfRupture",
+        "shear",
+        "slenderWall",
+        "shearWall",
+        "boundary"
       ],
-      "title": "MasonryStressBlock",
+      "title": "MasonryStrength",
       "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "Strength design of masonry walls: φ, Em, εmu, the stress block, axial strength and\nslenderness, the modulus of rupture, shear, the steel limits and f'm from the units.",
+  "description": "Masonry walls: the design method (by id), the mortar grades, the allowable stresses,\nthe dimension rules, the reinforcement details and the values of the strength design and\nthe earthquake provisions.",
   "properties": {
     "source": {
       "default": "",
@@ -340,156 +1472,84 @@
       "title": "Sources",
       "type": "object"
     },
-    "phi": {
-      "$ref": "#/$defs/MasonryPhi"
+    "method": {
+      "const": "allowableStress",
+      "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain).",
+      "title": "Method",
+      "type": "string"
     },
-    "modulusRatio": {
+    "mortars": {
       "additionalProperties": {
-        "exclusiveMinimum": 0,
-        "type": "number"
+        "$ref": "#/$defs/MasonryMortar"
       },
-      "description": "Em / f'm by unit.",
-      "propertyNames": {
-        "enum": [
-          "clay",
-          "concrete"
-        ]
-      },
-      "title": "Modulusratio",
+      "description": "Mortar grades by id.",
+      "minProperties": 1,
+      "title": "Mortars",
       "type": "object"
     },
-    "ultimateStrain": {
-      "additionalProperties": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "description": "εmu by unit.",
-      "propertyNames": {
-        "enum": [
-          "clay",
-          "concrete"
-        ]
-      },
-      "title": "Ultimatestrain",
-      "type": "object"
+    "quality": {
+      "$ref": "#/$defs/MasonryQuality"
     },
-    "stressBlock": {
-      "$ref": "#/$defs/MasonryStressBlock"
+    "lateralIncrease": {
+      "$ref": "#/$defs/MasonryLateralIncrease"
     },
-    "axial": {
-      "$ref": "#/$defs/MasonryAxial"
+    "allowable": {
+      "$ref": "#/$defs/MasonryAllowable"
     },
-    "fmRange": {
-      "additionalProperties": {
-        "maxItems": 2,
-        "minItems": 2,
-        "prefixItems": [
-          {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          }
-        ],
-        "type": "array"
-      },
-      "description": "f'm range of strength design by unit [MPa].",
-      "propertyNames": {
-        "enum": [
-          "clay",
-          "concrete"
-        ]
-      },
-      "title": "Fmrange",
-      "type": "object"
+    "elastic": {
+      "$ref": "#/$defs/MasonryElastic"
     },
-    "modulusOfRupture": {
-      "additionalProperties": {
-        "additionalProperties": {
-          "exclusiveMinimum": 0,
-          "type": "number"
-        },
-        "propertyNames": {
-          "enum": [
-            "M",
-            "S",
-            "N"
-          ]
-        },
-        "type": "object"
-      },
-      "description": "fr normal to the bed joints [MPa].",
-      "propertyNames": {
-        "enum": [
-          "solid",
-          "hollow",
-          "grouted"
-        ]
-      },
-      "title": "Modulusofrupture",
-      "type": "object"
+    "dimensions": {
+      "$ref": "#/$defs/MasonryDimensions"
     },
-    "plainShear": {
-      "$ref": "#/$defs/MasonryPlainShear"
+    "reinforcement": {
+      "$ref": "#/$defs/MasonryReinforcement"
     },
-    "reinforcedShear": {
-      "$ref": "#/$defs/MasonryReinforcedShear"
+    "strength": {
+      "$ref": "#/$defs/MasonryStrength"
     },
-    "maxSteelStrain": {
-      "$ref": "#/$defs/MasonrySteelStrain"
-    },
-    "slenderWall": {
-      "$ref": "#/$defs/MasonrySlenderWall"
-    },
-    "ordinaryWalls": {
-      "$ref": "#/$defs/MasonryOrdinaryWalls"
+    "seismic": {
+      "$ref": "#/$defs/MasonrySeismic"
     },
     "mortarFromMix": {
-      "additionalProperties": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "description": "Largest sand parts per cement part of a nominal mortar mix of each type.",
-      "propertyNames": {
-        "enum": [
-          "M",
-          "S"
-        ]
-      },
+      "const": "grades",
+      "description": "'grades': a mix gets the richest grade whose sand parts are at least its.",
       "title": "Mortarfrommix",
-      "type": "object"
+      "type": "string"
     },
-    "prismStrength": {
+    "prismEstimate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MasonryPrismEstimate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clauses": {
       "additionalProperties": {
-        "$ref": "#/$defs/MasonryPrisms"
+        "type": "string"
       },
-      "propertyNames": {
-        "enum": [
-          "clay",
-          "concrete"
-        ]
-      },
-      "title": "Prismstrength",
+      "description": "Clause reference of each check, by key.",
+      "title": "Clauses",
       "type": "object"
     }
   },
   "required": [
-    "phi",
-    "modulusRatio",
-    "ultimateStrain",
-    "stressBlock",
-    "axial",
-    "fmRange",
-    "modulusOfRupture",
-    "plainShear",
-    "reinforcedShear",
-    "maxSteelStrain",
-    "slenderWall",
-    "ordinaryWalls",
+    "method",
+    "mortars",
+    "quality",
+    "lateralIncrease",
+    "allowable",
+    "elastic",
+    "dimensions",
+    "reinforcement",
+    "strength",
+    "seismic",
     "mortarFromMix",
-    "prismStrength"
+    "clauses"
   ],
   "title": "MasonryTable",
   "type": "object",
