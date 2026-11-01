@@ -16,12 +16,6 @@
       "title": "Sources",
       "type": "object"
     },
-    "shortName": {
-      "default": "",
-      "description": "The code's short name in compact notes.",
-      "title": "Shortname",
-      "type": "string"
-    },
     "clauses": {
       "additionalProperties": {
         "additionalProperties": {
@@ -32,6 +26,12 @@
       "description": "Clause reference of each check: {group: {key: clause}}.",
       "title": "Clauses",
       "type": "object"
+    },
+    "shortName": {
+      "default": "",
+      "description": "The code's short name in compact notes.",
+      "title": "Shortname",
+      "type": "string"
     }
   },
   "title": "DesignClausesTable",
