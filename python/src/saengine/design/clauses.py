@@ -56,9 +56,8 @@ def limits() -> Any:
 
 
 def code_name() -> str:
-    """The display name of the code pack in force (its edition, else its name or id)."""
-    pack = code_context.current()
-    return pack.edition or pack.name or pack.id
+    """The display name of the code pack in force (:func:`saengine.codes.context.code_name`)."""
+    return code_context.code_name()
 
 
 def short_name() -> str:
@@ -78,8 +77,15 @@ def text(group: str, key: str) -> str:
 
 
 def clause(group: str, key: str) -> str:
-    """The pack's display name and the clause of ``key`` in ``group`` ("<code> <clause>")."""
-    return f"{code_name()} {text(group, key)}".strip()
+    """The clause of ``key`` in ``group`` after the name of the code it comes from ("<code>
+    <clause>"): as :func:`saengine.codes.context.cite`, a group a pack inherits keeps the name
+    of the pack that wrote it. Only the pack's name when it has no such clause."""
+    found = text(group, key)
+    if not found:
+        return code_name()
+    pack = code_context.current()
+    owner = pack.clause_code(TABLE, group) if pack.has(TABLE) else None
+    return f"{owner or code_name()} {found}"
 
 
 def short_clause(group: str, key: str) -> str:

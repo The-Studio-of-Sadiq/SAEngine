@@ -12,7 +12,7 @@ from pyproj import CRS, Transformer
 from saengine.gis import towns
 from saengine.gis.crs import Grid, btm_to_wgs84, haversine_km, wgs84_to_btm
 from saengine.gis.site import building_outline, soil_location, suggestion
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.soil import Site, SoilReport
 
 # WGS 84 ellipsoid.
@@ -133,7 +133,7 @@ def test_towns_are_in_bangladesh_with_the_code_values() -> None:
         assert 20.5 <= t.latitude <= 26.7 and 88.0 <= t.longitude <= 92.7, t.name
         assert t.z is None or t.z in towns.ZONES
     assert all(name in names for name in towns.SETTINGS_IDS)
-    assert set(towns.SETTINGS_IDS.values()) <= set(bnbc.LOCATIONS)
+    assert set(towns.SETTINGS_IDS.values()) <= set(code_data.LOCATIONS)
     by_name = {t.name: t for t in towns.TOWNS}
     # Spot values read from BNBC 2020 Tables 6.2.15 and 6.2.8.
     assert by_name["Dhaka"][3:] == (0.20, 65.7)
@@ -180,9 +180,9 @@ def test_suggestion_of_the_settings_own_town_is_not_open_for_ever() -> None:
         settings.site.location = town
         s = suggestion(lat, lon, settings.model_dump_json(by_alias=True))
         assert s["settingsLocation"] == town and s["differs"] is False
-        table = bnbc.LOCATIONS[town]
+        table = code_data.LOCATIONS[town]
         agrees = (
-            abs(bnbc.ZONE_COEFFICIENT[table.zone] - s["Z"]) < 1e-9
+            abs(code_data.ZONE_COEFFICIENT[table.zone] - s["Z"]) < 1e-9
             and abs(table.wind_speed - s["windSpeed"]) < 0.05
         )
         assert (s["valueNotes"] == []) == agrees

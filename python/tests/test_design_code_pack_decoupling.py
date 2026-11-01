@@ -116,8 +116,9 @@ def test_a_stub_pack_overriding_design_limits_changes_only_those_results(tmp_pat
         assert steel_properties.ERW_FACTOR == 0.93
         assert stairs.TWO_R_PLUS_T == (610.0, 648.0)
         assert rc.PHI_SHEAR == 0.75
-        # the clauses come from bnbc2020, after the stub's own name
-        assert face_forces.SHEAR_CLAUSE == "Stub Code 2030 Part 6 Sec 6.4.1.3.1"
+        # the clauses are inherited from bnbc2020 and keep its name; the code is the stub's
+        assert face_forces.SHEAR_CLAUSE == "BNBC 2020 Part 6 Sec 6.4.1.3.1"
+        assert clauses.code_name() == "Stub Code 2030"
     assert column_shear.concrete_shear(0.0, 1.6e5, 400.0, 340.0, 100.0) == high
 
 
@@ -126,7 +127,9 @@ def test_a_stub_pack_overriding_one_clause_changes_only_that_text(tmp_path):
     pack = registry.load_path(_stub(tmp_path, {"designClauses": data}))
     with code_context.using(pack):
         assert face_forces.SHEAR_CLAUSE == "Stub Code 2030 Art. 9.9"
-        assert face_forces.FACE_CLAUSE == "Stub Code 2030 Part 6 Sec 6.1.6.3"  # inherited
+        # a group the stub rewrites is named after the stub (the other groups after bnbc2020)
+        assert face_forces.FACE_CLAUSE == "Stub Code 2030 Part 6 Sec 6.1.6.3"
+        assert seismic_rules.CLAUSES["scope"] == "BNBC 2020 Part 6 Sec 8.3.1 (p. 1088)"
         assert clauses.short_clause("slab", "oneWay") == "SC 6.1.4.3"
         assert rc.PHI_SHEAR == 0.75 and slender.DELTA_S_MAX == 1.5
     assert face_forces.SHEAR_CLAUSE == "BNBC 2020 Part 6 Sec 6.4.1.3.1"
