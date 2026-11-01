@@ -298,6 +298,8 @@ export interface ISubstructure {
 	excavations?: IExcavation[];
 	/** The slab formwork, checked against the code pack's construction loads. */
 	formwork?: IFormwork;
+	/** Block foundations of machines and generators, checked by the code pack's machine foundation rules. */
+	machineFoundations?: IMachineFoundation[];
 	[key: string]: unknown;
 }
 
@@ -390,6 +392,71 @@ export function newExcavation(document: ISubstructure, context: ISiteContext): I
 }
 
 /** The formwork the editor starts from: 25 mm sheeting on 75 × 100 joists at 500 mm over 900 mm, timber posts 3 m high. */
+export type MachineKind = 'periodic' | 'impact' | 'rotary';
+export type MachineSpring = 'barkan' | 'subgrade' | 'plateLoad' | 'resonance' | 'given';
+
+export const MACHINE_KINDS: readonly MachineKind[] = ['rotary', 'periodic', 'impact'];
+export const MACHINE_SPRINGS: readonly MachineSpring[] = ['barkan', 'subgrade', 'plateLoad', 'resonance', 'given'];
+
+export function machineKindLabel(kind: MachineKind): string {
+	switch (kind) {
+		case 'rotary': return localize('sub.machine.rotary', "Generator, turbine, rotary (high speed)");
+		case 'periodic': return localize('sub.machine.periodic', "Reciprocating engine, compressor");
+		case 'impact': return localize('sub.machine.impact', "Hammer or press (impact)");
+	}
+}
+
+export function machineSpringLabel(spring: MachineSpring): string {
+	switch (spring) {
+		case 'barkan': return localize('sub.spring.barkan', "From E of the soil");
+		case 'subgrade': return localize('sub.spring.subgrade', "From the subgrade modulus");
+		case 'plateLoad': return localize('sub.spring.plateLoad', "Plate load test");
+		case 'resonance': return localize('sub.spring.resonance', "Resonance test");
+		case 'given': return localize('sub.spring.given', "Given");
+	}
+}
+
+/** A block foundation under a machine (mm, project datum; t, rpm, kN, kN/m, MPa); the backend's model holds the rest. */
+export interface IMachineFoundation {
+	id: string;
+	name?: string;
+	kind?: MachineKind;
+	form?: 'block' | 'box' | 'wall' | 'frame';
+	center?: Point;
+	length: number;
+	width: number;
+	height: number;
+	foundingLevel: number;
+	machineMass: number;
+	speed: number;
+	force?: number;
+	unbalance?: number;
+	impulse?: number;
+	allowableAmplitude?: number;
+	stiffnessMethod?: MachineSpring;
+	E?: number;
+	G?: number;
+	ks?: number;
+	stiffness?: number;
+	damping?: number;
+	[key: string]: unknown;
+}
+
+/** A new block 3 × 2 m and 1.2 m deep, its top at the finished ground, under a 5 t generator at 1500 rpm. */
+export function newMachineFoundation(document: ISubstructure, context: ISiteContext): IMachineFoundation {
+	return {
+		id: nextId('MF', (document.machineFoundations ?? []).map(m => m.id)),
+		kind: 'rotary',
+		length: 3000,
+		width: 2000,
+		height: 1200,
+		foundingLevel: context.groundLevel - 1200,
+		machineMass: 5,
+		speed: 1500,
+		stiffnessMethod: 'barkan',
+	};
+}
+
 export function newFormwork(): IFormwork {
 	return { sheeting: 25, joistWidth: 75, joistDepth: 100, joistSpacing: 500, joistSpan: 900, postKind: 'timber', postHeight: 3000, postDiameter: 100 };
 }
@@ -523,6 +590,9 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
 	if (document.excavations !== undefined) {
 		document.excavations = (Array.isArray(document.excavations) ? document.excavations : []).filter(isRecord) as IExcavation[];
+	}
+	if (document.machineFoundations !== undefined) {
+		document.machineFoundations = (Array.isArray(document.machineFoundations) ? document.machineFoundations : []).filter(isRecord) as IMachineFoundation[];
 	}
 	if (document.formwork !== undefined && !isRecord(document.formwork)) {
 		delete document.formwork;
@@ -2172,6 +2242,8 @@ export interface IFoundationResult {
 	readonly notChecked?: readonly string[];
 	/** What an excavation or the formwork needs that is not a check (notices, inspection, bracing), with the pack's clauses. */
 	readonly requirements?: readonly string[];
+	/** A machine foundation's dynamics: natural frequency and frequency ratio ranges, damping, springs. */
+	readonly dynamics?: Readonly<Record<string, unknown>>;
 }
 
 export interface ISubstructureReport {
@@ -2184,6 +2256,8 @@ export interface ISubstructureReport {
 	readonly excavations?: readonly IFoundationResult[];
 	/** The slab formwork (type "formwork"). */
 	readonly temporaryWorks?: readonly IFoundationResult[];
+	/** Machine foundations (type "machineFoundation") checked by the code pack's machine foundation rules. */
+	readonly machineFoundations?: readonly IFoundationResult[];
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
@@ -2338,6 +2412,7 @@ function readResult(f: Record<string, unknown>): IFoundationResult {
 		raft: readRaft(f.raft),
 		notChecked: Array.isArray(f.notChecked) && f.notChecked.length ? strings(f.notChecked) : undefined,
 		requirements: Array.isArray(f.requirements) && f.requirements.length ? strings(f.requirements) : undefined,
+		dynamics: isRecord(f.dynamics) ? f.dynamics : undefined,
 		notes: strings(f.notes),
 	};
 }
@@ -2353,6 +2428,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	const retainingWalls = records(raw.retainingWalls).map(readResult);
 	const excavations = records(raw.excavations).map(readResult);
 	const temporaryWorks = records(raw.temporaryWorks).map(readResult);
+	const machineFoundations = records(raw.machineFoundations).map(readResult);
 	// Pile capacities: a flat list of rows, or per pile type a list per borehole (`boreholes` or
 	// `capacities`), or capacity tables ({borehole, rows}); else the pile caps' own capacities.
 	const pileCapacities: IPileCapacity[] = [];
@@ -2379,7 +2455,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const skipped = records(raw.skipped).map(s => ({ id: String(s.id ?? ''), type: String(s.type ?? ''), reason: String(s.reason ?? '') }));
 	const summary = isRecord(raw.summary) ? raw.summary : {};
-	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls, ...excavations, ...temporaryWorks];
+	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls, ...excavations, ...temporaryWorks, ...machineFoundations];
 	const failed = designed.filter(f => !f.ok).length;
 	const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
 	return {
@@ -2389,6 +2465,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 		retainingWalls,
 		excavations,
 		temporaryWorks,
+		machineFoundations,
 		skipped,
 		pileCapacities,
 		summary: readSummary(summary, designed.length, failed, skipped.length, worst),
