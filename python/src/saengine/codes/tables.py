@@ -4453,6 +4453,98 @@ class SteelStabilityTable(TableModel):
     directAnalysis: DirectAnalysis | None = None
 
 
+# ───────────────────────────────── nonlinear static (pushover) ─────────────────────────────────
+
+
+class PushoverProcedure(_Row):
+    """How the pushover is run: the lateral load pattern the code requires, how far the control
+    point is pushed and the no-drop rule of the capacity curve."""
+
+    loadPattern: Literal["firstMode", "seismic", "uniform"] = Field(
+        description="Lateral load pattern the code requires (firstMode: proportional to the "
+        "fundamental mode's shape times the masses, applied at the centres of mass)."
+    )
+    pushToTarget: Positive = Field(
+        description="Push the control point to at least this × the target displacement."
+    )
+    noDropToTarget: Positive = Field(
+        description="The base shear may not drop in any step up to this × the target "
+        "displacement."
+    )
+    pDelta: bool = Field(default=True, description="P-Delta effects in the analysis.")
+    expectedStrengths: Literal["nominal", "expected"] = Field(
+        default="nominal",
+        description="Material strengths of the nonlinear model: nominal (never above the "
+        "expected strengths the code caps them at) or expected.",
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class TargetDisplacement(_Row):
+    """The target displacement of the control point (``fem.pushover_target``). Method
+    ``coefficient``: a bilinear fit of the capacity curve, the effective period
+    Te = T1·√(K1/Ke) and δt = C0·C1·Sa(Te)·(Te/2π)²·g."""
+
+    method: Literal["coefficient"] = Field(
+        description="Method id (the engine's generic implementation)."
+    )
+    bilinearFitShare: Share = Field(
+        description="The bilinear curve's first segment meets the capacity curve at this × "
+        "the effective yield strength."
+    )
+    spectrumR: Positive = Field(
+        description="R of the spectrum Sa is read from (1: the real, unreduced spectrum)."
+    )
+    spectrumImportance: Positive = Field(description="I of the spectrum Sa is read from.")
+    c1PeriodLimit: Literal["TB", "TC", "TD"] = Field(
+        description="C1 = 1 where Te exceeds this corner period of the site class."
+    )
+    c1Period: Literal["TB", "TC", "TD"] = Field(
+        description="The corner period Ts of the C1 formula C1 = [1 + (Rd - 1)·Ts/Te] / Rd."
+    )
+    minimumRd: Positive = Field(
+        default=1.0,
+        description="Rd is taken as at least this (below 1 the structure stays elastic and the "
+        "C1 formula has no meaning).",
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class PushoverAcceptance(_Row):
+    """Acceptance of the members at the target displacement (``fem.acceptance``). Method
+    ``fibreStrain``: each fibre's strain at the member's end sections against a share of the
+    strain at which its material loses strength."""
+
+    method: Literal["fibreStrain"] = Field(
+        description="Method id (the engine's generic implementation)."
+    )
+    deformationShare: Share = Field(
+        description="A member's deformation may reach at most this × the deformation at which "
+        "it fails (gravity loss, or strength below residualStrengthShare)."
+    )
+    residualStrengthShare: Share = Field(
+        description="Strength (share of the peak) below which the component has failed."
+    )
+    reinforcementFractureStrain: Positive = Field(
+        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling): "
+        "the fibre model's bars do not degrade."
+    )
+    steelFractureStrain: Positive = Field(
+        description="Strain at which a structural steel fibre is taken as lost (fracture or "
+        "local buckling): the fibre model's steel does not degrade."
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class PushoverTable(TableModel):
+    """Nonlinear static (pushover) analysis: the procedure, the target displacement method and
+    the acceptance of the members."""
+
+    procedure: PushoverProcedure
+    targetDisplacement: TargetDisplacement
+    acceptance: PushoverAcceptance
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -4487,6 +4579,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "serviceability": ServiceabilityTable,
     "nonstructural": NonstructuralTable,
     "steelStability": SteelStabilityTable,
+    "pushover": PushoverTable,
 }
 
 

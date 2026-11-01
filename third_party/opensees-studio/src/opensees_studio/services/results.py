@@ -83,6 +83,9 @@ class PushoverResults:
 
     Each fiber contains y, z, area, stress, strain in the emitted fiber order.
     """
+    element_start_fibers: dict[int, np.ndarray] = field(default_factory=dict)
+    """Frame element -> (steps, fibers, 5) at its first integration section (node i), as
+    ``element_end_fibers``; empty for results saved before it was kept."""
     n_steps_requested: int = 0
     """Steps to the target displacement; 0 when unknown (results saved before it was kept)."""
 

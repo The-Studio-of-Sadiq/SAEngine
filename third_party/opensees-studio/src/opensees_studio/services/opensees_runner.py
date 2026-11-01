@@ -1811,6 +1811,7 @@ class OpenSeesRunner:
         node_disp = {n.id: np.zeros((n_steps + 1, ndf)) for n in self.project.nodes}
         node_reaction = {n.id: np.zeros((n_steps + 1, ndf)) for n in self.project.nodes}
         element_end_fibers: dict[int, np.ndarray] = {}
+        element_start_fibers: dict[int, np.ndarray] = {}
         element_forces: dict[int, np.ndarray] = {}
 
         def _snapshot(step: int) -> None:
@@ -1840,6 +1841,13 @@ class OpenSeesRunner:
                         if el.id not in element_end_fibers:
                             element_end_fibers[el.id] = np.zeros((n_steps + 1, *fibers.shape))
                         element_end_fibers[el.id][step] = fibers
+                    # And the first section (node i): the member's other end.
+                    data = ops.eleResponse(el.id, "section", 1, "fiberData")
+                    if data:
+                        fibers = np.asarray(data, dtype=float).reshape(-1, 5)
+                        if el.id not in element_start_fibers:
+                            element_start_fibers[el.id] = np.zeros((n_steps + 1, *fibers.shape))
+                        element_start_fibers[el.id][step] = fibers
                 try:
                     forces = ops.eleResponse(el.id, self._force_response(el))
                 except Exception:
@@ -1908,6 +1916,8 @@ class OpenSeesRunner:
                     node_reaction[nid] = node_reaction[nid][:step]
                 for eid in element_end_fibers:
                     element_end_fibers[eid] = element_end_fibers[eid][:step]
+                for eid in element_start_fibers:
+                    element_start_fibers[eid] = element_start_fibers[eid][:step]
                 for eid in element_forces:
                     element_forces[eid] = element_forces[eid][:step]
                 break
@@ -1925,6 +1935,7 @@ class OpenSeesRunner:
             node_disp=node_disp,
             node_reaction=node_reaction,
             element_end_fibers=element_end_fibers,
+            element_start_fibers=element_start_fibers,
             element_forces=element_forces,
             n_steps_requested=n_steps,
         )

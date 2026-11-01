@@ -598,21 +598,30 @@ class CraneRunway(_Model):
 
 
 class Pushover(_Model):
-    """Nonlinear static (pushover) analyses of the frames, with fiber sections."""
+    """Nonlinear static (pushover) analyses of the frames and walls, with fiber sections."""
 
     directions: list[Literal["X", "Y"]] = Field(
         default_factory=lambda: ["X", "Y"], min_length=1, description="Directions to push in."
     )
-    pattern: Literal["seismic", "uniform"] = Field(
-        default="seismic",
+    pattern: Literal["firstMode", "seismic", "uniform"] = Field(
+        default="firstMode",
         title="Load pattern",
-        description="How the lateral load is spread over the height.",
+        description="How the lateral load is spread over the height. The code pack names the "
+        "pattern its pushover method requires (the results flag another one).",
         json_schema_extra=_labels(
             [
-                "Seismic (BNBC story forces, growing with height)",
+                "First mode (the fundamental mode's shape times the masses)",
+                "Seismic (the code's storey forces, growing with height)",
                 "Uniform (in proportion to the masses)",
             ]
         ),
+    )
+    fibreWalls: bool = Field(
+        default=True,
+        title="Fibre walls",
+        description="Reinforced concrete walls without openings become fibre wall elements "
+        "that crack and yield (one per storey, tied to the floors by rigid arms); off: walls "
+        "stay elastic shells.",
     )
     targetDrift: float = Field(
         default=2.0,
