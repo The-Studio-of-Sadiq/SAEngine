@@ -1,5 +1,166 @@
 {
   "$defs": {
+    "ColumnBaseTransfer": {
+      "additionalProperties": false,
+      "properties": {
+        "phi": {
+          "description": "φ of bearing on concrete.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "bearing": {
+          "description": "Bearing strength φ (this × f'c) A1.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "areaRatioMax": {
+          "description": "√(A2/A1) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Arearatiomax",
+          "type": "number"
+        },
+        "dowelRatio": {
+          "description": "Least area across the interface / Ag of the column.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Dowelratio",
+          "type": "number"
+        },
+        "minBars": {
+          "description": "Least number of bars across the interface.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "phi",
+        "bearing",
+        "areaRatioMax",
+        "dowelRatio",
+        "minBars"
+      ],
+      "title": "ColumnBaseTransfer",
+      "type": "object"
+    },
+    "FootingCombination": {
+      "additionalProperties": false,
+      "description": "A load combination of the geotechnical design of shallow foundations: ``{case: factor}``\nwith D the dead load (D and SD), L the normal live load (L and Lr), W and E the wind and\nearthquake (each direction, each sign), B the buoyancy (uplift) of the water at the base.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "factors"
+      ],
+      "title": "FootingCombination",
+      "type": "object"
+    },
+    "PresumptiveBearing": {
+      "additionalProperties": false,
+      "description": "A row of the presumptive (allowable) bearing values for lightly loaded structures.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "groups": {
+          "description": "USCS groups of the row.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Groups",
+          "type": "array"
+        },
+        "qa": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[kPa]; empty: by investigation.",
+          "title": "Qa"
+        },
+        "waterReduction": {
+          "default": false,
+          "description": "Reduced by ``presumptiveWaterReduction`` near water.",
+          "title": "Waterreduction",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "PresumptiveBearing",
+      "type": "object"
+    },
     "RetainingWallFactors": {
       "additionalProperties": false,
       "properties": {
@@ -26,16 +187,24 @@
         },
         "passive": {
           "default": 2.0,
-          "description": "Factor of safety on the passive resistance in front.",
+          "description": "Factor of safety on the passive resistance in front (counted only where the soil in front cannot be removed).",
           "minimum": 1,
           "title": "Passive",
           "type": "number"
         },
         "flotation": {
           "default": 1.1,
-          "description": "Least factor of safety against flotation (uplift).",
+          "description": "Least factor of safety against flotation: (flotationDead × W) / U.",
           "minimum": 1,
           "title": "Flotation",
+          "type": "number"
+        },
+        "flotationDead": {
+          "default": 1.0,
+          "description": "Factor on the dead load holding the structure down (0.9D).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flotationdead",
           "type": "number"
         },
         "baseFriction": {
@@ -45,6 +214,20 @@
           "maximum": 1,
           "title": "Basefriction",
           "type": "number"
+        },
+        "frictionCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A fixed friction factor μ between the base and the soil for every soil (no adhesion); empty: tan(baseFriction φ') and the adhesion on clay.",
+          "title": "Frictioncoefficient"
         },
         "adhesion": {
           "default": 0.5,
@@ -71,6 +254,355 @@
         }
       },
       "title": "RetainingWallFactors",
+      "type": "object"
+    },
+    "SettlementLimit": {
+      "additionalProperties": false,
+      "description": "Permissible settlement of one column of the table: the maximum [mm], the differential\nsettlement as a share of L (the column spacing) and the angular distortion δ / L.",
+      "properties": {
+        "total": {
+          "exclusiveMinimum": 0,
+          "title": "Total",
+          "type": "number"
+        },
+        "differential": {
+          "exclusiveMinimum": 0,
+          "title": "Differential",
+          "type": "number"
+        },
+        "angular": {
+          "exclusiveMinimum": 0,
+          "title": "Angular",
+          "type": "number"
+        }
+      },
+      "required": [
+        "total",
+        "differential",
+        "angular"
+      ],
+      "title": "SettlementLimit",
+      "type": "object"
+    },
+    "SettlementLimitRow": {
+      "additionalProperties": false,
+      "description": "A type of structure: its limits by foundation (``isolated``, ``raft``) and soil column\n(``sand`` = sand and hard clay, ``plasticClay``); a missing raft entry: not given.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "isolated": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettlementLimit"
+          },
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "plasticClay"
+            ]
+          },
+          "title": "Isolated",
+          "type": "object"
+        },
+        "raft": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettlementLimit"
+          },
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "plasticClay"
+            ]
+          },
+          "title": "Raft",
+          "type": "object"
+        },
+        "lengthHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "L/H of a load-bearing wall row (interpolated between).",
+          "title": "Lengthheight"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isolated"
+      ],
+      "title": "SettlementLimitRow",
+      "type": "object"
+    },
+    "ShallowFoundations": {
+      "additionalProperties": false,
+      "description": "The geotechnical rules of shallow foundations (footings and rafts): load combinations,\nallowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade\nmoduli, permissible settlements and the force transfer at the column base.",
+      "properties": {
+        "bearingCombinations": {
+          "description": "For the bearing pressure (shear strength) of footings and rafts.",
+          "items": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "title": "Bearingcombinations",
+          "type": "array"
+        },
+        "stabilityCombinations": {
+          "description": "For overturning and sliding (the dead load resisting).",
+          "items": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "title": "Stabilitycombinations",
+          "type": "array"
+        },
+        "settlementCombinations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "propertyNames": {
+            "enum": [
+              "granular",
+              "cohesive"
+            ]
+          },
+          "title": "Settlementcombinations",
+          "type": "object"
+        },
+        "lateralIncrease": {
+          "description": "qa × this with wind or earthquake (none for gravity alone).",
+          "minimum": 1,
+          "title": "Lateralincrease",
+          "type": "number"
+        },
+        "factorOfSafety": {
+          "description": "Range of the factor of safety on the bearing capacity (warned outside).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Factorofsafety",
+          "type": "array"
+        },
+        "kern": {
+          "description": "Resultant preferably within this × B of the centre.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kern",
+          "type": "number"
+        },
+        "overturning": {
+          "description": "Least FS against overturning.",
+          "minimum": 1,
+          "title": "Overturning",
+          "type": "number"
+        },
+        "sliding": {
+          "description": "Least FS against sliding.",
+          "minimum": 1,
+          "title": "Sliding",
+          "type": "number"
+        },
+        "friction": {
+          "description": "Friction factor between foundation and soil.",
+          "exclusiveMinimum": 0,
+          "title": "Friction",
+          "type": "number"
+        },
+        "minDepth": {
+          "description": "Least depth below the natural ground [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mindepth",
+          "type": "number"
+        },
+        "exteriorDepth": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least depth of exterior footings [mm].",
+          "propertyNames": {
+            "enum": [
+              "cohesive",
+              "granular",
+              "temporary"
+            ]
+          },
+          "title": "Exteriordepth",
+          "type": "object"
+        },
+        "raftDepth": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least depth of rafts [mm].",
+          "propertyNames": {
+            "enum": [
+              "cohesive",
+              "granular"
+            ]
+          },
+          "title": "Raftdepth",
+          "type": "object"
+        },
+        "slopeDistance": {
+          "description": "Distance from a footing's centre to the slope face at its base level, at least this × B.",
+          "exclusiveMinimum": 0,
+          "title": "Slopedistance",
+          "type": "number"
+        },
+        "spreadAngle": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Largest load spread (horizontal per vertical) by footing material.",
+          "title": "Spreadangle",
+          "type": "object"
+        },
+        "stepLap": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Lap at a change of level: at least this × the thickness or × the step.",
+          "propertyNames": {
+            "enum": [
+              "thickness",
+              "stepHeight"
+            ]
+          },
+          "title": "Steplap",
+          "type": "object"
+        },
+        "minThickness": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least depth above the bottom bars (RC on soil, on piles) or thickness [mm].",
+          "propertyNames": {
+            "enum": [
+              "soil",
+              "piles",
+              "plainConcrete",
+              "masonry"
+            ]
+          },
+          "title": "Minthickness",
+          "type": "object"
+        },
+        "presumptive": {
+          "items": {
+            "$ref": "#/$defs/PresumptiveBearing"
+          },
+          "title": "Presumptive",
+          "type": "array"
+        },
+        "presumptiveWaterReduction": {
+          "description": "Share of the presumptive value with the water table within B of the base.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Presumptivewaterreduction",
+          "type": "number"
+        },
+        "subgrade": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/SubgradeRow"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "enum": [
+              "granular",
+              "cohesive"
+            ]
+          },
+          "title": "Subgrade",
+          "type": "object"
+        },
+        "settlementLimits": {
+          "items": {
+            "$ref": "#/$defs/SettlementLimitRow"
+          },
+          "title": "Settlementlimits",
+          "type": "array"
+        },
+        "settlementGuide": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "The general rule for pad footings: total on sand, on clay, differential [mm].",
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "clay",
+              "differential"
+            ]
+          },
+          "title": "Settlementguide",
+          "type": "object"
+        },
+        "columnBase": {
+          "$ref": "#/$defs/ColumnBaseTransfer"
+        }
+      },
+      "required": [
+        "bearingCombinations",
+        "stabilityCombinations",
+        "settlementCombinations",
+        "lateralIncrease",
+        "factorOfSafety",
+        "kern",
+        "overturning",
+        "sliding",
+        "friction",
+        "minDepth",
+        "exteriorDepth",
+        "raftDepth",
+        "slopeDistance",
+        "spreadAngle",
+        "stepLap",
+        "minThickness",
+        "presumptive",
+        "presumptiveWaterReduction",
+        "subgrade",
+        "settlementLimits",
+        "settlementGuide",
+        "columnBase"
+      ],
+      "title": "ShallowFoundations",
       "type": "object"
     },
     "StrutAndTie": {
@@ -153,6 +685,96 @@
       ],
       "title": "StrutAndTie",
       "type": "object"
+    },
+    "SubgradeRow": {
+      "additionalProperties": false,
+      "description": "A band of the indicative modulus of subgrade reaction (300 mm plate): granular soil by\nSPT N, cohesive soil by the unconfined compressive strength qu [kPa]; ``k`` the range\n[kN/m³] over the band (dry or moist), ``submerged`` below the water table.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "low": {
+          "minimum": 0,
+          "title": "Low",
+          "type": "number"
+        },
+        "high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Empty: open-ended.",
+          "title": "High"
+        },
+        "k": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "K",
+          "type": "array"
+        },
+        "submerged": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submerged"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "low",
+        "k"
+      ],
+      "title": "SubgradeRow",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -227,6 +849,18 @@
     "retainingWall": {
       "$ref": "#/$defs/RetainingWallFactors",
       "description": "Stability factors and load factors of retaining and basement walls."
+    },
+    "shallow": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShallowFoundations"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Shallow foundations; empty: the pack does not cover their geotechnical rules (the engine's general checks only)."
     }
   },
   "required": [
