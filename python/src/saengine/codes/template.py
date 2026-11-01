@@ -51,6 +51,10 @@ TABLE_HELP: dict[str, str] = {
     "(seismicDeadUpper, seismicDeadLower); and the overstrength (Omega0) note (overstrength). "
     "The service combinations (service) are unfactored and used only by the serviceability "
     "checks (serviceability).",
+    "nonstructural": "Nonstructural components: the seismic force method and its factors, the "
+    "component importance factors, the component rows (amplification and response reduction), "
+    "the default rows of drawn walls and equipment, the exemptions, the exterior panel "
+    "connection factors and the least anchorage force of walls.",
     "serviceability": "Serviceability: the storey drift and top sway limits under the service "
     "wind combination, member deflection limits (span divisors) by use of the member, and the "
     "factor of safety of the whole building against overturning.",

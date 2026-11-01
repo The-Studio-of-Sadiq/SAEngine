@@ -3823,6 +3823,138 @@ class ServiceabilityTable(TableModel):
     overturning: OverturningStability | None = None
 
 
+# ─────────────────────────────────── nonstructural components ───────────────────────────────────
+
+
+class ComponentForceRule(_Row):
+    """The seismic design force of a component, by a method the engine names
+    (:mod:`saengine.design.nonstructural`). ``amplifiedHeight``: F = αc·a·Wc·Ic/Rc ×
+    (1 + heightFactor·z/h), minFactor·a·Wc·Ic ≤ F ≤ maxFactor·a·Wc·Ic, with a = groundFactor·Z·S
+    (Z the zone coefficient, S the site factor of the seismic table); vertical ± verticalFactor·a·Wc."""
+
+    method: Literal["amplifiedHeight"] = "amplifiedHeight"
+    groundFactor: Positive = Field(description="a = this × Z × S [g].")
+    heightFactor: float = Field(ge=0, description="Of z/h in (1 + this·z/h).")
+    minFactor: float = Field(ge=0, description="Least F over a·Wc·Ic.")
+    maxFactor: Positive = Field(description="Largest F over a·Wc·Ic.")
+    verticalFactor: float = Field(ge=0, description="Concurrent vertical force over a·Wc.")
+    zOverHMax: Positive = Field(default=1.0, description="Upper limit of z/h.")
+    symbols: dict[str, str] = Field(
+        default_factory=dict, description="The code's symbols (force, amplification, ...)."
+    )
+    equation: str = Field(default="", description="The code's equation number.")
+    note: str = ""
+
+
+class ComponentImportance(_Row):
+    essential: Positive = Field(description="Ic of a component marked essential.")
+    default: Positive = Field(description="Ic of any other component.")
+
+
+class ComponentRow(_Row):
+    """A row of the component coefficient tables."""
+
+    group: str = Field(description="Key of ``groups`` (architectural, mechanical, ...).")
+    heading: str = ""
+    label: str
+    alpha: float = Field(ge=1.0, description="Component amplification factor αc.")
+    R: Positive = Field(description="Component response reduction factor Rc.")
+    parapet: bool = Field(default=False, description="A parapet (for the exemptions).")
+    exterior: bool = Field(default=False, description="An exterior wall or wall element.")
+    distribution: bool = Field(default=False, description="A distribution system (per metre).")
+    isolated: bool = Field(default=False, description="On vibration isolators (``isolation``).")
+
+
+class ComponentDefaults(_Row):
+    """Which row a drawn item takes when none is chosen (component ids)."""
+
+    interiorWall: str
+    parapet: str
+    curtainWall: str
+    structuralWall: str
+    equipment: str
+    equipmentKinds: dict[str, str] = Field(default_factory=dict)
+    note: str = ""
+
+
+class ExemptionCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    flexibleConnections: bool | None = None
+    distribution: bool | None = None
+    maxMountHeight: Positive | None = Field(default=None, description="[mm] above the floor.")
+    maxWeight: Positive | None = Field(default=None, description="[N].")
+    maxWeightPerLength: Positive | None = Field(default=None, description="[N/m].")
+
+
+class ComponentExemption(ExemptionCondition):
+    """Components the section does not apply to: all conditions hold, and one of the
+    ``alternatives`` when there are any."""
+
+    id: str
+    label: str
+    groups: list[str]
+    categories: list[str] = Field(description="Seismic Design Categories.")
+    importance: Positive | None = Field(default=None, description="Only with this Ic.")
+    exceptParapetsOnStructuralWalls: bool = False
+    alternatives: list[ExemptionCondition] = Field(default_factory=list)
+    source: str | None = None
+
+
+class ComponentInteraction(_Row):
+    share: Positive = Field(description="Components over this share of W: interaction.")
+    period: Positive = Field(description="... with periods over this [s].")
+
+
+class ComponentIsolation(_Row):
+    factor: Positive = Field(description="Force factor with a clearance over ``clearance``.")
+    clearance: float = Field(ge=0, description="[mm].")
+
+
+class ComponentConnections(_Row):
+    bodyFactor: Positive = Field(description="Bodies of connections: this × F.")
+    fastenerFactor: Positive = Field(description="Fasteners: this × F.")
+    jointDriftFactor: Positive = Field(description="Joint movement: this × the storey drift.")
+    jointMinimum: float = Field(ge=0, description="Least joint movement [mm].")
+
+
+class WallAnchorage(_Row):
+    minimum: Positive = Field(description="Least anchorage force [kN/m of wall].")
+    maxSpacing: Positive = Field(description="Anchors farther apart: wall bending between [mm].")
+
+
+class RelativeDisplacementRule(_Row):
+    method: Literal["allowableDrift"] = "allowableDrift"
+
+
+class NonstructuralTable(TableModel):
+    """Seismic forces on nonstructural components (parapets, partitions, cladding, tanks,
+    equipment, distribution systems), their relative displacements, the exterior panel
+    connections and the anchorage of walls."""
+
+    name: str = ""
+    force: ComponentForceRule
+    importance: ComponentImportance
+    groups: dict[str, str] = Field(default_factory=dict)
+    components: dict[str, ComponentRow]
+    defaults: ComponentDefaults
+    exemptions: list[ComponentExemption] = Field(default_factory=list)
+    interaction: ComponentInteraction | None = None
+    isolation: ComponentIsolation | None = None
+    connections: ComponentConnections | None = None
+    anchorage: WallAnchorage | None = None
+    relativeDisplacement: RelativeDisplacementRule | None = None
+
+    @model_validator(mode="after")
+    def _known_rows(self) -> NonstructuralTable:
+        d = self.defaults
+        named = [d.interiorWall, d.parapet, d.curtainWall, d.structuralWall, d.equipment]
+        for key in [*named, *d.equipmentKinds.values()]:
+            if key not in self.components:
+                raise ValueError(f"defaults name an unknown component '{key}'")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -3855,6 +3987,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "fatigue": FatigueTable,
     "siteInvestigation": SiteInvestigationTable,
     "serviceability": ServiceabilityTable,
+    "nonstructural": NonstructuralTable,
 }
 
 
