@@ -683,60 +683,30 @@ registerPlannedFeature({
 	],
 });
 
-// T27: the steel connection methods BNBC 2020 does not give (base plate thickness and moment
-// bases, anchors in concrete, end-plate moment connections by yield lines).
+// T27: the steel connection methods the code pack does not give (base plate thickness,
+// end-plate moment connections by yield lines). B26 built the anchors in concrete and the
+// anchor rod tension of moment bases.
 registerPlannedFeature({
 	id: FemPlanned.basePlateDesign,
 	part: 'fem',
-	title: localize('planned.basePlateDesign.title', "Base Plate Thickness and Moment Bases"),
-	summary: localize('planned.basePlateDesign.summary', "Sizes the base plate of a steel column by the cantilever method and designs moment bases (large eccentricity, anchor rods in tension). Today the base plate is checked for bearing on the concrete, the anchor rods' steel and the welds only."),
+	title: localize('planned.basePlateThickness.title', "Base Plate Thickness"),
+	summary: localize('planned.basePlateThickness.summary', "Sizes the base plate thickness of a steel column by the cantilever method, from the bearing stress and the anchor rod tension. Today the base plate is checked for bearing (with the base moment), the anchor rods' tension, steel and anchorage in the concrete, and the welds; the code pack gives no plate thickness method."),
 	steps: [
-		localize('planned.basePlateDesign.step1', "Take the column base forces of every combination: axial force, shear and moments."),
-		localize('planned.basePlateDesign.step2', "Find the bearing length and stress, and the anchor rod tension when the eccentricity is large."),
-		localize('planned.basePlateDesign.step3', "Work out the plate thickness from the cantilevers m, n and λn' and from the anchor rod tension."),
-		localize('planned.basePlateDesign.step4', "Propose the plate size, thickness and anchor layout, and draw the base detail."),
+		localize('planned.basePlateThickness.step1', "Take the bearing length and stress and the anchor rod tension the base plate checks already find."),
+		localize('planned.basePlateThickness.step2', "Work out the plate thickness from the cantilevers m, n and λn' and from the anchor rod tension."),
+		localize('planned.basePlateThickness.step3', "Propose the plate size and thickness, and draw the base detail."),
 	],
 	inputs: [
 		{ label: localize('planned.basePlateDesign.size', "Plate N × B"), unit: 'mm', example: '450 × 350' },
 		{ label: localize('planned.basePlateDesign.thickness', "Plate thickness"), unit: 'mm', example: '30' },
-		{ label: localize('planned.basePlateDesign.anchors', "Anchor rods and their gauge"), example: localize('planned.basePlateDesign.anchorsExample', "4 M24 at 300 mm") },
-		{ label: localize('planned.basePlateDesign.fc', "Concrete f'c"), unit: 'MPa', example: '25' },
 	],
 	outputs: [
 		localize('planned.basePlateDesign.out1', "Required plate thickness and the plate bending check per combination"),
-		localize('planned.basePlateDesign.out2', "Anchor rod forces of moment bases"),
 		localize('planned.basePlateDesign.out3', "A base plate detail on the steel drawings"),
 	],
 	references: [
-		localize('planned.basePlateDesign.ref1', "BNBC 2020 Part 6 Sec 10.10.8 (bearing on concrete; no plate thickness method)"),
+		localize('planned.basePlateThickness.ref1', "The active code pack's column base clauses (bearing on concrete; no plate thickness method)"),
 		localize('planned.basePlateDesign.ref2', "AISC Design Guide 1 (base plate and anchor rod design)"),
-	],
-});
-
-registerPlannedFeature({
-	id: FemPlanned.anchorConcrete,
-	part: 'fem',
-	title: localize('planned.anchorConcrete.title', "Anchors in Concrete"),
-	summary: localize('planned.anchorConcrete.summary', "Checks the concrete around the anchor rods of base plates and embedded plates: breakout, pullout, side-face blowout and pryout, in tension and shear. Today only the anchor rods' steel is checked."),
-	steps: [
-		localize('planned.anchorConcrete.step1', "Take the anchor group, its embedment and edge distances, and the forces on it."),
-		localize('planned.anchorConcrete.step2', "Work out the breakout cones and their projected areas with the edge and group factors."),
-		localize('planned.anchorConcrete.step3', "Check breakout, pullout and side-face blowout in tension, and breakout and pryout in shear."),
-		localize('planned.anchorConcrete.step4', "Combine tension and shear and report the governing mode."),
-	],
-	inputs: [
-		{ label: localize('planned.anchorConcrete.embedment', "Effective embedment hef"), unit: 'mm', example: '300' },
-		{ label: localize('planned.anchorConcrete.edge', "Least edge distance"), unit: 'mm', example: '150' },
-		{ label: localize('planned.anchorConcrete.cracked', "Concrete cracked"), example: localize('planned.anchorConcrete.crackedExample', "Yes") },
-		{ label: localize('planned.anchorConcrete.reinforcement', "Anchor reinforcement"), example: localize('planned.anchorConcrete.reinforcementExample', "None") },
-	],
-	outputs: [
-		localize('planned.anchorConcrete.out1', "Concrete capacities of the anchor group in tension and shear"),
-		localize('planned.anchorConcrete.out2', "The governing failure mode with its check in the base plate's checks"),
-	],
-	references: [
-		localize('planned.anchorConcrete.ref1', "BNBC 2020 Part 6 Sec 10.10.9 (anchor rods; the concrete refers out)"),
-		localize('planned.anchorConcrete.ref2', "ACI 318-19 Chapter 17 (anchoring to concrete)"),
 	],
 });
 

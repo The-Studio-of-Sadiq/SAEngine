@@ -47,9 +47,8 @@ export const FemPlanned = {
 	timberConnections: 'fem.timberConnections',
 	/** T31: confined masonry walls (tie columns and tie beams). */
 	confinedMasonry: 'fem.confinedMasonry',
-	/** T27: base plate thickness and moment bases, anchors in concrete, end-plate moment connections. */
+	/** T27: base plate thickness, end-plate moment connections (anchors in concrete and moment-base rod tension: built in B26). */
 	basePlateDesign: 'fem.basePlateDesign',
-	anchorConcrete: 'fem.anchorConcrete',
 	endPlateMoment: 'fem.endPlateMoment',
 	/** T28: AISC 341 seismic systems, member torsion. */
 	steelSeismic: 'fem.steelSeismic',
@@ -59,7 +58,7 @@ export const FemPlanned = {
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */
-export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.anchorConcrete, FemPlanned.endPlateMoment];
+export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.endPlateMoment];
 
 /** The planned steel stability and seismic features, shown with the steel members' checks. */
 export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.steelSeismic, FemPlanned.steelTorsion];
