@@ -42,7 +42,8 @@
     "flood",
     "pushover",
     "accessibility",
-    "anchors"
+    "anchors",
+    "construction"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -213,6 +214,12 @@
     "anchors": [
       "BNBC 2020 Part 6 Appendix K Sec K.1-K.9, Eqs 6.K.1-6.K.32 (part 2 pp. 526-564): anchoring to concrete",
       "BNBC 2020 Part 6 Sec 10.10.9 (part 2 p. 138): anchor rods and embedments"
+      ],
+    "construction": [
+      "BNBC 2020 Part 6 Sec 3.8.9 (p. 725), 3.12-3.13 (pp. 797-800): excavation, adjoining property, dewatering",
+      "BNBC 2020 Part 6 Sec 3.15 (pp. 801-802), 3.17 (pp. 803-806), 3.19.1 (p. 806): fills, waterproofing, footings on fill",
+      "BNBC 2020 Part 7 Sec 1.7.2, 3.3 (part 2 pp. 625-626, 657-662): adjoining property, excavation and foundation work",
+      "BNBC 2020 Part 7 Sec 3.8, Table 7.3.1 (part 2 pp. 671-675): formwork and scaffold"
     ]
   },
   "basis": {

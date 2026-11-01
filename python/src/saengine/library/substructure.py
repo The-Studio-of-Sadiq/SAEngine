@@ -876,6 +876,213 @@ class RetainingWall(_Model):
         return self.pressure
 
 
+EXCAVATION_SUPPORTS = {
+    "sloped": "Sloped sides",
+    "stepped": "Stepped sides",
+    "shored": "Shoring, bracing and sheeting",
+    "sheetPiles": "Sheet piles",
+    "retainingWall": "Retaining wall",
+    "rock": "Rock cut",
+    "none": "Vertical, unsupported",
+}
+
+ExcavationSupport = Literal[
+    "sloped", "stepped", "shored", "sheetPiles", "retainingWall", "rock", "none"
+]
+
+
+class AdjoiningStructure(_Model):
+    """A building or structure next to an excavation: its foundation decides whether it is
+    underpinned or its added load provided for, and the notices and monitoring it needs."""
+
+    id: Id = Field(description="Its mark, e.g. AB1.")
+    name: str | None = Field(default=None, description="What it is, e.g. 'Four-storey house'.")
+    distance: float = Field(
+        default=0,
+        ge=0,
+        description="Clear distance in plan from the excavation's edge to its foundation [mm].",
+    )
+    foundingLevel: float = Field(
+        title="Founding level", description="Underside of its foundation [mm, project datum]."
+    )
+    underpinned: bool = Field(
+        default=False,
+        description="Its foundation is underpinned or otherwise protected against settlement "
+        "before the excavation.",
+    )
+    otherProperty: bool = Field(
+        default=True,
+        title="Another owner's property",
+        description="It stands on another owner's property (written notice before excavating).",
+    )
+    sensitive: bool = Field(
+        default=False,
+        title="Old or likely to be damaged",
+        description="An old structure likely to be damaged by piling or excavation "
+        "(tell-tales while piling).",
+    )
+
+
+class ExcavationLoad(_Model):
+    """Spoil, materials, equipment or machinery placed beside an excavation."""
+
+    kind: Literal["spoil", "materials", "equipment", "machinery"] = Field(
+        default="spoil",
+        description="Spoil or materials, equipment such as trucks, or heavy excavating machinery.",
+        json_schema_extra=_labels(
+            ["Excavated spoil", "Construction materials", "Equipment, trucks", "Heavy machinery"]
+        ),
+    )
+    distance: float = Field(
+        ge=0,
+        description="From the edge of the excavation (the toe of a sloped side) [mm].",
+    )
+    pressure: float | None = Field(
+        default=None, ge=0, description="Its surcharge on the ground [kPa] (for the shoring)."
+    )
+
+
+class Excavation(_Model):
+    """An excavation for the foundations or a basement: its depth, how its sides are kept, the
+    loads and buildings beside it and the ground water at its base. The checks are the
+    code pack's rules of excavation work; the design of an embedded wall and its supports is a
+    separate (planned) feature."""
+
+    id: Id
+    outline: list[Point2] | None = Field(
+        default=None,
+        min_length=3,
+        description="Plan outline of its edge [[x, y], ...] mm (the foundations near it are "
+        "checked against it).",
+    )
+    groundLevel: float | None = Field(
+        default=None,
+        title="Ground level",
+        description="Of the adjacent ground [mm, project datum]; empty: the project's.",
+    )
+    bottomLevel: float = Field(
+        title="Bottom level", description="Deepest point of the excavation [mm, project datum]."
+    )
+    permanent: bool = Field(
+        default=False, description="A permanent excavation (kept after the work)."
+    )
+    support: ExcavationSupport = Field(  # type: ignore[valid-type]
+        default="sloped",
+        title="Sides",
+        description="How its sides are kept.",
+        json_schema_extra=_labels(list(EXCAVATION_SUPPORTS.values())),
+    )
+    sideSlope: float | None = Field(
+        default=None,
+        gt=0,
+        title="Side slope (H per V)",
+        description="Horizontal per vertical of a sloped side, or the average of a stepped one.",
+    )
+    stepHeight: Length | None = Field(
+        default=None, title="Step height", description="Highest step of a stepped side [mm]."
+    )
+    sheetPileTop: float | None = Field(
+        default=None,
+        title="Sheet piles above ground",
+        description="Height of the sheet piles above the natural ground [mm].",
+    )
+    cutoffLevel: float | None = Field(
+        default=None,
+        title="Cut-off toe level",
+        description="Toe of the sheet piles or cut-off wall [mm, project datum] (seepage).",
+    )
+    guardRail: bool = Field(
+        default=False,
+        title="Guard rail",
+        description="A guard rail or solid enclosure at least the code's height along the "
+        "open sides.",
+    )
+    accessPrecluded: bool = Field(
+        default=False,
+        title="Access precluded",
+        description="Access to the area round the excavation is precluded (no guard rail needed).",
+    )
+    designWaterTable: float | None = Field(
+        default=None,
+        title="Design water table",
+        description="Depth below the adjacent ground [m]; empty: the nearest borehole's.",
+    )
+    dewatered: bool = Field(
+        default=False,
+        description="The ground water is lowered below the bottom while the excavation is open.",
+    )
+    erraticSoil: bool = Field(
+        default=False,
+        title="Erratic soil",
+        description="The soil is erratic (the soft soil of the soil report is found by itself).",
+    )
+    piling: bool = Field(
+        default=False,
+        description="Piles are bored or driven near the adjoining structures.",
+    )
+    loads: list[ExcavationLoad] = Field(
+        default_factory=list, description="Spoil, materials and machinery beside it."
+    )
+    adjoining: list[AdjoiningStructure] = Field(
+        default_factory=list, title="Adjoining structures", description="Buildings next to it."
+    )
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _levels(self) -> Excavation:
+        ids = [a.id for a in self.adjoining]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"{self.id}: duplicate adjoining structures {', '.join(duplicates)}")
+        return self
+
+
+class Formwork(_Model):
+    """The slab formwork the design checks against the code pack's loads and timber stress:
+    sheeting on joists on posts."""
+
+    slabThickness: Length | None = Field(
+        default=None,
+        title="Slab thickness",
+        description="[mm]; empty: the thickest slab type of 04 Objects.",
+    )
+    material: Id | None = Field(
+        default=None,
+        description="Concrete material id (03 Materials): a unit weight above the code's wet "
+        "concrete weight governs.",
+    )
+    liveLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Workers and placing",
+        description="Live load of workmen and vibrating [kPa]; empty: the heavy end of the "
+        "code pack's range.",
+    )
+    sheeting: Length = Field(default=25, description="Sheeting thickness [mm].")
+    joistWidth: Length = Field(default=50, title="Joist width", description="[mm]")
+    joistDepth: Length = Field(default=100, title="Joist depth", description="[mm]")
+    joistSpacing: Length = Field(default=500, title="Joist spacing", description="[mm]")
+    joistSpan: Length = Field(
+        default=1000, title="Joist span", description="Between ledgers or posts [mm]."
+    )
+    span: Length | None = Field(
+        default=None,
+        description="Largest clear span the formwork bridges [mm] (the standard sizes apply up "
+        "to the code's limit).",
+    )
+    postKind: Literal["bamboo", "timber", "ballie", "steel"] = Field(
+        default="timber",
+        title="Posts",
+        json_schema_extra=_labels(["Bamboo", "Timber", "Ballie", "Steel centering"]),
+    )
+    postHeight: Length = Field(default=3000, title="Post height", description="[mm]")
+    postDiameter: Length | None = Field(
+        default=None,
+        title="Post diameter",
+        description="Least diameter of a round post [mm] (steel: empty).",
+    )
+
+
 class EarthPressure(_Model):
     """The basement walls of the building in the analysis model (load case H)."""
 
@@ -961,6 +1168,15 @@ class Substructure(_Model):
         description="The earth and water pressure on the building's basement walls (case H).",
     )
     design: Design = Field(default_factory=Design)
+    excavations: list[Excavation] = Field(
+        default_factory=list,
+        description="Excavations for the foundations and basements: their sides, the loads and "
+        "buildings beside them, and the ground water at the base.",
+    )
+    formwork: Formwork | None = Field(
+        default=None,
+        description="The slab formwork, checked against the code pack's construction loads.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -980,6 +1196,7 @@ class Substructure(_Model):
             ("tie beams", self.tieBeams),
             ("slabs on grade", self.groundSlabs),
             ("retaining walls", self.retainingWalls),
+            ("excavations", self.excavations),
         ):
             ids = [i.id for i in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})

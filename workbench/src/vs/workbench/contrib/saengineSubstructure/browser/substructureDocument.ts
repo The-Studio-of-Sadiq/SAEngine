@@ -294,7 +294,104 @@ export interface ISubstructure {
 	/** Static pile load tests at the site. */
 	loadTests?: IPileLoadTest[];
 	design: ISubstructureDesign;
+	/** Excavations for the foundations and basements, checked by the code pack's construction rules. */
+	excavations?: IExcavation[];
+	/** The slab formwork, checked against the code pack's construction loads. */
+	formwork?: IFormwork;
 	[key: string]: unknown;
+}
+
+export type ExcavationSupport = 'sloped' | 'stepped' | 'shored' | 'sheetPiles' | 'retainingWall' | 'rock' | 'none';
+
+export const EXCAVATION_SUPPORTS: readonly ExcavationSupport[] = ['sloped', 'stepped', 'shored', 'sheetPiles', 'retainingWall', 'rock', 'none'];
+
+export function excavationSupportLabel(support: ExcavationSupport): string {
+	switch (support) {
+		case 'sloped': return localize('sub.exSupport.sloped', "Sloped sides");
+		case 'stepped': return localize('sub.exSupport.stepped', "Stepped sides");
+		case 'shored': return localize('sub.exSupport.shored', "Shoring and sheeting");
+		case 'sheetPiles': return localize('sub.exSupport.sheetPiles', "Sheet piles");
+		case 'retainingWall': return localize('sub.exSupport.retainingWall', "Retaining wall");
+		case 'rock': return localize('sub.exSupport.rock', "Rock cut");
+		case 'none': return localize('sub.exSupport.none', "Vertical, unsupported");
+	}
+}
+
+/** A building next to an excavation (mm, project datum). */
+export interface IAdjoiningStructure {
+	id: string;
+	name?: string;
+	/** Clear distance in plan from the excavation's edge to its foundation [mm]. */
+	distance?: number;
+	foundingLevel: number;
+	underpinned?: boolean;
+	otherProperty?: boolean;
+	sensitive?: boolean;
+	[key: string]: unknown;
+}
+
+/** Spoil, materials or machinery beside an excavation. */
+export interface IExcavationLoad {
+	kind: 'spoil' | 'materials' | 'equipment' | 'machinery';
+	distance: number;
+	pressure?: number;
+	[key: string]: unknown;
+}
+
+/** An excavation (mm, project datum); the backend's model holds the rest. */
+export interface IExcavation {
+	id: string;
+	outline?: Point[];
+	groundLevel?: number;
+	bottomLevel: number;
+	permanent?: boolean;
+	support?: ExcavationSupport;
+	/** Horizontal per vertical of a sloped side. */
+	sideSlope?: number;
+	stepHeight?: number;
+	sheetPileTop?: number;
+	cutoffLevel?: number;
+	guardRail?: boolean;
+	accessPrecluded?: boolean;
+	designWaterTable?: number;
+	dewatered?: boolean;
+	erraticSoil?: boolean;
+	piling?: boolean;
+	loads?: IExcavationLoad[];
+	adjoining?: IAdjoiningStructure[];
+	[key: string]: unknown;
+}
+
+/** The slab formwork (mm, kPa). */
+export interface IFormwork {
+	slabThickness?: number;
+	liveLoad?: number;
+	sheeting?: number;
+	joistWidth?: number;
+	joistDepth?: number;
+	joistSpacing?: number;
+	joistSpan?: number;
+	span?: number;
+	postKind?: 'bamboo' | 'timber' | 'ballie' | 'steel';
+	postHeight?: number;
+	postDiameter?: number;
+	[key: string]: unknown;
+}
+
+/** A new excavation 1.5 m below the finished ground with sloped 1 : 1 sides and a guard rail. */
+export function newExcavation(document: ISubstructure, context: ISiteContext): IExcavation {
+	return {
+		id: nextId('EX', (document.excavations ?? []).map(e => e.id)),
+		bottomLevel: context.groundLevel - 1500,
+		support: 'sloped',
+		sideSlope: 1,
+		guardRail: true,
+	};
+}
+
+/** The formwork the editor starts from: 25 mm sheeting on 75 × 100 joists at 500 mm over 900 mm, timber posts 3 m high. */
+export function newFormwork(): IFormwork {
+	return { sheeting: 25, joistWidth: 75, joistDepth: 100, joistSpacing: 500, joistSpan: 900, postKind: 'timber', postHeight: 3000, postDiameter: 100 };
 }
 
 /** A retaining or basement wall (mm, project datum); the backend's model holds the rest. */
@@ -424,6 +521,12 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	document.tieBeams = (document.tieBeams ?? []).filter(isRecord) as ITieBeam[];
 	document.groundSlabs = (document.groundSlabs ?? []).filter(isRecord) as IGroundSlab[];
 	document.piles = (document.piles ?? []).filter(p => isRecord(p) && typeof p.id === 'string' && isPoint(p.position)) as IPile[];
+	if (document.excavations !== undefined) {
+		document.excavations = (Array.isArray(document.excavations) ? document.excavations : []).filter(isRecord) as IExcavation[];
+	}
+	if (document.formwork !== undefined && !isRecord(document.formwork)) {
+		delete document.formwork;
+	}
 	if (document.loadTests !== undefined) {
 		document.loadTests = (document.loadTests ?? []).filter(isRecord).map(test => ({ ...test, points: Array.isArray(test.points) ? test.points.filter(isPoint) : [] })) as IPileLoadTest[];
 	}
@@ -2067,6 +2170,8 @@ export interface IFoundationResult {
 	readonly notes?: readonly string[];
 	/** Checks that could not be made, e.g. `bearing` without qa: the foundation is not checked in full and does not count as passing. */
 	readonly notChecked?: readonly string[];
+	/** What an excavation or the formwork needs that is not a check (notices, inspection, bracing), with the pack's clauses. */
+	readonly requirements?: readonly string[];
 }
 
 export interface ISubstructureReport {
@@ -2075,6 +2180,10 @@ export interface ISubstructureReport {
 	readonly groundSlabs: readonly IFoundationResult[];
 	/** Retaining and basement walls (type "retainingWall") and the basement's flotation (type "flotation"). */
 	readonly retainingWalls?: readonly IFoundationResult[];
+	/** Excavations (type "excavation") checked by the code pack's construction rules. */
+	readonly excavations?: readonly IFoundationResult[];
+	/** The slab formwork (type "formwork"). */
+	readonly temporaryWorks?: readonly IFoundationResult[];
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
@@ -2228,6 +2337,7 @@ function readResult(f: Record<string, unknown>): IFoundationResult {
 		capacity: capacity ? readCapacity(capacity, pileType, optionalString(capacity.borehole) ?? optionalString(table?.borehole)) : undefined,
 		raft: readRaft(f.raft),
 		notChecked: Array.isArray(f.notChecked) && f.notChecked.length ? strings(f.notChecked) : undefined,
+		requirements: Array.isArray(f.requirements) && f.requirements.length ? strings(f.requirements) : undefined,
 		notes: strings(f.notes),
 	};
 }
@@ -2241,6 +2351,8 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	const tieBeams = records(raw.tieBeams).map(readResult);
 	const groundSlabs = records(raw.groundSlabs).map(readResult);
 	const retainingWalls = records(raw.retainingWalls).map(readResult);
+	const excavations = records(raw.excavations).map(readResult);
+	const temporaryWorks = records(raw.temporaryWorks).map(readResult);
 	// Pile capacities: a flat list of rows, or per pile type a list per borehole (`boreholes` or
 	// `capacities`), or capacity tables ({borehole, rows}); else the pile caps' own capacities.
 	const pileCapacities: IPileCapacity[] = [];
@@ -2267,7 +2379,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const skipped = records(raw.skipped).map(s => ({ id: String(s.id ?? ''), type: String(s.type ?? ''), reason: String(s.reason ?? '') }));
 	const summary = isRecord(raw.summary) ? raw.summary : {};
-	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls];
+	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls, ...excavations, ...temporaryWorks];
 	const failed = designed.filter(f => !f.ok).length;
 	const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
 	return {
@@ -2275,6 +2387,8 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 		tieBeams,
 		groundSlabs,
 		retainingWalls,
+		excavations,
+		temporaryWorks,
 		skipped,
 		pileCapacities,
 		summary: readSummary(summary, designed.length, failed, skipped.length, worst),

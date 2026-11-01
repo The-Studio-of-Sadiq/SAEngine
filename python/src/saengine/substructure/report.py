@@ -45,8 +45,9 @@ def substructure_report(
     """The design checks of the substructure of the project at ``project_root`` under the
     analysis results in ``out_dir`` (default ``08 FEM/model.results``), ready for JSON.
 
-    Returns ``{"foundations", "tieBeams", "retainingWalls", "skipped", "summary", "notes",
-    "method", "combinations"}``: per designed foundation ``{"id", "type", "columns", "checks",
+    Returns ``{"foundations", "tieBeams", "retainingWalls", "excavations", "temporaryWorks",
+    "skipped", "summary", "notes", "method", "combinations"}`` (excavations and formwork by
+    :mod:`saengine.substructure.excavation`, with their ``requirements``): per designed foundation ``{"id", "type", "columns", "checks",
     "utilisation", "ok", "sizes", "pressure"}`` (pile caps and rafts add their ``piles`` and
     ``raft``), per tie beam ``{"id", "type": "tieBeam", "columns": [from, to], "checks",
     "utilisation", "ok", "force"}``, per skipped foundation or tie beam ``{"id", "type",
@@ -175,6 +176,18 @@ def report(ctx: Context) -> dict[str, Any]:
     if walls or walls_skipped:
         method += [m for m in RETAINING_WALL_METHOD if m not in method]
 
+    # Excavations, formwork, footings on fill and waterproofing (the pack's construction rules).
+    from saengine.substructure import excavation as excavation_rules
+
+    excavations, found = excavation_rules.design_excavations(ctx)
+    notes += found
+    temporary, found = excavation_rules.design_formwork(ctx)
+    notes += found
+    notes += excavation_rules.fill_notes(ctx)
+    notes += excavation_rules.waterproofing_notes(ctx)
+    if excavations or temporary:
+        method += [m for m in excavation_rules.method_lines() if m not in method]
+
     # The piles placed in plan: under no cap, outside their cap, too close together.
     layout = pile_layout_warnings(substructure)
     notes += [f"Pile layout: {w}" for w in layout]
@@ -199,12 +212,14 @@ def report(ctx: Context) -> dict[str, Any]:
 
     if building is not None:
         walls.append(building)
-    designed = foundations + ties + slabs + walls
+    designed = foundations + ties + slabs + walls + excavations + temporary
     return {
         "foundations": foundations,
         "tieBeams": ties,
         "groundSlabs": slabs,
         "retainingWalls": walls,
+        "excavations": excavations,
+        "temporaryWorks": temporary,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": notes,

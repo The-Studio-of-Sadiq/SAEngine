@@ -1,0 +1,1043 @@
+{
+  "$defs": {
+    "ExcavationNotices": {
+      "additionalProperties": false,
+      "properties": {
+        "adjoiningDays": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Written notice to an adjoining owner before excavating [days].",
+          "title": "Adjoiningdays"
+        },
+        "operationsHours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Written notice before piling, compaction or densification that may load or move the adjoining property [h].",
+          "title": "Operationshours"
+        },
+        "monitoringHours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest interval between level readings of adjacent buildings when a potential hazard exists [h].",
+          "title": "Monitoringhours"
+        }
+      },
+      "title": "ExcavationNotices",
+      "type": "object"
+    },
+    "ExcavationRules": {
+      "additionalProperties": false,
+      "description": "The rules of an excavation and its sides. A rule left out is not checked.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "underFooting": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An excavation shall not come within this distance under a footing that is not underpinned [mm].",
+          "title": "Underfooting"
+        },
+        "geotechnicalDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deeper than this, the excavation's design is checked by a geotechnical engineer [mm]; so is one in soft or erratic soil.",
+          "title": "Geotechnicaldepth"
+        },
+        "protectionDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sides this deep or deeper (to the deepest point) are shored, sheeted or retained, or sloped [mm].",
+          "title": "Protectiondepth"
+        },
+        "slopeHorizontal": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An unsupported side slopes at no steeper than 1 vertical to this many horizontal (a stepped side on average).",
+          "title": "Slopehorizontal"
+        },
+        "maxStepHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Highest step of a stepped side [mm].",
+          "title": "Maxstepheight"
+        },
+        "guardRailHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Guard rail or solid enclosure along open sides [mm].",
+          "title": "Guardrailheight"
+        },
+        "guardRailSlopeExempt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "No guard rail where the sides slope at 1 vertical to this many horizontal or flatter.",
+          "title": "Guardrailslopeexempt"
+        },
+        "surchargeZone": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Spoil, materials and equipment kept back from the edge by this many times the depth, unless the sides are sloped or sheeted and shored for the load.",
+          "title": "Surchargezone"
+        },
+        "sheetPileProjection": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sheet piles extend at least this far above the natural ground [mm].",
+          "title": "Sheetpileprojection"
+        },
+        "machinerySetback": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Heavy machinery kept back from a trench by this many depths.",
+          "title": "Machinerysetback"
+        },
+        "machinerySetbackMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The machinery setback need not exceed this [mm].",
+          "title": "Machinerysetbackmax"
+        },
+        "escapeDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deeper than this: ladders, ramps or other means of escape [mm].",
+          "title": "Escapedepth"
+        },
+        "inspectionDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Underpinning and the support of adjacent property for excavations this deep or deeper are under controlled inspection [mm].",
+          "title": "Inspectiondepth"
+        },
+        "nightLighting": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lighting of the work site at night [lux].",
+          "title": "Nightlighting"
+        },
+        "notices": {
+          "$ref": "#/$defs/ExcavationNotices"
+        }
+      },
+      "title": "ExcavationRules",
+      "type": "object"
+    },
+    "FillRules": {
+      "additionalProperties": false,
+      "description": "Fills that support foundations, and the backfill round them.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "compaction": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least dry density as a share of the laboratory maximum.",
+          "title": "Compaction"
+        },
+        "compactionTest": {
+          "default": "",
+          "description": "The laboratory compaction test.",
+          "title": "Compactiontest",
+          "type": "string"
+        },
+        "maxLift": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Thickest compacted layer [mm].",
+          "title": "Maxlift"
+        },
+        "maxParticle": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest particle [mm].",
+          "title": "Maxparticle"
+        },
+        "testPitArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One test pit in an uncontrolled fill per this area [m²].",
+          "title": "Testpitarea"
+        },
+        "testPitDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Test pits reach this far below the foundations [mm].",
+          "title": "Testpitdepth"
+        },
+        "soilTypes": {
+          "description": "Soil types of the soil report that are fill.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Soiltypes",
+          "type": "array"
+        }
+      },
+      "title": "FillRules",
+      "type": "object"
+    },
+    "FormworkPost": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "minDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Mindiameter"
+        },
+        "topDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Spread at the top [mm].",
+          "title": "Topdiameter"
+        },
+        "maxHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]; None: any height.",
+          "title": "Maxheight"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "FormworkPost",
+      "type": "object"
+    },
+    "FormworkRules": {
+      "additionalProperties": false,
+      "description": "Formwork and its supports: the design loads, the timber's allowable stress, the camber,\nthe posts and the standard member sizes.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "loadFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Formwork and scaffolds carry this many times the load.",
+          "title": "Loadfactor"
+        },
+        "concreteWeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Weight of wet concrete [kN/m³].",
+          "title": "Concreteweight"
+        },
+        "liveLoad": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Workmen and the impact of ramming or vibrating, light to heavy duty [kPa].",
+          "title": "Liveload"
+        },
+        "timberBending": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Allowable bending stress of soft timber [kPa].",
+          "title": "Timberbending"
+        },
+        "tableSpan": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The standard sizes apply to spans up to this [mm].",
+          "title": "Tablespan"
+        },
+        "tableHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The standard sizes apply to heights up to this [mm].",
+          "title": "Tableheight"
+        },
+        "camber": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Beams and slabs: 1 in this.",
+          "title": "Camber"
+        },
+        "cantileverCamber": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cantilevers: 1 in this of the projected length.",
+          "title": "Cantilevercamber"
+        },
+        "bracedPostHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Posts higher than this are braced horizontally and diagonally [mm].",
+          "title": "Bracedpostheight"
+        },
+        "lateralBracingHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Floor height above which all centering is braced laterally [mm].",
+          "title": "Lateralbracingheight"
+        },
+        "steelBeamPostSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Steel posts under beam bottoms at most this far apart [mm].",
+          "title": "Steelbeampostspacing"
+        },
+        "nonCombustibleHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scaffolding higher than this is non-combustible [mm].",
+          "title": "Noncombustibleheight"
+        },
+        "posts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FormworkPost"
+          },
+          "description": "Post limits by kind (bamboo, timber, steel).",
+          "title": "Posts",
+          "type": "object"
+        },
+        "sizes": {
+          "description": "Standard sizes of formwork members.",
+          "items": {
+            "$ref": "#/$defs/FormworkSize"
+          },
+          "title": "Sizes",
+          "type": "array"
+        }
+      },
+      "title": "FormworkRules",
+      "type": "object"
+    },
+    "FormworkSize": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "min": {
+          "description": "Smallest section [b, h] mm (a sheet: [t, t]).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Min",
+          "type": "array"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest section [mm].",
+          "title": "Max"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "min"
+      ],
+      "title": "FormworkSize",
+      "type": "object"
+    },
+    "SeepageRules": {
+      "additionalProperties": false,
+      "description": "Seepage at the base of an excavation below the water table: the method that finds the\nexit gradient, and the factor of safety against heave when the code gives one.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "const": "averageGradient",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "averageGradient: the head over the shortest flow path round the cut-off (down its back and up its front); None: not computed.",
+          "title": "Method"
+        },
+        "factorOfSafety": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required icr / i and weight / uplift; None: the code gives none (1.0, the physical limit, is checked and the margin left to the engineer).",
+          "title": "Factorofsafety"
+        }
+      },
+      "title": "SeepageRules",
+      "type": "object"
+    },
+    "WaterproofingRules": {
+      "additionalProperties": false,
+      "description": "Below-grade walls and floors: waterproofed under hydrostatic pressure, else\ndamp-proofed with a perimeter drain.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "aboveWaterTable": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall waterproofing from this far above the highest water table [mm].",
+          "title": "Abovewatertable"
+        },
+        "dampAboveGrade": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Damp-proofing up to this far above the finished grade [mm].",
+          "title": "Dampabovegrade"
+        },
+        "membrane": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Thinnest PVC or polyethylene membrane [mm].",
+          "title": "Membrane"
+        },
+        "lap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Membrane joints lapped [mm].",
+          "title": "Lap"
+        },
+        "pargeting": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cement mortar pargeting of masonry walls [mm].",
+          "title": "Pargeting"
+        },
+        "floorBase": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Gravel or crushed stone base under a damp-proofed floor [mm].",
+          "title": "Floorbase"
+        },
+        "finesPassing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Most of the base or drain passing the 4.75 mm sieve.",
+          "title": "Finespassing"
+        },
+        "drainBeyond": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Perimeter drain beyond the foundation's outer edge [mm].",
+          "title": "Drainbeyond"
+        },
+        "drainAboveFoundation": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Top of the drain above the top of the foundation [mm].",
+          "title": "Drainabovefoundation"
+        },
+        "gradingSlope": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ground sloped away at 1 vertical in this many horizontal.",
+          "title": "Gradingslope"
+        },
+        "gradingDistance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Over this distance from the wall [mm].",
+          "title": "Gradingdistance"
+        }
+      },
+      "title": "WaterproofingRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Construction practice the design must show or check: excavations and their sides,\nadjoining property, seepage at the base, fills, waterproofing and formwork. A group the\npack leaves out is not covered by it.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "excavation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExcavationRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "seepage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SeepageRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "fill": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FillRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "waterproofing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WaterproofingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "formwork": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FormworkRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "ConstructionTable",
+  "type": "object",
+  "$id": "saengine.codePack.construction/1"
+}

@@ -1073,6 +1073,9 @@ def drawing_set(
         if totals:
             data.bbs.append(Table.from_dict(totals, "Bar masses by size and element (kg)"))
     data.notes = general_notes(objects, materials, detailing)
+    from saengine.substructure.excavation import construction_notes
+
+    data.notes += construction_notes(substructure)
     concrete, fy = _grades(objects, materials)
     dias = sorted({float(m.get("dia")) for m in _marks(detailing) if m.get("dia")})
     if dias and concrete and fy:

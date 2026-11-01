@@ -42,6 +42,7 @@ import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengin
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
+	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
 	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
@@ -1914,7 +1915,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderTieBeamTable(document);
 		this.renderGroundSlabTable(document);
 		this.renderRetainingWallTable(document);
-		this.renderExcavationSupport();
+		this.renderExcavationSupport(document);
 	}
 
 	private renderRetainingWallTable(document: ISubstructure): void {
@@ -2447,12 +2448,332 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	/** Excavation support and shoring: planned features of this part, shown as chips. */
-	private renderExcavationSupport(): void {
-		const section = this.section(localize('sub.excavation', "Excavation support"), EXCAVATION_FEATURES.length);
-		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "Embedded walls and their supports round a basement excavation, with the earth and water pressures of the basement walls. Planned: not in this MVP.")));
+	/** A checkbox in a table cell: its state is stored at once. */
+	private checkInput(checked: boolean | undefined, store: (value: boolean) => void, key: string, label: string): HTMLInputElement {
+		const input = $<HTMLInputElement>('input.sub-check', { type: 'checkbox', 'aria-label': label, title: label });
+		input.checked = !!checked;
+		this.inputStore.add(addDisposableListener(input, EventType.CHANGE, () => store(input.checked)));
+		this.inputMap.set(key, input);
+		return input;
+	}
+
+	/**
+	 * The excavations (their sides, the loads and buildings beside them, the ground water) and the
+	 * slab formwork, checked by the code pack's construction rules; the embedded walls and their
+	 * supports stay planned.
+	 */
+	private renderExcavationSupport(document: ISubstructure): void {
+		const excavations = document.excavations ?? [];
+		const section = this.section(localize('sub.excavations', "Excavations"), excavations.length, {
+			label: localize('sub.addExcavation', "Add Excavation"),
+			run: () => {
+				document.excavations = [...excavations, newExcavation(document, this.context)];
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const bottom: IFieldSpec = { key: 'bottomLevel', label: localize('sub.f.bottomLevel', "Bottom"), unit: M, kind: 'length' };
+		const slope: IFieldSpec = { key: 'sideSlope', label: localize('sub.f.sideSlope', "Slope H per V"), kind: 'number', min: 0 };
+		const step: IFieldSpec = { key: 'stepHeight', label: localize('sub.f.stepHeight', "Step"), unit: MM, kind: 'number', min: 0 };
+		const sheet: IFieldSpec = { key: 'sheetPileTop', label: localize('sub.f.sheetPileTop', "Sheet piles above ground"), unit: MM, kind: 'number', min: 0 };
+		const cutoff: IFieldSpec = { key: 'cutoffLevel', label: localize('sub.f.cutoffLevel', "Cut-off toe"), unit: M, kind: 'length' };
+		const water: IFieldSpec = { key: 'designWaterTable', label: localize('sub.f.exWater', "Water table depth"), unit: M, kind: 'number', min: 0 };
+		const flags: { key: string; label: string }[] = [
+			{ key: 'guardRail', label: localize('sub.f.guardRail', "Guard rail") },
+			{ key: 'accessPrecluded', label: localize('sub.f.accessPrecluded', "Access precluded") },
+			{ key: 'permanent', label: localize('sub.f.permanent', "Permanent") },
+			{ key: 'dewatered', label: localize('sub.f.dewatered', "Dewatered") },
+			{ key: 'piling', label: localize('sub.f.piling', "Piling nearby") },
+			{ key: 'erraticSoil', label: localize('sub.f.erraticSoil', "Erratic soil") },
+		];
+		const columns = [
+			{ label: localize('sub.f.id', "ID"), width: 64 }, { label: bottom.label, unit: M, numeric: true }, { label: localize('sub.f.exSupport', "Sides"), width: 150 },
+			{ label: slope.label, numeric: true, width: 72 }, { label: step.label, unit: MM, numeric: true, width: 64 }, { label: sheet.label, unit: MM, numeric: true, width: 90 },
+			{ label: cutoff.label, unit: M, numeric: true, width: 72 }, { label: water.label, unit: M, numeric: true, width: 80 },
+			...flags.map(f => ({ label: f.label, width: 72 })),
+			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const supports = EXCAVATION_SUPPORTS.map(s => ({ value: s, label: excavationSupportLabel(s) }));
+		excavations.forEach((excavation: IExcavation, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `excavations.${index}.${field}`;
+			const set = (key: string) => (value: number | string | undefined) => {
+				if (value === undefined || value === '') {
+					delete excavation[key];
+				} else {
+					excavation[key] = value;
+				}
+				this.changed(false);
+			};
+			append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, excavation.id, value => {
+				excavation.id = String(value ?? '');
+				this.changed(false);
+			}, path('id')));
+			append(append(row, $('td')), this.textInput(bottom, excavation.bottomLevel, value => {
+				if (typeof value === 'number') {
+					excavation.bottomLevel = value;
+					this.changed(false);
+				}
+			}, path('bottomLevel')));
+			append(append(row, $('td')), this.selectInput(supports, excavation.support ?? 'sloped', value => {
+				excavation.support = value as ExcavationSupport;
+				this.changed(true);
+			}, path('support'), localize('sub.f.exSupport', "Sides")));
+			for (const field of [slope, step, sheet, cutoff, water]) {
+				append(append(row, $('td')), this.textInput(field, excavation[field.key], set(field.key), path(field.key)));
+			}
+			for (const flag of flags) {
+				append(append(row, $('td')), this.checkInput(excavation[flag.key] as boolean | undefined, value => {
+					if (value) {
+						excavation[flag.key] = true;
+					} else {
+						delete excavation[flag.key];
+					}
+					this.changed(false);
+				}, path(flag.key), flag.label));
+			}
+			const result = this.report?.excavations?.find(r => r.id === excavation.id);
+			this.utilisationCell(row, result?.utilisation);
+			this.removeButton(row, () => {
+				document.excavations = excavations.filter((_, i) => i !== index);
+				this.changed(true);
+			});
+		});
+		if (!excavations.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noExcavations', "None yet. An excavation is checked by the code pack's rules of excavation work: protection of the sides, guard rail, surcharge zone, machinery setback, adjoining buildings and the ground water at its base.")));
+		} else {
+			this.renderExcavationLoads(section, excavations);
+			this.renderAdjoining(section, excavations);
+			for (const excavation of excavations) {
+				const needs = this.report?.excavations?.find(r => r.id === excavation.id)?.requirements ?? [];
+				if (needs.length) {
+					append(section, $('p.sub-muted', undefined, localize('sub.excavationNeeds', "{0} also needs:", excavation.id)));
+					const list = append(section, $('ul.sub-muted'));
+					for (const need of needs) {
+						append(list, $('li', undefined, need));
+					}
+				}
+			}
+		}
+		this.renderFormwork(document);
+		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "The walls round a deep excavation and their supports (embedded pile walls, sheet pile walls, struts and anchors) are planned: the code pack gives the rules above but no method to design them.")));
 		const planned = append(section, $('.sub-planned'));
 		for (const id of EXCAVATION_FEATURES) {
 			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
+		}
+	}
+
+	/** Spoil, materials and machinery beside the excavations, one row each. */
+	private renderExcavationLoads(section: HTMLElement, excavations: IExcavation[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.excavationLoads', "Loads beside the excavations")));
+		const button = append(heading, $<HTMLButtonElement>('button.sub-add', { type: 'button' }));
+		append(button, $(ThemeIcon.asCSSSelector(Codicon.add)));
+		append(button, $('span', undefined, localize('sub.addExcavationLoad', "Add Load")));
+		this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+			const first = excavations[0];
+			first.loads = [...(first.loads ?? []), { kind: 'spoil', distance: 2000 }];
+			this.changed(true);
+		}));
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const distance: IFieldSpec = { key: 'distance', label: localize('sub.f.loadDistance', "From the edge"), unit: M, kind: 'length', min: 0 };
+		const pressure: IFieldSpec = { key: 'pressure', label: localize('sub.f.loadPressure', "Surcharge"), unit: 'kPa', kind: 'number', min: 0 };
+		this.tableHead(table, [
+			{ label: localize('sub.f.excavation', "Excavation"), width: 90 }, { label: localize('sub.f.loadKind', "Kind"), width: 130 },
+			{ label: distance.label, unit: M, numeric: true, width: 84 }, { label: pressure.label, unit: 'kPa', numeric: true, width: 72 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		const kinds = [
+			{ value: 'spoil', label: localize('sub.load.spoil', "Excavated spoil") },
+			{ value: 'materials', label: localize('sub.load.materials', "Construction materials") },
+			{ value: 'equipment', label: localize('sub.load.equipment', "Equipment, trucks") },
+			{ value: 'machinery', label: localize('sub.load.machinery', "Heavy machinery") },
+		];
+		const owners = excavations.map(e => ({ value: e.id, label: e.id }));
+		excavations.forEach((excavation, e) => {
+			(excavation.loads ?? []).forEach((load: IExcavationLoad, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `excavations.${e}.loads.${index}.${field}`;
+				append(append(row, $('td')), this.selectInput(owners, excavation.id, value => {
+					const target = excavations.find(x => x.id === value);
+					if (target && target !== excavation) {
+						excavation.loads = (excavation.loads ?? []).filter((_, i) => i !== index);
+						target.loads = [...(target.loads ?? []), load];
+						this.changed(true);
+					}
+				}, path('excavation'), localize('sub.f.excavation', "Excavation")));
+				append(append(row, $('td')), this.selectInput(kinds, load.kind, value => {
+					load.kind = value as IExcavationLoad['kind'];
+					this.changed(false);
+				}, path('kind'), localize('sub.f.loadKind', "Kind")));
+				append(append(row, $('td')), this.textInput(distance, load.distance, value => {
+					if (typeof value === 'number') {
+						load.distance = value;
+						this.changed(false);
+					}
+				}, path('distance')));
+				append(append(row, $('td')), this.textInput(pressure, load.pressure, value => {
+					if (typeof value === 'number') {
+						load.pressure = value;
+					} else {
+						delete load.pressure;
+					}
+					this.changed(false);
+				}, path('pressure')));
+				this.removeButton(row, () => {
+					excavation.loads = (excavation.loads ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		});
+	}
+
+	/** The buildings next to the excavations: their foundation level, distance and protection. */
+	private renderAdjoining(section: HTMLElement, excavations: IExcavation[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.adjoining', "Adjoining structures")));
+		const button = append(heading, $<HTMLButtonElement>('button.sub-add', { type: 'button' }));
+		append(button, $(ThemeIcon.asCSSSelector(Codicon.add)));
+		append(button, $('span', undefined, localize('sub.addAdjoining', "Add Adjoining Structure")));
+		this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+			const first = excavations[0];
+			const ids = excavations.flatMap(e => (e.adjoining ?? []).map(a => a.id));
+			let n = 1;
+			while (ids.includes(`AB${n}`)) {
+				n++;
+			}
+			first.adjoining = [...(first.adjoining ?? []), { id: `AB${n}`, distance: 1000, foundingLevel: this.context.groundLevel - 1500 }];
+			this.changed(true);
+		}));
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const distance: IFieldSpec = { key: 'distance', label: localize('sub.f.adjDistance', "From the edge"), unit: M, kind: 'length', min: 0 };
+		const level: IFieldSpec = { key: 'foundingLevel', label: localize('sub.f.adjLevel', "Its founding level"), unit: M, kind: 'length' };
+		const flags = [
+			{ key: 'underpinned', label: localize('sub.f.underpinned', "Underpinned") },
+			{ key: 'otherProperty', label: localize('sub.f.otherProperty', "Another owner's") },
+			{ key: 'sensitive', label: localize('sub.f.sensitive', "Old, sensitive") },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.excavation', "Excavation"), width: 90 }, { label: localize('sub.f.id', "ID"), width: 64 }, { label: localize('sub.f.adjName', "What it is"), width: 150 },
+			{ label: distance.label, unit: M, numeric: true, width: 84 }, { label: level.label, unit: M, numeric: true, width: 90 },
+			...flags.map(f => ({ label: f.label, width: 84 })), { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		excavations.forEach((excavation, e) => {
+			(excavation.adjoining ?? []).forEach((adj: IAdjoiningStructure, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `excavations.${e}.adjoining.${index}.${field}`;
+				append(row, $('td', undefined, excavation.id));
+				append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, adj.id, value => {
+					adj.id = String(value ?? '');
+					this.changed(false);
+				}, path('id')));
+				append(append(row, $('td')), this.textInput({ key: 'name', label: localize('sub.f.adjName', "What it is"), kind: 'text' }, adj.name ?? '', value => {
+					if (value) {
+						adj.name = String(value);
+					} else {
+						delete adj.name;
+					}
+					this.changed(false);
+				}, path('name')));
+				append(append(row, $('td')), this.textInput(distance, adj.distance ?? 0, value => {
+					if (typeof value === 'number') {
+						adj.distance = value;
+						this.changed(false);
+					}
+				}, path('distance')));
+				append(append(row, $('td')), this.textInput(level, adj.foundingLevel, value => {
+					if (typeof value === 'number') {
+						adj.foundingLevel = value;
+						this.changed(false);
+					}
+				}, path('foundingLevel')));
+				for (const flag of flags) {
+					const current = flag.key === 'otherProperty' ? adj.otherProperty !== false : !!adj[flag.key];
+					append(append(row, $('td')), this.checkInput(current, value => {
+						if (flag.key === 'otherProperty') {
+							if (value) {
+								delete adj.otherProperty;
+							} else {
+								adj.otherProperty = false;
+							}
+						} else if (value) {
+							adj[flag.key] = true;
+						} else {
+							delete adj[flag.key];
+						}
+						this.changed(false);
+					}, path(flag.key), flag.label));
+				}
+				this.removeButton(row, () => {
+					excavation.adjoining = (excavation.adjoining ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		});
+	}
+
+	/** The slab formwork: one row, checked against the code pack's construction loads. */
+	private renderFormwork(document: ISubstructure): void {
+		const formwork = document.formwork;
+		const section = this.section(localize('sub.formwork', "Formwork"), formwork ? 1 : 0, formwork ? undefined : {
+			label: localize('sub.addFormwork', "Add Formwork Check"),
+			run: () => {
+				document.formwork = newFormwork();
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const fields: IFieldSpec[] = [
+			{ key: 'slabThickness', label: localize('sub.f.fwSlab', "Slab"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'liveLoad', label: localize('sub.f.fwLive', "Workers"), unit: 'kPa', kind: 'number', min: 0 },
+			{ key: 'sheeting', label: localize('sub.f.fwSheeting', "Sheeting"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'joistWidth', label: localize('sub.f.fwJoistB', "Joist b"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'joistDepth', label: localize('sub.f.fwJoistH', "Joist h"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'joistSpacing', label: localize('sub.f.fwSpacing', "Joist spacing"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'joistSpan', label: localize('sub.f.fwJoistSpan', "Joist span"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'postHeight', label: localize('sub.f.fwPostHeight', "Post height"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'postDiameter', label: localize('sub.f.fwPostDia', "Post Ø"), unit: MM, kind: 'number', min: 0 },
+		];
+		this.tableHead(table, [
+			...fields.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 72 })),
+			{ label: localize('sub.f.fwPosts', "Posts"), width: 110 }, { label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		if (!formwork) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(fields.length + 3) }, localize('sub.noFormwork', "Not checked. The slab formwork is checked for the code pack's construction loads: sheeting and joists in bending, and the posts' height and size.")));
+		} else {
+			const row = append(body, $('tr'));
+			for (const field of fields) {
+				append(append(row, $('td')), this.textInput(field, formwork[field.key], value => {
+					if (typeof value === 'number') {
+						formwork[field.key] = value;
+					} else {
+						delete formwork[field.key];
+					}
+					this.changed(false);
+				}, `formwork.${field.key}`, field.key === 'slabThickness' ? localize('sub.fwSlabAuto', "thickest") : undefined));
+			}
+			const posts = [
+				{ value: 'timber', label: localize('sub.post.timber', "Timber") },
+				{ value: 'bamboo', label: localize('sub.post.bamboo', "Bamboo") },
+				{ value: 'ballie', label: localize('sub.post.ballie', "Ballie") },
+				{ value: 'steel', label: localize('sub.post.steel', "Steel centering") },
+			];
+			append(append(row, $('td')), this.selectInput(posts, formwork.postKind ?? 'timber', value => {
+				formwork.postKind = value as IFormwork['postKind'];
+				this.changed(false);
+			}, 'formwork.postKind', localize('sub.f.fwPosts', "Posts")));
+			this.utilisationCell(row, this.report?.temporaryWorks?.[0]?.utilisation);
+			this.removeButton(row, () => {
+				delete document.formwork;
+				this.changed(true);
+			});
+			for (const need of this.report?.temporaryWorks?.[0]?.requirements ?? []) {
+				append(section, $('p.sub-muted', undefined, need));
+			}
 		}
 	}
 

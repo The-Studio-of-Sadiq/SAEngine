@@ -72,9 +72,27 @@ sub-base modulus k (empty: the design's subgrade modulus) and an optional crack-
 `8@200`. A new slab covers the columns' extent, 150 mm, 5 kPa. Generator and machine foundations
 are planned (chip under the table).
 
-**Excavation support (planned):** the *Excavation support* section lists contiguous and secant
-pile walls, sheet pile walls, and struts, walers and ground anchors for staged excavation. Each
-chip opens its planned-feature page; nothing is computed in this MVP.
+**Excavations:** the *Excavations* table (Add Excavation) gives each excavation its bottom level,
+how its sides are kept (sloped, stepped, shoring, sheet piles, retaining wall, rock cut or
+vertical), the side slope (horizontal per vertical), the step height, the sheet piles' height
+above ground, the cut-off toe, the design water table, and ticks for the guard rail, access
+precluded, permanent, dewatered, piling nearby and erratic soil. Two tables under it list the
+spoil, materials and machinery beside each excavation (their distance from the edge) and the
+adjoining structures (distance, founding level, underpinned, another owner's, old and
+sensitive). The checks are the active code pack's rules of excavation work (BNBC 2020 Part 6
+Sec 3.12-3.13 and Part 7 Sec 3.3 by default): a geotechnical engineer's check beyond 6 m or in
+soft soil, protection of sides 1.5 m deep or deeper (else 1:1 slopes, steps at most 1.5 m), the
+1 m guard rail, the 1.5 × depth surcharge zone, the machinery setback, sheet piles 150 mm above
+ground, underpinning of adjoining foundations at or above the bottom, nothing within 300 mm
+under a footing, dewatering, the uplift of a clay layer at the base and the seepage gradient
+round a cut-off (reported only). The notices, inspection and monitoring each excavation needs
+are listed under the table. The *Formwork* table (Add Formwork Check) checks the slab formwork:
+twice the wet concrete and workers' load on the sheeting and joists against the timber's
+allowable stress, and the posts' height and diameter (Part 7 Sec 3.8, Table 7.3.1). Footings
+founded in a fill layer of the soil report and the waterproofing of basements are noted in the
+report, and the drawings' general notes carry the excavation, fill, waterproofing and formwork
+rules. The design of the walls themselves (contiguous and secant pile walls, sheet pile walls,
+struts, walers and anchors) stays planned: each chip opens its planned-feature page.
 
 ## Sizing footings
 

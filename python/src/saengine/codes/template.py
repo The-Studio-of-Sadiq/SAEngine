@@ -118,6 +118,10 @@ TABLE_HELP: dict[str, str] = {
     "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
     "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
     "the walls rolled for them, the density. SAEngine computes the properties from them.",
+    "construction": "Construction practice: the rules of excavation work (depths, side slopes, "
+    "guard rail, surcharge zone, machinery setback, adjoining structures, notices), the seepage "
+    "method at the base, fills, waterproofing and formwork (loads, timber stress, camber, posts, "
+    "standard sizes). A group left out is not covered.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the
