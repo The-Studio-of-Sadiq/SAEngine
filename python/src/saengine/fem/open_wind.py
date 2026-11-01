@@ -479,8 +479,7 @@ def _all_heights(
         arched = None
         if roof_form == "arched" and normal_to_ridge:
             arch = [p for p in points if p.key in upper and _is_arch(p, axis)]
-            along = [float(p.centroid[:2] @ wind[:2]) for p in arch]
-            span = (max(along) - min(along)) if along else 0.0
+            span = depth if arch else 0.0  # springline to springline along the wind
             if span > 0:
                 rise = (top - eave) / span
                 elevated = eave > ELEVATED_SPRINGLINE * span
@@ -492,7 +491,7 @@ def _all_heights(
                 if cps is None and note not in out.notes:
                     out.notes.append(note)
                 elif cps is not None:
-                    arched = ({p.key for p in arch}, min(along), span, cps)
+                    arched = ({p.key for p in arch}, windward_edge, span, cps)
                     out.summary["arched"] = {"r": rise, "elevated": elevated, **cps}
         variants: list[dict[Any, float]] = [{}, {}]
         two = False

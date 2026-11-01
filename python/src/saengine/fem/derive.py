@@ -3233,6 +3233,18 @@ def _clad_structure_wind(
     ]
     every_z = [float(p[2]) - base for pts in outlines.values() for p in pts]
     eave = min(roof_z) if roof_z else max(every_z)
+    if options.roof != "planar":
+        # An arch or dome: its steep parts near the springline are roof, not walls. The plan
+        # is the whole envelope's (no overhangs); the springline is the curved surface's
+        # lowest point (on a drum or side walls, or the base).
+        low, high = plan.min(axis=0), plan.max(axis=0)
+        curved = [
+            float(p[2]) - base
+            for pid, n in normals.items()
+            if abs(n[2]) >= 1e-3
+            for p in outlines[pid]
+        ]
+        eave = min(curved) if curved else 0.0
     top = max(every_z)
     points = []
     shares_of: dict[int, list[float]] = {}
