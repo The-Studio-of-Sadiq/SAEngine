@@ -83,7 +83,16 @@ export interface IRoof {
 export interface IRamp {
 	readonly id: string; readonly story: string; readonly start: CadPoint; readonly end: CadPoint;
 	readonly width?: number; readonly rise?: number; readonly finish?: string; readonly fillUnitWeight?: number; readonly occupancy?: string;
+	/** What it serves, for the code pack's ramp checks (default walkway). */
+	readonly kind?: RampKind;
+	/** Traffic lanes of a vehicle ramp (1 or 2). */
+	readonly lanes?: number;
+	/** A vehicle ramp with transition slopes at both ends. */
+	readonly transitions?: boolean;
 }
+/** What a ramp serves; the code pack keeps its ramp rules by these ids (saengine.library.architecture.RampKind). */
+export type RampKind = 'walkway' | 'accessible' | 'exit' | 'vehicle' | 'parking';
+export const RAMP_KINDS: readonly RampKind[] = ['walkway', 'accessible', 'exit', 'vehicle', 'parking'];
 /** A railing along a path on a story. */
 export interface IRailing { readonly id: string; readonly type: string; readonly base: string; readonly baseOffset?: number; readonly path: readonly CadPoint[] }
 
@@ -212,7 +221,7 @@ export function railingOf(type: IRailingType | undefined): { readonly height: nu
 	return { height: type?.height ?? 1000, weight: type?.weight ?? 0.3, width: type?.width ?? 50, postSpacing: type?.postSpacing ?? 1200 };
 }
 
-/** A ramp's rise over its run (0.0833 is 1 in 12). */
+/** A ramp's rise over its run (0.0833 is 1 in 12), as drawn; the code pack's ramp checks are the backend's (saengine.design.ramps). */
 export function rampGradient(ramp: IRamp): number {
 	const run = distance(ramp.start, ramp.end);
 	return run ? (ramp.rise ?? 0) / run : 0;

@@ -5043,6 +5043,113 @@ class PushoverTable(TableModel):
     acceptance: PushoverAcceptance
 
 
+# ───────────────────────────────── ramps and accessibility (B24) ─────────────────────────────────
+
+
+class RampSlope(_Row):
+    """A slope limit, as 1 vertical in ``oneIn`` horizontal (8: 1 in 8, 12.5 %)."""
+
+    oneIn: Positive = Field(description="Horizontal run per unit rise.")
+
+
+class RampRiseBand(_Row):
+    """A row of a gradient-by-change-of-level table: up to ``riseMax`` of rise, the slope may be
+    at most 1 in ``oneIn`` and the ramp at most ``runMax`` long."""
+
+    riseMax: Positive | None = Field(
+        default=None, description="Greatest change of level of the row [mm] (None: any more)."
+    )
+    oneIn: Positive = Field(description="Steepest slope of the row, 1 in this.")
+    runMax: Positive = Field(description="Greatest length of the ramp [mm].")
+
+
+class RampFlight(_Row):
+    """The length of the sloping part between level landings [mm] (along plan)."""
+
+    min: Annotated[float, Field(ge=0)] = Field(default=0, description="Shortest flight [mm].")
+    max: Positive | None = Field(default=None, description="Longest flight [mm].")
+
+
+class RampLanding(_Row):
+    """The level landings between flights (and at the ends) of a ramp."""
+
+    min: Positive = Field(description="Least landing length in the direction of travel [mm].")
+    atLeastWidth: bool = Field(
+        default=False, description="A landing is also at least as long as the ramp is wide."
+    )
+
+
+class RampWidth(_Row):
+    """The least clear width of a ramp [mm], by number of traffic lanes for vehicle ramps."""
+
+    min: Positive | None = Field(default=None, description="Least width [mm].")
+    byLanes: dict[int, Positive] = Field(
+        default_factory=dict, description="Least width [mm] by number of lanes (vehicle ramps)."
+    )
+
+
+class RampHandrails(_Row):
+    """Guards and handrails on both sides of the ramp."""
+
+    steeperThan: Positive | None = Field(
+        default=None,
+        description="Required on ramps steeper than 1 in this (None: on every such ramp).",
+    )
+
+
+class RampTransitions(_Row):
+    """A steeper main slope allowed with transition slopes at both ends (vehicle ramps)."""
+
+    oneIn: Positive = Field(description="Steepest main slope with transitions, 1 in this.")
+    transitionShare: Share = Field(
+        description="Each transition is sloped at this × the main slope."
+    )
+
+
+class RampNote(_Row):
+    """A requirement the program cannot check from the model: shown with the ramp's checks."""
+
+    text: str
+    steeperThan: Positive | None = Field(
+        default=None, description="Applies to ramps steeper than 1 in this only (None: always)."
+    )
+
+
+class RampRules(_Row):
+    """The rules of one kind of ramp (``design.ramps``). A rule left out is not checked."""
+
+    name: str = Field(description="What the code calls this kind of ramp.")
+    walking: bool = Field(
+        default=True,
+        description="A walking ramp: no flatter than the ramp threshold it is a level walkway and "
+        "no ramp rule applies.",
+    )
+    maxSlope: RampSlope | None = None
+    byRise: list[RampRiseBand] = Field(
+        default_factory=list,
+        description="Gradient and length by change of level, in increasing rise; the first row "
+        "whose riseMax is not exceeded applies.",
+    )
+    transitions: RampTransitions | None = None
+    flight: RampFlight | None = None
+    landing: RampLanding | None = None
+    width: RampWidth | None = None
+    handrails: RampHandrails | None = None
+    notes: list[RampNote] = Field(default_factory=list)
+
+
+class AccessibilityTable(TableModel):
+    """Ramps: what counts as one, and the rules of each kind (walkway, accessible, exit,
+    vehicle, parking). A kind the pack leaves out is not covered by it."""
+
+    rampThreshold: RampSlope = Field(
+        description="A sloping walking surface is a ramp when steeper than 1 in this."
+    )
+    ramps: dict[str, RampRules] = Field(
+        default_factory=dict, description="Rules by kind of ramp (the architecture's Ramp.kind)."
+    )
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -5079,6 +5186,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "steelStability": SteelStabilityTable,
     "flood": FloodTable,
     "pushover": PushoverTable,
+    "accessibility": AccessibilityTable,
 }
 
 

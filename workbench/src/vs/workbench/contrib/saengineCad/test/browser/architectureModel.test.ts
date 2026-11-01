@@ -163,6 +163,9 @@ suite('SAEngine - Architecture', () => {
 		arch = value(addRamp(arch, 'L1', [1000, 2500], [3000, 2500]));
 		arch = updateItem(arch, { kind: 'ramps', id: 'RP1' }, { rise: 400 });
 		assert.strictEqual(rampGradient(arch.ramps[0]), 0.2);
+		// What it serves (for the code pack's ramp checks) is kept with the ramp.
+		const vehicle = updateItem(arch, { kind: 'ramps', id: 'RP1' }, { kind: 'vehicle', lanes: 2, transitions: true });
+		assert.deepStrictEqual([vehicle.ramps[0].kind, vehicle.ramps[0].lanes, vehicle.ramps[0].transitions], ['vehicle', 2, true]);
 		arch = value(addRailing(arch, 'RL1', 'L1', [[0, 5000], [6000, 5000]]));
 		const drawing = architectureDrawing(arch, 'L1', elevations);
 		assert.deepStrictEqual(drawing.problems, []);

@@ -44,6 +44,8 @@ Length = Annotated[float, Field(gt=0, description="[mm]")]
 Mm = Annotated[float, Field(description="[mm]")]
 Point2 = Annotated[list[float], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
 UnitWeight = Annotated[float, Field(ge=0, description="[kN/m³]")]
+#: What a ramp serves; the code pack's ramp rules are kept by these ids.
+RampKind = Literal["walkway", "accessible", "exit", "vehicle", "parking"]
 
 #: How far a wall's centre line runs past its ends when rooms are found [mm], at least: walls
 #: drawn to the face of another wall (as Revit joins them) still close a room.
@@ -338,6 +340,18 @@ class Ramp(_Model):
     )
     occupancy: str | None = Field(
         default=None, description="Area use from the code pack, for its live load."
+    )
+    kind: RampKind = Field(
+        default="walkway",
+        description="What the ramp serves, for the code pack's ramp checks: walkway (walkers), "
+        "accessible (an accessible route for persons with disabilities), exit (a means of "
+        "escape), vehicle (a carriageway ramp between levels), parking (stalls along the ramp).",
+    )
+    lanes: int = Field(default=1, ge=1, le=2, description="Traffic lanes (vehicle ramps).")
+    transitions: bool = Field(
+        default=False,
+        description="Vehicle ramps: transition slopes at both ends (at the share of the main "
+        "slope the code pack names), which allow a steeper main slope.",
     )
 
 

@@ -40,7 +40,7 @@ import { BNBC } from '../../../services/saengineProject/common/projectLibraries.
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
-import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, curtainWeight, elevationsOf, findRoom, IArchDrawing, IArchitecture, IArchRef, IArchWall, ICurtainWall, IDoor, IRailing, IRamp, IRoof, IRoom, itemOf, IWindow, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, railingOf, rampGradient, removeItem, roofWeight, storyCounts, structureUnder, updateItem, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
+import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, curtainWeight, elevationsOf, findRoom, IArchDrawing, IArchitecture, IArchRef, IArchWall, ICurtainWall, IDoor, IRailing, IRamp, IRoof, IRoom, itemOf, IWindow, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, RAMP_KINDS, railingOf, rampGradient, RampKind, removeItem, roofWeight, storyCounts, structureUnder, updateItem, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
 import { signedArea } from '../../../../platform/saengine/common/geometry.js';
 import { IDrawingImportOptions, IDrawingInfo } from './architectureDrawingImport.js';
 import { DrawingImportPanel } from './architectureDrawingImportPanel.js';
@@ -95,6 +95,40 @@ const KIND_NAMES: { readonly [kind in ArchKind]: string } = {
 	ramps: localize('archKind.ramp', "Ramp"),
 	railings: localize('archKind.railing', "Railing"),
 };
+
+/** What a ramp serves (Ramp.kind); the code pack names its own kinds in the checks. */
+const RAMP_KIND_NAMES: { readonly [kind in RampKind]: string } = {
+	walkway: localize('rampKind.walkway', "Walking ramp"),
+	accessible: localize('rampKind.accessible', "Accessible ramp"),
+	exit: localize('rampKind.exit', "Exit ramp"),
+	vehicle: localize('rampKind.vehicle', "Vehicle ramp"),
+	parking: localize('rampKind.parking', "Parking ramp"),
+};
+
+const RAMP_CHECK_NAMES: { readonly [check: string]: string } = {
+	threshold: localize('rampCheck.threshold', "Slope"),
+	gradient: localize('rampCheck.gradient', "Gradient"),
+	run: localize('rampCheck.run', "Run"),
+	flight: localize('rampCheck.flight', "Flight length"),
+	width: localize('rampCheck.width', "Width"),
+	landing: localize('rampCheck.landing', "Landing"),
+	handrails: localize('rampCheck.handrails', "Handrails"),
+};
+
+/** The result of `saengine.architecture.checkRamps` (saengine.design.ramps.check_ramps). */
+interface IRampChecks {
+	readonly pack?: string;
+	readonly problems?: readonly string[];
+	readonly ramps?: readonly {
+		readonly id: string;
+		readonly kind: string;
+		readonly name?: string;
+		readonly covered: boolean;
+		readonly ok: boolean;
+		readonly message?: string;
+		readonly checks: readonly { readonly check: string; readonly status: 'pass' | 'fail' | 'note'; readonly message: string; readonly source?: string }[];
+	}[];
+}
 
 const PREVIEW_LAYERS: readonly CadLayerSpec[] = [
 	{ name: 'SAENGINE-PREVIEW', color: 2, description: 'Placement preview' },
@@ -1135,6 +1169,18 @@ export class ArchitectureEditor extends EditorPane {
 					}
 				});
 				this.occupancyRow(panel, ramp.id, ramp.occupancy, change);
+				const kind = ramp.kind ?? 'walkway';
+				this.selectRow(panel, localize('arch.rampKind', "Serves"), RAMP_KINDS.map(k => ({ id: k, text: RAMP_KIND_NAMES[k] })), kind,
+					id => change({ kind: id === 'walkway' ? undefined : id, ...(id === 'vehicle' ? {} : { lanes: undefined, transitions: undefined }) }, localize('arch.rampKindChanged', "{0} is now a {1}.", ramp.id, RAMP_KIND_NAMES[id as RampKind] ?? id)));
+				if (kind === 'vehicle') {
+					this.selectRow(panel, localize('arch.rampLanes', "Lanes"), [{ id: '1', text: localize('arch.oneLane', "Single lane") }, { id: '2', text: localize('arch.twoLanes', "Dual lane") }], String(ramp.lanes ?? 1),
+						id => change({ lanes: id === '1' ? undefined : Number(id) }, localize('arch.rampLanesChanged', "{0}: {1} lane(s).", ramp.id, id)));
+					this.selectRow(panel, localize('arch.rampTransitions', "Transition slopes"), [{ id: 'no', text: localize('arch.no', "No") }, { id: 'yes', text: localize('arch.transitionsYes', "At both ends") }], ramp.transitions ? 'yes' : 'no',
+						id => change({ transitions: id === 'yes' ? true : undefined }, id === 'yes' ? localize('arch.transitionsOn', "{0} has transition slopes at both ends.", ramp.id) : localize('arch.transitionsOff', "{0} has no transition slopes.", ramp.id)));
+				}
+				const checks = append(panel, $('.arch-ramp-checks'));
+				appendPropertyNote(checks, localize('arch.rampChecking', "Checking the ramp against the code pack..."));
+				void this.renderRampChecks(checks, ramp.id);
 				appendPropertyNote(panel, localize('arch.rampNote', "A ramp built up on the floor: its filling (half its rise deep on average) and finish are superimposed dead load over its footprint, with its occupancy's live load. A turning ramp is several straight ramps with landings."));
 				break;
 			}
@@ -1218,6 +1264,50 @@ export class ArchitectureEditor extends EditorPane {
 			}
 			for (const note of summary.notes) {
 				appendPropertyNote(panel, note);
+			}
+		}
+	}
+
+	/**
+	 * The code pack's ramp checks of ramp `id` (gradient, flight, width, landings, handrails and
+	 * the requirements the model cannot show) into `container`, once the backend answers
+	 * (saengine.design.ramps). Nothing is written when the panel was redrawn meanwhile.
+	 */
+	private async renderRampChecks(container: HTMLElement, id: string): Promise<void> {
+		const text = this.archModel?.getValue();
+		if (text === undefined) {
+			return;
+		}
+		let result: IRampChecks | undefined;
+		try {
+			result = await this.commandService.executeCommand<IRampChecks>('saengine.architecture.checkRamps', { architectureText: text });
+		} catch (error) {
+			result = { problems: [String(error)] };
+		}
+		if (!container.isConnected) {
+			return;
+		}
+		clearNode(container);
+		const ramp = result?.ramps?.find(r => r.id === id);
+		appendPropertyHeading(container, localize('arch.rampChecks', "Ramp checks"), result?.pack);
+		if (!ramp) {
+			const problem = result?.problems?.join(' ') || localize('arch.rampNoAnswer', "the backend gave no answer");
+			appendPropertyRow(container, localize('arch.rampChecks', "Ramp checks"), localize('arch.rampCheckFailed', "Not checked: {0}", problem), true);
+			return;
+		}
+		if (!ramp.covered) {
+			appendPropertyRow(container, ramp.name ?? RAMP_KIND_NAMES[ramp.kind as RampKind] ?? ramp.kind, ramp.message ?? localize('arch.rampNotCovered', "Not covered by this code pack."), true);
+			return;
+		}
+		appendPropertyRow(container, localize('arch.rampResult', "Result"), ramp.ok ? localize('arch.rampOk', "{0}: meets the code pack's rules", ramp.name ?? ramp.kind) : localize('arch.rampFails', "{0}: does not meet the code pack's rules", ramp.name ?? ramp.kind), !ramp.ok);
+		for (const check of ramp.checks) {
+			if (check.status === 'note') {
+				appendPropertyNote(container, check.source ? `${check.message} (${check.source})` : check.message);
+				continue;
+			}
+			const row = appendPropertyRow(container, RAMP_CHECK_NAMES[check.check] ?? check.check, check.message, check.status === 'fail');
+			if (check.source) {
+				row.title = check.source;
 			}
 		}
 	}

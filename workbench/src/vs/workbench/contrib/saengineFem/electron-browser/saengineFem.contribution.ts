@@ -195,6 +195,18 @@ CommandsRegistry.registerCommand('saengine.architecture.importIfc', async (acces
 });
 
 /**
+ * The architecture's ramps checked against the ramp rules of the project's code pack
+ * (`{architectureText}` -> `{pack, ramps, failing}` or `{problems}`). Internal: the Architecture
+ * editor calls it by id.
+ */
+CommandsRegistry.registerCommand('saengine.architecture.checkRamps', async (accessor, request: { readonly architectureText: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const solver = accessor.get(IFemSolverService);
+	const settingsText = await projectTexts(accessor)('settings');
+	return solver.engine(python, 'architecture/ramps', { architectureText: request.architectureText, settingsText });
+});
+
+/**
  * An architect's DWG/DXF read for the layer-mapping step (`{path}` -> its layers, unit and a
  * preview, or `{problems}`). Internal: the Architecture editor calls it by id.
  */
