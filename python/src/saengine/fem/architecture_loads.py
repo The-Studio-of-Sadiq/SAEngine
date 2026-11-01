@@ -3,7 +3,7 @@
 Derived at derive time from the architecture itself (never copied into ``loads.json``), so a
 wall's weight has one source: the wall as drawn.
 
-**Walls.** BNBC 2020 Part 6 Sec 2.2.5 (Weight of permanent partitions, p. 532): partition walls
+**Walls.** the default pack's Part 6 Sec 2.2.5 (Weight of permanent partitions, p. 532): partition walls
 shown on the plans are dead load, applied as line loads in their actual positions. Each
 architecture wall becomes a superimposed dead load (case SD) on what carries it:
 
@@ -46,7 +46,7 @@ allowance there (never both); stories without architecture walls keep the allowa
 :func:`saengine.library.architecture.room_boundary`) with a floor finish carries the finish's
 weight (thickness × unit weight, plus a sunk slab's filling in a wet room when the finish type
 gives one) as SD over its area instead of the project's flat finish there; a room with an
-occupancy carries its use's live load from the code pack (BNBC Table 6.2.3, pp. 533-539)
+occupancy carries its use's live load from the code pack (the default pack's Table 6.2.3, pp. 533-539)
 instead of the floor's, whether higher or lower. Parts of a slab in no room keep the floor's
 loads. With shell slabs each shell element takes the loads of the room its centre is in; with
 slabs as loads to beams a panel takes the area-weighted mean of its parts (its total exact, its
@@ -63,7 +63,7 @@ railing's own design and its fixings, not a load on the building's frame.
 
 **Roofs and ramps.** A roof's covering (its type's layers, per m² of slope, so divided by the
 cosine of its pitch per m² of plan) is SD over its outline on its story, instead of the floor's
-flat finish there, as a room's floor finish; a roof with an occupancy (BNBC's roof uses, Table
+flat finish there, as a room's floor finish; a roof with an occupancy (the default pack's roof uses, Table
 6.2.3) carries its live load instead of the floor's. A ramp built up on a floor carries its
 filling (the mean of its rise, ``rise / 2``, times the fill's unit weight; uniform over the ramp,
 its total exact) and its floor finish as SD over its footprint, and its occupancy's live load.

@@ -21,7 +21,7 @@ turns it into SAEngine's parts:
 
 SAEngine derives its own loads (:mod:`saengine.fem.derive`): self-weight from the material
 densities, superimposed dead and live loads on the slabs from the floor and roof area loads,
-wind and earthquake from the BNBC settings. The file's member and joint loads of gravity cases
+wind and earthquake from the default pack (BNBC) settings. The file's member and joint loads of gravity cases
 become SAEngine's member loads (``05 Floor Plan/loads.json``, :mod:`saengine.library.
 line_loads`) on the floor-plan beams and columns (:meth:`ProjectBuilder._build_member_loads`).
 Loads that have no place there (loads on braces and inclined members, area loads on walls, loads
@@ -47,6 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from saengine.codes import context as code_context
 from saengine.library import line_loads as ll
 from saengine.library.bim import (
     Additions,
@@ -242,19 +243,19 @@ def bar_diameter(size: str | None) -> float | None:
 #: items the same through :meth:`ImportReport.note`, and each item carries its key, so a reader
 #: of the report can tell them apart without matching the wording. Lists: "approximated" (in,
 #: not as in the file), "skipped" (left out), "replaced" (SAEngine makes its own in their place:
-#: wind and earthquake loads from the BNBC 2020 settings).
+#: wind and earthquake loads from the default pack (BNBC 2020) settings).
 ITEMS: dict[str, tuple[str, str]] = {
     # ── loads SAEngine replaces with its own ──
     "loads.lateral.generated": (
         "replaced",
         (
             "wind and earthquake load generators of the file (SAEngine makes its own wind and "
-            "earthquake loads from BNBC 2020, 02 Project Settings)"
+            "earthquake loads from the code pack, 02 Project Settings)"
         ),
     ),
     "loads.lateral.cases": (
         "replaced",
-        "wind and earthquake load cases (SAEngine applies its own BNBC 2020 loads in their place)",
+        "wind and earthquake load cases (SAEngine applies its own code pack loads in their place)",
     ),
     "loads.lateral.joint": ("replaced", "joint loads of wind and earthquake cases"),
     "loads.lateral.member": ("replaced", "member loads of wind and earthquake cases"),
@@ -352,7 +353,7 @@ class ImportReport:
         self.not_carried: dict[str, float] = defaultdict(float)
         self.carried: dict[str, float] = defaultdict(float)
         #: Wind and earthquake loads of the file that SAEngine replaces with its own from the
-        #: BNBC 2020 settings, their size [kN] per SAEngine case: not lost loads.
+        #: The default pack (BNBC 2020) settings, their size [kN] per SAEngine case: not lost loads.
         self.replaced: dict[str, float] = defaultdict(float)
 
     def count(self, kind: str, n: int = 1) -> None:
@@ -436,12 +437,12 @@ class ImportReport:
             "loads": {
                 "carriedKN": {k: round(v, 3) for k, v in self.carried.items()},
                 "notCarriedKN": {k: round(v, 3) for k, v in self.not_carried.items()},
-                "replacedByBnbcKN": {k: round(v, 3) for k, v in self.replaced.items()},
+                "replacedKN": {k: round(v, 3) for k, v in self.replaced.items()},
             },
         }
 
 
-#: The suffix of a combination taken from the imported file (the BNBC 2020 ones come first).
+#: The suffix of a combination taken from the imported file (the default pack (BNBC 2020) ones come first).
 FROM_FILE = " (from the file)"
 
 
@@ -452,7 +453,7 @@ def file_combinations(combinations: list[LoadCombination]) -> dict[str, LoadComb
 
 def _factor_key(combination: LoadCombination) -> tuple[tuple[str, float], ...]:
     """The factors of ``combination`` to compare, without F: a file without fluid loads gives F
-    0 where BNBC 2020 has it with D, and the fluid case is empty then."""
+    0 where the default pack (BNBC 2020) has it with D, and the fluid case is empty then."""
     factors = combination.model_dump(exclude={"name", "F"})
     return tuple(sorted((k, round(float(v), 6)) for k, v in factors.items() if v))
 
@@ -836,7 +837,7 @@ class ProjectBuilder:
 
     def lateral_load(self, key: str, case: str, size: float, example: str) -> None:
         """A load of a wind or earthquake case ``case``, of ``size`` kN: SAEngine replaces it
-        with its own from the BNBC 2020 settings (item ``key`` of :data:`ITEMS`)."""
+        with its own from the default pack (BNBC 2020) settings (item ``key`` of :data:`ITEMS`)."""
         self.report.note(key, example)
         self.report.replaced[case] += abs(size)
 
@@ -1113,12 +1114,12 @@ class ProjectBuilder:
             totals = ", ".join(f"{k} {v:.3g} kN" for k, v in sorted(replaced.items()))
             report.warn(
                 f"Wind and earthquake loads of the file ({totals}) are replaced by SAEngine's own "
-                "from the BNBC settings (listed under replaced, not lost): check the site, "
+                "from the code pack settings (listed under replaced, not lost): check the site, "
                 "occupancy and structural system in 02 Project Settings."
             )
         else:
             report.warn(
-                "Wind and earthquake loads are SAEngine's own from the BNBC settings: check the "
+                "Wind and earthquake loads are SAEngine's own from the code pack settings: check the "
                 "site, occupancy and structural system in 02 Project Settings."
             )
         texts = {
@@ -1173,7 +1174,7 @@ class ProjectBuilder:
         top of the column below the point, else on the beam through it. Only the vertical part
         is kept; the file's dead (and fluid) loads go to SAEngine's superimposed dead case SD,
         as SAEngine adds the self-weight itself. Each load applies to its own story only. Loads
-        of wind and earthquake cases are replaced by SAEngine's own (BNBC 2020); loads on other
+        of wind and earthquake cases are replaced by SAEngine's own (the default pack, BNBC 2020); loads on other
         members, at supports or of cases SAEngine has no case for are reported as not carried.
         """
         report = self.report
@@ -1739,14 +1740,14 @@ class ProjectBuilder:
         # SAEngine's F (fluid, the contents of 07 MEP equipment) follows D by default (factor
         # D where D > 1); a file without fluid loads gives F no factor.
         fluid = any(factors.get("F") for _, factors in self._combinations)
-        # The BNBC 2020 Part 6 Sec 2.7.3.1 set comes first, on SAEngine's own wind and earthquake
+        # The default pack's Part 6 Sec 2.7.3.1 set comes first, on SAEngine's own wind and earthquake
         # cases (the file's are replaced, see ``replaced``): a file's few combinations (often
         # without +-EX/EY, wind or 0.9D) would leave the design short. The file's combinations
         # follow, named "(from the file)", so their results can be compared with the file's.
-        bnbc = strength_combinations()
-        combinations: list[LoadCombination] = list(bnbc)
+        coded = strength_combinations()
+        combinations: list[LoadCombination] = list(coded)
         seen: set[tuple[tuple[str, float], ...]] = set()
-        names: set[str] = {c.name for c in bnbc}
+        names: set[str] = {c.name for c in coded}
         from_file = 0
         for name, factors in self._combinations:
             factors = self._live_factors(name, factors, roof_cases, floor_cases)
@@ -1775,8 +1776,9 @@ class ProjectBuilder:
         if from_file:
             report.count("combinationsFromFile", from_file)
         report.warn(
-            f"Load combinations: the {len(bnbc)} of BNBC 2020 Part 6 Sec 2.7.3.1 on SAEngine's "
-            "wind and earthquake cases"
+            f"Load combinations: the {len(coded)} of "
+            + (code_context.cite("combinations", "strength") or "the code pack")
+            + " on SAEngine's wind and earthquake cases"
             + (
                 f", then the file's {from_file} named '(from the file)'"
                 if from_file

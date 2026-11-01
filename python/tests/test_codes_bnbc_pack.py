@@ -2,7 +2,7 @@
 
 ``OLD`` is a frozen copy of the constants as they were written in the modules (v0.0.42): every
 value of the pack is checked against it, and against the module constants still in place, so a
-pack edit that changes a result fails here first. :mod:`saengine.library.bnbc` reads the pack:
+pack edit that changes a result fails here first. :mod:`saengine.library.code_data` reads the pack:
 its public names keep their values, types and order.
 """
 
@@ -13,7 +13,7 @@ import json
 import pytest
 
 from saengine.codes import tables
-from saengine.library import bnbc
+from saengine.library import code_data
 
 PACK = tables.PACKS_DIR / "bnbc2020"
 
@@ -688,46 +688,50 @@ def test_every_table_file_validates_and_is_registered():
 
 
 def test_library_bnbc_keeps_every_public_value_type_and_order():
-    assert bnbc.EDITION == OLD_SCALARS["EDITION"]
-    assert bnbc.ZONE_COEFFICIENT == OLD_ZONE_COEFFICIENT
-    assert list(bnbc.ZONE_COEFFICIENT) == [1, 2, 3, 4]
+    assert code_data.EDITION == OLD_SCALARS["EDITION"]
+    assert code_data.ZONE_COEFFICIENT == OLD_ZONE_COEFFICIENT
+    assert list(code_data.ZONE_COEFFICIENT) == [1, 2, 3, 4]
     # The ten division towns keep their values; the table now lists every district town of
     # Tables 6.2.8 and 6.2.15, alphabetically (usability N-P4).
-    assert {k: tuple(bnbc.LOCATIONS[k]) for k in OLD_LOCATIONS} == OLD_LOCATIONS
-    assert list(bnbc.LOCATIONS) == sorted(bnbc.LOCATIONS)
-    assert len(bnbc.LOCATIONS) == 65
-    assert tuple(bnbc.LOCATIONS["gazipur"]) == ("Gazipur", 2, 66.5)
-    assert tuple(bnbc.LOCATIONS["sunamganj"]) == ("Sunamganj", 4, 61.1)
-    assert isinstance(bnbc.LOCATIONS["dhaka"], bnbc.Location)
-    assert bnbc.LOCATIONS["dhaka"].wind_speed == 65.7
-    assert {k: tuple(v) for k, v in bnbc.OCCUPANCY_CATEGORIES.items()} == OLD_OCCUPANCY
-    assert list(bnbc.OCCUPANCY_CATEGORIES) == list(OLD_OCCUPANCY)
+    assert {k: tuple(code_data.LOCATIONS[k]) for k in OLD_LOCATIONS} == OLD_LOCATIONS
+    assert list(code_data.LOCATIONS) == sorted(code_data.LOCATIONS)
+    assert len(code_data.LOCATIONS) == 65
+    assert tuple(code_data.LOCATIONS["gazipur"]) == ("Gazipur", 2, 66.5)
+    assert tuple(code_data.LOCATIONS["sunamganj"]) == ("Sunamganj", 4, 61.1)
+    assert isinstance(code_data.LOCATIONS["dhaka"], code_data.Location)
+    assert code_data.LOCATIONS["dhaka"].wind_speed == 65.7
+    assert {k: tuple(v) for k, v in code_data.OCCUPANCY_CATEGORIES.items()} == OLD_OCCUPANCY
+    assert list(code_data.OCCUPANCY_CATEGORIES) == list(OLD_OCCUPANCY)
     # B1 adds the other rows of Table 6.2.3 after the old ones.
-    assert {k: tuple(bnbc.AREA_USES[k]) for k in OLD_AREA_USES} == OLD_AREA_USES
-    assert list(bnbc.AREA_USES)[: len(OLD_AREA_USES)] == list(OLD_AREA_USES)
+    assert {k: tuple(code_data.AREA_USES[k]) for k in OLD_AREA_USES} == OLD_AREA_USES
+    assert list(code_data.AREA_USES)[: len(OLD_AREA_USES)] == list(OLD_AREA_USES)
     b2 = {
-        k: (bnbc.STRUCTURAL_SYSTEMS[k].name, *v[1:4])
+        k: (code_data.STRUCTURAL_SYSTEMS[k].name, *v[1:4])
         for k, v in {**B2_TABLE_6_2_19, **B38_APPENDIX_P}.items()
     }
     systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS, **b2}
-    assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == systems
-    assert list(bnbc.STRUCTURAL_SYSTEMS) == list(systems)
-    assert bnbc.STRUCTURAL_SYSTEMS["rcSmf"].omega == 3.0
-    assert bnbc.SITE_CLASSES == OLD_SITE_CLASSES and list(bnbc.SITE_CLASSES) == list(
+    assert {k: tuple(v) for k, v in code_data.STRUCTURAL_SYSTEMS.items()} == systems
+    assert list(code_data.STRUCTURAL_SYSTEMS) == list(systems)
+    assert code_data.STRUCTURAL_SYSTEMS["rcSmf"].omega == 3.0
+    assert code_data.SITE_CLASSES == OLD_SITE_CLASSES and list(code_data.SITE_CLASSES) == list(
         OLD_SITE_CLASSES
     )
-    assert bnbc.EXPOSURES == OLD_EXPOSURES
-    assert bnbc.LOAD_CASES == OLD_LOAD_CASES and list(bnbc.LOAD_CASES) == list(OLD_LOAD_CASES)
-    assert bnbc.STRENGTH_COMBINATIONS == OLD_STRENGTH
-    assert [list(f) for _, f in bnbc.STRENGTH_COMBINATIONS] == [list(f) for _, f in OLD_STRENGTH]
-    assert {k: tuple(v) for k, v in bnbc.SITE_FACTORS.items()} == OLD_SITE_FACTORS
-    assert bnbc.SITE_FACTORS["SD"].s == 1.35
-    assert bnbc.PERIOD_COEFFICIENTS == OLD_PERIOD
-    assert bnbc.SYSTEM_PERIOD_FAMILY == OLD_PERIOD_FAMILY
-    assert {k: tuple(v) for k, v in bnbc.EXPOSURE_PROFILES.items()} == OLD_EXPOSURE_PROFILES
+    assert code_data.EXPOSURES == OLD_EXPOSURES
+    assert code_data.LOAD_CASES == OLD_LOAD_CASES and list(code_data.LOAD_CASES) == list(
+        OLD_LOAD_CASES
+    )
+    assert code_data.STRENGTH_COMBINATIONS == OLD_STRENGTH
+    assert [list(f) for _, f in code_data.STRENGTH_COMBINATIONS] == [
+        list(f) for _, f in OLD_STRENGTH
+    ]
+    assert {k: tuple(v) for k, v in code_data.SITE_FACTORS.items()} == OLD_SITE_FACTORS
+    assert code_data.SITE_FACTORS["SD"].s == 1.35
+    assert code_data.PERIOD_COEFFICIENTS == OLD_PERIOD
+    assert code_data.SYSTEM_PERIOD_FAMILY == OLD_PERIOD_FAMILY
+    assert {k: tuple(v) for k, v in code_data.EXPOSURE_PROFILES.items()} == OLD_EXPOSURE_PROFILES
     for name, value in OLD_SCALARS.items():
-        assert getattr(bnbc, name) == value, name
-        assert type(getattr(bnbc, name)) is type(value), name
+        assert getattr(code_data, name) == value, name
+        assert type(getattr(code_data, name)) is type(value), name
 
 
 def test_combinations_table_matches_the_old_combinations():

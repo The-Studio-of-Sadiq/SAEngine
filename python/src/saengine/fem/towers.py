@@ -8,7 +8,10 @@ their own and meet only through the podium. This module checks each tower as the
 spectrum design (:mod:`saengine.fem.seismic_design`) checks the building, with the same
 functions on the tower's own nodes:
 
-- **Period** (BNBC 2020 Part 6 Sec 2.5.7.2 (a), p. 627, a structural dynamics procedure): per
+The clauses are the code pack's (``seismic.clauses``; the references below are the default
+pack's, the default pack's Part 6).
+
+- **Period** (Sec 2.5.7.2 (a), p. 627, a structural dynamics procedure): per
   direction the mode with the largest effective mass of the tower above the podium, M_eff,t,k =
   V_t,k / Sa_k, V_t,k = Σ m·ω_k²·u_k over the tower's nodes (u_k the mode's peak displacement
   Γ·φ·Sa/ω², so V_t,k = Γ_k·Σ m·φ_k·Sa_k), and its share of the tower's mass.
@@ -26,7 +29,8 @@ functions on the tower's own nodes:
 - **Notes** on the diaphragms: the podium top joins the towers and carries their storey shears
   into the podium's frames and walls (a transfer floor, whose in-plane forces this check does not
   design); a tower much narrower than the podium is a vertical geometric irregularity (setback,
-  Sec 2.5.5.3.2, more than 130 % of the dimension of the storey above).
+  Sec 2.5.5.3.2: more than the pack's ``seismic.irregularities.geometry.adjacent``, 130 % in
+  the default pack, of the dimension of the storey above).
 
 Units follow the model: m, N (the summary gives kN).
 """
@@ -43,17 +47,28 @@ import numpy as np
 
 #: Plan and level tolerance [m].
 TOLERANCE = 1e-3
-#: Vertical geometric irregularity: a storey's horizontal dimension more than this times the
-#: storey above's (BNBC 2020 Part 6 Sec 2.5.5.3.2).
-SETBACK_RATIO = 1.3
 
-CLAUSES = {
-    "period": "BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627)",
-    "scale": "BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635)",
-    "drift": "BNBC 2020 Part 6 Sec 2.5.7.7, 2.5.9.4, 2.5.14.1, Table 6.2.21 (pp. 631, 635, 647-648)",
-    "irregularity": "BNBC 2020 Part 6 Sec 2.5.5.3.1(i) (p. 617)",
-    "setback": "BNBC 2020 Part 6 Sec 2.5.5.3.2",
-}
+#: The clauses of the tower checks: keys of the code pack's ``seismic.clauses``.
+CLAUSE_KEYS = ("period", "scale", "drift", "irregularity", "setback")
+
+
+def clauses() -> dict[str, str]:
+    """The clause references of the tower checks, from the code pack in force (each after the
+    code's name; '' for a clause the pack does not give)."""
+    from saengine.codes import context as code_context
+
+    return {key: code_context.cite("seismic", key) for key in CLAUSE_KEYS}
+
+
+def setback_ratio() -> float | None:
+    """Vertical geometric irregularity: a storey's horizontal dimension more than this times
+    the storey above's (the code pack's ``seismic.irregularities.geometry.adjacent``); None
+    when the pack gives no such rule."""
+    from saengine.codes import context as code_context
+
+    rules = getattr(code_context.table("seismic"), "irregularities", None)
+    geometry = getattr(rules, "geometry", None) if rules is not None else None
+    return None if geometry is None else float(geometry.adjacent)
 
 
 @dataclass(frozen=True)
@@ -257,6 +272,7 @@ def tower_checks(
     nodes = tower_nodes(project, towers)
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
+    refs = clauses()
     for region in towers.regions:
         above, at_podium = nodes[region.id]["above"], nodes[region.id]["podium"]
         if not above:
@@ -297,7 +313,7 @@ def tower_checks(
                     f"of its share of the static shear ({v['static'] / 1e3:.0f} kN): factor "
                     f"{v['scale']:.3f}; the design scales the building by "
                     f"{float(scale.get(axis, 1.0)):.3f}, the largest of the building and its "
-                    f"towers ({CLAUSES['scale']})"
+                    f"towers ({refs['scale']})"
                 )
         row["drift"] = storey_drifts(
             sub, spectra, tower_levels, amplification, allowable, forces, torsion_factor
@@ -311,7 +327,7 @@ def tower_checks(
             notes.append(
                 f"tower {region.name}: storey drift {100 * worst['ratio']:.2f} % in "
                 f"{worst['direction']} between {worst['bottom']:g} and {worst['top']:g} m "
-                f"exceeds the allowable {100 * allowable:.2f} % ({CLAUSES['drift']})"
+                f"exceeds the allowable {100 * allowable:.2f} % ({refs['drift']})"
             )
         worst = max(row["torsionalIrregularity"], key=lambda r: r["ratio"], default=None)
         if worst is not None and worst["irregular"]:
@@ -321,11 +337,11 @@ def tower_checks(
             notes.append(
                 f"tower {region.name}, {worst['direction']}: {kind}, storey drift at one end "
                 f"{worst['ratio']:.2f} × the average between {worst['bottom']:g} and "
-                f"{worst['top']:g} m ({CLAUSES['irregularity']})"
+                f"{worst['top']:g} m ({refs['irregularity']})"
             )
         rows.append(row)
-    notes.extend(_diaphragm_notes(project, towers, nodes))
-    return {"podium": towers.podium, "towers": rows, "notes": notes, "clauses": CLAUSES}
+    notes.extend(_diaphragm_notes(project, towers, nodes, refs))
+    return {"podium": towers.podium, "towers": rows, "notes": notes, "clauses": refs}
 
 
 def _extent(points: list[tuple[float, float]], axis: int) -> float:
@@ -334,7 +350,10 @@ def _extent(points: list[tuple[float, float]], axis: int) -> float:
 
 
 def _diaphragm_notes(
-    project: dict[str, Any], towers: Towers, nodes: dict[str, dict[str, set[int]]]
+    project: dict[str, Any],
+    towers: Towers,
+    nodes: dict[str, dict[str, set[int]]],
+    refs: dict[str, str],
 ) -> list[str]:
     """The podium top as the floor that joins the towers, and each tower's setback."""
     coords = {int(n["id"]): n["coords"] for n in project.get("nodes", [])}
@@ -353,15 +372,16 @@ def _diaphragm_notes(
             "is long or has large openings"
         )
     ]
-    for region in towers.regions:
+    ratio = setback_ratio()
+    for region in towers.regions if ratio is not None else ():
         points = [(float(coords[n][0]), float(coords[n][1])) for n in nodes[region.id]["above"]]
         for axis, name in ((0, "X"), (1, "Y")):
             tower, base = _extent(points, axis), _extent(podium, axis)
-            if tower > 0 and base > SETBACK_RATIO * tower:
+            if tower > 0 and base > ratio * tower:
                 out.append(
                     f"tower {region.name}: the podium is {base / tower:.2f} times as wide in {name} "
-                    f"({base:.1f} m against {tower:.1f} m), more than {SETBACK_RATIO:g}: a vertical "
-                    f"geometric irregularity (setback, {CLAUSES['setback']}); the response spectrum "
+                    f"({base:.1f} m against {tower:.1f} m), more than {ratio:g}: a vertical "
+                    f"geometric irregularity (setback, {refs['setback']}); the response spectrum "
                     "design takes it in, the equivalent static method alone would not"
                 )
     return out

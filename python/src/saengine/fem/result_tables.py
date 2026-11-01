@@ -547,14 +547,13 @@ _BUCKLING_NOTE = (
     "factor on its loads at which the frame buckles (below 1: unstable under them). Frames, "
     "trusses, pinned-end links, supports and diaphragms are in the buckling model; walls, slabs "
     "(other than through the rigid diaphragms) and solids are not, so a building held by walls "
-    "gets lower, conservative, factors. Second-order design still follows BNBC 2020 Part 6 Sec "
-    "6.3.10 and Chapter 10."
+    "gets lower, conservative, factors. Second-order design still follows the code pack's "
+    "slenderness and steel stability rules."
 )
 _EFFECTIVE_NOTE = (
     "K = (π / L) √(E I / Pcr) with Pcr = λ1 |P|, the member's largest compression P at the "
-    "first critical factor λ1, about the section's strong and weak axes (BNBC 2020 Part 6 Sec "
-    "10.5, KL/r; the frame-buckling K of AISC 360-05, which BNBC 2020 Part 6 Chapter 10 "
-    "adopts). Meaningful for the members that take part in mode 1; above 10 it is not shown. "
+    "first critical factor λ1, about the section's strong and weak axes (KL/r; the "
+    "frame-buckling K of AISC 360-05, which the default pack's steel chapter adopts). Meaningful for the members that take part in mode 1; above 10 it is not shown. "
     "The design checks keep their own effective lengths."
 )
 

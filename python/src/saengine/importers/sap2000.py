@@ -22,7 +22,7 @@ trailing ``_``). The reader uses:
 - ``COMBINATION DEFINITIONS`` (linear additive, combinations of combinations expanded);
 - ``FRAME RELEASE ASSIGNMENTS 1 - GENERAL`` (bending released at both ends: pinned; partial
   fixity reported), ``FRAME PROPERTY MODIFIERS`` and ``AREA STIFFNESS MODIFIERS`` with the
-  sections' own modifiers (BNBC's cracked factors -> SAEngine's cracked sections, as the ETABS
+  sections' own modifiers (the default pack's cracked factors -> SAEngine's cracked sections, as the ETABS
   reader), ``FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN`` (column bars) and
   ``MATERIAL PROPERTIES 03E - REBAR DATA``;
 - reported and not imported: end offsets and insertion points, joint springs and other

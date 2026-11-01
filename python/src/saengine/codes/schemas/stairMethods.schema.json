@@ -505,6 +505,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "builtIn": {
       "anyOf": [
         {
@@ -569,13 +576,6 @@
         }
       ],
       "default": null
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "title": "StairMethodsTable",

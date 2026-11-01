@@ -154,7 +154,7 @@ class BarGroup(_Model):
 
 class TransverseZone(_Model):
     """The end zones of a beam or column where the seismic detailing asks for closer hoops
-    (BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5)."""
+    (the default pack's Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5)."""
 
     spacing: Length = Field(description="Hoop or tie spacing within the zone (so) [mm].")
     length: float | None = Field(
@@ -169,7 +169,7 @@ class TransverseZone(_Model):
 
 
 class SpliceZone(_Model):
-    """Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8)."""
+    """Hoops or ties over the lap splices (the default pack's Part 6 Sec 8.3.4.2(b), Figure 6.8.8)."""
 
     spacing: Length = Field(description="Spacing over the lap splices [mm].")
 
@@ -205,7 +205,7 @@ def _role() -> SeismicRole:
     return Field(
         default="auto",
         title="Seismic role",
-        description="Part of the seismic force-resisting system (lateral) or not (gravity, BNBC "
+        description="Part of the seismic force-resisting system (lateral) or not (gravity, the default pack's "
         "Sec 8.3.12); auto: by the structural system.",
     )
 
@@ -214,7 +214,7 @@ def _omega() -> OmegaCombinations:
     return Field(
         default="auto",
         title="Ω0 combinations",
-        description="Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members "
+        description="Overstrength combinations (the default pack's Sec 2.5.5.6, 2.5.13.4): transfer members "
         "under discontinuous columns or walls, collectors; auto: transfer members are found.",
     )
 
@@ -246,7 +246,7 @@ class PlanarReinforcement(_Model):
 
 class PunchingReinforcement(_Model):
     """Shear reinforcement for punching around each column of a flat slab or footing: headed
-    shear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines
+    shear studs (the default pack's Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines
     parallel to the column faces (:mod:`saengine.design.punching`). Checked only where the
     concrete alone is not enough."""
 
@@ -278,7 +278,7 @@ class PunchingReinforcement(_Model):
 
 
 class DropPanel(_Model):
-    """A thickening of a flat slab under every column it sits on (BNBC 2020 Part 6 Sec 6.5;
+    """A thickening of a flat slab under every column it sits on (the default pack's Part 6 Sec 6.5;
     ACI 318-19 8.2.4): a rectangle centred on the column, in the column's axes."""
 
     depth: Length = Field(
@@ -294,7 +294,7 @@ class DropPanel(_Model):
 
 class ColumnCapital(_Model):
     """A flared column head under the slab (or under its drop panel) at every column the slab
-    sits on: square in plan, widening from the column to ``size`` over ``depth`` (BNBC 2020
+    sits on: square in plan, widening from the column to ``size`` over ``depth`` (the default pack (BNBC 2020)
     Part 6 Sec 6.5; ACI 318-11 13.1.2: only the part inside a 90° cone or pyramid from the
     column counts)."""
 
@@ -306,7 +306,7 @@ class ColumnCapital(_Model):
 
 class SlabRibs(_Model):
     """Ribs under the slab: a ribbed (one-way joist) slab, or a waffle slab with ribs both ways
-    (BNBC 2020 Part 6 joist construction; ACI 318-19 9.8.1). The slab's thickness is then the
+    (the default pack's Part 6 joist construction; ACI 318-19 9.8.1). The slab's thickness is then the
     topping over the ribs."""
 
     direction: Literal["x", "y", "both"] = Field(
@@ -328,7 +328,7 @@ class SlabRibs(_Model):
 
 
 class BoundaryHoops(_Model):
-    """Hoops and crossties of a wall's boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),
+    """Hoops and crossties of a wall's boundary element (the default pack's Part 6 Sec 8.3.6.6(d)(iii),
     8.3.5.4), or its end ties (8.3.6.6(e)(i))."""
 
     dia: Length = 10
@@ -348,7 +348,7 @@ class BoundaryHoops(_Model):
 
 
 class WallBoundary(_Model):
-    """Bars at each end of a wall: a boundary element of a special structural wall (BNBC 2020
+    """Bars at each end of a wall: a boundary element of a special structural wall (the default pack (BNBC 2020)
     Part 6 Sec 8.3.6.6), or end bars with ties; the same at both ends."""
 
     length: Length = Field(description="From the wall's end [mm].")
@@ -359,7 +359,7 @@ class WallBoundary(_Model):
 
 class CouplingDiagonal(_Model):
     """One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of
-    a special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7)."""
+    a special structural wall (the default pack's Part 6 Sec 8.3.6.7)."""
 
     count: int = Field(ge=4, description="Bars per group (at least four, 8.3.6.7(d)(ii)).")
     dia: Length
@@ -405,7 +405,7 @@ class StairReinforcement(_Model):
 
 
 # ───────────────────────────── simple steel connections ─────────────────────────────
-# Checked by saengine.design.steel_connections (BNBC 2020 Part 6 Sec 10.10); the models live
+# Checked by saengine.design.steel_connections (the default pack's Part 6 Sec 10.10); the models live
 # here so the beam and brace types can carry them.
 
 BoltDiameter = Literal[16, 20, 22, 24, 27, 30, 36]
@@ -1824,16 +1824,16 @@ class Wall(_ObjectBase):
     reinforcement: WallReinforcement | None = None
     braced: bool = Field(
         default=True,
-        description="Braced top and bottom against lateral translation (BNBC 6.6.5.2).",
+        description="Braced top and bottom against lateral translation (the default pack's 6.6.5.2).",
     )
     restrainedEnds: bool = Field(
         default=True,
         title="Restrained ends",
-        description="Restrained against rotation at one or both ends (BNBC 6.6.5.2).",
+        description="Restrained against rotation at one or both ends (the default pack's 6.6.5.2).",
     )
     basement: bool = Field(
         default=False,
-        description="Exterior basement or foundation wall (BNBC 6.6.3.4, 6.6.5.3).",
+        description="Exterior basement or foundation wall (the default pack's 6.6.3.4, 6.6.5.3).",
     )
     modifiers: ShellModifiers | None = Field(
         default=None,
@@ -1891,7 +1891,7 @@ class Staircase(_ObjectBase):
     )
     spanning: Literal["betweenBeams", "landingEdges", "withLandings", "landingsThreeSides"] = Field(
         default="betweenBeams",
-        description="How the flights span (BNBC 2020 Part 6 Sec 6.7.1.1 (a)-(d)).",
+        description="How the flights span (the default pack's Part 6 Sec 6.7.1.1 (a)-(d)).",
     )
     landingLength: float | None = Field(
         default=None,

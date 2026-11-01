@@ -13,7 +13,7 @@ Nothing is reinvented here:
   :func:`mesh_size`), cached per section and materials;
 - the ultimate strength of reinforced-concrete sections (uniaxial interaction diagrams, the
   biaxial P-Mx-My surface) comes from concreteproperties (MIT) with the stress block of
-  :mod:`saengine.design.rc` (ACI 318-19 / BNBC 2020 Part 6 Sec 6.2.2: 0.85 f'c over β1 c,
+  :mod:`saengine.design.rc` (ACI 318-19 / the default pack's Part 6 Sec 6.2.2: 0.85 f'c over β1 c,
   εcu = 0.003, elastic-perfectly plastic bars). The strength reduction factors φ are read from
   the active code pack's ``factors`` table (``phi.tension``, ``phi.compressionTied``,
   ``phi.compressionSpiral``), never hard-coded: φ goes from the compression-controlled value
@@ -474,7 +474,7 @@ class Phi:
         return self.compression + (self.tension - self.compression) * (eps_t - eps_ty) / EPS_CU
 
 
-#: Strain of the bars and plates' stress-strain profile end. ACI 318 / BNBC put no limit on the
+#: Strain of the bars and plates' stress-strain profile end. ACI 318 / the default pack (BNBC) put no limit on the
 #: steel strain (fy beyond εy); concreteproperties drops the stress past the profile's end, which
 #: at 0.05 (as design/rc.py) left the bars of very shallow neutral axes without force.
 _NO_RUPTURE = 1.0

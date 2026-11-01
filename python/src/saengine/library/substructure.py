@@ -455,7 +455,7 @@ class FactorOfSafety(_Model):
         le=10,
         title="Pile compression",
         description="Overall factor of safety on the ultimate compression capacity of a pile: "
-        "BNBC 2020 Table 6.3.10a gives 2.5 for permanent structures with normal control (2.0 "
+        "the default pack's Table 6.3.10a gives 2.5 for permanent structures with normal control (2.0 "
         "good, 2.8 poor, 3.0 very poor); Sec 3.10.1.18 asks at least 3.0 without a load test "
         "at the site (Sec 3.10.4.10: bored piles too), so the design raises a smaller value "
         "to 3.0 unless a load test is given.",
@@ -463,7 +463,7 @@ class FactorOfSafety(_Model):
     pileLoadTest: bool = Field(
         default=False,
         title="Pile load test at the site",
-        description="BNBC 2020 Sec 3.10.1.18: without a load test at the site the overall "
+        description="The default pack's Sec 3.10.1.18: without a load test at the site the overall "
         "factor of safety in compression is at least 3.0 (2.0 with one, with good quality "
         "control); Sec 3.10.4.10 for bored piles.",
     )
@@ -472,7 +472,7 @@ class FactorOfSafety(_Model):
         ge=1,
         le=10,
         title="Pile uplift",
-        description="Overall factor of safety on the ultimate uplift capacity (BNBC 2020 "
+        description="Overall factor of safety on the ultimate uplift capacity (the default pack's "
         "Table 6.3.10a: downward and upward load).",
     )
     pileSkin: float = Field(
@@ -481,14 +481,14 @@ class FactorOfSafety(_Model):
         le=10,
         title="Pile skin friction (partial)",
         description="Partial factor of safety on the skin friction; the allowable load is the "
-        "lesser of the overall and the partial ones (BNBC 2020 Sec 3.10.1.18: 1.5).",
+        "lesser of the overall and the partial ones (the default pack's Sec 3.10.1.18: 1.5).",
     )
     pileEndBearing: float = Field(
         default=3.0,
         ge=1,
         le=10,
         title="Pile end bearing (partial)",
-        description="Partial factor of safety on the end bearing (BNBC 2020 Sec 3.10.1.18: 3.0).",
+        description="Partial factor of safety on the end bearing (the default pack's Sec 3.10.1.18: 3.0).",
     )
     bearing: float | None = Field(
         default=None,
@@ -665,8 +665,8 @@ class RetainingWallBars(_Model):
     material: Id = Field(description="Reinforcement material id (03 Materials).")
     cover: Length = Field(
         default=50,
-        description="To the bars at the faces of the stem against earth or weather [mm] (BNBC "
-        "2020 Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and "
+        description="To the bars at the faces of the stem against earth or weather [mm] (the default pack's "
+        "Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and "
         "smaller); 75 mm cast against earth is used under the base.",
     )
     stemBack: BarMesh | None = Field(
@@ -684,7 +684,7 @@ class RetainingWallBars(_Model):
     horizontal: BarMesh | None = Field(
         default=None,
         title="Horizontal (each face)",
-        description="Horizontal distribution bars at each face (BNBC 2020 Part 6 Sec 6.6.3.3).",
+        description="Horizontal distribution bars at each face (the default pack's Part 6 Sec 6.6.3.3).",
     )
     heelTop: BarMesh | None = Field(
         default=None, title="Heel, top", description="Main bars at the top of the heel."
@@ -1472,7 +1472,7 @@ class Substructure(_Model):
         return {p: f.id for f in self.foundations for p in f.piles or []}
 
 
-#: BNBC 2020 Part 6 Sec 3.10.1.19 and 3.10.1.30: piles at least 2.5 diameters and 750 mm apart.
+#: the default pack's Part 6 Sec 3.10.1.19 and 3.10.1.30: piles at least 2.5 diameters and 750 mm apart.
 MIN_SPACING_DIAMETERS = 2.5
 MIN_SPACING = 750.0
 
@@ -1494,7 +1494,7 @@ def cap_outline(foundation: Foundation) -> list[list[float]]:
 def pile_layout_warnings(substructure: Substructure) -> list[str]:
     """What is wrong with the piles placed in plan, before any design: a pile under no cap (or
     inside a cap that does not list it), a cap's pile not wholly within it, and two piles
-    overlapping or closer than 2.5 diameters and 750 mm (BNBC 2020 Part 6 Secs 3.10.1.19,
+    overlapping or closer than 2.5 diameters and 750 mm (the default pack's Part 6 Secs 3.10.1.19,
     3.10.1.30; friction piles' 3 diameters are checked per cap by its design)."""
     warnings: list[str] = []
     capped = substructure.capped()
@@ -1532,7 +1532,7 @@ def pile_layout_warnings(substructure: Substructure) -> list[str]:
             elif distance < need - 0.5:
                 warnings.append(
                     f"{a.id} and {b.id} are {distance:.0f} mm apart, less than {need:.0f} mm "
-                    "(2.5 D and 750 mm, BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30)"
+                    "(2.5 D and 750 mm, the default pack's Part 6 Secs 3.10.1.19 and 3.10.1.30)"
                 )
     return warnings
 
