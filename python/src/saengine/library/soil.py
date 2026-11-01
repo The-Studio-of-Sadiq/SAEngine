@@ -1123,8 +1123,10 @@ PRACTICES = {
 #: The liquefaction triggering procedure (``Design.liquefactionMethod``).
 LIQUEFACTION_METHODS = {
     "idrissBoulanger2014": "Idriss & Boulanger 2014",
-    "bnbc2020": "BNBC 2020 Sec 3.9.5",
+    "codePack": "The code pack's procedure",
 }
+#: Former ids of ``Design.liquefactionMethod`` and the ids they are read as.
+FORMER_LIQUEFACTION_METHODS = {"bnbc2020": "codePack"}
 
 
 class Design(_Model):
@@ -1142,13 +1144,26 @@ class Design(_Model):
         "influence zone.",
         json_schema_extra=_labels(list(PRACTICES.values())),
     )
-    liquefactionMethod: Literal["idrissBoulanger2014", "bnbc2020"] = Field(
+    liquefactionMethod: Literal["idrissBoulanger2014", "codePack"] = Field(
         default="idrissBoulanger2014",
         title="Liquefaction method",
-        description="Idriss & Boulanger (2014), or the default pack's Part 6 Sec 3.9.5 (FL = CRR/CSR, "
-        "CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT).",
+        description="Idriss & Boulanger (2014), or the code pack's own procedure (the default "
+        "pack's Part 6 Sec 3.9.5: FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of "
+        "Youd et al. 2001 from the SPT). The former value 'bnbc2020' is read as 'codePack'.",
         json_schema_extra=_labels(list(LIQUEFACTION_METHODS.values())),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_liquefaction_method(cls, data: Any) -> Any:
+        """The method's former id named after the code, 'bnbc2020', is read as 'codePack'."""
+        if isinstance(data, dict) and data.get("liquefactionMethod") in FORMER_LIQUEFACTION_METHODS:
+            data = {
+                **data,
+                "liquefactionMethod": FORMER_LIQUEFACTION_METHODS[data["liquefactionMethod"]],
+            }
+        return data
+
     hammerEnergy: float = Field(
         default=60,
         gt=0,

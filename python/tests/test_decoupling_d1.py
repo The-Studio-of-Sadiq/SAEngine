@@ -212,3 +212,11 @@ def test_generated_typescript_keeps_the_former_export_name() -> None:
     assert "export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {" in text
     assert "export const BNBC: IDefaultCodeTables = DEFAULT_CODE_TABLES;" in text
     assert "export type IBnbcTables = IDefaultCodeTables;" in text
+
+
+def test_former_liquefaction_method_is_read_as_code_pack() -> None:
+    from saengine.library.soil import Design
+
+    method = Design.model_validate({"liquefactionMethod": "bnbc2020"}).liquefactionMethod
+    assert method == "codePack"
+    assert Design().liquefactionMethod == "idrissBoulanger2014"

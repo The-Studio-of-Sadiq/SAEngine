@@ -19833,9 +19833,9 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				liquefactionMethod: {
 					default: 'idrissBoulanger2014',
-					description: 'Idriss & Boulanger (2014), or the default pack\'s Part 6 Sec 3.9.5 (FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT).',
-					enum: ['idrissBoulanger2014', 'bnbc2020'],
-					enumDescriptions: ['Idriss & Boulanger 2014', 'BNBC 2020 Sec 3.9.5'],
+					description: 'Idriss & Boulanger (2014), or the code pack\'s own procedure (the default pack\'s Part 6 Sec 3.9.5: FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT). The former value \'bnbc2020\' is read as \'codePack\'.',
+					enum: ['idrissBoulanger2014', 'codePack'],
+					enumDescriptions: ['Idriss & Boulanger 2014', 'The code pack\'s procedure'],
 					title: 'Liquefaction method',
 					type: 'string',
 				},

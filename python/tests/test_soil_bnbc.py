@@ -40,7 +40,7 @@ def test_design_options_default_and_schema() -> None:
     assert r.design.liquefactionMethod == "idrissBoulanger2014"
     schema = json_schema(SoilReport, "SAEngine soil report")["$defs"]["Design"]["properties"]
     assert schema["practice"]["enum"] == ["textbook", "bdConsultant"]
-    assert schema["liquefactionMethod"]["enumDescriptions"][1] == "BNBC 2020 Sec 3.9.5"
+    assert schema["liquefactionMethod"]["enumDescriptions"][1] == "The code pack's procedure"  # D1: no code name
     with pytest.raises(ValueError):
         SoilReport.model_validate({"design": {"practice": "other"}})
 
@@ -331,7 +331,7 @@ def test_bnbc_screening_rules() -> None:
     assert silt["screened"] and "susceptible by Finn et al. 1994" in silt["flags"][0]
     assert deep["screened"]
     assert any("check for sensitive clay" in n for n in bnbc_result["notes"])
-    assert bnbc_result["method"] == "bnbc2020" and "FS < 1" in bnbc_result["note"]
+    assert bnbc_result["method"] == "codePack" and "FS < 1" in bnbc_result["note"]
     # Idriss & Boulanger: the N > 30 test is computed and flagged, not skipped.
     ib = liquefaction.screen(profile(hole), 0.3, "a")["points"][1]
     assert ib["screened"] and "rule of thumb" in ib["flags"][0]
