@@ -101,9 +101,11 @@ TABLE_HELP: dict[str, str] = {
     "timber": "Sawn timber (permissible stress design): stresses by strength group and "
     "location of use, the column formulas, the depth factor, load duration factors and "
     "deflection limits.",
-    "masonry": "Masonry walls (strength design): phi, Em and the ultimate strain by unit, the "
-    "stress block, axial strength and slenderness, the modulus of rupture, shear, the steel "
-    "limits and f'm from the unit strength and mortar type.",
+    "masonry": "Masonry walls: the design method by id (allowableStress), the mortar grades, "
+    "the allowable stresses and their reductions and increases, Em, the dimension rules "
+    "(effective height and length, slenderness, stiffening, basement, free-standing and "
+    "parapet walls), the reinforcement details, the strength design and earthquake values, an "
+    "optional f'm estimate from the unit strength and the clause of each check.",
     "steelSections": "The standard steel shapes: the nominal dimensions of each rolled family "
     "with the standard it comes from (its 'source'), the angles, the hollow section sizes and "
     "the walls rolled for them, the density. SAEngine computes the properties from them.",

@@ -64,7 +64,10 @@ that the command line works.
   The beta items have DX1 (punching with headed shear studs, `saengine.design.punching`), DX2
   (a P-M point of a flanged T wall, `saengine.design.wall_flanges`), DX3 (a lintel over a door,
   `saengine.design.lintels`) and DX4 (the building generator's base loads against the
-  building's gravity load, `saengine.library.generator`) in `cases/beta.py`.
+  building's gravity load, `saengine.library.generator`) in `cases/beta.py`. Masonry walls
+  by the code pack's allowable stress method (`saengine.design.masonry_asd`) have DY1 (a plain
+  brick wall at 50 % of the allowable stresses) and DY2 (a reinforced strip on the cracked
+  transformed section) in `cases/masonry.py`.
 
 Tolerances are set from the method. They are 1 % for closed-form linear frames, where the
 element formulation is exact, 0.5 % for design hand calculations (SAEngine rounds reported

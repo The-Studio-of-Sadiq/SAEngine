@@ -6,8 +6,9 @@ of :mod:`saengine.substructure.shallow`:
 1. Plan size: a square isolated footing B x B, B grown in steps of :data:`STEP` until the net
    service pressure is within qa. qa depends on B (and on the founding level and the position):
    it is taken from the soil report again for every trial size, as each footing's check does.
-2. Thickness h, in steps of :data:`STEP` from :data:`MIN_THICKNESS`, until punching and one-way
-   shear pass without shear reinforcement.
+2. Thickness h, in steps of :data:`STEP` from :func:`min_thickness` (the code pack's least
+   depth above the bottom bars), until punching and one-way shear pass without shear
+   reinforcement.
 3. Bottom bars: the lightest mesh of the code pack's foundation bars
    (``concrete.barDiameters["foundation"]``) at a spacing in steps of 25 mm that carries the
    flexure at the column faces and gives the minimum steel 0.0018 Ag (ACI 7.6.1.1) at a
@@ -55,7 +56,9 @@ from saengine.library.substructure import DEFAULT_FOUNDING_DEPTH, Foundation
 from saengine.substructure.context import Context, Skip, load_context
 from saengine.substructure.shallow import (
     LATERAL,
+    combination_loads,
     design_footing,
+    footing_combinations,
     footing_loads,
     min_steel_ratio,
     place_footing,
@@ -64,8 +67,11 @@ from saengine.substructure.shallow import (
 
 #: Plan sizes and thicknesses are multiples of this [mm].
 STEP = 50.0
-#: The thinnest footing proposed [mm] (ACI 318-19 13.3.1.2: d of the bottom bars >= 150 mm).
+#: The thinnest footing proposed [mm] when the code pack gives no least depth above the bottom
+#: bars (SAEngine practice; see :func:`min_thickness`).
 MIN_THICKNESS = 300.0
+#: The bottom mesh assumed for the least thickness: two layers of this diameter [mm].
+MIN_THICKNESS_BAR = 16.0
 MAX_THICKNESS = 2500.0
 #: A raft is proposed for at least this many columns spread over an area (not in one line).
 RAFT_MIN_COLUMNS = 4
@@ -83,7 +89,8 @@ OVERHANG = 300.0
 RAFT_RATIO = 0.5
 #: A proposed raft's edge beyond the outer column centre lines [mm].
 RAFT_OVERHANG = 1000.0
-#: The thinnest raft proposed [mm].
+#: The thinnest raft proposed [mm]: SAEngine practice, not a code value (the code pack's least
+#: depth of footings on soil applies to rafts too, and punching usually governs).
 RAFT_MIN_THICKNESS = 500.0
 
 SHEAR_CHECKS = ("Punching at", "One-way shear")
@@ -91,6 +98,7 @@ BEARING_CHECKS = (
     "Bearing (service)",
     "Resultant within the base (service)",
     "Base in contact (service, stability)",
+    "Overturning (service)",
     # Reported only in the design, but a proposed footing keeps its whole base in contact under
     # the gravity combinations (no tilting under the sustained load).
     "Full contact under gravity (service)",
@@ -99,6 +107,18 @@ BEARING_CHECKS = (
 
 def _round_up(value: float, step: float = STEP) -> float:
     return math.ceil(value / step - 1e-9) * step
+
+
+def min_thickness() -> float:
+    """The thinnest footing proposed [mm]: the code pack's least depth above the bottom bars of
+    a footing on soil, plus the cover and two layers of :data:`MIN_THICKNESS_BAR` bars, in steps
+    of :data:`STEP`; :data:`MIN_THICKNESS` when the pack gives none."""
+    from saengine.substructure.shallow_rules import rules
+
+    found = rules()
+    if found is None:
+        return MIN_THICKNESS
+    return _round_up(found.minThickness["soil"] + COVER + 2 * MIN_THICKNESS_BAR)
 
 
 @dataclass
@@ -210,6 +230,12 @@ class Sizer:
                     "Settings → Foundation"
                 )
             )
+        # The code pack's overturning combinations size the plan too (sliding is the
+        # building's, and a larger plan barely helps it).
+        combos = footing_combinations(self.loads) if service else None
+        stability = (
+            combination_loads(self.loads, placed, combos.stability) if combos is not None else None
+        )
         checks, _ = design_footing(
             spec,
             service_loads if service else {},
@@ -217,6 +243,7 @@ class Sizer:
             ctx.settings.foundation,
             self.loads.dead,
             bearing,
+            stability=stability,
         )
         return {c["name"]: c for c in checks}
 
@@ -296,7 +323,7 @@ class Sizer:
         reinforcement, then the lightest bars for that thickness (thicker again when those
         bars lower the shear strength too much or no mesh carries the flexure); the final
         checks."""
-        trial.thickness = max(trial.thickness, MIN_THICKNESS)
+        trial.thickness = max(trial.thickness, min_thickness())
         trial.bottom = trial.bottom or BarMesh(dia=16, spacing=150)
         while True:
             if trial.thickness > MAX_THICKNESS:
@@ -485,7 +512,7 @@ class Sizer:
             0.0,
             start,
             start,
-            MIN_THICKNESS,
+            min_thickness(),
             concrete,
             rebar,
             self.founding,
@@ -524,7 +551,7 @@ class Sizer:
             theta,
             _round_up(2 * half_l),
             _round_up(max(2 * half_w, 1000.0)),
-            MIN_THICKNESS,
+            min_thickness(),
             concrete,
             rebar,
             self.founding,
@@ -544,6 +571,9 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
     ready for ``substructure.json``."""
     sizer = Sizer(ctx)
     loads = sizer.loads
+    from saengine.substructure.loads import reduce_live_loads
+
+    reduce_live_loads(loads, ctx.building, ctx.settings)
     carried = {c for f in ctx.substructure.foundations for c in f.columns}
     # A column on a pile cap keeps it: its piles are laid out with the pile tools and checked
     # from the soil's pile capacity, not replaced by a footing.

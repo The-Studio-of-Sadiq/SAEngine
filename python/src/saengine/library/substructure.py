@@ -140,6 +140,13 @@ class Foundation(_Model):
         "soil report's at its position, founding level and size (and of the project's "
         "override).",
     )
+    slopeDistance: Length | None = Field(
+        default=None,
+        title="Distance to a slope face",
+        description="A footing on or near a slope: horizontal distance from its centre to the "
+        "sloping surface at its base level [mm], checked against the code pack's least "
+        "multiple of its width; empty: level ground.",
+    )
     material: Id | None = Field(default=None, description="Concrete material id (03 Materials).")
     reinforcement: PlanarReinforcement | None = None
     punchingReinforcement: PunchingReinforcement | None = Field(
@@ -383,7 +390,7 @@ class FactorOfSafety(_Model):
         le=10,
         title="Bearing",
         description="Factor of safety on the bearing capacity of footings and rafts; empty: the "
-        "soil report's.",
+        "soil report's. The code pack's range (2.0-3.0 in the default pack) is warned outside.",
     )
 
 
@@ -406,6 +413,45 @@ class Design(_Model):
         title="Subgrade springs",
         description="Modulus of subgrade reaction of rafts: from the soil report, or a value "
         "[kN/m³].",
+    )
+    structureType: str = Field(
+        default="rcc",
+        title="Type of structure (settlement limits)",
+        description="Row of the code pack's permissible settlements (total, differential, "
+        "angular distortion) the footings and rafts are checked against: steel, rcc, framed "
+        "(multistoried framed building with panel walls), loadBearingWalls (L/H below), silo, "
+        "waterTank.",
+        json_schema_extra={
+            "enum": ["steel", "rcc", "framed", "loadBearingWalls", "silo", "waterTank"],
+            "enumDescriptions": [
+                "Steel structure",
+                "RCC structure",
+                "Multistoried framed building with panel walls",
+                "Load bearing walls",
+                "Silo",
+                "Water tank",
+            ],
+        },
+    )
+    wallLengthHeight: float = Field(
+        default=2.0,
+        gt=0,
+        title="Load bearing walls L/H",
+        description="Length of the deflected part of the wall over its height, for the load "
+        "bearing wall rows (interpolated).",
+    )
+    temporary: bool = Field(
+        default=False,
+        title="Temporary structure",
+        description="The code pack's least depth of exterior footings of temporary structures "
+        "applies instead of that of permanent ones.",
+    )
+    presumptiveSoil: str | None = Field(
+        default=None,
+        title="Presumptive soil (no soil report)",
+        description="Without a soil report and without a qa override: the row of the code "
+        "pack's presumptive bearing values (lightly loaded structures and preliminary design), "
+        "e.g. sand, clay, softClay. Empty: none.",
     )
     raftSprings: Literal["noTension", "linear"] = Field(
         default="noTension",
@@ -636,9 +682,17 @@ class RetainingWall(_Model):
     passive: bool = Field(
         default=False,
         title="Passive resistance in front",
-        description="Count the passive pressure of the soil in front of the base against "
-        "sliding (divided by its factor of safety); off on the safe side, as the soil in "
-        "front may be dug away.",
+        description="The soil in front of the base cannot be removed inadvertently by "
+        "excavation: count its passive pressure against sliding (with the code pack's factor). "
+        "Off: not counted, as the code pack requires where the soil could be removed.",
+    )
+    frictionCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        le=1.5,
+        title="Verified base friction factor",
+        description="A base friction factor verified by analysis and test, instead of the code "
+        "pack's (0.5 in the default pack); empty: the pack's.",
     )
     seismic: bool = Field(
         default=True,

@@ -113,6 +113,8 @@ const F = {
 	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control") },
 	bearing: { key: 'bearing', label: localize('sub.f.fsBearing', "FS bearing"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsBearingTitle', "Factor of safety on the bearing capacity of footings and rafts; the soil report's when empty") },
 	raftMeshSize: { key: 'raftMeshSize', label: localize('sub.f.raftMesh', "Raft mesh size"), unit: MM, kind: 'number', min: 100, max: 5000 },
+	slopeDistance: { key: 'slopeDistance', label: localize('sub.f.slopeDistance', "Distance to a slope face"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.slopeDistanceTitle', "A footing on or near a slope: horizontal distance from its centre to the sloping surface at its base level, checked against the code pack's least multiple of its width. Empty: level ground.") },
+	wallLengthHeight: { key: 'wallLengthHeight', label: localize('sub.f.wallLengthHeight', "Load bearing walls L/H"), kind: 'number', min: 0.1, title: localize('sub.f.wallLengthHeightTitle', "Length of the deflected part of the wall over its height, for the settlement limits of load bearing walls (interpolated); 2 when empty") },
 	edgeThickness: { key: 'edgeThickness', label: localize('sub.f.edgeThickness', "Edge thickness"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.edgeThicknessTitle', "Sloped: the thickness at the edges; stepped: the lower step's thickness") },
 	topLength: { key: 'topLength', label: localize('sub.f.topLength', "Top length"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.topLengthTitle', "Along the local x: the flat top round the column (sloped) or the upper step (stepped)") },
 	topWidth: { key: 'topWidth', label: localize('sub.f.topWidth', "Top width"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.topWidthTitle', "Along the local y: the flat top or the upper step") },
@@ -3203,6 +3205,9 @@ export class SubstructureEditor extends EditorPane {
 			this.renderFootingSection(panel, foundation, path);
 		}
 		this.fieldRow(panel, F.foundingLevel, foundation.foundingLevel, value => this.setField(foundation, 'foundingLevel', value), path('foundingLevel'), formatNumber(defaultFoundingLevel(this.context) / 1000, 3));
+		if (foundation.type === 'isolated' || foundation.type === 'combined' || foundation.type === 'strip') {
+			this.fieldRow(panel, F.slopeDistance, foundation.slopeDistance, value => this.setField(foundation, 'slopeDistance', value), path('slopeDistance'), localize('sub.levelGround', "level ground"));
+		}
 		if (foundation.type === 'raft') {
 			this.renderRaftOutline(panel, foundation, path);
 		}
@@ -3563,6 +3568,7 @@ export class SubstructureEditor extends EditorPane {
 			}, `design.factorOfSafety.${field.key}`, field === F.bearing ? localize('sub.fromSoil', "soil report") : formatNumber(PILE_FACTOR_OF_SAFETY, 1));
 		}
 		if (!piled) {
+			this.shallowRulesRows(panel, design);
 			this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 			this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
 			this.raftSpringsRow(panel, design);
@@ -3594,10 +3600,63 @@ export class SubstructureEditor extends EditorPane {
 			usedNote.hidden = !used.raised;
 		};
 		refreshUsed();
+		this.shallowRulesRows(panel, design);
 		this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 		this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
 		this.raftSpringsRow(panel, design);
 		appendPropertyNote(panel, localize('sub.designNote', "Empty values use the defaults: pile factors of safety 2.5 (BNBC 2020 Part 6 Table 6.3.10a, permanent structure, normal control; in compression raised to 3.0 without a load test at the site), the soil report's bearing factor and subgrade modulus, a 500 mm raft mesh."));
+	}
+
+	/** The design choices of the code pack's rules of shallow foundations: the type of structure
+	 * (permissible settlements), temporary structures (least depth) and the presumptive soil
+	 * without a soil report. */
+	private shallowRulesRows(panel: HTMLElement, design: ISubstructureDesign): void {
+		const structureLabel = localize('sub.f.structureType', "Type of structure");
+		this.propertyRow(panel, structureLabel, this.selectInput([
+			{ value: 'rcc', label: localize('sub.structure.rcc', "RCC structure") },
+			{ value: 'framed', label: localize('sub.structure.framed', "Multistoried framed building with panel walls") },
+			{ value: 'steel', label: localize('sub.structure.steel', "Steel structure") },
+			{ value: 'loadBearingWalls', label: localize('sub.structure.walls', "Load bearing walls") },
+			{ value: 'silo', label: localize('sub.structure.silo', "Silo") },
+			{ value: 'waterTank', label: localize('sub.structure.tank', "Water tank") },
+		], design.structureType ?? 'rcc', value => {
+			if (value === 'rcc') {
+				delete design.structureType;
+			} else {
+				design.structureType = value;
+			}
+			this.changed(true);
+		}, 'design.structureType', structureLabel), undefined,
+			localize('sub.structureTypeTitle', "The row of the code pack's permissible total and differential settlement and angular distortion that the footings and rafts are checked against."));
+		if (design.structureType === 'loadBearingWalls') {
+			this.fieldRow(panel, F.wallLengthHeight, design.wallLengthHeight, value => this.setDesign('wallLengthHeight', value), 'design.wallLengthHeight', '2');
+		}
+		const temporaryLabel = localize('sub.f.temporary', "Temporary structure");
+		this.propertyRow(panel, temporaryLabel, this.selectInput([
+			{ value: 'no', label: localize('sub.temporary.no', "No") },
+			{ value: 'yes', label: localize('sub.temporary.yes', "Yes") },
+		], design.temporary === true ? 'yes' : 'no', value => {
+			if (value === 'yes') {
+				design.temporary = true;
+			} else {
+				delete design.temporary;
+			}
+			this.changed(false);
+		}, 'design.temporary', temporaryLabel), undefined,
+			localize('sub.temporaryTitle', "The code pack's least depth of exterior footings of temporary structures applies instead of that of permanent ones."));
+		const presumptiveLabel = localize('sub.f.presumptive', "Presumptive soil (no soil report)");
+		this.propertyRow(panel, presumptiveLabel, this.selectInput([
+			{ value: '', label: localize('sub.presumptive.none', "None") },
+			{ value: 'softRock', label: localize('sub.presumptive.softRock', "Soft rock or shale") },
+			{ value: 'gravel', label: localize('sub.presumptive.gravel', "Gravel, very dense") },
+			{ value: 'sand', label: localize('sub.presumptive.sand', "Sand (not fine), dry") },
+			{ value: 'fineSand', label: localize('sub.presumptive.fineSand', "Fine sand, loose and dry") },
+			{ value: 'silt', label: localize('sub.presumptive.silt', "Silt, clayey silt, clayey sand") },
+			{ value: 'clay', label: localize('sub.presumptive.clay', "Clay, sandy clay (strong thumb)") },
+			{ value: 'softClay', label: localize('sub.presumptive.softClay', "Soft clay (modest thumb)") },
+			{ value: 'verySoftClay', label: localize('sub.presumptive.verySoftClay', "Very soft clay") },
+		], design.presumptiveSoil ?? '', value => this.setDesign('presumptiveSoil', value || undefined), 'design.presumptiveSoil', presumptiveLabel), undefined,
+			localize('sub.presumptiveTitle', "Without a soil report and without a qa override: the code pack's presumptive allowable bearing value for lightly loaded structures and preliminary design, reduced where the design water table is near the base."));
 	}
 
 	private raftSpringsRow(panel: HTMLElement, design: ISubstructureDesign): void {

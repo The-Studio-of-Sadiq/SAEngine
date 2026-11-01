@@ -132,6 +132,14 @@ class Layer(_Model):
     )
     Cc: float | None = Field(default=None, ge=0, le=10, title="Compression index Cc")
     Cr: float | None = Field(default=None, ge=0, le=10, title="Recompression index Cr")
+    Calpha: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Secondary compression index Cα",
+        description="Change of void ratio per log cycle of time after the primary consolidation, "
+        "for the secondary consolidation settlement; empty: none computed.",
+    )
     e0: float | None = Field(default=None, gt=0, le=20, title="Initial void ratio e0")
     OCR: float | None = Field(
         default=None, ge=1, le=50, title="Overconsolidation ratio OCR", description="σ'p/σ'v0."
@@ -1079,6 +1087,22 @@ class Design(_Model):
         title="Creep time",
         description="Time for the creep factor C2 of the Schmertmann settlement [years]; "
         "0.1 leaves out creep.",
+    )
+    primaryYears: float = Field(
+        default=1.0,
+        gt=0,
+        le=100,
+        title="End of primary consolidation",
+        description="Time at which the primary consolidation ends, tp [years], for the "
+        "secondary consolidation settlement of layers with Cα.",
+    )
+    secondaryYears: float = Field(
+        default=50.0,
+        gt=0,
+        le=500,
+        title="Secondary consolidation time",
+        description="Time the secondary consolidation is computed to, t [years] (the design "
+        "life): Cα / (1 + e0) H log10(t / tp).",
     )
     tableWidths: list[Annotated[float, Field(gt=0)]] = Field(
         default_factory=lambda: [1000, 1500, 2000, 3000, 4000],

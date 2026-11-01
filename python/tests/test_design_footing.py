@@ -751,3 +751,14 @@ def test_soil_note_names_the_practice_of_the_soil_report() -> None:
     consultant = SoilBearing(json.dumps(text), Foundation()).notes()
     assert "Bangladesh consultant practice" not in textbook[0]
     assert "Bangladesh consultant practice" in consultant[0]
+
+
+@pytest.fixture(autouse=True)
+def _general_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests pin the engine's general footing design (the allowable-stress service
+    combinations, no code pack rules for shallow foundations); the default pack's rules
+    (combinations, lateral increase, stability, depths, settlements) are pinned in
+    test_substructure_shallow_rules.py."""
+    from saengine.substructure import shallow_rules
+
+    monkeypatch.setattr(shallow_rules, "rules", lambda: None)

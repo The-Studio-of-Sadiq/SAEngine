@@ -33,22 +33,15 @@ depth where the 2:1 stress increase drops to 10 % of σ'v0 (the usual limit of t
 zone), or to the bottom of the log, whichever is less; the result says when the log ends
 first. Rock does not settle.
 
-The computed settlement is shown next to the permissible total settlement of BNBC 2020 Part 6
-Table 6.3.8 (adapted there from the National Building Code of India 2005), for information:
-the allowable bearing pressure keeps its own criterion, ``design.allowableSettlement``. The
-table's rows used are "RCC structures" and "Multistoried building, (a) RCC or steel framed
-building with panel walls"; its columns isolated foundations / raft and "sand and hard clay" /
-"plastic clay":
+- Cohesive layers with a secondary compression index Cα, by secondary consolidation (the usual
+  form, e.g. Mesri 1973): ``s = Cα / (1 + e0) H log10(t / tp)`` over the stressed thickness H,
+  tp the end of the primary consolidation and t the time of the design (``design.primaryYears``
+  and ``design.secondaryYears``), added to the total.
 
-==========================  =================  ==============  ================  =============
-Maximum settlement [mm]     Isolated, sand     Isolated,       Raft, sand and    Raft, plastic
-                            and hard clay      plastic clay    hard clay         clay
-==========================  =================  ==============  ================  =============
-RCC structures              50                 75              75                100
-Multistoried, RCC framed    60                 75              75                125
-==========================  =================  ==============  ================  =============
-
-The table's note says its values "may be taken only as a guide". Plastic clay is taken to be a
+The computed settlement is shown next to the permissible total settlement of the code pack in
+force (``foundations.shallow.settlementLimits``, its rows "rcc" and "framed": the default
+pack's Table 6.3.8, a guide), for information: the allowable bearing pressure keeps its own
+criterion, ``design.allowableSettlement``. Plastic clay is taken to be a
 cohesive layer (clay, plastic silt, organic soil) within the stressed zone whose undrained
 strength is below 200 kPa or unknown (the hard clay of Terzaghi & Peck's consistency scale is
 above 200 kPa); otherwise the column is "sand and hard clay".
@@ -67,22 +60,46 @@ SLICE = 0.05  # m, Schmertmann integration
 CONSOLIDATION_SLICE = 0.25  # m
 NU_UNDRAINED = 0.5
 
-#: BNBC 2020 Table 6.3.8, maximum settlement [mm]: (foundation, soil) -> (RCC structures,
-#: multistoried RCC or steel framed building with panel walls).
-PERMISSIBLE: dict[tuple[str, str], tuple[float, float]] = {
-    ("isolated", "sand"): (50.0, 60.0),
-    ("isolated", "plasticClay"): (75.0, 75.0),
-    ("raft", "sand"): (75.0, 75.0),
-    ("raft", "plasticClay"): (100.0, 125.0),
-}
 SOIL_COLUMNS = {"sand": "sand and hard clay", "plasticClay": "plastic clay"}
 #: Undrained strength above which a clay counts as hard [kPa].
 HARD_CLAY_CU = 200.0
+#: The rows of the code pack's permissible settlements shown with a computed settlement: the
+#: structure and the multistoried framed building.
+SHOWN_ROWS = ("rcc", "framed")
 
 
-def permissible(foundation: str, soil: str) -> dict[str, Any]:
-    """BNBC 2020 Table 6.3.8's maximum settlement for a foundation type and a soil column."""
-    rcc, framed = PERMISSIBLE[(foundation, soil)]
+def _limits() -> tuple[Any, str] | None:
+    """The code pack's permissible settlement rows (``foundations.shallow.settlementLimits``)
+    by id, and their clause; None when the pack has none."""
+    from saengine.codes import context as code_context
+
+    try:
+        table = code_context.table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table gives no limits
+        return None
+    shallow = getattr(table, "shallow", None)
+    if shallow is None:
+        return None
+    rows = {r.id: r for r in shallow.settlementLimits}
+    return rows, table.sources.get("shallow.settlementLimits", "")
+
+
+def permissible(foundation: str, soil: str) -> dict[str, Any] | None:
+    """The code pack's maximum settlement for a foundation type ("isolated" or "raft") and a
+    soil column, for RCC structures (``value``) and for a multistoried framed building with
+    panel walls (``framedBuilding``); None when the pack gives none."""
+    found = _limits()
+    if found is None:
+        return None
+    rows, clause = found
+    values = []
+    for row_id in SHOWN_ROWS:
+        row = rows.get(row_id)
+        limit = getattr(row, foundation).get(soil) if row is not None else None
+        values.append(None if limit is None else limit.total)
+    if values[0] is None:
+        return None
+    rcc, framed = values[0], values[1] if values[1] is not None else values[0]
     kind = "isolated foundation" if foundation == "isolated" else "raft foundation"
     return {
         "value": rcc,
@@ -90,22 +107,28 @@ def permissible(foundation: str, soil: str) -> dict[str, Any]:
         "foundation": foundation,
         "soil": soil,
         "source": (
-            f"BNBC 2020 Table 6.3.8, {kind} on {SOIL_COLUMNS[soil]}: {rcc:g} mm for RCC "
-            f"structures ({framed:g} mm for a multistoried RCC framed building with panel "
-            "walls); a guide, for information"
+            f"{clause}, {kind} on {SOIL_COLUMNS[soil]}: {rcc:g} mm for RCC structures "
+            f"({framed:g} mm for a multistoried RCC framed building with panel walls); a guide, "
+            "for information"
         ),
     }
 
 
 def permissible_text(foundation: str) -> str:
-    """Both soil columns of Table 6.3.8 for a foundation type, in one line."""
-    sand, clay = PERMISSIBLE[(foundation, "sand")], PERMISSIBLE[(foundation, "plasticClay")]
+    """Both soil columns of the pack's permissible settlement for a foundation type, in one
+    line (empty when the pack gives none)."""
+    sand, clay = permissible(foundation, "sand"), permissible(foundation, "plasticClay")
+    if sand is None or clay is None:
+        return "no permissible settlement in the code pack"
+    found = _limits()
+    clause = found[1] if found is not None else ""
     kind = "isolated foundations" if foundation == "isolated" else "rafts"
     return (
-        f"BNBC 2020 Table 6.3.8 permits {sand[0]:g} mm on sand and hard clay and {clay[0]:g} mm "
-        f"on plastic clay for {kind} of RCC structures ({sand[1]:g} / {clay[1]:g} mm for a "
-        "multistoried framed building with panel walls), shown next to the computed settlement "
-        "for information"
+        f"the code pack permits {sand['value']:g} mm on sand and hard clay and "
+        f"{clay['value']:g} mm on plastic clay for {kind} of RCC structures "
+        f"({sand['framedBuilding']:g} / {clay['framedBuilding']:g} mm for a multistoried framed "
+        f"building with panel walls), shown next to the computed settlement for information "
+        f"({clause})"
     )
 
 
@@ -194,7 +217,7 @@ def settlement(
     foundation: str = "isolated",
 ) -> dict[str, Any]:
     """Settlement [mm] of a footing B × L [m] at Df [m] under a net pressure q [kPa], with
-    BNBC Table 6.3.8's permissible value for the ``foundation`` ("isolated" or "raft")."""
+    the code pack's permissible value for the ``foundation`` ("isolated" or "raft")."""
     b, l_ = min(b, l_), max(b, l_)
     years = profile.design.creepYears if years is None else years
     notes: list[str] = []
@@ -203,6 +226,7 @@ def settlement(
         return {
             "immediate": 0.0,
             "consolidation": 0.0,
+            "secondary": 0.0,
             "total": 0.0,
             "layers": [],
             "notes": [],
@@ -245,6 +269,9 @@ def settlement(
 
     # Cohesive layers: elastic (Steinbrenner) and consolidation.
     consolidation = 0.0
+    secondary = 0.0
+    years_primary = getattr(profile.design, "primaryYears", 1.0)
+    years_secondary = getattr(profile.design, "secondaryYears", 0.0)
     half = b / 2
     m = l_ / b
     for layer in profile.layers:
@@ -265,6 +292,19 @@ def settlement(
             row["method"].append("elastic, Steinbrenner")
         else:
             notes.append(f"layer {layer.index + 1}: no undrained modulus, no immediate settlement")
+        if layer.calpha and layer.e0 is not None and years_secondary > years_primary:
+            # Secondary compression of the stressed clay (Sec 3.9.4.5 asks for it; the usual
+            # Cα form, e.g. Mesri 1973): Cα / (1 + e0) H log10(t / tp).
+            ds = (
+                layer.calpha
+                / (1 + layer.e0)
+                * (bottom - top)
+                * math.log10(years_secondary / years_primary)
+                * 1e3
+            )
+            secondary += ds
+            row["secondary"] = row.get("secondary", 0.0) + ds
+            row["method"].append(f"secondary, Cα log(t/tp), t = {years_secondary:g} years")
         if layer.cc is None or layer.e0 is None:
             notes.append(
                 f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 (or LL and moisture), "
@@ -292,7 +332,9 @@ def settlement(
     for row in layers:
         row["immediate"] = round(row["immediate"], 2)
         row["consolidation"] = round(row["consolidation"], 2)
-        row["total"] = round(row["immediate"] + row["consolidation"], 2)
+        if "secondary" in row:
+            row["secondary"] = round(row["secondary"], 2)
+        row["total"] = round(row["immediate"] + row["consolidation"] + row.get("secondary", 0), 2)
         row["method"] = ", ".join(row["method"])
     return {
         "B": round(b * 1e3),
@@ -301,7 +343,8 @@ def settlement(
         "q": round(q, 1),
         "immediate": immediate,
         "consolidation": consolidation,
-        "total": immediate + consolidation,
+        "secondary": secondary,
+        "total": immediate + consolidation + secondary,
         "C1": c1,
         "C2": c2,
         "Izp": diagram["izp"],
@@ -315,7 +358,7 @@ def settlement(
 
 def rounded(result: dict[str, Any]) -> dict[str, Any]:
     out = dict(result)
-    for key in ("immediate", "consolidation", "total"):
+    for key in ("immediate", "consolidation", "secondary", "total"):
         out[key] = round(out[key], 1)
     for key in ("C1", "C2", "Izp"):
         if key in out:
