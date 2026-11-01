@@ -1,0 +1,55 @@
+{
+  "$schema": "../../../schemas/designLimits.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.4.1.2 (sqrt f'c in shear), Sec 10.2.3.12 (ERW wall thickness); Part 3 Sec 1.14.5 (p. 69) and Part 4 Sec 3.10, Tables 4.3.5-4.3.6 (pp. 309-313): stairs"
+  ],
+  "source": "BNBC 2020: code values of the member design that were module constants of saengine.design (unchanged): the cap of sqrt f'c in shear and torsion, the ERW design wall thickness factor, the stair geometry rules.",
+  "shearRootFcMax": 8.3,
+  "erwWallFactor": 0.93,
+  "stairs": {
+    "twoRiserTread": [610.0, 648.0],
+    "riserTread": [
+      [127, 406],
+      [133, 394],
+      [140, 375],
+      [146, 356],
+      [152, 343],
+      [159, 330],
+      [165, 311],
+      [171, 324],
+      [178, 279],
+      [184, 267],
+      [190, 254],
+      [197, 241],
+      [203, 229],
+      [210, 216],
+      [216, 210],
+      [222, 206],
+      [229, 203]
+    ],
+    "riserTreadSkip": [[171, 324]],
+    "flightRiseMax": 3660.0,
+    "flightRiseMaxAssembly": 2440.0,
+    "headroom": 2150.0,
+    "headroomReduced": 2030.0,
+    "riserVariation": 5.0,
+    "straightLandingCap": 1200.0,
+    "widthResidential": 1120.0,
+    "widthEducational": 1120.0,
+    "widthEducationalLarge": 2235.0,
+    "educationalOccupants": 130,
+    "widthHealthcare": 2235.0,
+    "widthHealthcareStaff": 1120.0
+  },
+  "sources": {
+    "shearRootFcMax": "BNBC 2020 Part 6 Sec 6.4.1.2: sqrt f'c in shear and torsion at most 8.3 MPa",
+    "erwWallFactor": "BNBC 2020 Part 6 Sec 10.2.3.12: design wall thickness 0.93 t of ERW hollow sections",
+    "stairs.twoRiserTread": "BNBC 2020 Part 3 Sec 1.14.5.2 (p. 69)",
+    "stairs.riserTread": "BNBC 2020 Part 4 Table 4.3.5 (p. 310); the 171/324 row is printed out of sequence and left out of the interpolation (riserTreadSkip)",
+    "stairs.flightRiseMax": "BNBC 2020 Part 3 Sec 1.14.5.3 (p. 69)",
+    "stairs.headroom": "BNBC 2020 Part 3 Sec 1.14.5.4 (p. 69)",
+    "stairs.riserVariation": "BNBC 2020 Part 4 Sec 3.10.6 (p. 313)",
+    "stairs.straightLandingCap": "BNBC 2020 Part 4 Sec 3.10.2 (p. 309)",
+    "stairs.widths": "BNBC 2020 Part 4 Table 4.3.6 (p. 311)"
+  }
+}

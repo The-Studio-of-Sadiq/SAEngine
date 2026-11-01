@@ -31,11 +31,21 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from saengine.design.clauses import clause, limits
 from saengine.library import objects as o
 from saengine.library import steel_sections as tables
 
-#: Design wall thickness of ERW hollow sections, BNBC 2020 Part 6 Sec 10.2.3.12 (p 3824).
-ERW_FACTOR = 0.93
+
+def _erw_factor() -> float:
+    """Design wall thickness of ERW hollow sections over the nominal, the pack's
+    ``designLimits.erwWallFactor`` (the default pack: 0.93, Sec 10.2.3.12)."""
+    return float(limits().erwWallFactor)
+
+
+def __getattr__(name: str) -> float:
+    if name == "ERW_FACTOR":
+        return _erw_factor()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @dataclass(frozen=True)
@@ -325,7 +335,7 @@ def shape_properties(profile: o.Profile, erw: bool = True) -> ShapeProperties:
     thickness 0.93 t, Sec 10.2.3.12), else SAW (nominal t). Solid rectangles and circles are
     rectangular bars and rounds (B31). Raises ``ValueError`` for profiles that are not steel
     shapes (a designed section)."""
-    factor = ERW_FACTOR if erw else 1.0
+    factor = _erw_factor() if erw else 1.0
     match profile:
         case o.IShapeProfile():
             return i_shape(
@@ -372,7 +382,7 @@ def _with_note(shape: ShapeProperties, factor: float, nominal: float) -> ShapePr
     if factor == 1.0:
         return shape
     note = (
-        f"design wall thickness t = 0.93 × {nominal:g} = {nominal * factor:.2f} mm (ERW HSS, "
-        "BNBC 2020 Part 6 Sec 10.2.3.12)"
+        f"design wall thickness t = {factor:g} × {nominal:g} = {nominal * factor:.2f} mm (ERW HSS, "
+        f"{clause('steelMembers', 'erw')})"
     )
     return ShapeProperties(**{**shape.__dict__, "notes": (*shape.notes, note)})

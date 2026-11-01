@@ -151,6 +151,35 @@
       "sumPc": "6.3.10.7.4",
       "deltaS": "6.3.10.7.3",
       "momentRatio": "6.3.10.2.1"
+    },
+    "stairs": {
+      "liveTable": "Table 6.2.3",
+      "twoRiserTread": "Part 3 Sec 1.14.5.2, p. 69",
+      "spans": "Part 6 Sec 6.7.1.1",
+      "shear": "Sec 6.4.2.1.1, p. 922"
+    },
+    "steelMembers": {
+      "code": "Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)",
+      "tensionYield": "Part 6 Sec 10.4.2(a), Eq 6.10.11",
+      "tensionRupture": "Part 6 Sec 10.4.2(b), Eqs 6.10.12-13, Table 6.10.2",
+      "compressionFlexural": "Part 6 Sec 10.5.3, Eqs 6.10.16-19",
+      "compressionAngle": "Part 6 Sec 10.5.5(a), Eqs 6.10.31-32",
+      "compressionTorsional": "Part 6 Sec 10.5.4, Eqs 6.10.20-30",
+      "compressionTorsionalBuckling": "Part 6 Sec 10.5.4, Eqs 6.10.20-22",
+      "compressionSlender": "Part 6 Sec 10.5.7, Eqs 6.10.36-54",
+      "shearRound": "Part 6 Sec 10.7.6, Eqs 6.10.145-146",
+      "shearWebYield": "Part 6 Sec 10.7.2.1(a), Eqs 6.10.136-137",
+      "shearWeb": "Part 6 Sec 10.7.2.1(b), Eqs 6.10.136, 6.10.138-140",
+      "shearSingly": "Part 6 Sec 10.7.4, Eq 6.10.136",
+      "shearHss": "Part 6 Sec 10.7.5, Eqs 6.10.136, 6.10.138-140",
+      "shearMinor": "Part 6 Sec 10.7.7, Eq 6.10.136",
+      "tensionSlenderness": "Part 6 Sec 10.4.1",
+      "compressionSlenderness": "Part 6 Sec 10.5.2",
+      "firstOrderUnitK": "Part 6 Sec 10.3.2.2.2(a), Eq 6.10.9",
+      "interaction": "Part 6 Sec 10.8.1",
+      "erw": "Part 6 Sec 10.2.3.12",
+      "classes": "Part 6 Table 6.10.1",
+      "part": "Part 6"
     }
   }
 }

@@ -18,6 +18,7 @@ from collections.abc import Iterator, Mapping
 from typing import Any
 
 from saengine.codes import context as code_context
+from saengine.design.rc import DesignError
 
 #: The pack table of the clause references.
 TABLE = "designClauses"
@@ -32,6 +33,29 @@ def _table() -> Any:
 
         return builtin_table(TABLE, code_context.DEFAULT_PACK)
     return None
+
+
+class NotCovered(DesignError):
+    """The code pack in force has no table for a check (it does not cover the feature)."""
+
+
+def pack_table(name: str) -> Any:
+    """Table ``name`` of the pack in force; the built-in default pack's for a working copy of it
+    written before the table moved into the pack. :class:`NotCovered` when another pack has no
+    such table: the check is not covered by that pack (never another code's values)."""
+    pack = code_context.current()
+    if pack.has(name):
+        return pack.table(name)
+    if pack.id == code_context.DEFAULT_PACK or pack.replaces_builtin:
+        from saengine.codes.tables import builtin_table
+
+        return builtin_table(name, code_context.DEFAULT_PACK)
+    raise NotCovered(f"not covered by the code pack {code_name()} (it has no '{name}' table)")
+
+
+def limits() -> Any:
+    """The pack's ``designLimits`` table (see :func:`pack_table`)."""
+    return pack_table("designLimits")
 
 
 def code_name() -> str:

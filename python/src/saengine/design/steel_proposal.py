@@ -28,6 +28,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from saengine.design.clauses import clause
 from saengine.library import steel_sections as tbl
 from saengine.library.steel_sections import SteelSection
 
@@ -484,7 +485,7 @@ def propose_type(
     if skipped_slender:  # the family runs light to heavy: all of them lighter than the pick
         notes.append(
             f"{len(skipped_slender)} lighter {fam} section(s) with slender plates in compression "
-            f"passed over (BNBC 2020 Part 6 Table 6.10.1), e.g. {skipped_slender[0]}"
+            f"passed over ({clause('steelMembers', 'classes')}), e.g. {skipped_slender[0]}"
         )
     # the candidate is already in the profile's orientation (on its side if the type's is)
     entry["proposed"] = _label(pick.section, pick.section.profile())

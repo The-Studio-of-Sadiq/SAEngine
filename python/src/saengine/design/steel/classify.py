@@ -21,7 +21,6 @@ from saengine.design.steel.properties import ShapeProperties
 COMPACT = "compact"
 NONCOMPACT = "noncompact"
 SLENDER = "slender"
-TABLE = "BNBC 2020 Part 6 Table 6.10.1"
 
 
 @dataclass(frozen=True)

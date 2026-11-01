@@ -26,24 +26,29 @@ from saengine.design.steel.lengths import member_lengths
 KINDS = {"beam": "beam", "column": "column", "brace": "brace"}
 
 #: The method lines of the design report when steel members were designed.
-METHOD = [
-    *steel_members.METHOD,
-    (
-        "Steel connections (when the object type sets one): fin plate, shear end plate or brace "
-        "gusset checked for the member's end shears or axial forces, Part 6 Sec 10.10 of the code pack "
-        "(bolts, bearing, block shear, welds, the Whitmore section); listed as 'Connection: ...' "
-        "checks of the member. The analysis pins these member ends (no end moment); an end "
-        "kept rigid (at a support or a free end) is flagged as 'end moment at a simple "
-        "connection'. Flange-plate moment connections (beam ends kept rigid; with the column "
-        "flange, web and panel zone checks of Sec 10.10.10), cover-plate splices (Sec "
-        "10.10.6), column base plates on concrete (bearing Sec 10.10.8, anchor rod steel) and "
-        "welded HSS truss joints (Sec 10.11.2) are checked the same way when the type sets "
-        "them; also slip-critical bolts, end plates under axial tension (prying), the column "
-        "stiffeners and doublers (Sec 10.10.10.8-9), plates and cap plates on HSS (Sec 10.11.1), "
-        "overlapped K joints and HSS moment connections (Sec 10.11.3)."
-    ),
-    *composite_design.METHOD,  # B32: composite beams and columns
-]
+
+
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        *steel_members.METHOD,
+        (
+            "Steel connections (when the object type sets one): fin plate, shear end plate or brace "
+            "gusset checked for the member's end shears or axial forces, Part 6 Sec 10.10 of the code pack "
+            "(bolts, bearing, block shear, welds, the Whitmore section); listed as 'Connection: ...' "
+            "checks of the member. The analysis pins these member ends (no end moment); an end "
+            "kept rigid (at a support or a free end) is flagged as 'end moment at a simple "
+            "connection'. Flange-plate moment connections (beam ends kept rigid; with the column "
+            "flange, web and panel zone checks of Sec 10.10.10), cover-plate splices (Sec "
+            "10.10.6), column base plates on concrete (bearing Sec 10.10.8, anchor rod steel) and "
+            "welded HSS truss joints (Sec 10.11.2) are checked the same way when the type sets "
+            "them; also slip-critical bolts, end plates under axial tension (prying), the column "
+            "stiffeners and doublers (Sec 10.10.10.8-9), plates and cap plates on HSS (Sec 10.11.1), "
+            "overlapped K joints and HSS moment connections (Sec 10.11.3)."
+        ),
+        *composite_design.METHOD,  # B32: composite beams and columns
+    ]
 
 
 def is_steel(material: Any) -> bool:
@@ -471,3 +476,10 @@ __all__ = [
     "is_steel",
     "proposal_entries",
 ]
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
