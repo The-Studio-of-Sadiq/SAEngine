@@ -3,7 +3,9 @@ acceptance, with the values of the bnbc2020 pack (BNBC 2020 Part 6 Sec 2.5.12)."
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -376,3 +378,53 @@ def test_fibre_strain_acceptance() -> None:
     fibres[1, 0, 4] = -0.007
     (row,) = acc.fibre_strain(project, results, 1, PACK.acceptance)
     assert row["fibre"] == "concrete" and not row["ok"]
+
+
+def test_derived_pushover_model_of_a_wall_building(tmp_path: Path) -> None:
+    """The two-storey bay of test_fem_shells with a reinforced wall (no door): the wall becomes
+    fibre wall elements and the gravity load of the pushover model keeps its total."""
+    import test_fem_shells as shells
+    from test_fem_pushover import reinforced
+
+    from saengine.fem.derive import derive_fem
+    from saengine.library.bim import generate
+
+    objects = ObjectLibrary.model_validate(
+        {
+            "objects": [
+                {"id": "COL", "name": "Column", **reinforced("column", 0, 0, 8)}
+                | {"profile": {"shape": "rectangle", "xDim": 400, "yDim": 400}},
+                {"id": "BM", "name": "Beam", **reinforced("beam", 3, 3)},
+                {"id": "SL", "name": "Slab", "kind": "slab", "material": CONCRETE.id,
+                 "thickness": 150},
+                WALL_TYPE.model_dump(mode="json"),
+                {"id": "PW", "name": "Partition", "kind": "wall", "material": CONCRETE.id,
+                 "thickness": 125, "structural": False},
+            ]
+        }
+    )  # fmt: skip
+    settings = shells.settings(pushover=Pushover(directions=["X"], pattern="seismic"))
+    d = derive_fem(generate(shells.PLAN, "s"), objects, MATERIALS, settings, None, tmp_path)
+    model = d.pushover
+    assert model is not None
+    walls = [e for e in model["elements"] if e["name"].split("#")[0] == "W1"]
+    assert walls and {e["type"] for e in walls} == {"ForceBeamColumn"}
+    assert any("fibre wall" in n for n in d.notes)
+
+    def vertical(project: dict, factors: dict[str, float]) -> float:
+        total = 0.0
+        for pattern in project["load_patterns"]:
+            factor = factors.get(pattern["name"])
+            if factor:
+                total += factor * sum(load["forces"][2] for load in pattern["nodal_loads"])
+        return total
+
+    # The nodal loads of the wall's dropped nodes moved to its centre nodes, none lost.
+    linear = vertical(d.project, {"D": 1.0, "SD": 1.0, "L": 0.25})
+    assert vertical(model, {"G": 1.0}) == pytest.approx(linear, rel=1e-6)
+
+    from opensees_studio.services.persistence import load_project
+
+    path = tmp_path / "pushover.osmodel"
+    path.write_text(json.dumps(model), encoding="utf-8")
+    load_project(str(path)).validate_references()
