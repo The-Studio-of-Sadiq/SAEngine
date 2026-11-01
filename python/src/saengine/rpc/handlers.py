@@ -858,6 +858,20 @@ def workbook_import(
         return {"ok": False, "problems": [str(exc)], "diff": {}, "texts": {}, "changed": []}
 
 
+def ai_search_code(
+    query: str, project_root: str | None = None, limit: int = 8, docs: bool = True
+) -> dict[str, Any]:
+    """The passages of the code pack in force (and the manual) that best match ``query``, each
+    with its clauses (``saengine.ai.knowledge.search_code``): ``{pack, query, found, passages,
+    note}``. The AI assistant answers code questions only from these; ``found`` False means the
+    pack does not cover the question."""
+    from saengine.ai.knowledge import search_code
+
+    if not isinstance(query, str) or not query.strip():
+        return {"ok": False, "message": "query is empty", "problems": ["query is empty"]}
+    return search_code(query, project_root, limit, include_docs=docs)
+
+
 def installer_components() -> dict[str, Any]:
     """The setup's optional components the backend runs, found as the backend finds them for
     use (``find_energyplus``, ``find_converter``): ``{"energyplus", "libredwg"}``, each

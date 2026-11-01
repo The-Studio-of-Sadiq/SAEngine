@@ -38,6 +38,9 @@ Methods:
 - ``components/list`` ``{}`` -> the setup's optional components the backend runs (EnergyPlus,
   LibreDWG): ``{energyplus, libredwg}``, each ``{state, path?}`` (``installed``, ``elsewhere``,
   ``missing``; ``handlers.installer_components``)
+- ``ai/searchCode`` ``{query, projectRoot?, limit?, docs?}`` -> ``{pack, query, found, passages,
+  note}``: the code pack's passages (and the manual's) that best match a question, each with
+  its clauses, for the AI assistant's code Q&A (``saengine.ai.knowledge``; in a worker thread)
 - ``structure/insert`` ``{structureText, geometry}`` -> the structural model with them added
 - ``structure/runScript`` ``{structureText, scriptPath}`` -> the model a script built
 - ``design/report`` ``{outDir, projectPath}`` -> the RC member design checks of a run
@@ -527,6 +530,17 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _installer_components(params: Any) -> dict[str, Any]:
         return handlers.installer_components()
+
+    @server.feature("ai/searchCode")
+    @_in_worker
+    def _ai_search_code(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.ai_search_code(
+            args["query"],
+            args.get("projectRoot"),
+            args.get("limit") or 8,
+            args.get("docs") is not False,
+        )
 
     @server.feature("structure/insert")
     def _insert_geometry(params: Any) -> dict[str, Any]:

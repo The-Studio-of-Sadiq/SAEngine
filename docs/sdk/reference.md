@@ -86,7 +86,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 
 `saengine.codes.registry.uninstall`
 
-### `shape_geometry(shape: 'SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet') -> 'Geometry'`
+### `shape_geometry(shape: 'SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame') -> 'Geometry'`
 
 `saengine.library.shapes.shape_geometry`: The members, panels and supports of ``shape``, placed in the model.
 
@@ -112,6 +112,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 
 | Method | Parameters | Handler | What it does |
 | --- | --- | --- | --- |
+| `ai/searchCode` | **query**, projectRoot, limit, docs | `ai_search_code` (worker) | The passages of the code pack in force (and the manual) that best match ``query``, each with its clauses (``saengine.ai.knowledge.search_code``): ``{pack, query, found, passages, note}``. The AI assistant answers code questions only from these; ``found`` False means the pack does not cover the question. |
 | `architecture/check` | **architectureText**, floorPlanText | `architecture_check` | Problems of the architecture, with its rooms' net floor outlines and areas: ``{"problems", "rooms": {id: {"outline", "area"}}}`` (areas in m²). |
 | `architecture/importDrawing` | **path**, architectureText, **floorPlanText**, options | `architecture_import_drawing` (worker) | Adopts an architect's DWG/DXF plan (walls, doors, windows, room names) onto one story: ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes", "replaced"}}`` or ``{"problems"}``. ``options``: see ``saengine.library.architecture_dxf.import_drawing``. |
 | `architecture/importIfc` | **path**, architectureText, **floorPlanText** | `architecture_import_ifc` (worker) | Adopts an architect's IFC (walls, doors, windows, spaces) into the architecture: ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes"}}`` or ``{"problems"}``. |
@@ -119,7 +120,11 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `bim/generate` | **floorPlanText**, bimText | `generate_building` | The building model generated from the floor plan, keeping the model's own elements. |
 | `bim/generateFromStructure` | **structureText**, bimText | `generate_building_from_structure` | The building model of a special structure, keeping the model's own elements. |
 | `bim/ifc` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name | `building_ifc` | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
+| `bim/ifcRebar` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, projectRoot | `building_ifc` (worker) | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
 | `boq/compute` | **bimText**, **objectsText**, **materialsText**, substructureText, settingsText, mepText, projectRoot, architectureText | `compute_boq` | The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the substructure, the MEP plinths and sleeves, the plumbing (tanks, pipes, fixtures) and the architecture (brickwork, plaster, finishes, doors and windows): ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where the plumbing tanks' last designs are read from (their bars), and the architecture when ``architecture_text`` is not given. |
+| `boq/cost` | **boqText**, ratesText, carbonText | `cost_boq` | The bill priced by the schedule of rates, with its embodied carbon (``saengine.boq.costing``): ``{"costing", "sampleRates"}`` or ``{"problems"}``. |
+| `boq/exportXlsx` | **path**, **boqText**, ratesText, carbonText, title | `export_boq_xlsx` (worker) | The bill, its costing and embodied carbon written to an Excel workbook (``saengine.boq.workbook``). |
+| `boq/templates` | — | `boq_templates` | The texts a project's ``10 BOQ/rates.json`` and ``carbon-factors.json`` start from: the sample schedule (made-up rates) and the carbon factors shipped. |
 | `cad/convertDwg` | **path**, cache | `convert_dwg` (worker) | A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``, or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``). |
 | `cad/convertPdf` | **path**, page, cache | `convert_pdf` (worker) | One page of an architect's PDF as DXF (``saengine.library.pdf_underlay``): ``{"ok", "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached"}``, or ``{"ok": False, "code": "failed", "message"}``. |
 | `codes/checkTemplate` | **path**, author | `codes_check_template` (worker) | ``{ok, problems}``: whether the archive may be opened as a full building template (:func:`saengine.project.archive.template_problems`, plus :func:`inspect_archive`). |
@@ -137,7 +142,9 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `design/proposal` | **outDir**, **projectPath**, options | `design_proposal` (worker) | The bars SAEngine proposes per object type and foundation (``saengine.design.design_proposal``); an unknown mode is a ValueError. |
 | `design/report` | **outDir**, **projectPath** | `design_report` (worker) | The RC member design checks of a run (see ``saengine.design.check``): the ones kept for the run's inputs (``saengine.pipeline.design_mode.report``: Run All, Apply, the design view and the proposal share one run of the checks per change of the project). |
 | `design/required` | **outDir**, **projectPath**, options | `design_required` (worker) | The reinforcement every designed element requires (``saengine.design.design_required``), kept beside the results while the project does not change (:mod:`saengine.pipeline.design_mode`). |
+| `drawings/dwg` | **projectRoot**, sheets | `drawings_dwg` (worker) | The current sheets as DWG (LibreDWG's dxf2dwg, a separate program): ``{written, folder, problems}``. |
 | `drawings/generate` | designReportText, **projectRoot**, sheets, size | `drawings_generate` (worker) | Generates the drawings into ``11 Exports/Drawings`` (``saengine.pipeline.drawings``): the answer the Exports page reads, or ``{sheets: [], problems}`` when nothing is drawn. ``design_report``: the design checks Run All has just made (else those of the last run). |
+| `drawings/issue` | **projectRoot** | `drawings_issue` (worker) | Issues the drawing set (``saengine.pipeline.drawings.issue``): every sheet drawn again, the new or changed ones with the new revision, copied into ``Issued/<rev> <date>``; the answer of ``drawings_generate`` with ``issued``, or ``{sheets: [], problems}``. |
 | `drawings/list` | — | `drawings_list` | The last generation's drawings with what is out of date (reads files only). |
 | `drawings/progress` | — | `drawings_progress` | Where a generation of the project is (``{running: false}`` when none runs). |
 | `export/e2k` | — |  |  |
@@ -159,10 +166,13 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `library/check` | **kind**, **text**, materialsText | `check_library` |  |
 | `library/generateBuilding` | **spec**, **destParent**, name, site, overwrite | `new_building` (worker) | Integrator glue: a new building project from a grid and storeys (``saengine.project.new_building.create_building``, the generator of ``saengine.library.generator``): ``{root, name, notes, summary, settingsPatch, files}``, or ``{error}`` when the spec is not valid or the folder holds files already. ``site``: the soil report's site the new project starts with (its plot, the grid aligned with it). |
 | `library/steelSections` | — | `steel_sections` | SAEngine's standard steel section table (``saengine.library.steel_sections``). |
+| `mep/checkIds` | **projectRoot**, mepText | `mep_check_ids` (worker) | Checks the models against the coordination's IDS files (``saengine.mep.ids``): ``{"coordination", "results", "counts", "notes"}`` or ``{"problems"}`` (also when IfcTester is not installed). |
+| `mep/coordinate` | **projectRoot**, mepText, tests | `mep_coordinate` (worker) | Runs the clash tests and merges their clashes into the coordination issues (``saengine.mep.coordination.coordinate``), or ``{"problems"}``. |
 | `mep/electricalOpenings` | **projectRoot**, mepText | `electrical_openings` | The openings the risers and trays still need (07 MEP openings no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/electricalProposeEquipment` | **projectRoot**, mepText | `electrical_propose_equipment` | The electrical equipment SAEngine proposes (07 MEP ``electrical.equipment``, ``sized``): ``{equipment, notes}`` or ``{problems}``. |
 | `mep/electricalReport` | **projectRoot**, mepText | `electrical_report` | The electrical report of 7 MEP (``saengine.electrical.report.electrical_report``: demand, substation, generator, rooms, risers, trays, lightning protection), JSON-safe; never raises. |
 | `mep/electricalUses` | — | `electrical_uses` | BNBC 2020 Part 8 Table 8.1.17's occupancies (minimum load densities, W/m²): ``{uses: [{key, label, nonAc, ac, source}]}``. |
+| `mep/exportBcf` | **projectRoot**, **path**, mepText, issues | `mep_export_bcf` | Writes the coordination issues (``issues``: their ids, else all) to the BCF 3.0 file ``path``: ``{"path", "topics"}`` or ``{"problems"}``. |
 | `mep/fireOpenings` | **projectRoot**, mepText | `fire_openings` | The sleeves the fire risers and mains still need (07 MEP openings no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/fireProposals` | **projectRoot**, mepText | `fire_propose` | The fire tanks and pumps SAEngine proposes (07 MEP ``fire.tanks`` and ``fire.pumps``, ``sized``): ``{tanks, pumps, notes}`` or ``{problems}``. |
 | `mep/fireReport` | **projectRoot**, mepText | `fire_report` (worker) | The fire protection report of 7 MEP (``saengine.fire.report.fire_report``: the systems BNBC 2020 Part 4 requires, sprinklers, hydraulics, water, pumps, the fire tanks' designs, missing sleeves), JSON-safe; never raises. |
@@ -173,6 +183,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `mep/hvacProposePlant` | **projectRoot**, mepText | `hvac_propose_plant` | The plant SAEngine proposes (07 MEP ``hvac.plant`` entries, ``sized``) for the loads last calculated (else the estimate): ``{plant, notes, ...}`` or ``{problems}``. |
 | `mep/hvacReport` | **projectRoot**, mepText | `hvac_report` | The HVAC report of 7 MEP: the cooling loads (``saengine.hvac.report.hvac_loads``) at the top level and the air side, plant, shafts and duct openings (``saengine.hvac.air.hvac_air``) under ``air``. ``calculate`` False (the editor after each edit, Run All): EnergyPlus is not started; its cached run is used when it matches the input, else the estimate, with ``calculated`` False. ``calculate`` True: EnergyPlus version 26.2.0 runs (a separate process, about half a minute; :func:`hvac_cancel_loads` stops it). Never raises. |
 | `mep/hvacTables` | — | `hvac_tables` | BNBC 2020 Part 8 Table 8.2.2's stations (2 % cooling design conditions, Sec 2.12.2.1) and Table 8.2.3's occupancies: ``{cities: [{key, label, db, wb, range}], uses: [{key, label, perPerson, perArea, density, source}]}``. |
+| `mep/importBcf` | **projectRoot**, **path**, mepText | `mep_import_bcf` | Merges the topics of the BCF file ``path`` into the coordination issues: ``{"coordination", "counts"}`` or ``{"problems"}``. |
 | `mep/importIfc` | **projectRoot**, **path**, copy | `mep_import_ifc` | What an MEP IFC model holds (its discipline and elements), for 07 MEP's model list. |
 | `mep/plumbingOccupancies` | — | `plumbing_occupancies` | BNBC 2020 Part 8 Table 8.5.1's occupancies: ``{occupancies: [{key, label, lpcd, ...}]}``. |
 | `mep/plumbingReport` | **projectRoot**, mepText, designs | `plumbing_report` (worker) | The plumbing report (BNBC 2020 Part 8 sizing, tank designs, hydraulics), JSON-safe (``saengine.plumbing.project.full_report``); never raises. ``designs="cached"``: the quick first pass, with the tank designs not yet cached listed as pending. |
@@ -189,7 +200,17 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `results/list` | **outDir**, **projectPath** | `result_list` | The results of a run that can be shown in 3D (see ``saengine.fem.display``). |
 | `results/tables` | **outDir**, projectPath | `results_tables` | Every case in ``out_dir/manifest.json`` with its result tables. |
 | `results/view` | **outDir**, **projectPath**, **key**, mode | `result_view` | One result's deflected shape and force diagrams (see ``saengine.fem.display``). |
+| `revit/apply` | — |  |  |
+| `revit/export` | — |  |  |
+| `revit/preview` | — |  |  |
 | `saengine/info` | — | `info` | Versions of the backend stack, for the workbench's runtime check. |
+| `share/connect` | **projectRoot**, **location**, author | `share_connect` (worker) | Shares the project at a shared folder or git server address, then syncs. |
+| `share/disconnect` | **projectRoot** | `share_disconnect` (worker) | Stops syncing this copy. |
+| `share/heartbeat` | **projectRoot**, user, part, leaving | `share_heartbeat` (worker) | Keeps (or with ``leaving`` ends) this engineer's presence: ``{available, people}``. |
+| `share/lock` | **projectRoot**, **part**, user, note | `share_lock` (worker) | Takes the lock of a part in the shared folder: ``{lock}``. |
+| `share/status` | **projectRoot**, user, fetch | `share_status` (worker) | The office copy: ``{shared, location, kind, ahead, behind, locks, people, problems}``. |
+| `share/sync` | **projectRoot**, author, resolutions, user | `share_sync` (worker) | Saves, fetches, merges per part file and sends: ``{state, received, sent, conflicts}``. |
+| `share/unlock` | **projectRoot**, **part**, user, force | `share_unlock` (worker) | Releases (or with ``force`` breaks) the lock of a part: ``{released, was}``. |
 | `soil/allowableBearing` | **soilText**, settingsText, **x**, **y**, **foundingLevel**, **b**, **l** | `allowable_bearing` | Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``). |
 | `soil/gisExport` | **projectRoot**, **format**, **outPath** | `gis_export` (worker) | The site, boreholes and building outline as GeoJSON or GeoPackage (WGS 84). |
 | `soil/gisImport` | **path**, soilText | `gis_import` (worker) | The soil report with a GeoJSON or GeoPackage file's boreholes and boundary merged in. |
@@ -216,3 +237,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `versions/status` | **projectRoot** | `versions_status` (worker) | What changed since the last version (``saengine.project.versions.status``). |
 | `workbook/export` | **outPath**, **floorPlanText**, objectsText, loadsText | `workbook_export` (worker) | The model as an Excel workbook (``saengine.library.workbook``): ``{"ok", "path", "sheets"}`` or ``{"ok": False, "message"}``. |
 | `workbook/import` | **path**, **floorPlanText**, objectsText, loadsText | `workbook_import` (worker) | An edited model workbook read against the current files: ``{"ok", "problems", "diff", "texts", "changed"}`` (``saengine.library.workbook.import_workbook``). |
+| `worksheets/calculate` | **kind**, projectRoot, inputs | `worksheet_calculate` | The calculation of a worksheet ``kind`` for ``inputs``, with the project's code pack. |
+| `worksheets/create` | **projectRoot**, **kind**, **id**, title | `worksheet_create` | Writes a new worksheet of ``kind`` into the project: ``{path}`` or ``{problems}``. |
+| `worksheets/kinds` | — | `worksheet_kinds` | The calculation worksheet kinds and their inputs (``saengine.report.worksheets``). |
+| `worksheets/list` | — | `worksheet_list` | The project's worksheets with their result (``{worksheets, problems}``). |

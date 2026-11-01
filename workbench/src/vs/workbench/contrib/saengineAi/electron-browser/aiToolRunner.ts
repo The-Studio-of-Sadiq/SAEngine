@@ -28,6 +28,14 @@ import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { generateArgs } from '../../saengineProject/browser/drawingsModel.js';
 import { openPart, partName } from '../../saengineProject/browser/projectParts.js';
 import { AI_TOOLS, ALLOWED_COMMANDS, checkCommand, IAiTool, ResultKind, safeRelativePath, validateArguments } from '../common/aiTools.js';
+import { readProposal } from '../common/aiChangeSet.js';
+import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from '../browser/aiChangeSets.js';
+import { ASSISTANT_VIEW_ID } from '../common/aiAssistant.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
+import { NEW_BUILDING_COMMAND } from '../../saengineProject/browser/newBuildingModel.js';
 
 /** How long run_command waits for a command before reporting it as still running [ms]. */
 const COMMAND_WAIT = 3000;
@@ -35,6 +43,10 @@ const COMMAND_WAIT = 3000;
 const DEFAULT_MAX_CHARS = 200_000;
 /** Widest screenshot sent [px]: larger windows are scaled down. */
 const SCREENSHOT_WIDTH = 1600;
+/** How long propose_changes waits for the engineer's decision before answering "pending" [ms]. */
+const DECISION_WAIT = 5 * 60 * 1000;
+/** The design checks the last run kept (`saengine.pipeline.design_mode.REPORT_FILE`). */
+const DESIGN_REPORT_FILE = 'design-report.json';
 
 /** The source the selection service records for selections made by the assistant. */
 export const AI_SELECTION_SOURCE = 'aiAssistant';
@@ -60,9 +72,14 @@ export class AiToolRunner {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISaengineModelSelectionService private readonly selectionService: ISaengineModelSelectionService,
+		@ISaengineAiChangeSetService private readonly changeSetService: ISaengineAiChangeSetService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IFemSolverService private readonly femSolverService: IFemSolverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	async call(name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult> {
+	/** `source`: who calls, for the change sets' preview (an MCP client or the built-in assistant). */
+	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp'): Promise<MCP.CallToolResult> {
 		const tool = AI_TOOLS.find(t => t.name === name);
 		if (!tool) {
 			return errorResult(`Unknown tool "${name}".`);
@@ -75,13 +92,13 @@ export class AiToolRunner {
 			return errorResult(`Invalid arguments: ${problems.join('; ')}.`);
 		}
 		try {
-			return await this.run(tool, args);
+			return await this.run(tool, args, source);
 		} catch (error) {
 			return errorResult(error instanceof ToolError ? error.message : `Failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	private run(tool: IAiTool, args: Record<string, unknown>): Promise<MCP.CallToolResult> {
+	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
 		switch (tool.name) {
 			case 'get_project': return this.getProject();
 			case 'list_editors': return this.listEditors();
@@ -95,6 +112,10 @@ export class AiToolRunner {
 			case 'show_message': return this.showMessage(args.message as string, args.severity === 'warning' ? Severity.Warning : Severity.Info);
 			case 'reveal_element': return this.reveal(args);
 			case 'set_json_value': return this.setJsonValue(args.file as string, args.path as JSONPath, args.value, args.remove === true);
+			case 'search_code': return this.searchCode(args.query as string, (args.limit as number | undefined) ?? 8);
+			case 'explain_results': return this.explainResults(args.member as string | undefined, args.onlyFailing === true, (args.limit as number | undefined) ?? 20);
+			case 'propose_changes': return this.proposeChanges(args, source);
+			case 'propose_building': return this.proposeBuilding(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
 	}
@@ -375,6 +396,83 @@ export class AiToolRunner {
 		}
 		return textResult(`Edited ${file} (unsaved; the engineer can undo it with Ctrl+Z and saves it).`);
 	}
+
+	private async searchCode(query: string, limit: number): Promise<MCP.CallToolResult> {
+		const python = this.instantiationService.createInstance(FemAnalysisRunner).resolvePython();
+		const answer = await this.femSolverService.projectPlatform(python, 'ai/searchCode', {
+			query,
+			limit,
+			...(this.projectService.project ? { projectRoot: this.projectService.project.root.fsPath } : {}),
+		});
+		const bag = answer as { ok?: boolean; message?: string };
+		if (bag.ok === false) {
+			throw new ToolError(bag.message ?? 'The search failed.');
+		}
+		return jsonResult(answer);
+	}
+
+	private async explainResults(member: string | undefined, onlyFailing: boolean, limit: number): Promise<MCP.CallToolResult> {
+		const project = this.project();
+		const file = `${partById('fem')?.folder}/${FEM_RESULTS_FOLDER}/${DESIGN_REPORT_FILE}`;
+		let kept: unknown;
+		try {
+			kept = JSON.parse((await this.fileService.readFile(joinPath(project.root, ...file.split('/')))).value.toString());
+		} catch {
+			return jsonResult({ available: false, note: 'No design checks yet: run Run All (or open 08 FEM > Design) first.' });
+		}
+		const report = record(record(kept).result);
+		const elements = (Array.isArray(report.elements) ? report.elements : []).map(record);
+		const wanted = member?.trim().toLowerCase();
+		const selected = elements
+			.filter(e => !wanted || String(e.id ?? '').toLowerCase() === wanted || (Array.isArray(e.members) && e.members.some(m => String(m).toLowerCase() === wanted)))
+			.filter(e => !onlyFailing || e.ok === false)
+			.sort((a, b) => (num(b.utilisation) ?? 0) - (num(a.utilisation) ?? 0))
+			.slice(0, limit)
+			.map(e => {
+				const checks = (Array.isArray(e.checks) ? e.checks : []).map(record).sort((a, b) => (num(b.utilisation) ?? 0) - (num(a.utilisation) ?? 0));
+				return { id: e.id, kind: e.kind, type: e.type, ok: e.ok, utilisation: e.utilisation, governing: checks[0]?.name, checks };
+			});
+		const status = this.partStatusService.statusOf('fem');
+		return jsonResult({
+			available: true,
+			stale: status?.state === 'stale',
+			code: report.code,
+			method: report.method,
+			summary: report.summary,
+			elements: selected,
+			skipped: wanted ? (Array.isArray(report.skipped) ? report.skipped.map(record).filter(s => String(s.id ?? '').toLowerCase() === wanted) : []) : undefined,
+			found: selected.length,
+			note: selected.length ? undefined : (wanted ? `No checked element "${member}" (maybe it was skipped: see skipped).` : 'No element matches.'),
+		});
+	}
+
+	private async proposeChanges(args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+		this.project();
+		const { proposal, problems } = readProposal(args);
+		if (!proposal) {
+			throw new ToolError(`The change set is not valid: ${problems.join('; ')}.`);
+		}
+		let changeSet: IAiChangeSet;
+		try {
+			changeSet = await this.changeSetService.propose(proposal, source);
+		} catch (error) {
+			throw new ToolError(error instanceof Error ? error.message : String(error));
+		}
+		await this.viewsService.openView(ASSISTANT_VIEW_ID, true);
+		const outcome = await Promise.race([changeSet.decision, timeout(DECISION_WAIT).then(() => 'pending' as const)]);
+		const summary = changeSet.files.map(f => ({ file: f.file, changes: f.changes.length }));
+		switch (outcome) {
+			case 'accepted': return textResult(`The engineer accepted the change set "${proposal.title}" (${JSON.stringify(summary)}). It is applied, unsaved until saved, and undoable.`);
+			case 'rejected': return textResult(`The engineer rejected the change set "${proposal.title}". Nothing changed; ask what to do differently.`);
+			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision in the AI Assistant view.`);
+			default: return errorResult(`The change set was not applied (${outcome}): ${changeSet.problem ?? ''}`);
+		}
+	}
+
+	private async proposeBuilding(args: Record<string, unknown>): Promise<MCP.CallToolResult> {
+		await this.commandService.executeCommand(NEW_BUILDING_COMMAND, { spec: args });
+		return textResult('The New Building wizard is open with this building filled in. The engineer checks the plan, changes any field and clicks Generate to create the project; nothing is created before that.');
+	}
 }
 
 /** The file of `kind`'s results, relative to the project. */
@@ -387,6 +485,14 @@ export function resultFile(kind: ResultKind): string | undefined {
 		case 'mep': return `${folder('mep')}/${MEP_SUMMARY_FILE}`;
 		case 'boq': return `${folder('boq')}/${partById('boq')?.mainFile}`;
 	}
+}
+
+function record(value: unknown): Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function num(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function textResult(text: string): MCP.CallToolResult {

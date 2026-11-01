@@ -1,0 +1,213 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-ai-assistant {
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: 6px 10px 8px;
+	gap: 6px;
+	font-size: 13px;
+}
+
+.saengine-ai-assistant .ai-header {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+	padding-bottom: 6px;
+}
+
+.saengine-ai-assistant .ai-destination {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-ai-assistant .ai-scopes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	align-items: center;
+}
+
+.saengine-ai-assistant .ai-scopes-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-ai-assistant .ai-scope {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+}
+
+.saengine-ai-assistant .ai-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+	margin-left: 6px;
+}
+
+.saengine-ai-assistant .ai-link:hover {
+	text-decoration: underline;
+}
+
+.saengine-ai-assistant .ai-conversation {
+	flex: 1 1 auto;
+	min-height: 60px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.saengine-ai-assistant .ai-empty,
+.saengine-ai-assistant .ai-notice,
+.saengine-ai-assistant .ai-busy {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-ai-assistant .ai-entry {
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.saengine-ai-assistant .ai-user {
+	align-self: flex-end;
+	max-width: 90%;
+	white-space: pre-wrap;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.saengine-ai-assistant .ai-answer p {
+	margin: 4px 0;
+}
+
+.saengine-ai-assistant .ai-tool {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-ai-assistant .ai-error {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-ai-assistant .ai-chip {
+	margin-left: 6px;
+	padding: 0 5px;
+	border-radius: 8px;
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.saengine-ai-assistant .ai-change-sets {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	max-height: 45%;
+	overflow-y: auto;
+}
+
+.saengine-ai-assistant .ai-change-set {
+	border: 1px solid var(--vscode-focusBorder);
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.saengine-ai-assistant .ai-change-set.ai-accepted,
+.saengine-ai-assistant .ai-change-set.ai-failed {
+	border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.saengine-ai-assistant .ai-cs-title {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: baseline;
+	margin-bottom: 4px;
+}
+
+.saengine-ai-assistant .ai-cs-source,
+.saengine-ai-assistant .ai-cs-hint,
+.saengine-ai-assistant .ai-cs-reason {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.saengine-ai-assistant .ai-cs-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.saengine-ai-assistant .ai-cs-table th,
+.saengine-ai-assistant .ai-cs-table td {
+	text-align: left;
+	vertical-align: top;
+	padding: 2px 4px;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+	overflow-wrap: anywhere;
+}
+
+.saengine-ai-assistant .ai-cs-noop td {
+	opacity: 0.6;
+}
+
+.saengine-ai-assistant .ai-cs-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-top: 6px;
+}
+
+.saengine-ai-assistant .ai-cs-actions .monaco-button {
+	width: auto;
+	padding: 2px 12px;
+}
+
+.saengine-ai-assistant .ai-footer {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.saengine-ai-assistant .ai-sends {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-ai-assistant .ai-input-row {
+	display: flex;
+	gap: 6px;
+	align-items: flex-end;
+}
+
+.saengine-ai-assistant .ai-input {
+	flex: 1;
+	resize: vertical;
+	font-family: inherit;
+	font-size: 13px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	padding: 4px 6px;
+}
+
+.saengine-ai-assistant .ai-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-ai-assistant .ai-input-row .monaco-button {
+	width: auto;
+	padding: 4px 14px;
+}

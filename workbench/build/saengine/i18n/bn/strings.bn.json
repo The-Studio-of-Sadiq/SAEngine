@@ -148,6 +148,658 @@
 				}
 			}
 		},
+		"vs/workbench/contrib/saengineAi/browser/aiChangeSets": {
+			"file": "src/vs/workbench/contrib/saengineAi/browser/aiChangeSets.ts",
+			"strings": {
+				"changeSet.projectClosed": {
+					"en": "The project was closed.",
+					"bn": "প্রজেক্টটি বন্ধ করা হয়েছে।",
+					"status": "translated"
+				},
+				"changeSet.noProject": {
+					"en": "No project is open.",
+					"bn": "কোনো প্রজেক্ট খোলা নেই।",
+					"status": "translated"
+				},
+				"changeSet.noFile": {
+					"en": "The project has no file {0}.",
+					"bn": "প্রজেক্টে {0} ফাইলটি নেই।",
+					"status": "translated"
+				},
+				"changeSet.noop": {
+					"en": "Every change already holds: nothing to propose.",
+					"bn": "প্রতিটি পরিবর্তন আগে থেকেই আছে: প্রস্তাব করার কিছু নেই।",
+					"status": "translated"
+				},
+				"changeSet.failed": {
+					"en": "The change set could not be applied: {0}",
+					"bn": "পরিবর্তনের সেটটি প্রয়োগ করা যায়নি: {0}",
+					"status": "translated"
+				}
+			}
+		},
+		"vs/workbench/contrib/saengineAi/electron-browser/aiAssistant.contribution": {
+			"file": "src/vs/workbench/contrib/saengineAi/electron-browser/aiAssistant.contribution.ts",
+			"strings": {
+				"assistantConfigurationTitle": {
+					"en": "SAEngine AI Assistant",
+					"bn": "SAEngine AI অ্যাসিস্ট্যান্ট",
+					"status": "translated"
+				},
+				"provider.anthropic.description": {
+					"en": "The Anthropic API (Claude models): needs your Anthropic API key.",
+					"bn": "Anthropic API (Claude মডেল): আপনার Anthropic API কী লাগবে।",
+					"status": "translated"
+				},
+				"provider.openai.description": {
+					"en": "An OpenAI-compatible chat completions endpoint, for example a model you host yourself on this computer or in your office.",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ chat completions এন্ডপয়েন্ট, যেমন এই কম্পিউটারে বা আপনার অফিসে নিজে চালানো কোনো মডেল।",
+					"status": "translated"
+				},
+				"saengine.ai.assistant.provider": {
+					"en": "Where the AI assistant sends your questions. Nothing is sent before you agree, and the key is kept in the operating system's secret store (**SAEngine: Set AI Assistant API Key**).",
+					"bn": "AI অ্যাসিস্ট্যান্ট আপনার প্রশ্ন কোথায় পাঠাবে। আপনি সম্মতি দেওয়ার আগে কিছুই পাঠানো হয় না, আর কী অপারেটিং সিস্টেমের সিক্রেট স্টোরে রাখা হয় (**SAEngine: Set AI Assistant API Key**)।",
+					"status": "translated"
+				},
+				"saengine.ai.assistant.anthropicModel": {
+					"en": "The Claude model: `claude-opus-5-5` (most capable, the default), `claude-sonnet-5-5` (faster, lower cost) or `claude-haiku-5-5` (fastest). Any other model id is sent as written.",
+					"bn": "Claude মডেল: `claude-opus-5-5` (সবচেয়ে সক্ষম, ডিফল্ট), `claude-sonnet-5-5` (দ্রুত, কম খরচ) বা `claude-haiku-5-5` (সবচেয়ে দ্রুত)। অন্য কোনো মডেল id যেমন লেখা তেমনই পাঠানো হয়।",
+					"status": "translated"
+				},
+				"saengine.ai.assistant.effort": {
+					"en": "How hard the Anthropic model thinks before it answers: higher is slower and costs more, and is better for design questions.",
+					"bn": "উত্তর দেওয়ার আগে Anthropic মডেল কতটা ভাববে: বেশি হলে ধীর ও খরচ বেশি, ডিজাইনের প্রশ্নে ভালো।",
+					"status": "translated"
+				},
+				"saengine.ai.assistant.endpoint": {
+					"en": "The base URL of the OpenAI-compatible endpoint, for example `http://localhost:11434/v1` (https, or http to this computer only). `/chat/completions` is added.",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ এন্ডপয়েন্টের বেস URL, যেমন `http://localhost:11434/v1` (https, অথবা শুধু এই কম্পিউটারে http)। `/chat/completions` যোগ করা হয়।",
+					"status": "translated"
+				},
+				"saengine.ai.assistant.model": {
+					"en": "The model name the OpenAI-compatible endpoint serves. It must support tool calls for the assistant to look up the code pack and your results.",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ এন্ডপয়েন্ট যে মডেল চালায় তার নাম। কোড প্যাক ও আপনার ফলাফল দেখতে অ্যাসিস্ট্যান্টের জন্য মডেলটিকে টুল কল সমর্থন করতে হবে।",
+					"status": "translated"
+				},
+				"assistantViewIcon": {
+					"en": "View icon of the AI Assistant.",
+					"bn": "AI অ্যাসিস্ট্যান্ট ভিউয়ের আইকন।",
+					"status": "translated"
+				},
+				"assistant.componentMissing": {
+					"en": "The AI assistant is an optional component of the SAEngine setup and is not installed. AI assistants outside SAEngine can still connect (SAEngine: Allow AI Assistants to Control This Window).\n[Add AI Component...]({0})",
+					"bn": "AI অ্যাসিস্ট্যান্ট SAEngine সেটআপের একটি ঐচ্ছিক কম্পোনেন্ট, এটি ইনস্টল করা নেই। SAEngine-এর বাইরের AI অ্যাসিস্ট্যান্ট তবুও যুক্ত হতে পারে (SAEngine: Allow AI Assistants to Control This Window)।\n[AI কম্পোনেন্ট যোগ করুন...]({0})",
+					"status": "translated"
+				},
+				"pick.anthropic": {
+					"en": "Anthropic (Claude)",
+					"bn": "Anthropic (Claude)",
+					"status": "translated"
+				},
+				"pick.current": {
+					"en": "current",
+					"bn": "বর্তমান",
+					"status": "translated"
+				},
+				"pick.anthropicDetail": {
+					"en": "api.anthropic.com, with your Anthropic API key.",
+					"bn": "api.anthropic.com, আপনার Anthropic API কী দিয়ে।",
+					"status": "translated"
+				},
+				"pick.openai": {
+					"en": "OpenAI-compatible endpoint",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ এন্ডপয়েন্ট",
+					"status": "translated"
+				},
+				"pick.openaiDetail": {
+					"en": "A self-hosted model (for example on this computer) or any service with the chat completions API.",
+					"bn": "নিজে চালানো মডেল (যেমন এই কম্পিউটারে) বা chat completions API আছে এমন যেকোনো সার্ভিস।",
+					"status": "translated"
+				},
+				"pick.providerTitle": {
+					"en": "AI Assistant Provider",
+					"bn": "AI অ্যাসিস্ট্যান্টের প্রোভাইডার",
+					"status": "translated"
+				},
+				"pick.modelTitle": {
+					"en": "Claude Model",
+					"bn": "Claude মডেল",
+					"status": "translated"
+				},
+				"pick.endpointTitle": {
+					"en": "Endpoint Base URL",
+					"bn": "এন্ডপয়েন্টের বেস URL",
+					"status": "translated"
+				},
+				"pick.endpointPrompt": {
+					"en": "https, or http to this computer only. /chat/completions is added.",
+					"bn": "https, অথবা শুধু এই কম্পিউটারে http। /chat/completions যোগ করা হয়।",
+					"status": "translated"
+				},
+				"pick.openaiModelTitle": {
+					"en": "Model Name",
+					"bn": "মডেলের নাম",
+					"status": "translated"
+				},
+				"pick.openaiModelPrompt": {
+					"en": "The model the endpoint serves; it must support tool calls.",
+					"bn": "এন্ডপয়েন্ট যে মডেল চালায়; এটিকে টুল কল সমর্থন করতে হবে।",
+					"status": "translated"
+				},
+				"saengine.category": {
+					"en": "SAEngine",
+					"bn": "SAEngine",
+					"status": "translated"
+				},
+				"assistantContainer": {
+					"en": "AI Assistant",
+					"bn": "AI অ্যাসিস্ট্যান্ট",
+					"status": "translated"
+				},
+				"assistantView": {
+					"en": "AI Assistant",
+					"bn": "AI অ্যাসিস্ট্যান্ট",
+					"status": "translated"
+				},
+				"assistant.open": {
+					"en": "Open AI Assistant",
+					"bn": "AI অ্যাসিস্ট্যান্ট খুলুন",
+					"status": "translated"
+				},
+				"assistant.open.description": {
+					"en": "Asks about BNBC 2020 (answers cite the code pack), explains results and proposes changes you preview and accept.",
+					"bn": "BNBC 2020 নিয়ে প্রশ্নের উত্তর দেয় (উত্তরে কোড প্যাকের ক্লজ উল্লেখ থাকে), ফলাফল ব্যাখ্যা করে এবং পরিবর্তন প্রস্তাব করে, যা আপনি প্রিভিউ দেখে গ্রহণ করেন।",
+					"status": "translated"
+				},
+				"assistant.setKeyCommand": {
+					"en": "Set AI Assistant API Key...",
+					"bn": "AI অ্যাসিস্ট্যান্টের API কী সেট করুন...",
+					"status": "translated"
+				},
+				"assistant.removeKeyCommand": {
+					"en": "Remove AI Assistant API Key",
+					"bn": "AI অ্যাসিস্ট্যান্টের API কী সরান",
+					"status": "translated"
+				},
+				"assistant.clearCommand": {
+					"en": "Clear AI Assistant Conversation",
+					"bn": "AI অ্যাসিস্ট্যান্টের কথোপকথন মুছুন",
+					"status": "translated"
+				},
+				"assistant.resetConsentCommand": {
+					"en": "Ask Again Before the AI Assistant Sends",
+					"bn": "AI অ্যাসিস্ট্যান্ট পাঠানোর আগে আবার জিজ্ঞাসা করুক",
+					"status": "translated"
+				},
+				"assistant.configureCommand": {
+					"en": "Choose AI Assistant Provider...",
+					"bn": "AI অ্যাসিস্ট্যান্টের প্রোভাইডার বাছুন...",
+					"status": "translated"
+				}
+			}
+		},
+		"vs/workbench/contrib/saengineAi/electron-browser/aiAssistantService": {
+			"file": "src/vs/workbench/contrib/saengineAi/electron-browser/aiAssistantService.ts",
+			"strings": {
+				"assistant.keyTitleAnthropic": {
+					"en": "Anthropic API Key",
+					"bn": "Anthropic API কী",
+					"status": "translated"
+				},
+				"assistant.keyTitleOpenAi": {
+					"en": "API Key of the OpenAI-Compatible Endpoint",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ এন্ডপয়েন্টের API কী",
+					"status": "translated"
+				},
+				"assistant.keyPrompt": {
+					"en": "Kept in the operating system's secret store for SAEngine, never in settings or project files.",
+					"bn": "SAEngine-এর জন্য অপারেটিং সিস্টেমের সিক্রেট স্টোরে রাখা হয়, কখনো সেটিংস বা প্রজেক্ট ফাইলে নয়।",
+					"status": "translated"
+				},
+				"assistant.keyInMemory": {
+					"en": "The operating system's secret store is not available, so the key is kept only until SAEngine closes.",
+					"bn": "অপারেটিং সিস্টেমের সিক্রেট স্টোর পাওয়া যাচ্ছে না, তাই কী শুধু SAEngine বন্ধ হওয়া পর্যন্ত রাখা হবে।",
+					"status": "translated"
+				},
+				"activity.keySet": {
+					"en": "Assistant: an API key was saved for {0}.",
+					"bn": "অ্যাসিস্ট্যান্ট: {0}-এর জন্য একটি API কী সংরক্ষণ করা হয়েছে।",
+					"status": "translated"
+				},
+				"activity.keyRemoved": {
+					"en": "Assistant: the API key of {0} was removed.",
+					"bn": "অ্যাসিস্ট্যান্ট: {0}-এর API কী সরানো হয়েছে।",
+					"status": "translated"
+				},
+				"assistant.notConfigured": {
+					"en": "Choose the model provider first: the OpenAI-compatible endpoint needs its address and model name.",
+					"bn": "আগে মডেল প্রোভাইডার বাছুন: OpenAI-সামঞ্জস্যপূর্ণ এন্ডপয়েন্টের ঠিকানা ও মডেলের নাম লাগবে।",
+					"status": "translated"
+				},
+				"assistant.noKey": {
+					"en": "Set your Anthropic API key first. It is kept in the operating system's secret store.",
+					"bn": "আগে আপনার Anthropic API কী সেট করুন। এটি অপারেটিং সিস্টেমের সিক্রেট স্টোরে রাখা হয়।",
+					"status": "translated"
+				},
+				"activity.assistantAsk": {
+					"en": "Assistant: a question ({0} characters) sent to {1} ({2}).",
+					"bn": "অ্যাসিস্ট্যান্ট: একটি প্রশ্ন ({0} অক্ষর) {1}-এ পাঠানো হয়েছে ({2})।",
+					"status": "translated"
+				},
+				"assistant.refused": {
+					"en": "The model declined to answer this.",
+					"bn": "মডেলটি এর উত্তর দিতে অস্বীকার করেছে।",
+					"status": "translated"
+				},
+				"assistant.maxTokens": {
+					"en": "The answer was cut at its length limit.",
+					"bn": "উত্তরটি দৈর্ঘ্যের সীমায় কেটে গেছে।",
+					"status": "translated"
+				},
+				"assistant.steps": {
+					"en": "Stopped after many steps; ask again to continue.",
+					"bn": "অনেকগুলো ধাপের পর থেমেছে; চালিয়ে যেতে আবার জিজ্ঞাসা করুন।",
+					"status": "translated"
+				},
+				"assistant.cancelled": {
+					"en": "Stopped.",
+					"bn": "থামানো হয়েছে।",
+					"status": "translated"
+				},
+				"consent.code": {
+					"en": "passages of the code pack and the SAEngine manual the assistant looks up",
+					"bn": "অ্যাসিস্ট্যান্ট যে কোড প্যাক ও SAEngine ম্যানুয়ালের অংশ খোঁজে",
+					"status": "translated"
+				},
+				"consent.project": {
+					"en": "the project overview (name, parts and their status, open editors)",
+					"bn": "প্রজেক্টের সারসংক্ষেপ (নাম, পার্ট ও তাদের অবস্থা, খোলা এডিটর)",
+					"status": "translated"
+				},
+				"consent.document": {
+					"en": "the document open in the editor, when the assistant reads it",
+					"bn": "এডিটরে খোলা ডকুমেন্ট, যখন অ্যাসিস্ট্যান্ট সেটি পড়ে",
+					"status": "translated"
+				},
+				"consent.results": {
+					"en": "analysis and design results, when the assistant reads them",
+					"bn": "অ্যানালাইসিস ও ডিজাইনের ফলাফল, যখন অ্যাসিস্ট্যান্ট সেগুলো পড়ে",
+					"status": "translated"
+				},
+				"consent.title": {
+					"en": "Send to {0}?",
+					"bn": "{0}-এ পাঠাবেন?",
+					"status": "translated"
+				},
+				"consent.detail": {
+					"en": "The AI assistant sends your questions and the conversation so far to {0} (model {1}), and with them:\n\n• {2}\n\nNothing else leaves this computer, and nothing is sent before you agree. Change what may be read with the switches in the AI Assistant view. The API key stays in the operating system's secret store; each request is listed in AI Activity.",
+					"bn": "AI অ্যাসিস্ট্যান্ট আপনার প্রশ্ন ও এখন পর্যন্ত কথোপকথন {0}-এ (মডেল {1}) পাঠায়, সাথে:\n\n• {2}\n\nএর বাইরে কিছুই এই কম্পিউটার থেকে যায় না, আর আপনি সম্মতি দেওয়ার আগে কিছুই পাঠানো হয় না। কী পড়া যাবে তা AI অ্যাসিস্ট্যান্ট ভিউয়ের সুইচ দিয়ে বদলান। API কী অপারেটিং সিস্টেমের সিক্রেট স্টোরে থাকে; প্রতিটি অনুরোধ AI Activity-তে তালিকাভুক্ত হয়।",
+					"status": "translated"
+				},
+				"consent.session": {
+					"en": "&&Allow for This Session",
+					"comment": "&& denotes a mnemonic",
+					"bn": "এই সেশনের জন্য অনুমতি দিন(&&A)",
+					"status": "translated"
+				},
+				"consent.always": {
+					"en": "Always Allow {0}",
+					"comment": "&& denotes a mnemonic",
+					"bn": "সবসময় {0}-কে অনুমতি দিন",
+					"status": "translated"
+				},
+				"consent.cancel": {
+					"en": "Don't Send",
+					"bn": "পাঠাবেন না",
+					"status": "translated"
+				},
+				"activity.consent": {
+					"en": "Assistant: you allowed sending to {0} ({1}).",
+					"bn": "অ্যাসিস্ট্যান্ট: আপনি {0}-এ পাঠানোর অনুমতি দিয়েছেন ({1})।",
+					"status": "translated"
+				},
+				"consent.alwaysShort": {
+					"en": "always",
+					"bn": "সবসময়",
+					"status": "translated"
+				},
+				"consent.sessionShort": {
+					"en": "this session",
+					"bn": "এই সেশন",
+					"status": "translated"
+				},
+				"assistant.cancelledShort": {
+					"en": "Stopped.",
+					"bn": "থামানো হয়েছে।",
+					"status": "translated"
+				},
+				"assistant.unreachable": {
+					"en": "{0} could not be reached: {1}",
+					"bn": "{0}-এ পৌঁছানো যায়নি: {1}",
+					"status": "translated"
+				},
+				"assistant.keyRefused": {
+					"en": "The provider refused the API key ({0}). Set the key again.",
+					"bn": "প্রোভাইডার API কী গ্রহণ করেনি ({0})। কী আবার সেট করুন।",
+					"status": "translated"
+				},
+				"assistant.rateLimited": {
+					"en": "The provider is busy or the account's limit is reached; try again in a minute. ({0})",
+					"bn": "প্রোভাইডার ব্যস্ত বা অ্যাকাউন্টের সীমা পূর্ণ; এক মিনিট পরে আবার চেষ্টা করুন। ({0})",
+					"status": "translated"
+				},
+				"assistant.httpError": {
+					"en": "The provider answered {0}: {1}",
+					"bn": "প্রোভাইডার উত্তর দিয়েছে {0}: {1}",
+					"status": "translated"
+				},
+				"assistant.notJson": {
+					"en": "The provider's answer is not JSON.",
+					"bn": "প্রোভাইডারের উত্তর JSON নয়।",
+					"status": "translated"
+				},
+				"activity.assistantRefused": {
+					"en": "Assistant: {0} refused ({1}).",
+					"bn": "অ্যাসিস্ট্যান্ট: {0} প্রত্যাখ্যাত ({1})।",
+					"status": "translated"
+				},
+				"activity.assistantTool": {
+					"en": "Assistant: {0}({1}) {2} [{3} ms]",
+					"bn": "অ্যাসিস্ট্যান্ট: {0}({1}) {2} [{3} ms]",
+					"status": "translated"
+				},
+				"activity.failedShort": {
+					"en": "failed",
+					"bn": "ব্যর্থ",
+					"status": "translated"
+				},
+				"activity.okShort": {
+					"en": "ok",
+					"bn": "ঠিক আছে",
+					"status": "translated"
+				},
+				"tool.failed": {
+					"en": "(failed)",
+					"bn": "(ব্যর্থ)",
+					"status": "translated"
+				},
+				"tool.searchCode": {
+					"en": "Looked up the code pack",
+					"bn": "কোড প্যাকে খুঁজেছে",
+					"status": "translated"
+				},
+				"tool.explainResults": {
+					"en": "Read the design checks",
+					"bn": "ডিজাইন চেক পড়েছে",
+					"status": "translated"
+				},
+				"tool.readResults": {
+					"en": "Read the results summary",
+					"bn": "ফলাফলের সারসংক্ষেপ পড়েছে",
+					"status": "translated"
+				},
+				"tool.getProject": {
+					"en": "Read the project overview",
+					"bn": "প্রজেক্টের সারসংক্ষেপ পড়েছে",
+					"status": "translated"
+				},
+				"tool.listEditors": {
+					"en": "Read the list of open editors",
+					"bn": "খোলা এডিটরের তালিকা পড়েছে",
+					"status": "translated"
+				},
+				"tool.readDocument": {
+					"en": "Read the open document",
+					"bn": "খোলা ডকুমেন্ট পড়েছে",
+					"status": "translated"
+				},
+				"tool.openPart": {
+					"en": "Opened a part",
+					"bn": "একটি পার্ট খুলেছে",
+					"status": "translated"
+				},
+				"tool.openFile": {
+					"en": "Opened a project file",
+					"bn": "প্রজেক্টের একটি ফাইল খুলেছে",
+					"status": "translated"
+				},
+				"tool.reveal": {
+					"en": "Showed a member",
+					"bn": "একটি মেম্বার দেখিয়েছে",
+					"status": "translated"
+				},
+				"tool.proposeChanges": {
+					"en": "Proposed a change set",
+					"bn": "পরিবর্তনের একটি সেট প্রস্তাব করেছে",
+					"status": "translated"
+				},
+				"tool.proposeBuilding": {
+					"en": "Filled the New Building wizard",
+					"bn": "New Building উইজার্ড পূরণ করেছে",
+					"status": "translated"
+				}
+			}
+		},
+		"vs/workbench/contrib/saengineAi/electron-browser/aiAssistantView": {
+			"file": "src/vs/workbench/contrib/saengineAi/electron-browser/aiAssistantView.ts",
+			"strings": {
+				"assistant.mayRead": {
+					"en": "May read:",
+					"bn": "পড়তে পারবে:",
+					"status": "translated"
+				},
+				"scope.project": {
+					"en": "Project overview",
+					"bn": "প্রজেক্টের সারসংক্ষেপ",
+					"status": "translated"
+				},
+				"scope.document": {
+					"en": "Open document",
+					"bn": "খোলা ডকুমেন্ট",
+					"status": "translated"
+				},
+				"scope.results": {
+					"en": "Results",
+					"bn": "ফলাফল",
+					"status": "translated"
+				},
+				"assistant.placeholder": {
+					"en": "Ask about BNBC 2020, your results, or describe a change…",
+					"bn": "BNBC 2020, আপনার ফলাফল নিয়ে প্রশ্ন করুন, বা একটি পরিবর্তন বর্ণনা করুন…",
+					"status": "translated"
+				},
+				"assistant.inputLabel": {
+					"en": "Question for the AI assistant",
+					"bn": "AI অ্যাসিস্ট্যান্টের জন্য প্রশ্ন",
+					"status": "translated"
+				},
+				"assistant.send": {
+					"en": "Send",
+					"bn": "পাঠান",
+					"status": "translated"
+				},
+				"assistant.stop": {
+					"en": "Stop",
+					"bn": "থামান",
+					"status": "translated"
+				},
+				"provider.anthropic": {
+					"en": "Anthropic",
+					"bn": "Anthropic",
+					"status": "translated"
+				},
+				"provider.openai": {
+					"en": "OpenAI-compatible",
+					"bn": "OpenAI-সামঞ্জস্যপূর্ণ",
+					"status": "translated"
+				},
+				"assistant.destination": {
+					"en": "To {0} ({1}, {2})",
+					"bn": "{0}-এ ({1}, {2})",
+					"status": "translated"
+				},
+				"assistant.noDestination": {
+					"en": "No provider set",
+					"bn": "কোনো প্রোভাইডার সেট করা নেই",
+					"status": "translated"
+				},
+				"assistant.configure": {
+					"en": "Provider…",
+					"bn": "প্রোভাইডার…",
+					"status": "translated"
+				},
+				"assistant.changeKey": {
+					"en": "Key ✓",
+					"bn": "কী ✓",
+					"status": "translated"
+				},
+				"assistant.setKey": {
+					"en": "Set Key…",
+					"bn": "কী সেট করুন…",
+					"status": "translated"
+				},
+				"sends.messages": {
+					"en": "your messages",
+					"bn": "আপনার বার্তা",
+					"status": "translated"
+				},
+				"sends.code": {
+					"en": "code pack passages",
+					"bn": "কোড প্যাকের অংশ",
+					"status": "translated"
+				},
+				"sends.project": {
+					"en": "project overview",
+					"bn": "প্রজেক্টের সারসংক্ষেপ",
+					"status": "translated"
+				},
+				"sends.document": {
+					"en": "open document",
+					"bn": "খোলা ডকুমেন্ট",
+					"status": "translated"
+				},
+				"sends.results": {
+					"en": "results",
+					"bn": "ফলাফল",
+					"status": "translated"
+				},
+				"assistant.sends": {
+					"en": "Sends to {0}: {1} — only after you agree.",
+					"bn": "{0}-এ পাঠায়: {1} — শুধু আপনার সম্মতির পরে।",
+					"status": "translated"
+				},
+				"assistant.empty": {
+					"en": "Ask what BNBC 2020 requires (answers cite the code pack's clauses), why a member fails, or describe a change: changes come as a preview you accept or reject.",
+					"bn": "জিজ্ঞাসা করুন BNBC 2020 কী চায় (উত্তরে কোড প্যাকের ক্লজ উল্লেখ থাকে), কোনো মেম্বার কেন ফেল করছে, বা একটি পরিবর্তন বর্ণনা করুন: পরিবর্তন আসে প্রিভিউ হিসেবে, যা আপনি গ্রহণ বা বাতিল করেন।",
+					"status": "translated"
+				},
+				"assistant.thinking": {
+					"en": "Working…",
+					"bn": "কাজ চলছে…",
+					"status": "translated"
+				},
+				"assistant.setKeyAction": {
+					"en": "Set API Key…",
+					"bn": "API কী সেট করুন…",
+					"status": "translated"
+				},
+				"assistant.configureAction": {
+					"en": "Choose Provider…",
+					"bn": "প্রোভাইডার বাছুন…",
+					"status": "translated"
+				},
+				"changeSets.clear": {
+					"en": "Clear decided change sets",
+					"bn": "সিদ্ধান্ত হওয়া পরিবর্তন সেটগুলো মুছুন",
+					"status": "translated"
+				},
+				"changeSet.fromMcp": {
+					"en": "from an MCP client",
+					"bn": "একটি MCP ক্লায়েন্ট থেকে",
+					"status": "translated"
+				},
+				"changeSet.fromAssistant": {
+					"en": "from the AI assistant",
+					"bn": "AI অ্যাসিস্ট্যান্ট থেকে",
+					"status": "translated"
+				},
+				"cs.file": {
+					"en": "File",
+					"bn": "ফাইল",
+					"status": "translated"
+				},
+				"cs.path": {
+					"en": "Value",
+					"bn": "মান",
+					"status": "translated"
+				},
+				"cs.before": {
+					"en": "Before",
+					"bn": "আগে",
+					"status": "translated"
+				},
+				"cs.after": {
+					"en": "After",
+					"bn": "পরে",
+					"status": "translated"
+				},
+				"cs.removed": {
+					"en": "(removed)",
+					"bn": "(সরানো)",
+					"status": "translated"
+				},
+				"changeSet.accept": {
+					"en": "Accept",
+					"bn": "গ্রহণ করুন",
+					"status": "translated"
+				},
+				"changeSet.reject": {
+					"en": "Reject",
+					"bn": "বাতিল করুন",
+					"status": "translated"
+				},
+				"changeSet.hint": {
+					"en": "Accepted, it is one step you can undo; save to keep it.",
+					"bn": "গ্রহণ করলে এটি একটি ধাপ, যা আনডু করা যায়; রাখতে সংরক্ষণ করুন।",
+					"status": "translated"
+				},
+				"changeSet.accepted": {
+					"en": "Applied (unsaved).",
+					"bn": "প্রয়োগ হয়েছে (সংরক্ষিত নয়)।",
+					"status": "translated"
+				},
+				"changeSet.undo": {
+					"en": "Undo",
+					"bn": "আনডু",
+					"status": "translated"
+				},
+				"changeSet.failedShort": {
+					"en": "Could not be applied.",
+					"bn": "প্রয়োগ করা যায়নি।",
+					"status": "translated"
+				},
+				"chip.code": {
+					"en": "sent: code pack passages",
+					"bn": "পাঠানো: কোড প্যাকের অংশ",
+					"status": "translated"
+				},
+				"chip.project": {
+					"en": "sent: project overview",
+					"bn": "পাঠানো: প্রজেক্টের সারসংক্ষেপ",
+					"status": "translated"
+				},
+				"chip.document": {
+					"en": "sent: open document",
+					"bn": "পাঠানো: খোলা ডকুমেন্ট",
+					"status": "translated"
+				},
+				"chip.results": {
+					"en": "sent: results",
+					"bn": "পাঠানো: ফলাফল",
+					"status": "translated"
+				}
+			}
+		},
 		"vs/workbench/contrib/saengineAi/electron-browser/aiController": {
 			"file": "src/vs/workbench/contrib/saengineAi/electron-browser/aiController.ts",
 			"strings": {
@@ -42102,8 +42754,8 @@
 					"status": "translated"
 				},
 				"component.ai": {
-					"en": "AI assistant (GitHub Copilot)",
-					"bn": "AI সহকারী (GitHub Copilot)",
+					"en": "AI assistant",
+					"bn": "AI অ্যাসিস্ট্যান্ট",
 					"status": "translated"
 				},
 				"component.git": {
@@ -42132,8 +42784,8 @@
 					"status": "translated"
 				},
 				"component.aiPurpose": {
-					"en": "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).",
-					"bn": "স্ট্রাকচার তৈরি ও সম্পাদনায় সাহায্যকারী চ্যাট (GitHub অ্যাকাউন্ট লাগে)। এটি না থাকলে চ্যাট নেই; SAEngine-এর বাইরের সহকারীরা তবুও যুক্ত হতে পারে (AI সহকারীকে এই উইন্ডো নিয়ন্ত্রণের অনুমতি দিন)।",
+					"en": "The AI Assistant view (BNBC 2020 questions answered from the code pack with clause citations, explanations of results, changes you preview and accept; your own Anthropic or OpenAI-compatible key) and the GitHub Copilot chat. Without it there is no assistant in SAEngine; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).",
+					"bn": "AI অ্যাসিস্ট্যান্ট ভিউ (BNBC 2020-এর প্রশ্নের উত্তর কোড প্যাক থেকে ক্লজ উল্লেখসহ, ফলাফলের ব্যাখ্যা, প্রিভিউ দেখে গ্রহণ করা পরিবর্তন; আপনার নিজের Anthropic বা OpenAI-সামঞ্জস্যপূর্ণ কী) এবং GitHub Copilot চ্যাট। এটি ছাড়া SAEngine-এ কোনো অ্যাসিস্ট্যান্ট থাকে না; SAEngine-এর বাইরের অ্যাসিস্ট্যান্ট তবুও যুক্ত হতে পারে (Allow AI Assistants to Control This Window)।",
 					"status": "translated"
 				},
 				"component.gitPurpose": {

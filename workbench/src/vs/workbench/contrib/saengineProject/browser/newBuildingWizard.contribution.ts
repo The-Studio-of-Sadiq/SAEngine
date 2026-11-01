@@ -48,10 +48,20 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	/** `{spec?}`: a building specification to fill the form with (the AI assistant's proposal). */
+	override async run(accessor: ServicesAccessor, arg?: unknown): Promise<void> {
 		const paneComposites = accessor.get(IPaneCompositePartService);
 		const developerMode = accessor.get(IConfigurationService).getValue<boolean>(DEVELOPER_MODE_SETTING) === true;
-		await accessor.get(IEditorService).openEditor(NewBuildingWizardInput.instance, { pinned: true });
+		const editorService = accessor.get(IEditorService);
+		const spec = typeof arg === 'object' && arg !== null ? (arg as { spec?: unknown }).spec : undefined;
+		if (typeof spec === 'object' && spec !== null && !Array.isArray(spec)) {
+			// Already open: close it, so the form opens again with the specification.
+			for (const open of editorService.findEditors(NewBuildingWizardInput.instance)) {
+				await editorService.closeEditor(open);
+			}
+			NewBuildingWizardInput.instance.prefill = spec as { readonly [key: string]: unknown };
+		}
+		await editorService.openEditor(NewBuildingWizardInput.instance, { pinned: true });
 		// The side bar keeps (or comes back to) the project's parts, not Search or Explorer (as a project opens).
 		const active = paneComposites.getActivePaneComposite(ViewContainerLocation.Sidebar)?.getId();
 		if (!developerMode && !active?.startsWith('workbench.view.saengine.')) {

@@ -13,6 +13,8 @@
 #define HasEnergyPlus DirExists(SourceDir + "\" + SAEngineResources + "\energyplus")
 #define HasLibreCAD DirExists(SourceDir + "\" + SAEngineResources + "\librecad")
 #define HasLibreDWG DirExists(SourceDir + "\" + SAEngineResources + "\libredwg")
+// The built-in SAEngine Assistant view (contrib/saengineAi) is shown only with the ai component;
+// the workbench reads the component's state from the Copilot folder (saengineUpdate/common/components.ts).
 // Optional built-in extensions: the AI assistant is the Copilot extension (about 280 MB, most of it
 // the Copilot runtime); Git is the Git, GitHub and merge-conflict extensions; collaboration is
 // port forwarding and Microsoft sign-in (live collaboration joins it later). GitHub sign-in serves both AI and Git.
@@ -1448,7 +1450,7 @@ SAEngineComponentCore=SAEngine (design, analysis, MEP, BNBC 2020, Python)
 SAEngineComponentEnergyPlus=Energy simulation: EnergyPlus (HVAC design-day loads)
 SAEngineComponentLibreCAD=CAD editor: LibreCAD, a separate GPL-2.0 program (edits the DXF drawings)
 SAEngineComponentLibreDWG=DWG import and export: GNU LibreDWG, a separate GPL-3.0 program (reads DWG drawings, writes the sheets as DWG)
-SAEngineComponentAI=AI assistant: GitHub Copilot chat (needs a GitHub account)
+SAEngineComponentAI=AI assistant: SAEngine Assistant (your Anthropic or OpenAI-compatible key) and GitHub Copilot chat
 SAEngineComponentGit=Git: project history and GitHub (Git, GitHub and merge-conflict tools)
 SAEngineComponentCollaboration=Collaboration: port forwarding and Microsoft sign-in for remote access (live collaboration later)
 SAEngineCivilFile=SAEngine Project Archive

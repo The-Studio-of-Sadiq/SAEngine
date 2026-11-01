@@ -733,7 +733,10 @@ export type ProjectPlatformMethod =
 	| 'workbook/export' | 'workbook/import'
 	// The setup's optional components the backend runs (`saengine.rpc.handlers.installer_components`):
 	// `components/list` `{}` -> `{energyplus, libredwg}`, each `{state, path?}`.
-	| 'components/list';
+	| 'components/list'
+	// The AI assistant's code Q&A (`saengine.ai.knowledge`): `ai/searchCode` `{query, projectRoot?, limit?, docs?}`
+	// -> `{pack, query, found, passages: [{id, kind, title, text, citations, score}], note}`.
+	| 'ai/searchCode';
 
 export interface ICadOpenRequest {
 	/** Absolute path of the `.dxf` file. */

@@ -81,7 +81,7 @@ export function componentLabel(component: SetupComponent): string {
 		case 'energyplus': return localize('component.energyplus', "Energy simulation (EnergyPlus)");
 		case 'librecad': return localize('component.librecad', "CAD editor (LibreCAD)");
 		case 'libredwg': return localize('component.libredwg', "DWG import and export (LibreDWG)");
-		case 'ai': return localize('component.ai', "AI assistant (GitHub Copilot)");
+		case 'ai': return localize('component.ai', "AI assistant");
 		case 'git': return localize('component.git', "Git");
 		case 'collaboration': return localize('component.collaboration', "Collaboration (remote access)");
 	}
@@ -93,7 +93,7 @@ export function componentPurpose(component: SetupComponent): string {
 		case 'energyplus': return localize('component.energyplusPurpose', "The design-day cooling loads of 7 MEP › HVAC. Without it the loads are SAEngine's estimate.");
 		case 'librecad': return localize('component.librecadPurpose', "Edits the DXF drawings SAEngine exports (Open in LibreCAD). Without it they open in the program Windows uses for DXF files.");
 		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports) and writes the drawing sheets as DWG. Without it a DWG must be saved as DXF first, and the sheets are DXF only.");
-		case 'ai': return localize('component.aiPurpose', "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
+		case 'ai': return localize('component.aiPurpose', "The AI Assistant view (BNBC 2020 questions answered from the code pack with clause citations, explanations of results, changes you preview and accept; your own Anthropic or OpenAI-compatible key) and the GitHub Copilot chat. Without it there is no assistant in SAEngine; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
 		case 'git': return localize('component.gitPurpose', "Project history with Git and GitHub, in Developer Mode. Without it SAEngine keeps its own versions of the project.");
 		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access, and live co-editing of a shared project once its engine is added. Shared projects (office copy, sync, part locks, presence) work without it.");
 	}
