@@ -3184,13 +3184,8 @@ def _clad_structure_wind(
             + "; the members take force coefficients (lattice) instead"
         )
         return {}
-    if wind.enclosure == "open":
-        b.notes.append(
-            "wind (clad structure): an open building takes the net pressures of free roofs, not "
-            "the enclosed building's wall and roof pressures (not covered here yet); the members "
-            "take force coefficients (lattice) instead"
-        )
-        return {}
+    # B14: an open building (a canopy, a free roof) takes the net pressures of free roofs.
+    open_building = wind.enclosure == "open"
     base = min(float(c[2]) for c in b.coords.values())
     vertical = math.cos(math.radians(float(mwfrs.roof.verticalFrom)))
     outlines = {
@@ -3257,6 +3252,8 @@ def _clad_structure_wind(
         centroid = np.mean(corners, axis=0)
         centroid[2] -= base
         points.append(ow.CladPoint(k, shell.source, centroid, n, float(sum(shares_of[k]))))
+    if open_building:
+        return _free_roof_wind(b, settings, values, patterns, points, shares_of, outlines, base)
     volume = wind.internalVolume
     if volume is None:
         # The volume under the roof: each roof piece's plan area times its height.
@@ -3315,6 +3312,75 @@ def _clad_structure_wind(
         + ". The members take no force coefficients as well"
     )
     return {"cladWind": {**s, "Vi_m3": volume, "labels": result.labels}}
+
+
+def _free_roof_wind(
+    b: _Builder,
+    settings: ProjectSettings,
+    values: dict[str, Any],
+    patterns: dict[str, dict[str, Any]],
+    points: list[Any],
+    shares_of: dict[int, list[float]],
+    outlines: dict[str, list[np.ndarray]],
+    base: float,
+) -> dict[str, Any]:
+    """The wind of an open clad structure (B14; enclosure ``open``: a canopy, a free roof): the
+    net pressures of free roofs on its roof panels (:func:`saengine.fem.open_wind.
+    free_roof_wind`, BNBC 2020 Part 6 Sec 2.4.12) as nodal forces in the cases WX, WXN, WY, WYN
+    and their variants (load cases A and B); no internal pressure. Returns ``{"cladWind": ...}``
+    or {} (with a note) when it cannot: then the members take force coefficients instead."""
+    from saengine.fem import open_wind as ow
+    from saengine.fem.loads import velocity_pressure, wind_factor, wind_overrides
+
+    wind = settings.wind
+    plan = np.array([p for pts in outlines.values() for p in pts])
+    every_z = [float(p[2]) - base for p in plan]
+    speed, importance = float(values["windSpeed"]), float(values["windImportance"])
+    with wind_overrides(wind):
+        result = ow.free_roof_wind(
+            points,
+            eave=min(every_z),
+            top=max(every_z),
+            plan=(plan.min(axis=0), plan.max(axis=0)),
+            qz_of=lambda z: 1000.0 * velocity_pressure(z, speed, wind.exposure, importance),
+            gust=wind_factor("gust"),
+            blockage=wind.openStructure.blockage,
+            area=wind.claddingArea,
+        )
+    b.notes.extend(f"wind (open building): {n}" for n in result.notes)
+    if not result.pressures:
+        b.notes.append("wind (open building): the members take force coefficients (lattice)")
+        return {}
+    by_key = {p.key: p for p in points}
+    for case, pressures in result.pressures.items():
+        target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
+        for key, pressure in pressures.items():
+            normal = by_key[key].normal
+            for node, share in zip(b.shells[key].nodes, shares_of[key], strict=True):
+                target.setdefault(node, np.zeros(6))[:3] -= pressure * share * normal
+    s = result.summary
+    source = getattr(ow.open_buildings_table(), "source", "") or ""
+    cladding = s.get("cladding") or {}
+    b.notes.append(
+        f"wind (open building): net pressures p = qh·G·CN on the free {s['roofForm']} roof "
+        f"({source}; {s['blockage']} flow, h {s['h_m']:.2f} m, θ {s['theta_deg']:.1f}°, qh "
+        f"{s['qh_Pa'] / 1e3:.3f} kN/m², G {s['G']:g}); "
+        + "; ".join(
+            f"{case}: Fx {c['Fx_kN']:g}, Fy {c['Fy_kN']:g}, Fz {c['Fz_kN']:g} kN"
+            for case, c in s["cases"].items()
+        )
+        + ". The members take no force coefficients as well"
+    )
+    if cladding.get("zones"):
+        b.notes.append(
+            f"wind (open building) components and cladding, a = {cladding['a_m']:.2f} m: "
+            + "; ".join(
+                f"zone {z['zone']} {z['pPos_kPa']:+.2f}/{z['pNeg_kPa']:+.2f} kN/m² "
+                f"(CN {z['CNPos']:+.2f}/{z['CNNeg']:+.2f})"
+                for z in cladding["zones"]
+            )
+        )
+    return {"cladWind": {**s, "labels": result.labels}}
 
 
 def _wind_loads(
@@ -3472,6 +3538,11 @@ def _wind_loads(
             parapet=getattr(settings, "parapetHeight", None) or None,
             opening_area=getattr(settings, "openingArea", None),
             volume=getattr(settings, "internalVolume", None),
+            # B14: the roof's form and angle for the roof figures.
+            roof_form=getattr(getattr(settings, "claddingRoof", None), "form", "flat"),
+            roof_angle=getattr(getattr(settings, "claddingRoof", None), "angle", None),
+            roof_rise=getattr(getattr(settings, "claddingRoof", None), "rise", None),
+            step_height=getattr(getattr(settings, "claddingRoof", None), "stepHeight", None),
         )
         # B11: the MWFRS pressures on the walls and the flat roof in each direction (Eq
         # 6.2.19, Figure 6.2.6): reported (the roof's uplift on its slabs and beams); the storey
@@ -3508,8 +3579,14 @@ def _wind_loads(
         if cladding is not None:
             summary["wind"]["cladding"] = cladding
             worst = min(z["pNeg_kPa"] for z in cladding["zones"] if z["pNeg_kPa"] is not None)
+            figure = cladding.get("figure") or code_context.table("wind").sources.get(
+                "cladding", ""
+            )
+            roof = cladding.get("roofForm", "flat")
+            notes.extend(f"wind components and cladding: {n}" for n in cladding.get("notes", []))
             notes.append(
-                "wind components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): qh = "
+                f"wind components and cladding ({figure}; {roof} roof, θ "
+                f"{cladding.get('theta_deg', 0):g}°): qh = "
                 f"{cladding['qh_kPa']:.2f} kN/m² at h = {rel[-1]:.1f} m, edge zones a = "
                 f"{cladding['a_m']:.2f} m, largest suction {worst:.2f} kN/m² "
                 + "; ".join(

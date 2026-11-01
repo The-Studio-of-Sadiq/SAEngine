@@ -130,6 +130,35 @@
       "title": "ArchedTable",
       "type": "object"
     },
+    "CladdingArchedTable": {
+      "additionalProperties": false,
+      "description": "Arched roofs: at the perimeter, the roof figures with θ the springline slope; elsewhere\nthe MWFRS arched roof Cp times ``interiorFactor``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "interiorFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "interiorFactor"
+      ],
+      "title": "CladdingArchedTable",
+      "type": "object"
+    },
     "CladdingCurve": {
       "additionalProperties": false,
       "description": "One external pressure coefficient (GCp) of components and cladding: ``gcp1`` at an\neffective wind area up to ``area1`` [m²], ``gcp2`` from ``area2``, linear in log A between.",
@@ -196,6 +225,328 @@
         "gcp2"
       ],
       "title": "CladdingCurve",
+      "type": "object"
+    },
+    "CladdingDomeTable": {
+      "additionalProperties": false,
+      "description": "Domes on a circular base: (GCp) by the angle θ from the springline (0) to the top (90),\nwith q at the top of the dome; the figure's range of hD/D and f/D.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "negative": {
+          "description": "(GCp) suction over the whole dome.",
+          "exclusiveMaximum": 0,
+          "title": "Negative",
+          "type": "number"
+        },
+        "positive": {
+          "description": "(θ up to [°], positive GCp) bands.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Positive",
+          "type": "array"
+        },
+        "baseMax": {
+          "description": "hD/D up to this.",
+          "exclusiveMinimum": 0,
+          "title": "Basemax",
+          "type": "number"
+        },
+        "riseRange": {
+          "description": "f/D range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Riserange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "negative",
+        "positive",
+        "baseMax",
+        "riseRange"
+      ],
+      "title": "CladdingDomeTable",
+      "type": "object"
+    },
+    "CladdingPointCurve": {
+      "additionalProperties": false,
+      "description": "One external pressure coefficient (GCp) of components and cladding by effective wind area:\n(area [m²], GCp) points, linear in log A between them, the end values beyond the ends.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "sign": {
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Sign",
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zone",
+        "sign",
+        "points"
+      ],
+      "title": "CladdingPointCurve",
+      "type": "object"
+    },
+    "CladdingRoofTable": {
+      "additionalProperties": false,
+      "description": "The (GCp) of the roofs of one form over a range of roof angles θ (angleFrom < θ ≤\nangleTo) for low-rise buildings (read by :func:`saengine.fem.loads.cladding_pressures`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "forms": {
+          "description": "Roof forms this figure covers (gable, hip, monoslope, ...).",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Forms",
+          "type": "array"
+        },
+        "angleFrom": {
+          "description": "θ above this [°] ...",
+          "minimum": 0,
+          "title": "Anglefrom",
+          "type": "number"
+        },
+        "angleTo": {
+          "description": "... up to this [°].",
+          "exclusiveMinimum": 0,
+          "title": "Angleto",
+          "type": "number"
+        },
+        "roof": {
+          "description": "Roof zones; empty: the low-rise flat-roof curves.",
+          "items": {
+            "$ref": "#/$defs/CladdingPointCurve"
+          },
+          "title": "Roof",
+          "type": "array"
+        },
+        "overhang": {
+          "description": "Roof overhangs (top and bottom surfaces together).",
+          "items": {
+            "$ref": "#/$defs/CladdingPointCurve"
+          },
+          "title": "Overhang",
+          "type": "array"
+        },
+        "zoneLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "What each zone of this figure is (its plan).",
+          "title": "Zonelabels",
+          "type": "object"
+        },
+        "cornerAsEdge": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Form -> θ [°] up to which roof zone 3 is treated as zone 2 (hip roofs).",
+          "title": "Cornerasedge",
+          "type": "object"
+        },
+        "parapetCornerAsEdge": {
+          "default": false,
+          "description": "A parapet of at least the cladding table's parapetCorner turns zone 3 into zone 2 on this figure's roofs.",
+          "title": "Parapetcornerasedge",
+          "type": "boolean"
+        },
+        "envelopeForm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Also take the larger magnitude of this form's figure at the same angle (zone by its number), where the code's text points to both.",
+          "title": "Envelopeform"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "forms",
+        "angleFrom",
+        "angleTo"
+      ],
+      "title": "CladdingRoofTable",
+      "type": "object"
+    },
+    "CladdingSteppedRoof": {
+      "additionalProperties": false,
+      "description": "The lower level of a flat stepped roof: its zones at the roof-upper wall intersection\nrenamed (``zoneMap``), and the wall's positive (GCp) on a strip b = widthFactor·h1 ≤\nwidthMax wide; the figure's limits on h1 and the ratios.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zoneMap": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Zonemap",
+          "type": "object"
+        },
+        "widthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Widthfactor",
+          "type": "number"
+        },
+        "widthMax": {
+          "description": "b at most this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Widthmax",
+          "type": "number"
+        },
+        "minUpperHeight": {
+          "description": "h1 at least this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Minupperheight",
+          "type": "number"
+        },
+        "heightRatio": {
+          "description": "hi/h range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Heightratio",
+          "type": "array"
+        },
+        "widthRatio": {
+          "description": "Wi/W range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Widthratio",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zoneMap",
+        "widthFactor",
+        "widthMax",
+        "minUpperHeight",
+        "heightRatio",
+        "widthRatio"
+      ],
+      "title": "CladdingSteppedRoof",
       "type": "object"
     },
     "CladdingTable": {
@@ -287,6 +638,81 @@
           "exclusiveMinimum": 0,
           "title": "Parapetcorner",
           "type": "number"
+        },
+        "wallFactorMaxAngle": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "lowRiseWallFactor only for a roof θ up to this [°]; None: any.",
+          "title": "Wallfactormaxangle"
+        },
+        "roofs": {
+          "description": "Roof figures by form and angle; empty: flat roofs only.",
+          "items": {
+            "$ref": "#/$defs/CladdingRoofTable"
+          },
+          "title": "Roofs",
+          "type": "array"
+        },
+        "highRiseRoofsFrom": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "h above lowRiseHeight with a roof θ above this [°]: the low-rise roof figures with qh; None: the high-rise flat-roof curves at any θ.",
+          "title": "Highriseroofsfrom"
+        },
+        "parapetPositive": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "With a parapet (as parapetCorner): roof zone -> wall zone whose positive (GCp) the roof zone takes.",
+          "title": "Parapetpositive",
+          "type": "object"
+        },
+        "stepped": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingSteppedRoof"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "domes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingDomeTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arched": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingArchedTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -898,6 +1324,494 @@
       "title": "MwfrsTable",
       "type": "object"
     },
+    "OpenBuildingsTable": {
+      "additionalProperties": false,
+      "description": "Open buildings with monoslope, pitched or troughed free roofs: p = qh·G·CN for the\nmain wind-force resisting system and the components and cladding (read by\n:mod:`saengine.fem.open_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxAngle": {
+          "description": "Roof θ up to this [°].",
+          "exclusiveMinimum": 0,
+          "title": "Maxangle",
+          "type": "number"
+        },
+        "minAngle": {
+          "description": "Below this θ [°], every form takes the monoslope's first row.",
+          "minimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "hOverL": {
+          "description": "h/L range of the figures.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Hoverl",
+          "type": "array"
+        },
+        "mwfrs": {
+          "$ref": "#/$defs/OpenRoofMwfrs"
+        },
+        "cladding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenRoofCladding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "maxAngle",
+        "minAngle",
+        "hOverL",
+        "mwfrs"
+      ],
+      "title": "OpenBuildingsTable",
+      "type": "object"
+    },
+    "OpenRoofAlong": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofAlongZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        },
+        "flatMonoslopeAngle": {
+          "description": "A monoslope roof below this θ [°] takes these zones ...",
+          "exclusiveMinimum": 0,
+          "title": "Flatmonoslopeangle",
+          "type": "number"
+        },
+        "flatMonoslopeRatio": {
+          "description": "... for the wind normal to its slope too, with h/L in this range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Flatmonosloperatio",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zones",
+        "flatMonoslopeAngle",
+        "flatMonoslopeRatio"
+      ],
+      "title": "OpenRoofAlong",
+      "type": "object"
+    },
+    "OpenRoofAlongZone": {
+      "additionalProperties": false,
+      "description": "A zone of a free roof by its horizontal distance from the windward edge (multiples of\nh), wind parallel to the ridge: CN by load case, then by blockage.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ends this many h from the edge.",
+          "title": "Upto"
+        },
+        "cases": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "title": "Cases",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cases"
+      ],
+      "title": "OpenRoofAlongZone",
+      "type": "object"
+    },
+    "OpenRoofCladding": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "areaBands": {
+          "description": "Band upper limits as multiples of a² (the last band: above).",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Areabands",
+          "type": "array"
+        },
+        "ridgeEdgeFrom": {
+          "description": "θ [°] from which a pitched or troughed roof's ridge (valley) is an edge.",
+          "title": "Ridgeedgefrom",
+          "type": "number"
+        },
+        "zoneLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Zonelabels",
+          "type": "object"
+        },
+        "monoslope": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Monoslope",
+          "type": "array"
+        },
+        "pitched": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Pitched",
+          "type": "array"
+        },
+        "troughed": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Troughed",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaBands",
+        "ridgeEdgeFrom",
+        "monoslope",
+        "pitched",
+        "troughed"
+      ],
+      "title": "OpenRoofCladding",
+      "type": "object"
+    },
+    "OpenRoofCladdingRow": {
+      "additionalProperties": false,
+      "description": "CN of the components and cladding of a free roof at one angle: per blockage, per zone,\nthe (positive, negative) pair of each effective-area band.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "clear": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Clear",
+          "type": "object"
+        },
+        "obstructed": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Obstructed",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "angle",
+        "clear",
+        "obstructed"
+      ],
+      "title": "OpenRoofCladdingRow",
+      "type": "object"
+    },
+    "OpenRoofMwfrs": {
+      "additionalProperties": false,
+      "description": "Net pressure coefficients CN of the main wind-force resisting system of free roofs.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "monoslope": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Monoslope",
+          "type": "array"
+        },
+        "pitched": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Pitched",
+          "type": "array"
+        },
+        "troughed": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Troughed",
+          "type": "array"
+        },
+        "along": {
+          "$ref": "#/$defs/OpenRoofAlong"
+        }
+      },
+      "required": [
+        "monoslope",
+        "pitched",
+        "troughed",
+        "along"
+      ],
+      "title": "OpenRoofMwfrs",
+      "type": "object"
+    },
+    "OpenRoofRow": {
+      "additionalProperties": false,
+      "description": "One roof angle and load case of an open building's free roof, wind normal to the ridge:\n(CNW, CNL) the net pressure coefficients of the windward and leeward halves, by blockage;\n``...Reverse`` for γ = 180° where the figure gives it (a monoslope roof: γ = 0° the wind\nblows from the high eave down the slope, 180° up it).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "case": {
+          "title": "Case",
+          "type": "string"
+        },
+        "clear": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Clear",
+          "type": "array"
+        },
+        "obstructed": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Obstructed",
+          "type": "array"
+        },
+        "clearReverse": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clearreverse"
+        },
+        "obstructedReverse": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Obstructedreverse"
+        }
+      },
+      "required": [
+        "angle",
+        "case",
+        "clear",
+        "obstructed"
+      ],
+      "title": "OpenRoofRow",
+      "type": "object"
+    },
     "OpenStructuresTable": {
       "additionalProperties": false,
       "description": "Design wind loads on other structures, F = qz·G·Cf·Af (BNBC 2020 Part 6 Sec 2.4, the\nprovisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice\nframeworks, and trussed towers.",
@@ -1461,6 +2375,18 @@
       ],
       "default": null,
       "description": "Wall and roof pressures of the main wind-force resisting system; None: storey forces only and no wind on clad special structures."
+    },
+    "openBuildings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpenBuildingsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Net pressures on the free roofs of open buildings; None: an open clad structure takes force coefficients on its members instead."
     },
     "openStructures": {
       "anyOf": [

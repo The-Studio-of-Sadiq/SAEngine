@@ -6171,6 +6171,65 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'AreaLoad',
 			type: 'object',
 		},
+		CladdingRoof: {
+			additionalProperties: false,
+			description: 'The building\'s roof as the components-and-cladding figures see it (B14;\n:func:`saengine.fem.loads.cladding_pressures`).',
+			properties: {
+				form: {
+					default: 'flat',
+					description: 'Roof form: its zones and coefficients come from the code pack\'s figure for that form and angle.',
+					enum: ['flat', 'gable', 'hip', 'monoslope', 'multispan', 'sawtooth', 'stepped', 'arched', 'dome'],
+					enumDescriptions: ['Flat', 'Gable', 'Hip', 'Monoslope', 'Multispan gable', 'Sawtooth', 'Stepped (flat, two levels)', 'Arched', 'Dome'],
+					title: 'Form',
+					type: 'string',
+				},
+				angle: {
+					anyOf: [
+						{
+							maximum: 90,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Angle of the roof plane from horizontal [°]; arched roofs: the slope at the springline. Empty: 0 (flat).',
+					title: 'Roof angle θ',
+				},
+				rise: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Arched roofs: rise to span r; domes: rise to diameter f/D.',
+					title: 'Rise ratio',
+				},
+				stepHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stepped roofs: height of the upper part above the lower roof [m].',
+					title: 'Step height h1',
+				},
+			},
+			title: 'CladdingRoof',
+			type: 'object',
+		},
 		Codes: {
 			additionalProperties: false,
 			description: 'Deprecated: the design code is the code pack (codePack); the report states the labels of\nits basis. Old files keep validating; the value is not read and not written back.',
@@ -7083,9 +7142,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				form: {
 					default: 'lattice',
-					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels; none: no wind on special structures.',
+					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) the free roof\'s net pressures; none: no wind on special structures.',
 					enum: ['lattice', 'squareTower', 'triangularTower', 'clad', 'none'],
-					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building (pressures on its panels)', 'None'],
+					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building or canopy (pressures on its panels)', 'None'],
 					title: 'Form',
 					type: 'string',
 				},
@@ -7125,6 +7184,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Members are round (pipes, rods): the rounded-member coefficients.',
 					title: 'Rounded members',
 					type: 'boolean',
+				},
+				blockage: {
+					default: 'clear',
+					description: 'An open clad structure (a canopy, a free roof; enclosure open) takes the net pressures of free roofs: clear when at most half the space under the roof is blocked (by goods, vehicles, walls), obstructed when more is.',
+					enum: ['clear', 'obstructed'],
+					enumDescriptions: ['Clear (≤ 50 % blocked)', 'Obstructed (> 50 % blocked)'],
+					title: 'Clad, open: wind flow under the roof',
+					type: 'string',
 				},
 			},
 			title: 'OpenStructureWind',
@@ -7860,6 +7927,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Unpartitioned internal volume [m³] for Ri. Empty: from the model (the volume under the roof of a clad special structure).',
 					title: 'Internal volume Vi',
 				},
+				claddingRoof: {
+					$ref: '#/$defs/CladdingRoof',
+					description: 'The building\'s roof for the components and cladding pressures (the code pack\'s roof figures by form and angle).',
+					title: 'Cladding: roof form',
+				},
 				openStructure: {
 					$ref: '#/$defs/OpenStructureWind',
 					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other structures).',
@@ -8004,11 +8076,15 @@ export const DEFAULT_SETTINGS: object = {
 	wind: {
 		exposure: 'A',
 		enclosure: 'enclosed',
+		claddingRoof: {
+			form: 'flat',
+		},
 		openStructure: {
 			form: 'lattice',
 			method: 'allHeights',
 			roof: 'planar',
 			roundMembers: false,
+			blockage: 'clear',
 		},
 	},
 	areaLoads: [
