@@ -387,6 +387,13 @@
           "default": null,
           "title": "Nonparalleltolerance"
         },
+        "nonparallelOrthogonal": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nonparallelorthogonal",
+          "type": "array"
+        },
         "offsets": {
           "default": false,
           "title": "Offsets",

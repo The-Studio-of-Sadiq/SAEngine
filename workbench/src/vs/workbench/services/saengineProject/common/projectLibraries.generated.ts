@@ -7062,6 +7062,22 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Adjacent structures',
 					type: 'array',
 				},
+				softStoreys: {
+					description: 'Storeys (by name) to design as soft storeys besides those the stiffness check finds: for example an open parking floor below storeys with infill walls, which the analysis model leaves out.',
+					items: {
+						type: 'string',
+					},
+					title: 'Soft storeys',
+					type: 'array',
+				},
+				softStoreyDesign: {
+					default: 'factors',
+					description: 'factors: the soft storey\'s columns and beams take the code\'s factor on the earthquake forces, its structural walls the wall factor. dynamicInfill: a dynamic analysis with the infill walls and the members\' inelastic deformation was done outside SAEngine (the factors are not applied; the engineer is responsible for it).',
+					enum: ['factors', 'dynamicInfill'],
+					enumDescriptions: ['Factors on the earthquake forces', 'Dynamic analysis with infill (outside)'],
+					title: 'Soft storey design',
+					type: 'string',
+				},
 			},
 			title: 'Seismic',
 			type: 'object',
@@ -7586,6 +7602,8 @@ export const DEFAULT_SETTINGS: object = {
 		driftTolerantFinishes: false,
 		cantileverMasonryWalls: false,
 		adjacent: [],
+		softStoreys: [],
+		softStoreyDesign: 'factors',
 	},
 	wind: {
 		exposure: 'A',

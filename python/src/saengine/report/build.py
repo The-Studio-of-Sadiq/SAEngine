@@ -1496,6 +1496,8 @@ def _results(
     # B9: storey drift and sway under the service wind, overturning of the whole building.
     out["serviceability"] = _serviceability(model_path, results_dir, warnings)
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
+    # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
+    out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     return out
@@ -1573,6 +1575,86 @@ def _serviceability(model_path: Path, results_dir: Path, warnings: list[str]) ->
         "overturningClause": over.get("clause", ""),
         "overturningNote": over.get("note", ""),
         "notes": list(wind.get("notes") or []),
+    }
+
+
+def _irregularity(
+    model_path: Path, results_dir: Path, settings: Any, warnings: list[str]
+) -> dict[str, Any]:
+    """B12: the building's irregularities (:func:`saengine.fem.irregularity.assessment_of`, after
+    the response spectrum design so its torsion rows are used) as report rows: the findings,
+    the storey stiffness, weight and strength, the dynamic analysis requirement, the soft
+    storeys and the diaphragm connections. ``{"available": False, "reason"}`` when the code
+    pack does not cover them or the project cannot be read."""
+    from saengine.fem import irregularity as ir
+
+    if ir.table() is None:
+        return {
+            "available": False,
+            "reason": f"Building irregularities are not covered by the code pack "
+            f"{code_context.current().name}.",
+        }
+    try:
+        found = ir.assessment_of(results_dir, model_path, settings)
+    except Exception as error:  # noqa: BLE001 - the report goes on without them
+        warnings.append(f"The building irregularities could not be worked out: {error}")
+        return {"available": False, "reason": str(error)}
+    dynamic = found.get("dynamic") or {}
+    if dynamic.get("required") and not dynamic.get("used"):
+        warnings.append(
+            "Dynamic analysis is required ("
+            + "; ".join(dynamic.get("reasons", []))
+            + "), but the design uses the equivalent static cases."
+        )
+    connections = found.get("connections") or {}
+    soft = found.get("softStoreys") or []
+    design = code_context.table("seismic").softStorey
+    return {
+        "available": True,
+        "findings": ir.finding_rows(found),
+        "storeys": ir.storey_rows(found),
+        "planClause": found["clauses"]["plan"],
+        "verticalClause": found["clauses"]["vertical"],
+        "dynamic": {
+            "required": bool(dynamic.get("required")),
+            "recommended": bool(dynamic.get("recommended")),
+            "used": bool(dynamic.get("used")),
+            "reasons": list(dynamic.get("reasons") or []),
+            "height": fmt(dynamic.get("height"), 1) if dynamic.get("height") else "–",
+            "limit": fmt(dynamic.get("limit"), 0) if dynamic.get("limit") else "–",
+            "zone": str(dynamic.get("zone") or "–"),
+            "clause": str(dynamic.get("clause", "")),
+        }
+        if dynamic
+        else None,
+        "soft": [
+            [
+                s["name"],
+                s.get("direction") or "–",
+                ir.label(s["type"]) if s["type"] != "declared" else "named in the settings",
+            ]
+            for s in soft
+        ],
+        "softDesign": (
+            (
+                f"columns and beams × {design.frameFactor:g}, structural walls × "
+                f"{design.wallFactor:g} on the earthquake forces"
+                if found.get("softStoreyDesign") != "dynamicInfill"
+                else "a dynamic analysis with the infill walls, done outside SAEngine"
+            )
+            if design is not None and soft
+            else ""
+        ),
+        "softClause": f"{found['code']} {design.clause}" if design is not None else "",
+        "connections": (
+            f"Seismic Design Category {connections.get('category') or '–'}: the connection forces "
+            f"of the floors × {fmt(connections.get('factor'), 2)} for "
+            + ", ".join(ir.label(t) for t in connections.get("types", []))
+            + f" ({connections.get('clause', '')})"
+            if connections.get("applies")
+            else ""
+        ),
+        "notes": [str(n) for n in found.get("notes", [])],
     }
 
 

@@ -1,4 +1,4 @@
-"""Diaphragm chords and collectors of the floors (BNBC 2020 Part 6 Sec 2.5.5.6).
+"""Diaphragm chords, collectors and connections of the floors (the code pack's seismic rules).
 
 Each floor of the building model is a horizontal beam that carries its seismic force to the
 lines of vertical elements (frames and structural walls). Per level and direction:
@@ -17,15 +17,22 @@ lines of vertical elements (frames and structural walls). Per level and directio
   floor's force by tributary width between the lines of beams and walls along the force) over
   the floor's length on that line; beyond the wall's ends the beams on the line carry the part
   the wall does not touch, Fc = R (1 - lw / Lline). In Seismic Design Categories C and D the
-  collectors take Ω0 Fc (Sec 2.5.5.6.3, p. 625). The connection forces of irregular buildings
-  (+25 %, Sec 2.5.5.6.2) are not designed here.
+  collectors take Ω0 Fc (Sec 2.5.5.6.3, p. 625);
+- B12, the connections of irregular buildings (the pack's ``seismic.diaphragmConnections``,
+  BNBC Sec 1.7.3.8(d)(i) and 2.5.5.6.2): in the categories and with the irregularities it
+  names (:mod:`saengine.fem.irregularity`), the force of each floor-to-wall connection (the
+  wall's line share R of Fpx) and the collectors not designed for Ω0 go up by
+  ``transfer.diaphragm.irregularIncrease`` (+25 %). The connection force is reported per wall
+  (kN and kN/m along it) for its design; the projecting wings of a plan with re-entrant
+  corners (1.7.3.8(d)(ii)) get a note, unless the design uses the response spectrum on the 3D
+  model (the exception).
 
-Units: mm, N inside; reported in kN.
+Units: mm, N inside; reported in kN. Clause references from the pack (``seismic.clauses``).
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -33,13 +40,25 @@ from saengine.codes import context as code_context
 
 __all__ = ["CLAUSES", "diaphragm_forces", "diaphragms_of"]
 
-CLAUSES = {
-    "collectors": "BNBC 2020 Part 6 Sec 2.5.5.6.3 (p. 625)",
-    "irregular": "BNBC 2020 Part 6 Sec 2.5.5.6.2 (p. 625)",
-    "force": "ASCE 7-05 Sec 12.10.1.1 (BNBC 2020 is silent)",
-    "storeyForces": "BNBC 2020 Part 6 Sec 2.5.7",
-    "phi": "BNBC 2020 Part 6 Sec 6.2.3.2 (p. 897)",
-}
+
+class _PackClauses(dict):
+    """``CLAUSES[key]``: the code pack's clause reference (``seismic.clauses``), read when used."""
+
+    _KEYS: ClassVar[dict[str, str]] = {
+        "collectors": "diaphragmCollectors",
+        "irregular": "diaphragmConnections",
+        "wings": "diaphragmWings",
+        "force": "diaphragmForce",
+        "phi": "diaphragmPhi",
+    }
+
+    def __getitem__(self, key: str) -> str:
+        from saengine.fem.seismic_design import clauses
+
+        return clauses().get(self._KEYS.get(key, key), "")
+
+
+CLAUSES: dict[str, str] = _PackClauses()
 
 G = 9.80665
 _ON_LINE = 1.0  # mm
@@ -93,9 +112,13 @@ def diaphragms_of(
     types: dict[str, Any],
     mats: dict[str, Any],
     settings: Any,
+    irregular: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The diaphragm elements of the design report: ``{"elements", "skipped", "notes"}``, one
-    element (``kind`` "diaphragm") per floor with its chord and collector checks."""
+    element (``kind`` "diaphragm") per floor with its chord and collector checks and, under
+    ``"connections"``, the design force of each floor-to-wall connection. ``irregular``: the
+    building's irregularities (:func:`saengine.fem.irregularity.assess`), for the connection
+    increase of irregular buildings."""
     from shapely.geometry import LineString, Polygon
     from shapely.ops import unary_union
 
@@ -123,6 +146,15 @@ def diaphragms_of(
     )
     amplify = category in table.collectorCategories
     phi = float(code_context.table("factors").phi["tension"])
+    # B12: +25 % on the connections (and the collectors not designed for Ω0) of irregular
+    # buildings in the categories the pack names.
+    connections = (irregular or {}).get("connections") or {}
+    increase = float(connections.get("factor") or 1.0) if connections.get("applies") else 1.0
+    because = (
+        ", ".join(_irregularity_label(t) for t in connections.get("types", []))
+        if increase > 1.0
+        else ""
+    )
 
     weights_at: dict[float, float] = {}
     for node in project.get("nodes", []):
@@ -248,12 +280,23 @@ def diaphragms_of(
                 )
                 length = float(floor.intersection(line).length)
                 wall_length = float(np.linalg.norm(w1 - w0))
-                if length <= wall_length + _ON_LINE:
-                    continue  # the wall spans its whole line: no collector
                 share = _tributary(lines, line_at, float(lo[across]), float(hi[across])) / span
                 reaction = fpx * share
+                # B12: the floor-to-wall connection takes the line's share (increased for
+                # irregular buildings), for its design.
+                element.setdefault("connections", []).append(
+                    {
+                        "wall": wall.id,
+                        "direction": axis,
+                        "force_kN": round(increase * reaction / 1e3, 1),
+                        "perMetre_kN_m": round(increase * reaction / max(wall_length, 1.0), 2),
+                        "increase": increase,
+                    }
+                )
+                if length <= wall_length + _ON_LINE:
+                    continue  # the wall spans its whole line: no collector
                 collector = reaction * (1 - wall_length / length)
-                factor = omega if amplify else 1.0
+                factor = omega if amplify else increase
                 on_line = [
                     (e, a, c)
                     for e, a, c in level_beams
@@ -273,6 +316,8 @@ def diaphragms_of(
                         + (
                             f"; × Ω0 = {omega:g} (Category {category}, {CLAUSES['collectors']})"
                             if amplify
+                            else f"; × {increase:g} for {because} ({CLAUSES['irregular']})"
+                            if increase > 1.0
                             else f" (Category {category}: no Ω0, {CLAUSES['collectors']})"
                         )
                         + "; φ As fy of "
@@ -294,10 +339,36 @@ def diaphragms_of(
             f"diaphragm force Fpx ({CLAUSES['force']}, SDS = {sds:.3f} g, I = {importance:g}); "
             "chords from a simple span between the outermost lines; collectors by tributary "
             f"width, with Ω0 in Categories {', '.join(table.collectorCategories)} "
-            f"({CLAUSES['collectors']}); the connection forces of irregular buildings "
-            f"({CLAUSES['irregular']}) are not designed"
+            f"({CLAUSES['collectors']}); the floor-to-wall connection forces are listed per "
+            "wall for their design"
         )
+    if increase > 1.0:
+        found["notes"].append(
+            f"diaphragm connections: Category {category} with {because}: the connection forces "
+            f"of the floors to the walls and collectors, and the collectors not designed for "
+            f"Ω0, × {increase:g} ({CLAUSES['irregular']})"
+        )
+    if connections.get("wings"):
+        if connections.get("wingsExempt"):
+            found["notes"].append(
+                "projecting wings (re-entrant corners): the forces come from the response "
+                f"spectrum on the three-dimensional model, as the exception allows "
+                f"({CLAUSES['wings']})"
+            )
+        else:
+            found["notes"].append(
+                "projecting wings (re-entrant corners): design the chords and collectors for "
+                "the wings moving in the same and in opposite directions, or use the response "
+                "spectrum design on the three-dimensional model, which satisfies it "
+                f"({CLAUSES['wings']}); SAEngine does not work out the wings' own motion"
+            )
     return found
+
+
+def _irregularity_label(kind: str) -> str:
+    from saengine.fem.irregularity import label
+
+    return label(kind)
 
 
 def _point(a: float, b: float, along: int) -> tuple[float, float]:

@@ -500,7 +500,8 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
     "baseReaction": [Fx, Fy, Fz, Mx, My, Mz] | None, "forceScale"?}], "modal", "spectrum",
     "driftLimit", "spectrumDesign" (:func:`_spectrum_scale`), "pushover": [{"key", "label",
     "displacement", "shear"}], "histories": [{"key", "label", "node", "time", "displacement":
-    [[ux, uy]]}], "serviceability" (:func:`_serviceability`), "notes"}``. Result keys are those of
+    [[ux, uy]]}], "serviceability" (:func:`_serviceability`), "irregularity" (storey rows and findings of
+    :func:`saengine.fem.irregularity.assess`), "notes"}``. Result keys are those of
     :func:`saengine.fem.display.result_list`."""
     from opensees_studio.services.results import (
         PushoverResults,
@@ -682,11 +683,27 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
         )
     except Exception as error:  # noqa: BLE001 - the charts show without the checks
         notes.append(f"the serviceability checks could not be worked out: {error}")
+    # B12: the storey stiffness, weight and strength with the irregularities they show
+    # (saengine.fem.irregularity), when the model belongs to a SAEngine project.
+    irregular = None
+    if project.get("meta", {}).get("author") == "SAEngine":
+        from saengine.fem import irregularity
+
+        try:
+            if irregularity.table() is not None:
+                found = irregularity.assessment_of(out_dir, project_path)
+                irregular = {
+                    k: found.get(k)
+                    for k in ("storeys", "findings", "types", "softStoreys", "dynamic", "notes")
+                }
+        except Exception as error:  # noqa: BLE001 - the charts show without the checks
+            notes.append(f"the building irregularities could not be worked out: {error}")
     return _finite(
         {
             "levels": level_rows,
             "results": results,
             "serviceability": serviceability,
+            "irregularity": irregular,
             "modal": _modal(project_path, loaded, notes),
             "spectrum": _spectrum_curve(project),
             "driftLimit": _drift_limit(project_path),

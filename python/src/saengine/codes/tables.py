@@ -516,6 +516,8 @@ class Irregularities(BaseModel):
     diaphragmStiffnessChange: float | None = Field(default=None, gt=0, lt=1)
     #: Non-parallel systems: an element more than this many degrees off the major axes.
     nonparallelTolerance: float | None = Field(default=None, gt=0, lt=45)
+    #: Seismic Design Categories where non-parallel systems ask for the orthogonal combination.
+    nonparallelOrthogonal: list[str] = Field(default_factory=list)
     #: Out-of-plane offsets (plan) and in-plane discontinuity (vertical): checked when True.
     offsets: bool = False
     #: In-plane discontinuity: an in-plane offset more than this × the element's length.

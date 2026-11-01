@@ -774,6 +774,9 @@
     "openingShare": 0.5,
     "diaphragmStiffnessChange": 0.5,
     "nonparallelTolerance": 5.0,
+    "nonparallelOrthogonal": [
+      "C"
+    ],
     "offsets": true,
     "inPlaneOffset": 1.0,
     "soft": {
@@ -996,6 +999,11 @@
     "orthogonalOneShift": "Part 6 Sec 2.5.7.6.3 (p. 631)",
     "irregularities": "Part 6 Sec 2.5.5.3 (pp. 617-618)",
     "dynamicAnalysis": "Part 6 Sec 2.5.8.1 (p. 633)",
-    "softStorey": "Part 6 Sec 2.5.17 (p. 666)"
+    "softStorey": "Part 6 Sec 2.5.17 (p. 666)",
+    "diaphragmCollectors": "Part 6 Sec 2.5.5.6.3 (p. 625)",
+    "diaphragmConnections": "Part 6 Sec 1.7.3.8(d)(i) (p. 505), Sec 2.5.5.6.2 (p. 625)",
+    "diaphragmWings": "Part 6 Sec 1.7.3.8(d)(ii) (p. 506)",
+    "diaphragmForce": "Part 6 Sec 2.5.7 storey forces; Fpx in the form of ASCE 7-05 Sec 12.10.1.1 (SAEngine practice, not a clause of the code, which gives no diaphragm force)",
+    "diaphragmPhi": "Part 6 Sec 6.2.3.2 (p. 897)"
   }
 }
