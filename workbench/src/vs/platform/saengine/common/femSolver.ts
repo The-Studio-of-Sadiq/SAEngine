@@ -672,7 +672,7 @@ export type EngineMethod =
 	// `revit/export` `{projectRoot, outPath?}`, `revit/preview` `{projectRoot, path}` and
 	// `revit/apply` `{projectRoot, path, changes}`.
 	| 'revit/export' | 'revit/preview' | 'revit/apply'
-	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check'
+	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check' | 'architecture/ramps'
 	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
 	// `worksheets/calculate` `{kind, inputs, projectRoot?}`, `worksheets/list` `{projectRoot}`,
