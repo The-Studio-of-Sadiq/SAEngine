@@ -195,6 +195,20 @@ class TransientResults:
         with h5py.File(self.h5_path, "r") as f:
             return f[f"elements/{element_id}/forces"][:]  # type: ignore[index]
 
+    def element_fibre_peaks(self, element_id: int) -> dict[str, np.ndarray]:
+        """The fibre strain peaks of a fibre element (``TransientCase.record_fibre_peaks``):
+        ``{"start", "end"}`` -> shape (fibres, 5): y, z, area, least strain, largest strain;
+        empty when the run did not keep them."""
+        import h5py
+
+        out: dict[str, np.ndarray] = {}
+        with h5py.File(self.h5_path, "r") as f:
+            for end in ("start", "end"):
+                key = f"elements/{element_id}/fibrePeaks/{end}"
+                if key in f:
+                    out[end] = np.asarray(f[key][:])
+        return out
+
     def element_deformation_history(self, element_id: int) -> np.ndarray:
         """Return the shape-(n_steps, n_directions) basicDeformation history of a
         twoNodeLink (the order and sign of its force history)."""

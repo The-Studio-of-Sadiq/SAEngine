@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/nonlinearHistory.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.11, 2.5.11.1-2.5.11.5 (part 1 pp. 638-641, gazette pp. 3219-3222)",
+    "BNBC 2020 Part 6 Sec 2.5.14.1 (part 1 p. 647, gazette p. 3228)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5.11 (Non-Linear Time History Analysis)",
+  "sources": {
+    "modelling": "BNBC 2020 Part 6 Sec 2.5.11.1 (p. 638): hysteretic behaviour of the elements with yielding, strength and stiffness degradation and pinching; at least a bilinear force-deformation relation; cracked stiffness of concrete; linear properties only for elements shown to stay linear; fixed base permitted",
+    "groundMotion": "BNBC 2020 Part 6 Sec 2.5.11.2 (pp. 639-640): the real design spectrum, Eq 6.2.34 with R = 1 and I = 1; at least three records; 2D: the mean 5 %-damped spectrum not less than the real design spectrum from 0.2T to 1.5T; 3D: pairs, the mean SRSS spectrum not less than 1.3 times it",
+    "response": "BNBC 2020 Part 6 Sec 2.5.11.3 (p. 640): the peak responses of each record; pairs applied simultaneously; fewer than seven records (or pairs) the largest, at least seven the mean; the results are used directly, without the scaling of the linear procedures",
+    "acceptance": "BNBC 2020 Part 6 Sec 2.5.11.4 (p. 640): member deformation at most two thirds of the smaller of the deformation at loss of gravity load carrying ability and that at which the strength has dropped below 67 % of the peak",
+    "review": "BNBC 2020 Part 6 Sec 2.5.11.5 (p. 641): review of the ground motions, the acceptance criteria and the structural design by an independent team",
+    "drift": "BNBC 2020 Part 6 Sec 2.5.14.1 (p. 647): the storey drift of the nonlinear time history analysis at most 1.25 times the storey drift limit of the linear procedures (Table 6.2.21, with Delta_a / rho for moment frames in Category D)"
+  },
+  "procedure": {
+    "target": "nonlinear",
+    "meanFrom": 7,
+    "scaleToStaticShear": false,
+    "pDelta": true,
+    "designReview": true,
+    "note": "The elements follow the fibre model of the pushover (Concrete02 with cracking and tension softening, Steel02 with strain hardening): yielding, cracked stiffness and the concrete's strength loss are modelled; the bars do not degrade, buckle or pinch, which Sec 2.5.11.1 asks for where test data show it. Damping: the records' damping ratio on the first mode, proportional to the committed stiffness (SAEngine practice; the code gives no damping for the nonlinear analysis)."
+  },
+  "drift": {
+    "limitFactor": 1.25,
+    "amplify": false,
+    "note": "The nonlinear analysis gives the real displacements (R = 1, I = 1), so the drifts are not multiplied by Cd/I."
+  },
+  "acceptance": {
+    "method": "fibreStrain",
+    "deformationShare": 0.666667,
+    "residualStrengthShare": 0.67,
+    "gravityLossAllMembers": true,
+    "reinforcementFractureStrain": 0.06,
+    "steelFractureStrain": 0.06,
+    "note": "BNBC asks for the deformation capacities from laboratory test data and gives no strain values. The concrete limits come from the fibre model's own stress-strain curves (the strain where the confined core falls below 67 % of its peak, or crushes). The bars and steel shapes do not lose strength in the fibre model, so a fracture or buckling strain of 0.06 is assumed for them (SAEngine practice, not BNBC). Each fibre's demand is its peak strain over the record."
+  }
+}

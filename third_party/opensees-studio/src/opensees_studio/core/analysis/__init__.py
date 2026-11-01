@@ -314,10 +314,32 @@ class TransientCase(_SolverOptions):
             "Tcl-style free-vibration analyses."
         ),
     )
+    rayleigh_mode1_stiffness: Literal["current", "committed"] = Field(
+        default="current",
+        description=(
+            "The stiffness the mode-1 βK multiplies: the current (tangent) one, ``rayleigh`` "
+            "slot 2, or the last committed one, slot 4 (for nonlinear models, where the "
+            "tangent of a yielding step would give spurious damping forces)."
+        ),
+    )
+    record_fibre_peaks: bool = Field(
+        default=False,
+        description=(
+            "Keep, for every fibre of the first and the last integration section of each "
+            "force- or displacement-based element, its least and largest strain over the run "
+            "(from the state after the preload): ``elements/<id>/fibrePeaks/start`` and "
+            "``.../end`` of the results file, rows y, z, area, least strain, largest strain."
+        ),
+    )
     section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
 
     serialize_without_defaults = omit_when_default(
-        "numberer", "system_args", "algorithm_args", "section_overrides"
+        "numberer",
+        "system_args",
+        "algorithm_args",
+        "section_overrides",
+        "rayleigh_mode1_stiffness",
+        "record_fibre_peaks",
     )
 
 

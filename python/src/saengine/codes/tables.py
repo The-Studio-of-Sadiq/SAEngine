@@ -7108,6 +7108,86 @@ class SteelSeismicTable(TableModel):
     truss: SteelSeismicTruss
     connections: SteelSeismicConnections
     practice: SteelSeismicPractice
+# ─────────────────────────── nonlinear time history analysis (B36) ───────────────────────────
+
+
+class NonlinearHistoryProcedure(_Row):
+    """How the nonlinear time histories are run and read (``fem.nonlinear_history``)."""
+
+    target: str = Field(
+        default="nonlinear",
+        description="The ``seismic.timeHistory.targets`` entry the records are scaled to (its R "
+        "and I; the period range, ratios and least number of records of that table apply).",
+    )
+    meanFrom: int = Field(
+        ge=1,
+        description="From this many records (or pairs) the design value is the mean of their "
+        "peak responses, with fewer the largest.",
+    )
+    scaleToStaticShear: bool = Field(
+        default=False,
+        description="Whether the responses are scaled up to the equivalent static base shear "
+        "(the nonlinear results are used as they come when false).",
+    )
+    pDelta: bool = Field(default=True, description="P-Delta effects in the columns and walls.")
+    designReview: bool = Field(
+        default=False, description="The code asks for an independent design review."
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class NonlinearHistoryDrift(_Row):
+    """The storey drift of the nonlinear time histories against the allowable drift of the
+    linear procedures (the pack's ``seismic`` drift table, with its redundancy rule)."""
+
+    limitFactor: Positive = Field(
+        description="The drift may reach this × the allowable storey drift of the linear "
+        "procedures."
+    )
+    amplify: bool = Field(
+        default=False,
+        description="Whether the drifts are multiplied by Cd/I (false: the nonlinear drifts "
+        "are the real ones).",
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class NonlinearHistoryAcceptance(_Row):
+    """Acceptance of the members over the records (``fem.acceptance``). Method
+    ``fibreStrain``: each fibre's peak strain at the member's end sections against a share of
+    the strain at which its material fails."""
+
+    method: Literal["fibreStrain"] = Field(
+        description="Method id (the engine's generic implementation)."
+    )
+    deformationShare: Share = Field(
+        description="A member's deformation may reach at most this × the deformation at which "
+        "it fails."
+    )
+    residualStrengthShare: Share = Field(
+        description="Strength (share of the peak) below which the component has failed."
+    )
+    gravityLossAllMembers: bool = Field(
+        default=True,
+        description="The smaller of the gravity-loss and the strength-loss deformation for "
+        "every member (false: the gravity loss only for members carrying gravity loads).",
+    )
+    reinforcementFractureStrain: Positive = Field(
+        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling)."
+    )
+    steelFractureStrain: Positive = Field(
+        description="Strain at which a structural steel fibre is taken as lost."
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class NonlinearHistoryTable(TableModel):
+    """Nonlinear time history analysis: the procedure, the drift limit and the acceptance of
+    the members."""
+
+    procedure: NonlinearHistoryProcedure
+    drift: NonlinearHistoryDrift
+    acceptance: NonlinearHistoryAcceptance
 
 
 #: Table name -> model.
@@ -7156,6 +7236,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "stairMethods": StairMethodsTable,
     "compositeConcrete": CompositeConcreteTable,
     "steelSeismic": SteelSeismicTable,
+    "nonlinearHistory": NonlinearHistoryTable,
 }
 
 

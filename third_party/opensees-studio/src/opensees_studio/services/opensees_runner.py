@@ -2324,12 +2324,47 @@ class OpenSeesRunner:
         # calibrated coefficient — this overrides whatever _setup_analysis
         # emitted from ``case.rayleigh_beta_k``.
         if beta_k_override is not None:
+            committed = getattr(case, "rayleigh_mode1_stiffness", "current") == "committed"
             ops.rayleigh(
                 float(case.rayleigh_alpha_m),
-                beta_k_override,
+                0.0 if committed else beta_k_override,
                 0.0,
-                0.0,
+                beta_k_override if committed else 0.0,
             )
+
+        # The least and largest strain of every fibre of the end sections of the fibre
+        # elements over the run (opt-in: two eleResponse calls per element and step).
+        from opensees_studio.core import DispBeamColumn, ForceBeamColumn
+
+        fibre_elements = (
+            [
+                el
+                for el in self.project.elements
+                if isinstance(el, ForceBeamColumn | DispBeamColumn)
+            ]
+            if getattr(case, "record_fibre_peaks", False)
+            else []
+        )
+        fibre_peaks: dict[tuple[int, str], np.ndarray] = {}
+
+        def _track_fibres() -> None:
+            for el in fibre_elements:
+                for end, section in (("start", 1), ("end", el.integration_points)):
+                    data = ops.eleResponse(el.id, "section", section, "fiberData")
+                    if not data:
+                        continue
+                    fibres = np.asarray(data, dtype=float).reshape(-1, 5)
+                    found = fibre_peaks.get((el.id, end))
+                    if found is None:
+                        fibre_peaks[(el.id, end)] = np.column_stack(
+                            [fibres[:, :3], fibres[:, 4], fibres[:, 4]]
+                        )
+                    elif found.shape[0] == fibres.shape[0]:
+                        np.minimum(found[:, 3], fibres[:, 4], out=found[:, 3])
+                        np.maximum(found[:, 4], fibres[:, 4], out=found[:, 4])
+
+        if fibre_elements:
+            _track_fibres()  # the state after the preload
 
         # Step-by-step with a ModifiedNewton -initial fallback on any
         # step the configured Newton-type algorithm fails to converge.
@@ -2355,6 +2390,8 @@ class OpenSeesRunner:
                 ops.algorithm(case.algorithm, *case.algorithm_args)
             if status != 0:
                 break
+            if fibre_elements:
+                _track_fibres()
             # Counts successful steps only, so enumerate() would be wrong here.
             # Reported as TransientResults.n_steps; recorders write one row
             # per committed step, so the history arrays have the same length.
@@ -2444,6 +2481,8 @@ class OpenSeesRunner:
                             data=deformation_table[:, start : start + width],
                         )
                         start += width
+                for (eid, end), peaks in fibre_peaks.items():
+                    f.create_dataset(f"elements/{eid}/fibrePeaks/{end}", data=peaks)
             os.replace(tmp_h5, h5_path)
         except BaseException:
             tmp_h5.unlink(missing_ok=True)
