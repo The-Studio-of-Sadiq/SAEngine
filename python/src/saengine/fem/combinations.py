@@ -24,6 +24,7 @@ from typing import Any
 import numpy as np
 from pydantic import Field
 
+from saengine.fem import tension_only as to
 from saengine.library.settings import LoadCombination, ProjectSettings
 
 _FACTOR_CASES = {
@@ -436,6 +437,22 @@ def combination_results(
         member end forces."""
         return not str(names.get(element, "")).split("#")[0].endswith("/pin")
 
+    # Tension-only members (saengine.fem.tension_only): their axial force per case.
+    releases = to.release_cases(project)
+    ids = {name: e for e, name in names.items()}
+    released_names = set(releases.values())
+    axial = {
+        code: {
+            name: to.axial_force(last(results.element_forces, ids[name], 12))
+            for name in released_names
+            if name in ids
+        }
+        for code, results in by_case.items()
+    }
+
+    def release_of(factors: dict[str, float]) -> to.Release:
+        return to.release_factors(factors, axial, releases) if releases else to.Release()
+
     entries: list[dict[str, Any]] = []
     envelope: dict[tuple[int, int], list[float]] = {}
     for number, combination in enumerate(settings.combinations, start=1):
@@ -455,6 +472,8 @@ def combination_results(
                 }
             )
             continue
+        release = release_of(factors)
+        factors = {**factors, **release.factors}
         nodes = sorted({n for case in factors for n in by_case[case].node_disp})
         supports = sorted({n for case in factors for n in by_case[case].node_reaction})
         elements = sorted(
@@ -475,6 +494,9 @@ def combination_results(
             )
             for e in elements
         }
+        for e in elements:
+            if names.get(e) in release.slack:
+                forces[e] = np.zeros(12)  # a released tension-only member carries nothing
         total = sum(react.values(), np.zeros(6))
         tables = [
             _table(
@@ -511,7 +533,12 @@ def combination_results(
                 "caseName": combination.name,
                 "resultType": "Combination",
                 "earlyStop": False,
-                "warnings": [],
+                "warnings": release.warnings
+                + (
+                    [f"tension-only members released: {', '.join(sorted(release.members))}"]
+                    if release.members
+                    else []
+                ),
                 "tables": tables,
             }
         )

@@ -1989,6 +1989,7 @@ def _demands(
     from opensees_studio.services.results import StaticResults
 
     from saengine.design.live_reduction import is_live_case
+    from saengine.fem import tension_only
     from saengine.fem.combinations import combination_factors
     from saengine.fem.display import (
         _case_loads,
@@ -2018,6 +2019,10 @@ def _demands(
     # The temperature case's fixed-end forces, added back to its members (saengine.fem.thermal).
     thermal = load_corrections(Path(out_dir).with_suffix(".osmodel"))
     displacements: dict[str, dict[int, np.ndarray]] = {}
+    # Tension-only members: the release cases and each case's axial forces in them.
+    releases = tension_only.release_cases(project)
+    released_names = set(releases.values())
+    axial_by_case: dict[str, dict[str, float]] = {}
     for entry in manifest["cases"]:
         results = load_results(entry, out_dir)
         if not isinstance(results, StaticResults):
@@ -2042,6 +2047,12 @@ def _demands(
             for e in elements
         ]
         spans = [reached * loads.get(e.id, np.zeros(3)) for e in elements]
+        if releases:
+            axial_by_case[code] = {
+                e.name: tension_only.axial_force(end)
+                for e, end in zip(elements, ends, strict=True)
+                if e.name in released_names
+            }
         if elements and all(e.length > 0 for e in elements):
             # All the elements at once (element_section_forces, the same arithmetic).
             many = element_section_forces_many(
@@ -2058,6 +2069,7 @@ def _demands(
 
     names: list[str] = []
     factors_of: list[dict[str, float]] = []
+    slack_of: list[set[str]] = []
     notes: list[str] = []
     for combination in settings.combinations:
         factors = combination_factors(combination, set(by_case))
@@ -2068,6 +2080,16 @@ def _demands(
             )
             continue
         names.append(combination.name)
+        # Tension-only members compressed by the combination are released (saengine.fem.
+        # tension_only): extra factors on the release cases, and the released ones carry nothing.
+        release = (
+            tension_only.release_factors(factors, axial_by_case, releases)
+            if releases
+            else tension_only.Release()
+        )
+        factors = {**factors, **release.factors}
+        notes += [f"{combination.name}: {w}" for w in release.warnings]
+        slack_of.append(release.slack)
         factors_of.append(factors)
     lateral = [
         {c: f for c, f in factors.items() if slenderness_design.is_lateral(c)}
@@ -2093,6 +2115,10 @@ def _demands(
     # Each combination of all the elements of one shape at once: the same sums element by
     # element, in the same order (sum over the factors), on stacked arrays.
     forces_of = _combined_stacks(by_case, [e.id for e in elements], factors_of)
+    for k, slack in enumerate(slack_of):
+        for e in elements:
+            if e.name in slack:
+                forces_of[e.id][k] = np.zeros_like(np.asarray(forces_of[e.id][k]))
     sway_of = _combined_stacks(by_case, [e.id for e in elements], lateral, parts=True)
     sustained_of = _combined_stacks(by_case, [e.id for e in elements], sustained, parts=True)
     live_of = _combined_stacks(by_case, [e.id for e in elements], live, parts=True)

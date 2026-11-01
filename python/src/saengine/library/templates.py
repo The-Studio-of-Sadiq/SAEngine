@@ -18,7 +18,15 @@ from typing import Any
 from saengine.library.defaults import default_material_library
 from saengine.library.materials import Category
 from saengine.library.settings import Analysis
-from saengine.library.shapes import Arch, BarrelVault, CableNet, Dome, PlaneTruss, SpaceTruss
+from saengine.library.shapes import (
+    Arch,
+    BarrelVault,
+    CableNet,
+    Dome,
+    PlaneTruss,
+    PortalFrame,
+    SpaceTruss,
+)
 
 # Parametric shapes start at typical sizes of their kind; "MEMBER" is replaced by a member type.
 _SHAPES = [
@@ -29,6 +37,9 @@ _SHAPES = [
     BarrelVault(span=24000, rise=6000, length=36000, segments=12, bays=6, memberType="MEMBER"),
     CableNet(
         lengthX=36000, lengthY=24000, divisionsX=12, divisionsY=8, rise=3000, memberType="MEMBER"
+    ),
+    PortalFrame(
+        width=24000, length=60000, bays=8, eaveHeight=7500, columnType="MEMBER", rafterType="MEMBER"
     ),
 ]
 

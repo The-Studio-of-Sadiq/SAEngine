@@ -1,0 +1,13 @@
+{
+  "name": "Portal frame shed 24 × 60 m",
+  "description": "Gable portal frames at 7.5 m, 7.5 m to the eave, 1 in 10 roof.",
+  "shape": {
+    "kind": "portalFrame",
+    "width": 24000.0,
+    "length": 60000.0,
+    "bays": 8,
+    "eaveHeight": 7500.0,
+    "columnType": "MEMBER",
+    "rafterType": "MEMBER"
+  }
+}

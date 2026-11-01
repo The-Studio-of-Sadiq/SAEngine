@@ -480,8 +480,9 @@ class CableNet(_Model):
     """A saddle-shaped (hyperbolic paraboloid) net of cables over a rectangle.
 
     Its corners lie at z = 0; the edges rise by ``rise`` at the middle of the x edges and fall by
-    it at the middle of the y edges. Cables are drawn as members: tension-only behaviour and
-    prestress come with the nonlinear analyses.
+    it at the middle of the y edges. Cables are drawn as members: a tension-only brace type
+    (Part 4) releases the ones a combination compresses (:mod:`saengine.fem.tension_only`);
+    prestress and large displacements come with the nonlinear analyses.
     """
 
     kind: Literal["cableNet"] = "cableNet"
@@ -523,11 +524,253 @@ class CableNet(_Model):
         return g
 
 
+def _slope_points(start: float, end: float, step: float) -> list[float]:
+    """Plan positions from ``start`` to ``end`` (both kept) at equal intervals no longer than
+    ``step``."""
+    length = abs(end - start)
+    sign = 1.0 if end >= start else -1.0
+    count = max(1, math.ceil(length / step - 1e-9))
+    spacing = length / count
+    return [start + sign * k * spacing for k in range(count)] + [end]
+
+
+class PortalFrame(_Model):
+    """A steel shed of portal frames (a pre-engineered building, PEB): columns and rafters in
+    frames across x, repeated along y, tied by purlins on the roof, girts on the walls and
+    eave struts, with X-bracing in the braced bays of the roof and the side walls.
+
+    The shape's origin is the base of the first frame's left column; x runs across the
+    ``width`` (the frames' plane), y along the ``length``, z up. A gable roof rises from both
+    eaves to a ridge at mid-width, a mono-slope roof from x = 0 to x = width. ``spans`` > 1
+    puts interior columns at equal spacing (a multi-span frame under one roof). Rafters and
+    columns are split where purlins, girts and braces meet them, so every member joins the
+    frames at a node. Bracing uses the bracing type (a tension-only brace type for rods and
+    slender angles, Part 4). Frame members are prismatic: tapered and haunched members are a
+    planned feature (``structure.taperedMembers``).
+    """
+
+    kind: Literal["portalFrame"] = "portalFrame"
+    width: Mm = Field(description="Across the frames, column centre to centre [mm].")
+    length: Mm = Field(description="Along the building, first to last frame [mm].")
+    bays: int = Field(ge=1, le=100, description="Bays along the length (frames = bays + 1).")
+    eaveHeight: Mm = Field(title="Eave height", description="Base to the eave [mm].")
+    roof: Literal["gable", "monoSlope"] = Field(
+        default="gable", description="Gable: ridge at mid-width; mono-slope: rising along x."
+    )
+    slope: float = Field(
+        default=5.71, gt=0, le=30, description="Roof slope [°] (5.71° is 1 in 10)."
+    )
+    spans: int = Field(ge=1, le=6, default=1, description="Spans across the width.")
+    columnType: Id = Field(title="Column type", description="Object type of the frame columns.")
+    rafterType: Id = Field(title="Rafter type", description="Object type of the rafters.")
+    interiorColumnType: Id | None = _secondary("Interior column")
+    endColumns: int = Field(
+        default=0,
+        ge=0,
+        le=12,
+        title="End wall columns",
+        description="Wind columns between the corner columns of each gable end wall.",
+    )
+    endColumnType: Id | None = _secondary("End wall column")
+    purlinType: Id | None = Field(
+        default=None, title="Purlin type", description="Object type of the purlins; none: none."
+    )
+    purlinSpacing: Mm = Field(
+        default=1500, title="Purlin spacing", description="Along the roof slope [mm]."
+    )
+    girtType: Id | None = Field(
+        default=None, title="Girt type", description="Object type of the wall girts; none: none."
+    )
+    girtSpacing: Mm = Field(default=1800, title="Girt spacing", description="Vertical [mm].")
+    eaveStrutType: Id | None = Field(
+        default=None,
+        title="Eave strut type",
+        description="Object type of the eave struts; none uses the purlin type (and no struts "
+        "without one).",
+    )
+    bracingType: Id | None = Field(
+        default=None,
+        title="Bracing type",
+        description="Brace type of the roof and wall X-bracing; none: no bracing.",
+    )
+    bracedBays: list[int] = Field(
+        default_factory=list,
+        title="Braced bays",
+        description="Bays with X-bracing, 1 = the first; empty: the first and the last bay.",
+    )
+    roofBracingPanels: int = Field(
+        default=2,
+        ge=1,
+        le=20,
+        title="Roof bracing panels",
+        description="X-braced panels along each roof slope in a braced bay.",
+    )
+    roofPanelType: Id | None = Field(
+        default=None,
+        title="Roof panel type",
+        description="Slab type of roof cladding panels (they carry the roof area loads); none "
+        "adds no panels.",
+    )
+    wallPanelType: Id | None = Field(
+        default=None,
+        title="Wall panel type",
+        description="Wall type of side wall cladding panels; none adds no panels.",
+    )
+    supports: Supports = _supports()
+    origin: Point = _origin()
+    rotation: float = _rotation()
+
+    @model_validator(mode="after")
+    def _check(self) -> PortalFrame:
+        wrong = [b for b in self.bracedBays if not 1 <= b <= self.bays]
+        if wrong:
+            raise ValueError(f"braced bays {wrong} are not between 1 and {self.bays}")
+        return self
+
+    def roof_z(self, x: float) -> float:
+        """Height of the roof (rafter centre line) at ``x`` [mm]."""
+        rise = math.tan(math.radians(self.slope))
+        if self.roof == "gable":
+            return self.eaveHeight + rise * min(x, self.width - x)
+        return self.eaveHeight + rise * x
+
+    def purlin_lines(self) -> list[float]:
+        """Plan x of the purlin lines, eaves and ridge included [mm]."""
+        step = self.purlinSpacing * math.cos(math.radians(self.slope))
+        if self.roof == "gable":
+            half = self.width / 2
+            left = _slope_points(0.0, half, step)
+            right = _slope_points(self.width, half, step)
+            return sorted({round(x, 1) for x in (*left, *right)})
+        return sorted({round(x, 1) for x in _slope_points(0.0, self.width, step)})
+
+    def local(self) -> Geometry:
+        g = Geometry()
+        w, n = self.width, self.bays
+        step = self.length / n
+        frames = [k * step for k in range(n + 1)]
+        purlins = self.purlin_lines()
+        ridge = [w / 2] if self.roof == "gable" else []
+        interior = [w * k / self.spans for k in range(1, self.spans)]
+        ends = [w * k / (self.endColumns + 1) for k in range(1, self.endColumns + 1)]
+
+        # Roof bracing panel points: equal divisions of each slope, snapped to purlin lines.
+        slopes = [(0.0, w / 2), (w, w / 2)] if self.roof == "gable" else [(0.0, w)]
+        brace_x: list[float] = []
+        for a, b in slopes:
+            for k in range(self.roofBracingPanels + 1):
+                target = a + (b - a) * k / self.roofBracingPanels
+                brace_x.append(min(purlins, key=lambda x, t=target: abs(x - t)))
+        brace_x = sorted(set(brace_x))
+
+        def rafter_points(y: float, end_frame: bool) -> list[float]:
+            xs = {0.0, w, *ridge, *interior, *(ends if end_frame else [])}
+            if self.purlinType or self.roofPanelType:
+                xs |= set(purlins)
+            if self.bracingType:
+                xs |= set(brace_x)
+            return sorted(xs)
+
+        def girt_heights(top: float) -> list[float]:
+            if not self.girtType:
+                return []
+            count = int((top - 1.0) // self.girtSpacing)
+            return [
+                self.girtSpacing * k
+                for k in range(1, count + 1)
+                if self.girtSpacing * k < top - 100
+            ]
+
+        def column(x: float, y: float, type_: str) -> None:
+            top = self.roof_z(x)
+            zs = [0.0, *girt_heights(min(top, self.eaveHeight)), top]
+            for z0, z1 in itertools.pairwise(zs):
+                g.line((x, y, z0), (x, y, z1), type_)
+            g.support((x, y, 0.0), self.supports)
+
+        braced = set(self.bracedBays or ([1, n] if n > 1 else [1]))
+        for f, y in enumerate(frames):
+            end_frame = f in (0, n)
+            column(0.0, y, self.columnType)
+            column(w, y, self.columnType)
+            for x in interior:
+                column(x, y, self.interiorColumnType or self.columnType)
+            if end_frame:
+                for x in ends:
+                    if not any(abs(x - i) < 1.0 for i in interior):
+                        column(x, y, self.endColumnType or self.columnType)
+            xs = rafter_points(y, end_frame)
+            for x0, x1 in itertools.pairwise(xs):
+                g.line((x0, y, self.roof_z(x0)), (x1, y, self.roof_z(x1)), self.rafterType)
+
+        eave = self.eaveStrutType or self.purlinType
+        for b in range(n):
+            y0, y1 = frames[b], frames[b + 1]
+            # Purlins (the eave lines get the eave struts).
+            for x in purlins:
+                at_eave = abs(x) < 1.0 or abs(x - w) < 1.0
+                type_ = eave if at_eave else self.purlinType
+                if type_:
+                    z = self.roof_z(x)
+                    g.line((x, y0, z), (x, y1, z), type_)
+            # Girts on both side walls.
+            if self.girtType:
+                for x in (0.0, w):
+                    for z in girt_heights(self.eaveHeight):
+                        g.line((x, y0, z), (x, y1, z), self.girtType)
+            # X-bracing of the braced bays: side walls base to eave, roof panels.
+            if self.bracingType and b + 1 in braced:
+                for x in (0.0, w):
+                    h = self.roof_z(x)
+                    g.line((x, y0, 0.0), (x, y1, h), self.bracingType)
+                    g.line((x, y1, 0.0), (x, y0, h), self.bracingType)
+                for x0, x1 in itertools.pairwise(brace_x):
+                    z0, z1 = self.roof_z(x0), self.roof_z(x1)
+                    g.line((x0, y0, z0), (x1, y1, z1), self.bracingType)
+                    g.line((x1, y0, z1), (x0, y1, z0), self.bracingType)
+            # Cladding panels between purlin lines and on the side walls.
+            if self.roofPanelType:
+                for x0, x1 in itertools.pairwise(purlins):
+                    z0, z1 = self.roof_z(x0), self.roof_z(x1)
+                    g.panel(
+                        [(x0, y0, z0), (x1, y0, z1), (x1, y1, z1), (x0, y1, z0)],
+                        self.roofPanelType,
+                    )
+            if self.wallPanelType:
+                for x in (0.0, w):
+                    h = self.roof_z(x)
+                    g.panel(
+                        [(x, y0, 0.0), (x, y1, 0.0), (x, y1, h), (x, y0, h)], self.wallPanelType
+                    )
+
+        # End wall girts between the end wall columns (where both reach the girt).
+        if self.girtType and (ends or interior):
+            posts = sorted({0.0, w, *interior, *ends})
+            for y in (frames[0], frames[-1]):
+                for x0, x1 in itertools.pairwise(posts):
+                    for z in girt_heights(min(self.roof_z(x0), self.roof_z(x1))):
+                        g.line((x0, y, z), (x1, y, z), self.girtType)
+        g.notes.append(
+            "frame members are prismatic; tapered and haunched members are planned "
+            "(structure.taperedMembers)"
+        )
+        return g
+
+
 Shape = Annotated[
-    SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet, Field(discriminator="kind")
+    SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame,
+    Field(discriminator="kind"),
 ]
 
-SHAPES: tuple[type[_Model], ...] = (SpaceTruss, PlaneTruss, Arch, Dome, BarrelVault, CableNet)
+SHAPES: tuple[type[_Model], ...] = (
+    SpaceTruss,
+    PlaneTruss,
+    Arch,
+    Dome,
+    BarrelVault,
+    CableNet,
+    PortalFrame,
+)
 
 
 class ShapeInput(_Model):
@@ -537,7 +780,7 @@ class ShapeInput(_Model):
 
 
 def shape_geometry(
-    shape: SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet,
+    shape: SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame,
 ) -> Geometry:
     """The members, panels and supports of ``shape``, placed in the model."""
     return shape.local().placed(shape.origin, shape.rotation)

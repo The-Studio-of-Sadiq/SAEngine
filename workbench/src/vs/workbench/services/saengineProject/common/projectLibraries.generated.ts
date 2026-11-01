@@ -1012,6 +1012,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel braces: the bolted gusset or the welded HSS truss joint at both ends; none: not checked.',
 					title: 'Connection',
 				},
+				tensionOnly: {
+					default: false,
+					description: 'Rods and slender angles that buckle at a negligible load: each load combination releases the members it would compress, and they are designed for tension alone.',
+					title: 'Tension only',
+					type: 'boolean',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -11864,6 +11870,30 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		},
 		rotation: 0.0,
 	},
+	PortalFrame: {
+		kind: 'portalFrame',
+		width: 24000.0,
+		length: 60000.0,
+		bays: 8,
+		eaveHeight: 7500.0,
+		roof: 'gable',
+		slope: 5.71,
+		spans: 1,
+		columnType: 'MEMBER',
+		rafterType: 'MEMBER',
+		endColumns: 0,
+		purlinSpacing: 1500.0,
+		girtSpacing: 1800.0,
+		bracedBays: [],
+		roofBracingPanels: 2,
+		supports: 'pinned',
+		origin: {
+			x: 0.0,
+			y: 0.0,
+			z: 0.0,
+		},
+		rotation: 0.0,
+	},
 };
 
 export const SHAPE_SCHEMA: IJSONSchema = {
@@ -12047,7 +12077,7 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 		},
 		CableNet: {
 			additionalProperties: false,
-			description: 'A saddle-shaped (hyperbolic paraboloid) net of cables over a rectangle.\n\nIts corners lie at z = 0; the edges rise by ``rise`` at the middle of the x edges and fall by\nit at the middle of the y edges. Cables are drawn as members: tension-only behaviour and\nprestress come with the nonlinear analyses.',
+			description: 'A saddle-shaped (hyperbolic paraboloid) net of cables over a rectangle.\n\nIts corners lie at z = 0; the edges rise by ``rise`` at the middle of the x edges and fall by\nit at the middle of the y edges. Cables are drawn as members: a tension-only brace type\n(Part 4) releases the ones a combination compresses (:mod:`saengine.fem.tension_only`);\nprestress and large displacements come with the nonlinear analyses.',
 			properties: {
 				kind: {
 					const: 'cableNet',
@@ -12350,6 +12380,269 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 			title: 'Point',
 			type: 'object',
 		},
+		PortalFrame: {
+			additionalProperties: false,
+			description: 'A steel shed of portal frames (a pre-engineered building, PEB): columns and rafters in\nframes across x, repeated along y, tied by purlins on the roof, girts on the walls and\neave struts, with X-bracing in the braced bays of the roof and the side walls.\n\nThe shape\'s origin is the base of the first frame\'s left column; x runs across the\n``width`` (the frames\' plane), y along the ``length``, z up. A gable roof rises from both\neaves to a ridge at mid-width, a mono-slope roof from x = 0 to x = width. ``spans`` > 1\nputs interior columns at equal spacing (a multi-span frame under one roof). Rafters and\ncolumns are split where purlins, girts and braces meet them, so every member joins the\nframes at a node. Bracing uses the bracing type (a tension-only brace type for rods and\nslender angles, Part 4). Frame members are prismatic: tapered and haunched members are a\nplanned feature (``structure.taperedMembers``).',
+			properties: {
+				kind: {
+					const: 'portalFrame',
+					default: 'portalFrame',
+					title: 'Kind',
+					type: 'string',
+				},
+				width: {
+					description: 'Across the frames, column centre to centre [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				length: {
+					description: 'Along the building, first to last frame [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				bays: {
+					description: 'Bays along the length (frames = bays + 1).',
+					maximum: 100,
+					minimum: 1,
+					title: 'Bays',
+					type: 'integer',
+				},
+				eaveHeight: {
+					description: 'Base to the eave [mm].',
+					exclusiveMinimum: 0,
+					title: 'Eave height',
+					type: 'number',
+				},
+				roof: {
+					default: 'gable',
+					description: 'Gable: ridge at mid-width; mono-slope: rising along x.',
+					enum: ['gable', 'monoSlope'],
+					title: 'Roof',
+					type: 'string',
+				},
+				slope: {
+					default: 5.71,
+					description: 'Roof slope [°] (5.71° is 1 in 10).',
+					exclusiveMinimum: 0,
+					maximum: 30,
+					title: 'Slope',
+					type: 'number',
+				},
+				spans: {
+					default: 1,
+					description: 'Spans across the width.',
+					maximum: 6,
+					minimum: 1,
+					title: 'Spans',
+					type: 'integer',
+				},
+				columnType: {
+					description: 'Object type of the frame columns.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Column type',
+					type: 'string',
+				},
+				rafterType: {
+					description: 'Object type of the rafters.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Rafter type',
+					type: 'string',
+				},
+				interiorColumnType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the interior columns; none uses the member type.',
+					title: 'Interior column type',
+				},
+				endColumns: {
+					default: 0,
+					description: 'Wind columns between the corner columns of each gable end wall.',
+					maximum: 12,
+					minimum: 0,
+					title: 'End wall columns',
+					type: 'integer',
+				},
+				endColumnType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the end wall columns; none uses the member type.',
+					title: 'End wall column type',
+				},
+				purlinType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the purlins; none: none.',
+					title: 'Purlin type',
+				},
+				purlinSpacing: {
+					default: 1500,
+					description: 'Along the roof slope [mm].',
+					exclusiveMinimum: 0,
+					title: 'Purlin spacing',
+					type: 'number',
+				},
+				girtType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the wall girts; none: none.',
+					title: 'Girt type',
+				},
+				girtSpacing: {
+					default: 1800,
+					description: 'Vertical [mm].',
+					exclusiveMinimum: 0,
+					title: 'Girt spacing',
+					type: 'number',
+				},
+				eaveStrutType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the eave struts; none uses the purlin type (and no struts without one).',
+					title: 'Eave strut type',
+				},
+				bracingType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Brace type of the roof and wall X-bracing; none: no bracing.',
+					title: 'Bracing type',
+				},
+				bracedBays: {
+					description: 'Bays with X-bracing, 1 = the first; empty: the first and the last bay.',
+					items: {
+						type: 'integer',
+					},
+					title: 'Braced bays',
+					type: 'array',
+				},
+				roofBracingPanels: {
+					default: 2,
+					description: 'X-braced panels along each roof slope in a braced bay.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Roof bracing panels',
+					type: 'integer',
+				},
+				roofPanelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slab type of roof cladding panels (they carry the roof area loads); none adds no panels.',
+					title: 'Roof panel type',
+				},
+				wallPanelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall type of side wall cladding panels; none adds no panels.',
+					title: 'Wall panel type',
+				},
+				supports: {
+					default: 'pinned',
+					description: 'Supports added where the shape meets the ground.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Supports',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					description: 'Where the shape\'s own origin is placed [mm].',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation in plan about the origin [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['width', 'length', 'bays', 'eaveHeight', 'columnType', 'rafterType'],
+			title: 'PortalFrame',
+			type: 'object',
+		},
 		SpaceTruss: {
 			additionalProperties: false,
 			description: 'A double-layer grid (square on square, offset): a flat roof spanning both ways.',
@@ -12468,6 +12761,9 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 				{
 					$ref: '#/$defs/CableNet',
 				},
+				{
+					$ref: '#/$defs/PortalFrame',
+				},
 			],
 			title: 'Shape',
 		},
@@ -12578,7 +12874,7 @@ export const IMPORT_SCHEMA: IJSONSchema = {
 	type: 'object',
 };
 
-export const SCRIPT_TEMPLATE: string = '"""Builds part of the structural model. Run it from the 3D modeller (Script).\n\n`model` is the structural model. Lengths are in mm, angles in degrees, Z is up. The shapes\nSpaceTruss, PlaneTruss, Arch, Dome, BarrelVault and CableNet, `math` and `np` (numpy) are\navailable without imports.\n"""\n\nmodel.clear()  # start again on every run (grids are kept)\n\nspan = 30000\nfor x in (0, span):\n    for y in range(0, 30001, 6000):\n        model.member((x, y, 0), (x, y, 8000), type="{column}")\n        model.support((x, y, 0), "fixed")\n\nmodel.add(BarrelVault(\n    span=span, rise=7500, length=30000, segments=12, bays=5,\n    memberType="{member}", origin=(0, 0, 8000), supports="none",\n))\n';
+export const SCRIPT_TEMPLATE: string = '"""Builds part of the structural model. Run it from the 3D modeller (Script).\n\n`model` is the structural model. Lengths are in mm, angles in degrees, Z is up. The shapes\nSpaceTruss, PlaneTruss, Arch, Dome, BarrelVault, CableNet and PortalFrame, `math` and `np` (numpy) are\navailable without imports.\n"""\n\nmodel.clear()  # start again on every run (grids are kept)\n\nspan = 30000\nfor x in (0, span):\n    for y in range(0, 30001, 6000):\n        model.member((x, y, 0), (x, y, 8000), type="{column}")\n        model.support((x, y, 0), "fixed")\n\nmodel.add(BarrelVault(\n    span=span, rise=7500, length=30000, segments=12, bays=5,\n    memberType="{member}", origin=(0, 0, 8000), supports="none",\n))\n';
 
 export const SOIL_SCHEMA: IJSONSchema = {
 	$defs: {

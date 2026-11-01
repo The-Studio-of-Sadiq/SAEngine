@@ -683,6 +683,13 @@ class Brace(_ObjectBase):
         description="Steel braces: the bolted gusset or the welded HSS truss joint at both "
         "ends; none: not checked.",
     )
+    tensionOnly: bool = Field(
+        default=False,
+        title="Tension only",
+        description="Rods and slender angles that buckle at a negligible load: each load "
+        "combination releases the members it would compress, and they are designed for "
+        "tension alone.",
+    )
     modifiers: FrameModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
