@@ -6367,6 +6367,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/Settlement',
 					title: 'Support settlement',
 				},
+				timeDependent: {
+					$ref: '#/$defs/TimeDependent',
+					title: 'Creep, shrinkage and column shortening',
+				},
 				fireResistance: {
 					$ref: '#/$defs/FireResistance',
 					description: 'Least ratings the members\' sizes are checked for, on top of those of the construction type (Construction).',
@@ -8456,6 +8460,104 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Thermal',
 			type: 'object',
 		},
+		TimeDependent: {
+			additionalProperties: false,
+			description: 'Creep, shrinkage and column shortening (B25): the time-dependent shortening of the\nconcrete columns of a building built storey by storey, by the creep and shrinkage model of\nthe code pack in force (fem.concrete_time, fem.staged), worked out from the run.',
+			properties: {
+				enabled: {
+					default: false,
+					description: 'Work out the elastic, creep and shrinkage shortening of every concrete column line from the run, storey by storey in time, and the differential shortening of the beams between them. Uses the construction sequence\'s stages when it is on.',
+					title: 'Column shortening',
+					type: 'boolean',
+				},
+				exposure: {
+					default: 'indoor',
+					description: 'Ambient exposure of the columns: the relative humidity and the reinforced-section shrinkage coefficient of the code pack.',
+					enum: ['indoor', 'outdoor'],
+					enumDescriptions: ['Indoor', 'Outdoor'],
+					title: 'Exposure',
+					type: 'string',
+				},
+				relativeHumidity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 100,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ambient relative humidity [%]. Empty: the code pack\'s value of the exposure.',
+					title: 'Relative humidity',
+				},
+				cycleDays: {
+					default: 7.0,
+					description: 'Days between casting one floor and the next.',
+					exclusiveMinimum: 0,
+					maximum: 365,
+					title: 'Floor cycle',
+					type: 'number',
+				},
+				curingDays: {
+					default: 7.0,
+					description: 'Days before drying starts.',
+					maximum: 90,
+					minimum: 0,
+					title: 'Curing',
+					type: 'number',
+				},
+				superimposedAfterDays: {
+					default: 90.0,
+					description: 'Days after the frame is complete that the superimposed dead load and the sustained live load are applied.',
+					minimum: 0,
+					title: 'Finishes and occupancy',
+					type: 'number',
+				},
+				sustainedLive: {
+					default: 0.25,
+					description: 'Share of the live load L that acts for long enough to creep.',
+					maximum: 1,
+					minimum: 0,
+					title: 'Sustained live share',
+					type: 'number',
+				},
+				serviceLifeYears: {
+					default: 30.0,
+					description: 'Years after completion the final shortening is worked out at (at most the age the code pack\'s final creep is for).',
+					exclusiveMinimum: 0,
+					maximum: 100,
+					title: 'Service life',
+					type: 'number',
+				},
+				steelRatio: {
+					default: 0.01,
+					description: 'Longitudinal steel ratio ρ of the columns for the transformed section and the reinforced shrinkage (a lower ratio gives more shortening).',
+					maximum: 0.08,
+					minimum: 0,
+					title: 'Column steel ratio',
+					type: 'number',
+				},
+				waterContent: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Free water of the mix [litre/m³]. Empty: the code pack\'s reference mix.',
+					title: 'Water content',
+				},
+			},
+			title: 'TimeDependent',
+			type: 'object',
+		},
 		TimeHistory: {
 			additionalProperties: false,
 			description: 'A ground acceleration record run as a time-history analysis.',
@@ -9437,6 +9539,16 @@ export const DEFAULT_SETTINGS: object = {
 		settlement: {
 			enabled: false,
 			supports: [],
+		},
+		timeDependent: {
+			enabled: false,
+			exposure: 'indoor',
+			cycleDays: 7.0,
+			curingDays: 7.0,
+			superimposedAfterDays: 90.0,
+			sustainedLive: 0.25,
+			serviceLifeYears: 30.0,
+			steelRatio: 0.01,
 		},
 		fireResistance: {
 			columns: 0,
@@ -15215,6 +15327,18 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			enabled: false,
 			supports: [],
 		},
+		timeDependent: {
+			enabled: false,
+			exposure: 'indoor',
+			relativeHumidity: null,
+			cycleDays: 7.0,
+			curingDays: 7.0,
+			superimposedAfterDays: 90.0,
+			sustainedLive: 0.25,
+			serviceLifeYears: 30.0,
+			steelRatio: 0.01,
+			waterContent: null,
+		},
 		fireResistance: {
 			columns: 0,
 			beams: 0,
@@ -17814,64 +17938,6 @@ export const SOIL_SCHEMA: IJSONSchema = {
 			title: 'Liquefaction',
 			type: 'object',
 		},
-		OverheadLine: {
-			additionalProperties: false,
-			description: 'An overhead electric line near the building: its class (an id of the code pack\'s\n``planning.buildingCode.overheadLines.classes``), voltage and the distances to it.',
-			properties: {
-				kind: {
-					default: 'lowMedium',
-					description: 'Class of the line in the code pack: lowMedium (low to medium voltage and service lines) or high (high voltage).',
-					maxLength: 32,
-					minLength: 1,
-					title: 'Line',
-					type: 'string',
-				},
-				voltage: {
-					anyOf: [
-						{
-							exclusiveMinimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Of a high voltage line [kV].',
-					title: 'Voltage',
-				},
-				vertical: {
-					anyOf: [
-						{
-							minimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'From the building or any part of it to the line [mm]; empty: not checked.',
-					title: 'Vertical distance',
-				},
-				horizontal: {
-					anyOf: [
-						{
-							minimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'From the building or any part of it to the line [mm]; empty: not checked.',
-					title: 'Horizontal distance',
-				},
-			},
-			title: 'OverheadLine',
-			type: 'object',
-		},
 		Permeability: {
 			additionalProperties: false,
 			properties: {
@@ -17999,113 +18065,10 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				excludedArea: {
 					default: 0,
-					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, services), other than the parking floors [m²].',
+					description: 'Floor area the rules leave out of FAR (stair and lift rooms over the roof, parking, services) [m²].',
 					minimum: 0,
 					title: 'Excluded floor area',
 					type: 'number',
-				},
-				rules: {
-					default: 'authority',
-					description: 'authority: the planning authority\'s FAR, ground coverage and setbacks (the code pack\'s planning table), with the building code\'s own site rules; code: no authority rules apply, the building code\'s open area and setbacks instead.',
-					enum: ['authority', 'code'],
-					enumDescriptions: ['Planning authority', 'Building code only'],
-					title: 'Rules',
-					type: 'string',
-				},
-				typology: {
-					default: 'detached',
-					description: 'Detached, semi-detached (one side on the property line or a pounding gap) or row type: the building code\'s side and rear open spaces depend on it.',
-					enum: ['detached', 'semiDetached', 'row'],
-					enumDescriptions: ['Detached', 'Semi-detached', 'Row type'],
-					title: 'Typology',
-					type: 'string',
-				},
-				parkingArea: {
-					default: 0,
-					description: 'Area of the floors (basements included) used mainly for car parking and their accessory plant, which the building code leaves out of FAR [m²].',
-					minimum: 0,
-					title: 'Parking floor area',
-					type: 'number',
-				},
-				openArea: {
-					anyOf: [
-						{
-							minimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Total open area: exterior open spaces and interior courtyards, not the light and ventilation shafts [m²]; empty: the plot less the ground coverage.',
-					title: 'Open area',
-				},
-				unpavedArea: {
-					anyOf: [
-						{
-							minimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Open area left unpaved, with or without vegetation [m²]; empty: not checked.',
-					title: 'Unpaved area',
-				},
-				plinthHeight: {
-					anyOf: [
-						{
-							minimum: 0,
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Plinth level above the surface of the road\'s centre line [mm]; empty: not checked.',
-					title: 'Plinth height',
-				},
-				formationHeight: {
-					anyOf: [
-						{
-							type: 'number',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Formation level of the plot above the road\'s centre line [mm] (negative: below the road); empty: not checked.',
-					title: 'Formation height',
-				},
-				floodProne: {
-					default: false,
-					description: 'The area is prone to flood or surge: the plinth and formation levels are the development authority\'s.',
-					title: 'Flood prone',
-					type: 'boolean',
-				},
-				approvedArea: {
-					default: false,
-					description: 'The plot lies in an approved residential or business area (unlimited height on a wide road, by the building code).',
-					title: 'Approved area',
-					type: 'boolean',
-				},
-				overheadLine: {
-					anyOf: [
-						{
-							$ref: '#/$defs/OverheadLine',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'The nearest overhead electric line and the building\'s distances to it.',
-					title: 'Overhead electric line',
 				},
 			},
 			title: 'Planning',
@@ -26885,27 +26848,6 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Area use from the code pack, for its live load.',
 					title: 'Occupancy',
-				},
-				kind: {
-					default: 'walkway',
-					description: 'What the ramp serves, for the code pack\'s ramp checks: walkway (walkers), accessible (an accessible route for persons with disabilities), exit (a means of escape), vehicle (a carriageway ramp between levels), parking (stalls along the ramp).',
-					enum: ['walkway', 'accessible', 'exit', 'vehicle', 'parking'],
-					title: 'Kind',
-					type: 'string',
-				},
-				lanes: {
-					default: 1,
-					description: 'Traffic lanes (vehicle ramps).',
-					maximum: 2,
-					minimum: 1,
-					title: 'Lanes',
-					type: 'integer',
-				},
-				transitions: {
-					default: false,
-					description: 'Vehicle ramps: transition slopes at both ends (at the share of the main slope the code pack names), which allow a steeper main slope.',
-					title: 'Transitions',
-					type: 'boolean',
 				},
 			},
 			required: ['id', 'story', 'start', 'end'],
