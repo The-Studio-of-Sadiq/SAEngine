@@ -284,8 +284,12 @@ def design_walls(
 
     ready = []
     masonry_ready: list[tuple[Any, Any, Any]] = []
+    plate_ready: list[tuple[Any, Any, Any]] = []  # B38: steel plate shear walls
     for e, t in candidates:
         concrete = mats.get(t.material)
+        if concrete is not None and concrete.category == Category.STEEL:
+            plate_ready.append((e, t, concrete))
+            continue
         if concrete is not None and concrete.category == Category.MASONRY:
             # T31: masonry walls (saengine.design.masonry, the code pack's method).
             masonry_ready.append((e, t, concrete))
@@ -305,7 +309,7 @@ def design_walls(
             skip(e, f"unknown reinforcement material '{t.reinforcement.material}'")
             continue
         ready.append((e, t, bars, concrete, steel))
-    if not ready and not masonry_ready:
+    if not ready and not masonry_ready and not plate_ready:
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
 
     # The pier forces, with the combinations of check.py (the Ω0 ones for the response spectrum
@@ -326,7 +330,7 @@ def design_walls(
             ]
         found = wall_forces.wall_forces(project, building, out_dir, found_combos, seismic, signs)
     except (OSError, ValueError, KeyError) as error:
-        for e, *_ in [*ready, *masonry_ready]:
+        for e, *_ in [*ready, *masonry_ready, *plate_ready]:
             skip(e, f"the wall forces could not be found: {error}")
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
     notes += [f"walls: {n}" for n in found["notes"]]
@@ -355,6 +359,16 @@ def design_walls(
     sections_of: dict[str, list[dict[str, Any]]] = {}
     for s in found["sections"]:
         sections_of.setdefault(s["wall"], []).append(filtered(s))
+    plate_walls = False
+    if plate_ready:  # B38: steel plate shear walls (saengine.design.steel.seismic_walls)
+        from saengine.design.steel import seismic_walls
+
+        found_plates, plate_notes = seismic_walls.design_plate_walls(
+            plate_ready, sections_of, building, types, mats, settings
+        )
+        elements += found_plates
+        notes += plate_notes
+        plate_walls = bool(found_plates)
 
     stacks = wall_stacks(building)
     levels = sorted(s.elevation for s in building.stories)
@@ -551,6 +565,7 @@ def design_walls(
         "designed": concrete_designed,
         "masonry": bool(masonry_elements),
         "masonryMethods": sorted({str(e.get("masonryMethod")) for e in masonry_elements}),
+        "plateWalls": plate_walls,  # B38
     }
 
 

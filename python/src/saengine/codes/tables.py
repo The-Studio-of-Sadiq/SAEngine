@@ -7088,6 +7088,189 @@ class SteelSeismicPractice(_Group):
     note: str = ""
 
 
+# ─────────────── steel seismic provisions: braced frames, plate walls, composite (B38) ───────────────
+# Read by saengine.design.steel.seismic_braced, seismic_walls and seismic_composite.
+
+
+class SteelSeismicConcentric(_Group):
+    """A concentrically braced frame kind (special or ordinary); a missing rule is not
+    required of it."""
+
+    slenderness: float | None = Field(
+        default=None, gt=0, description="Braces: KL/r ≤ this × √(E/Fy)."
+    )
+    slendernessChevronOnly: bool = Field(
+        default=False, description="The KL/r limit only for braces in K, V or inverted-V."
+    )
+    slendernessMax: float | None = Field(
+        default=None, gt=0, description="KL/r up to this when the columns take Ry Pn."
+    )
+    compactMembers: list[Literal["brace", "column", "beam"]] = Field(
+        default_factory=list, description="Members that must be seismically compact."
+    )
+    filledHssExempt: bool = Field(
+        default=False, description="Concrete-filled HSS braces need not be compact."
+    )
+    tensionShareMin: float | None = Field(
+        default=None, gt=0, lt=1, description="Braces in tension resist at least this share."
+    )
+    tensionShareMax: float | None = Field(
+        default=None, gt=0, lt=1, description="... and at most this share of a line's force."
+    )
+    lineOffset: float | None = Field(
+        default=None, gt=0, description="Parallel lines within this × the building dimension."
+    )
+    stitchRatio: float | None = Field(
+        default=None, gt=0, description="Built-up braces: a/ri ≤ this × the member's KL/r."
+    )
+    stitchRatioNoShear: float | None = Field(
+        default=None, gt=0, description="... when buckling causes no shear in the stitches."
+    )
+    stitchesMin: int | None = Field(default=None, ge=1, description="Stitches at least.")
+    connectionFlexure: float | None = Field(
+        default=None, gt=0, description="Brace connections: M = this × Ry Mp of the brace."
+    )
+    connectionCompression: float | None = Field(
+        default=None, gt=0, description="Brace connections: P = this × Ry Pn of the brace."
+    )
+    slipWithoutOmega: bool = Field(
+        default=False, description="Bolt slip under the combinations without Ω0 only."
+    )
+    postBuckling: Positive = Field(description="Compression braces at this × Pn for the beams.")
+    kBracing: bool = Field(description="K-type bracing permitted.")
+    spliceFlexureShare: float | None = Field(
+        default=None, gt=0, description="Column splices develop this × the lesser φMn."
+    )
+    protectedMiddle: float | None = Field(
+        default=None, gt=0, description="Protected zone: the middle this × the brace length."
+    )
+    note: str = ""
+
+
+class SteelSeismicEccentric(_Group):
+    """Eccentrically braced frames: the links and the members outside them."""
+
+    phi: Phi = Field(description="φv of the link shear.")
+    shearYield: Positive = Field(description="Vp = this × Fy Aw.")
+    flexureShear: Positive = Field(description="Vn ≤ this × Mp / e.")
+    axialLimit: Positive = Field(description="Pu above this × Py: the reduced strengths.")
+    mpaFactor: Positive = Field(description="Mpa = this × Mp (1 - Pr/Pc).")
+    lengthRatio: Positive = Field(description="ρ' Aw/Ag at or above this: Eq 6.10.305.")
+    lengthA: Positive
+    lengthB: Positive
+    shortLink: Positive = Field(description="e ≤ this × Mp/Vp: a shear link.")
+    longLink: Positive = Field(description="e ≥ this × Mp/Vp: a flexural link.")
+    flexuralLink: Positive = Field(description="No intermediate stiffeners above × Mp/Vp.")
+    rotationShort: Positive = Field(description="Link rotation of short links [rad].")
+    rotationLong: Positive = Field(description="Link rotation of long links [rad].")
+    endStiffenerWidth: Positive = Field(description="End stiffeners: width ≥ bf - this × tw.")
+    endStiffenerThickness: Positive = Field(description="End stiffeners: t ≥ this × tw.")
+    stiffenerThicknessMin: Positive = Field(description="[mm]")
+    spacingShort: Positive = Field(description="Spacing ≤ (this × tw - d/divisor) at γ short.")
+    spacingLong: Positive = Field(description="... (this × tw - d/divisor) at γ long.")
+    spacingDepthDivisor: Positive
+    flangeDistance: Positive = Field(description="Long links: stiffeners this × bf from ends.")
+    twoSidedDepth: Positive = Field(description="Links this deep need two-sided stiffeners.")
+    oneSidedThickness: Positive = Field(description="One-sided stiffeners: t ≥ this × tw.")
+    oneSidedWidth: Positive = Field(description="One-sided stiffeners: width ≥ this × bf.")
+    weldWebShare: Positive = Field(description="Stiffener-to-web welds: this × Ast Fy.")
+    weldFlangeShare: Positive = Field(description="Stiffener-to-flange welds: this × Ast Fy.")
+    braceStrength: Positive = Field(description="Link end braces: this × Ry Z Fy / ho.")
+    braceFactor: Positive = Field(description="Diagonal braces: this × Ry Vn of the link.")
+    beamFactor: Positive = Field(description="Beam outside the link: this × Ry Vn.")
+    columnFactor: Positive = Field(description="Columns: this × Ry Vn of the links above.")
+    upperStoreysAbove: int = Field(
+        ge=1, description="Above this many storeys the top storey may be a CBF."
+    )
+    note: str = ""
+
+
+class SteelSeismicRestrained(_Group):
+    """Buckling-restrained braced frames."""
+
+    phi: Phi = Field(description="φ of the steel core's yielding.")
+    connectionFactor: Positive = Field(description="Connections: × the adjusted compression.")
+    betaMin: Positive = Field(description="β (compression adjustment) at least.")
+    testDrift: Positive = Field(description="Restraint and tests to this × the design drift.")
+    coreToughness: Positive = Field(description="Core plates this thick need the CVN [mm].")
+    spliceFlexureShare: Positive = Field(description="Column splices: × the lesser φMn.")
+    kBracing: bool = Field(description="K-type bracing permitted.")
+    note: str = ""
+
+
+class SteelSeismicPlateWalls(_Group):
+    """Special plate shear walls (steel webs between boundary elements)."""
+
+    phi: Phi = Field(description="φ of the web shear yielding.")
+    shearCoefficient: Positive = Field(description="Vn = this × Fy tw Lcf sin 2α.")
+    angleCoefficient: Positive = Field(description="Eq 6.10.308: h³ / (this × Ic L).")
+    aspectMin: Positive = Field(description="L/h above this.")
+    aspectMax: Positive = Field(description="L/h at most this.")
+    inertiaCoefficient: Positive = Field(description="Ic ≥ this × tw h⁴ / L.")
+    hbeBracing: Positive = Field(description="HBE braced at most this × ry E / Fy.")
+    hbeBraceShare: Positive = Field(description="HBE brace strength: this × Fy bf tf.")
+    connectionFactor: Positive = Field(description="HBE-to-VBE shear: moments this × Ry Mp.")
+    note: str = ""
+
+
+class SteelSeismicTies(_Group):
+    """Transverse ties of concrete-encased composite columns of one seismic system level."""
+
+    spacingLeastShare: float | None = Field(default=None, gt=0, description="× least side.")
+    spacingBarDiameters: float | None = Field(default=None, gt=0, description="× bar db.")
+    spacingTieDiameters: float | None = Field(default=None, gt=0, description="× tie db.")
+    spacingMax: float | None = Field(default=None, gt=0, description="[mm]")
+    tieGreatestShare: float | None = Field(default=None, gt=0, description="Tie db ≥ × side.")
+    tieMin: float | None = Field(default=None, gt=0, description="Tie db at least [mm].")
+    tieMax: float | None = Field(default=None, gt=0, description="Tie db need not exceed [mm].")
+    zoneHeightShare: float | None = Field(default=None, gt=0, description="End zone × clear H.")
+    zoneMin: float | None = Field(default=None, gt=0, description="End zone at least [mm].")
+    remainderFactor: float | None = Field(default=None, gt=0, description="Elsewhere × that.")
+    ashCoefficient: float | None = Field(default=None, gt=0, description="Eq 6.13.27.")
+    confinedLeastShare: float | None = Field(default=None, gt=0, description="C-SMF ends.")
+    confinedMax: float | None = Field(default=None, gt=0, description="C-SMF ends [mm].")
+    crossTieSpacing: float | None = Field(default=None, gt=0, description="Across [mm].")
+    bracedAxialShare: float | None = Field(default=None, gt=0, description="× Po: full length.")
+    discontinuityShare: float | None = Field(default=None, gt=0, description="× Po.")
+    footingExtension: float | None = Field(default=None, gt=0, description="[mm]")
+    note: str = ""
+
+
+class SteelSeismicCompositeWall(_Group):
+    """Composite steel plate shear walls."""
+
+    shearCoefficient: Positive = Field(description="Vns = this × As Fy.")
+    phi: Phi = Field(description="φ of the plate's shear (the clause gives none).")
+    concreteBothSides: Positive = Field(description="Concrete each side at least [mm].")
+    concreteOneSide: Positive = Field(description="Concrete on one side at least [mm].")
+    ratioMin: Positive = Field(description="Bars each way at least this ratio.")
+    spacingMax: Positive = Field(description="Bars at most this apart [mm].")
+    note: str = ""
+
+
+class SteelSeismicComposite(_Group):
+    """Composite members of the seismic load resisting system."""
+
+    concreteMin: Positive = Field(description="f'c at least [MPa].")
+    concreteMaxNormal: Positive = Field(description="f'c for strength at most, normal [MPa].")
+    concreteMaxLight: Positive = Field(description="... lightweight [MPa].")
+    steelShareMin: Share = Field(description="Steel at least this share of the section.")
+    shearPhi: Phi = Field(description="φ of the encased column's shear.")
+    connectorSpacingMax: Positive = Field(description="Shear connectors at most [mm].")
+    levels: dict[str, Literal["ordinary", "intermediate", "special"]] = Field(
+        description="Frame or braced kind -> the seismic system level of its composite members."
+    )
+    ordinary: SteelSeismicTies
+    intermediate: SteelSeismicTies
+    special: SteelSeismicTies
+    beamStrain: Positive = Field(description="Eq 6.13.26: (Ycon + db) / (1 + this Fy / Es).")
+    filledWall: Positive = Field(
+        description="Filled rectangular HSS in SMF: t ≥ b √(Fy/(this Es))."
+    )
+    plateWall: SteelSeismicCompositeWall
+    note: str = ""
+
+
 class SteelSeismicTable(TableModel):
     """Seismic provisions for structural steel buildings: when they apply, the expected
     strengths, seismically compact sections, column strength, splices and bases, and the
@@ -7108,6 +7291,21 @@ class SteelSeismicTable(TableModel):
     truss: SteelSeismicTruss
     connections: SteelSeismicConnections
     practice: SteelSeismicPractice
+    # B38: braced frames, plate walls and composite seismic members (None: not covered).
+    bracedSystems: dict[str, str] = Field(
+        default_factory=dict,
+        description="Structural system id -> the braced frame or wall kind (scbf, ocbf, ebf, "
+        "brbf, spsw) its braces, links and walls follow.",
+    )
+    concentric: dict[str, SteelSeismicConcentric] | None = Field(
+        default=None, description="Concentrically braced frames by kind (scbf, ocbf)."
+    )
+    eccentric: SteelSeismicEccentric | None = None
+    restrained: SteelSeismicRestrained | None = None
+    plateWalls: SteelSeismicPlateWalls | None = None
+    compositeSeismic: SteelSeismicComposite | None = None
+
+
 # ─────────────────────────── nonlinear time history analysis (B36) ───────────────────────────
 
 

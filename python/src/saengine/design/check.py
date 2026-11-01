@@ -815,7 +815,7 @@ def _design_run(
                 _steel_deflection(entry, own, service, project, object_type)  # B9
             checked.append(entry)
             steel_seen = True
-            if object_type.kind in ("beam", "column"):  # B35
+            if object_type.kind in ("beam", "column", "brace"):  # B35, B38 (braces)
                 steel_members.append(
                     steel_seismic.SteelMember(
                         member_id,
@@ -1133,7 +1133,7 @@ def _design_run(
                 building,
                 types,
                 mats,
-                steel_members,
+                [m for m in steel_members if m.kind != "brace"],
                 combinations,
                 seismic_detailing.earthquake_indices(extra, len(combinations)),
                 resolved,
@@ -1145,6 +1145,24 @@ def _design_run(
             if scope is not None:
                 scope["steelSeismic"] = steel_seismic_found
                 scope["checks"] = scope.get("checks", []) + steel_seismic_found["checks"]
+        # B38: braced frames (saengine.design.steel.seismic_braced) and the composite members
+        # of the steel seismic system (seismic_composite).
+        steel_braced_found = _steel_braced(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            extra,
+            resolved,
+            steel_seismic_found,
+            notes,
+            out_dir,
+        )
+        if steel_braced_found is not None and scope is not None:
+            scope["steelBraced"] = steel_braced_found
+            scope["checks"] = scope.get("checks", []) + steel_braced_found["checks"]
     # Integrator glue: the earthquake-resistant detailing of BNBC Sec 8.3 (seismic_detailing).
     joints: list[dict[str, Any]] = []
     if scope is not None:
@@ -1536,6 +1554,17 @@ def _assemble(
             from saengine.design.steel import seismic as steel_seismic
 
             method += steel_seismic.method_lines()
+        braced_found = (scope or {}).get("steelBraced") or {}
+        from saengine.design.steel import seismic_braced, seismic_composite  # B38
+
+        if braced_found.get("applies"):
+            method += seismic_braced.method_lines(braced_found)
+        if braced_found.get("composite"):
+            method += seismic_composite.method_lines()
+    if walls_found.get("plateWalls"):  # B38
+        from saengine.design.steel import seismic_walls
+
+        method += seismic_walls.method_lines()
     if timber_seen:
         from saengine.design import timber as timber_design
 
@@ -2915,9 +2944,13 @@ def _steel_amplified_columns(
     """B35: the steel column elements of a steel seismic system (not marked gravity) when the
     steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
     from saengine.design.steel import seismic as steel_seismic
+    from saengine.design.steel import seismic_braced  # B38: braced frames' columns too
 
     try:
-        if building is None or not steel_seismic.provisions(settings).applies:
+        if building is None or not (
+            steel_seismic.provisions(settings).applies
+            or seismic_braced.braced_provisions(settings).applies
+        ):
             return set()
     except (ValueError, KeyError, AttributeError, TypeError):
         return set()
@@ -2937,6 +2970,62 @@ def _steel_amplified_columns(
             role = getattr(t, "seismicRole", None)
         if role != "gravity":
             found.add(e.id)
+    return found
+
+
+def _steel_braced(
+    project: dict[str, Any],
+    building: Any,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    steel_members: list[Any],
+    combinations: list[str],
+    extra: dict[str, Any],
+    settings: Any,
+    moment_found: dict[str, Any] | None,
+    notes: list[str],
+    out_dir: Any = None,
+) -> dict[str, Any] | None:
+    """B38: the braced frame checks (saengine.design.steel.seismic_braced) and the composite
+    seismic checks (seismic_composite) on the steel members' entries; the braced summary with
+    ``"composite"`` True when composite members were checked."""
+    from saengine.design import seismic_detailing
+    from saengine.design.steel import seismic_braced, seismic_composite
+    from saengine.fem import seismic_design
+
+    drifts = None
+    if out_dir is not None:
+        drifts = (seismic_design.load_summary(out_dir) or {}).get("drift")
+    found = None
+    try:
+        found = seismic_braced.apply(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            seismic_detailing.earthquake_indices(extra, len(combinations)),
+            settings,
+            drifts,
+        )
+        notes += found["notes"]
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        notes.append(f"the steel braced frame provisions could not be checked: {error}")
+    kinds = list((found or {}).get("kinds") or []) if (found or {}).get("applies") else []
+    if moment_found and moment_found.get("applies") and moment_found.get("frame"):
+        kinds.append(moment_found["frame"])
+    members_found = (moment_found or {}).get("members") or {}
+    roles = {k: v.get("role", "lateral") for k, v in members_found.items()}
+    if kinds:
+        try:
+            notes += seismic_composite.apply(steel_members, mats, combinations, kinds, roles)
+            if found is not None:
+                found["composite"] = any(
+                    getattr(m.object, "composite", None) is not None for m in steel_members
+                )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            notes.append(f"the composite seismic provisions could not be checked: {error}")
     return found
 
 

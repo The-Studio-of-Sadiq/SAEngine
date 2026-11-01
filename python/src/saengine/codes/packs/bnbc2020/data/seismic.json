@@ -581,6 +581,106 @@
       "periodFamily": null,
       "group": "steelNotDetailed",
       "dual": false
+    },
+    "steelBrbf": {
+      "name": "Steel buckling-restrained braced frame, non-moment-resisting beam-column connections",
+      "R": 7.0,
+      "Omega0": 2.0,
+      "Cd": 5.5,
+      "row": "P.3 Table 6.P.1 (part 2 p. 590)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 48.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": "bucklingRestrainedBracedFrame",
+      "group": "buildingFrame",
+      "dual": false,
+      "note": "Part 6 Appendix P: Table 6.2.19 has no row for buckling-restrained braced frames (Sec 10.20.16.1)."
+    },
+    "steelSpsw": {
+      "name": "Steel special plate shear walls",
+      "R": 7.0,
+      "Omega0": 2.0,
+      "Cd": 6.0,
+      "row": "P.3 Table 6.P.1 (part 2 p. 590)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 48.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false,
+      "note": "Part 6 Appendix P: Table 6.2.19 has no row for special plate shear walls (Sec 10.20.17.1). Table 6.P.2's Cr 0.02, x 0.75 (foot units) is the 'all other' row of Table 6.2.20 in metres."
+    },
+    "steelBrbfMoment": {
+      "name": "Steel buckling-restrained braced frame, moment-resisting beam-column connections",
+      "R": 8.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "P.3 Table 6.P.1 (part 2 p. 590)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 48.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": "bucklingRestrainedBracedFrame",
+      "group": "buildingFrame",
+      "dual": false,
+      "note": "Part 6 Appendix P."
+    },
+    "steelDualSmfBrbf": {
+      "name": "Dual: steel special moment frame and buckling-restrained braced frames",
+      "R": 8.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "P.3 Table 6.P.1 (part 2 p. 590)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true,
+      "note": "Part 6 Appendix P: dual systems with special moment frames resisting at least 25% of the seismic forces. A dual system takes the 'all other' period row, as the dual rows of Table 6.2.19 do."
+    },
+    "steelDualSmfSpsw": {
+      "name": "Dual: steel special moment frame and special plate shear walls",
+      "R": 8.0,
+      "Omega0": 2.5,
+      "Cd": 6.5,
+      "row": "P.3 Table 6.P.1 (part 2 p. 590)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true,
+      "note": "Part 6 Appendix P: dual systems with special moment frames resisting at least 25% of the seismic forces."
     }
   },
   "periodCoefficients": {
@@ -599,6 +699,11 @@
     "other": {
       "Ct": 0.0488,
       "m": 0.75
+    },
+    "bucklingRestrainedBracedFrame": {
+      "Ct": 0.0731,
+      "m": 0.75,
+      "source": "Part 6 Appendix P Table 6.P.2 (part 2 p. 590): Cr 0.03, x 0.75 in foot units, 0.03 × 3.281^0.75 = 0.0731 in metres"
     }
   },
   "designCategories": {

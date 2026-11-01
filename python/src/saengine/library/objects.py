@@ -1515,6 +1515,58 @@ class Column(_ObjectBase):
     )
 
 
+# ─────────────── B38: buckling-restrained braces and steel plate shear walls ───────────────
+# Checked by saengine.design.steel.seismic_braced and seismic_walls (the code pack's
+# steelSeismic table).
+
+
+class BucklingRestrainedBrace(_Model):
+    """The steel core of a buckling-restrained brace and its qualifying test results."""
+
+    type: Literal["bucklingRestrained"] = "bucklingRestrained"
+    coreArea: float = Field(gt=0, description="Net area of the steel core Asc [mm²].")
+    beta: float = Field(
+        gt=0,
+        title="β (compression adjustment)",
+        description="Largest compression / tension force of the qualifying tests at twice the "
+        "design storey drift (at least the code pack's least β).",
+    )
+    omega: float = Field(
+        gt=0,
+        title="ω (strain hardening)",
+        description="Largest tension force of the qualifying tests / Fysc Asc of the specimen.",
+    )
+    couponFy: bool = Field(
+        default=False,
+        title="Fysc from a coupon test",
+        description="The core's yield stress is a coupon test's: Ry is not applied.",
+    )
+
+
+class SteelPlateWall(_Model):
+    """Concrete encasing the steel plate of a composite plate shear wall."""
+
+    type: Literal["steelPlateWall"] = "steelPlateWall"
+    concrete: Literal["none", "oneSide", "bothSides"] = Field(
+        default="none",
+        json_schema_extra={"enumDescriptions": ["No concrete", "One side", "Both sides"]},
+    )
+    concreteMaterial: Id | None = Field(
+        default=None, description="03 Materials id of the concrete; none: no concrete."
+    )
+    concreteThickness: float = Field(
+        default=100, gt=0, description="Concrete on each encased side [mm]."
+    )
+    barRatio: float = Field(
+        default=0.0025, ge=0, description="Bars in the concrete each way, As / Ac [-]."
+    )
+    barSpacing: float = Field(default=300, gt=0, description="Between the bars [mm].")
+    connectors: bool = Field(
+        default=True,
+        description="Headed studs or other connectors tie the plate to the concrete.",
+    )
+
+
 class Brace(_ObjectBase):
     """Bracing and truss members."""
 
@@ -1531,6 +1583,12 @@ class Brace(_ObjectBase):
         description="Rods and slender angles that buckle at a negligible load: each load "
         "combination releases the members it would compress, and they are designed for "
         "tension alone.",
+    )
+    restrained: BucklingRestrainedBrace | None = Field(  # B38
+        default=None,
+        title="Buckling-restrained",
+        description="Steel braces of buckling-restrained braced frames: the core and the test "
+        "results; none: a conventional brace.",
     )
     timber: TimberMember | None = Field(
         default=None,
@@ -1659,6 +1717,14 @@ class Wall(_ObjectBase):
         default=None,
         title="Anchor bolts",
         description="Masonry walls: the bolts anchoring the wall to each floor or roof.",
+    )
+    # B38: steel plate shear walls.
+    plateWall: SteelPlateWall | None = Field(
+        default=None,
+        title="Steel plate wall",
+        description="Steel walls (a steel material; the thickness is the web plate's): the "
+        "concrete encasing the plate of a composite plate shear wall; none: a steel plate "
+        "shear wall without concrete.",
     )
 
 

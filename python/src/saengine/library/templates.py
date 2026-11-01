@@ -88,6 +88,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "CompositeBeam": {"type": "compositeBeam", "concrete": "C20.7"},
     "CompositeColumn": {"type": "compositeColumn", "concrete": "C20.7"},
     "CompositeDeck": {},
+    # B38: buckling-restrained braces (β, ω from the qualifying tests) and steel plate walls
+    "BucklingRestrainedBrace": {
+        "type": "bucklingRestrained",
+        "coreArea": 3000,
+        "beta": 1.1,
+        "omega": 1.3,
+    },
+    "SteelPlateWall": {"type": "steelPlateWall"},
     "SlabShrinkage": {"freeStrain": 0.0004, "coefficient": 1.0, "aging": 0.8, "creep": 2.0},
     "TimberNotch": {"face": "tension", "depth": 30, "length": 100},
     "TimberSpaced": {"pieces": 2, "connectors": "end20"},

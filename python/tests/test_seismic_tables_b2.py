@@ -62,6 +62,7 @@ def test_every_row_of_table_6_2_19_is_in_the_pack():
     expected |= {f"B.{i}" for i in range(1, 9)}
     expected |= {f"C.{i}" for i in range(1, 7)} | {f"D.{i}" for i in range(1, 5)}
     expected |= {f"E.{i}" for i in range(1, 5)}
+    expected |= {"P.3"}  # B38: Appendix P Table 6.P.1 (BRBF, SPSW)
     assert rows == expected
 
 
