@@ -11,14 +11,21 @@ mortar grade of a cement : sand mix, the estimate of f'm from the units where th
 keeps one, and the dispatch to the method the code pack names in ``masonry.method``:
 
 - ``"allowableStress"``: :mod:`saengine.design.masonry_asd` (working stress design with a linear
-  stress-strain distribution, under the code pack's allowable stress combinations).
+  stress-strain distribution, under the code pack's allowable stress combinations);
+- ``"strength"``: :mod:`saengine.design.masonry_strength` (strength design of reinforced slender
+  walls and shear walls, under the design combinations).
+
+A wall type may choose one of the pack's ``alternatives`` instead (``masonryMethod``). After the
+method's checks every wall gets the pack's seismic detailing and high wind rules
+(:mod:`saengine.design.masonry_seismic`); confined walls are checked by
+:mod:`saengine.design.confined_masonry`, anchor bolts by :mod:`saengine.design.masonry_anchors`.
 
 Every number, limit and clause comes from the code pack's ``masonry`` table.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import ModuleType
 from typing import Any
 
@@ -53,6 +60,7 @@ class Masonry:
     fm_source: str = "entered"  # "entered" (prism tests) or "estimate" (from the units)
     inspected: bool = False  # special inspection and prism tests during construction
     notes: tuple[str, ...] = field(default=(), compare=False)
+    unit_strength: float | None = None  # the units' compressive strength [MPa], when entered
 
     @property
     def em(self) -> float:
@@ -185,6 +193,7 @@ def masonry_of(material: Any, mats: dict[str, Any] | None = None) -> Masonry:
         fm_source=source,
         inspected=bool(getattr(props, "specialInspection", False)),
         notes=tuple(notes),
+        unit_strength=props.unitStrength,
     )
 
 
@@ -198,25 +207,100 @@ class MasonryDesign:
     utilisation: float
 
 
-def method_module() -> ModuleType:
-    """The module of the code pack's masonry method (``masonry.method``)."""
-    method = table().method
+def methods() -> list[str]:
+    """The methods the code pack permits: its ``method`` first, then its ``alternatives``."""
+    t = table()
+    return list(dict.fromkeys([t.method, *getattr(t, "alternatives", [])]))
+
+
+def method_id(chosen: str | None = None) -> str:
+    """The method of a wall: ``chosen`` (a wall type's ``masonryMethod``) when the pack permits
+    it, else the pack's ``method``."""
+    if chosen and chosen in methods():
+        return chosen
+    return str(table().method)
+
+
+def method_module(method: str | None = None) -> ModuleType:
+    """The module of a masonry method (default: the code pack's ``masonry.method``)."""
+    method = method or table().method
     if method == "allowableStress":
         from saengine.design import masonry_asd
 
         return masonry_asd
+    if method == "strength":
+        from saengine.design import masonry_strength
+
+        return masonry_strength
     raise DesignError(f"the code pack's masonry method '{method}' is not available")
 
 
-def method_text() -> list[str]:
-    """The report's method paragraphs of the code pack's masonry method."""
-    return list(method_module().method_text())
+def method_text(used: list[str] | None = None) -> list[str]:
+    """The report's method paragraphs of the code pack's masonry method (and of the other
+    methods in ``used``)."""
+    out: list[str] = []
+    for method in dict.fromkeys([table().method, *(used or [])]):
+        if method == "confinedPanels":
+            from saengine.design import confined_masonry
+
+            out += confined_masonry.method_text()
+        else:
+            out += list(method_module(method).method_text())
+    return out
 
 
-def combinations_kind() -> str:
+def combinations_kind(method: str | None = None) -> str:
     """Which combinations the method checks: "allowable" (the code pack's allowable stress
     combinations) or "strength" (the design combinations)."""
-    return str(method_module().COMBINATIONS)
+    return str(method_module(method).COMBINATIONS)
+
+
+def site_zone(settings: Any) -> int | None:
+    """The seismic zone of the project's site: its location's, or the zone whose coefficient is
+    nearest the entered Z; None when neither is known."""
+    if settings is None:
+        return None
+    try:
+        from saengine.library.settings import derived
+
+        d = derived(settings)
+    except Exception:  # noqa: BLE001 - a project without the site tables
+        return None
+    if d.get("zone") is not None:
+        return int(d["zone"])
+    z = d.get("Z")
+    if z is None:
+        return None
+    try:
+        zones = code_context.pack_table("zoneCoefficients").zones
+    except Exception:  # noqa: BLE001
+        return None
+    return int(min(zones, key=lambda k: abs(float(zones[k]) - float(z))))
+
+
+def site_wind_kmh(settings: Any) -> float | None:
+    """The basic wind speed of the project's site [km/h]."""
+    if settings is None:
+        return None
+    try:
+        from saengine.library.settings import derived
+
+        v = derived(settings).get("windSpeed")
+    except Exception:  # noqa: BLE001
+        return None
+    return None if v is None else float(v) * 3.6
+
+
+def seismic_shear(forces: list[Any], zone: int | None) -> list[Any]:
+    """The forces with the in-plane shear of the earthquake combinations × the pack's factor in
+    the highest seismic zone (``seismic.zone4.shearForceFactor``)."""
+    zones = table().seismic.zones
+    if zone is None or not zones or zone != max(zones):
+        return forces
+    factor = float(table().seismic.zone4.get("shearForceFactor", 1.0))
+    if factor == 1.0:
+        return forces
+    return [replace(f, V2=f.V2 * factor) if f.earthquake else f for f in forces]
 
 
 def masonry_wall_checks(
@@ -227,12 +311,58 @@ def masonry_wall_checks(
     fy: float = 420.0,
     lateral: frozenset[str] | set[str] = frozenset(),
     storeys: int | None = None,
+    *,
+    method: str | None = None,
+    service: list[Any] | None = None,
+    zone: int | None = None,
+    wind_kmh: float | None = None,
+    storey_from_top: int | None = None,
+    opening_share: float | None = None,
+    confined: bool = False,
 ) -> MasonryDesign:
-    """The checks of a masonry wall pier by the code pack's method: plain masonry without
-    ``bars``, reinforced masonry with them. ``forces``: the pier's forces under the method's
-    combinations (compression positive, N and N·mm); ``lateral``: the names of the combinations
-    with wind or earthquake; ``storeys``: the building's storeys (minimum thickness)."""
-    return method_module().wall_checks(geometry, bars, forces, m, fy, lateral, storeys)
+    """The checks of a masonry wall pier by the code pack's method (or ``method``, one the pack
+    permits): plain masonry without ``bars``, reinforced masonry with them. ``forces``: the
+    pier's forces under the method's combinations (compression positive, N and N·mm);
+    ``lateral``: the names of the combinations with wind or earthquake; ``storeys``: the
+    building's storeys (minimum thickness); ``service``: the service forces (the strength
+    method's deflection). With ``zone`` and ``wind_kmh`` the pack's seismic detailing and high
+    wind rules are added (:mod:`saengine.design.masonry_seismic`); ``storey_from_top`` (0: the
+    top storey) and ``opening_share`` (the openings' share of the wall's length) feed them;
+    ``confined``: the wall is confined (its tie columns and beams stand for the bands and
+    corner bars)."""
+    chosen = method_id(method)
+    module = method_module(chosen)
+    shear_forces = seismic_shear(forces, zone)
+    if chosen == "strength":
+        d = module.wall_checks(geometry, bars, shear_forces, m, fy, lateral, storeys, service)
+    else:
+        d = module.wall_checks(geometry, bars, shear_forces, m, fy, lateral, storeys)
+    if shear_forces is not forces:
+        d.notes.append(
+            "in-plane shear of the earthquake combinations × "
+            f"{float(table().seismic.zone4['shearForceFactor']):g} ({clause('zone4Shear')})"
+        )
+    if method and method != chosen:
+        d.notes.append(f"method '{method}' is not permitted by the code pack: '{chosen}' is used")
+    from saengine.design import masonry_seismic as S
+
+    rows, notes = S.detailing(
+        geometry,
+        bars,
+        m,
+        zone=zone,
+        wind_kmh=wind_kmh,
+        storeys=storeys,
+        storey_from_top=storey_from_top,
+        opening_share=opening_share,
+        bearing=any(f.P > 0 for f in forces),
+        confined=confined,
+    )
+    d.checks += rows
+    d.notes += notes
+    strength = [c for c in d.checks if not c["flag"]]
+    d.utilisation = max((c["utilisation"] for c in strength), default=0.0)
+    return d
 
 
 def fire_row(m: Masonry) -> dict[str, Any]:
@@ -271,11 +401,16 @@ __all__ = [
     "fire_row",
     "masonry_of",
     "masonry_wall_checks",
+    "method_id",
     "method_module",
     "method_text",
+    "methods",
     "mortar_grade_of_mix",
     "mortar_grades",
     "mortar_rank",
     "prism_estimate",
+    "seismic_shear",
+    "site_wind_kmh",
+    "site_zone",
     "table",
 ]

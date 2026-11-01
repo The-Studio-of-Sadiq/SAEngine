@@ -401,7 +401,7 @@ def test_masonry_walls_take_the_allowable_stress_combinations(monkeypatch):
     cases = {"D": {}, "L": {}, "EX": {}, "EY": {}}
     monkeypatch.setattr(wall_forces, "case_shell_forces", lambda p, o: cases)
     monkeypatch.setattr(wall_forces, "wall_forces", forces)
-    piers, lateral, notes = wall_design._masonry_forces({}, None, "out", {}, set())
+    piers, lateral, notes, quake = wall_design._masonry_forces({}, None, "out", {}, set())
     combos = seen["combos"]
     names = [c.name for c in combos]
     assert "D" in names and "D + L" in names
@@ -409,5 +409,6 @@ def test_masonry_walls_take_the_allowable_stress_combinations(monkeypatch):
     assert any(n.startswith("masonry walls:") for n in notes)  # the wind rows left out
     assert lateral
     assert all(any(k.startswith("E") for k in c.factors) for c in combos if c.name in lateral)
+    assert quake and quake <= lateral  # B34: the earthquake combinations (Zone 4 shear × 1.5)
     assert all("SD" not in c.factors for c in combos)  # SD has no results: zero
     assert piers == {"W1": [{"wall": "W1", "pier": "W1/P1", "cuts": {}}]}

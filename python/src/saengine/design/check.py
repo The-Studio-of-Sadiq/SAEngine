@@ -1497,7 +1497,7 @@ def _assemble(
     if walls_found.get("masonry"):
         from saengine.design import masonry as masonry_design
 
-        method += masonry_design.method_text()
+        method += masonry_design.method_text(walls_found.get("masonryMethods"))
     if lintels_found["elements"]:
         method += lintel_design.METHOD
     if slabs_seen and any(

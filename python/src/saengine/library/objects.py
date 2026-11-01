@@ -1184,6 +1184,73 @@ TimberJoint = Annotated[
 ]
 
 
+# ─────────────────────────── masonry walls: confinement and anchor bolts ───────────────────────────
+
+
+class ConfiningElement(_Model):
+    """A tie column or tie beam of a confined masonry wall: cast-in-place RC after the masonry
+    is built (checked by :mod:`saengine.design.confined_masonry`)."""
+
+    width: Length | None = Field(
+        default=None, description="Across the wall [mm]; empty: the wall's thickness."
+    )
+    depth: Length = Field(
+        default=200,
+        description="In the plane of the wall [mm]: along it for a tie column, vertical for a "
+        "tie beam.",
+    )
+    count: int = Field(default=4, ge=2, description="Longitudinal bars.")
+    dia: Length = Field(default=12, description="Longitudinal bar diameter [mm].")
+    tieDia: Length = Field(default=6, title="Tie diameter", description="[mm]")
+    tieSpacing: Length = Field(default=150, title="Tie spacing", description="[mm]")
+    endTieSpacing: Length | None = Field(
+        default=100,
+        title="End-zone tie spacing",
+        description="Tie columns: at the top and bottom of each storey [mm]; empty: as the rest.",
+    )
+
+
+class WallConfinement(_Model):
+    """A confined masonry wall: tie columns at the wall's ends, beside the larger openings and
+    within long walls, and a tie beam at every floor, placed by the code pack's rules."""
+
+    concrete: Id = Field(description="Concrete of the tie columns and tie beams.")
+    rebar: Id = Field(description="Reinforcement of the tie columns and tie beams.")
+    cover: Length = Field(default=25, description="Clear cover to the ties [mm].")
+    tieColumn: ConfiningElement = Field(default_factory=ConfiningElement, title="Tie columns")
+    tieBeam: ConfiningElement = Field(default_factory=ConfiningElement, title="Tie beams")
+    toothed: bool = Field(
+        default=True,
+        description="Toothed edges at the tie columns; False: steel dowels in the bed joints.",
+    )
+
+
+class MasonryAnchorBolts(_Model):
+    """The anchor bolts that tie a masonry wall to each floor or roof (checked by
+    :mod:`saengine.design.masonry_anchors` against the wall's anchorage force)."""
+
+    kind: Literal["headed", "plate", "bent"] = Field(
+        default="headed", description="Headed, plate or bent-bar (J or L) anchor bolts."
+    )
+    placement: Literal["face", "top"] = Field(
+        default="face",
+        description="In the face of the wall (the anchorage force is tension: a ledger) or in "
+        "its top (the anchorage force is shear: a sill or bearing plate).",
+    )
+    dia: Length = Field(default=16, description="[mm]")
+    embedment: Length = Field(default=150, description="Effective embedment lb [mm].")
+    edge: Length = Field(default=100, description="Edge distance lbe [mm].")
+    spacing: Length = Field(default=600, description="Along the wall [mm].")
+    fy: Length = Field(default=250, title="Bolt fy", description="[MPa]")
+    shearPerMetre: float = Field(
+        default=0.0,
+        ge=0,
+        title="Other load per metre",
+        description="Load at right angles to the anchorage force [kN/m]: gravity on a ledger or "
+        "diaphragm shear on a sill.",
+    )
+
+
 # ─────────────────────────────────── object types ───────────────────────────────────
 
 
@@ -1445,6 +1512,24 @@ class Wall(_ObjectBase):
         description="Factors on the analysis shell stiffness, mass and weight (empty: the "
         "code's cracked factors for concrete and masonry, else 1).",
     )
+    # B34: masonry walls.
+    masonryMethod: Literal["allowableStress", "strength"] | None = Field(
+        default=None,
+        title="Masonry design method",
+        description="Masonry walls: the code pack's method (empty) or one it permits in lieu of "
+        "it (strength design of reinforced slender walls and shear walls).",
+        json_schema_extra={"enumDescriptions": ["Allowable stress design", "Strength design"]},
+    )
+    confinement: WallConfinement | None = Field(
+        default=None,
+        title="Confined masonry",
+        description="Masonry walls confined by RC tie columns and tie beams; empty: not confined.",
+    )
+    anchorBolts: MasonryAnchorBolts | None = Field(
+        default=None,
+        title="Anchor bolts",
+        description="Masonry walls: the bolts anchoring the wall to each floor or roof.",
+    )
 
 
 class Staircase(_ObjectBase):
@@ -1563,4 +1648,15 @@ class ObjectLibrary(_Model):
                     )
                 elif bars.category != Category.REBAR:
                     problems.append(f"{o.id}: reinforcement material '{bars.id}' is not rebar")
+            confinement = getattr(o, "confinement", None)
+            if confinement is not None:  # B34: confined masonry
+                for mid, category in (
+                    (confinement.concrete, Category.CONCRETE),
+                    (confinement.rebar, Category.REBAR),
+                ):
+                    found = materials.get(mid)
+                    if found is None or found.category != category:
+                        problems.append(
+                            f"{o.id}: confinement material '{mid}' is not a {category.value}"
+                        )
         return problems
