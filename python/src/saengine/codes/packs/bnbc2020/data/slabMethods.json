@@ -16,7 +16,7 @@
     "directDesign.strips": "BNBC 2020 Part 6 Sec 6.5.6.4-6.5.6.6, Tables 6.6.5-6.6.7, Eqs 6.6.85-6.6.86 (pp. 953-955)",
     "directDesign.transfer": "BNBC 2020 Part 6 Sec 6.5.6.3.6 (p. 953): 0.3 Mo to an edge column; Sec 6.5.6.9.2, Eq 6.6.87 (p. 956)",
     "directDesign.modification": "BNBC 2020 Part 6 Sec 6.5.6.7 (p. 955): 10 % if Mo is kept",
-    "equivalentFrame": "BNBC 2020 Part 6 Sec 6.5.7.2-6.5.7.7, Eq 6.6.88 (pp. 956-960): slab-beams with Is/(1 - c2/l2)² to the column centre, equivalent columns with torsional members, live load patterns of 3/4 L when L > 0.75 D, face moments not farther than 0.175 l1",
+    "equivalentFrame": "BNBC 2020 Part 6 Sec 6.5.7.2-6.5.7.7, Eq 6.6.88 (pp. 956-960): slab-beams with Is/(1 - c2/l2)² to the column centre, equivalent columns with torsional members, live load patterns of 3/4 L when L > 0.75 D, face moments not farther than 0.175 l1; C by Eq 6.6.86 (p. 953); a wall across at least 0.75 l2 taken as fixing the slab-beam as the uniform distribution of Sec 6.5.6.4.3 (p. 954) takes it",
     "corner": "BNBC 2020 Part 6 Sec 6.5.3.6.1-6.5.3.6.4, Figure 6.6.19 (pp. 946-947): top and bottom steel for the largest positive moment over l/5 at exterior corners with edge walls or αf > 1; bars at most 2h apart",
     "openings": "BNBC 2020 Part 6 Sec 6.5.4.2.1-6.5.4.2.4 (p. 949): openings in slabs without beams"
   },
@@ -71,7 +71,9 @@
     "uniformLiveMax": 0.75,
     "patternLiveShare": 0.75,
     "faceLimit": 0.175,
-    "farSpans": 2
+    "farSpans": 2,
+    "torsionShape": 0.63,
+    "fixedWallShare": 0.75
   },
   "corner": {
     "alphaMin": 1.0,

@@ -2897,10 +2897,56 @@ def coefficient_design(
         method, span, h, reinforcement, fc, fy, es, envelope, demand_shear, context,
         brick_aggregate, table["maxSpacing"],
     )  # fmt: skip
+    if method == "twoWay":
+        checks += _corner_checks(panel, h, ec, reinforcement, fc, fy, es, envelope)
     context.notes += notes
     return CoefficientDesign(
         method, envelope, dict(context.shear), span, checks, notes, case, m, side_shares
     )
+
+
+def _corner_checks(
+    panel: CoefficientPanel,
+    h: float,
+    ec: float | None,
+    reinforcement: PlanarReinforcement,
+    fc: float,
+    fy: float,
+    es: float,
+    envelope: dict[str, tuple[float, str | None, str]],
+) -> list[dict[str, Any]]:
+    """B33: corner reinforcement of a two-way panel at an exterior corner, where two
+    discontinuous sides meet that are on walls or on edge beams with αf above the pack's
+    ``slabMethods.corner.alphaMin`` (:func:`saengine.design.slab_frames.corner_rows`)."""
+    from saengine.design import slab_frames
+
+    table = slab_frames.rules()
+    corner = getattr(table, "corner", None) if table is not None else None
+    if corner is None:
+        return []
+
+    def stiff(name: str) -> bool:
+        side = panel.sides[name]
+        if side.neighbour is not None:
+            return False  # continuous: not an exterior edge
+        if side.beam is None:
+            return side.wall
+        if not ec:
+            return False
+        # The slab beside an edge beam: half the panel across it (as _two_way_scope).
+        width = (panel.lx if name[0] == "x" else panel.ly) / 2
+        return side.beam.ei / (ec * width * h**3 / 12) > float(corner.alphaMin)
+
+    exterior = [(a, b) for a in ("x-", "x+") for b in ("y-", "y+") if stiff(a) and stiff(b)]
+    if not exterior:
+        return []
+    rows = slab_frames.corner_rows(
+        envelope, layers_of(reinforcement, h), fc, fy, es, h, max(panel.lx, panel.ly)
+    )
+    corners = ", ".join(f"{a}/{b}" for a, b in exterior)
+    for row in rows:
+        row["note"] += f"; exterior corner(s) {corners}"
+    return rows
 
 
 def _two_way_scope(
@@ -2953,8 +2999,10 @@ def _coefficient_checks(
     context: SlabContext,
     brick_aggregate: bool | None,
     spacing: dict[str, Any],
+    source: str | None = None,
 ) -> list[dict[str, Any]]:
-    """The checks of a coefficient design, in the shape of :func:`slab_checks`'s."""
+    """The checks of a coefficient design, in the shape of :func:`slab_checks`'s. ``source``:
+    the method named in the flexure rows (None: the coefficient methods)."""
     from saengine.design.check import _check
 
     layers = layers_of(reinforcement, h)
@@ -2963,12 +3011,13 @@ def _coefficient_checks(
         for name, layer in layers.items()
     }
     checks: list[dict[str, Any]] = []
+    method_name = source
     source = "BNBC 6.5.8" if method == "twoWay" else "BNBC 6.1.4.3"
     for name in LAYERS:
         face, direction = name[:-1], name[-1]
         demand, combination, where = envelope[name]
         capacity = capacities[name]
-        label = f"Flexure {face} {direction} ({source} coefficients)"
+        label = f"Flexure {face} {direction} ({method_name or source + ' coefficients'})"
         if capacity is None:
             if demand <= NO_DEMAND:
                 continue

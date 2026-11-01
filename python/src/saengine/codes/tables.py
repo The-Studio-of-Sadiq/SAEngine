@@ -6130,8 +6130,12 @@ class DirectDesignRules(_Group):
 
     minSpans: int = Field(ge=1, description="Least continuous spans each way.")
     maxPanelRatio: Positive = Field(description="Longer over shorter span of a panel at most.")
-    maxSpanDifference: Share = Field(description="Successive spans differ by at most this share of the longer.")
-    maxColumnOffset: Share = Field(description="Columns off the line by at most this share of the span.")
+    maxSpanDifference: Share = Field(
+        description="Successive spans differ by at most this share of the longer."
+    )
+    maxColumnOffset: Share = Field(
+        description="Columns off the line by at most this share of the span."
+    )
     maxLiveToDead: Positive = Field(description="Unfactored live load over dead load at most.")
     stiffnessRatioRange: tuple[Positive, Positive] = Field(
         description="αf1 l2² / (αf2 l1²) within these for panels with beams on all sides."
@@ -6145,7 +6149,9 @@ class DirectDesignRules(_Group):
     exteriorStrip: ExteriorStripShareTable
     positiveStrip: StripShareTable
     alphaLimit: Positive = Field(description="αf1 l2/l1 from which the 'full' columns apply.")
-    beamShare: Share = Field(description="Share of the column strip moment beams take at αf1 l2/l1 >= alphaLimit.")
+    beamShare: Share = Field(
+        description="Share of the column strip moment beams take at αf1 l2/l1 >= alphaLimit."
+    )
     uniformSupportShare: Share = Field(
         description="Supports at least this share of l2 wide spread the negative moment over l2."
     )
@@ -6153,7 +6159,9 @@ class DirectDesignRules(_Group):
     modification: Annotated[float, Field(ge=0, lt=1)] = Field(
         description="Moments may be changed by this share if Mo is kept."
     )
-    columnMomentFactor: Positive = Field(description="Msc = factor [(qDu + share qLu) l2 ln² - ...].")
+    columnMomentFactor: Positive = Field(
+        description="Msc = factor [(qDu + share qLu) l2 ln² - ...]."
+    )
     columnMomentLiveShare: Share
     torsionShape: Positive = Field(description="C = Σ (1 - shape x/y) x³ y / 3.")
     wallEdgeMiddleFactor: Positive = Field(
@@ -6169,8 +6177,14 @@ class EquivalentFrameRules(_Group):
         description="Full live load on all panels when L <= this x D (else patterns)."
     )
     patternLiveShare: Share = Field(description="The share of the live load of the patterns.")
-    faceLimit: Share = Field(description="Negative moment at the face, not farther than this x l1 from the column centre.")
+    faceLimit: Share = Field(
+        description="Negative moment at the face, not farther than this x l1 from the column centre."
+    )
     farSpans: int = Field(ge=1, description="Spans each way taken in the analysis of one support.")
+    torsionShape: Positive = Field(description="C = Σ (1 - shape x/y) x³ y / 3.")
+    fixedWallShare: Share = Field(
+        description="A wall across the frame at least this share of l2 long fixes the slab."
+    )
 
 
 class CornerRules(_Group):
@@ -6293,7 +6307,9 @@ class SawtoothRules(_Group):
     method: Literal["supportChart"] = "supportChart"
     treads: list[int] = Field(min_length=2)
     curves: list[SawtoothCurve] = Field(min_length=2)
-    freeDivisor: Positive = Field(description="Free moment n l² / divisor (× (j² + 1)/j² for odd j).")
+    freeDivisor: Positive = Field(
+        description="Free moment n l² / divisor (× (j² + 1)/j² for odd j)."
+    )
     reentrantFactor: Positive = Field(description="Re-entrant corners take this × the steel.")
 
 

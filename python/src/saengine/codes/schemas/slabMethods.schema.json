@@ -300,6 +300,19 @@
           "minimum": 1,
           "title": "Farspans",
           "type": "integer"
+        },
+        "torsionShape": {
+          "description": "C = Σ (1 - shape x/y) x³ y / 3.",
+          "exclusiveMinimum": 0,
+          "title": "Torsionshape",
+          "type": "number"
+        },
+        "fixedWallShare": {
+          "description": "A wall across the frame at least this share of l2 long fixes the slab.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fixedwallshare",
+          "type": "number"
         }
       },
       "required": [
@@ -307,7 +320,9 @@
         "uniformLiveMax",
         "patternLiveShare",
         "faceLimit",
-        "farSpans"
+        "farSpans",
+        "torsionShape",
+        "fixedWallShare"
       ],
       "title": "EquivalentFrameRules",
       "type": "object"

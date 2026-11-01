@@ -1488,6 +1488,12 @@ def _assemble(
         method += slab.METHOD
     if "coefficients" in slabs_seen:
         method.append(slab.COEFFICIENT_METHOD)
+        # B33: slab systems designed by the pack's frame methods.
+        used = {e.get("method") for e in checked if e.get("kind") == "slab"}
+        if used & {"directDesign", "equivalentFrame"}:
+            from saengine.design import slab_frames
+
+            method += slab_frames.method_text(used)
     if walls_found["designed"]:
         method += wall_design.METHOD
     if walls_found.get("masonry"):
@@ -1880,6 +1886,9 @@ def _design_slabs(
                 ],
                 beams_at.get(round(level), []),
                 notes,
+                lambda s=slab_id, o=outline, lv=level: _frame_inputs(
+                    building, types, mats, s, o, lv
+                ),
             )
             if isinstance(found, str):
                 skip(found)
@@ -2087,6 +2096,7 @@ def _coefficient_slab(
     neighbours: list[list[tuple[float, float]]],
     beams: list[slab.EdgeBeam],
     notes: list[str],
+    frame_inputs: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]] | str:
     """A slab on beams by the coefficient methods (:func:`saengine.design.slab.
     coefficient_design`): (its checked entry, what it was checked from) or the reason it is
@@ -2138,7 +2148,21 @@ def _coefficient_slab(
             ec=ec,
         )
     except ValueError as error:
-        return str(error)
+        # B33: two-way slab systems on columns (or flexible beams) by the code pack's frame
+        # methods (direct design, equivalent frame: saengine.design.slab_frames).
+        if object_type.system == "oneWay" or frame_inputs is None:
+            return str(error)
+        from saengine.design import slab_frames
+
+        columns, frame_beams, openings = frame_inputs()
+        try:
+            design = slab_frames.design_slab(
+                object_type.system, object_type.thickness, object_type.reinforcement, fc, fy,
+                es, dead, live, slab.gravity_combinations(settings.combinations, roof), context,
+                columns, frame_beams, ec, neighbours, openings,
+            )  # fmt: skip
+        except ValueError as frame_error:
+            return f"{error}; {frame_error}"
     strength = [c for c in design.checks if not c["flag"]]
     notes.extend(f"{slab_id}: {note}" for note in context.notes)
     entry = {
@@ -2347,6 +2371,102 @@ def _slab_columns(
             joint.moments.append(moment * 1e3)  # N·mm
         joints.append(joint)
     return joints
+
+
+def _frame_inputs(
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    slab_id: str,
+    outline: list[tuple[float, float]],
+    level: float,
+) -> tuple[list[Any], list[Any], list[Any]]:
+    """B33: what the frame methods of a slab need (saengine.design.slab_frames): the columns
+    meeting it (inside its outline or on it) with the columns' heights and E above and below,
+    the beams at its level and its openings."""
+    from shapely.geometry import Point, Polygon
+
+    from saengine.design import slab_frames
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    area = Polygon(outline).buffer(slab_frames.ON_LINE)
+    found: dict[tuple[float, float], dict[str, Any]] = {}
+    for element in building.elements:
+        if not isinstance(element, ColumnElement):
+            continue
+        if not (element.bottom < level + 1 and element.top > level - 1):
+            continue
+        x, y = float(element.position[0]), float(element.position[1])
+        if not area.covers(Point(x, y)):
+            continue
+        column_type = types.get(element.type)
+        profile = getattr(column_type, "profile", None)
+        if isinstance(profile, RectangleProfile):
+            c1, c2 = float(profile.xDim), float(profile.yDim)
+        elif isinstance(profile, CircleProfile):
+            c1 = c2 = math.sqrt(math.pi) * float(profile.radius)
+        else:
+            continue
+        material = mats.get(getattr(column_type, "material", None))
+        e = float(getattr(getattr(material, "mechanical", None), "E", 0.0) or 0.0)
+        entry = found.setdefault(
+            (round(x), round(y)),
+            {"id": element.id, "c": (c1, c2), "angle": float(element.rotation or 0.0)},
+        )
+        if element.top > level + 1 and element.bottom > level - 1:
+            entry["above"] = slab_frames.ColumnStiffness(element.top - element.bottom, e)
+        elif element.top < level + 1 and element.bottom < level - 1:
+            entry["below"] = slab_frames.ColumnStiffness(element.top - element.bottom, e)
+        else:  # through the slab
+            entry["above"] = slab_frames.ColumnStiffness(element.top - level, e)
+            entry["below"] = slab_frames.ColumnStiffness(level - element.bottom, e)
+    columns = [
+        slab_frames.FrameColumn(
+            v["id"],
+            (float(x), float(y)),
+            v["c"][0],
+            v["c"][1],
+            v["angle"],
+            v.get("below"),
+            v.get("above"),
+        )
+        for (x, y), v in found.items()
+    ]
+    beams = []
+    for element in building.elements:
+        if not isinstance(element, BeamElement) or abs(element.elevation - level) > 1:
+            continue
+        beam_type = types.get(element.type)
+        profile = getattr(beam_type, "profile", None)
+        if not isinstance(profile, RectangleProfile):
+            continue
+        material = mats.get(getattr(beam_type, "material", None))
+        e = float(getattr(getattr(material, "mechanical", None), "E", 0.0) or 0.0)
+        beams.append(
+            slab_frames.FrameBeam(
+                element.id,
+                (float(element.start[0]), float(element.start[1])),
+                (float(element.end[0]), float(element.end[1])),
+                float(profile.xDim),
+                float(profile.yDim),
+                e,
+            )
+        )
+    openings = []
+    for opening in building.additions.slabOpenings:
+        if opening.host != slab_id:
+            continue
+        t = math.radians(opening.rotation or 0.0)
+        u, v = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
+        corners = tuple(
+            (
+                opening.x + a * opening.xDim / 2 * u[0] + b * opening.yDim / 2 * v[0],
+                opening.y + a * opening.xDim / 2 * u[1] + b * opening.yDim / 2 * v[1],
+            )
+            for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+        )
+        openings.append(slab_frames.Opening(opening.id, corners))
+    return columns, beams, openings
 
 
 def _strip_outline(strip: Any, axes: Any) -> dict[str, Any]:
