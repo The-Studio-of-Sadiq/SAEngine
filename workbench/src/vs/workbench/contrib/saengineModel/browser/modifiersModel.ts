@@ -19,7 +19,7 @@ import { MemberGroup } from '../../../services/saengineProject/common/modelSelec
  *
  *   "modifiers":        { "I33": 0.35, "I22": 0.35, "J": 0.1, "mass": 1, ... }
  *   "designOverwrites": { "k3": 1.2, "k2": 1, "Lu3": 2800, "Lu2": 2800,
- *                         "Lb": 3000, "framing": "sway" }
+ *                         "Lb": 3000, "framing": "sway", "stiffenerSpacing": 1500 }
  *
  * A member's own value wins over its object type's, which wins over the code value. A key that is
  * absent means "inherit"; an empty object is removed.
@@ -44,7 +44,7 @@ export const SHELL_MODIFIER_KEYS = ['membrane', 'bending', 'mass', 'weight'] as 
 
 export type ModifierKey = typeof FRAME_MODIFIER_KEYS[number] | typeof SHELL_MODIFIER_KEYS[number];
 
-export const DESIGN_OVERWRITE_KEYS = ['k3', 'k2', 'Lu3', 'Lu2', 'Lb', 'framing'] as const;
+export const DESIGN_OVERWRITE_KEYS = ['k3', 'k2', 'Lu3', 'Lu2', 'Lb', 'framing', 'stiffenerSpacing'] as const;
 export type OverwriteKey = typeof DESIGN_OVERWRITE_KEYS[number];
 
 /** How a column's storey is taken for slenderness: from the stability index Q, or as given. */
@@ -75,7 +75,7 @@ export function modifierKeysOf(kind: string | undefined): readonly ModifierKey[]
 export function overwriteKeysOf(kind: string | undefined): readonly OverwriteKey[] {
 	switch (kind) {
 		case 'column': return ['k3', 'k2', 'Lu3', 'Lu2', 'framing'];
-		case 'beam': return ['k3', 'k2', 'Lu3', 'Lu2', 'Lb'];
+		case 'beam': return ['k3', 'k2', 'Lu3', 'Lu2', 'Lb', 'stiffenerSpacing'];
 		case 'brace': return ['k3', 'k2', 'Lu3', 'Lu2'];
 		default: return [];
 	}
@@ -122,6 +122,7 @@ const OVERWRITE_LABELS: { readonly [key in OverwriteKey]: string } = {
 	Lu2: localize('overwrites.Lu2', "Lu, minor (mm)"),
 	Lb: localize('overwrites.lb', "Lb, lateral-torsional (mm)"),
 	framing: localize('overwrites.framing', "Framing"),
+	stiffenerSpacing: localize('overwrites.stiffenerSpacing', "Web stiffener spacing (mm)"),
 };
 
 const OVERWRITE_HINTS: { readonly [key in OverwriteKey]: string } = {
@@ -131,6 +132,7 @@ const OVERWRITE_HINTS: { readonly [key in OverwriteKey]: string } = {
 	Lu2: localize('overwrites.luMinorHint', "Unbraced (unsupported) length for buckling about the minor axis; empty: the clear length between the members that brace it."),
 	Lb: localize('overwrites.lbHint', "Steel beams: the length between points braced against lateral-torsional buckling; empty: the member's length."),
 	framing: localize('overwrites.framingHint', "Braced (nonsway) or sway storey for the column's slenderness; Auto takes it from the storey's stability index Q."),
+	stiffenerSpacing: localize('overwrites.stiffenerSpacingHint', "Steel beams: the clear distance between the transverse web stiffeners. The shear check then uses the stiffened web, with tension field action outside the end panels where the code pack allows it; empty: unstiffened web."),
 };
 
 export function fieldLabel(group: FieldGroup, key: string): string {
@@ -288,7 +290,7 @@ export function formatFieldValue(key: string, value: number): string {
 }
 
 function isLength(key: string): boolean {
-	return key === 'Lu3' || key === 'Lu2' || key === 'Lb';
+	return key === 'Lu3' || key === 'Lu2' || key === 'Lb' || key === 'stiffenerSpacing';
 }
 
 function isStiffness(key: string): boolean {
@@ -507,6 +509,7 @@ function inheritedOf(group: FieldGroup, key: string, target: IModifierTarget, co
 		case 'framing': return { text: framingLabel('auto'), source: localize('overwrites.sourceAuto', "from the stability index Q") };
 		case 'k3': case 'k2': return { text: localize('overwrites.autoK', "auto"), source: localize('overwrites.sourceK', "1.0 braced, chart if sway") };
 		case 'Lb': return { text: localize('overwrites.autoLength', "auto"), source: localize('overwrites.sourceLb', "member length") };
+		case 'stiffenerSpacing': return { text: localize('overwrites.noStiffeners', "none"), source: localize('overwrites.sourceStiffeners', "unstiffened web") };
 		default: return { text: localize('overwrites.autoLength', "auto"), source: localize('overwrites.sourceLu', "clear length") };
 	}
 }

@@ -42,7 +42,7 @@ ERW_FACTOR = 0.93
 class ShapeProperties:
     """What the member checks need of a steel shape."""
 
-    family: str  # "I", "channel", "tee", "angle", "rhs", "chs"
+    family: str  # "I", "channel", "tee", "angle", "rhs", "chs", "bar", "round"
     label: str
     area: float
     ix: float  # about the horizontal (x) centroidal axis
@@ -65,6 +65,8 @@ class ShapeProperties:
     #: Angles: least principal inertia and radius.
     iz: float = 0.0
     notes: tuple[str, ...] = ()
+    #: Angles: the product of inertia about the centroidal x and y axes (B31, principal axes).
+    ixy: float = 0.0
 
     @property
     def rx(self) -> float:
@@ -213,6 +215,13 @@ def angle(d: float, b: float, t: float, label: str = "") -> ShapeProperties:
         sx_top=p["Sx_top"],
         sx_bottom=p["Sx_bottom"],
         iz=section.Iv or 0.0,
+        # Legs along +x and +y from the heel: the product of inertia is negative.
+        ixy=-math.sqrt(
+            max(
+                0.0,
+                ((section.Iu or 0.0) - (section.Iv or 0.0)) ** 2 / 4 - (p["Ix"] - p["Iy"]) ** 2 / 4,
+            )
+        ),
     )
 
 
@@ -268,10 +277,54 @@ def chs(diameter: float, t: float, label: str = "") -> ShapeProperties:
     )
 
 
+def bar(depth: float, width: float, label: str = "") -> ShapeProperties:
+    """A solid rectangular bar ``width`` wide (x) and ``depth`` deep (y) (B31)."""
+    section = tables.bar_section("", depth, width)
+    p = _assembly(section)
+    return ShapeProperties(
+        family="bar",
+        label=label or f"FB {depth:g}x{width:g}",
+        area=p["A"],
+        ix=p["Ix"],
+        iy=p["Iy"],
+        sx=min(p["Sx_top"], p["Sx_bottom"]),
+        sy=p["Sy"],
+        zx=p["Zx"],
+        zy=p["Zy"],
+        j=section.J,
+        cw=0.0,
+        dims={"d": depth, "b": width},
+        sx_top=p["Sx_top"],
+        sx_bottom=p["Sx_bottom"],
+    )
+
+
+def round_bar(diameter: float, label: str = "") -> ShapeProperties:
+    """A solid round bar of ``diameter`` (B31)."""
+    section = tables.round_section("", diameter)
+    return ShapeProperties(
+        family="round",
+        label=label or f"RD {diameter:g}",
+        area=section.A,
+        ix=section.Ix,
+        iy=section.Iy,
+        sx=section.Sx,
+        sy=section.Sy,
+        zx=section.Zx,
+        zy=section.Zy,
+        j=section.J,
+        cw=0.0,
+        dims={"D": diameter},
+        sx_top=section.Sx,
+        sx_bottom=section.Sx,
+    )
+
+
 def shape_properties(profile: o.Profile, erw: bool = True) -> ShapeProperties:
     """The steel shape of an object profile; ``erw``: hollow sections are ERW (design wall
-    thickness 0.93 t, Sec 10.2.3.12), else SAW (nominal t). Raises ``ValueError`` for profiles
-    that are not steel shapes (solid rectangles and circles)."""
+    thickness 0.93 t, Sec 10.2.3.12), else SAW (nominal t). Solid rectangles and circles are
+    rectangular bars and rounds (B31). Raises ``ValueError`` for profiles that are not steel
+    shapes (a designed section)."""
     factor = ERW_FACTOR if erw else 1.0
     match profile:
         case o.IShapeProfile():
@@ -308,6 +361,10 @@ def shape_properties(profile: o.Profile, erw: bool = True) -> ShapeProperties:
             t = profile.wallThickness * factor
             shape = chs(2 * profile.radius, t)
             return _with_note(shape, factor, profile.wallThickness)
+        case o.RectangleProfile():
+            return bar(profile.yDim, profile.xDim)
+        case o.CircleProfile():
+            return round_bar(2 * profile.radius)
     raise ValueError(f"a {profile.shape} profile is not a steel shape")
 
 

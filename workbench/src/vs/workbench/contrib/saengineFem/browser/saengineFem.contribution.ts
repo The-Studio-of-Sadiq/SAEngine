@@ -726,8 +726,8 @@ registerPlannedFeature({
 	],
 });
 
-// T28: AISC 341 seismic steel systems and member torsion (the direct analysis method is built:
-// Project Settings → Analysis → Steel stability design method).
+// T28: AISC 341 seismic steel systems (the direct analysis method is built: Project Settings →
+// Analysis → Steel stability design method; member torsion is built in B31, the steel member checks).
 registerPlannedFeature({
 	id: FemPlanned.steelSeismic,
 	part: 'fem',
@@ -752,29 +752,6 @@ registerPlannedFeature({
 		localize('planned.steelSeismic.ref1', "BNBC 2020 Part 6 Sec 2.5 (the steel seismic systems with R, Cd and Ω0)"),
 		localize('planned.steelSeismic.ref2', "AISC 341 (seismic provisions for structural steel buildings)"),
 		localize('planned.steelSeismic.ref3', "AISC 358 (prequalified moment connections)"),
-	],
-});
-
-registerPlannedFeature({
-	id: FemPlanned.steelTorsion,
-	part: 'fem',
-	title: localize('planned.steelTorsion.title', "Steel Member Torsion"),
-	summary: localize('planned.steelTorsion.summary', "Checks steel members for the torsion of the analysis: St. Venant and warping stresses of open sections, the torsional strength of hollow sections, and their interaction with the axial force, bending and shear."),
-	steps: [
-		localize('planned.steelTorsion.step1', "Take the torsional moment along each member and its end restraint against warping."),
-		localize('planned.steelTorsion.step2', "Work out the shear and normal stresses from pure and warping torsion along the member."),
-		localize('planned.steelTorsion.step3', "Combine them with the stresses of the axial force, bending and shear, and compare with the limits."),
-	],
-	inputs: [
-		{ label: localize('planned.steelTorsion.ends', "Warping restraint at the ends"), example: localize('planned.steelTorsion.endsExample', "Free") },
-		{ label: localize('planned.steelTorsion.load', "Torque from"), example: localize('planned.steelTorsion.loadExample', "The analysis") },
-	],
-	outputs: [
-		localize('planned.steelTorsion.out1', "Torsion and combined stress checks per member"),
-	],
-	references: [
-		localize('planned.steelTorsion.ref1', "BNBC 2020 Part 6 Sec 10.8.3 (members under torsion)"),
-		localize('planned.steelTorsion.ref2', "AISC Design Guide 9 (torsional analysis of structural steel members)"),
 	],
 });
 

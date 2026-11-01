@@ -2007,6 +2007,93 @@ class SteelPonding(_Group):
     )
 
 
+# ── B31: steel member torsion and the remaining member limit states (design/steel/torsion.py,
+# design/steel/built_up.py, design/steel/members.py) ──
+
+
+class SteelTorsion(_Group):
+    """Torsion of steel members: HSS torsional strength Tn = Fcr C and the stress limits of
+    other members."""
+
+    phi: Phi = Field(description="φT of the torsional strength.")
+    neglect: Share = Field(description="Tr at most this × Tc: HSS torsion is neglected.")
+    shearYield: Share = Field(description="Shear yield stress as a share of Fy (Fcr cap, Fn).")
+    normalYield: Positive = Field(description="Normal-stress Fn as a multiple of Fy.")
+    roundLong: Positive = Field(description="Round HSS Fcr = this E / (√(L/D) (D/t)^1.25).")
+    roundShort: Positive = Field(description="Round HSS Fcr = this E / (D/t)^1.5.")
+    rectYield: Positive = Field(description="Rectangular HSS: h/t <= this √(E/Fy) yields.")
+    rectInelastic: Positive = Field(description="... <= this √(E/Fy): inelastic buckling.")
+    rectMaxRatio: Positive = Field(description="... h/t at most this.")
+    rectElastic: Positive = Field(description="Elastic Fcr = this π² E / (h/t)².")
+    methods: dict[str, str] = Field(
+        default_factory=dict,
+        description="Method ids where the code says 'by analysis': ``openSection`` (the "
+        "torsional stresses of open sections: ``warping``), ``buckling`` (Fcr of the buckling "
+        "limit state: ``leastCritical``); a missing key: that check is not made.",
+    )
+
+
+class SteelBuiltUp(_Group):
+    """Built-up compression members: modified slenderness and dimensional limits."""
+
+    welded: Positive = Field(description="Welded / pretensioned connectors: this α²/(1+α²).")
+    componentShare: Share = Field(description="K a / ri at most this × the member's KL/r.")
+    componentK: Positive = Field(description="K of a component between connectors.")
+    plateSpacing: Positive = Field(description="Outside plate: spacing <= this √(E/Fy) t ...")
+    plateSpacingMax: Positive = Field(description="... and at most this [mm].")
+    plateStaggered: Positive = Field(description="Staggered fasteners: <= this √(E/Fy) t ...")
+    plateStaggeredMax: Positive = Field(description="... and at most this [mm].")
+    lacingSingle: Positive = Field(description="L/r of single lacing bars at most this.")
+    lacingDouble: Positive = Field(description="L/r of double lacing bars at most this.")
+    lacingShear: Share = Field(description="Lacing shear: this × φc Pn of the member.")
+    lacingDoubleLength: Share = Field(description="Double lacing: L = this × the bar length.")
+    tiePlateEnd: Positive = Field(description="End tie plate length >= this × line distance.")
+    tiePlateIntermediate: Positive = Field(description="Intermediate: >= this × the distance.")
+    tiePlateThickness: Share = Field(description="Tie plate t >= this × the line distance.")
+
+
+class SteelBars(_Group):
+    """Rectangular bars and rounds in flexure."""
+
+    plasticCap: Positive = Field(description="Mp at most this × My.")
+    yieldLimit: Positive = Field(description="Lb d / t² <= this E / Fy: yielding only.")
+    ltbLimit: Positive = Field(description="... <= this E / Fy: inelastic LTB, else elastic.")
+    ltbA: Positive = Field(description="Mn = Cb (ltbA - ltbB (Lb d / t²) Fy / E) My.")
+    ltbB: Positive = Field(description="See ``ltbA``.")
+    elastic: Positive = Field(description="Fcr = this E Cb / (Lb d / t²).")
+
+
+class SteelTensionField(_Group):
+    """Stiffened webs: kv, tension field action and the transverse stiffeners."""
+
+    kv: Positive = Field(description="kv = this + this / (a/h)² of stiffened webs.")
+    aspectMax: Positive = Field(description="a/h above this: kv of an unstiffened web, no TFA.")
+    webLimit: Positive = Field(description="a/h above (this / (h/tw))²: likewise.")
+    webFlange: Positive = Field(description="No TFA when 2 Aw / (Afc + Aft) exceeds this.")
+    depthFlange: Positive = Field(description="No TFA when h / bf exceeds this.")
+    factor: Positive = Field(description="Vn = 0.6 Fy Aw (Cv + (1 - Cv) / (this √(1+(a/h)²))).")
+    stiffenerFree: Positive = Field(description="No stiffeners needed: h/tw <= this √(E/Fy).")
+    stiffenerJ: tuple[Positive, Positive, Positive] = Field(
+        description="j = a / (a/h)² - b >= c of the stiffener inertia a tw³ j: [a, b, c]."
+    )
+    stiffenerBt: Positive = Field(description="(b/t)st <= this √(E/Fyst).")
+    stiffenerArea: Positive = Field(description="Ast >= Fy/Fyst [this Ds h tw (1-Cv) Vr/Vc ...")
+    stiffenerWeb: Positive = Field(description="... - this tw²].")
+    Ds: dict[str, Positive] = Field(description="Ds by stiffener kind (pair, angle, plate).")
+
+
+class SteelMembers(_Group):
+    """B31: the member limit states beyond Secs 10.4-10.8.1, with their clause strings."""
+
+    torsion: SteelTorsion
+    builtUp: SteelBuiltUp
+    bars: SteelBars
+    tensionField: SteelTensionField
+    clauses: dict[str, str] = Field(
+        default_factory=dict, description="Clause references of the results, by key."
+    )
+
+
 class SteelTable(TableModel):
     phi: SteelPhi
     slenderness: SteelSlenderness
@@ -2016,6 +2103,9 @@ class SteelTable(TableModel):
     connections: SteelConnectionData | None = None
     bracing: SteelBracing | None = None
     ponding: SteelPonding | None = None
+    #: B31: None in a pack without the data: torsion, built-up, bar and tension field checks
+    #: are not made (the member reports them as not covered by the pack).
+    members: SteelMembers | None = None
 
 
 class StrutAndTie(_Group):

@@ -482,4 +482,6 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     # parametric shapes (structural model)
     **{type(shape).__name__: shape.model_dump(mode="json", exclude_none=True) for shape in _SHAPES},
+    # B31: a built-up steel compression member (design overwrites)
+    "BuiltUpMember": {"connectors": "snugTight", "spacing": 600, "component": "L 75x75x6"},
 }

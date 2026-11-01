@@ -63,6 +63,68 @@ class MomentMagnifiers(BaseModel):
     )
 
 
+Warping = Literal["free", "fixed"]
+
+
+class BuiltUpMember(BaseModel):
+    """How the components of a built-up steel compression member are joined (B31): the
+    member's profile is the built-up section; these say what the modified slenderness and
+    the dimensional limits need [mm]."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    connectors: Literal["snugTight", "welded"] = Field(
+        default="snugTight",
+        title="Connectors",
+        description="Intermediate connectors: snug-tight bolts, or welds / pretensioned bolts.",
+    )
+    spacing: float = Field(gt=0, title="Connector spacing", description="a, between connectors.")
+    axis: Literal["x", "y"] = Field(
+        default="y",
+        title="Buckling axis",
+        description="The member axis whose buckling shears the connectors (the profile's x or y).",
+    )
+    component: str | None = Field(
+        default=None,
+        title="Component",
+        description="A section of the steel table (e.g. 'L 75x75x6'): its radii are used.",
+    )
+    ri: float | None = Field(
+        default=None, gt=0, title="ri", description="Least radius of gyration of a component."
+    )
+    rib: float | None = Field(
+        default=None,
+        gt=0,
+        title="rib",
+        description="Radius of gyration of a component about its axis parallel to the buckling axis.",
+    )
+    separation: float | None = Field(
+        default=None, gt=0, title="h", description="Distance between the components' centroids."
+    )
+    outsidePlate: float | None = Field(
+        default=None, gt=0, title="Outside plate t", description="Thinner outside plate."
+    )
+    platePitch: float | None = Field(
+        default=None, gt=0, title="Plate fastener spacing", description="Along the outside plate."
+    )
+    staggered: bool = Field(default=False, title="Staggered fasteners")
+    lacing: Literal["none", "single", "double"] = Field(default="none", title="Lacing")
+    lacingLength: float | None = Field(
+        default=None, gt=0, title="Lacing bar length", description="Unsupported length."
+    )
+    lacingRadius: float | None = Field(
+        default=None, gt=0, title="Lacing bar r", description="Its least radius of gyration."
+    )
+    tieDistance: float | None = Field(
+        default=None,
+        gt=0,
+        title="Tie plate line distance",
+        description="Between the lines of fasteners or welds connecting a tie plate.",
+    )
+    tieLength: float | None = Field(default=None, gt=0, title="End tie plate length")
+    tieThickness: float | None = Field(default=None, gt=0, title="Tie plate thickness")
+
+
 class DesignOverwrites(BaseModel):
     """Design overwrites of a member or of an object type (empty fields inherit)."""
 
@@ -115,6 +177,27 @@ class DesignOverwrites(BaseModel):
         title="Live load reduction",
         description="Live load reduction factor given instead of worked out (BNBC 2020 Part 6 "
         "Sec 2.3.13); it applies to the floor live load L even with the project's reduction off.",
+    )
+    # B31: steel members (saengine.design.steel).
+    stiffenerSpacing: float | None = Field(
+        default=None,
+        gt=0,
+        title="Stiffener spacing",
+        description="Steel beams: clear distance a between the transverse web stiffeners [mm]; "
+        "none: unstiffened web. Tension field action is counted outside the end panels where "
+        "the code allows it.",
+    )
+    warping: Warping | None = Field(
+        default=None,
+        title="Warping at the ends",
+        description="Steel members under torsion: the ends free to warp (default) or restrained "
+        "against warping.",
+    )
+    builtUp: BuiltUpMember | None = Field(
+        default=None,
+        title="Built-up member",
+        description="Steel compression members built up from shapes joined by connectors, "
+        "lacing or tie plates.",
     )
 
 

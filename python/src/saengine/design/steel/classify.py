@@ -7,7 +7,8 @@ compression (columns, braces) and for flexure. Widths per Sec 10.2.4.1 and 10.2.
 flange of I-shapes and tees, the full flange of channels and full legs of angles; the clear web
 height less the fillets of rolled shapes; the flat widths of HSS walls (less the inside corner
 radius each side, or 3 t when it is not known). Rolled shapes are assumed (not built-up): the
-built-up cases 2 and 4 with kc are not used.
+built-up cases 2 and 4 with kc are not used. Solid rectangular bars and rounds (B31) have no
+plate elements.
 """
 
 from __future__ import annotations
@@ -87,6 +88,8 @@ def compression_elements(shape: ShapeProperties, fy: float, e: float) -> list[El
             ]
         case "chs":
             return [Element("wall", d["D"] / d["t"], None, 0.11 * e / fy, 15)]
+        case "bar" | "round":
+            return []  # solid sections: no plate elements, no local buckling (B31)
     raise ValueError(f"unknown shape family {shape.family}")
 
 
@@ -115,6 +118,8 @@ def flexure_elements(shape: ShapeProperties, fy: float, e: float, axis: str) -> 
             ]
         case "chs":
             return [Element("wall", d["D"] / d["t"], 0.07 * e / fy, 0.31 * e / fy, 15)]
+        case "bar" | "round":
+            return []  # Sec 10.6.11: yielding and lateral-torsional buckling only (B31)
     raise ValueError(f"unknown shape family {shape.family}")
 
 
