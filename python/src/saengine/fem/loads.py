@@ -459,14 +459,17 @@ def is_flexible(frequency: float) -> bool:
 
 def cladding_coefficient(curve: Any, area: float | None) -> float:
     """(GCp) of a components-and-cladding ``curve`` (:class:`saengine.codes.tables.
-    CladdingCurve`) for the effective wind area ``area`` [m²], linear in log A between its two
-    areas; None: the smallest area's (the largest magnitude, a safe default)."""
-    if area is None or area <= curve.area1:
-        return float(curve.gcp1)
-    if area >= curve.area2:
-        return float(curve.gcp2)
-    t = math.log10(area / curve.area1) / math.log10(curve.area2 / curve.area1)
-    return float(curve.gcp1 + (curve.gcp2 - curve.gcp1) * t)
+    CladdingCurve`, or :class:`~saengine.codes.tables.CladdingPointCurve` with its points) for
+    the effective wind area ``area`` [m²], linear in log A between its areas; None: the
+    smallest area's (the largest magnitude, a safe default)."""
+    points = getattr(curve, "points", None) or [(curve.area1, curve.gcp1), (curve.area2, curve.gcp2)]
+    if area is None or area <= points[0][0]:
+        return float(points[0][1])
+    for (a1, g1), (a2, g2) in pairwise(points):
+        if area <= a2:
+            t = math.log10(area / a1) / math.log10(a2 / a1)
+            return float(g1 + (g2 - g1) * t)
+    return float(points[-1][1])
 
 
 def cladding_edge_width(least: float, height: float, low_rise: bool) -> float:
@@ -492,6 +495,71 @@ CLADDING_ZONES = {
 }
 
 
+#: The roof forms of the components-and-cladding settings (the code pack's ``cladding.roofs``
+#: names them; ``stepped``, ``arched`` and ``dome`` have their own rules).
+CLADDING_ROOF_FORMS = (
+    "flat",
+    "gable",
+    "hip",
+    "monoslope",
+    "multispan",
+    "sawtooth",
+    "stepped",
+    "arched",
+    "dome",
+)
+#: The form whose figures every other form falls back on where it has none at its angle.
+_CLADDING_BASE_FORM = "gable"
+
+
+def cladding_roof_figure(form: str, theta: float) -> tuple[Any, str | None]:
+    """(the code pack's roof figure of ``form`` at the roof angle θ [°], a note) for low-rise
+    components and cladding: the figure whose forms include ``form`` with angleFrom < θ ≤
+    angleTo (θ = 0 in the first); where ``form`` has none at θ, the base (gable) figure, with a
+    note; (None, note) when there is none at all."""
+    table = getattr(code_context.table("wind"), "cladding", None)
+    roofs = list(getattr(table, "roofs", None) or [])
+
+    def find(name: str) -> Any:
+        return next(
+            (
+                r
+                for r in roofs
+                if name in r.forms
+                and (r.angleFrom < theta <= r.angleTo or (theta <= 0 and r.angleFrom <= 0))
+            ),
+            None,
+        )
+
+    figure = find(form)
+    if figure is not None:
+        return figure, None
+    base = find(_CLADDING_BASE_FORM)
+    if base is None:
+        return None, f"no components-and-cladding roof figure for a {form} roof at θ {theta:g}°"
+    if form in ("flat", _CLADDING_BASE_FORM):
+        return base, None
+    return base, (
+        f"{form} roof at θ {theta:g}°: outside its own figure's angles, the {_CLADDING_BASE_FORM} "
+        f"roof figure ({base.source or 'the code pack'}) is used"
+    )
+
+
+def _curve_values(curves: list[Any], area: float | None) -> dict[str, dict[str, float]]:
+    """zone -> {"positive": GCp, "negative": GCp} of the curves at ``area``."""
+    out: dict[str, dict[str, float]] = {}
+    for curve in curves:
+        out.setdefault(curve.zone, {})[curve.sign] = cladding_coefficient(curve, area)
+    return out
+
+
+def _larger(a: float | None, b: float | None) -> float | None:
+    """The one of larger magnitude."""
+    if a is None or b is None:
+        return a if b is None else b
+    return a if abs(a) >= abs(b) else b
+
+
 def cladding_pressures(
     height: float,
     least: float,
@@ -504,68 +572,201 @@ def cladding_pressures(
     parapet: float | None = None,
     opening_area: float | None = None,
     volume: float | None = None,
+    roof_form: str = "flat",
+    roof_angle: float | None = None,
+    roof_rise: float | None = None,
+    step_height: float | None = None,
 ) -> dict[str, Any] | None:
-    """The design pressures of components and cladding by zone (BNBC 2020 Part 6 Sec 2.4.11.5;
-    ASCE 7-05 Sec 6.5.12.4) of a flat-roofed building (θ ≤ 10°) of mean roof height ``height``
-    and least horizontal dimension ``least`` [m], for an effective wind area ``area`` [m²]
-    (None: the smallest tabulated, the largest pressures) and the internal pressure of its
-    ``enclosure``:
+    """The design pressures of components and cladding by zone (BNBC 2020 Part 6 Sec 2.4.11.4)
+    of a building of mean roof height ``height`` and least horizontal dimension ``least`` [m],
+    for an effective wind area ``area`` [m²] (None: the smallest tabulated, the largest
+    pressures) and the internal pressure of its ``enclosure``:
 
-        p = qh·[(GCp) − (±GCpi)]  [kN/m²]
+        p = qh·[(GCp) − (±GCpi)]  [kN/m²]   (Eq 6.2.24, h ≤ 18.3 m; Eq 6.2.25 above, q = qh on
+                                             the leeward and side walls and the roof, qz on the
+                                             windward wall, which is qh at the top: the pressures
+                                             given are those at h, the largest)
 
-    (Sec 2.4.11.4, p. 560: h ≤ 18.3 m, Eq. 6.2.24; above it Eq. 6.2.25, q = qh on the leeward
-    and side walls and
-    the roof, qz on the windward wall, which is qh at the top: the pressures given are those
-    at h, the largest). Positive towards the surface. A parapet ``parapet`` m high, at least the
-    code pack's 0.9 m, turns roof zone 3 into zone 2 (figure notes); the parapet's own net
-    pressures, at qp of its top, are Case A (windward: wall zone 5 positive on the front, roof
-    zone 3 suction on the back) and Case B (leeward: wall positive on the back, wall zone 5
-    suction on the front) (ASCE 7-05 Sec 6.5.12.4.4, a solid parapet, GCpi = 0). Returns
-    ``{"h_m", "qh_kPa", "lowRise", "a_m", "area_m2", "enclosure", "GCpi", "zones": [{"surface",
-    "zone", "label", "GCpPos", "GCpNeg", "pPos_kPa", "pNeg_kPa"}], "parapet"}``; None when the
-    code pack has no cladding table. ``opening_area`` Aog [m²] and ``volume`` Vi [m³]: the
-    reduction Ri of a partially enclosed building with one unpartitioned volume
+    Positive towards the surface. The roof: ``roof_form`` (:data:`CLADDING_ROOF_FORMS`) at the
+    angle ``roof_angle`` θ [°] takes the code pack's roof figure of that form and angle (gable,
+    hip, monoslope, multispan, sawtooth; flat and gable up to 7° the flat-roof curves), with its
+    overhang zones and rules (hip roofs: zone 3 as zone 2 up to the pack's angle); a taller
+    building (h above the low-rise limit) with θ above the pack's ``highRiseRoofsFrom`` takes the
+    same low-rise roof figures with qh. ``stepped``: the flat roof's zones, plus those of the lower
+    level at the roof-upper wall intersection (``step_height`` h1 the upper part's height above
+    it); ``arched``: the roof figure at the springline slope ``roof_angle`` at the perimeter and
+    the arched roof Cp × the pack's factor elsewhere (``roof_rise`` r, rise to span); ``dome``:
+    the dome table by the angle from the springline (``roof_rise`` f/D), q at the top
+    (``height``). A parapet ``parapet`` m high, at least the code pack's 0.9 m, turns roof zone 3
+    into zone 2 (flat roofs) and gives the roof zones the pack's wall positive (GCp); the
+    parapet's own net pressures, at qp of its top, are Case A (windward: wall zone 5 positive on
+    the front, roof zone 3 suction on the back) and Case B (leeward: wall positive on the back,
+    wall zone 5 suction on the front) (Sec 2.4.11.5, Eq 6.2.26, a solid parapet, GCpi = 0).
+
+    Returns ``{"h_m", "qh_kPa", "lowRise", "a_m", "area_m2", "enclosure", "GCpi", "Ri",
+    "roofForm", "theta_deg", "figure", "zones": [{"surface", "zone", "label", "GCpPos",
+    "GCpNeg", "pPos_kPa", "pNeg_kPa"}], "parapet", "notes"}``; None when the code pack has no
+    cladding table. ``opening_area`` Aog [m²] and ``volume`` Vi [m³]: the reduction Ri of a
+    partially enclosed building with one unpartitioned volume
     (:func:`internal_pressure_coefficient`)."""
     table = getattr(code_context.table("wind"), "cladding", None)
     if table is None:
         return None
+    theta = float(roof_angle or 0.0)
+    form = roof_form if roof_form in CLADDING_ROOF_FORMS else "flat"
+    notes: list[str] = []
     low = height <= table.lowRiseHeight
-    curves = table.lowRise if low else table.highRise
     gcpi_full, ri = internal_pressure_coefficient(enclosure, opening_area, volume)
     gcpi = gcpi_full * ri
     qh = velocity_pressure(height, speed, exposure, importance)
-    walls = table.lowRiseWallFactor if low else 1.0
-    corner_as_edge = parapet is not None and parapet >= table.parapetCorner
+    wall_factor = (
+        table.lowRiseWallFactor
+        if low and (table.wallFactorMaxAngle is None or theta <= table.wallFactorMaxAngle)
+        else 1.0
+    )
+    has_parapet = parapet is not None and parapet >= table.parapetCorner
 
-    def curve_value(surface: str, zone: str, sign: str) -> float | None:
-        for curve in curves:
-            if (curve.surface, curve.zone, curve.sign) == (surface, zone, sign):
-                value = cladding_coefficient(curve, area)
-                return value * walls if surface == "wall" else value
-        return None
+    walls = _curve_values(
+        [c for c in (table.lowRise if low else table.highRise) if c.surface == "wall"], area
+    )
+    walls = {z: {s: v * wall_factor for s, v in vs.items()} for z, vs in walls.items()}
+    flat_roof = [c for c in (table.lowRise if low else table.highRise) if c.surface == "roof"]
 
-    def coefficient(surface: str, zone: str, sign: str) -> float | None:
-        if surface == "roof" and zone == "3" and corner_as_edge:
-            zone = "2"
-        return curve_value(surface, zone, sign)
+    # The roof's zones: label, positive, negative (None where none is given).
+    roof: list[tuple[str, str, float | None, float | None]] = []
+    figure_source = None
+    low_figures = (
+        low
+        or form == "arched"
+        or (table.highRiseRoofsFrom is not None and theta > table.highRiseRoofsFrom)
+    )
+    if not low and low_figures and form not in ("dome",):
+        notes.append(
+            f"h {height:.1f} m above {table.lowRiseHeight:g} m with a roof θ {theta:g}°: the "
+            "low-rise roof figures with qh"
+        )
+
+    def figure_zones(figure_form: str, angle: float, suffix: str = "") -> None:
+        nonlocal figure_source
+        figure, note = cladding_roof_figure(figure_form, angle)
+        if note:
+            notes.append(note)
+        if figure is None:
+            return
+        figure_source = figure_source or figure.source
+        if figure.note:
+            notes.append(figure.note)
+        values = _curve_values(figure.roof or flat_roof, area)
+        if figure.envelopeForm:
+            other, _ = cladding_roof_figure(figure.envelopeForm, angle)
+            if other is not None and other is not figure:
+                more = _curve_values(other.roof or flat_roof, area)
+                for zone, vs in values.items():
+                    base = more.get(zone) or more.get(zone.rstrip("'A")) or {}
+                    for sign in ("positive", "negative"):
+                        vs[sign] = _larger(vs.get(sign), base.get(sign))
+        corner_to = figure.cornerAsEdge.get(form)
+        if corner_to is not None and angle <= corner_to and "3" in values and "2" in values:
+            values["3"] = dict(values["2"])
+            notes.append(f"{form} roof θ ≤ {corner_to:g}°: zone 3 treated as zone 2")
+        if has_parapet and figure.parapetCornerAsEdge and "3" in values:
+            if "2" in values and "negative" in values["2"]:
+                values["3"]["negative"] = values["2"]["negative"]
+            for roof_zone, wall_zone in table.parapetPositive.items():
+                if roof_zone in values and walls.get(wall_zone, {}).get("positive") is not None:
+                    values[roof_zone]["positive"] = walls[wall_zone]["positive"]
+        labels = {**CLADDING_ROOF_LABELS, **figure.zoneLabels}
+        for zone, vs in values.items():
+            label = labels.get(zone, f"roof, zone {zone}")
+            roof.append((zone + suffix, label, vs.get("positive"), vs.get("negative")))
+        if not suffix:
+            for zone, vs in _curve_values(figure.overhang, area).items():
+                label = labels.get(zone, f"zone {zone}").replace("roof, ", "")
+                roof.append(
+                    (f"{zone} overhang", f"roof overhang, {label}", None, vs.get("negative"))
+                )
+
+    if form == "dome":
+        dome = table.domes
+        if dome is None:
+            notes.append("the code pack has no dome components-and-cladding table")
+        else:
+            figure_source = dome.source
+            lo, hi = dome.riseRange
+            if roof_rise is not None and not lo <= roof_rise <= hi:
+                notes.append(
+                    f"dome f/D {roof_rise:g} outside the table's {lo:g}-{hi:g} (hD/D up to "
+                    f"{dome.baseMax:g}): the values are used as printed"
+                )
+            start = 0.0
+            for upto, value in dome.positive:
+                roof.append(
+                    (
+                        f"dome {start:g}-{upto:g}°",
+                        f"dome, {start:g}° to {upto:g}° from the springline",
+                        float(value),
+                        float(dome.negative),
+                    )
+                )
+                start = float(upto)
+    elif not low_figures:
+        figure_source = None
+        values = _curve_values(flat_roof, area)
+        if has_parapet and "3" in values and "2" in values:
+            values["3"]["negative"] = values["2"]["negative"]
+        for zone, vs in values.items():
+            label = CLADDING_ROOF_LABELS.get(zone, f"roof, zone {zone}")
+            roof.append((zone, label, vs.get("positive"), vs.get("negative")))
+    elif form == "arched":
+        figure_zones(_CLADDING_BASE_FORM, theta, " perimeter")
+        arched = table.arched
+        cps = arched_roof_cps(roof_rise, True) if roof_rise is not None else None
+        if arched is None or cps is None:
+            notes.append(
+                "arched roof: no rise-to-span ratio r in the table's range (or no arched "
+                "table): the perimeter values only"
+            )
+        else:
+            factor = float(arched.interiorFactor)
+            parts = [
+                ("windward quarter", min(cps["windward"])),
+                ("centre half", cps["centre"]),
+                ("leeward quarter", cps["leeward"]),
+            ]
+            for name, cp in parts:
+                value = factor * float(cp)
+                roof.append(
+                    (
+                        f"arch {name}",
+                        f"arched roof, {name} (Cp × {factor:g})",
+                        value if value > 0 else None,
+                        value if value <= 0 else None,
+                    )
+                )
+    else:
+        figure_zones(form, theta)
+        if form == "stepped":
+            _stepped_zones(table, roof, walls, height, step_height, notes)
 
     zones = []
-    for (surface, zone), label in CLADDING_ZONES.items():
-        pos = coefficient(surface, zone, "positive")
-        neg = coefficient(surface, zone, "negative")
-        if pos is None and neg is None:
-            continue
-        zones.append(
-            {
-                "surface": surface,
-                "zone": zone,
-                "label": label,
-                "GCpPos": pos,
-                "GCpNeg": neg,
-                "pPos_kPa": None if pos is None else qh * (pos + gcpi),
-                "pNeg_kPa": None if neg is None else qh * (neg - gcpi),
-            }
-        )
+    for zone, label in (("4", CLADDING_ZONES[("wall", "4")]), ("5", CLADDING_ZONES[("wall", "5")])):
+        vs = walls.get(zone)
+        if vs:
+            zones.append(("wall", zone, label, vs.get("positive"), vs.get("negative")))
+    zones += [("roof", z, label, pos, neg) for z, label, pos, neg in roof]
+    q_roof = qh  # the dome's q is at its top: ``height`` is taken as that
+    out_zones = [
+        {
+            "surface": surface,
+            "zone": zone,
+            "label": label,
+            "GCpPos": pos,
+            "GCpNeg": neg,
+            "pPos_kPa": None if pos is None else q_roof * (pos + gcpi),
+            "pNeg_kPa": None if neg is None else q_roof * (neg - gcpi),
+        }
+        for surface, zone, label, pos, neg in zones
+    ]
     out: dict[str, Any] = {
         "h_m": height,
         "qh_kPa": qh,
@@ -575,21 +776,91 @@ def cladding_pressures(
         "enclosure": enclosure,
         "GCpi": gcpi,
         "Ri": ri,
-        "zones": zones,
+        "roofForm": form,
+        "theta_deg": theta,
+        "figure": figure_source,
+        "zones": out_zones,
         "parapet": None,
+        "notes": notes,
     }
     if parapet:
         qp = velocity_pressure(height + parapet, speed, exposure, importance)
-        wall_pos = curve_value("wall", "5", "positive") or 0.0
-        wall_neg = curve_value("wall", "5", "negative") or 0.0
-        roof = curve_value("roof", "3", "negative") or 0.0
+        wall_pos = walls.get("5", {}).get("positive") or 0.0
+        wall_neg = walls.get("5", {}).get("negative") or 0.0
+        flat = _curve_values(flat_roof, area)
+        roof_neg = flat.get("3", {}).get("negative") or 0.0
         out["parapet"] = {
             "height_m": parapet,
             "qp_kPa": qp,
-            "caseA_kPa": qp * (wall_pos - roof),
+            "caseA_kPa": qp * (wall_pos - roof_neg),
             "caseB_kPa": qp * (wall_pos - wall_neg),
         }
     return out
+
+
+#: What each roof zone of the flat and gable roof figures is.
+CLADDING_ROOF_LABELS = {
+    "1": CLADDING_ZONES[("roof", "1")],
+    "2": CLADDING_ZONES[("roof", "2")],
+    "3": CLADDING_ZONES[("roof", "3")],
+}
+
+
+def _stepped_zones(
+    table: Any,
+    roof: list[tuple[str, str, float | None, float | None]],
+    walls: dict[str, dict[str, float]],
+    height: float,
+    step_height: float | None,
+    notes: list[str],
+) -> None:
+    """The lower level of a flat stepped roof (the pack's ``cladding.stepped``): at the
+    roof-upper wall intersection its zones take those of the pack's zone map (3 as 2, 2 as 1),
+    and a strip b = 1.5·h1 (≤ the pack's limit) wide the walls' positive (GCp)."""
+    stepped = table.stepped
+    if stepped is None:
+        notes.append("the code pack has no stepped roof rule: the flat roof's zones only")
+        return
+    by_zone = {z: (pos, neg) for z, _, pos, neg in roof}
+    for source, target in stepped.zoneMap.items():
+        if target in by_zone and source in by_zone:
+            pos, neg = by_zone[target]
+            roof.append(
+                (
+                    f"{source} step",
+                    f"lower roof at the upper wall: zone {source} treated as zone {target}",
+                    pos,
+                    neg,
+                )
+            )
+    wall_pos = max(
+        (vs["positive"] for vs in walls.values() if vs.get("positive") is not None), default=None
+    )
+    if step_height is None or step_height <= 0:
+        notes.append("stepped roof: no step height h1 given, so the strip width b is not set")
+        width = None
+    else:
+        width = min(stepped.widthFactor * step_height, stepped.widthMax)
+        ratio = step_height / height if height > 0 else 0.0
+        lo, hi = stepped.heightRatio
+        if step_height < stepped.minUpperHeight or not (lo <= ratio <= hi and lo <= 1 - ratio <= hi):
+            notes.append(
+                f"stepped roof h1 {step_height:g} m, h1/h {ratio:.2f}: outside the figure's "
+                f"limits (h1 ≥ {stepped.minUpperHeight:g} m, hi/h {lo:g}-{hi:g}); used as printed"
+            )
+        w_lo, w_hi = stepped.widthRatio
+        notes.append(f"stepped roof: the figure needs Wi/W {w_lo:g}-{w_hi:g} (not checked here)")
+    interior = by_zone.get("1", (None, None))[1]
+    roof.append(
+        (
+            "step strip",
+            "lower roof strip at the upper wall"
+            + (f", b = {width:.2f} m wide" if width is not None else "")
+            + ": the walls' positive (GCp)",
+            wall_pos,
+            interior,
+        )
+    )
 
 
 # ─────────── wind: internal pressure and the MWFRS pressures on walls and roofs ───────────

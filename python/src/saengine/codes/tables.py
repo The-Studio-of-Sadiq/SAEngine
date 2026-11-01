@@ -578,6 +578,82 @@ class CladdingCurve(_Row):
     gcp2: float
 
 
+class CladdingPointCurve(_Row):
+    """One external pressure coefficient (GCp) of components and cladding by effective wind area:
+    (area [m²], GCp) points, linear in log A between them, the end values beyond the ends."""
+
+    zone: str
+    sign: Literal["positive", "negative"]
+    points: list[tuple[float, float]] = Field(min_length=1)
+
+
+class CladdingRoofTable(_Row):
+    """The (GCp) of the roofs of one form over a range of roof angles θ (angleFrom < θ ≤
+    angleTo) for low-rise buildings (read by :func:`saengine.fem.loads.cladding_pressures`)."""
+
+    forms: list[str] = Field(
+        min_length=1, description="Roof forms this figure covers (gable, hip, monoslope, ...)."
+    )
+    angleFrom: float = Field(ge=0, description="θ above this [°] ...")
+    angleTo: float = Field(gt=0, description="... up to this [°].")
+    roof: list[CladdingPointCurve] = Field(
+        default_factory=list, description="Roof zones; empty: the low-rise flat-roof curves."
+    )
+    overhang: list[CladdingPointCurve] = Field(
+        default_factory=list, description="Roof overhangs (top and bottom surfaces together)."
+    )
+    zoneLabels: dict[str, str] = Field(
+        default_factory=dict, description="What each zone of this figure is (its plan)."
+    )
+    cornerAsEdge: dict[str, float] = Field(
+        default_factory=dict,
+        description="Form -> θ [°] up to which roof zone 3 is treated as zone 2 (hip roofs).",
+    )
+    parapetCornerAsEdge: bool = Field(
+        default=False,
+        description="A parapet of at least the cladding table's parapetCorner turns zone 3 into "
+        "zone 2 on this figure's roofs.",
+    )
+    envelopeForm: str | None = Field(
+        default=None,
+        description="Also take the larger magnitude of this form's figure at the same angle "
+        "(zone by its number), where the code's text points to both.",
+    )
+    note: str | None = None
+
+
+class CladdingSteppedRoof(_Row):
+    """The lower level of a flat stepped roof: its zones at the roof-upper wall intersection
+    renamed (``zoneMap``), and the wall's positive (GCp) on a strip b = widthFactor·h1 ≤
+    widthMax wide; the figure's limits on h1 and the ratios."""
+
+    zoneMap: dict[str, str]
+    widthFactor: float = Field(gt=0)
+    widthMax: float = Field(gt=0, description="b at most this [m].")
+    minUpperHeight: float = Field(gt=0, description="h1 at least this [m].")
+    heightRatio: tuple[float, float] = Field(description="hi/h range.")
+    widthRatio: tuple[float, float] = Field(description="Wi/W range.")
+
+
+class CladdingDomeTable(_Row):
+    """Domes on a circular base: (GCp) by the angle θ from the springline (0) to the top (90),
+    with q at the top of the dome; the figure's range of hD/D and f/D."""
+
+    negative: float = Field(lt=0, description="(GCp) suction over the whole dome.")
+    positive: list[tuple[float, float]] = Field(
+        min_length=1, description="(θ up to [°], positive GCp) bands."
+    )
+    baseMax: float = Field(gt=0, description="hD/D up to this.")
+    riseRange: tuple[float, float] = Field(description="f/D range.")
+
+
+class CladdingArchedTable(_Row):
+    """Arched roofs: at the perimeter, the roof figures with θ the springline slope; elsewhere
+    the MWFRS arched roof Cp times ``interiorFactor``."""
+
+    interiorFactor: float = Field(gt=0)
+
+
 class CladdingTable(_Row):
     """Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and
     flat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal
@@ -600,6 +676,26 @@ class CladdingTable(_Row):
     parapetCorner: float = Field(
         gt=0, description="A parapet this high [m] or more turns roof zone 3 into zone 2."
     )
+    # B14: pitched and other roof forms (low-rise figures), and their limits.
+    wallFactorMaxAngle: float | None = Field(
+        default=None, description="lowRiseWallFactor only for a roof θ up to this [°]; None: any."
+    )
+    roofs: list[CladdingRoofTable] = Field(
+        default_factory=list, description="Roof figures by form and angle; empty: flat roofs only."
+    )
+    highRiseRoofsFrom: float | None = Field(
+        default=None,
+        description="h above lowRiseHeight with a roof θ above this [°]: the low-rise roof "
+        "figures with qh; None: the high-rise flat-roof curves at any θ.",
+    )
+    parapetPositive: dict[str, str] = Field(
+        default_factory=dict,
+        description="With a parapet (as parapetCorner): roof zone -> wall zone whose positive "
+        "(GCp) the roof zone takes.",
+    )
+    stepped: CladdingSteppedRoof | None = None
+    domes: CladdingDomeTable | None = None
+    arched: CladdingArchedTable | None = None
 
 
 class InternalPressureTable(_Row):
@@ -736,6 +832,84 @@ class MwfrsTable(_Row):
     lowRise: LowRiseTable | None = None
 
 
+class OpenRoofRow(_Row):
+    """One roof angle and load case of an open building's free roof, wind normal to the ridge:
+    (CNW, CNL) the net pressure coefficients of the windward and leeward halves, by blockage;
+    ``...Reverse`` for γ = 180° where the figure gives it (a monoslope roof: γ = 0° the wind
+    blows from the high eave down the slope, 180° up it)."""
+
+    angle: float = Field(ge=0, le=90)
+    case: str
+    clear: tuple[float, float]
+    obstructed: tuple[float, float]
+    clearReverse: tuple[float, float] | None = None
+    obstructedReverse: tuple[float, float] | None = None
+
+
+class OpenRoofAlongZone(_Row):
+    """A zone of a free roof by its horizontal distance from the windward edge (multiples of
+    h), wind parallel to the ridge: CN by load case, then by blockage."""
+
+    upTo: float | None = Field(default=None, description="Ends this many h from the edge.")
+    cases: dict[str, dict[str, float]]
+
+
+class OpenRoofAlong(_Row):
+    zones: list[OpenRoofAlongZone] = Field(min_length=1)
+    flatMonoslopeAngle: float = Field(
+        gt=0, description="A monoslope roof below this θ [°] takes these zones ..."
+    )
+    flatMonoslopeRatio: tuple[float, float] = Field(
+        description="... for the wind normal to its slope too, with h/L in this range."
+    )
+
+
+class OpenRoofMwfrs(_Row):
+    """Net pressure coefficients CN of the main wind-force resisting system of free roofs."""
+
+    monoslope: list[OpenRoofRow] = Field(min_length=2)
+    pitched: list[OpenRoofRow] = Field(min_length=2)
+    troughed: list[OpenRoofRow] = Field(min_length=2)
+    along: OpenRoofAlong
+
+
+class OpenRoofCladdingRow(_Row):
+    """CN of the components and cladding of a free roof at one angle: per blockage, per zone,
+    the (positive, negative) pair of each effective-area band."""
+
+    angle: float = Field(ge=0, le=90)
+    clear: dict[str, list[tuple[float, float]]]
+    obstructed: dict[str, list[tuple[float, float]]]
+    note: str | None = None
+
+
+class OpenRoofCladding(_Row):
+    areaBands: list[float] = Field(
+        min_length=1, description="Band upper limits as multiples of a² (the last band: above)."
+    )
+    ridgeEdgeFrom: float = Field(
+        description="θ [°] from which a pitched or troughed roof's ridge (valley) is an edge."
+    )
+    zoneLabels: dict[str, str] = Field(default_factory=dict)
+    monoslope: list[OpenRoofCladdingRow] = Field(min_length=2)
+    pitched: list[OpenRoofCladdingRow] = Field(min_length=2)
+    troughed: list[OpenRoofCladdingRow] = Field(min_length=2)
+
+
+class OpenBuildingsTable(_Row):
+    """Open buildings with monoslope, pitched or troughed free roofs: p = qh·G·CN for the
+    main wind-force resisting system and the components and cladding (read by
+    :mod:`saengine.fem.open_wind`)."""
+
+    maxAngle: float = Field(gt=0, description="Roof θ up to this [°].")
+    minAngle: float = Field(
+        ge=0, description="Below this θ [°], every form takes the monoslope's first row."
+    )
+    hOverL: tuple[float, float] = Field(description="h/L range of the figures.")
+    mwfrs: OpenRoofMwfrs
+    cladding: OpenRoofCladding | None = None
+
+
 class WindTable(TableModel):
     exposures: dict[str, Exposure]
     directionality: float = Field(description="Kd for buildings.")
@@ -762,6 +936,11 @@ class WindTable(TableModel):
         default=None,
         description="Wall and roof pressures of the main wind-force resisting system; None: "
         "storey forces only and no wind on clad special structures.",
+    )
+    openBuildings: OpenBuildingsTable | None = Field(
+        default=None,
+        description="Net pressures on the free roofs of open buildings; None: an open clad "
+        "structure takes force coefficients on its members instead.",
     )
     openStructures: OpenStructuresTable | None = Field(
         default=None,
