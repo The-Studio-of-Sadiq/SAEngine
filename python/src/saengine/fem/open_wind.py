@@ -239,6 +239,9 @@ _DIRECTION_NAMES = {"WX": "+X", "WXN": "-X", "WY": "+Y", "WYN": "-Y"}
 FACING = 0.5
 #: Roof slopes below this [°] count as flat when the roof's angle θ is averaged.
 _LEVEL = 1.0
+#: An arched roof whose springline is higher than this share of its span stands on an elevated
+#: structure; lower, it springs from the ground (the arched roof table's two conditions).
+ELEVATED_SPRINGLINE = 0.05
 
 
 @dataclass
@@ -328,7 +331,7 @@ def clad_structure_wind(
     from saengine.fem import loads as fl
 
     out = CladWind()
-    mwfrs = fl._mwfrs()
+    mwfrs = fl.mwfrs_table()
     if mwfrs is None or not points:
         out.notes.append("the code pack has no MWFRS wall and roof pressures")
         return out
@@ -354,18 +357,19 @@ def clad_structure_wind(
         "Ri": ri,
         "cases": {},
     }
+    low_rise_source = _cite(getattr(mwfrs, "lowRise", None))
     if method == "lowRise" and roof_form != "planar":
         out.notes.append(
-            "the low-rise pressures (Figure 6.2.10) are for flat, gable and hip roofs: the "
-            f"{roof_form} roof takes the pressures of all heights (Eq 6.2.19)"
+            f"the low-rise pressures{low_rise_source} are for flat, gable and hip roofs: the "
+            f"{roof_form} roof takes the pressures of all heights{_cite(mwfrs.roof)}"
         )
         method = "allHeights"
     elif method == "lowRise" and not (
         fl.is_low_rise(h, least) and fl.low_rise_gcpf(theta) is not None
     ):
         out.notes.append(
-            f"not a low-rise building (h {h:.1f} m, least dimension {least:.1f} m, Sec 2.1.3): "
-            "the pressures of all heights (Eq 6.2.19, Figure 6.2.6) instead"
+            f"not a low-rise building (h {h:.1f} m, least dimension {least:.1f} m"
+            f"{low_rise_source}): the pressures of all heights{_cite(mwfrs.roof)} instead"
         )
         method = "allHeights"
     out.summary["method"] = method
@@ -383,6 +387,12 @@ def clad_structure_wind(
         )
     out.summary["qi_Pa"] = out.internal
     return out
+
+
+def _cite(table: Any) -> str:
+    """`` (<the code pack's source of table>)``, empty when it has none."""
+    source = getattr(table, "source", None) if table is not None else None
+    return f" ({source})" if source else ""
 
 
 def _record(out: CladWind, case: str, label: str, values: dict[Any, float], points: Any) -> None:
@@ -434,7 +444,7 @@ def _all_heights(
     from saengine.codes import context as code_context
     from saengine.fem import loads as fl
 
-    mwfrs = fl._mwfrs()
+    mwfrs = fl.mwfrs_table()
     cp_windward = float(code_context.table("wind").cpWindward)
     flat = float(mwfrs.roof.flatAngle)
     vertical = float(mwfrs.roof.verticalFrom)
@@ -446,8 +456,9 @@ def _all_heights(
         cps = fl.dome_point_cps(rise / diameter, eave / diameter) if diameter > 0 else None
         if cps is None or rise <= 0:
             out.notes.append(
-                f"dome f/D {rise / max(diameter, 1e-9):.3f} below Figure 6.2.7's least (or no "
-                "dome table): Figure 6.2.6 (note 8)"
+                f"dome f/D {rise / max(diameter, 1e-9):.3f} below the dome table's least (or "
+                f"no dome table{_cite(getattr(mwfrs, 'domes', None))}): the roof table "
+                f"instead{_cite(mwfrs.roof)}"
             )
         else:
             dome = ((low + high) / 2, diameter / 2, rise, cps)
@@ -472,12 +483,17 @@ def _all_heights(
             span = (max(along) - min(along)) if along else 0.0
             if span > 0:
                 rise = (top - eave) / span
-                cps = fl.arched_roof_cps(rise, eave > 0.05 * span)
-                if cps is None:
-                    out.notes.append(f"arched roof r {rise:.2f} outside Figure 6.2.8: Figure 6.2.6")
-                else:
+                elevated = eave > ELEVATED_SPRINGLINE * span
+                cps = fl.arched_roof_cps(rise, elevated)
+                note = (
+                    f"arched roof r {rise:.2f} outside the arched roof table"
+                    f"{_cite(getattr(mwfrs, 'arched', None))}: the roof table instead"
+                )
+                if cps is None and note not in out.notes:
+                    out.notes.append(note)
+                elif cps is not None:
                     arched = ({p.key for p in arch}, min(along), span, cps)
-                    out.summary["arched"] = {"r": rise, "elevated": eave > 0.05 * span, **cps}
+                    out.summary["arched"] = {"r": rise, "elevated": elevated, **cps}
         variants: list[dict[Any, float]] = [{}, {}]
         two = False
         for p in points:
@@ -553,7 +569,7 @@ def _low_rise(
     from saengine.codes import context as code_context
     from saengine.fem import loads as fl
 
-    mwfrs = fl._mwfrs()
+    mwfrs = fl.mwfrs_table()
     table = mwfrs.lowRise
     vertical = float(mwfrs.roof.verticalFrom)
     overhang = float(mwfrs.overhang)
@@ -567,8 +583,8 @@ def _low_rise(
         out.notes.append("the code pack has no edge zone rule: no end zones (1E-4E)")
     if exempt:
         out.notes.append(
-            "low-rise: no torsional load patterns (Figure 6.2.10, note 5, exception: one storey "
-            f"with h ≤ {table.exemptHeight:g} m)"
+            "low-rise: no torsional load patterns (the exception for one storey with h ≤ "
+            f"{table.exemptHeight:g} m{_cite(table)})"
         )
     for direction, wind in CLAD_DIRECTIONS.items():
         across = np.array([-wind[1], wind[0], 0.0])

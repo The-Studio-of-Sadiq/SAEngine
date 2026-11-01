@@ -629,7 +629,7 @@ def internal_pressure_coefficient(
     return gcpi, min(1.0, ri)
 
 
-def _mwfrs() -> Any:
+def mwfrs_table() -> Any:
     """The code pack's MWFRS wall and roof table, None without one."""
     return getattr(code_context.table("wind"), "mwfrs", None)
 
@@ -662,7 +662,7 @@ def roof_windward_cp(theta: float, h_over_l: float) -> tuple[float, float]:
     both are the one value. Linear between angles and h/L ratios, between values of the same
     column (note 2: a value not printed counts 0.0); Cp = 0.01θ from 60° and 0.8 above 80° (the
     pack's ``steepFrom``, ``verticalFrom``)."""
-    table = _mwfrs().roof
+    table = mwfrs_table().roof
     if theta > table.verticalFrom:
         return float(table.verticalCp), float(table.verticalCp)
     if theta >= table.steepFrom:
@@ -686,7 +686,7 @@ def roof_windward_cp(theta: float, h_over_l: float) -> tuple[float, float]:
 
 def roof_leeward_cp(theta: float, h_over_l: float) -> float:
     """Cp of a leeward roof slope θ [°] for wind normal to the ridge (Figure 6.2.6, p. 572)."""
-    table = _mwfrs().roof
+    table = mwfrs_table().roof
     angles = [float(a) for a in table.leewardAngles]
     return _across_rows(
         table.leeward,
@@ -711,7 +711,7 @@ def roof_parallel_cp(
     θ < 10° or wind parallel to the ridge (Figure 6.2.6, p. 572): by zones of the mean roof
     height ``height`` h, interpolated between h/L rows. ``area`` [m²]: of the first zone, which
     reduces the -1.3 value (**)."""
-    table = _mwfrs().roof
+    table = mwfrs_table().roof
 
     def row(r: Any) -> tuple[float, float]:
         ratio = distance / height if height > 0 else math.inf
@@ -729,7 +729,7 @@ def dome_point_cps(rise_ratio: float, base_ratio: float) -> dict[str, float] | N
     ``rise_ratio`` on a base hD/D ``base_ratio`` (Figure 6.2.7, p. 573: the curves read
     from the figure, linear between hD/D curves); None below the figure's least f/D (note 8:
     Figure 6.2.6 instead) or without the pack's dome table."""
-    table = getattr(_mwfrs(), "domes", None)
+    table = getattr(mwfrs_table(), "domes", None)
     if table is None or rise_ratio < table.minRise:
         return None
 
@@ -753,7 +753,7 @@ def dome_cp(cps: dict[str, float], theta: float, windward: bool, case: str) -> f
     if not windward:
         return cps["C"] + (cps["B"] - cps["C"]) * theta / 90
     if case == "B":
-        start = float(_mwfrs().domes.caseBAngle)
+        start = float(mwfrs_table().domes.caseBAngle)
         if theta <= start:
             return cps["A"]
         return cps["A"] + (cps["B"] - cps["A"]) * (theta - start) / (90 - start)
@@ -765,7 +765,7 @@ def arched_roof_cps(rise_ratio: float, elevated: bool) -> dict[str, Any] | None:
     ``windward`` (the windward quarter's values: the alternate (6r − 2.1) too where it shall
     also be used), ``centre`` (the centre half) and ``leeward`` (the leeward quarter); None
     outside the table's r or without the pack's arched table."""
-    table = getattr(_mwfrs(), "arched", None)
+    table = getattr(mwfrs_table(), "arched", None)
     if table is None:
         return None
     rows = [r for r in table.rows if r.elevated == elevated]
@@ -788,7 +788,7 @@ def arched_roof_cps(rise_ratio: float, elevated: bool) -> dict[str, Any] | None:
 def low_rise_gcpf(theta: float) -> dict[str, float] | None:
     """(GCpf) by building surface (1-6, 1E-4E) of a low-rise building with roof angle θ [°]
     (Figure 6.2.10, p. 577, linear between angles, note 2); None without the pack's table."""
-    table = getattr(_mwfrs(), "lowRise", None)
+    table = getattr(mwfrs_table(), "lowRise", None)
     if table is None:
         return None
     rows = sorted(table.rows, key=lambda r: r.angle)
@@ -802,14 +802,14 @@ def low_rise_gcpf(theta: float) -> dict[str, float] | None:
 def is_low_rise(height: float, least: float) -> bool:
     """Whether an enclosed or partially enclosed building is low-rise (Sec 2.1.3, p. 513):
     mean roof height h up to the pack's 18.3 m and not over its least horizontal dimension."""
-    table = getattr(_mwfrs(), "lowRise", None)
+    table = getattr(mwfrs_table(), "lowRise", None)
     return table is not None and height <= table.maxHeight and height <= least
 
 
 def mean_roof_height(eave: float, top: float, theta: float) -> float:
     """h of Figures 6.2.6 and 6.2.10 (notation): the mean of the eave and the top of the roof,
     the eave height for θ ≤ 10° (the pack's ``flatAngle``)."""
-    mwfrs = _mwfrs()
+    mwfrs = mwfrs_table()
     flat = float(mwfrs.roof.flatAngle) if mwfrs is not None else 0.0
     return eave if theta <= flat else (eave + top) / 2
 
@@ -833,7 +833,7 @@ def building_mwfrs_pressures(
     ``{"qh_kPa", "G", "GCpi", "Ri", "hOverL", "surfaces": [{"surface", "from_m", "to_m", "Cp",
     "pPos_kPa", "pNeg_kPa"}]}`` (``pPos``/``pNeg``: with −GCpi/+GCpi, the external Cp the
     larger in magnitude where two are listed); None without the pack's MWFRS table."""
-    mwfrs = _mwfrs()
+    mwfrs = mwfrs_table()
     if mwfrs is None or height <= 0 or depth <= 0 or width <= 0:
         return None
     qh = velocity_pressure(height, speed, exposure, importance)

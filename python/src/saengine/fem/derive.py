@@ -3160,8 +3160,9 @@ def _clad_structure_wind(
     the members take force coefficients instead."""
     from saengine.fem import open_wind as ow
     from saengine.fem.loads import (
-        _mwfrs,
+        WIND_INTERNAL_CASE,
         internal_pressure_coefficient,
+        mwfrs_table,
         velocity_pressure,
         wind_factor,
         wind_overrides,
@@ -3169,7 +3170,7 @@ def _clad_structure_wind(
 
     wind = settings.wind
     options = wind.openStructure
-    mwfrs = _mwfrs()
+    mwfrs = mwfrs_table()
     panels = {e.id: e for e in building.elements if isinstance(e, AreaElement)}
     shells = [(k, s) for k, s in enumerate(b.shells) if s.source in panels]
     if patterns is None or mwfrs is None or not shells:
@@ -3283,8 +3284,6 @@ def _clad_structure_wind(
         for key, pressure in pressures.items():
             apply(case, key, pressure)
     if result.internal:
-        from saengine.fem.loads import WIND_INTERNAL_CASE
-
         for key in result.inside:
             apply(WIND_INTERNAL_CASE, key, -result.internal)  # toward the inner surface
     s = result.summary
@@ -3490,7 +3489,7 @@ def _wind_loads(
                 if row["surface"] == "roof"
             )
             notes.append(
-                "wind MWFRS on the walls and roof (Sec 2.4.11.2, Eq 6.2.19, Figure 6.2.6): roof "
+                f"wind MWFRS on the walls and roof ({fl.mwfrs_table().source}): roof "
                 f"suction up to {uplift:.2f} kN/m² with the internal pressure (GCpi) "
                 f"{next(iter(mwfrs.values()))['GCpi']:g}; reported, not applied to the floors"
             )
