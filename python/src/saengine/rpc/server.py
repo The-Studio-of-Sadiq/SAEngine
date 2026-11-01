@@ -51,6 +51,9 @@ Methods:
   results while the project does not change; in a worker thread)
 - ``design/proposal`` ``{outDir, projectPath, options?}`` -> the bars proposed per object type
   and foundation (``options.mode`` "byType" or "splitTypes"; in a worker thread)
+- ``design/strutAndTie`` ``{model, projectPath?}`` -> a strut-and-tie model of a D-region
+  solved and checked with the project's code pack (``saengine.design.stm_model``);
+  ``design/strutAndTieTemplate`` ``{template, parameters?}`` -> ``{model}`` to start from
 - ``design/applyProposal`` ``{objectsText, bimText?, proposal, floorPlanText?,
   substructureText?}`` -> the part files with the proposal applied (pure)
 - ``import/structural`` ``{path, destParent, name?, overwrite?}`` -> a new project from an
@@ -576,6 +579,16 @@ def create_server() -> JsonRPCServer:
     def _design_proposal(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.design_proposal(args["outDir"], args["projectPath"], args.get("options"))
+
+    @server.feature("design/strutAndTie")
+    def _strut_and_tie(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.strut_and_tie(args["model"], args.get("projectPath"))
+
+    @server.feature("design/strutAndTieTemplate")
+    def _strut_and_tie_template(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.strut_and_tie_template(args["template"], args.get("parameters"))
 
     @server.feature("design/applyProposal")
     def _design_apply_proposal(params: Any) -> dict[str, Any]:

@@ -2037,6 +2037,48 @@ class StrutAndTie(_Group):
         default=0.003,
         description="Distributed web steel ratio that confines a bottle-shaped strut.",
     )
+    # B28: the general strut-and-tie model of any D-region.
+    general: bool = Field(
+        default=False,
+        description="The pack covers strut-and-tie models of any D-region (the general model "
+        "editor); false: only the deep members' own models.",
+    )
+    effective: Share = Field(
+        default=0.85,
+        description="fce = effective × β × f'c of a strut and of a nodal zone.",
+    )
+    betaTension: Share = Field(
+        default=0.4, description="βs of a strut in a tension member or a tension flange."
+    )
+    betaOther: Share = Field(default=0.6, description="βs of every other strut (times λ).")
+    lightweightBottle: bool = Field(
+        default=True,
+        description="βs of a bottle-shaped strut without its web steel is times λ.",
+    )
+    webRatioFcMax: Positive = Field(
+        default=40.0,
+        description="f'c [MPa] up to which the web ratio satisfies the strut's crack control; "
+        "above it the transverse tension of the 2:1 spread is checked.",
+    )
+    webAngleMin: Positive = Field(
+        default=40.0,
+        lt=90,
+        description="Least angle [degrees] of web steel in one direction only to the strut.",
+    )
+    spreadSlope: Positive = Field(
+        default=2.0,
+        description="The strut's compression spreads at this longitudinal to 1 transverse.",
+    )
+    deltaFpBonded: float = Field(
+        default=420.0, ge=0, description="Δfp [MPa] of bonded prestressed steel in a tie."
+    )
+    deltaFpUnbonded: float = Field(
+        default=70.0, ge=0, description="Δfp [MPa] of unbonded prestressed steel in a tie."
+    )
+    dRegionDepth: Positive = Field(
+        default=1.0,
+        description="A D-region extends this × h from a force or geometric discontinuity.",
+    )
 
 
 class RetainingWallFactors(_Group):

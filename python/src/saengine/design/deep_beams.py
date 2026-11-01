@@ -13,16 +13,17 @@ beam is flagged as reference: the strut-and-tie model governs):
 - the shear limit Vu <= φ 0.83 √f'c bw d (Sec 6.4.6.2);
 - the least distributed web steel: vertical Av >= 0.0025 bw s, horizontal Avh >= 0.0015 bw s2,
   s and s2 at most d/5 and 300 mm (Sec 6.4.6.3, 6.4.6.4);
-- a strut-and-tie model, the one of the deep pile caps (:mod:`saengine.design.stm`, ACI 318-19
-  Chapter 23, the method Sec 6.4.6 sends deep beams to; φ = 0.75 of Sec 6.2.3.2): at each
+- a strut-and-tie model, the one of the deep pile caps (:mod:`saengine.design.stm`, the
+  pack's strut-and-tie procedure: BNBC 2020 Appendix I, which Sec 6.3.7.1 and 6.4.6 send deep
+  beams to; φ = 0.75 of Sec 6.2.3.2.6): at each
   support a strut from the support's node to the load, the bottom bars as the tie at z = 0.9 d
   (the pack's ``tieArm``) over the span. The load of a span is the landing column's (the jump
   of the analysis shear where it stands), or for a distributed load the resultant of each half
   at ln/4 from the face. Checked: the tie T = max(R a / z, Mu / z) against φ As fy; the strut
   at each support, C = R / sin θ, against φ 0.85 βs f'c ws bw with ws = lb sin θ + wt cos θ
-  (βs 0.75 with the web steel of 23.5.1, else 0.6); the support's C-C-T node, R against
+  (βs 0.75 with the web steel of Sec I.3.3, else 0.6); the support's C-C-T node, R against
   φ 0.85 (0.8) f'c lb bw; the landing column's C-C-C node, P against φ 0.85 f'c lc bw; and the
-  strut angle θ = atan(z / a) at least 25° (23.2.7).
+  strut angle θ = atan(z / a) at least 25° (Sec I.2.5). The clauses are the pack's.
 
 Units: mm, N, MPa inside; reported in kN, mm².
 """
@@ -55,8 +56,8 @@ CLAUSES = {
     "limit": "BNBC 2020 Part 6 Sec 6.4.6.2",
     "vertical": "BNBC 2020 Part 6 Sec 6.4.6.3",
     "horizontal": "BNBC 2020 Part 6 Sec 6.4.6.4",
-    "phi": "BNBC 2020 Part 6 Sec 6.2.3.2 (p. 897)",
-    "stm": "ACI 318-19 Chapter 23",
+    "phi": "BNBC 2020 Part 6 Sec 6.2.3.2.6 (p. 898)",
+    "stm": "BNBC 2020 Part 6 Appendix I",
 }
 
 #: Said on the sectional shear checks of a deep span.
@@ -220,8 +221,8 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
             "kN",
             tie[1],
             f"T = {tie[2]}, z = {stm.factor('tieArm'):g} d = {z:.0f} mm; φ As fy, φ = "
-            f"{stm.phi():g}, As = {span.tie_area:.0f} mm² ({CLAUSES['phi']}, {CLAUSES['stm']} "
-            f"23.7.2.1); anchor the tie past the support's node{suffix}",
+            f"{stm.phi():g}, As = {span.tie_area:.0f} mm² ({CLAUSES['phi']}, "
+            f"{stm.cite('deltaFpBonded') or CLAUSES['stm']}); anchor the tie past the support's node{suffix}",
         )
     )
     least = stm.min_angle()
@@ -238,7 +239,7 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
                 "°",
                 None,
                 f"θ = atan(z / a), a = {a:.0f} mm, z = {z:.0f} mm; at least {least:g}° "
-                f"({CLAUSES['stm']} 23.2.7)",
+                f"({stm.cite('minAngle') or CLAUSES['stm']})",
             )
         )
         bearing = span.bearings[k]
@@ -252,9 +253,14 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
                 combination,
                 f"C = R / sin θ, θ = {degrees:.1f}°; bottle-shaped, βs = "
                 f"{stm.factor('betaBottle' if confined else 'betaBottlePlain'):g}"
-                + ("" if confined else " (web steel below the 0.003 of 23.5.1)")
+                + (
+                    ""
+                    if confined
+                    else f" (web steel below the {stm.factor('webRatio'):g} of "
+                    f"{stm.cite('webRatio') or CLAUSES['stm']})"
+                )
                 + f", ws = lb sin θ + wt cos θ = {width:.0f} mm (lb = {bearing:.0f}, wt = "
-                f"{span.tie_height:.0f}) ({CLAUSES['stm']} 23.4)",
+                f"{span.tie_height:.0f}) ({stm.cite('betaBottle') or CLAUSES['stm']})",
             )
         )
         checks.append(
@@ -265,7 +271,7 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
                 "kN",
                 combination,
                 f"φ 0.85 βn f'c lb bw, βn = {stm.factor('betaCCT'):g}, lb = {bearing:.0f} mm "
-                f"({CLAUSES['stm']} 23.9.1, Table 23.9.2)",
+                f"({stm.cite('betaCCT') or CLAUSES['stm']})",
             )
         )
     for (at, length), (load, combination) in zip(span.loads, demands.loads, strict=False):
@@ -279,7 +285,7 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
                 "kN",
                 combination,
                 f"φ 0.85 βn f'c lc bw, βn = {stm.factor('betaCCC'):g}, lc = {length:.0f} mm "
-                f"({CLAUSES['stm']} 23.9.1)",
+                f"({stm.cite('betaCCC') or CLAUSES['stm']})",
             )
         )
     return checks

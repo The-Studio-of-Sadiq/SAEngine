@@ -23,11 +23,13 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
-import { DESIGN_REINFORCEMENT_COMMAND, PLANNED_STM_GENERAL } from './femDesign.js';
+import { DESIGN_REINFORCEMENT_COMMAND, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { FemPlanned } from './femPlannedFeatures.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
 import { FemModelEditor } from './femModelEditor.js';
+import { FemStrutAndTieEditor } from './femStrutAndTieEditor.js';
+import { FemStrutAndTieInput, FemStrutAndTieInputSerializer } from './femStrutAndTieInput.js';
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
 import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
 import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, IFemResultsEditorOptions, memberNames } from './femResultsView.js';
@@ -53,6 +55,12 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(FemDesignProposalInput)]
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemDesignProposalInput.ID, FemDesignProposalInputSerializer);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(FemStrutAndTieEditor, FemStrutAndTieInput.EDITOR_ID, localize('femStrutAndTieEditor', "Strut-and-Tie Models")),
+	[new SyncDescriptor(FemStrutAndTieInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemStrutAndTieInput.ID, FemStrutAndTieInputSerializer);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(FemResultsEditor, FemResultsInput.EDITOR_ID, localize('femResultsEditor', "Analysis Results")),
@@ -166,6 +174,32 @@ registerAction2(class extends Action2 {
 		const target = analysisModel(accessor, model);
 		if (target) {
 			await accessor.get(IEditorService).openEditor(new FemDesignProposalInput(target), { pinned: true });
+		}
+	}
+});
+
+/**
+ * Opens Strut-and-Tie Models: strut-and-tie models of any D-region of `model` (by default the
+ * project's `08 FEM/model.osmodel`), drawn and checked with the code pack's procedure, at the
+ * model named `region` when given.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: STRUT_AND_TIE_COMMAND,
+			title: localize2('saengine.strutAndTie', "Strut-and-Tie Models"),
+			metadata: { description: localize2('saengine.strutAndTie.description', "Draws and checks strut-and-tie models of D-regions (dapped ends, corbels, frame corners, openings) with the project's code pack. Arguments: the analysis model (URI; by default the project's) and the name of a model to show.") },
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.symbolStructure,
+			f1: true,
+			precondition: ProjectOpenContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, model?: URI, region?: string): Promise<void> {
+		const target = analysisModel(accessor, model);
+		if (target) {
+			await accessor.get(IEditorService).openEditor(new FemStrutAndTieInput(target, typeof region === 'string' ? region : undefined), { pinned: true });
 		}
 	}
 });
@@ -804,35 +838,6 @@ registerPlannedFeature({
 	references: [
 		localize('planned.coldFormed.ref1', "BNBC 2020 Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions)"),
 		localize('planned.coldFormed.ref2', "AISI S100 (North American specification for cold-formed steel structural members)"),
-	],
-});
-
-// Planned (MVP: BNBC 2020 designs deep beams, transfer girders and corbels; a general strut-and-tie
-// model of any D-region needs the procedure of ACI 318 Chapter 23, which BNBC does not give).
-registerPlannedFeature({
-	id: PLANNED_STM_GENERAL,
-	part: 'fem',
-	title: localize('planned.stmGeneral.title', "Strut-and-Tie Models of Any D-Region"),
-	summary: localize('planned.stmGeneral.summary', "Draw and check a strut-and-tie model for regions the deep-beam checks do not cover: dapped ends, beams and walls with openings, frame corners, continuous deep beams and corbels with several loads."),
-	steps: [
-		localize('planned.stmGeneral.step1', "Pick the D-region on a member and its boundary forces from the analysis."),
-		localize('planned.stmGeneral.step2', "Lay out struts, ties and nodes, or start from a template (dapped end, opening, corner)."),
-		localize('planned.stmGeneral.step3', "Solve the truss and check each strut, tie and node with its βs and βn."),
-		localize('planned.stmGeneral.step4', "Detail the ties' anchorage and the distributed reinforcement, and print the model in the report."),
-	],
-	inputs: [
-		{ label: localize('planned.stmGeneral.inputRegion', "D-region"), example: localize('planned.stmGeneral.exampleRegion', "Dapped end of B12") },
-		{ label: localize('planned.stmGeneral.inputTemplate', "Template"), example: localize('planned.stmGeneral.exampleTemplate', "Dapped end") },
-		{ label: localize('planned.stmGeneral.inputWidth', "Strut width"), unit: 'mm', example: '250' },
-	],
-	outputs: [
-		localize('planned.stmGeneral.output1', "Truss forces and the check of every strut, tie and node"),
-		localize('planned.stmGeneral.output2', "Tie bars and their anchorage"),
-		localize('planned.stmGeneral.output3', "A model sketch in the design report"),
-	],
-	references: [
-		'ACI 318-19 Chapter 23',
-		'BNBC 2020 Part 6 Sec 6.2.3.2 (φ = 0.75)',
 	],
 });
 

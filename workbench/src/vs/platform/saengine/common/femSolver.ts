@@ -677,7 +677,10 @@ export type EngineMethod =
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
 	// `worksheets/calculate` `{kind, inputs, projectRoot?}`, `worksheets/list` `{projectRoot}`,
 	// `worksheets/create` `{projectRoot, kind, id, title?}`.
-	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create';
+	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create'
+	// Strut-and-tie models of D-regions (`saengine.design.stm_model`): `design/strutAndTie`
+	// `{model, projectPath?}` and `design/strutAndTieTemplate` `{template, parameters?}`.
+	| 'design/strutAndTie' | 'design/strutAndTieTemplate';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

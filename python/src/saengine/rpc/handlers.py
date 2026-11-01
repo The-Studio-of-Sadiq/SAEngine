@@ -960,6 +960,41 @@ def design_report(out_dir: str, project_path: str) -> dict[str, Any]:
     return report(out_dir, project_path) or {}
 
 
+def strut_and_tie(model: Any, project_path: str | None) -> dict[str, Any]:
+    """One strut-and-tie model of a D-region solved and checked
+    (``saengine.design.stm_model.check_model``) with the code pack the project of the analysis
+    model ``project_path`` chooses; ``{"problems"}`` when the model is not valid."""
+    from pydantic import ValidationError
+
+    from saengine.codes import context as code_context
+    from saengine.design.stm_model import check_model
+    from saengine.library.strut_and_tie import StmModel
+    from saengine.pipeline.design_mode import _plain
+
+    try:
+        parsed = StmModel.model_validate(model)
+    except ValidationError as exc:
+        return {"problems": _messages(exc, "Strut-and-tie model"), "checks": [], "ok": False}
+    settings = _project_settings(project_path) if project_path else None
+    try:
+        pack = code_context.pack_for(settings, project_path)
+    except Exception:  # noqa: BLE001 - a pack that cannot load: the default's procedure
+        pack = None
+    with code_context.using(pack):
+        return _plain(check_model(parsed))
+
+
+def strut_and_tie_template(kind: str, parameters: dict[str, float] | None) -> dict[str, Any]:
+    """A strut-and-tie model to start from (``saengine.design.stm_model.template``), or
+    ``{"error"}``."""
+    from saengine.design.stm_model import template
+
+    try:
+        return {"model": template(kind, parameters).model_dump(mode="json")}
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
 def _project_settings(project_path: str) -> Any:
     """The project settings of the model ``project_path`` (two folders up), with the site class
     the analysis uses; None when they cannot be read."""

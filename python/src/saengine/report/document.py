@@ -1478,6 +1478,29 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 size=7,
             ),
         ]
+    for model in (design.get("strutAndTie") or {}).get("models") or []:
+        title = f"Strut-and-tie model: {model['name']}"
+        out += [
+            h(2, title + (f" ({model['member']})" if model.get("member") else "")),
+            p(
+                "Members of the truss with their governing force [kN, tension positive], load "
+                f"case and utilisation ({model.get('source') or 'the code pack'})."
+            ),
+        ]
+        if model.get("problems"):
+            out.append(bullets([str(x) for x in model["problems"]]))
+        if model.get("members"):
+            out.append(
+                table(
+                    ["Member", "Kind", "Nodes", "Force", "Case", "Util.", "Result"],
+                    model["members"],
+                    align="lllrlrc",
+                    bad=model.get("bad"),
+                    size=8,
+                )
+            )
+        if model.get("fails"):
+            out.append(bullets([str(x) for x in model["fails"]], size=8))
     pu = design.get("punching") or {}
     if pu.get("rows"):
         out += [

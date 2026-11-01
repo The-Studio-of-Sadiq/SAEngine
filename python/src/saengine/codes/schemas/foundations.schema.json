@@ -2719,6 +2719,85 @@
           "exclusiveMinimum": 0,
           "title": "Webratio",
           "type": "number"
+        },
+        "general": {
+          "default": false,
+          "description": "The pack covers strut-and-tie models of any D-region (the general model editor); false: only the deep members' own models.",
+          "title": "General",
+          "type": "boolean"
+        },
+        "effective": {
+          "default": 0.85,
+          "description": "fce = effective × β × f'c of a strut and of a nodal zone.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Effective",
+          "type": "number"
+        },
+        "betaTension": {
+          "default": 0.4,
+          "description": "βs of a strut in a tension member or a tension flange.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betatension",
+          "type": "number"
+        },
+        "betaOther": {
+          "default": 0.6,
+          "description": "βs of every other strut (times λ).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaother",
+          "type": "number"
+        },
+        "lightweightBottle": {
+          "default": true,
+          "description": "βs of a bottle-shaped strut without its web steel is times λ.",
+          "title": "Lightweightbottle",
+          "type": "boolean"
+        },
+        "webRatioFcMax": {
+          "default": 40.0,
+          "description": "f'c [MPa] up to which the web ratio satisfies the strut's crack control; above it the transverse tension of the 2:1 spread is checked.",
+          "exclusiveMinimum": 0,
+          "title": "Webratiofcmax",
+          "type": "number"
+        },
+        "webAngleMin": {
+          "default": 40.0,
+          "description": "Least angle [degrees] of web steel in one direction only to the strut.",
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Webanglemin",
+          "type": "number"
+        },
+        "spreadSlope": {
+          "default": 2.0,
+          "description": "The strut's compression spreads at this longitudinal to 1 transverse.",
+          "exclusiveMinimum": 0,
+          "title": "Spreadslope",
+          "type": "number"
+        },
+        "deltaFpBonded": {
+          "default": 420.0,
+          "description": "Δfp [MPa] of bonded prestressed steel in a tie.",
+          "minimum": 0,
+          "title": "Deltafpbonded",
+          "type": "number"
+        },
+        "deltaFpUnbonded": {
+          "default": 70.0,
+          "description": "Δfp [MPa] of unbonded prestressed steel in a tie.",
+          "minimum": 0,
+          "title": "Deltafpunbonded",
+          "type": "number"
+        },
+        "dRegionDepth": {
+          "default": 1.0,
+          "description": "A D-region extends this × h from a force or geometric discontinuity.",
+          "exclusiveMinimum": 0,
+          "title": "Dregiondepth",
+          "type": "number"
         }
       },
       "required": [

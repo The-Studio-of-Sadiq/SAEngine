@@ -2576,6 +2576,10 @@ def _design(
     stairs = _stairs(report)
     lintels = _lintels(report)
     takedown = _takedown(report)
+    # B28: the strut-and-tie models of D-regions beside the analysis model.
+    from saengine.design.stm_model import report_section as stm_section
+
+    strut_and_tie = stm_section(model_path.parent / "strut-and-tie.json", warnings)
     punching = _punching(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
@@ -2600,6 +2604,7 @@ def _design(
         "stairs": stairs,
         "lintels": lintels,
         "takedown": takedown,
+        "strutAndTie": strut_and_tie,
         "punching": punching,
         "steel": steel,
         "slenderness": slender_rows,
