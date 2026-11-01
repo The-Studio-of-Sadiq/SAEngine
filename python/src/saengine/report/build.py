@@ -724,6 +724,31 @@ def code_pack_text(settings: Any) -> str:
     return text
 
 
+def _construction_basis(settings: Any, parts: _Parts, pack: Any) -> list[list[str]]:
+    """B18: the construction type, the concrete aggregate and the fire ratings the members are
+    checked for (saengine.design.fire_resistance); its warnings go to the report's warnings."""
+    from saengine.codes import context as code_context
+    from saengine.design.fire_resistance import construction_summary
+    from saengine.design.seismic_rules import building_height
+
+    try:
+        with code_context.using(pack):
+            summary = construction_summary(settings, building_height(parts.building()))
+    except Exception as error:  # noqa: BLE001 - the report prints what it can
+        parts.warnings.append(f"Construction type: not summarised: {error}")
+        return []
+    parts.warnings.extend(summary["warnings"])
+    names = {"column": "columns", "beam": "beams", "slab": "slabs", "wall": "walls"}
+    rated = ", ".join(
+        f"{names[k]} {h:g} h" for k, h in summary["ratings"].items() if h and k in names
+    )
+    return [
+        ["Construction type", summary["label"]],
+        ["Concrete aggregate", summary["aggregate"]],
+        ["Fire resistance checked", rated or "not checked"],
+    ]
+
+
 def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[str, Any]) -> dict:
     basis: dict[str, Any] = {}
     if settings is not None:
@@ -756,6 +781,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Basic wind speed V", f"{fmt(values['windSpeed'], 1)} m/s"],
             ["Wind exposure category", settings.wind.exposure],
         ]
+        basis["site"] += _construction_basis(settings, parts, pack)  # B18
         basis["seismic"] = [
             [
                 "Structural system (Table 6.2.19)",

@@ -3099,26 +3099,130 @@ class LiveReductionTable(TableModel):
     )
 
 
-class FireResistanceTable(TableModel):
-    """Least sizes and covers of concrete members for a fire resistance rating, one value per
-    rating of ``ratings`` (hours)."""
+Hours = Annotated[float, Field(ge=0)]
 
-    ratings: list[Positive] = Field(min_length=1, description="Fire resistance ratings [h].")
-    slabThickness: list[Positive] = Field(description="Least slab thickness [mm].")
+
+class ConstructionTypeRow(_Row):
+    """The fire resistance ratings [h] of the elements of one construction type; None: the
+    code gives no fixed rating (e.g. 'as per the provisions of the code')."""
+
+    label: str
+    group: Literal["nonCombustible", "combustible"]
+    exteriorBearing: list[Hours] = Field(
+        description="Exterior bearing walls, one rating per band of ``separationLimits``."
+    )
+    exteriorNonBearing: list[Hours] = Field(
+        description="Exterior non-bearing walls, one rating per band of ``separationLimits``."
+    )
+    interiorBearingWalls: Hours | None = None
+    verticalExits: Hours | None = Field(
+        default=None, description="Enclosures of vertical exits, exit passageways and shafts."
+    )
+    framingOneFloor: Hours | None = Field(
+        default=None, description="Columns, girders and framing supporting one floor."
+    )
+    framingMoreFloors: Hours | None = Field(
+        default=None, description="Columns, girders and framing supporting more than one floor."
+    )
+    membersSupportingWalls: Hours | None = Field(
+        default=None, description="Structural members supporting walls (None: as the wall)."
+    )
+    floors: Hours | None = Field(default=None, description="Floor construction with its beams.")
+    shafts: Hours | None = None
+    fireSeparationWalls: Hours | None = None
+    accessCorridors: Hours | None = None
+    note: str | None = None
+
+
+class FireAdvisory(BaseModel):
+    """Covers of the concrete members by rating from a standard other than the code, shown as an
+    advisory (never failing a member)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(description="Where the covers come from, as the results print it.")
+    ratings: list[Positive] = Field(min_length=1, description="Ratings [h].")
     slabCover: list[Positive] = Field(description="Least slab cover to the bars [mm].")
-    wallThickness: list[Positive] = Field(description="Least wall thickness [mm].")
     beamCover: list[Positive] = Field(description="Least beam cover to the main bars [mm].")
     beamWidth: Positive = Field(description="Least beam width the beam covers hold for [mm].")
-    columnSize: list[Positive] = Field(description="Least column dimension [mm].")
     columnCoverPerHour: Positive = Field(description="Column cover per hour of rating [mm].")
     columnCoverMax: Positive = Field(description="Column cover need not exceed [mm].")
 
     @model_validator(mode="after")
+    def _same_length(self) -> FireAdvisory:
+        for name in ("slabCover", "beamCover"):
+            if len(getattr(self, name)) != len(self.ratings):
+                raise ValueError(f"advisory.{name}: one value per rating ({len(self.ratings)})")
+        return self
+
+
+class FireResistanceTable(TableModel):
+    """Construction types with the fire resistance ratings of their elements, and the least
+    sizes of concrete and masonry members for a rating, one value per rating (hours) by the
+    concrete's aggregate type or the masonry unit."""
+
+    name: str = ""
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="Short clause references the checks print: nonCombustible, combustible "
+        "(the ratings of each group), thickness, columnSize, masonryThickness, "
+        "nonCombustibleAbove.",
+    )
+    constructionTypes: dict[str, ConstructionTypeRow] = Field(
+        default_factory=dict, description="Construction types by id."
+    )
+    separationLimits: list[Positive] = Field(
+        default_factory=list,
+        description="Limits of the fire separation distance bands of the exterior walls [m]: the "
+        "first band is up to and including the first limit, each next band below its limit, the "
+        "last band at or beyond the last limit.",
+    )
+    nonCombustibleAbove: Positive | None = Field(
+        default=None, description="Buildings higher than this [m] must be non-combustible."
+    )
+    aggregates: dict[str, str] = Field(
+        default_factory=dict, description="Aggregate types the tables cover, with their names."
+    )
+    ratings: list[Positive] = Field(min_length=1, description="Ratings of the concrete rows [h].")
+    thickness: dict[str, list[Positive]] = Field(
+        description="Least equivalent thickness of concrete walls, floors and roofs [mm] by "
+        "aggregate type."
+    )
+    columnSize: dict[str, list[Positive]] = Field(
+        description="Least column dimension [mm] by aggregate type."
+    )
+    columnSizeFallback: dict[str, str] = Field(
+        default_factory=dict,
+        description="Aggregate types without a column row: the row used instead.",
+    )
+    masonryRatings: list[Positive] = Field(
+        default_factory=list, description="Ratings of the masonry rows [h]."
+    )
+    masonryThickness: dict[str, list[Positive]] = Field(
+        default_factory=dict,
+        description="Least equivalent thickness of masonry [mm] by unit (clayUnfilled, "
+        "clayFilled, concreteUnfilled, concreteFilled).",
+    )
+    advisory: FireAdvisory | None = None
+
+    @model_validator(mode="after")
     def _same_length(self) -> FireResistanceTable:
         n = len(self.ratings)
-        for name in ("slabThickness", "slabCover", "wallThickness", "beamCover", "columnSize"):
-            if len(getattr(self, name)) != n:
-                raise ValueError(f"{name}: one value per rating ({n})")
+        for name in ("thickness", "columnSize"):
+            for key, row in getattr(self, name).items():
+                if len(row) != n:
+                    raise ValueError(f"{name}.{key}: one value per rating ({n})")
+        for key, row in self.masonryThickness.items():
+            if len(row) != len(self.masonryRatings):
+                raise ValueError(f"masonryThickness.{key}: one value per masonry rating")
+        bands = len(self.separationLimits) + 1
+        for key, t in self.constructionTypes.items():
+            for name in ("exteriorBearing", "exteriorNonBearing"):
+                if len(getattr(t, name)) != bands:
+                    raise ValueError(f"constructionTypes.{key}.{name}: one value per band")
+        for key, to in self.columnSizeFallback.items():
+            if to not in self.columnSize:
+                raise ValueError(f"columnSizeFallback.{key}: no column row '{to}'")
         return self
 
 

@@ -142,7 +142,8 @@
       "BNBC 2020 Part 6 Sec 2.3.13-2.3.14, Eqs 6.2.1-6.2.2, Table 6.2.7 (pp. 542-544)"
     ],
     "fireResistance": [
-      "ACI 216.1-14 (BNBC 2020 Part 6 gives no table; the ratings come from Part 4)"
+      "BNBC 2020 Part 3 Sec 3.1, Tables 3.3.1(a)-(b) (pp. 165-172); Part 4 Sec 1.5(f), Table 4.1.1 (p. 284)",
+      "ACI 216.1-14 covers (advisory, not BNBC)"
     ],
     "planning": [
       "BNBC 2020 Part 3 Chapter 1 (plot, open space, FAR and ground coverage by the planning authority's rules)",

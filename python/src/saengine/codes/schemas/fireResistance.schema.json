@@ -1,6 +1,267 @@
 {
+  "$defs": {
+    "ConstructionTypeRow": {
+      "additionalProperties": false,
+      "description": "The fire resistance ratings [h] of the elements of one construction type; None: the\ncode gives no fixed rating (e.g. 'as per the provisions of the code').",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "nonCombustible",
+            "combustible"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "exteriorBearing": {
+          "description": "Exterior bearing walls, one rating per band of ``separationLimits``.",
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Exteriorbearing",
+          "type": "array"
+        },
+        "exteriorNonBearing": {
+          "description": "Exterior non-bearing walls, one rating per band of ``separationLimits``.",
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "title": "Exteriornonbearing",
+          "type": "array"
+        },
+        "interiorBearingWalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interiorbearingwalls"
+        },
+        "verticalExits": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Enclosures of vertical exits, exit passageways and shafts.",
+          "title": "Verticalexits"
+        },
+        "framingOneFloor": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Columns, girders and framing supporting one floor.",
+          "title": "Framingonefloor"
+        },
+        "framingMoreFloors": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Columns, girders and framing supporting more than one floor.",
+          "title": "Framingmorefloors"
+        },
+        "membersSupportingWalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structural members supporting walls (None: as the wall).",
+          "title": "Memberssupportingwalls"
+        },
+        "floors": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Floor construction with its beams.",
+          "title": "Floors"
+        },
+        "shafts": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shafts"
+        },
+        "fireSeparationWalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fireseparationwalls"
+        },
+        "accessCorridors": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accesscorridors"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "label",
+        "group",
+        "exteriorBearing",
+        "exteriorNonBearing"
+      ],
+      "title": "ConstructionTypeRow",
+      "type": "object"
+    },
+    "FireAdvisory": {
+      "additionalProperties": false,
+      "description": "Covers of the concrete members by rating from a standard other than the code, shown as an\nadvisory (never failing a member).",
+      "properties": {
+        "label": {
+          "description": "Where the covers come from, as the results print it.",
+          "title": "Label",
+          "type": "string"
+        },
+        "ratings": {
+          "description": "Ratings [h].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Ratings",
+          "type": "array"
+        },
+        "slabCover": {
+          "description": "Least slab cover to the bars [mm].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Slabcover",
+          "type": "array"
+        },
+        "beamCover": {
+          "description": "Least beam cover to the main bars [mm].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Beamcover",
+          "type": "array"
+        },
+        "beamWidth": {
+          "description": "Least beam width the beam covers hold for [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Beamwidth",
+          "type": "number"
+        },
+        "columnCoverPerHour": {
+          "description": "Column cover per hour of rating [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columncoverperhour",
+          "type": "number"
+        },
+        "columnCoverMax": {
+          "description": "Column cover need not exceed [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columncovermax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "ratings",
+        "slabCover",
+        "beamCover",
+        "beamWidth",
+        "columnCoverPerHour",
+        "columnCoverMax"
+      ],
+      "title": "FireAdvisory",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
-  "description": "Least sizes and covers of concrete members for a fire resistance rating, one value per\nrating of ``ratings`` (hours).",
+  "description": "Construction types with the fire resistance ratings of their elements, and the least\nsizes of concrete and masonry members for a rating, one value per rating (hours) by the\nconcrete's aggregate type or the masonry unit.",
   "properties": {
     "source": {
       "default": "",
@@ -16,8 +277,60 @@
       "title": "Sources",
       "type": "object"
     },
+    "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the checks print: nonCombustible, combustible (the ratings of each group), thickness, columnSize, masonryThickness, nonCombustibleAbove.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "constructionTypes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ConstructionTypeRow"
+      },
+      "description": "Construction types by id.",
+      "title": "Constructiontypes",
+      "type": "object"
+    },
+    "separationLimits": {
+      "description": "Limits of the fire separation distance bands of the exterior walls [m]: the first band is up to and including the first limit, each next band below its limit, the last band at or beyond the last limit.",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "Separationlimits",
+      "type": "array"
+    },
+    "nonCombustibleAbove": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Buildings higher than this [m] must be non-combustible.",
+      "title": "Noncombustibleabove"
+    },
+    "aggregates": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Aggregate types the tables cover, with their names.",
+      "title": "Aggregates",
+      "type": "object"
+    },
     "ratings": {
-      "description": "Fire resistance ratings [h].",
+      "description": "Ratings of the concrete rows [h].",
       "items": {
         "exclusiveMinimum": 0,
         "type": "number"
@@ -26,80 +339,75 @@
       "title": "Ratings",
       "type": "array"
     },
-    "slabThickness": {
-      "description": "Least slab thickness [mm].",
-      "items": {
-        "exclusiveMinimum": 0,
-        "type": "number"
+    "thickness": {
+      "additionalProperties": {
+        "items": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "type": "array"
       },
-      "title": "Slabthickness",
-      "type": "array"
-    },
-    "slabCover": {
-      "description": "Least slab cover to the bars [mm].",
-      "items": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "title": "Slabcover",
-      "type": "array"
-    },
-    "wallThickness": {
-      "description": "Least wall thickness [mm].",
-      "items": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "title": "Wallthickness",
-      "type": "array"
-    },
-    "beamCover": {
-      "description": "Least beam cover to the main bars [mm].",
-      "items": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "title": "Beamcover",
-      "type": "array"
-    },
-    "beamWidth": {
-      "description": "Least beam width the beam covers hold for [mm].",
-      "exclusiveMinimum": 0,
-      "title": "Beamwidth",
-      "type": "number"
+      "description": "Least equivalent thickness of concrete walls, floors and roofs [mm] by aggregate type.",
+      "title": "Thickness",
+      "type": "object"
     },
     "columnSize": {
-      "description": "Least column dimension [mm].",
+      "additionalProperties": {
+        "items": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "description": "Least column dimension [mm] by aggregate type.",
+      "title": "Columnsize",
+      "type": "object"
+    },
+    "columnSizeFallback": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Aggregate types without a column row: the row used instead.",
+      "title": "Columnsizefallback",
+      "type": "object"
+    },
+    "masonryRatings": {
+      "description": "Ratings of the masonry rows [h].",
       "items": {
         "exclusiveMinimum": 0,
         "type": "number"
       },
-      "title": "Columnsize",
+      "title": "Masonryratings",
       "type": "array"
     },
-    "columnCoverPerHour": {
-      "description": "Column cover per hour of rating [mm].",
-      "exclusiveMinimum": 0,
-      "title": "Columncoverperhour",
-      "type": "number"
+    "masonryThickness": {
+      "additionalProperties": {
+        "items": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "description": "Least equivalent thickness of masonry [mm] by unit (clayUnfilled, clayFilled, concreteUnfilled, concreteFilled).",
+      "title": "Masonrythickness",
+      "type": "object"
     },
-    "columnCoverMax": {
-      "description": "Column cover need not exceed [mm].",
-      "exclusiveMinimum": 0,
-      "title": "Columncovermax",
-      "type": "number"
+    "advisory": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FireAdvisory"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
     "ratings",
-    "slabThickness",
-    "slabCover",
-    "wallThickness",
-    "beamCover",
-    "beamWidth",
-    "columnSize",
-    "columnCoverPerHour",
-    "columnCoverMax"
+    "thickness",
+    "columnSize"
   ],
   "title": "FireResistanceTable",
   "type": "object",

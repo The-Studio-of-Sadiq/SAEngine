@@ -700,19 +700,69 @@ FireHours = Literal[0, 1, 1.5, 2, 3, 4]
 
 
 class FireResistance(_Model):
-    """The fire resistance ratings the members are checked for (least sizes and covers); 0: not
-    checked."""
+    """The least fire resistance ratings the members are checked for, on top of those of the
+    construction type (Construction); 0: the construction type's only."""
 
     columns: FireHours = Field(
         default=0,
         title="Columns",
-        description="Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 "
-        "for the building's occupancy and construction type.",
+        description="Rating of the columns at least [h] (0: the construction type's rating). "
+        "The authority may ask for more than the construction type for hazardous uses.",
     )
-    beams: FireHours = Field(default=0, title="Beams", description="Rating of the beams [h].")
-    slabs: FireHours = Field(default=0, title="Slabs", description="Rating of the slabs [h].")
+    beams: FireHours = Field(
+        default=0, title="Beams", description="Rating of the beams at least [h]."
+    )
+    slabs: FireHours = Field(
+        default=0, title="Slabs", description="Rating of the slabs at least [h]."
+    )
     walls: FireHours = Field(
-        default=0, title="Walls", description="Rating of the structural walls [h]."
+        default=0, title="Walls", description="Rating of the structural walls at least [h]."
+    )
+
+
+# B18: the construction type and the concrete's aggregate type, generic settings that the fire
+# resistance checks (design/fire_resistance.py) and later the RC material rules and the site
+# planning checks read. The choices offered are those of the default code pack's
+# fireResistance table; a type another pack does not know is reported by the checks.
+def _construction_choices() -> tuple[list[str], list[str]]:
+    from saengine.codes.tables import builtin_table
+
+    types = builtin_table("fireResistance", DEFAULT_PACK).constructionTypes
+    return ["", *types], ["Not classified", *(t.label for t in types.values())]
+
+
+_CONSTRUCTION_IDS, _CONSTRUCTION_LABELS = _construction_choices()
+
+AggregateId = Literal["siliceous", "carbonate", "sandLightweight", "lightweight"]
+
+
+class Construction(_Model):
+    """How the building is built: its construction type (fire resistance) and the concrete's
+    coarse aggregate."""
+
+    constructionType: str = Field(
+        default="",
+        max_length=32,
+        title="Construction type",
+        description="Construction type by fire resistance (the code pack's fireResistance "
+        "table): it sets the ratings the columns, beams, slabs and walls are checked for. "
+        "Empty: not classified (only the ratings of Analysis model > Fire resistance).",
+        json_schema_extra={"enum": _CONSTRUCTION_IDS, "enumDescriptions": _CONSTRUCTION_LABELS},
+    )
+    aggregate: AggregateId = Field(
+        default="siliceous",
+        title="Concrete aggregate",
+        description="Type of the concrete's coarse aggregate: it sets the least concrete sizes "
+        "for a fire rating. Siliceous is the least favourable.",
+        json_schema_extra=_labels(["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight"]),
+    )
+    fireSeparation: float | None = Field(
+        default=None,
+        ge=0,
+        title="Fire separation distance [m]",
+        description="Distance of the exterior walls to the property line or the next building. "
+        "Given: the structural walls are checked for the larger of the interior and the "
+        "exterior bearing wall ratings. Empty: as interior bearing walls.",
     )
 
 
@@ -1202,8 +1252,8 @@ class Analysis(_Model):
     fireResistance: FireResistance = Field(
         default_factory=FireResistance,
         title="Fire resistance",
-        description="Ratings the concrete members' least sizes and covers are checked for "
-        "(the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).",
+        description="Least ratings the members' sizes are checked for, on top of those of "
+        "the construction type (Construction).",
     )
     supports: Literal["fixed", "soilSprings"] = Field(
         default="fixed",
@@ -1554,6 +1604,11 @@ class ProjectSettings(_Model):
         json_schema_extra={"deprecated": True},
     )
     occupancy: Occupancy = Field(default_factory=Occupancy)
+    construction: Construction = Field(
+        default_factory=Construction,
+        title="Construction",
+        description="Construction type and concrete aggregate (fire resistance).",
+    )
     site: Site = Field(default_factory=Site)
     seismic: Seismic = Field(default_factory=Seismic)
     wind: Wind = Field(default_factory=Wind)

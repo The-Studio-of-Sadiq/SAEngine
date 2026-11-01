@@ -96,8 +96,8 @@ TABLE_HELP: dict[str, str] = {
     "NFPA values the code leaves out (marked 'from memory, to be checked').",
     "liveReduction": "Reduction of floor live loads by influence area: the formula's "
     "constants, the least factors, the uses not reduced and the live load element factors KLL.",
-    "fireResistance": "Least sizes and covers of concrete members by fire resistance rating "
-    "(slabs, walls, beams, columns).",
+    "fireResistance": "Construction types and the fire resistance ratings of their elements; "
+    "least sizes of concrete (by aggregate type) and masonry members by rating; advisory covers.",
     "siteInvestigation": "Site investigation and soil chemistry: the number, spacing and depth "
     "of the borings, the bands that identify organic, expansive, collapsible, dispersive and "
     "soft soils, the corrosivity scores and ratings, the corrosive-site limits, and the "

@@ -235,6 +235,20 @@ def masonry_wall_checks(
     return method_module().wall_checks(geometry, bars, forces, m, fy, lateral, storeys)
 
 
+def fire_row(m: Masonry) -> dict[str, Any]:
+    """The wall's fire rating inputs (:mod:`saengine.design.fire_resistance`): the row of the
+    code pack's ``fireResistance.masonryThickness`` its units use ("clayUnfilled",
+    "clayFilled", "concreteUnfilled", ...; hollow units fully grouted are "filled") and whether
+    the wall's thickness is its equivalent thickness (solid units, or hollow units fully
+    grouted; otherwise the units' net volume is needed)."""
+    hollow = m.units == "hollow"
+    filled = hollow and m.grouting == "full"
+    return {
+        "row": f"{m.kind}{'Filled' if filled else 'Unfilled'}",
+        "equivalent": not hollow or filled,
+    }
+
+
 def describe(m: Masonry, reinforced: bool) -> str:
     """'Reinforced clay masonry, f'm 8.0 MPa (estimate), Em 6000 MPa, mortar M2, 50 % of the
     allowable stresses' for the report."""
@@ -254,6 +268,7 @@ __all__ = [
     "clause",
     "combinations_kind",
     "describe",
+    "fire_row",
     "masonry_of",
     "masonry_wall_checks",
     "method_module",

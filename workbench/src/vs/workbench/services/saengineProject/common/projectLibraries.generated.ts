@@ -6094,7 +6094,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				fireResistance: {
 					$ref: '#/$defs/FireResistance',
-					description: 'Ratings the concrete members\' least sizes and covers are checked for (the ratings of BNBC 2020 Part 4; the sizes of ACI 216.1).',
+					description: 'Least ratings the members\' sizes are checked for, on top of those of the construction type (Construction).',
 					title: 'Fire resistance',
 				},
 				supports: {
@@ -6277,6 +6277,45 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Codes',
+			type: 'object',
+		},
+		Construction: {
+			additionalProperties: false,
+			description: 'How the building is built: its construction type (fire resistance) and the concrete\'s\ncoarse aggregate.',
+			properties: {
+				constructionType: {
+					default: '',
+					description: 'Construction type by fire resistance (the code pack\'s fireResistance table): it sets the ratings the columns, beams, slabs and walls are checked for. Empty: not classified (only the ratings of Analysis model > Fire resistance).',
+					enum: ['', 'I-A', 'I-B', 'I-C', 'I-D', 'I-E', 'II-A', 'II-B', 'II-C', 'II-D', 'II-E'],
+					enumDescriptions: ['Not classified', 'Type I-A: non-combustible, 4 hour fire protected', 'Type I-B: non-combustible, 3 hour fire protected', 'Type I-C: non-combustible, 2 hour fire protected', 'Type I-D: non-combustible, 1 hour fire protected', 'Type I-E: non-combustible, unprotected', 'Type II-A: combustible, heavy timber', 'Type II-B: combustible, protected wood joist', 'Type II-C: combustible, unprotected wood joist', 'Type II-D: combustible, protected wood frame', 'Type II-E: combustible, unprotected wood frame'],
+					maxLength: 32,
+					title: 'Construction type',
+					type: 'string',
+				},
+				aggregate: {
+					default: 'siliceous',
+					description: 'Type of the concrete\'s coarse aggregate: it sets the least concrete sizes for a fire rating. Siliceous is the least favourable.',
+					enum: ['siliceous', 'carbonate', 'sandLightweight', 'lightweight'],
+					enumDescriptions: ['Siliceous', 'Carbonate', 'Sand-lightweight', 'Lightweight'],
+					title: 'Concrete aggregate',
+					type: 'string',
+				},
+				fireSeparation: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance of the exterior walls to the property line or the next building. Given: the structural walls are checked for the larger of the interior and the exterior bearing wall ratings. Empty: as interior bearing walls.',
+					title: 'Fire separation distance [m]',
+				},
+			},
+			title: 'Construction',
 			type: 'object',
 		},
 		CraneRunway: {
@@ -6920,29 +6959,29 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		FireResistance: {
 			additionalProperties: false,
-			description: 'The fire resistance ratings the members are checked for (least sizes and covers); 0: not\nchecked.',
+			description: 'The least fire resistance ratings the members are checked for, on top of those of the\nconstruction type (Construction); 0: the construction type\'s only.',
 			properties: {
 				columns: {
 					default: 0,
-					description: 'Rating of the columns [h] (0: not checked). Take it from BNBC 2020 Part 4 for the building\'s occupancy and construction type.',
+					description: 'Rating of the columns at least [h] (0: the construction type\'s rating). The authority may ask for more than the construction type for hazardous uses.',
 					enum: [0, 1, 1.5, 2, 3, 4],
 					title: 'Columns',
 				},
 				beams: {
 					default: 0,
-					description: 'Rating of the beams [h].',
+					description: 'Rating of the beams at least [h].',
 					enum: [0, 1, 1.5, 2, 3, 4],
 					title: 'Beams',
 				},
 				slabs: {
 					default: 0,
-					description: 'Rating of the slabs [h].',
+					description: 'Rating of the slabs at least [h].',
 					enum: [0, 1, 1.5, 2, 3, 4],
 					title: 'Slabs',
 				},
 				walls: {
 					default: 0,
-					description: 'Rating of the structural walls [h].',
+					description: 'Rating of the structural walls at least [h].',
 					enum: [0, 1, 1.5, 2, 3, 4],
 					title: 'Walls',
 				},
@@ -8010,6 +8049,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		occupancy: {
 			$ref: '#/$defs/Occupancy',
 		},
+		construction: {
+			$ref: '#/$defs/Construction',
+			description: 'Construction type and concrete aggregate (fire resistance).',
+		},
 		site: {
 			$ref: '#/$defs/Site',
 		},
@@ -8091,6 +8134,10 @@ export const DEFAULT_SETTINGS: object = {
 		use: 'residential',
 		cycloneShelter: false,
 		category: 'II',
+	},
+	construction: {
+		constructionType: '',
+		aggregate: 'siliceous',
 	},
 	site: {
 		location: 'dhaka',
