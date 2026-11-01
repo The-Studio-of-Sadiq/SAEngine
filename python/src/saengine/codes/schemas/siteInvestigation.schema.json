@@ -147,6 +147,68 @@
       "title": "ChlorideExposure",
       "type": "object"
     },
+    "ClassBand": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Above"
+        },
+        "atLeast": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atleast"
+        },
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "atMost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atmost"
+        },
+        "siteClass": {
+          "title": "Siteclass",
+          "type": "string"
+        }
+      },
+      "required": [
+        "siteClass"
+      ],
+      "title": "ClassBand",
+      "type": "object"
+    },
     "Collapsible": {
       "additionalProperties": false,
       "properties": {
@@ -753,6 +815,70 @@
       "title": "GeoHazards",
       "type": "object"
     },
+    "Liquefaction": {
+      "additionalProperties": false,
+      "description": "The code's own liquefaction procedure (the soil report's ``codePack`` method) and its\nscreening rule of thumb (applied with every method).",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "linearRdYoud",
+          "description": "Engine method: ``linearRdYoud``: CSR = csrFactor (amax/g) rd σv/σ'v with rd = 1 - rdSlope z, CRR of Youd et al. (2001) from the SPT, FL = CRR/CSR.",
+          "title": "Method",
+          "type": "string"
+        },
+        "rdSlope": {
+          "description": "rd = 1 - rdSlope z, z in m.",
+          "exclusiveMinimum": 0,
+          "title": "Rdslope",
+          "type": "number"
+        },
+        "csrFactor": {
+          "description": "CSR = csrFactor (amax/g) rd σv/σ'v.",
+          "exclusiveMinimum": 0,
+          "title": "Csrfactor",
+          "type": "number"
+        },
+        "fieldNLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soil with a field N above this does not liquefy (rule of thumb); empty: the code gives none.",
+          "title": "Fieldnlimit"
+        }
+      },
+      "required": [
+        "method",
+        "rdSlope",
+        "csrFactor"
+      ],
+      "title": "Liquefaction",
+      "type": "object"
+    },
     "Organic": {
       "additionalProperties": false,
       "properties": {
@@ -952,6 +1078,167 @@
       "title": "ScoreBand",
       "type": "object"
     },
+    "SiteClassification": {
+      "additionalProperties": false,
+      "description": "The site class of a borehole from the SPT and su over the top of the profile.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "harmonicMeans",
+          "description": "Engine method: harmonic means of N (field) and su over ``depth``, the softer class of the two.",
+          "title": "Method",
+          "type": "string"
+        },
+        "table": {
+          "default": "",
+          "description": "The table's short name used in the notes.",
+          "title": "Table",
+          "type": "string"
+        },
+        "depth": {
+          "description": "Depth classified [m].",
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "nMax": {
+          "description": "N counted at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Nmax",
+          "type": "number"
+        },
+        "suMax": {
+          "description": "su counted at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Sumax",
+          "type": "number"
+        },
+        "order": {
+          "description": "The classes, stiffest first.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Order",
+          "type": "array"
+        },
+        "byN": {
+          "items": {
+            "$ref": "#/$defs/ClassBand"
+          },
+          "minItems": 1,
+          "title": "Byn",
+          "type": "array"
+        },
+        "bySu": {
+          "items": {
+            "$ref": "#/$defs/ClassBand"
+          },
+          "minItems": 1,
+          "title": "Bysu",
+          "type": "array"
+        },
+        "rockClass": {
+          "description": "The class of rock near the surface without a Vs.",
+          "title": "Rockclass",
+          "type": "string"
+        },
+        "rockShallow": {
+          "description": "Rock within this depth [m] gives rockClass.",
+          "exclusiveMinimum": 0,
+          "title": "Rockshallow",
+          "type": "number"
+        },
+        "rockDeep": {
+          "description": "Rock-like material up to this depth [m] flags ...",
+          "exclusiveMinimum": 0,
+          "title": "Rockdeep",
+          "type": "number"
+        },
+        "rockDeepClass": {
+          "description": "... this class (it needs the Vs).",
+          "title": "Rockdeepclass",
+          "type": "string"
+        },
+        "rockVs": {
+          "description": "Vs [m/s] of rock (the stiffest class).",
+          "exclusiveMinimum": 0,
+          "title": "Rockvs",
+          "type": "number"
+        },
+        "soft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftSiteRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "liquefiableClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class of a site with liquefiable soil (S2).",
+          "title": "Liquefiableclass"
+        },
+        "liquefiableAssumed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class used meanwhile for a liquefiable site.",
+          "title": "Liquefiableassumed"
+        }
+      },
+      "required": [
+        "method",
+        "depth",
+        "nMax",
+        "suMax",
+        "order",
+        "byN",
+        "bySu",
+        "rockClass",
+        "rockShallow",
+        "rockDeep",
+        "rockDeepClass",
+        "rockVs"
+      ],
+      "title": "SiteClassification",
+      "type": "object"
+    },
     "SoftClay": {
       "additionalProperties": false,
       "properties": {
@@ -1032,6 +1319,51 @@
         "cuBelow"
       ],
       "title": "SoftClayRow",
+      "type": "object"
+    },
+    "SoftSiteRule": {
+      "additionalProperties": false,
+      "description": "A soft-clay site class (S1 of the default pack) the SPT can only flag.",
+      "properties": {
+        "siteClass": {
+          "title": "Siteclass",
+          "type": "string"
+        },
+        "suRange": {
+          "description": "su [kPa] of the soft clays.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Surange",
+          "type": "array"
+        },
+        "thickness": {
+          "description": "Least thickness of the layer [m].",
+          "exclusiveMinimum": 0,
+          "title": "Thickness",
+          "type": "number"
+        },
+        "pi": {
+          "description": "PI above which a clay counts.",
+          "exclusiveMinimum": 0,
+          "title": "Pi",
+          "type": "number"
+        }
+      },
+      "required": [
+        "siteClass",
+        "suRange",
+        "thickness",
+        "pi"
+      ],
+      "title": "SoftSiteRule",
       "type": "object"
     },
     "Sulphate": {
@@ -1295,6 +1627,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/GeoHazards"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "liquefaction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Liquefaction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "siteClassification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SiteClassification"
         },
         {
           "type": "null"

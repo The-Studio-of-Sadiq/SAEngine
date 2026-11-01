@@ -24,6 +24,7 @@ from saengine.library.soil import SoilReport, check, is_placeholder
 from saengine.soil import (
     bearing,
     chemistry,
+    code_data,
     investigation,
     lab,
     liquefaction,
@@ -300,8 +301,9 @@ def classify(
     Returns ``{"sites", "project", "amax", "amaxNote", "screenings", "liquefiable"}``: the
     boreholes' site classes (with their flags), the project's (:func:`site_class.governing`),
     amax, each borehole's screening and the ids of the boreholes with liquefiable layers. When
-    some borehole liquefies, the site is S2 of Table 6.2.13: those boreholes' classes become
-    SD (if stiffer) for the design spectrum, and amax is worked out again with SD's S.
+    some borehole liquefies, the site is the pack's liquefiable class (S2 of the default pack):
+    those boreholes' classes become the class assumed meanwhile (SD, if stiffer) for the design
+    spectrum, and amax is worked out again with that class's S.
     """
     design = report.design
     profiles = profiles if profiles is not None else [Profile(report, b) for b in report.boreholes]
@@ -316,7 +318,8 @@ def classify(
         amax, note = liquefaction.amax_from(design.liquefaction.pga, z, classes + extra)
         return amax, note, {p.id: liquefaction.screen(p, amax, note) for p in profiles}
 
-    # S2 raises amax (SD's S), which may make more boreholes liquefy: screen again until the
+    # S2 raises amax (the assumed class's S), which may make more boreholes liquefy: screen
+    # again until the
     # set of liquefiable boreholes no longer grows (it only grows, so this ends).
     sites = from_spt
     liquefiable: set[str] = set()
@@ -330,7 +333,8 @@ def classify(
             bh: site_class.flag_liquefaction(site, bh in liquefiable)
             for bh, site in from_spt.items()
         }
-        amax, amax_note, screenings = screen(sites, ["SD"])
+        assumed = site_class.liquefiable_assumed()
+        amax, amax_note, screenings = screen(sites, [assumed] if assumed else [])
     return {
         "sites": sites,
         "project": site_class.governing(sites),
@@ -339,6 +343,26 @@ def classify(
         "screenings": screenings,
         "liquefiable": sorted(liquefiable),
     }
+
+
+def _site_class_text() -> str:
+    """How the site class is found, with the pack in force's table."""
+    r = site_class.rules()
+    if r is None:
+        return code_data.not_covered("The site class from the SPT")
+    flags = [r.soft.siteClass if r.soft else None, r.liquefiableClass, r.rockDeepClass]
+    flags = [f for f in flags if f]
+    listing = ", ".join(flags[:-1]) + f" and {flags[-1]}" if len(flags) > 1 else "".join(flags)
+    liquefiable = (
+        f" ({r.liquefiableClass} when the screening finds liquefiable soil: "
+        f"{r.liquefiableAssumed} is used meanwhile)"
+        if r.liquefiableClass and r.liquefiableAssumed
+        else ""
+    )
+    return (
+        f"{r.clause}: harmonic mean N (field) and su over the top {float(r.depth):g} m; "
+        f"{listing} are flags{liquefiable}"
+    )
 
 
 def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, Any]:
@@ -411,8 +435,8 @@ def _soil_report(
             skipped.append(p.id)
     if liquefiable:
         notes.append(
-            site_class.S2_NOTE.format(
-                cls=project_site["class"] or "SD", clause=site_class.site_specific_clause()
+            site_class.s2_note(
+                project_site["class"] or site_class.liquefiable_assumed() or "",
             )
             + " Shallow foundations on liquefiable layers need ground improvement or piles "
             "through them."
@@ -445,10 +469,8 @@ def _soil_report(
         "methods": {
             "spt": profiles[0].spt_method if profiles else SPT_METHODS[design.practice],
             "bearing": bearing.method_text(design),
-            "liquefaction": liquefaction.METHODS[design.liquefactionMethod],
-            "siteClass": "BNBC 2020 Table 6.2.13: harmonic mean N (field) and su over the top "
-            "30 m; S1, S2 and SE are flags (S2 when the screening finds liquefiable soil: SD "
-            "is used meanwhile)",
+            "liquefaction": liquefaction.method_text(design.liquefactionMethod),
+            "siteClass": _site_class_text(),
             "settlement": (
                 f"Settlement criterion of qa: {design.allowableSettlement:g} mm (design option); "
                 + permissible_text("isolated")
@@ -612,8 +634,9 @@ def footing_settlement(
     q_kpa: float,
     foundation: str = "isolated",
 ) -> dict[str, Any]:
-    """Settlement of a footing at a borehole under a net pressure (for the editor), with BNBC
-    Table 6.3.8's permissible value for the ``foundation`` ("isolated" or "raft")."""
+    """Settlement of a footing at a borehole under a net pressure (for the editor), with the
+    code pack's permissible value for the ``foundation`` ("isolated" or "raft"; BNBC 2020
+    Table 6.3.8 in the default pack)."""
     if foundation not in ("isolated", "raft"):
         return {"problems": [f"Unknown foundation type {foundation!r}: isolated or raft."]}
     report = parse(soil_text)

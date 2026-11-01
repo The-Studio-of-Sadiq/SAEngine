@@ -1,4 +1,4 @@
-"""Liquefaction screening from the SPT: Idriss & Boulanger (2014) or BNBC 2020 Sec 3.9.5.
+"""Liquefaction screening from the SPT: Idriss & Boulanger (2014) or the code pack's procedure.
 
 ``design.liquefactionMethod`` picks the triggering procedure.
 
@@ -22,17 +22,18 @@ factor):
   37.
 - ``FS = CRR(M=7.5, σ'v=1) MSF Kσ / CSR``; the test is liquefiable when FS ≤ 1.
 
-"bnbc2020": BNBC 2020 Part 6 Sec 3.9.5:
+"codePack": the code pack's own procedure (``siteInvestigation.liquefaction``, method
+``linearRdYoud``; BNBC 2020 Part 6 Sec 3.9.5 in the default pack; the former id "bnbc2020" is
+read as this one):
 
-- ``FL = CRR/CSR`` (Eq 6.3.6), liquefaction "is said to take place" when FL < 1.
-- ``τmax = (amax/g) σv rd`` (Eq 6.3.7a) with ``rd = 1 - 0.015 z``, z in m (Eq 6.3.7b), and
-  ``CSR = τmax/σ'v = (amax/g) rd σv/σ'v`` (Eq 6.3.8). The code obtains Eq 6.3.8 by "division of
-  both sides of Eq. 6.3.7a by the effective vertical stress", so it carries no 0.65 factor:
-  it is the peak stress ratio, not Seed & Idriss's equivalent uniform 0.65 τmax. (In the
-  extracted text Eq 6.3.8 carries no numeral, while the 0.015 of the adjacent Eq 6.3.7b
-  survives; the derivation sentence is the main evidence, and a visual check of the printed
-  page would settle it.) The CRR curve below is calibrated against
-  0.65 τmax, so the code's CSR is 1/0.65 = 1.54 times that basis: on the safe side.
+- ``FL = CRR/CSR``, liquefaction "is said to take place" when FL < 1 (the default pack's
+  Eq 6.3.6).
+- ``CSR = csrFactor (amax/g) rd σv/σ'v`` with ``rd = 1 - rdSlope z``, z in m (the default pack:
+  Eqs 6.3.7a-6.3.8, csrFactor 1 and rdSlope 0.015). The default pack's code obtains Eq 6.3.8 by
+  "division of both sides of Eq. 6.3.7a by the effective vertical stress", so it carries no
+  0.65 factor: it is the peak stress ratio, not Seed & Idriss's equivalent uniform 0.65 τmax.
+  The CRR curve below is calibrated against 0.65 τmax, so that CSR is 1/0.65 = 1.54 times that
+  basis: on the safe side.
 - CRR "can be obtained by several procedures" and is "most commonly" taken from the SPT; the
   code prescribes none. SAEngine uses the SPT base curve of Youd et al. (2001), "Liquefaction
   resistance of soils: summary report from the 1996 NCEER and 1998 NCEER/NSF workshops",
@@ -46,26 +47,31 @@ factor):
   7.5, the value above it); ``Kσ = (σ'v/pa)^(f - 1) ≤ 1`` with f = 0.7 (the workshop's value
   for relative densities of about 40-60 %). ``FL = CRR7.5 MSF Kσ / CSR``.
 
-BNBC 3.9.5's screening is applied with both methods, as notes and flags of each test:
+A pack without the procedure does not cover it: the result says so and Idriss & Boulanger
+(2014) is used.
+
+The code pack's screening is applied with both methods, as notes and flags of each test (the
+default pack's Sec 3.9.5):
 
 - "Sandy and silty soils tend to liquefy; clay soils do not undergo liquefaction except the
   sensitive clays": clay, plastic silt (PI ≥ 7, Boulanger & Idriss 2006) and organic soil are
   not screened; the soil report does not record sensitivity, so a note asks to check for
   sensitive clay.
-- "As a rule of thumb, any soil that has a SPT value higher than 30 will not liquefy": applied
-  to the field N as measured (Sec 3.9.5 does not say which N; the "SPT value" of BNBC's site
-  classification, Sec 2.5.3.2, is the field N without correction). With "bnbc2020" a test with
-  N > 30 is not liquefiable; with Idriss & Boulanger the computed FS decides and the test is
-  flagged.
-- Fine-grained soil (silty clay, clayey silt) is susceptible (Finn et al. 1994, as BNBC quotes
-  them) when the fraction finer than 0.005 mm ≤ 10 %, LL ≤ 36 %, the natural water content ≤
-  0.9 LL and the liquidity index ≤ 0.75. A clay or plastic silt layer whose laboratory data
-  give all four and meet them is screened like sand; one that fails any is not susceptible;
-  with some data missing the layer stays non-liquefiable and the note says what is missing.
+- The rule of thumb ``fieldNLimit`` (the default pack: "any soil that has a SPT value higher
+  than 30 will not liquefy"): applied to the field N as measured (the default pack's code does
+  not say which N; the "SPT value" of its site classification is the field N without
+  correction). With "codePack" a test above it is not liquefiable; with Idriss & Boulanger the
+  computed FS decides and the test is flagged. A pack without the rule applies none.
+- Fine-grained soil (silty clay, clayey silt) is susceptible (Finn et al. 1994, as the default
+  pack's code quotes them) when the fraction finer than 0.005 mm ≤ 10 %, LL ≤ 36 %, the natural
+  water content ≤ 0.9 LL and the liquidity index ≤ 0.75. A clay or plastic silt layer whose
+  laboratory data give all four and meet them is screened like sand; one that fails any is not
+  susceptible; with some data missing the layer stays non-liquefiable and the note says what is
+  missing.
 
 Only saturated soil (below the water table measured in the borehole) within 20 m of the
 ground is screened, with both methods (the depth range of the LPI and of the field data
-behind both CRR curves; BNBC states none). A layer without a fines content is taken as clean
+behind both CRR curves; the default pack's code states none). A layer without a fines content is taken as clean
 (FC = 0 %, no fines correction, which errs on the safe side) and silt as FC = 35 %; the result
 says so.
 
@@ -76,18 +82,20 @@ deepest test to the bottom of its layer), never below the bottom of the borehole
 0: very low, up to 5: low, 5-15: high, above 15: very high risk.
 
 Peak ground acceleration amax at the ground surface: ``design.liquefaction.pga`` when given,
-else ``(2/3) Z S`` from the project settings. BNBC 3.9.5 says amax "should be taken from
-seismic zoning map" and that "the site amplification factor is required to estimate amax for a
-given site properly". The zone coefficient Z of the map "represents the maximum considered
-peak ground acceleration (PGA) on very stiff soil/rock (site class SA)" (Sec 2.5.4.2, Table
-6.2.14); the soil factor S of Table 6.2.16 for the site class amplifies it to the surface.
-Sec 2.5.3.1 asks for the liquefaction potential to be "evaluated for design earthquake ground
-motions", and Sec 2.5.13.2 gives the "expected horizontal peak ground acceleration (in g) for
-design" as ``(2/3) Z S``; that is the default. The alternatives, given in the result: the
-maximum considered ``Z S`` (the zero-period value of the elastic spectrum, more severe) and Z
-alone (the map's rock value without the amplification 3.9.5 asks for); enter either as
+else ``pgaFactor Z S`` from the project settings and the pack's ``seismic`` table (the default
+pack: (2/3) Z S). The default pack's Sec 3.9.5 says amax "should be taken from seismic zoning
+map" and that "the site amplification factor is required to estimate amax for a given site
+properly". The zone coefficient Z of the map "represents the maximum considered peak ground
+acceleration (PGA) on very stiff soil/rock (site class SA)" (Sec 2.5.4.2, Table 6.2.14); the
+soil factor S of Table 6.2.16 for the site class amplifies it to the surface. Sec 2.5.3.1 asks
+for the liquefaction potential to be "evaluated for design earthquake ground motions", and Sec
+2.5.13.2 gives the "expected horizontal peak ground acceleration (in g) for design" as
+``(2/3) Z S``; that is the default. The alternatives, given in the result: the maximum
+considered ``Z S`` (the zero-period value of the elastic spectrum, more severe) and Z alone
+(the map's rock value without the amplification asked for); enter either as
 ``design.liquefaction.pga`` to use it. The site class is the softest of the project
-settings', the boreholes' and, when liquefiable layers make the site S2, SD.
+settings', the boreholes' and, when liquefiable layers make the site S2, the class assumed
+meanwhile (:func:`saengine.soil.site_class.liquefiable_assumed`).
 """
 
 from __future__ import annotations
@@ -95,13 +103,11 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from saengine.library import bnbc
+from saengine.soil import code_data
 from saengine.soil.profile import PA, Profile, SoilLayer
 
 DEPTH_LIMIT = 20.0  # m
 FS_CAP = 5.0
-#: BNBC 3.9.5's rule of thumb: soil with a higher SPT value does not liquefy.
-BNBC_N_LIMIT = 30
 #: Youd et al. (2001): clean granular soil with (N1)60cs at least this is too dense to liquefy.
 YOUD_N_LIMIT = 30.0
 #: Exponent f of Youd et al.'s Kσ = (σ'v/pa)^(f - 1).
@@ -179,12 +185,22 @@ def point(
     }
 
 
-# ─────────────────────────────── BNBC 2020 Sec 3.9.5 ───────────────────────────────
+# ─────────────────────────────── the code pack's procedure ───────────────────────────────
+
+#: The method of the code pack's own procedure (``design.liquefactionMethod``).
+CODE_METHOD = "codePack"
+#: Former method ids, read as the current ones (the default pack's id named its procedure).
+ALIASES = {"bnbc2020": CODE_METHOD}
 
 
-def rd_bnbc(z: float) -> float:
-    """rd = 1 - 0.015 z, z in m (BNBC 2020 Eq 6.3.7b)."""
-    return 1 - 0.015 * z
+def method_id(method: str) -> str:
+    """The current id of a liquefaction method (a former id mapped)."""
+    return ALIASES.get(method, method)
+
+
+def rd_linear(z: float, slope: float) -> float:
+    """rd = 1 - slope z, z in m (the default pack: slope 0.015, BNBC 2020 Eq 6.3.7b)."""
+    return 1 - slope * z
 
 
 def youd_fines(fc: float) -> tuple[float, float]:
@@ -213,12 +229,23 @@ def k_sigma_youd(sigma_eff: float, f: float = YOUD_F) -> float:
     return min(1.0, (sigma_eff / PA) ** (f - 1))
 
 
-def point_bnbc(
-    z: float, n60: float, sigma_v: float, sigma_eff: float, fc: float, amax: float, mw: float
+def point_code(
+    z: float,
+    n60: float,
+    sigma_v: float,
+    sigma_eff: float,
+    fc: float,
+    amax: float,
+    mw: float,
+    rules: Any = None,
 ) -> dict[str, float | None]:
-    """Every quantity of BNBC 3.9.5 with the CRR of Youd et al. (2001) at one test."""
-    r_d = rd_bnbc(z)
-    csr = amax * r_d * sigma_v / sigma_eff
+    """Every quantity of the code pack's procedure (``rules``, default the pack in force's
+    ``siteInvestigation.liquefaction``) with the CRR of Youd et al. (2001) at one test."""
+    rules = rules if rules is not None else code_data.liquefaction()
+    if rules is None:
+        raise ValueError(code_data.not_covered("The code's liquefaction procedure"))
+    r_d = rd_linear(z, float(rules.rdSlope))
+    csr = float(rules.csrFactor) * amax * r_d * sigma_v / sigma_eff
     cn = min(1.7, math.sqrt(PA / sigma_eff))
     n160 = cn * n60
     alpha, beta = youd_fines(fc)
@@ -247,26 +274,46 @@ def point_bnbc(
 # ─────────────────────────────── amax ───────────────────────────────
 
 
+def _fraction(value: float) -> str:
+    """A factor as the code writes it: "(2/3)" for two thirds, else the number."""
+    return "(2/3)" if abs(value - 2 / 3) < 1e-12 else f"{value:g}"
+
+
 def amax_from(
     pga: float | None, z: float | None, site_classes: list[str]
 ) -> tuple[float | None, str]:
-    """amax [g] and how it was found."""
+    """amax [g] and how it was found: ``pgaFactor Z S`` with the soil factor S of the softest
+    of ``site_classes`` (the pack's ``seismic`` table)."""
     if pga is not None:
         return pga, f"amax = {pga:g} g (soil report)"
     if z is None:
         return None, "no amax: give the PGA or the seismic zone in the project settings"
-    classes = [c for c in site_classes if c in bnbc.SITE_FACTORS]
+    seismic = code_data.code_context.table("seismic")
+    factors = {k: float(v.S) for k, v in seismic.siteClasses.items()}
+    classes = [c for c in site_classes if c in factors]
     if not classes:
-        classes = ["SD"]
-    cls = max(classes, key=lambda c: bnbc.SITE_FACTORS[c].s)
-    s = bnbc.SITE_FACTORS[cls].s
-    value = 2 / 3 * z * s
+        from saengine.soil.site_class import liquefiable_assumed
+
+        assumed = liquefiable_assumed()
+        classes = [assumed] if assumed in factors else [max(factors, key=factors.__getitem__)]
+    cls = max(classes, key=lambda c: factors[c])
+    s = factors[cls]
+    factor = float(seismic.pgaFactor)
+    value = factor * z * s
+    rules = code_data.liquefaction()
+
+    def src(key: str) -> str:
+        return code_data.source(rules, key)
+
+    pga_clause = f" ({src('pga')})" if src("pga") else ""
+    zone = f", {src('zone')}" if src("zone") else ""
+    table = f" of {src('siteFactor')}" if src("siteFactor") else ""
+    asked = f", {src('amplification')}" if src("amplification") else ""
+    f = _fraction(factor)
     return value, (
-        f"amax = (2/3) Z S = (2/3) × {z:g} × {s:g} = {value:.3f} g, the design earthquake's "
-        "PGA (BNBC 2020 Sec 2.5.13.2; Sec 2.5.3.1 asks for liquefaction under design "
-        f"earthquake ground motions) (Z = {z:g}, seismic zoning map: the maximum considered PGA "
-        f"on rock, Sec 2.5.4.2 and Table 6.2.14; site amplification S = {s:g} of Table 6.2.16 "
-        f"for site class {cls} applied, as Sec 3.9.5 asks; the maximum considered Z S would be "
+        f"amax = {f} Z S = {f} × {z:g} × {s:g} = {value:.3f} g, the design earthquake's "
+        f"PGA{pga_clause} (Z = {z:g}{zone}; site amplification S = {s:g}{table} "
+        f"for site class {cls} applied{asked}; the maximum considered Z S would be "
         f"{z * s:.3f} g, Z alone {z:g} g)"
     )
 
@@ -290,7 +337,8 @@ def _w_integral(a: float, b: float) -> float:
 
 
 def finn(layer: SoilLayer) -> tuple[bool | None, str]:
-    """Finn et al. (1994) susceptibility of fine-grained soil, as BNBC 3.9.5 quotes it:
+    """Finn et al. (1994) susceptibility of fine-grained soil (as the default pack's code
+    quotes it):
     True / False when the data decide it, None when some are missing; and the reason."""
     ll, w, pl = layer.ll, layer.w, layer.pl
     li = None
@@ -334,10 +382,10 @@ def susceptible(layer: SoilLayer | None) -> tuple[bool, str | None]:
     verdict, why = finn(layer)
     if verdict:
         return True, None
-    base = (
-        f"{layer.soil_type}: non-liquefiable (clay-like; BNBC 3.9.5: clays do not liquefy "
-        "except sensitive clays)"
+    clays = code_data.source(
+        code_data.liquefaction(), "clays", "clays do not liquefy except sensitive clays"
     )
+    base = f"{layer.soil_type}: non-liquefiable (clay-like; {clays})"
     return False, f"{base}; {why}"
 
 
@@ -352,9 +400,17 @@ def fines_of(layer: SoilLayer) -> tuple[float, str | None]:
 def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, Any]:
     """FS per SPT test, the liquefiable layers and the LPI of the borehole."""
     method = profile.design.liquefactionMethod
-    bnbc_method = method == "bnbc2020"
+    rules = code_data.liquefaction()
+    code_method = method_id(method) == CODE_METHOD and rules is not None
+    n_limit = None if rules is None else rules.fieldNLimit
+    rule_of_thumb = code_data.source(rules, "fieldNLimit", "the code's rule of thumb")
     mw = profile.design.liquefaction.magnitude
     notes = [amax_note]
+    if method_id(method) == CODE_METHOD and rules is None:
+        notes.append(
+            code_data.not_covered("The code's liquefaction procedure")
+            + ": Idriss & Boulanger (2014) is used"
+        )
     if amax is None:
         return {
             "points": [],
@@ -383,12 +439,9 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
             "N60": round(test.n60, 1),
         }
         flags: list[str] = []
-        dense = test.n > BNBC_N_LIMIT
+        dense = n_limit is not None and test.n > n_limit
         if dense:
-            flags.append(
-                f"field N = {test.n} > {BNBC_N_LIMIT}: does not liquefy by BNBC 3.9.5's rule "
-                "of thumb"
-            )
+            flags.append(f"field N = {test.n} > {n_limit:g}: does not liquefy by {rule_of_thumb}")
         ok, why_not = susceptible(layer)
         if layer is not None and layer.behaviour == "cohesive":
             clay_seen = True
@@ -401,7 +454,7 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
             reason = "deeper than 20 m"
         elif not ok:
             reason = why_not
-        elif bnbc_method and dense:
+        elif code_method and dense:
             reason = flags[0]
         if reason is not None:
             points.append(
@@ -419,17 +472,17 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
         if note:
             assumed.add(f"layer {layer.index + 1}: {note}")
         args = (test.depth, test.n60, test.sigma_v, test.sigma_v_eff, fc, amax, mw)
-        values: dict[str, Any] = point_bnbc(*args) if bnbc_method else point(*args)
+        values: dict[str, Any] = point_code(*args, rules) if code_method else point(*args)
         fs = values["fs"]
-        # BNBC 2020 Sec 3.9.5: "If the factor of safety FL is ≤ 1, liquefaction is said to take
-        # place"; the same boundary for both methods.
+        # FS ≤ 1 is liquefiable, the same boundary for both methods (the default pack's code:
+        # "If the factor of safety FL is ≤ 1, liquefaction is said to take place").
         liquefiable = fs <= 1.0
-        if bnbc_method and values["crr"] is None:
+        if code_method and values["crr"] is None:
             flags.append("(N1)60cs ≥ 30: too dense to liquefy (Youd et al. 2001)")
         if liquefiable and dense:
             flagged.append(
-                f"{test.depth:.1f} m: FS = {fs:.2f} although the field N = {test.n} > 30, which "
-                "BNBC 3.9.5's rule of thumb takes as non-liquefiable: check"
+                f"{test.depth:.1f} m: FS = {fs:.2f} although the field N = {test.n} > "
+                f"{n_limit:g}, which {rule_of_thumb} takes as non-liquefiable: check"
             )
         # The test's share of its layer for the LPI: never below the layer, the bottom of the
         # log or 20 m (the deepest test stands for the rest of its layer only).
@@ -467,16 +520,21 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
         )
     notes += sorted(assumed)
     notes.append(
-        "BNBC 2020 Sec 3.9.5 screening: sandy and silty soils are screened; clays do not "
-        "liquefy except sensitive clays"
+        (f"{rules.clause} screening" if rules is not None and rules.clause else "Screening")
+        + ": sandy and silty soils are screened; clays do not liquefy except sensitive clays"
         + (
             " (the soil report does not record sensitivity: check for sensitive clay)"
             if clay_seen
             else ""
         )
-        + "; field N > 30 does not liquefy (the code's rule of thumb"
-        + (", applied" if bnbc_method else ", flagged; the computed FS decides")
-        + "); fine-grained soil by Finn et al. 1994 where the laboratory data exist."
+        + (
+            f"; field N > {n_limit:g} does not liquefy (the code's rule of thumb"
+            + (", applied" if code_method else ", flagged; the computed FS decides")
+            + ")"
+            if n_limit is not None
+            else ""
+        )
+        + "; fine-grained soil by Finn et al. 1994 where the laboratory data exist."
     )
     notes += flagged
     # The liquefiable ranges: the failing tests' shares, within their layers, below the water
@@ -497,7 +555,7 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
         for index, top, bottom in merged
     ]
     category = lpi_category(lpi)
-    limit = "FS < 1" if bnbc_method else "FS ≤ 1"
+    limit = "FS < 1" if code_method else "FS ≤ 1"
     summary = (
         f"{len(layers)} liquefiable range(s) ({limit}); LPI = {lpi:.1f} ({category} risk, "
         "Iwasaki 1982)"
@@ -517,24 +575,45 @@ def screen(profile: Profile, amax: float | None, amax_note: str) -> dict[str, An
     }
 
 
-METHODS = {
-    "idrissBoulanger2014": (
-        "Idriss & Boulanger (2014) SPT procedure: CSR = 0.65 (σv/σ'v) amax rd; (N1)60cs with "
-        "the fines correction and the iterative CN; CRR for M 7.5 and 1 atm with MSF and Kσ; "
-        "FS = CRR/CSR, liquefiable when FS ≤ 1; BNBC 2020 Sec 3.9.5 screening (clays, field N "
-        "> 30, Finn et al. 1994) as flags; LPI of Iwasaki et al. (1982) over the top 20 m."
-    ),
-    "bnbc2020": (
-        "BNBC 2020 Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), liquefaction when FL < 1; CSR = "
-        "(amax/g) rd σv/σ'v (Eq 6.3.8, no 0.65 factor in the code), rd = 1 - 0.015 z (Eq "
-        "6.3.7b). CRR: Youd et al. 2001, permitted by BNBC 3.9.5 'several procedures': "
-        "(N1)60 = (pa/σ'v)^0.5 N60 ≤ 1.7 N60, the fines correction α + β (N1)60, CRR7.5 of "
-        "the SPT base curve ((N1)60cs ≥ 30 too dense to liquefy), MSF = 10^2.24/M^2.56 "
-        "(Idriss), Kσ = (σ'v/pa)^(0.7 - 1) ≤ 1. Screening of 3.9.5: clays do not liquefy "
-        "except sensitive clays; field N > 30 does not liquefy; Finn et al. 1994 for "
-        "fine-grained soil. LPI of Iwasaki et al. (1982) over the top 20 m."
-    ),
-}
+def method_text(method: str) -> str:
+    """How a liquefaction method works, with the pack in force's procedure and clauses."""
+    rules = code_data.liquefaction()
+    n_limit = None if rules is None else rules.fieldNLimit
+    screening = (
+        f"{rules.clause} screening (clays, "
+        + (f"field N > {n_limit:g}, " if n_limit is not None else "")
+        + "Finn et al. 1994)"
+        if rules is not None
+        else "screening (clays, Finn et al. 1994)"
+    )
+    lpi = "LPI of Iwasaki et al. (1982) over the top 20 m."
+    if method_id(method) != CODE_METHOD:
+        return (
+            "Idriss & Boulanger (2014) SPT procedure: CSR = 0.65 (σv/σ'v) amax rd; (N1)60cs "
+            "with the fines correction and the iterative CN; CRR for M 7.5 and 1 atm with MSF "
+            f"and Kσ; FS = CRR/CSR, liquefiable when FS ≤ 1; {screening} as flags; {lpi}"
+        )
+    if rules is None:
+        return (
+            code_data.not_covered("The code's liquefaction procedure")
+            + ": Idriss & Boulanger (2014) is used. "
+            + method_text("idrissBoulanger2014")
+        )
 
-#: The default method's text (kept for the callers that name it without the design options).
-METHOD = METHODS["idrissBoulanger2014"]
+    def src(key: str) -> str:
+        return code_data.source(rules, key)
+
+    factor = float(rules.csrFactor)
+    csr = "(amax/g)" if factor == 1 else f"{factor:g} (amax/g)"
+    return (
+        f"{src('section') or rules.clause}: FL = CRR/CSR ({src('fs')}), liquefaction when FL "
+        f"< 1; CSR = {csr} rd σv/σ'v ({src('csr')}"
+        + (", no 0.65 factor in the code" if factor == 1 else "")
+        + f"), rd = 1 - {float(rules.rdSlope):g} z ({src('rd')}). CRR: Youd et al. 2001 (the "
+        "code permits 'several procedures'): (N1)60 = (pa/σ'v)^0.5 N60 ≤ 1.7 N60, the fines "
+        "correction α + β (N1)60, CRR7.5 of the SPT base curve ((N1)60cs ≥ 30 too dense to "
+        "liquefy), MSF = 10^2.24/M^2.56 (Idriss), Kσ = (σ'v/pa)^(0.7 - 1) ≤ 1. Screening: "
+        "clays do not liquefy except sensitive clays"
+        + (f"; field N > {n_limit:g} does not liquefy" if n_limit is not None else "")
+        + f"; Finn et al. 1994 for fine-grained soil. {lpi}"
+    )

@@ -31,7 +31,7 @@ def table() -> Any | None:
 
 
 def code_name() -> str:
-    """The display name of the pack in force (e.g. "BNBC 2020")."""
+    """The display name of the pack in force (the default pack's "BNBC 2020")."""
     pack = code_context.current()
     return pack.name or pack.id
 
@@ -39,6 +39,26 @@ def code_name() -> str:
 def not_covered(what: str) -> str:
     """The note of a check the pack in force has no data for."""
     return f"{what}: not covered by the code pack {code_name()}"
+
+
+def liquefaction() -> Any | None:
+    """The pack's own liquefaction procedure and screening (``siteInvestigation.
+    liquefaction``), or None when the pack does not cover them."""
+    found = table()
+    return None if found is None else found.liquefaction
+
+
+def site_classification() -> Any | None:
+    """The pack's site classification by the SPT (``siteInvestigation.siteClassification``),
+    or None when the pack does not cover it."""
+    found = table()
+    return None if found is None else found.siteClassification
+
+
+def source(group: Any, key: str, default: str = "") -> str:
+    """The clause ``key`` of a group's ``sources`` (``default`` when it names none)."""
+    sources = getattr(group, "sources", None) or {}
+    return sources.get(key, default)
 
 
 def band(rows: list[Any], value: float) -> Any | None:

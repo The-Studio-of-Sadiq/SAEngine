@@ -2,8 +2,9 @@
 
 The at-rest coefficient of ground tanks (Jaky's K0 = 1 - sin φ') is in
 :mod:`saengine.plumbing.tanks`, which applies it layer by layer; this module holds the active
-pressure of a wall that may move away from the soil (a cantilever retaining wall). BNBC 2020
-Part 6 Sec 2.6.5 asks for the lateral soil pressure without prescribing the theory.
+pressure of a wall that may move away from the soil (a cantilever retaining wall). The code
+asks for the lateral soil pressure without prescribing the theory (the default pack's BNBC
+2020 Part 6 Sec 2.6.5).
 """
 
 from __future__ import annotations
