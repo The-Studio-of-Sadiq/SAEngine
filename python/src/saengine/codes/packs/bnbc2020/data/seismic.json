@@ -931,6 +931,37 @@
     "clause": "Part 6 Sec 1.7.3.8(d)(i) (p. 505) and Sec 2.5.5.6.2 (p. 625)",
     "wingsClause": "Part 6 Sec 1.7.3.8(d)(ii) (p. 506)"
   },
+  "timeHistory": {
+    "method": "periodRange",
+    "minimumRecords": 3,
+    "periodLower": 0.2,
+    "periodUpper": 1.5,
+    "spectrumDamping": 0.05,
+    "singleRatio": 1.0,
+    "pairRatio": 1.3,
+    "meanFrom": 7,
+    "baseShearShare": 1.0,
+    "scaleDrifts": true,
+    "simultaneousPairs": true,
+    "targets": {
+      "linear": {
+        "R": null,
+        "I": null
+      },
+      "nonlinear": {
+        "R": 1.0,
+        "I": 1.0
+      }
+    },
+    "clauses": {
+      "linear": "Part 6 Sec 2.5.10 (p. 636)",
+      "records": "Part 6 Sec 2.5.10.2 (pp. 636-637)",
+      "response": "Part 6 Sec 2.5.10.3 (p. 637)",
+      "drift": "Part 6 Sec 2.5.10.3 and 2.5.7.7 (pp. 637, 631)",
+      "pairs": "Part 6 Sec 2.5.13.1(c) (p. 645)",
+      "nonlinearRecords": "Part 6 Sec 2.5.11.2 (pp. 639-640)"
+    }
+  },
   "liveShare": 0.25,
   "heavyLiveLimit": 3.0,
   "heavyLiveShare": 0.5,
@@ -976,7 +1007,8 @@
     "irregularities": "BNBC 2020 Part 6 Sec 2.5.5.3 (pp. 617-618) with Tables 6.1.4-6.1.5 (pp. 490-491) and Figures 6.2.27-6.2.28 (pp. 619-621): re-entrant projections 15 %; openings 50 % of the gross enclosed area or a 50 % change of diaphragm stiffness; soft storey 70 % of the storey above or 80 % of the three above, extreme 60 % / 70 %; weak storey 80 % of the storey above, extreme 65 %; in-plane offset greater than the element's length; vertical geometric 130 % of an adjacent storey (Table 6.1.4 type III and Figure 6.2.28(c), L2 > 1.3 L1), a one-storey penthouse not considered. Mass: Sec 2.5.5.3.2(ii) prints twice an adjacent storey (also Figure 6.2.28(b)), Table 6.1.4 type II prints 150 percent of an adjacent storey; the more conservative 150 % is used (owner decision 2026-11-01 on apparent misprints), a roof lighter than the floor below not considered. nonparallelTolerance (5 degrees off the major axes) is SAEngine practice, not BNBC (the code gives no tolerance). strength: the storey lateral strength of the weak storey check estimated by the vertical elements' nominal shear strength, Vc = 0.17 lambda sqrt(f'c) bw d (Sec 6.4.2.1.1, Eq. 6.6.49, p. 922; walls Sec 6.4.8.5 with d = 0.8 lw, Sec 6.4.8.4, p. 936) plus the ties; d = 0.8 h of a column is SAEngine practice, not BNBC; the flexural strength of the elements can govern and is not counted (an estimate)",
     "dynamicAnalysis": "BNBC 2020 Part 6 Sec 2.5.8.1 (p. 633): dynamic analysis for regular buildings above 40 m in Zones 2-4 and 90 m in Zone 1, irregular buildings (Sec 2.5.5.3) above 12 m in Zones 2-4 and 40 m in Zone 1, recommended for irregular buildings below 40 m in Zone 1; Sec 2.5.6 (p. 626): the equivalent static method only where T < 4 TC and 2 s in both directions and the building has no irregularity in elevation",
     "softStorey": "BNBC 2020 Part 6 Sec 2.5.17 (p. 666), approach (2), when Omega0 is not included: the soft storey's columns and beams for 2.5 times the storey shears and moments of the earthquake analysis (infill neglected), its symmetrically placed shear walls for 1.5 times the lateral shear; approach (1), a dynamic analysis with the infill walls and the members' inelastic deformation, is not done by SAEngine",
-    "diaphragmConnections": "BNBC 2020 Part 6 Sec 1.7.3.8(d)(i) (p. 505) and Sec 2.5.5.6.2 (p. 625): Seismic Design Category D with plan irregularity type I.a, I.b, II, III or IV or vertical type IV, the Sec 2.5.7 forces of the diaphragm-to-vertical-element and collector connections +25 % (transfer.diaphragm.irregularIncrease); collectors too unless they take the Omega0 combinations. Sec 1.7.3.8(d)(ii) (p. 506): with plan type II the chords and collectors take the projecting wings moving in the same and in opposite directions, unless a dynamic analysis (Sec 2.5.8) on a three-dimensional model gives the forces"
+    "diaphragmConnections": "BNBC 2020 Part 6 Sec 1.7.3.8(d)(i) (p. 505) and Sec 2.5.5.6.2 (p. 625): Seismic Design Category D with plan irregularity type I.a, I.b, II, III or IV or vertical type IV, the Sec 2.5.7 forces of the diaphragm-to-vertical-element and collector connections +25 % (transfer.diaphragm.irregularIncrease); collectors too unless they take the Omega0 combinations. Sec 1.7.3.8(d)(ii) (p. 506): with plan type II the chords and collectors take the projecting wings moving in the same and in opposite directions, unless a dynamic analysis (Sec 2.5.8) on a three-dimensional model gives the forces",
+    "timeHistory": "BNBC 2020 Part 6 Sec 2.5.10.2 (pp. 636-637): at least three ground motions; 2D: the mean of the 5 %-damped spectra of the records not less than the design spectrum (Sec 2.5.4.3) at every period from 0.2T to 1.5T; 3D: pairs with one scale factor on both components, the mean of the pairs' SRSS spectra not less than 1.3 times the design spectrum over 0.2T to 1.5T. Sec 2.5.10.3 (p. 637): orthogonal pairs applied simultaneously; where the largest base shear Vth is less than the equivalent static V (Sec 2.5.7.1), every response times V/Vth (drifts included); fewer than seven records (or pairs) the largest response, at least seven the mean; displacements and drifts times Cd/I (Sec 2.5.7.7). Sec 2.5.13.1(c) (p. 645): 3D analysis applies both directions simultaneously with ground motions of Sec 2.5.10.2 or 2.5.11.2. Sec 2.5.11.2 (pp. 639-640): the nonlinear analysis scales to the real design spectrum, Eq. 6.2.34 with R = 1 and I = 1, with the same period range and ratios (targets.nonlinear). The scaling method (each record first fitted to the spectrum over the range in log space, then one factor on the suite so that the criterion is just met) is SAEngine practice; the code asks only that the mean meets the spectrum"
   },
   "clauses": {
     "scale": "Part 6 Sec 2.5.9.4 (p. 635)",

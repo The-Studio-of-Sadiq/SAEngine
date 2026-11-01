@@ -584,6 +584,45 @@ class DiaphragmConnections(BaseModel):
     wingsClause: str = ""
 
 
+class TimeHistoryTarget(BaseModel):
+    """The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the
+    building's own)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    R: float | None = Field(default=None, gt=0)
+    I: float | None = Field(default=None, gt=0)
+
+
+class TimeHistoryRules(BaseModel):
+    """Ground motion suites of the response history procedures (B19; B36 for the nonlinear
+    target). ``method``: how a suite is scaled (``periodRange``: the mean spectrum of the
+    records, or of the pairs' SRSS spectra, is not below ``singleRatio`` / ``pairRatio`` times
+    the target spectrum at every period from ``periodLower``·T to ``periodUpper``·T, the
+    spectra ``spectrumDamping`` damped); ``minimumRecords`` per suite; ``meanFrom``: from this
+    many records (or pairs) the design value is the mean of their peaks, fewer the largest;
+    ``baseShearShare``: the responses are scaled by share·V/Vth where the suite's base shear
+    Vth is below share·V (the equivalent static V); ``scaleDrifts``: that factor also on the
+    displacements and drifts; ``simultaneousPairs``: a pair's components act together (no
+    orthogonal 100 % + 30 % rule); ``targets``: by procedure (``linear``, ``nonlinear``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["periodRange"] = "periodRange"
+    minimumRecords: int = Field(ge=1)
+    periodLower: float = Field(gt=0)
+    periodUpper: float = Field(gt=0)
+    spectrumDamping: float = Field(default=0.05, gt=0, lt=1)
+    singleRatio: float = Field(gt=0)
+    pairRatio: float = Field(gt=0)
+    meanFrom: int = Field(ge=1)
+    baseShearShare: float = Field(default=1.0, gt=0)
+    scaleDrifts: bool = True
+    simultaneousPairs: bool = True
+    targets: dict[str, TimeHistoryTarget] = Field(default_factory=dict)
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class SeismicTable(TableModel):
     """Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis."""
 
@@ -615,6 +654,8 @@ class SeismicTable(TableModel):
     dynamicAnalysis: DynamicAnalysis | None = None
     softStorey: SoftStoreyDesign | None = None
     diaphragmConnections: DiaphragmConnections | None = None
+    # B19: the response history procedures; empty in a pack that does not cover them.
+    timeHistory: TimeHistoryRules | None = None
     clauses: dict[str, str] = Field(
         default_factory=dict, description="Clause references of the seismic results, by key."
     )

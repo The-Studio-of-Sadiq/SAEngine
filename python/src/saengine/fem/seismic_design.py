@@ -198,10 +198,17 @@ def options_from_settings(settings: Any) -> SeismicOptions:
 
 
 def design_uses_spectrum(settings: Any) -> bool:
-    """The settings ask for the earthquake design from the response spectrum
-    (``analysis.seismicDesign == "responseSpectrum"``; absent: the static cases, as before)."""
+    """The settings ask for the earthquake design from the dynamic analysis
+    (``analysis.seismicDesign`` "responseSpectrum", or "timeHistory", B19, which builds on the
+    response spectrum run; absent: the static cases, as before)."""
     analysis = getattr(settings, "analysis", None)
-    return getattr(analysis, "seismicDesign", "static") == "responseSpectrum"
+    return getattr(analysis, "seismicDesign", "static") in ("responseSpectrum", "timeHistory")
+
+
+def design_uses_time_history(settings: Any) -> bool:
+    """The settings ask for the earthquake design from the linear time histories (B19)."""
+    analysis = getattr(settings, "analysis", None)
+    return getattr(analysis, "seismicDesign", "static") == "timeHistory"
 
 
 # ─────────────────────────────────────── code values ───────────────────────────────────────
@@ -1010,9 +1017,24 @@ def load_seismic_forces(out_dir: str | Path) -> SeismicForces | None:
                         mode[node] = mode.get(node, np.zeros(3)) + f
                 per_mode.append(mode)
             loads[part] = per_mode
-    return SeismicForces(
+    forces = SeismicForces(
         scale=scale, rules=rules, modal=modal, torsion=torsion, loads=loads, heights=heights
     )
+    # B19: the time-history parts when the design uses them (saengine.fem.linear_time_history).
+    history = summary.get("timeHistory") or {}
+    if history.get("use") and history.get("parts") and model is not None:
+        from saengine.fem.linear_time_history import TimeHistoryForces
+
+        model_file = Path(str(history.get("modelFile") or ""))
+        try:
+            project = json.loads(model_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return forces
+        return TimeHistoryForces(
+            forces, out_dir, project, model_file.parent, history,
+            [float(v) for v in history.get("levels") or []], float(_seismic().orthogonalShare),
+        )  # fmt: skip
+    return forces
 
 
 # ─────────────────────────────────────── drift ───────────────────────────────────────
@@ -1875,6 +1897,34 @@ def seismic_design(
             "Seismic Design Category C: the directions are taken one at a time (no non-parallel "
             f"systems found; {CLAUSES['orthogonal']})"
         )
+    combinations = seismic_combinations(settings, options, orthogonal, torsion, ax)
+    # ── B19: the linear time histories (saengine.fem.linear_time_history): their suites, base
+    # shear scaling and drifts; with seismicDesign "timeHistory" they replace RX, RY in E ──
+    history = None
+    try:
+        from saengine.fem import linear_time_history as lth
+
+        history = lth.design_summary(
+            out_dir, project, project_path.parent, settings, spectra, v_static,
+            {a: scale[a] * v_dynamic[a] for a in ("X", "Y")}, storeys, by_axis_amplification,
+            allowable, design_uses_time_history(settings),
+        )  # fmt: skip
+    except (OSError, ValueError, KeyError) as error:
+        notes.append(f"the time-history design could not be worked out: {error}")
+    if history is not None:
+        history["modelFile"] = str(project_path.resolve())
+        notes.extend(history.get("notes", []))
+        if history.get("use"):
+            parts = history["parts"]
+            one_way = seismic_combinations(settings, options, False, torsion, ax)
+            combinations = lth.history_combinations(
+                one_way if "H" in parts else combinations, parts
+            )
+    elif design_uses_time_history(settings):
+        notes.append(
+            "the earthquake design asks for the time histories, but the model has none: the "
+            "response spectrum is used"
+        )
 
     summary = {
         "schema": SUMMARY_SCHEMA,
@@ -1902,7 +1952,8 @@ def seismic_design(
         "torsionalIrregularity": irregularity,
         "torsionAmplification": ax,
         "irregularities": _irregularity_summary(irregular),
-        "combinations": seismic_combinations(settings, options, orthogonal, torsion, ax),
+        "combinations": combinations,
+        "timeHistory": history,
         "signs": options.signs,
         "drift": drift,
         "towers": tower_summary,
@@ -2168,6 +2219,9 @@ def design_demands(
         # Per combination the storey shear of its earthquake (a function of the cut height),
         # None for the others: the stability index's Vus (saengine.design.slender.storeys).
         extra["storeyShear"] = [shear_of(c) if c else None for _, c, _ in plan]
+    history = summary.get("timeHistory") or {}
+    if history.get("use"):
+        notes = [*notes, *[n for n in history.get("notes", []) if n.startswith("earthquake from")]]
     notes = [
         *notes,
         (

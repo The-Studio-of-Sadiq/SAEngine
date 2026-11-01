@@ -652,6 +652,25 @@ class TimeHistory(_Model):
     damping: float = Field(
         default=0.05, ge=0, le=0.3, description="Damping ratio of the first mode [-]."
     )
+    # ── B19: suites, pairs and scaling to the code spectrum (saengine.fem.records) ──
+    recordOrthogonal: str | None = Field(
+        default=None,
+        title="Orthogonal component",
+        description="For a three-dimensional analysis: the other horizontal component of the "
+        "same event, a record file in the project folder like the first. The pair is applied "
+        "simultaneously, this one across the direction above, with one scale factor on both. "
+        "Empty: the record acts in its direction alone (a two-dimensional suite).",
+    )
+    scaling: Literal["auto", "code", "manual"] = Field(
+        default="auto",
+        title="Scaling",
+        description="Code: the suite of records in the same direction (or of pairs) is scaled "
+        "together so that its mean spectrum meets the code pack's criterion against the design "
+        "spectrum over its period range; the factor above is then not used. Manual: the "
+        "factor above. Automatic: Code when the earthquake design uses the time histories, "
+        "Manual otherwise.",
+        json_schema_extra=_labels(["Automatic", "To the code spectrum", "Manual factor"]),
+    )
 
 
 class Thermal(_Model):
@@ -1119,17 +1138,42 @@ class Analysis(_Model):
         json_schema_extra=_labels(["All combinations", "Gravity-only combinations"]),
     )
     slenderness: Slenderness = Field(default_factory=Slenderness, title="Column slenderness")
-    seismicDesign: Literal["static", "responseSpectrum"] = Field(
+    seismicDesign: Literal["static", "responseSpectrum", "timeHistory"] = Field(
         default="responseSpectrum",
         title="Earthquake design forces",
         description="Response spectrum: when the response spectrum cases run, E in the design "
         "combinations is the response spectrum, scaled up to 85 % of the equivalent static base "
         "shear (BNBC 2020 Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal "
         "rule below (the static cases EX and EY otherwise). Static: the equivalent static cases "
-        "EX and EY.",
+        "EX and EY. Linear time history: E is the design value over the suite of time "
+        "histories (the largest response, or the mean from the number of records the code "
+        "pack names), scaled up to the equivalent static base shear, with the accidental "
+        "torsion; it needs the response spectrum cases too (torsional irregularity, walls), "
+        "and a direction without a complete suite keeps the response spectrum.",
         json_schema_extra=_labels(
-            ["Equivalent static (EX, EY)", "Response spectrum, scaled (BNBC 2.5.9.4)"]
+            [
+                "Equivalent static (EX, EY)",
+                "Response spectrum, scaled (BNBC 2.5.9.4)",
+                "Linear time history, scaled",
+            ]
         ),
+    )
+    timeHistoryPeriod: float | None = Field(
+        default=None,
+        gt=0,
+        title="Time history: period T",
+        description="The fundamental period [s] the records are scaled for (the period range "
+        "of the code pack is a share of it). Empty: the approximate period Ta of each "
+        "direction when the model is made; the design then checks the suite again with the "
+        "modal period and scales it up if the criterion is not met.",
+    )
+    timeHistoryScaling: Literal["individual", "uniform"] = Field(
+        default="individual",
+        title="Time history: suite scaling",
+        description="Individual: each record (or pair) is first fitted to the design spectrum "
+        "over the period range, then one factor lifts the suite to the criterion. Uniform: one "
+        "factor on every record as recorded.",
+        json_schema_extra=_labels(["Fitted, then one factor", "One factor"]),
     )
     seismicOrthogonal: Literal["auto", "always", "never"] = Field(
         default="auto",
