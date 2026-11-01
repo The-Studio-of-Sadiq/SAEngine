@@ -462,7 +462,10 @@ def cladding_coefficient(curve: Any, area: float | None) -> float:
     CladdingCurve`, or :class:`~saengine.codes.tables.CladdingPointCurve` with its points) for
     the effective wind area ``area`` [m²], linear in log A between its areas; None: the
     smallest area's (the largest magnitude, a safe default)."""
-    points = getattr(curve, "points", None) or [(curve.area1, curve.gcp1), (curve.area2, curve.gcp2)]
+    points = getattr(curve, "points", None) or [
+        (curve.area1, curve.gcp1),
+        (curve.area2, curve.gcp2),
+    ]
     if area is None or area <= points[0][0]:
         return float(points[0][1])
     for (a1, g1), (a2, g2) in pairwise(points):
@@ -843,7 +846,9 @@ def _stepped_zones(
         width = min(stepped.widthFactor * step_height, stepped.widthMax)
         ratio = step_height / height if height > 0 else 0.0
         lo, hi = stepped.heightRatio
-        if step_height < stepped.minUpperHeight or not (lo <= ratio <= hi and lo <= 1 - ratio <= hi):
+        if step_height < stepped.minUpperHeight or not (
+            lo <= ratio <= hi and lo <= 1 - ratio <= hi
+        ):
             notes.append(
                 f"stepped roof h1 {step_height:g} m, h1/h {ratio:.2f}: outside the figure's "
                 f"limits (h1 ≥ {stepped.minUpperHeight:g} m, hi/h {lo:g}-{hi:g}); used as printed"

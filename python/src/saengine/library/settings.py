@@ -277,6 +277,52 @@ class Seismic(_Model):
     )
 
 
+class CladdingRoof(_Model):
+    """The building's roof as the components-and-cladding figures see it (B14;
+    :func:`saengine.fem.loads.cladding_pressures`)."""
+
+    form: Literal[
+        "flat", "gable", "hip", "monoslope", "multispan", "sawtooth", "stepped", "arched", "dome"
+    ] = Field(
+        default="flat",
+        description="Roof form: its zones and coefficients come from the code pack's figure for "
+        "that form and angle.",
+        json_schema_extra=_labels(
+            [
+                "Flat",
+                "Gable",
+                "Hip",
+                "Monoslope",
+                "Multispan gable",
+                "Sawtooth",
+                "Stepped (flat, two levels)",
+                "Arched",
+                "Dome",
+            ]
+        ),
+    )
+    angle: float | None = Field(
+        default=None,
+        ge=0,
+        le=90,
+        title="Roof angle θ",
+        description="Angle of the roof plane from horizontal [°]; arched roofs: the slope at the "
+        "springline. Empty: 0 (flat).",
+    )
+    rise: float | None = Field(
+        default=None,
+        gt=0,
+        title="Rise ratio",
+        description="Arched roofs: rise to span r; domes: rise to diameter f/D.",
+    )
+    stepHeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Step height h1",
+        description="Stepped roofs: height of the upper part above the lower roof [m].",
+    )
+
+
 class Wind(_Model):
     exposure: Literal["A", "B", "C"] = Field(
         default="A",
@@ -360,6 +406,12 @@ class Wind(_Model):
         description="Unpartitioned internal volume [m³] for Ri. Empty: from the model (the "
         "volume under the roof of a clad special structure).",
     )
+    claddingRoof: CladdingRoof = Field(
+        default_factory=lambda: CladdingRoof(),
+        title="Cladding: roof form",
+        description="The building's roof for the components and cladding pressures (the code "
+        "pack's roof figures by form and angle).",
+    )
     openStructure: OpenStructureWind = Field(
         default_factory=lambda: OpenStructureWind(),
         title="Open structures",
@@ -378,13 +430,14 @@ class OpenStructureWind(_Model):
         default="lattice",
         description="Lattice: an open framework (trusses, frames); towers: Cf of a trussed "
         "tower's face; clad: a clad shed, vault or dome, the wall and roof pressures (with "
-        "internal pressure) on its panels; none: no wind on special structures.",
+        "internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) "
+        "the free roof's net pressures; none: no wind on special structures.",
         json_schema_extra=_labels(
             [
                 "Lattice framework",
                 "Square trussed tower",
                 "Triangular trussed tower",
-                "Clad building (pressures on its panels)",
+                "Clad building or canopy (pressures on its panels)",
                 "None",
             ]
         ),
@@ -415,6 +468,14 @@ class OpenStructureWind(_Model):
         default=False,
         title="Rounded members",
         description="Members are round (pipes, rods): the rounded-member coefficients.",
+    )
+    blockage: Literal["clear", "obstructed"] = Field(
+        default="clear",
+        title="Clad, open: wind flow under the roof",
+        description="An open clad structure (a canopy, a free roof; enclosure open) takes the "
+        "net pressures of free roofs: clear when at most half the space under the roof is "
+        "blocked (by goods, vehicles, walls), obstructed when more is.",
+        json_schema_extra=_labels(["Clear (≤ 50 % blocked)", "Obstructed (> 50 % blocked)"]),
     )
 
 

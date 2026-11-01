@@ -260,7 +260,8 @@
         "forms": [
           "flat",
           "gable",
-          "hip"
+          "hip",
+          "stepped"
         ],
         "angleFrom": 0,
         "angleTo": 7,

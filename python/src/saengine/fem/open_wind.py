@@ -26,11 +26,12 @@ faces both stand normal to the wind; an assumption for a triangular one).
 
 A clad special structure (a shed with its sheeting, a clad vault or dome: the wind settings'
 form ``clad``) is a building instead: :func:`clad_structure_wind` below gives the pressures on
-its panels (walls and roofs with internal pressure, BNBC 2020 Part 6 Sec 2.4.11.2).
+its panels (walls and roofs with internal pressure, BNBC 2020 Part 6 Sec 2.4.11.2). An open
+one (a canopy or free roof: form ``clad``, enclosure ``open``) takes the net pressures of free
+roofs instead (:func:`free_roof_wind`, Sec 2.4.12).
 
-Not covered here: the net pressures on free roofs of open buildings (the canopy's cladding),
-shielding of one frame by another (every member is loaded fully: conservative for a row of
-frames), and vortex shedding.
+Not covered here: fascia panels of free roofs as inverted parapets, shielding of one frame by
+another (every member is loaded fully: conservative for a row of frames), and vortex shedding.
 """
 
 from __future__ import annotations
@@ -624,3 +625,268 @@ def _low_rise(
                 values[p.key] = qh * (value - under)
             case = fl.wind_variant_case(direction, k)
             _record(out, case, f"Wind {name}, low-rise, {label}", values, points)
+
+
+# ──────────────── open buildings: net pressures on free roofs (MWFRS and C&C) ────────────────
+#
+# An open building (a canopy, a free-standing roof on columns: the wind settings' form ``clad``
+# with the enclosure ``open``) takes net pressures on its roof, top and bottom surfaces together
+# (BNBC 2020 Part 6 Sec 2.4.12; the coefficients are the code pack's ``wind.openBuildings``):
+#
+#     p = qh · G · CN                                      (Eqs 6.2.27 MWFRS, 6.2.28 C&C)
+#
+# - qh at the mean roof height h, G the gust factor; CN positive toward the top surface;
+# - wind normal to the ridge (γ = 0°, 180°): CNW on the windward half of the roof, CNL on the
+#   leeward half, by roof form (monoslope, pitched, troughed), angle θ (linear between the rows;
+#   below the pack's ``minAngle`` the monoslope's first row) and blockage (clear: at most 50 %
+#   of the space under the roof blocked; obstructed: more); a monoslope's γ = 0° blows down its
+#   slope, 180° up it;
+# - wind along the ridge (γ = 90°), and normal to a nearly flat monoslope with small h/L: CN by
+#   the distance from the windward edge in multiples of h;
+# - every load case of the figures (A, B) is its own variant of each direction (WX, WX2, ...).
+#
+# The form is read from the panels: one slope direction is a monoslope; two, a pitched roof
+# where the slopes face away from the ridge line and a troughed one where they face toward it.
+
+
+def open_buildings_table() -> Any:
+    """The code pack's free roof table, None without one."""
+    from saengine.codes import context as code_context
+
+    return getattr(code_context.table("wind"), "openBuildings", None)
+
+
+def _lerp(x: float, xs: list[float], ys: list[float]) -> float:
+    from saengine.fem.loads import _interpolate
+
+    return float(_interpolate(x, xs, ys))
+
+
+def free_roof_cases(form: str) -> list[str]:
+    """The load cases (A, B) of a free roof form's figure, in order."""
+    table = open_buildings_table()
+    rows = getattr(table.mwfrs, form) if table is not None else []
+    return sorted({r.case for r in rows})
+
+
+def free_roof_cn(
+    form: str, theta: float, case: str, blockage: str = "clear", reverse: bool = False
+) -> tuple[float, float] | None:
+    """(CNW, CNL) of a free roof with the wind normal to its ridge (Figures 6.2.18(a)-(c)):
+    ``form`` monoslope, pitched or troughed, angle θ [°] (linear between the rows; below the
+    pack's ``minAngle`` the monoslope's first row, note 3), load ``case`` A or B, ``blockage``
+    clear or obstructed; ``reverse`` the monoslope's γ = 180° (the wind up the slope). None above
+    the pack's ``maxAngle`` or without the table."""
+    table = open_buildings_table()
+    if table is None or theta > table.maxAngle:
+        return None
+    rows = getattr(table.mwfrs, form)
+    if theta < table.minAngle:
+        rows = table.mwfrs.monoslope
+        theta = min(float(r.angle) for r in rows)
+    rows = sorted((r for r in rows if r.case == case), key=lambda r: r.angle)
+    if not rows:
+        return None
+
+    def pair(r: Any) -> tuple[float, float]:
+        if reverse and r.clearReverse is not None:
+            return r.clearReverse if blockage == "clear" else r.obstructedReverse
+        return r.clear if blockage == "clear" else r.obstructed
+
+    angles = [float(r.angle) for r in rows]
+    return (
+        _lerp(theta, angles, [pair(r)[0] for r in rows]),
+        _lerp(theta, angles, [pair(r)[1] for r in rows]),
+    )
+
+
+def free_roof_along_cn(distance: float, case: str, blockage: str = "clear") -> float | None:
+    """CN of a free roof point ``distance`` from the windward edge, in multiples of h, with the
+    wind along the ridge (Figure 6.2.18(d)); None without the table."""
+    table = open_buildings_table()
+    if table is None:
+        return None
+    zones = table.mwfrs.along.zones
+    zone = next((z for z in zones if z.upTo is None or distance <= z.upTo), zones[-1])
+    return float(zone.cases[case][blockage])
+
+
+def free_roof_cladding(
+    form: str, theta: float, blockage: str, area: float | None, a: float
+) -> list[dict[str, Any]] | None:
+    """CN of the components and cladding of a free roof by zone (Figures 6.2.19(a)-(c)): for
+    the effective wind area ``area`` [m²] (None: the smallest band) against a² of the edge
+    distance ``a`` [m], linear between the roof angles. ``[{"zone", "label", "CNPos",
+    "CNNeg"}]``; None above the pack's ``maxAngle`` or without the table."""
+    table = open_buildings_table()
+    cladding = getattr(table, "cladding", None) if table is not None else None
+    if cladding is None or theta > table.maxAngle:
+        return None
+    rows = sorted(getattr(cladding, form), key=lambda r: r.angle)
+    bands = [float(b) for b in cladding.areaBands]
+    ratio = 0.0 if area is None or a <= 0 else area / (a * a)
+    band = next((k for k, b in enumerate(bands) if ratio <= b), len(bands))
+    angles = [float(r.angle) for r in rows]
+
+    def flow(r: Any) -> dict[str, list[tuple[float, float]]]:
+        return r.clear if blockage == "clear" else r.obstructed
+
+    labels = dict(cladding.zoneLabels)
+    ridge = form != "monoslope" and theta >= cladding.ridgeEdgeFrom
+    out = []
+    for zone in sorted(flow(rows[0]), reverse=True):
+        values = [flow(r)[zone][min(band, len(flow(r)[zone]) - 1)] for r in rows]
+        label = labels.get(zone, f"zone {zone}")
+        if ridge:
+            label += " (each slope's edges, the ridge or valley included)"
+        out.append(
+            {
+                "zone": zone,
+                "label": label,
+                "CNPos": _lerp(theta, angles, [v[0] for v in values]),
+                "CNNeg": _lerp(theta, angles, [v[1] for v in values]),
+            }
+        )
+    return out
+
+
+def free_roof_form(points: list[CladPoint], axis: np.ndarray | None, centre: np.ndarray) -> str:
+    """monoslope, pitched or troughed: the form of a free roof from its sloped points."""
+    if axis is None:
+        return "monoslope"
+    across = np.array([-axis[1], axis[0]])
+    sides = [0.0, 0.0]
+    away = toward = 0.0
+    for p in points:
+        h = _horizontal(p.normal)
+        if h is None or p.slope < _LEVEL:
+            continue
+        weight = p.area * float(np.linalg.norm(p.normal[:2]))
+        facing = float(h[:2] @ across)
+        sides[0 if facing > 0 else 1] += weight
+        offset = float((p.centroid[:2] - centre[:2]) @ across)
+        if facing * offset > 0:
+            away += weight
+        else:
+            toward += weight
+    if min(sides) < 0.1 * sum(sides):
+        return "monoslope"
+    return "pitched" if away >= toward else "troughed"
+
+
+def free_roof_wind(
+    points: list[CladPoint],
+    *,
+    eave: float,
+    top: float,
+    plan: tuple[np.ndarray, np.ndarray],
+    qz_of: Any,
+    gust: float,
+    blockage: str = "clear",
+    area: float | None = None,
+) -> CladWind:
+    """The wind cases of an open building's free roof (see above): ``points`` its roof,
+    ``eave`` and ``top`` [m above the base] its lowest and highest points, ``plan`` the (low,
+    high) corners of the roof's plan, ``qz_of(z)`` the velocity pressure [Pa] at height z,
+    ``gust`` G, ``blockage`` clear or obstructed, ``area`` the components' effective wind area
+    [m²] (None: the smallest band) for the reported C&C values. No internal pressure. Empty
+    (with a note) above the pack's roof angle or without its table."""
+    from saengine.codes import context as code_context
+    from saengine.fem import loads as fl
+
+    out = CladWind()
+    table = open_buildings_table()
+    if table is None or not points:
+        out.notes.append("the code pack has no net pressure coefficients of free roofs")
+        return out
+    mwfrs = fl.mwfrs_table()
+    vertical = float(mwfrs.roof.verticalFrom) if mwfrs is not None else 80.0
+    roofs = [p for p in points if p.slope <= vertical]
+    if len(roofs) < len(points):
+        out.notes.append(
+            f"{len(points) - len(roofs)} wall or fascia panel(s) of the open building take no "
+            "free roof pressures (fascia panels as inverted parapets are not covered here)"
+        )
+    if not roofs:
+        out.notes.append("the open building has no roof panels")
+        return out
+    sloped = [p for p in roofs if p.slope >= _LEVEL]
+    theta = sum(p.slope * p.area for p in sloped) / sum(p.area for p in sloped) if sloped else 0.0
+    if theta > table.maxAngle:
+        out.notes.append(
+            f"free roof θ {theta:.1f}° above the figures' {table.maxAngle:g}°{_cite(table)}"
+        )
+        return out
+    low, high = (np.asarray(c, dtype=float) for c in plan)
+    axis = roof_axis(sloped)
+    form = free_roof_form(roofs, axis, (low + high) / 2)
+    h = fl.mean_roof_height(eave, top, theta)
+    qh = float(qz_of(h))
+    blockage = "obstructed" if blockage == "obstructed" else "clear"
+    out.summary = {
+        "method": "openBuilding",
+        "roofForm": form,
+        "blockage": blockage,
+        "h_m": h,
+        "eave_m": eave,
+        "top_m": top,
+        "theta_deg": theta,
+        "qh_Pa": qh,
+        "G": gust,
+        "GCpi": 0.0,
+        "Ri": 1.0,
+        "cases": {},
+    }
+    # A monoslope's γ = 0°: the wind blowing down the slope (the way its normal leans).
+    lean = np.zeros(2)
+    for p in sloped:
+        lean += p.area * p.normal[:2]
+    along = table.mwfrs.along
+    lo, hi = table.hOverL
+    cases = free_roof_cases(form) or ["A"]
+    for direction, wind in CLAD_DIRECTIONS.items():
+        edge, depth, width = _extent(low, high, wind)
+        if depth <= 0 or width <= 0:
+            continue
+        ratio = h / depth
+        normal = axis is None or abs(float(axis @ wind)) < FACING
+        flat = form == "monoslope" and theta < along.flatMonoslopeAngle
+        small = along.flatMonoslopeRatio[0] <= ratio < along.flatMonoslopeRatio[1]
+        use_along = not normal or (flat and small)
+        name = _DIRECTION_NAMES[direction]
+        if not lo <= ratio <= hi and not (flat and small):
+            out.notes.append(
+                f"{name}: h/L {ratio:.2f} outside the figures' {lo:g}-{hi:g}; the coefficients "
+                "are used as printed"
+            )
+        reverse = form == "monoslope" and float(lean @ wind[:2]) < 0
+        for k, case in enumerate(cases, start=1):
+            values: dict[Any, float] = {}
+            pair = None if use_along else free_roof_cn(form, theta, case, blockage, reverse)
+            for p in roofs:
+                s = float(p.centroid[:2] @ wind[:2]) - edge
+                if pair is None:
+                    distance = max(s, 0.0) / h if h > 0 else math.inf
+                    cn = free_roof_along_cn(distance, case, blockage) or 0.0
+                else:
+                    cn = pair[0] if s < depth / 2 else pair[1]
+                values[p.key] = qh * gust * cn
+            if not normal:
+                how = "wind along the ridge"
+            elif use_along:
+                how = "by distance from the windward edge"
+            else:
+                how = f"γ {180 if reverse else 0}°"
+            label = f"Wind {name}, free {form} roof Case {case} ({blockage} flow, {how})"
+            _record(out, fl.wind_variant_case(direction, k), label, values, roofs)
+    # The components and cladding (reported): p = qh·G·CN by zone.
+    least = float(min(high[:2] - low[:2]))
+    has_edges = getattr(code_context.table("wind"), "cladding", None) is not None
+    a = fl.cladding_edge_width(least, h, True) if has_edges else 0.0
+    zones = free_roof_cladding(form, theta, blockage, area, a)
+    if zones:
+        for z in zones:
+            z["pPos_kPa"] = qh * gust * z["CNPos"] / 1e3
+            z["pNeg_kPa"] = qh * gust * z["CNNeg"] / 1e3
+        out.summary["cladding"] = {"a_m": a, "area_m2": area, "zones": zones}
+    return out
