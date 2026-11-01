@@ -508,7 +508,7 @@ suite('SAEngine - Substructure', () => {
 			pileFactorsUsed({ factorOfSafety: { pileLoadTest: true } }),
 			pileFactorsUsed({ factorOfSafety: { pileCompression: 1.5, pileLoadTest: true } }),
 			pileFactorsUsed({ factorOfSafety: { pileCompression: 3.2, pileUplift: 3 } }),
-			pileFactorsUsed({ pileCapacity: 'bnbcSpt', factorOfSafety: { pileLoadTest: true } }),
+			pileFactorsUsed({ pileCapacity: 'spt', factorOfSafety: { pileLoadTest: true } }),
 		], [
 			// BNBC 2020 Part 6 Sec 3.10.1.18: at least 3.0 without a load test at the site, 2.0 with one.
 			{ compression: 3, uplift: 2.5, given: 2.5, raised: 'loadTest' },

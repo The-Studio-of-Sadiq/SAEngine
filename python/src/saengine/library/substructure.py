@@ -256,6 +256,19 @@ class PileType(_Model):
         "rotation; free: the head may rotate (pinned).",
         json_schema_extra=_labels(["Fixed in the cap", "Free (pinned)"]),
     )
+    shaftConstruction: str | None = Field(
+        default=None,
+        title="Shaft construction (K/K0)",
+        description="Drilled shafts in sand: the code pack's construction method for K/K0 (e.g. "
+        "openHole, slurryLight, slurryHeavy, permanentCasing); with the concreting method, β = "
+        "K tan δ instead of the empirical depth relation. Empty: the depth relation.",
+    )
+    shaftConcreting: str | None = Field(
+        default=None,
+        title="Shaft concreting (δ/φ)",
+        description="Drilled shafts in sand: the code pack's construction method for δ/φ (e.g. "
+        "dry, slurryGood, slurryPoor, casingUnderWater).",
+    )
     fixityDepth: Length | None = Field(
         default=None,
         title="Depth to fixity",
@@ -397,13 +410,25 @@ class FactorOfSafety(_Model):
 class Design(_Model):
     """Design choices of the substructure."""
 
-    pileCapacity: Literal["soilReport", "bnbcSpt"] = Field(
+    pileCapacity: Literal["soilReport", "static", "spt"] = Field(
         default="soilReport",
         title="Pile capacity",
         description="From the soil report's per-layer skin friction and end bearing (Part 1), "
-        "or from the SPT N values by BNBC 2020 Eqs 6.3.29 and 6.3.31-32.",
-        json_schema_extra=_labels(["Soil report (per layer)", "BNBC 2020 SPT equations"]),
+        "by the code pack's static method (α in clay, β and Nq in sand), or by the code pack's "
+        "SPT relations. The former value 'bnbcSpt' is read as 'spt'.",
+        json_schema_extra=_labels(
+            ["Soil report (per layer)", "Static method (code pack)", "SPT relations (code pack)"]
+        ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_method(cls, data: Any) -> Any:
+        """The SPT method's former id, 'bnbcSpt', is read as 'spt'."""
+        if isinstance(data, dict) and data.get("pileCapacity") == "bnbcSpt":
+            data = {**data, "pileCapacity": "spt"}
+        return data
+
     factorOfSafety: FactorOfSafety = Field(default_factory=FactorOfSafety)
     raftMeshSize: float = Field(
         default=500, ge=100, le=5000, title="Raft mesh size", description="[mm]"
