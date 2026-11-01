@@ -1,7 +1,8 @@
 # Drawing sheets: layers, linetypes, text and plotting
 
-The drawing sheets (`11 Exports/Drawings/S-1xx *.dxf`, and `A-1xx *.dxf` when the project has
-an architecture) use one layer scheme, one
+The drawing sheets (`11 Exports/Drawings/S-1xx *.dxf`, `A-1xx *.dxf` when the project has
+an architecture, and `P-`, `M-`, `E-`, `FP-` and `MC-` sheets when it has building services in
+07 MEP) use one layer scheme, one
 text style and SAEngine's own linetypes, so that they open the same in AutoCAD, BricsCAD and
 LibreCAD and plot as the PDF set does. The scheme is defined in
 `python/src/saengine/drawings/sheets/layout.py` (`LAYERS`, `LINETYPES`, `FONT`,
@@ -34,6 +35,9 @@ linetype and lineweight), except the north arrow's solid fill.
 | `S-HATCH` | 8 grey | Continuous | 0.09 | Hatching of cut concrete, blinding |
 | `S-REBAR-MAIN` | 1 red | Continuous | 0.50 | Main bars (lines and dots in section) |
 | `S-REBAR-LINK` | 5 blue | Continuous | 0.25 | Links, ties, stirrups, wall hoops |
+| `S-PT-TNDN` | 6 magenta | Continuous | 0.50 | Post-tensioning tendons in plan, the CGS in the tendon profiles |
+| `S-PT-ANCH` | 6 | Continuous | 0.35 | PT anchors: live end (filled triangle), dead end (filled square) |
+| `S-PT-PROF` | 6 | Continuous | 0.18 | PT profile marks: CGS heights at the profile points, supports |
 | `S-STEEL` | 30 orange | Continuous | 0.50 | Structural steel members (plans, elevations, details) |
 | `S-STEEL-AXIS` | 30 | `CENTER` | 0.18 | Steel members' work lines (centre lines) |
 | `S-STEEL-PLATE` | 4 cyan | Continuous | 0.35 | Connection plates: gussets, tabs, fin and end plates; the Whitmore section (dashed) |
@@ -50,6 +54,19 @@ linetype and lineweight), except the north arrow's solid fill.
 | `A-ELEV` | 7 | Continuous | 0.25 | Elevations and sections: what is seen beyond the cut |
 | `A-SECT` | 7 | Continuous | 0.50 | Sections: outlines of what the cut passes through; the ground line |
 | `A-ANNO-SYMB` | 7 | Continuous | 0.25 | Section lines (`PHANTOM`) and their marks on the plans |
+| `P-DOMW` | 5 blue | Continuous | 0.35 | Plumbing: cold and hot water risers, pump mains |
+| `P-SANR` | 3 green | Continuous | 0.35 | Plumbing: soil, waste and vent stacks |
+| `P-STRM` | 4 cyan | Continuous | 0.35 | Plumbing: rainwater leaders and roof drains |
+| `P-EQPM` | 5 | Continuous | 0.35 | Plumbing: tanks, reservoirs, septic tanks, soak wells; wet rooms |
+| `M-DUCT` | 30 orange | Continuous | 0.35 | HVAC ducts (both edges) and duct risers |
+| `M-EQPM` | 3 | Continuous | 0.35 | HVAC plant and other equipment |
+| `E-CABL` | 2 yellow | Continuous | 0.35 | Electrical: cable trays, busbar and cable risers |
+| `E-EQPM` | 1 red | Continuous | 0.35 | Electrical: equipment, electrical rooms, air terminals |
+| `F-PROT` | 1 | Continuous | 0.35 | Fire protection: risers and mains |
+| `F-EQPM` | 1 | Continuous | 0.35 | Fire protection: pumps, tanks, the pump room |
+| `M-SHFT` | 8 grey | `PHANTOM` | 0.25 | Service shafts |
+| `M-SLEV` | 6 magenta | Continuous | 0.25 | Sleeves and openings for services (with a cross) |
+| `M-ANNO` | 7 | Continuous | 0.25 | MEP tags: marks, sizes, systems |
 | `S-REV` | 6 | Continuous | 0.35 | Revision clouds and their triangles (drawn again on each run) |
 | `S-VIEWPORT` | 8 | Continuous | 0.09 | The layout's viewport (not plotted) |
 
@@ -59,6 +76,14 @@ lineweight to draw lighter (blinding outline, mesh lines in a footing plan, wall
 0.13–0.18); the colour and linetype stay ByLayer.
 
 Layer `0` holds nothing; `Defpoints` is the CAD programs' own.
+
+**Office standard.** Project Settings → Drawings → Office standard renames these layers (a
+prefix for all, or a name per layer), sets their colours and lineweights, the font of `SAE` and
+`Standard` (Arial, Arial Narrow, Calibri, Segoe UI or Tahoma) and the arrows of the dimension
+styles (tick, closed, dot, oblique) (`drawings/sheets/standards.py`). The sheets are drawn on
+the names above and renamed only when written; `drawings.json` keeps the names used
+(`layerNames`), so that the next generation names an earlier sheet's layers back before it
+looks for your own edits. An office name must not be a name of this table, nor given twice.
 
 ## Linetypes
 

@@ -48,6 +48,8 @@ import {
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { ProjectOpener } from './projectOpener.js';
+import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.js';
+import { appendPlannedFeatureChip } from './plannedFeatureEditor.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
 
@@ -102,6 +104,19 @@ export class NewBuildingWizardInput extends EditorInput {
 interface IChoice<T extends string> {
 	readonly value: T;
 	readonly label: string;
+	/** Shown but not choosable (a planned option). */
+	readonly disabled?: boolean;
+}
+
+/**
+ * The design code: BNBC 2020, and the code packs planned after it, shown disabled and marked
+ * "Planned" (their pages are on the Packages page and under the chips below the selector).
+ */
+function designCodeChoices(): IChoice<string>[] {
+	return [
+		{ value: 'bnbc', label: localize('newBuilding.codeBnbc', "BNBC 2020") },
+		...plannedCodePacks().map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
+	];
 }
 
 /** Materials of a category from the default materials (`03 Materials`), as choices. */
@@ -492,6 +507,12 @@ export class NewBuildingWizard extends EditorPane {
 
 		// ── site and use ──
 		this.section(form, localize('newBuilding.site', "Site and Use"), localize('newBuilding.siteHint', "BNBC 2020: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1)."));
+		// Only BNBC 2020 in this MVP; the other code packs show as planned.
+		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), 'bnbc', () => { /* BNBC 2020 is the only choice */ });
+		const plannedCodes = append(form, $('p.hint.indented.planned-codes'));
+		for (const pack of plannedCodePacks()) {
+			this.pageDisposables.add(appendPlannedFeatureChip(plannedCodes, pack.feature, this.commandService));
+		}
 		this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
 		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
 		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it (BNBC 2020 Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.")));
@@ -616,7 +637,7 @@ export class NewBuildingWizard extends EditorPane {
 	private select<T extends string>(parent: HTMLElement, label: string, options: readonly IChoice<T>[], initial: T, onChange: (value: T) => void): void {
 		const control = this.row(parent, label);
 		const index = Math.max(0, options.findIndex(o => o.value === initial));
-		const box = this.pageDisposables.add(new SelectBox(options.map(o => ({ text: o.label })), index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: label }));
+		const box = this.pageDisposables.add(new SelectBox(options.map(o => ({ text: o.label, isDisabled: o.disabled })), index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: label }));
 		box.render(control);
 		if (options[index] && options[index].value !== initial) {
 			onChange(options[index].value);

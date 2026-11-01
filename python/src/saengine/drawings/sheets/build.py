@@ -13,13 +13,16 @@ How it is called::
 
 Sheet order and numbers (``S-101`` on): general notes and tables; the foundation plan (with
 piles, the pile layout plan and the pile cap schedule); the framing plans per level; the slab
-reinforcement plans; the column schedule; the beam elevations; the footing, wall and stair
+reinforcement plans; with slab tendons (:mod:`.pt`), the post-tensioning plans, the tendon
+profiles and the tendon and stressing schedule; the column schedule; the beam elevations; the footing, wall and stair
 details; the bar bending schedule; then, with structural steel
 (:mod:`.steel`), the steel notes, framing plans, braced elevations, member schedule and
 connection details; then, with an architecture (:mod:`.architecture`), the architectural
 sheets numbered on their own (``A-101`` on): plans, elevations, sections, the door and window
-schedule and the room finish schedule. A category takes as many sheets as its views need; small views share a
-sheet.
+schedule and the room finish schedule; then, with building services in 07 MEP (:mod:`.mep`), the
+plumbing, HVAC, electrical, fire protection and coordination plans and the MEP schedules (``P-``,
+``M-``, ``E-``, ``FP-``, ``MC-``). The office standard (:mod:`.standards`) may rename the prefixes
+and the layers. A category takes as many sheets as its views need; small views share a sheet.
 
 Why one DXF per sheet in model space: LibreCAD 2.2 edits the model space only (it has no paper
 space layouts), so every sheet is complete there, plans at real size; each DXF also carries a
@@ -35,7 +38,8 @@ from pathlib import Path
 from typing import Any
 
 from saengine.drawings.sheets import architecture as ar
-from saengine.drawings.sheets import details, plans, schedules
+from saengine.drawings.sheets import details, plans, pt, schedules
+from saengine.drawings.sheets import mep as mp
 from saengine.drawings.sheets import steel as st
 from saengine.drawings.sheets.layout import (
     Sheet,
@@ -47,6 +51,7 @@ from saengine.drawings.sheets.layout import (
     paper_size,
 )
 from saengine.drawings.sheets.model import DrawingSet
+from saengine.drawings.sheets.standards import DEFAULT_PREFIXES, Standard
 
 PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250, 300, 400, 500)
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
@@ -64,6 +69,7 @@ class DrawingSettings:
     prefix: str = "S-"
     first: int = 101
     ppi: float = 60
+    standard: dict[str, Any] | None = None  # the office standard (Drawings > Office standard)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> DrawingSettings:
@@ -77,6 +83,7 @@ class DrawingSettings:
             "sheetPrefix": "prefix",
             "firstNumber": "first",
             "previewPpi": "ppi",
+            "standard": "standard",
         }
         values = {}
         for key, name in keys.items():
@@ -191,6 +198,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
             by_scale.setdefault(spec.scale, []).append(spec)
     for scale, specs in by_scale.items():
         out.append(_Category("Slab reinforcement plans", scale, specs, plan=True))
+    out += _pt_categories(data, settings, area, problems)
     # schedules and details
     size = (area[2] - area[0], height)
     specs = schedules.column_schedule(data.columns, b.levels, settings.detail_scale, size)
@@ -273,6 +281,7 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
         out.append(_Category("Bar bending schedule", 1, specs, scale_text="NTS"))
     out += _steel_categories(data, settings, area, problems)
     out += _architecture_categories(data, settings, area, problems)
+    out += _mep_categories(data, settings, area, problems)
     for category in out:
         for spec in category.specs:
             if not fits(spec, area):
@@ -292,10 +301,13 @@ def build_sheets(
     area = drawing_area(settings.size)
     cats, problems = categories(data, settings)
     data.problems += problems
+    standard = Standard.from_dict(settings.standard) if settings.standard else None
+    if standard is not None:
+        data.problems += standard.problems
     sheets: list[Sheet] = []
     numbers: dict[str, int] = {}
     for cat in cats:
-        prefix = cat.prefix or settings.prefix
+        prefix = _prefix(cat.prefix or settings.prefix, standard)
         pages = pack(cat.specs, area)
         if cat.plan:
             pages = [centred(page, area) for page in pages]
@@ -322,6 +334,7 @@ def build_sheets(
                     else cat.scale_text or f"1:{cat.scale:g}"
                 ),
                 north=data.building.north if cat.plan else None,
+                standard=standard,
             )
             sheet.category = cat.title  # type: ignore[attr-defined]
             sheet.members = members_of(page, data)  # type: ignore[attr-defined]
@@ -336,6 +349,16 @@ def build_sheets(
             sheet.finish()
             sheets.append(sheet)
     return sheets
+
+
+def _prefix(prefix: str, standard: Standard | None) -> str:
+    """The sheet number prefix of the office standard for SAEngine's ``prefix`` (S-, A-, P-, ...)."""
+    if standard is None:
+        return prefix
+    for discipline, default in DEFAULT_PREFIXES.items():
+        if prefix == default:
+            return standard.prefixes.get(discipline, prefix)
+    return prefix
 
 
 def members_of(page: Sequence[tuple[ViewSpec, float, float]], data: DrawingSet) -> list[str]:
@@ -357,6 +380,52 @@ def members_of(page: Sequence[tuple[ViewSpec, float, float]], data: DrawingSet) 
         elif kind in by_kind:
             found.update(by_kind[kind].get(mark, []))
     return sorted(found)
+
+
+def _pt_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The post-tensioning sheets (:mod:`.pt`), after the slab reinforcement plans: the tendon
+    plan of each level with tendons, the tendon profiles and the tendon and stressing schedule.
+    None without slab tendons."""
+    if not data.pt:
+        return []
+    b = data.building
+    out: list[_Category] = []
+    by_scale: dict[float, list[ViewSpec]] = {}
+    for lv in sorted(b.levels, key=lambda lv: lv.elevation):
+        if any(item.level == lv.id for item in data.pt):
+            spec, p = _fit_plan(
+                lambda s, lv=lv: pt.tendon_plan(b, lv, data.pt, s), settings.plan_scale, area
+            )
+            problems += p
+            if spec is not None:
+                by_scale.setdefault(spec.scale, []).append(spec)
+    for scale, specs in by_scale.items():
+        out.append(_Category("Post-tensioning plans", scale, specs, plan=True, notes=pt.PLAN_NOTES))
+    specs = _details(pt.tendon_profile, data.pt, settings.elevation_scale, area, problems)
+    if specs:
+        out.append(
+            _Category(
+                "Tendon profiles",
+                settings.elevation_scale,
+                specs,
+                scale_text=f"1:{settings.elevation_scale:g}",
+                notes=pt.PROFILE_NOTES,
+            )
+        )
+    specs = schedules.table_specs(
+        pt.stressing_table(data.pt, b),
+        area[3] - area[1],
+        key="pt-schedule",
+        max_width=area[2] - area[0],
+    )
+    out.append(
+        _Category(
+            "Tendon and stressing schedule", 1, specs, scale_text="NTS", notes=pt.SCHEDULE_NOTES
+        )
+    )
+    return out
 
 
 def _steel_categories(
@@ -481,6 +550,57 @@ def _architecture_categories(
     return out
 
 
+def _mep_categories(
+    data: DrawingSet, settings: DrawingSettings, area, problems: list[str]
+) -> list[_Category]:
+    """The MEP sheets (:mod:`.mep`), after the architectural ones: per discipline the plans of
+    the stories that have its services (plumbing and drainage P-, HVAC M-, electrical E-, fire
+    protection FP-), the coordination plans (MC-) and the MEP schedules. None without 07 MEP."""
+    drawing = data.mep
+    if drawing is None:
+        return []
+    b = data.building
+    items = mp.items_by_level(drawing, b)
+    if not items:
+        return []
+    arch = data.architecture
+    out: list[_Category] = []
+    for discipline, title, prefix in mp.DISCIPLINES:
+        by_scale: dict[float, list[ViewSpec]] = {}
+        for lv in sorted(b.levels, key=lambda lv: lv.elevation):
+            on_level = items.get(lv.id, [])
+            if not mp.has_plan(on_level, discipline):
+                continue
+            spec, p = _fit_plan(
+                lambda s, lv=lv, on_level=on_level, discipline=discipline, title=title: mp.mep_plan(
+                    b, on_level, lv, discipline, title.removesuffix("s"), s, arch
+                ),
+                settings.plan_scale,
+                area,
+            )
+            problems += p
+            if spec is not None:
+                by_scale.setdefault(spec.scale, []).append(spec)
+        for scale, specs in by_scale.items():
+            out.append(
+                _Category(title, scale, specs, plan=True, notes=mp.PLAN_NOTES[discipline],
+                          prefix=prefix)
+            )  # fmt: skip
+    height = area[3] - area[1]
+    width = area[2] - area[0]
+    specs = []
+    for table in mp.schedule_tables(drawing, b):
+        specs += schedules.table_specs(
+            table, height, key=f"mep-table:{table.title}", max_width=width
+        )
+    if specs:
+        out.append(
+            _Category("MEP schedules", 1, specs, scale_text="NTS", notes=mp.SCHEDULE_NOTES,
+                      prefix=mp.SCHEDULE_PREFIX)
+        )  # fmt: skip
+    return out
+
+
 def _plan_notes(data: DrawingSet) -> list[str]:
     return [
         "Levels are top of slab.",
@@ -561,6 +681,9 @@ def write_drawings(
         if on_sheet is not None:
             on_sheet(i + 1, len(sheets))
         target = out / f"{sheet_file_name(sheet)}.dxf"
+        standard = getattr(sheet, "standard", None)
+        if standard is not None:
+            standard.apply(sheet.doc)  # the office's layer names, last (see .standards)
         sheet.doc.saveas(target)
         rows.append(
             {

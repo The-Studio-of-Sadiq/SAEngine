@@ -383,6 +383,8 @@ export interface IDrawingSettings {
 	readonly planScale: string;
 	/** "1:25" */
 	readonly detailScale: string;
+	/** The office drafting standard's name (`drawings.standard.name`), when one is set. */
+	readonly standard: string | undefined;
 	/** The project settings have a `drawings` section. */
 	readonly present: boolean;
 	/**
@@ -445,6 +447,7 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 		sheetSize: readSheetSize(drawings.sheetSize ?? drawings.size) ?? DEFAULT_SHEET_SIZE,
 		planScale: readScale(drawings.planScale ?? scales.plan) ?? DEFAULT_PLAN_SCALE,
 		detailScale: readScale(drawings.detailScale ?? scales.detail) ?? DEFAULT_DETAIL_SCALE,
+		standard: isBag(drawings.standard) ? text(drawings.standard.name) : undefined,
 		present: isBag(root.drawings),
 		conflicts,
 	};
@@ -466,7 +469,35 @@ export function drawingSettingsRows(settings: IDrawingSettings): { readonly name
 		},
 		{ name: localize('drawings.sheetSize', "Sheet size"), value: settings.sheetSize },
 		{ name: localize('drawings.scales', "Scales"), value: localize('drawings.scalesValue', "plans {0}, details {1}", settings.planScale, settings.detailScale) },
+		{ name: localize('drawings.officeStandard', "Office standard"), value: settings.standard },
 	];
+}
+
+/** The schema of an office drafting standard saved as a file (to load into other projects). */
+export const OFFICE_STANDARD_SCHEMA = 'saengine.drafting-standard/1';
+
+/** The office standard of the project settings (`drawings.standard`) as a file's JSON. */
+export function officeStandardFile(settings: unknown): string {
+	const root = isBag(settings) ? settings : {};
+	const drawings = isBag(root.drawings) ? root.drawings : {};
+	const standard = isBag(drawings.standard) ? drawings.standard : {};
+	return JSON.stringify({ schema: OFFICE_STANDARD_SCHEMA, ...standard }, undefined, '\t') + '\n';
+}
+
+/**
+ * The project settings with the office standard of a file (`drawings.standard` replaced), or
+ * undefined when the file is not an office standard. Its fields are checked by Project Settings
+ * and the drawings (an entry they cannot use is skipped and listed).
+ */
+export function withOfficeStandard(settings: unknown, file: unknown): Record<string, unknown> | undefined {
+	if (!isBag(file) || (file.schema !== undefined && file.schema !== OFFICE_STANDARD_SCHEMA)) {
+		return undefined;
+	}
+	const standard: Record<string, unknown> = { ...file };
+	delete standard.schema;
+	const root: Record<string, unknown> = isBag(settings) ? { ...settings } : {};
+	root.drawings = { ...(isBag(root.drawings) ? root.drawings : {}), standard };
+	return root;
 }
 
 // ───────────────────────────── the preview's view ─────────────────────────────

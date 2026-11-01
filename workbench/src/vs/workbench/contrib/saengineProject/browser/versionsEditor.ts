@@ -38,6 +38,9 @@ import {
 	versionDetail, versionName,
 } from './versionsModel.js';
 import { IProjectVersionsService } from './versionsService.js';
+import { IProjectShareService } from './shareService.js';
+import { shareSummary } from './shareModel.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DATE_TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
 
 const CHANGE_ICONS = { added: Codicon.diffAdded, removed: Codicon.diffRemoved, changed: Codicon.diffModified } as const;
@@ -88,6 +91,8 @@ export class VersionsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@IProjectVersionsService private readonly versionsService: IProjectVersionsService,
+		@IProjectShareService private readonly shareService: IProjectShareService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -136,6 +141,9 @@ export class VersionsEditor extends EditorPane {
 				}
 			}
 		}));
+		// The office copy's state (locks, presence, what waits to sync) is shown with the current files.
+		this.inputDisposables.add(this.shareService.onDidChange(() => this.render()));
+		void this.shareService.refresh(true);
 		await this.load();
 	}
 
@@ -366,6 +374,7 @@ export class VersionsEditor extends EditorPane {
 		}
 		this.frame.setEmpty(undefined);
 		this.renderCurrent();
+		this.renderShare();
 		const now = Date.now();
 		const head = this.versionsService.status?.head?.id ?? this.versions[0]?.id;
 		for (const version of this.versions) {
@@ -433,6 +442,34 @@ export class VersionsEditor extends EditorPane {
 			button.label = localize('versions.saveButton', "Save Version...");
 			this.renderDisposables.add(button.onDidClick(() => void this.save()));
 		}
+	}
+
+	/** The office copy: where the project is shared, what waits each way, locks and who is in. */
+	private renderShare(): void {
+		const status = this.shareService.status;
+		if (!this.shareService.available || !status) {
+			return;
+		}
+		const row = append(this.list, $('.versions-current.versions-share'));
+		append(row, $(`span.versions-current-icon${ThemeIcon.asCSSSelector(status.shared ? Codicon.cloud : Codicon.cloudUpload)}`));
+		const text = append(row, $('.versions-text'));
+		append(text, $('.versions-message', undefined, status.shared ? localize('versions.shareTitle', "Office copy") : localize('versions.shareTitleOff', "Not shared")));
+		append(text, $('.versions-detail', undefined, shareSummary(status)));
+		for (const problem of status.problems) {
+			append(text, $('.versions-detail.versions-problem', { role: 'alert' }, problem));
+		}
+		if (status.locks.length) {
+			append(text, $('.versions-detail', undefined, localize('versions.shareLocks', "Locked: {0}", status.locks.map(l => l.mine
+				? localize('versions.shareLockMine', "{0} (you)", l.title)
+				: localize('versions.shareLockOther', "{0} ({1})", l.title, l.user)).join(', '))));
+		}
+		const others = status.people.filter(p => !p.me);
+		if (others.length) {
+			append(text, $('.versions-detail', undefined, localize('versions.sharePeople', "Also open: {0}", others.map(p => p.part ? localize('versions.sharePersonPart', "{0} in {1}", p.user, partLabel(p.part)) : p.user).join(', '))));
+		}
+		const button = this.renderDisposables.add(new Button(append(row, $('.versions-actions')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		button.label = status.shared ? localize('versions.shareSync', "$(sync) Sync") : localize('versions.shareButton', "Share Project...");
+		this.renderDisposables.add(button.onDidClick(() => void this.commandService.executeCommand(status.shared ? 'saengine.share.syncNow' : 'saengine.share.shareProject')));
 	}
 
 	private renderVersion(version: IVersionEntry, latest: boolean, now: number): void {
