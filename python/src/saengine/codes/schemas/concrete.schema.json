@@ -1,5 +1,41 @@
 {
   "$defs": {
+    "AggregateRules": {
+      "additionalProperties": false,
+      "description": "What an aggregate type (Project Settings > Construction) changes in the concrete.",
+      "properties": {
+        "modulus": {
+          "description": "Ec rule: normal weight, the density form (lightweight), brick aggregate.",
+          "enum": [
+            "normal",
+            "density",
+            "brick"
+          ],
+          "title": "Modulus",
+          "type": "string"
+        },
+        "lambda": {
+          "description": "Lightweight modification factor λ on √f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lambda",
+          "type": "number"
+        },
+        "shrinkageFactor": {
+          "default": 1.0,
+          "description": "Shrinkage and temperature steel × this.",
+          "minimum": 1,
+          "title": "Shrinkagefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "modulus",
+        "lambda"
+      ],
+      "title": "AggregateRules",
+      "type": "object"
+    },
     "BarDiameters": {
       "additionalProperties": {
         "items": {
@@ -260,6 +296,61 @@
       "title": "DeflectionLimitsGroup",
       "type": "object"
     },
+    "ModulusRules": {
+      "additionalProperties": false,
+      "description": "Modulus of elasticity Ec of concrete [MPa] (f'c in MPa, wc in kg/m³).",
+      "properties": {
+        "normal": {
+          "description": "Normal weight: Ec = this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Normal",
+          "type": "number"
+        },
+        "brick": {
+          "description": "Brick aggregate: Ec = this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Brick",
+          "type": "number"
+        },
+        "densityCoefficient": {
+          "description": "Ec = this wc^exponent √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Densitycoefficient",
+          "type": "number"
+        },
+        "densityExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Densityexponent",
+          "type": "number"
+        },
+        "densityRange": {
+          "description": "wc [kg/m³] within which the density form applies.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Densityrange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "normal",
+        "brick",
+        "densityCoefficient",
+        "densityExponent",
+        "densityRange"
+      ],
+      "title": "ModulusRules",
+      "type": "object"
+    },
     "PrestressLimits": {
       "additionalProperties": false,
       "description": "Prestressed slabs (BNBC 2020 Part 6 Chapter 9; ACI 318-11 Chapter 18): stress limits as\nmultiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,\nthe bonded reinforcement, precompression and tendon spacing, and punching with\nprestress.",
@@ -494,6 +585,47 @@
         "punchingRootMax"
       ],
       "title": "PrestressLimits",
+      "type": "object"
+    },
+    "ShrinkageSteel": {
+      "additionalProperties": false,
+      "description": "Shrinkage and temperature steel of slabs (ratios of the gross area).",
+      "properties": {
+        "ratioLow": {
+          "description": "Below referenceFy.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratiolow",
+          "type": "number"
+        },
+        "referenceFy": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Referencefy",
+          "type": "number"
+        },
+        "ratioReference": {
+          "description": "At referenceFy and above: this × referenceFy / fy.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratioreference",
+          "type": "number"
+        },
+        "ratioMin": {
+          "description": "Never less than this.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratiomin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratioLow",
+        "referenceFy",
+        "ratioReference",
+        "ratioMin"
+      ],
+      "title": "ShrinkageSteel",
       "type": "object"
     },
     "SlenderLimits": {
@@ -895,6 +1027,54 @@
       ],
       "default": null,
       "description": "Prestressed slabs (saengine.design.prestress)."
+    },
+    "aggregates": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AggregateRules"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: per aggregate type, its Ec rule, λ and shrinkage steel factor (saengine.design.rc_detailing); None: normal weight for every type.",
+      "title": "Aggregates"
+    },
+    "modulus": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModulusRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: Ec of concrete (None: the material's E only)."
+    },
+    "shrinkage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShrinkageSteel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: shrinkage and temperature steel of slabs."
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
+      "type": "object"
     }
   },
   "required": [

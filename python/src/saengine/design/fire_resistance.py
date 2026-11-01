@@ -84,10 +84,21 @@ def required(name: str, hours: float, aggregate: str = "siliceous") -> float | N
         row = table.masonryThickness.get(aggregate)
         return None if row is None else _next_up(table.masonryRatings, row, hours)
     rows = getattr(table, name)
+    if aggregate not in rows:
+        aggregate = table.aggregateFallback.get(aggregate, aggregate)
     if name == "columnSize" and aggregate not in rows:
         aggregate = table.columnSizeFallback.get(aggregate, aggregate)
     row = rows.get(aggregate)
     return None if row is None else _next_up(table.ratings, row, hours)
+
+
+def _aggregate_text(aggregate: str) -> str:
+    """The aggregate's row, and the row used for it when the table has none (B21: brick)."""
+    table = _table()
+    to = table.aggregateFallback.get(aggregate) if aggregate not in table.thickness else None
+    if to is None:
+        return aggregate
+    return f"{to} for {aggregate} ({table.sources.get('aggregateFallback', '')})"
 
 
 def _settings_part(settings: Any, name: str) -> Any:
@@ -232,7 +243,7 @@ def member_checks(
         need = required("thickness", hours, aggregate)
         rows.append(
             _row("thickness", need, float(object_type.thickness), hours, why,
-                 f"{_clause('thickness')}, {aggregate}", False)
+                 f"{_clause('thickness')}, {_aggregate_text(aggregate)}", False)
         )  # fmt: skip
         if kind == "slab" and reinforcement is not None and adv is not None:
             rows.append(
@@ -252,6 +263,8 @@ def member_checks(
     main_cover = cover + _transverse_dia(object_type)
     if kind == "column":
         need = required("columnSize", hours, aggregate)
+        if aggregate not in table.columnSize and aggregate in table.aggregateFallback:
+            aggregate = table.aggregateFallback[aggregate]
         fallback = table.columnSizeFallback.get(aggregate)
         text = f"{_clause('columnSize')}, {fallback or aggregate}"
         if fallback:
@@ -333,7 +346,7 @@ def construction_summary(settings: Any, height: float | None = None) -> dict[str
             f"non-combustible construction ({_clause('nonCombustibleAbove')}), but the "
             f"construction type is {row.label}."
         )
-    if aggregate not in table.thickness:
+    if aggregate not in table.thickness and aggregate not in table.aggregateFallback:
         warnings.append(
             f"The code pack's fire table has no rows for {aggregate} aggregate: the least "
             "concrete sizes are not checked."

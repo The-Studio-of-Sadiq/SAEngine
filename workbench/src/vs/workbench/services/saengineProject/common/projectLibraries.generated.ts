@@ -6351,9 +6351,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				aggregate: {
 					default: 'siliceous',
-					description: 'Type of the concrete\'s coarse aggregate: it sets the least concrete sizes for a fire rating. Siliceous is the least favourable.',
-					enum: ['siliceous', 'carbonate', 'sandLightweight', 'lightweight'],
-					enumDescriptions: ['Siliceous', 'Carbonate', 'Sand-lightweight', 'Lightweight'],
+					description: 'Type of the concrete\'s coarse aggregate: it sets the least concrete sizes for a fire rating (siliceous is the least favourable) and, by the code pack, the concrete\'s modulus Ec, its λ and the slabs\' shrinkage and temperature steel (brick chips: a lower Ec and more shrinkage steel).',
+					enum: ['siliceous', 'carbonate', 'sandLightweight', 'lightweight', 'brick'],
+					enumDescriptions: ['Siliceous', 'Carbonate', 'Sand-lightweight', 'Lightweight', 'Brick chips'],
 					title: 'Concrete aggregate',
 					type: 'string',
 				},

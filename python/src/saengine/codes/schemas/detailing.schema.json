@@ -45,6 +45,97 @@
       "title": "BarSpacing",
       "type": "object"
     },
+    "CrackControl": {
+      "additionalProperties": false,
+      "description": "Spacing of the bars nearest the tension face: s <= coefficient (reference / fs) -\ncoverFactor cc, and <= cap (reference / fs) [mm, MPa].",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "reference": {
+          "description": "Reference stress [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Reference",
+          "type": "number"
+        },
+        "coverFactor": {
+          "minimum": 0,
+          "title": "Coverfactor",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        },
+        "serviceStressShare": {
+          "description": "fs may be taken as this × fy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Servicestressshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "reference",
+        "coverFactor",
+        "cap",
+        "serviceStressShare"
+      ],
+      "title": "CrackControl",
+      "type": "object"
+    },
+    "FlangeTension": {
+      "additionalProperties": false,
+      "description": "Tension steel of T-beam flanges and the effective flange width.",
+      "properties": {
+        "spanShare": {
+          "description": "Spread over at most this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spanshare",
+          "type": "number"
+        },
+        "bothSidesSpan": {
+          "description": "Slab both sides: bf <= this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bothsidesspan",
+          "type": "number"
+        },
+        "bothSidesThickness": {
+          "description": "... overhang <= this × hf each side.",
+          "exclusiveMinimum": 0,
+          "title": "Bothsidesthickness",
+          "type": "number"
+        },
+        "oneSideSpan": {
+          "description": "Slab one side: overhang <= this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Onesidespan",
+          "type": "number"
+        },
+        "oneSideThickness": {
+          "description": "... and <= this × hf.",
+          "exclusiveMinimum": 0,
+          "title": "Onesidethickness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanShare",
+        "bothSidesSpan",
+        "bothSidesThickness",
+        "oneSideSpan",
+        "oneSideThickness"
+      ],
+      "title": "FlangeTension",
+      "type": "object"
+    },
     "Joints": {
       "additionalProperties": false,
       "description": "Plain numbers of special moment frame beam-column joints.",
@@ -126,6 +217,119 @@
         "probable"
       ],
       "title": "LintelLimits",
+      "type": "object"
+    },
+    "ShearFriction": {
+      "additionalProperties": false,
+      "description": "Shear transfer across a plane: Vn = Avf fy μ (+ permanent compression), μ = factor λ.",
+      "properties": {
+        "mu": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Surface -> μ / λ.",
+          "minProperties": 1,
+          "title": "Mu",
+          "type": "object"
+        },
+        "roughLimits": {
+          "description": "Monolithic or roughened normal weight: Vn <= min(a f'c, b + c f'c, d) Ac.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Roughlimits",
+          "type": "array"
+        },
+        "otherLimits": {
+          "description": "Other cases: Vn <= min(a f'c, b) Ac.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Otherlimits",
+          "type": "array"
+        },
+        "roughSurfaces": {
+          "description": "The surfaces the rough limits apply to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Roughsurfaces",
+          "type": "array"
+        },
+        "fyMax": {
+          "description": "fy of shear-friction steel at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        },
+        "roughness": {
+          "description": "Roughened to a full amplitude of about [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Roughness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mu",
+        "roughLimits",
+        "otherLimits",
+        "roughSurfaces",
+        "fyMax",
+        "roughness"
+      ],
+      "title": "ShearFriction",
+      "type": "object"
+    },
+    "SkinSteel": {
+      "additionalProperties": false,
+      "description": "Longitudinal skin steel on the side faces of deep beams.",
+      "properties": {
+        "depthOver": {
+          "description": "Needed where h exceeds this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Depthover",
+          "type": "number"
+        },
+        "extentShare": {
+          "description": "Over this × h from the tension face.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Extentshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "depthOver",
+        "extentShare"
+      ],
+      "title": "SkinSteel",
       "type": "object"
     },
     "SpecialFrames": {
@@ -289,6 +493,87 @@
       ],
       "title": "SpecialWalls",
       "type": "object"
+    },
+    "StructuralIntegrity": {
+      "additionalProperties": false,
+      "description": "Continuous bars of cast-in-place beams.",
+      "properties": {
+        "perimeterTopShare": {
+          "description": "Perimeter beams: top >= this × As- at supports.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Perimetertopshare",
+          "type": "number"
+        },
+        "perimeterBottomShare": {
+          "description": "... bottom >= this × As+ at midspan.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Perimeterbottomshare",
+          "type": "number"
+        },
+        "otherBottomShare": {
+          "description": "Other beams: bottom >= this × As+ at midspan.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Otherbottomshare",
+          "type": "number"
+        },
+        "minBars": {
+          "description": "... and never fewer bars than this.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "perimeterTopShare",
+        "perimeterBottomShare",
+        "otherBottomShare",
+        "minBars"
+      ],
+      "title": "StructuralIntegrity",
+      "type": "object"
+    },
+    "TendonSpacing": {
+      "additionalProperties": false,
+      "description": "Bonded tendons of Class C members: Δfps in place of fs in the crack-control spacing.",
+      "properties": {
+        "share": {
+          "description": "Tendons apart at most this × the bar spacing limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "mixedShare": {
+          "description": "A bar and a tendon apart at most this × the limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mixedshare",
+          "type": "number"
+        },
+        "deltaMax": {
+          "description": "Δfps at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Deltamax",
+          "type": "number"
+        },
+        "deltaExempt": {
+          "description": "Δfps up to this: (a) and (b) do not apply [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Deltaexempt",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "mixedShare",
+        "deltaMax",
+        "deltaExempt"
+      ],
+      "title": "TendonSpacing",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -329,6 +614,80 @@
         }
       ],
       "default": null
+    },
+    "crackControl": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrackControl"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "skin": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkinSteel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "flangeTension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FlangeTension"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "integrity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuralIntegrity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shearFriction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearFriction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tendonSpacing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TendonSpacing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
+      "type": "object"
     }
   },
   "required": [

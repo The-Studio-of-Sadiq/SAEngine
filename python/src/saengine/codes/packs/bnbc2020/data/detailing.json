@@ -2,7 +2,8 @@
   "$schema": "../../../schemas/detailing.schema.json",
   "$sources": [
     "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
-    "BNBC 2020 Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068)"
+    "BNBC 2020 Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068)",
+    "BNBC 2020 Part 6 Sec 6.3.6.4-6.3.6.7 (p. 908), 6.4.5 (pp. 931-933), 8.1.12 (pp. 1075-1076), 9.5.3 (pp. 1141-1142)"
   ],
   "source": "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122); Sec 8.1.6 (p. 1068)",
   "spacing": {
@@ -55,7 +56,78 @@
     "deflectionRatio": 600.0,
     "probable": 1.25
   },
+  "crackControl": {
+    "coefficient": 380.0,
+    "reference": 280.0,
+    "coverFactor": 2.5,
+    "cap": 300.0,
+    "serviceStressShare": 0.666667
+  },
+  "skin": {
+    "depthOver": 900.0,
+    "extentShare": 0.5
+  },
+  "flangeTension": {
+    "spanShare": 0.1,
+    "bothSidesSpan": 0.25,
+    "bothSidesThickness": 8.0,
+    "oneSideSpan": 0.083333,
+    "oneSideThickness": 6.0
+  },
+  "integrity": {
+    "perimeterTopShare": 0.166667,
+    "perimeterBottomShare": 0.25,
+    "otherBottomShare": 0.25,
+    "minBars": 2
+  },
+  "shearFriction": {
+    "mu": {
+      "monolithic": 1.4,
+      "roughened": 1.0,
+      "notRoughened": 0.6,
+      "steel": 0.7
+    },
+    "roughLimits": [
+      0.2,
+      3.3,
+      0.08,
+      11.0
+    ],
+    "otherLimits": [
+      0.2,
+      5.5
+    ],
+    "roughSurfaces": [
+      "monolithic",
+      "roughened"
+    ],
+    "fyMax": 420.0,
+    "roughness": 6.0
+  },
+  "tendonSpacing": {
+    "share": 0.666667,
+    "mixedShare": 0.833333,
+    "deltaMax": 250.0,
+    "deltaExempt": 140.0
+  },
+  "clauses": {
+    "crackControl": "Part 6 Sec 6.3.6.4, Eq 6.6.11",
+    "skin": "Part 6 Sec 6.3.6.7",
+    "flangeTension": "Part 6 Sec 6.3.6.6, 6.1.13",
+    "integrity": "Part 6 Sec 8.1.12.2",
+    "integrityPerimeter": "Part 6 Sec 8.1.12.2 (b)",
+    "integrityOther": "Part 6 Sec 8.1.12.2 (c)",
+    "integritySlab": "Part 6 Sec 8.1.12.2 (a)",
+    "shearFriction": "Part 6 Sec 6.4.5, Eq 6.6.66",
+    "tendonSpacing": "Part 6 Sec 9.5.3, Eq 6.9.1"
+  },
   "sources": {
+    "crackControl": "BNBC 2020 Part 6 Sec 6.3.6.4, Eq 6.6.11 (p. 908): s <= 380 (280/fs) - 2.5 cc and <= 300 (280/fs); one bar: s is the width of the tension face; fs = (2/3) fy permitted; Sec 9.5.3.1, Eq 6.9.1 (pp. 1141-1142): the same for Class C prestressed members",
+    "skin": "BNBC 2020 Part 6 Sec 6.3.6.7, Figure 6.6.4 (p. 908): h > 900 mm, both side faces over h/2 from the tension face, spacing by 6.3.6.4 with cc to the side face",
+    "flangeTension": "BNBC 2020 Part 6 Sec 6.3.6.6 (p. 908): flange tension steel over the effective flange width or span/10, whichever is smaller; Sec 6.1.13.2-6.1.13.3 (pp. 894-895): bf <= span/4 and overhang <= 8 hf (slab both sides), overhang <= span/12 and 6 hf (one side); half the clear distance to the next web is not checked",
+    "integrity": "BNBC 2020 Part 6 Sec 8.1.12.2 (b), (c) (pp. 1075-1076): perimeter beams one-sixth of the support's negative steel and one-quarter of the midspan positive steel, each at least two bars, continuous (Class B splices: top at midspan, bottom at or near the supports); other beams without closed stirrups one-quarter of the positive steel, at least two bars",
+    "shearFriction": "BNBC 2020 Part 6 Sec 6.4.5.4.1, Eq 6.6.66 (p. 931), 6.4.5.4.3 (p. 932): μ = 1.4 λ monolithic, 1.0 λ roughened, 0.6 λ not roughened, 0.7 λ to as-rolled steel; 6.4.5.5: Vn <= min(0.2 f'c, 3.3 + 0.08 f'c, 11) Ac (monolithic or roughened, normal weight), else min(0.2 f'c, 5.5) Ac; 6.4.5.6: fy <= 420 MPa; 6.4.5.7 (p. 933): permanent net compression additive; 6.4.5.9: roughened to about 6 mm",
+    "tendonSpacing": "BNBC 2020 Part 6 Sec 9.5.3.2 (a)-(c) (p. 1142): bonded tendons at most 2/3, a bar and a tendon at most 5/6 of the Eq 6.9.1 spacing; Δfps in place of fs, at most 250 MPa; up to 140 MPa (a) and (b) do not apply",
     "special": "BNBC 2020 Part 6 Sec 8.3.4, 8.3.5 (pp. 1090-1100), 8.1.9.4(c)",
     "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
     "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105)",
