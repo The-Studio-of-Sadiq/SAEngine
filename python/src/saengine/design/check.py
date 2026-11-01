@@ -757,6 +757,7 @@ def _design_run(
     from saengine.design import timber as timber_design
 
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
+    b39_todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]] = {}  # B39
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
@@ -815,7 +816,7 @@ def _design_run(
                 _steel_deflection(entry, own, service, project, object_type)  # B9
             checked.append(entry)
             steel_seen = True
-            if object_type.kind in ("beam", "column"):  # B35
+            if object_type.kind in ("beam", "column", "brace"):  # B35, B38 (braces)
                 steel_members.append(
                     steel_seismic.SteelMember(
                         member_id,
@@ -840,6 +841,17 @@ def _design_run(
                 skip("not in the analysis results")
                 continue
             timber_todo.append(
+                (member_id, object_type, steel_material, own, _turned(element, exact))
+            )
+            continue
+        # B39: bamboo beams, columns and braces, ferrocement beams and columns (designed after
+        # this loop by saengine.design.bamboo / saengine.design.ferrocement).
+        b39_kind = _b39_kind(object_type, steel_material)
+        if b39_kind is not None:
+            if not own:
+                skip("not in the analysis results")
+                continue
+            b39_todo.setdefault(b39_kind, []).append(
                 (member_id, object_type, steel_material, own, _turned(element, exact))
             )
             continue
@@ -1133,7 +1145,7 @@ def _design_run(
                 building,
                 types,
                 mats,
-                steel_members,
+                [m for m in steel_members if m.kind != "brace"],
                 combinations,
                 seismic_detailing.earthquake_indices(extra, len(combinations)),
                 resolved,
@@ -1145,6 +1157,24 @@ def _design_run(
             if scope is not None:
                 scope["steelSeismic"] = steel_seismic_found
                 scope["checks"] = scope.get("checks", []) + steel_seismic_found["checks"]
+        # B38: braced frames (saengine.design.steel.seismic_braced) and the composite members
+        # of the steel seismic system (seismic_composite).
+        steel_braced_found = _steel_braced(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            extra,
+            resolved,
+            steel_seismic_found,
+            notes,
+            out_dir,
+        )
+        if steel_braced_found is not None and scope is not None:
+            scope["steelBraced"] = steel_braced_found
+            scope["checks"] = scope.get("checks", []) + steel_braced_found["checks"]
     # Integrator glue: the earthquake-resistant detailing of BNBC Sec 8.3 (seismic_detailing).
     joints: list[dict[str, Any]] = []
     if scope is not None:
@@ -1176,6 +1206,8 @@ def _design_run(
     timber_seen = False
     if timber_todo:
         timber_seen = _design_timber(timber_todo, service, checked, skipped, notes, project)
+    if b39_todo:
+        _design_b39(b39_todo, combinations, service, checked, skipped, notes)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
@@ -1347,38 +1379,16 @@ def _design_timber(
     member was checked."""
     from saengine.design import timber as timber_design
 
-    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
-    formed = timber_design.allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
-
     def skip(member_id: str, object_type: Any, reason: str) -> None:
         skipped.append(
             {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
         )
 
-    if not formed or not case_forces:
-        reason = (
-            "the code pack has no allowable stress combinations"
-            if not formed
-            else "the load cases' forces were not found"
-        )
+    case_forces, names, factors, reason = _allowable_forces(service, notes, "timber")
+    if reason:
         for member_id, object_type, *_ in todo:
             skip(member_id, object_type, f"timber not checked: {reason}")
         return False
-    # Combinations whose lateral cases have no results (no wind or earthquake in the model)
-    # are left out.
-    usable = [
-        (name, f)
-        for name, f in formed
-        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
-    ]
-    names = [n for n, _ in usable]
-    factors = [f for _, f in usable]
-    left_out = len(formed) - len(usable)
-    if left_out:
-        notes.append(
-            f"timber: {left_out} allowable stress combinations left out (their wind or "
-            "earthquake cases have no results)"
-        )
     seen = False
     for member_id, object_type, material, own, turned in todo:
         try:
@@ -1399,6 +1409,91 @@ def _design_timber(
         checked.append(entry)
         seen = True
     return seen
+
+
+def _allowable_forces(
+    service: dict[str, Any], notes: list[str], what: str
+) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
+    """The analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``)
+    and the code pack's allowable stress combinations formed from them, ``(case forces, names,
+    factors, "")``; the combinations whose wind or earthquake cases have no results are left out
+    (a note for ``what`` says so). With no combinations or forces the reason is the last item."""
+    from saengine.fem.combinations import allowable_combinations
+
+    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
+    formed = allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
+    if not formed or not case_forces:
+        reason = (
+            "the code pack has no allowable stress combinations"
+            if not formed
+            else "the load cases' forces were not found"
+        )
+        return case_forces, [], [], reason
+    usable = [
+        (name, f)
+        for name, f in formed
+        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
+    ]
+    left_out = len(formed) - len(usable)
+    if left_out:
+        notes.append(
+            f"{what}: {left_out} allowable stress combinations left out (their wind or "
+            "earthquake cases have no results)"
+        )
+    return case_forces, [n for n, _ in usable], [f for _, f in usable], ""
+
+
+def _b39_kind(object_type: Any, material: Any) -> str | None:
+    """B39: "bamboo" or "ferrocement" for a member designed by that module, else None."""
+    from saengine.design import bamboo, ferrocement
+
+    if isinstance(object_type, (Beam, Column, Brace)) and bamboo.is_bamboo(material):
+        return "bamboo"
+    if isinstance(object_type, (Beam, Column)) and ferrocement.is_ferrocement(material):
+        return "ferrocement"
+    return None
+
+
+def _design_b39(
+    todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]],
+    combinations: list[str],
+    service: dict[str, Any],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+) -> None:
+    """B39 glue: bamboo members under the allowable stress combinations, ferrocement members
+    under the strength combinations (their service stresses under the allowable ones). A pack
+    that does not cover a material leaves its members skipped."""
+    from saengine.design import bamboo, ferrocement
+
+    modules = {"bamboo": bamboo, "ferrocement": ferrocement}
+    for kind, items in todo.items():
+        module = modules[kind]
+        case_forces, names, factors, reason = _allowable_forces(service, notes, kind)
+        if not module.covered():
+            reason = "not covered by this code pack"
+        elif kind == "ferrocement" and combinations:
+            if reason:
+                notes.append(f"ferrocement: service load stresses not checked ({reason})")
+            module.design_members(
+                items, combinations, case_forces, names, factors, checked, skipped
+            )
+            continue
+        elif kind == "ferrocement":
+            reason = "no load combination could be formed"
+        elif not reason:
+            module.design_members(items, case_forces, names, factors, checked, skipped)
+            continue
+        for member_id, object_type, *_ in items:
+            skipped.append(
+                {
+                    "id": member_id,
+                    "kind": object_type.kind,
+                    "type": object_type.id,
+                    "reason": f"{kind} not checked: {reason}",
+                }
+            )
 
 
 def _timber_profiles(
@@ -1536,10 +1631,26 @@ def _assemble(
             from saengine.design.steel import seismic as steel_seismic
 
             method += steel_seismic.method_lines()
+        braced_found = (scope or {}).get("steelBraced") or {}
+        from saengine.design.steel import seismic_braced, seismic_composite  # B38
+
+        if braced_found.get("applies"):
+            method += seismic_braced.method_lines(braced_found)
+        if braced_found.get("composite"):
+            method += seismic_composite.method_lines()
+    if walls_found.get("plateWalls"):  # B38
+        from saengine.design.steel import seismic_walls
+
+        method += seismic_walls.method_lines()
     if timber_seen:
         from saengine.design import timber as timber_design
 
         method += timber_design.method()
+    for key in ("bamboo", "ferrocement"):  # B39: the entries carry their material's block
+        if any(key in e for e in checked):
+            from importlib import import_module
+
+            method += import_module(f"saengine.design.{key}").method()
     if "shells" in slabs_seen:
         method += slab.METHOD
     if "coefficients" in slabs_seen:
@@ -2915,9 +3026,13 @@ def _steel_amplified_columns(
     """B35: the steel column elements of a steel seismic system (not marked gravity) when the
     steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
     from saengine.design.steel import seismic as steel_seismic
+    from saengine.design.steel import seismic_braced  # B38: braced frames' columns too
 
     try:
-        if building is None or not steel_seismic.provisions(settings).applies:
+        if building is None or not (
+            steel_seismic.provisions(settings).applies
+            or seismic_braced.braced_provisions(settings).applies
+        ):
             return set()
     except (ValueError, KeyError, AttributeError, TypeError):
         return set()
@@ -2937,6 +3052,62 @@ def _steel_amplified_columns(
             role = getattr(t, "seismicRole", None)
         if role != "gravity":
             found.add(e.id)
+    return found
+
+
+def _steel_braced(
+    project: dict[str, Any],
+    building: Any,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    steel_members: list[Any],
+    combinations: list[str],
+    extra: dict[str, Any],
+    settings: Any,
+    moment_found: dict[str, Any] | None,
+    notes: list[str],
+    out_dir: Any = None,
+) -> dict[str, Any] | None:
+    """B38: the braced frame checks (saengine.design.steel.seismic_braced) and the composite
+    seismic checks (seismic_composite) on the steel members' entries; the braced summary with
+    ``"composite"`` True when composite members were checked."""
+    from saengine.design import seismic_detailing
+    from saengine.design.steel import seismic_braced, seismic_composite
+    from saengine.fem import seismic_design
+
+    drifts = None
+    if out_dir is not None:
+        drifts = (seismic_design.load_summary(out_dir) or {}).get("drift")
+    found = None
+    try:
+        found = seismic_braced.apply(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            seismic_detailing.earthquake_indices(extra, len(combinations)),
+            settings,
+            drifts,
+        )
+        notes += found["notes"]
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        notes.append(f"the steel braced frame provisions could not be checked: {error}")
+    kinds = list((found or {}).get("kinds") or []) if (found or {}).get("applies") else []
+    if moment_found and moment_found.get("applies") and moment_found.get("frame"):
+        kinds.append(moment_found["frame"])
+    members_found = (moment_found or {}).get("members") or {}
+    roles = {k: v.get("role", "lateral") for k, v in members_found.items()}
+    if kinds:
+        try:
+            notes += seismic_composite.apply(steel_members, mats, combinations, kinds, roles)
+            if found is not None:
+                found["composite"] = any(
+                    getattr(m.object, "composite", None) is not None for m in steel_members
+                )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            notes.append(f"the composite seismic provisions could not be checked: {error}")
     return found
 
 

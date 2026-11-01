@@ -38,6 +38,8 @@ class Category(str, Enum):
     MASONRY = "masonry"
     TIMBER = "timber"
     MORTAR = "mortar"
+    BAMBOO = "bamboo"
+    FERROCEMENT = "ferrocement"
     OTHER = "other"
 
 
@@ -202,6 +204,45 @@ class TimberProperties(_Model):
     )
 
 
+class BambooTested(_Model):
+    """Ultimate values of the culms from tests [MPa]: the permissible ones are these over the
+    code pack's factors of safety."""
+
+    rupture: float = Field(gt=0, title="Modulus of rupture", description="[MPa]")
+    E: float = Field(gt=0, title="Modulus of elasticity", description="In bending [MPa].")
+    compression: float = Field(
+        gt=0, title="Compressive strength", description="Parallel to the fibres [MPa]."
+    )
+
+
+class BambooProperties(_Model):
+    """Round bamboo culms, designed with the code pack's ``bamboo`` table (B39)."""
+
+    species: str | None = Field(
+        default=None,
+        description="Species of the code pack's table (id or botanical name, e.g. Bambusa "
+        "tulda): its safe working stresses. None: tested values, else from the density.",
+    )
+    condition: Literal["green", "airDry"] = Field(
+        default="green",
+        description="Green or air dry (about 12% moisture): the stresses by density.",
+        json_schema_extra={"enumDescriptions": ["Green", "Air dry"]},
+    )
+    tested: BambooTested | None = Field(
+        default=None, description="Values from tests of the culms; none: not tested."
+    )
+
+
+class FerrocementProperties(_Model):
+    """Ferrocement mortar (B39): the mesh layers are the member type's."""
+
+    fc: float = Field(
+        gt=0,
+        title="f'c of the mortar",
+        description="Specified compressive strength of the mortar (75 x 150 mm cylinders) [MPa].",
+    )
+
+
 class NominalMix(_Model):
     """Volumetric site mix, e.g. 1:1.5:3 for concrete or 1:4 for mortar."""
 
@@ -257,6 +298,8 @@ class Material(_Model):
     steel: SteelProperties | None = None
     masonry: MasonryProperties | None = None
     timber: TimberProperties | None = None
+    bamboo: BambooProperties | None = None
+    ferrocement: FerrocementProperties | None = None
     composition: Composition | None = Field(
         default=None, description="Mix of a concrete or mortar, used for quantities (BOQ)."
     )
@@ -270,16 +313,26 @@ class Material(_Model):
             Category.STEEL: "steel",
             Category.MASONRY: "masonry",
             Category.TIMBER: "timber",
+            Category.BAMBOO: "bamboo",
+            Category.FERROCEMENT: "ferrocement",
         }.get(self.category)
         if required and getattr(self, required) is None:
             raise ValueError(f"a {self.category.value} material needs '{required}' properties")
-        for group in ("concrete", "steel", "masonry", "timber"):
+        for group in ("concrete", "steel", "masonry", "timber", "bamboo", "ferrocement"):
             if getattr(self, group) is not None and group != required:
                 raise ValueError(
                     f"'{group}' properties do not apply to a {self.category.value} material"
                 )
         if (
-            self.category in (Category.CONCRETE, Category.REBAR, Category.STEEL, Category.TIMBER)
+            self.category
+            in (
+                Category.CONCRETE,
+                Category.REBAR,
+                Category.STEEL,
+                Category.TIMBER,
+                Category.BAMBOO,
+                Category.FERROCEMENT,
+            )
             and self.mechanical.E is None
         ):
             raise ValueError(f"a {self.category.value} material needs mechanical.E")

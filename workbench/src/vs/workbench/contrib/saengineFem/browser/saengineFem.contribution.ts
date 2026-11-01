@@ -664,33 +664,6 @@ registerPlannedFeature({
 	],
 });
 
-// T28: seismic steel braced frames and plate walls (B38). The moment frames, the general
-// requirements and the expected strengths are built in B35 (saengine.design.steel.seismic: the
-// 'Seismic: ...' checks of the steel members, under the system of Project Settings).
-registerPlannedFeature({
-	id: FemPlanned.steelSeismic,
-	part: 'fem',
-	title: localize('planned.steelSeismic.title', "Seismic Steel Braced Frames"),
-	summary: localize('planned.steelSeismic.summary', "Designs steel braced frames and plate walls for earthquakes: the brace slenderness and width-to-thickness limits, the capacity design of braces, links, beams, columns and gussets, and composite seismic systems. Steel moment frames are already designed: their seismic checks appear with the steel members."),
-	steps: [
-		localize('planned.steelSeismic.step1', "Pick the system: special or ordinary concentrically braced frame, eccentrically braced frame, buckling-restrained braced frame or special plate shear wall."),
-		localize('planned.steelSeismic.step2', "Check the braces' slenderness and width-to-thickness ratios and the links' rotation."),
-		localize('planned.steelSeismic.step3', "Design the beams, columns and gussets for the braces' and links' expected strengths."),
-	],
-	inputs: [
-		{ label: localize('planned.steelSeismic.system', "Seismic system"), example: localize('planned.steelSeismic.systemExample', "Special concentrically braced frame") },
-		{ label: localize('planned.steelSeismic.link', "EBF link length"), unit: 'mm', example: '900' },
-	],
-	outputs: [
-		localize('planned.steelSeismic.out1', "Seismic checks per brace, link and gusset, in the design checks and the report"),
-		localize('planned.steelSeismic.out2', "Capacity-design forces for the braced frame's beams, columns and connections"),
-	],
-	references: [
-		localize('planned.steelSeismic.ref1', "The structural steel seismic provisions of the code pack: braced frames and plate walls"),
-		localize('planned.steelSeismic.ref2', "The composite seismic systems of the code pack"),
-	],
-});
-
 // T30: cold-formed steel purlins and girts. BNBC 2020 Part 6 Chapter 10 covers hot-rolled and
 // built-up members only; cold-formed sections need AISI S100.
 registerPlannedFeature({

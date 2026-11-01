@@ -1184,6 +1184,139 @@ TimberJoint = Annotated[
 ]
 
 
+# B39: checked by saengine.design.bamboo and saengine.design.ferrocement (the code pack's
+# ``bamboo`` and ``ferrocement`` tables); here so the beam, column and brace types carry them.
+
+
+class BambooJoint(_Model):
+    """The joint at both ends of a bamboo member: its kind and fastening as the code describes
+    them, with the capacity found by full-scale tests."""
+
+    kind: Literal[
+        "lap",
+        "butt",
+        "sleeve",
+        "scarf",
+        "saddle",
+        "tenon",
+        "crossOver",
+        "angled",
+        "gusset",
+        "insert",
+    ] = Field(
+        default="gusset",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Lap",
+                "Butt with side plates",
+                "Sleeve or insert",
+                "Scarf",
+                "Saddle (bearing butt)",
+                "Tenon",
+                "Cross-over",
+                "Angled",
+                "Gusset plates",
+                "End inserts or band clamps",
+            ]
+        },
+    )
+    fastening: Literal["lashing", "wireBound", "pinAndWire", "fishPlate", "horned"] = Field(
+        default="fishPlate",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Wire lashing",
+                "Wire bound",
+                "Pins and wire",
+                "Fish or gusset plates",
+                "Horned",
+            ]
+        },
+    )
+    testedCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Tested capacity",
+        description="Safe axial load of the joint from full-scale tests [kN]; none: not "
+        "checked (the code requires the tests).",
+    )
+
+
+class BambooMember(_Model):
+    """Design data of a bamboo beam, column or brace beyond its culm (a hollow or solid circle
+    profile) and material."""
+
+    culms: int = Field(
+        default=1,
+        ge=1,
+        le=12,
+        description="Culms tied together as a bundle column (each takes its share; no "
+        "composite action).",
+    )
+    truss: bool = Field(
+        default=False,
+        description="A truss member: the axial forces of compression and of the joints "
+        "increased as the code requires.",
+    )
+    joint: BambooJoint | None = Field(default=None, description="None: the joints not checked.")
+
+
+class FerrocementBars(_Model):
+    """Skeletal bars along the member at mid-thickness."""
+
+    diameter: Length = Field(default=6)
+    spacing: Length = Field(default=100, description="Centres across the width [mm].")
+
+
+class FerrocementMember(_Model):
+    """The mesh layers of a ferrocement member (a rectangle profile: width × thickness)."""
+
+    mesh: Literal["wovenSquare", "weldedSquare", "hexagonal", "expanded"] = Field(
+        default="wovenSquare",
+        json_schema_extra={
+            "enumDescriptions": ["Woven square", "Welded square", "Hexagonal", "Expanded metal"]
+        },
+    )
+    layers: int = Field(default=4, ge=1, le=40, description="Mesh layers through the thickness.")
+    wireDiameter: Length = Field(
+        default=1.0, description="Wire diameter, or the sheet thickness of expanded metal [mm]."
+    )
+    spacing: Length | None = Field(
+        default=13,
+        description="Square or rectangular mesh: centres of the wires along the member [mm].",
+    )
+    spacingTransverse: Length | None = Field(
+        default=None, description="Rectangular mesh: centres of the wires across [mm]."
+    )
+    meshWeight: float | None = Field(
+        default=None,
+        gt=0,
+        description="Hexagonal and expanded mesh: weight per layer and unit area [N/m²].",
+    )
+    direction: Literal["longitudinal", "transverse", "diagonal"] = Field(
+        default="longitudinal",
+        description="The mesh's roll direction relative to the member's span.",
+        json_schema_extra={"enumDescriptions": ["Along the span", "Across the span", "At 45°"]},
+    )
+    cover: Length | None = Field(
+        default=None, description="Clear cover to the first layer [mm]; none: the least."
+    )
+    fy: float | None = Field(
+        default=None, gt=0, description="Yield strength from tests [MPa]; none: the code's."
+    )
+    bars: FerrocementBars | None = None
+    exposure: Literal["noncorrosive", "corrosive", "waterRetaining"] = Field(
+        default="noncorrosive",
+        json_schema_extra={
+            "enumDescriptions": ["Noncorrosive", "Corrosive", "Water or liquid retaining"]
+        },
+    )
+    fatigueCycles: Literal["none", "oneMillion", "twoMillion"] = Field(
+        default="none",
+        title="Fatigue",
+        json_schema_extra={"enumDescriptions": ["Not checked", "1 million", "2 million"]},
+    )
+
+
 # ─────────────────────────── masonry walls: confinement and anchor bolts ───────────────────────────
 
 
@@ -1427,6 +1560,12 @@ class Beam(_ObjectBase):
         description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
         "ends; none: not checked.",
     )
+    bamboo: BambooMember | None = Field(
+        default=None, description="Bamboo members: bundle, truss member, joints (B39)."
+    )
+    ferrocement: FerrocementMember | None = Field(
+        default=None, description="Ferrocement members: the mesh layers (B39)."
+    )
     serviceability: MemberServiceability | None = Field(
         default=None,
         title="Deflection limits",
@@ -1495,6 +1634,12 @@ class Column(_ObjectBase):
         description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
         "ends; none: not checked.",
     )
+    bamboo: BambooMember | None = Field(
+        default=None, description="Bamboo members: bundle, truss member, joints (B39)."
+    )
+    ferrocement: FerrocementMember | None = Field(
+        default=None, description="Ferrocement members: the mesh layers (B39)."
+    )
     modifiers: FrameModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
@@ -1515,6 +1660,58 @@ class Column(_ObjectBase):
     )
 
 
+# ─────────────── B38: buckling-restrained braces and steel plate shear walls ───────────────
+# Checked by saengine.design.steel.seismic_braced and seismic_walls (the code pack's
+# steelSeismic table).
+
+
+class BucklingRestrainedBrace(_Model):
+    """The steel core of a buckling-restrained brace and its qualifying test results."""
+
+    type: Literal["bucklingRestrained"] = "bucklingRestrained"
+    coreArea: float = Field(gt=0, description="Net area of the steel core Asc [mm²].")
+    beta: float = Field(
+        gt=0,
+        title="β (compression adjustment)",
+        description="Largest compression / tension force of the qualifying tests at twice the "
+        "design storey drift (at least the code pack's least β).",
+    )
+    omega: float = Field(
+        gt=0,
+        title="ω (strain hardening)",
+        description="Largest tension force of the qualifying tests / Fysc Asc of the specimen.",
+    )
+    couponFy: bool = Field(
+        default=False,
+        title="Fysc from a coupon test",
+        description="The core's yield stress is a coupon test's: Ry is not applied.",
+    )
+
+
+class SteelPlateWall(_Model):
+    """Concrete encasing the steel plate of a composite plate shear wall."""
+
+    type: Literal["steelPlateWall"] = "steelPlateWall"
+    concrete: Literal["none", "oneSide", "bothSides"] = Field(
+        default="none",
+        json_schema_extra={"enumDescriptions": ["No concrete", "One side", "Both sides"]},
+    )
+    concreteMaterial: Id | None = Field(
+        default=None, description="03 Materials id of the concrete; none: no concrete."
+    )
+    concreteThickness: float = Field(
+        default=100, gt=0, description="Concrete on each encased side [mm]."
+    )
+    barRatio: float = Field(
+        default=0.0025, ge=0, description="Bars in the concrete each way, As / Ac [-]."
+    )
+    barSpacing: float = Field(default=300, gt=0, description="Between the bars [mm].")
+    connectors: bool = Field(
+        default=True,
+        description="Headed studs or other connectors tie the plate to the concrete.",
+    )
+
+
 class Brace(_ObjectBase):
     """Bracing and truss members."""
 
@@ -1532,6 +1729,12 @@ class Brace(_ObjectBase):
         "combination releases the members it would compress, and they are designed for "
         "tension alone.",
     )
+    restrained: BucklingRestrainedBrace | None = Field(  # B38
+        default=None,
+        title="Buckling-restrained",
+        description="Steel braces of buckling-restrained braced frames: the core and the test "
+        "results; none: a conventional brace.",
+    )
     timber: TimberMember | None = Field(
         default=None,
         description="Timber members: bearing, notches, restraints, cantilever, spaced column; "
@@ -1542,6 +1745,9 @@ class Brace(_ObjectBase):
         title="Timber joint",
         description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
         "ends; none: not checked.",
+    )
+    bamboo: BambooMember | None = Field(
+        default=None, description="Bamboo members: bundle, truss member, joints (B39)."
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -1659,6 +1865,14 @@ class Wall(_ObjectBase):
         default=None,
         title="Anchor bolts",
         description="Masonry walls: the bolts anchoring the wall to each floor or roof.",
+    )
+    # B38: steel plate shear walls.
+    plateWall: SteelPlateWall | None = Field(
+        default=None,
+        title="Steel plate wall",
+        description="Steel walls (a steel material; the thickness is the web plate's): the "
+        "concrete encasing the plate of a composite plate shear wall; none: a steel plate "
+        "shear wall without concrete.",
     )
 
 

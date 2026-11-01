@@ -1,0 +1,468 @@
+{
+  "$defs": {
+    "BambooColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "maxSlenderness": {
+          "description": "Largest l/r of members in compression.",
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        },
+        "inertiaFactor": {
+          "description": "Share of I in the Euler buckling load (taper).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Inertiafactor",
+          "type": "number"
+        },
+        "initialCurvature": {
+          "description": "Initial bow as a share of the length (the grading's largest curvature).",
+          "exclusiveMinimum": 0,
+          "title": "Initialcurvature",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxSlenderness",
+        "inertiaFactor",
+        "initialCurvature"
+      ],
+      "title": "BambooColumn",
+      "type": "object"
+    },
+    "BambooDensityFactors": {
+      "additionalProperties": false,
+      "description": "Allowable long-term stress per unit density [MPa per kg/m³]; none: not given.",
+      "properties": {
+        "compression": {
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "bending": {
+          "exclusiveMinimum": 0,
+          "title": "Bending",
+          "type": "number"
+        },
+        "shear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shear"
+        }
+      },
+      "required": [
+        "compression",
+        "bending"
+      ],
+      "title": "BambooDensityFactors",
+      "type": "object"
+    },
+    "BambooDuration": {
+      "additionalProperties": false,
+      "description": "Factors on the permissible stresses by load duration.",
+      "properties": {
+        "continuous": {
+          "exclusiveMinimum": 0,
+          "title": "Continuous",
+          "type": "number"
+        },
+        "medium": {
+          "description": "Imposed (live) or medium term loading.",
+          "exclusiveMinimum": 0,
+          "title": "Medium",
+          "type": "number"
+        },
+        "short": {
+          "description": "Short-term loading (wind, earthquake).",
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        }
+      },
+      "required": [
+        "continuous",
+        "medium",
+        "short"
+      ],
+      "title": "BambooDuration",
+      "type": "object"
+    },
+    "BambooFastening": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "wireDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Wirediameter"
+        },
+        "pinDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Pindiameter"
+        },
+        "plateThickness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least hardwood splice plate [mm].",
+          "title": "Platethickness"
+        },
+        "plywoodThickness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least structural plywood plate [mm].",
+          "title": "Plywoodthickness"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "BambooFastening",
+      "type": "object"
+    },
+    "BambooGroupLimit": {
+      "additionalProperties": false,
+      "description": "Least modulus of rupture and E of a group (green condition) [MPa].",
+      "properties": {
+        "rupture": {
+          "exclusiveMinimum": 0,
+          "title": "Rupture",
+          "type": "number"
+        },
+        "E": {
+          "exclusiveMinimum": 0,
+          "title": "E",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rupture",
+        "E"
+      ],
+      "title": "BambooGroupLimit",
+      "type": "object"
+    },
+    "BambooJointKind": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "lengthening",
+            "bearing",
+            "modern"
+          ],
+          "title": "Group",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "group"
+      ],
+      "title": "BambooJointKind",
+      "type": "object"
+    },
+    "BambooJoints": {
+      "additionalProperties": false,
+      "properties": {
+        "kinds": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BambooJointKind"
+          },
+          "minProperties": 1,
+          "title": "Kinds",
+          "type": "object"
+        },
+        "fastenings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BambooFastening"
+          },
+          "minProperties": 1,
+          "title": "Fastenings",
+          "type": "object"
+        },
+        "capacity": {
+          "const": "tested",
+          "default": "tested",
+          "description": "Joint capacities come from full-scale tests.",
+          "title": "Capacity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kinds",
+        "fastenings"
+      ],
+      "title": "BambooJoints",
+      "type": "object"
+    },
+    "BambooSafetyFactors": {
+      "additionalProperties": false,
+      "description": "Factors of safety from the ultimate (tested) values to the permissible ones.",
+      "properties": {
+        "bending": {
+          "exclusiveMinimum": 0,
+          "title": "Bending",
+          "type": "number"
+        },
+        "E": {
+          "exclusiveMinimum": 0,
+          "title": "E",
+          "type": "number"
+        },
+        "compression": {
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bending",
+        "E",
+        "compression"
+      ],
+      "title": "BambooSafetyFactors",
+      "type": "object"
+    },
+    "BambooSpecies": {
+      "additionalProperties": false,
+      "description": "A species of the code's safe working stresses table (green condition) [MPa].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "description": "Botanical name (with synonyms) as the code prints it.",
+          "title": "Name",
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "bending": {
+          "description": "Extreme fibre stress in bending [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Bending",
+          "type": "number"
+        },
+        "E": {
+          "description": "Permissible modulus of elasticity [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "E",
+          "type": "number"
+        },
+        "compression": {
+          "description": "Allowable compressive stress [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "group",
+        "bending",
+        "E",
+        "compression"
+      ],
+      "title": "BambooSpecies",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Permissible stress design of round bamboo members: safe working stresses by species, by\ndensity or from tests with the factors of safety, load duration factors, columns (Euler\nwith a reduced I, slenderness limit, initial curvature), truss force increase and the\njoints, whose capacities come from tests. ``clauses``: the clause of each check.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "method": {
+      "const": "permissibleStress",
+      "default": "permissibleStress",
+      "title": "Method",
+      "type": "string"
+    },
+    "species": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BambooSpecies"
+      },
+      "minProperties": 1,
+      "title": "Species",
+      "type": "object"
+    },
+    "groupLimits": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BambooGroupLimit"
+      },
+      "propertyNames": {
+        "enum": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      "title": "Grouplimits",
+      "type": "object"
+    },
+    "densityFactors": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BambooDensityFactors"
+      },
+      "propertyNames": {
+        "enum": [
+          "green",
+          "airDry"
+        ]
+      },
+      "title": "Densityfactors",
+      "type": "object"
+    },
+    "safetyFactors": {
+      "$ref": "#/$defs/BambooSafetyFactors"
+    },
+    "duration": {
+      "$ref": "#/$defs/BambooDuration"
+    },
+    "column": {
+      "$ref": "#/$defs/BambooColumn"
+    },
+    "trussForceIncrease": {
+      "description": "Truss compression and joint forces ×.",
+      "minimum": 1,
+      "title": "Trussforceincrease",
+      "type": "number"
+    },
+    "minWallThickness": {
+      "description": "Least wall of load-bearing culms [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Minwallthickness",
+      "type": "number"
+    },
+    "joints": {
+      "$ref": "#/$defs/BambooJoints"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "required": [
+    "species",
+    "groupLimits",
+    "densityFactors",
+    "safetyFactors",
+    "duration",
+    "column",
+    "trussForceIncrease",
+    "minWallThickness",
+    "joints"
+  ],
+  "title": "BambooTable",
+  "type": "object",
+  "$id": "saengine.codePack.bamboo/1"
+}
