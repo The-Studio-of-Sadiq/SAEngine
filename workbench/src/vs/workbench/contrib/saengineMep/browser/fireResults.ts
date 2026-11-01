@@ -9,6 +9,7 @@ import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { fireFailures, fireStatusLabel, hazardLabel, IFireReport } from './fireDocument.js';
 import { openingsTable } from './hvacResults.js';
 import { IResultsHost, noteSection, resultSection, tiles, utilisationCell, value } from './mepResults.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The Results view of the fire protection: the backend's report (`saengine.fire.report`) as one
@@ -28,7 +29,7 @@ const KW = localize('fireResults.unit.kw', "kW");
 export function renderFireReport(view: HTMLElement, report: IFireReport, host: IResultsHost): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('fireResults.title', "Fire protection")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('fireResults.subtitle', "Computed by the backend to BNBC 2020 Part 4 from the fire set-up; not stored in the file. NFPA values are from memory, to be checked.")));
+	append(header, $('span.mep-view-subtitle', undefined, localize('fireResults.subtitle', "Computed by the backend to {0} Part 4 from the fire set-up; not stored in the file. NFPA values are from memory, to be checked.", defaultCodeName())));
 
 	const tile = tiles(view);
 	const required = report.systems.filter(s => s.status === 'required').length;

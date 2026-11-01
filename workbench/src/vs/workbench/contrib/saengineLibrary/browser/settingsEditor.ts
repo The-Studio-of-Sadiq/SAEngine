@@ -459,7 +459,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** Asks the backend which code packs are installed (built-in, the user's, the project's). */
 	private async refreshPacks(): Promise<void> {
 		if (!CommandsRegistry.getCommand(CODES_LIST_COMMAND)) {
-			return; // until the backend offers code packs, the built-in BNBC 2020 alone is shown
+			return; // until the backend offers code packs, the built-in default pack alone is shown
 		}
 		const version = ++this.packsVersion;
 		let packs: ICodePackInfo[] | undefined;

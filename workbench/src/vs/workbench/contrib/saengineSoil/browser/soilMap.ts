@@ -9,7 +9,7 @@ import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, IS
 /*
  * The model of the site map (soilMapView.ts), free of the DOM and of MapLibre: the tile source and
  * its attribution, coordinates as the engineer reads and types them, what the map can show
- * (tiles, or the plain grid when there are none) and the BNBC suggestion for the site.
+ * (tiles, or the plain grid when there are none) and the code pack's site suggestion for the site.
  */
 
 /** OpenStreetMap's standard tiles (https://operations.osmfoundation.org/policies/tiles/). */
@@ -335,7 +335,7 @@ export function outlineProject(location: ISoilLocationResult | undefined): { x: 
 	return (location?.outlineProject ?? []).filter(p => p.length >= 2 && p.every(Number.isFinite)).map(p => ({ x: p[0], y: p[1] }));
 }
 
-export interface IBnbcSuggestion {
+export interface ICodeSiteSuggestion {
 	readonly text: string;
 	/** The settings' location id to apply; undefined when the town is not one of the settings' list (applied as Custom, Z and V). */
 	readonly location?: string;
@@ -349,10 +349,10 @@ export interface IBnbcSuggestion {
 }
 
 /**
- * The banner's suggestion: the nearest BNBC towns' zone and wind speed, unless the project
+ * The banner's suggestion: the nearest towns of the code pack's location table: zone and wind speed, unless the project
  * settings already use those values.
  */
-export function bnbcSuggestion(location: ISoilLocationResult | undefined): IBnbcSuggestion | undefined {
+export function codeSiteSuggestion(location: ISoilLocationResult | undefined): ICodeSiteSuggestion | undefined {
 	const s = location?.suggestion;
 	if (!s?.town) {
 		return undefined;

@@ -29,6 +29,7 @@ import { previewPath, previewValue } from '../common/aiChangeSet.js';
 import { OptionalScope } from '../common/aiTools.js';
 import { componentContextKey } from '../../saengineUpdate/common/components.js';
 import { IAssistantEntry, ISaengineAiAssistantService } from './aiAssistantService.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /** The commands the view's links run (registered in the contribution). */
 export const SET_KEY_COMMAND = 'saengine.ai.assistant.setKey';
@@ -107,7 +108,7 @@ export class AiAssistantView extends ViewPane {
 		const row = append(footer, $('.ai-input-row'));
 		this.input = append(row, $('textarea.ai-input')) as HTMLTextAreaElement;
 		this.input.rows = 3;
-		this.input.placeholder = localize('assistant.placeholder', "Ask about BNBC 2020, your results, or describe a change…");
+		this.input.placeholder = localize('assistant.placeholder', "Ask about {0}, your results, or describe a change…", activeCodeName());
 		this.input.setAttribute('aria-label', localize('assistant.inputLabel', "Question for the AI assistant"));
 		this._register(addDisposableListener(this.input, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
@@ -199,7 +200,7 @@ export class AiAssistantView extends ViewPane {
 		clearNode(this.conversationEl);
 		const entries = this.assistant.entries;
 		if (!entries.length) {
-			append(this.conversationEl, $('.ai-empty', undefined, localize('assistant.empty', "Ask what BNBC 2020 requires (answers cite the code pack's clauses), why a member fails, or describe a change: changes come as a preview you accept or reject.")));
+			append(this.conversationEl, $('.ai-empty', undefined, localize('assistant.empty', "Ask what {0} requires (answers cite the code pack's clauses), why a member fails, or describe a change: changes come as a preview you accept or reject.", activeCodeName())));
 		}
 		for (const entry of entries) {
 			this.renderEntry(entry);

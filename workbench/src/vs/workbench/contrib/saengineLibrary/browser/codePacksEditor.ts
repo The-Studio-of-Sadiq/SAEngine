@@ -47,6 +47,7 @@ import {
 	newestPackages, PACKAGE_KINDS, packageFileName, packageUpdates, PackageKind, PACKAGES_COPY_COMMAND, PACKAGES_DISCARD_COMMAND, PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, PACKAGES_OPEN_BUNDLE_COMMAND, readPackageIndex, sizeLabel,
 } from '../common/packageIndex.js';
 import { CodePacksEditorInput } from './codePacksEditorInput.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 import {
 	builtinDefaultPack, CodePackScope, CODES_INSTALL_COMMAND, CODES_LIST_COMMAND, CODES_NEW_COMMAND, CODES_SHOW_COMMAND, CODES_TRUST_COMMAND, CODES_VALIDATE_COMMAND,
 	coverageLabel, DEFAULT_CODE_PACK, extendsLabel, groupPacks, ICodePackInfo, packIdProblem, PROJECT_PACKS_FOLDER, readCodePack, readCodePacks, readProblems, scopeLabel, shadowedLabel, trustLabel,
@@ -874,7 +875,7 @@ export class CodePacksEditor extends EditorPane {
 		const title = localize('packages.plannedTitle', "Planned Design Codes");
 		const section = append(this.list, $('.code-packs-group.packages-planned', { role: 'group', 'aria-label': title }));
 		append(section, $('.code-packs-group-title', undefined, title));
-		append(section, $('.code-packs-empty', undefined, localize('packages.plannedText', "SAEngine is built on BNBC 2020. These code packs are planned and not in this MVP; open one to see what it will cover.")));
+		append(section, $('.code-packs-empty', undefined, localize('packages.plannedText', "These code packs are planned and not in this MVP; open one to see what it will cover.")));
 		const chips = append(section, $('.code-packs-chips'));
 		for (const pack of plannedCodePacks()) {
 			this.listDisposables.add(appendPlannedFeatureChip(chips, pack.feature, this.commandService));
@@ -1214,7 +1215,7 @@ export class CodePacksEditor extends EditorPane {
 			appendPropertyNote(panel, localize('packages.hooksCard', "Contains code (Python hooks): read it before trusting it. Installing does not trust it; the reviewed code's hash is {0}.", pkg.hooksSha256 ?? localize('packages.hooksNoHash', "(not given)")));
 		}
 		if (pkg.kind === 'designCode') {
-			appendPropertyNote(panel, localize('packages.codeLimits', "A design code package gives the site and hazard values, loads, combinations and coefficients. Resistance factors and detailing limits of member design are still BNBC 2020's in this version (docs/code-packs.md, known limits)."));
+			appendPropertyNote(panel, localize('packages.codeLimits', "A design code package gives the site and hazard values, loads, combinations and coefficients. Resistance factors and detailing limits of member design are still {0}'s in this version (docs/code-packs.md, known limits).", activeCodeName()));
 		}
 		const newer = needsNewerSaengine(pkg, this.saengineVersion);
 		if (newer) {

@@ -24,6 +24,7 @@ import { AiProviderId, ANTHROPIC_MODEL_SETTING, ANTHROPIC_MODELS, DEFAULT_ANTHRO
 import { ISaengineAiAssistantService, SaengineAiAssistantService } from './aiAssistantService.js';
 import { AI_COMPONENT_KEY, AiAssistantView, CONFIGURE_COMMAND, SET_KEY_COMMAND } from './aiAssistantView.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The built-in AI assistant (round T49): its settings, its view in the secondary side bar and
@@ -123,7 +124,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'saengine.ai.assistant.open',
 			title: localize2('assistant.open', "Open AI Assistant"),
-			metadata: { description: localize2('assistant.open.description', "Asks about BNBC 2020 (answers cite the code pack), explains results and proposes changes you preview and accept.") },
+			metadata: { description: localize2('assistant.open.description', "Asks about {0} (answers cite the code pack), explains results and proposes changes you preview and accept.", activeCodeName()) },
 			category,
 			f1: true,
 		});

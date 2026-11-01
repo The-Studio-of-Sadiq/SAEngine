@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The soil report of a project (`01 Soil Report/soil-report.json`, `saengine.soilReport/1`):
@@ -370,7 +371,17 @@ export function boreholePosition(borehole: IBorehole): BoreholePosition {
 export type SoilPractice = 'textbook' | 'bdConsultant';
 
 /** The liquefaction triggering procedure (`design.liquefactionMethod`). */
-export type LiquefactionMethod = 'idrissBoulanger2014' | 'bnbc2020';
+export type LiquefactionMethod = 'idrissBoulanger2014' | 'codePack';
+
+/** Former values of the choices, read as the current ones (the code pack's procedure was named after the default pack). */
+const FORMER_CHOICE_VALUES: { readonly [value: string]: string } = { bnbc2020: 'codePack' };
+
+/** A choice value of a file or the backend, with a former value read as the current one. */
+export function currentChoiceValue(value: string): string;
+export function currentChoiceValue(value: string | undefined): string | undefined;
+export function currentChoiceValue(value: string | undefined): string | undefined {
+	return value === undefined ? undefined : FORMER_CHOICE_VALUES[value] ?? value;
+}
 
 export interface ISoilDesign {
 	hammerEnergy?: number;
@@ -417,7 +428,7 @@ export const LIQUEFACTION_METHOD_CHOICE: IChoiceSpec = {
 	defaultValue: 'idrissBoulanger2014',
 	options: [
 		{ value: 'idrissBoulanger2014', label: localize('soil.lqMethod.ib2014', "Idriss & Boulanger 2014"), title: localize('soil.lqMethod.ib2014Title', "Idriss & Boulanger 2014: CSR with their depth factor rd, CRR from (N1)60cs with the magnitude and overburden factors.") },
-		{ value: 'bnbc2020', label: localize('soil.lqMethod.bnbc2020', "BNBC 2020 Sec 3.9.5"), title: localize('soil.lqMethod.bnbc2020Title', "BNBC 2020 Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), the code's CSR (Eq 6.3.8) with rd = 1 − 0.015z (Eq 6.3.7b), CRR of Youd et al. 2001 from the SPT.") },
+		{ value: 'codePack', label: localize('soil.lqMethod.codePack', "{0} Sec 3.9.5", defaultCodeName()), title: localize('soil.lqMethod.codePackTitle', "{0} Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), the code's CSR (Eq 6.3.8) with rd = 1 − 0.015z (Eq 6.3.7b), CRR of Youd et al. 2001 from the SPT.", defaultCodeName()) },
 	],
 };
 
@@ -429,7 +440,8 @@ export function choiceLabel(spec: IChoiceSpec, value: unknown): string | undefin
 	if (typeof value !== 'string' || !value) {
 		return undefined;
 	}
-	return spec.options.find(o => o.value === value)?.label ?? value;
+	const current = currentChoiceValue(value);
+	return spec.options.find(o => o.value === current)?.label ?? current;
 }
 
 /** The hover of a choice's row: what it decides, then one line per option. */
@@ -1413,8 +1425,8 @@ export function hasLiquefiable(result: IBoreholeResult | undefined): boolean {
 /** What a special site class means (BNBC 2020 Table 6.2.13 and Sec 2.5.3.1). */
 export function siteFlagMeaning(cls: string): string | undefined {
 	switch (cls) {
-		case 'S1': return localize('soil.flag.s1', "S1 possible: a layer at least 10 m thick of soft clays or silts with PI > 40 and a high water content (BNBC 2020 Table 6.2.13). Sec 2.5.3.1 asks for a site-specific study of the ground motion.");
-		case 'S2': return localize('soil.flag.s2', "S2 possible: liquefiable soils (BNBC 2020 Table 6.2.13). Sec 2.5.3.1 asks for a site-specific study of the ground motion and of the possibility of soil failure.");
+		case 'S1': return localize('soil.flag.s1', "S1 possible: a layer at least 10 m thick of soft clays or silts with PI > 40 and a high water content ({0} Table 6.2.13). Sec 2.5.3.1 asks for a site-specific study of the ground motion.", defaultCodeName());
+		case 'S2': return localize('soil.flag.s2', "S2 possible: liquefiable soils ({0} Table 6.2.13). Sec 2.5.3.1 asks for a site-specific study of the ground motion and of the possibility of soil failure.", defaultCodeName());
 		default: return undefined;
 	}
 }
@@ -1511,6 +1523,9 @@ export function parseSoilReport(text: string): ParsedSoilReport {
 	const report = value as ISoilReport;
 	report.report = isRecord(report.report) ? report.report : {};
 	report.design = isRecord(report.design) ? report.design : {};
+	if (typeof report.design.liquefactionMethod === 'string') {
+		report.design.liquefactionMethod = currentChoiceValue(report.design.liquefactionMethod) as LiquefactionMethod;
+	}
 	report.boreholes = (report.boreholes ?? []).filter(isRecord) as IBorehole[];
 	if (typeof report.groundLevel !== 'number') {
 		report.groundLevel = 0;
@@ -1946,7 +1961,7 @@ export function checkSoilReport(report: ISoilReport): ISoilProblem[] {
 	const reaches = (b: IBorehole) => terminationDepth(b) >= SITE_CLASS_DEPTH - 1 || b.layers.some(l => l.soilType === 'rock' && l.bottom >= terminationDepth(b) - 1);
 	if (tested.length && !tested.some(reaches)) {
 		const deepest = Math.max(...tested.map(terminationDepth));
-		problems.push({ message: localize('soil.p.shallowForSiteClass', "No borehole reaches 30 m (the deepest ends at {0} m): BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so the site class is provisional (the last N is carried down to 30 m). Drill one borehole to 30 m to confirm it.", formatNumber(deepest / 1000, 1)), severity: 'warning' });
+		problems.push({ message: localize('soil.p.shallowForSiteClass', "No borehole reaches 30 m (the deepest ends at {0} m): {1} Table 6.2.13 classifies the site by the top 30 m, so the site class is provisional (the last N is carried down to 30 m). Drill one borehole to 30 m to confirm it.", formatNumber(deepest / 1000, 1), defaultCodeName()), severity: 'warning' });
 	}
 	return problems;
 }

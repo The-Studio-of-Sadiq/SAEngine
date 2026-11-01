@@ -27,6 +27,7 @@ import { SoilEditor } from './soilEditor.js';
 import { SITE_RESPONSE_FEATURE } from './soilStrata.js';
 import { SoilEditorInput, SoilEditorInputSerializer } from './soilEditorInput.js';
 import { SOIL_ADD_BOREHOLE_COMMAND, SOIL_IMPORT_FILE_COMMAND, SOIL_SAVE_TEMPLATE_COMMAND } from './soilDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SoilEditor, SoilEditor.ID, localize('soilEditorPane', "SAEngine Soil Report")),
@@ -194,5 +195,5 @@ registerPlannedFeature({
 		localize('soil.planned.out1', "Surface response spectrum and amplification against period"),
 		localize('soil.planned.out2', "Peak shear strain and acceleration profiles"),
 	],
-	references: ['BNBC 2020 Part 6 Chapter 2, Table 6.2.13 (site classes SE, S1, S2)', 'ASCE 7-16 Chapter 21 (site response analysis)'],
+	references: [`${defaultCodeName()} Part 6 Chapter 2, Table 6.2.13 (site classes SE, S1, S2)`, 'ASCE 7-16 Chapter 21 (site response analysis)'],
 });

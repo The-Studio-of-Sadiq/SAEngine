@@ -9,6 +9,7 @@ import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { checksTable, resultSection, statusCell, statusText, value, ITableColumn } from './mepResults.js';
 import { fixtureWords, IFloorHead, IPlumbingReport, ISizedItem, plumbingFailures, PlumbingStatus, systemLabel, tankKindLabel } from './plumbingDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The Results view of the plumbing: the backend's report (`saengine.plumbing.report`) as one
@@ -41,7 +42,7 @@ const section = resultSection;
 export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport, host: IPlumbingResultsHost): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('plb.resultsTitle', "Plumbing coordination")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('plb.resultsSubtitle', "Computed by the backend to BNBC 2020 Part 8 from the plumbing set-up; not stored in the file.")));
+	append(header, $('span.mep-view-subtitle', undefined, localize('plb.resultsSubtitle', "Computed by the backend to {0} Part 8 from the plumbing set-up; not stored in the file.", defaultCodeName())));
 
 	// Tiles.
 	const tiles = append(view, $('.mep-tiles'));
@@ -97,8 +98,8 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 	// Demand and storage.
 	if (report.demand.length || report.storage.length) {
 		const demand = section(view, localize('plb.demand', "Demand and storage"), report.references.storage
-			? localize('plb.demandDetailRef', "BNBC Table 8.5.1 consumption; storage {0}", report.references.storage)
-			: localize('plb.demandDetail', "BNBC Table 8.5.1 consumption; storage BNBC Sec 5.9.1.2(c)"));
+			? localize('plb.demandDetailRef', "{1} Table 8.5.1 consumption; storage {0}", report.references.storage, defaultCodeName())
+			: localize('plb.demandDetail', "{0} Table 8.5.1 consumption; storage {0} Sec 5.9.1.2(c)", defaultCodeName()));
 		if (report.demand.length) {
 			const table = append(demand, $('table.mep-table.mep-result-table'));
 			host.tableHead(table, [
@@ -131,7 +132,7 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 			const table = append(demand, $('table.mep-table.mep-result-table'));
 			host.tableHead(table, [
 				{ label: localize('plb.f.storage', "Storage"), width: 160 }, { label: localize('plb.f.tank', "Tank"), width: 80 },
-				{ label: localize('plb.f.required', "Required"), unit: M3, numeric: true, width: 90, title: localize('plb.f.requiredTitle', "The water the code needs stored (BNBC 2020 Part 8 Sec 5.9.1.2)") },
+				{ label: localize('plb.f.required', "Required"), unit: M3, numeric: true, width: 90, title: localize('plb.f.requiredTitle', "The water the code needs stored ({0} Part 8 Sec 5.9.1.2)", defaultCodeName()) },
 				{ label: localize('plb.f.provided', "Provided"), unit: M3, numeric: true, width: 90, title: localize('plb.f.providedTitle', "The water the tank holds: inside length less the partitions × width × water depth (not the freeboard)") },
 				{ label: localize('plb.f.status', "Status"), width: 80 }, { label: localize('plb.f.note', "Note"), width: 300 },
 			]);
@@ -151,12 +152,12 @@ export function renderPlumbingReport(view: HTMLElement, report: IPlumbingReport,
 		}
 	}
 
-	sizedTable(view, host, localize('plb.risers', "Risers and stacks"), localize('plb.risersDetail', "fixture units: BNBC Appendix O Table 8.O.1, Tables 8.5.4 to 8.5.6; stacks Tables 8.6.12 to 8.6.16"), report.risers, false);
-	sizedTable(view, host, localize('plb.leaders', "Rainwater leaders"), report.references.rainwater ?? localize('plb.leadersDetail', "BNBC Table 8.7.2"), report.leaders, true);
+	sizedTable(view, host, localize('plb.risers', "Risers and stacks"), localize('plb.risersDetail', "fixture units: {0} Appendix O Table 8.O.1, Tables 8.5.4 to 8.5.6; stacks Tables 8.6.12 to 8.6.16", defaultCodeName()), report.risers, false);
+	sizedTable(view, host, localize('plb.leaders', "Rainwater leaders"), report.references.rainwater ?? localize('plb.leadersDetail', "{0} Table 8.7.2", defaultCodeName()), report.leaders, true);
 
 	// Septic tank and soak well.
 	if (report.septic.length) {
-		const detail = [report.references.septic, report.references.soakWell].filter(Boolean).join('; ') || localize('plb.septicDetail', "BNBC Sec 6.9.12, Appendix S; soak well Table 8.6.10");
+		const detail = [report.references.septic, report.references.soakWell].filter(Boolean).join('; ') || localize('plb.septicDetail', "{0} Sec 6.9.12, Appendix S; soak well Table 8.6.10", defaultCodeName());
 		const septic = section(view, localize('plb.septic', "Septic tank and soak well"), detail);
 		const table = append(septic, $('table.mep-table.mep-result-table'));
 		host.tableHead(table, [
@@ -308,7 +309,7 @@ function renderRooms(view: HTMLElement, report: IPlumbingReport, host: IPlumbing
 		append(tr, $('td.number', undefined, formatNumber(run.length, 1)));
 		append(tr, $('td', undefined, run.beams.join(', ') || '—'));
 	}
-	append(runs, $('p.mep-note', undefined, localize('plb.branchesNote', "A run that crosses a beam passes below it or through a sleeve in its web: add the opening in Coordination. BNBC Part 8 sizes the risers and stacks, not where their branches go.")));
+	append(runs, $('p.mep-note', undefined, localize('plb.branchesNote', "A run that crosses a beam passes below it or through a sleeve in its web: add the opening in Coordination. {0} Part 8 sizes the risers and stacks, not where their branches go.", defaultCodeName())));
 }
 
 function sizedTable(view: HTMLElement, host: IPlumbingResultsHost, title: string, detail: string, items: readonly ISizedItem[], leaders: boolean): void {

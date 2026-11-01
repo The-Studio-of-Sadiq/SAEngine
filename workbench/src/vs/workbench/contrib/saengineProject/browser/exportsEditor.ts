@@ -46,6 +46,7 @@ import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_IMPORT_COMMAND, CAD_OPEN_COMMAND, EXPOR
 import { partName } from './projectParts.js';
 import { EXCHANGE_SUFFIX, EXPORT_REVIT_FOLDER, REVIT_EXPORT_COMMAND, RevitLinkFlows } from './revitLink.js';
 import { formatDate } from '../../../services/saengineProject/common/formatting.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The commands that make the exports. Each belongs to the part that owns the data; this page only
@@ -457,7 +458,7 @@ export class ExportsEditor extends EditorPane {
 		kinds.push({
 			kind: 'e2k', icon: Codicon.symbolStructure,
 			title: localize('exports.e2k', "ETABS model (.e2k)"),
-			description: localize('exports.e2kDescription', "The analysis model as an ETABS text file, with SAEngine's BNBC wind and earthquake story forces, and a report of what could not be carried over."),
+			description: localize('exports.e2kDescription', "The analysis model as an ETABS text file, with SAEngine's {0} wind and earthquake story forces, and a report of what could not be carried over.", activeCodeName()),
 			location: `${exportsFolder}/${EXPORT_E2K_FOLDER}`,
 			makeLabel: localize('exports.exportE2k', "Export to ETABS (.e2k)"),
 			againLabel: localize('exports.exportE2kAgain', "Export to ETABS Again"),

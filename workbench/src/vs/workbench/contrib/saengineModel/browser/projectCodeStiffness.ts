@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { DEFAULT_CODE_PACK_ID, setActiveCodePack } from '../../../services/saengineProject/common/activeCodePack.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { flushModifierFields } from './modifiersPanel.js';
@@ -19,8 +20,8 @@ import { partFile } from './projectDocuments.js';
 /** The Code Packs commands (saengineLibrary/browser/codePacksModel.ts), answered by the backend. */
 const CODES_SHOW_COMMAND = 'saengine.codes.show';
 /** The pack a project without `codePack` follows (saengine.library.settings). */
-const DEFAULT_PACK = 'bnbc2020';
-/** The pack table holding `crackedStiffness` (BNBC 2020 Part 6 Sec 6.3.10.4.1 in the built-in pack). */
+const DEFAULT_PACK = DEFAULT_CODE_PACK_ID;
+/** The pack table holding `crackedStiffness` (the default pack's Part 6 Sec 6.3.10.4.1). */
 const CONCRETE_TABLE = 'data/concrete.json';
 
 type Json = { [key: string]: unknown };
@@ -71,6 +72,7 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 		const root = this.projectService.project?.root;
 		if (!root) {
 			setProjectCode({});
+			setActiveCodePack(undefined, undefined);
 			return;
 		}
 		const settings = await this.json(partFile(root, 'settings'));
@@ -94,6 +96,8 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 		}
 		if (generation === this.generation) {
 			setProjectCode({ settings, crackedTable, packName });
+			// The editors name the project's code pack in their text (activeCodePack.ts).
+			setActiveCodePack(packId, packName);
 		}
 	}
 

@@ -43,6 +43,7 @@ import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequi
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
+import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
 
@@ -980,8 +981,8 @@ export class FemResultsEditor extends EditorPane {
 			!spectrum
 				? localize('femResults.storeyHelp', "Displacements are the largest at each level; drift is the largest inter-storey drift ratio over the plan positions; forces are the lateral loads at the levels.")
 				: scale !== undefined
-					? localize('femResults.spectrumScaledHelp', "Peak values of the response spectrum case (no signs). Storey forces, shears and overturning are scaled by {0} to 0.85·V as the design uses them ({1}); displacements and drifts are unscaled, as BNBC requires for drift. Drifts combine the modal drifts, as the spectrum design does.", scale.toFixed(3), response.spectrumDesign?.clause ?? 'BNBC 2020 Part 6 Sec 2.5.9.4')
-					: localize('femResults.spectrumUnscaledHelp', "Peak values of the response spectrum case (no signs), unscaled: the response spectrum design (Design Utilisation) has not been worked out for this run, so the forces are not yet scaled to 0.85·V (BNBC 2020 Part 6 Sec 2.5.9.4). Drifts combine the modal drifts, as the spectrum design does."),
+					? localize('femResults.spectrumScaledHelp', "Peak values of the response spectrum case (no signs). Storey forces, shears and overturning are scaled by {0} to 0.85·V as the design uses them ({1}); displacements and drifts are unscaled, as {2} requires for drift. Drifts combine the modal drifts, as the spectrum design does.", scale.toFixed(3), response.spectrumDesign?.clause ?? `${defaultCodeName()} Part 6 Sec 2.5.9.4`, activeCodeName())
+					: localize('femResults.spectrumUnscaledHelp', "Peak values of the response spectrum case (no signs), unscaled: the response spectrum design (Design Utilisation) has not been worked out for this run, so the forces are not yet scaled to 0.85·V ({0} Part 6 Sec 2.5.9.4). Drifts combine the modal drifts, as the spectrum design does.", defaultCodeName()),
 		);
 		const grid = this.grid(section);
 		const limit = elasticDriftLimit(response.driftLimit);
@@ -1016,7 +1017,7 @@ export class FemResultsEditor extends EditorPane {
 				}
 			}
 			const guides = quantity === 'drift' && limit !== undefined && (isEarthquakeResult(result.label) || spectrum)
-				? [{ axis: 'x' as const, value: limit, label: localize('femResults.driftLimit', "BNBC limit {0}", limit.toFixed(5)), color: 'red' as const }]
+				? [{ axis: 'x' as const, value: limit, label: localize('femResults.driftLimit', "{1} limit {0}", limit.toFixed(5), activeCodeName()), color: 'red' as const }]
 				: [];
 			// B9: a service wind combination: the code pack's storey drift limit for loads other than earthquake, and the top sway limit.
 			if (result.kind === 'service' && quantity === 'drift' && typeof result.windDriftLimit === 'number') {
@@ -1058,7 +1059,7 @@ export class FemResultsEditor extends EditorPane {
 
 	private renderModal(response: IFemStoryResponse): void {
 		const modal = response.modal!;
-		const section = this.section(localize('femResults.modalHeading', "Modal Periods and Mass Participation"), localize('femResults.modalHelp', "BNBC 2020 Part 6 Sec 2.5.9.2: include enough modes to reach 90 % of the mass in each direction."));
+		const section = this.section(localize('femResults.modalHeading', "Modal Periods and Mass Participation"), localize('femResults.modalHelp', "{0} Part 6 Sec 2.5.9.2: include enough modes to reach 90 % of the mass in each direction.", defaultCodeName()));
 		const grid = this.grid(section);
 		const required = 100 * modal.required;
 		const series: IChartSeries[] = [];
@@ -1234,7 +1235,7 @@ export class FemResultsEditor extends EditorPane {
 	}
 
 	private renderInteraction(member: string): void {
-		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks, ACI 318-19 as BNBC 2020 Part 6 adopts) with the demand of every load combination: the largest axial force and the largest moments of each."));
+		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks, ACI 318-19 as {0} Part 6 adopts) with the demand of every load combination: the largest axial force and the largest moments of each.", defaultCodeName()));
 		const diagram = this.interaction;
 		if (!diagram) {
 			const note = this.interactionState === 'loading'

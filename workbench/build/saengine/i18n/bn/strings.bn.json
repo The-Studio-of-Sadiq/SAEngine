@@ -15902,8 +15902,8 @@
 					"status": "translated"
 				},
 				"packages.plannedText": {
-					"en": "SAEngine is built on BNBC 2020. These code packs are planned and not in this MVP; open one to see what it will cover.",
-					"bn": "SAEngine BNBC 2020-এর উপর তৈরি। এই কোড প্যাকগুলো পরিকল্পিত এবং এই MVP-তে নেই; কোনটি কী কভার করবে দেখতে একটি খুলুন।",
+					"en": "These code packs are planned and not in this MVP; open one to see what it will cover.",
+					"bn": "এই কোড প্যাকগুলো পরিকল্পিত এবং এই MVP-তে নেই; কোনটি কী কভার করবে দেখতে একটি খুলুন।",
 					"status": "translated"
 				},
 				"codePacks.default": {
@@ -31213,11 +31213,6 @@
 					"bn": "নতুন বিল্ডিং",
 					"status": "translated"
 				},
-				"newBuilding.codeBnbc": {
-					"en": "BNBC 2020",
-					"bn": "BNBC 2020",
-					"status": "translated"
-				},
 				"newBuilding.codePlanned": {
 					"en": "{0} (Planned)",
 					"bn": "{0} (পরিকল্পিত)",
@@ -31694,8 +31689,8 @@
 					"status": "translated"
 				},
 				"plannedFeature.note": {
-					"en": "SAEngine is an MVP built on BNBC 2020. This feature is shown so you can see where it will go; it does not compute anything yet.",
-					"bn": "SAEngine হলো BNBC 2020-এর ওপর তৈরি একটি MVP। ফিচারটি কোথায় যাবে তা দেখাতে এটি দেখানো হয়েছে; এটি এখনও কিছু হিসাব করে না।",
+					"en": "SAEngine is an MVP. This feature is shown so you can see where it will go; it does not compute anything yet.",
+					"bn": "SAEngine একটি MVP। ফিচারটি কোথায় যাবে তা দেখাতে এটি দেখানো হয়েছে; এটি এখনও কিছু হিসাব করে না।",
 					"status": "translated"
 				},
 				"plannedFeature.chipTag": {
@@ -35155,14 +35150,14 @@
 					"bn": "Idriss & Boulanger 2014: তাঁদের ডেপথ ফ্যাক্টর rd সহ CSR, ম্যাগনিচিউড ও ওভারবার্ডেন ফ্যাক্টরসহ (N1)60cs থেকে CRR।",
 					"status": "translated"
 				},
-				"soil.lqMethod.bnbc2020": {
-					"en": "BNBC 2020 Sec 3.9.5",
-					"bn": "BNBC 2020 Sec 3.9.5",
+				"soil.lqMethod.codePack": {
+					"en": "{0} Sec 3.9.5",
+					"bn": "{0} Sec 3.9.5",
 					"status": "translated"
 				},
-				"soil.lqMethod.bnbc2020Title": {
-					"en": "BNBC 2020 Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), the code's CSR (Eq 6.3.8) with rd = 1 − 0.015z (Eq 6.3.7b), CRR of Youd et al. 2001 from the SPT.",
-					"bn": "BNBC 2020 Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), rd = 1 − 0.015z (Eq 6.3.7b) সহ কোডের CSR (Eq 6.3.8), SPT থেকে Youd et al. 2001-এর CRR।",
+				"soil.lqMethod.codePackTitle": {
+					"en": "{0} Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), the code's CSR (Eq 6.3.8) with rd = 1 − 0.015z (Eq 6.3.7b), CRR of Youd et al. 2001 from the SPT.",
+					"bn": "{0} Part 6 Sec 3.9.5: FL = CRR/CSR (Eq 6.3.6), rd = 1 − 0.015z (Eq 6.3.7b) সহ কোডের CSR (Eq 6.3.8), SPT থেকে Youd et al. 2001-এর CRR।",
 					"status": "translated"
 				},
 				"soil.classProvisional": {

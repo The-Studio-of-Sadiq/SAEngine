@@ -92,6 +92,7 @@ import {
 import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 import { ensureStoryUses, fillDown, fillStoryUses, isOccupied, STORY_USE_KEYS, storyUseLabel, StoryUseKey, storyUseOf, storyUsesOf } from './storyUses.js';
+import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 type View = 'plan' | 'data' | 'results';
 
@@ -199,7 +200,7 @@ const P = {
 	pumpHours: { key: 'pumpHours', label: localize('plb.f.pumpHours', "Pumping hours"), unit: localize('plb.unit.hDay', "h/day"), kind: 'number', min: 0.5, max: 24, title: localize('plb.f.pumpHoursTitle', "Hours a day the pump fills the overhead tank; empty for the backend's default") },
 	minResidualHead: { key: 'minResidualHead', label: localize('plb.f.minHead', "Minimum residual head"), unit: M, kind: 'number', min: 0.1, title: localize('plb.f.minHeadTitle', "Override of the minimum residual head at the outlets; empty for the code's") },
 	rainfall: { key: 'rainfallIntensity', label: localize('plb.f.rainfall', "Rainfall intensity"), unit: localize('plb.unit.mmh', "mm/h"), kind: 'number', min: 1, title: localize('plb.f.rainfallTitle', "Design rainfall intensity for the roof drains; empty for the backend's Dhaka value") },
-	population: { key: 'population', label: localize('plb.f.population', "Population"), kind: 'integer', min: 0, width: 80, title: localize('plb.f.populationTitle', "Persons on the storey; for a hotel, its beds (BNBC Table 8.5.1(d) gives hotels per bed, hospitals per person)") },
+	population: { key: 'population', label: localize('plb.f.population', "Population"), kind: 'integer', min: 0, width: 80, title: localize('plb.f.populationTitle', "Persons on the storey; for a hotel, its beds ({0} Table 8.5.1(d) gives hotels per bed, hospitals per person)", defaultCodeName()) },
 	diameter: { key: 'diameter', label: localize('plb.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.diameterTitle', "Your size; empty to have it sized by the backend") },
 	length: { key: 'length', label: localize('plb.f.length', "Length"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.lengthTitle', "Inside length") },
 	width: { key: 'width', label: localize('plb.f.width', "Width"), unit: MM, kind: 'number', min: 1, width: 72, title: localize('plb.f.widthTitle', "Inside width") },
@@ -2161,7 +2162,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 				this.changed(true);
 			},
 		} : undefined);
-		append(section, $('p.mep-note', undefined, localize('mep.storyUsesNote', "One use per storey for the plumbing (BNBC Table 8.5.1), the HVAC (Table 8.2.3) and the electrical services (Table 8.1.17); their own storey tables keep the fixtures, gains and loads. The roof and plant storeys are not occupied: every service leaves them out.")));
+		append(section, $('p.mep-note', undefined, localize('mep.storyUsesNote', "One use per storey for the plumbing ({0} Table 8.5.1), the HVAC (Table 8.2.3) and the electrical services (Table 8.1.17); their own storey tables keep the fixtures, gains and loads. The roof and plant storeys are not occupied: every service leaves them out.", defaultCodeName())));
 		if (!uses.length) {
 			return;
 		}
@@ -3732,7 +3733,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const storyIds = [...this.context.stories.map(s => s.id).reverse(), ...rows.map(r => r.story).filter(id => !known.has(id))];
 		const fixtures = this.section(localize('plb.fixtures', "Fixtures by storey"), rows.length);
 		if (!this.occupanciesFromBackend) {
-			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.loadingOccupancies', "Loading the occupancies of BNBC Table 8.5.1 from the backend...")));
+			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.loadingOccupancies', "Loading the occupancies of {0} Table 8.5.1 from the backend...", defaultCodeName())));
 		}
 		const sources = new Map((this.plumbingReport?.rooms?.stories ?? []).map(s => [s.story, s]));
 		const fromOptions = [
@@ -3917,7 +3918,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 		// The fixtures of each kind: SAEngine's defaults greyed, the project's own in the cells.
 		const kindsSection = this.section(localize('plb.kindFixtures', "Fixtures per wet room kind"), undefined);
-		append(kindsSection, $('p.mep-note', undefined, localize('plb.kindFixturesNote', "Greyed counts are SAEngine's defaults (common practice, not BNBC). Type a count to set the kind's fixtures for this project.")));
+		append(kindsSection, $('p.mep-note', undefined, localize('plb.kindFixturesNote', "Greyed counts are SAEngine's defaults (common practice, not {0}). Type a count to set the kind's fixtures for this project.", activeCodeName())));
 		const kindTable = append(append(kindsSection, $('.mep-table-scroll')), $('table.mep-table.plb-kind-fixtures'));
 		this.tableHead(kindTable, [
 			{ label: localize('plb.f.kind', "Kind"), width: 220 }, ...FIXTURES.map(key => ({ label: fixtureLabel(key), numeric: true, width: 62 })), { label: '', width: 28 },
@@ -4936,7 +4937,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const view = this.viewElement;
 		if (this.renderDisciplineState(view, this.fireState, hasFire(document), this.fireError, {
 			nothing: localize('fire.resultsNothing', "No fire protection to check yet"),
-			nothingText: localize('fire.resultsNothingText', "Give the storeys' use (Data) and add the standpipe and sprinkler risers: the systems BNBC 2020 Part 4 requires, the fire water and reservoir, the pumps, the hydraulic calculation, the hanger loads and the sleeves appear here."),
+			nothingText: localize('fire.resultsNothingText', "Give the storeys' use (Data) and add the standpipe and sprinkler risers: the systems {0} Part 4 requires, the fire water and reservoir, the pumps, the hydraulic calculation, the hanger loads and the sleeves appear here.", defaultCodeName()),
 			computing: localize('fire.computing', "Checking the fire protection..."),
 			failed: localize('fire.reportFailed', "The fire protection could not be checked"),
 			missingText: localize('fire.backendMissingText', "The systems Part 4 requires, the water and reservoir, the hydraulic calculation (EPANET), the pump sets and the fire tanks' designs are computed by the SAEngine Python backend; it is not running in this window. The fire protection can still be set up and laid out."),

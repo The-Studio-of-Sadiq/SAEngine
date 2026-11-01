@@ -16,6 +16,7 @@ import {
 	ensureElectrical, IElecEquipment, IElecRiser, IElectricalReport, IElecUse, ITray, LIGHTNING_LEVELS, loadBreakdownText, ratingUnit, riserKindLabel, riserLetters, sourceOf, VOLTAGES, voltageLabel,
 } from './electricalDocument.js';
 import { storyUseOf } from './storyUses.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The electrical services' Data view and properties panel in the MEP editor: the supply, the
@@ -75,14 +76,14 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 	const rows = electrical?.stories ?? [];
 	const stories = host.section(localize('elecView.stories', "Loads by storey"), rows.length);
 	if (!usesFromBackend) {
-		append(stories, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('elecView.usesWhat', "the occupancies of BNBC Table 8.1.17"))));
+		append(stories, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('elecView.usesWhat', "the occupancies of {0} Table 8.1.17", defaultCodeName()))));
 	}
 	const table = append(append(stories, $('.mep-table-scroll')), $('table.mep-table'));
 	const columns = [
 		{ label: localize('elecView.f.story', "Storey"), width: 110 }, { label: localize('elecView.f.use', "Occupancy"), width: 300 },
 		{ label: E.lighting.label, unit: WM2, numeric: true, width: 72 }, { label: E.power.label, unit: WM2, numeric: true, width: 72 }, { label: E.other.label, unit: KW, numeric: true, width: 72 },
 		{ label: localize('elecView.f.area', "Floor"), unit: localize('elecView.unit.m2', "m²"), numeric: true, width: 64 },
-		{ label: localize('elecView.f.used', "Used"), unit: WM2, numeric: true, width: 64, title: localize('elecView.f.usedTitle', "The unit load the backend uses: lighting + power, at least the minimum of BNBC Table 8.1.17, plus the A/C share") },
+		{ label: localize('elecView.f.used', "Used"), unit: WM2, numeric: true, width: 64, title: localize('elecView.f.usedTitle', "The unit load the backend uses: lighting + power, at least the minimum of {0} Table 8.1.17, plus the A/C share", defaultCodeName()) },
 		{ label: localize('elecView.f.connected', "Connected"), unit: KW, numeric: true, width: 80 }, { label: '', width: 28 },
 	];
 	host.tableHead(table, columns);
@@ -112,7 +113,7 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 			const placeholder = row?.[field.key] === undefined && derived !== undefined ? formatNumber(derived, 1) : undefined;
 			const input = append(append(tr, $('td')), host.textInput(field, row?.[field.key], v => host.setField(target(), field.key, v), path(field.key), placeholder));
 			if (placeholder && !input.title) {
-				input.title = localize('elecView.derivedTitle', "Blank: {0} W/m² used (the rest of the BNBC Table 8.1.17 density after the other one)", placeholder);
+				input.title = localize('elecView.derivedTitle', "Blank: {0} W/m² used (the rest of the {1} Table 8.1.17 density after the other one)", placeholder, defaultCodeName());
 			}
 		}
 		const area = result?.area ?? storyFloorArea(host.context, storyId);
@@ -133,8 +134,8 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 		}
 	}
 	append(stories, $('p.mep-note', undefined, report
-		? localize('elecView.loadsNote', "BNBC 2020 Part 8 Table 8.1.17 (Sec 1.3.2.5) gives one minimum density for the lighting and the power together, and a higher one with air conditioning. A blank occupancy takes the building use of Project Settings; a blank lighting or power takes the rest of the table's density (shown in grey). Hover Used for the breakdown; Results lists it by storey.")
-		: localize('elecView.loadsNoteLocal', "Connected shows the densities you entered only. The BNBC Table 8.1.17 minimums, the building-use default and the A/C share are applied by the backend; open Results to compute them.")));
+		? localize('elecView.loadsNote', "{0} Part 8 Table 8.1.17 (Sec 1.3.2.5) gives one minimum density for the lighting and the power together, and a higher one with air conditioning. A blank occupancy takes the building use of Project Settings; a blank lighting or power takes the rest of the table's density (shown in grey). Hover Used for the breakdown; Results lists it by storey.", defaultCodeName())
+		: localize('elecView.loadsNoteLocal', "Connected shows the densities you entered only. The {0} Table 8.1.17 minimums, the building-use default and the A/C share are applied by the backend; open Results to compute them.", defaultCodeName())));
 
 	// Lightning protection.
 	const lightning = host.section(localize('elecView.lightning', "Lightning protection"), undefined);

@@ -95,7 +95,7 @@ suite('SAEngine - New Building wizard model', () => {
 				footing: 'isolated',
 				site: { location: 'sylhet', siteClass: 'SD', siteClassSource: 'assumed' },
 				occupancy: { use: 'office', category: 'III' },
-				designCode: 'bnbc',
+				designCode: 'bnbc2020',
 			},
 		});
 		const bad = buildSpec({ ...DEFAULT_FORM, name: 'a/b', gridX: 'x', storyCount: 'many' }, name => name.includes('/') ? 'bad name' : undefined);

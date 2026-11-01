@@ -24,6 +24,7 @@ import { registerPlannedFeature } from '../../../services/saengineProject/common
 import { ISaengineProjectService, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { PLANNED_TAPERED_MEMBERS, SCRIPT_OUTPUT_CHANNEL_ID, StructureModelerEditor } from './structureModeler.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(StructureModelerEditor, StructureModelerEditor.ID, localize('structureModeler', "SAEngine Structural Model 3D")),
@@ -121,7 +122,7 @@ registerPlannedFeature({
 		localize('planned.tapered.out3', "Plate schedule of the built-up members"),
 	],
 	references: [
-		localize('planned.tapered.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; prismatic members only)"),
+		localize('planned.tapered.ref1', "{0} Part 6 Chapter 10 (steel; prismatic members only)", defaultCodeName()),
 		localize('planned.tapered.ref2', "AISC Design Guide 25: Frame Design Using Web-Tapered Members"),
 		localize('planned.tapered.ref3', "AISC 360-16 Appendix 1 and Chapter C (stability of non-prismatic members)"),
 	],

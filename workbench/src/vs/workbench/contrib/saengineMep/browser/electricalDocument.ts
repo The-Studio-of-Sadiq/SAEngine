@@ -11,6 +11,7 @@ import {
 } from './mepRead.js';
 import { footprintsOn, IOpeningResult, IShaftResult, readOpeningResults, readShaftResults } from './hvacDocument.js';
 import { allIds } from './plumbingDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The electrical section of the MEP part (`electrical` in `07 MEP/mep.json`), as the structural
@@ -477,7 +478,7 @@ export function checkElectrical(document: IMep, context: IMepContext, uses: read
 			add(path('story'), 'error', localize('elec.p.rowTwice', "Electrical: story {0} is listed twice.", row.story));
 		}
 		if (row.use !== undefined && uses.length && !uses.some(u => u.key === row.use)) {
-			add(path('use'), 'warning', localize('elec.p.use', "{0}: '{1}' is not an occupancy of BNBC Table 8.1.17.", row.story, String(row.use)));
+			add(path('use'), 'warning', localize('elec.p.use', "{0}: '{1}' is not an occupancy of {2} Table 8.1.17.", row.story, String(row.use), defaultCodeName()));
 		}
 		for (const key of ['lighting', 'power', 'other'] as const) {
 			if (!nonNegative(row[key])) {
@@ -890,8 +891,8 @@ export function readElectricalReport(raw: unknown): IElectricalReport | undefine
 			demand: optionalNumber(demand.maximumDemand) ?? sum('demand'), kva: optionalNumber(demand.kva) ?? sum('kva'), current: optionalNumber(demand.current),
 		},
 		demandMethod: optionalNumber(demand.loadFactor) !== undefined
-			? localize('elec.r.demandMethod', "unit loads BNBC Table 8.1.17 over the floor area; maximum demand {0} × the connected load{1}; kVA = kW / {2}",
-				num(demand.loadFactor), num(demand.growth) ? localize('elec.r.growth', " + {0} % growth", num(demand.growth)) : '', num(demand.powerFactor, 1))
+			? localize('elec.r.demandMethod', "unit loads {3} Table 8.1.17 over the floor area; maximum demand {0} × the connected load{1}; kVA = kW / {2}",
+				num(demand.loadFactor), num(demand.growth) ? localize('elec.r.growth', " + {0} % growth", num(demand.growth)) : '', num(demand.powerFactor, 1), defaultCodeName())
 			: undefined,
 		sources: readSources(record(raw.supply), checks),
 		rooms,

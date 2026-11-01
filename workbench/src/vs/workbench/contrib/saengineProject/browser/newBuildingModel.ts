@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { gridLabel, IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
+import { DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The New Building wizard's model: the grid spacings and storey heights as engineers type them
@@ -32,7 +33,7 @@ export const SYSTEM_CHOICES: readonly { readonly value: StructuralSystemChoice; 
 	{ value: 'rcFrame', label: localize('system.rcFrame', "RC frame"), description: localize('system.rcFrame.description', "Columns at every grid intersection, beams on every grid line, a slab in every bay.") },
 	{ value: 'rcFrameCore', label: localize('system.rcFrameCore', "RC frame + core walls"), description: localize('system.rcFrameCore.description', "The frame, with shear walls around the central bay for the lift and stair core.") },
 	{ value: 'flatSlab', label: localize('system.flatSlab', "Flat slab"), description: localize('system.flatSlab.description', "Columns and flat plates only, no beams (no drop panels or edge beams); core walls where Seismic Design Category D needs them.") },
-	{ value: 'masonry', label: localize('system.masonry', "Load-bearing masonry (low-rise)"), description: localize('system.masonry.description', "Brick walls on every grid line carrying two-way slabs, strip footings, no columns or beams; plain masonry in Seismic Design Category B, reinforced in C, not permitted in D (BNBC 2020 Table 6.2.19).") },
+	{ value: 'masonry', label: localize('system.masonry', "Load-bearing masonry (low-rise)"), description: localize('system.masonry.description', "Brick walls on every grid line carrying two-way slabs, strip footings, no columns or beams; plain masonry in Seismic Design Category B, reinforced in C, not permitted in D ({0} Table 6.2.19).", defaultCodeName()) },
 ];
 
 export const FOOTING_CHOICES: readonly { readonly value: FootingChoice; readonly label: string }[] = [
@@ -73,7 +74,7 @@ export interface INewBuildingSpec {
 	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed' };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
-	readonly designCode: 'bnbc';
+	readonly designCode: string;
 }
 
 /** The wizard's fields as typed. */
@@ -381,7 +382,7 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			footing: form.footing,
 			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
 			occupancy: { use: form.use, category: form.category },
-			designCode: 'bnbc',
+			designCode: DEFAULT_CODE_PACK_ID,
 		},
 	};
 }

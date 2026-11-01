@@ -121,7 +121,7 @@ export class PlannedFeatureEditor extends EditorPane {
 				append(list, $('li', undefined, reference));
 			}
 		}
-		append(page, $('p.note', undefined, localize('plannedFeature.note', "SAEngine is an MVP built on BNBC 2020. This feature is shown so you can see where it will go; it does not compute anything yet.")));
+		append(page, $('p.note', undefined, localize('plannedFeature.note', "SAEngine is an MVP. This feature is shown so you can see where it will go; it does not compute anything yet.")));
 	}
 }
 

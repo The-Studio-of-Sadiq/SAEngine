@@ -52,6 +52,7 @@ import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.
 import { appendPlannedFeatureChip } from './plannedFeatureEditor.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
+import { activeCodeName, DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -121,7 +122,7 @@ interface IChoice<T extends string> {
  */
 function designCodeChoices(): IChoice<string>[] {
 	return [
-		{ value: 'bnbc', label: localize('newBuilding.codeBnbc', "BNBC 2020") },
+		{ value: DEFAULT_CODE_PACK_ID, label: defaultCodeName() },
 		...plannedCodePacks().map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
 	];
 }
@@ -518,16 +519,16 @@ export class NewBuildingWizard extends EditorPane {
 		this.select(form, localize('newBuilding.footing', "Footings"), FOOTING_CHOICES, this.form.footing, value => this.form.footing = value);
 
 		// ── site and use ──
-		this.section(form, localize('newBuilding.site', "Site and Use"), localize('newBuilding.siteHint', "BNBC 2020: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1)."));
+		this.section(form, localize('newBuilding.site', "Site and Use"), localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName()));
 		// Only BNBC 2020 in this MVP; the other code packs show as planned.
-		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), 'bnbc', () => { /* BNBC 2020 is the only choice */ });
+		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), DEFAULT_CODE_PACK_ID, () => { /* the default pack is the only choice */ });
 		const plannedCodes = append(form, $('p.hint.indented.planned-codes'));
 		for (const pack of plannedCodePacks()) {
 			this.pageDisposables.add(appendPlannedFeatureChip(plannedCodes, pack.feature, this.commandService));
 		}
 		this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
 		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
-		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it (BNBC 2020 Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.")));
+		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
 		this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);
 

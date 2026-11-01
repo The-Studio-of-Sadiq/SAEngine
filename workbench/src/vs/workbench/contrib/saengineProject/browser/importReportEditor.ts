@@ -30,6 +30,7 @@ import { ImportReportInput } from './importReportInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import { countRows, describeCarried, describeImportSummary, describeItem, describeNotCarried, describeReplaced, formatLabel, IImportReportItem, needsReview, notCarriedTotal, sameFolder } from './structuralImportModel.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /**
  * The report of an import from ETABS, STAAD.Pro or SAP2000: the counts by kind, then what was
@@ -144,7 +145,7 @@ export class ImportReportEditor extends EditorPane {
 				append(loads, $('p.hint', undefined, localize('importReport.carried', "Carried over: {0}.", carried)));
 			}
 			if (replaced) {
-				append(loads, $('p.hint', undefined, localize('importReport.replacedLoads', "Replaced by BNBC: {0}. SAEngine applies its own wind and earthquake loads from 02 Project Settings in their place; these are not lost.", replaced)));
+				append(loads, $('p.hint', undefined, localize('importReport.replacedLoads', "Replaced by {1}: {0}. SAEngine applies its own wind and earthquake loads from 02 Project Settings in their place; these are not lost.", replaced, activeCodeName())));
 			}
 		}
 
@@ -156,8 +157,8 @@ export class ImportReportEditor extends EditorPane {
 			localize('importReport.approximatedHint', "Imported, but not exactly as in the file: check these before relying on the results."), report.approximated);
 		this.renderItems(page, 'skipped', localize('importReport.skipped', "Skipped"),
 			localize('importReport.skippedHint', "Not imported: add them in SAEngine if the design needs them."), report.skipped);
-		this.renderItems(page, 'replaced', localize('importReport.replaced', "Replaced by BNBC"),
-			localize('importReport.replacedHint', "SAEngine makes its own in their place from the BNBC 2020 settings: check the site and wind settings."), report.replaced);
+		this.renderItems(page, 'replaced', localize('importReport.replaced', "Replaced by {0}", activeCodeName()),
+			localize('importReport.replacedHint', "SAEngine makes its own in their place from the {0} settings: check the site and wind settings.", activeCodeName()), report.replaced);
 		this.renderItems(page, 'warnings', localize('importReport.warnings', "Warnings"), undefined, report.warnings);
 		if (!needsReview(report)) {
 			append(page, $('p.muted', undefined, localize('importReport.nothingElse', "Everything in the file was imported as it is.")));

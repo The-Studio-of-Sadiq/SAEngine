@@ -9,6 +9,7 @@ import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { elecKindLabel, electricalFailures, IElectricalReport, IRunResult, loadBreakdownText, riserKindLabel } from './electricalDocument.js';
 import { openingsTable, shaftsTable } from './hvacResults.js';
 import { barChart, checksTable, IResultsHost, noteSection, resultSection, statusCell, tiles, utilisationCell, value } from './mepResults.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The Results view of the electrical services: the backend's report
@@ -31,7 +32,7 @@ export interface IElectricalResultsHost extends IResultsHost {
 export function renderElectricalReport(view: HTMLElement, report: IElectricalReport, host: IElectricalResultsHost): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('elecResults.title', "Electrical coordination")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('elecResults.subtitle', "Computed by the backend to BNBC 2020 Part 8 Chapter 1 from the electrical set-up; not stored in the file.")));
+	append(header, $('span.mep-view-subtitle', undefined, localize('elecResults.subtitle', "Computed by the backend to {0} Part 8 Chapter 1 from the electrical set-up; not stored in the file.", defaultCodeName())));
 
 	const tile = tiles(view);
 	if (report.total?.kva !== undefined) {
@@ -57,7 +58,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 
 	// Demand.
 	if (report.stories.length) {
-		const section = resultSection(view, localize('elecResults.demand', "Demand by story"), report.demandMethod ?? localize('elecResults.demandDetail', "unit loads BNBC Table 8.1.17 over the floor area"));
+		const section = resultSection(view, localize('elecResults.demand', "Demand by story"), report.demandMethod ?? localize('elecResults.demandDetail', "unit loads {0} Table 8.1.17 over the floor area", defaultCodeName()));
 		barChart(append(section, $('.elec-demand-chart')), report.stories.map(row => ({
 			label: host.storyName(row.story),
 			parts: [{ value: row.kva ?? row.demand ?? row.connected ?? 0, className: 'elec-bar-demand', label: localize('elecResults.demandPart', "Demand") }],
@@ -152,7 +153,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 
 	// Rooms.
 	if (report.rooms.length) {
-		checksTable(resultSection(view, localize('elecResults.rooms', "Rooms"), localize('elecResults.roomsDetail', "substation and generator rooms: area, clear height and placement, BNBC Part 8 Chapter 1")), host, report.rooms, 8);
+		checksTable(resultSection(view, localize('elecResults.rooms', "Rooms"), localize('elecResults.roomsDetail', "substation and generator rooms: area, clear height and placement, {0} Part 8 Chapter 1", defaultCodeName())), host, report.rooms, 8);
 	}
 
 	runTable(view, host, localize('elecResults.risers', "Risers"), report.risers, true);
@@ -162,7 +163,7 @@ export function renderElectricalReport(view: HTMLElement, report: IElectricalRep
 	const lightning = report.lightning;
 	if (lightning) {
 		const detail = [lightning.reference, lightning.level ? localize('elecResults.level', "level {0}", lightning.level) : undefined, lightning.risk !== undefined ? localize('elecResults.risk', "risk index {0}", lightning.risk) : undefined]
-			.filter(Boolean).join(' · ') || localize('elecResults.lightningDetail', "BNBC Part 8 Chapter 1, lightning protection");
+			.filter(Boolean).join(' · ') || localize('elecResults.lightningDetail', "{0} Part 8 Chapter 1, lightning protection", defaultCodeName());
 		const section = resultSection(view, localize('elecResults.lightning', "Lightning protection"), detail);
 		const decision = lightning.decision === 'required' ? localize('elecResults.decisionRequired', "Protection is required for this building.")
 			: lightning.decision === 'recommended' ? localize('elecResults.decisionRecommended', "The risk index is at or above the marginal value: protection is needed.")

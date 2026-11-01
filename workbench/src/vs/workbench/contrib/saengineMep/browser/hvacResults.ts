@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { ductSystemLabel, hvacFailures, IHvacItemResult, IHvacReport, IOpeningResult, IShaftResult, plantKindLabel } from './hvacDocument.js';
 import { barChart, checksTable, IResultsHost, noteSection, resultSection, statusCell, tiles, utilisationCell, value } from './mepResults.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The Results view of the HVAC: the backend's report (`saengine.hvac.report`) as one page: the
@@ -59,7 +60,7 @@ function roomZones(view: HTMLElement, report: IHvacReport, host: IResultsHost): 
 export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: IResultsHost & { readonly addEnergyPlus?: () => void }): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('hvacResults.title', "HVAC coordination")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('hvacResults.subtitle', "Computed by the backend to BNBC 2020 Part 8 Chapter 2 from the HVAC set-up; not stored in the file.")));
+	append(header, $('span.mep-view-subtitle', undefined, localize('hvacResults.subtitle', "Computed by the backend to {0} Part 8 Chapter 2 from the HVAC set-up; not stored in the file.", defaultCodeName())));
 	const engine = append(view, $(`.hvac-engine${report.estimate ? '.estimate' : ''}`));
 	append(engine, $('span.hvac-engine-label', undefined, localize('hvacResults.engine', "Cooling loads")));
 	append(engine, $('span.hvac-engine-value', undefined, report.estimate
@@ -103,8 +104,8 @@ export function renderHvacReport(view: HTMLElement, report: IHvacReport, host: I
 	// Loads per story.
 	if (report.stories.length) {
 		const section = resultSection(view, localize('hvacResults.loads', "Cooling load by story"), report.coincident !== undefined
-			? localize('hvacResults.loadsDetailPeak', "each story at its own peak, the total their sum; outdoor design conditions BNBC Table 8.2.2 (2 %), ventilation Table 8.2.3")
-			: localize('hvacResults.loadsDetail', "outdoor design conditions BNBC Table 8.2.2 (2 %), ventilation Table 8.2.3"));
+			? localize('hvacResults.loadsDetailPeak', "each story at its own peak, the total their sum; outdoor design conditions {0} Table 8.2.2 (2 %), ventilation Table 8.2.3", defaultCodeName())
+			: localize('hvacResults.loadsDetail', "outdoor design conditions {0} Table 8.2.2 (2 %), ventilation Table 8.2.3", defaultCodeName()));
 		barChart(append(section, $('.hvac-load-chart')), report.stories.map(row => ({
 			label: host.storyName(row.story),
 			parts: [
