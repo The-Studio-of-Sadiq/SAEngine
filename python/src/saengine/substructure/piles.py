@@ -47,10 +47,13 @@ the allowable load being the minimum of the two: ``Qa = min(Qult / FS, Qs/1.5 + 
 Structural capacity of the pile section (:func:`structural_checks`): with reinforcement, the
 ACI 318-19 22.4.2 limit φPn,max of the circular section (:class:`saengine.design.rc.RcSection`,
 tied or spiral by the transverse bars; the pile is fully embedded, which BNBC Sec 3.10.1.31
-says is not limited as a long column where cu > 10 kPa) and φ fy As in tension; without
-reinforcement, the plain concrete strength φPn = 0.60 × 0.60 f'c Ag (ACI 318-19 14.5.3.1
-without the slenderness term, φ of Table 21.2.1) and no tension. Driven precast piles also get
-BNBC Sec 3.10.1.31's service stress limit 0.33 f'c on the gross area.
+says is not limited as a long column where cu > 10 kPa; softer soil and unbraced lengths are
+designed as columns by :mod:`saengine.substructure.pile_lateral`) and φ fy As in tension;
+without reinforcement, the plain concrete strength φPn = 0.60 × 0.60 f'c Ag (ACI 318-19
+14.5.3.1 without the slenderness term, φ of Table 21.2.1) and no tension. Driven precast piles
+also get the pack's service stress limit (BNBC 2020: 0.33 f'c on the gross area). A driven
+cast-in-place pile (``drivenCastInPlace``) takes the unit values of a driven pile
+(:func:`capacity_kind`) on the round section of a bored one.
 
 Section: a bored pile is a circle of diameter D; a driven pile is a square precast pile of side
 B (``PileType.diameter``, as the BOQ measures it): shaft perimeter 4B and base area B², and its
