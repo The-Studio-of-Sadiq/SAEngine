@@ -79,6 +79,7 @@ const KIND_ICONS: { readonly [K in PackageKind]: ThemeIcon } = {
 	designCode: Codicon.law,
 	structureTemplate: Codicon.symbolStructure,
 	buildingTemplate: Codicon.home,
+	languagePack: Codicon.globe,
 };
 
 /**
@@ -1098,7 +1099,9 @@ export class CodePacksEditor extends EditorPane {
 		if (pack.kind !== 'designCode') {
 			appendPropertyNote(panel, pack.kind === 'structureTemplate'
 				? localize('packages.structureUse', "Its presets are offered in the modeller's Generate panel.")
-				: localize('packages.buildingUse', "It is offered in the New Building wizard's Start from list; a full template opens with New Project from Template..."));
+				: pack.kind === 'languagePack'
+					? localize('packages.languageUse', "Its messages are used by the reports and drawings of projects in its language (Project Settings > Project > Language).")
+					: localize('packages.buildingUse', "It is offered in the New Building wizard's Start from list; a full template opens with New Project from Template..."));
 			if (pack.trust !== 'none') {
 				// Coded templates (round M5): the package's code makes the geometry, only when trusted.
 				appendPropertyHeading(panel, localize('codePacks.hooks', "Hooks"));

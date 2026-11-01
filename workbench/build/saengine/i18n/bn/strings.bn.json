@@ -15449,6 +15449,11 @@
 					"bn": "এর প্রিসেটগুলো মডেলারের Generate প্যানেলে দেওয়া হয়।",
 					"status": "translated"
 				},
+				"packages.languageUse": {
+					"en": "Its messages are used by the reports and drawings of projects in its language (Project Settings > Project > Language).",
+					"bn": "এর মেসেজগুলো এর ভাষার প্রজেক্টের রিপোর্ট ও ড্রয়িংয়ে ব্যবহৃত হয় (Project Settings > Project > Language)।",
+					"status": "translated"
+				},
 				"packages.buildingUse": {
 					"en": "It is offered in the New Building wizard's Start from list; a full template opens with New Project from Template...",
 					"bn": "এটি New Building উইজার্ডের Start from তালিকায় দেওয়া হয়; একটি পূর্ণ টেমপ্লেট টেমপ্লেট থেকে নতুন প্রজেক্ট... দিয়ে খোলে।",
@@ -18374,9 +18379,34 @@
 					"bn": "ডিজাইন ক্যাটাগরি",
 					"status": "translated"
 				},
+				"settings.displayLanguageRow": {
+					"en": "SAEngine screens",
+					"bn": "SAEngine-এর স্ক্রিন",
+					"status": "translated"
+				},
 				"settings.titleBlockRow": {
 					"en": "Project number and engineer",
 					"bn": "প্রজেক্ট নম্বর ও ইঞ্জিনিয়ার",
+					"status": "translated"
+				},
+				"settings.displayLanguageSame": {
+					"en": "{0}, like the reports and drawings.",
+					"bn": "{0}, রিপোর্ট ও ড্রয়িংয়ের মতোই।",
+					"status": "translated"
+				},
+				"settings.displayLanguageDiffers": {
+					"en": "{0}. The reports and drawings are in {1}.",
+					"bn": "{0}। রিপোর্ট ও ড্রয়িং {1}-এ।",
+					"status": "translated"
+				},
+				"settings.useDisplayLanguage": {
+					"en": "Show Screens in {0}",
+					"bn": "স্ক্রিন {0}-এ দেখান",
+					"status": "translated"
+				},
+				"settings.useDisplayLanguageHint": {
+					"en": "Sets SAEngine's display language and restarts it. Every window of SAEngine uses it; strings not yet translated stay in English.",
+					"bn": "SAEngine-এর ডিসপ্লে ভাষা সেট করে রিস্টার্ট করে। SAEngine-এর প্রতিটি উইন্ডো এটি ব্যবহার করে; যে স্ট্রিং এখনো অনুবাদ হয়নি সেগুলো ইংরেজিতে থাকে।",
 					"status": "translated"
 				},
 				"settings.notEntered": {
@@ -18579,6 +18609,11 @@
 					"bn": "বিল্ডিং টেমপ্লেট",
 					"status": "translated"
 				},
+				"packages.kindLanguage": {
+					"en": "Language pack",
+					"bn": "ল্যাঙ্গুয়েজ প্যাক",
+					"status": "translated"
+				},
 				"packages.kindsDesignCode": {
 					"en": "Design codes",
 					"bn": "ডিজাইন কোড",
@@ -18592,6 +18627,11 @@
 				"packages.kindsBuilding": {
 					"en": "Building templates",
 					"bn": "বিল্ডিং টেমপ্লেট",
+					"status": "translated"
+				},
+				"packages.kindsLanguage": {
+					"en": "Language packs",
+					"bn": "ল্যাঙ্গুয়েজ প্যাক",
 					"status": "translated"
 				},
 				"packages.sizeMb": {

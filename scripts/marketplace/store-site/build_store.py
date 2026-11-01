@@ -35,6 +35,7 @@ KIND_NAMES = {
     "designCode": "Design code",
     "structureTemplate": "Structure template",
     "buildingTemplate": "Building template",
+    "languagePack": "Language pack",
 }
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 PREVIEW_TYPES = {".png", ".jpg", ".jpeg", ".webp"}

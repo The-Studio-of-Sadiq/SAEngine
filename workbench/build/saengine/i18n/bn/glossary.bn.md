@@ -229,3 +229,40 @@ Strings you are unsure of get `"status": "review"` and a `"note"` in `strings.bn
 | Title block / schedule / bar bending schedule | টাইটেল ব্লক / শিডিউল / বার বেন্ডিং শিডিউল | |
 | Revision / scale | রিভিশন / স্কেল | |
 | Status pills ok / check / fails | ঠিক আছে / চেক করুন / ফেল | |
+
+## Added in the second translation (T48, 2026-11-01)
+
+| English | Bangla | Note |
+| --- | --- | --- |
+| Run All (as a noun in status text) | সব রান | the command stays সব রান করুন |
+| Displacement / story drift / storey shear | ডিসপ্লেসমেন্ট / স্টোরি ড্রিফট / স্টোরি শিয়ার | drift keeps "story" as engineers say it; review |
+| Base reactions / modal mass participation / envelope | বেস রিঅ্যাকশন / মোডাল মাস পার্টিসিপেশন / এনভেলপ | |
+| Diaphragm / joint / hinge / pushover | ডায়াফ্রাম / জয়েন্ট / হিঞ্জ / পুশওভার | |
+| Required / provided (steel) | প্রয়োজনীয় / প্রদত্ত | |
+| Interaction diagram / moment-curvature | ইন্টারঅ্যাকশন ডায়াগ্রাম / মোমেন্ট-কার্ভেচার | |
+| Centroid / section modulus / shear centre / neutral axis | সেন্ট্রয়েড / সেকশন মডুলাস / শিয়ার সেন্টার / নিউট্রাল অক্ষ | |
+| Stiffness / modifier / mass / self-weight | স্টিফনেস / মডিফায়ার / মাস / সেলফ-ওয়েট | |
+| Anchor rod / embedment / breakout / pullout | অ্যাংকর রড / এমবেডমেন্ট / ব্রেকআউট / পুলআউট | |
+| Strut-and-tie / corbel / dapped end | স্ট্রাট-অ্যান্ড-টাই / করবেল / ড্যাপড এন্ড | |
+| Purlin / girt / stiffener / panel zone | পার্লিন / গার্ট / স্টিফেনার / প্যানেল জোন | |
+| Excavation / strut / waler / sheet pile | খনন / স্ট্রাট / ওয়েলার / শিট পাইল | |
+| Slab on grade / toe / heel / stem | স্ল্যাব অন গ্রেড / টো / হিল / স্টেম | |
+| Door / window / room / curtain wall | দরজা / জানালা / রুম / কার্টেন ওয়াল | |
+| Superstructure / architecture / finishes | সুপারস্ট্রাকচার / আর্কিটেকচার / ফিনিশিং | |
+| Schedule of rates / costing / embodied carbon | রেট শিডিউল / কস্টিং / এমবডিড কার্বন | |
+| Sprinkler / hydrant / standpipe / extinguisher | স্প্রিংকলার / হাইড্রেন্ট / স্ট্যান্ডপাইপ / এক্সটিংগুইশার | |
+| Fire fighting | অগ্নিনির্বাপণ | |
+| Code pack / package / edition | কোড প্যাক / প্যাকেজ / সংস্করণ | version stays ভার্সন |
+| Trust (hooks) / trusted | বিশ্বাস করুন / বিশ্বস্ত | |
+| Language pack | ল্যাঙ্গুয়েজ প্যাক | |
+| Katha / decimal (land) | কাঠা / শতাংশ | |
+| Setback / ground coverage / buildable area | সেটব্যাক / গ্রাউন্ড কভারেজ / নির্মাণযোগ্য এলাকা | |
+| Pressure (bearing, test) | প্রেশার | reports and drawings; চাপ also correct; review |
+| Top / bottom (bars) | টপ / বটম | as said on site; review |
+| Drawn / checked / approved (title block) | অঙ্কন করেছেন / চেক করেছেন / অনুমোদন করেছেন | review: offices may keep English |
+
+## Reports and drawings
+
+The labels printed on the reports and drawings are in `python/src/saengine/i18n/bn.json` and
+follow this glossary. In Bangla, numbers there are printed with Bengali digits (০-৯); clause
+numbers, editions and marks keep Western digits (see `saengine/i18n/__init__.py`).

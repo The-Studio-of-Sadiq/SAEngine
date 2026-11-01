@@ -31,7 +31,7 @@ PACKS = Path("python/src/saengine/codes/packs")
 REPOSITORY = "The-Studio-of-Sadiq/SAEngine"
 MIRRORS_FILE = "mirrors.json"
 MIRRORS_SCHEMA = "saengine.packageMirrors/1"
-KINDS = ("designCode", "structureTemplate", "buildingTemplate")
+KINDS = ("designCode", "structureTemplate", "buildingTemplate", "languagePack")
 
 
 def _git(*args: str) -> str:
