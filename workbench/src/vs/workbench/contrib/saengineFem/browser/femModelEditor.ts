@@ -1305,8 +1305,8 @@ export class FemModelEditor extends EditorPane {
 			FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening,
 			FemPlanned.pushoverHinges, FemPlanned.performancePoint,
 		], this.commandService));
-		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Isolation, Dampers, Existing Buildings"), [
-			FemPlanned.baseIsolation, FemPlanned.dampers, FemPlanned.existingAssessment, FemPlanned.retrofit,
+		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Dampers, Existing Buildings"), [
+			FemPlanned.dampers, FemPlanned.existingAssessment, FemPlanned.retrofit,
 		], this.commandService));
 		this.plannedStore.value = store;
 	}

@@ -28,8 +28,7 @@ export const FemPlanned = {
 	retrofit: 'fem.retrofit',
 	/** T35 / B36: what stays planned of the time histories: record search and spectral matching (the nonlinear time history is built). */
 	recordScaling: 'fem.recordScaling',
-	/** T36: isolators and dampers. */
-	baseIsolation: 'fem.baseIsolation',
+	/** T36: dampers (seismic isolators are built: B37). */
 	dampers: 'fem.dampers',
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
 	crackedSlabDeflection: 'fem.crackedSlabDeflection',

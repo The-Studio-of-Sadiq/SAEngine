@@ -207,6 +207,98 @@ def _allowable(settings: Any, levels: list[float]) -> dict[str, Any]:
     )
 
 
+def _without_ground_nodes(project: dict[str, Any]) -> dict[str, Any]:
+    """``project`` without the fully fixed nodes of zero-length elements (the ground side of
+    isolators or soil springs): they have no mass and share the plan position of the node
+    above them, which the storey drifts must read."""
+    nodes = {int(n["id"]): n for n in project.get("nodes", [])}
+    ground = {
+        int(k)
+        for e in project.get("elements", [])
+        if e.get("type") == "ZeroLength"
+        for k in e.get("nodes", [])
+        if all(nodes.get(int(k), {}).get("restraint") or [False])
+    }
+    if not ground:
+        return project
+    return {**project, "nodes": [n for n in project["nodes"] if int(n["id"]) not in ground]}
+
+
+def _isolation_criteria(model_dir: Path) -> dict[str, Any] | None:
+    """B37's time-history criteria of a seismically isolated building
+    (:func:`saengine.fem.isolation.history_criteria`), when the model folder holds its
+    isolation design; None for a building without isolators."""
+    from saengine.fem import isolation
+
+    try:
+        if not isolation.covered():
+            return None
+        design = isolation.load(model_dir)
+        if not design:
+            return None
+        return {"design": design, "criteria": isolation.history_criteria(design)}
+    except (KeyError, TypeError, AttributeError, ValueError):
+        return None
+
+
+def _isolation_suite_check(
+    isolated: dict[str, Any],
+    project: dict[str, Any],
+    model_dir: Path,
+    ran: list[dict[str, Any]],
+    settings: Any,
+    key: str,
+) -> dict[str, Any]:
+    """A suite of an isolated building against B37's criteria (Sec 2.5.16.3.2): pairs, their
+    number, and the average SRSS spectrum over the isolation period range
+    (:func:`saengine.fem.isolation.check_history_suite`)."""
+    from saengine.fem import isolation
+    from saengine.library.settings import derived
+
+    criteria = isolated["criteria"]
+    clause_text = criteria.get("clause", "")
+    if key != "XY":
+        return {
+            "ok": False,
+            "notes": [
+                (
+                    "an isolated building needs pairs of records applied together "
+                    f"({clause_text}): this suite is not usable"
+                )
+            ],
+        }
+    notes = []
+    ok = True
+    if len(ran) < int(criteria["minRecords"]):
+        ok = False
+        notes.append(f"{len(ran)} pairs, the isolation clause asks for {criteria['minRecords']}")
+    low, high = criteria["periodRange"]
+    try:
+        records, pairs = lth._suite_records(project, model_dir, ran)
+        periods = np.geomspace(max(low, 0.01), max(high, low * 1.01, 0.02), rec.CHECK_POINTS)
+        members = rec._members(records, pairs, periods, float(criteria["recordDamping"]))
+        average = np.mean(members, axis=0)
+        z = float(derived(settings)["Z"] or 0.0)
+        found = isolation.check_history_suite(
+            [float(t) for t in periods],
+            [float(v) for v in average],
+            isolated["design"],
+            settings.site.siteClass,
+            z,
+        )
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return {"ok": None, "notes": [f"the isolation spectrum check failed ({error})"]}
+    if not found["ok"]:
+        ok = False
+        worst = found.get("worst") or {}
+        notes.append(
+            f"the average SRSS spectrum reaches {worst.get('ratio', 0):.3f} of "
+            f"{criteria['spectrumFactor']:g} × the design spectrum at {worst.get('period', 0):.2f} s "
+            f"(at least {found['required']:g} over {low:.2f} to {high:.2f} s, {clause_text})"
+        )
+    return {**found, "ok": ok and bool(found["ok"]), "periodRange": [low, high], "notes": notes}
+
+
 # ─────────────────────────────────────── the evaluation ───────────────────────────────────────
 
 
@@ -269,7 +361,8 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
         allowable = _allowable(settings, levels)
     except (KeyError, AttributeError, ValueError) as error:
         return {"available": False, "reason": f"no allowable storey drift ({error})"}
-    limit_ratio = rule.drift.limitFactor * float(allowable["ratio"])
+    limit_factor = rule.drift.limitFactor
+    limit_ratio = limit_factor * float(allowable["ratio"])
     amplification = None
     if rule.drift.amplify:
         from saengine.library.settings import derived
@@ -279,6 +372,25 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
         amplification = {
             a: float(values.get(f"Cd{a}", values.get("Cd")) or 1.0) / importance for a in "XY"
         }
+    # ── B37 hook: a seismically isolated building takes the isolation clauses' criteria ──
+    isolated = _isolation_criteria(model_dir)
+    # The peaks read the superstructure: the fixed ground nodes under zero-length isolators share
+    # the plan position of the isolated column bases and would take their place in the drifts.
+    peaks_project = _without_ground_nodes(project)
+    if isolated is not None:
+        criteria = isolated["criteria"]
+        limit_factor = 1.0
+        limit_ratio = float(criteria["driftLimit"])
+        allowable = {"ratio": limit_ratio, "label": "isolated structure"}
+        factor = criteria.get("driftFactor") or {}
+        cd = float(factor.get("Cd") or 1.0) / float(factor.get("importance") or 1.0)
+        amplification = {"X": cd, "Y": cd}
+        notes.append(
+            f"seismically isolated building: the storey drift above the isolation system at most "
+            f"{100 * limit_ratio:.1f} % of the storey height, Cd = RI = {cd:g} and I = 1 "
+            f"(Sec 2.5.7.7 as the isolation clause asks; {criteria.get('clause', '')}); the "
+            "suites need pairs, checked against the isolation spectrum criteria"
+        )
     method = PEAK_METHODS.get(rule.acceptance.method)
     if method is None:
         notes.append(f"acceptance method '{rule.acceptance.method}' unknown: no member check")
@@ -330,7 +442,8 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
         if not ran:
             continue
         peaks = [
-            lth.cached_peaks(out_dir, project, model_dir, entries[c["id"]], c, levels) for c in ran
+            lth.cached_peaks(out_dir, peaks_project, model_dir, entries[c["id"]], c, levels)
+            for c in ran
         ]
         # ── the spectrum check with the fundamental period (no scaling afterwards) ──
         period = given or (
@@ -357,7 +470,14 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
                     )
             except (OSError, ValueError, KeyError) as error:
                 notes.append(f"nonlinear suite {key}: the spectrum check failed ({error})")
-        else:
+        if isolated is not None:
+            found_iso = _isolation_suite_check(isolated, project, model_dir, ran, settings, key)
+            suite["isolation"] = found_iso
+            if found_iso.get("ok") is False:
+                check_ok = False
+            for text in found_iso.get("notes", []):
+                notes.append(f"nonlinear suite {key}: {text}")
+        if not period:
             notes.append(
                 f"nonlinear suite {key}: no fundamental period (run the modal case, or set "
                 "the period T in the project settings): the records' scaling is not checked"
@@ -401,7 +521,7 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
         notes.append(
             f"nonlinear storey drift {100 * worst['ratio']:.2f} % in {worst['direction']} "
             f"between {worst['bottom']:g} and {worst['top']:g} m exceeds "
-            f"{rule.drift.limitFactor:g} × the allowable {100 * allowable['ratio']:.2f} % "
+            f"the limit {100 * limit_ratio:.2f} % "
             f"({clause('drift')})"
         )
     # One row per member: its worst suite.
@@ -433,7 +553,7 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
         "drift": drift,
         "limit": {
             "allowable": float(allowable["ratio"]),
-            "factor": rule.drift.limitFactor,
+            "factor": limit_factor,
             "ratio": limit_ratio,
             "row": allowable.get("label", ""),
             "amplified": bool(rule.drift.amplify),

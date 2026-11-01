@@ -67,6 +67,7 @@ interface IFemDerivation {
 	readonly thermalText?: string;
 	readonly ssiText?: string;
 	readonly facesText?: string;
+	readonly isolationText?: string;
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number } & { readonly wind?: IFemWindSummary };
 	readonly problems?: readonly string[];
@@ -115,6 +116,8 @@ export const THERMAL_FILE = 'thermal.json';
 export const SSI_FILE = 'ssi.json';
 /** The members' support face offsets, beside the model when the settings model end offsets (`saengine.fem.end_zones`). */
 export const FACES_FILE = 'faces.json';
+/** The isolation design, beside the model when a column type has a seismic isolator (`saengine.fem.isolation`). */
+export const ISOLATION_FILE = 'isolation.json';
 
 /** Whether the MEP file `text` has anything the analysis model takes: equipment, openings or shafts. */
 export function mepHasContent(text: string | undefined): boolean {
@@ -255,6 +258,7 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	await side(THERMAL_FILE, result.thermalText);
 	await side(SSI_FILE, result.ssiText);
 	await side(FACES_FILE, result.facesText);
+	await side(ISOLATION_FILE, result.isolationText);
 	await fileService.writeFile(resource, VSBuffer.fromString(result.text));
 	if (result.pushoverText) {
 		await fileService.writeFile(joinPath(folder, PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));

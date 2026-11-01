@@ -254,3 +254,27 @@ def test_history_model_runs_and_is_evaluated(bay, monkeypatch: pytest.MonkeyPatc
     )
     assert found["acceptance"]["rows"], found["notes"]
     assert any("independent design review" in n for n in found["notes"])
+
+
+# ─────────────────────────────── isolated buildings (B37 hook) ───────────────────────────────
+
+
+def test_ground_nodes_of_zero_length_isolators_leave_the_drift_reading() -> None:
+    project = {
+        "nodes": [
+            {"id": 1, "coords": [0, 0, 0], "restraint": [True] * 6},
+            {"id": 2, "coords": [0, 0, 0], "restraint": [False] * 6},
+            {"id": 3, "coords": [0, 0, 3], "restraint": [False] * 6},
+        ],
+        "elements": [{"id": 1, "type": "ZeroLength", "nodes": [1, 2]}],
+    }
+    kept = nh._without_ground_nodes(project)
+    assert [n["id"] for n in kept["nodes"]] == [2, 3]
+    empty = {"nodes": [], "elements": []}
+    assert nh._without_ground_nodes(empty) is empty
+
+
+def test_isolated_suites_need_pairs() -> None:
+    isolated = {"criteria": {"clause": "Sec 2.5.16.3.2", "minRecords": 3}, "design": {}}
+    found = nh._isolation_suite_check(isolated, {}, Path("."), [], None, "X")
+    assert found["ok"] is False and "pairs" in found["notes"][0]
