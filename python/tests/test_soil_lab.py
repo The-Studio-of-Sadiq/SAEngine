@@ -278,16 +278,20 @@ def test_a_bad_sample_keeps_the_report_readable() -> None:
 
 
 def test_sulphate_class_bounds() -> None:
-    # S2 includes 2.00 % and 10 000 ppm; S3 starts above them (from memory, to be checked).
+    # BNBC 2020 Table 6.5.2 (p. 846): Severe includes 2.00 % and 10 000 ppm, Very severe is
+    # "over"; the shared bounds 0.10 % / 0.20 % take the more severe class.
     def worst(**chem: float) -> str:
         return lab.chemistry_flags(Sample.model_validate({"depth": 1, "chemistry": chem}))[0]
 
-    assert "class S2" in worst(sulphateSoil=2.0)
-    assert "class S3" in worst(sulphateSoil=2.01)
-    assert "class S2" in worst(sulphateWater=10_000)
-    assert "class S3" in worst(sulphateWater=10_001)
-    assert "class S2" in worst(sulphateSoil=0.20) and "class S1" in worst(sulphateSoil=0.10)
-    assert "S0" in worst(sulphateSoil=0.09)
+    assert "Severe exposure" in worst(sulphateSoil=2.0)
+    assert "Very severe exposure" in worst(sulphateSoil=2.01)
+    assert "Severe exposure" in worst(sulphateWater=10_000)
+    assert "Very severe exposure" in worst(sulphateWater=10_001)
+    assert "Severe exposure" in worst(sulphateSoil=0.20)
+    assert "Moderate exposure" in worst(sulphateSoil=0.10) and "w/c ≤ 0.5" in worst(
+        sulphateSoil=0.10
+    )
+    assert "Negligible" in worst(sulphateSoil=0.09)
 
 
 # ─────────────────────────────── strength and consolidation ───────────────────────────────
@@ -481,8 +485,10 @@ def test_report_carries_the_lab_summary_and_chemistry_flags() -> None:
     bh = out["boreholes"][0]
     assert bh["lab"][0]["uscs"]["symbol"] == "CL"
     notes = " ".join(bh["notes"])
-    # 0.15 % in soil is S1, 2000 ppm in water S2: the worse governs.
-    assert "UD-1: sulphate: exposure class S2" in notes and "pH 5" in notes
+    # 0.15 % in soil is Moderate, 2000 ppm in water Severe (BNBC Table 6.5.2): the worse
+    # governs; pH 5 < 6 makes the site corrosive (Sec 3.10.1.29), < 5.5 hurts steel piles.
+    assert "UD-1: sulphate: Severe exposure" in notes and "pH 5 < 6" in notes
+    assert "steel piles may corrode" in notes
 
 
 def test_check_reports_plastic_limit_above_liquid_limit() -> None:

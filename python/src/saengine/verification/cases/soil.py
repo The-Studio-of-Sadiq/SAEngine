@@ -621,6 +621,84 @@ def bnbc_liquefaction_case(_: Path) -> Outcome:
     )
 
 
+# ─────────────────── D13: exploration depth and soil corrosivity ───────────────────
+
+
+def investigation_case(_: Path) -> Outcome:
+    from saengine.soil import chemistry, investigation
+
+    report = SoilReport.model_validate(
+        {
+            "boreholes": [
+                {
+                    "id": "BH-1",
+                    "depth": 6000,
+                    "layers": [{"top": 0, "bottom": 6000, "soilType": "clay", "cu": 40}],
+                    "samples": [
+                        {
+                            "depth": 2000,
+                            "moisture": 28,
+                            "chemistry": {
+                                "pH": 5.6,
+                                "resistivity": 6000,
+                                "sulphateSoil": 0.06,
+                                "chlorideSoil": 0.02,
+                                "carbonate": 0.5,
+                                "soilComposition": "clay",
+                                "groundwater": "exist",
+                                "sulphide": "none",
+                                "cinderCoke": False,
+                            },
+                        }
+                    ],
+                }
+            ],
+            "investigation": {
+                "buildingSize": "small",
+                "footingWidth": 1500,
+                "footingLength": 6000,
+                "foundingDepth": 1500,
+            },
+        }
+    )
+    result = investigation.check(report)
+    depth_row = next(c for c in result["checks"] if c["id"] == "depth")
+    score = chemistry.corrosivity(report.boreholes[0].samples[0], report.boreholes[0])
+
+    # By hand: L/B = 6/1.5 = 4, between 2 (2B) and 5 (4B): 2 + 2 (4 - 2)/3 widths.
+    widths = 2 + 2 * (4 - 2) / 3
+    depth = 1.5 + widths * 1.5
+    # Table 6.3.6a: clay -2, water exists -1, 6000 ohm-cm -1, w 28 % > 20 -1, pH 5.6 < 6 -2,
+    # no sulphide 0, carbonate 0.5 % < 1 0, chloride 200 mg/kg > 100 +1, sulphate 600 mg/kg -2,
+    # no cinder 0.
+    total = -2 - 1 - 1 - 1 - 2 + 0 + 0 + 1 - 2 + 0
+    steps = [
+        "Strip-like footing B = 1.5 m, L = 6 m at 1.5 m; L/B = 4",
+        f"Sec 3.4.5(i): 2B at L/B ≤ 2, 4B at L/B ≥ 5: {fmt(widths)} B below the bearing level",
+        f"Depth of boring = 1.5 + {fmt(widths)} × 1.5 = {fmt(depth)} m",
+        (
+            "Table 6.3.6a: clay -2, ground water exists -1, resistivity 6000 ohm-cm -1, moisture "
+            "28 % -1, pH 5.6 -2, sulphide 0, carbonate 0.5 % 0, chloride 200 mg/kg +1, sulphate "
+            f"600 mg/kg -2, cinder 0: total {total}"
+        ),
+        "Table 6.3.6b: -5 to -10 corrosive",
+    ]
+    return Outcome(
+        Reference(
+            source="BNBC 2020 Part 6 Sec 3.4.5(i) (p. 703); Tables 6.3.6a-6.3.6b (pp. 717-718)",
+            formula="z = Df + k B, k = 2 + 2 (L/B - 2)/3 for 2 ≤ L/B ≤ 5; score = Σ item scores",
+            steps=steps,
+        ),
+        [
+            Quantity("Required depth of boring", "m", depth, result["requiredDepth"] / 1e3, 0.001),
+            Quantity("Soil corrosivity score", "-", total, score["score"], EXACT),
+        ],
+        notes=[
+            f"Rating: {score['rating']} (corrosive expected); depth check: {depth_row['status']}."
+        ],
+    )
+
+
 CASES = [
     Case(
         "D6",
@@ -690,5 +768,15 @@ CASES = [
         "Sand, FC = 10 %, water table at 2 m, N = 15 at 8 m (ER 60 %), M = 7.5, Z = 0.20, SD; "
         "liquefaction.amax_from, liquefaction.screen and liquefaction.point_bnbc.",
         bnbc_liquefaction_case,
+    ),
+    Case(
+        "D13",
+        "Exploration depth and soil corrosivity score",
+        "design",
+        "Depth of boring below a long footing (2B to 4B by L/B, linear between) and the soil "
+        "corrosivity score and rating of one sample, by the code pack (BNBC 2020).",
+        "Footing 1.5 × 6 m at 1.5 m; a clay sample with pH 5.6, 6000 ohm-cm, 0.06 % SO4, "
+        "0.02 % Cl, ground water present; investigation.check and chemistry.corrosivity.",
+        investigation_case,
     ),
 ]

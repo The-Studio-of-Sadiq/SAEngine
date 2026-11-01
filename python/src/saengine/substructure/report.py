@@ -179,6 +179,13 @@ def report(ctx: Context) -> dict[str, Any]:
         notes.append(f"Not designed: {ctx.no_loads}.")
     if ctx.soil.used or ctx.soil.problems:
         notes += ctx.soil.notes()
+    # The soil chemistry's demands on the foundation concrete (the Soil Report computes them).
+    if substructure.foundations:
+        from saengine.soil.chemistry import foundation_concrete, requirement_text
+
+        concrete = foundation_concrete(ctx.soil_text)
+        if concrete is not None:
+            notes.append(requirement_text(concrete))
     if "shallow" in used:
         method = list(SHALLOW_METHOD) + method
 

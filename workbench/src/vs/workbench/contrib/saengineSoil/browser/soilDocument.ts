@@ -404,7 +404,175 @@ export interface ISoilReport {
 	site?: ISoilSite;
 	boreholes: IBorehole[];
 	design: ISoilDesign;
+	/** The building and foundation the borings are checked for, and the geo-hazard review. */
+	investigation?: ISoilInvestigation;
 	[key: string]: unknown;
+}
+
+// ───────────────────────────── site investigation ─────────────────────────────
+
+export type GeoHazardReview = 'none' | 'possible' | 'significant';
+
+/** `SoilReport.investigation` (python/src/saengine/library/soil.py): lengths in mm. */
+export interface ISoilInvestigation {
+	buildingSize?: 'small' | 'large';
+	stratification?: 'uniform' | 'average' | 'erratic';
+	foundation?: 'spread' | 'pile' | 'shaft';
+	footingWidth?: number;
+	footingLength?: number;
+	foundingDepth?: number;
+	buildingWidth?: number;
+	footprint?: number[][];
+	pileTipDepth?: number;
+	pileGroupWidth?: number;
+	shaftDiameter?: number;
+	onRock?: boolean;
+	weatheringDepth?: number;
+	geoHazards?: { [hazard: string]: GeoHazardReview };
+	[key: string]: unknown;
+}
+
+/** A choice of the investigation (a select in the properties panel). */
+export interface IInvestigationChoice {
+	readonly key: 'buildingSize' | 'stratification' | 'foundation';
+	readonly label: string;
+	readonly title: string;
+	readonly defaultValue: string;
+	readonly options: readonly IChoiceOption[];
+}
+
+export const INVESTIGATION_CHOICES: readonly IInvestigationChoice[] = [
+	{
+		key: 'buildingSize', label: localize('soil.inv.size', "Building size"), defaultValue: 'large',
+		title: localize('soil.inv.sizeTitle', "The least number of borings and their largest spacing depend on it; the code does not set a limit between small and large."),
+		options: [
+			{ value: 'small', label: localize('soil.inv.small', "Small"), title: localize('soil.inv.smallTitle', "Small building") },
+			{ value: 'large', label: localize('soil.inv.large', "Large or multistoried"), title: localize('soil.inv.largeTitle', "Large or multistoried building") },
+		],
+	},
+	{
+		key: 'stratification', label: localize('soil.inv.strata', "Stratification"), defaultValue: 'average',
+		title: localize('soil.inv.strataTitle', "How uniform the strata are across the site: it sets the largest spacing of the borings."),
+		options: [
+			{ value: 'uniform', label: localize('soil.inv.uniform', "Uniform"), title: '' },
+			{ value: 'average', label: localize('soil.inv.average', "Average"), title: '' },
+			{ value: 'erratic', label: localize('soil.inv.erratic', "Erratic"), title: '' },
+		],
+	},
+	{
+		key: 'foundation', label: localize('soil.inv.foundation', "Foundation"), defaultValue: 'spread',
+		title: localize('soil.inv.foundationTitle', "The depth the borings must reach depends on it."),
+		options: [
+			{ value: 'spread', label: localize('soil.inv.spread', "Spread footings"), title: '' },
+			{ value: 'pile', label: localize('soil.inv.pile', "Piles"), title: '' },
+			{ value: 'shaft', label: localize('soil.inv.shaft', "Drilled shafts"), title: '' },
+		],
+	},
+];
+
+const MM_TITLE = localize('soil.inv.emptyDefault', "Empty: from the design options");
+
+export const INVESTIGATION_FIELDS: readonly IFieldSpec[] = [
+	{ key: 'footingWidth', label: localize('soil.inv.footingWidth', "Footing width B"), unit: localize('soil.unit.m', "m"), kind: 'length', min: 0, title: MM_TITLE },
+	{ key: 'footingLength', label: localize('soil.inv.footingLength', "Footing length L"), unit: localize('soil.unit.m', "m"), kind: 'length', min: 0, title: localize('soil.inv.footingLengthTitle', "Empty: equal to B (a square footing)") },
+	{ key: 'foundingDepth', label: localize('soil.inv.foundingDepth', "Founding depth"), unit: localize('soil.unit.m', "m"), kind: 'depth', min: 0, title: MM_TITLE },
+	{ key: 'buildingWidth', label: localize('soil.inv.buildingWidth', "Building width"), unit: localize('soil.unit.m', "m"), kind: 'length', min: 0, title: localize('soil.inv.buildingWidthTitle', "Least plan dimension; empty: from the footprint (or the plot)") },
+	{ key: 'pileTipDepth', label: localize('soil.inv.pileTip', "Pile tip depth"), unit: localize('soil.unit.m', "m"), kind: 'depth', min: 0 },
+	{ key: 'pileGroupWidth', label: localize('soil.inv.groupWidth', "Largest group dimension"), unit: localize('soil.unit.m', "m"), kind: 'length', min: 0 },
+	{ key: 'shaftDiameter', label: localize('soil.inv.shaftDiameter', "Shaft diameter"), unit: localize('soil.unit.m', "m"), kind: 'length', min: 0 },
+	{ key: 'weatheringDepth', label: localize('soil.inv.weathering', "Weathering depth"), unit: localize('soil.unit.m', "m"), kind: 'depth', min: 0, title: localize('soil.inv.weatheringTitle', "The least depth of a boring where weathering reaches deeper than the code's minimum") },
+];
+
+/** The geo-hazards of the preliminary site review, in the order of the panel. */
+export const GEO_HAZARDS: readonly { readonly key: string; readonly label: string }[] = [
+	{ key: 'landslide', label: localize('soil.hz.landslide', "Landslides") },
+	{ key: 'subsidence', label: localize('soil.hz.subsidence', "Ground subsidence") },
+	{ key: 'earthquake', label: localize('soil.hz.earthquake', "Earthquakes") },
+	{ key: 'erosionScour', label: localize('soil.hz.erosion', "Erosion and scour") },
+	{ key: 'contaminatedFill', label: localize('soil.hz.fill', "Contaminated landfill") },
+	{ key: 'groundwaterContamination', label: localize('soil.hz.groundwater', "Ground water contamination") },
+];
+
+/** One adequacy check of the borings (`saengine.soil.investigation.check`). */
+export interface IInvestigationCheck {
+	readonly id: string;
+	readonly item: string;
+	readonly required: string;
+	readonly provided: string;
+	readonly status: 'ok' | 'fail' | 'warning' | 'notChecked';
+	readonly clause: string;
+	readonly note?: string;
+}
+
+export interface IInvestigationResult {
+	/** False when the project's code pack has no site investigation data. */
+	readonly covered: boolean;
+	/** The code pack's display name. */
+	readonly code: string;
+	readonly checks: readonly IInvestigationCheck[];
+}
+
+/** The site's chemistry (`saengine.soil.chemistry.site`). */
+export interface IChemistryResult {
+	readonly covered: boolean;
+	readonly code: string;
+	readonly sulphateClass?: string;
+	readonly corrosivityRating?: string;
+	readonly corrosive: readonly string[];
+	readonly corrosiveClause?: string;
+	readonly concrete?: { readonly maxWaterCement: number; readonly cement?: string; readonly noCalciumChloride: boolean; readonly reasons: readonly string[] };
+	readonly samples: readonly { readonly borehole: string; readonly sample?: string; readonly depth: number; readonly sulphate?: string; readonly score?: number; readonly rating?: string; readonly missing: readonly string[] }[];
+	readonly steelCorrosion: { readonly [exposure: string]: number };
+	readonly steelCorrosionClause?: string;
+}
+
+const CHECK_STATUSES = new Set(['ok', 'fail', 'warning', 'notChecked']);
+
+/** The investigation checks of the backend's answer; undefined when it has none. */
+export function readInvestigation(raw: unknown): IInvestigationResult | undefined {
+	if (!isRecord(raw)) {
+		return undefined;
+	}
+	const checks = (Array.isArray(raw.checks) ? raw.checks : []).filter(isRecord).filter(c => typeof c.id === 'string' && CHECK_STATUSES.has(String(c.status))).map(c => ({
+		id: String(c.id), item: String(c.item ?? ''), required: String(c.required ?? ''), provided: String(c.provided ?? ''),
+		status: c.status as IInvestigationCheck['status'], clause: String(c.clause ?? ''), note: typeof c.note === 'string' ? c.note : undefined,
+	}));
+	return { covered: raw.covered === true, code: typeof raw.code === 'string' ? raw.code : '', checks };
+}
+
+/** The site chemistry of the backend's answer; undefined when it has none. */
+export function readChemistry(raw: unknown): IChemistryResult | undefined {
+	if (!isRecord(raw)) {
+		return undefined;
+	}
+	const text = (v: unknown) => typeof v === 'string' && v ? v : undefined;
+	const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+	const texts = (v: unknown) => Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
+	const concrete = isRecord(raw.concrete) && number(raw.concrete.maxWaterCement) !== undefined ? {
+		maxWaterCement: number(raw.concrete.maxWaterCement)!, cement: text(raw.concrete.cement), noCalciumChloride: raw.concrete.noCalciumChloride === true, reasons: texts(raw.concrete.reasons),
+	} : undefined;
+	const samples = (Array.isArray(raw.samples) ? raw.samples : []).filter(isRecord).map(s => {
+		const sulphate = isRecord(s.sulphate) ? text(s.sulphate.name) : undefined;
+		const score = isRecord(s.corrosivity) ? s.corrosivity : undefined;
+		return { borehole: String(s.borehole ?? ''), sample: text(s.sample), depth: number(s.depth) ?? 0, sulphate, score: number(score?.score), rating: text(score?.rating), missing: texts(score?.missing) };
+	});
+	const steel: { [exposure: string]: number } = {};
+	if (isRecord(raw.steelCorrosion)) {
+		for (const [k, v] of Object.entries(raw.steelCorrosion)) {
+			if (number(v) !== undefined) {
+				steel[k] = v as number;
+			}
+		}
+	}
+	return {
+		covered: raw.covered === true, code: text(raw.code) ?? '', sulphateClass: text(raw.sulphateClass), corrosivityRating: text(raw.corrosivityRating),
+		corrosive: texts(raw.corrosive), corrosiveClause: text(raw.corrosiveClause), concrete, samples, steelCorrosion: steel, steelCorrosionClause: text(raw.steelCorrosionClause),
+	};
+}
+
+/** 'slightlyCorrosive' → 'slightly corrosive'. */
+export function idWords(id: string): string {
+	return id.replace(/([a-z])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`);
 }
 
 export const DESIGN_DEFAULTS = { hammerEnergy: 60, factorOfSafety: 3, allowableSettlement: 25, magnitude: 7.5 } as const;
@@ -844,6 +1012,10 @@ export interface ISoilResults {
 	readonly bearing?: IBearingResult;
 	/** The 3D stratigraphy and the fence diagrams (saengine.soil.stratigraphy), when the backend gives them. */
 	readonly stratigraphy?: IStratigraphy;
+	/** Adequacy of the borings by the project's code pack (saengine.soil.investigation). */
+	readonly investigation?: IInvestigationResult;
+	/** The ground's aggression to buried concrete and steel (saengine.soil.chemistry). */
+	readonly chemistry?: IChemistryResult;
 	/** Peak ground acceleration used for liquefaction [g], and where it came from. */
 	readonly pga?: number;
 	readonly pgaSource?: string;
@@ -1103,6 +1275,8 @@ export function readSoilResults(raw: unknown, excluded: ReadonlySet<string> = ne
 		sptMethod: str(backend.methods?.spt),
 		siteClassFlags: readFlags(backend),
 		stratigraphy: readStratigraphy((raw as { stratigraphy?: unknown }).stratigraphy),
+		investigation: readInvestigation((raw as { investigation?: unknown }).investigation),
+		chemistry: readChemistry((raw as { chemistry?: unknown }).chemistry),
 		permissibleSettlement: permissible?.value,
 		permissibleSettlementSource: permissible?.source,
 		problems: [...strings(backend.problems), ...strings(backend.warnings)],

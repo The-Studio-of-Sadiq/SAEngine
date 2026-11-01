@@ -37,25 +37,26 @@ USCS group symbol (ASTM D2487-17, the rules applied):
 - the plasticity of the fines (the A-line PI = 0.73 (LL - 20)): C (clay) when PI > 7 and on
   or above the A-line, CL-ML when 4 ≤ PI ≤ 7 and on or above it, M (silt) when PI < 4 or below
   it; non-plastic fines are M;
-- fine-grained: LL < 50: CL, CL-ML or ML; LL ≥ 50: CH on or above the A-line, MH below.
-  Organic soils (OL, OH, PT) need the oven-dried liquid limit and are not identified.
+- fine-grained: LL < 50: CL, CL-ML or ML; LL ≥ 50: CH on or above the A-line, MH below;
+- organic (OL, OH, PT; the code pack's criteria, :func:`saengine.soil.special_soils.
+  organic_group`): PT from the organic content, OL/OH when the oven-dried liquid limit over
+  the undried one is below the pack's ratio (0.75).
 
 With fines of unknown plasticity (no LL/PL), or no D10/D30/D60 for the gradation, only what
 the data decide is suggested (e.g. "S" with the reason). The group symbol is a suggestion
 beside the log's ``uscs``, which the engineer enters.
 
-Chemistry: flags for buried concrete only, nothing is designed. Sulphate exposure classes of
-ACI 318-19 Table 19.3.1.1 by water-soluble SO4 in soil [% by mass] / in water [ppm]: S0 below
-0.10 / 150, S1 0.10-0.20 / 150-1500, S2 0.20-2.00 / 1500-10 000, S3 above 2.00 / 10 000
-(the thresholds are written from memory and must be checked against the code); chlorides
-point to exposure class C2 where the concrete is moist; a pH below 5.5 and organic matter are
-noted.
+Chemistry and problem soils: :mod:`saengine.soil.chemistry` (sulphate class, corrosive site,
+chloride exposure, corrosivity) and :mod:`saengine.soil.special_soils` (organic, expansive,
+collapsible, dispersive), with the code pack's limits; :func:`chemistry_flags` gives their
+notes for one sample.
 """
 
 from __future__ import annotations
 
 import itertools
 import math
+import re
 from statistics import fmean
 from typing import Any
 
@@ -82,17 +83,13 @@ USCS_NAMES = {
     "ML": "Silt",
     "CH": "Fat clay",
     "MH": "Elastic silt",
+    "OL": "Organic clay or silt",
+    "OH": "Organic clay or silt of high plasticity",
+    "PT": "Peat",
 }
 
-#: ACI 318-19 Table 19.3.1.1 sulphate classes (from memory, to be checked): (class, the soil
-#: SO4 [% by mass] and the water SO4 [ppm] that bound it from below, and whether that bound is
-#: exclusive). S1 and S2 include their lower bounds (0.10 ≤ SO4 < 0.20 %, 0.20 ≤ SO4 ≤ 2.00 %);
-#: S3 starts above 2.00 % / 10 000 ppm, so exactly 2.00 % or 10 000 ppm is S2.
-SULPHATE_CLASSES = (
-    ("S3", 2.0, 10_000.0, True),
-    ("S2", 0.20, 1500.0, False),
-    ("S1", 0.10, 150.0, False),
-)
+#: The 425 µm sieve (No. 40) [mm], for the weighted plasticity index.
+NO_40 = 0.425
 
 
 # ─────────────────────────────── grading ───────────────────────────────
@@ -142,6 +139,7 @@ def grading_summary(grading: Grading) -> dict[str, Any]:
         "gravel": None if through_4 is None else 100 - through_4,
         "sand": None if through_4 is None or fines is None else through_4 - fines,
         "clayFraction": passing(grading, CLAY_SIZE),
+        "passing425": passing(grading, NO_40),
         "D10": d10,
         "D30": d30,
         "D60": d60,
@@ -232,6 +230,22 @@ def uscs(
     symbol = f"{main}{graded}-{main}{fine}"
     name = f"{USCS_NAMES[main + graded]} with {'silt' if fine == 'M' else 'clay'}"
     return {"symbol": symbol, "name": name, "basis": basis + ", 5-12 % fines: dual symbol"}
+
+
+def uscs_of(sample: Sample, grading: dict[str, Any] | None = None) -> dict[str, str] | None:
+    """The sample's suggested USCS group: :func:`uscs` from its grading and limits, made organic
+    (OL, OH, PT) where the code pack's organic criteria say so."""
+    from saengine.soil.special_soils import organic_group
+
+    if grading is None and sample.grading is not None:
+        grading = grading_summary(sample.grading)
+    group = uscs(grading, sample.liquidLimit, sample.plasticLimit, sample.nonPlastic)
+    organic = organic_group(sample, group["symbol"] if group else None)
+    if organic is None:
+        if group is not None and organic_group(sample, None) is not None:
+            return {**group, "name": group["name"] + " with organic fines"}
+        return group
+    return organic
 
 
 def _main(main: str) -> str:
@@ -376,45 +390,46 @@ def consolidation(test: Consolidation) -> dict[str, Any]:
 
 
 def chemistry_flags(sample: Sample) -> list[str]:
-    """Durability flags of the sample's chemistry (nothing is designed)."""
-    chem = sample.chemistry
-    if chem is None:
-        return []
-    flags = []
-    worst = None
+    """Durability and problem-soil notes of the sample (nothing is designed): the chemistry's
+    (:func:`saengine.soil.chemistry.flags`) and the organic, expansive, collapsible and
+    dispersive criteria (:mod:`saengine.soil.special_soils`), with the code pack's clauses."""
+    from saengine.soil import chemistry, special_soils
 
-    def over(value: float | None, limit: float, exclusive: bool) -> bool:
-        if value is None:
-            return False
-        return value > limit if exclusive else value >= limit
-
-    for name, soil_limit, water_limit, exclusive in SULPHATE_CLASSES:
-        soil_hit = over(chem.sulphateSoil, soil_limit, exclusive)
-        water_hit = over(chem.sulphateWater, water_limit, exclusive)
-        if soil_hit or water_hit:
-            worst = name
-            break
-    if worst is not None:
+    flags = chemistry.flags(sample)
+    grading = grading_summary(sample.grading) if sample.grading is not None else None
+    found = special_soils.organic(sample)
+    if found is not None and found["organic"]:
         flags.append(
-            f"sulphate: exposure class {worst} (ACI 318-19 Table 19.3.1.1, thresholds from "
-            "memory, to be checked): sulphate-resisting cement and a lower w/cm for buried "
-            "concrete"
+            f"organic content {found['organicContent']:g} %: {found['label']} "
+            f"({found['clause']}); bearing capacity lower and compressibility higher"
         )
-    elif chem.sulphateSoil is not None or chem.sulphateWater is not None:
-        flags.append("sulphate: below the S1 threshold, exposure class S0")
-    if (chem.chlorideSoil or 0) > 0 or (chem.chlorideWater or 0) > 0:
+    found = special_soils.expansive(sample, grading)
+    if found is not None and found["expansive"]:
+        by = next(c for c in found["criteria"] if c["id"] == found["governing"])
         flags.append(
-            "chloride present: buried reinforced concrete that stays moist is exposure class C2 "
-            "(ACI 318-19 Table 19.3.1.1, from memory, to be checked)"
+            f"expansive soil, {_words(found['degree'])} degree of expansion by {by['source']} "
+            f"({by['value']:g} {by['unit']}) ({found['clause']})"
         )
-    if chem.pH is not None and chem.pH < 5.5:
-        flags.append(f"pH {chem.pH:g}: acidic ground, aggressive to concrete")
-    if chem.organicContent is not None and chem.organicContent >= 5:
+    found = special_soils.collapsible(sample)
+    if found is not None and found["collapsible"]:
         flags.append(
-            f"organic content {chem.organicContent:g} %: organic soil, highly compressible; "
-            "it also hinders cement stabilisation"
+            "collapsible soil: "
+            + "; ".join(c["text"] for c in found["checks"] if c["collapsible"])
+            + f" ({found['clause']})"
+        )
+    found = special_soils.dispersive(sample)
+    if found is not None and found["class"] in ("dispersive", "moderate"):
+        flags.append(
+            f"dispersive soil ({_words(found['class'])}): "
+            + "; ".join(found["checks"])
+            + f" ({found['clause']}); a concern for embankments and dams, not for the building"
         )
     return flags
+
+
+def _words(identifier: str) -> str:
+    """'veryHigh' -> 'very high'."""
+    return re.sub(r"(?<=[a-z])([A-Z])", lambda m: " " + m.group(1).lower(), identifier)
 
 
 # ─────────────────────────────── the sample's values ───────────────────────────────
@@ -484,7 +499,7 @@ def summary(sample: Sample) -> dict[str, Any]:
         out["issues"] = sample.issues
     if grading is not None:
         out["grainSize"] = {k: r(v, 4 if k.startswith("D") else 2) for k, v in grading.items()}
-    group = uscs(grading, sample.liquidLimit, sample.plasticLimit, sample.nonPlastic)
+    group = uscs_of(sample, grading)
     if group is not None:
         out["uscs"] = group
     if sample.consolidation is not None:

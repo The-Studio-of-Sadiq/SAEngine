@@ -14425,6 +14425,20 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					description: 'The site\'s bearing table takes the lowest of the other boreholes (one far from the building, say); the borehole\'s own results stay.',
 					title: 'Leave out of the site table',
 				},
+				rockCore: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Length of rock cored at the bottom of the borehole [mm]; empty when it did not reach rock.',
+					title: 'Rock core',
+				},
 				date: {
 					anyOf: [
 						{
@@ -14569,8 +14583,128 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					description: 'Loss on ignition [% by mass].',
 					title: 'Organic content',
 				},
+				resistivity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the soil [ohm-cm].',
+					title: 'Resistivity',
+				},
+				sulphide: {
+					anyOf: [
+						{
+							enum: ['none', 'trace', 'exist'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					enumDescriptions: ['None', 'Trace', 'Exist'],
+					title: 'Sulphide, H2S',
+				},
+				carbonate: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[% by mass]',
+					title: 'Carbonate',
+				},
+				cinderCoke: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Cinder or coke present',
+				},
+				soilComposition: {
+					anyOf: [
+						{
+							enum: ['calcareous', 'sandySiltClay', 'clay', 'peat'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the corrosivity score; empty: from the sample\'s USCS group or the layer\'s soil type.',
+					enumDescriptions: ['Calcareous, marly limestone, sandy marl, non-stratified sand', 'Sandy silt, sandy clay, clayey silt', 'Clay, silty clay', 'Peat, marshy soil'],
+					title: 'Soil composition',
+				},
+				groundwater: {
+					anyOf: [
+						{
+							enum: ['none', 'exist', 'vary'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the corrosivity score; empty: \'exist\' when the borehole met the water table, else \'none\'.',
+					enumDescriptions: ['None', 'Exists', 'Varies'],
+					title: 'Ground water',
+				},
 			},
 			title: 'Chemistry',
+			type: 'object',
+		},
+		Collapse: {
+			additionalProperties: false,
+			description: 'Collapse (relative subsidence) test: an undisturbed specimen at its natural moisture\nloaded to the overburden plus the expected pressure, then soaked under that pressure.',
+			properties: {
+				height: {
+					description: 'Before soaking [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height H',
+					type: 'number',
+				},
+				soakedHeight: {
+					description: 'After soaking [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height H\'',
+					type: 'number',
+				},
+				pressure: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Pressure',
+				},
+			},
+			required: ['height', 'soakedHeight'],
+			title: 'Collapse',
 			type: 'object',
 		},
 		Consolidation: {
@@ -14867,6 +15001,181 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Grading',
+			type: 'object',
+		},
+		Investigation: {
+			additionalProperties: false,
+			description: 'What the adequacy of the site investigation is checked for: the building and its\nfoundation (the borings\' number, spacing and depth depend on them) and the geo-hazard\nreview. Every field is optional; an empty one is taken from the design options or left\nunchecked, as the result says.',
+			properties: {
+				buildingSize: {
+					default: 'large',
+					description: 'Small, or large / multistoried: the code pack\'s least number of borings and their largest spacing depend on it.',
+					enum: ['small', 'large'],
+					enumDescriptions: ['Small building', 'Large or multistoried building'],
+					title: 'Building size',
+					type: 'string',
+				},
+				stratification: {
+					default: 'average',
+					description: 'How uniform the strata are across the site (the largest boring spacing).',
+					enum: ['uniform', 'average', 'erratic'],
+					enumDescriptions: ['Uniform', 'Average', 'Erratic'],
+					title: 'Stratification',
+					type: 'string',
+				},
+				foundation: {
+					default: 'spread',
+					description: 'Spread footings or rafts, driven or bored piles, or drilled shafts.',
+					enum: ['spread', 'pile', 'shaft'],
+					enumDescriptions: ['Spread footings', 'Piles', 'Drilled shafts'],
+					title: 'Foundation',
+					type: 'string',
+				},
+				footingWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the subgrade width [mm].',
+					title: 'Footing width B',
+				},
+				footingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: equal to B [mm].',
+					title: 'Footing length L',
+				},
+				foundingDepth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing level below the ground [mm]; empty: the subgrade founding depth.',
+					title: 'Founding depth',
+				},
+				buildingWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Least plan dimension of the building [mm]; empty: from the footprint.',
+					title: 'Building width',
+				},
+				footprint: {
+					description: 'Outline of the building in project coordinates [mm]; empty: the plot.',
+					items: {
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Building footprint',
+					type: 'array',
+				},
+				pileTipDepth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Below the ground [mm].',
+					title: 'Pile tip depth',
+				},
+				pileGroupWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of a pile group [mm].',
+					title: 'Largest group dimension',
+				},
+				shaftDiameter: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of a drilled shaft [mm].',
+					title: 'Shaft diameter',
+				},
+				onRock: {
+					default: false,
+					description: 'The piles or shafts bear on or in rock (rock cores are then required).',
+					title: 'Bearing on rock',
+					type: 'boolean',
+				},
+				weatheringDepth: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth weathering affects the deposit [mm]: the least depth of a boring.',
+					title: 'Weathering depth',
+				},
+				geoHazards: {
+					additionalProperties: {
+						enum: ['none', 'possible', 'significant'],
+						type: 'string',
+					},
+					description: 'The preliminary review of the site: none, possible or significant for each hazard; a significant one needs a detailed analysis.',
+					propertyNames: {
+						enum: ['landslide', 'subsidence', 'earthquake', 'erosionScour', 'contaminatedFill', 'groundwaterContamination'],
+					},
+					title: 'Geo-hazard review',
+					type: 'object',
+				},
+			},
+			title: 'Investigation',
 			type: 'object',
 		},
 		Layer: {
@@ -15762,6 +16071,188 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Chemistry',
 				},
+				liquidLimitOvenDried: {
+					anyOf: [
+						{
+							maximum: 500,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the organic groups OL/OH (ASTM D2487) [%].',
+					title: 'Liquid limit, oven dried',
+				},
+				shrinkageLimit: {
+					anyOf: [
+						{
+							maximum: 200,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Shrinkage limit',
+				},
+				linearShrinkage: {
+					anyOf: [
+						{
+							maximum: 100,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Linear shrinkage',
+				},
+				freeSwell: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Free swell',
+				},
+				freeSwellIndex: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Free swell index',
+				},
+				swellingPotential: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Swelling potential',
+				},
+				swellingPressure: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Swelling pressure',
+				},
+				volumeChange: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[%]',
+					title: 'Volume change, air dry to saturated',
+				},
+				collapse: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Collapse',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Collapse test',
+				},
+				exchangeableSodium: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[meq/100 g]',
+					title: 'Exchangeable Na',
+				},
+				exchangeableMagnesium: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[meq/100 g]',
+					title: 'Exchangeable Mg',
+				},
+				cationExchangeCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[meq/100 g]',
+					title: 'Cation exchange capacity CEC',
+				},
+				pinhole: {
+					anyOf: [
+						{
+							enum: ['D1', 'D2', 'ND1', 'ND2', 'ND3', 'ND4'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Pinhole test class',
+				},
 			},
 			required: ['depth'],
 			title: 'Sample',
@@ -16317,6 +16808,19 @@ export const SOIL_SCHEMA: IJSONSchema = {
 		},
 		design: {
 			$ref: '#/$defs/Design',
+		},
+		investigation: {
+			anyOf: [
+				{
+					$ref: '#/$defs/Investigation',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'The building and foundation the adequacy of the borings is checked for, and the geo-hazard review.',
+			title: 'Site investigation',
 		},
 		stratigraphy: {
 			anyOf: [

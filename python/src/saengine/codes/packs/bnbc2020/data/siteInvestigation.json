@@ -1,0 +1,205 @@
+{
+  "$schema": "../../../schemas/siteInvestigation.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 3.4.4 (viii)-(ix), number, pattern and spacing of the borings (pp. 702-703)",
+    "BNBC 2020 Part 6 Sec 3.4.5 (i)-(viii), depth of exploration (pp. 703-704)",
+    "BNBC 2020 Part 6 Sec 3.5.3 and Table 6.3.2, organic soils OL, OH, PT (pp. 707-709)",
+    "BNBC 2020 Part 6 Sec 3.5.4-3.5.8, Table 6.3.3, Eqs 6.3.1-6.3.5, Table 6.3.4 (pp. 710-714)",
+    "BNBC 2020 Part 6 Appendix E, expansive soils (part 2 pp. 451-453)",
+    "BNBC 2020 Part 6 Sec 3.6.2, steel corrosion rates and Tables 6.3.6a-6.3.6b (pp. 715-718)",
+    "BNBC 2020 Part 6 Sec 3.10.1.29, corrosive site and steel pile pH (pp. 754-755)",
+    "BNBC 2020 Part 6 Sec 5.5.1-5.5.2 and Table 6.5.2, concrete in the ground (pp. 844-846)",
+    "BNBC 2020 Part 6 Sec 3.21, geo-hazards (p. 814)"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 3: site investigation, identification of problem soils, soil chemistry for buried steel and concrete; Chapter 5 Sec 5.5: concrete in the ground",
+  "borings": {
+    "method": "countAndSpacing",
+    "minimum": { "small": 3, "large": 5 },
+    "notInOneLine": true,
+    "spacing": {
+      "small": { "uniform": 60, "average": 30, "erratic": 15 },
+      "large": { "uniform": 45, "average": 30, "erratic": 15 }
+    },
+    "insideFootprint": 0.67,
+    "clause": "BNBC 2020 Part 6 Sec 3.4.4(viii)-(ix) (pp. 702-703)",
+    "note": "The code names 'small buildings' and 'large' (count) or 'multistoried' (spacing) buildings without a limit between them: the engineer picks the size, and SAEngine reads 'large' and 'multistoried' as one. The 67 % inside the building is the rule of Sec 3.4.4(ix) for large areas; for one building (viii) asks for the borings near the foundations, so a shortfall is a warning."
+  },
+  "depth": {
+    "method": "footingWidths",
+    "spread": [[2, 2], [5, 4]],
+    "minimum": 2.0,
+    "buildingWidthFactor": 1.5,
+    "buildingShare": 0.5,
+    "belowPileTip": 6.0,
+    "pileGroupWidths": 2.0,
+    "rockCore": 1.5,
+    "shaftRockCoreDiameters": 3.0,
+    "shaftGroupRockCoreWidths": 2.0,
+    "bedrockCore": 3.0,
+    "clause": "BNBC 2020 Part 6 Sec 3.4.5 (pp. 703-704)",
+    "sources": {
+      "spread": "Sec 3.4.5(i): below the bearing level, 2 footing widths where L <= 2B, 4 widths where L >= 5B, linear between (L/B, depth in widths)",
+      "minimum": "Sec 3.4.5(vii): never less than 2 m (the depth weathering reaches, where deeper)",
+      "buildingWidthFactor": "Sec 3.4.5(ii): multistoried and framed buildings: at least 50 % of the borings to 1.5 x the building width below the lowest part of the foundation",
+      "belowPileTip": "Sec 3.4.5(iv): at least 6 m below the pile or shaft tip; 2 x the largest group dimension below the tip for a group, unless end bearing on rock",
+      "rockCore": "Sec 3.4.5(v): piles on rock: at least 1.5 m of rock core at each boring",
+      "shaftRockCoreDiameters": "Sec 3.4.5(vi): shafts on or into rock: 1.5 m, 3 shaft diameters (isolated) or 2 x the group dimension, whichever is greater",
+      "bedrockCore": "Sec 3.4.5(viii): at least one boring to bedrock (cored 3 m into it) or well below the level of influence of the building"
+    }
+  },
+  "organic": {
+    "ovenDriedRatio": 0.75,
+    "peat": 75,
+    "classes": [
+      { "id": "inorganic", "min": 0, "label": "little effect on behaviour; inorganic soil" },
+      { "id": "organicMineral", "min": 5, "label": "affects the properties, behaves like a mineral soil: organic silts and clays" },
+      { "id": "organic", "min": 21, "label": "organic matter governs the properties: silty or clayey organic soil" },
+      { "id": "peat", "min": 75, "label": "behaviour distinct from traditional soil mechanics: peat" }
+    ],
+    "clause": "BNBC 2020 Part 6 Sec 3.5.4, Table 6.3.3 (p. 711); Table 6.3.2 OL/OH/PT (pp. 708-709)",
+    "note": "Table 6.3.3 prints whole-number bands (< 5, 6-20, 21-74, > 75 %). A value between bands takes the band below, except 5 %, which is not '< 5 %' and so counts as organic (the safer side)."
+  },
+  "expansive": {
+    "criteria": [
+      { "id": "usbrPI", "parameter": "plasticityIndex", "unit": "%", "source": "Appendix E (1), USBR, plasticity index",
+        "rows": [ { "degree": "veryHigh", "above": 35 }, { "degree": "high", "atLeast": 25 }, { "degree": "medium", "atLeast": 15 }, { "degree": "low" } ] },
+      { "id": "usbrSL", "parameter": "shrinkageLimit", "unit": "%", "source": "Appendix E (1), USBR, shrinkage limit",
+        "rows": [ { "degree": "veryHigh", "below": 10 }, { "degree": "high", "atMost": 12 }, { "degree": "medium", "atMost": 18 }, { "degree": "low" } ] },
+      { "id": "linearShrinkage", "parameter": "linearShrinkage", "unit": "%", "source": "Appendix E (2), Hossain (1983), Bangladesh soils",
+        "rows": [ { "degree": "high", "above": 14 }, { "degree": "medium", "atLeast": 10 }, { "degree": "low" } ] },
+      { "id": "freeSwell", "parameter": "freeSwell", "unit": "%", "source": "Appendix E (3), IS 1948",
+        "rows": [ { "degree": "veryHigh", "above": 200 }, { "degree": "high", "atLeast": 100 }, { "degree": "medium", "atLeast": 50 }, { "degree": "low" } ] },
+      { "id": "freeSwellIndex", "parameter": "freeSwellIndex", "unit": "%", "source": "Appendix E (4), IS 2911 Part III",
+        "rows": [ { "degree": "veryHigh", "above": 50 }, { "degree": "high", "atLeast": 35 }, { "degree": "medium", "atLeast": 20 }, { "degree": "low" } ] },
+      { "id": "isLiquidLimit", "parameter": "liquidLimit", "unit": "%", "source": "Appendix E (5), IS 2911 Part 3, liquid limit",
+        "rows": [ { "degree": "veryHigh", "above": 70 }, { "degree": "high", "atLeast": 50 }, { "degree": "medium", "atLeast": 35 }, { "degree": "low" } ] },
+      { "id": "isPlasticityIndex", "parameter": "plasticityIndex", "unit": "%", "source": "Appendix E (5), IS 2911 Part 3, plasticity index",
+        "rows": [ { "degree": "veryHigh", "above": 32 }, { "degree": "high", "atLeast": 23 }, { "degree": "medium", "atLeast": 12 }, { "degree": "low" } ] },
+      { "id": "swellingPotential", "parameter": "swellingPotential", "unit": "%", "source": "Appendix E (6), Seed et al. (1962)",
+        "rows": [ { "degree": "veryHigh", "above": 25 }, { "degree": "high", "atLeast": 5 }, { "degree": "medium", "atLeast": 1.5 }, { "degree": "low" } ] },
+      { "id": "swellingPressure", "parameter": "swellingPressure", "unit": "kg/cm2", "source": "Appendix E (7), Chen (1965)",
+        "rows": [ { "degree": "veryHigh", "above": 9.8 }, { "degree": "high", "atLeast": 2.5 }, { "degree": "medium", "atLeast": 1.5 }, { "degree": "low" } ] },
+      { "id": "volumeChange", "parameter": "volumeChange", "unit": "%", "source": "Appendix E (8), Seed et al. (1962), air dry to saturated",
+        "rows": [ { "degree": "veryHigh", "above": 30 }, { "degree": "high", "atLeast": 20 }, { "degree": "medium", "atLeast": 10 }, { "degree": "low" } ] },
+      { "id": "weightedPI", "parameter": "weightedPlasticityIndex", "unit": "%", "source": "Appendix E (9), Look (2007), PI x percent passing 425 um",
+        "rows": [ { "degree": "veryHigh", "above": 5000 }, { "degree": "high", "atLeast": 3200 }, { "degree": "medium", "atLeast": 2200 }, { "degree": "low", "atLeast": 1200 }, { "degree": "veryLow" } ] }
+    ],
+    "degrees": ["veryLow", "low", "medium", "high", "veryHigh"],
+    "flagFrom": "high",
+    "clause": "BNBC 2020 Part 6 Sec 3.5.5 and Appendix E (p. 711; part 2 pp. 451-453)",
+    "note": "Appendix E prints overlapping bands (USBR, Seed, Chen): a value on a shared bound takes the more severe degree. Each criterion is read on its own and the most severe degree found is the sample's. The weighted plasticity index is PI times the percent passing 425 um (Look 2007), as the appendix describes it; its formula is not legible in the gazette."
+  },
+  "collapsible": {
+    "criticalVoidRatio": { "liquidLimit": 0.85, "plasticLimit": 0.15 },
+    "saturationMax": 0.6,
+    "voidIndexMax": 0.10,
+    "relativeSubsidence": 0.02,
+    "clause": "BNBC 2020 Part 6 Sec 3.5.6, Eqs 6.3.1-6.3.3 (p. 712)",
+    "sources": {
+      "criticalVoidRatio": "Eq 6.3.1: ec = 0.85 eL + 0.15 eP; collapse is probable when e0 > ec",
+      "voidIndexMax": "Eq 6.3.2: for Sr <= 0.6, collapsible when (eL - e0)/(1 + e0) <= 0.10",
+      "relativeSubsidence": "Eq 6.3.3: imc = (H - H')/H; collapsible when imc >= 0.02"
+    },
+    "note": "eL and eP are the void ratios at the liquid and plastic limits, w Gs (saturated). Eq 6.3.2 and the relation signs of Sr and imc are not legible in the text layer of the gazette; they were read from the equation glyphs and match the usual form of the criterion."
+  },
+  "dispersive": {
+    "pinhole": { "D1": "dispersive", "D2": "dispersive", "ND3": "intermediate", "ND4": "intermediate", "ND1": "nonDispersive", "ND2": "nonDispersive" },
+    "pHScreen": 7.8,
+    "espDispersive": 8,
+    "espPlusEmgDispersive": 15,
+    "espModerate": [7, 10],
+    "espSerious": 15,
+    "clause": "BNBC 2020 Part 6 Sec 3.5.7, Table 6.3.4, Eqs 6.3.4-6.3.5 (pp. 712-713)",
+    "note": "ESP = Na/CEC x 100 and EMgP = Mg/CEC x 100, the exchangeable sodium and magnesium over the cation exchange capacity (meq/100 g); the numerators of Eqs 6.3.4-6.3.5 are not legible in the gazette. The code says dispersive soil does not trouble buildings itself (it matters for embankments and dams): the result is a note."
+  },
+  "softClay": {
+    "rows": [
+      { "consistency": "very soft", "nBelow": 2, "cuBelow": 20 },
+      { "consistency": "soft", "nBelow": 4, "cuBelow": 40 }
+    ],
+    "nAtMost": 4,
+    "cuRange": [10, 40],
+    "clause": "BNBC 2020 Part 6 Sec 3.5.8 (pp. 713-714)",
+    "note": "N is the field SPT blow count. The table prints N 2-4 for soft clay: N = 4 is taken as soft (the safer side)."
+  },
+  "corrosivity": {
+    "scores": {
+      "soilComposition": { "calcareous": 2, "sandySiltClay": 0, "clay": -2, "peat": -4 },
+      "groundwater": { "none": 0, "exist": -1, "vary": -2 },
+      "resistivity": [ { "atLeast": 10000, "score": 0 }, { "above": 5000, "score": -1 }, { "above": 2300, "score": -2 }, { "above": 1000, "score": -3 }, { "score": -4 } ],
+      "moisture": [ { "atMost": 20, "score": 0 }, { "score": -1 } ],
+      "pH": [ { "atLeast": 6, "score": 0 }, { "score": -2 } ],
+      "sulphide": { "none": 0, "trace": -2, "exist": -4 },
+      "carbonate": [ { "atLeast": 5, "score": 2 }, { "atLeast": 1, "score": 1 }, { "score": 0 } ],
+      "chloride": [ { "atMost": 100, "score": 0 }, { "score": 1 } ],
+      "sulphate": [ { "atMost": 200, "score": 0 }, { "below": 500, "score": -1 }, { "atMost": 1000, "score": -2 }, { "score": -3 } ],
+      "cinderCoke": { "none": 0, "exist": -4 }
+    },
+    "units": { "resistivity": "ohm-cm", "moisture": "%", "carbonate": "%", "chloride": "mg/kg", "sulphate": "mg/kg" },
+    "ratings": [
+      { "rating": "nonCorrosive", "above": 0 },
+      { "rating": "slightlyCorrosive", "atLeast": -4 },
+      { "rating": "corrosive", "above": -10 },
+      { "rating": "highlyCorrosive" }
+    ],
+    "compositionFromUscs": {
+      "GW": "calcareous", "GP": "calcareous", "SW": "calcareous", "SP": "calcareous",
+      "GM": "sandySiltClay", "GC": "sandySiltClay", "GC-GM": "sandySiltClay", "SM": "sandySiltClay", "SC": "sandySiltClay", "SC-SM": "sandySiltClay",
+      "ML": "sandySiltClay", "CL-ML": "sandySiltClay", "MH": "sandySiltClay",
+      "CL": "clay", "CH": "clay",
+      "OL": "peat", "OH": "peat", "PT": "peat"
+    },
+    "compositionFromSoilType": { "sand": "calcareous", "gravel": "calcareous", "silt": "sandySiltClay", "clay": "clay", "organic": "peat" },
+    "clause": "BNBC 2020 Part 6 Sec 3.6.2(d), Tables 6.3.6a and 6.3.6b (pp. 717-718)",
+    "sources": {
+      "compositionFromUscs": "SAEngine practice, not BNBC: the soil group when the composition is not entered (clean sand and gravel as 'non-stratified sand'; silts and silty or clayey sands as 'sandy silt, sandy clay, clayey silt'; clays; organic soils as 'peat, marshy soil')",
+      "ratings": "Table 6.3.6b: 0 and above non-corrosive, 0 to -4 slightly corrosive, -5 to -10 corrosive, -10 or less highly corrosive"
+    },
+    "note": "Table 6.3.6b prints 0 in two bands (non-corrosive, slightly corrosive) and -10 in two (corrosive, highly corrosive): the more severe rating is used at both. On a shared bound of Table 6.3.6a the lower (more corrosive) score is used. A parameter not tested scores 0 and the rating says so."
+  },
+  "steelCorrosion": {
+    "undisturbedSoil": 0.015,
+    "atmospheric": 0.035,
+    "seawaterImmersion": 0.035,
+    "tidal": 0.035,
+    "lowWaterAndSplash": 0.075,
+    "clause": "BNBC 2020 Part 6 Sec 3.6.2(a)-(c) (pp. 715-717)",
+    "note": "mm per side per year. Recent fill and industrial waste can corrode faster: protection should be considered there."
+  },
+  "corrosiveSite": {
+    "chloride": 500,
+    "sulphate": 2000,
+    "pHBelow": 6.0,
+    "steelPile": { "fillAcidBelow": 5.5, "extremeAcidBelow": 4.5, "strongAlkaliAbove": 9.1 },
+    "clause": "BNBC 2020 Part 6 Sec 3.10.1.29 (pp. 754-755)",
+    "note": "ppm in the soil or the ground water: chloride >= 500, sulphate >= 2000 or pH < 6 makes the site corrosive for structural elements."
+  },
+  "sulphate": {
+    "classes": [
+      { "id": "negligible", "name": "Negligible", "soilMin": 0, "waterMin": 0 },
+      { "id": "moderate", "name": "Moderate", "soilMin": 0.10, "waterMin": 150, "cement": "other than CEM I and B type", "maxWaterCement": 0.50 },
+      { "id": "severe", "name": "Severe", "soilMin": 0.20, "waterMin": 1500, "cement": "other than CEM I and B type", "maxWaterCement": 0.45, "noCalciumChloride": true },
+      { "id": "verySevere", "name": "Very severe", "soilMin": 2.00, "waterMin": 10000, "exclusive": true, "cement": "other than CEM I and B type", "maxWaterCement": 0.45, "noCalciumChloride": true }
+    ],
+    "seaWater": "moderate",
+    "clause": "BNBC 2020 Part 6 Table 6.5.2 (p. 846), Sec 5.5.2 (p. 845)",
+    "note": "Water-soluble SO4 in the soil [% by weight] or in the water [ppm]. The bands share their bounds: 0.10 % / 150 ppm and 0.20 % / 1500 ppm take the more severe class; 'very severe' starts above 2.00 % / 10 000 ppm as printed. Sulphate-resisting cement with the class's water-cement ratio is the alternative Sec 5.5.2.1 allows; calcium chloride is not used in severe and very severe exposure (Sec 5.5.2.2). Sea water is moderate (Table 6.5.2 note 2)."
+  },
+  "chloride": {
+    "maxWaterCement": 0.40,
+    "maxWaterCementExtraCover": 0.45,
+    "extraCover": 12,
+    "lowPermeabilityWaterCement": 0.50,
+    "clause": "BNBC 2020 Part 6 Sec 5.5.1.1-5.5.1.2 (pp. 844-845)",
+    "sources": {
+      "maxWaterCement": "Sec 5.5.1.2: reinforced concrete exposed to brackish water, sea water or their spray: w/c <= 0.40, or 0.45 with the cover of Sec 8.1.8 increased by 12 mm",
+      "lowPermeabilityWaterCement": "Sec 5.5.1.1: concrete to have low permeability when exposed to water: w/c <= 0.50"
+    },
+    "note": "SAEngine practice, not BNBC: ground whose chloride makes the site corrosive (Sec 3.10.1.29, >= 500 ppm) is treated as brackish for Sec 5.5.1.2, and concrete below the water table as exposed to water for Sec 5.5.1.1."
+  },
+  "geoHazards": {
+    "items": ["landslide", "subsidence", "earthquake", "erosionScour", "contaminatedFill", "groundwaterContamination"],
+    "clause": "BNBC 2020 Part 6 Sec 3.21 (p. 814)",
+    "note": "A preliminary review of the site for each hazard; a detailed analysis only where the review finds a significant threat."
+  }
+}

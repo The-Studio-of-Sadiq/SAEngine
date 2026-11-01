@@ -2263,6 +2263,228 @@ class PlanningTable(TableModel):
         return self
 
 
+# ─────────────────────────── site investigation and soil chemistry ───────────────────────────
+
+
+class _Band(BaseModel):
+    """One band of a value: the first band whose bound the value meets is taken (a band with
+    no bound takes everything left). ``above``/``atLeast`` bound from below, ``below``/
+    ``atMost`` from above."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    above: float | None = None
+    atLeast: float | None = None
+    below: float | None = None
+    atMost: float | None = None
+
+    def holds(self, value: float) -> bool:
+        return not (
+            (self.above is not None and not value > self.above)
+            or (self.atLeast is not None and not value >= self.atLeast)
+            or (self.below is not None and not value < self.below)
+            or (self.atMost is not None and not value <= self.atMost)
+        )
+
+
+class ScoreBand(_Band):
+    score: float
+
+
+class DegreeBand(_Band):
+    degree: str
+
+
+class RatingBand(_Band):
+    rating: str
+
+
+class _Clause(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    clause: str = Field(default="", description="The clause (and page) the values come from.")
+    note: str = Field(default="", description="How the values are read, for the report.")
+    sources: dict[str, str] = Field(default_factory=dict)
+
+
+class Borings(_Clause):
+    method: Literal["countAndSpacing"] = Field(
+        description="How the number, pattern and spacing of the borings are checked."
+    )
+    minimum: dict[str, int] = Field(description="Least number of borings by building size.")
+    notInOneLine: bool = Field(default=True, description="The borings must not be in one line.")
+    spacing: dict[str, dict[str, float]] = Field(
+        description="Largest spacing [m] by building size and horizontal stratification."
+    )
+    insideFootprint: float | None = Field(
+        default=None, ge=0, le=1, description="Least share of the borings under the building."
+    )
+
+
+class ExplorationDepth(_Clause):
+    method: Literal["footingWidths"] = Field(
+        description="Depth below a spread footing in footing widths by L/B; piles below the tip."
+    )
+    spread: list[tuple[float, float]] = Field(
+        min_length=1, description="(L/B, depth below the bearing level in footing widths)."
+    )
+    minimum: float = Field(ge=0, description="Least depth of any boring [m].")
+    buildingWidthFactor: float | None = Field(
+        default=None, description="Depth below the foundation in building widths."
+    )
+    buildingShare: float = Field(
+        default=0.5, ge=0, le=1, description="Share of the borings that go that deep."
+    )
+    belowPileTip: float | None = Field(default=None, description="Below the pile tip [m].")
+    pileGroupWidths: float | None = Field(
+        default=None, description="Below the pile tip in largest group dimensions."
+    )
+    rockCore: float | None = Field(default=None, description="Rock core of piles on rock [m].")
+    shaftRockCoreDiameters: float | None = Field(
+        default=None, description="Rock core of an isolated shaft in diameters."
+    )
+    shaftGroupRockCoreWidths: float | None = Field(
+        default=None, description="Rock core of a shaft group in group dimensions."
+    )
+    bedrockCore: float | None = Field(
+        default=None, description="Core into bedrock of the boring taken to bedrock [m]."
+    )
+
+
+class OrganicClass(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    min: float = Field(ge=0, description="Least organic content of the class [%].")
+    label: str = ""
+
+
+class Organic(_Clause):
+    ovenDriedRatio: float = Field(
+        description="LL oven-dried / LL not dried below which a fine soil is organic."
+    )
+    peat: float = Field(description="Organic content from which the soil is peat [%].")
+    classes: list[OrganicClass] = Field(min_length=1)
+
+
+class ExpansiveCriterion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    parameter: str = Field(description="The sample value the criterion reads.")
+    unit: str = ""
+    source: str = ""
+    rows: list[DegreeBand] = Field(min_length=1)
+
+
+class Expansive(_Clause):
+    criteria: list[ExpansiveCriterion]
+    degrees: list[str] = Field(description="The degrees of expansion, least first.")
+    flagFrom: str = Field(description="The degree from which the soil is flagged expansive.")
+
+
+class Collapsible(_Clause):
+    criticalVoidRatio: dict[str, float] = Field(
+        description="ec = a eL + b eP: {'liquidLimit': a, 'plasticLimit': b}."
+    )
+    saturationMax: float
+    voidIndexMax: float
+    relativeSubsidence: float
+
+
+class Dispersive(_Clause):
+    pinhole: dict[str, str] = Field(description="Pinhole class -> dispersive, intermediate, ...")
+    pHScreen: float
+    espDispersive: float
+    espPlusEmgDispersive: float
+    espModerate: tuple[float, float]
+    espSerious: float
+
+
+class SoftClayRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    consistency: str
+    nBelow: float
+    cuBelow: float
+
+
+class SoftClay(_Clause):
+    rows: list[SoftClayRow]
+    nAtMost: float = Field(description="Field N at or below which a clay is soft.")
+    cuRange: tuple[float, float] = Field(description="cu range of soft clays [kPa].")
+
+
+class Corrosivity(_Clause):
+    scores: dict[str, dict[str, float] | list[ScoreBand]] = Field(
+        description="Score of each parameter: by category, or by bands of its value."
+    )
+    units: dict[str, str] = Field(default_factory=dict)
+    ratings: list[RatingBand] = Field(min_length=1, description="Rating by the total score.")
+    compositionFromUscs: dict[str, str] = Field(default_factory=dict)
+    compositionFromSoilType: dict[str, str] = Field(default_factory=dict)
+
+
+class CorrosiveSite(_Clause):
+    chloride: float = Field(description="Chloride from which the site is corrosive [ppm].")
+    sulphate: float = Field(description="Sulphate from which the site is corrosive [ppm].")
+    pHBelow: float
+    steelPile: dict[str, float] = Field(default_factory=dict)
+
+
+class SulphateClass(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    soilMin: float = Field(ge=0, description="Water-soluble SO4 in soil [% by weight].")
+    waterMin: float = Field(ge=0, description="SO4 in water [ppm].")
+    exclusive: bool = Field(default=False, description="The lower bounds are exclusive.")
+    cement: str | None = None
+    maxWaterCement: float | None = None
+    noCalciumChloride: bool = False
+
+
+class Sulphate(_Clause):
+    classes: list[SulphateClass] = Field(min_length=1, description="Least severe first.")
+    seaWater: str | None = Field(default=None, description="The class of sea water.")
+
+
+class ChlorideExposure(_Clause):
+    maxWaterCement: float
+    maxWaterCementExtraCover: float | None = None
+    extraCover: float | None = Field(default=None, description="[mm]")
+    lowPermeabilityWaterCement: float | None = None
+
+
+class GeoHazards(_Clause):
+    items: list[str]
+
+
+class SiteInvestigationTable(TableModel):
+    """Site investigation and soil chemistry: the number, spacing and depth of the borings, the
+    identification of problem soils (organic, expansive, collapsible, dispersive, soft), the
+    corrosivity of the soil for buried steel, and the concrete in the ground (sulphate classes,
+    chloride exposure). The engine reads the bands; a pack without this table does not cover
+    the checks."""
+
+    borings: Borings
+    depth: ExplorationDepth
+    organic: Organic | None = None
+    expansive: Expansive | None = None
+    collapsible: Collapsible | None = None
+    dispersive: Dispersive | None = None
+    softClay: SoftClay | None = None
+    corrosivity: Corrosivity | None = None
+    steelCorrosion: dict[str, float | str] = Field(
+        default_factory=dict, description="Steel corrosion rates [mm/side/year] by exposure."
+    )
+    corrosiveSite: CorrosiveSite | None = None
+    sulphate: Sulphate | None = None
+    chloride: ChlorideExposure | None = None
+    geoHazards: GeoHazards | None = None
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -2292,6 +2514,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "timber": TimberTable,
     "masonry": MasonryTable,
     "cranes": CranesTable,
+    "siteInvestigation": SiteInvestigationTable,
 }
 
 

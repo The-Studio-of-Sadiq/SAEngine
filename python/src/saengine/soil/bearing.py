@@ -25,10 +25,10 @@ loads (gross pressure minus the total overburden at the founding level, as
     (Skempton-type short-term check, which governs footings on saturated clay). Cohesive layers
     with drained c', φ' are also checked drained and the lower value used.
 
-    Every layer to 2B below the base and beyond is checked (BNBC 2020 Part 6 Sec 3.4.2.3(a)
-    explores two footing widths below an isolated footing; Sec 3.9.3 asks for established
-    bearing capacity equations; the public final draft, BNBC 2012 Vol. 2 pp. 6-158 and 6-171,
-    has the same text). The layer the footing stands on gives qt by the equation above. Each
+    Every layer to the code pack's exploration depth below the base and beyond is checked
+    (BNBC 2020 Part 6 Sec 3.4.5(i): two footing widths for L <= 2B to four for L >= 5B, linear
+    between; :func:`saengine.soil.investigation.zone_widths`; Sec 3.9.3 asks for established
+    bearing capacity equations). The layer the footing stands on gives qt by the equation above. Each
     deeper layer, at H below the base, is checked for failing through the layers above it
     (strong over weak; both methods are in Bowles 1996, ch. 4, layered soils), capped at qt:
 
@@ -168,9 +168,13 @@ def gamma_for_width(profile: Profile, layer: SoilLayer, df: float, b: float) -> 
     return buoyant + (wt - df) / b * (moist - buoyant)
 
 
-#: Depth below the base, in footing widths, within which a layer must have a strength: BNBC
-#: 2020 Part 6 Sec 3.4.2.3(a) explores two footing widths below an isolated footing.
-ZONE_WIDTHS = 2.0
+def zone_widths(b: float, l_: float) -> float:
+    """Depth below the base, in footing widths, within which a layer must have a strength: the
+    code pack's exploration depth below a spread footing (BNBC 2020 Part 6 Sec 3.4.5(i): 2B for
+    L <= 2B to 4B for L >= 5B)."""
+    from saengine.soil.investigation import zone_widths as widths
+
+    return widths(b, l_)
 
 
 def two_clay_nc(c1: float, c2: float, b: float, l_: float, h: float) -> float:
@@ -196,7 +200,9 @@ def _options(layer: SoilLayer) -> list[tuple[str, float, float]]:
 
 def shear(profile: Profile, b: float, l_: float, df: float, fs: float) -> dict[str, Any]:
     """Net allowable pressure against shear failure [kPa]: the founding layer, and failure into
-    each deeper layer; a layer within 2B below the base with no strength withholds it."""
+    each deeper layer; a layer within the exploration depth (:func:`zone_widths`, 2B to 4B)
+    below the base with no strength withholds it."""
+    zone = zone_widths(b, l_)
     q_eff, q_total = profile.sigma_v_eff(df), profile.sigma_v(df)
     candidates: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -209,7 +215,7 @@ def shear(profile: Profile, b: float, l_: float, df: float, fs: float) -> dict[s
             continue
         name = f"layer {layer.index + 1} ({layer.soil_type})"
         h = layer.top - df
-        within = h < ZONE_WIDTHS * b - 1e-9
+        within = h < zone * b - 1e-9
         if layer.behaviour == "rock":
             if within:
                 skipped.append(f"{name}: rock, not checked")
@@ -281,7 +287,10 @@ def shear(profile: Profile, b: float, l_: float, df: float, fs: float) -> dict[s
         return {
             "qa": None,
             "notes": skipped
-            + [f"{text}: it lies within 2B below the base, so there is no qa" for text in unknown],
+            + [
+                f"{text}: it lies within {zone:.3g}B below the base, so there is no qa"
+                for text in unknown
+            ],
         }
     if not candidates:
         return {"qa": None, "notes": skipped or ["no layer below the founding level"]}
@@ -548,10 +557,9 @@ _SHEAR = (
     "qa = min(shear, settlement). Shear: general bearing capacity equation, Vesic (1975) "
     "factors, De Beer shape and Hansen depth factors, water table correction; undrained clay "
     "qu - q = cu Nc sc dc on the founding layer; every weaker layer below it by Brown & "
-    "Meyerhof (1969) for clay over softer clay, else the 2:1 load spread; a layer within 2B "
-    "below the base "
-    "(BNBC 2020 Part 6 Sec 3.4.2.3(a)) with no strength data withholds qa; FS on the net value "
-    "qu - σ'v (Sec 3.9.3). "
+    "Meyerhof (1969) for clay over softer clay, else the 2:1 load spread; a layer within the "
+    "code pack's exploration depth below the base (2B for a square footing, more for a long "
+    "one) with no strength data withholds qa; FS on the net value qu - σ'v (Sec 3.9.3). "
 )
 _SETTLEMENT = {
     "textbook": (
@@ -585,4 +593,13 @@ def method_text(design: Design) -> str:
         + _COMPUTED
         + f" Settlement criterion of qa: {design.allowableSettlement:g} mm (design option "
         + f"allowable settlement); {permissible_text('isolated')}."
+        + _exploration_clause()
     )
+
+
+def _exploration_clause() -> str:
+    """The clause of the exploration depth, from the code pack in force."""
+    from saengine.soil import code_data
+
+    table = code_data.table()
+    return f" Exploration depth: {table.depth.clause}." if table is not None else ""

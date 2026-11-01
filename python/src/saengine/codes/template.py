@@ -90,6 +90,10 @@ TABLE_HELP: dict[str, str] = {
     "constants, the least factors, the uses not reduced and the live load element factors KLL.",
     "fireResistance": "Least sizes and covers of concrete members by fire resistance rating "
     "(slabs, walls, beams, columns).",
+    "siteInvestigation": "Site investigation and soil chemistry: the number, spacing and depth "
+    "of the borings, the bands that identify organic, expansive, collapsible, dispersive and "
+    "soft soils, the corrosivity scores and ratings, the corrosive-site limits, and the "
+    "sulphate classes and chloride exposure of concrete in the ground.",
     "timber": "Sawn timber (permissible stress design): stresses by strength group and "
     "location of use, the column formulas, the depth factor, load duration factors and "
     "deflection limits.",

@@ -499,6 +499,45 @@ class Chemistry(_Model):
     organicContent: Percent | None = Field(
         default=None, title="Organic content", description="Loss on ignition [% by mass]."
     )
+    # The other parameters of the code pack's soil corrosivity score (BNBC 2020: Table 6.3.6a).
+    resistivity: float | None = Field(
+        default=None, gt=0, title="Resistivity", description="Of the soil [ohm-cm]."
+    )
+    sulphide: Literal["none", "trace", "exist"] | None = Field(
+        default=None, title="Sulphide, H2S", json_schema_extra=_labels(["None", "Trace", "Exist"])
+    )
+    carbonate: Percent | None = Field(default=None, title="Carbonate", description="[% by mass]")
+    cinderCoke: bool | None = Field(default=None, title="Cinder or coke present")
+    soilComposition: Literal["calcareous", "sandySiltClay", "clay", "peat"] | None = Field(
+        default=None,
+        title="Soil composition",
+        description="For the corrosivity score; empty: from the sample's USCS group or the "
+        "layer's soil type.",
+        json_schema_extra=_labels(
+            [
+                "Calcareous, marly limestone, sandy marl, non-stratified sand",
+                "Sandy silt, sandy clay, clayey silt",
+                "Clay, silty clay",
+                "Peat, marshy soil",
+            ]
+        ),
+    )
+    groundwater: Literal["none", "exist", "vary"] | None = Field(
+        default=None,
+        title="Ground water",
+        description="For the corrosivity score; empty: 'exist' when the borehole met the water "
+        "table, else 'none'.",
+        json_schema_extra=_labels(["None", "Exists", "Varies"]),
+    )
+
+
+class Collapse(_Model):
+    """Collapse (relative subsidence) test: an undisturbed specimen at its natural moisture
+    loaded to the overburden plus the expected pressure, then soaked under that pressure."""
+
+    height: float = Field(gt=0, title="Height H", description="Before soaking [mm].")
+    soakedHeight: float = Field(gt=0, title="Height H'", description="After soaking [mm].")
+    pressure: float | None = Field(default=None, ge=0, description="[kPa]")
 
 
 class Sample(_Model):
@@ -568,6 +607,49 @@ class Sample(_Model):
     consolidation: Consolidation | None = None
     permeability: Permeability | None = None
     chemistry: Chemistry | None = None
+    # Problem soils (the code pack's identification criteria; BNBC 2020 Sec 3.5.3-3.5.7, App E).
+    liquidLimitOvenDried: float | None = Field(
+        default=None,
+        ge=0,
+        le=500,
+        title="Liquid limit, oven dried",
+        description="For the organic groups OL/OH (ASTM D2487) [%].",
+    )
+    shrinkageLimit: float | None = Field(
+        default=None, ge=0, le=200, title="Shrinkage limit", description="[%]"
+    )
+    linearShrinkage: Percent | None = Field(
+        default=None, title="Linear shrinkage", description="[%]"
+    )
+    freeSwell: float | None = Field(default=None, ge=0, title="Free swell", description="[%]")
+    freeSwellIndex: float | None = Field(
+        default=None, ge=0, title="Free swell index", description="[%]"
+    )
+    swellingPotential: float | None = Field(
+        default=None, ge=0, title="Swelling potential", description="[%]"
+    )
+    swellingPressure: float | None = Field(
+        default=None, ge=0, title="Swelling pressure", description="[kPa]"
+    )
+    volumeChange: float | None = Field(
+        default=None,
+        ge=0,
+        title="Volume change, air dry to saturated",
+        description="[%]",
+    )
+    collapse: Collapse | None = Field(default=None, title="Collapse test")
+    exchangeableSodium: float | None = Field(
+        default=None, ge=0, title="Exchangeable Na", description="[meq/100 g]"
+    )
+    exchangeableMagnesium: float | None = Field(
+        default=None, ge=0, title="Exchangeable Mg", description="[meq/100 g]"
+    )
+    cationExchangeCapacity: float | None = Field(
+        default=None, gt=0, title="Cation exchange capacity CEC", description="[meq/100 g]"
+    )
+    pinhole: Literal["D1", "D2", "ND1", "ND2", "ND3", "ND4"] | None = Field(
+        default=None, title="Pinhole test class"
+    )
 
     # Like an SPT record, a sample with a data-entry mistake stays readable: the mistake is
     # reported by :func:`check` (``issues``) and the inconsistent part is ignored, so one typo
@@ -795,6 +877,12 @@ class Borehole(_Model):
         description="The site's bearing table takes the lowest of the other boreholes (one far "
         "from the building, say); the borehole's own results stay.",
     )
+    rockCore: Depth | None = Field(
+        default=None,
+        title="Rock core",
+        description="Length of rock cored at the bottom of the borehole [mm]; empty when it "
+        "did not reach rock.",
+    )
     date: str | None = Field(default=None, max_length=64, title="Date drilled")
     method: str | None = Field(
         default=None, max_length=200, description="E.g. wash boring, auger, rotary."
@@ -1020,6 +1108,101 @@ class Design(_Model):
     )
 
 
+#: Geo-hazards of the preliminary site review (``Investigation.geoHazards``).
+GEO_HAZARDS = {
+    "landslide": "Landslides",
+    "subsidence": "Ground subsidence",
+    "earthquake": "Earthquakes and other seismic events",
+    "erosionScour": "Erosion and scour",
+    "contaminatedFill": "Toxic or contaminated landfill",
+    "groundwaterContamination": "Ground water contamination",
+}
+
+
+class Investigation(_Model):
+    """What the adequacy of the site investigation is checked for: the building and its
+    foundation (the borings' number, spacing and depth depend on them) and the geo-hazard
+    review. Every field is optional; an empty one is taken from the design options or left
+    unchecked, as the result says."""
+
+    buildingSize: Literal["small", "large"] = Field(
+        default="large",
+        title="Building size",
+        description="Small, or large / multistoried: the code pack's least number of borings "
+        "and their largest spacing depend on it.",
+        json_schema_extra=_labels(["Small building", "Large or multistoried building"]),
+    )
+    stratification: Literal["uniform", "average", "erratic"] = Field(
+        default="average",
+        title="Stratification",
+        description="How uniform the strata are across the site (the largest boring spacing).",
+        json_schema_extra=_labels(["Uniform", "Average", "Erratic"]),
+    )
+    foundation: Literal["spread", "pile", "shaft"] = Field(
+        default="spread",
+        title="Foundation",
+        description="Spread footings or rafts, driven or bored piles, or drilled shafts.",
+        json_schema_extra=_labels(["Spread footings", "Piles", "Drilled shafts"]),
+    )
+    footingWidth: float | None = Field(
+        default=None, gt=0, title="Footing width B", description="Empty: the subgrade width [mm]."
+    )
+    footingLength: float | None = Field(
+        default=None, gt=0, title="Footing length L", description="Empty: equal to B [mm]."
+    )
+    foundingDepth: Depth | None = Field(
+        default=None,
+        title="Founding depth",
+        description="Bearing level below the ground [mm]; empty: the subgrade founding depth.",
+    )
+    buildingWidth: float | None = Field(
+        default=None,
+        gt=0,
+        title="Building width",
+        description="Least plan dimension of the building [mm]; empty: from the footprint.",
+    )
+    footprint: list[Annotated[list[float], Field(min_length=2, max_length=2)]] = Field(
+        default_factory=list,
+        title="Building footprint",
+        description="Outline of the building in project coordinates [mm]; empty: the plot.",
+    )
+    pileTipDepth: Depth | None = Field(
+        default=None, title="Pile tip depth", description="Below the ground [mm]."
+    )
+    pileGroupWidth: float | None = Field(
+        default=None, gt=0, title="Largest group dimension", description="Of a pile group [mm]."
+    )
+    shaftDiameter: float | None = Field(
+        default=None, gt=0, title="Shaft diameter", description="Of a drilled shaft [mm]."
+    )
+    onRock: bool = Field(
+        default=False,
+        title="Bearing on rock",
+        description="The piles or shafts bear on or in rock (rock cores are then required).",
+    )
+    weatheringDepth: Depth | None = Field(
+        default=None,
+        title="Weathering depth",
+        description="Depth weathering affects the deposit [mm]: the least depth of a boring.",
+    )
+    geoHazards: dict[
+        Literal[
+            "landslide",
+            "subsidence",
+            "earthquake",
+            "erosionScour",
+            "contaminatedFill",
+            "groundwaterContamination",
+        ],
+        Literal["none", "possible", "significant"],
+    ] = Field(
+        default_factory=dict,
+        title="Geo-hazard review",
+        description="The preliminary review of the site: none, possible or significant for each "
+        "hazard; a significant one needs a detailed analysis.",
+    )
+
+
 class Fence(_Model):
     """A fence diagram: a vertical section through the 3D stratigraphy along boreholes."""
 
@@ -1056,6 +1239,12 @@ class SoilReport(_Model):
     site: Site | None = Field(default=None, description="The site on the map.")
     boreholes: list[Borehole] = Field(default_factory=list)
     design: Design = Field(default_factory=Design)
+    investigation: Investigation | None = Field(
+        default=None,
+        title="Site investigation",
+        description="The building and foundation the adequacy of the borings is checked for, "
+        "and the geo-hazard review.",
+    )
     stratigraphy: Stratigraphy | None = Field(
         default=None,
         description="How the boreholes' strata are correlated into the 3D model, and the fence "
