@@ -16,6 +16,14 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Check -> clause.",
+      "title": "Clauses",
+      "type": "object"
+    },
     "columnStripShare": {
       "description": "Column strip each side of a column line: this x the shorter span.",
       "exclusiveMinimum": 0,
@@ -67,14 +75,6 @@
       ],
       "title": "Trimbars",
       "type": "array"
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "Check -> clause.",
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

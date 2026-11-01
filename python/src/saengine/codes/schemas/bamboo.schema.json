@@ -378,6 +378,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "method": {
       "const": "permissibleStress",
       "default": "permissibleStress",
@@ -442,13 +449,6 @@
     },
     "joints": {
       "$ref": "#/$defs/BambooJoints"
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

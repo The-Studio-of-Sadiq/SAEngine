@@ -1,5 +1,5 @@
 """Built-up compression members: two or more shapes joined by intermediate connectors, lacing
-or tie plates (B31; the code pack's ``steel.members.builtUp``, BNBC 2020 Part 6 Sec 10.5.6).
+or tie plates (B31; the code pack's ``steel.members.builtUp``, the default pack's BNBC 2020 Part 6 Sec 10.5.6).
 
 The member's profile is the built-up section as the analysis carries it; :class:`BuiltUp`
 describes how its components are joined (a design overwrite of the member or its object type,

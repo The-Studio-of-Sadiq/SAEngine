@@ -208,7 +208,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors\n(BNBC 2020 Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6).",
+  "description": "Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors\n(the default pack's Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6).",
   "properties": {
     "source": {
       "default": "",
@@ -222,6 +222,14 @@
       },
       "description": "Clause references of single entries: {key: clause}.",
       "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
       "type": "object"
     },
     "deepBeam": {

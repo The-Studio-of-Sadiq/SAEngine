@@ -2,12 +2,12 @@
 
 Special structures (Part 5: trusses, space frames, portal frames, towers, canopy frames) have no
 floors to take storey wind forces, so their wind is applied member by member as for "other
-structures" (BNBC 2020 Part 6 Sec 2.4.14; the coefficients are the code pack's
+structures" (the default pack's Part 6 Sec 2.4.14; the coefficients are the code pack's
 ``wind.openStructures``, Figures 6.2.22-6.2.23, and ``wind.chimneys``, Figure 6.2.21):
 
     F = qz · G · Cf · Af                                    (Eq 6.2.30)
 
-- qz, the velocity pressure at the height z of each member's middle (BNBC Sec 2.4.6,
+- qz, the velocity pressure at the height z of each member's middle (the default pack's Sec 2.4.6,
   :func:`saengine.fem.loads.velocity_pressure`), G the gust factor of a rigid structure;
 - Af, the member's area projected on a plane normal to the wind: its outer width (the larger
   outer dimension of its profile, so either way it faces the wind) times its length times
@@ -32,7 +32,7 @@ faces both stand normal to the wind; an assumption for a triangular one).
 
 A clad special structure (a shed with its sheeting, a clad vault or dome: the wind settings'
 form ``clad``) is a building instead: :func:`clad_structure_wind` below gives the pressures on
-its panels (walls and roofs with internal pressure, BNBC 2020 Part 6 Sec 2.4.11.2). An open
+its panels (walls and roofs with internal pressure, the default pack's Part 6 Sec 2.4.11.2). An open
 one (a canopy or free roof: form ``clad``, enclosure ``open``) takes the net pressures of free
 roofs instead (:func:`free_roof_wind`, Sec 2.4.12).
 
@@ -267,7 +267,7 @@ def _chimney_structure_wind(
 def chimney_cf(
     table: Any, section: str, surface: str = "all", h_over_d: float = 1.0, d_sqrt_qz: float = 0.0
 ) -> float:
-    """Cf of a chimney, tank, rooftop equipment or similar structure (BNBC 2020 Part 6 Figure
+    """Cf of a chimney, tank, rooftop equipment or similar structure (the default pack's Part 6 Figure
     6.2.21, the code pack's ``wind.chimneys``) of cross-section ``section`` (square, its wind on
     the diagonal squareDiagonal, polygonal: hexagonal or octagonal, round) by h/D (linear,
     note 2; held at the figure's ends). A round section takes the row of its ``surface`` when
@@ -299,7 +299,7 @@ def _table_value(xs: list[float], ys: list[float | None], x: float) -> float | N
 
 
 def solid_sign_cf(table: Any, s_over_h: float, b_over_s: float) -> float:
-    """Cf of cases A and B of a solid freestanding wall or sign (BNBC 2020 Part 6 Figure 6.2.20,
+    """Cf of cases A and B of a solid freestanding wall or sign (the default pack's Part 6 Figure 6.2.20,
     the code pack's ``wind.solidSigns``) by its clearance ratio s/h and aspect ratio B/s, linear
     in both (note 5) and held at the figure's ends."""
     order = sorted(range(len(table.clearance)), key=lambda i: table.clearance[i])
@@ -350,7 +350,7 @@ def solid_sign_wind(
     return_corner: float | None = None,
     open_table: Any = None,
 ) -> dict[str, Any]:
-    """The design wind force on a solid freestanding wall or sign (BNBC 2020 Part 6 Sec 2.4.13,
+    """The design wind force on a solid freestanding wall or sign (the default pack's Part 6 Sec 2.4.13,
     Eq 6.2.29: F = qh·G·Cf·As, Figure 6.2.20) of ``width`` B, ``depth`` s (its vertical
     dimension) and top at ``height`` h [m], ``qh`` the velocity pressure at h [kN/m²]:
 
@@ -450,7 +450,7 @@ def rooftop_equipment_wind(
     gust: float,
 ) -> dict[str, Any]:
     """The wind force on rooftop structures and equipment of a building with mean roof height
-    ``roof_height`` h (BNBC 2020 Part 6 Sec 2.4.14-2.4.15): F = qz·G·Cf·Af (Eq 6.2.30) with qz
+    ``roof_height`` h (the default pack's Part 6 Sec 2.4.14-2.4.15): F = qz·G·Cf·Af (Eq 6.2.30) with qz
     at the centroid of Af (h + half the item's height, ``qz_of(z)`` [kN/m²]) and Cf of Figure
     6.2.21 (h/D of the item, D its least plan dimension), × the factor of Sec 2.4.15
     (:func:`saengine.fem.loads.rooftop_factor`, B = ``widths[case]``, the building's width
@@ -483,7 +483,7 @@ def rooftop_equipment_wind(
 #
 # A special structure that is clad (a shed of portal frames with roof and wall sheeting, a clad
 # barrel vault or dome) is an enclosed or partially enclosed building, not an open framework:
-# its wind is the main wind-force resisting system's pressures on the envelope (BNBC 2020 Part 6
+# its wind is the main wind-force resisting system's pressures on the envelope (the default pack's Part 6
 # Sec 2.4.11.2), applied on its panels (and not also as force coefficients on its members).
 #
 # - all heights (Eq 6.2.19): p = q·G·Cp − qi·(±GCpi), walls and roofs by Figure 6.2.6, arched
@@ -902,7 +902,7 @@ def _low_rise(
 #
 # An open building (a canopy, a free-standing roof on columns: the wind settings' form ``clad``
 # with the enclosure ``open``) takes net pressures on its roof, top and bottom surfaces together
-# (BNBC 2020 Part 6 Sec 2.4.12; the coefficients are the code pack's ``wind.openBuildings``):
+# (the default pack's Part 6 Sec 2.4.12; the coefficients are the code pack's ``wind.openBuildings``):
 #
 #     p = qh · G · CN                                      (Eqs 6.2.27 MWFRS, 6.2.28 C&C)
 #

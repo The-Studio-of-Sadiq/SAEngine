@@ -524,11 +524,11 @@ def test_lateral_sizing_uses_the_analysis_seismic_weight_and_the_sway_limit(six_
     import re
 
     from saengine.design.slender import DELTA_S_MAX
-    from saengine.library import bnbc
+    from saengine.library import code_data
 
     _gravity, lateral = six_storeys
     note = next(n for n in lateral["notes"] if "Earthquake: T =" in n)
-    assert f"{bnbc.SEISMIC_LIVE_SHARE:.0%} of the floor live load" in note
+    assert f"{code_data.SEISMIC_LIVE_SHARE:.0%} of the floor live load" in note
     w = float(re.search(r"W = (\d+) kN", note).group(1))
     v = float(re.search(r"V = (\d+) kN", note).group(1))
     # 18 m x 10 m: the floors' live load share alone (2 kPa offices, 5 floors) is 450 kN, so W

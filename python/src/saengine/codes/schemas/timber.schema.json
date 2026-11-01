@@ -1290,6 +1290,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "groups": {
       "additionalProperties": {
         "$ref": "#/$defs/TimberGroup"
@@ -1368,13 +1375,6 @@
     },
     "connectors": {
       "$ref": "#/$defs/TimberConnectors"
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

@@ -130,7 +130,7 @@ class BeamElement(_Element):
     corbels: BeamCorbels | None = Field(
         default=None,
         title="Corbels",
-        description="Corbels under the beam's ends, designed by BNBC 2020 Part 6 Sec 6.4.7.",
+        description="Corbels under the beam's ends, designed by the default pack's Part 6 Sec 6.4.7.",
     )
 
 

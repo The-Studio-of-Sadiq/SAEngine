@@ -46,7 +46,7 @@ OTHER_PARTS: dict[str, tuple[str, str] | None] = {
 }
 
 
-#: The wizard's site classes (BNBC 2020 Part 6 Table 6.2.13, p. 609; S1 and S2 need a
+#: The wizard's site classes (the default pack's Part 6 Table 6.2.13, p. 609; S1 and S2 need a
 #: site-specific study, Sec 2.5.3.1, and are not offered).
 SITE_CLASSES = ("SA", "SB", "SC", "SD", "SE")
 

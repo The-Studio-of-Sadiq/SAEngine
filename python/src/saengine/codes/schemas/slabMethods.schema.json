@@ -211,7 +211,7 @@
     },
     "EndSpanShares": {
       "additionalProperties": false,
-      "description": "Shares of Mo in an end span by the edge condition (Table 6.6.4 of BNBC 2020):\n``interiorNegative``, ``positive``, ``exteriorNegative``, each by the conditions of\n``conditions`` in that order.",
+      "description": "Shares of Mo in an end span by the edge condition (Table 6.6.4 of the default pack (BNBC 2020)):\n``interiorNegative``, ``positive``, ``exteriorNegative``, each by the conditions of\n``conditions`` in that order.",
       "properties": {
         "conditions": {
           "items": {
@@ -483,6 +483,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "twoWayMethods": {
       "items": {
         "enum": [
@@ -537,13 +544,6 @@
         }
       ],
       "default": null
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "title": "SlabMethodsTable",

@@ -1,7 +1,7 @@
 """Soil-structure interaction: the column bases of the analysis model on the springs of their
 foundations (Part 9) in the soil of the soil report (Part 1), instead of fixed supports.
 
-BNBC 2020 Part 6 Sec 1.2.7.3 asks that soil-structure interaction, where required, be included
+the default pack's Part 6 Sec 1.2.7.3 asks that soil-structure interaction, where required, be included
 "by appropriately including the properly substantiated properties of soil" in the mathematical
 model. With ``supports = "soilSprings"`` (Project Settings -> Analysis) every column base that
 stands on a foundation of ``09 Substructure/substructure.json`` gets that foundation's springs;
@@ -47,7 +47,7 @@ How each foundation is modelled (SI units inside: m, N, Pa):
   acceleration, :func:`shear_modulus_ratio`). ν: 0.30 in granular layers, 0.45 in cohesive ones
   (nearly undrained under earthquake loading), the mean of the tests' layers.
 - Pile caps: the piles' head stiffnesses summed over the rigid cap (pile-soil-pile interaction
-  is not modelled, BNBC 2020 Part 6 Sec 3.10.1.19 takes a group efficiency of 1.0 for capacity;
+  is not modelled, the default pack's Part 6 Sec 3.10.1.19 takes a group efficiency of 1.0 for capacity;
   the lateral and torsional sums are multiplied by the settings' group factor):
 
   - axial: the pile an elastic bar (``Ep A``) on shaft springs ``ks = 2πG/ζ`` per metre with
@@ -57,7 +57,7 @@ How each foundation is modelled (SI units inside: m, N, Pa):
     the bar's closed-form head stiffness
     ``k = EAμ (kb + EAμ tanh μL) / (EAμ + kb tanh μL)``, ``μ = √(ks/EA)``;
   - lateral and rotation: a long pile as a beam on a Winkler foundation (Hetényi 1946,
-    "Beams on Elastic Foundation"), its line modulus from BNBC 2020 Part 6 Eq 6.3.9 (Vesic):
+    "Beams on Elastic Foundation"), its line modulus from the default pack's Part 6 Eq 6.3.9 (Vesic):
     ``k B = 0.65 (Es B⁴/EI)^(1/12) Es/(1-μ²)``, ``Es = 2G(1+ν)`` averaged over the top ten
     diameters, ``β = (kB/4EI)^(1/4)``; head translation with the head held against rotation by
     the cap ``Khh = 4EIβ³``, head rotation ``Kθθ = 2EIβ`` (the coupling ``-2EIβ²`` left out);
@@ -65,12 +65,12 @@ How each foundation is modelled (SI units inside: m, N, Pa):
   - the cap: ``Kz = Σ kv``, ``Krx = Σ kv y² + Σ Kθθ``, ``Kry = Σ kv x² + Σ Kθθ`` (x, y from the
     cap's centre), ``Kx = f rx Σ Khh``, ``Ky = f ry Σ Khh``, ``Krz = f (rx + ry)/2 Σ Khh (x² +
     y²)``, with rx, ry the code pack's group ratios of the lateral resistance of in-line piles
-    along x and y (BNBC 2020 Part 6 Sec 3.10.6.15, Table 6.3.16:
+    along x and y (the default pack's Part 6 Sec 3.10.6.15, Table 6.3.16:
     :func:`saengine.substructure.pile_lateral.group_ratio`; 1.0 where the pack has none).
 - Rafts: the raft becomes part of the model, four-node shells (``ElasticMembranePlateSection``
   of its thickness and concrete) at its mid-plane meshed by Gmsh with a node at every column,
   each node on a vertical spring ``k = ks A`` (A its consistent share of the plan area, as
-  :mod:`saengine.substructure.raft` builds its plate; BNBC 2020 Part 6 Sec 3.9.6.3 asks for the
+  :mod:`saengine.substructure.raft` builds its plate; the default pack's Part 6 Sec 3.9.6.3 asks for the
   modulus of subgrade reaction), and horizontal springs: the raft's surface translation
   stiffnesses (above, of its bounding rectangle) shared by the same areas. ks: 9 Substructure ->
   Design's value, else :func:`saengine.substructure.raft.raft_ks` (the whole raft's settlement
@@ -93,6 +93,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+
+from saengine.codes import context as code_context
 
 G = 9.80665  # m/s²
 
@@ -145,7 +147,7 @@ def options_from_settings(settings: Any) -> SsiOptions:
 
 
 def peak_acceleration(settings: Any) -> float | None:
-    """Effective peak ground acceleration [g] of the site, the BNBC 2020 design spectrum's
+    """Effective peak ground acceleration [g] of the site, the default pack (BNBC 2020) design spectrum's
     plateau / 2.5 with I = R = 1 (``(2/3) Z S``, ASCE 7's SDS/2.5); None without Z."""
     from saengine.fem.seismic_design import peak_ground_acceleration
     from saengine.library.settings import derived
@@ -336,7 +338,7 @@ def pile_axial_stiffness(
 
 def pile_lateral_stiffness(ep: float, inertia: float, d: float, es: float, nu: float) -> dict:
     """Head stiffnesses of a long pile on a Winkler foundation: line modulus ``kB`` [N/m²]
-    (BNBC 2020 Part 6 Eq 6.3.9 times B), ``beta`` [1/m], ``Khh = 4EIβ³`` [N/m] (head held
+    (the default pack's Part 6 Eq 6.3.9 times B), ``beta`` [1/m], ``Khh = 4EIβ³`` [N/m] (head held
     against rotation), ``Ktt = 2EIβ`` [N·m/rad] and the coupling ``Kht = -2EIβ²`` [N]."""
     ei = ep * inertia
     line = 0.65 * (es * d**4 / ei) ** (1 / 12) * es / (1 - nu**2)
@@ -831,7 +833,7 @@ def _pile_cap(
         + "; tip "
         + tip.basis(ratio),
         f"lateral Khh = {lateral['Khh'] / 1e3:.0f} kN/m, Kθθ = {lateral['Ktt'] / 1e3:.0f} "
-        f"kN·m/rad per pile (Winkler, BNBC 2020 Part 6 Eq 6.3.9: kB = "
+        f"kN·m/rad per pile (Winkler{code_context.cited('foundations', 'subgradeModulus')}: kB = "
         f"{lateral['kB'] / 1e3:.0f} kN/m², β = {lateral['beta']:.3f} /m): " + top.basis(ratio),
         (
             f"cap: Kz = Σkv, Kr = Σkv·r² + ΣKθθ, Kx = {options.pile_group_factor:g} × "

@@ -46,6 +46,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "roughenedLimit": {
       "description": "Vnh <= this bv d [MPa], roughened, no ties.",
       "exclusiveMinimum": 0,
@@ -93,13 +100,6 @@
       "exclusiveMinimum": 0,
       "title": "Tiespacingmax",
       "type": "number"
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

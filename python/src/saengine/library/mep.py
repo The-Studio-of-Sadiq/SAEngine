@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.electrical.tables import USE_KEYS as ELECTRICAL_USE_KEYS
 from saengine.electrical.tables import USES as ELECTRICAL_USES
-from saengine.fire.tables import HAZARD_LABELS as FIRE_HAZARDS  # BNBC Table 4.4.1 hazards
+from saengine.fire.tables import HAZARD_LABELS as FIRE_HAZARDS  # default pack Table 4.4.1
 from saengine.hvac.constructions import GLAZING_KEYS, GLAZINGS, ROOF_KEYS, ROOFS, WALL_KEYS, WALLS
 from saengine.hvac.tables import STATION_KEYS, STATIONS, VENTILATION, VENTILATION_KEYS
 from saengine.library.labels import field_title
@@ -105,7 +105,7 @@ class Equipment(_Model):
     )
     vibrating: bool = Field(
         default=False,
-        description="Machinery whose operation imposes vibration or impact (BNBC 2020 Sec "
+        description="Machinery whose operation imposes vibration or impact (the default pack's Sec "
         "2.3.12): an impact allowance is added as live load (Table 6.2.6). Lifts always have it.",
     )
     impact: float | None = Field(
@@ -114,7 +114,7 @@ class Equipment(_Model):
         le=200,
         title="Impact allowance",
         description="Vertical impact load as a percentage of the operating weight, from the "
-        "manufacturer; empty: BNBC 2020 Table 6.2.6 for the kind.",
+        "manufacturer; empty: the default pack's Table 6.2.6 for the kind.",
     )
     rotation: float = Field(default=0, description="Of its local x from the global X [°].")
     loadAs: Literal["area", "points"] = Field(
@@ -410,7 +410,7 @@ class PlumbingSupply(_Model):
         le=24,
         title="Pumping hours",
         description="Hours a day the pump runs to fill the overhead tank; empty: the pump "
-        "delivers the peak hourly demand (BNBC 2020 Part 8 Sec 5.9.1.2(c)(ii)).",
+        "delivers the peak hourly demand (the default pack's Part 8 Sec 5.9.1.2(c)(ii)).",
     )
     minResidualHead: float | None = Field(
         default=None,
@@ -481,7 +481,7 @@ class PlumbingStory(_Model):
     story: Id = Field(description="Building-model story.")
     occupancy: Occupancy = Field(  # type: ignore[valid-type]
         default="residentialFlat",
-        description="Row of BNBC 2020 Table 8.5.1 (water consumption).",
+        description="Row of the default pack's Table 8.5.1 (water consumption).",
         json_schema_extra=_labels([OCCUPANCIES[k].label for k in OCCUPANCY_KEYS]),
     )
     population: float | None = Field(
@@ -627,7 +627,7 @@ class RoofDrain(_Model):
 
 
 class Harvest(_Model):
-    """Rainwater harvesting storage (BNBC 2020 Part 8 Sec 7.8.9)."""
+    """Rainwater harvesting storage (the default pack's Part 8 Sec 7.8.9)."""
 
     demand: float = Field(gt=0, description="Rainwater demand [lpcd].")
     purpose: Literal["potable", "other"] = Field(
@@ -645,7 +645,7 @@ class PlumbingRoof(_Model):
         default=None,
         gt=0,
         title="Rainfall intensity",
-        description="One-hour rainfall [mm/h], BNBC 2020 Part 8 Appendix R; empty: Dhaka, 88.",
+        description="One-hour rainfall [mm/h], the default pack's Part 8 Appendix R; empty: Dhaka, 88.",
     )
     drains: list[RoofDrain] = Field(default_factory=list)
     plotArea: float | None = Field(
@@ -655,7 +655,7 @@ class PlumbingRoof(_Model):
 
 
 class Plumbing(_Model):
-    """The plumbing the structure coordinates with (BNBC 2020 Part 8)."""
+    """The plumbing the structure coordinates with (the default pack's Part 8)."""
 
     supply: PlumbingSupply = Field(default_factory=PlumbingSupply)
     stories: list[PlumbingStory] = Field(default_factory=list)
@@ -740,7 +740,7 @@ DUCT_SYSTEMS = {
 
 
 class HvacDesign(_Model):
-    """The design conditions (BNBC 2020 Part 8 Sec 2.7.2 and 2.12.2)."""
+    """The design conditions (the default pack's Part 8 Sec 2.7.2 and 2.12.2)."""
 
     city: HvacCity | None = Field(  # type: ignore[valid-type]
         default=None,
@@ -809,14 +809,14 @@ class HvacEnvelope(_Model):
     )
     shading: Literal["none", "overhang", "blinds"] = Field(
         default="none",
-        description="Overhang: a sunshade over every window 0.234 x its height deep (BNBC 2020 "
+        description="Overhang: a sunshade over every window 0.234 x its height deep (the default pack's "
         "Part 3 Sec 4.4.3.1). Blinds: interior blinds, always drawn.",
         json_schema_extra=_labels(["None", "Overhangs (Part 3 Sec 4.4.3.1)", "Interior blinds"]),
     )
 
 
 class FacadeGlazing(_Model):
-    """Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (BNBC 2020 Part 3 Sec
+    """Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (the default pack's Part 3 Sec
     4.5.1.2(a))."""
 
     N: float | None = Field(default=None, ge=0, le=0.9)
@@ -832,7 +832,7 @@ class HvacStory(_Model):
     conditioned: bool = True
     use: HvacUse = Field(  # type: ignore[valid-type]
         default="officeSpace",
-        description="Row of BNBC 2020 Part 8 Table 8.2.3 (ventilation and occupant density).",
+        description="Row of the default pack's Part 8 Table 8.2.3 (ventilation and occupant density).",
         json_schema_extra=_labels([VENTILATION[k].label for k in VENTILATION_KEYS]),
     )
     occupants: float | None = Field(
@@ -920,7 +920,7 @@ class Duct(_Model):
 
 
 class Hvac(_Model):
-    """Air-conditioning and ventilation the structure coordinates with (BNBC 2020 Part 8
+    """Air-conditioning and ventilation the structure coordinates with (the default pack's Part 8
     Chapter 2): cooling loads, plant weights, ducts through the structure."""
 
     system: Literal[tuple(HVAC_SYSTEMS)] = Field(  # type: ignore[valid-type]
@@ -1020,7 +1020,7 @@ class ElectricalSupply(_Model):
     voltage: Literal["11kV", "33kV", "0.4kV"] | None = Field(
         default=None,
         description="Supply voltage; empty: 11 kV with a substation when the load is 50 kW or "
-        "more (BNBC 2020 Part 8 Sec 1.3.20.1(e)), else 0.4 kV.",
+        "more (the default pack's Part 8 Sec 1.3.20.1(e)), else 0.4 kV.",
         json_schema_extra=_labels(["11 kV (HT)", "33 kV (HT)", "0.4 kV (LT)"]),
     )
     generator: bool = Field(default=False, description="A standby generator (Sec 1.3.19).")
@@ -1031,7 +1031,7 @@ class ElectricalSupply(_Model):
         le=1,
         title="Power factor",
         description="Of the maximum demand (kVA = kW / pf); empty: 0.85 (SAEngine practice, "
-        "BNBC gives none).",
+        "the default pack gives none).",
     )
     loadFactor: float | None = Field(
         default=None,
@@ -1074,7 +1074,7 @@ class ElectricalSupply(_Model):
         le=168,
         title="Fuel hours",
         description="Hours of full-load running the fuel tank holds; empty: 8 (SAEngine "
-        "practice, BNBC gives none).",
+        "practice, the default pack gives none).",
     )
     upsLoad: float | None = Field(
         default=None, gt=0, title="UPS load", description="Load on the UPS [kW]."
@@ -1085,12 +1085,12 @@ class ElectricalSupply(_Model):
 
 
 class ElectricalStory(_Model):
-    """What a story draws: its use (BNBC Table 8.1.17), unit loads and other loads."""
+    """What a story draws: its use (the default pack's Table 8.1.17), unit loads and other loads."""
 
     story: Id = Field(description="Building-model story.")
     use: ElectricalUse = Field(  # type: ignore[valid-type]
         default="office",
-        description="Row of BNBC 2020 Part 8 Table 8.1.17 (minimum load densities).",
+        description="Row of the default pack's Part 8 Table 8.1.17 (minimum load densities).",
         json_schema_extra=_labels([ELECTRICAL_USES[k].label for k in ELECTRICAL_USE_KEYS]),
     )
     airConditioned: bool | None = Field(
@@ -1153,7 +1153,8 @@ class ElectricalEquipment(_Model):
         "empty: a transformer's from its oil, else the operating weight.",
     )
     vibrating: bool | None = Field(
-        default=None, description="Imposes vibration (BNBC 2.3.12); empty: generators do."
+        default=None,
+        description="Imposes vibration (the default pack's 2.3.12); empty: generators do.",
     )
     oil: float | None = Field(default=None, ge=0, description="Transformer oil [litres].")
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
@@ -1218,12 +1219,13 @@ class ElectricalRoom(_Model):
 
 
 class Lightning(_Model):
-    """Lightning protection and earthing (BNBC 2020 Part 8 Sec 1.3.33)."""
+    """Lightning protection and earthing (the default pack's Part 8 Sec 1.3.33)."""
 
     enabled: bool = True
     level: Literal["I", "II", "III", "IV"] | None = Field(
         default=None,
-        description="IEC 62305 protection level, when the design follows it (BNBC uses none); "
+        description="IEC 62305 protection level, when the design follows it (the default pack uses "
+        "none); "
         "its mesh and down-conductor spacing then govern where stricter.",
     )
     downConductors: Literal["structuralRebar", "dedicated"] = Field(
@@ -1258,7 +1260,7 @@ class Lightning(_Model):
         default=None,
         ge=0,
         title="Thunderstorm days",
-        description="A year (Table 8.1.27(c) index G); empty: over 21 (BNBC Table 8.1.28's "
+        description="A year (Table 8.1.27(c) index G); empty: over 21 (the default pack's Table 8.1.28's "
         "examples).",
     )
     rule: Literal["perimeter", "area"] = Field(
@@ -1277,7 +1279,7 @@ class Lightning(_Model):
 
 
 class Electrical(_Model):
-    """The electrical services the structure coordinates with (BNBC 2020 Part 8 Chapter 1)."""
+    """The electrical services the structure coordinates with (the default pack's Part 8 Chapter 1)."""
 
     supply: ElectricalSupply = Field(default_factory=ElectricalSupply)
     stories: list[ElectricalStory] = Field(default_factory=list)
@@ -1306,7 +1308,7 @@ class Electrical(_Model):
         return self
 
 
-# ─────────────────────────── fire protection (BNBC 2020 Part 4) ───────────────────────────
+# ─────────────────────────── fire protection (the default pack's Part 4) ───────────────────────────
 
 FIRE_RISER_SYSTEMS = {
     "standpipe": "Standpipe (hydrant) riser",
@@ -1512,7 +1514,7 @@ class FirePumpRoom(_Model):
 
 
 class Fire(_Model):
-    """The fire protection the structure coordinates with (BNBC 2020 Part 4)."""
+    """The fire protection the structure coordinates with (the default pack's Part 4)."""
 
     building: FireBuilding = Field(default_factory=FireBuilding)
     supply: FireSupply = Field(default_factory=FireSupply)
@@ -1554,7 +1556,7 @@ class StoryUseEntry(_Model):
 
     story: Id = Field(description="Building-model story.")
     use: Literal[STORY_USE_KEYS] = Field(  # type: ignore[valid-type]
-        description="Mapped to BNBC 2020 Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and "
+        description="Mapped to the default pack's Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and "
         "services: not occupied (left out of every service's stories).",
         json_schema_extra=_labels([STORY_USES[k].label for k in STORY_USE_KEYS]),
     )
@@ -1581,7 +1583,7 @@ class MepModel(_Model):
         default="fluid",
         title="Contents as",
         description="Fluid: the contents (operating minus empty weight) are the fluid load F of "
-        "BNBC 2020 2.7.3.1, in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D "
+        "the default pack's Part 6 Sec 2.7.3.1, in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D "
         "combinations (live load until the analysis has an F case). Live: live load. Dead: "
         "superimposed dead load, also in the 0.9D combinations; only for contents that are "
         "always there.",
@@ -1589,23 +1591,23 @@ class MepModel(_Model):
     )
     plumbing: Plumbing | None = Field(
         default=None,
-        description="Water supply, drainage, rainwater and tanks, sized to BNBC 2020 Part 8.",
+        description="Water supply, drainage, rainwater and tanks, sized to the default pack's Part 8.",
     )
     hvac: Hvac | None = Field(
         default=None,
         title="HVAC",
         description="Air-conditioning and ventilation: cooling loads (EnergyPlus), plant and "
-        "ducts, to BNBC 2020 Part 8 Chapter 2.",
+        "ducts, to the default pack's Part 8 Chapter 2.",
     )
     electrical: Electrical | None = Field(
         default=None,
         description="Supply, plant rooms, risers, trays and lightning protection, coordinated "
-        "to BNBC 2020 Part 8 Chapter 1.",
+        "to the default pack's Part 8 Chapter 1.",
     )
     fire: Fire | None = Field(
         default=None,
         description="Fire protection: the systems required, standpipes, sprinklers, fire "
-        "pumps and the fire reservoir, to BNBC 2020 Part 4.",
+        "pumps and the fire reservoir, to the default pack's Part 4.",
     )
     coordination: Coordination | None = Field(
         default=None,

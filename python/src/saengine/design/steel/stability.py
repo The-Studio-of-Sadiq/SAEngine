@@ -2,7 +2,7 @@
 Analysis: ``notionalLoads``, ``directAnalysisTau``, ``directAnalysisNotional``), with every
 value from the code pack's ``steelStability`` table.
 
-Methods (BNBC 2020 Part 6 Sec 10.3.2.2 and Sec 10.14, part 2 pp. 52-53 and 187-189):
+Methods (default pack BNBC 2020 Part 6 Sec 10.3.2.2 and Sec 10.14, part 2 pp. 52-53 and 187-189):
 
 - **Direct analysis method** (``"directAnalysis"``, the pack's ``directAnalysis``): the
   required strengths come from the second-order analysis on the reduced stiffness

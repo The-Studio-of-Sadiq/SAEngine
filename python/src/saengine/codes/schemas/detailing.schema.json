@@ -592,6 +592,14 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
+      "type": "object"
+    },
     "special": {
       "$ref": "#/$defs/SpecialFrames"
     },
@@ -680,14 +688,6 @@
         }
       ],
       "default": null
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "B21: clause references of the results, by key (after the pack's edition).",
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

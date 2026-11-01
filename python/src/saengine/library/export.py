@@ -20,7 +20,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from saengine.codes.tables import builtin_table
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.architecture import Architecture, default_architecture
 from saengine.library.bim import BuildingModel
 from saengine.library.defaults import (
@@ -62,8 +62,8 @@ HEADER = """/*------------------------------------------------------------------
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
-/** Reference tables from BNBC 2020 Part 6 Chapter 2 (see saengine.library.bnbc). */
-export interface IBnbcTables {
+/** Reference tables of the default code pack (see saengine.library.code_data); the clause numbers below are the default pack's. */
+export interface IDefaultCodeTables {
 	readonly edition: string;
 	readonly zoneCoefficient: { readonly [zone: string]: number };
 	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
@@ -83,7 +83,13 @@ export interface IBnbcTables {
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
 }
+
+/** @deprecated The former name of {@link IDefaultCodeTables}. */
+export type IBnbcTables = IDefaultCodeTables;
 """
+
+#: Exports kept under a former name: (old name, type, new name), written after the new ones.
+DEPRECATED_ALIASES = [("BNBC", "IDefaultCodeTables", "DEFAULT_CODE_TABLES")]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
@@ -159,16 +165,16 @@ def reduced_live() -> dict[str, Any]:
     }
 
 
-def bnbc_tables() -> dict[str, Any]:
-    """BNBC 2020 tables the settings editor shows derived values from."""
-    seismic = builtin_table("seismic", bnbc.PACK_ID)
-    wind = builtin_table("wind", bnbc.PACK_ID)
+def default_code_tables() -> dict[str, Any]:
+    """The default code pack's tables the settings editor shows derived values from."""
+    seismic = builtin_table("seismic", code_data.PACK_ID)
+    wind = builtin_table("wind", code_data.PACK_ID)
     return {
-        "edition": bnbc.EDITION,
-        "zoneCoefficient": {str(k): v for k, v in bnbc.ZONE_COEFFICIENT.items()},
+        "edition": code_data.EDITION,
+        "zoneCoefficient": {str(k): v for k, v in code_data.ZONE_COEFFICIENT.items()},
         "locations": {
             k: {"name": v.name, "zone": v.zone, "windSpeed": v.wind_speed}
-            for k, v in bnbc.LOCATIONS.items()
+            for k, v in code_data.LOCATIONS.items()
         },
         "categories": {
             k: {
@@ -176,9 +182,9 @@ def bnbc_tables() -> dict[str, Any]:
                 "seismicImportance": v.seismic_importance,
                 "windImportance": v.wind_importance,
             }
-            for k, v in bnbc.OCCUPANCY_CATEGORIES.items()
+            for k, v in code_data.OCCUPANCY_CATEGORIES.items()
         },
-        "areaUses": {k: {"name": v.name, "live": v.live} for k, v in bnbc.AREA_USES.items()},
+        "areaUses": {k: {"name": v.name, "live": v.live} for k, v in code_data.AREA_USES.items()},
         "systems": {
             k: {
                 "name": v.name,
@@ -199,9 +205,9 @@ def bnbc_tables() -> dict[str, Any]:
             "gust": wind.gust,
         },
         "concrete": {"ec": EC_COEFFICIENT, "fr": FR_COEFFICIENT, "deviation": DEVIATION_LIMIT},
-        "siteClasses": bnbc.SITE_CLASSES,
-        "exposures": bnbc.EXPOSURES,
-        "loadCases": bnbc.LOAD_CASES,
+        "siteClasses": code_data.SITE_CLASSES,
+        "exposures": code_data.EXPOSURES,
+        "loadCases": code_data.LOAD_CASES,
     }
 
 
@@ -236,7 +242,7 @@ def generate_typescript() -> str:
             ],
         ),
         ("REDUCED_LIVE", "object", reduced_live()),
-        ("BNBC", "IBnbcTables", bnbc_tables()),
+        ("DEFAULT_CODE_TABLES", "IDefaultCodeTables", default_code_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
         (
@@ -276,7 +282,12 @@ def generate_typescript() -> str:
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports
     )
-    return HEADER + "\n" + body
+    aliases = "".join(
+        f"\n/** @deprecated The former name of {{@link {new}}}. */\n"
+        f"export const {old}: {type_} = {new};\n"
+        for old, type_, new in DEPRECATED_ALIASES
+    )
+    return HEADER + "\n" + body + aliases
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,6 +1,6 @@
 """The temperature load case T: uniform temperature changes and gradients through the depth.
 
-BNBC 2020 Part 6 Sec 2.6.4 asks for temperature effects to be considered where significant,
+the default pack's Part 6 Sec 2.6.4 asks for temperature effects to be considered where significant,
 either relieved by expansion/contraction joints or designed for; the analysis shall include
 "the warping or any other distortion caused due to temperature changes and temperature
 gradient". Its load combinations (Sec 2.7) carry them as ``T``, the self-straining forces
@@ -501,9 +501,9 @@ def add_thermal_case(
 
 
 def strength_combinations_with_t() -> list[tuple[str, dict[str, float]]]:
-    """BNBC 2020 Part 6 Sec 2.7.3.1 combination 2 with T, ``1.2(D + F + T) + 1.6(L + H) +
+    """The default pack's Part 6 Sec 2.7.3.1 combination 2 with T, ``1.2(D + F + T) + 1.6(L + H) +
     0.5(Lr or R)``, for a rise (+T) and a fall (-T): (name, factors), ``D`` for the dead and
-    superimposed dead cases as in :data:`saengine.library.bnbc.STRENGTH_COMBINATIONS`. T is not
+    superimposed dead cases as in :data:`saengine.library.code_data.STRENGTH_COMBINATIONS`. T is not
     combined with wind or earthquake (combinations 3 to 7 have no T). The combination without T
     stays in the list ("effects of one or more loads not acting shall be investigated")."""
     return [
@@ -515,7 +515,7 @@ def strength_combinations_with_t() -> list[tuple[str, dict[str, float]]]:
 def service_combinations_with_t(
     cases: set[str] | list[str] | dict[str, Any],
 ) -> list[tuple[str, dict[str, float]]]:
-    """BNBC 2020 Part 6 Sec 2.7.2.1 combinations 2 and 4 with T, ``D + H + F + L + T`` and
+    """The default pack's Part 6 Sec 2.7.2.1 combinations 2 and 4 with T, ``D + H + F + L + T`` and
     ``D + H + F + 0.75(L + T) + (Lr or R)``, for ±T, in the form of
     :func:`saengine.substructure.loads.service_combinations` (``D`` expanded to the dead cases
     present); empty without a T case."""

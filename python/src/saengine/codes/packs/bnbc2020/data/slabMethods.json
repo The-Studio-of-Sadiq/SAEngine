@@ -101,6 +101,7 @@
     "corner": "Part 6 Sec 6.5.3.6",
     "openings": "Part 6 Sec 6.5.4",
     "openingsAnalysis": "Part 6 Sec 6.5.4.1",
-    "openingShear": "Part 6 Sec 6.5.4.2.4"
+    "openingShear": "Part 6 Sec 6.5.4.2.4",
+    "patternExemption": "Part 6 Sec 6.5.7.6.2"
   }
 }

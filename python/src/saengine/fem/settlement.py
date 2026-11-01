@@ -1,6 +1,6 @@
 """The support settlement load case ST.
 
-BNBC 2020 Part 6 Sec 2.7 counts differential settlement among the self-straining effects T of
+the default pack's Part 6 Sec 2.7 counts differential settlement among the self-straining effects T of
 its load combinations ("T = self-straining force ... arising from ... differential settlement"),
 so ST takes T's place and factor: 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R) of Sec 2.7.3.1.
 
@@ -25,7 +25,15 @@ __all__ = ["CASE", "CASE_TITLE", "add_settlement_case", "strength_combinations_w
 
 CASE = "ST"
 CASE_TITLE = "Support settlement"
-CLAUSE = "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685), T including differential settlement"
+
+
+def clause() -> str:
+    """The code pack's clause for settlement as a self-straining load (``combinations.clauses``
+    key ``settlement``), with the code's name; '' when the pack gives none."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("combinations", "settlement")
+
 
 #: How far a support node may lie from a column's base point [m].
 _TOLERANCE = 0.01
@@ -128,6 +136,7 @@ def add_settlement_case(
         f"settlement: case ST settles {len(displacements)} column base(s) by "
         + ", ".join(f"{-d['value'] * 1e3:g} mm" for d in displacements[:6])
         + ("..." if len(displacements) > 6 else "")
-        + f"; combined as T ({CLAUSE})"
+        + "; combined as T"
+        + (f" ({ref})" if (ref := clause()) else "")
     )
     return int(analysis["id"]), notes

@@ -145,6 +145,12 @@ TABLE_HELP: dict[str, str] = {
     "ferrocement": "Ferrocement members: the mesh types (fy, effective moduli, efficiency "
     "factor), strength and service load design, crack width and fatigue limits, the detailing "
     "rules. A pack without it does not cover ferrocement.",
+    "designClauses": "Clause references of the member and connection design, by module group "
+    "(clauses.<group>.<key>, without the code's name), and the code's short name for compact "
+    "notes. A pack without it names only itself in the design notes.",
+    "designLimits": "Code values of the member design no other table holds: the cap of √f'c in "
+    "shear and torsion, the ERW wall thickness factor, the stair geometry rules and widths. A "
+    "pack without it does not cover those checks.",
     "mepOpenings": "The checks of the openings and sleeves MEP cuts through the structure: the "
     "column strip width, the punching zone near columns, the trim bars of wall openings and "
     "the clause of each check (with slabMethods.openings and concrete.walls). A pack without "

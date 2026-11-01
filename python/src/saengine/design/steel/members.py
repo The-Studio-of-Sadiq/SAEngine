@@ -1,4 +1,4 @@
-"""Strength of steel members by LRFD to BNBC 2020 Part 6 Chapter 10 (Bangladesh Gazette,
+"""Strength of steel members by LRFD to the default pack's BNBC 2020 Part 6 Chapter 10 (Bangladesh Gazette,
 February 11 2021, pp 3825-3880; the provisions follow AISC 360-05).
 
 Limit states and clauses (page numbers of the Gazette):
@@ -48,6 +48,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design.clauses import clause
 from saengine.design.rc import DesignError
 from saengine.design.steel import classify as cl
 from saengine.design.steel.lengths import (
@@ -62,70 +63,77 @@ from saengine.design.steel.lengths import (
 from saengine.design.steel.properties import ShapeProperties, shape_properties
 from saengine.library import steel_sections
 
-CODE = "BNBC 2020 Part 6 Chapter 10 (LRFD; AISC 360-05 provisions)"
-
 
 def _shear_modulus() -> float:
-    """G of structural steel [MPa], the pack's ``materials.steelShearModulus`` (BNBC 2020:
+    """G of structural steel [MPa], the pack's ``materials.steelShearModulus`` (default pack BNBC 2020:
     77 200 MPa, Sec 10.5.4, p 3843)."""
     return float(code_context.table("materials").steelShearModulus)
 
 
 def _phi(name: str) -> float:
-    """φ ``name`` of the pack's ``steel`` table (BNBC 2020: tensionYield 0.90, tensionRupture
+    """φ ``name`` of the pack's ``steel`` table (default pack BNBC 2020: tensionYield 0.90, tensionRupture
     0.75, compression, flexure and shear 0.90)."""
     return float(code_context.table("steel").phi[name])
 
 
 def _slenderness(name: str) -> float:
-    """The pack's slenderness limit ``name`` (BNBC 2020: KL/r of compression members 150, Sec
+    """The pack's slenderness limit ``name`` (default pack BNBC 2020: KL/r of compression members 150, Sec
     10.5.2; L/r of tension members 300, Sec 10.4.1)."""
     return float(code_context.table("steel").slenderness[name])
 
 
-S = "BNBC 2020 Part 6 "
+def _s(key: str) -> str:
+    """The pack's clause of steel member check ``key`` ("<code> Part 6 Sec ...")."""
+    return clause("steelMembers", key)
 
-METHOD = [
-    f"Steel members: LRFD to {CODE}; the load combinations are the project's factored ones.",
-    (
-        "Tension: yielding φ 0.90 Fy Ag (Eq 6.10.11) and rupture φ 0.75 Fu Ae (Eq 6.10.12), Ae "
-        "= An U (Table 6.10.2 defaults: I-shapes and tees 0.90 / 0.85 by bf ≥ 2/3 d, channels "
-        "0.85, angles 0.60, rectangular HSS 1 - x̄/l at l = H, round HSS 1 - 1/π at l = D); "
-        "An = Ag (welded ends) unless set."
-    ),
-    (
-        "Compression: flexural, torsional and flexural-torsional buckling (Secs 10.5.3, 10.5.4), "
-        "single angles by Sec 10.5.5, slender elements by Q = Qs Qa (Sec 10.5.7); K = 1.0 "
-        "(Secs 10.3.1.2.1, 10.3.2.2.2) unless overridden, lengths between the brace points the "
-        "analysis model shows."
-    ),
-    (
-        "Flexure: Sec 10.6 by shape (yielding, lateral-torsional buckling with Cb from the "
-        "moment diagram, flange and web local buckling); a slab braces the top flange."
-    ),
-    "Shear: Sec 10.7; combined forces: Sec 10.8.1 (H1), moments amplified by B1 (Eq 6.10.4).",
-    (
-        "Deflection of beams (serviceability): the deflection relative to the chord between the "
-        "member's ends (a cantilever: the free end relative to the support), from the "
-        "analysis's unfactored load cases, under the live load (L and Lr), the wind (WX, WY "
-        "each) and the code pack's service combination of dead + live load, against the span "
-        "divisors of the member's use in the code pack's serviceability table (a cantilever's "
-        "span a multiple of its length, as the pack says)."
-    ),
-    (
-        "Torsion (B31, the code pack's member data): hollow sections by their torsional strength "
-        "and, above the pack's share of it, the interaction with the other forces; open and "
-        "solid sections by the normal and shear stresses of the combined actions (warping "
-        "torsion along the member, the ends free to warp unless set) and buckling. Single "
-        "angles also by the principal-axis interaction of unsymmetric members; built-up "
-        "members by the modified slenderness and the connector spacing; stiffened webs with "
-        "tension field action outside the end panels; rectangular bars and rounds."
-    ),
-    (
-        "Not checked here: connections (see the steel connection checks), vibration and "
-        "wind-induced motion, fatigue, fire."
-    ),
-]
+
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            f"Steel members: LRFD to {clause('steelMembers', 'code')}; the load combinations are the "
+            "project's factored ones."
+        ),
+        (
+            "Tension: yielding φ 0.90 Fy Ag (Eq 6.10.11) and rupture φ 0.75 Fu Ae (Eq 6.10.12), Ae "
+            "= An U (Table 6.10.2 defaults: I-shapes and tees 0.90 / 0.85 by bf ≥ 2/3 d, channels "
+            "0.85, angles 0.60, rectangular HSS 1 - x̄/l at l = H, round HSS 1 - 1/π at l = D); "
+            "An = Ag (welded ends) unless set."
+        ),
+        (
+            "Compression: flexural, torsional and flexural-torsional buckling (Secs 10.5.3, 10.5.4), "
+            "single angles by Sec 10.5.5, slender elements by Q = Qs Qa (Sec 10.5.7); K = 1.0 "
+            "(Secs 10.3.1.2.1, 10.3.2.2.2) unless overridden, lengths between the brace points the "
+            "analysis model shows."
+        ),
+        (
+            "Flexure: Sec 10.6 by shape (yielding, lateral-torsional buckling with Cb from the "
+            "moment diagram, flange and web local buckling); a slab braces the top flange."
+        ),
+        "Shear: Sec 10.7; combined forces: Sec 10.8.1 (H1), moments amplified by B1 (Eq 6.10.4).",
+        (
+            "Deflection of beams (serviceability): the deflection relative to the chord between the "
+            "member's ends (a cantilever: the free end relative to the support), from the "
+            "analysis's unfactored load cases, under the live load (L and Lr), the wind (WX, WY "
+            "each) and the code pack's service combination of dead + live load, against the span "
+            "divisors of the member's use in the code pack's serviceability table (a cantilever's "
+            "span a multiple of its length, as the pack says)."
+        ),
+        (
+            "Torsion (B31, the code pack's member data): hollow sections by their torsional strength "
+            "and, above the pack's share of it, the interaction with the other forces; open and "
+            "solid sections by the normal and shear stresses of the combined actions (warping "
+            "torsion along the member, the ends free to warp unless set) and buckling. Single "
+            "angles also by the principal-axis interaction of unsymmetric members; built-up "
+            "members by the modified slenderness and the connector spacing; stiffened webs with "
+            "tension field action outside the end panels; rectangular bars and rounds."
+        ),
+        (
+            "Not checked here: connections (see the steel connection checks), vibration and "
+            "wind-induced motion, fatigue, fire."
+        ),
+    ]
 
 
 class SteelDesignError(DesignError):
@@ -211,7 +219,7 @@ def tension_yielding(shape: ShapeProperties, steel: Steel) -> Capacity:
         _phi("tensionYield"),
         steel.fy * shape.area,
         "tensile yielding",
-        S + "Sec 10.4.2(a), Eq 6.10.11",
+        _s("tensionYield"),
         f"Ag = {shape.area:.0f} mm², Fy = {steel.fy:g} MPa",
     )
 
@@ -229,7 +237,7 @@ def tension_rupture(
         _phi("tensionRupture"),
         steel.fu * ae,
         "tensile rupture",
-        S + "Sec 10.4.2(b), Eqs 6.10.12-13, Table 6.10.2",
+        _s("tensionRupture"),
         f"An = {an:.0f} mm²" + (" (= Ag)" if net_ratio == 1.0 else "") + f", {why}, "
         f"Ae = {ae:.0f} mm², Fu = {steel.fu:g} MPa",
     )
@@ -328,7 +336,7 @@ def compression(
     notes: list[str] = []
     qs = qa = 1.0
     d = shape.dims
-    clause = S + "Sec 10.5.3, Eqs 6.10.16-19"
+    clause = _s("compressionFlexural")
 
     if shape.family == "angle":
         length = angle_length if angle_length is not None else max(klx, kly)
@@ -339,7 +347,7 @@ def compression(
         kl_r = 72 + 0.75 * lr if lr <= 80 else 32 + 1.25 * lr
         fe = math.pi**2 * e / kl_r**2
         mode = f"single angle, effective KL/r = {kl_r:.1f} from L/rx = {lr:.1f}"
-        clause = S + "Sec 10.5.5(a), Eqs 6.10.31-32"
+        clause = _s("compressionAngle")
         notes.append(
             "connected through the longer leg, ends loaded through that leg, no transverse "
             "load (Sec 10.5.5 conditions assumed)"
@@ -349,7 +357,7 @@ def compression(
     else:
         fe, mode = _elastic_buckling(shape, e, klx, kly, klz)
         if mode.startswith(("torsional", "flexural-torsional")):
-            clause = S + "Sec 10.5.4, Eqs 6.10.20-30"
+            clause = _s("compressionTorsional")
         if shape.family == "tee" and not slender:
             fcry = _fcr(_euler(e, kly, shape.ry), fy)
             fcrz = _shear_modulus() * shape.j / (shape.area * shape.ro2)
@@ -367,13 +375,13 @@ def compression(
                 _phi("compression"),
                 fcr * shape.area,
                 state,
-                S + "Sec 10.5.4, Eqs 6.10.20-22",
+                _s("compressionTorsionalBuckling"),
                 f"Fcr = {fcr:.1f} MPa; {note}",
             )
         kl_r = max(klx / shape.rx, kly / shape.ry)
 
     if slender:
-        clause = S + "Sec 10.5.7, Eqs 6.10.36-54"
+        clause = _s("compressionSlender")
         for el in slender:
             if shape.family in ("I", "channel", "tee") and el.name == "flange":
                 qs = min(qs, _qs_rolled(el.ratio, e, fy))
@@ -575,9 +583,13 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
     return _least(candidates, notes)
 
 
-def _least(candidates: list[tuple[float, str, str]], notes: list[str], prefix: str = S) -> Capacity:
+def _least(
+    candidates: list[tuple[float, str, str]], notes: list[str], prefix: str | None = None
+) -> Capacity:
     """The least of the candidate (Mn, state, clause); ``prefix`` goes before the clause (the
     pack's clause strings, B31, come whole: prefix "")."""
+    if prefix is None:
+        prefix = _s("part") + " "
     mn, state, clause = min(candidates, key=lambda c: c[0])
     others = ", ".join(f"{s} {m / 1e6:.1f}" for m, s, _ in candidates if s != state)
     note = f"Mn = {mn / 1e6:.1f} kN·m ({state})" + (f"; also {others} kN·m" if others else "")
@@ -598,7 +610,7 @@ def _members_table() -> Any:
 
 
 def _bar_flexure(shape: ShapeProperties, steel: Steel, axis: str, lb: float, cb: float) -> Capacity:
-    """Rectangular bars and rounds (the pack's ``members.bars``; BNBC 2020 Sec 10.6.11):
+    """Rectangular bars and rounds (the pack's ``members.bars``; the default pack's BNBC 2020 Sec 10.6.11):
     yielding Mp = Fy Z <= 1.6 My, and lateral-torsional buckling of a bar bent about its major
     axis by Lb d / t² (d the depth across the axis, t the width along it)."""
     from saengine.design.steel.torsion import clause
@@ -633,7 +645,7 @@ def _bar_flexure(shape: ShapeProperties, steel: Steel, axis: str, lb: float, cb:
 def flexure_unsymmetric(
     s_least: float, fy: float, fcr_ltb: float | None = None, fcr_local: float | None = None
 ) -> Capacity:
-    """Unsymmetrical shapes other than single angles (BNBC 2020 Sec 10.6.12, Eqs 6.10.125-128):
+    """Unsymmetrical shapes other than single angles (default pack BNBC 2020 Sec 10.6.12, Eqs 6.10.125-128):
     Mn = Fn S with S the least elastic modulus, Fn = Fy (yielding) or the lateral-torsional and
     local buckling stresses Fcr <= Fy that an analysis of the section gives (None: that limit
     state not given). No shape of the section table is of this kind (B31): the method is ready
@@ -873,7 +885,7 @@ def _chs_shear(shape: ShapeProperties, steel: Steel, lv: float) -> Capacity:
         _phi("shear"),
         fcr * shape.area / 2,
         "shear yielding / buckling",
-        S + "Sec 10.7.6, Eqs 6.10.145-146",
+        _s("shearRound"),
         f"Fcr = {fcr:.1f} MPa, Lv = {lv:.0f} mm (the unbraced segment: conservative)",
     )
 
@@ -896,7 +908,7 @@ def _bar_shear(shape: ShapeProperties, steel: Steel) -> Capacity:
 
 def stiffened_web(shape: ShapeProperties, steel: Steel, a: float) -> dict[str, Any] | None:
     """kv and tension field data of an I-shape or channel web with transverse stiffeners at
-    the clear spacing ``a`` [mm] (the pack's ``members.tensionField``; BNBC 2020 Secs 10.7.2.1,
+    the clear spacing ``a`` [mm] (the pack's ``members.tensionField``; the default pack's BNBC 2020 Secs 10.7.2.1,
     10.7.3.1): ``{kv, aspect, tfa, why}``, ``tfa`` whether tension field action may be counted
     (not in end panels: the caller decides those); None without the pack's data."""
     from saengine.design.steel.torsion import members_data
@@ -949,7 +961,7 @@ def shear_major(
                     1.0,
                     0.6 * fy * aw,
                     "shear yielding",
-                    S + "Sec 10.7.2.1(a), Eqs 6.10.136-137",
+                    _s("shearWebYield"),
                     f"Aw = d tw = {aw:.0f} mm², h/tw = {h_tw:.1f}, φv = 1.0, Cv = 1.0",
                 )
             cv = web_shear_coefficient(h_tw, 5.0, e, fy)
@@ -957,7 +969,7 @@ def shear_major(
                 _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
-                S + "Sec 10.7.2.1(b), Eqs 6.10.136, 6.10.138-140",
+                _s("shearWeb"),
                 f"Aw = {aw:.0f} mm², h/tw = {h_tw:.1f}, kv = 5, Cv = {cv:.3f}",
             )
         case "tee":
@@ -967,7 +979,7 @@ def shear_major(
                 _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
-                S + "Sec 10.7.2.1(b), Eqs 6.10.136, 6.10.138-140",
+                _s("shearWeb"),
                 f"tee stem: Aw = d tw = {aw:.0f} mm², kv = 1.2, Cv = {cv:.3f}",
             )
         case "angle":
@@ -976,7 +988,7 @@ def shear_major(
                 _phi("shear"),
                 0.6 * fy * aw,
                 "shear yielding",
-                S + "Sec 10.7.4, Eq 6.10.136",
+                _s("shearSingly"),
                 f"leg {d['d']:g} mm: Aw = b t = {aw:.0f} mm², Cv = 1.0",
             )
         case "rhs":
@@ -1032,7 +1044,7 @@ def _stiffened_shear(
 def stiffener_requirements(
     shape: ShapeProperties, steel: Steel, a: float, vr_vc: float, tension_field: bool
 ) -> list[str]:
-    """What the transverse stiffeners at ``a`` [mm] must provide (BNBC 2020 Secs 10.7.2.2,
+    """What the transverse stiffeners at ``a`` [mm] must provide (default pack BNBC 2020 Secs 10.7.2.2,
     10.7.3.3: Eqs 6.10.141, 6.10.144), for the member's notes; ``vr_vc`` the largest Vr / Vc of
     the panels with tension field action. Pairs of stiffeners of the web's steel assumed."""
     from saengine.design.steel.torsion import clause, members_data
@@ -1078,7 +1090,7 @@ def _rhs_shear(shape: ShapeProperties, steel: Steel, h: float) -> Capacity:
         _phi("shear"),
         0.6 * steel.fy * aw * cv,
         "shear yielding / buckling",
-        S + "Sec 10.7.5, Eqs 6.10.136, 6.10.138-140",
+        _s("shearHss"),
         f"Aw = 2 h t = {aw:.0f} mm², h/t = {h / t:.1f}, kv = 5, Cv = {cv:.3f}",
     )
 
@@ -1097,7 +1109,7 @@ def shear_minor(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
                 _phi("shear"),
                 0.6 * fy * aw * cv,
                 "shear yielding / buckling",
-                S + "Sec 10.7.7, Eq 6.10.136",
+                _s("shearMinor"),
                 f"Aw = bf tf per flange, {aw:.0f} mm², b/t = {b / d['tf']:.1f}, kv = 1.2, "
                 f"Cv = {cv:.3f}",
             )
@@ -1107,7 +1119,7 @@ def shear_minor(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
                 _phi("shear"),
                 0.6 * fy * aw,
                 "shear yielding",
-                S + "Sec 10.7.4, Eq 6.10.136",
+                _s("shearSingly"),
                 f"leg {d['b']:g} mm: Aw = b t = {aw:.0f} mm², Cv = 1.0",
             )
         case "rhs":
@@ -1750,7 +1762,7 @@ def check_member(
                     _slenderness("tension"),
                     st.combination,
                     f"L/r with r = {r_least:.1f} mm; {where}",
-                    S + "Sec 10.4.1",
+                    _s("tensionSlenderness"),
                 )
             pc = phi_tn
             cap_c = None
@@ -1775,7 +1787,7 @@ def check_member(
                     )
                     + f"L = {lx:.0f}{source_tag(lengths, 'Lx')} / {ly:.0f}"
                     f"{source_tag(lengths, 'Ly')} mm; {where}",
-                    S + "Sec 10.5.2",
+                    _s("compressionSlenderness"),
                 )
                 if kind == "column" and not direct:
                     share = getattr(stability, "first_order_axial", 0.5)
@@ -1788,7 +1800,7 @@ def check_member(
                         "K from a sidesway analysis",
                         stability.clause("firstOrderUnitK")
                         if stability is not None
-                        else S + "Sec 10.3.2.2.2(a), Eq 6.10.9",
+                        else _s("firstOrderUnitK"),
                     )
 
             # Flexure about x: the unbraced length of the flange in compression.
@@ -1869,7 +1881,7 @@ def check_member(
                 f"{eq}: Pr = {abs(p) / 1e3:.1f} kN ({sense}), Pc = {pc / 1e3:.1f} kN, "
                 f"Mrx = {mrx / 1e6:.1f} / Mcx = {cap_mx.design / 1e6:.1f}, Mry = {mry / 1e6:.1f} "
                 f"/ Mcy = {m_minor.design / 1e6:.1f} kN·m{note_b1}; {where}",
-                S + "Sec 10.8.1, " + eq,
+                _s("interaction") + ", " + eq,
             )
             if principal is not None:
                 ratio2, mw, mz = unsymmetric_interaction(p, pc, mrx, mry, principal)
@@ -2338,3 +2350,10 @@ def design_steel_member(
         "lengths": slenderness_note(lengths),
         "bracing": bracing,
     }
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

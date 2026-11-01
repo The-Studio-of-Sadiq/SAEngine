@@ -8,7 +8,7 @@ module reads those results and, with the rules of the code pack in force
 
 - **Suites.** The cases form a suite per direction (one excitation, X or Y) and one of pairs
   (both directions at once: a three-dimensional analysis, the orthogonal effects of the
-  simultaneous components, BNBC 2020 Part 6 Sec 2.5.13.1(c)). A suite is used in design when
+  simultaneous components, the default pack's Part 6 Sec 2.5.13.1(c)). A suite is used in design when
   it has the pack's least number of records and every case ran to its end.
 - **Spectrum check.** Each suite is checked again with the fundamental period of the modal
   analysis (the model scales the records with the period it knows when it is made, the

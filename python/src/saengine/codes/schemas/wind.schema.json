@@ -670,7 +670,7 @@
     },
     "CladdingTable": {
       "additionalProperties": false,
-      "description": "Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and\nflat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal\npressure coefficients and the edge-zone width a.",
+      "description": "Components and cladding (the default pack's Part 6 Sec 2.4.11.5): the (GCp) curves of walls and\nflat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal\npressure coefficients and the edge-zone width a.",
       "properties": {
         "source": {
           "anyOf": [
@@ -1087,7 +1087,7 @@
     },
     "FlexibleGustRow": {
       "additionalProperties": false,
-      "description": "The gust-effect factor Gf of a flexible or dynamically sensitive building (BNBC 2020 Part 6\nSec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`.",
+      "description": "The gust-effect factor Gf of a flexible or dynamically sensitive building (the default pack's Part 6\nSec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`.",
       "properties": {
         "source": {
           "anyOf": [
@@ -1947,7 +1947,7 @@
     },
     "OpenStructuresTable": {
       "additionalProperties": false,
-      "description": "Design wind loads on other structures, F = qz·G·Cf·Af (BNBC 2020 Part 6 Sec 2.4, the\nprovisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice\nframeworks, and trussed towers.",
+      "description": "Design wind loads on other structures, F = qz·G·Cf·Af (the default pack's Part 6 Sec 2.4, the\nprovisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice\nframeworks, and trussed towers.",
       "properties": {
         "source": {
           "anyOf": [
@@ -2761,7 +2761,7 @@
     },
     "WindDesignCasesRow": {
       "additionalProperties": false,
-      "description": "The design wind load cases of the main wind-force resisting system (BNBC 2020 Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
+      "description": "The design wind load cases of the main wind-force resisting system (the default pack's Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
       "properties": {
         "source": {
           "anyOf": [
@@ -2835,6 +2835,14 @@
       },
       "description": "Clause references of single entries: {key: clause}.",
       "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
       "type": "object"
     },
     "exposures": {

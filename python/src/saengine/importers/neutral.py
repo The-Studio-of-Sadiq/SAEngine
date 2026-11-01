@@ -15,7 +15,7 @@ hands it to the builder, which writes the project (see :mod:`saengine.importers.
   (``05 Floor Plan/loads.json``); floor loads on levels without slabs (their total over the plan
   area of the beams there), loads on null areas and loads that find no beam or column are not
   carried over and their totals go into the report, case by case; loads of wind and earthquake
-  cases are listed as replaced by SAEngine's own (BNBC 2020);
+  cases are listed as replaced by SAEngine's own (the default pack, BNBC 2020);
 - combinations become SAEngine combinations on those cases.
 """
 
@@ -1100,7 +1100,7 @@ def _stiffness(
     elif unmodified and not any_modifier:
         report.warn(
             "The file has no property modifiers (gross sections): SAEngine analyses the lateral "
-            "cases on cracked concrete sections (BNBC 2020 Part 6 Sec 6.3.10.4.1; 02 Project "
+            "cases on cracked concrete sections (the default pack's Part 6 Sec 6.3.10.4.1; 02 Project "
             "Settings → Analysis model → Section stiffness)."
         )
 

@@ -1,5 +1,5 @@
 """The direct design method of two-way slab systems (method id ``directDesign`` of the code
-pack's ``slabMethods``; BNBC 2020 Part 6 Sec 6.5.6).
+pack's ``slabMethods``; the default pack's BNBC 2020 Part 6 Sec 6.5.6).
 
 Per frame (:class:`saengine.design.slab_frames.SlabFrame`) and span, under each gravity
 combination:
@@ -39,7 +39,7 @@ def _interp(x: float, xs: Sequence[float], ys: Sequence[float]) -> float:
 
 
 def torsion_constant(parts: Sequence[tuple[float, float]], shape: float) -> float:
-    """C = Σ (1 - shape x/y) x³ y / 3 [mm⁴] of rectangles (x <= y) (BNBC Eq 6.6.86)."""
+    """C = Σ (1 - shape x/y) x³ y / 3 [mm⁴] of rectangles (x <= y) (default pack BNBC Eq 6.6.86)."""
     total = 0.0
     for a, b in parts:
         x, y = min(a, b), max(a, b)
@@ -67,7 +67,7 @@ def torsional_parts(
 
 
 def beta_t(frame: SlabFrame, support: int, shape: float) -> float:
-    """βt = Ecb C / (2 Ecs Is) at a support, Is = l2 h³ / 12 (BNBC Eq 6.6.85); 0 without a
+    """βt = Ecb C / (2 Ecs Is) at a support, Is = l2 h³ / 12 (default pack BNBC Eq 6.6.85); 0 without a
     transverse (edge) beam."""
     s = frame.supports[support]
     if s.transverse_beam is None:

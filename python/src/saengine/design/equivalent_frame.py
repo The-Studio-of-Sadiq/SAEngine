@@ -1,5 +1,5 @@
 """The equivalent frame method of two-way slab systems (method id ``equivalentFrame`` of the
-code pack's ``slabMethods``; BNBC 2020 Part 6 Sec 6.5.7).
+code pack's ``slabMethods``; the default pack's BNBC 2020 Part 6 Sec 6.5.7).
 
 Each frame (:class:`saengine.design.slab_frames.SlabFrame`) is analysed for gravity load as a
 continuous slab-beam on its supports, the columns' far ends fixed (the separate analysis of one

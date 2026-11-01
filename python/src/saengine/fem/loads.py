@@ -1,9 +1,9 @@
-"""Loads of the analysis model from the project settings (BNBC 2020 Part 6 Chapter 2).
+"""Loads of the analysis model from the project settings (the default pack's Part 6 Chapter 2).
 
 Pure functions: given the building's levels, weights and plan, they return the equivalent
 static seismic and wind forces per level and the beam loads of slab areas. The derivation of the
 analysis model (:mod:`saengine.fem.derive`) applies them; every formula names its clause, and
-the code pack in force (:func:`saengine.codes.context.current`, BNBC 2020 by default) holds
+the code pack in force (:func:`saengine.codes.context.current`, the default pack (BNBC 2020) by default) holds
 the coefficients.
 
 Units: m, kN, s.
@@ -115,7 +115,7 @@ def wind_overrides(wind: Any) -> Iterator[None]:
 
 def wind_factor(name: str) -> float:
     """Kd ("directionality"), Kzt ("topographic") or G ("gust"): the project's override, else
-    the code pack's (BNBC 2020 Table 6.2.12, Sec 2.4.7, Sec 2.4.8.1). Kzt here is the flat
+    the code pack's (the default pack's Table 6.2.12, Sec 2.4.7, Sec 2.4.8.1). Kzt here is the flat
     terrain's (or the override); :func:`topographic_factor` gives it at a height on a hill."""
     own = (_WIND_OVERRIDES.get() or {}).get(name)
     return own if own is not None else float(getattr(code_context.table("wind"), name))
@@ -166,7 +166,7 @@ def topographic_terms(
 ) -> dict[str, Any] | None:
     """K1, K2, K3 and Kzt = (1 + K1·K2·K3)² at ``height`` z [m] above the local ground of a
     site on ``topography`` (default: the project's) by the code pack's ``wind.topography``
-    (BNBC 2020 Part 6 Sec 2.4.7, Eq 6.2.5 and Figure 6.2.4):
+    (the default pack's Part 6 Sec 2.4.7, Eq 6.2.5 and Figure 6.2.4):
 
         K1 = (K1/(H/Lh))·H/Lh,   K2 = 1 − |x|/(μ·Lh) ≥ 0,   K3 = e^(−γ·z/Lh)
 
@@ -272,7 +272,7 @@ def wind_level_forces(
 
 @dataclass(frozen=True)
 class WindLevel:
-    """The wind load a level takes (BNBC 2020 Part 6 Sec 2.4.11.2): ``force`` [kN] along the
+    """The wind load a level takes (the default pack's Part 6 Sec 2.4.11.2): ``force`` [kN] along the
     wind; ``centre`` [m], the position across the wind of its resultant, the geometric centre of
     the face it takes (Sec 2.4.11.3, p. 559: the eccentricity is "measured from the geometric
     center of the building face"); ``width`` [m], that face's mean width B across the wind;
@@ -355,7 +355,7 @@ def wind_levels(
 
 def wind_torsion_moments(levels: list[WindLevel], eccentricity: float) -> list[float]:
     """The torsional moment at each level [kN·m] of the wind ``levels`` displaced by
-    ``eccentricity``·B across the wind (BNBC 2020 Part 6 Figure 6.2.9, p. 574: Case 2,
+    ``eccentricity``·B across the wind (the default pack's Part 6 Figure 6.2.9, p. 574: Case 2,
     M_T = 0.75·(P_WX + P_LX)·B_X·e_X with e_X = ±0.15·B_X; here unfactored, F·e with
     F = (P_W + P_L)·B per unit height, the 0.75 or 0.563 going in the combinations, see
     :func:`wind_design_variants`). Positive counter-clockwise about Z (the sign is ±).
@@ -372,7 +372,7 @@ WIND_TORSION_CASES = {"WX": "WTX", "WY": "WTY"}
 
 @dataclass(frozen=True)
 class WindDesignCases:
-    """The factors of the design wind load cases (BNBC 2020 Part 6 Sec 2.4.11.3 and Figure
+    """The factors of the design wind load cases (the default pack's Part 6 Sec 2.4.11.3 and Figure
     6.2.9, pp. 559 and 574-575), from the code pack's wind table (``designCases``).
 
     ``partial``: Case 2, the share of the pressure with the torsion (0.75); ``eccentricity``:
@@ -481,7 +481,7 @@ def wind_design_variants(
 
 
 def _resonance_term(eta: float) -> float:
-    """R_ℓ = 1/η − (1 − e^(−2η))/(2η²), 1 at η = 0 (BNBC 2020 Part 6 Sec 2.4.8.2, Eq. 6.2.15;
+    """R_ℓ = 1/η − (1 − e^(−2η))/(2η²), 1 at η = 0 (the default pack's Part 6 Sec 2.4.8.2, Eq. 6.2.15;
     ASCE 7-05 Eq. 6-13)."""
     if eta <= 0:
         return 1.0
@@ -497,7 +497,7 @@ def flexible_gust_factor(
     exposure: str,
     damping: float | None = None,
 ) -> dict[str, float] | None:
-    """The gust-effect factor Gf of a flexible or dynamically sensitive building (BNBC 2020
+    """The gust-effect factor Gf of a flexible or dynamically sensitive building (the default pack (BNBC 2020)
     Part 6 Sec 2.4.8.2, Eq. 6.2.8-6.2.16; ASCE 7-05 Sec 6.5.8.2) of mean roof height ``height``,
     ``width`` B across the wind and ``depth`` L along it [m], natural frequency n1
     ``frequency`` [Hz] in the wind's direction and basic wind speed V ``speed`` [m/s]:
@@ -552,13 +552,13 @@ def flexible_gust_factor(
 
 def is_flexible(frequency: float) -> bool:
     """Whether a building of natural frequency n1 ``frequency`` [Hz] is flexible, "a
-    fundamental natural frequency less than 1 Hz" (BNBC 2020 Part 6 Sec 2.4.2, definitions)."""
+    fundamental natural frequency less than 1 Hz" (the default pack's Part 6 Sec 2.4.2, definitions)."""
     table = getattr(code_context.table("wind"), "flexible", None)
     return table is not None and frequency < table.frequencyLimit
 
 
 def flexible_eccentricity(rigid: float, offset: float, terms: dict[str, float]) -> float | None:
-    """The torsional eccentricity e of a flexible building in one wind direction (BNBC 2020
+    """The torsional eccentricity e of a flexible building in one wind direction (the default pack (BNBC 2020)
     Part 6 Sec 2.4.11.3, Eq 6.2.23; the code pack's ``flexible.eccentricity`` "gustWeighted"):
 
         e = (eQ + 1.7·Iz̄·√((gQ·Q·eQ)² + (gR·R·eR)²)) / (1 + 1.7·Iz̄·√((gQ·Q)² + (gR·R)²))
@@ -578,7 +578,7 @@ def flexible_eccentricity(rigid: float, offset: float, terms: dict[str, float]) 
 def rooftop_factor(area: float, width: float, height: float) -> float:
     """The factor on the force F = qz·G·Cf·Af of a rooftop structure or equipment of projected
     area ``area`` Af [m²] on a building ``width`` B across the wind and ``height`` h [m]
-    (BNBC 2020 Part 6 Sec 2.4.15, the code pack's ``wind.rooftop``): 1.9 for Af up to 0.1·B·h,
+    (the default pack's Part 6 Sec 2.4.15, the code pack's ``wind.rooftop``): 1.9 for Af up to 0.1·B·h,
     linear down to 1.0 at Af = B·h, on buildings with h ≤ 18.3 m; 1 otherwise."""
     table = getattr(code_context.table("wind"), "rooftop", None)
     if table is None or height > table.maxHeight or width <= 0 or height <= 0:
@@ -614,7 +614,7 @@ def cladding_coefficient(curve: Any, area: float | None) -> float:
 
 
 def cladding_edge_width(least: float, height: float, low_rise: bool) -> float:
-    """The width a [m] of the edge and corner zones (BNBC 2020 Part 6 Sec 2.4.11.5 figures;
+    """The width a [m] of the edge and corner zones (the default pack's Part 6 Sec 2.4.11.5 figures;
     ASCE 7-05 Figures 6-11 and 6-17, notes): 10 % of the least horizontal dimension ``least``,
     and for a low-rise building not over 0.4h, but not less than 4 % of the least dimension
     (low-rise) nor 0.9 m."""
@@ -718,7 +718,7 @@ def cladding_pressures(
     roof_rise: float | None = None,
     step_height: float | None = None,
 ) -> dict[str, Any] | None:
-    """The design pressures of components and cladding by zone (BNBC 2020 Part 6 Sec 2.4.11.4)
+    """The design pressures of components and cladding by zone (the default pack's Part 6 Sec 2.4.11.4)
     of a building of mean roof height ``height`` and least horizontal dimension ``least`` [m],
     for an effective wind area ``area`` [m²] (None: the smallest tabulated, the largest
     pressures) and the internal pressure of its ``enclosure``:
@@ -1008,7 +1008,7 @@ def _stepped_zones(
 
 # ─────────── wind: internal pressure and the MWFRS pressures on walls and roofs ───────────
 #
-# The code pack's ``wind.internalPressure`` and ``wind.mwfrs`` (BNBC 2020 Part 6 Sec 2.4.10,
+# The code pack's ``wind.internalPressure`` and ``wind.mwfrs`` (the default pack's Part 6 Sec 2.4.10,
 # 2.4.11.2, Figures 6.2.5-6.2.8 and 6.2.10). Positive pressures act toward the surface.
 
 
@@ -1371,7 +1371,7 @@ def slab_edge_loads(
     corners: list[tuple[float, float]], pressure: float, system: str
 ) -> list[EdgeProfile]:
     """The load shapes on a slab's edges carrying ``pressure`` on its area: triangles and
-    trapezoids by the 45° rule (BNBC 2020 Part 6 Sec 6.5.6.8.1, p. 955), see
+    trapezoids by the 45° rule (the default pack's Part 6 Sec 6.5.6.8.1, p. 955), see
     :func:`saengine.fem.slab_load_shapes.slab_load_shapes`. ``EdgeProfile.load`` is the mean
     intensity (the uniform load of the same total this function gave before 0.0.45)."""
     return slab_load_shapes(corners, pressure, system).edges

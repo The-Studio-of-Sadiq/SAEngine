@@ -4,7 +4,7 @@ without concrete (steel plates, built-up and hollow steel sections).
 
 The interaction diagrams of reinforced-concrete sections stay where they are,
 :class:`saengine.library.section_designer.DesignedRcSection` (concreteproperties with the
-BNBC 2020 / ACI 318 stress block and the pack's φ); this module adds what that one does not
+the default pack (BNBC 2020) / ACI 318 stress block and the pack's φ); this module adds what that one does not
 give, on the same section, materials and moment convention.
 
 Fibres. Each region is meshed with sectionproperties at the Section Designer's mesh size
@@ -24,13 +24,13 @@ Material laws (not design-code values, except where cited):
 - concrete in compression: the Hognestad parabola (Hognestad 1951, as in Park and Paulay,
   "Reinforced Concrete Structures", 1975, Sec 2.1.3): f = f''c [2 ε/ε0 - (ε/ε0)²] up to
   ε0 = 2 f''c / Ec, then a straight line to 0.85 f''c at 0.0038, with f''c = 0.85 f'c (the
-  stress intensity of BNBC 2020 Part 6 Sec 6.2.2 / ACI 318-19 Sec 22.2.2.4.1) and Ec the
-  material's E (BNBC 2020 Part 6 Sec 6.1.7.1). The curve ends at the usable strain εcu = 0.003
-  (BNBC 2020 Part 6 Sec 6.2.2 / ACI 318-19 Sec 22.2.2.1), which ends the analysis;
+  stress intensity of the default pack's Part 6 Sec 6.2.2 / ACI 318-19 Sec 22.2.2.4.1) and Ec the
+  material's E (the default pack's Part 6 Sec 6.1.7.1). The curve ends at the usable strain εcu = 0.003
+  (the default pack's Part 6 Sec 6.2.2 / ACI 318-19 Sec 22.2.2.1), which ends the analysis;
 - concrete in tension: linear up to the modulus of rupture fr (the material's, else
-  0.62 √f'c, BNBC 2020 Part 6 Eq. 6.6.3), nothing once cracked; it can be left out;
+  0.62 √f'c, the default pack's Part 6 Eq. 6.6.3), nothing once cracked; it can be left out;
 - bars and steel plates: elastic-perfectly plastic at fy, both signs; the analysis also ends
-  when a steel fibre reaches the limit strain the engineer gives (default 0.05; BNBC sets no
+  when a steel fibre reaches the limit strain the engineer gives (default 0.05; the default pack (BNBC) sets no
   steel strain limit for flexure).
 
 Key points of a moment-curvature curve: first cracking (concrete reaching fr), first yield
@@ -42,10 +42,10 @@ ductility μκ = κu / κ'y.
 
 Plastic interaction of sections without concrete: rigid-plastic stress blocks, fy on either
 side of a plastic neutral axis swept across the section at each angle: the cross-section's
-yield surface (Pn, Mn). Design values use φ of the pack's ``steel`` table (BNBC 2020 Part 6
+yield surface (Pn, Mn). Design values use φ of the pack's ``steel`` table (the default pack's Part 6
 Chapter 10: ``compression`` for P >= 0, ``tensionYield`` for P < 0; ``flexure`` for M, the
 least of the two for a point). It is a cross-section strength only: member buckling and local
-buckling (BNBC 2020 Part 6 Sec 10.5 and Table 6.10.1) are not part of it.
+buckling (the default pack's Part 6 Sec 10.5 and Table 6.10.1) are not part of it.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ from saengine.library.section_designer import (
 HOGNESTAD_EPS_END = 0.0038
 #: Stress at that strain, as a share of f''c.
 HOGNESTAD_RESIDUAL = 0.85
-#: f''c / f'c: the stress intensity of the rectangular block (BNBC 2020 Part 6 Sec 6.2.2).
+#: f''c / f'c: the stress intensity of the rectangular block (the default pack's Part 6 Sec 6.2.2).
 STRESS_INTENSITY = 0.85
 #: Default limit strain of bars and plates for the end of a moment-curvature curve.
 DEFAULT_STEEL_LIMIT = 0.05
@@ -138,7 +138,7 @@ def _triangles(polygon: Any, size: float) -> tuple[np.ndarray, np.ndarray, np.nd
 
 
 def _modulus_of_rupture(materials: Any, material_id: str, fc: float) -> float:
-    """The material's fr, else 0.62 √f'c (BNBC 2020 Part 6 Eq. 6.6.3, normal-weight)."""
+    """The material's fr, else 0.62 √f'c (the default pack's Part 6 Eq. 6.6.3, normal-weight)."""
     from saengine.library.materials import MaterialLibrary
 
     found = (
@@ -483,7 +483,7 @@ def equal_energy_bilinear(
 
 
 def _steel_phi(pack: Any) -> dict[str, float]:
-    """φ of the pack's ``steel`` table (BNBC 2020 Part 6 Chapter 10)."""
+    """φ of the pack's ``steel`` table (the default pack's Part 6 Chapter 10)."""
     if pack is None:
         from saengine.codes import context
 

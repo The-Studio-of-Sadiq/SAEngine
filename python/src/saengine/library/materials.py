@@ -49,7 +49,7 @@ class Mechanical(_Model):
     E: float | None = Field(
         default=None,
         gt=0,
-        description="Young's modulus [MPa]. Concrete: follows f'c (Ec = 4700 √f'c, BNBC 2020 "
+        description="Young's modulus [MPa]. Concrete: follows f'c (Ec = 4700 √f'c, the default pack's "
         "Part 6 Sec 6.1.7.1) until another value is entered.",
     )
     nu: float | None = Field(default=None, ge=0, lt=0.5, description="Poisson's ratio [-].")
@@ -68,7 +68,7 @@ class ConcreteProperties(_Model):
         gt=0,
         title="Modulus of rupture fr",
         description="Tensile strength / modulus of rupture [MPa]. Follows f'c (fr = 0.62 √f'c, "
-        "BNBC 2020 Part 6 Eq. 6.6.3) until another value is entered.",
+        "the default pack's Part 6 Eq. 6.6.3) until another value is entered.",
     )
     maxAggregate: float | None = Field(
         default=None, gt=0, description="Maximum aggregate size [mm]."
@@ -89,13 +89,13 @@ class SteelProperties(_Model):
         default=None,
         gt=0,
         title="Actual fy (mill test)",
-        description="Actual yield strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(i)).",
+        description="Actual yield strength from the mill tests [MPa] (the default pack's Sec 8.3.3.4(b)(i)).",
     )
     fuActual: float | None = Field(
         default=None,
         gt=0,
         title="Actual fu (mill test)",
-        description="Actual tensile strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(ii)).",
+        description="Actual tensile strength from the mill tests [MPa] (the default pack's Sec 8.3.3.4(b)(ii)).",
     )
 
     @model_validator(mode="after")
@@ -428,7 +428,7 @@ def default_of(library: Any, category: Category) -> str | None:
 
 # ───────────────────────── values derived from f'c, and plausibility ─────────────────────────
 
-#: Modulus of rupture fr = 0.62 λ √f'c [MPa] (BNBC 2020 Part 6 Sec 6.2.5.2.3, Eq. 6.6.3).
+#: Modulus of rupture fr = 0.62 λ √f'c [MPa] (the default pack's Part 6 Sec 6.2.5.2.3, Eq. 6.6.3).
 FR_COEFFICIENT = 0.62
 #: How far an entered E or fr may differ from the code relation before it is flagged.
 DEVIATION_LIMIT = 0.10
@@ -492,7 +492,7 @@ def _value(material: Material, path: str) -> float | None:
 def plausibility(material: Material, aggregate: str | None = None) -> list[tuple[str, str]]:
     """Values that pass the schema but are unlikely for the category (a typing slip, a value in
     the wrong unit), as (path, message): E and fr of concrete more than 10 % from the code
-    relations of f'c (Ec by the concrete's ``aggregate``, default: the project's, B21; BNBC
+    relations of f'c (Ec by the concrete's ``aggregate``, default: the project's, B21; the default pack (BNBC)
     2020 Part 6 Eq. 6.6.3), and values outside the usual range of the category. Test results
     may justify a value; the message says what to check."""
     from saengine.design.rc_detailing import concrete_modulus as code_modulus
@@ -520,7 +520,7 @@ def plausibility(material: Material, aggregate: str | None = None) -> list[tuple
                 material.concrete.ft,
                 modulus_of_rupture(fc),
                 "fr",
-                "BNBC 2020 Part 6 Eq. 6.6.3: fr = 0.62 √f'c",
+                "the default pack's Part 6 Eq. 6.6.3: fr = 0.62 √f'c",
             ),
         ):
             if own is not None and code > 0 and abs(own - code) / code > DEVIATION_LIMIT:

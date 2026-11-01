@@ -2,7 +2,7 @@
 
 Part 8 never authors geometry: it derives an OpenSees Studio project (schema 2, 3D, 6 DOF per
 node, SI units m-N-kg-s) from ``06 BIM/bim.json``, the object types and materials, and applies
-the loads of ``02 Project Settings`` (BNBC 2020) automatically:
+the loads of ``02 Project Settings`` (by the code pack in force) automatically:
 
 - columns, beams and inclined members become elastic beam-columns; structural walls (and slabs,
   when the settings model them as shells) become shell elements. Gmsh meshes them together
@@ -34,7 +34,7 @@ Options of the settings (``analysis``; absent: the behaviour before version 0.0.
   lower half of the first storey goes to the base and does not participate), "levelAbove"
   leaves the masses at the nodes; the summary reports W per level and how it was formed
   (``seismicWeight``). ``massSource``: factors on the dead and superimposed dead loads, the
-  live share (by default the code pack's: 25 %, 50 % above 3 kN/m², BNBC 2020 Part 6 Sec
+  live share (by default the code pack's: 25 %, 50 % above 3 kN/m², the default pack's Part 6 Sec
   2.5.7.3) and extra masses;
 - ``accidentalEccentricity``: the static cases EXP, EXN, EYP, EYN (Sec 2.5.7.6.2);
 - ``periodMethod``: "approximate" (Ta, eq. 6.2.38) or "analysis" (the modal period, at most
@@ -94,7 +94,7 @@ MM = 0.001  # m per mm
 TIE_M = 1e-6
 UNITS = "SI (m, N, kg, s, Pa)"
 
-#: Load cases of the analysis model, in this order (see bnbc.LOAD_CASES). The fluid case F (the
+#: Load cases of the analysis model, in this order (the code pack's ``combinations.loadCases``). The fluid case F (the
 #: contents of equipment in 07 MEP) is last and is only in a model that has fluid loads, so the
 #: other cases keep their numbers; so is the earth pressure case H on the basement walls (9
 #: Substructure, :mod:`saengine.substructure.basement_loads`). The temperature case T is added after them when the settings
@@ -113,9 +113,9 @@ SOLVER = "UmfPack"
 #: Restraint of a diaphragm's own node: free in plan, held out of plane.
 _IN_PLAN = [False, False, True, True, True, False]
 
-#: The static earthquake cases with the accidental eccentricity of BNBC 2020 Part 6 Sec
-#: 2.5.7.6.2 (p. 630, eq. 6.2.43: M_ta,i = e_ai·F_i, e_ai = ±0.05·L_i, the same direction at
-#: every floor): case -> (its earthquake case, sign of the shift of the storey masses along
+#: The static earthquake cases with the code pack's accidental eccentricity (the default pack's Part 6
+#: Sec 2.5.7.6.2, p. 630, eq. 6.2.43 in the default pack: M_ta,i = e_ai·F_i, e_ai = ±0.05·L_i,
+#: the same direction at every floor): case -> (its earthquake case, sign of the shift of the storey masses along
 #: the axis across the force: +Y for EX, +X for EY). After the other cases, when the settings
 #: ask for them (``analysis.accidentalEccentricity``).
 ECCENTRIC_CASES: dict[str, tuple[str, int]] = {
@@ -129,21 +129,15 @@ _CASE_LABELS = {
     "EXN": "Earthquake in X, masses shifted -5 % along Y",
     "EYP": "Earthquake in Y, masses shifted +5 % along X",
     "EYN": "Earthquake in Y, masses shifted -5 % along X",
-    "WTX": "Torsion of the wind in X (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
-    "WTY": "Torsion of the wind in Y (BNBC 2020 Part 6 Figure 6.2.9, e = 0.15 B)",
     "FaX": "Flood and surge along X (with the wind along X)",
     "FaY": "Flood and surge along Y (with the wind along Y)",
 }
 
-#: Seismic weight (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628): live loads above 3 kN/m² (the pack's
-#: ``seismic.heavyLiveLimit``) count with at least 50 % (``seismic.heavyLiveShare``, this the
-#: default), the others with the pack's ``liveShare`` (25 %). The rule applies only once the
-#: pack holds ``heavyLiveLimit`` (a pack without it keeps the W of earlier versions).
-HEAVY_LIVE_SHARE = 0.5
-#: BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627): a period from the structure's properties shall not
-#: exceed the approximate period (eq. 6.2.38) by more than 40 percent. Default until the code
-#: pack holds it (``seismic.periodUpperFactor``).
-PERIOD_UPPER_FACTOR = 1.4
+# Seismic weight (the code pack's ``seismic``; the default pack's Part 6 Sec 2.5.7.3, p. 628 in the
+# default pack): live loads above ``seismic.heavyLiveLimit`` count with ``heavyLiveShare``, the
+# others with ``liveShare``. The rule applies only when the pack holds both numbers. A period
+# from the structure's properties is capped at ``seismic.periodUpperFactor`` times Ta when the
+# pack gives the factor (BNBC 2020 Part 6 Sec 2.5.7.2 (a) in the default pack).
 #: Smallest shell element the span rule of the mesh gives [mm].
 MIN_SPAN_MESH = 200.0
 #: The mesh size rule: shell slabs no coarser than their shorter span over this.
@@ -155,6 +149,14 @@ def option(part: Any, name: str, default: Any) -> Any:
     settings of this round are added by the integrator; until then today's behaviour holds."""
     value = part.get(name) if isinstance(part, dict) else getattr(part, name, None)
     return default if value is None else value
+
+
+def _pattern_mode(options: Any) -> str:
+    """``analysis.patternLive``, a former id (named after the code) read as its new one."""
+    from saengine.library.settings import FORMER_PATTERN_LIVE
+
+    mode = option(options, "patternLive", "off")
+    return FORMER_PATTERN_LIVE.get(mode, mode)
 
 
 def quarter_turns(rotation: float) -> int | None:
@@ -188,12 +190,31 @@ def column_vecxz(rotation: float) -> tuple[float, float, float] | None:
 
 
 def case_label(case: str) -> str:
-    """The description of a load case: the code pack's, or that of an eccentric case."""
+    """The description of a load case: the code pack's, or that of an eccentric case or a
+    torsional wind case (with the pack's clause and eccentricity)."""
     labels = code_context.table("combinations").loadCases
     try:
         return labels[case]
     except (KeyError, TypeError):
-        return _CASE_LABELS.get(case, case)
+        pass
+    if case in ("WTX", "WTY"):
+        cases = fl.wind_design_cases()
+        ref = code_context.cite("wind", "designCases")
+        detail = ", ".join(
+            ([ref] if ref else []) + ([f"e = {cases.eccentricity:g} B"] if cases else [])
+        )
+        return f"Torsion of the wind in {case[-1]}" + (f" ({detail})" if detail else "")
+    return _CASE_LABELS.get(case, case)
+
+
+def _thermal_names(case: str) -> str:
+    """The names of the code pack's strength combinations with the self-straining case
+    ``case`` (T, or ST in T's place), for a note."""
+    from saengine.library.settings import strength_combinations
+
+    rows = strength_combinations(thermal=case == "T", settlement=case == "ST")
+    names = [c.name for c in rows if getattr(c, case, 0)]
+    return " and ".join(names) or f"combinations with {case}"
 
 
 #: Periods of the tabulated design spectrum [s]: fine where it turns, coarse in its tail.
@@ -1374,7 +1395,7 @@ def _derive_fem(
             pattern = stage_patterns.setdefault(k, {"nodal": {}, "element": {}})
             pattern["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
 
-    # The mass source: the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3, p. 628) is the dead
+    # The mass source: the seismic weight W (the default pack's Part 6 Sec 2.5.7.3, p. 628) is the dead
     # load (D: self-weight and partition walls; SD: finishes and partitions), a share of the
     # live load and the permanent equipment and retained liquid; the user's mass source may
     # factor each and add masses (``analysis.massSource``).
@@ -1423,8 +1444,11 @@ def _derive_fem(
     # The heavy-live rule (Sec 2.5.7.3 (b)) is new: it holds once the code pack carries its
     # numbers (heavyLiveLimit, heavyLiveShare), so a pack without them keeps the old W.
     heavy_limit_value = getattr(seismic_table, "heavyLiveLimit", None)
+    heavy_share_value = getattr(seismic_table, "heavyLiveShare", None)
+    if heavy_share_value is None:
+        heavy_limit_value = None  # no share given: the pack has no heavy-live rule
     heavy_limit = float(heavy_limit_value) if heavy_limit_value is not None else math.inf
-    heavy_share = float(getattr(seismic_table, "heavyLiveShare", None) or HEAVY_LIVE_SHARE)
+    heavy_share = float(heavy_share_value) if heavy_share_value is not None else live_share
     user_live_share = option(mass_source, "liveShare", None)
 
     def seismic_share(case: str, pressure: float | None = None) -> float:
@@ -1735,8 +1759,8 @@ def _derive_fem(
                 pressures["SD"] += extra
                 b.notes.append(
                     f"{element.id}: walls {', '.join(walls_on)} on the slab as a uniform "
-                    f"{extra / 1e3:.2f} kN/m² over the panel (slabs as loads to beams; BNBC "
-                    "2020 Part 6 Sec 2.3.6, p. 540)"
+                    f"{extra / 1e3:.2f} kN/m² over the panel (slabs as loads to beams"
+                    f"{code_context.cited('areaLoads', 'partitions', sep='; ')})"
                 )
         if shell_slabs:
             b.notes.append(
@@ -1841,19 +1865,19 @@ def _derive_fem(
                 add_nodal(point.case, node_id, down * point.force * part, stage_of(point.at[2]))
                 add_weight(node_id, point.force * part * seismic_share(point.case), "SD")
 
-    # ── the arrangements of the live load (BNBC 2020 Part 6 Sec 6.1.12.2) ──
+    # ── the arrangements of the live load (the default pack's Part 6 Sec 6.1.12.2) ──
     live_cases = _live_arrangements(
         building,
         types,
         mats,
         settings,
-        option(options, "patternLive", "off"),
+        _pattern_mode(options),
         live_log,
         patterns,
         b,
     )
     summary_live = {
-        "mode": option(options, "patternLive", "off"),
+        "mode": _pattern_mode(options),
         "cases": [{"case": p.name, "label": p.label, "clause": p.clause} for p in live_cases],
     }
 
@@ -2132,7 +2156,7 @@ def _derive_fem(
                 out[case] = nodal
         return out, info
 
-    # Earthquake and wind each need only their own site values (BNBC 2020 Part 6 Sec 2.5 the
+    # Earthquake and wind each need only their own site values (the default pack's Part 6 Sec 2.5 the
     # zone coefficient Z, Sec 2.4 the basic wind speed V); a missing one is reported, and its
     # cases stay empty, never the other's.
     approximate = approximate_y = 0.0
@@ -2199,7 +2223,7 @@ def _derive_fem(
                 values["windSpeed"],
                 settings.wind.exposure,
                 values["windImportance"],
-                # BNBC's exception is for buildings "designed with flexible diaphragms"; the
+                # the default pack's exception is for buildings "designed with flexible diaphragms"; the
                 # analysis option diaphragm = "flexible" only models the floors' in-plane stiffness
                 # from their beams and shells (semi-rigid RC slabs), so it does not qualify.
                 rigid=True,
@@ -2408,7 +2432,7 @@ def _derive_fem(
     ]
     # The eccentric earthquake cases after them (only when asked for, so the others keep ids).
     cases += [c for c in ECCENTRIC_CASES if c in patterns]
-    # The torsional wind cases (BNBC Figure 6.2.9) and the live load arrangements after them.
+    # The torsional wind cases (the default pack's Figure 6.2.9) and the live load arrangements after them.
     cases += [c for c in fl.WIND_TORSION_CASES.values() if c in patterns]
     # B11: the clad structures' wind cases (other directions, variants, internal pressure).
     cases += [c for c in fl.wind_pressure_cases() if c in patterns]
@@ -2819,8 +2843,10 @@ def _derive_fem(
         if not any(c.T for c in settings.combinations):
             b.notes.append(
                 "temperature: no load combination has a T factor, so T is analysed but not "
-                "designed for; add 1.2D ± 1.2T + 1.6L + 0.5Lr (BNBC 2020 Part 6 Sec 2.7.3.1; "
-                "Project Settings, Reset Combinations adds them)"
+                f"designed for; add {_thermal_names('T')} ("
+                + code_context.cited("combinations", "temperature", sep="")
+                + ("; " if code_context.clause("combinations", "temperature") else "")
+                + "Project Settings, Reset Combinations adds them)"
             )
         if not thermal_corrections["frames"] and not thermal_corrections["shells"]:
             b.notes.append("temperature: no member is heated (ΔTu and ΔTg are 0 where they apply)")
@@ -2843,8 +2869,10 @@ def _derive_fem(
             if not any(getattr(c, "ST", 0) for c in settings.combinations):
                 b.notes.append(
                     "settlement: no load combination has an ST factor, so ST is analysed but "
-                    "not designed for; add 1.2D + 1.2ST + 1.6L + 0.5Lr (BNBC 2020 Part 6 Sec "
-                    "2.7.3.1; Project Settings, Reset Combinations adds it)"
+                    f"not designed for; add {_thermal_names('ST')} ("
+                    + code_context.cited("combinations", "temperature", sep="")
+                    + ("; " if code_context.clause("combinations", "temperature") else "")
+                    + "Project Settings, Reset Combinations adds it)"
                 )
 
     # ── soil-structure interaction: the column bases on their foundations' springs ──
@@ -2881,7 +2909,7 @@ def _derive_fem(
             summary["nodes"] = len(project["nodes"])
             summary["elements"] = len(project["elements"])
 
-    # ── notional loads for the steel stability design (BNBC 2020 Part 6 Sec 10.3.2.2) ──
+    # ── notional loads for the steel stability design (the default pack's Part 6 Sec 10.3.2.2) ──
     notional = getattr(options, "notionalLoads", "none") or "none"
     if notional != "none":
         from saengine.fem.notional_loads import add_notional_cases
@@ -2920,7 +2948,7 @@ def _derive_fem(
     b.notes.extend(so.notes)
     summary["secondOrder"] = so.summary
 
-    # ── the period from the modal analysis (BNBC 2020 Part 6 Sec 2.5.7.2 (a), p. 627) ──
+    # ── the period from the modal analysis (the default pack's Part 6 Sec 2.5.7.2 (a), p. 627) ──
     if period_method == "analysis" and approximate:
         _analysis_period(
             project,
@@ -2931,7 +2959,7 @@ def _derive_fem(
             seismic_loads,
             lambda t: fl.normalized_spectrum(t, settings.site.siteClass, settings.seismic.damping),
         )
-    # ── the gust-effect factor of a flexible building (BNBC 2020 Part 6 Sec 2.4.8.2) ──
+    # ── the gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2) ──
     if summary.get("wind"):
         _wind_gust(
             project, summary, b.notes, settings.wind, values["windSpeed"], settings.wind.exposure
@@ -3002,10 +3030,16 @@ def _analysis_period(
             f"Ta = {min(ta.values()):.3f} s is used"
         )
         return
-    factor = float(getattr(seismic_table, "periodUpperFactor", None) or PERIOD_UPPER_FACTOR)
+    upper = getattr(seismic_table, "periodUpperFactor", None)
+    factor = math.inf if upper is None else float(upper)
+    if upper is None:
+        notes.append(
+            f"period: the code pack {code_context.code_name()} gives no upper limit on the period "
+            "from the modal analysis (seismic.periodUpperFactor); the modal period is used"
+        )
     caps = {axis: factor * ta[axis] for axis in ("X", "Y")}
     cap = caps["X"]
-    # Not below Ta either: BNBC gives only the upper limit, but a period below Ta would take a
+    # Not below Ta either: the code (the default pack) gives only the upper limit, but a period below Ta would take a
     # short building onto the rising branch of the spectrum (T < TB) and lower its base shear;
     # like a commercial analysis program (and ASCE 7 practice) the approximate period is the
     # lower bound.
@@ -3038,7 +3072,7 @@ def _analysis_period(
     if "accidentalTorsion" in summary:
         summary["accidentalTorsion"] = info["levels"]
     notes.append(
-        "period from the modal analysis (BNBC 2020 Part 6 Sec 2.5.7.2 (a)): "
+        f"period from the modal analysis ({code_context.cite('seismic', 'period')}): "
         + "; ".join(
             f"{axis}: T = {modal[axis]['period']:.3f} s (mode {modal[axis]['mode']})"
             + (
@@ -3270,7 +3304,7 @@ def _open_structure_wind(
     patterns: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The wind cases WX and WY of a special structure: member loads by force coefficients
-    (:mod:`saengine.fem.open_wind`, BNBC 2020 Part 6 Sec 2.4, other structures), or for a clad
+    (:mod:`saengine.fem.open_wind`, the default pack's Part 6 Sec 2.4, other structures), or for a clad
     one (form ``clad``) the pressures on its panels (:func:`_clad_structure_wind`). Returns the
     summary entry ``{"openWind": ...}`` (``{"cladWind": ...}``), empty when there is no wind."""
     from saengine.fem import open_wind as ow
@@ -3540,7 +3574,7 @@ def _free_roof_wind(
 ) -> dict[str, Any]:
     """The wind of an open clad structure (B14; enclosure ``open``: a canopy, a free roof): the
     net pressures of free roofs on its roof panels (:func:`saengine.fem.open_wind.
-    free_roof_wind`, BNBC 2020 Part 6 Sec 2.4.12) as nodal forces in the cases WX, WXN, WY, WYN
+    free_roof_wind`, the default pack's Part 6 Sec 2.4.12) as nodal forces in the cases WX, WXN, WY, WYN
     and their variants (load cases A and B); no internal pressure. Returns ``{"cladWind": ...}``
     or {} (with a note) when it cannot: then the members take force coefficients instead."""
     from saengine.fem import open_wind as ow
@@ -3811,7 +3845,7 @@ def _wind_loads(
     story_names: dict[float, str] | None = None,
     settings: Any = None,
 ) -> list[str]:
-    """The equivalent static wind loads WX and WY (BNBC 2020 Part 6 Sec 2.4.11.2) and the
+    """The equivalent static wind loads WX and WY (the default pack's Part 6 Sec 2.4.11.2) and the
     torsional cases WTX and WTY (Sec 2.4.11.3 and Figure 6.2.9, pp. 559 and 574-575) into
     ``patterns``; returns the notes.
 
@@ -3833,19 +3867,21 @@ def _wind_loads(
     with_torsion = cases is not None and torsion and not exempt
     if cases is None:
         notes.append(
-            "wind: the code pack has no design wind load cases (BNBC 2020 Figure 6.2.9); only "
-            "Case 1 (WX, WY), no torsional or simultaneous wind cases"
+            f"wind: the code pack {code_context.code_name()} has no design wind load cases; "
+            "only Case 1 (WX, WY), no torsional or simultaneous wind cases"
         )
     elif exempt:
         notes.append(
-            "wind: Cases 1 and 3 of BNBC 2020 Figure 6.2.9 only (Sec 2.4.11.3, Exception: one "
+            f"wind: Cases 1 and 3 of {code_context.cite('wind', 'designCases')} only "
+            f"({code_context.clause('wind', 'designCasesExemption')}, Exception: one "
             f"storey with h ≤ {cases.exemptHeight:g} m; the exception for flexible diaphragms "
             "does not apply to RC floors)"
         )
     elif not torsion:
         notes.append(
-            "wind: the torsional cases of BNBC 2020 Figure 6.2.9 (Cases 2 and 4) are turned off "
-            "(analysis option windTorsionCases), though Sec 2.4.11.3 requires them here"
+            f"wind: the torsional cases of {code_context.cite('wind', 'designCases')} (Cases 2 "
+            "and 4) are turned off (analysis option windTorsionCases), though "
+            f"{code_context.clause('wind', 'designCasesExemption')} requires them here"
         )
     rows: dict[str, list[dict[str, float]]] = {}
     totals: dict[str, float] = {}
@@ -4022,7 +4058,7 @@ def _wind_loads(
 def _flexible_twist(
     levels: list[dict[str, Any]], terms: dict[str, float], offset: float | None
 ) -> dict[str, Any] | None:
-    """The torsional eccentricity of a flexible building at each level (BNBC 2020 Part 6 Sec
+    """The torsional eccentricity of a flexible building at each level (the default pack's Part 6 Sec
     2.4.11.3, Eq 6.2.23, :func:`saengine.fem.loads.flexible_eccentricity`) from its rigid e
     (``e_m`` of the level rows) and ``offset`` eR [m]: ``{"eR_m", "ratio": {z: e / eQ},
     "levels": [{"z", "eQ_m", "e_m"}]}``; None without eR, torsion rows or the pack's method."""
@@ -4140,7 +4176,7 @@ def _wind_gust(
     speed: float,
     exposure: str,
 ) -> None:
-    """The gust-effect factor of a flexible building (BNBC 2020 Part 6 Sec 2.4.8.2): with the
+    """The gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2): with the
     natural frequency n1 in each wind direction (the settings' ``naturalFrequency``, else the
     modal analysis's fundamental mode in that direction, the one with the largest effective
     mass), a building with n1 < 1 Hz takes Gf instead of the rigid G (0.85, Sec 2.4.8.1). Every
@@ -4168,8 +4204,9 @@ def _wind_gust(
             except (ValueError, OSError, subprocess.SubprocessError) as error:
                 notes.append(
                     f"wind gust factor: the modal analysis failed ({error}); the rigid G is "
-                    "used, so check the building is not flexible (n1 < 1 Hz, BNBC 2020 Part 6 "
-                    "Sec 2.4.8.2) or give its natural frequency in Project Settings > Wind"
+                    "used, so check the building is not flexible (n1 < 1 Hz"
+                    f"{code_context.cited('wind', 'flexible')}) or give its natural frequency "
+                    "in Project Settings > Wind"
                 )
                 return
         frequencies = {axis: 1 / modal[axis]["period"] for axis in ("X", "Y")}
@@ -4236,7 +4273,7 @@ def _wind_gust(
         summary[f"wind_{axis}_kN"] = summary.get(f"wind_{axis}_kN", 0.0) * factor
     wind["gust"] = gust
     notes.append(
-        "wind gust factor (BNBC 2020 Part 6 Sec 2.4.8): "
+        f"wind gust factor ({code_context.cite('wind', 'gust')}): "
         + "; ".join(
             f"{axis}: n1 = {gust[axis]['n1_Hz']:.3f} Hz from {source}, "
             + (
@@ -4300,7 +4337,8 @@ def _seismic_weight_summary(
             "of the first storey with the first level), the masses left at the nodes"
         )
     note = (
-        f"seismic weight W = {total / 1e3:.1f} kN (BNBC 2020 Part 6 Sec 2.5.7.3): dead load "
+        f"seismic weight W = {total / 1e3:.1f} kN ({code_context.cite('seismic', 'weight')}): "
+        "dead load "
         f"x{source['dead']:g}, superimposed dead x{source['superimposed']:g}, live load x{live:g}"
         + (
             f" (x{source['heavyLiveShare']:g} above {source['heavyLiveLimit_kPa']:g} kN/m²), "
@@ -4649,13 +4687,12 @@ def _live_arrangements(
     patterns: dict[str, dict[str, Any]],
     b: _Builder,
 ) -> list[pattern_live.LivePattern]:
-    """The live load arrangement cases (``analysis.patternLive``, BNBC 2020 Part 6 Sec
-    6.1.12.2, :mod:`saengine.fem.pattern_live`) into ``patterns``: each live load logged
+    """The live load arrangement cases (``analysis.patternLive``, the code pack's arrangements
+    of live load, :mod:`saengine.fem.pattern_live`) into ``patterns``: each live load logged
     (``live_log``: kind, member index or node, load vector, placing point [mm]) goes to the
     arrangements whose bays hold its point. Arrangements that load nothing are left out.
     Returns the arrangements kept (they carry no seismic weight and no construction stage)."""
     from saengine.design import slab_systems
-
     from saengine.fem import pattern_live
 
     if mode == "off" or not live_log:
@@ -4690,8 +4727,8 @@ def _live_arrangements(
     grid = pattern_live.Grid.of(points, levels=[at[2] for *_, at in live_log])
     arrangements = pattern_live.live_patterns(
         grid,
-        adjacent=mode in ("bnbc", "bnbcAlternateFloors"),
-        adjacent_floors="alternate" if mode == "bnbcAlternateFloors" else "each",
+        adjacent=mode in ("adjacent", "adjacentAlternateFloors"),
+        adjacent_floors="alternate" if mode == "adjacentAlternateFloors" else "each",
     )
     # Every load placed once (level and bays), then each arrangement takes its loads by mask
     # and sums them per target in the order of the log: the same sums, in the same order, as
@@ -4736,8 +4773,9 @@ def _live_arrangements(
         renamed.append(arrangement)
     if renamed:
         b.notes.append(
-            f"live load arrangements: {len(renamed)} cases LP1-LP{len(renamed)} (BNBC 2020 Part "
-            "6 Sec 6.1.12.2: adjacent and alternate bays of the column grid; the design "
-            "envelopes them with the full live load L)"
+            f"live load arrangements: {len(renamed)} cases LP1-LP{len(renamed)} ("
+            + (f"{ref}: " if (ref := code_context.cite("concrete", "patternLive")) else "")
+            + "adjacent and alternate bays of the column grid; the design envelopes them with "
+            "the full live load L)"
         )
     return renamed

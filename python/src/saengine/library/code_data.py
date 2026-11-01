@@ -1,9 +1,11 @@
-"""Reference data from BNBC 2020 (Bangladesh National Building Code), Part 6, Chapter 2 (Loads).
+"""Reference data of the default code pack (:data:`saengine.codes.registry.DEFAULT_PACK`): loads.
 
-A compatibility layer over the built-in BNBC 2020 code pack (``saengine/codes/packs/bnbc2020``):
-the names and values are those this module always had, now read once from the pack's data
-tables (:func:`saengine.codes.tables.builtin_table`). Code that should follow the project's
-chosen pack reads ``saengine.codes.registry.active(settings).table(...)`` instead.
+A compatibility layer over the built-in default code pack: the names and values are read once
+from the pack's data tables (:func:`saengine.codes.tables.builtin_table`). They give the
+settings editors their lists (towns, area uses, structural systems) and the defaults of new
+projects. Code that should follow the project's chosen pack reads
+``saengine.codes.registry.active(settings).table(...)`` (or
+:func:`saengine.codes.context.table`) instead.
 
 Each table names the clause or table it comes from (in the pack's ``source``/``sources``). The
 values are the code's defaults for the project settings; the engineer can override every one of
@@ -16,10 +18,11 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from saengine.codes.registry import DEFAULT_PACK
 from saengine.codes.tables import builtin_manifest, builtin_table
 
 #: The built-in pack this module reads.
-PACK_ID = "bnbc2020"
+PACK_ID = DEFAULT_PACK
 
 EDITION: str = builtin_manifest(PACK_ID)["edition"]
 

@@ -2,7 +2,7 @@
 Settings → Crane runways).
 
 Crane loads (the factors, clauses and labels are the code pack's ``cranes`` table; with the
-BNBC 2020 pack, Part 6 Sec 2.3.12 Table 6.2.6 row 5 and Sec 1.6.6(i)):
+default pack, Part 6 Sec 2.3.12 Table 6.2.6 row 5 and Sec 1.6.6(i)):
 
 - maximum wheel loads: the bridge's weight shared by the two rails, plus the rated capacity
   and the hoist and trolley with the trolley at its closest approach to a rail (statics of the

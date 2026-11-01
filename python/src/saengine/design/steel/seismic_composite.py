@@ -2,7 +2,7 @@
 composite structural systems on top of the composite member design
 (:mod:`saengine.design.steel.composite`).
 
-Every number is the code pack's ``steelSeismic`` table, group ``compositeSeismic`` (BNBC 2020:
+Every number is the code pack's ``steelSeismic`` table, group ``compositeSeismic`` (default pack BNBC 2020:
 Part 6 Sec 13.5, Eqs 6.13.26-6.13.27); the clauses come from its ``sources``. The code pack has
 no composite structural systems of its own (Table 6.2.19 lists none), so a composite member of
 a steel system follows the level (``levels``: ordinary, intermediate, special) of the system's

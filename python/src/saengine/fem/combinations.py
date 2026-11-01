@@ -398,7 +398,7 @@ def wind_case_combinations(
     combinations: list[LoadCombination], present: set[str] | frozenset[str]
 ) -> list[LoadCombination] | None:
     """The combinations with each one-direction wind combination expanded into the design wind
-    load cases of BNBC 2020 Part 6 Sec 2.4.11.3 and Figure 6.2.9 (Case 1 as given, Cases 2-4
+    load cases of the default pack's Part 6 Sec 2.4.11.3 and Figure 6.2.9 (Case 1 as given, Cases 2-4
     with the shares of the code pack's ``wind.designCases`` and the torsional cases WTX, WTY when
     the model has them), named "<name> [Case k ...]". None when the code pack has no design
     cases or the model has neither wind case."""
@@ -448,7 +448,7 @@ def pattern_live_combinations(
 ) -> list[LoadCombination] | None:
     """The project's combinations followed by, for each gravity combination with live load
     (no wind or earthquake), one per live load arrangement the model has (cases LP1, LP2 ...,
-    :mod:`saengine.fem.pattern_live`, BNBC 2020 Part 6 Sec 6.1.12.2) with the live case L
+    :mod:`saengine.fem.pattern_live`, the default pack's Part 6 Sec 6.1.12.2) with the live case L
     replaced by the arrangement's case at the same factor, named "<name> [LPk]". None when the
     model has no arrangements."""
     arrangements = sorted(
@@ -561,7 +561,7 @@ def model_cases(project: dict[str, Any]) -> set[str]:
 def eccentric_combinations(
     combinations: list[LoadCombination], present: set[str]
 ) -> list[LoadCombination] | None:
-    """The combinations with each earthquake case replaced by its two eccentric cases (BNBC
+    """The combinations with each earthquake case replaced by its two eccentric cases (the default pack (BNBC)
     2020 Part 6 Sec 2.5.7.6.2: the masses shifted ±5 % across the force), when the model has
     them (``present``); a combination with EX becomes "... [+e]" on EXP and "... [-e]" on EXN
     (likewise EY). None when the model has no eccentric cases."""

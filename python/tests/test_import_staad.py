@@ -124,7 +124,7 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     assert report["loads"]["notCarriedKN"] == {}
     assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60 + 30)
     # The wind case's joint loads are replaced by SAEngine's own wind, not lost.
-    assert report["loads"]["replacedByBnbcKN"] == pytest.approx({"WX": 10})
+    assert report["loads"]["replacedKN"] == pytest.approx({"WX": 10})
     loads = {a.id: a for a in project.settings.areaLoads}
     assert (loads["FL"].finish, loads["FL"].live) == (1.5, 2.0)
     assert (loads["RF"].finish, loads["RF"].live) == (1.5, 1.0)

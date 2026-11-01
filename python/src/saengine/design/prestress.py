@@ -100,7 +100,8 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design.rc import EPS_CU, beta1, phi_axial_flexure
+from saengine.design.rc import beta1, phi_axial_flexure
+from saengine.design.rc import value as rc_value
 
 #: Elements per profile segment of the strip's beam model.
 ELEMENTS_PER_SEGMENT = 16
@@ -631,7 +632,7 @@ def flexural_strength(
     a = tension / (0.85 * fc * width)
     c = a / beta1(fc)
     depth = max(dp, d if bars > 0 else 0.0)
-    eps_t = EPS_CU * (depth - c) / c if c > 0 else math.inf
+    eps_t = rc_value("EPS_CU") * (depth - c) / c if c > 0 else math.inf
     phi = phi_axial_flexure(eps_t, fy)
     mn = aps * fps * (dp - a / 2) + bars * fy * (d - a / 2)
     return Strength(phi * mn, fps, a, c, phi)
@@ -1352,7 +1353,6 @@ def _deflection_checks(
     """The live-load deflection and the deflection after attachment (see the module notes)."""
     from saengine.design.check import _check
     from saengine.design.deflection import DeflectionLimits, Strip, cracked_section
-    from saengine.design.rc import STEEL_E
 
     try:
         divisors = DeflectionLimits.from_pack()
@@ -1369,7 +1369,7 @@ def _deflection_checks(
             ma = float(np.max(np.abs(total)))
             i = int(np.argmax(total))
             bars, d = bottom_bars
-            transformed = [(d, STEEL_E / ec * bars * b / 1000)] if bars > 0 else []
+            transformed = [(d, rc_value("STEEL_E") / ec * bars * b / 1000)] if bars > 0 else []
             if tendon.bonded:
                 transformed.append((h - float(heights[i]), tendon.ep / ec * aps))
             try:

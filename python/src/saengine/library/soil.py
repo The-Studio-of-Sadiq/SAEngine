@@ -507,7 +507,7 @@ class Chemistry(_Model):
     organicContent: Percent | None = Field(
         default=None, title="Organic content", description="Loss on ignition [% by mass]."
     )
-    # The other parameters of the code pack's soil corrosivity score (BNBC 2020: Table 6.3.6a).
+    # The other parameters of the code pack's soil corrosivity score (default pack: Table 6.3.6a).
     resistivity: float | None = Field(
         default=None, gt=0, title="Resistivity", description="Of the soil [ohm-cm]."
     )
@@ -615,7 +615,7 @@ class Sample(_Model):
     consolidation: Consolidation | None = None
     permeability: Permeability | None = None
     chemistry: Chemistry | None = None
-    # Problem soils (the code pack's identification criteria; BNBC 2020 Sec 3.5.3-3.5.7, App E).
+    # Problem soils (the code pack's identification criteria; the default pack's Sec 3.5.3-3.5.7, App E).
     liquidLimitOvenDried: float | None = Field(
         default=None,
         ge=0,
@@ -1069,9 +1069,9 @@ class Liquefaction(_Model):
         le=2,
         title="Peak ground acceleration amax",
         description="At the ground surface [g]; empty: Z × S from the project settings: the "
-        "zone coefficient of the seismic zoning map (BNBC 2020 Table 6.2.14, the maximum "
+        "zone coefficient of the seismic zoning map (the default pack's Table 6.2.14, the maximum "
         "considered PGA on rock) amplified by the site class's soil factor S (Table 6.2.16), "
-        "as BNBC 3.9.5 asks for the site amplification.",
+        "as the default pack's 3.9.5 asks for the site amplification.",
     )
 
 
@@ -1123,8 +1123,10 @@ PRACTICES = {
 #: The liquefaction triggering procedure (``Design.liquefactionMethod``).
 LIQUEFACTION_METHODS = {
     "idrissBoulanger2014": "Idriss & Boulanger 2014",
-    "bnbc2020": "BNBC 2020 Sec 3.9.5",
+    "codePack": "The code pack's procedure",
 }
+#: Former ids of ``Design.liquefactionMethod`` and the ids they are read as.
+FORMER_LIQUEFACTION_METHODS = {"bnbc2020": "codePack"}
 
 
 class Design(_Model):
@@ -1142,13 +1144,26 @@ class Design(_Model):
         "influence zone.",
         json_schema_extra=_labels(list(PRACTICES.values())),
     )
-    liquefactionMethod: Literal["idrissBoulanger2014", "bnbc2020"] = Field(
+    liquefactionMethod: Literal["idrissBoulanger2014", "codePack"] = Field(
         default="idrissBoulanger2014",
         title="Liquefaction method",
-        description="Idriss & Boulanger (2014), or BNBC 2020 Part 6 Sec 3.9.5 (FL = CRR/CSR, "
-        "CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT).",
+        description="Idriss & Boulanger (2014), or the code pack's own procedure (the default "
+        "pack's Part 6 Sec 3.9.5: FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of "
+        "Youd et al. 2001 from the SPT). The former value 'bnbc2020' is read as 'codePack'.",
         json_schema_extra=_labels(list(LIQUEFACTION_METHODS.values())),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_liquefaction_method(cls, data: Any) -> Any:
+        """The method's former id named after the code, 'bnbc2020', is read as 'codePack'."""
+        if isinstance(data, dict) and data.get("liquefactionMethod") in FORMER_LIQUEFACTION_METHODS:
+            data = {
+                **data,
+                "liquefactionMethod": FORMER_LIQUEFACTION_METHODS[data["liquefactionMethod"]],
+            }
+        return data
+
     hammerEnergy: float = Field(
         default=60,
         gt=0,
@@ -1166,7 +1181,7 @@ class Design(_Model):
         le=500,
         title="Allowable settlement",
         description="Settlement the settlement-controlled bearing pressure is worked out for "
-        "[mm]. BNBC 2020 Table 6.3.8's permissible total settlement is shown next to the "
+        "[mm]. The default pack's Table 6.3.8's permissible total settlement is shown next to the "
         "computed settlement for information.",
     )
     liquefaction: Liquefaction = Field(default_factory=Liquefaction)

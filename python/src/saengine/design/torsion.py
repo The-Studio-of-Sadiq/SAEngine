@@ -1,4 +1,4 @@
-"""Torsion design of reinforced-concrete beams to BNBC 2020 Part 6 Sec 6.4.4 (pp. 926-931).
+"""Torsion design of reinforced-concrete beams to the default pack's BNBC 2020 Part 6 Sec 6.4.4 (pp. 926-931).
 
 A beam in torsion is idealised as a thin-walled tube (Figure 6.6.7). Units: N, mm, MPa, N·mm.
 
@@ -44,11 +44,24 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from saengine.design.clauses import limits
 from saengine.design.rc import Bar, DesignError, RcSection, bar_area
 from saengine.library.objects import RectangleProfile
 
-#: √f'c used in shear and torsion is capped at this [MPa] (BNBC 2020 Part 6 Sec 6.4.1.2).
-ROOT_FC_MAX = 8.3
+#: √f'c used in shear and torsion is capped at this [MPa] (default pack BNBC 2020 Part 6 Sec 6.4.1.2).
+
+
+def _root_fc_max() -> float:
+    """√f'c used in shear and torsion is capped at this [MPa]: the pack's
+    ``designLimits.shearRootFcMax``."""
+    return float(limits().shearRootFcMax)
+
+
+def __getattr__(name: str) -> float:
+    if name == "ROOT_FC_MAX":
+        return _root_fc_max()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 TorsionKind = Literal["equilibrium", "compatibility"]
 
@@ -178,7 +191,7 @@ class TorsionSection:
 
 
 def _root(fc: float) -> float:
-    return min(math.sqrt(fc), ROOT_FC_MAX)
+    return min(math.sqrt(fc), _root_fc_max())
 
 
 def _axial_factor(nu: float, ag: float, fc: float, lam: float) -> float:

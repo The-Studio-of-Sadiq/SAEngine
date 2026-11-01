@@ -8,8 +8,6 @@ import pytest
 
 from saengine.fem.combinations import combination_factors, pattern_live_combinations
 from saengine.fem.pattern_live import (
-    CLAUSE_ADJACENT,
-    CLAUSE_ALTERNATE,
     Grid,
     centroid,
     grid_lines,
@@ -17,6 +15,11 @@ from saengine.fem.pattern_live import (
     patterns_required,
 )
 from saengine.library.settings import LoadCombination
+
+# The default pack's clauses of the arrangements (concrete.clauses patternAdjacent, patternAlternate),
+# as the code had them before they moved into the pack.
+CLAUSE_ADJACENT = "BNBC 2020 Part 6 Sec 6.1.12.2 (a)"
+CLAUSE_ALTERNATE = "BNBC 2020 Part 6 Sec 6.1.12.2 (b)"
 
 SPAN = 6000.0  # mm
 GRID = Grid((0.0, SPAN, 2 * SPAN, 3 * SPAN), (0.0, 5000.0))

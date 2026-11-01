@@ -8,7 +8,7 @@ are those of the real shape: for a short-edge triangle of total W on a simple sp
 moment is W·L/6 (W·L/8 for the uniform load of the same total, 25 % low) and the fixed-end
 moment of a fixed-fixed span 5·w·L²/96 with w the peak (5·W·L/48, against W·L/12).
 
-Tributary areas (BNBC 2020 Part 6 Sec 6.5.6.8.1 and Figure 6.6.21, p. 955: "tributary areas
+Tributary areas (the default pack's Part 6 Sec 6.5.6.8.1 and Figure 6.6.21, p. 955: "tributary areas
 which are bounded by 45° lines drawn from the corners of the panels"):
 
 * two-way panels: the bisector (45° for right-angled corners) split of the panel, i.e. its
@@ -211,7 +211,7 @@ def two_way_limit() -> float:
     code pack's ``slabCoefficients`` ``twoWayLimits.maxSpanRatio``, the table the slab design
     (:mod:`saengine.design.slab`) uses, so loads and design split panels alike.
 
-    BNBC 2020 does not state a one-way threshold as such; its two-way methods are limited to
+    the default pack (BNBC 2020) does not state a one-way threshold as such; its two-way methods are limited to
     ratios of not more than 2: the coefficient method for slabs on beams, Part 6 Sec 6.5.8.2.2
     (p. 961), "a longer to shorter centre to centre support span ratio of not greater than 2"
     (and the Direct Design Method, Sec 6.5.6.1.2, p. 951). Beyond it a panel is taken as one-way,

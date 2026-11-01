@@ -2,7 +2,7 @@
 ordinary concentrically braced frames, eccentrically braced frames and buckling-restrained
 braced frames.
 
-Every number is the code pack's ``steelSeismic`` table (BNBC 2020: Part 6 Sec 10.20.13-10.20.16,
+Every number is the code pack's ``steelSeismic`` table (default pack BNBC 2020: Part 6 Sec 10.20.13-10.20.16,
 Eqs 6.10.303-6.10.306); every clause reference comes from the table's ``sources``. The table's
 ``bracedSystems`` maps the structural systems of Project Settings to the braced kind (``scbf``,
 ``ocbf``, ``ebf``, ``brbf``; ``spsw`` walls are :mod:`saengine.design.steel.seismic_walls`).

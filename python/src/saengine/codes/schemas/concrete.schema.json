@@ -235,7 +235,7 @@
     },
     "DeflectionLimitsGroup": {
       "additionalProperties": false,
-      "description": "Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors\n(BNBC 2020 Part 6 Sec 6.2.5).",
+      "description": "Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors\n(the default pack's Part 6 Sec 6.2.5).",
       "properties": {
         "liveFloor": {
           "description": "Floors: immediate live-load deflection <= l/this.",
@@ -1246,7 +1246,7 @@
     },
     "TorsionLimits": {
       "additionalProperties": false,
-      "description": "Limits and choices of the torsion design of beams (BNBC 2020 Part 6 Sec 6.4.4).",
+      "description": "Limits and choices of the torsion design of beams (the default pack's Part 6 Sec 6.4.4).",
       "properties": {
         "theta": {
           "description": "Angle θ of the compression diagonals [°].",
@@ -1413,6 +1413,14 @@
       },
       "description": "Clause references of single entries: {key: clause}.",
       "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
       "type": "object"
     },
     "barDiameters": {
@@ -1631,14 +1639,6 @@
       ],
       "default": null,
       "description": "B21: shrinkage and temperature steel of slabs."
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "B21: clause references of the results, by key (after the pack's edition).",
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

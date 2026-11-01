@@ -1,6 +1,6 @@
 """Steel plate shear walls: special plate shear walls and composite steel plate shear walls.
 
-Every number is the code pack's ``steelSeismic`` table (BNBC 2020: Part 6 Sec 10.20.17, Eqs
+Every number is the code pack's ``steelSeismic`` table (default pack BNBC 2020: Part 6 Sec 10.20.17, Eqs
 6.10.307-6.10.308, and Sec 13.5.6, Eq 6.13.28); the clauses come from its ``sources``.
 
 A steel plate wall is a wall type whose material is steel: its thickness is the web plate's.

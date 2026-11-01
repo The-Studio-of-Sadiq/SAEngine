@@ -298,6 +298,13 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
     "method": {
       "const": "layeredSection",
       "default": "layeredSection",
@@ -368,13 +375,6 @@
       "exclusiveMinimum": 0,
       "title": "Steelunitweight",
       "type": "number"
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "title": "Clauses",
-      "type": "object"
     }
   },
   "required": [

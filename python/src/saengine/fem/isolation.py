@@ -3,7 +3,7 @@ displacements and forces, the forces above and below it, the checks, the prototy
 programme and the design review.
 
 Every value and clause reference comes from the code pack in force (its ``isolation`` table);
-a pack without that table does not cover isolation, and the columns stay fixed. With BNBC 2020
+a pack without that table does not cover isolation, and the columns stay fixed. With the default pack (BNBC 2020)
 it is Part 6 Sec 2.5.16 (pp. 652-666).
 
 How it works (SI inside: m, N, s):

@@ -1099,6 +1099,14 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of the seismic results, by key.",
+      "title": "Clauses",
+      "type": "object"
+    },
     "siteClasses": {
       "additionalProperties": {
         "$ref": "#/$defs/SiteClass"
@@ -1239,14 +1247,6 @@
         }
       ],
       "default": null
-    },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "Clause references of the seismic results, by key.",
-      "title": "Clauses",
-      "type": "object"
     },
     "liveShare": {
       "description": "Share of the floor live load in the seismic weight.",

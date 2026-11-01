@@ -1,19 +1,19 @@
 """Notional loads for the stability design of steel frames (Project Settings -> Analysis:
 ``notionalLoads``, ``notionalDrift``, ``directAnalysisTau``, ``directAnalysisNotional``).
 
-The code pack's ``steelStability`` table gives the coefficients (BNBC 2020: Part 6 Sec 10.3.2.2
+The code pack's ``steelStability`` table gives the coefficients (default pack: Part 6 Sec 10.3.2.2
 and Sec 10.14.3, part 2 pp. 52-53 and 188-189). A lateral notional load at each level,
 proportional to the gravity load Yi applied at that level:
 
 - design by second-order analysis (``"secondOrder"``): Ni = ``notional.secondOrder`` Yi
-  (BNBC 2020: 0.002), in the gravity-only load combinations;
+  (default pack: 0.002), in the gravity-only load combinations;
 - design by first-order analysis (``"firstOrder"``): Ni = ``notional.firstOrderDriftFactor``
-  (Δ/L) Yi >= ``notional.firstOrderMinimum`` Yi (BNBC 2020: 2.1 and 0.0042, Eq 6.10.10), in
+  (Δ/L) Yi >= ``notional.firstOrderMinimum`` Yi (default pack: 2.1 and 0.0042, Eq 6.10.10), in
   every load combination, Δ/L the largest first-order storey drift ratio under the strength
   combinations (the members then take K = 1 when αPr <= 0.5 Py, which the steel member checks
   flag);
 - the direct analysis method (``"directAnalysis"``): Ni = ``directAnalysis.notionalCoefficient``
-  Yi (BNBC 2020: 0.002) in every combination, or in the gravity-only ones where the ratio of
+  Yi (default pack: 0.002) in every combination, or in the gravity-only ones where the ratio of
   second- to first-order drift allows it (the design checks the ratio); with τb = 1 for every
   member (``tau = "additive"``) the additive ``additiveNotionalCoefficient`` Yi (0.001) on top.
   The reduced stiffness is :func:`saengine.fem.second_order.apply_second_order`'s, the member

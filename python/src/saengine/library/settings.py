@@ -1,8 +1,10 @@
 """Project settings (``02 Project Settings/project-settings.json``): codes, occupancy, site and loads.
 
 Part 2 is upstream of the floor plan, the building model and the analysis: they read these
-settings and never write them. BNBC 2020 is the governing code; its tables (see
-:mod:`saengine.library.bnbc`) give the defaults, and every derived value can be overridden.
+settings and never write them. The code pack chosen here (``codePack``) is the governing code;
+its tables give the defaults (the lists of the editors are the default pack's,
+:mod:`saengine.library.code_data`), and every derived value can be overridden. Clause numbers in
+the descriptions below are the default pack's (BNBC 2020).
 
 Units: kN/m² for area loads, m/s for wind speed.
 """
@@ -17,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from saengine.codes import context as code_context
 from saengine.codes.manifest import PACK_ID_PATTERN
 from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
 
@@ -25,9 +27,9 @@ SCHEMA_ID = "saengine.projectSettings/1"
 
 Pressure = Annotated[float, Field(ge=0, description="[kN/m²]")]
 
-LocationId = Literal[tuple(bnbc.LOCATIONS) + ("custom",)]  # type: ignore[valid-type]
-AreaUseId = Literal[tuple(bnbc.AREA_USES) + ("custom",)]  # type: ignore[valid-type]
-SystemId = Literal[tuple(bnbc.STRUCTURAL_SYSTEMS)]  # type: ignore[valid-type]
+LocationId = Literal[tuple(code_data.LOCATIONS) + ("custom",)]  # type: ignore[valid-type]
+AreaUseId = Literal[tuple(code_data.AREA_USES) + ("custom",)]  # type: ignore[valid-type]
+SystemId = Literal[tuple(code_data.STRUCTURAL_SYSTEMS)]  # type: ignore[valid-type]
 
 
 def _labels(names: list[str]) -> dict[str, Any]:
@@ -108,9 +110,9 @@ class Occupancy(_Model):
     category: Literal["I", "II", "III", "IV"] = Field(
         default="II",
         title="Occupancy category",
-        description="BNBC 2020 Table 6.1.1.",
+        description="The default pack's Table 6.1.1.",
         json_schema_extra=_labels(
-            [f"{k}: {v.description}" for k, v in bnbc.OCCUPANCY_CATEGORIES.items()]
+            [f"{k}: {v.description}" for k, v in code_data.OCCUPANCY_CATEGORIES.items()]
         ),
     )
 
@@ -290,14 +292,14 @@ class AirRaidShelter(_Model):
 class Site(_Model):
     location: LocationId = Field(  # type: ignore[valid-type]
         default="dhaka",
-        description="District town (BNBC 2020 Tables 6.2.8 and 6.2.15); sets the seismic zone "
+        description="District town (the default pack's Tables 6.2.8 and 6.2.15); sets the seismic zone "
         "and the basic wind speed. Open the list and type the first letters to find a town; "
         "elsewhere choose Custom and enter Z and V.",
         json_schema_extra=_labels(
             [
-                f"{v.name} (zone {v.zone}, Z {bnbc.ZONE_COEFFICIENT[v.zone]:.2f}, "
+                f"{v.name} (zone {v.zone}, Z {code_data.ZONE_COEFFICIENT[v.zone]:.2f}, "
                 f"V {v.wind_speed:g} m/s)"
-                for v in bnbc.LOCATIONS.values()
+                for v in code_data.LOCATIONS.values()
             ]
             + ["Custom (enter Z and V)"]
         ),
@@ -312,23 +314,23 @@ class Site(_Model):
     siteClass: Literal["SA", "SB", "SC", "SD", "SE"] = Field(
         default="SD",
         title="Site class",
-        description="BNBC 2020 Table 6.2.13. Used when the source is Entered, or while the soil "
+        description="The default pack's Table 6.2.13. Used when the source is Entered, or while the soil "
         "report has no boreholes that give a class.",
-        json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.SITE_CLASSES.items()]),
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.SITE_CLASSES.items()]),
     )
     zoneCoefficient: float | None = Field(
         default=None,
         gt=0,
         lt=1,
         title="Seismic zone coefficient Z",
-        description="Overrides the location's value (BNBC 2020 Table 6.2.14: 0.12, 0.20, "
+        description="Overrides the location's value (the default pack's Table 6.2.14: 0.12, 0.20, "
         "0.28 or 0.36 by zone).",
     )
     windSpeed: float | None = Field(
         default=None,
         gt=0,
         title="Basic wind speed",
-        description="Overrides the location's value [m/s] (BNBC 2020 Table 6.2.8).",
+        description="Overrides the location's value [m/s] (the default pack's Table 6.2.8).",
     )
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
@@ -372,7 +374,7 @@ class Seismic(_Model):
         description="Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and "
         "the seismic detailing of the members; it must be permitted in the Seismic Design "
         "Category of the site (Table 6.2.18).",
-        json_schema_extra=_labels([v.name for v in bnbc.STRUCTURAL_SYSTEMS.values()]),
+        json_schema_extra=_labels([v.name for v in code_data.STRUCTURAL_SYSTEMS.values()]),
     )
     r: float | None = Field(
         default=None,
@@ -399,7 +401,7 @@ class Seismic(_Model):
         description="A different seismic force-resisting system along Y: its own R, Ω0 and Cd "
         "apply in Y, with its limitations. Empty: the structural system above in both "
         "directions.",
-        json_schema_extra=_labels([v.name for v in bnbc.STRUCTURAL_SYSTEMS.values()]),
+        json_schema_extra=_labels([v.name for v in code_data.STRUCTURAL_SYSTEMS.values()]),
     )
     otherSystems: list[SystemId] = Field(  # type: ignore[valid-type]
         default_factory=list,
@@ -528,27 +530,27 @@ class Wind(_Model):
     exposure: Literal["A", "B", "C"] = Field(
         default="A",
         description="Exposure category (6.2.9.3).",
-        json_schema_extra=_labels([f"{k}: {v}" for k, v in bnbc.EXPOSURES.items()]),
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.EXPOSURES.items()]),
     )
     directionality: float | None = Field(
         default=None,
         gt=0,
         le=1,
         title="Directionality factor Kd",
-        description="Overrides the code's value for buildings (BNBC 2020 Table 6.2.12).",
+        description="Overrides the code's value for buildings (the default pack's Table 6.2.12).",
     )
     topographic: float | None = Field(
         default=None,
         ge=1,
         title="Topographic factor Kzt",
         description="Overrides the code's value for flat terrain; above 1 on hills, ridges and "
-        "escarpments (BNBC 2020 Sec 2.4.7).",
+        "escarpments (the default pack's Sec 2.4.7).",
     )
     gust: float | None = Field(
         default=None,
         gt=0,
         title="Gust effect factor G",
-        description="Overrides the code's value for every building (BNBC 2020 Sec 2.4.8.1). "
+        description="Overrides the code's value for every building (the default pack's Sec 2.4.8.1). "
         "Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 "
         "from its modal frequency.",
     )
@@ -557,7 +559,7 @@ class Wind(_Model):
         gt=0,
         title="Natural frequency n1",
         description="The building's fundamental natural frequency [Hz] for the gust-effect "
-        "factor (BNBC 2020 Sec 2.4.8.2). Empty: from the modal analysis of the model, in each "
+        "factor (the default pack's Sec 2.4.8.2). Empty: from the modal analysis of the model, in each "
         "wind direction.",
     )
     damping: float | None = Field(
@@ -565,14 +567,14 @@ class Wind(_Model):
         gt=0,
         lt=0.2,
         title="Damping ratio β",
-        description="Damping ratio of the gust-effect factor Gf (BNBC 2020 Sec 2.4.8.2). "
+        description="Damping ratio of the gust-effect factor Gf (the default pack's Sec 2.4.8.2). "
         "Empty: the code pack's (0.02, a concrete building; 0.01 for steel).",
     )
     enclosure: Literal["enclosed", "partiallyEnclosed", "open"] = Field(
         default="enclosed",
         title="Enclosure",
         description="Enclosure classification for the internal pressure (GCpi) of the "
-        "components and cladding (BNBC 2020 Sec 2.4.2 and Figure 6.2.5).",
+        "components and cladding (the default pack's Sec 2.4.2 and Figure 6.2.5).",
         json_schema_extra=_labels(
             ["Enclosed (GCpi ±0.18)", "Partially enclosed (GCpi ±0.55)", "Open (GCpi 0)"]
         ),
@@ -722,7 +724,7 @@ class RooftopEquipment(_Model):
 
 
 class OpenStructureWind(_Model):
-    """Wind on the members of a special structure by force coefficients (BNBC 2020 Part 6 Sec
+    """Wind on the members of a special structure by force coefficients (the default pack's Part 6 Sec
     2.4, design wind loads on other structures: open signs and lattice frameworks, trussed
     towers; :mod:`saengine.fem.open_wind`)."""
 
@@ -1005,14 +1007,15 @@ class TimeHistory(_Model):
 
 
 class Thermal(_Model):
-    """The temperature load case T (BNBC 2020 Part 6 Sec 2.6.4; T in the combinations of Sec
+    """The temperature load case T (the default pack's Part 6 Sec 2.6.4; T in the combinations of Sec
     2.7)."""
 
     enabled: bool = Field(
         default=False,
         title="Temperature case T",
         description="Add the load case T: the members' restrained expansion or contraction and "
-        "the bending of a sun-heated roof. BNBC 2020 asks for temperature effects where "
+        "the bending of a sun-heated roof. The code (the default pack) asks for temperature "
+        "effects where "
         "significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor "
         "diaphragms, this case is analysed without them, so the floors can expand.",
     )
@@ -1022,7 +1025,7 @@ class Thermal(_Model):
         le=60,
         title="Uniform change ΔTu",
         description="Change of the members' temperature from the construction temperature [°C], "
-        "+ expansion. BNBC gives no design range; take the site's range of shade air "
+        "+ expansion. The default pack gives no design range; take the site's range of shade air "
         "temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); "
         "enter the larger. Suggestion for Bangladesh: 20 °C.",
     )
@@ -1032,7 +1035,7 @@ class Thermal(_Model):
         le=40,
         title="Roof gradient ΔTg",
         description="Top face minus bottom face of the roof's beams and slabs [°C] (sun-heated "
-        "roof); 0 for none. Not given by BNBC; about 10 °C is a common assumption for an "
+        "roof); 0 for none. Not given by the default pack; about 10 °C is a common assumption for an "
         "uninsulated concrete roof.",
     )
     scope: Literal["roof", "all"] = Field(
@@ -1132,7 +1135,7 @@ class SettlementSupport(_Model):
 
 
 class Settlement(_Model):
-    """The support settlement case ST: imposed settlements of column bases. BNBC 2020 Part 6
+    """The support settlement case ST: imposed settlements of column bases. The default pack's Part 6
     counts differential settlement among the self-straining effects T of its load combinations
     (Sec 2.7); ST takes T's factor."""
 
@@ -1233,12 +1236,12 @@ class PDeltaFactors(_Model):
 
 
 class Slenderness(_Model):
-    """How column slenderness is designed for (BNBC 2020 Part 6 Sec 6.3.10)."""
+    """How column slenderness is designed for (the default pack's Part 6 Sec 6.3.10)."""
 
     effectiveLength: Literal["unity", "chart"] = Field(
         default="unity",
         title="Effective length factor k (nonsway)",
-        description="1.0: conservative, allowed by BNBC 2020 Part 6 Sec 6.3.10.6.3. Chart: the "
+        description="1.0: conservative, allowed by the default pack's Part 6 Sec 6.3.10.6.3. Chart: the "
         "nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat "
         "plates. Sway storeys always use the sway chart.",
         json_schema_extra=_labels(["k = 1.0", "Alignment chart"]),
@@ -1246,7 +1249,7 @@ class Slenderness(_Model):
     swayMagnifier: Literal["Q", "sumPc"] = Field(
         default="Q",
         title="Sway magnifier δs",
-        description="Q: δs = 1/(1 − Q) (BNBC 2020 Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = "
+        description="Q: δs = 1/(1 − Q) (the default pack's Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = "
         "1/(1 − ΣPu/(0.75 ΣPc)) (Eq. 6.6.28), Pc with EI/(1 + βdns) of each combination (Sec "
         "6.3.10.7.4).",
         json_schema_extra=_labels(["1/(1 − Q)", "ΣPu / ΣPc"]),
@@ -1254,7 +1257,7 @@ class Slenderness(_Model):
     stiffness: Literal["0.4EcIg", "bars"] = Field(
         default="0.4EcIg",
         title="EI for Pc",
-        description="0.4 Ec Ig/(1 + βdns) (BNBC 2020 Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/"
+        description="0.4 Ec Ig/(1 + βdns) (the default pack's Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/"
         "(1 + βdns) with the bars (Eq. 6.6.21).",
         json_schema_extra=_labels(["0.4 Ec Ig", "0.2 Ec Ig + Es Ise (with the bars)"]),
     )
@@ -1272,7 +1275,7 @@ class Slenderness(_Model):
         "cracked sections (read from the model, not from these settings); with gross sections "
         "each storey's "
         "first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns "
-        "0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; BNBC 2020 Part 6 Sec "
+        "0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; the default pack's Part 6 Sec "
         "6.3.10.4.1). A number is used as given.",
     )
 
@@ -1292,7 +1295,7 @@ class ExtraMass(_Model):
 
 
 class MassSource(_Model):
-    """What forms the seismic weight W and the masses (BNBC 2020 Part 6 Sec 2.5.7.3: the dead
+    """What forms the seismic weight W and the masses (the default pack's Part 6 Sec 2.5.7.3: the dead
     load including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent
     equipment and retained liquid in full)."""
 
@@ -1311,6 +1314,10 @@ class MassSource(_Model):
     extraMasses: list[ExtraMass] = Field(
         default_factory=list, title="Extra masses", description="Weights added per story."
     )
+
+
+#: Former ids of ``Analysis.patternLive`` and the ids they are read as.
+FORMER_PATTERN_LIVE = {"bnbc": "adjacent", "bnbcAlternateFloors": "adjacentAlternateFloors"}
 
 
 class Analysis(_Model):
@@ -1356,7 +1363,7 @@ class Analysis(_Model):
         default="architecture",
         title="Partition walls",
         description="From the architecture: the walls drawn in Architecture load the beams and "
-        "slabs under them as line loads in their positions (BNBC 2020 Part 6 Sec 2.2.5), and the "
+        "slabs under them as line loads in their positions (the default pack's Part 6 Sec 2.2.5), and the "
         "area load's partition allowance is dropped on the stories where they stand; stories "
         "without walls keep the allowance. Allowance: the walls are not applied and the area "
         "load's flat partition allowance holds everywhere (Sec 2.3.6).",
@@ -1378,46 +1385,58 @@ class Analysis(_Model):
     massSource: MassSource = Field(
         default_factory=lambda: MassSource(),
         title="Mass source",
-        description="What forms the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3): factors on "
+        description="What forms the seismic weight W (the default pack's Part 6 Sec 2.5.7.3): factors on "
         "the dead loads, the live load share and extra masses.",
     )
     accidentalEccentricity: bool = Field(
         default=True,
         title="Eccentric static earthquake cases",
         description="Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses "
-        "shifted ±5 % of the building's width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2, "
+        "shifted ±5 % of the building's width across the force (the default pack's Part 6 Sec 2.5.7.6.2, "
         "Eq. 6.2.43). With equivalent static design, every E combination is checked with both.",
     )
     windTorsionCases: bool = Field(
         default=True,
         title="Wind torsional cases",
         description="Add the torsional wind cases WTX, WTY and design every one-direction wind "
-        "combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 "
+        "combination for the four design wind load cases of the default pack's Part 6 Figure 6.2.9 "
         "(Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % "
         "in both with both torsions. Off: Cases 1 and 3 only.",
     )
-    patternLive: Literal["bnbc", "bnbcAlternateFloors", "alternate", "off"] = Field(
-        default="bnbc",
+    patternLive: Literal["adjacent", "adjacentAlternateFloors", "alternate", "off"] = Field(
+        default="adjacent",
         title="Live load arrangement",
-        description="BNBC 2020 Part 6 Sec 6.1.12.2: live load on two adjacent spans and on "
-        "alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the "
-        "full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) "
-        "and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: "
-        "fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the "
-        "full live load on every span.",
+        description="The code pack's arrangement of live load (the default pack's Part 6 Sec "
+        "6.1.12.2): live load on two adjacent spans and on alternate spans of the column grid, "
+        "as extra cases LP1, LP2 ... enveloped with the full live load. Adjacent and alternate: "
+        "adjacent spans on each floor alone (one case per pair and floor) and alternate spans "
+        "as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support "
+        "moments up to about 2 % lower. Alternate spans only. Off: the full live load on every "
+        "span. The former values 'bnbc' and 'bnbcAlternateFloors' are read as 'adjacent' and "
+        "'adjacentAlternateFloors'.",
         json_schema_extra=_labels(
             [
-                "BNBC 6.1.12.2 (adjacent each floor, alternate checkerboard)",
-                "BNBC, adjacent on alternate floors (fewer cases)",
+                "Adjacent and alternate spans (adjacent each floor, alternate checkerboard)",
+                "Adjacent on alternate floors (fewer cases)",
                 "Alternate spans only",
                 "Off (full live load only)",
             ]
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_pattern_live(cls, data: Any) -> Any:
+        """The arrangement's former ids named after the code: 'bnbc' is read as 'adjacent' and
+        'bnbcAlternateFloors' as 'adjacentAlternateFloors'."""
+        if isinstance(data, dict) and data.get("patternLive") in FORMER_PATTERN_LIVE:
+            data = {**data, "patternLive": FORMER_PATTERN_LIVE[data["patternLive"]]}
+        return data
+
     deflection: Literal["sensitive", "insensitive", "off"] = Field(
         default="sensitive",
         title="Beam deflection limits",
-        description="Beams are checked for deflection (BNBC 2020 Part 6 Sec 6.2.5) unless they "
+        description="Beams are checked for deflection (the default pack's Part 6 Sec 6.2.5) unless they "
         "are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 "
         "(l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are "
         "likely to be damaged (masonry partitions, the usual case) or l/240 where not "
@@ -1463,7 +1482,7 @@ class Analysis(_Model):
     periodMethod: Literal["approximate", "analysis"] = Field(
         default="approximate",
         title="Period for the static base shear",
-        description="Approximate: Ta = Ct·hn^m (BNBC 2020 Part 6 Eq. 6.2.38). Analysis: the "
+        description="Approximate: Ta = Ct·hn^m (the default pack's Part 6 Eq. 6.2.38). Analysis: the "
         "modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.",
         json_schema_extra=_labels(["Approximate Ta", "From the modal analysis (≤ 1.4 Ta)"]),
     )
@@ -1492,19 +1511,20 @@ class Analysis(_Model):
     responseSpectrum: bool = Field(
         default=True,
         title="Response spectrum",
-        description="Add response spectrum analyses in X and Y with the BNBC design spectrum of "
-        "the site (CQC of the modes).",
+        description="Add response spectrum analyses in X and Y with the code pack's design "
+        "spectrum of the site (CQC of the modes).",
     )
     stiffness: Literal["gross", "aci"] = Field(
         default="aci",
         title="Section stiffness",
         description="Cracked (default): concrete and masonry members with the moments of "
-        "inertia of BNBC 2020 Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig "
-        "when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 "
+        "inertia of the default pack's Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig "
+        "when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). The default pack's "
         "Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects "
         "of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral "
-        "deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than BNBC intends).",
-        json_schema_extra=_labels(["Gross sections", "Cracked (ACI / BNBC 6.3.10.4.1)"]),
+        "deflections. Gross: the uncracked sections (the model is then too stiff: periods come "
+        "out shorter and drifts smaller than the code intends).",
+        json_schema_extra=_labels(["Gross sections", "Cracked (the code pack's factors)"]),
     )
     crackedFor: Literal["all", "lateral"] = Field(
         default="lateral",
@@ -1517,16 +1537,16 @@ class Analysis(_Model):
     wallsCracked: bool = Field(
         default=False,
         title="Walls cracked",
-        description="Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), BNBC 2020 Part "
+        description="Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), the default pack's Part "
         "6 Sec 6.3.10.4.1.",
     )
     secondOrder: Literal["none", "pDelta"] = Field(
         default="none",
         title="Second-order analysis",
-        description="None: columns are designed for slenderness by moment magnification (BNBC "
-        "2020 Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta "
+        description="None: columns are designed for slenderness by moment magnification (the default pack's "
+        "Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta "
         "transformations and every case is solved on the stiffness of the structure under "
-        "the gravity preload (BNBC 2020 Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs "
+        "the gravity preload (the default pack's Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs "
         "is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).",
         json_schema_extra=_labels(["None (moment magnification)", "P-Delta analysis"]),
     )
@@ -1534,13 +1554,13 @@ class Analysis(_Model):
         default_factory=PDeltaFactors,
         title="P-Delta preload factors",
         description="The gravity loads the P-Delta stiffness is taken under: by default the "
-        "gravity part of 1.2D + 1.0E + 1.0L (BNBC 2020 Part 6 Sec 2.7.3.1).",
+        "gravity part of 1.2D + 1.0E + 1.0L (the default pack's Part 6 Sec 2.7.3.1).",
     )
     firstOrderReference: bool = Field(
         default=True,
         title="First-order reference cases",
         description="With P-Delta, also run each lateral static case first order (EX-1, ...), "
-        "for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec "
+        "for the drift amplification and the stability coefficient θ of the default pack's Part 6 Sec "
         "2.5.7.9 in the report.",
     )
     notionalLoads: Literal["none", "secondOrder", "firstOrder", "directAnalysis"] = Field(
@@ -1556,7 +1576,7 @@ class Analysis(_Model):
         "reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every "
         "combination, and every steel member checked with K = 1; required by the code where "
         "the second-order drift exceeds 1.5 times the first-order drift. The coefficients are "
-        "the active code pack's (the values above are BNBC 2020's).",
+        "the active code pack's (the values above are the default pack's).",
         json_schema_extra=_labels(
             [
                 "None",
@@ -1601,7 +1621,7 @@ class Analysis(_Model):
         title="Earthquake design forces",
         description="Response spectrum: when the response spectrum cases run, E in the design "
         "combinations is the response spectrum, scaled up to 85 % of the equivalent static base "
-        "shear (BNBC 2020 Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal "
+        "shear (the default pack's Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal "
         "rule below (the static cases EX and EY otherwise). Static: the equivalent static cases "
         "EX and EY. Linear time history: E is the design value over the suite of time "
         "histories (the largest response, or the mean from the number of records the code "
@@ -1611,7 +1631,7 @@ class Analysis(_Model):
         json_schema_extra=_labels(
             [
                 "Equivalent static (EX, EY)",
-                "Response spectrum, scaled (BNBC 2.5.9.4)",
+                "Response spectrum, scaled to the static base shear",
                 "Linear time history, scaled",
             ]
         ),
@@ -1637,14 +1657,14 @@ class Analysis(_Model):
         default="auto",
         title="Orthogonal effects (100 % + 30 %)",
         description="Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D "
-        "(BNBC 2020 Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also "
+        "(the default pack's Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also "
         "for a Category C building with non-parallel systems (irregularity type V).",
         json_schema_extra=_labels(["By the Seismic Design Category", "Always", "Never"]),
     )
     seismicAccidentalTorsion: bool = Field(
         default=True,
         title="Accidental torsion",
-        description="Add the static torsional moments ±0.05 L F at each floor (BNBC 2020 Part 6 "
+        description="Add the static torsional moments ±0.05 L F at each floor (the default pack's Part 6 "
         "Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the "
         "building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec "
         "2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger "
@@ -1653,7 +1673,7 @@ class Analysis(_Model):
     seismicVerticalComponent: bool = Field(
         default=True,
         title="Vertical earthquake component",
-        description="E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (BNBC 2020 Part 6 Sec "
+        description="E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (the default pack's Part 6 Sec "
         "2.5.13.2).",
     )
     seismicLiveFactor: float | None = Field(
@@ -1661,16 +1681,16 @@ class Analysis(_Model):
         ge=0,
         title="Live load factor with E",
         description="Factor on L in 1.2D + 1.0E + L. Empty: the project's own static earthquake "
-        "combination's (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, BNBC "
-        "2020 Part 6 Sec 2.7.3.1 exception 1).",
+        "combination's (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, the default pack's "
+        "Part 6 Sec 2.7.3.1 exception 1).",
     )
     seismicRedundancy: float = Field(
         default=1.0,
         ge=1.0,
         le=1.3,
         title="Redundancy factor ρ (drift)",
-        description="The allowable storey drift of moment frames in Category D is Δa/ρ (BNBC "
-        "2020 Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.",
+        description="The allowable storey drift of moment frames in Category D is Δa/ρ (the default pack's "
+        "Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.",
     )
     seismicSigns: Literal["corners", "plusMinus"] = Field(
         default="corners",
@@ -1722,7 +1742,7 @@ class Analysis(_Model):
         default="fixed",
         title="Column supports",
         description="Fixed: the column bases are fixed. Soil springs: each column base stands on "
-        "its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 "
+        "its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (the default pack's "
         "Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their "
         "piles' head stiffnesses. Rafts: shells on subgrade springs. Columns without a "
         "foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are "
@@ -1746,7 +1766,7 @@ class Analysis(_Model):
         le=1,
         title="Pile group factor (lateral)",
         description="Multiplies the summed lateral and torsional stiffness of a cap's piles. 1.0: "
-        "no pile-soil-pile interaction (BNBC 2020 Part 6 Sec 3.10.1.19 takes a group efficiency "
+        "no pile-soil-pile interaction (the default pack's Part 6 Sec 3.10.1.19 takes a group efficiency "
         "of 1.0 for capacity).",
     )
     ssiEmbedment: bool = Field(
@@ -1794,7 +1814,7 @@ class AreaLoad(_Model):
         default="residential",
         description="Use of the area (Table 6.2.3).",
         json_schema_extra=_labels(
-            [f"{v.name} ({v.live} kN/m²)" for v in bnbc.AREA_USES.values()] + ["Custom"]
+            [f"{v.name} ({v.live} kN/m²)" for v in code_data.AREA_USES.values()] + ["Custom"]
         ),
     )
     live: Pressure = Field(description="Live load [kN/m²]; at least the code minimum for the use.")
@@ -1820,14 +1840,14 @@ class LoadCombination(_Model):
     T: float = Field(
         default=0,
         title="T",
-        description="Factor on the temperature case T (Analysis model → Temperature). BNBC 2020 "
+        description="Factor on the temperature case T (Analysis model → Temperature). The default pack's "
         "Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
     )
     ST: float = Field(
         default=0,
         title="ST",
         description="Factor on the support settlement case ST (Analysis model → Support "
-        "settlement): differential settlement is a self-straining effect T of BNBC 2020 Part 6 "
+        "settlement): differential settlement is a self-straining effect T of the default pack's Part 6 "
         "Sec 2.7, so it takes T's factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
     )
     F: float | None = Field(
@@ -2006,7 +2026,7 @@ class Drawings(_Model):
     developmentLength: Literal["simplified", "general"] = Field(
         default="simplified",
         title="Development length",
-        description="BNBC 2020 Part 6, 8.2.3: the simplified form (8.2.3.2) or the general "
+        description="The default pack's Part 6, 8.2.3: the simplified form (8.2.3.2) or the general "
         "Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).",
         json_schema_extra=_labels(["Simplified (8.2.3.2)", "General, Eq. 6.8.1 (8.2.3.3)"]),
     )
@@ -2195,14 +2215,20 @@ def default_area_loads() -> list[AreaLoad]:
             id="FL",
             name="Floors",
             use="residential",
-            live=bnbc.AREA_USES["residential"].live,
+            live=code_data.AREA_USES["residential"].live,
             finish=1.2,
             partitions=allowance.minimum if allowance is not None else 1.0,
         ),
         AreaLoad(
-            id="ST", name="Stairs", use="stairs", live=bnbc.AREA_USES["stairs"].live, finish=1.2
+            id="ST",
+            name="Stairs",
+            use="stairs",
+            live=code_data.AREA_USES["stairs"].live,
+            finish=1.2,
         ),
-        AreaLoad(id="RF", name="Roof", use="roof", live=bnbc.AREA_USES["roof"].live, finish=1.5),
+        AreaLoad(
+            id="RF", name="Roof", use="roof", live=code_data.AREA_USES["roof"].live, finish=1.5
+        ),
     ]
 
 
@@ -2401,7 +2427,7 @@ def check(settings: ProjectSettings) -> list[str]:
 
 
 def design_category(settings: ProjectSettings, site_class: str | None = None) -> dict[str, Any]:
-    """The Seismic Design Category of the site (BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18,
+    """The Seismic Design Category of the site (the default pack's Part 6 Sec 2.5.5.2, Table 6.2.18,
     p. 617) and what it allows of the structural system (Table 6.2.19, pp. 619-624; Sec 8.3.2,
     pp. 1088-1089): ``{"sdc", "zone", "siteClass", "permitted", "heightLimit", "detailing",
     "required", "row"}``. ``sdc`` is None without a zone (a custom location without Z);
@@ -2451,7 +2477,7 @@ def design_category(settings: ProjectSettings, site_class: str | None = None) ->
     }
 
 
-#: The levels of seismic detailing, lowest first (BNBC 2020 Part 6 Sec 8.3.2).
+#: The levels of seismic detailing, lowest first (the default pack's Part 6 Sec 8.3.2).
 _DETAILING = ("ordinary", "intermediate", "special")
 
 
@@ -2663,7 +2689,7 @@ def soil_site_class(
 
     ``label`` is the short form the settings editor and the report print, e.g. "SD (N̄ = 12
     over 30 m, BH-2)" (``detail`` the part in brackets): the governing borehole's harmonic mean
-    over the top 30 m of BNBC 2020 Table 6.2.13 that decides the class (N̄, or s̄u when the
+    over the top 30 m of the default pack's Table 6.2.13 that decides the class (N̄, or s̄u when the
     cohesive layers govern).
     """
     from saengine.soil import site_class
@@ -2680,7 +2706,7 @@ def soil_site_class(
         return {**none, "note": "The soil report has no boreholes."}
     if settings is not None:
         # With the settings (Z for amax), the liquefaction screening is taken into account:
-        # boreholes with liquefiable layers make the site S2 (BNBC 2020 Table 6.2.13) and use
+        # boreholes with liquefiable layers make the site S2 (the default pack's Table 6.2.13) and use
         # SD for the design spectrum meanwhile (saengine.soil.report.classify).
         from saengine.soil.report import classify
 

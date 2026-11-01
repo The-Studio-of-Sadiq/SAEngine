@@ -6,7 +6,7 @@ each pair of adjacent intersections and in every storey, a structural masonry wa
 bay a two-way RC slab spanning onto the walls (in the analysis as shells, since there are no
 beams); strip footings under the walls of each grid line. No columns or beams.
 
-- The structural system is the first masonry bearing wall system that BNBC 2020 Part 6 Table
+- The structural system is the first masonry bearing wall system that the default pack's Part 6 Table
   6.2.19 permits in the Seismic Design Category and height: ordinary plain masonry shear walls,
   else ordinary reinforced masonry shear walls (Sec 2.5.5.4). Neither is permitted in Category
   D: the spec is refused with a note (the table lists no confined masonry system, so it has no
@@ -24,7 +24,7 @@ beams); strip footings under the walls of each grid line. No columns or beams.
   them (rule of thumb). Reinforced masonry walls get one central layer of 16 mm bars at 800 mm
   vertically and 12 mm at 400 mm horizontally (within the bar sizes and spacings of the code
   pack's seismic detailing of reinforced walls in Zones 2 and 3, ``masonry.seismic``).
-- Slabs: BNBC 2020 Part 6 Eq. 6.6.6 (αfm > 2, the walls as stiff supports), ln (0.8 + fy/1400)
+- Slabs: the default pack's Part 6 Eq. 6.6.6 (αfm > 2, the walls as stiff supports), ln (0.8 + fy/1400)
   / (36 + 9 β) ≥ 90 mm, at least the spec's least slab, rounded up to 5 mm.
 - Strip footings: width from 1.1 × the gravity service load per metre of wall (the walls' own
   weight, and the slabs' dead, superimposed and live load over half the bays on each side) /
@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.defaults import default_material_library
 from saengine.library.floorplan import FloorPlan
 from saengine.library.generator import (
@@ -126,7 +126,7 @@ def generate_masonry_building(
     except ValueError as error:
         raise ValueError(
             f"no masonry bearing wall system is permitted in Seismic Design Category "
-            f"{sdc or 'B'} at {height_m:.1f} m (BNBC 2020 Part 6 Table 6.2.19): choose an RC "
+            f"{sdc or 'B'} at {height_m:.1f} m (the default pack's Part 6 Table 6.2.19): choose an RC "
             "system (the table lists no confined masonry system)"
         ) from error
     patch["seismic"] = {"system": system_id}
@@ -136,7 +136,7 @@ def generate_masonry_building(
     notes.append(
         f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
         f"{final.site.siteClass}, occupancy category {final.occupancy.category}); system "
-        f"{bnbc.STRUCTURAL_SYSTEMS[system_id].name} (Table 6.2.19)."
+        f"{code_data.STRUCTURAL_SYSTEMS[system_id].name} (Table 6.2.19)."
     )
     notes += system_notes
     if n > LOW_RISE:
@@ -383,7 +383,7 @@ def generate_masonry_building(
         )
     )
     notes.append(
-        "Slabs: two-way, BNBC 2020 Part 6 Eq. 6.6.6 with the walls as stiff supports, ln "
+        "Slabs: two-way, the default pack's Part 6 Eq. 6.6.6 with the walls as stiff supports, ln "
         "(0.8 + fy/1400) / (36 + 9 β) ≥ 90 mm, at least the least slab, in the analysis as "
         "shells (no beams)."
     )

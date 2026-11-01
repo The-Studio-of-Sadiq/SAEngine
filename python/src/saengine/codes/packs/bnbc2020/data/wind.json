@@ -4153,5 +4153,11 @@
     "factor": 1.9,
     "fullShare": 0.1,
     "noneShare": 1.0
+  },
+  "clauses": {
+    "designCases": "Part 6 Figure 6.2.9",
+    "designCasesExemption": "Sec 2.4.11.3",
+    "gust": "Part 6 Sec 2.4.8",
+    "flexible": "Part 6 Sec 2.4.8.2"
   }
 }

@@ -1,4 +1,4 @@
-"""Special stairs by the code pack's methods (``stairMethods``; BNBC 2020 Part 6 Sec 6.7.2 and
+"""Special stairs by the code pack's methods (``stairMethods``; the default pack's BNBC 2020 Part 6 Sec 6.7.2 and
 Appendix M) (B33):
 
 - **free-standing** (landing unsupported, method ``empiricalTable``): the service forces of the

@@ -4,10 +4,10 @@ Each floor of the building model is a horizontal beam that carries its seismic f
 lines of vertical elements (frames and structural walls). Per level and direction:
 
 - the diaphragm force Fpx = (Σ Fi / Σ wi) wpx over the levels at and above it, Fi the
-  equivalent static storey forces of the analysis (EX, EY; BNBC Sec 2.5.7) and wi the seismic
+  equivalent static storey forces of the analysis (EX, EY; the default pack's BNBC Sec 2.5.7) and wi the seismic
   weights (the nodes' masses), at least 0.2 and at most 0.4 SDS I wpx with SDS = 2.5 (2/3) Z S.
-  BNBC 2020 gives no diaphragm force of its own; this is ASCE 7-05 Sec 12.10.1.1, the standard
-  BNBC Sec 2.5 follows (the pack's ``transfer.diaphragm``);
+  The default pack's BNBC 2020 gives no diaphragm force of its own; this is ASCE 7-05 Sec 12.10.1.1, the standard
+  the default pack's BNBC Sec 2.5 follows (the pack's ``transfer.diaphragm``);
 - the chords: the floor as a simple beam spanning the outermost lines across the force,
   M = Fpx L / 8, L the floor's extent across the force; the chord force T = M / D, D its
   extent along the force, carried by the edge beams along the span (their top and bottom
@@ -19,7 +19,7 @@ lines of vertical elements (frames and structural walls). Per level and directio
   the wall does not touch, Fc = R (1 - lw / Lline). In Seismic Design Categories C and D the
   collectors take Ω0 Fc (Sec 2.5.5.6.3, p. 625);
 - B12, the connections of irregular buildings (the pack's ``seismic.diaphragmConnections``,
-  BNBC Sec 1.7.3.8(d)(i) and 2.5.5.6.2): in the categories and with the irregularities it
+  the default pack's BNBC Sec 1.7.3.8(d)(i) and 2.5.5.6.2): in the categories and with the irregularities it
   names (:mod:`saengine.fem.irregularity`), the force of each floor-to-wall connection (the
   wall's line share R of Fpx) and the collectors not designed for Ω0 go up by
   ``transfer.diaphragm.irregularIncrease`` (+25 %). The connection force is reported per wall
