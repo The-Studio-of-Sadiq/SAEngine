@@ -1974,6 +1974,7 @@ def _design_slabs(
         # Post-tensioning tendons in the slab (saengine.design.prestress).
         tendons = [t for t in building.additions.slabTendons if t.host == slab_id]
         designs: list[tuple[Any, str, Any]] = []
+        integrity: list[dict[str, Any]] = []
         if tendons:
             designs = _tendon_designs(
                 slab_id,
@@ -1990,6 +1991,19 @@ def _design_slabs(
                 notes,
             )
             context.precompression = _precompression(designs, object_type.thickness, outline, axes)
+            # B30: structural integrity tendons at the columns (saengine.design.prestress).
+            from saengine.design import prestress
+
+            integrity, integrity_notes = prestress.integrity_checks(
+                [(t, direction) for t, direction, _ in designs],
+                context.columns,
+                axes.x,
+                fc,
+                fy,
+                slab.layers_of(object_type.reinforcement, float(object_type.thickness)),
+                object_type.system != "oneWay",
+            )
+            notes += [f"{slab_id}: {note}" for note in integrity_notes]
         try:
             checks = slab.slab_checks(
                 object_type.system,
@@ -2017,6 +2031,7 @@ def _design_slabs(
             for tendon, _, design in designs:
                 checks += design.checks
                 notes += [f"{slab_id}: {note}" for note in design.notes]
+            checks += integrity
         strength = [c for c in checks if not c["flag"]]
         if collect is not None:
             collect.append(
@@ -2243,6 +2258,11 @@ def _tendon_designs(
                 bottom.d if bottom else h - 40.0,
                 top.d if top else h - 40.0,
                 object_type.system != "oneWay",
+                spacing_bottom=bottom.spacing if bottom else None,
+                spacing_top=top.spacing if top else None,
+                cover=float(object_type.reinforcement.cover),
+                deflection=getattr(settings.analysis, "deflection", "sensitive") or "sensitive",
+                roof=roof,
             )
         except (ValueError, ArithmeticError, np.linalg.LinAlgError) as error:
             notes.append(f"{slab_id}: tendon {tendon.id} not designed: {error}")

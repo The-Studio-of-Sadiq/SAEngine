@@ -22,11 +22,18 @@ Conventions:
   anchor set (lock-off), the elongation to measure at each live end, and the concrete strength
   at stressing (f'ci).
 
-Elongation (mechanics, as the jacking force is checked by it, ACI 318-11 18.20.1, which BNBC 2020
-Part 6 Chapter 9 follows): Δ = ∫ P(x) dx / (Ep Aps) over the length a live end stresses, P(x)
-the force after friction (18.6.2.1) as jacked; with both ends live, each end stresses up to the
-point where the forces from the two ends meet. The anchor set is not part of it (the draw-in
-happens at lock-off, after the elongation is measured).
+- Schedule also: the wobble and curvature friction coefficients the design used, and the age
+  of the concrete at stressing (the code pack asks for both on the drawings).
+- Anchorage zones (:func:`saengine.design.prestress.anchorage_zone`): at the anchors of
+  monostrand slab tendons the edge bars parallel to the slab edge (drawn, with the hairpins of a
+  group in their tag); the spalling and bursting steel of multi-strand anchors in the notes.
+
+Elongation (mechanics, as the jacking force is checked by it): Δ = ∫ P(x) dx / (Ep Aps) over the
+length a live end stresses, P(x) the force after friction as jacked; with both ends live, each
+end stresses up to the point where the forces from the two ends meet. The anchor set is not part
+of it (the draw-in happens at lock-off, after the elongation is measured).
+
+Clause references in the notes are the code pack's (:func:`saengine.design.prestress.clause`).
 """
 
 from __future__ import annotations
@@ -71,15 +78,59 @@ PROFILE_NOTES = [
     "Parabolic between the points, the vertex at the lower point of each segment.",
     "Supports (triangles) at the high points: the strip is designed on them.",
 ]
-SCHEDULE_NOTES = [
-    "Jacking force per tendon: fpj Aps (ACI 318-11 18.5.1: fpj <= 0.80 fpu, 0.94 fpy).",
-    "Lock-off: the force at the live anchor after the anchor set (18.5.1: <= 0.70 fpu).",
-    (
-        "Elongation: ∫P(x)dx / (Ep Aps) with the friction of 18.6.2.1, per live end; measured "
-        "elongations within 7 % of these (ACI 318-11 18.20.1), else the cause found and corrected."
-    ),
-    "Stress when the concrete has reached f'ci; the PT design checks are in the design report.",
-]
+
+
+def _cite(key: str) -> str:
+    from saengine.design.prestress import clause
+
+    found = clause(key)
+    return f" ({found})" if found else ""
+
+
+def schedule_notes() -> list[str]:
+    """The notes of the tendon and stressing schedule, with the code pack's clauses."""
+    from saengine.design.prestress import limits
+
+    try:
+        lim = limits()
+    except ValueError:
+        lim = None
+    jack = (
+        f" (fpj <= {lim.jackingFpu:g} fpu and {lim.jackingFpy:g} fpy{_cite('jacking')})"
+        if lim is not None
+        else ""
+    )
+    lock = f" (<= {lim.anchorFpu:g} fpu{_cite('anchors')})" if lim is not None else ""
+    return [
+        f"Jacking force per tendon: fpj Aps{jack}.",
+        f"Lock-off: the force at the live anchor after the anchor set{lock}.",
+        (
+            "Elongation: ∫P(x)dx / (Ep Aps) with the wobble and curvature coefficients scheduled"
+            f"{_cite('friction')}, per live end; measured elongations within 7 % of these "
+            "(SAEngine practice), else the cause found and corrected."
+        ),
+        (
+            "Stress when the concrete has reached f'ci, at the age scheduled"
+            f"{_cite('transferStrength')}. The PT design checks are in the design report."
+        ),
+    ]
+
+
+def plan_notes() -> list[str]:
+    """The plan notes, with the anchorage zone and integrity notes and the pack's clauses."""
+    return [
+        *PLAN_NOTES,
+        (
+            "Anchorage zones: bars drawn ahead of monostrand slab anchors parallel to the slab "
+            f"edge (tag: bars, and the hairpins of a group){_cite('slabAnchorage')}; multi-strand "
+            "anchors: spalling and bursting steel as in the design report"
+            f"{_cite('spalling')}."
+        ),
+        (
+            "Slabs with unbonded tendons: at least two strands each way through the column bars "
+            f"at every column, passing under the orthogonal tendons{_cite('integrity')}."
+        ),
+    ]
 
 
 @dataclass
@@ -96,6 +147,8 @@ class PtTendon:
     pieces: list[Any] = field(default_factory=list)  # the profile's segments
     elongation: tuple[float, ...] = ()  # mm per live end (start first)
     problem: str = ""
+    fy: float = 420.0  # MPa, of the anchorage zone bars
+    anchorage: Any = None  # saengine.design.prestress.Anchorage
 
     @property
     def start(self) -> Point:
@@ -175,6 +228,12 @@ def with_forces(item: PtTendon) -> PtTendon:
         return item
     item.forces, item.pieces = forces, pieces
     item.elongation = elongations(forces.jacking, pieces, forces.stations, tendon, forces.area)
+    try:
+        item.anchorage = prestress.anchorage_zone(
+            tendon, item.thickness, item.fy, forces.jacking / tendon.count
+        )
+    except ValueError:
+        item.anchorage = None
     return item
 
 
@@ -268,6 +327,30 @@ def _anchor(view: View, at: Point, towards: Point, live: bool) -> None:
     view.hatch(pts, "SOLID", "S-PT-ANCH")
 
 
+def _anchorage_bars(view: View, item: PtTendon) -> None:
+    """The edge bars ahead of the anchors at both ends of a monostrand slab group, tagged."""
+    found = item.anchorage
+    if found is None or not found.edge_bars:
+        return
+    count, dia, ahead, beyond = found.edge_bars
+    lines = tendon_lines(item)
+    (x1, y1), (x2, y2) = item.start, item.end
+    length = math.hypot(x2 - x1, y2 - y1) or 1.0
+    ux, uy = (x2 - x1) / length, (y2 - y1) / length
+    nx, ny = -uy, ux
+    offsets = [(p[0] - x1) * nx + (p[1] - y1) * ny for p, _ in lines]
+    lo, hi = min(offsets) - beyond, max(offsets) + beyond
+    tag = f"{count}Ø{dia:g}"
+    if found.hairpins:
+        tag += f" + {found.hairpins[0]}Ø{found.hairpins[1]:g} HAIRPINS"
+    for (ex, ey), sign in (((x1, y1), 1.0), ((x2, y2), -1.0)):
+        at = (ex + sign * ux * ahead / 2, ey + sign * uy * ahead / 2)
+        a = (at[0] + nx * lo, at[1] + ny * lo)
+        b = (at[0] + nx * hi, at[1] + ny * hi)
+        view.line(a, b, "S-REBAR-MAIN")
+        view.label(tag, b, [(1.5, 1.5, "BL"), (1.5, -1.5, "TL")], TEXT, layer="S-REBAR-MAIN")
+
+
 def group_text(item: PtTendon) -> str:
     """``PT1: 4 x 1 strand, banded``"""
     t = item.tendon
@@ -302,6 +385,7 @@ def tendon_plan(
                 view.line(a, b, "S-PT-TNDN")
                 _anchor(view, a, b, t.stressedAt in ("start", "both"))
                 _anchor(view, b, a, t.stressedAt in ("end", "both"))
+            _anchorage_bars(view, item)
         # the CGS heights at the profile's points along each group's line, then its tag
         for item in on_level:
             t = item.tendon
@@ -407,6 +491,7 @@ def schedule_row(item: PtTendon, level_name: str) -> list[str]:
     else:
         jack = lock_text = elong = "-"
     fci = f"{t.transferStrength:g}" if t.transferStrength else "-"
+    age = getattr(t, "transferAge", None)
     return [
         t.id,
         item.slab,
@@ -422,6 +507,8 @@ def schedule_row(item: PtTendon, level_name: str) -> list[str]:
         lock_text,
         elong,
         fci,
+        f"{age:g}" if age else "-",
+        f"{t.wobble:g} / {t.friction:g}",
     ]
 
 
@@ -447,6 +534,8 @@ def stressing_table(items: list[PtTendon], building: Building) -> Table:
         {"key": "lock", "title": "Lock-off per\ntendon (kN)", "width": 9, "align": "right"},
         {"key": "elong", "title": "Elongation per\nlive end (mm)", "width": 11, "align": "right"},
         {"key": "fci", "title": "f'ci\n(MPa)", "width": 6, "align": "right"},
+        {"key": "age", "title": "Age at\nstressing (d)", "width": 8, "align": "right"},
+        {"key": "friction", "title": "K (1/m) /\nμ", "width": 9, "align": "right"},
     ]
     rows = [schedule_row(item, name(item.level)) for item in items]
     return Table("Tendon and stressing schedule", columns, rows)

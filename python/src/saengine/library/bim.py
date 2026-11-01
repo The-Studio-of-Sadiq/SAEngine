@@ -370,17 +370,32 @@ class SlabTendon(_Model):
     anchorSet: float = Field(
         default=6, ge=0, title="Anchor set", description="Draw-in at the live end [mm]."
     )
-    longTermLoss: float = Field(
+    longTermLoss: float | None = Field(
+        default=None,
         ge=0,
         title="Long-term loss",
-        description="Loss of stress from creep, shrinkage and relaxation [MPa], worked out by "
-        "the engineer (the automatic time-step method is planned).",
+        description="Loss of stress from creep, shrinkage and relaxation [MPa]; empty: worked "
+        "out by the code pack's lump losses (creep and shrinkage of the concrete, relaxation of "
+        "the strand). A value entered here replaces them.",
     )
     transferStrength: float | None = Field(
         default=None,
         gt=0,
         title="f'ci",
         description="Concrete strength at stressing [MPa]; empty: transfer not checked.",
+    )
+    transferAge: float = Field(
+        default=7.0,
+        gt=0,
+        title="Age at stressing",
+        description="Age of the concrete when the tendons are stressed [days]: the age at "
+        "loading of the creep loss and the age at transfer of the shrinkage loss.",
+    )
+    anchorPlate: Length | None = Field(
+        default=None,
+        title="Anchor plate",
+        description="Size of the anchor's bearing plate across the slab thickness [mm], for the "
+        "bursting force of multi-strand anchors; empty: bursting not worked out.",
     )
     profile: list[TendonPoint] = Field(
         min_length=3,

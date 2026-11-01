@@ -402,7 +402,9 @@ def _pt_categories(
             if spec is not None:
                 by_scale.setdefault(spec.scale, []).append(spec)
     for scale, specs in by_scale.items():
-        out.append(_Category("Post-tensioning plans", scale, specs, plan=True, notes=pt.PLAN_NOTES))
+        out.append(
+            _Category("Post-tensioning plans", scale, specs, plan=True, notes=pt.plan_notes())
+        )
     specs = _details(pt.tendon_profile, data.pt, settings.elevation_scale, area, problems)
     if specs:
         out.append(
@@ -422,7 +424,7 @@ def _pt_categories(
     )
     out.append(
         _Category(
-            "Tendon and stressing schedule", 1, specs, scale_text="NTS", notes=pt.SCHEDULE_NOTES
+            "Tendon and stressing schedule", 1, specs, scale_text="NTS", notes=pt.schedule_notes()
         )
     )
     return out

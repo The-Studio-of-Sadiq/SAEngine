@@ -351,9 +351,299 @@
       "title": "ModulusRules",
       "type": "object"
     },
+    "PrestressAnchorage": {
+      "additionalProperties": false,
+      "description": "Post-tensioned anchorage zones: Ppu = loadFactor × the jacking force, φ; spalling steel\n``spalling`` × Ppu (not for monostrand slab tendons); f'ci at stressing; the slab edge bars\nand hairpins of monostrand slab anchors; bursting.",
+      "properties": {
+        "loadFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Loadfactor",
+          "type": "number"
+        },
+        "phi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "spalling": {
+          "exclusiveMinimum": 0,
+          "title": "Spalling",
+          "type": "number"
+        },
+        "transferMulti": {
+          "exclusiveMinimum": 0,
+          "title": "Transfermulti",
+          "type": "number"
+        },
+        "transferSingle": {
+          "exclusiveMinimum": 0,
+          "title": "Transfersingle",
+          "type": "number"
+        },
+        "monostrandArea": {
+          "exclusiveMinimum": 0,
+          "title": "Monostrandarea",
+          "type": "number"
+        },
+        "edgeBars": {
+          "minimum": 1,
+          "title": "Edgebars",
+          "type": "integer"
+        },
+        "edgeBarDia": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebardia",
+          "type": "number"
+        },
+        "edgeBarAhead": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebarahead",
+          "type": "number"
+        },
+        "edgeBarExtension": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebarextension",
+          "type": "number"
+        },
+        "groupSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Groupspacing",
+          "type": "number"
+        },
+        "groupMin": {
+          "minimum": 1,
+          "title": "Groupmin",
+          "type": "integer"
+        },
+        "hairpinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpindia",
+          "type": "number"
+        },
+        "hairpinFrom": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpinfrom",
+          "type": "number"
+        },
+        "hairpinTo": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpinto",
+          "type": "number"
+        },
+        "bursting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressBursting"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "loadFactor",
+        "phi",
+        "spalling",
+        "transferMulti",
+        "transferSingle",
+        "monostrandArea",
+        "edgeBars",
+        "edgeBarDia",
+        "edgeBarAhead",
+        "edgeBarExtension",
+        "groupSpacing",
+        "groupMin",
+        "hairpinDia",
+        "hairpinFrom",
+        "hairpinTo"
+      ],
+      "title": "PrestressAnchorage",
+      "type": "object"
+    },
+    "PrestressBondedTop": {
+      "additionalProperties": false,
+      "description": "Bonded top bars over the columns of two-way slabs: at least ``minBars`` bars at most\n``maxSpacing`` [mm] apart between lines ``beyondFace`` × h outside the column faces; bars\n``negativeLength`` × ln each side of the support, bottom bars ``positiveLength`` × ln.",
+      "properties": {
+        "minBars": {
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        },
+        "maxSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Maxspacing",
+          "type": "number"
+        },
+        "beyondFace": {
+          "exclusiveMinimum": 0,
+          "title": "Beyondface",
+          "type": "number"
+        },
+        "negativeLength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Negativelength",
+          "type": "number"
+        },
+        "positiveLength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Positivelength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minBars",
+        "maxSpacing",
+        "beyondFace",
+        "negativeLength",
+        "positiveLength"
+      ],
+      "title": "PrestressBondedTop",
+      "type": "object"
+    },
+    "PrestressBursting": {
+      "additionalProperties": false,
+      "description": "General zone bursting by simplified equations: T = share Ppu (1 - a/h), d = depthShare\n(h - 2e).",
+      "properties": {
+        "method": {
+          "const": "simplified",
+          "title": "Method",
+          "type": "string"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "depthShare": {
+          "exclusiveMinimum": 0,
+          "title": "Depthshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "share",
+        "depthShare"
+      ],
+      "title": "PrestressBursting",
+      "type": "object"
+    },
+    "PrestressCompression": {
+      "additionalProperties": false,
+      "description": "Prestressed compression members: above ``threshold`` [MPa] of effective prestress, ties\nof at least ``tieMinDia`` at most ``tieSpacingDiameters`` tie diameters (and the least\ndimension) apart, or spirals ρs >= spiralCoefficient (Ag/Ach - 1) f'c / fyt, fyt <=\nspiralFytMax.",
+      "properties": {
+        "threshold": {
+          "exclusiveMinimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "tieMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Tiemindia",
+          "type": "number"
+        },
+        "tieSpacingDiameters": {
+          "exclusiveMinimum": 0,
+          "title": "Tiespacingdiameters",
+          "type": "number"
+        },
+        "spiralCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Spiralcoefficient",
+          "type": "number"
+        },
+        "spiralFytMax": {
+          "exclusiveMinimum": 0,
+          "title": "Spiralfytmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "threshold",
+        "tieMinDia",
+        "tieSpacingDiameters",
+        "spiralCoefficient",
+        "spiralFytMax"
+      ],
+      "title": "PrestressCompression",
+      "type": "object"
+    },
+    "PrestressCracking": {
+      "additionalProperties": false,
+      "description": "Members with bonded tendons: φMn >= factor × Mcr, waived where the strength is at least\nwaiver × the required strength.",
+      "properties": {
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "waiver": {
+          "exclusiveMinimum": 0,
+          "title": "Waiver",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "waiver"
+      ],
+      "title": "PrestressCracking",
+      "type": "object"
+    },
+    "PrestressIntegrity": {
+      "additionalProperties": false,
+      "description": "Slabs with unbonded tendons: at least ``strands`` strands of ``strandArea`` [mm²] or more\neach way through the column (its section less ``coreInset`` [mm] each side), else bottom\nbars through it of at least bottomFactor × bottomRoot √f'c bw d / fy and bottomMin bw d /\nfy.",
+      "properties": {
+        "strands": {
+          "minimum": 1,
+          "title": "Strands",
+          "type": "integer"
+        },
+        "strandArea": {
+          "exclusiveMinimum": 0,
+          "title": "Strandarea",
+          "type": "number"
+        },
+        "coreInset": {
+          "minimum": 0,
+          "title": "Coreinset",
+          "type": "number"
+        },
+        "bottomFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Bottomfactor",
+          "type": "number"
+        },
+        "bottomRoot": {
+          "exclusiveMinimum": 0,
+          "title": "Bottomroot",
+          "type": "number"
+        },
+        "bottomMin": {
+          "exclusiveMinimum": 0,
+          "title": "Bottommin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strands",
+        "strandArea",
+        "coreInset",
+        "bottomFactor",
+        "bottomRoot",
+        "bottomMin"
+      ],
+      "title": "PrestressIntegrity",
+      "type": "object"
+    },
     "PrestressLimits": {
       "additionalProperties": false,
-      "description": "Prestressed slabs (BNBC 2020 Part 6 Chapter 9; ACI 318-11 Chapter 18): stress limits as\nmultiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,\nthe bonded reinforcement, precompression and tendon spacing, and punching with\nprestress.",
+      "description": "Prestressed concrete (the pack's prestressed chapter; the default pack's clauses are in\n``concrete.sources.prestress``): stress limits as\nmultiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,\nthe bonded reinforcement, precompression and tendon spacing, and punching with\nprestress.",
       "properties": {
         "jackingFpu": {
           "description": "Jacking stress <= this × fpu.",
@@ -553,6 +843,227 @@
           "exclusiveMinimum": 0,
           "title": "Punchingrootmax",
           "type": "number"
+        },
+        "punchingMethod": {
+          "default": "precompression",
+          "description": "Punching at the columns of prestressed slabs: 'precompression' (βp √f'c + fpc term above) or 'reinforced' (the nonprestressed vc, no prestress term).",
+          "enum": [
+            "precompression",
+            "reinforced"
+          ],
+          "title": "Punchingmethod",
+          "type": "string"
+        },
+        "transferSteelFpy": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tendon stress immediately after transfer <= this × fpy.",
+          "title": "Transfersteelfpy"
+        },
+        "transferSteelFpu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... and <= this × fpu.",
+          "title": "Transfersteelfpu"
+        },
+        "transferCompressionEnds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "At transfer, at the ends of simply supported members: compression <= this f'ci.",
+          "title": "Transfercompressionends"
+        },
+        "tensionClassT": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Class T up to this √f'c; Class C above (one-way members).",
+          "title": "Tensionclasst"
+        },
+        "gammaPByRatio": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(least fpy / fpu, γp) rows of bonded fps; the largest ratio met applies.",
+          "title": "Gammapbyratio"
+        },
+        "fpsMinFse": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The approximate fps needs fse >= this × fpu.",
+          "title": "Fpsminfse"
+        },
+        "bondedFyMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fy of the bonded bars of Nc / (k fy) at most this [MPa].",
+          "title": "Bondedfymax"
+        },
+        "rupture": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fr = this λ √f'c [MPa].",
+          "title": "Rupture"
+        },
+        "cracking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressCracking"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bondedTop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressBondedTop"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "transferBonded": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressTransferBonded"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relaxation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressRelaxation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "integrity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressIntegrity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "anchorage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressAnchorage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "compression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressCompression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
         }
       },
       "required": [
@@ -585,6 +1096,59 @@
         "punchingRootMax"
       ],
       "title": "PrestressLimits",
+      "type": "object"
+    },
+    "PrestressRelaxation": {
+      "additionalProperties": false,
+      "description": "Relaxation loss [MPa] by the initial stress / fpu (linear between, zero below the\nfirst, the last value above).",
+      "properties": {
+        "stressRatios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Stressratios",
+          "type": "array"
+        },
+        "losses": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Losses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "stressRatios",
+        "losses"
+      ],
+      "title": "PrestressRelaxation",
+      "type": "object"
+    },
+    "PrestressTransferBonded": {
+      "additionalProperties": false,
+      "description": "Bonded bars for the tension at transfer above the limits: As = T / (stressShare fy); the\nends of a simply supported member within endRegion × h of its anchors.",
+      "properties": {
+        "stressShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressshare",
+          "type": "number"
+        },
+        "endRegion": {
+          "exclusiveMinimum": 0,
+          "title": "Endregion",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stressShare",
+        "endRegion"
+      ],
+      "title": "PrestressTransferBonded",
       "type": "object"
     },
     "ShrinkageSteel": {

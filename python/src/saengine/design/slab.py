@@ -2033,6 +2033,12 @@ def _punching_row(
     beta = max(c1, c2) / min(c1, c2)
     capacity = punching_capacity(fc, d, section.b0, beta, section.alpha_s)
     prestressed = None
+    prestress_cite = ""
+    if context.precompression is not None:
+        from saengine.design import prestress
+
+        found = prestress.clause("punching")
+        prestress_cite = f" ({found})" if found else ""
     if context.precompression is not None and section.location == "interior":
         from saengine.design import prestress
 
@@ -2069,8 +2075,10 @@ def _punching_row(
     if prestressed is not None:
         note += (
             f"; prestressed: vc = βp √f'c + 0.3 fpc = {prestressed[0]:.3f} MPa, fpc = "
-            f"{prestressed[1]:.2f} MPa, Vp = 0 (ACI 318-11 11.11.2.2)"
+            f"{prestressed[1]:.2f} MPa, Vp = 0{prestress_cite}"
         )
+    elif context.precompression is not None:
+        note += f"; prestressed slab: the nonprestressed vc, no prestress term{prestress_cite}"
     if what:
         note = f"{what} ({c1:.0f} x {c2:.0f} mm): " + note
     row = _check(

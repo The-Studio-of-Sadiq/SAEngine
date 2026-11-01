@@ -1,8 +1,13 @@
 """Post-tensioned slabs: tendon forces and losses, load balancing, hyperstatic moments, stresses
-at transfer and service, flexural strength, bonded reinforcement, precompression, tendon
-spacing and punching with prestress (BNBC 2020 Part 6 Chapter 9, prestressed concrete, which
-follows ACI 318-11 Chapter 18; sections and pages of BNBC not checked). The limits are the code
-pack's ``concrete.prestress``.
+at transfer and service, member class, deflection, flexural strength, bonded reinforcement,
+precompression, tendon spacing, structural integrity, anchorage zones and punching with
+prestress; and the reinforcement rules of prestressed compression members.
+
+Every limit is the code pack's ``concrete.prestress`` (:class:`codes.tables.PrestressLimits`),
+the lump creep and shrinkage of the losses the pack's ``concreteTime.prestress``, and the clause
+of each result the pack's ``concrete.clauses`` (``prestress*`` keys); the default pack's sources
+are in ``concrete.sources.prestress``. A limit the pack does not give leaves its check out with
+a "not covered" note.
 
 A tendon group (``bim.SlabTendon``) designs the strip of slab it serves: ``width`` wide, the
 slab's thickness ``h`` deep, along the tendons from start to end. The strip is analysed as a
@@ -20,44 +25,69 @@ centroid (h / 2). These loads are in equilibrium on their own.
 Hyperstatic moments. The continuous strip under the balancing loads gives the total moment of
 the prestress M_bal; the primary moment is M1 = -P e (e = h/2 - y below the centroid, sagging
 positive), and the hyperstatic (secondary) moment M2 = M_bal - M1, linear between supports. The
-strength demand adds 1.0 M2 to the factored gravity moments (ACI 318-11 18.10.3); the service
-stresses take M_bal.
+strength demand adds 1.0 M2 to the factored gravity moments; the service stresses take M_bal.
 
-Forces (one average force per stage for the balancing loads; mechanics where the code lists the
-loss without a formula, ACI 318-11 18.6.1):
+Forces (one average force per stage for the balancing loads):
 
-- jacking: fpj = jacking × fpu, at most 0.80 fpu and 0.94 fpy (18.5.1);
-- friction (18.6.2.1): P(x) = Pj e^-(K x + μ α), α the angle change from the live end (both
-  live ends: the larger of the two);
+- jacking: fpj = jacking × fpu, at most jackingFpu fpu and jackingFpy fpy;
+- friction: P(x) = Pj e^-(K x + μ α), α the angle change from the live end (both live ends: the
+  larger of the two);
 - anchor set: the draw-in Δ reverses the friction near the live end over the length x_set where
-  ∫(2 (P(x) - P(x_set))) dx = Δ Ep Aps; stress at the anchors after transfer at most 0.70 fpu;
+  ∫(2 (P(x) - P(x_set))) dx = Δ Ep Aps;
 - elastic shortening of tendons stressed one after another: half the shortening of the average
-  precompression, ΔfES = 0.5 (Ep / Eci) fcp, Eci = 4700 √f'ci (BNBC 2020 Part 6 Sec 6.1.7.1);
-- long-term losses (creep, shrinkage, relaxation): the stress the engineer enters (a time-step
-  method is a planned feature).
+  precompression, ΔfES = 0.5 (Ep / Eci) fcp, Eci by the pack's Ec rule at f'ci (at f'c times
+  the strength gain to the age at stressing when no f'ci is entered);
+- long-term losses (:func:`long_term_losses`), unless the engineer enters one: relaxation from
+  the pack's table by the stress after transfer / fpu; creep Ep φ fcs / Eci with φ the pack's
+  creep coefficient at the age at stressing (interpolated on log age between the printed ages,
+  times the post-tensioned share) and fcs the concrete stress at the CGS under the prestress and
+  the sustained loads (D + SD), averaged along the tendon and over the period (the mean of its
+  values with the force after transfer and the effective force, iterated); shrinkage Ep εsh,
+  εsh the pack's post-tensioned shrinkage over log10(t + 2), t the age at stressing.
 
 Checks along the strip (stresses compression positive, f = P/A ± M/S with A = b h, S = b h²/6):
 
-- transfer (P after the immediate losses, self-weight): compression <= 0.60 f'ci, tension <=
-  0.25 √f'ci (18.4.1);
-- service, total load (D + SD + L): compression <= 0.60 f'c; tension <= 0.50 √f'c in two-way
-  slabs (Class U, 18.3.3), 0.62 √f'c in one-way slabs (Class U); sustained (D + SD):
-  compression <= 0.45 f'c (18.4.2);
+- tendon stress: at the anchors after the set, and anywhere immediately after transfer;
+- transfer (P after the immediate losses, self-weight): compression at most transferCompression
+  f'ci (transferCompressionEnds near the ends of a strip with two supports); tension above
+  transferTension √f'ci (transferTensionEnds at those ends) needs bonded bars for the whole
+  tension of the uncracked section at transferBonded.stressShare fy;
+- service, total load (D + SD + L) and sustained (D + SD): compression limits; the member class
+  from the extreme tension (Class U up to tensionClassU √f'c, T up to tensionClassT, C above);
+  two-way slabs must be Class U with tensionTwoWay √f'c; Class C needs the crack-control spacing
+  of the bonded bars nearest the tension face (and bonded tendons at the pack's share of it,
+  Δfps taken at its cap);
+- deflection: the live-load deflection with Ig (Class U) or Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³)
+  Icr (T, C), Mcr = fr Ig / yt; after attachment the creep of the sustained deflection (the
+  creep coefficient of the losses) plus the loss of prestress after transfer plus the live
+  load, against the pack's span divisors (Project Settings > Design > deflection);
 - strength: the gravity strength combinations of the pack plus 1.0 M2 against φMn of the
-  tendons and the bonded bars of the strip's direction: unbonded fps = fse + 70 + f'c / (100 ρp)
-  <= fpy, fse + 420 for span/depth <= 35, else fse + 70 + f'c / (300 ρp) <= fpy, fse + 210
-  (18.7.2 (c), (d)); bonded fps = fpu (1 - γp / β1 ρp fpu / f'c) (18.7.2 (a), γp = 0.28);
-  a = (Aps fps + As fy) / (0.85 f'c b); φ from εt (ACI 21.2.2);
-- bonded reinforcement (18.9): two-way slabs, top bars over each interior support As >= 0.00075
-  Acf (Acf taken as the strip's section h b); bottom bars As = Nc / (0.5 fy) where the service
-  tension exceeds 0.17 √f'c (Nc the tension force of the concrete); one-way slabs with unbonded
-  tendons As >= 0.004 Act (Act = b h / 2);
-- average precompression P_e / (b h) >= 0.9 MPa, and distributed tendons at most min(8 h,
-  1.5 m) apart (18.12.4).
+  tendons and the bonded bars of the strip's direction: unbonded fps = fse + unbondedAdd +
+  f'c / (k ρp) at most fpy and fse + cap; bonded fps = fpu (1 - γp / β1 ρp fpu / f'c), γp by
+  fpy / fpu; a = (Aps fps + As fy) / (0.85 f'c b); φ from εt; with bonded tendons φMn at least
+  cracking.factor × Mcr unless at least cracking.waiver × Mu;
+- bonded reinforcement: two-way slabs, top bars over each interior support As >= bondedNegative
+  Acf (Acf taken as the strip's section h b), at least bondedTop.minBars bars within
+  bondedTop.beyondFace h of the column faces, at most bondedTop.maxSpacing apart; bottom bars
+  As = Nc / (bondedPositiveStress fy), fy at most bondedFyMax, where the service tension exceeds
+  bondedPositiveTension √f'c (Nc the tension force of the concrete); one-way slabs with unbonded
+  tendons As >= bondedOneWay Act (Act = b h / 2);
+- average precompression P_e / (b h) >= minPrecompression, and distributed tendons at most
+  min(spacingThickness h, spacingMax) apart;
+- anchorage zones: Ppu = anchorage.loadFactor × the jacking force, f'ci at stressing at least
+  the pack's value for single or multi-strand tendons; monostrand slab anchors get the edge bars
+  and hairpins of the pack; multi-strand anchors spalling steel spalling × Ppu and, with the
+  anchor plate entered, the bursting force of the pack's simplified equations.
 
-Punching with prestress (ACI 318-11 11.11.2.2, :func:`punching_vc`): at interior columns of
-two-way slabs with fpc between 0.9 and 3.5 MPa each way, vc = βp √f'c + 0.3 fpc, βp = min(0.29,
-0.083 (αs d / b0 + 1.5)), √f'c <= 5.8 MPa; Vp is taken as zero (conservative).
+Structural integrity (:func:`integrity_checks`): in two-way slabs with unbonded tendons, at least
+``integrity.strands`` strands each way through each column, else bottom bars through it.
+
+Punching with prestress (:func:`punching_vc`): by the pack's ``punchingMethod``:
+``precompression`` vc = βp √f'c + punchingFpc fpc at interior columns with fpc in range;
+``reinforced`` (the default pack): no prestress term, the slab's nonprestressed vc applies.
+
+Compression members (:func:`compression_member_checks`): above ``compression.threshold`` of
+effective prestress, ties or spirals enclosing the tendons.
 """
 
 from __future__ import annotations
@@ -82,6 +112,127 @@ def limits() -> Any:
     if found is None:
         raise ValueError("the code pack has no prestressed concrete limits")
     return found
+
+
+def clause(key: str) -> str:
+    """The pack's clause of a prestressed result (``concrete.clauses`` key ``prestress<Key>``),
+    after the pack's edition; empty when it gives none."""
+    from saengine.design.rc_detailing import clause as table_clause
+
+    return table_clause("concrete", f"prestress{key[:1].upper()}{key[1:]}")
+
+
+def _cite(key: str) -> str:
+    found = clause(key)
+    return f" ({found})" if found else ""
+
+
+def not_covered(what: str) -> str:
+    pack = code_context.current()
+    return f"{what}: not covered by the code pack {pack.name}"
+
+
+# ─────────────────────────────────────── long-term losses ───────────────────────────────────────
+
+
+def _lump() -> Any:
+    """The pack's ``concreteTime.prestress`` lump creep and shrinkage, or None."""
+    from saengine.fem import concrete_time
+
+    found = concrete_time.table()
+    return getattr(found, "prestress", None) if found is not None else None
+
+
+def creep_coefficient(age: float, post_tensioned: bool = True) -> float:
+    """Creep coefficient of the prestress losses for loading at ``age`` [days]: the pack's
+    values at its ages of loading, linear on log(age) between them and the nearest outside,
+    times the post-tensioned share."""
+    from saengine.fem import concrete_time
+
+    lump = _lump()
+    if lump is None:
+        raise concrete_time.NotCovered(not_covered("creep of the prestress losses"))
+    ages, values = list(lump.creepAgesDays), list(lump.creepCoefficients)
+    phi = concrete_time._log_interp(max(age, 1e-9), ages, values) if len(ages) > 1 else values[0]
+    return phi * (lump.postTensionedCreepShare if post_tensioned else 1.0)
+
+
+def shrinkage_strain(age: float, post_tensioned: bool = True) -> float:
+    """Shrinkage strain of the prestress losses: post-tensioned the pack's value over
+    log10(t + 2), t the age at transfer [days]; pretensioned the pack's value."""
+    from saengine.fem import concrete_time
+
+    lump = _lump()
+    if lump is None:
+        raise concrete_time.NotCovered(not_covered("shrinkage of the prestress losses"))
+    if not post_tensioned:
+        return float(lump.pretensionedShrinkage)
+    return float(lump.postTensionedShrinkage) / math.log10(age + 2.0)
+
+
+def relaxation_loss(stress: float, fpu: float) -> float:
+    """Relaxation loss [MPa] of strand at the initial ``stress`` [MPa] by the pack's table
+    (linear between its stress ratios; its first loss below, its last above)."""
+    table = getattr(limits(), "relaxation", None)
+    if table is None:
+        raise ValueError(not_covered("relaxation of prestressing steel"))
+    return float(np.interp(stress / fpu, table.stressRatios, table.losses))
+
+
+@dataclass(frozen=True)
+class LongTermLosses:
+    """The long-term losses [MPa] of a tendon group and how they were found."""
+
+    creep: float
+    shrinkage: float
+    relaxation: float
+    stress: float  # fcs, the concrete stress at the CGS the creep is of [MPa]
+    coefficient: float  # φ
+    strain: float  # εsh
+
+    @property
+    def total(self) -> float:
+        return self.creep + self.shrinkage + self.relaxation
+
+    def text(self) -> str:
+        return (
+            f"creep {self.creep:.0f} MPa (φ = {self.coefficient:.2f}, fcs = {self.stress:.2f} "
+            f"MPa{_cite('creep')}), shrinkage {self.shrinkage:.0f} MPa (εsh = "
+            f"{self.strain * 1e6:.0f} × 10⁻⁶{_cite('shrinkage')}), relaxation "
+            f"{self.relaxation:.0f} MPa{_cite('relaxation')}"
+        )
+
+
+def long_term_losses(
+    ep: float,
+    fpu: float,
+    aps: float,
+    p_initial: float,
+    stress_at_cgs: Any,
+    eci: float,
+    age: float,
+    post_tensioned: bool = True,
+) -> LongTermLosses:
+    """The lump long-term losses of a group with ``aps`` [mm²] at the mean force ``p_initial``
+    [N] after the immediate losses: ``stress_at_cgs(P)`` gives the mean concrete compression at
+    the CGS [MPa] under the force P and the sustained loads; ``eci`` the modulus at loading and
+    ``age`` the age at stressing [days]. The creep stress is the mean of the stresses at the
+    start and the end of the period (the effective force iterated)."""
+    phi = creep_coefficient(age, post_tensioned)
+    strain = shrinkage_strain(age, post_tensioned)
+    shrinkage = ep * strain
+    relaxation = relaxation_loss(p_initial / aps, fpu)
+    start = float(stress_at_cgs(p_initial))
+    stress, creep = start, 0.0
+    for _ in range(20):
+        p_e = p_initial - (creep + shrinkage + relaxation) * aps
+        stress = 0.5 * (start + float(stress_at_cgs(p_e)))
+        updated = ep * phi * max(stress, 0.0) / eci
+        if abs(updated - creep) < 1e-6:
+            creep = updated
+            break
+        creep = updated
+    return LongTermLosses(creep, shrinkage, relaxation, stress, phi, strain)
 
 
 # ─────────────────────────────────────── profile ───────────────────────────────────────
@@ -164,12 +315,20 @@ class TendonForces:
     set_length: float  # mm
     elastic: float  # ΔfES [MPa]
     notes: list[str] = field(default_factory=list)
+    long_term: float = 0.0  # MPa, the long-term loss in ``effective``
+    eci: float = 0.0  # MPa, the modulus at stressing
+
+    def with_long_term(self, loss: float) -> TendonForces:
+        """The forces with the long-term ``loss`` [MPa] in the effective force."""
+        self.long_term = loss
+        self.effective = self.initial - loss * self.area
+        return self
 
 
 def friction_forces(
     pj: float, pieces: list[Segment], stations: np.ndarray, k: float, mu: float, ends: str
 ) -> np.ndarray:
-    """P(x) = Pj e^-(K x + μ α) from the live end(s) (ACI 318-11 18.6.2.1; K per metre)."""
+    """P(x) = Pj e^-(K x + μ α) from the live end(s) (K per metre)."""
     length = float(stations[-1])
     total = angle_change(pieces, length)
     alpha = np.array([angle_change(pieces, float(x)) for x in stations])
@@ -230,7 +389,8 @@ def tendon_forces(
     fc: float,
 ) -> TendonForces:
     """The group's forces along the strip (see the module notes). ``section_area``: b h of the
-    strip [mm²]."""
+    strip [mm²]. The effective force takes the long-term loss entered (none when it is left
+    empty: :func:`tendon_design` works it out)."""
     lim = limits()
     fpy = tendon.fpy or 0.9 * tendon.fpu
     aps = tendon.count * tendon.strands * tendon.strandArea
@@ -238,8 +398,9 @@ def tendon_forces(
     fpj = tendon.jacking * tendon.fpu
     if fpj > lim.jackingFpu * tendon.fpu + 1e-6 or fpj > lim.jackingFpy * fpy + 1e-6:
         notes.append(
-            f"jacking stress {fpj:.0f} MPa above min(0.80 fpu, 0.94 fpy) = "
-            f"{min(lim.jackingFpu * tendon.fpu, lim.jackingFpy * fpy):.0f} MPa"
+            f"jacking stress {fpj:.0f} MPa above min({lim.jackingFpu:g} fpu, "
+            f"{lim.jackingFpy:g} fpy) = "
+            f"{min(lim.jackingFpu * tendon.fpu, lim.jackingFpy * fpy):.0f} MPa{_cite('jacking')}"
         )
     pj = fpj * aps
     friction = friction_forces(
@@ -248,15 +409,31 @@ def tendon_forces(
     after_set, set_length = anchor_set(
         friction, stations, tendon.anchorSet, tendon.ep, aps, tendon.stressedAt
     )
-    fci = tendon.transferStrength or fc
-    eci = 4700 * math.sqrt(fci)
+    eci = modulus_at_stressing(tendon, fc)
     fcp = float(np.mean(after_set)) / section_area
     elastic = 0.5 * tendon.ep / eci * fcp
     initial = after_set - elastic * aps
-    effective = initial - tendon.longTermLoss * aps
-    return TendonForces(
-        stations, pj, friction, after_set, initial, effective, aps, set_length, elastic, notes
-    )
+    forces = TendonForces(
+        stations, pj, friction, after_set, initial, initial.copy(), aps, set_length, elastic,
+        notes, eci=eci,
+    )  # fmt: skip
+    return forces.with_long_term(tendon.longTermLoss or 0.0)
+
+
+def modulus_at_stressing(tendon: Any, fc: float) -> float:
+    """Eci [MPa]: the pack's Ec rule at f'ci; without f'ci, at f'c times the strength gain to
+    the age at stressing (the 28-day modulus when the pack has no strength gain)."""
+    from saengine.design.rc_detailing import concrete_modulus
+
+    if tendon.transferStrength:
+        return concrete_modulus(float(tendon.transferStrength))[0]
+    from saengine.fem import concrete_time
+
+    try:
+        share = concrete_time.strength_share(float(getattr(tendon, "transferAge", 28.0)))
+    except concrete_time.NotCovered:
+        share = 1.0
+    return concrete_modulus(fc * max(share, 1e-3))[0]
 
 
 # ─────────────────────────────────── the strip as a beam ───────────────────────────────────
@@ -279,6 +456,39 @@ class StripModel:
         moments of a beam on rigid supports do not depend on it) under ``distributed`` upward
         loads per element [N/mm], upward ``nodal`` forces [N] and counter-clockwise ``couples``
         [N·mm] at the nodes."""
+        displacement, fixed_end = self._solve(distributed, nodal, couples)
+        result = np.zeros(len(self.stations))
+        for e, (k, equivalent, dofs) in enumerate(fixed_end):
+            end = k @ displacement[dofs] - equivalent
+            if e == 0:
+                result[0] = -end[1]
+            result[e + 1] = end[3]
+        return result
+
+    def deflections(
+        self,
+        distributed: np.ndarray,
+        nodal: np.ndarray | None = None,
+        couples: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Upward deflections [mm × EI, EI in N·mm²] at the nodes under the same loads as
+        :meth:`moments`: divide by the strip's EI."""
+        return self._solve(distributed, nodal, couples)[0][0::2]
+
+    def spans(self) -> np.ndarray:
+        """The length [mm] of the span each node is in (between the supports either side)."""
+        out = np.zeros(len(self.stations))
+        fixed = sorted(self.fixed)
+        for i, j in pairwise(fixed):
+            out[i : j + 1] = self.stations[j] - self.stations[i]
+        return out
+
+    def _solve(
+        self,
+        distributed: np.ndarray,
+        nodal: np.ndarray | None,
+        couples: np.ndarray | None,
+    ) -> tuple[np.ndarray, list[Any]]:
         n = len(self.stations)
         size = 2 * n
         stiffness = np.zeros((size, size))
@@ -302,13 +512,7 @@ class StripModel:
         free = [d for d in range(size) if d not in held]
         displacement = np.zeros(size)
         displacement[free] = np.linalg.solve(stiffness[np.ix_(free, free)], loads[free])
-        result = np.zeros(n)
-        for e, (k, equivalent, dofs) in enumerate(fixed_end):
-            end = k @ displacement[dofs] - equivalent
-            if e == 0:
-                result[0] = -end[1]
-            result[e + 1] = end[3]
-        return result
+        return displacement, fixed_end
 
 
 def _beam_stiffness(length: float) -> np.ndarray:
@@ -373,18 +577,32 @@ def stress_at_strength(
     rho_p: float,
     span_depth: float,
     bonded: bool,
+    bars_term: float = 0.0,
 ) -> float:
-    """fps [MPa] (ACI 318-11 18.7.2): bonded fpu (1 - γp / β1 ρp fpu / f'c); unbonded fse + 70 +
-    f'c / (100 ρp) <= fpy, fse + 420 up to span/depth 35, else fse + 70 + f'c / (300 ρp) <= fpy,
-    fse + 210."""
+    """fps [MPa]: bonded fpu (1 - γp / β1 (ρp fpu / f'c + d / dp ω)), γp by fpy / fpu
+    (:func:`gamma_p`), ω = ρ fy / f'c of the bonded bars in tension (``bars_term`` = d / dp ω;
+    compression bars left out, on the safe side); unbonded fse + unbondedAdd + f'c / (k ρp) at most fpy and fse + cap, k
+    and cap up to and above the pack's span/depth."""
     lim = limits()
     if bonded:
-        return fpu * (1 - lim.gammaP / beta1(fc) * rho_p * fpu / fc)
+        return fpu * (1 - gamma_p(fpy, fpu) / beta1(fc) * (rho_p * fpu / fc + bars_term))
     slender = span_depth > lim.unbondedSpanDepth
     k = lim.unbondedK[1] if slender else lim.unbondedK[0]
     cap = lim.unbondedCap[1] if slender else lim.unbondedCap[0]
     fps = fse + lim.unbondedAdd + fc / (k * rho_p)
     return min(fps, fpy, fse + cap)
+
+
+def gamma_p(fpy: float, fpu: float) -> float:
+    """γp of the bonded fps: the pack's row with the largest fpy / fpu ratio met (its first,
+    the largest γp, when none is met); the pack's single γp when it has no rows."""
+    lim = limits()
+    rows = getattr(lim, "gammaPByRatio", None)
+    if not rows:
+        return float(lim.gammaP)
+    ratio = fpy / fpu
+    met = [g for r, g in sorted(rows) if ratio >= r - 1e-9]
+    return float(met[-1]) if met else float(min(rows)[1])
 
 
 @dataclass(frozen=True)
@@ -407,7 +625,8 @@ def flexural_strength(
     width: float,
 ) -> Strength:
     """φMn [N·mm] of a strip ``width`` wide with ``aps`` at ``dp`` stressed to ``fps`` and
-    ``bars`` [mm²] at ``d`` (rectangular stress block, ACI 22.2; φ from εt, ACI 21.2.2)."""
+    ``bars`` [mm²] at ``d`` (rectangular stress block of 0.85 f'c over β1 c; φ from εt by the
+    pack's φ rules)."""
     tension = aps * fps + bars * fy
     a = tension / (0.85 * fc * width)
     c = a / beta1(fc)
@@ -419,11 +638,14 @@ def flexural_strength(
 
 
 def punching_vc(fc: float, d: float, b0: float, alpha_s: float, fpc: float) -> float | None:
-    """vc [MPa] of two-way shear at an interior column of a prestressed slab (ACI 318-11
-    11.11.2.2): βp √f'c + 0.3 fpc, βp = min(0.29, 0.083 (1.5 + αs d / b0)), √f'c <= 5.8 MPa;
-    None when fpc (the average of the two directions; each must be in range, checked by the
-    caller) is outside 0.9-3.5 MPa."""
+    """vc [MPa] of two-way shear at an interior column of a prestressed slab by the pack's
+    ``punchingMethod``: ``precompression`` βp √f'c + punchingFpc fpc, βp = min(punchingBetaMax,
+    punchingBetaA (1.5 + αs d / b0)), √f'c at most punchingRootMax; None when fpc (the average
+    of the two directions; each must be in range, checked by the caller) is outside the pack's
+    range, or the method is ``reinforced`` (the nonprestressed vc applies)."""
     lim = limits()
+    if getattr(lim, "punchingMethod", "precompression") != "precompression":
+        return None
     lo, hi = lim.punchingFpcRange
     if not lo <= fpc <= hi:
         return None
@@ -445,6 +667,20 @@ class StripLoads:
 
 
 @dataclass
+class Anchorage:
+    """The anchorage zone of each tendon of a group: the factored force and what the zone
+    needs (see the module notes)."""
+
+    ppu: float  # N, per tendon
+    monostrand: bool
+    edge_bars: tuple[int, float, float, float] | None = None  # count, Ø, ahead, beyond [mm]
+    hairpins: tuple[int, float, float, float] | None = None  # count, Ø, from, to ahead [mm]
+    spalling: float = 0.0  # mm² each way per anchor
+    bursting: tuple[float, float, float] | None = None  # T [N], its distance [mm], As [mm²]
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass
 class TendonDesign:
     """A tendon group's design: its checks, the effective precompression [MPa] and notes."""
 
@@ -452,6 +688,89 @@ class TendonDesign:
     precompression: float
     forces: TendonForces
     notes: list[str]
+    losses: LongTermLosses | None = None
+    member_class: str = ""
+    anchorage: Anchorage | None = None
+
+
+def member_class(ft: float, fc: float) -> str:
+    """The class of a prestressed flexural member from its extreme service tension ``ft``
+    [MPa]: "U", "T" or "C" by the pack's √f'c limits ("C" above Class U when the pack has no
+    Class T limit)."""
+    lim = limits()
+    root = math.sqrt(fc)
+    if ft <= lim.tensionClassU * root:
+        return "U"
+    if lim.tensionClassT is not None and ft <= lim.tensionClassT * root:
+        return "T"
+    return "C"
+
+
+def anchorage_zone(tendon: Any, h: float, fy: float, jacking_per_tendon: float) -> Anchorage | None:
+    """What the anchorage zone of each tendon of the group needs; None when the pack does not
+    cover anchorage zones."""
+    rule = getattr(limits(), "anchorage", None)
+    if rule is None:
+        return None
+    ppu = rule.loadFactor * jacking_per_tendon
+    mono = tendon.strands == 1 and tendon.strandArea <= rule.monostrandArea * (1 + 1e-6)
+    found = Anchorage(ppu, mono)
+    if mono:
+        found.edge_bars = (
+            rule.edgeBars,
+            rule.edgeBarDia,
+            rule.edgeBarAhead * h,
+            rule.edgeBarExtension,
+        )
+        # Banded tendons are anchored together; distributed ones width / count apart.
+        spacing = float(tendon.width) / tendon.count if tendon.layout == "distributed" else 0.0
+        if tendon.count >= rule.groupMin and spacing <= rule.groupSpacing:
+            found.hairpins = (
+                tendon.count + 1,
+                rule.hairpinDia,
+                rule.hairpinFrom * h,
+                rule.hairpinTo * h,
+            )
+        return found
+    found.spalling = rule.spalling * ppu / fy
+    bursting = rule.bursting
+    if bursting is not None and tendon.anchorPlate:
+        a = float(tendon.anchorPlate)
+        e = max(abs(h / 2 - tendon.profile[0].height), abs(h / 2 - tendon.profile[-1].height))
+        force = bursting.share * ppu * max(1.0 - a / h, 0.0)
+        where = bursting.depthShare * max(h - 2 * e, 0.0)
+        found.bursting = (force, where, force / (rule.phi * fy))
+    elif bursting is not None:
+        found.notes.append("anchor plate not entered: the bursting force is not worked out")
+    return found
+
+
+def _anchorage_text(found: Anchorage) -> str:
+    parts = [f"Ppu = {found.ppu / 1e3:.0f} kN per tendon{_cite('anchorage')}"]
+    if found.edge_bars:
+        n, dia, ahead, beyond = found.edge_bars
+        parts.append(
+            f"{n} Ø{dia:g} bars parallel to the slab edge within {ahead:.0f} mm ahead of the "
+            f"anchors, {beyond:.0f} mm beyond the outer ones{_cite('slabAnchorage')}"
+        )
+    if found.hairpins:
+        n, dia, start, end = found.hairpins
+        parts.append(
+            f"{n} Ø{dia:g} hairpins, one between and one each side of the anchors, "
+            f"{start:.0f}-{end:.0f} mm ahead of them{_cite('slabAnchorage')}"
+        )
+    if found.spalling:
+        parts.append(
+            f"spalling steel As >= {found.spalling:.0f} mm² each way behind each anchor"
+            f"{_cite('spalling')}"
+        )
+    if found.bursting:
+        force, where, steel = found.bursting
+        parts.append(
+            f"bursting T = {force / 1e3:.0f} kN at {where:.0f} mm ahead, As >= {steel:.0f} mm²"
+            f"{_cite('bursting')}"
+        )
+    return "; ".join(parts + found.notes)
 
 
 def tendon_design(
@@ -465,17 +784,29 @@ def tendon_design(
     d_bottom: float,
     d_top: float,
     two_way: bool,
+    *,
+    spacing_bottom: float | None = None,
+    spacing_top: float | None = None,
+    cover: float | None = None,
+    deflection: str = "sensitive",
+    roof: bool = False,
+    column_width: float = 0.0,
 ) -> TendonDesign:
     """The checks of one tendon group (see the module notes). ``bars_bottom``, ``bars_top``:
-    bonded bars [mm²/m] along the tendons at depths ``d_bottom``, ``d_top`` [mm]."""
+    bonded bars [mm²/m] along the tendons at depths ``d_bottom``, ``d_top`` [mm], spaced
+    ``spacing_bottom``, ``spacing_top`` [mm] with ``cover`` [mm] to their surface; ``deflection``:
+    the project's deflection option ("sensitive", "insensitive" or "off"); ``column_width``: of
+    the columns across the strip [mm], for the bonded top bars."""
     from saengine.design.check import _check
+    from saengine.design.rc_detailing import concrete_modulus, lambda_factor
 
     lim = limits()
     points = [(float(p.at), float(p.height)) for p in tendon.profile]
     model, pieces = strip_model(points)
     stations = model.stations
     b = float(tendon.width)
-    area, modulus = b * h, b * h**2 / 6
+    area, modulus, inertia = b * h, b * h**2 / 6, b * h**3 / 12
+    root = math.sqrt(fc)
     forces = tendon_forces(tendon, pieces, stations, area, fc)
     notes = list(forces.notes)
     notes.append(
@@ -484,29 +815,60 @@ def tendon_design(
     )
     fpy = tendon.fpy or 0.9 * tendon.fpu
     aps = forces.area
-    p_i, p_e = float(np.mean(forces.initial)), float(np.mean(forces.effective))
     heights = np.array([next(p for p in pieces if p.x0 <= x <= p.x1).height(x) for x in stations])
     eccentricity = h / 2 - heights
+    elements = len(stations) - 1
 
     def gravity(load: float) -> np.ndarray:
-        return model.moments(np.full(len(stations) - 1, -load * b))
+        return model.moments(np.full(elements, -load * b))
 
     m_dead, m_super, m_live = (
         gravity(loads.dead),
         gravity(loads.superimposed),
         gravity(loads.live),
     )
+    m_sustained = m_dead + m_super
+    unit_loads = balancing_loads(pieces, model, 1.0, h)
+    unit_moment = model.moments(*unit_loads)
 
     def balanced(force: float) -> np.ndarray:
-        return model.moments(*balancing_loads(pieces, model, force, h))
+        return force * unit_moment
 
+    p_i = float(np.mean(forces.initial))
+    losses: LongTermLosses | None = None
+    if tendon.longTermLoss is None:
+
+        def stress_at_cgs(force: float) -> float:
+            moment = m_sustained + balanced(force)
+            return float(np.mean(force / area - moment * eccentricity / inertia))
+
+        try:
+            losses = long_term_losses(
+                tendon.ep,
+                tendon.fpu,
+                aps,
+                p_i,
+                stress_at_cgs,
+                forces.eci,
+                float(tendon.transferAge),
+            )
+            forces.with_long_term(losses.total)
+            notes.append(f"{tendon.id}: long-term loss {losses.total:.0f} MPa: {losses.text()}")
+        except ValueError as error:
+            notes.append(
+                f"{tendon.id}: long-term losses not worked out ({error}); none taken: enter the "
+                "long-term loss of the tendon group"
+            )
+    p_e = float(np.mean(forces.effective))
     m_bal_i, m_bal_e = balanced(p_i), balanced(p_e)
     m_hyp = m_bal_e + p_e * eccentricity
     checks: list[dict[str, Any]] = []
     name = f"PT {tendon.id}"
-    where = lambda i: f"at {stations[i] / 1e3:.2f} m along {tendon.id}"
 
-    # Stresses at the anchors after transfer (18.5.1 (c)).
+    def where(i: int) -> str:
+        return f"at {stations[i] / 1e3:.2f} m along {tendon.id}"
+
+    # Tendon stress at the anchors after the set, and anywhere immediately after transfer.
     anchor_stress = float(max(forces.after_set[0], forces.after_set[-1])) / aps
     checks.append(
         _check(
@@ -516,15 +878,31 @@ def tendon_design(
             "MPa",
             None,
             f"jacking {tendon.jacking:.2f} fpu, set length {forces.set_length / 1e3:.2f} m "
-            f"(draw-in {tendon.anchorSet:g} mm); <= 0.70 fpu (ACI 318-11 18.5.1)",
+            f"(draw-in {tendon.anchorSet:g} mm); <= {lim.anchorFpu:g} fpu{_cite('anchors')}",
         )
     )
+    if lim.transferSteelFpy is not None and lim.transferSteelFpu is not None:
+        steel_limit = min(lim.transferSteelFpy * fpy, lim.transferSteelFpu * tendon.fpu)
+        steel = float(np.max(forces.initial)) / aps
+        checks.append(
+            _check(
+                f"{name}: tendon stress after transfer",
+                steel,
+                steel_limit,
+                "MPa",
+                None,
+                f"<= {lim.transferSteelFpy:g} fpy and {lim.transferSteelFpu:g} fpu"
+                f"{_cite('steelTransfer')}",
+            )
+        )
+
+    def faces(moment: np.ndarray, force: float) -> tuple[np.ndarray, np.ndarray]:
+        return force / area + moment / modulus, force / area - moment / modulus
 
     def stress_check(
         label: str, moment: np.ndarray, force: float, compression: float, tension: float, why: str
     ) -> None:
-        top = force / area + moment / modulus
-        bottom = force / area - moment / modulus
+        top, bottom = faces(moment, force)
         worst_c = max(float(top.max()), float(bottom.max()))
         i_c = int(np.argmax(np.maximum(top, bottom)))
         worst_t = max(float(-top.min()), float(-bottom.min()), 0.0)
@@ -553,35 +931,89 @@ def tendon_design(
 
     if tendon.transferStrength:
         fci = float(tendon.transferStrength)
-        stress_check(
-            "transfer",
-            m_dead + m_bal_i,
-            p_i,
-            lim.transferCompression * fci,
-            lim.transferTension * math.sqrt(fci),
-            f"self-weight and P after the immediate losses; 0.60 f'ci, 0.25 √f'ci "
-            f"(ACI 318-11 18.4.1), f'ci = {fci:g} MPa",
+        checks += _transfer_checks(
+            name,
+            model,
+            faces(m_dead + m_bal_i, p_i),
+            fci,
+            h,
+            b,
+            fy,
+            bars_bottom,
+            bars_top,
+            where,
         )
     else:
         notes.append(f"{tendon.id}: no f'ci entered, the stresses at transfer are not checked")
-    tension_limit = (lim.tensionTwoWay if two_way else lim.tensionClassU) * math.sqrt(fc)
-    total = m_dead + m_super + m_live + m_bal_e
+
+    # Service: compression limits, the member class and its tension.
+    total = m_sustained + m_live + m_bal_e
+    top, bottom = faces(total, p_e)
+    tension = np.maximum(np.maximum(-top, -bottom), 0.0)
+    i_t = int(np.argmax(tension))
+    ft = float(tension[i_t])
+    klass = "U" if two_way else member_class(ft, fc)
     stress_check(
         "service",
         total,
         p_e,
         lim.totalCompression * fc,
-        tension_limit,
-        "D + SD + L with the effective force; 0.60 f'c (ACI 318-11 18.4.2), tension "
-        + ("0.50 √f'c, two-way Class U (18.3.3)" if two_way else "0.62 √f'c, Class U (18.3.3)"),
+        lim.tensionTwoWay * root if two_way else 0.0,
+        f"D + SD + L with the effective force; {lim.totalCompression:g} f'c"
+        + (f", two-way slabs Class U: tension <= {lim.tensionTwoWay:g} √f'c" if two_way else "")
+        + f"{_cite('service')}{_cite('class') if two_way else ''}",
     )
     stress_check(
         "sustained",
-        m_dead + m_super + m_bal_e,
+        m_sustained + m_bal_e,
         p_e,
         lim.sustainedCompression * fc,
         0.0,
-        "D + SD with the effective force; 0.45 f'c (ACI 318-11 18.4.2)",
+        f"D + SD with the effective force; {lim.sustainedCompression:g} f'c{_cite('service')}",
+    )
+    if not two_way:
+        class_t = f", T up to {lim.tensionClassT:g} √f'c" if lim.tensionClassT is not None else ""
+        notes.append(
+            f"{tendon.id}: Class {klass}, service tension {ft:.2f} MPa = {ft / root:.2f} √f'c "
+            f"(Class U up to {lim.tensionClassU:g} √f'c{class_t}){_cite('class')}"
+        )
+    if klass == "C":
+        bottom_face = bool(-bottom[i_t] >= -top[i_t])
+        checks += _class_c_spacing(
+            name,
+            tendon,
+            bottom_face,
+            spacing_bottom if bottom_face else spacing_top,
+            cover,
+            fy,
+            float(heights[i_t]),
+            h,
+            b,
+        )
+
+    # Deflection.
+    fr = lim.rupture * lambda_factor() * root if lim.rupture is not None else None
+    ec = concrete_modulus(fc)[0]
+    checks += _deflection_checks(
+        name,
+        tendon,
+        model,
+        loads,
+        b,
+        h,
+        ec,
+        inertia,
+        klass,
+        fr,
+        total,
+        (bars_bottom, d_bottom),
+        aps,
+        heights,
+        (p_i, p_e),
+        deflection,
+        roof,
+        notes,
+        unit_loads,
     )
 
     # Strength: the gravity combinations plus 1.0 M2.
@@ -590,95 +1022,91 @@ def tendon_design(
     ]
     span_depth = max(spans) / h
     fse = p_e / aps
+    if lim.fpsMinFse is not None and fse < lim.fpsMinFse * tendon.fpu:
+        notes.append(
+            f"{tendon.id}: fse = {fse:.0f} MPa below {lim.fpsMinFse:g} fpu: the approximate fps "
+            f"is not permitted, check fps by strain compatibility{_cite('fps')}"
+        )
     worst: tuple[float, float, float, str, int, Strength] | None = None
     for combination in code_context.table("combinations").gravity:
         factors = combination.factors
         dead = factors.get("D", 0.0)
         live = factors.get("L", 0.0) + factors.get("Lr", 0.0)
-        mu = dead * (m_dead + m_super) + live * m_live + m_hyp
+        mu = dead * m_sustained + live * m_live + m_hyp
         for i, moment in enumerate(mu):
             sagging = moment >= 0
             dp = h - heights[i] if sagging else heights[i]
             rho_p = aps / (b * dp)
-            fps = stress_at_strength(fse, tendon.fpu, fpy, fc, rho_p, span_depth, tendon.bonded)
             bars = (bars_bottom if sagging else bars_top) * b / 1000
             d = d_bottom if sagging else d_top
+            omega = d / dp * bars / (b * d) * fy / fc if d > 0 else 0.0
+            fps = stress_at_strength(
+                fse, tendon.fpu, fpy, fc, rho_p, span_depth, tendon.bonded, omega
+            )
             strength = flexural_strength(aps, fps, dp, bars, fy, d, fc, b)
             ratio = abs(moment) / strength.phi_mn if strength.phi_mn > 0 else math.inf
             if worst is None or ratio > worst[0]:
-                worst = (ratio, abs(float(moment)), strength.phi_mn, combination.name, i, strength)
+                worst = (ratio, float(moment), strength.phi_mn, combination.name, i, strength)
     if worst is not None:
         ratio, demand, capacity, combination_name, i, strength = worst
         checks.append(
             _check(
                 f"{name}: flexural strength",
-                demand / 1e6,
+                abs(demand) / 1e6,
                 capacity / 1e6,
                 "kN·m",
                 f"{combination_name} + 1.0 M2",
-                f"Mu with the hyperstatic M2 = {m_hyp[i] / 1e6:.1f} kN·m (ACI 318-11 18.10.3); "
-                f"fps = {strength.fps:.0f} MPa ({'bonded' if tendon.bonded else 'unbonded'}, "
-                f"18.7.2), span/depth {span_depth:.1f}, a = {strength.a:.0f} mm, "
-                f"φ = {strength.phi:.2f}; {where(i)}",
+                f"Mu with the hyperstatic M2 = {m_hyp[i] / 1e6:.1f} kN·m{_cite('hyperstatic')}; "
+                f"fps = {strength.fps:.0f} MPa ({'bonded' if tendon.bonded else 'unbonded'}"
+                f"{_cite('fps')}), span/depth {span_depth:.1f}, a = {strength.a:.0f} mm, "
+                f"φ = {strength.phi:.2f}{_cite('phi')}; {where(i)}",
                 utilisation=ratio,
             )
         )
+        cracking = lim.cracking
+        if tendon.bonded and cracking is not None and fr is not None:
+            sign = 1.0 if demand >= 0 else -1.0
+            mcr = modulus * (fr + p_e / area) + sign * p_e * float(eccentricity[i])
+            if capacity >= cracking.waiver * abs(demand):
+                notes.append(
+                    f"{tendon.id}: φMn >= {cracking.waiver:g} Mu, the {cracking.factor:g} Mcr "
+                    f"rule is waived{_cite('cracking')}"
+                )
+            else:
+                checks.append(
+                    _check(
+                        f"{name}: strength against cracking",
+                        cracking.factor * max(mcr, 0.0) / 1e6,
+                        capacity / 1e6,
+                        "kN·m",
+                        None,
+                        f"φMn >= {cracking.factor:g} Mcr, Mcr = S (fr + P/A) ± P e = "
+                        f"{mcr / 1e6:.1f} kN·m, fr = {fr:.2f} MPa{_cite('rupture')}"
+                        f"{_cite('cracking')}; {where(i)}",
+                    )
+                )
 
-    # Bonded reinforcement (18.9).
-    if two_way:
-        acf = h * b
-        needed = lim.bondedNegative * acf
-        provided = bars_top * b / 1000
-        if len(model.fixed) > 2:
-            checks.append(
-                _check(
-                    f"{name}: bonded top bars over the supports",
-                    needed,
-                    provided,
-                    "mm²",
-                    None,
-                    f"As >= 0.00075 Acf, Acf = h b = {acf / 1e6:.3f} m² (the strip's section; "
-                    "ACI 318-11 18.9.3.3)",
-                    utilisation=needed / provided if provided > 0 else math.inf,
-                )
-            )
-        top = p_e / area + total / modulus
-        bottom = p_e / area - total / modulus
-        i = int(np.argmin(bottom))
-        ft = -float(bottom[i])
-        if ft > lim.bondedPositiveTension * math.sqrt(fc):
-            depth = h * ft / (ft + max(float(top[i]), 0.0)) if ft > 0 else 0.0
-            nc = 0.5 * ft * depth * b
-            needed = nc / (lim.bondedPositiveStress * fy)
-            provided = bars_bottom * b / 1000
-            checks.append(
-                _check(
-                    f"{name}: bonded bottom bars in the span",
-                    needed,
-                    provided,
-                    "mm²",
-                    None,
-                    f"service tension {ft:.2f} MPa > 0.17 √f'c: As = Nc / (0.5 fy), Nc = "
-                    f"{nc / 1e3:.0f} kN (ACI 318-11 18.9.3.2); {where(i)}",
-                    utilisation=needed / provided if provided > 0 else math.inf,
-                )
-            )
-    elif not tendon.bonded:
-        needed = lim.bondedOneWay * b * h / 2
-        provided = bars_bottom * b / 1000
-        checks.append(
-            _check(
-                f"{name}: bonded bars (unbonded one-way)",
-                needed,
-                provided,
-                "mm²",
-                None,
-                "As >= 0.004 Act, Act = b h / 2 (ACI 318-11 18.9.2)",
-                utilisation=needed / provided if provided > 0 else math.inf,
-            )
-        )
+    # Bonded reinforcement.
+    checks += _bonded_checks(
+        name,
+        tendon,
+        model,
+        h,
+        b,
+        fc,
+        fy,
+        two_way,
+        (p_e, total, area, modulus),
+        (bars_bottom, bars_top, spacing_top),
+        column_width,
+        where,
+        notes,
+    )
 
     precompression = p_e / area
+    long_term_how = (
+        "lump losses" if losses is not None else "entered" if tendon.longTermLoss else "none"
+    )
     checks.append(
         _check(
             f"{name}: average precompression",
@@ -686,11 +1114,10 @@ def tendon_design(
             precompression,
             "MPa",
             None,
-            f"P_e / (b h) = {p_e / 1e3:.0f} kN / {area / 1e6:.3f} m² >= 0.9 MPa "
-            f"(ACI 318-11 18.12.4); after the immediate losses {p_i / pj_share(forces):.0f} % "
-            f"of jacking, "
-            f"elastic shortening {forces.elastic:.0f} MPa, long-term {tendon.longTermLoss:g} "
-            "MPa (entered)",
+            f"P_e / (b h) = {p_e / 1e3:.0f} kN / {area / 1e6:.3f} m² >= {lim.minPrecompression:g} "
+            f"MPa{_cite('slab')}; after the immediate losses {p_i / pj_share(forces):.0f} % of "
+            f"jacking, elastic shortening {forces.elastic:.0f} MPa{_cite('elastic')}, long-term "
+            f"{forces.long_term:.0f} MPa ({long_term_how})",
             utilisation=lim.minPrecompression / precompression if precompression > 0 else math.inf,
         )
     )
@@ -704,12 +1131,648 @@ def tendon_design(
                 limit,
                 "mm",
                 None,
-                f"{tendon.count} tendons over {b:.0f} mm; <= min(8 h, 1.5 m) (ACI 318-11 18.12.4)",
+                f"{tendon.count} tendons over {b:.0f} mm; <= min({lim.spacingThickness:g} h, "
+                f"{lim.spacingMax:g} mm){_cite('slab')}",
             )
         )
-    return TendonDesign(checks, precompression, forces, notes)
+
+    # Anchorage zones.
+    anchorage = anchorage_zone(tendon, h, fy, forces.jacking / tendon.count)
+    if anchorage is None:
+        notes.append(f"{tendon.id}: {not_covered('anchorage zones')}")
+    else:
+        rule = lim.anchorage
+        notes.append(f"{tendon.id}: anchorage zone: {_anchorage_text(anchorage)}")
+        single = tendon.strands == 1
+        needed = rule.transferSingle if single else rule.transferMulti
+        if tendon.transferStrength:
+            checks.append(
+                _check(
+                    f"{name}: concrete strength at stressing",
+                    needed,
+                    float(tendon.transferStrength),
+                    "MPa",
+                    None,
+                    f"f'ci >= {needed:g} MPa for {'single' if single else 'multi'}-strand "
+                    "tendons, unless the anchors are oversize or at most half the final force is "
+                    f"applied{_cite('transferStrength')}",
+                )
+            )
+    return TendonDesign(checks, precompression, forces, notes, losses, klass, anchorage)
 
 
 def pj_share(forces: TendonForces) -> float:
     """The jacking force / 100: the immediate force reads as a percentage of it."""
     return forces.jacking / 100
+
+
+# ───────────────────────────────────── parts of the design ─────────────────────────────────────
+
+
+def _transfer_checks(
+    name: str,
+    model: StripModel,
+    stresses: tuple[np.ndarray, np.ndarray],
+    fci: float,
+    h: float,
+    b: float,
+    fy: float,
+    bars_bottom: float,
+    bars_top: float,
+    where: Any,
+) -> list[dict[str, Any]]:
+    """The concrete stresses at transfer (self-weight and the force after the immediate
+    losses): compression; tension, or the bonded bars it needs above the limits."""
+    from saengine.design.check import _check
+
+    lim = limits()
+    stations = model.stations
+    top, bottom = stresses
+    rule = lim.transferBonded
+    simply = len(model.fixed) == 2
+    region = (rule.endRegion if rule is not None else 0.0) * h
+    if simply:
+        ends = (stations <= stations[0] + region) | (stations >= stations[-1] - region)
+    else:
+        ends = np.zeros(len(stations), dtype=bool)
+    compression_ends = lim.transferCompressionEnds or lim.transferCompression
+    c_limit = np.where(ends, compression_ends, lim.transferCompression) * fci
+    t_limit = np.where(ends, lim.transferTensionEnds, lim.transferTension) * math.sqrt(fci)
+    compression = np.maximum(top, bottom)
+    i_c = int(np.argmax(compression / c_limit))
+    tension = np.maximum(np.maximum(-top, -bottom), 0.0)
+    i_t = int(np.argmax(tension / t_limit))
+    end_text = (
+        f", {compression_ends:g} f'ci and {lim.transferTensionEnds:g} √f'ci within "
+        f"{region:.0f} mm of the ends (two supports)"
+        if simply
+        else ""
+    )
+    out = [
+        _check(
+            f"{name}: transfer compression",
+            float(compression[i_c]),
+            float(c_limit[i_c]),
+            "MPa",
+            None,
+            f"self-weight and P after the immediate losses; {lim.transferCompression:g} f'ci"
+            f"{end_text}, f'ci = {fci:g} MPa{_cite('transfer')}; {where(i_c)}",
+        )
+    ]
+    ft = float(tension[i_t])
+    if ft <= float(t_limit[i_t]) or rule is None:
+        missing = "" if rule is not None else f"; {not_covered('bonded bars at transfer')}"
+        out.append(
+            _check(
+                f"{name}: transfer tension",
+                ft,
+                float(t_limit[i_t]),
+                "MPa",
+                None,
+                f"{lim.transferTension:g} √f'ci{end_text}{_cite('transfer')}; {where(i_t)}"
+                + missing,
+            )
+        )
+        return out
+    top_face = bool(-top[i_t] >= -bottom[i_t])
+    other = float(bottom[i_t] if top_face else top[i_t])
+    depth = h * ft / (ft + max(other, 0.0))
+    force = 0.5 * ft * depth * b
+    needed = force / (rule.stressShare * fy)
+    provided = (bars_top if top_face else bars_bottom) * b / 1000
+    face = "top" if top_face else "bottom"
+    out.append(
+        _check(
+            f"{name}: bonded bars for the tension at transfer",
+            needed,
+            provided,
+            "mm²",
+            None,
+            f"tension {ft:.2f} MPa above {float(t_limit[i_t]):.2f} MPa: the {face} bars carry "
+            f"T = {force / 1e3:.0f} kN of the uncracked section at {rule.stressShare:g} fy"
+            f"{_cite('transfer')}; {where(i_t)}",
+            utilisation=needed / provided if provided > 0 else math.inf,
+        )
+    )
+    return out
+
+
+def _class_c_spacing(
+    name: str,
+    tendon: Any,
+    bottom_face: bool,
+    spacing: float | None,
+    cover: float | None,
+    fy: float,
+    height: float,
+    h: float,
+    b: float,
+) -> list[dict[str, Any]]:
+    """Class C: the bonded bars nearest the tension face at most the crack-control spacing, and
+    bonded tendons at the pack's share of it (Δfps taken at its cap)."""
+    from saengine.design.check import _check
+    from saengine.design.rc_detailing import (
+        crack_spacing_limit,
+        service_stress,
+        tendon_spacing_limit,
+    )
+
+    face = "bottom" if bottom_face else "top"
+    out = []
+    cc = float(cover) if cover is not None else 20.0
+    fs = service_stress(fy)
+    limit = crack_spacing_limit(fs, cc)
+    if limit is None:
+        return []
+    if spacing:
+        out.append(
+            _check(
+                f"{name}: Class C spacing of the {face} bars",
+                float(spacing),
+                max(limit, 0.0),
+                "mm",
+                None,
+                f"Class C: the crack-control spacing with fs = {fs:.0f} MPa, cc = {cc:.0f} mm"
+                f"{_cite('spacingClassC')}",
+            )
+        )
+    else:
+        out.append(
+            _check(
+                f"{name}: Class C bonded bars at the {face}",
+                1.0,
+                0.0,
+                "",
+                None,
+                f"Class C needs bonded bars near the {face} face, none entered"
+                f"{_cite('spacingClassC')}",
+            )
+        )
+    if tendon.bonded:
+        rule = getattr(code_context.pack_table("detailing"), "tendonSpacing", None)
+        radius = math.sqrt(4 * tendon.strandArea / math.pi) / 2
+        cc_t = (height if bottom_face else h - height) - radius
+        delta = float(rule.deltaMax) if rule is not None else 0.0
+        found, how = tendon_spacing_limit(delta, cc_t)
+        if found is not None:
+            out.append(
+                _check(
+                    f"{name}: Class C tendon spacing",
+                    b / tendon.count,
+                    max(found, 0.0),
+                    "mm",
+                    None,
+                    f"bonded tendons, Δfps taken at its cap {delta:g} MPa (conservative): {how}",
+                )
+            )
+    return out
+
+
+def _deflection_checks(
+    name: str,
+    tendon: Any,
+    model: StripModel,
+    loads: StripLoads,
+    b: float,
+    h: float,
+    ec: float,
+    ig: float,
+    klass: str,
+    fr: float | None,
+    total: np.ndarray,
+    bottom_bars: tuple[float, float],
+    aps: float,
+    heights: np.ndarray,
+    forces: tuple[float, float],
+    option: str,
+    roof: bool,
+    notes: list[str],
+    unit_loads: tuple[np.ndarray, np.ndarray, np.ndarray],
+) -> list[dict[str, Any]]:
+    """The live-load deflection and the deflection after attachment (see the module notes)."""
+    from saengine.design.check import _check
+    from saengine.design.deflection import DeflectionLimits, Strip, cracked_section
+    from saengine.design.rc import STEEL_E
+
+    try:
+        divisors = DeflectionLimits.from_pack()
+    except (AttributeError, KeyError, TypeError):
+        notes.append(f"{tendon.id}: {not_covered('deflection limits')}")
+        return []
+    p_i, p_e = forces
+    inertia, how = ig, "Ig (Class U)"
+    if klass != "U":
+        if fr is None:
+            notes.append(f"{tendon.id}: {not_covered('the modulus of rupture')}: Ig is used")
+        else:
+            mcr = fr * ig / (h / 2)
+            ma = float(np.max(np.abs(total)))
+            i = int(np.argmax(total))
+            bars, d = bottom_bars
+            transformed = [(d, STEEL_E / ec * bars * b / 1000)] if bars > 0 else []
+            if tendon.bonded:
+                transformed.append((h - float(heights[i]), tendon.ep / ec * aps))
+            try:
+                icr = cracked_section([Strip(b, 0.0, h)], transformed, 1.0)[1]
+            except ValueError:
+                icr = 0.0
+            if ma > mcr:
+                share = (mcr / ma) ** 3
+                inertia = min(ig, share * ig + (1 - share) * icr)
+            how = (
+                f"Ie = {inertia / ig:.2f} Ig (Class {klass}, Mcr = {mcr / 1e6:.1f} kN·m, Ma = "
+                f"{ma / 1e6:.1f} kN·m)"
+            )
+    ei = ec * inertia
+    elements = len(model.stations) - 1
+    spans = model.spans()
+    live = model.deflections(np.full(elements, -loads.live * b)) / ei
+    unit = model.deflections(*unit_loads)
+    gravity = model.deflections(np.full(elements, -(loads.dead + loads.superimposed) * b))
+
+    def sustained(force: float) -> np.ndarray:
+        return (gravity + force * unit) / ei
+
+    def worst(values: np.ndarray, divisor: float) -> tuple[float, float, int]:
+        ratios = np.where(spans > 0, np.abs(values) * divisor / np.maximum(spans, 1e-9), 0.0)
+        i = int(np.argmax(ratios))
+        return float(abs(values[i])), float(spans[i] / divisor), i
+
+    divisor = divisors.live_roof if roof else divisors.live_floor
+    demand, capacity, i = worst(live, divisor)
+    out = [
+        _check(
+            f"{name}: live-load deflection",
+            demand,
+            capacity,
+            "mm",
+            None,
+            f"l/{divisor:g} of the span, Ec = {ec:.0f} MPa, {how}{_cite('deflection')}; at "
+            f"{model.stations[i] / 1e3:.2f} m",
+        )
+    ]
+    if option == "off":
+        return out
+    try:
+        phi = creep_coefficient(float(tendon.transferAge))
+    except ValueError as error:
+        notes.append(f"{tendon.id}: deflection after attachment not checked ({error})")
+        return out
+    added = phi * sustained(0.5 * (p_i + p_e)) + (sustained(p_e) - sustained(p_i)) + live
+    if option == "sensitive":
+        divisor = divisors.attached_sensitive
+    else:
+        divisor = divisors.attached_insensitive
+    demand, capacity, i = worst(added, divisor)
+    out.append(
+        _check(
+            f"{name}: deflection after attachment",
+            demand,
+            capacity,
+            "mm",
+            None,
+            f"creep of the sustained deflection (φ = {phi:.2f}, D + SD and the mean force) + the "
+            f"loss of prestress after transfer + live; l/{divisor:g}{_cite('longDeflection')} "
+            "(the sum of the long-term parts is SAEngine practice); at "
+            f"{model.stations[i] / 1e3:.2f} m",
+        )
+    )
+    return out
+
+
+def _bonded_checks(
+    name: str,
+    tendon: Any,
+    model: StripModel,
+    h: float,
+    b: float,
+    fc: float,
+    fy: float,
+    two_way: bool,
+    service: tuple[float, np.ndarray, float, float],
+    bars: tuple[float, float, float | None],
+    column_width: float,
+    where: Any,
+    notes: list[str],
+) -> list[dict[str, Any]]:
+    """The bonded reinforcement of the strip (see the module notes). ``service``: the effective
+    force [N], the service moments [N·mm], the area and the section modulus; ``bars``: bottom
+    and top bars [mm²/m] and the top bars' spacing [mm]."""
+    from saengine.design.check import _check
+
+    lim = limits()
+    p_e, total, area, modulus = service
+    bars_bottom, bars_top, spacing_top = bars
+    stations = model.stations
+    out: list[dict[str, Any]] = []
+    if not two_way:
+        if tendon.bonded:
+            return out
+        needed = lim.bondedOneWay * b * h / 2
+        provided = bars_bottom * b / 1000
+        out.append(
+            _check(
+                f"{name}: bonded bars (unbonded one-way)",
+                needed,
+                provided,
+                "mm²",
+                None,
+                f"As >= {lim.bondedOneWay:g} Act, Act = b h / 2{_cite('bondedOneWay')}",
+                utilisation=needed / provided if provided > 0 else math.inf,
+            )
+        )
+        return out
+    acf = h * b
+    top_rule = lim.bondedTop
+    if len(model.fixed) > 2:
+        needed = lim.bondedNegative * acf
+        provided = bars_top * b / 1000
+        out.append(
+            _check(
+                f"{name}: bonded top bars over the supports",
+                needed,
+                provided,
+                "mm²",
+                None,
+                f"As >= {lim.bondedNegative:g} Acf, Acf = h b = {acf / 1e6:.3f} m² (the strip's "
+                f"section){_cite('bondedNegative')}",
+                utilisation=needed / provided if provided > 0 else math.inf,
+            )
+        )
+        if top_rule is not None and spacing_top:
+            band = column_width + 2 * top_rule.beyondFace * h
+            count = int(band // spacing_top) + 1
+            out.append(
+                _check(
+                    f"{name}: bonded top bars near the columns",
+                    top_rule.minBars,
+                    count,
+                    "bars",
+                    None,
+                    f"{count} bars at {spacing_top:g} mm within {band:.0f} mm (the column "
+                    f"{column_width:.0f} mm and {top_rule.beyondFace:g} h each side); at least "
+                    f"{top_rule.minBars}{_cite('bondedNegative')}",
+                    utilisation=top_rule.minBars / count if count else math.inf,
+                )
+            )
+            out.append(
+                _check(
+                    f"{name}: spacing of the bonded top bars",
+                    float(spacing_top),
+                    top_rule.maxSpacing,
+                    "mm",
+                    None,
+                    f"<= {top_rule.maxSpacing:g} mm{_cite('bondedNegative')}",
+                )
+            )
+    top = p_e / area + total / modulus
+    bottom = p_e / area - total / modulus
+    i = int(np.argmin(bottom))
+    ft = -float(bottom[i])
+    if ft > lim.bondedPositiveTension * math.sqrt(fc):
+        depth = h * ft / (ft + max(float(top[i]), 0.0)) if ft > 0 else 0.0
+        nc = 0.5 * ft * depth * b
+        fy_b = min(fy, lim.bondedFyMax) if lim.bondedFyMax is not None else fy
+        needed = nc / (lim.bondedPositiveStress * fy_b)
+        provided = bars_bottom * b / 1000
+        out.append(
+            _check(
+                f"{name}: bonded bottom bars in the span",
+                needed,
+                provided,
+                "mm²",
+                None,
+                f"service tension {ft:.2f} MPa > {lim.bondedPositiveTension:g} √f'c: As = Nc / "
+                f"({lim.bondedPositiveStress:g} fy), fy = {fy_b:g} MPa, Nc = {nc / 1e3:.0f} kN"
+                f"{_cite('bondedPositive')}; {where(i)}",
+                utilisation=needed / provided if provided > 0 else math.inf,
+            )
+        )
+    if top_rule is not None:
+        longest = max(float(stations[j] - stations[k]) for k, j in pairwise(sorted(model.fixed)))
+        notes.append(
+            f"{tendon.id}: bonded bars at least {top_rule.negativeLength * longest / 1e3:.2f} m "
+            f"each side of the interior supports (top) and "
+            f"{top_rule.positiveLength * longest / 1e3:.2f} m centred in the spans (bottom), the "
+            f"longest span taken as the clear span{_cite('bondedLength')}"
+        )
+    return out
+
+
+# ───────────────────────────────────── structural integrity ─────────────────────────────────────
+
+
+def tendon_lines(tendon: Any) -> list[tuple[np.ndarray, np.ndarray]]:
+    """The tendons of a group in plan for the integrity check [mm]: a banded group together on
+    its line, a distributed group evenly over its width."""
+    a = np.array([tendon.x1, tendon.y1], dtype=float)
+    c = np.array([tendon.x2, tendon.y2], dtype=float)
+    run = c - a
+    normal = np.array([-run[1], run[0]]) / (np.linalg.norm(run) or 1.0)
+    if tendon.layout != "distributed":
+        return [(a, c)] * tendon.count
+    step = float(tendon.width) / tendon.count
+    offsets = [(k + 0.5) * step - float(tendon.width) / 2 for k in range(tendon.count)]
+    return [(a + o * normal, c + o * normal) for o in offsets]
+
+
+def _crosses(a: np.ndarray, c: np.ndarray, column: Any, inset: float) -> bool:
+    """Whether the segment a-c crosses the column's section less ``inset`` each side."""
+    t = math.radians(column.angle)
+    u = np.array([math.cos(t), math.sin(t)])
+    v = np.array([-math.sin(t), math.cos(t)])
+    centre = np.asarray(column.centre, dtype=float)
+    p0 = np.array([(a - centre) @ u, (a - centre) @ v])
+    d = np.array([(c - a) @ u, (c - a) @ v])
+    half = np.array([column.c1 / 2 - inset, column.c2 / 2 - inset])
+    if np.any(half <= 0):
+        half = np.array([column.c1 / 2, column.c2 / 2])
+    lo, hi = 0.0, 1.0
+    for k in range(2):
+        if abs(d[k]) < 1e-12:
+            if abs(p0[k]) > half[k]:
+                return False
+            continue
+        t1, t2 = (-half[k] - p0[k]) / d[k], (half[k] - p0[k]) / d[k]
+        lo, hi = max(lo, min(t1, t2)), min(hi, max(t1, t2))
+        if lo > hi:
+            return False
+    return True
+
+
+def integrity_checks(
+    tendons: list[tuple[Any, str]],
+    columns: list[Any],
+    x_axis: Any,
+    fc: float,
+    fy: float,
+    layers: dict[str, Any],
+    two_way: bool,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Structural integrity of a slab with unbonded tendons (``tendons``: (tendon, "X" or "Y"
+    of the slab)) at its ``columns`` (``slab.ColumnJoint``; ``x_axis`` the slab's X in plan):
+    per direction, the strands through each column, else the bottom bars of that direction
+    through it (``layers``: :func:`saengine.design.slab.layers_of`)."""
+    from saengine.design.check import _check
+
+    if not two_way or not columns or all(t.bonded for t, _ in tendons):
+        return [], []
+    rule = getattr(limits(), "integrity", None)
+    if rule is None:
+        return [], [not_covered("structural integrity tendons")]
+    ux = np.asarray(x_axis, dtype=float)[:2]
+    ux = ux / (np.linalg.norm(ux) or 1.0)
+    checks: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for direction in ("X", "Y"):
+        group = [t for t, d in tendons if d == direction]
+        lacking: list[tuple[Any, float]] = []
+        least: int | None = None
+        for column in columns:
+            strands = 0
+            for tendon in group:
+                if tendon.strandArea < rule.strandArea * (1 - 1e-6):
+                    continue
+                for a, c in tendon_lines(tendon):
+                    if _crosses(a, c, column, rule.coreInset):
+                        strands += tendon.strands
+            least = strands if least is None else min(least, strands)
+            if strands < rule.strands:
+                t = math.radians(column.angle)
+                along_u = abs(math.cos(t) * ux[0] + math.sin(t) * ux[1]) >= math.sqrt(0.5)
+                # bw: the column face the bars of the direction pass through.
+                if direction == "X":
+                    bw = column.c2 if along_u else column.c1
+                else:
+                    bw = column.c1 if along_u else column.c2
+                lacking.append((column, float(bw)))
+        if not lacking:
+            checks.append(
+                _check(
+                    f"PT integrity strands, {direction}",
+                    rule.strands,
+                    least or 0,
+                    "strands",
+                    None,
+                    f"at least {rule.strands} strands of {rule.strandArea:g} mm² or more through "
+                    f"every column{_cite('integrity')}",
+                )
+            )
+            continue
+        layer = layers.get(f"bottom{direction}")
+        worst: tuple[float, float, float, Any, float] | None = None
+        for column, bw in lacking:
+            d = layer.d if layer is not None else 0.0
+            needed = max(
+                rule.bottomFactor * rule.bottomRoot * math.sqrt(fc) * bw * d / fy,
+                rule.bottomMin * bw * d / fy,
+            )
+            provided = layer.area * bw / 1000 if layer is not None else 0.0
+            ratio = needed / provided if provided > 0 else math.inf
+            if worst is None or ratio > worst[0]:
+                worst = (ratio, needed, provided, column, bw)
+        assert worst is not None
+        ratio, needed, provided, column, bw = worst
+        names = ", ".join(str(c.id) for c, _ in lacking[:6])
+        more = f" and {len(lacking) - 6} more" if len(lacking) > 6 else ""
+        checks.append(
+            _check(
+                f"PT integrity bottom bars, {direction}",
+                needed,
+                provided,
+                "mm²",
+                None,
+                f"fewer than {rule.strands} strands through columns {names}{more}"
+                f"{_cite('integrity')}: bottom bars through the column instead, As >= "
+                f"{rule.bottomFactor:g} × {rule.bottomRoot:g} √f'c bw d / fy and "
+                f"{rule.bottomMin:g} bw d / fy, bw = {bw:.0f} mm at {column.id}; anchored at the "
+                f"exterior supports{_cite('integrityBars')}",
+                utilisation=ratio,
+            )
+        )
+        notes.append(
+            f"integrity {direction}: the region bounded by the column bars taken as the column "
+            f"less {rule.coreInset:g} mm each side"
+        )
+    return checks, notes
+
+
+# ───────────────────────────────────── compression members ─────────────────────────────────────
+
+
+def compression_member_checks(
+    name: str,
+    prestress_stress: float,
+    least_dimension: float,
+    wall: bool = False,
+    tie_dia: float | None = None,
+    tie_spacing: float | None = None,
+    spiral: tuple[float, float, float, float, float] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The reinforcement of a prestressed compression member with ``prestress_stress`` [MPa] of
+    average effective prestress: below the pack's threshold the ordinary column or wall minimums
+    apply (noted); at or above it, columns need ties (``tie_dia``, ``tie_spacing`` [mm]) or a
+    spiral (``spiral`` = (ρs provided, Ag, Ach [mm²], f'c, fyt [MPa])) enclosing the tendons;
+    walls may drop the wall minimums where analysis shows strength and stability."""
+    from saengine.design.check import _check
+
+    rule = getattr(limits(), "compression", None)
+    if rule is None:
+        return [], [not_covered("prestressed compression members")]
+    if prestress_stress < rule.threshold:
+        return [], [
+            (
+                f"{name}: effective prestress {prestress_stress:.2f} MPa < {rule.threshold:g} MPa: "
+                f"the ordinary minimum reinforcement of columns and walls applies{_cite('compression')}"
+            )
+        ]
+    if wall:
+        return [], [
+            (
+                f"{name}: effective prestress >= {rule.threshold:g} MPa: the wall minimum "
+                "reinforcement need not apply where analysis shows strength and stability"
+                f"{_cite('compression')}"
+            )
+        ]
+    checks = []
+    if spiral is not None:
+        provided, ag, ach, fc, fyt = spiral
+        needed = rule.spiralCoefficient * (ag / ach - 1) * fc / min(fyt, rule.spiralFytMax)
+        checks.append(
+            _check(
+                f"{name}: spiral ratio",
+                needed,
+                provided,
+                "",
+                None,
+                f"ρs >= {rule.spiralCoefficient:g} (Ag/Ach - 1) f'c / fyt, fyt <= "
+                f"{rule.spiralFytMax:g} MPa{_cite('compression')}",
+                utilisation=needed / provided if provided > 0 else math.inf,
+            )
+        )
+        return checks, []
+    dia = tie_dia or 0.0
+    checks.append(
+        _check(
+            f"{name}: tie size",
+            rule.tieMinDia,
+            dia,
+            "mm",
+            None,
+            f"ties >= Ø{rule.tieMinDia:g} enclosing all tendons{_cite('compression')}",
+            utilisation=rule.tieMinDia / dia if dia > 0 else math.inf,
+        )
+    )
+    limit = min(rule.tieSpacingDiameters * dia, least_dimension) if dia else least_dimension
+    checks.append(
+        _check(
+            f"{name}: tie spacing",
+            tie_spacing if tie_spacing is not None else math.inf,
+            limit,
+            "mm",
+            None,
+            f"<= {rule.tieSpacingDiameters:g} tie diameters and the least dimension"
+            f"{_cite('compression')}",
+        )
+    )
+    return checks, []

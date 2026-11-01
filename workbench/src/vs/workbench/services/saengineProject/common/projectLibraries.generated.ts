@@ -14215,10 +14215,18 @@ export const BIM_SCHEMA: IJSONSchema = {
 					type: 'number',
 				},
 				longTermLoss: {
-					description: 'Loss of stress from creep, shrinkage and relaxation [MPa], worked out by the engineer (the automatic time-step method is planned).',
-					minimum: 0,
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Loss of stress from creep, shrinkage and relaxation [MPa]; empty: worked out by the code pack\'s lump losses (creep and shrinkage of the concrete, relaxation of the strand). A value entered here replaces them.',
 					title: 'Long-term loss',
-					type: 'number',
 				},
 				transferStrength: {
 					anyOf: [
@@ -14234,6 +14242,28 @@ export const BIM_SCHEMA: IJSONSchema = {
 					description: 'Concrete strength at stressing [MPa]; empty: transfer not checked.',
 					title: 'f\'ci',
 				},
+				transferAge: {
+					default: 7.0,
+					description: 'Age of the concrete when the tendons are stressed [days]: the age at loading of the creep loss and the age at transfer of the shrinkage loss.',
+					exclusiveMinimum: 0,
+					title: 'Age at stressing',
+					type: 'number',
+				},
+				anchorPlate: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Size of the anchor\'s bearing plate across the slab thickness [mm], for the bursting force of multi-strand anchors; empty: bursting not worked out.',
+					title: 'Anchor plate',
+				},
 				profile: {
 					description: 'CGS heights along the tendon, from the start: high over the supports, low in the spans (parabolic between them).',
 					items: {
@@ -14244,7 +14274,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 					type: 'array',
 				},
 			},
-			required: ['id', 'host', 'x1', 'y1', 'x2', 'y2', 'width', 'longTermLoss', 'profile'],
+			required: ['id', 'host', 'x1', 'y1', 'x2', 'y2', 'width', 'profile'],
 			title: 'SlabTendon',
 			type: 'object',
 		},
@@ -15508,7 +15538,6 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		width: 4000,
 		count: 8,
 		strands: 1,
-		longTermLoss: 100,
 		profile: [
 			{
 				at: 0,

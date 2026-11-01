@@ -1547,8 +1547,104 @@ class TorsionLimits(_Group):
     fyMax: Positive = Field(description="Largest fy, fyt of torsion steel [MPa].")
 
 
+class PrestressCracking(_Group):
+    """Members with bonded tendons: φMn >= factor × Mcr, waived where the strength is at least
+    waiver × the required strength."""
+
+    factor: Positive
+    waiver: Positive
+
+
+class PrestressBondedTop(_Group):
+    """Bonded top bars over the columns of two-way slabs: at least ``minBars`` bars at most
+    ``maxSpacing`` [mm] apart between lines ``beyondFace`` × h outside the column faces; bars
+    ``negativeLength`` × ln each side of the support, bottom bars ``positiveLength`` × ln."""
+
+    minBars: int = Field(ge=1)
+    maxSpacing: Positive
+    beyondFace: Positive
+    negativeLength: Share
+    positiveLength: Share
+
+
+class PrestressTransferBonded(_Group):
+    """Bonded bars for the tension at transfer above the limits: As = T / (stressShare fy); the
+    ends of a simply supported member within endRegion × h of its anchors."""
+
+    stressShare: Share
+    endRegion: Positive
+
+
+class PrestressRelaxation(_Group):
+    """Relaxation loss [MPa] by the initial stress / fpu (linear between, zero below the
+    first, the last value above)."""
+
+    stressRatios: list[Share] = Field(min_length=2)
+    losses: list[float] = Field(min_length=2)
+
+
+class PrestressIntegrity(_Group):
+    """Slabs with unbonded tendons: at least ``strands`` strands of ``strandArea`` [mm²] or more
+    each way through the column (its section less ``coreInset`` [mm] each side), else bottom
+    bars through it of at least bottomFactor × bottomRoot √f'c bw d / fy and bottomMin bw d /
+    fy."""
+
+    strands: int = Field(ge=1)
+    strandArea: Positive
+    coreInset: float = Field(ge=0)
+    bottomFactor: Positive
+    bottomRoot: Positive
+    bottomMin: Positive
+
+
+class PrestressBursting(_Group):
+    """General zone bursting by simplified equations: T = share Ppu (1 - a/h), d = depthShare
+    (h - 2e)."""
+
+    method: Literal["simplified"]
+    share: Positive
+    depthShare: Positive
+
+
+class PrestressAnchorage(_Group):
+    """Post-tensioned anchorage zones: Ppu = loadFactor × the jacking force, φ; spalling steel
+    ``spalling`` × Ppu (not for monostrand slab tendons); f'ci at stressing; the slab edge bars
+    and hairpins of monostrand slab anchors; bursting."""
+
+    loadFactor: Positive
+    phi: Share
+    spalling: Positive
+    transferMulti: Positive
+    transferSingle: Positive
+    monostrandArea: Positive
+    edgeBars: int = Field(ge=1)
+    edgeBarDia: Positive
+    edgeBarAhead: Positive
+    edgeBarExtension: Positive
+    groupSpacing: Positive
+    groupMin: int = Field(ge=1)
+    hairpinDia: Positive
+    hairpinFrom: Positive
+    hairpinTo: Positive
+    bursting: PrestressBursting | None = None
+
+
+class PrestressCompression(_Group):
+    """Prestressed compression members: above ``threshold`` [MPa] of effective prestress, ties
+    of at least ``tieMinDia`` at most ``tieSpacingDiameters`` tie diameters (and the least
+    dimension) apart, or spirals ρs >= spiralCoefficient (Ag/Ach - 1) f'c / fyt, fyt <=
+    spiralFytMax."""
+
+    threshold: Positive
+    tieMinDia: Positive
+    tieSpacingDiameters: Positive
+    spiralCoefficient: Positive
+    spiralFytMax: Positive
+
+
 class PrestressLimits(_Group):
-    """Prestressed slabs (BNBC 2020 Part 6 Chapter 9; ACI 318-11 Chapter 18): stress limits as
+    """Prestressed concrete (the pack's prestressed chapter; the default pack's clauses are in
+    ``concrete.sources.prestress``): stress limits as
     multiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,
     the bonded reinforcement, precompression and tendon spacing, and punching with
     prestress."""
@@ -1594,6 +1690,44 @@ class PrestressLimits(_Group):
         description="fpc each way within this range [MPa] for the expression to apply."
     )
     punchingRootMax: Positive = Field(description="√f'c <= this [MPa] in the expression.")
+    # B30: the rest of the prestressed concrete chapter. Optional: a pack without one of them
+    # leaves that check out and says it does not cover it.
+    punchingMethod: Literal["precompression", "reinforced"] = Field(
+        default="precompression",
+        description="Punching at the columns of prestressed slabs: 'precompression' (βp √f'c + "
+        "fpc term above) or 'reinforced' (the nonprestressed vc, no prestress term).",
+    )
+    transferSteelFpy: Positive | None = Field(
+        default=None, description="Tendon stress immediately after transfer <= this × fpy."
+    )
+    transferSteelFpu: Share | None = Field(default=None, description="... and <= this × fpu.")
+    transferCompressionEnds: Positive | None = Field(
+        default=None,
+        description="At transfer, at the ends of simply supported members: compression <= "
+        "this f'ci.",
+    )
+    tensionClassT: Positive | None = Field(
+        default=None, description="Class T up to this √f'c; Class C above (one-way members)."
+    )
+    gammaPByRatio: list[tuple[Positive, Positive]] | None = Field(
+        default=None,
+        description="(least fpy / fpu, γp) rows of bonded fps; the largest ratio met applies.",
+    )
+    fpsMinFse: Share | None = Field(
+        default=None, description="The approximate fps needs fse >= this × fpu."
+    )
+    bondedFyMax: Positive | None = Field(
+        default=None, description="fy of the bonded bars of Nc / (k fy) at most this [MPa]."
+    )
+    rupture: Positive | None = Field(default=None, description="fr = this λ √f'c [MPa].")
+    cracking: PrestressCracking | None = None
+    bondedTop: PrestressBondedTop | None = None
+    transferBonded: PrestressTransferBonded | None = None
+    relaxation: PrestressRelaxation | None = None
+    integrity: PrestressIntegrity | None = None
+    anchorage: PrestressAnchorage | None = None
+    compression: PrestressCompression | None = None
+    note: str = Field(default="", description="Why the values are what they are.")
 
 
 class DeflectionLimitsGroup(_Group):

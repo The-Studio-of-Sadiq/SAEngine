@@ -655,11 +655,11 @@ registerPlannedFeature({
 	id: FemPlanned.tendonLongTermLosses,
 	part: 'fem',
 	title: localize('fem.planned.tendonLosses.title', "Long-Term Tendon Losses (Time-Step)"),
-	summary: localize('fem.planned.tendonLosses.summary', "Works out the losses of tendon stress from creep, shrinkage and steel relaxation over time, instead of the long-term loss the engineer enters for each tendon group."),
+	summary: localize('fem.planned.tendonLosses.summary', "The PT checks already work out the long-term loss of each tendon group from the code pack's lump values (creep and shrinkage of the concrete, relaxation of the strand). This planned method steps through time instead, stage by stage, for staged stressing and losses at any age."),
 	steps: [
-		localize('fem.planned.tendonLosses.step1', "Take the precompression and the sustained stress at the tendons from the PT checks."),
-		localize('fem.planned.tendonLosses.step2', "Step through time with the creep and shrinkage of the concrete and the relaxation of the strand."),
-		localize('fem.planned.tendonLosses.step3', "Use the loss found for the service and strength checks."),
+		localize('fem.planned.tendonLosses.step1', "Take the precompression and the sustained stress at the tendons from the PT checks, per stressing stage."),
+		localize('fem.planned.tendonLosses.step2', "Step through time with the creep and shrinkage of the concrete and the relaxation of the strand, the stress at each step from the one before."),
+		localize('fem.planned.tendonLosses.step3', "Use the loss found at each age for the service and strength checks, instead of the lump loss."),
 	],
 	inputs: [
 		{ label: localize('fem.planned.tendonLosses.humidity', "Relative humidity"), unit: '%', example: '75' },
