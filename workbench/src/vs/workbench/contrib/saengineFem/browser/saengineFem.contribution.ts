@@ -425,31 +425,8 @@ registerPlannedFeature({
 	],
 });
 
-// T35: nonlinear time history.
-registerPlannedFeature({
-	id: FemPlanned.nonlinearTimeHistory,
-	part: 'fem',
-	title: localize('planned.nlth.title', "Nonlinear Time History"),
-	summary: localize('planned.nlth.summary', "Runs ground-motion records through the model with its hinges and fibre members by direct integration, so members yield during the shaking. Today's time history is linear."),
-	steps: [
-		localize('planned.nlth.step1', "Pick a suite of records and scale them to the design spectrum."),
-		localize('planned.nlth.step2', "Run each record with the nonlinear members and the chosen damping."),
-		localize('planned.nlth.step3', "Play the response with the hinge states, and read the peak drifts and forces."),
-	],
-	inputs: [
-		{ label: localize('planned.nlth.records', "Records"), example: localize('planned.nlth.recordsExample', "A suite from the record library") },
-		{ label: localize('planned.nlth.damping', "Damping ratio"), unit: '%' },
-		{ label: localize('planned.nlth.step', "Time step"), unit: localize('planned.unit.s', "s") },
-	],
-	outputs: [
-		localize('planned.nlth.out1', "Displacement, drift and hinge histories per record"),
-		localize('planned.nlth.out2', "Peak and mean response over the suite"),
-	],
-	references: [
-		localize('planned.nlth.ref1', "BNBC 2020 Part 6 Sec 2.5 (earthquake loads, pp. 609-648)"),
-		localize('planned.nlth.ref2', "ASCE/SEI 7-16 Ch 16 (nonlinear response history)"),
-	],
-});
+// T35 / B36: the nonlinear time history is built (fem/nonlinear_history.py); record search and
+// spectral matching stay planned.
 registerPlannedFeature({
 	id: FemPlanned.recordScaling,
 	part: 'fem',

@@ -181,6 +181,47 @@ export interface IFemPushoverCurve {
 	readonly acceptance?: IFemPushoverAcceptance;
 }
 
+/** B36: one suite of the nonlinear time histories (`fem/nonlinear_history.py`). */
+export interface IFemNonlinearSuite {
+	readonly key: 'X' | 'Y' | 'XY';
+	readonly count: number;
+	readonly rule: 'max' | 'mean';
+	readonly enough: boolean;
+	readonly complete: boolean;
+	readonly used: boolean;
+	readonly period: number | null;
+	readonly check: { readonly least: number; readonly governing: number; readonly ratio: number; readonly ok: boolean } | null;
+	readonly baseShear?: { readonly x: number; readonly y: number };
+	readonly cases: readonly { readonly id: number; readonly name: string; readonly complete: boolean; readonly baseShear: { readonly x: number; readonly y: number } }[];
+}
+
+/** B36: a storey's design drift over a nonlinear suite, against the code pack's limit. */
+export interface IFemNonlinearDrift {
+	readonly suite: string;
+	readonly direction: 'X' | 'Y';
+	readonly bottom: number;
+	readonly top: number;
+	readonly height: number;
+	readonly drift: number;
+	readonly ratio: number;
+	readonly limitRatio: number;
+	readonly ok: boolean;
+}
+
+/** B36: the nonlinear time history design of a run of `nonlinear-history.osmodel`. */
+export interface IFemNonlinearHistory {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly suites?: readonly IFemNonlinearSuite[];
+	readonly drift?: readonly IFemNonlinearDrift[];
+	readonly limit?: { readonly allowable: number; readonly factor: number; readonly ratio: number; readonly row: string; readonly amplified: boolean };
+	readonly acceptance?: { readonly rows: readonly (IFemAcceptanceRow & { readonly suite: string; readonly record: string })[]; readonly failed: number; readonly share: number; readonly residual: number; readonly clause: string };
+	readonly clauses?: { readonly [key: string]: string };
+	readonly review?: string;
+	readonly notes?: readonly string[];
+	readonly ok?: boolean;
+}
+
 export interface IFemStoryResponse {
 	readonly levels: readonly { readonly z: number; readonly name: string }[];
 	readonly results: readonly IFemStoryResult[];
@@ -193,6 +234,8 @@ export interface IFemStoryResponse {
 	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
 	/** B25: the column shortening with creep and shrinkage (`fem/staged.py`), when the settings ask for it. */
 	readonly columnShortening?: IFemColumnShortening | null;
+	/** B36: the nonlinear time history design, for the nonlinear time history model. */
+	readonly nonlinearHistory?: IFemNonlinearHistory | null;
 	readonly notes: readonly string[];
 }
 

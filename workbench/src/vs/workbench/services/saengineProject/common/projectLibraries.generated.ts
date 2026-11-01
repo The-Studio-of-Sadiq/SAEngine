@@ -7571,6 +7571,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Pushover analyses: the frames as fiber elements that crack and yield, pushed sideways after the gravity loads (08 FEM/pushover.osmodel).',
 					title: 'Pushover',
 				},
+				nonlinearHistory: {
+					anyOf: [
+						{
+							$ref: '#/$defs/NonlinearHistory',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonlinear time history analyses: the time histories above run through the frames and walls as fibre elements that crack and yield, the records scaled to the code pack\'s real design spectrum (08 FEM/nonlinear-history.osmodel); the results check the storey drifts and the members\' deformations by the code pack\'s rules.',
+					title: 'Nonlinear time history',
+				},
 				thermal: {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
@@ -8901,6 +8914,35 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'MassSource',
+			type: 'object',
+		},
+		NonlinearHistory: {
+			additionalProperties: false,
+			description: 'B36: nonlinear time history analyses of the time histories above, with the frames and\nwalls as fibre elements (08 FEM/nonlinear-history.osmodel).',
+			properties: {
+				fibreWalls: {
+					default: true,
+					description: 'Reinforced concrete walls without openings become fibre wall elements (as in the pushover); off: walls stay elastic shells.',
+					title: 'Fibre walls',
+					type: 'boolean',
+				},
+				damping: {
+					anyOf: [
+						{
+							maximum: 0.3,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Damping ratio of the first mode [-], in proportion to the committed stiffness. Empty: each time history\'s own.',
+					title: 'Damping ratio',
+				},
+			},
+			title: 'NonlinearHistory',
 			type: 'object',
 		},
 		Occupancy: {
@@ -17038,6 +17080,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		constructionSequence: false,
 		timeHistories: [],
 		pushover: null,
+		nonlinearHistory: null,
 		thermal: {
 			enabled: false,
 			uniform: 20.0,

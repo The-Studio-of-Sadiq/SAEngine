@@ -1459,7 +1459,7 @@ export class FemResultsBar extends Disposable {
 		} else if (entry.kind === 'modal') {
 			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		} else if (entry.kind === 'history') {
-			this.appendPlanned(container, [FemPlanned.nonlinearTimeHistory, FemPlanned.recordScaling]);
+			this.appendPlanned(container, [FemPlanned.recordScaling]);
 		} else if (entry.kind === 'static' && entry.frames?.length) {
 			this.appendPlanned(container, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces]);
 		}
