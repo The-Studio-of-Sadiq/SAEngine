@@ -61,20 +61,23 @@ def test_bored_pile_integrates_the_shaft_by_hand() -> None:
     r = piles.single_pile(p, "bored", d, length, head)
     perimeter, area = math.pi * d, math.pi * d * d / 4
 
-    # Clay, α = 0.55 (cu/pa < 1.5): no side resistance over the top 1.5 m of the shaft.
+    # Clay, α = 0.55 (cu ≤ 190 kPa, Eq 6.3.42): no side resistance over the top 1.5 m.
     qs_clay = 0.55 * 50 * perimeter * (10.0 - (head + 1.5))
-    # Sand, β = 1.5 - 0.245 √z (0.25 ≤ β ≤ 1.2; N60 ≥ 15), σ'v = 10 γ'clay + (z - 10) γ'sand.
+    # Sand, Eq 6.3.47 β = 1.5 - 0.135 √(z/Br), Br = 0.3 m (β ≤ 1.2; N60 ≥ 15),
+    # σ'v = 10 γ'clay + (z - 10) γ'sand.
+    k = 0.135 / math.sqrt(0.3)
     g1, g2 = 18 - GAMMA_W, 19 - GAMMA_W
     a, b = 10 * g1 - 10 * g2, g2  # σ'v = a + b z
 
-    def integral(z: float) -> float:  # ∫ (1.5 - 0.245 √z)(a + b z) dz
-        return 1.5 * (a * z + b * z * z / 2) - 0.245 * (a * z**1.5 / 1.5 + b * z**2.5 / 2.5)
+    def integral(z: float) -> float:  # ∫ (1.5 - k √z)(a + b z) dz
+        return 1.5 * (a * z + b * z * z / 2) - k * (a * z**1.5 / 1.5 + b * z**2.5 / 2.5)
 
     tip = head + length
-    beta_tip = 1.5 - 0.245 * math.sqrt(tip)
-    assert 0.25 < beta_tip < 1.2  # β stays within its limits over the sand
+    beta_tip = 1.5 - k * math.sqrt(tip)
+    assert 0 < beta_tip < 1.2  # β stays within its limits over the sand
     qs_sand = perimeter * (integral(tip) - integral(10.0))
-    qb = 57.5 * 20 * area  # 57.5 N60 ≤ 2870 kPa
+    # Eq 6.3.48: 0.60 σr N60 ≤ 4500 kPa, N60 below the base (the test at 21 m: 20).
+    qb = 0.60 * 100 * 20 * area
     weight = 24.0 * area * length
     q_ult = qs_clay + qs_sand + qb - weight
     assert r["Qs"] == pytest.approx(qs_clay + qs_sand, rel=1e-3)
@@ -112,9 +115,15 @@ def test_bored_pile_in_clay_leaves_out_the_bottom_diameter() -> None:
     assert r["layers"][0]["excluded"] == pytest.approx(1500 + 600)
     perimeter = math.pi * 0.6
     assert r["Qs"] == pytest.approx(0.55 * 50 * perimeter * (7.0 - 1.5 - 0.6), abs=0.06)
-    # Nc* = 9 for cu ≥ 96, 8.0 at 48 and 6.5 at 24 kPa: cu = 50 → 8 + 2/48.
-    nc = 8.0 + (9.0 - 8.0) * (50 - 48) / 48
-    assert r["qb"] == pytest.approx(nc * 50, abs=0.1)
+    # Eq 6.3.43: Nc = 6 (1 + 0.2 L/Db) ≤ 9; L/Db = 7/0.6 → 9.
+    assert r["qb"] == pytest.approx(9 * 50, abs=0.1)
+    # A short shaft: L/Db = 2.5/0.6, Nc = 6 (1 + 0.2 × 4.17) = 11 → still 9; a 1.2 m one
+    # 4 m long: Nc = 6 (1 + 0.2 × 3.33) = 10 → 9; so check a base wider than its length.
+    wide = piles.single_pile(p, "bored", 2.0, 2.5, 1.0)  # L/Db = 1.25: Nc = 7.5
+    omega1 = 0.0015  # 0.0071 + 0.0021 × 1.25 = 0.0097, limited to 0.0015 (Eq 6.3.44c)
+    omega2 = min(max(1.59 * math.sqrt(50 / 100), 0.5), 1.5)  # Eq 6.3.44d
+    fr = min(1.0, 2.5 / (120 * omega1 * 2000 / 300 + omega2))  # Eq 6.3.44b, Db > 1900 mm
+    assert wide["qb"] == pytest.approx(7.5 * 50 * fr, abs=0.1)
 
 
 def test_driven_pile_end_bearing_grows_with_embedment() -> None:
@@ -126,7 +135,7 @@ def test_driven_pile_end_bearing_grows_with_embedment() -> None:
     assert short["qb"] == pytest.approx(limit * 1.0 / (10 * 0.4), abs=0.1)
 
 
-def test_bnbc_spt_relations_by_hand() -> None:
+def test_spt_relations_by_hand() -> None:
     borehole = {
         "id": "BH-2",
         "waterTable": 0,
@@ -148,7 +157,8 @@ def test_bnbc_spt_relations_by_hand() -> None:
     p = profile(borehole, spt={"rodLength": False})
     assert [layer.n60 for layer in p.layers] == pytest.approx([10, 80, 30])
     d, length, head = 0.5, 18.0, 1.0  # tip at 19 m in the silt, 3 m into it
-    r = piles.single_pile(p, "bored", d, length, head, "bnbcSpt")
+    r = piles.single_pile(p, "bored", d, length, head, "bnbcSpt")  # the former name
+    assert r["method"] == "spt"
     perimeter, area = math.pi * d, math.pi * d * d / 4
     qs = perimeter * (
         min(1.2 * 10, 70) * (8 - 1)  # Eq 6.3.29 in the clay
@@ -165,11 +175,15 @@ def test_bnbc_spt_relations_by_hand() -> None:
     q_ult = qs + qb * area - weight
     assert r["Qa"] == pytest.approx(min(q_ult / 3.5, qs / 1.5 + qb * area / 3 - weight), rel=1e-3)
 
-    driven = piles.single_pile(p, "driven", d, length, head, "bnbcSpt")
-    qs_driven = perimeter * (
-        min(1.8 * 10, 70) * 7  # Eq 6.3.21
-        + min(2 * 80, 60) * 8  # Eq 6.3.25
-        + min(1.7 * 30, 60) * 3  # Eq 6.3.26
+    driven = piles.single_pile(p, "driven", d, length, head, "spt")
+    qs_driven = (
+        4
+        * d
+        * (  # a driven precast pile is square: perimeter 4 B
+            min(1.8 * 10, 70) * 7  # Eq 6.3.21
+            + min(2 * 80, 60) * 8  # Eq 6.3.25
+            + min(1.7 * 30, 60) * 3  # Eq 6.3.26
+        )
     )
     assert driven["Qs"] == pytest.approx(qs_driven, abs=0.06)
     assert driven["qb"] == pytest.approx(min(30 * 30 * 6, 300 * 30, 11000), abs=0.1)  # 6.3.28
@@ -230,11 +244,12 @@ def test_structural_checks_of_the_pile_section() -> None:
         c["name"]: c for c in piles.structural_checks("driven", 400, 30, 420, None, 500, 0, 300)
     }
     assert plain["Pile axial compression (plain section)"]["capacity"] == pytest.approx(
-        0.36 * 30 * math.pi * 200**2 / 1e3, abs=0.01
+        0.36 * 30 * 400**2 / 1e3,
+        abs=0.01,  # a driven pile is square
     )
     stress = plain["Pile service stress (driven precast)"]
     assert stress["capacity"] == pytest.approx(0.33 * 30) and stress["demand"] == pytest.approx(
-        300e3 / (math.pi * 200**2), abs=0.01
+        300e3 / 400**2, abs=0.01
     )
 
 

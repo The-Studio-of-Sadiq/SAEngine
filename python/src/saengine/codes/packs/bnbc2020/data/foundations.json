@@ -50,7 +50,7 @@
     "pileSafety": "BNBC 2020 Part 6 Table 6.3.10a (p. 750)",
     "partialSkin": "BNBC 2020 Part 6 Sec 3.10.1.18",
     "sptSafety": "BNBC 2020 Part 6 Secs 3.10.1.13, 3.10.1.16, 3.10.4.5, 3.10.4.7",
-    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10",
+    "noLoadTestSafety": "BNBC 2020 Part 6 Sec 3.10.1.18, 3.10.4.10; uplift Sec 3.11.3 (p. 796)",
     "retainingWall.sliding": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 801): 1.5 against sliding",
     "retainingWall.overturning": "BNBC 2020 Part 6 Sec 3.16 (p. 802) and Sec 3.14 (p. 800): 1.5 against overturning",
     "retainingWall.seismic": "BNBC 2020 Part 6 Sec 3.14 and 3.16 (pp. 800-802): 1.5, no reduction with earthquake",
@@ -84,7 +84,35 @@
     "shallow.subgrade": "BNBC 2020 Part 6 Sec 3.9.6.3 and Tables 6.3.9a-b (pp. 736-737): 300 mm plate, preliminary design",
     "shallow.settlementLimits": "BNBC 2020 Part 6 Sec 3.9.4.7(d) and Table 6.3.8 (pp. 732-733), a guide",
     "shallow.settlementGuide": "BNBC 2020 Part 6 Sec 3.9.4.7(d) (p. 732): isolated pad footings",
-    "shallow.columnBase": "BNBC 2020 Part 6 Sec 3.9.6.7-3.9.6.10 (pp. 738-739), Sec 6.3.14 (p. 918), Sec 6.2.3.2.5 (φ 0.65, p. 898), Sec 6.8.8.2.1 (p. 979)"
+    "shallow.columnBase": "BNBC 2020 Part 6 Sec 3.9.6.7-3.9.6.10 (pp. 738-739), Sec 6.3.14 (p. 918), Sec 6.2.3.2.5 (φ 0.65, p. 898), Sec 6.8.8.2.1 (p. 979)",
+    "piles.staticMethod": "BNBC 2020 Part 6 Secs 3.10.1.11-3.10.1.15 (pp. 743-748) for driven piles; Secs 3.10.4.3-3.10.4.6 (pp. 761-762) for bored piles: 2/3 of fs and 1/3 of fb; Sec 3.10.6.7 (pp. 772-775) for drilled shafts",
+    "piles.soilClasses": "BNBC 2020 Part 6 Table 6.3.9a (p. 736): sand loose N < 10, medium 10-30, dense 30 and over; Table 6.3.9b (p. 737): stiff clay from qu 100 kPa (cu 50). mediumCu 25 kPa (qu 50) is SAEngine practice, not BNBC (BNBC gives no soft / medium stiff bound)",
+    "piles.static.alpha": "BNBC 2020 Part 6 Sec 3.10.1.12 Eq 6.3.16 (p. 745): α 1.0 for cu <= 25, 0.5 for cu >= 70, 1 - (cu - 25)/70 between. Note: the printed divisor 70 gives 0.36 at cu = 70, not 0.5 (a divisor of 90 would meet); the printed form is the more conservative and is used",
+    "piles.static.nc": "BNBC 2020 Part 6 Eqs 6.3.17-6.3.18 (p. 745): fb = cu Nc, Nc = 6 (1 + 0.2 L/Db) <= 9, fb <= 4.0 MPa",
+    "piles.static.sandBeta": "BNBC 2020 Part 6 Sec 3.10.1.14 Eq 6.3.23 (p. 747): β 0.10 at φ 33°, 0.20 at 35°, 0.35 at 37°; interpolated, the end values outside 33-37° (BNBC prints no others)",
+    "piles.static.nq": "BNBC 2020 Part 6 Fig 6.3.2 (p. 746, after Berezantzev et al. 1961), digitised from the PDF at 1° steps",
+    "piles.static.nqDensity": "BNBC 2020 Part 6 Sec 3.10.1.14 Eq 6.3.24 (p. 748): Nq 8-12 loose, 12-40 medium, 40 dense sand; σ'v at the base at most 240 kPa. The engine takes the lesser of this range (interpolated in N60) and Fig 6.3.2 at the layer's φ",
+    "piles.static.criticalDepth": "BNBC 2020 Part 6 Sec 3.10.1.15 (p. 748) and Sec 3.10.4.6 (p. 762): Dc = 10 D loose, 15 D medium dense, 20 D dense sand",
+    "piles.static.boredSkin": "BNBC 2020 Part 6 Secs 3.10.4.4 and 3.10.4.6 (p. 762): bored piles 2/3 of the driven fs and 1/3 of the driven fb",
+    "piles.drilledShaft.minDiameter": "BNBC 2020 Part 6 Sec 3.10.6 (p. 770): bored piles of more than 600 mm are drilled shafts",
+    "piles.drilledShaft.alpha": "BNBC 2020 Part 6 Sec 3.10.6.7 Eq 6.3.42 (p. 772): α 0.55 for su <= 190 kPa; above, Fig 6.3.3 (after Kulhawy and Jackson 1989) digitised from the PDF. Note: the figure's curve gives about 0.36 at 190 kPa, so α drops there as printed",
+    "piles.drilledShaft.sideTop": "BNBC 2020 Part 6 Sec 3.10.6.7 (p. 773): no skin friction over the top 1.5 m and the bottom one diameter of a straight shaft",
+    "piles.drilledShaft.baseMax": "BNBC 2020 Part 6 Eq 6.3.43 (p. 773): fb = Nc Su <= 4000 kPa, Nc = 6 (1 + 0.2 L/Db) <= 9",
+    "piles.drilledShaft.clayReduceAbove": "BNBC 2020 Part 6 Eqs 6.3.44a-d (p. 773): for Db > 1900 mm, fb' = Fr fb, Fr = 2.5 / (120 ω1 Db/Br + ω2) <= 1, ω1 = 0.0071 + 0.0021 L/Db <= 0.0015, ω2 = 1.59 √(Su/σr), 0.5 <= ω2 <= 1.5, Br 300 mm, σr 100 kPa. Note: as printed, ω1 is always 0.0015 (its first term already exceeds the limit); used as printed",
+    "piles.drilledShaft.betaIntercept": "BNBC 2020 Part 6 Eq 6.3.47 (p. 774): β = 1.5 - 0.135 √(z/Br), Br 300 mm",
+    "piles.drilledShaft.betaMax": "SAEngine practice, not BNBC: β <= 1.2, β × N60/15 below N60 15 and fs <= 192 kPa (O'Neill and Reese 1999); conservative, kept and labelled. β is not floored (BNBC gives no lower bound; it is taken as at least 0)",
+    "piles.drilledShaft.sandBase": "BNBC 2020 Part 6 Eq 6.3.48 (p. 775): fb = 0.60 σr N60 <= 4500 kPa, N60 the mean from the base to 2 Db below; Eq 6.3.49: Fr = 4.17 Br/Db <= 1 for Db > 1200 mm",
+    "piles.drilledShaft.lateralRatio": "BNBC 2020 Part 6 Table 6.3.15 (p. 774), with Eq 6.3.46 β = K tan δ and Eq 6.3.19b K0 = (1 - sin φ') √OCR",
+    "piles.drilledShaft.zetaLow": "BNBC 2020 Part 6 Sec 3.10.6.13 (p. 777): ζ 0.67 at 3B, 1.0 at 6B in clay (cap not in firm contact) and 8B in sand, linear between; the group the lesser of Σ ζ Qult and the equivalent pier",
+    "piles.drilledShaft.punchingSpan": "BNBC 2020 Part 6 Sec 3.10.6.14 Eq 6.3.50 (p. 777). Note: the print reads qE = (H Br / 10)(qUP - qLo) <= qUP, which is not dimensionless and drops qLo; the engine uses qE = qLo + H/(10 B) (qUP - qLo) <= qUP (B the equivalent shaft's width), the form of its source",
+    "piles.spt": "BNBC 2020 Part 6 Eqs 6.3.21-6.3.22, 6.3.25-6.3.28 (pp. 747-749, driven) and Eqs 6.3.29-6.3.34 (pp. 762-763, bored); FS 3.5 (sptSafety)",
+    "piles.settlement.axialShare": "BNBC 2020 Part 6 Sec 3.10.5 Eqs 6.3.35a-b (pp. 766-767): Sax = (Qp + a Qs) L / (A Ep), a 0.5 clay and silt, 0.67 sand",
+    "piles.settlement.cp": "BNBC 2020 Part 6 Eq 6.3.35c and Table 6.3.13 (p. 767). Eq 6.3.36 (p. 768) cites 'Table 6.3.9' for Cp, an evident misprint for Table 6.3.13",
+    "piles.settlement.csSlope": "BNBC 2020 Part 6 Eq 6.3.36 (p. 768): Ssf = Cs Qs / (D qo), Cs = (0.93 + 0.16 L/D) Cp. Cs is used as printed (its source has √(L/D); the printed form is the more conservative). The printed D in the denominator is taken as an evident misprint for the embedded length L (the source form): with D, a typical 14 m pile at a third of its capacity settles over 100 mm by skin friction alone, 35 times the L form, which no load test supports. Owner to confirm; skinDenominator 'diameter' applies the printed form",
+    "piles.settlement.groupWidthExponent": "BNBC 2020 Part 6 Eqs 6.3.37-6.3.38 (p. 768): Sg = St (B/D)^0.5 and Rs = n^0.5; the larger is taken",
+    "piles.settlement.blockDepth": "BNBC 2020 Part 6 Sec 3.10.5, long term settlement for pile group (p. 769): a solid foundation at 2/3 of the pile length",
+    "piles.settlement.modulus": "BNBC 2020 Part 6 Eqs 6.3.40-6.3.41 and Table 6.3.14 (pp. 769-770); the lower M of each range is used. Eq 6.3.40 prints ln((σ1'/σ0')^j), which is zero for j = 0; read as the j = 0 form S = H/M ln(σ1'/σ0'), and Eq 6.3.41 as the j > 0 form S = H/(M j) [(σ1'/σr)^j - (σ0'/σr)^j] (2H/M for j = 0.5). For a clay with j > 0 the larger of the two is taken",
+    "piles.settlement.limits": "BNBC 2020 Part 6 Sec 3.10.5 (p. 766) refers to the shallow foundations' limits as 'Table 6.3.7', an evident misprint for Table 6.3.8 (Table 6.3.7 is the presumptive bearing values); Table 6.3.8 is used"
   },
   "retainingWall": {
     "sliding": 1.5,
@@ -572,6 +600,528 @@
       "areaRatioMax": 2.0,
       "dowelRatio": 0.005,
       "minBars": 4
+    }
+  },
+  "piles": {
+    "staticMethod": "alphaBeta",
+    "soilClasses": {
+      "mediumN": 10,
+      "denseN": 30,
+      "mediumCu": 25,
+      "stiffCu": 50
+    },
+    "static": {
+      "alphaFull": [
+        25,
+        1.0
+      ],
+      "alphaLow": [
+        70,
+        0.5
+      ],
+      "alphaDivisor": 70,
+      "ncBase": 6,
+      "ncSlope": 0.2,
+      "ncMax": 9,
+      "clayBaseMax": 4000,
+      "sandBeta": [
+        [
+          33,
+          0.1
+        ],
+        [
+          35,
+          0.2
+        ],
+        [
+          37,
+          0.35
+        ]
+      ],
+      "nq": [
+        [
+          25,
+          16.7
+        ],
+        [
+          26,
+          18.9
+        ],
+        [
+          27,
+          21.4
+        ],
+        [
+          28,
+          24.5
+        ],
+        [
+          29,
+          28.1
+        ],
+        [
+          30,
+          32.6
+        ],
+        [
+          31,
+          38.2
+        ],
+        [
+          32,
+          44.7
+        ],
+        [
+          33,
+          52.6
+        ],
+        [
+          34,
+          62.0
+        ],
+        [
+          35,
+          73.8
+        ],
+        [
+          36,
+          88.3
+        ],
+        [
+          37,
+          107.0
+        ],
+        [
+          38,
+          130.0
+        ],
+        [
+          39,
+          159.0
+        ],
+        [
+          40,
+          195.0
+        ],
+        [
+          41,
+          242.0
+        ],
+        [
+          42,
+          303.0
+        ],
+        [
+          43,
+          382.0
+        ],
+        [
+          44,
+          484.0
+        ],
+        [
+          45,
+          600.0
+        ]
+      ],
+      "nqDensity": {
+        "loose": [
+          8,
+          12
+        ],
+        "medium": [
+          12,
+          40
+        ],
+        "dense": [
+          40,
+          40
+        ]
+      },
+      "baseStressMax": 240,
+      "criticalDepth": {
+        "loose": 10,
+        "medium": 15,
+        "dense": 20
+      },
+      "boredSkin": 0.6667,
+      "boredBase": 0.3333
+    },
+    "drilledShaft": {
+      "minDiameter": 600,
+      "alpha": 0.55,
+      "alphaLimit": 190,
+      "alphaHigh": [
+        [
+          190,
+          0.36
+        ],
+        [
+          200,
+          0.355
+        ],
+        [
+          225,
+          0.34
+        ],
+        [
+          250,
+          0.335
+        ],
+        [
+          275,
+          0.32
+        ],
+        [
+          300,
+          0.315
+        ]
+      ],
+      "sideTop": 1500,
+      "sideBottom": 1.0,
+      "baseMax": 4000,
+      "clayReduceAbove": 1900,
+      "frNumerator": 2.5,
+      "frWidthFactor": 120,
+      "omega1": [
+        0.0071,
+        0.0021,
+        0.0015
+      ],
+      "omega2": [
+        1.59,
+        0.5,
+        1.5
+      ],
+      "referenceWidth": 300,
+      "referenceStress": 100,
+      "betaIntercept": 1.5,
+      "betaSlope": 0.135,
+      "betaMax": 1.2,
+      "lowN": 15,
+      "skinMax": 192,
+      "sandBase": 0.6,
+      "sandBaseMax": 4500,
+      "sandBaseDepth": 2.0,
+      "sandReduceAbove": 1200,
+      "sandFr": 4.17,
+      "lateralRatio": [
+        {
+          "id": "openHole",
+          "name": "Open hole or temporary casing",
+          "value": 1.0
+        },
+        {
+          "id": "slurryLight",
+          "name": "Slurry method, minimal slurry cake",
+          "value": 1.0
+        },
+        {
+          "id": "slurryHeavy",
+          "name": "Slurry method, heavy slurry cake",
+          "value": 0.8
+        },
+        {
+          "id": "permanentCasing",
+          "name": "Permanent casing",
+          "value": 0.7
+        }
+      ],
+      "frictionRatio": [
+        {
+          "id": "dry",
+          "name": "Dry construction, minimal side wall disturbance, prompt concreting",
+          "value": 1.0
+        },
+        {
+          "id": "slurryGood",
+          "name": "Slurry construction, good workmanship",
+          "value": 1.0
+        },
+        {
+          "id": "slurryPoor",
+          "name": "Slurry construction, poor workmanship",
+          "value": 0.6667
+        },
+        {
+          "id": "casingUnderWater",
+          "name": "Casing under water",
+          "value": 0.8333
+        }
+      ],
+      "zetaLow": 0.67,
+      "spacingLow": 3,
+      "clayFullSpacing": 6,
+      "sandFullSpacing": 8,
+      "punchingSpan": 10
+    },
+    "spt": {
+      "bored": {
+        "clay": {
+          "skin": 1.2,
+          "skinMax": 70,
+          "base": 25,
+          "baseMax": 4000
+        },
+        "sand": {
+          "skin": 1.0,
+          "skinMax": 60,
+          "base": 15,
+          "baseMax": 4000,
+          "baseCapN": 150
+        },
+        "silt": {
+          "skin": 0.9,
+          "skinMax": 60,
+          "base": 10,
+          "baseMax": 4000,
+          "baseCapN": 100
+        }
+      },
+      "driven": {
+        "clay": {
+          "skin": 1.8,
+          "skinMax": 70,
+          "base": 45,
+          "baseMax": 4000
+        },
+        "sand": {
+          "skin": 2.0,
+          "skinMax": 60,
+          "base": 40,
+          "baseMax": 11000,
+          "baseCapN": 400
+        },
+        "silt": {
+          "skin": 1.7,
+          "skinMax": 60,
+          "base": 30,
+          "baseMax": 11000,
+          "baseCapN": 300
+        }
+      }
+    },
+    "settlement": {
+      "axialShare": {
+        "cohesive": 0.5,
+        "granular": 0.67
+      },
+      "cp": {
+        "driven": {
+          "denseSand": 0.02,
+          "looseSand": 0.04,
+          "stiffClay": 0.02,
+          "softClay": 0.03,
+          "denseSilt": 0.03,
+          "looseSilt": 0.05
+        },
+        "bored": {
+          "denseSand": 0.09,
+          "looseSand": 0.18,
+          "stiffClay": 0.03,
+          "softClay": 0.06,
+          "denseSilt": 0.09,
+          "looseSilt": 0.12
+        }
+      },
+      "csIntercept": 0.93,
+      "csSlope": 0.16,
+      "skinDenominator": "length",
+      "groupWidthExponent": 0.5,
+      "groupCountExponent": 0.5,
+      "blockDepth": 0.6667,
+      "referenceStress": 100,
+      "modulus": [
+        {
+          "id": "till",
+          "name": "Till, very dense to dense",
+          "soilTypes": [],
+          "M": [
+            1000,
+            300
+          ],
+          "j": 1.0
+        },
+        {
+          "id": "gravel",
+          "name": "Gravel",
+          "soilTypes": [
+            "gravel"
+          ],
+          "M": [
+            400,
+            40
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "sandDense",
+          "name": "Sand, dense",
+          "soilTypes": [
+            "sand"
+          ],
+          "density": [
+            "dense"
+          ],
+          "M": [
+            400,
+            250
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "sandMedium",
+          "name": "Sand, medium dense",
+          "soilTypes": [
+            "sand"
+          ],
+          "density": [
+            "medium"
+          ],
+          "M": [
+            250,
+            150
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "sandLoose",
+          "name": "Sand, loose",
+          "soilTypes": [
+            "sand"
+          ],
+          "density": [
+            "loose"
+          ],
+          "M": [
+            150,
+            100
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltDense",
+          "name": "Silt, dense",
+          "soilTypes": [
+            "silt"
+          ],
+          "density": [
+            "dense"
+          ],
+          "M": [
+            200,
+            80
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltMedium",
+          "name": "Silt, medium dense",
+          "soilTypes": [
+            "silt"
+          ],
+          "density": [
+            "medium"
+          ],
+          "M": [
+            80,
+            60
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltLoose",
+          "name": "Silt, loose",
+          "soilTypes": [
+            "silt"
+          ],
+          "density": [
+            "loose"
+          ],
+          "M": [
+            60,
+            40
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltyClayStiff",
+          "name": "Silty clay, stiff",
+          "soilTypes": [
+            "clay"
+          ],
+          "density": [
+            "dense"
+          ],
+          "M": [
+            60,
+            40
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltyClayMedium",
+          "name": "Silty clay, medium stiff",
+          "soilTypes": [
+            "clay"
+          ],
+          "density": [
+            "medium"
+          ],
+          "M": [
+            20,
+            10
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "siltyClaySoft",
+          "name": "Silty clay, soft",
+          "soilTypes": [
+            "clay"
+          ],
+          "density": [
+            "loose"
+          ],
+          "M": [
+            10,
+            5
+          ],
+          "j": 0.5
+        },
+        {
+          "id": "marineClay",
+          "name": "Marine clay, soft",
+          "soilTypes": [],
+          "M": [
+            20,
+            5
+          ],
+          "j": 0.0
+        },
+        {
+          "id": "organicClay",
+          "name": "Organic clay, soft",
+          "soilTypes": [
+            "organic"
+          ],
+          "M": [
+            20,
+            5
+          ],
+          "j": 0.0
+        },
+        {
+          "id": "peat",
+          "name": "Peat",
+          "soilTypes": [],
+          "M": [
+            5,
+            1
+          ],
+          "j": 0.0
+        }
+      ]
     }
   }
 }

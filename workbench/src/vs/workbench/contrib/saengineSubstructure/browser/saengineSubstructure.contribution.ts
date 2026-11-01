@@ -267,7 +267,7 @@ registerPlannedFeature({
 	id: 'substructure.pileGroupInteraction',
 	part: 'substructure',
 	title: localize('planned.groupInteraction.title', "Pile Group Settlement by Interaction Factors"),
-	summary: localize('planned.groupInteraction.summary', "The settlement of each pile of a group from elastic interaction factors, so a cap's differential settlement and its piles' load sharing are found, in addition to the equivalent-raft group settlement of BNBC Sec 3.10.5 that is checked now."),
+	summary: localize('planned.groupInteraction.summary', "The settlement of each pile of a group from elastic interaction factors, so a cap's differential settlement and its piles' load sharing are found, in addition to the settlement checked now: each pile's own (axial shortening, tip and skin friction), the group's short-term settlement by its width or number of piles, and its long-term settlement as an equivalent raft. The code pack gives no interaction factors."),
 	steps: [
 		localize('planned.groupInteraction.s1', "Find each pile's single-pile settlement under its load from the soil's modulus."),
 		localize('planned.groupInteraction.s2', "Add the interaction of the other piles by their spacing (interaction factors)."),
@@ -283,7 +283,7 @@ registerPlannedFeature({
 	],
 	references: [
 		'Poulos & Davis (1980), Pile Foundation Analysis and Design',
-		'BNBC 2020 Part 6 Sec 3.10.5 (equivalent raft, checked now)',
+		'Default code pack, BNBC 2020 Part 6 Sec 3.10.5 (single pile, group ratio and equivalent raft, checked now; no interaction factors)',
 	],
 });
 

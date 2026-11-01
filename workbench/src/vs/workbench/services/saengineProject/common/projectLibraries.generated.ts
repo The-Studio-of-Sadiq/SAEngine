@@ -7083,10 +7083,26 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				form: {
 					default: 'lattice',
-					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; none: no wind on special structures.',
-					enum: ['lattice', 'squareTower', 'triangularTower', 'none'],
-					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'None'],
+					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels; none: no wind on special structures.',
+					enum: ['lattice', 'squareTower', 'triangularTower', 'clad', 'none'],
+					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building (pressures on its panels)', 'None'],
 					title: 'Form',
+					type: 'string',
+				},
+				method: {
+					default: 'allHeights',
+					description: 'All heights: q·G·Cp of walls and roofs; low-rise: the combined (GCpf) of low-rise buildings with their load patterns (where the building is low-rise).',
+					enum: ['allHeights', 'lowRise'],
+					enumDescriptions: ['All heights (Cp)', 'Low-rise (GCpf)'],
+					title: 'Clad: pressure method',
+					type: 'string',
+				},
+				roof: {
+					default: 'planar',
+					description: 'Planar: flat, gable, hip or monoslope roofs; arched: a barrel vault or arch roof; dome: a dome on a circular base.',
+					enum: ['planar', 'arched', 'dome'],
+					enumDescriptions: ['Flat, gable, hip, monoslope', 'Arched', 'Dome'],
+					title: 'Clad: roof form',
 					type: 'string',
 				},
 				solidity: {
@@ -7816,6 +7832,34 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 into zone 2; the parapet\'s own pressures are given too.',
 					title: 'Parapet height',
 				},
+				openingArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Total area of openings in the envelope (walls and roof) [m²] of a partially enclosed building with one unpartitioned large volume: reduces (GCpi) by the code\'s Ri. Empty: no reduction.',
+					title: 'Area of openings Aog',
+				},
+				internalVolume: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unpartitioned internal volume [m³] for Ri. Empty: from the model (the volume under the roof of a clad special structure).',
+					title: 'Internal volume Vi',
+				},
 				openStructure: {
 					$ref: '#/$defs/OpenStructureWind',
 					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other structures).',
@@ -7962,6 +8006,8 @@ export const DEFAULT_SETTINGS: object = {
 		enclosure: 'enclosed',
 		openStructure: {
 			form: 'lattice',
+			method: 'allHeights',
+			roof: 'planar',
 			roundMembers: false,
 		},
 	},
@@ -14477,6 +14523,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		girtSpacing: 1800.0,
 		bracedBays: [],
 		roofBracingPanels: 2,
+		overhang: 0.0,
 		supports: 'pinned',
 		origin: {
 			x: 0.0,
@@ -15210,6 +15257,29 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Wall type of side wall cladding panels; none adds no panels.',
 					title: 'Wall panel type',
+				},
+				endWallPanelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall type of the gable end walls\' cladding panels (between the end posts, up to the roof); none adds no panels. With roof and side wall panels the shed is clad all round: its wind can be the wall and roof pressures (wind form \'clad\').',
+					title: 'End wall panel type',
+				},
+				overhang: {
+					default: 0,
+					description: 'The roof (rafters, panels and an edge purlin) runs on past each eave by this, in plan [mm]; a windward overhang also takes the wind on its underside.',
+					minimum: 0,
+					title: 'Eave overhang',
+					type: 'number',
 				},
 				supports: {
 					default: 'pinned',
@@ -18193,9 +18263,9 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			properties: {
 				pileCapacity: {
 					default: 'soilReport',
-					description: 'From the soil report\'s per-layer skin friction and end bearing (Part 1), or from the SPT N values by BNBC 2020 Eqs 6.3.29 and 6.3.31-32.',
-					enum: ['soilReport', 'bnbcSpt'],
-					enumDescriptions: ['Soil report (per layer)', 'BNBC 2020 SPT equations'],
+					description: 'From the soil report\'s per-layer skin friction and end bearing (Part 1), by the code pack\'s static method (α in clay, β and Nq in sand), or by the code pack\'s SPT relations. The former value \'bnbcSpt\' is read as \'spt\'.',
+					enum: ['soilReport', 'static', 'spt'],
+					enumDescriptions: ['Soil report (per layer)', 'Static method (code pack)', 'SPT relations (code pack)'],
 					title: 'Pile capacity',
 					type: 'string',
 				},
@@ -19031,6 +19101,32 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					enumDescriptions: ['Fixed in the cap', 'Free (pinned)'],
 					title: 'Head fixity',
 					type: 'string',
+				},
+				shaftConstruction: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drilled shafts in sand: the code pack\'s construction method for K/K0 (e.g. openHole, slurryLight, slurryHeavy, permanentCasing); with the concreting method, β = K tan δ instead of the empirical depth relation. Empty: the depth relation.',
+					title: 'Shaft construction (K/K0)',
+				},
+				shaftConcreting: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drilled shafts in sand: the code pack\'s construction method for δ/φ (e.g. dry, slurryGood, slurryPoor, casingUnderWater).',
+					title: 'Shaft concreting (δ/φ)',
 				},
 				fixityDepth: {
 					anyOf: [

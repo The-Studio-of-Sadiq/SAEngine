@@ -3051,7 +3051,10 @@ export class SubstructureEditor extends EditorPane {
 			return;
 		}
 		const document = this.document;
-		const method = document?.design.pileCapacity === 'bnbcSpt' ? localize('sub.capacityBnbc', "BNBC 2020 SPT method") : localize('sub.capacitySoil', "per-layer skin friction and end bearing of the soil report");
+		const capacity = document?.design.pileCapacity;
+		const method = capacity === 'spt' ? localize('sub.capacitySpt', "SPT relations of the code pack")
+			: capacity === 'static' ? localize('sub.capacityStatic', "static method of the code pack")
+				: localize('sub.capacitySoil', "per-layer skin friction and end bearing of the soil report");
 		const section = this.resultSection(view, localize('sub.pileCapacities', "Pile capacity"), localize('sub.pileCapacitiesDetail', "per pile type and borehole · {0}", method));
 		const kn = localize('sub.unit.kn', "kN");
 		const table = append(section, $('table.sub-table.sub-result-table'));
@@ -3545,12 +3548,13 @@ export class SubstructureEditor extends EditorPane {
 		const design = document.design;
 		this.propertyRow(panel, localize('sub.f.pileCapacity', "Pile capacity"), this.selectInput([
 			{ value: 'soilReport', label: localize('sub.capacity.soil', "Soil report (per layer)") },
-			{ value: 'bnbcSpt', label: localize('sub.capacity.bnbc', "BNBC SPT equations") },
+			{ value: 'static', label: localize('sub.capacity.static', "Static method (code pack)") },
+			{ value: 'spt', label: localize('sub.capacity.spt', "SPT relations (code pack)") },
 		], design.pileCapacity ?? 'soilReport', value => {
 			design.pileCapacity = value as ISubstructure['design']['pileCapacity'];
 			this.changed(true);
 		}, 'design.pileCapacity', localize('sub.f.pileCapacity', "Pile capacity")), undefined,
-			localize('sub.capacityTitle', "Soil report: skin friction and end bearing per layer from 1 Soil Report. BNBC SPT equations: BNBC 2020 Part 6 Sec 3.10 from the SPT N values."));
+			localize('sub.capacityTitle', "Soil report: skin friction and end bearing per layer from 1 Soil Report. Static method: the code pack's α method in clay and β method in sand (drilled shafts by their own values). SPT relations: the code pack's relations from the SPT N values."));
 		const fs = () => design.factorOfSafety ??= {};
 		// The factors the design actually uses, updated as the fields are typed.
 		let refreshUsed = () => { };
@@ -3596,7 +3600,7 @@ export class SubstructureEditor extends EditorPane {
 			usedValue.textContent = `${formatNumber(used.compression, 1)} / ${formatNumber(used.uplift, 1)}`;
 			usedNote.textContent = used.raised === 'loadTest'
 				? localize('sub.fsRaisedLoadTest', "Compression FS raised from {0} to {1}: BNBC 2020 Part 6 Sec 3.10.1.18 asks at least 3.0 unless the design rests on a load test at the site.", formatNumber(used.given, 1), formatNumber(used.compression, 1))
-				: used.raised === 'spt' ? localize('sub.fsRaisedSpt', "FS raised to {0} with the BNBC SPT equations.", formatNumber(used.compression, 1)) : '';
+				: used.raised === 'spt' ? localize('sub.fsRaisedSpt', "FS raised to {0} with the SPT relations.", formatNumber(used.compression, 1)) : '';
 			usedNote.hidden = !used.raised;
 		};
 		refreshUsed();

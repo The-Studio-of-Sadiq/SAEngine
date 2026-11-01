@@ -589,7 +589,10 @@ class CladdingTable(_Row):
     lowRiseWallFactor: float = Field(
         gt=0, le=1, description="Factor on the low-rise wall (GCp) for a roof θ ≤ 10°."
     )
-    internal: dict[str, float] = Field(description="(GCpi) magnitude by enclosure.")
+    internal: dict[str, float] | None = Field(
+        default=None,
+        description="(GCpi) magnitude by enclosure; None: the wind table's internalPressure.",
+    )
     edgeFraction: float = Field(gt=0, description="a ≤ edgeFraction · least plan dimension.")
     edgeHeightFraction: float = Field(gt=0, description="Low-rise: a ≤ this · h.")
     edgeMinFraction: float = Field(gt=0, description="a ≥ this · least plan dimension.")
@@ -597,6 +600,140 @@ class CladdingTable(_Row):
     parapetCorner: float = Field(
         gt=0, description="A parapet this high [m] or more turns roof zone 3 into zone 2."
     )
+
+
+class InternalPressureTable(_Row):
+    """Internal pressure coefficients (GCpi) by enclosure classification and the reduction
+    factor Ri of a partially enclosed building with one unpartitioned large volume:
+    Ri = reductionBase·(1 + 1/√(1 + Vi/(volumeFactor·Aog))) ≤ 1, Vi the internal volume [m³],
+    Aog the total area of openings in the envelope [m²]
+    (read by :func:`saengine.fem.loads.internal_pressure_coefficient`)."""
+
+    coefficients: dict[str, float] = Field(description="(GCpi) magnitude by enclosure.")
+    reducedEnclosures: list[str] = Field(
+        default_factory=list, description="Enclosures whose (GCpi) Ri may reduce."
+    )
+    reductionBase: float = Field(default=0.5, gt=0, le=1)
+    volumeFactor: float = Field(gt=0, description="The constant before Aog in Ri [m].")
+
+
+class RoofCpRow(_Row):
+    """One h/L row of a roof pressure coefficient table: per tabulated angle, the first
+    (suction) and second (pressure, where two are listed) Cp; None where none is printed (0.0 for
+    interpolation)."""
+
+    hOverL: float = Field(ge=0)
+    first: list[float | None]
+    second: list[float | None] | None = None
+
+
+class RoofParallelZone(_Row):
+    """A zone of the roof by its horizontal distance from the windward edge (in multiples of
+    h): Cp values listed (one or two)."""
+
+    upTo: float | None = Field(
+        default=None, description="Zone ends this many h from the windward edge; None: the rest."
+    )
+    cp: list[float] = Field(min_length=1)
+
+
+class RoofParallelRow(_Row):
+    hOverL: float = Field(ge=0)
+    zones: list[RoofParallelZone] = Field(min_length=1)
+
+
+class RoofCpTable(_Row):
+    """Roof pressure coefficients Cp of the main wind-force resisting system (all heights): the
+    windward and leeward slopes for wind normal to the ridge (θ ≥ ``flatAngle``) by θ and h/L,
+    and the zones by distance from the windward edge for θ < ``flatAngle`` and wind parallel to
+    the ridge. Values between rows and angles are interpolated linearly between values of the
+    same column."""
+
+    angles: list[float] = Field(min_length=2, description="Windward slope angles θ [°].")
+    windward: list[RoofCpRow] = Field(min_length=1)
+    steepFrom: float = Field(description="θ [°] from which Cp = steepFactor·θ.")
+    steepFactor: float
+    verticalFrom: float = Field(description="θ [°] above which the slope takes verticalCp.")
+    verticalCp: float
+    leewardAngles: list[float] = Field(min_length=1)
+    leeward: list[RoofCpRow] = Field(min_length=1)
+    flatAngle: float = Field(gt=0, description="θ [°] below which the roof is flat.")
+    parallel: list[RoofParallelRow] = Field(min_length=1)
+    reducible: float | None = Field(
+        default=None, description="The Cp value that may be reduced with its area."
+    )
+    areaReduction: list[tuple[float, float]] = Field(
+        default_factory=list, description="(area [m²], factor) points of that reduction."
+    )
+
+
+class DomeCurve(_Row):
+    """Cp at one point of a dome (A windward springline, B top, C leeward springline) against
+    f/D, for one hD/D."""
+
+    hdOverD: float = Field(ge=0)
+    points: list[tuple[float, float]] = Field(min_length=2, description="(f/D, Cp) points.")
+
+
+class DomeTable(_Row):
+    """Domed roofs on a circular base: Cp at A, B and C by f/D and hD/D, Case A interpolated
+    along arcs A-B-C, Case B constant A up to ``caseBAngle`` then to B and C."""
+
+    minRise: float = Field(gt=0, description="Below this f/D, the planar roof table holds.")
+    caseBAngle: float = Field(gt=0, lt=90)
+    A: list[DomeCurve] = Field(min_length=1)
+    B: list[DomeCurve] = Field(min_length=1)
+    C: list[DomeCurve] = Field(min_length=1)
+
+
+class ArchRow(_Row):
+    """A rise-to-span range of an arched roof: windward quarter Cp = a·r + b (and the alternate
+    coefficient that shall also be used, where given)."""
+
+    elevated: bool = Field(description="Roof on an elevated structure (else from the ground).")
+    riseFrom: float = Field(ge=0)
+    riseTo: float = Field(gt=0)
+    windward: tuple[float, float]
+    alternate: tuple[float, float] | None = None
+
+
+class ArchedTable(_Row):
+    """Arched roofs: windward quarter by r, centre half Cp = a·r + b, leeward quarter Cp."""
+
+    rows: list[ArchRow] = Field(min_length=1)
+    centre: tuple[float, float]
+    leeward: float
+
+
+class LowRiseRow(_Row):
+    angle: float = Field(ge=0, le=90, description="Roof angle θ [°].")
+    gcpf: dict[str, float] = Field(description="(GCpf) by building surface (1-6, 1E-4E).")
+
+
+class LowRiseTable(_Row):
+    """Low-rise buildings: the combined (GCpf) by building surface and roof angle, the end
+    zones 2a wide, the zone 2 extent, the torsional load cases' share."""
+
+    maxHeight: float = Field(gt=0, description="Low-rise: mean roof height h up to this [m].")
+    rows: list[LowRiseRow] = Field(min_length=2)
+    endZoneFactor: float = Field(gt=0, description="E zones extend endZoneFactor·a.")
+    zone2Fraction: float = Field(gt=0, description="Negative zone 2: up to this · L ...")
+    zone2EaveFactor: float = Field(gt=0, description="... or this · he, the less.")
+    torsionalShare: float = Field(gt=0, le=1, description="Zones 1T-4T: this · zones 1-4.")
+    exemptHeight: float = Field(gt=0, description="One storey up to this h: no torsional cases.")
+
+
+class MwfrsTable(_Row):
+    """External pressures of the main wind-force resisting system on walls and roofs of
+    enclosed and partially enclosed buildings (read by :mod:`saengine.fem.loads` and
+    :mod:`saengine.fem.open_wind`)."""
+
+    sideWall: float = Field(description="Side wall Cp.")
+    overhang: float = Field(description="Cp on the underside of a windward roof overhang.")
+    roof: RoofCpTable
+    domes: DomeTable | None = None
+    arched: ArchedTable | None = None
+    lowRise: LowRiseTable | None = None
 
 
 class WindTable(TableModel):
@@ -617,6 +754,14 @@ class WindTable(TableModel):
     )
     cladding: CladdingTable | None = Field(
         default=None, description="Components and cladding pressures; None: not computed."
+    )
+    internalPressure: InternalPressureTable | None = Field(
+        default=None, description="Internal pressure coefficients and Ri; None: cladding's."
+    )
+    mwfrs: MwfrsTable | None = Field(
+        default=None,
+        description="Wall and roof pressures of the main wind-force resisting system; None: "
+        "storey forces only and no wind on clad special structures.",
     )
     openStructures: OpenStructuresTable | None = Field(
         default=None,
@@ -1456,6 +1601,157 @@ class ShallowFoundations(_Group):
     columnBase: ColumnBaseTransfer
 
 
+#: Soil classes of the pile rules: sand by density, clay by consistency, silt by density.
+PileDensity = Literal["loose", "medium", "dense"]
+PileSoil = Literal["denseSand", "looseSand", "stiffClay", "softClay", "denseSilt", "looseSilt"]
+
+
+class PileSoilClasses(_Group):
+    """Where a layer's density or consistency class starts: granular soil by its mean N60,
+    cohesive soil by its undrained shear strength cu."""
+
+    mediumN: Positive = Field(description="N60 at and above which sand is medium dense.")
+    denseN: Positive = Field(description="N60 at and above which sand is dense.")
+    mediumCu: Positive = Field(description="cu [kPa] at and above which clay is medium stiff.")
+    stiffCu: Positive = Field(description="cu [kPa] at and above which clay is stiff.")
+
+
+class PileStatic(_Group):
+    """The static (α / β) method of driven piles, and bored piles by its shares
+    (``staticMethod`` "alphaBeta"): α by cu, Nc = base (1 + slope L/Db) ≤ max, β of sand by φ,
+    Nq by density (and by φ from the figure), the critical depth by density."""
+
+    alphaFull: tuple[float, float] = Field(description="[cu, α]: α at and below this cu [kPa].")
+    alphaLow: tuple[float, float] = Field(description="[cu, α]: α at and above this cu [kPa].")
+    alphaDivisor: Positive = Field(
+        description="Between them α = 1 - (cu - alphaFull cu) / this [kPa]."
+    )
+    ncBase: Positive
+    ncSlope: Positive
+    ncMax: Positive
+    clayBaseMax: Positive = Field(description="fb = cu Nc at most this [kPa].")
+    sandBeta: list[tuple[float, float]] = Field(
+        description="[φ°, β] of sand (interpolated; the end values outside)."
+    )
+    nq: list[tuple[float, float]] = Field(description="[φ°, Nq], the bearing capacity figure.")
+    nqDensity: dict[PileDensity, tuple[float, float]] = Field(
+        description="Nq range by density, interpolated in N60 over the class's range."
+    )
+    baseStressMax: Positive = Field(description="σ'v at the base at most this [kPa].")
+    criticalDepth: dict[PileDensity, Positive] = Field(
+        description="Depth (× D) below which σ'v of sand stays constant."
+    )
+    boredSkin: Share = Field(description="Bored piles: this × the driven pile's fs.")
+    boredBase: Share = Field(description="Bored piles: this × the driven pile's fb.")
+
+
+class ShaftConstruction(_Row):
+    """A row of the drilled shafts' K/K0 or δ/φ table by construction method."""
+
+    id: str
+    name: str
+    value: Positive
+
+
+class DrilledShaft(_Group):
+    """Unit values of drilled shafts (bored piles of more than ``minDiameter``)."""
+
+    minDiameter: Positive = Field(description="A bored pile above this [mm] is a drilled shaft.")
+    alpha: Share = Field(description="α up to ``alphaLimit``.")
+    alphaLimit: Positive = Field(description="cu [kPa] up to which α = ``alpha``.")
+    alphaHigh: list[tuple[float, float]] = Field(
+        description="[cu kPa, α] above ``alphaLimit`` (the adhesion factor figure)."
+    )
+    sideTop: float = Field(ge=0, description="No skin friction over this top length [mm].")
+    sideBottom: float = Field(ge=0, description="Nor over this many diameters at the bottom.")
+    baseMax: Positive = Field(description="fb in clay at most this [kPa].")
+    clayReduceAbove: Positive = Field(description="Base diameter [mm] above which Fr applies.")
+    frNumerator: Positive
+    frWidthFactor: Positive
+    omega1: tuple[float, float, float] = Field(description="[a, b, max]: ω1 = a + b L/Db ≤ max.")
+    omega2: tuple[float, float, float] = Field(description="[c, min, max]: ω2 = c √(cu/σr).")
+    referenceWidth: Positive = Field(description="Br [mm].")
+    referenceStress: Positive = Field(description="σr [kPa].")
+    betaIntercept: Positive
+    betaSlope: Positive = Field(description="β = intercept - slope √(z/Br).")
+    betaMax: Positive | None = Field(default=None, description="β at most this; empty: none.")
+    lowN: Positive | None = Field(
+        default=None, description="β × N60/this below this N60; empty: none."
+    )
+    skinMax: Positive | None = Field(default=None, description="fs at most this [kPa].")
+    sandBase: Positive = Field(description="fb = this × σr × N60 [kPa].")
+    sandBaseMax: Positive
+    sandBaseDepth: Positive = Field(description="N60 the mean over this × Db below the base.")
+    sandReduceAbove: Positive = Field(description="Base diameter [mm] above which Fr applies.")
+    sandFr: Positive = Field(description="Fr = this × Br / Db ≤ 1.")
+    lateralRatio: list[ShaftConstruction] = Field(description="K/K0 by construction method.")
+    frictionRatio: list[ShaftConstruction] = Field(description="δ/φ by construction method.")
+    zetaLow: Share = Field(description="ζ of a shaft at ``spacingLow`` diameters in a group.")
+    spacingLow: Positive
+    clayFullSpacing: Positive = Field(description="ζ = 1 from this spacing (× B) in clay.")
+    sandFullSpacing: Positive = Field(description="ζ = 1 from this spacing (× B) in sand.")
+    punchingSpan: Positive = Field(description="qE = qLo + H / (this × B) (qUP - qLo) ≤ qUP.")
+
+
+class SptRelation(_Group):
+    """SPT relations of one pile kind and soil: fs = skin N̄60 ≤ skinMax, fb = base N60
+    (× L/D when ``baseCapN`` is given, then also ≤ baseCapN N60) ≤ baseMax [kPa]."""
+
+    skin: Positive
+    skinMax: Positive
+    base: Positive
+    baseMax: Positive
+    baseCapN: Positive | None = None
+
+
+class JanbuRow(_Row):
+    """A soil of the modulus number table: the range of M and the stress exponent j, matched
+    to a layer by its soil type and class (sand and silt by density; clay by consistency,
+    loose / medium / dense standing for soft / medium stiff / stiff); a row with no soil types
+    is listed for reference only."""
+
+    id: str
+    name: str
+    soilTypes: list[str] = Field(default_factory=list)
+    density: list[PileDensity] = Field(default_factory=list)
+    M: tuple[float, float] = Field(description="Range of the modulus number (high, low).")
+    j: float = Field(ge=0, le=1)
+
+
+class PileSettlement(_Group):
+    """Settlement of single piles and pile groups."""
+
+    axialShare: dict[Literal["cohesive", "granular"], Share] = Field(
+        description="a in Sax = (Qp + a Qs) L / (A Ep): clay and silt, sand."
+    )
+    cp: dict[Literal["driven", "bored"], dict[PileSoil, Positive]]
+    csIntercept: Positive
+    csSlope: Positive = Field(description="Cs = (intercept + slope L/D) Cp.")
+    skinDenominator: Literal["length", "diameter"] = Field(
+        description="Ssf = Cs Qs / (X qo) with X the embedded length or the diameter."
+    )
+    groupWidthExponent: Positive = Field(description="Sg = St (B/D)^this.")
+    groupCountExponent: Positive = Field(description="Rs = n^this.")
+    blockDepth: Share = Field(description="The group as a block at this × L below its head.")
+    referenceStress: Positive = Field(description="σr [kPa] of the modulus number method.")
+    modulus: list[JanbuRow]
+
+
+class PileRules(_Group):
+    """Deep foundation rules: the static method by id, its values, drilled shafts, the SPT
+    relations and the settlement of piles."""
+
+    staticMethod: Literal["alphaBeta"] = Field(
+        description="Engine method of the static pile capacity (``alphaBeta``: α in clay, β and "
+        "Nq in sand, with the critical depth)."
+    )
+    soilClasses: PileSoilClasses
+    static: PileStatic
+    drilledShaft: DrilledShaft
+    spt: dict[Literal["bored", "driven"], dict[Literal["clay", "sand", "silt"], SptRelation]]
+    settlement: PileSettlement
+
+
 class FoundationsTable(TableModel):
     pileSafety: dict[str, tuple[float, float, float, float]]
     pileControls: list[str]
@@ -1473,6 +1769,11 @@ class FoundationsTable(TableModel):
         default=None,
         description="Shallow foundations; empty: the pack does not cover their geotechnical "
         "rules (the engine's general checks only).",
+    )
+    piles: PileRules | None = Field(
+        default=None,
+        description="Deep foundation rules; empty: the pack does not cover the static method, "
+        "the SPT relations and the pile settlement.",
     )
 
 

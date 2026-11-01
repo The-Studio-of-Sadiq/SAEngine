@@ -3,20 +3,24 @@
 Unit skin friction fs and unit end bearing qb [kPa] (ultimate values; the factor of safety is
 applied in the pile design), evaluated at the middle of each layer.
 
-Bored cast-in-situ piles (drilled shafts), O'Neill & Reese (1999), "Drilled shafts:
-construction procedures and design methods", FHWA-IF-99-025:
+Bored cast-in-situ piles: the drilled-shaft unit values of the code pack's
+``foundations.piles.drilledShaft`` group (:func:`shaft_values`; the default pack's clauses in
+its ``sources``):
 
-- Cohesive (α method): ``fs = α cu``, α = 0.55 for cu/pa ≤ 1.5, ``0.55 - 0.1 (cu/pa - 1.5)``
-  for 1.5 < cu/pa ≤ 2.5; ``qb = Nc* cu ≤ 3830 kPa`` with Nc* = 9 for cu ≥ 96 kPa, 8.0 at 48 kPa
-  and 6.5 at 24 kPa and below (linear in between), O'Neill & Reese's values of Nc* by the
-  rigidity index they correlate with cu. The same method takes no side resistance in cohesive
-  soil over the top 1.5 m (5 ft) of the shaft, over the bottom one diameter of a straight
-  shaft (and the periphery of a bell plus one diameter above it). The per-layer fs here is the
-  unit value only; the pile design (Part 9) must leave these zones out when it integrates fs
-  over the shaft: each such row carries ``sideExclusion``.
-- Granular (β method): ``fs = β σ'v ≤ 192 kPa`` (2 tsf), ``β = 1.5 - 0.245 √z`` (z in m),
-  0.25 ≤ β ≤ 1.2, times N60/15 when N60 < 15; ``qb = 57.5 N60 ≤ 2870 kPa`` (0.6 N60 tsf ≤ 30
-  tsf), N60 at most 50.
+- Cohesive (α method): ``fs = α cu``, α a constant up to a limit of cu and from the pack's
+  adhesion-factor figure above it; ``qb = Nc cu ≤ max`` with ``Nc = base (1 + slope L/Db) ≤
+  max`` (at its largest in the per-layer table, where the pile is not known), reduced by Fr for
+  a base wider than the pack's limit. No side resistance over the top length of the shaft and
+  the bottom diameters the pack gives: the per-layer fs here is the unit value only; the pile
+  design (Part 9) leaves these zones out when it integrates fs over the shaft: each such row
+  carries ``sideExclusion``.
+- Granular (β method): ``fs = β σ'v`` with ``β = intercept - slope √(z/Br)`` (at least 0;
+  optional practice bounds of the pack: β ≤ max, × N60/lowN for a low N60, fs ≤ max), or
+  ``β = (K/K0) K0 tan((δ/φ) φ')``, ``K0 = (1 - sin φ') √OCR``, when the shaft's construction
+  method is chosen; ``qb = c σr N60 ≤ max`` with N60 the mean over the pack's depth below the
+  base, reduced by ``Fr = k Br/Db`` for a wide base.
+
+A pack without the group does not cover these values (the rows say so).
 
 Driven piles:
 
@@ -48,65 +52,233 @@ from typing import Any
 from saengine.soil.profile import PA, Profile, SoilLayer
 
 
-def _n_c_star(cu: float) -> float:
-    points = ((24.0, 6.5), (48.0, 8.0), (96.0, 9.0))
-    if cu <= points[0][0]:
-        return points[0][1]
-    for (c1, n1), (c2, n2) in pairwise(points):
-        if cu <= c2:
-            return n1 + (n2 - n1) * (cu - c1) / (c2 - c1)
-    return 9.0
+def pile_rules() -> Any | None:
+    """The code pack's ``foundations.piles`` group (deep foundation rules), or None when the
+    pack in force does not cover them."""
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    table = pack.table("foundations") if pack.has("foundations") else None
+    if table is None or getattr(table, "piles", None) is None:
+        from saengine.codes.registry import DEFAULT_PACK
+        from saengine.codes.tables import builtin_table
+
+        if pack.id != DEFAULT_PACK:
+            return None
+        table = builtin_table("foundations", DEFAULT_PACK)
+    return table.piles
 
 
-# Bored piles in cohesive soil: zones with no side resistance (O'Neill & Reese 1999).
-BORED_CLAY_EXCLUSION = {"top": 1500, "bottomDiameters": 1.0, "bellDiameters": 1.0}
-BORED_CLAY_NOTE = (
-    "α method: no side resistance over the top 1.5 m of the shaft and the bottom 1 D (a bell's "
-    "periphery and 1 D above it); leave these out when integrating fs"
-)
-PILE_NOTES = {
-    "bored": (
-        "Unit values per layer at mid-depth (ultimate; the FS is applied in the pile design). "
-        "Bored piles, O'Neill & Reese (1999): in cohesive soil the top 1.5 m of the shaft and "
-        "its bottom one diameter (a bell's periphery and one diameter above it) carry no side "
-        "resistance; the pile design must exclude them."
-    ),
-    "driven": (
-        "Unit values per layer at mid-depth (ultimate; the FS is applied in the pile design). "
-        "Driven piles: API RP 2A α in clay, Meyerhof (1976) SPT values in sand."
-    ),
-}
+def pile_clause(key: str) -> str:
+    """The clause of ``piles.<key>`` in the pack's foundations sources (empty when none)."""
+    from saengine.codes import context as code_context
+
+    try:
+        table = code_context.current().table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table names no clause
+        return ""
+    return table.sources.get(f"piles.{key}", "")
 
 
-def bored(layer: SoilLayer, z: float, sigma_eff: float) -> dict[str, Any]:
+def pack_name() -> str:
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    return pack.name or pack.id
+
+
+def interpolate(points: Any, x: float) -> float:
+    """Linear interpolation in ``[[x, y], ...]`` (sorted by x), the end values outside."""
+    rows = sorted((float(a), float(b)) for a, b in points)
+    if x <= rows[0][0]:
+        return rows[0][1]
+    for (x1, y1), (x2, y2) in pairwise(rows):
+        if x <= x2:
+            return y1 + (y2 - y1) * (x - x1) / (x2 - x1)
+    return rows[-1][1]
+
+
+def density_class(layer: SoilLayer, rules: Any | None = None) -> str | None:
+    """'loose', 'medium' or 'dense' (for clay: soft, medium stiff, stiff) by the pack's
+    ``soilClasses``: granular soil by its mean N60, cohesive soil by cu; None when unknown."""
+    rules = rules or pile_rules()
+    if rules is None:
+        return None
+    classes = rules.soilClasses
+    if layer.behaviour == "cohesive":
+        if layer.cu is None:
+            return None
+        if layer.cu >= classes.stiffCu:
+            return "dense"
+        return "medium" if layer.cu >= classes.mediumCu else "loose"
+    if layer.n60 is None:
+        return None
+    if layer.n60 >= classes.denseN:
+        return "dense"
+    return "medium" if layer.n60 >= classes.mediumN else "loose"
+
+
+def shaft_alpha(cu: float, shaft: Any) -> float:
+    """Adhesion factor of a drilled shaft: the pack's constant up to its limit of cu, its
+    adhesion-factor figure above."""
+    if cu <= shaft.alphaLimit:
+        return float(shaft.alpha)
+    return interpolate(shaft.alphaHigh, cu)
+
+
+def shaft_clay_base(
+    cu: float, length: float | None, diameter: float | None, shaft: Any
+) -> tuple[float, str]:
+    """End bearing [kPa] of a drilled shaft in clay: Nc cu ≤ max, Nc from L/Db [m] (its
+    largest without the pile), times Fr for a base wider than the pack's limit."""
+    rules = pile_rules()
+    static = rules.static
+    if length and diameter:
+        nc = min(static.ncMax, static.ncBase * (1 + static.ncSlope * length / diameter))
+    else:
+        nc = static.ncMax
+    qb = min(shaft.baseMax, nc * cu)
+    text = f"fb = Nc cu ≤ {shaft.baseMax:g} kPa, Nc = {nc:.2f}"
+    if diameter and length and diameter * 1e3 > shaft.clayReduceAbove:
+        a, b, top = shaft.omega1
+        omega1 = min(a + b * length / diameter, top)
+        c, low, high = shaft.omega2
+        omega2 = min(max(c * math.sqrt(cu / shaft.referenceStress), low), high)
+        fr = min(
+            1.0,
+            shaft.frNumerator
+            / (shaft.frWidthFactor * omega1 * diameter * 1e3 / shaft.referenceWidth + omega2),
+        )
+        qb *= fr
+        text += f"; Db > {shaft.clayReduceAbove:g} mm: × Fr {fr:.3f}"
+    return qb, text
+
+
+def shaft_sand_base(n60: float, diameter: float | None, shaft: Any) -> tuple[float, str]:
+    """End bearing [kPa] of a drilled shaft in sand: c σr N60 ≤ max, times Fr = k Br/Db for a
+    base wider than the pack's limit (``diameter`` in m)."""
+    qb = min(shaft.sandBaseMax, shaft.sandBase * shaft.referenceStress * n60)
+    text = f"fb = {shaft.sandBase:g} σr N60 ≤ {shaft.sandBaseMax:g} kPa"
+    if diameter and diameter * 1e3 > shaft.sandReduceAbove:
+        fr = min(1.0, shaft.sandFr * shaft.referenceWidth / (diameter * 1e3))
+        qb *= fr
+        text += f"; Db > {shaft.sandReduceAbove:g} mm: × Fr {fr:.3f}"
+    return qb, text
+
+
+def shaft_beta(
+    layer: SoilLayer, z: float, shaft: Any, construction: tuple[str, str] | None = None
+) -> tuple[float, str]:
+    """β of a drilled shaft in sand at depth ``z`` [m]: from the construction method's K/K0
+    and δ/φ (``construction`` = their ids) when given and φ' is known, else the empirical
+    depth relation, with the pack's practice bounds."""
+    if construction and layer.phi:
+        k_id, d_id = construction
+        k_ratio = next((r.value for r in shaft.lateralRatio if r.id == k_id), None)
+        d_ratio = next((r.value for r in shaft.frictionRatio if r.id == d_id), None)
+        if k_ratio is not None and d_ratio is not None:
+            phi = math.radians(layer.phi)
+            k0 = (1 - math.sin(phi)) * math.sqrt(max(layer.ocr, 1.0))
+            beta = k_ratio * k0 * math.tan(d_ratio * phi)
+            return beta, f"β = (K/K0) K0 tan δ = {beta:.3f} ({k_id}, {d_id})"
+    beta = shaft.betaIntercept - shaft.betaSlope * math.sqrt(
+        max(z, 0.0) * 1e3 / shaft.referenceWidth
+    )
+    text = f"β = {shaft.betaIntercept:g} - {shaft.betaSlope:g} √(z/Br)"
+    if shaft.betaMax is not None:
+        beta = min(beta, shaft.betaMax)
+    if shaft.lowN is not None and layer.n60 is not None and layer.n60 < shaft.lowN:
+        beta *= layer.n60 / shaft.lowN
+        text += f" × N60/{shaft.lowN:g}"
+    return max(beta, 0.0), text
+
+
+def bored(
+    layer: SoilLayer,
+    z: float,
+    sigma_eff: float,
+    *,
+    length: float | None = None,
+    diameter: float | None = None,
+    n_base: float | None = None,
+    construction: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """Drilled-shaft unit values [kPa] of a layer at depth ``z`` [m]. ``length`` / ``diameter``
+    [m] of the pile for Nc and the large-base reductions (none: the per-layer table, Nc at its
+    largest, no reduction); ``n_base`` the N60 below the base (default the layer's mean)."""
+    rules = pile_rules()
+    if rules is None:
+        return {"note": f"drilled-shaft values: not covered by the code pack {pack_name()}"}
+    shaft = rules.drilledShaft
     if layer.behaviour == "cohesive":
         if layer.cu is None:
             return {"note": "no cu"}
-        ratio = layer.cu / PA
-        alpha = 0.55 if ratio <= 1.5 else max(0.45, 0.55 - 0.1 * (ratio - 1.5))
-        note = BORED_CLAY_NOTE
-        if ratio > 2.5:
-            note = f"cu/pa above 2.5: treat as rock-like; {note}"
+        alpha = shaft_alpha(layer.cu, shaft)
+        qb, base_text = shaft_clay_base(layer.cu, length, diameter, shaft)
         return {
             "fs": alpha * layer.cu,
-            "qb": min(3830.0, _n_c_star(layer.cu) * layer.cu),
+            "qb": qb,
             "alpha": alpha,
-            "method": "α method, O'Neill & Reese 1999",
-            "sideExclusion": BORED_CLAY_EXCLUSION,
-            "note": note,
+            "method": f"α method (drilled shaft), α = {alpha:.3f}; {base_text}",
+            "sideExclusion": {
+                "top": shaft.sideTop,
+                "bottomDiameters": shaft.sideBottom,
+                "bellDiameters": shaft.sideBottom,
+            },
+            "note": (
+                f"α method: no side resistance over the top {shaft.sideTop:g} mm of the shaft "
+                f"and the bottom {shaft.sideBottom:g} D (a bell's periphery and 1 D above it); "
+                "leave these out when integrating fs"
+                + ("" if length else "; qb with Nc at its largest (the pile is not known)")
+            ),
         }
     if layer.n60 is None:
         return {"note": "no SPT in the layer"}
-    beta = min(1.2, max(0.25, 1.5 - 0.245 * math.sqrt(max(z, 0.0))))
-    if layer.n60 < 15:
-        beta *= layer.n60 / 15
+    beta, beta_text = shaft_beta(layer, z, shaft, construction)
+    fs = beta * sigma_eff
+    if shaft.skinMax is not None:
+        fs = min(fs, shaft.skinMax)
+    qb, base_text = shaft_sand_base(n_base if n_base is not None else layer.n60, diameter, shaft)
     return {
-        "fs": min(192.0, beta * sigma_eff),
-        "qb": min(2870.0, 57.5 * min(layer.n60, 50.0)),
+        "fs": fs,
+        "qb": qb,
         "beta": beta,
-        "method": "β method, O'Neill & Reese 1999",
+        "method": f"β method (drilled shaft), {beta_text}; {base_text}",
         "note": None,
     }
+
+
+def _bored_note() -> str:
+    rules = pile_rules()
+    if rules is None:
+        return f"Bored piles: drilled-shaft values not covered by the code pack {pack_name()}."
+    shaft = rules.drilledShaft
+    return (
+        "Unit values per layer at mid-depth (ultimate; the FS is applied in the pile design). "
+        f"Bored piles, drilled-shaft values ({pack_name()}: "
+        f"{pile_clause('drilledShaft.minDiameter').split(':')[0]}): in cohesive soil the top {shaft.sideTop:g} mm of the shaft and its bottom "
+        f"{shaft.sideBottom:g} diameter (a bell's periphery and one diameter above it) carry no "
+        "side resistance; the pile design must exclude them. qb in clay with Nc at its largest "
+        "and in sand with the layer's N60; the pile design takes them with the pile's L/Db, the "
+        "N60 below its base and the large-base reductions."
+    )
+
+
+class _PileNotes(dict):
+    """``PILE_NOTES[kind]``: the per-layer table's note, the bored one from the pack."""
+
+    def __missing__(self, key: str) -> str:
+        if key == "bored":
+            return _bored_note()
+        raise KeyError(key)
+
+
+PILE_NOTES = _PileNotes(
+    driven=(
+        "Unit values per layer at mid-depth (ultimate; the FS is applied in the pile design). "
+        "Driven piles: API RP 2A α in clay, Meyerhof (1976) SPT values in sand."
+    ),
+)
 
 
 def driven(layer: SoilLayer, z: float, sigma_eff: float) -> dict[str, Any]:

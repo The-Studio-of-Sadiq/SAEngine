@@ -345,6 +345,21 @@ class Wind(_Model):
         description="Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 "
         "into zone 2; the parapet's own pressures are given too.",
     )
+    openingArea: float | None = Field(
+        default=None,
+        gt=0,
+        title="Area of openings Aog",
+        description="Total area of openings in the envelope (walls and roof) [m²] of a "
+        "partially enclosed building with one unpartitioned large volume: reduces (GCpi) by "
+        "the code's Ri. Empty: no reduction.",
+    )
+    internalVolume: float | None = Field(
+        default=None,
+        gt=0,
+        title="Internal volume Vi",
+        description="Unpartitioned internal volume [m³] for Ri. Empty: from the model (the "
+        "volume under the roof of a clad special structure).",
+    )
     openStructure: OpenStructureWind = Field(
         default_factory=lambda: OpenStructureWind(),
         title="Open structures",
@@ -359,13 +374,34 @@ class OpenStructureWind(_Model):
     2.4, design wind loads on other structures: open signs and lattice frameworks, trussed
     towers; :mod:`saengine.fem.open_wind`)."""
 
-    form: Literal["lattice", "squareTower", "triangularTower", "none"] = Field(
+    form: Literal["lattice", "squareTower", "triangularTower", "clad", "none"] = Field(
         default="lattice",
         description="Lattice: an open framework (trusses, frames); towers: Cf of a trussed "
-        "tower's face; none: no wind on special structures.",
+        "tower's face; clad: a clad shed, vault or dome, the wall and roof pressures (with "
+        "internal pressure) on its panels; none: no wind on special structures.",
         json_schema_extra=_labels(
-            ["Lattice framework", "Square trussed tower", "Triangular trussed tower", "None"]
+            [
+                "Lattice framework",
+                "Square trussed tower",
+                "Triangular trussed tower",
+                "Clad building (pressures on its panels)",
+                "None",
+            ]
         ),
+    )
+    method: Literal["allHeights", "lowRise"] = Field(
+        default="allHeights",
+        title="Clad: pressure method",
+        description="All heights: q·G·Cp of walls and roofs; low-rise: the combined (GCpf) of "
+        "low-rise buildings with their load patterns (where the building is low-rise).",
+        json_schema_extra=_labels(["All heights (Cp)", "Low-rise (GCpf)"]),
+    )
+    roof: Literal["planar", "arched", "dome"] = Field(
+        default="planar",
+        title="Clad: roof form",
+        description="Planar: flat, gable, hip or monoslope roofs; arched: a barrel vault or "
+        "arch roof; dome: a dome on a circular base.",
+        json_schema_extra=_labels(["Flat, gable, hip, monoslope", "Arched", "Dome"]),
     )
     solidity: float | None = Field(
         default=None,

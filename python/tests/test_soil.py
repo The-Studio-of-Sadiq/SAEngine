@@ -706,17 +706,17 @@ def test_pile_parameters() -> None:
         "spt": [{"depth": 20000, "N": 30}],
     }
     clay, sandy = piles.pile_parameters(profile(hole))
-    assert clay["fs"] == pytest.approx(0.55 * 50) and clay["qb"] == pytest.approx(
-        (8.0 + 1.0 * 2 / 48) * 50, rel=1e-3
-    )
+    # Drilled shafts (BNBC 2020 Part 6 Sec 3.10.6.7): α 0.55 up to cu 190 kPa (Eq 6.3.42);
+    # qb = Nc cu with Nc at its largest, 9, as the pile is not known (Eq 6.3.43).
+    assert clay["fs"] == pytest.approx(0.55 * 50) and clay["qb"] == pytest.approx(9 * 50)
     z = 20.0
     se = 18 * 10 + 20 * 10 - GAMMA_W * 20
-    beta = 1.5 - 0.245 * math.sqrt(z)
+    beta = 1.5 - 0.135 * math.sqrt(z / 0.3)  # Eq 6.3.47, Br = 300 mm
     assert sandy["fs"] == pytest.approx(beta * se, rel=1e-3)
-    assert sandy["qb"] == pytest.approx(57.5 * 30)
-    # O'Neill & Reese: no side resistance in clay over the top 1.5 m and the bottom 1 D.
+    assert sandy["qb"] == pytest.approx(0.60 * 100 * 30)  # Eq 6.3.48
+    # No side resistance in clay over the top 1.5 m and the bottom 1 D (Sec 3.10.6.7).
     assert clay["sideExclusion"] == {"top": 1500, "bottomDiameters": 1.0, "bellDiameters": 1.0}
-    assert "top 1.5 m" in clay["note"] and "sideExclusion" not in sandy
+    assert "top 1500 mm" in clay["note"] and "sideExclusion" not in sandy
     driven = piles.pile_parameters(profile(hole, pile={"type": "driven"}))
     psi = 50 / (5 * (18 - GAMMA_W))
     assert driven[0]["fs"] == pytest.approx(min(1, 0.5 * psi**-0.25) * 50, rel=1e-3)
