@@ -665,18 +665,88 @@ class OpenStructuresTable(_Row):
 # ─────────────────────────────────────── crane loads ───────────────────────────────────────
 
 
+class CraneCombination(BaseModel):
+    """Which crane load cases act together in the load combinations."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    factorOf: str = Field(
+        default="L",
+        description="Factor kind of a combination row the crane cases take (crane loads are "
+        "live loads).",
+    )
+    gravity: list[list[Literal["V", "T", "B"]]] = Field(
+        default_factory=list,
+        description="Parts that act together in rows without wind or earthquake: V vertical "
+        "with impact, T transverse (lateral, both signs), B longitudinal (both signs).",
+    )
+    lateral: list[list[Literal["V", "T", "B"]]] = Field(
+        default_factory=list,
+        description="Parts that act together in rows with wind or earthquake (none: the crane "
+        "is left out of those rows).",
+    )
+    note: str = ""
+
+
 class CranesTable(TableModel):
-    """Crane loads (BNBC 2020 Part 6 Sec 2.3, crane loads, the provisions of ASCE 7-05 Sec
-    4.10): the vertical impact by kind of crane, the lateral force on the runway beams and the
-    longitudinal force."""
+    """Crane loads: the vertical impact by kind of crane, the transverse (lateral) force on the
+    runway beams, the longitudinal force, the share of these horizontal forces by kind of crane,
+    and which crane load cases the combinations take together."""
 
     impact: dict[str, float] = Field(
         description="Vertical impact: share of the maximum wheel loads added, by crane kind."
     )
     lateral: float = Field(
-        gt=0, description="Lateral force: share of the rated capacity plus hoist and trolley."
+        gt=0, description="Transverse force: share of the lifted load plus the trolley (and hoist)."
     )
     longitudinal: float = Field(gt=0, description="Longitudinal force: share of the wheel loads.")
+    horizontalScale: dict[str, float] = Field(
+        default_factory=dict,
+        description="Factor on the transverse and longitudinal forces by crane kind (default 1).",
+    )
+    notes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Labels of entries that are not the code's own text: {key: note}.",
+    )
+    combination: CraneCombination | None = Field(
+        default=None, description="Crane load cases in the combinations (none: no crane cases)."
+    )
+
+
+# ───────────────────────────────────────── steel fatigue ─────────────────────────────────────────
+
+
+class FatigueEquation(BaseModel):
+    """Design stress range F_SR = (Cf × constant / N) ^ exponent ≥ F_TH [MPa]."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    constant: float = Field(gt=0)
+    exponent: float = Field(gt=0)
+    source: str | None = None
+
+
+class FatigueCategory(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    Cf: float = Field(gt=0, description="Constant Cf of the stress category.")
+    threshold: float = Field(gt=0, description="Threshold stress range F_TH [MPa].")
+    equation: str = Field(default="default", description="Key of ``equations``.")
+    source: str | None = None
+
+
+class FatigueTable(TableModel):
+    """Fatigue of steel members and connections under repeated loading: the design stress range
+    by stress category, the exemptions and the service stress limit."""
+
+    minCycles: float = Field(
+        gt=0, description="No fatigue check below this number of live load cycles."
+    )
+    maxServiceStress: float = Field(
+        gt=0, description="Largest stress under unfactored loads, as a share of Fy."
+    )
+    equations: dict[str, FatigueEquation]
+    categories: dict[str, FatigueCategory]
 
 
 # ─────────────────────────────────────── materials, factors ───────────────────────────────────────
@@ -2514,6 +2584,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "timber": TimberTable,
     "masonry": MasonryTable,
     "cranes": CranesTable,
+    "fatigue": FatigueTable,
     "siteInvestigation": SiteInvestigationTable,
 }
 

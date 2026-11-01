@@ -5148,7 +5148,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		CraneRunway: {
 			additionalProperties: false,
-			description: 'A bridge or monorail crane on a pair of runway beams (BNBC 2020 Part 6 Sec 2.3, crane\nloads; :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm.',
+			description: 'A bridge or monorail crane on a pair of runway beams (the code pack\'s ``cranes`` table;\n:mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -5164,9 +5164,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				kind: {
 					default: 'pendantOperated',
-					description: 'Sets the vertical impact.',
+					description: 'Sets the impact and horizontal forces (the code pack\'s crane table).',
 					enum: ['cabOperated', 'remoteOperated', 'pendantOperated', 'handGeared', 'monorail'],
-					enumDescriptions: ['Cab-operated bridge crane (25 %)', 'Remotely operated bridge crane (25 %)', 'Pendant-operated bridge crane (10 %)', 'Hand-geared bridge crane (0 %)', 'Powered monorail (25 %)'],
+					enumDescriptions: ['Cab-operated bridge crane', 'Remotely operated bridge crane', 'Pendant-operated bridge crane', 'Manually operated (hand-geared) crane', 'Powered monorail'],
 					title: 'Kind',
 					type: 'string',
 				},
@@ -5250,6 +5250,99 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Steel beam type of the runway beams, checked for the wheel loads; empty: loads only.',
 					title: 'Runway beam type',
+				},
+				runwayAxis: {
+					anyOf: [
+						{
+							enum: ['X', 'Y'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan axis the runway beams run along; with both column lines, the crane loads are applied to the frames as moving load cases. Empty: loads only.',
+					title: 'Runway direction',
+				},
+				columnLineA: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan coordinate across the runway of the first line of crane columns [mm] (y for a runway along X).',
+					title: 'Column line A',
+				},
+				columnLineB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan coordinate across the runway of the second line of crane columns [mm]; the rails are centred between the lines, \'span\' apart (the bracket eccentricity).',
+					title: 'Column line B',
+				},
+				runwayStart: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along the runway, first column coordinate it covers [mm] (empty: all).',
+					title: 'Runway start',
+				},
+				runwayEnd: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along the runway, last column coordinate it covers [mm] (empty: all).',
+					title: 'Runway end',
+				},
+				fatigueCategory: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Stress category of the runway beam\'s governing detail (the code pack\'s fatigue table, e.g. A, B, B\', C, D, E, E\', F). Empty: no fatigue check.',
+					title: 'Fatigue stress category',
+				},
+				cyclesPerDay: {
+					default: 0,
+					description: 'Crane passes (stress range fluctuations) a day, for the fatigue check.',
+					minimum: 0,
+					title: 'Load cycles per day',
+					type: 'number',
+				},
+				designLife: {
+					default: 50,
+					description: 'Years of service, for the number of fatigue cycles.',
+					exclusiveMinimum: 0,
+					title: 'Design life',
+					type: 'number',
 				},
 			},
 			required: ['id', 'capacity', 'bridgeWeight', 'trolleyWeight', 'span', 'runwaySpan'],

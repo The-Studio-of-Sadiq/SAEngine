@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/fatigue.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 10.17.1-10.17.3, Eqs 6.10.276-6.10.277 (gazette part 2 pp. 196-198)",
+    "BNBC 2020 Part 6 Table 6.10.14a (gazette part 2 pp. 201-210)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 10.17, design for fatigue",
+  "minCycles": 20000,
+  "maxServiceStress": 0.66,
+  "equations": {
+    "default": {
+      "constant": 329,
+      "exponent": 0.333,
+      "source": "BNBC 2020 Part 6 Eq 6.10.276 (part 2 p. 198): categories A, B, B', C, D, E, E'"
+    },
+    "F": {
+      "constant": 110000,
+      "exponent": 0.167,
+      "source": "BNBC 2020 Part 6 Eq 6.10.277 (part 2 p. 198): category F"
+    }
+  },
+  "categories": {
+    "A": {"Cf": 2.5e10, "threshold": 165, "source": "BNBC 2020 Part 6 Table 6.10.14a row 1.1"},
+    "B": {"Cf": 1.2e10, "threshold": 110, "source": "BNBC 2020 Part 6 Table 6.10.14a rows 1.2, 1.3, 2.1, 2.2, 3.1"},
+    "B'": {"Cf": 6.1e9, "threshold": 83, "source": "BNBC 2020 Part 6 Table 6.10.14a row 3.2"},
+    "C": {"Cf": 4.4e9, "threshold": 69, "source": "BNBC 2020 Part 6 Table 6.10.14a rows 1.4, 5.4-5.7, 8.1"},
+    "D": {"Cf": 2.2e9, "threshold": 48, "source": "BNBC 2020 Part 6 Table 6.10.14a rows 2.3, 3.3"},
+    "E": {"Cf": 1.1e9, "threshold": 31, "source": "BNBC 2020 Part 6 Table 6.10.14a rows 2.4, 3.4, 3.5 (flange up to 20 mm), 8.3"},
+    "E'": {"Cf": 3.9e8, "threshold": 18, "source": "BNBC 2020 Part 6 Table 6.10.14a rows 3.5 (flange over 20 mm), 3.6, 4.1 (t over 20 mm)"},
+    "F": {"Cf": 1.5e12, "threshold": 55, "equation": "F", "source": "BNBC 2020 Part 6 Table 6.10.14a rows 8.2, 8.4"}
+  },
+  "sources": {
+    "minCycles": "BNBC 2020 Part 6 Sec 10.17.1 (part 2 p. 196): no evaluation of fatigue below 20,000 cycles of live load",
+    "maxServiceStress": "BNBC 2020 Part 6 Sec 10.17.1 (part 2 p. 196): the maximum stress due to unfactored loads is 0.66 Fy",
+    "threshold": "BNBC 2020 Part 6 Sec 10.17.1 (part 2 p. 196): no evaluation when the live load stress range is below F_TH",
+    "cycles": "BNBC 2020 Part 6 Sec 10.17.3 (part 2 p. 198): N = stress range fluctuations per day x 365 x years of design life"
+  }
+}

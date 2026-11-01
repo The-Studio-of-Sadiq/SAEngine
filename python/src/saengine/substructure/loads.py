@@ -208,10 +208,19 @@ def strength_combinations(
     """The project's strength combinations whose cases were all analysed, each one-direction
     wind combination for the design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 when the
     model has them (:func:`saengine.fem.combinations.wind_case_combinations`)."""
-    from saengine.fem.combinations import combination_factors, wind_case_combinations
+    from saengine.fem.combinations import (
+        combination_factors,
+        crane_combinations,
+        wind_case_combinations,
+    )
 
     result: list[tuple[str, dict[str, float]]] = []
     formed = wind_case_combinations(list(settings.combinations), set(cases))
+    # The moving crane load cases on the foundations too (saengine.fem.cranes).
+    with_cranes = crane_combinations(
+        formed if formed is not None else list(settings.combinations), set(cases)
+    )
+    formed = with_cranes if with_cranes is not None else formed
     for combination in formed if formed is not None else settings.combinations:
         factors = combination_factors(combination, set(cases))
         if all(case in cases for case in factors):

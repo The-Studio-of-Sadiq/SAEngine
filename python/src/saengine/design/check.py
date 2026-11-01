@@ -447,6 +447,16 @@ def design(
             f"with L on the {count} arrangements LP1-LP{count} (BNBC 2020 Part 6 Sec 6.1.12.2)"
         )
         formed = by_pattern
+    # The moving crane load cases (saengine.fem.cranes), by the code pack's crane rule.
+    from saengine.fem.combinations import crane_combinations
+
+    by_crane = crane_combinations(formed, present)
+    if by_crane is not None and len(by_crane) > len(formed):
+        pre_notes.append(
+            f"cranes: {len(by_crane) - len(formed)} combinations add the moving crane load "
+            "cases (each position and trolley side) at the live load factor"
+        )
+        formed = by_crane
     # Notional loads of the steel stability design (BNBC 2020 Part 6 Sec 10.3.2.2), when the
     # model has their cases (saengine.fem.notional_loads).
     from saengine.fem.notional_loads import notional_combinations

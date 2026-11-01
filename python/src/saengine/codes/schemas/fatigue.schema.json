@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "FatigueCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "Cf": {
+          "description": "Constant Cf of the stress category.",
+          "exclusiveMinimum": 0,
+          "title": "Cf",
+          "type": "number"
+        },
+        "threshold": {
+          "description": "Threshold stress range F_TH [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "equation": {
+          "default": "default",
+          "description": "Key of ``equations``.",
+          "title": "Equation",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "Cf",
+        "threshold"
+      ],
+      "title": "FatigueCategory",
+      "type": "object"
+    },
+    "FatigueEquation": {
+      "additionalProperties": false,
+      "description": "Design stress range F_SR = (Cf × constant / N) ^ exponent ≥ F_TH [MPa].",
+      "properties": {
+        "constant": {
+          "exclusiveMinimum": 0,
+          "title": "Constant",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "constant",
+        "exponent"
+      ],
+      "title": "FatigueEquation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Fatigue of steel members and connections under repeated loading: the design stress range\nby stress category, the exemptions and the service stress limit.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "minCycles": {
+      "description": "No fatigue check below this number of live load cycles.",
+      "exclusiveMinimum": 0,
+      "title": "Mincycles",
+      "type": "number"
+    },
+    "maxServiceStress": {
+      "description": "Largest stress under unfactored loads, as a share of Fy.",
+      "exclusiveMinimum": 0,
+      "title": "Maxservicestress",
+      "type": "number"
+    },
+    "equations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FatigueEquation"
+      },
+      "title": "Equations",
+      "type": "object"
+    },
+    "categories": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FatigueCategory"
+      },
+      "title": "Categories",
+      "type": "object"
+    }
+  },
+  "required": [
+    "minCycles",
+    "maxServiceStress",
+    "equations",
+    "categories"
+  ],
+  "title": "FatigueTable",
+  "type": "object",
+  "$id": "saengine.codePack.fatigue/1"
+}

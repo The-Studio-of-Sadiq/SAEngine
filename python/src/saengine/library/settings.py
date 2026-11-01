@@ -383,22 +383,22 @@ class OpenStructureWind(_Model):
 
 
 class CraneRunway(_Model):
-    """A bridge or monorail crane on a pair of runway beams (BNBC 2020 Part 6 Sec 2.3, crane
-    loads; :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm."""
+    """A bridge or monorail crane on a pair of runway beams (the code pack's ``cranes`` table;
+    :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm."""
 
     id: Id
     name: str = ""
     kind: Literal["cabOperated", "remoteOperated", "pendantOperated", "handGeared", "monorail"] = (
         Field(
             default="pendantOperated",
-            description="Sets the vertical impact.",
+            description="Sets the impact and horizontal forces (the code pack's crane table).",
             json_schema_extra=_labels(
                 [
-                    "Cab-operated bridge crane (25 %)",
-                    "Remotely operated bridge crane (25 %)",
-                    "Pendant-operated bridge crane (10 %)",
-                    "Hand-geared bridge crane (0 %)",
-                    "Powered monorail (25 %)",
+                    "Cab-operated bridge crane",
+                    "Remotely operated bridge crane",
+                    "Pendant-operated bridge crane",
+                    "Manually operated (hand-geared) crane",
+                    "Powered monorail",
                 ]
             ),
         )
@@ -432,6 +432,52 @@ class CraneRunway(_Model):
         title="Runway beam type",
         description="Steel beam type of the runway beams, checked for the wheel loads; empty: "
         "loads only.",
+    )
+    runwayAxis: Literal["X", "Y"] | None = Field(
+        default=None,
+        title="Runway direction",
+        description="Plan axis the runway beams run along; with both column lines, the crane "
+        "loads are applied to the frames as moving load cases. Empty: loads only.",
+    )
+    columnLineA: float | None = Field(
+        default=None,
+        title="Column line A",
+        description="Plan coordinate across the runway of the first line of crane columns [mm] "
+        "(y for a runway along X).",
+    )
+    columnLineB: float | None = Field(
+        default=None,
+        title="Column line B",
+        description="Plan coordinate across the runway of the second line of crane columns [mm]; "
+        "the rails are centred between the lines, 'span' apart (the bracket eccentricity).",
+    )
+    runwayStart: float | None = Field(
+        default=None,
+        title="Runway start",
+        description="Along the runway, first column coordinate it covers [mm] (empty: all).",
+    )
+    runwayEnd: float | None = Field(
+        default=None,
+        title="Runway end",
+        description="Along the runway, last column coordinate it covers [mm] (empty: all).",
+    )
+    fatigueCategory: str | None = Field(
+        default=None,
+        title="Fatigue stress category",
+        description="Stress category of the runway beam's governing detail (the code pack's "
+        "fatigue table, e.g. A, B, B', C, D, E, E', F). Empty: no fatigue check.",
+    )
+    cyclesPerDay: float = Field(
+        default=0,
+        ge=0,
+        title="Load cycles per day",
+        description="Crane passes (stress range fluctuations) a day, for the fatigue check.",
+    )
+    designLife: float = Field(
+        default=50,
+        gt=0,
+        title="Design life",
+        description="Years of service, for the number of fatigue cycles.",
     )
 
 
