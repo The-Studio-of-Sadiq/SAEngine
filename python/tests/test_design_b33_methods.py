@@ -327,3 +327,11 @@ def test_horizontal_shear_cases():
         2e5, "U", CompositeTopping(toppingThickness=100), 300, 500, 28, 420, 10, 2, 200, phi
     )
     assert rows[0]["ok"] and rows[1]["capacity"] == pytest.approx(av, rel=1e-3)
+
+
+def test_wall_joint_under_storey_shear():
+    g = W.WallGeometry(3000, 200, 3000, 3000)
+    bars = W.WallBars(25, 12, 200, 10, 200, 2)
+    forces = [W.PierForces("U", 300e3, 400e3, 5e6, where="bottom")]
+    rows = W._joint_rows(g, bars, forces, 28, 420)
+    assert rows and rows[0]["demand"] == pytest.approx(400.0)

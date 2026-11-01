@@ -1015,6 +1015,7 @@ def wall_checks(
     )
     out.checks += slender_wall_checks(geometry, bars, forces, fc, fy, es, lam, required=klr > 22)
     out.checks += grade_beam_checks(geometry, grade_beam, bars, forces, fc, fy, es, lam)
+    out.checks += _joint_rows(geometry, bars, forces, fc, fy)
 
     # Empirical method (informative alternative to 6.6.4) and its least thickness.
     p_case = _largest(forces, lambda f: f.P)
@@ -1992,3 +1993,41 @@ def grade_beam_checks(
     )
     rows[-1]["flag"] = True
     return rows
+
+
+def _joint_rows(
+    geometry: WallGeometry, bars: WallBars, forces: list[PierForces], fc: float, fy: float
+) -> list[dict[str, Any]]:
+    """B33 (left by B21): shear friction across the horizontal construction joint at the
+    pier's bottom under its own storey shear V2, the vertical bars crossing it
+    (:func:`saengine.design.rc_detailing.wall_joint_check`; [] when the pack has no rule)."""
+    from types import SimpleNamespace
+
+    from saengine.design.rc_detailing import wall_joint_check
+
+    base = [f for f in forces if f.where.split(" ")[-1] == "bottom"] or forces
+    worst = max(base, key=lambda f: abs(f.V2), default=None)
+    if worst is None or abs(worst.V2) <= 0:
+        return []
+    wall_type = SimpleNamespace(
+        thickness=geometry.thickness,
+        reinforcement=SimpleNamespace(
+            layers=bars.layers,
+            vertical=SimpleNamespace(dia=bars.vertical_dia, spacing=bars.vertical_spacing),
+        ),
+    )
+    row = wall_joint_check(
+        "Construction joint at the pier's bottom (storey shear)",
+        abs(worst.V2),
+        wall_type,
+        geometry.length,
+        fc,
+        fy,
+        worst.combination,
+    )
+    if row is None:
+        return []
+    # Reported: the design mode does not size the vertical bars or dowels for it yet.
+    row["flag"] = True
+    row["note"] += "; informative: add dowels across the joint where it is exceeded"
+    return [row]
