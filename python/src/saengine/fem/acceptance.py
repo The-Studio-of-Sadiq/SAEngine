@@ -190,9 +190,7 @@ def fibre_strain(
 METHODS = {"fibreStrain": fibre_strain}
 
 
-def evaluate(
-    project: dict[str, Any], results: Any, target: dict[str, Any]
-) -> dict[str, Any]:
+def evaluate(project: dict[str, Any], results: Any, target: dict[str, Any]) -> dict[str, Any]:
     """The acceptance of the members of a pushover run at the step its target displacement
     (``target``, :func:`saengine.fem.pushover_target.evaluate`) is reached, by the method of
     the code pack in force."""
@@ -248,8 +246,6 @@ def pushover_results(out_dir: Any, project_path: Any) -> list[dict[str, Any]]:
 
     from opensees_studio.services.results import PushoverResults
 
-    from saengine.fem import pushover_target
-    from saengine.fem.combinations import settings_beside
     from saengine.fem.display import _manifest
     from saengine.fem.story_response import load_cached
 
@@ -258,13 +254,7 @@ def pushover_results(out_dir: Any, project_path: Any) -> list[dict[str, Any]]:
         return []
     project = json.loads(Path(project_path).read_text(encoding="utf-8"))
     analyses = {a["id"]: a for a in project.get("analyses", [])}
-    settings = settings_beside(project_path)
-    if settings is not None:
-        from saengine.library.settings import read_soil_text, resolve_site_class
-
-        # The site class the analysis uses (from the soil report when the settings say so).
-        root = Path(project_path).resolve().parent.parent
-        settings = resolve_site_class(settings, read_soil_text(root))[0]
+    settings = analysis_settings(project_path)
     found = []
     for entry in manifest["cases"]:
         analysis = analyses.get(int(entry["case_id"]))
@@ -272,17 +262,40 @@ def pushover_results(out_dir: Any, project_path: Any) -> list[dict[str, Any]]:
             continue
         try:
             results = load_cached(entry, out_dir)
-        except Exception:  # noqa: BLE001 - an unreadable case is left out
+        except Exception:  # noqa: BLE001, S112 - an unreadable case is left out
             continue
         if not isinstance(results, PushoverResults):
             continue
-        target = pushover_target.evaluate(project, analysis, results, settings)
         found.append(
             {
                 "key": f"case:{entry['case_id']}",
                 "label": entry["case_name"],
-                "target": target,
-                "acceptance": evaluate(project, results, target),
+                **evaluate_run(project, analysis, results, settings),
             }
         )
     return found
+
+
+def analysis_settings(project_path: Any) -> Any:
+    """The project settings of the model at ``project_path`` with the site class the analysis
+    uses (from the soil report when the settings say so); None outside a project."""
+    from pathlib import Path
+
+    from saengine.fem.combinations import settings_beside
+    from saengine.library.settings import read_soil_text, resolve_site_class
+
+    settings = settings_beside(project_path)
+    if settings is None:
+        return None
+    root = Path(project_path).resolve().parent.parent
+    return resolve_site_class(settings, read_soil_text(root))[0]
+
+
+def evaluate_run(
+    project: dict[str, Any], analysis: dict[str, Any], results: Any, settings: Any
+) -> dict[str, Any]:
+    """``{"target", "acceptance"}`` of one pushover run."""
+    from saengine.fem import pushover_target
+
+    target = pushover_target.evaluate(project, analysis, results, settings)
+    return {"target": target, "acceptance": evaluate(project, results, target)}

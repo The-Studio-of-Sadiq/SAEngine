@@ -7359,7 +7359,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Pushover: {
 			additionalProperties: false,
-			description: 'Nonlinear static (pushover) analyses of the frames, with fiber sections.',
+			description: 'Nonlinear static (pushover) analyses of the frames and walls, with fiber sections.',
 			properties: {
 				directions: {
 					description: 'Directions to push in.',
@@ -7372,12 +7372,18 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					type: 'array',
 				},
 				pattern: {
-					default: 'seismic',
-					description: 'How the lateral load is spread over the height.',
-					enum: ['seismic', 'uniform'],
-					enumDescriptions: ['Seismic (BNBC story forces, growing with height)', 'Uniform (in proportion to the masses)'],
+					default: 'firstMode',
+					description: 'How the lateral load is spread over the height. The code pack names the pattern its pushover method requires (the results flag another one).',
+					enum: ['firstMode', 'seismic', 'uniform'],
+					enumDescriptions: ['First mode (the fundamental mode\'s shape times the masses)', 'Seismic (the code\'s storey forces, growing with height)', 'Uniform (in proportion to the masses)'],
 					title: 'Load pattern',
 					type: 'string',
+				},
+				fibreWalls: {
+					default: true,
+					description: 'Reinforced concrete walls without openings become fibre wall elements that crack and yield (one per storey, tied to the floors by rigid arms); off: walls stay elastic shells.',
+					title: 'Fibre walls',
+					type: 'boolean',
 				},
 				targetDrift: {
 					default: 2.0,

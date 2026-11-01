@@ -4468,8 +4468,7 @@ class PushoverProcedure(_Row):
         description="Push the control point to at least this × the target displacement."
     )
     noDropToTarget: Positive = Field(
-        description="The base shear may not drop in any step up to this × the target "
-        "displacement."
+        description="The base shear may not drop in any step up to this × the target displacement."
     )
     pDelta: bool = Field(default=True, description="P-Delta effects in the analysis.")
     expectedStrengths: Literal["nominal", "expected"] = Field(

@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from itertools import pairwise
 from typing import Any
 
 from saengine.library.materials import Material
@@ -916,7 +917,7 @@ def wall_fiber_section(
     if mesh is not None and mesh.spacing > 0:
         d, s = mesh.dia * MM, mesh.spacing * MM
         if zone > 0:  # between the boundary zones, the first a spacing in
-            count = max(0, int(round(2 * web / s)) - 1)
+            count = max(0, round(2 * web / s) - 1)
             zs = [-web + 2 * web * (i + 1) / (count + 1) for i in range(count)]
         else:
             end = half - cover - d / 2
@@ -1068,9 +1069,7 @@ def fibre_walls(
                 centre[z] = here
                 continue
             fixed = any(
-                all(nodes[n].get("restraint") or [])
-                for n in shared
-                if abs(coords[n][2] - z) < 1e-6
+                all(nodes[n].get("restraint") or []) for n in shared if abs(coords[n][2] - z) < 1e-6
             )
             node = {
                 "id": next_node,
@@ -1085,7 +1084,7 @@ def fibre_walls(
             centre[z] = next_node
             next_node += 1
         next_element = max((e2["id"] for e2 in elements), default=0) + 1
-        for k, (lower, upper) in enumerate(zip(heights, heights[1:], strict=False)):
+        for k, (lower, upper) in enumerate(pairwise(heights)):
             elements.append(
                 {
                     "id": next_element,

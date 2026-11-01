@@ -19,7 +19,7 @@ export const FemPlanned = {
 	stagedConstruction: 'fem.stagedConstruction',
 	creepShrinkage: 'fem.creepShrinkage',
 	columnShortening: 'fem.columnShortening',
-	/** T21: pushover acceptance and performance point. */
+	/** T21 / B20: what stays planned of the pushover: performance levels, other target methods, walls with openings. */
 	pushoverHinges: 'fem.pushoverHinges',
 	fibreWalls: 'fem.fibreWalls',
 	performancePoint: 'fem.performancePoint',

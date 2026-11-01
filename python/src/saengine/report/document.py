@@ -729,6 +729,40 @@ def _serviceability_blocks(sv: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
+    """B20: the target displacement and the member acceptance of each pushover."""
+    if not pushovers:
+        return []
+    out: list[Block] = [h(2, "Nonlinear static (pushover) analysis")]
+    for push in pushovers:
+        if not push.get("available"):
+            out.append(p(f"{push['label']}: no target displacement ({push.get('reason', '')})."))
+            continue
+        out += full(
+            p(f"{push['label']}: target displacement of the control point at the roof."),
+            table(
+                ["Quantity", "Value", "Clause"],
+                push["target"],
+                ["auto", "auto", "1fr"],
+                "lrl",
+            ),
+        )
+        out.append(p(str(push.get("acceptanceText", ""))))
+        if push.get("acceptance"):
+            out.append(
+                table(
+                    ["Member", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"],
+                    push["acceptance"],
+                    ["1fr"] + ["auto"] * 6,
+                    "lllrrrc",
+                    bad=push.get("acceptanceFails"),
+                )
+            )
+        if push.get("notes"):
+            out.append(bullets([str(n) for n in push["notes"]], 8.5))
+    return out
+
+
 def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     """B15: seismic forces on nonstructural components and the anchorage of structural walls."""
     if not ns:
@@ -879,6 +913,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
+    out += _pushover_blocks(results.get("pushover") or [])
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

@@ -1528,7 +1528,102 @@ def _results(
     out["nonstructural"] = _nonstructural(parts.root, warnings)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
+    # B20: the pushovers' target displacement and member acceptance.
+    out["pushover"] = _pushover(model_path.parent, warnings)
     return out
+
+
+def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
+    """B20: per pushover of ``08 FEM/pushover.osmodel`` (when it has been run) its target
+    displacement and member acceptance (:func:`saengine.fem.acceptance.pushover_results`), as
+    report rows. Lengths in mm, forces in kN."""
+    from saengine.fem import acceptance
+
+    model, run = folder / "pushover.osmodel", folder / "pushover.results"
+    if not model.is_file() or not (run / "manifest.json").is_file():
+        return []
+    try:
+        found = acceptance.pushover_results(run, model)
+    except Exception as error:  # noqa: BLE001 - the report goes on without the pushovers
+        warnings.append(f"The pushover results could not be evaluated: {error}")
+        return []
+    sections = []
+    for item in found:
+        target, accepted = item["target"], item["acceptance"]
+        section: dict[str, Any] = {"label": item["label"], "available": target.get("available")}
+        if not target.get("available"):
+            section["reason"] = str(target.get("reason", ""))
+            sections.append(section)
+            continue
+        clauses = target.get("clauses", {})
+        yes = {True: "yes", False: "no", None: "not reached"}
+        section["target"] = [
+            ["Period of the first increment T1", f"{fmt(target['T1'], 3)} s", ""],
+            ["Effective yield strength Vy", f"{fmt(target['Vy'] / 1e3, 0)} kN", ""],
+            ["Effective yield displacement δy", f"{fmt(1e3 * target['dy'], 1)} mm", ""],
+            ["Effective period Te", f"{fmt(target['Te'], 3)} s", clauses.get("period", "")],
+            ["Sa(Te)", f"{fmt(target['Sa'], 3)} g", ""],
+            ["C0", fmt(target["C0"], 3), clauses.get("c0", "")],
+            ["Rd", fmt(target["Rd"], 3), clauses.get("rd", "")],
+            ["C1", fmt(target["C1"], 3), clauses.get("c1", "")],
+            [
+                "Target displacement δt",
+                f"{fmt(1e3 * target['target'], 1)} mm",
+                clauses.get("target", ""),
+            ],
+            [
+                f"Pushed to (at least {fmt(1e3 * target['required'], 1)} mm)",
+                f"{fmt(1e3 * target['pushedTo'], 1)} mm, {yes[bool(target['reached'])]}",
+                clauses.get("pushTo", ""),
+            ],
+            [
+                f"No drop of the base shear up to {fmt(1e3 * target['noDropTo'], 1)} mm",
+                yes[target["noDrop"]],
+                clauses.get("noDrop", ""),
+            ],
+        ]
+        section["ok"] = bool(target.get("ok"))
+        section["notes"] = [*target.get("notes", []), target.get("note", "")]
+        if accepted.get("available"):
+            rows = accepted["rows"]
+            section["acceptance"] = [
+                [
+                    r["member"],
+                    r["end"],
+                    r["fibre"],
+                    f"{1e3 * r['strain']:.2f}",
+                    f"{1e3 * r['limit']:.2f}",
+                    fmt(r["ratio"], 2),
+                    "OK" if r["ok"] else "FAIL",
+                ]
+                for r in rows[:MAX_PUSHOVER_MEMBERS]
+            ]
+            section["acceptanceFails"] = [not r["ok"] for r in rows[:MAX_PUSHOVER_MEMBERS]]
+            section["acceptanceText"] = (
+                f"{accepted['failed']} of {len(rows)} members fail; the "
+                f"{min(len(rows), MAX_PUSHOVER_MEMBERS)} with the largest ratios are listed "
+                f"({accepted['clause']})."
+            )
+            section["notes"] += [*accepted.get("notes", []), accepted.get("note", "")]
+            if accepted["failed"]:
+                warnings.append(
+                    f"Pushover {item['label']}: {accepted['failed']} members exceed the "
+                    "deformation limit at the target displacement."
+                )
+        else:
+            section["acceptanceText"] = f"No member acceptance: {accepted.get('reason', '')}."
+        if not section["ok"]:
+            warnings.append(
+                f"Pushover {item['label']}: the capacity curve does not meet the code pack's "
+                "pushover rules (see the pushover section)."
+            )
+        section["notes"] = [n for n in section["notes"] if n]
+        sections.append(section)
+    return sections
+
+
+#: Members listed in the pushover acceptance table of the report (the largest ratios).
+MAX_PUSHOVER_MEMBERS = 20
 
 
 def _serviceability(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:
