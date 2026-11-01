@@ -33,13 +33,14 @@ def names(result):
 
 
 def test_bearing_on_concrete_confined_limit():
-    # Sec 10.10.8: φc 0.85 f'c A1 √(A2/A1) <= 1.7 f'c A1, φc 0.60
+    # Sec 10.10.8 Eqs 6.10.183-184 as printed: Pp = 0.8 f'c A1 (full area),
+    # 0.8 f'c A1 √(A2/A1) <= 1.7 f'c A1; φc 0.60 (part2 pp. 137-138)
     c = ColumnBasePlate(length=400, width=300, concreteStrength=25)
-    assert sc.bearing_on_concrete(c) == pytest.approx(0.6 * 0.85 * 25 * 120_000)
-    big = c.model_copy(update={"supportLength": 900, "supportWidth": 700})  # √(A2/A1) > 2
+    assert sc.bearing_on_concrete(c) == pytest.approx(0.6 * 0.8 * 25 * 120_000)
+    big = c.model_copy(update={"supportLength": 900, "supportWidth": 700})  # 0.8 √ > 1.7
     assert sc.bearing_on_concrete(big) == pytest.approx(0.6 * 1.7 * 25 * 120_000)
     mid = c.model_copy(update={"supportLength": 600, "supportWidth": 450})  # A2/A1 = 2.25
-    assert sc.bearing_on_concrete(mid) == pytest.approx(0.6 * 0.85 * 25 * 120_000 * 1.5)
+    assert sc.bearing_on_concrete(mid) == pytest.approx(0.6 * 0.8 * 25 * 120_000 * 1.5)
 
 
 def test_anchor_rod_steel_as_threaded_parts():
@@ -104,8 +105,12 @@ def test_column_side_checks_by_hand():
     assert by_name({"checks": checks}, "column panel zone shear")["capacity"] == pytest.approx(
         0.9 * 0.6 * 345 * col.h * col.tw / 1e3, abs=0.01
     )
+    # stiffened: the flange and web checks become flags, the stiffeners are designed
     stiffened, _ = sc.column_side_checks(500e3, "M", col, A992, 16.0, True)
-    assert [c["name"] for c in stiffened] == ["column panel zone shear"]
+    strength = [c["name"] for c in stiffened if not c["flag"]]
+    assert "column panel zone shear" in strength
+    assert "stiffeners in tension" in strength
+    assert "column flange local bending" not in strength
 
 
 def test_flexural_rupture_at_flange_holes():
@@ -200,8 +205,8 @@ def test_rectangular_k_joint_and_limits():
     assert by_name(r, "chord wall plastification (tension)")["capacity"] == pytest.approx(
         0.9 * pn / 1e3, abs=0.01
     )
-    # square branches: no punching or branch yielding check (Sec 10.11.2)
-    assert "chord punching shear (tension)" not in names(r)
+    # Sec 10.11.2.3.3: punching checked when Bb < B - 2t or the branch is not square
+    assert "chord punching shear (tension)" in names(r)
     assert by_name(r, "gap g / B")["ok"]  # 40/150 >= 0.5 (1 - 0.667)
     small = sc.check_hss_joint(
         c.model_copy(update={"gap": 15}), branch, A36, chord, None, [("T", 1e3)]

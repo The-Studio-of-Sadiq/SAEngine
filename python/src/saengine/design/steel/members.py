@@ -1399,6 +1399,119 @@ def deflection_checks(
     return out
 
 
+def _bracing_table() -> Any:
+    """The stability bracing data of the steel table (None: the pack in force has none)."""
+    try:
+        return code_context.pack_table("steel").bracing
+    except Exception:  # noqa: BLE001 - no pack at all
+        return None
+
+
+#: Above this many brace points a direction is taken as continuously braced (a slab).
+_DISCRETE_BRACES = 10
+
+
+def bracing_requirements(
+    shape: ShapeProperties,
+    stations: Sequence[Stations],
+    lengths: MemberLengths,
+    kind: str,
+) -> list[dict[str, Any]]:
+    """The strength and stiffness the stability braces of a column or beam need so that the
+    member strengths taken with K = 1 between them hold (Sec 10.19 of the code pack's steel
+    table): ``[{what, type, points, Lb [m], demand, Pbr [kN] or Mbr, betaBr [kN/mm], note}]``.
+
+    Columns: nodal braces at the intermediate brace points (Eqs 6.10.287-288), or relative
+    bracing at the ends when the column is braced only there (Eqs 6.10.285-286, the storey's
+    bracing system). Beams (I and channel shapes): lateral nodal braces of the compression
+    flange at its intermediate brace points (Eqs 6.10.291-292, Cd = 2 when the moment changes
+    sign: conservative for every brace). A direction braced at many points (a slab) is
+    continuous bracing and is not listed."""
+    table = _bracing_table()
+    if table is None:
+        return []
+    phi = table.phi
+    out: list[dict[str, Any]] = []
+    if kind == "column":
+        pr = max((float(p) for st in stations for p in st.P), default=0.0)
+        if pr <= 0:
+            return []
+        for axis, seg in (("x", lengths.x), ("y", lengths.y)):
+            inner = len(seg.points) - 2
+            lb = seg.longest() * 1e3
+            if lb <= 0 or inner > _DISCRETE_BRACES:
+                continue
+            row, kind_, eqs = (
+                (table.columnNodal, "nodal", "Sec 10.19.2.2 Eqs 6.10.287-288")
+                if inner > 0
+                else (table.columnRelative, "relative", "Sec 10.19.2.1 Eqs 6.10.285-286")
+            )
+            out.append(
+                {
+                    "what": f"column, buckling about {axis}",
+                    "type": kind_,
+                    "points": max(inner, 0),
+                    "Lb": round(lb / 1e3, 3),
+                    "demand": f"Pr = {pr / 1e3:.1f} kN",
+                    "Pbr": round(row.strength * pr / 1e3, 2),
+                    "betaBr": round(row.stiffness * pr / (phi * lb) / 1e3, 3),
+                    "note": eqs,
+                }
+            )
+        return out
+    if kind == "beam" and shape.family in ("I", "channel"):
+        ho = shape.dims.get("ho") or (shape.dims.get("d", 0.0) - shape.dims.get("tf", 0.0))
+        if ho <= 0:
+            return []
+        mx = [float(m) for st in stations for m in st.Mx]
+        if not mx:
+            return []
+        mr = max(abs(m) for m in mx)
+        cd = 2.0 if min(mx) < 0 < max(mx) else 1.0
+        for label, seg in (("top flange", lengths.ltb_top), ("bottom flange", lengths.ltb_bottom)):
+            inner = len(seg.points) - 2
+            if inner <= 0 or inner > _DISCRETE_BRACES or mr <= 0:
+                continue
+            lb = seg.longest() * 1e3
+            row = table.beamNodal
+            out.append(
+                {
+                    "what": f"beam, lateral bracing of the {label}",
+                    "type": "nodal",
+                    "points": inner,
+                    "Lb": round(lb / 1e3, 3),
+                    "demand": f"Mr = {mr / 1e6:.1f} kN·m, Cd = {cd:g}, ho = {ho:.0f} mm",
+                    "Pbr": round(row.strength * mr * cd / ho / 1e3, 2),
+                    "betaBr": round(row.stiffness * mr * cd / (phi * lb * ho) / 1e3, 3),
+                    "note": "Sec 10.19.3.1(b) Eqs 6.10.291-292",
+                }
+            )
+    return out
+
+
+def brace_slenderness_check(
+    shape: ShapeProperties, lengths: MemberLengths
+) -> dict[str, Any] | None:
+    """L/r of a brace member against the limit of stability bracing (Sec 10.19.4), as a flag
+    (whether the brace is a stability brace is not known here)."""
+    table = _bracing_table()
+    if table is None:
+        return None
+    r = shape.rz if shape.family == "angle" else min(shape.rx, shape.ry)
+    lr = lengths.length * 1e3 / r
+    worst = _Worst()
+    worst.offer(
+        lr / table.slenderness,
+        lr,
+        table.slenderness,
+        None,
+        f"L/r with r = {r:.1f} mm; applies when the member is a stability brace of a column or "
+        "beam (unless a second-order analysis justifies more)",
+        "Sec 10.19.4",
+    )
+    return _check("Slenderness L/r (stability bracing)", worst, "", 1.0, flag=True)
+
+
 def is_steel_member(material: Any) -> bool:
     """Whether a member of ``material`` is designed here (structural steel with fy)."""
     category = getattr(
@@ -1441,6 +1554,11 @@ def design_steel_member(
         )
     stations = member_stations(pieces, combinations, turned)
     checks = check_member(shape, steel, stations, lengths, kind, options)
+    if kind == "brace":
+        slender = brace_slenderness_check(shape, lengths)
+        if slender is not None:
+            checks.append(slender)
+    bracing = bracing_requirements(shape, stations, lengths, kind)
     for note in (*shape.notes, *steel.notes):
         for c in checks:
             if c["name"].startswith(("Tension", "Compression")):
@@ -1462,7 +1580,17 @@ def design_steel_member(
             "class": cl.section_class(elements),
             "elements": [el.describe() for el in elements],
             "massPerMetre": _mass_per_metre(object_type.profile, material),
-            "notes": [*shape.notes, *steel.notes],
+            "notes": [
+                *shape.notes,
+                *steel.notes,
+                *(
+                    f"stability bracing ({b['what']}, {b['type']}, {b['note']}): each brace "
+                    f"needs {b['Pbr']:g} kN and {b['betaBr']:g} kN/mm ({b['demand']}, "
+                    f"Lb = {b['Lb']:g} m)"
+                    for b in bracing
+                ),
+            ],
         },
         "lengths": slenderness_note(lengths),
+        "bracing": bracing,
     }

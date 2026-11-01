@@ -1,5 +1,5 @@
-"""Simple steel connections: basic strength checks, stated assumptions (BNBC 2020 Part 6
-Chapter 10, Sec 10.10; LRFD).
+"""Steel connections: strength checks and stated assumptions (Part 6 Chapter 10 of the code pack
+in force, Sec 10.10-10.11; LRFD).
 
 Three connection types, set per object type (the ``connection`` field the integrator adds to
 04 Objects' beam and brace types):
@@ -23,27 +23,28 @@ Three connection types, set per object type (the ``connection`` field the integr
   gusset buckling on the Whitmore width (K = ``gussetK`` over ``gussetFreeLength``), the
   gusset-to-frame welds for the whole brace force and the tab welds.
 
-Clauses read in BNBC 2020 (bnbc-2020-part2.pdf pages): bolt tension/shear 10.10.3.6 Eq
-6.10.168, φ 0.75, Fnv Table 6.10.10 (p. 127, 130); bearing 10.10.3.10 Eq 6.10.173a, φ 0.75
-(p. 132-133); holes Table 6.10.11, spacing 10.10.3.3 (2⅔ d), edges Table 6.10.12, maximum
-edge 10.10.3.5 (p. 128-129); elements in tension 10.10.4.1 Eq 6.10.174-175 (An <= 0.85 Ag
-for bolted splice plates), in shear 10.10.4.2 Eq 6.10.176-177, block shear 10.10.4.3 Eq
-6.10.178, in compression 10.10.4.4 Eq 6.10.179 (p. 134-135) and flexural buckling 10.5.3 Eq
-6.10.16-19 (p. 60); fillet welds: sizes Table 6.10.7 and maximum size (p. 116), strength
-0.60 FEXX, φ 0.75, Eq 6.10.162-163 (p. 121-122).
+Clauses (Part 6 Chapter 10 of the default code pack; the numbers, tables and φ are the pack's
+``steel`` table): bolt tension/shear 10.10.3.6 Eq 6.10.168 with Table 6.10.10; combined
+tension and shear 10.10.3.7; slip-critical bolts 10.10.3.8-10.10.3.9 (pretension Table 6.10.9,
+μ, Du, hsc, ks); bearing 10.10.3.10 Eq 6.10.173a; holes Table 6.10.11, spacing 10.10.3.3,
+edges Table 6.10.12, maximum edge 10.10.3.5; net hole width 10.2.3.13.2; elements in tension
+10.10.4.1, shear 10.10.4.2, block shear 10.10.4.3, compression 10.10.4.4; fillet welds Table
+6.10.7, 10.10.2.2.2, Eqs 6.10.162-163; long bolt patterns in tension splices Table 6.10.10
+note [f].
 
-From memory, to be checked against the code: the fillet throat 0.707 w; the net-hole
-allowance dh + 2 mm; the Whitmore width (spread at 30°) and the gusset buckling factor K;
-the elastic bolt-group and weld-line methods for eccentricity; plate flexure φ 0.9 Fy Z;
-ISO 8.8 / 10.9 bolts taken as A325 / A490 (Table 6.10.10 lists ASTM grades only).
+SAEngine practice where the code requires the effect but gives no method (the pack's
+``methods`` and its source label them): prying by the T-stub method (Sec 10.10.3.6 asks for the
+prying tension), the elastic bolt-group and weld-line methods, the Whitmore width (30° spread)
+and gusset buckling K, plate flexure φ Fy Z. The fillet throat 0.707 w is the geometry of an
+equal-leg fillet.
 
-Not checked: prying, slip-critical design, coped beams and weld access holes, beam web local
-buckling at copes, column web/flange local effects, the brace net section with shear lag
-(a member check), gusset edge buckling, the interface forces of the uniform force method.
+Not checked: coped beams and weld access holes, beam web local buckling at copes, the brace net
+section with shear lag (a member check), gusset edge buckling, the interface forces of the
+uniform force method, A307 bolts with grips over 5 d (Table 6.10.10 note [b]).
 
-Connections 2 (moment connections, splices, column bases and HSS truss joints), each built only
-from the provisions of BNBC 2020 Part 6 Chapter 10 (which adopts AISC 360-05; the section
-numbers follow its chapter J and K structure, pages to be checked against the BNBC text):
+Connections 2 (moment connections, splices, column bases and HSS joints), each built only from
+the provisions of Part 6 Chapter 10 (the AISC 360-05 provisions; the section numbers follow its
+chapter J and K structure):
 
 - ``flangePlate`` (beams, :func:`check_flange_plate`): a bolted flange-plate moment connection.
   The flange force Puf = M / (d + tp); flange plate bolts (Eq 6.10.168), bearing on the plate
@@ -54,7 +55,8 @@ numbers follow its chapter J and K structure, pages to be checked against the BN
   6.10.162-163 transverse), the web fin plate for the shear (:func:`check_fin_plate`), and the
   column side for the flange force (Sec 10.10.10): flange local bending 6.25 tf² Fy, web local
   yielding (5k + lb) Fy tw, web crippling 0.80 tw² [1 + 3 (lb/d)(tw/tf)^1.5] √(E Fy tf / tw),
-  panel zone shear 0.60 Fy dc tw (Pr <= 0.4 Pc assumed).
+  panel zone shear (Eqs 6.10.193-196), web compression buckling, stiffeners and doublers; on an
+  HSS column the transverse plate checks of Sec 10.11.1.3.
 - ``coverPlate`` splices (beams and columns, :func:`check_splice`): the flange force
   M / (d - tf) plus the flange's share of the axial force (compression left out where the
   ends are finished to bear, Sec 10.10.1.4), checked as the flange plate above on each side of
@@ -62,19 +64,25 @@ numbers follow its chapter J and K structure, pages to be checked against the BN
   and rupture, Sec 10.10.4.2) for V and the web's share of the axial force; splices designed
   for the forces at the splice, Sec 10.10.6.
 - ``basePlate`` (columns at a support, :func:`check_base_plate`): concrete bearing φc Pp,
-  Pp = 0.85 f'c A1 √(A2/A1) <= 1.7 f'c A1 (Sec 10.10.8), the anchor rods' steel in tension and
+  Pp = 0.8 f'c A1 √(A2/A1) <= 1.7 f'c A1 (Sec 10.10.8, as printed), the anchor rods' steel in tension and
   shear as threaded parts (Table 6.10.10: Fnt 0.75 Fu, Fnv 0.40 / 0.50 Fu; combined Sec
   10.10.3.7) and the column-to-plate fillet welds. The plate thickness by the cantilever
   method of the steel design guides, moment bases and the anchors' concrete capacity (ACI
-  318 Chapter 17, which BNBC refers to) are planned features: stated, not checked.
+  318 Chapter 17) are planned features: stated, not checked.
 - ``hssJoint`` (braces, :func:`check_hss_joint`): a welded HSS-to-HSS truss joint, Sec 10.11.2:
   round chords (chord plastification of T/Y, X and gapped K joints, punching shear) and
   rectangular chords (chord wall plastification, punching shear, sidewall yielding and
   crippling at β = 1, branch yielding from uneven load), with the limits of applicability as
   checks. The welds are taken to develop the branch.
 
-From memory, to be checked against the BNBC text: the Chapter K equations and their limits,
-φ of the concentrated-force checks, φc 0.60 of bearing on concrete.
+Built in track B10 (the clauses as printed, part2 pp. 121-171): the column side under the
+flange forces Sec 10.10.10.1-10.10.10.9 (flange local bending, web local yielding and crippling
+with the reductions near a member end, web sidesway buckling as a function, web compression
+buckling, the panel zone Eqs 6.10.193-196, transverse stiffeners and doubler plates); plates on
+HSS Sec 10.11.1 (transverse plates on HSS columns, plates along a rectangular HSS, cap plates);
+overlapped K joints (round: g = -q in Eq 6.10.214; rectangular Eqs 6.10.232-236); HSS-to-HSS
+moment connections Sec 10.11.3 (``hssMoment``, :func:`check_hss_moment`); end plates under
+the beam's axial tension (bolt tension with shear and prying).
 """
 
 from __future__ import annotations
@@ -89,7 +97,9 @@ from saengine.library.objects import (  # the connection models live with the ob
     EndPlateConnection,
     FinPlateConnection,
     FlangePlateConnection,
+    HssCapPlate,
     HssJointConnection,
+    HssMomentConnection,
     SteelSplice,
     _Bolted,
 )
@@ -99,30 +109,54 @@ from saengine.library.steel_sections import SteelSection
 SIMPLE_KINDS = frozenset({"finPlate", "endPlate", "gusset", "hssJoint"})
 
 # ─────────────────────────────────────── data ───────────────────────────────────────
+# The bolt grades, holes, edges, welds, slip and concrete bearing values are the code pack's
+# (``steel`` table, ``connections`` group; :mod:`saengine.codes.tables` SteelConnectionData).
 
-#: Table 6.10.10 nominal shear stress Fnv in bearing-type connections [MPa] (and Fnt).
-BOLT_GRADES: dict[str, dict[str, float]] = {
-    "A307": {"Fnt": 310, "Fnv": 165},
-    "A325N": {"Fnt": 620, "Fnv": 330},  # threads not excluded from the shear planes
-    "A325X": {"Fnt": 620, "Fnv": 414},  # threads excluded
-    "A490N": {"Fnt": 780, "Fnv": 414},
-    "A490X": {"Fnt": 780, "Fnv": 520},
-}
-#: ISO property classes stocked in Bangladesh, taken as their ASTM counterparts.
-BOLT_ALIASES = {
-    "8.8": "A325N",
-    "8.8N": "A325N",
-    "8.8X": "A325X",
-    "10.9": "A490N",
-    "10.9N": "A490N",
-    "10.9X": "A490X",
-}
 
-# Table 6.10.11 standard hole diameters [mm]
-_HOLES = {16: 18, 20: 22, 22: 24, 24: 27, 27: 30, 30: 33}
-# Table 6.10.12 minimum edge distance, rolled edges or thermally cut edges [mm]
-_EDGE_ROLLED = {16: 22, 20: 26, 22: 28, 24: 30, 27: 34, 30: 38, 36: 46}
-_EDGE_SHEARED = {16: 28, 20: 34, 22: 38, 24: 42, 27: 48, 30: 52, 36: 64}
+def steel_table() -> Any:
+    """The ``steel`` table of the code pack in force (the built-in default when none is set)."""
+    try:
+        from saengine.codes import context as code_context
+
+        return code_context.pack_table("steel")
+    except Exception:  # noqa: BLE001 - no pack machinery (a bare calculation)
+        from saengine.codes.tables import builtin_table
+
+        return builtin_table("steel")
+
+
+def connection_data() -> Any:
+    """The pack's connection data (the default pack's when the pack in force has none)."""
+    data = steel_table().connections
+    if data is None:
+        from saengine.codes.tables import builtin_table
+
+        data = builtin_table("steel").connections
+    return data
+
+
+def clause(key: str) -> str:
+    """The clause reference of ``key`` in the steel table's ``sources`` ("" when none)."""
+    return steel_table().sources.get(key, "")
+
+
+def method(key: str) -> str | None:
+    """The method id the pack chooses for ``key`` (``connections.methods``); None: not made."""
+    return connection_data().methods.get(key)
+
+
+def __getattr__(name: str) -> Any:
+    """``BOLT_GRADES`` and ``BOLT_ALIASES`` read from the pack in force (older callers)."""
+    if name == "BOLT_ALIASES":
+        return dict(connection_data().boltAliases)
+    if name == "BOLT_GRADES":
+        return {
+            k: {"Fnt": g.Fnt, "Fnv": g.Fnv}
+            for k, g in connection_data().boltGrades.items()
+            if g.Fnt is not None
+        }
+    raise AttributeError(name)
+
 
 # ─────────────────────────────────────── helpers ───────────────────────────────────────
 
@@ -153,92 +187,212 @@ def _max_rule(name, provided, limit, note) -> dict[str, Any]:
     return _check(name, provided, limit, "mm", None, note)
 
 
+def grade_id(grade: str) -> str:
+    """The pack's bolt grade id of ``grade`` (aliases resolved)."""
+    return connection_data().boltAliases.get(grade, grade)
+
+
 def bolt_grade(grade: str) -> dict[str, float]:
-    return BOLT_GRADES[BOLT_ALIASES.get(grade, grade)]
+    """``{"Fnt", "Fnv"}`` [MPa] of a bolt grade (the pack's bolt grades table)."""
+    g = connection_data().boltGrades[grade_id(grade)]
+    return {"Fnt": float(g.Fnt or 0.0), "Fnv": float(g.Fnv or 0.0)}
 
 
 def hole_diameter(d: float) -> float:
-    """Standard hole, Table 6.10.11."""
-    return _HOLES.get(int(d), d + 3)
+    """Standard hole diameter [mm] (the pack's holes table; larger bolts d + ``holeOver``)."""
+    data = connection_data()
+    return float(data.holes.get(int(d), d + data.holeOver))
 
 
 def net_hole(d: float) -> float:
-    """Hole width taken off for net areas: dh + 2 mm (from memory, to be checked)."""
-    return hole_diameter(d) + 2.0
+    """Hole width taken off for net areas: the hole + the pack's ``netHoleAllowance``."""
+    return hole_diameter(d) + connection_data().netHoleAllowance
 
 
 def min_edge(d: float, sheared: bool = False) -> float:
-    """Table 6.10.12."""
-    table = _EDGE_SHEARED if sheared else _EDGE_ROLLED
+    """Least edge distance [mm] from a standard hole (the pack's edge tables)."""
+    data = connection_data()
+    table = data.edgeSheared if sheared else data.edgeRolled
     if int(d) in table:
-        return table[int(d)]
-    return (1.75 if sheared else 1.25) * d
+        return float(table[int(d)])
+    return (data.edgeOverSheared if sheared else data.edgeOverRolled) * d
 
 
-def bolt_shear_capacity(grade: str, d: float, planes: int = 1) -> float:
-    """φRn of one bolt in shear [N], Eq 6.10.168, φ 0.75."""
-    return 0.75 * bolt_grade(grade)["Fnv"] * math.pi * d**2 / 4 * planes
+def min_spacing(d: float) -> float:
+    return connection_data().minSpacing * d
+
+
+def long_joint_factor(length: float, tension_splice: bool) -> float:
+    """Factor on Fnv of a bearing-type tension splice with a bolt pattern ``length`` [mm] long
+    along the force (1 below the pack's ``longJointLength``)."""
+    data = connection_data()
+    if tension_splice and length > data.longJointLength:
+        return data.longJointFactor
+    return 1.0
+
+
+def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1.0) -> float:
+    """φRn of one bolt in shear [N], Rn = Fnv Ab (``factor``: the long-joint reduction)."""
+    return phi("bolt", 0.75) * factor * bolt_grade(grade)["Fnv"] * math.pi * d**2 / 4 * planes
+
+
+def bolt_tension_capacity(grade: str, d: float, frv: float = 0.0) -> tuple[float, str]:
+    """φRn of one bolt in tension [N] with the required shear stress ``frv`` [MPa]: Fnt Ab, or
+    F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt with shear; and the note."""
+    g = bolt_grade(grade)
+    p = phi("bolt", 0.75)
+    ab = math.pi * d**2 / 4
+    fnt = g["Fnt"]
+    if frv <= 0:
+        return p * fnt * ab, "Eq 6.10.168: Fnt Ab"
+    fnt_ = max(min(1.3 * fnt - fnt / (p * g["Fnv"]) * frv, fnt), 0.0)
+    return p * fnt_ * ab, f"Eqs 6.10.169-170a: F'nt = {fnt_:.0f} MPa with fv = {frv:.0f} MPa"
+
+
+def slip_capacity(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> tuple[float, str]:
+    """φRn of one pretensioned bolt against slip [N], Rn = μ Du hsc Tb Ns, times ks = 1 - Tu /
+    (Du Tb) under the bolt's applied tension ``tension`` [N]; and the note. 0 when the grade is
+    not pretensioned."""
+    data = connection_data()
+    g = data.boltGrades[grade_id(c.boltGrade)]
+    family = data.pretension.get(g.pretension or "")
+    if not family or int(d) not in family:
+        return 0.0, f"{c.boltGrade} M{d:g}: no minimum pretension in the code pack"
+    tb = family[int(d)] * 1e3
+    slip = data.slip
+    mu = slip.mu[c.surfaceClass]
+    hsc = slip.hsc[c.holeType]
+    p = slip.phiStrength if c.slipCritical == "strength" else slip.phiServiceability
+    ks = max(1.0 - tension / (slip.Du * tb), 0.0) if tension > 0 else 1.0
+    rn = mu * slip.Du * hsc * tb * planes
+    note = (
+        f"Eq 6.10.171: φ {p:g} × μ {mu:g} × Du {slip.Du:g} × hsc {hsc:g} × Tb {tb / 1e3:.0f} kN"
+        f" × {planes} plane(s)"
+    )
+    if tension > 0:
+        note += f"; Eq 6.10.172a ks = {ks:.2f}"
+    return p * rn * ks, note
+
+
+def slip_checks(
+    c: Any,
+    label: str,
+    per_bolt: float,
+    comb: str | None,
+    planes: int = 1,
+    tension: float = 0.0,
+) -> list[dict[str, Any]]:
+    """The slip check of a slip-critical connection (none for bearing-type): ``per_bolt`` the
+    bolt's shear [N] (factored combinations, also for slip as a serviceability limit: on the
+    safe side), ``tension`` its applied tension [N]."""
+    if getattr(c, "slipCritical", "none") == "none":
+        return []
+    cap, note = slip_capacity(c, c.boltDiameter, planes, tension)
+    level = "strength" if c.slipCritical == "strength" else "serviceability, factored forces"
+    return [
+        _check(
+            f"{label} slip resistance",
+            per_bolt / 1e3,
+            cap / 1e3,
+            "kN",
+            comb,
+            f"Sec 10.10.3.8 ({level}): {note}",
+        )
+    ]
 
 
 def bearing_capacity(d: float, t: float, fu: float, lc: float) -> float:
     """φRn of one bolt hole in bearing/tear-out [N], Eq 6.10.173a, φ 0.75."""
-    return 0.75 * min(1.2 * max(lc, 0.0) * t * fu, 2.4 * d * t * fu)
+    return phi("bearing", 0.75) * min(1.2 * max(lc, 0.0) * t * fu, 2.4 * d * t * fu)
 
 
 def bearing_line(d, t, fu, rows, pitch, end) -> float:
     """Σ bearing of a line of bolts loaded towards the end distance ``end`` (None: no edge
     close by, the 2.4 d t Fu limit)."""
     dh = hole_diameter(d)
-    first = bearing_capacity(d, t, fu, end - dh / 2) if end is not None else 0.75 * 2.4 * d * t * fu
+    first = (
+        bearing_capacity(d, t, fu, end - dh / 2)
+        if end is not None
+        else bearing_capacity(d, t, fu, math.inf)
+    )
     return first + (rows - 1) * bearing_capacity(d, t, fu, pitch - dh)
 
 
 def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
     """φRn, Eq 6.10.178, φ 0.75."""
-    return 0.75 * min(0.6 * fu * anv + ubs * fu * ant, 0.6 * fy * agv + ubs * fu * ant)
+    return phi("blockShear", 0.75) * min(
+        0.6 * fu * anv + ubs * fu * ant, 0.6 * fy * agv + ubs * fu * ant
+    )
 
 
 def fillet_capacity_per_mm(w: float, fexx: float, theta_deg: float = 0.0) -> float:
     """φRn of a fillet weld per mm of length [N/mm], Eq 6.10.162-163, φ 0.75, throat 0.707 w."""
     s = math.sin(math.radians(theta_deg))
-    return 0.75 * 0.6 * fexx * (1.0 + 0.5 * s**1.5) * 0.707 * w
+    return phi("weld", 0.75) * 0.6 * fexx * (1.0 + 0.5 * s**1.5) * 0.707 * w
 
 
 def fillet_min_size(t_thinner: float) -> float:
-    """Table 6.10.7."""
-    return 3.0 if t_thinner <= 6 else 5.0 if t_thinner <= 13 else 6.0 if t_thinner <= 19 else 8.0
+    """Least fillet weld leg [mm] by the thinner part joined (the pack's ``filletMin``)."""
+    for t_max, leg in connection_data().filletMin:
+        if t_max is None or t_thinner <= t_max:
+            return float(leg)
+    return float(connection_data().filletMin[-1][1])
 
 
 def fillet_max_size(t_edge: float) -> float:
-    """Along edges: t below 6 mm, t - 2 mm otherwise (Sec 10.10.2.2, p. 116)."""
-    return t_edge if t_edge < 6 else t_edge - 2.0
+    """Largest fillet weld leg along an edge [mm]: the thickness below ``filletMaxThin``, else
+    the thickness less ``filletMaxReduce``."""
+    data = connection_data()
+    return t_edge if t_edge < data.filletMaxThin else t_edge - data.filletMaxReduce
 
 
 def whitmore_width(rows: int, lines: int, pitch: float, gauge: float) -> float:
     """Width of the Whitmore section at the last bolt row: the bolt-group width plus the
-    30° spread over the bolt-group length on each side (from memory, to be checked)."""
+    30° spread over the bolt-group length on each side (SAEngine practice: the code gives no
+    method, see the pack's ``methods`` source)."""
     return (lines - 1) * gauge + 2 * (rows - 1) * pitch * math.tan(math.radians(30))
 
 
 def _bolt_rules(c: _Bolted, t_plate: float, lines: int = 1, gauge: float | None = None):
     d = c.boltDiameter
+    data = connection_data()
     edge = min_edge(d, c.shearedEdges)
+    spacing = min_spacing(d)
     out = []
     if c.rows > 1:
-        out.append(_min_rule("bolt pitch", c.pitch, 8 / 3 * d, "Sec 10.10.3.3: 2⅔ d"))
+        out.append(
+            _min_rule("bolt pitch", c.pitch, spacing, f"Sec 10.10.3.3: {data.minSpacing:.3g} d")
+        )
     if lines > 1 and gauge is not None:
-        out.append(_min_rule("bolt gauge", gauge, 8 / 3 * d, "Sec 10.10.3.3: 2⅔ d"))
+        out.append(
+            _min_rule("bolt gauge", gauge, spacing, f"Sec 10.10.3.3: {data.minSpacing:.3g} d")
+        )
     out.append(_min_rule("end distance", c.endDistance, edge, "Table 6.10.12"))
     out.append(_min_rule("edge distance", c.edgeDistance, edge, "Table 6.10.12"))
-    limit = min(12 * t_plate, 150.0)
+    limit = min(data.maxEdgeThickness * t_plate, data.maxEdge)
     out.append(
         _max_rule(
             "largest edge distance",
             max(c.endDistance, c.edgeDistance),
             limit,
-            "Sec 10.10.3.5: 12 t, at most 150 mm",
+            f"Sec 10.10.3.5: {data.maxEdgeThickness:g} t, at most {data.maxEdge:g} mm",
         )
     )
+    if getattr(c, "slipCritical", "none") == "none" and getattr(c, "holeType", "standard") != (
+        "standard"
+    ):
+        out.append(
+            _check(
+                "holes of a bearing-type connection",
+                1.0,
+                0.0,
+                "-",
+                None,
+                "Sec 10.10.3.2: oversized holes (and slots along the load) need a slip-critical "
+                "connection; standard holes taken for the bearing checks",
+                flag=True,
+            )
+        )
     return out
 
 
@@ -286,8 +440,11 @@ def check_fin_plate(
     beam_material: SteelMaterial,
     plate_material: SteelMaterial | None,
     shears: list[tuple[str | None, float]],
+    support: SteelSection | None = None,
+    support_material: SteelMaterial | None = None,
 ) -> dict[str, Any]:
-    """Checks of a fin plate for the beam end shears ``[(combination, V [N])]``."""
+    """Checks of a fin plate for the beam end shears ``[(combination, V [N])]``; ``support``: a
+    rectangular HSS the plate is welded to (the plate along its axis, Sec 10.11.1.5)."""
     plate = plate_material or beam_material
     comb, v = _governing(shears)
     v = abs(v)
@@ -343,7 +500,7 @@ def check_fin_plate(
         _check(
             "plate shear yielding",
             v / 1e3,
-            1.0 * 0.6 * plate.fy * agv / 1e3,
+            phi("shearYielding", 1.0) * 0.6 * plate.fy * agv / 1e3,
             "kN",
             comb,
             "Eq 6.10.176, φ 1.00",
@@ -353,7 +510,7 @@ def check_fin_plate(
         _check(
             "plate shear rupture",
             v / 1e3,
-            0.75 * 0.6 * plate.fu * anv / 1e3,
+            phi("shearRupture", 0.75) * 0.6 * plate.fu * anv / 1e3,
             "kN",
             comb,
             "Eq 6.10.177",
@@ -372,7 +529,7 @@ def check_fin_plate(
             "Eq 6.10.178, Ubs = 1",
         )
     )
-    phi_mp = 0.9 * plate.fy * tp * hp**2 / 4
+    phi_mp = phi("plateFlexure", 0.9) * plate.fy * tp * hp**2 / 4
     checks.append(
         _check(
             "plate flexure at the bolt line",
@@ -380,7 +537,7 @@ def check_fin_plate(
             phi_mp / 1e6,
             "kN·m",
             comb,
-            "φ 0.9 Fy Z (from memory)",
+            "φ Fy Z, SAEngine practice (the code gives no plate flexure rule)",
         )
     )
     # two fillet welds along the plate height: direct shear + moment V·a, per mm
@@ -397,18 +554,23 @@ def check_fin_plate(
             "Eq 6.10.162-163, θ = 0 (conservative), elastic line method",
         )
     )
+    checks += slip_checks(c, "bolt (most loaded)", r_max, comb)
     checks += _bolt_rules(c, tp)
     checks += _weld_rules(c.weldSize, tp, None)
-    return _result(
-        "finPlate",
-        checks,
-        [
-            "one vertical line of bolts in standard holes, bearing-type, single shear",
-            f"bolt group eccentricity a = {a:g} mm by the elastic method (conservative)",
-            "beam web uncoped; the support strong enough for the welds",
-            "plate edges rolled or thermally cut" if not c.shearedEdges else "sheared edges",
-        ],
-    )
+    assumptions = [
+        "one vertical line of bolts, single shear, "
+        + ("bearing-type" if c.slipCritical == "none" else f"slip-critical ({c.slipCritical})"),
+        f"bolt group eccentricity a = {a:g} mm by the elastic method (conservative)",
+        "beam web uncoped; the support strong enough for the welds",
+        "plate edges rolled or thermally cut" if not c.shearedEdges else "sheared edges",
+    ]
+    if support is not None:
+        more, notes = hss_longitudinal_plate_checks(
+            support, support_material or beam_material, plate, tp, v, comb
+        )
+        checks += more
+        assumptions += notes
+    return _result("finPlate", checks, assumptions)
 
 
 # ─────────────────────────────────────── end plate ───────────────────────────────────────
@@ -420,7 +582,11 @@ def check_end_plate(
     beam_material: SteelMaterial,
     plate_material: SteelMaterial | None,
     shears: list[tuple[str | None, float]],
+    forces: list[tuple[str | None, float, float]] | None = None,
 ) -> dict[str, Any]:
+    """Checks of a shear end plate for the beam end shears ``[(combination, V [N])]`` and,
+    when given, the end forces ``[(combination, V, N [N], tension +)]`` (bolt tension with
+    prying under the beam's axial tension)."""
     plate = plate_material or beam_material
     comb, v = _governing(shears)
     v = abs(v)
@@ -460,7 +626,7 @@ def check_end_plate(
         _check(
             "plate shear yielding",
             v / 1e3,
-            0.6 * plate.fy * 2 * hp * tp / 1e3,
+            phi("shearYielding", 1.0) * 0.6 * plate.fy * 2 * hp * tp / 1e3,
             "kN",
             comb,
             "Eq 6.10.176, φ 1.00, two planes",
@@ -470,7 +636,7 @@ def check_end_plate(
         _check(
             "plate shear rupture",
             v / 1e3,
-            0.75 * 0.6 * plate.fu * 2 * (hp - n * dn) * tp / 1e3,
+            phi("shearRupture", 0.75) * 0.6 * plate.fu * 2 * (hp - n * dn) * tp / 1e3,
             "kN",
             comb,
             "Eq 6.10.177, two planes",
@@ -504,23 +670,120 @@ def check_end_plate(
         _check(
             "beam web shear at the welds",
             v / 1e3,
-            0.6 * beam_material.fy * beam.tw * hp / 1e3,
+            phi("shearYielding", 1.0) * 0.6 * beam_material.fy * beam.tw * hp / 1e3,
             "kN",
             comb,
             "Eq 6.10.176, φ 1.00, the web over the plate height",
         )
     )
+    checks += slip_checks(c, "bolt", v / bolts, comb)
+    assumptions = [
+        "two vertical lines of bolts in standard holes, "
+        + ("bearing-type" if c.slipCritical == "none" else f"slip-critical ({c.slipCritical})"),
+        "end plate shorter than the beam depth, welded to the web only",
+        "support flange of the plate's material, thickness as given",
+    ]
+    tension_row = _governing_vector(list(forces or []), 2, 1)
+    if tension_row is not None:
+        more, notes = _end_plate_tension(c, beam, beam_material, plate, tension_row, hp)
+        checks += more
+        assumptions += notes
+    else:
+        assumptions.append("no axial tension at the beam ends: the bolts carry shear only")
     checks += _bolt_rules(c, tp, lines=2, gauge=c.gauge)
     checks += _weld_rules(c.weldSize, min(tp, beam.tw), None)
-    return _result(
-        "endPlate",
-        checks,
-        [
-            "two vertical lines of bolts in standard holes, bearing-type, no prying (shear only)",
-            "end plate shorter than the beam depth, welded to the web only",
-            "support flange of the plate's material, thickness as given",
-        ],
+    return _result("endPlate", checks, assumptions)
+
+
+def prying_capacity(
+    b_tension: float, b: float, a: float, p: float, t: float, fu: float, d: float
+) -> tuple[float, str]:
+    """Available tension of one bolt of a T-stub (end plate) with prying [N], by the T-stub
+    method of the steel design manuals (SAEngine practice: the code requires prying in the bolt
+    tension, Sec 10.10.3.6, but gives no method): ``b_tension`` the bolt's φRn in tension [N],
+    ``b`` bolt line to the face of the web, ``a`` bolt line to the plate edge (<= 1.25 b), ``p``
+    the plate length per bolt, ``t`` the plate, ``d`` the bolt [mm]. tc = √(4 B b' / (φ p Fu)),
+    α' = [(tc / t)² - 1] / (δ (1 + ρ)), Q = 1 (α' < 0), (t / tc)² (1 + δ α') (0..1) or
+    (t / tc)² (1 + δ) (α' > 1)."""
+    a = min(a, 1.25 * b)
+    b1 = max(b - d / 2, 1e-6)
+    a1 = a + d / 2
+    rho = b1 / a1
+    delta = max(1 - hole_diameter(d) / p, 1e-6)
+    tc = math.sqrt(4 * b_tension * b1 / (phi("plateFlexure", 0.9) * p * fu))
+    alpha = ((tc / t) ** 2 - 1) / (delta * (1 + rho))
+    if alpha < 0:
+        q = 1.0
+    elif alpha <= 1:
+        q = (t / tc) ** 2 * (1 + delta * alpha)
+    else:
+        q = (t / tc) ** 2 * (1 + delta)
+    q = min(q, 1.0)
+    note = (
+        f"T-stub prying (SAEngine practice): b' = {b1:.0f}, a' = {a1:.0f}, p = {p:.0f} mm, "
+        f"tc = {tc:.1f} mm, α' = {alpha:.2f}, Q = {q:.2f}"
     )
+    return b_tension * q, note
+
+
+def _end_plate_tension(
+    c: EndPlateConnection,
+    beam: SteelSection,
+    beam_material: SteelMaterial,
+    plate: SteelMaterial,
+    row: tuple[Any, ...],
+    hp: float,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The end plate under the beam's axial tension ``row`` = (combination, V, T [N]): bolt
+    tension with shear (Sec 10.10.3.7) and prying, the web welds and the web in tension."""
+    comb, v, t = row[0], abs(row[1]), row[2]
+    d, n, tp = c.boltDiameter, c.rows, c.plateThickness
+    bolts = 2 * n
+    ab = math.pi * d**2 / 4
+    per_bolt = t / bolts
+    b_cap, b_note = bolt_tension_capacity(c.boltGrade, d, v / bolts / ab)
+    checks: list[dict[str, Any]] = []
+    notes = [f"beam axial tension T = {t / 1e3:.1f} kN shared by the {bolts} bolts"]
+    if method("prying") == "tStub":
+        b = max((c.gauge - beam.tw) / 2, d)
+        cap, note = prying_capacity(b_cap, b, c.edgeDistance, hp / n, tp, plate.fu, d)
+        checks.append(
+            _check(
+                "bolt tension with prying",
+                per_bolt / 1e3,
+                cap / 1e3,
+                "kN",
+                comb,
+                f"Sec 10.10.3.6-10.10.3.7: {b_note}; {note}",
+            )
+        )
+        notes.append(clause("methods") or "prying by the T-stub method")
+    else:
+        checks.append(_check("bolt tension", per_bolt / 1e3, b_cap / 1e3, "kN", comb, b_note))
+        notes.append("prying not checked: the code pack names no method")
+    checks += slip_checks(c, "bolt (with tension)", v / bolts, comb, 1, per_bolt)
+    f = math.hypot(v, t) / (2 * hp)
+    checks.append(
+        _check(
+            "welds to the beam web (shear and tension)",
+            f,
+            fillet_capacity_per_mm(c.weldSize, c.electrode),
+            "N/mm",
+            comb,
+            "Eq 6.10.162-163, two welds, θ = 0",
+        )
+    )
+    checks.append(
+        _check(
+            "beam web tension yielding at the welds",
+            t / 1e3,
+            phi("tensionYield", 0.9) * beam_material.fy * beam.tw * hp / 1e3,
+            "kN",
+            comb,
+            "Sec 10.10.4.1 Eq 6.10.174 on the web over the plate height",
+        )
+    )
+    return checks, notes
 
 
 # ─────────────────────────────────────── brace gusset ───────────────────────────────────────
@@ -569,6 +832,7 @@ def check_brace_gusset(
                 f"Eq 6.10.168, {bolts} bolts, {c.shearPlanes} plane(s)",
             )
         )
+        checks += slip_checks(c, f"bolt ({label})", p / bolts, comb, c.shearPlanes)
         end = c.endDistance if sign > 0 else None  # compression bears into the plate
         checks.append(
             _check(
@@ -592,12 +856,12 @@ def check_brace_gusset(
         )
         if sign > 0:
             ag = lw * tg
-            an = min((lw - m * dn) * tg, 0.85 * ag)
+            an = min((lw - m * dn) * tg, steel_table().netAreaMax * ag)
             checks.append(
                 _check(
                     "gusset Whitmore yielding",
                     p / 1e3,
-                    0.9 * plate.fy * ag / 1e3,
+                    phi("tensionYield", 0.9) * plate.fy * ag / 1e3,
                     "kN",
                     comb,
                     f"Eq 6.10.174 on the Whitmore width {lw:.0f} mm",
@@ -607,7 +871,7 @@ def check_brace_gusset(
                 _check(
                     "gusset Whitmore rupture",
                     p / 1e3,
-                    0.75 * plate.fu * an / 1e3,
+                    phi("tensionRupture", 0.75) * plate.fu * an / 1e3,
                     "kN",
                     comb,
                     "Eq 6.10.175, An <= 0.85 Ag",
@@ -632,7 +896,7 @@ def check_brace_gusset(
             kl_r = c.gussetK * c.gussetFreeLength / r
             ag = lw * tg
             if kl_r <= 25:
-                cap, note = 0.9 * plate.fy * ag, "Eq 6.10.179 (KL/r <= 25)"
+                cap, note = phi("compression", 0.9) * plate.fy * ag, "Eq 6.10.179 (KL/r <= 25)"
             else:
                 cap = compression_capacity(ag, plate, kl_r)
                 note = "Sec 10.5.3 Eq 6.10.16-19"
@@ -695,10 +959,8 @@ def phi(key: str, default: float) -> float:
     """φ ``key`` of the code pack's steel table (``phi``, extra keys allowed); ``default`` when
     the pack in use has none."""
     try:
-        from saengine.codes import context as code_context
-
-        table = code_context.table("steel").phi
-    except Exception:  # noqa: BLE001 - no pack loaded (a bare calculation): the BNBC value
+        table = steel_table().phi
+    except Exception:  # noqa: BLE001 - no pack at all: the default given
         return default
     value = getattr(table, key, None)
     if value is None:
@@ -711,7 +973,9 @@ def _plate_compression(area: float, t: float, length: float, m: SteelMaterial) -
     Sec 10.10.4.4 Eq 6.10.179 when KL/r <= 25, else flexural buckling (Sec 10.5.3)."""
     kl_r = 0.65 * length / (t / math.sqrt(12))
     if kl_r <= 25:
-        return 0.9 * m.fy * area, f"Sec 10.10.4.4 Eq 6.10.179, KL/r = {kl_r:.1f} <= 25"
+        return phi(
+            "compression", 0.9
+        ) * m.fy * area, f"Sec 10.10.4.4 Eq 6.10.179, KL/r = {kl_r:.1f} <= 25"
     return compression_capacity(area, m, kl_r), f"Sec 10.5.3 Eq 6.10.16-19, KL/r = {kl_r:.1f}"
 
 
@@ -736,24 +1000,32 @@ def _flange_force_checks(
     plate: SteelMaterial,
     free_length: float,
     compression: bool,
+    tension_splice: bool = False,
 ) -> list[dict[str, Any]]:
     """Checks of a bolted flange plate carrying ``force`` [N] along the member flange: bolts,
-    bearing, the plate in tension or compression, block shear of the plate and the flange."""
+    bearing, the plate in tension or compression, block shear of the plate and the flange.
+    ``tension_splice``: a splice of a member in tension (long bolt patterns reduce Fnv)."""
     d, n, s, tp, m = c.boltDiameter, c.rows, c.pitch, c.plateThickness, c.lines
     dn = net_hole(d)
     bp = (m - 1) * c.gauge + 2 * c.edgeDistance
     edge_flange = (flange.b - (m - 1) * c.gauge) / 2
     bolts = n * m
+    pattern = (n - 1) * s
+    factor = long_joint_factor(pattern, tension_splice and not compression)
+    note = f"Eq 6.10.168, {bolts} bolts in single shear"
+    if factor < 1:
+        note += f"; Table 6.10.10 [f]: bolt pattern {pattern:.0f} mm long, Fnv × {factor:g}"
     out = [
         _check(
             f"{label} bolt shear",
             force / bolts / 1e3,
-            bolt_shear_capacity(c.boltGrade, d, 1) / 1e3,
+            bolt_shear_capacity(c.boltGrade, d, 1, factor) / 1e3,
             "kN",
             comb,
-            f"Eq 6.10.168, {bolts} bolts in single shear",
+            note,
         )
     ]
+    out += slip_checks(c, f"{label} bolt", force / bolts, comb)
     end = None if compression else c.endDistance
     out.append(
         _check(
@@ -782,12 +1054,12 @@ def _flange_force_checks(
             _check(f"{label} plate in compression", force / 1e3, cap / 1e3, "kN", comb, note)
         )
     else:
-        an = min((bp - m * dn) * tp, 0.85 * ag)
+        an = min((bp - m * dn) * tp, steel_table().netAreaMax * ag)
         out.append(
             _check(
                 f"{label} plate tension yielding",
                 force / 1e3,
-                0.9 * plate.fy * ag / 1e3,
+                phi("tensionYield", 0.9) * plate.fy * ag / 1e3,
                 "kN",
                 comb,
                 "Sec 10.10.4.1 Eq 6.10.174",
@@ -797,7 +1069,7 @@ def _flange_force_checks(
             _check(
                 f"{label} plate tension rupture",
                 force / 1e3,
-                0.75 * plate.fu * an / 1e3,
+                phi("tensionRupture", 0.75) * plate.fu * an / 1e3,
                 "kN",
                 comb,
                 "Sec 10.10.4.1 Eq 6.10.175, An <= 0.85 Ag",
@@ -870,6 +1142,119 @@ def _governing_vector(
 # ─────────────────────────────────────── flange-plate moment connection ───────────────────────────────────────
 
 
+def flange_local_bending(tf: float, fy: float, end_distance: float | None) -> tuple[float, str]:
+    """φRn of flange local bending [N], Eq 6.10.185: 6.25 tf² Fyf, halved within 10 tf of the
+    member end."""
+    rn = 6.25 * tf**2 * fy
+    note = "Sec 10.10.10.1 Eq 6.10.185: 6.25 tf² Fyf"
+    if end_distance is not None and end_distance < 10 * tf:
+        rn *= 0.5
+        note += ", × 0.5 within 10 tf of the end"
+    return phi("flangeLocalBending", 0.9) * rn, note
+
+
+def web_local_yielding(
+    k: float, n: float, tw: float, fy: float, d: float, end_distance: float | None
+) -> tuple[float, str]:
+    """φRn of web local yielding [N], Eqs 6.10.186-187: (5k + N) Fyw tw, (2.5k + N) Fyw tw
+    within the member depth of the end."""
+    near = end_distance is not None and end_distance <= d
+    f = 2.5 if near else 5.0
+    note = (
+        f"Sec 10.10.10.2 Eq {'6.10.187' if near else '6.10.186'}: ({f:g}k + N) Fyw tw, "
+        f"k = {k:.0f} mm, N = {n:.0f} mm"
+    )
+    return phi("webLocalYielding", 1.0) * (f * k + n) * fy * tw, note
+
+
+def web_crippling(
+    n: float, d: float, tw: float, tf: float, fy: float, e: float, end_distance: float | None
+) -> tuple[float, str]:
+    """φRn of web crippling [N], Eqs 6.10.188-189."""
+    root = math.sqrt(e * fy * tf / tw)
+    if end_distance is None or end_distance >= d / 2:
+        rn = 0.80 * tw**2 * (1 + 3 * (n / d) * (tw / tf) ** 1.5) * root
+        note = "Sec 10.10.10.3 Eq 6.10.188: 0.80 tw² [1 + 3 (N/d)(tw/tf)^1.5] √(E Fyw tf / tw)"
+    elif n / d <= 0.2:
+        rn = 0.40 * tw**2 * (1 + 3 * (n / d) * (tw / tf) ** 1.5) * root
+        note = "Sec 10.10.10.3 Eq 6.10.189a (within d/2 of the end, N/d <= 0.2)"
+    else:
+        rn = 0.40 * tw**2 * (1 + (4 * n / d - 0.2) * (tw / tf) ** 1.5) * root
+        note = "Sec 10.10.10.3 Eq 6.10.189b (within d/2 of the end, N/d > 0.2)"
+    return phi("webCrippling", 0.75) * rn, note
+
+
+def web_sidesway_buckling(
+    tw: float,
+    tf: float,
+    h: float,
+    bf: float,
+    unbraced: float,
+    restrained: bool,
+    yielded: bool,
+) -> tuple[float | None, str]:
+    """φRn of web sidesway buckling [N], Eqs 6.10.190-191 (a compressive single force on a
+    member whose flanges are not restrained against relative lateral movement there); None
+    when the limit state does not apply ((h/tw)/(l/bf) above 2.3 restrained, 1.7 not).
+    ``yielded``: Mu >= My at the force (Cr 3.31e6 MPa, else 6.62e6)."""
+    cr = 3.31e6 if yielded else 6.62e6
+    ratio = (h / tw) / (unbraced / bf)
+    if restrained:
+        if ratio > 2.3:
+            return None, "Sec 10.10.10.4: (h/tw)/(l/bf) > 2.3, does not apply"
+        rn = cr * tw**3 * tf / h**2 * (1 + 0.4 * ratio**3)
+        eq = "6.10.190"
+    else:
+        if ratio > 1.7:
+            return None, "Sec 10.10.10.4: (h/tw)/(l/bf) > 1.7, does not apply"
+        rn = cr * tw**3 * tf / h**2 * (0.4 * ratio**3)
+        eq = "6.10.191"
+    note = f"Sec 10.10.10.4 Eq {eq}: Cr = {cr:.3g} MPa, (h/tw)/(l/bf) = {ratio:.2f}"
+    return phi("webSideswayBuckling", 0.85) * rn, note
+
+
+def web_compression_buckling(
+    tw: float, h: float, fy: float, e: float, d: float, end_distance: float | None
+) -> tuple[float, str]:
+    """φRn of web compression buckling under a pair of compressive forces [N], Eq 6.10.192:
+    24 tw³ √(E Fyw) / h, halved within d/2 of the member end."""
+    rn = 24 * tw**3 * math.sqrt(e * fy) / h
+    note = "Sec 10.10.10.5 Eq 6.10.192: 24 tw³ √(E Fyw) / h"
+    if end_distance is not None and end_distance < d / 2:
+        rn *= 0.5
+        note += ", × 0.5 within d/2 of the end"
+    return phi("webCompressionBuckling", 0.9) * rn, note
+
+
+def panel_zone_shear(
+    fy: float,
+    dc: float,
+    tw: float,
+    axial_ratio: float,
+    in_analysis: bool = False,
+    bcf: float = 0.0,
+    tcf: float = 0.0,
+    db: float = 1.0,
+) -> tuple[float, str]:
+    """φRn of the web panel zone in shear [N], Eqs 6.10.193-196 (``axial_ratio`` = Pr / Pc,
+    Pc = Py)."""
+    base = 0.60 * fy * dc * tw
+    if not in_analysis:
+        if axial_ratio <= 0.4:
+            rn, eq = base, "6.10.193: 0.60 Fy dc tw"
+        else:
+            rn, eq = base * (1.4 - axial_ratio), "6.10.194: 0.60 Fy dc tw (1.4 - Pr/Pc)"
+    else:
+        boost = 1 + 3 * bcf * tcf**2 / (db * dc * tw)
+        if axial_ratio <= 0.75:
+            rn, eq = base * boost, "6.10.195: 0.60 Fy dc tw (1 + 3 bcf tcf² / (db dc tw))"
+        else:
+            rn = base * boost * (1.9 - 1.2 * axial_ratio)
+            eq = "6.10.196: ... (1.9 - 1.2 Pr/Pc)"
+    note = f"Sec 10.10.10.6 Eq {eq}, Pr/Pc = {axial_ratio:.2f}"
+    return phi("panelZone", 0.9) * rn, note
+
+
 def column_side_checks(
     force: float,
     comb: str | None,
@@ -877,72 +1262,451 @@ def column_side_checks(
     column_material: SteelMaterial,
     bearing_length: float,
     stiffened: bool,
+    *,
+    loaded_width: float | None = None,
+    delivering_thickness: float | None = None,
+    end_distance: float | None = None,
+    double_sided: bool = False,
+    axial_ratio: float = 0.0,
+    panel_in_analysis: bool = False,
+    beam_depth: float | None = None,
+    stiffener_width: float = 0.0,
+    stiffener_thickness: float = 0.0,
+    doubler: float = 0.0,
+    weld: float = 6.0,
+    electrode: float = 480.0,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Checks of a column flange and web under a beam flange force ``force`` [N] (single
-    concentrated force, Sec 10.10.10), and assumptions. Unstiffened: flange local bending
-    6.25 tf² Fyf, web local yielding (5k + lb) Fyw tw, web crippling; always the
-    panel zone shear 0.60 Fy dc tw (Pr <= 0.4 Pc assumed), the storey shear of the column left
-    out (conservative)."""
+    """Checks of a column flange and web under a beam flange force ``force`` [N] (Sec
+    10.10.10), and assumptions: flange local bending (tension flange), web local yielding, web
+    crippling (compression flange), web compression buckling (beams on both flanges), the panel
+    zone (with a doubler plate), and the transverse stiffeners (Sec 10.10.10.8) and doubler
+    (Sec 10.10.10.9) when given. ``loaded_width``/``delivering_thickness``: the plate (or
+    flange) delivering the force; ``end_distance``: column end to the force [mm]."""
     fy, e = column_material.fy, column_material.E
-    tf, tw, dc = column.tf, column.tw, column.h
+    tf, tw, dc, bf = column.tf, column.tw, column.h, column.b
     k = tf + column.r
+    h = dc - 2 * k
     checks: list[dict[str, Any]] = []
     notes = [
-        (
-            "column side: one beam flange force on the column (one-sided joint); the force applied "
-            "more than the column depth from the column's end"
+        "column side: the beam flange forces on the column "
+        + ("from beams on both flanges" if double_sided else "(one-sided joint)")
+        + (
+            f", {end_distance:g} mm from the column end"
+            if end_distance is not None
+            else ", far from the column's ends"
         )
     ]
-    if not stiffened:
-        checks.append(
-            _check(
-                "column flange local bending",
-                force / 1e3,
-                phi("flangeLocalBending", 0.9) * 6.25 * tf**2 * fy / 1e3,
-                "kN",
-                comb,
-                "Sec 10.10.10.1: 6.25 tf² Fyf",
-            )
-        )
-        checks.append(
-            _check(
-                "column web local yielding",
-                force / 1e3,
-                phi("webLocalYielding", 1.0) * (5 * k + bearing_length) * fy * tw / 1e3,
-                "kN",
-                comb,
-                f"Sec 10.10.10.2: (5k + lb) Fyw tw, k = {k:.0f} mm, lb = {bearing_length:.0f} mm",
-            )
-        )
-        crippling = (
-            0.80
-            * tw**2
-            * (1 + 3 * (bearing_length / dc) * (tw / tf) ** 1.5)
-            * math.sqrt(e * fy * tf / tw)
-        )
-        checks.append(
-            _check(
-                "column web crippling",
-                force / 1e3,
-                phi("webCrippling", 0.75) * crippling / 1e3,
-                "kN",
-                comb,
-                "Sec 10.10.10.3: 0.80 tw² [1 + 3 (lb/d)(tw/tf)^1.5] √(E Fyw tf / tw)",
-            )
-        )
+    local: list[tuple[str, float, str, str]] = []  # name, φRn, note, "t"/"c"/"both"
+    if loaded_width is not None and loaded_width < 0.15 * bf:
+        notes.append("flange local bending not checked: loaded width < 0.15 bf (Sec 10.10.10.1)")
     else:
-        notes.append("continuity plates take the flange force: their design is not checked")
-    checks.append(
+        cap, note = flange_local_bending(tf, fy, end_distance)
+        local.append(("column flange local bending", cap, note, "t"))
+    cap, note = web_local_yielding(k, bearing_length, tw, fy, dc, end_distance)
+    local.append(("column web local yielding", cap, note, "both"))
+    cap, note = web_crippling(bearing_length, dc, tw, tf, fy, e, end_distance)
+    local.append(("column web crippling", cap, note, "c"))
+    if double_sided:
+        cap, note = web_compression_buckling(tw, h, fy, e, dc, end_distance)
+        local.append(("column web compression buckling", cap, note, "c"))
+    for name, cap, note, _ in local:
+        checks.append(
+            _check(
+                name,
+                force / 1e3,
+                cap / 1e3,
+                "kN",
+                comb,
+                note + ("; taken by the stiffeners" if stiffened else ""),
+                flag=stiffened,
+            )
+        )
+    # The panel zone: the flange force(s) as the panel shear (the column's storey shear left
+    # out, conservative); beams on both flanges taken bending the same way (sway).
+    v_panel = force * (2 if double_sided else 1)
+    cap, note = panel_zone_shear(
+        fy, dc, tw, axial_ratio, panel_in_analysis, bf, tf, beam_depth or dc
+    )
+    if doubler > 0:
+        extra = phi("panelZone", 0.9) * 0.60 * fy * dc * doubler
+        note += f"; doubler {doubler:g} mm adds 0.60 Fy dc td (Sec 10.10.10.9, Sec 10.7)"
+        cap += extra
+    checks.append(_check("column panel zone shear", v_panel / 1e3, cap / 1e3, "kN", comb, note))
+    if doubler > 0:
+        vd = v_panel * doubler / (tw + doubler)
+        checks.append(
+            _check(
+                "doubler plate edge welds",
+                vd / dc,
+                fillet_capacity_per_mm(weld, electrode),
+                "N/mm",
+                comb,
+                "Sec 10.10.10.9(b): welds develop the doubler's share td / (tw + td) of the "
+                "panel shear, shear flow Vd / dc on each edge, Eq 6.10.162-163",
+            )
+        )
+        notes.append(f"web doubler plate {doubler:g} mm on the panel zone, fillet welded")
+    if stiffened:
+        more, more_notes = _stiffener_checks(
+            force,
+            comb,
+            column,
+            column_material,
+            local,
+            loaded_width or bf,
+            delivering_thickness or tf,
+            stiffener_width,
+            stiffener_thickness,
+            end_distance,
+            weld,
+            electrode,
+        )
+        checks += more
+        notes += more_notes
+    return checks, notes
+
+
+def _stiffener_checks(
+    force: float,
+    comb: str | None,
+    column: SteelSection,
+    m: SteelMaterial,
+    local: list[tuple[str, float, str, str]],
+    delivering_width: float,
+    delivering_thickness: float,
+    width: float,
+    thickness: float,
+    end_distance: float | None,
+    weld: float,
+    electrode: float,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """A pair of full-depth transverse stiffeners opposite a beam flange (Sec 10.10.10.8):
+    sized for the force the flange and web cannot take (tension and compression), the
+    compression pair as a column of the stiffeners and a web strip (0.75 h, 25 tw inside, 12 tw
+    at a member end), its welds, and the width and thickness rules."""
+    tf, tw, dc, bf = column.tf, column.tw, column.h, column.b
+    k = tf + column.r
+    h = dc - 2 * k
+    bs = width or (bf - tw) / 2
+    ts = thickness or delivering_thickness
+    clip = max(k - tf, 0.0)
+    t_cap = min((c for _, c, _, s in local if s in ("t", "both")), default=math.inf)
+    c_cap = min((c for _, c, _, s in local if s in ("c", "both")), default=math.inf)
+    need_t = max(force - t_cap, 0.0)
+    need_c = max(force - c_cap, 0.0)
+    need = max(need_t, need_c)
+    area = 2 * bs * ts
+    checks = [
         _check(
-            "column panel zone shear",
-            force / 1e3,
-            phi("panelZone", 0.9) * 0.60 * fy * dc * tw / 1e3,
+            "stiffeners in tension",
+            need_t / 1e3,
+            phi("tensionYield", 0.9) * m.fy * area / 1e3,
             "kN",
             comb,
-            "Sec 10.10.10.6: 0.60 Fy dc tw (Pr <= 0.4 Pc assumed; no doubler plates)",
+            "Sec 10.10.10.8 (Sec 10.4): the force less the flange and web strength, Fy As",
+        )
+    ]
+    strip = (12 if end_distance is not None and end_distance <= dc else 25) * tw
+    a_col = area + strip * tw
+    i_col = ts * (2 * bs + tw) ** 3 / 12
+    r = math.sqrt(i_col / a_col)
+    kl_r = 0.75 * h / r
+    if kl_r <= 25:
+        cap_c, note = phi("compression", 0.9) * m.fy * a_col, "Sec 10.10.4.4 Eq 6.10.179"
+    else:
+        cap_c, note = compression_capacity(a_col, m, kl_r), "Sec 10.5.3"
+    checks.append(
+        _check(
+            "stiffeners as a column (compression)",
+            force / 1e3,
+            cap_c / 1e3,
+            "kN",
+            comb,
+            f"Sec 10.10.10.8: two stiffeners + {strip:.0f} mm of web, KL = 0.75 h, "
+            f"KL/r = {kl_r:.1f}; {note}",
         )
     )
+    per_mm = fillet_capacity_per_mm(weld, electrode)
+    flange_weld = 2 * 2 * max(bs - clip, 0.0) * per_mm
+    web_weld = 2 * 2 * max(h, 0.0) * per_mm
+    checks.append(
+        _check(
+            "stiffener welds to the flange",
+            need / 1e3,
+            flange_weld / 1e3,
+            "kN",
+            comb,
+            "Sec 10.10.10.8: the difference between the required and available strength, "
+            "fillet welds both faces, Eq 6.10.162-163",
+        )
+    )
+    checks.append(
+        _check(
+            "stiffener welds to the web",
+            need / 1e3,
+            web_weld / 1e3,
+            "kN",
+            comb,
+            "Sec 10.10.10.8: the force passed to the web, fillet welds both faces",
+        )
+    )
+    checks.append(
+        _min_rule(
+            "stiffener width + tw / 2",
+            bs + tw / 2,
+            delivering_width / 3,
+            "Sec 10.10.10.8: at least 1/3 of the delivering flange or plate width",
+        )
+    )
+    checks.append(
+        _min_rule(
+            "stiffener thickness",
+            ts,
+            max(delivering_thickness / 2, bs / 15),
+            "Sec 10.10.10.8(a): at least half the delivering flange or plate and width / 15",
+        )
+    )
+    notes = [
+        (
+            f"stiffener pair {bs:.0f} × {ts:g} mm, full depth, fillet welded ({weld:g} mm) to the "
+            "flange and the web"
+        )
+    ]
     return checks, notes
+
+
+# ─────────────────────────────────────── plates on HSS (Sec 10.11.1) ───────────────────────────
+
+
+def _hss_material_limits(m: SteelMaterial, what: str) -> list[dict[str, Any]]:
+    return [
+        _limit(f"{what} Fy", m.fy, 360.0, "Sec 10.11.1.2: Fy <= 360 MPa"),
+        _limit(f"{what} Fy / Fu", m.fy / m.fu, 0.8, "Sec 10.11.1.2: Fy / Fu <= 0.8"),
+    ]
+
+
+def _qf_round(u: float, compression: bool) -> float:
+    """Chord stress factor of round HSS, Eq 6.10.209: 1 - 0.3 U (1 + U) in compression."""
+    return 1.0 - 0.3 * u * (1 + u) if compression else 1.0
+
+
+def _qf_rect(u: float, beta: float, compression: bool) -> float:
+    """Chord stress factor of rectangular HSS, Eq 6.10.218: 1.3 - 0.4 U / β <= 1."""
+    return min(1.3 - 0.4 * u / beta, 1.0) if compression else 1.0
+
+
+def hss_transverse_plate_checks(
+    force: float,
+    comb: str | None,
+    hss: SteelSection,
+    hss_material: SteelMaterial,
+    plate_width: float,
+    tp: float,
+    plate_material: SteelMaterial,
+    u: float = 0.0,
+    cross: bool = False,
+    welds: tuple[float, float] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """A plate across an HSS wall carrying ``force`` [N] perpendicular to the HSS axis (a beam
+    flange plate on an HSS column), Sec 10.11.1.3: round (local yielding, Eq 6.10.197) or
+    rectangular (uneven load Eq 6.10.198, punching Eq 6.10.199, sidewall Eqs 6.10.200-202,
+    effective weld length Eq 6.10.203). ``u``: the HSS utilisation (compression) for Qf;
+    ``welds``: (fillet leg, FEXX) of the plate's fillet welds (None: CJP, not checked)."""
+    fy, _fu, e, t = hss_material.fy, hss_material.fu, hss_material.E, hss.tw
+    checks = _hss_material_limits(hss_material, "HSS")
+    notes = [
+        "plate across the HSS wall, perpendicular to its axis"
+        + (", plates on both faces (cross)" if cross else "")
+    ]
+    if hss.shape == "circleHollow":
+        d = hss.h
+        ratio = plate_width / d
+        checks.append(_limit("Bp / D", ratio, 1.0, "Sec 10.11.1.3.1: 0.2 < Bp / D <= 1.0"))
+        checks.append(_limit("Bp / D (least)", ratio, 0.2, "Sec 10.11.1.3.1", above=True))
+        checks.append(_limit("HSS D / t", d / t, 40.0 if cross else 50.0, "Sec 10.11.1.3.1"))
+        qf = _qf_round(u, True)
+        rn = fy * t**2 * (5.5 / (1 - 0.81 * min(ratio, 1.0))) * qf
+        checks.append(
+            _check(
+                "HSS wall local yielding",
+                force / 1e3,
+                phi("hssPlateRound", 0.9) * rn / 1e3,
+                "kN",
+                comb,
+                f"Sec 10.11.1.3.1 Eq 6.10.197: Fy t² [5.5 / (1 - 0.81 Bp/D)] Qf, Qf = {qf:.2f}",
+            )
+        )
+    elif hss.shape == "rectangleHollow":
+        b, hh = hss.b, hss.h
+        bt = b / t
+        beta = plate_width / b
+        checks.append(_limit("Bp / B", beta, 1.0, "Sec 10.11.1.3.2: 0.25 < Bp / B <= 1.0"))
+        checks.append(_limit("Bp / B (least)", beta, 0.25, "Sec 10.11.1.3.2", above=True))
+        checks.append(_limit("HSS B / t", bt, 35.0, "Sec 10.11.1.3.2"))
+        rn = min(10 / bt * fy * t * plate_width, plate_material.fy * tp * plate_width)
+        checks.append(
+            _check(
+                "plate local yielding (uneven load)",
+                force / 1e3,
+                phi("hssPlateUneven", 0.95) * rn / 1e3,
+                "kN",
+                comb,
+                "Sec 10.11.1.3.2 Eq 6.10.198: [10 / (B/t)] Fy t Bp <= Fyp tp Bp",
+            )
+        )
+        if 0.85 * b <= plate_width <= b - 2 * t:
+            bep = min(10 * plate_width / bt, plate_width)
+            rn = 0.6 * fy * t * (2 * tp + 2 * bep)
+            checks.append(
+                _check(
+                    "HSS wall punching",
+                    force / 1e3,
+                    phi("hssPlatePunching", 0.95) * rn / 1e3,
+                    "kN",
+                    comb,
+                    f"Sec 10.11.1.3.2 Eq 6.10.199: 0.6 Fy t (2 tp + 2 Bep), Bep = {bep:.0f} mm",
+                )
+            )
+        if beta >= 0.99:
+            k = max(hss.r, 1.5 * t)
+            n = tp
+            checks.append(
+                _check(
+                    "HSS sidewall local yielding",
+                    force / 1e3,
+                    phi("hssPlateSidewallYielding", 1.0) * 2 * fy * t * (5 * k + n) / 1e3,
+                    "kN",
+                    comb,
+                    "Sec 10.11.1.3.2 Eq 6.10.200: 2 Fy t (5k + N)",
+                )
+            )
+            qf = _qf_rect(u, beta, True)
+            if cross:
+                rn = 48 * t**3 / (hh - 3 * t) * math.sqrt(e * fy) * qf
+                cap = phi("hssPlateSidewallBuckling", 0.9) * rn
+                note = "Eq 6.10.202: 48 t³ / (H - 3t) √(E Fy) Qf"
+            else:
+                rn = 1.6 * t**2 * (1 + 3 * n / (hh - 3 * t)) * math.sqrt(e * fy) * qf
+                cap = phi("hssPlateSidewallCrippling", 0.75) * rn
+                note = "Eq 6.10.201: 1.6 t² [1 + 3N / (H - 3t)] √(E Fy) Qf"
+            checks.append(
+                _check(
+                    "HSS sidewall crippling (compression)",
+                    force / 1e3,
+                    cap / 1e3,
+                    "kN",
+                    comb,
+                    f"Sec 10.11.1.3.2 {note}, Qf = {qf:.2f}",
+                )
+            )
+        if welds is not None:
+            le = min(2 * (10 / bt) * (fy * t / (plate_material.fy * tp)) * plate_width,
+                     2 * plate_width)  # fmt: skip
+            checks.append(
+                _check(
+                    "plate welds to the HSS (effective length)",
+                    force / 1e3,
+                    le * fillet_capacity_per_mm(welds[0], welds[1], 90.0) / 1e3,
+                    "kN",
+                    comb,
+                    f"Sec 10.11.1.3.2 Eq 6.10.203: Le = {le:.0f} mm of the welds on both sides",
+                )
+            )
+    else:
+        raise ValueError("plates on HSS need a round or rectangular HSS")
+    for check in checks:
+        if check["unit"] == "":
+            check["unit"] = "-"
+    return checks, notes
+
+
+def hss_longitudinal_plate_checks(
+    hss: SteelSection,
+    hss_material: SteelMaterial,
+    plate_material: SteelMaterial,
+    tp: float,
+    force: float,
+    comb: str | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """A plate along a rectangular HSS's axis carrying a force parallel to it (a beam's fin
+    plate on an HSS column), Sec 10.11.1.5 Eq 6.10.206: Fyp tp <= Fu t."""
+    if hss.shape != "rectangleHollow":
+        return [], [f"support {hss.name}: not a rectangular HSS, its wall not checked"]
+    checks = _hss_material_limits(hss_material, "HSS")
+    checks.append(
+        _check(
+            "HSS wall under the plate (Fyp tp <= Fu t)",
+            plate_material.fy * tp,
+            hss_material.fu * hss.tw,
+            "N/mm",
+            comb,
+            "Sec 10.11.1.5 Eq 6.10.206",
+        )
+    )
+    for check in checks:
+        if check["unit"] == "":
+            check["unit"] = "-"
+    return checks, [f"plate welded along the wall of the HSS column {hss.name}"]
+
+
+def check_cap_plate(
+    c: HssCapPlate,
+    column: SteelSection,
+    column_material: SteelMaterial,
+    demands: list[tuple[str | None, float]],
+) -> dict[str, Any]:
+    """The walls of a rectangular HSS column under a concentrated axial force on its cap plate
+    ``[(combination, P [N] compression +)]``, Sec 10.11.1.6: wall local yielding Eq 6.10.207
+    and, in compression, wall local crippling Eq 6.10.208, summed over 4 walls when 5 tp + N
+    >= B, else over 2."""
+    if column.shape != "rectangleHollow":
+        raise ValueError("cap plates are checked on rectangular HSS columns")
+    m = column_material
+    t, b = column.tw, column.b
+    tp, n = c.thickness, c.bearingLength
+    walls = 4 if 5 * tp + n >= b else 2
+    checks = _hss_material_limits(m, "HSS")
+    yield_wall = min(m.fy * t * (5 * tp + n), b * m.fy * t)
+    crip_wall = 0.8 * t**2 * (1 + 6 * n / b * (t / tp) ** 1.5) * math.sqrt(m.E * m.fy * tp / t)
+    comb, p = _governing(demands)
+    if p != 0:
+        checks.append(
+            _check(
+                "HSS wall local yielding",
+                abs(p) / 1e3,
+                phi("hssCapYielding", 1.0) * walls * yield_wall / 1e3,
+                "kN",
+                comb,
+                f"Sec 10.11.1.6 Eq 6.10.207: Fy t (5 tp + N) <= B Fy t per wall, {walls} walls",
+            )
+        )
+    comb_c, pc = _governing(demands, 1)
+    if pc > 0:
+        checks.append(
+            _check(
+                "HSS wall local crippling",
+                pc / 1e3,
+                phi("hssCapCrippling", 0.75) * walls * crip_wall / 1e3,
+                "kN",
+                comb_c,
+                f"Sec 10.11.1.6 Eq 6.10.208: 0.8 t² [1 + (6N/B)(t/tp)^1.5] √(E Fy tp / t), "
+                f"{walls} walls",
+            )
+        )
+    for check in checks:
+        if check["unit"] == "":
+            check["unit"] = "-"
+    return _result(
+        "capPlate",
+        checks,
+        [
+            f"cap plate {tp:g} mm, bearing length N = {n:g} mm, {walls} walls take the force",
+            (
+                "the force acts along the column axis at its top; the plate's own bending and its "
+                "welds are not checked"
+            ),
+        ],
+    )
 
 
 def check_flange_plate(
@@ -981,7 +1745,7 @@ def check_flange_plate(
             _check(
                 "beam flexural rupture at the flange holes",
                 m / 1e6,
-                0.9 * beam_material.fu * afn / afg * beam.Sx / 1e6,
+                phi("flexure", 0.9) * beam_material.fu * afn / afg * beam.Sx / 1e6,
                 "kN·m",
                 comb,
                 f"Sec 10.6.13.1: Mn = Fu Afn / Afg Sx (Fu Afn < Yt Fy Afg, Yt = {yt:g})",
@@ -1014,6 +1778,9 @@ def check_flange_plate(
         electrode=c.electrode,
         shearedEdges=c.shearedEdges,
         boltLineOffset=c.webBoltLineOffset,
+        slipCritical=c.slipCritical,
+        surfaceClass=c.surfaceClass,
+        holeType=c.holeType,
     )
     web_result = check_fin_plate(
         web, beam, beam_material, plate_material, [(r[0], r[2]) for r in demands]
@@ -1021,7 +1788,8 @@ def check_flange_plate(
     checks += [{**w, "name": f"web: {w['name']}"} for w in web_result["checks"]]
     checks += _flange_rules(c, beam)
     assumptions = [
-        "flange plates outside the beam flanges, bolts in standard holes, bearing-type",
+        "flange plates outside the beam flanges, bolts in standard holes, "
+        + ("bearing-type" if c.slipCritical == "none" else f"slip-critical ({c.slipCritical})"),
         (
             f"flange force Puf = M / (d + tp) = {puf / 1e3:.0f} kN (M = {m / 1e6:.1f} kN·m), the "
             f"plate in compression over {free:g} mm (K 0.65)"
@@ -1033,11 +1801,45 @@ def check_flange_plate(
     ]
     if column is not None:
         cm = column_material or beam_material
-        if not _is_i(column):
-            assumptions.append("column side not checked: the column is not an I-section")
+        if column.shape in ("rectangleHollow", "circleHollow"):
+            more, notes = hss_transverse_plate_checks(
+                puf,
+                comb,
+                column,
+                cm,
+                bp,
+                tp,
+                plate,
+                c.columnUtilisation,
+                c.doubleSided,
+                (c.weldSize, c.electrode) if c.plateWeld == "fillet" else None,
+            )
+            checks += more
+            assumptions += notes
+        elif not _is_i(column):
+            assumptions.append("column side not checked: the column is not an I-section or HSS")
         else:
             lb = tp + (2 * c.weldSize if c.plateWeld == "fillet" else 0.0)
-            more, notes = column_side_checks(puf, comb, column, cm, lb, c.columnStiffeners)
+            more, notes = column_side_checks(
+                puf,
+                comb,
+                column,
+                cm,
+                lb,
+                c.columnStiffeners,
+                loaded_width=bp,
+                delivering_thickness=tp,
+                end_distance=c.columnEndDistance,
+                double_sided=c.doubleSided,
+                axial_ratio=c.columnAxialRatio,
+                panel_in_analysis=c.panelZoneInAnalysis,
+                beam_depth=beam.h,
+                stiffener_width=c.stiffenerWidth,
+                stiffener_thickness=c.stiffenerThickness,
+                doubler=c.doublerThickness,
+                weld=c.weldSize,
+                electrode=c.electrode,
+            )
             checks += more
             assumptions += notes
     else:
@@ -1098,14 +1900,15 @@ def check_splice(
             plate,
             free,
             False,
+            tension_splice=True,
         )
         dn = net_hole(c.boltDiameter)
-        an = min((b - c.lines * dn) * tf, 0.85 * af)
+        an = min((b - c.lines * dn) * tf, steel_table().netAreaMax * af)
         checks.append(
             _check(
                 "member flange net section rupture",
                 tension[0] / 1e3,
-                0.75 * material.fu * an / 1e3,
+                phi("tensionRupture", 0.75) * material.fu * an / 1e3,
                 "kN",
                 tension[1],
                 "Sec 10.10.4.1 Eq 6.10.175 on the flange",
@@ -1138,6 +1941,7 @@ def check_splice(
             f"Eq 6.10.168, {n} bolts in double shear each side",
         )
     )
+    checks += slip_checks(c, "web bolt", fw / n, cw, 2)
     checks.append(
         _check(
             "bearing on the member web",
@@ -1172,7 +1976,7 @@ def check_splice(
         _check(
             "web plates shear rupture",
             fw / 1e3,
-            0.75 * 0.6 * plate.fu * 2 * (hp - n * dn) * tpw / 1e3,
+            phi("shearRupture", 0.75) * 0.6 * plate.fu * 2 * (hp - n * dn) * tpw / 1e3,
             "kN",
             cw,
             "Sec 10.10.4.2 Eq 6.10.177, two plates",
@@ -1188,7 +1992,7 @@ def check_splice(
         )
     )
     if n > 1:
-        checks.append(_min_rule("web bolt pitch", s, 8 / 3 * d, "Sec 10.10.3.3: 2⅔ d"))
+        checks.append(_min_rule("web bolt pitch", s, min_spacing(d), "Sec 10.10.3.3"))
     checks.append(
         _min_rule("web plate end distance", c.webEndDistance, min_edge(d), "Table 6.10.12")
     )
@@ -1214,19 +2018,29 @@ def anchor_capacities(c: ColumnBasePlate) -> tuple[float, float, float, float]:
     """(φ Fnt Ab, φ Fnv Ab, Fnt, Fnv) of one anchor rod as a threaded part [N, MPa]
     (Table 6.10.10: Fnt = 0.75 Fu, Fnv = 0.40 Fu threads included or 0.50 Fu excluded)."""
     ab = math.pi * c.anchorDiameter**2 / 4
-    fnt = 0.75 * c.anchorFu
-    fnv = (0.50 if c.threadsExcluded else 0.40) * c.anchorFu
+    part = connection_data().boltGrades["threadedX" if c.threadsExcluded else "threadedN"]
+    fnt = float(part.FntOfFu or 0.0) * c.anchorFu
+    fnv = float(part.FnvOfFu or 0.0) * c.anchorFu
     p = phi("anchorRod", 0.75)
     return p * fnt * ab, p * fnv * ab, fnt, fnv
 
 
 def bearing_on_concrete(c: ColumnBasePlate) -> float:
-    """φc Pp [N]: Pp = 0.85 f'c A1 √(A2/A1) <= 1.7 f'c A1 (Sec 10.10.8)."""
+    """φc Pp [N] (Sec 10.10.8, Eqs 6.10.183-184): Pp = full × f'c A1 on the full concrete area,
+    partial × f'c A1 √(A2/A1) <= max × f'c A1 on part of it (the pack's ``concreteBearing*``:
+    0.8 / 0.8 / 1.7 as printed in BNBC 2020)."""
+    data = connection_data()
     a1 = c.length * c.width
     a2 = max((c.supportLength or c.length) * (c.supportWidth or c.width), a1)
-    return (
-        phi("concreteBearing", 0.6) * 0.85 * c.concreteStrength * a1 * min(math.sqrt(a2 / a1), 2.0)
-    )
+    fc = c.concreteStrength
+    if a2 <= a1 * (1 + 1e-9):
+        pp = data.concreteBearingFull * fc * a1
+    else:
+        pp = min(
+            data.concreteBearingPartial * fc * a1 * math.sqrt(a2 / a1),
+            data.concreteBearingMax * fc * a1,
+        )
+    return phi("concreteBearing", 0.6) * pp
 
 
 def check_base_plate(
@@ -1249,7 +2063,9 @@ def check_base_plate(
                 bearing_on_concrete(c) / 1e3,
                 "kN",
                 comb,
-                "Sec 10.10.8: φc 0.85 f'c A1 √(A2/A1) <= 1.7 f'c A1",
+                "Sec 10.10.8 Eqs 6.10.183-184: φc Pp, Pp = "
+                f"{connection_data().concreteBearingPartial:g} f'c A1 √(A2/A1) <= "
+                f"{connection_data().concreteBearingMax:g} f'c A1",
             )
         )
         e = abs(m) / p if p > 0 else 0.0
@@ -1374,11 +2190,16 @@ def check_hss_joint(
     chord: SteelSection,
     chord_material: SteelMaterial | None,
     axial: list[tuple[str | None, float]],
+    overlapped: SteelSection | None = None,
+    overlapped_material: SteelMaterial | None = None,
 ) -> dict[str, Any]:
     """Checks of a welded HSS-to-HSS truss joint for the branch axial forces ``[(combination,
-    N [N], tension +)]`` (Sec 10.11.2)."""
+    N [N], tension +)]`` (Sec 10.11.2): T/Y, cross, gapped K and overlapped K joints (this brace
+    the overlapping branch; ``overlapped`` the other, thru branch, default this brace's
+    section)."""
     cm = chord_material or branch_material
     fy, fu, e = cm.fy, cm.fu, cm.E
+    fyb = branch_material.fy
     t = chord.tw
     theta = math.radians(c.angle)
     sin = math.sin(theta)
@@ -1389,130 +2210,258 @@ def check_hss_joint(
         raise ValueError(
             "HSS joints need a round branch on a round chord or rectangular on rectangular"
         )
-    clause = "Sec 10.11.2"
-    checks.append(_limit("chord Fy", fy, 360.0, f"{clause}: Fy <= 360 MPa"))
-    checks.append(_limit("chord Fy / Fu", fy / fu, 0.8, f"{clause}: Fy / Fu <= 0.8"))
+    lap = c.joint == "KOverlap"
+    k_joint = c.joint in ("K", "KOverlap")
+    other = overlapped or branch
+    other_m = overlapped_material or branch_material
+    if lap and other.shape != branch.shape:
+        raise ValueError(
+            "the overlapped branch must be of the brace's shape (round or rectangular)"
+        )
+    ref = "Sec 10.11.2"
+    checks.append(_limit("chord Fy", fy, 360.0, f"{ref}: Fy <= 360 MPa"))
+    checks.append(_limit("chord Fy / Fu", fy / fu, 0.8, f"{ref}: Fy / Fu <= 0.8"))
+    checks.append(_limit("branch Fy", fyb, 360.0, f"{ref}: Fy <= 360 MPa"))
+    checks.append(_limit("branch Fy / Fu", fyb / branch_material.fu, 0.8, f"{ref}: Fy / Fu <= 0.8"))
     capacities: list[tuple[str, float, str, bool]] = []  # name, φPn, note, compression only
+    overlap_note = None
+    if lap:
+        checks.append(_limit("overlap Ov", c.overlap, 100.0, f"{ref}: 25 % <= Ov <= 100 %"))
+        checks.append(_limit("overlap Ov (least)", c.overlap, 25.0, ref, above=True))
+        checks.append(
+            _limit(
+                "overlapping / overlapped branch thickness",
+                branch.tw / other.tw,
+                1.0,
+                f"{ref}: the overlapping branch no thicker than the overlapped one",
+            )
+        )
     if round_:
+        ref = "Sec 10.11.2.2"
         dc, db, tb = chord.h, branch.h, branch.tw
         beta = db / dc
         gamma = dc / (2 * t)
-        u = c.chordUtilisation
-        qf = 1.0 - 0.3 * u * (1 + u) if c.chordCompression else 1.0
-        checks.append(_limit("chord D / t", dc / t, 40.0 if c.joint == "X" else 50.0, f"{clause}"))
-        checks.append(_limit("branch D / t", db / tb, 50.0, clause))
-        checks.append(_limit("β = Db / D", beta, 1.0, f"{clause}: 0.2 < β <= 1.0"))
-        checks.append(_limit("β = Db / D (least)", beta, 0.2, f"{clause}: β > 0.2", above=True))
+        qf = _qf_round(c.chordUtilisation, c.chordCompression)
+        checks.append(_limit("chord D / t", dc / t, 40.0 if c.joint == "X" else 50.0, ref))
+        checks.append(_limit("branch D / t (tension)", db / tb, 50.0, ref))
+        checks.append(
+            _limit("branch D / t (compression)", db / tb, 0.05 * e / fyb, f"{ref}: 0.05 E / Fy")
+        )
+        checks.append(_limit("β = Db / D", beta, 1.0, f"{ref}: β <= 1.0"))
+        least = 0.4 if c.joint == "K" else 0.2
+        checks.append(
+            _limit("β = Db / D (least)", beta, least, f"{ref}: β >= {least:g}", above=True)
+        )
         p_pl = phi("hssPlastification", 0.9)
         if c.joint == "TY":
             pn = fy * t**2 * (3.1 + 15.6 * beta**2) * gamma**0.2 * qf / sin
-            note = "Fy t² (3.1 + 15.6 β²) γ^0.2 Qf / sin θ"
+            note = "Eq 6.10.211: Fy t² (3.1 + 15.6 β²) γ^0.2 Qf / sin θ"
         elif c.joint == "X":
             pn = fy * t**2 * (5.7 / (1 - 0.81 * beta)) * qf / sin
-            note = "Fy t² (5.7 / (1 - 0.81 β)) Qf / sin θ"
+            note = "Eq 6.10.213: Fy t² (5.7 / (1 - 0.81 β)) Qf / sin θ"
         else:
-            qg = gamma**0.2 * (1 + 0.024 * gamma**1.2 / (math.exp(0.5 * c.gap / t - 1.33) + 1))
+            if lap:
+                q = c.overlap / 100 * db / sin
+                g = -q
+                gap_note = f"overlapped: g = -q = {g:.0f} mm"
+            else:
+                g = c.gap
+                gap_note = f"g = {g:g} mm"
+                checks.append(
+                    _limit("gap g", c.gap, 2 * tb, f"{ref}: g >= tb,comp + tb,tens", above=True)
+                )
+            qg = gamma**0.2 * (1 + 0.024 * gamma**1.2 / (math.exp(0.5 * g / t - 1.33) + 1))
             pn = fy * t**2 * (2.0 + 11.33 * db / dc) * qg * qf / sin
-            note = f"Fy t² (2.0 + 11.33 Db / D) Qg Qf / sin θ, Qg = {qg:.2f}"
-            checks.append(
-                _limit("gap g", c.gap, 2 * tb, f"{clause}: g >= tb,comp + tb,tens", above=True)
+            note = (
+                f"Eqs 6.10.214-216: Fy t² (2.0 + 11.33 Db / D) Qg Qf / sin θ, Qg = {qg:.2f}, "
+                + gap_note
             )
         capacities.append(
-            ("chord plastification", p_pl * pn, f"{clause}: {note}, Qf = {qf:.2f}", False)
+            ("chord plastification", p_pl * pn, f"{ref} {note}, Qf = {qf:.2f}", False)
         )
-        if db < dc - 2 * t:
+        if beta <= 1 - 1 / gamma and not lap:
             pn = 0.6 * fy * t * math.pi * db * (1 + sin) / (2 * sin**2)
+            if c.joint == "K":
+                p_ps, eq = phi("hssPunchingRoundK", 0.9), "6.10.217"
+            else:
+                p_ps, eq = phi("hssPunching", 0.95), "6.10.212"
             capacities.append(
                 (
                     "chord punching shear",
-                    phi("hssPunching", 0.95) * pn,
-                    f"{clause}: 0.6 Fy t π Db (1 + sin θ) / (2 sin² θ)",
+                    p_ps * pn,
+                    f"{ref} Eq {eq}: 0.6 Fy t π Db (1 + sin θ) / (2 sin² θ), φ {p_ps:g}",
                     False,
                 )
             )
     else:
+        ref = "Sec 10.11.2.3"
         bc, hc = chord.b, chord.h
         bb, hb, tb = branch.b, branch.h, branch.tw
-        fyb = branch_material.fy
         beta = bb / bc
         gamma = bc / (2 * t)
         eta = hb / sin / bc
         n_len = hb / sin
         u = c.chordUtilisation
-        qf = min(1.3 - 0.4 * u / beta, 1.0) if c.chordCompression else 1.0
+        beta_eff = (bb + hb + other.b + other.h) / (4 * bc)
+        qf = _qf_rect(u, beta_eff if c.joint == "K" else beta, c.chordCompression)
         beop = min(5 * beta / gamma, beta)
-        checks.append(_limit("chord B / t", bc / t, 35.0, clause))
-        checks.append(_limit("chord H / t", hc / t, 35.0, clause))
-        checks.append(_limit("branch B / t", bb / tb, 35.0, clause))
-        checks.append(_limit("chord H / B", hc / bc, 2.0, f"{clause}: 0.5 <= H / B <= 2.0"))
-        checks.append(_limit("chord H / B (least)", hc / bc, 0.5, clause, above=True))
-        checks.append(_limit("branch H / B", hb / bb, 2.0, f"{clause}: 0.5 <= Hb / Bb <= 2.0"))
-        checks.append(_limit("branch H / B (least)", hb / bb, 0.5, clause, above=True))
+        root = math.sqrt(e / fyb)
+        checks.append(_limit("chord B / t", bc / t, 30.0 if lap else 35.0, ref))
+        checks.append(_limit("chord H / t", hc / t, 30.0 if lap else 35.0, ref))
+        checks.append(_limit("branch B / t (tension)", bb / tb, 35.0, ref))
+        comp = (1.1 if lap else 1.25) * root
+        checks.append(
+            _limit(
+                "branch B / t (compression)",
+                bb / tb,
+                comp if lap else min(comp, 35.0),
+                f"{ref}: {'1.1' if lap else '1.25'} √(E / Fyb)" + ("" if lap else ", 35"),
+            )
+        )
+        checks.append(_limit("chord H / B", hc / bc, 2.0, f"{ref}: 0.5 <= H / B <= 2.0"))
+        checks.append(_limit("chord H / B (least)", hc / bc, 0.5, ref, above=True))
+        checks.append(_limit("branch H / B", hb / bb, 2.0, f"{ref}: 0.5 <= Hb / Bb <= 2.0"))
+        checks.append(_limit("branch H / B (least)", hb / bb, 0.5, ref, above=True))
         if c.joint == "K":
-            beta_eff = (bb + hb) / (2 * bc)
-            checks.append(_limit("β (least)", beta, 0.35, f"{clause}: β >= 0.35 (K)", above=True))
+            checks.append(
+                _limit("β (least)", beta, 0.35, f"{ref}.3: β >= 0.35 (gapped K)", above=True)
+            )
+            checks.append(
+                _limit("βeff (least)", beta_eff, 0.35, f"{ref}.3(b): βeff >= 0.35", above=True)
+            )
+            checks.append(
+                _limit(
+                    "Bb / B",
+                    beta,
+                    0.1 + gamma / 50,
+                    f"{ref}.3(a): Bb / B >= 0.1 + γ / 50",
+                    above=True,
+                )
+            )
             checks.append(
                 _limit(
                     "gap g / B",
                     c.gap / bc,
                     0.5 * (1 - beta_eff),
-                    f"{clause}: g / B >= 0.5 (1 - βeff)",
+                    f"{ref}.3(c): ζ = g / B >= 0.5 (1 - βeff)",
                     above=True,
                 )
             )
             checks.append(
-                _limit("gap g", c.gap, 2 * tb, f"{clause}: g >= tb,comp + tb,tens", above=True)
+                _limit(
+                    "gap g", c.gap, tb + other.tw, f"{ref}.3(d): g >= tb,comp + tb,tens", above=True
+                )
+            )
+            checks.append(
+                _limit(
+                    "smaller / larger branch width",
+                    min(bb, other.b) / max(bb, other.b),
+                    0.63,
+                    f"{ref}.3(e): > 0.63",
+                    above=True,
+                )
             )
             pn = fy * t**2 * (9.8 * beta_eff * gamma**0.5) * qf / sin
             capacities.append(
                 (
                     "chord wall plastification",
                     phi("hssPlastification", 0.9) * pn,
-                    f"{clause}: Fy t² (9.8 βeff γ^0.5) Qf / sin θ, βeff = {beta_eff:.2f}, Qf = {qf:.2f}",
+                    (
+                        f"{ref}.3 Eq 6.10.228: Fy t² (9.8 βeff γ^0.5) Qf / sin θ, βeff = "
+                        f"{beta_eff:.2f}, Eq 6.10.219 Qf = {qf:.2f}"
+                    ),
                     False,
                 )
             )
             square = abs(bb - hb) < 1e-6
-            if bb < bc - 2 * t and not square:
+            if bb < bc - 2 * t or not square:
                 pn = 0.6 * fy * t * bc * (2 * eta + beta + beop) / sin
                 capacities.append(
                     (
                         "chord punching shear",
                         phi("hssPunching", 0.95) * pn,
-                        f"{clause}: 0.6 Fy t B (2η + β + βeop) / sin θ",
+                        f"{ref}.3 Eq 6.10.229: 0.6 Fy t B (2η + β + βeop) / sin θ",
                         False,
                     )
                 )
-            if not square and bc / t < 15:
+            if not square or bc / t < 15:
                 beoi = min(10 / (bc / t) * (fy * t / (fyb * tb)) * bb, bb)
                 pn = fyb * tb * (2 * hb + bb + beoi - 4 * tb)
                 capacities.append(
                     (
                         "branch yielding (uneven load)",
                         phi("hssBranchYielding", 0.95) * pn,
-                        f"{clause}: Fyb tb (2Hb + Bb + beoi - 4tb)",
+                        f"{ref}.3 Eq 6.10.230: Fyb tb (2Hb + Bb + beoi - 4tb)",
                         False,
                     )
                 )
+        elif lap:
+            checks.append(_limit("β (least)", beta, 0.25, f"{ref}: β >= 0.25", above=True))
+            checks.append(
+                _limit(
+                    "overlapping / overlapped branch width",
+                    bb / other.b,
+                    0.75,
+                    f"{ref}.1(i): >= 0.75",
+                    above=True,
+                )
+            )
+            ov = c.overlap
+            beoi = min(10 / (bc / t) * (fy * t / (fyb * tb)) * bb, bb)
+            beov = min(10 / (other.b / other.tw) * (other_m.fy * other.tw / (fyb * tb)) * bb, bb)
+            if ov < 50:
+                pn = fyb * tb * (ov / 50 * (2 * hb - 4 * tb) + beoi + beov)
+                eq = "6.10.232: Fybi tbi [(Ov/50)(2Hbi - 4tbi) + beoi + beov]"
+            elif ov < 80:
+                pn = fyb * tb * (2 * hb - 4 * tb + beoi + beov)
+                eq = "6.10.233: Fybi tbi (2Hbi - 4tbi + beoi + beov)"
+            else:
+                pn = fyb * tb * (2 * hb - 4 * tb + bb + beov)
+                eq = "6.10.234: Fybi tbi (2Hbi - 4tbi + Bbi + beov)"
+            p_lap = phi("hssBranchYielding", 0.95)
+            capacities.append(
+                (
+                    "overlapping branch yielding (uneven load)",
+                    p_lap * pn,
+                    f"{ref}.4 Eq {eq}, beoi = {beoi:.0f}, beov = {beov:.0f} mm",
+                    False,
+                )
+            )
+            ratio = (other.A * other_m.fy) / (branch.A * fyb)
+            capacities.append(
+                (
+                    "overlapped branch yielding (uneven load)",
+                    p_lap * pn * ratio,
+                    (
+                        f"{ref}.4: the overlapping branch's Pn × Abj Fybj / (Abi Fybi) = × {ratio:.2f} "
+                        "(both branches carry the brace force)"
+                    ),
+                    False,
+                )
+            )
         else:
-            checks.append(_limit("β (least)", beta, 0.25, f"{clause}: β >= 0.25", above=True))
+            checks.append(_limit("β (least)", beta, 0.25, f"{ref}.2: β >= 0.25", above=True))
             if beta <= 0.85:
                 pn = fy * t**2 * (2 * eta / (1 - beta) + 4 / math.sqrt(1 - beta)) * qf / sin
                 capacities.append(
                     (
                         "chord wall plastification",
                         phi("hssPlastificationRect", 1.0) * pn,
-                        f"{clause}: Fy t² [2η / (1 - β) + 4 / √(1 - β)] Qf / sin θ, Qf = {qf:.2f}",
+                        (
+                            f"{ref}.2 Eq 6.10.221: Fy t² [2η / (1 - β) + 4 / √(1 - β)] Qf / sin θ, "
+                            f"Qf = {qf:.2f}"
+                        ),
                         False,
                     )
                 )
-            elif beta <= 1 - 1 / gamma:
+            punching = beta <= 1 - 1 / gamma and (beta >= 0.85 or bc / t < 10)
+            if punching:
                 pn = 0.6 * fy * t * bc * (2 * eta + 2 * beop) / sin
                 capacities.append(
                     (
                         "chord punching shear",
                         phi("hssPunching", 0.95) * pn,
-                        f"{clause}: 0.6 Fy t B (2η + 2βeop) / sin θ",
+                        f"{ref}.2 Eq 6.10.222: 0.6 Fy t B (2η + 2βeop) / sin θ",
                         False,
                     )
                 )
@@ -1523,21 +2472,24 @@ def check_hss_joint(
                     (
                         "chord sidewall local yielding",
                         phi("hssSidewallYielding", 1.0) * pn,
-                        f"{clause}: 2 Fy t (5k + N) / sin θ",
+                        f"{ref}.2 Eq 6.10.223: 2 Fy t (5k + N) / sin θ",
                         False,
                     )
                 )
                 if c.joint == "TY":
                     pn = 1.6 * t**2 * (1 + 3 * n_len / (hc - 3 * t)) * math.sqrt(e * fy) * qf / sin
                     p_cr = phi("hssSidewallCripplingTY", 0.75)
-                    note = "1.6 t² [1 + 3N / (H - 3t)] √(E Fy) Qf / sin θ"
+                    note = "Eq 6.10.224: 1.6 t² [1 + 3N / (H - 3t)] √(E Fy) Qf / sin θ"
                 else:
                     pn = 48 * t**3 / (hc - 3 * t) * math.sqrt(e * fy) * qf / sin
                     p_cr = phi("hssSidewallCripplingX", 0.9)
-                    note = "48 t³ / (H - 3t) √(E Fy) Qf / sin θ"
-                capacities.append(
-                    ("chord sidewall crippling", p_cr * pn, f"{clause}: {note}", True)
-                )
+                    note = "Eq 6.10.225: 48 t³ / (H - 3t) √(E Fy) Qf / sin θ"
+                capacities.append(("chord sidewall crippling", p_cr * pn, f"{ref}.2 {note}", True))
+                if c.joint == "X" and c.angle < 90:
+                    overlap_note = (
+                        "cross joint at θ < 90°: the chord sidewall shear (Sec 10.7.5) is a "
+                        "member check, not made here"
+                    )
             if beta > 0.85:
                 beoi = min(10 / (bc / t) * (fy * t / (fyb * tb)) * bb, bb)
                 pn = fyb * tb * (2 * hb + 2 * beoi - 4 * tb)
@@ -1545,7 +2497,7 @@ def check_hss_joint(
                     (
                         "branch yielding (uneven load)",
                         phi("hssBranchYielding", 0.95) * pn,
-                        f"{clause}: Fyb tb (2Hb + 2beoi - 4tb)",
+                        f"{ref}.2 Eq 6.10.226: Fyb tb (2Hb + 2beoi - 4tb)",
                         False,
                     )
                 )
@@ -1560,20 +2512,292 @@ def check_hss_joint(
     for check in checks:
         if check["unit"] == "":
             check["unit"] = "-"
-    joint = {"TY": "T or Y", "X": "cross (X)", "K": "gapped K"}[c.joint]
+    joint = {"TY": "T or Y", "X": "cross (X)", "K": "gapped K", "KOverlap": "overlapped K"}[c.joint]
+    assumptions = [
+        f"{'round' if round_ else 'rectangular'} {joint} joint, θ = {c.angle:g}°, chord {chord.name}",
+        f"chord in compression, utilisation U = {c.chordUtilisation:g}"
+        if c.chordCompression
+        else "chord in tension (Qf = 1)",
+        "the welds develop the branch (not checked)",
+    ]
+    if k_joint:
+        assumptions.append(
+            "K joints: the other branch "
+            + (f"{other.name}" if overlapped is not None else "of this section")
+            + ", loaded in the opposite sense with the same force"
+        )
+    if lap:
+        assumptions.append(f"overlap Ov = {c.overlap:g} %, this brace overlapping the other")
+    if rect and c.joint == "K" and abs(hc - bc) > 1e-6:
+        assumptions.append(
+            "chord shear in the gap of a non-square chord (Sec 10.7) is a member check, not here"
+        )
+    if overlap_note:
+        assumptions.append(overlap_note)
+    return _result("hssJoint", checks, assumptions)
+
+
+# ─────────────────────────────────────── HSS moment connections ───────────────────────────────
+
+
+def check_hss_moment(
+    c: HssMomentConnection,
+    branch: SteelSection,
+    branch_material: SteelMaterial,
+    chord: SteelSection,
+    chord_material: SteelMaterial | None,
+    demands: list[tuple[str | None, float, float, float]],
+) -> dict[str, Any]:
+    """Checks of a welded HSS-to-HSS moment connection (Sec 10.11.3) for the beam end forces
+    ``[(combination, N [N] tension +, Mip [N·mm], Mop [N·mm])]``: the branch axial strength of
+    a T/Y or cross joint (Sec 10.11.2), the in-plane and out-of-plane moment strengths, and
+    the interaction Eq 6.10.247 (round) or Eq 6.10.260 (rectangular)."""
+    cm = chord_material or branch_material
+    fy, _fu, e = cm.fy, cm.fu, cm.E
+    fyb = branch_material.fy
+    t = chord.tw
+    sin = math.sin(math.radians(c.angle))
+    round_ = chord.shape == "circleHollow" and branch.shape == "circleHollow"
+    rect = chord.shape == "rectangleHollow" and branch.shape == "rectangleHollow"
+    if not (round_ or rect):
+        raise ValueError(
+            "HSS moment connections need a round branch on a round chord or rectangular on "
+            "rectangular"
+        )
+    cross = c.joint == "X"
+    checks = _hss_material_limits(cm, "chord")
+    checks += _hss_material_limits(branch_material, "branch")
+    if round_:
+        ref = "Sec 10.11.3.2"
+        dc, db, tb = chord.h, branch.h, branch.tw
+        beta, gamma = db / dc, dc / (2 * t)
+        qf = _qf_round(c.chordUtilisation, c.chordCompression)
+        checks.append(_limit("chord D / t", dc / t, 40.0 if cross else 50.0, f"{ref}.1(b)"))
+        checks.append(_limit("branch D / t (tension)", db / tb, 50.0, f"{ref}.1(c)"))
+        checks.append(
+            _limit(
+                "branch D / t (compression)", db / tb, 0.05 * e / fyb, f"{ref}.1(d): 0.05 E / Fy"
+            )
+        )
+        checks.append(_limit("β = Db / D", beta, 1.0, f"{ref}.1(e): 0.2 < β <= 1.0"))
+        checks.append(_limit("β = Db / D (least)", beta, 0.2, f"{ref}.1(e)", above=True))
+        if cross:
+            pn = fy * t**2 * (5.7 / (1 - 0.81 * beta)) * qf / sin
+            p_eq = "6.10.213"
+        else:
+            pn = fy * t**2 * (3.1 + 15.6 * beta**2) * gamma**0.2 * qf / sin
+            p_eq = "6.10.211"
+        p_cap = phi("hssPlastification", 0.9) * pn
+        p_note = f"Sec 10.11.2.2 Eq {p_eq}"
+        punch = beta <= 1 - 1 / gamma
+        if punch:
+            p_cap = min(
+                p_cap,
+                phi("hssPunching", 0.95) * 0.6 * fy * t * math.pi * db * (1 + sin) / (2 * sin**2),
+            )
+            p_note += ", 6.10.212"
+        mip = (
+            phi("hssMomentPlastification", 0.9)
+            * 5.39
+            * fy
+            * t**2
+            * gamma**0.5
+            * beta
+            * db
+            * qf
+            / sin
+        )
+        mip_note = "Eq 6.10.243: 5.39 Fy t² γ^0.5 β Db Qf / sin θ"
+        mop = (
+            phi("hssMomentPlastification", 0.9)
+            * fy
+            * t**2
+            * db
+            * (3.0 / (1 - 0.81 * beta))
+            * qf
+            / sin
+        )
+        mop_note = "Eq 6.10.245: Fy t² Db [3.0 / (1 - 0.81 β)] Qf / sin θ"
+        if punch:
+            p_ps = phi("hssMomentPunching", 0.95)
+            mip_ps = p_ps * 0.6 * fy * t * db**2 * (1 + 3 * sin) / (4 * sin**2)
+            mop_ps = p_ps * 0.6 * fy * t * db**2 * (3 + sin) / (4 * sin**2) * qf
+            if mip_ps < mip:
+                mip, mip_note = mip_ps, "Eq 6.10.244: 0.6 Fy t Db² (1 + 3 sin θ) / (4 sin² θ)"
+            if mop_ps < mop:
+                mop, mop_note = mop_ps, "Eq 6.10.246: 0.6 Fy t Db² (3 + sin θ) / (4 sin² θ) Qf"
+        interaction_eq = "Eq 6.10.247: P/φPn + (Mip/φMip)² + Mop/φMop"
+        squared = True
+    else:
+        ref = "Sec 10.11.3.3"
+        bc, hc = chord.b, chord.h
+        bb, hb, tb = branch.b, branch.h, branch.tw
+        beta, gamma = bb / bc, bc / (2 * t)
+        eta = hb / bc
+        qf = _qf_rect(c.chordUtilisation, beta, c.chordCompression)
+        checks.append(_limit("branch angle", c.angle, 90.0, f"{ref}.1(a): about 90°", above=True))
+        checks.append(_limit("chord B / t", bc / t, 35.0, f"{ref}.1(b)"))
+        checks.append(_limit("branch B / t (tension)", bb / tb, 35.0, f"{ref}.1(c)"))
+        checks.append(
+            _limit(
+                "branch B / t (compression)",
+                bb / tb,
+                min(1.25 * math.sqrt(e / fyb), 35.0),
+                f"{ref}.1(d): 1.25 √(E / Fyb), 35",
+            )
+        )
+        checks.append(_limit("β (least)", beta, 0.25, f"{ref}.1(e): >= 0.25", above=True))
+        checks.append(_limit("chord H / B", hc / bc, 2.0, f"{ref}.1(f): 0.5 to 2.0"))
+        checks.append(_limit("chord H / B (least)", hc / bc, 0.5, f"{ref}.1(f)", above=True))
+        checks.append(_limit("branch H / B", hb / bb, 2.0, f"{ref}.1(f): 0.5 to 2.0"))
+        checks.append(_limit("branch H / B (least)", hb / bb, 0.5, f"{ref}.1(f)", above=True))
+        # The branch axial strength: T/Y or cross joint of Sec 10.11.2.3.2.
+        axial_joint = HssJointConnection(
+            joint="X" if cross else "TY",
+            angle=c.angle,
+            chordCompression=c.chordCompression,
+            chordUtilisation=c.chordUtilisation,
+        )
+        axial = check_hss_joint(
+            axial_joint, branch, branch_material, chord, cm, [("_", 1.0), ("_", -1.0)]
+        )
+        caps = [x["capacity"] * 1e3 for x in axial["checks"] if x["unit"] == "kN"]
+        p_cap = min(caps) if caps else math.inf
+        p_note = "Sec 10.11.2.3.2"
+        fy_star = (0.8 if cross else 1.0) * fy
+        cands_ip: list[tuple[float, str]] = []
+        cands_op: list[tuple[float, str]] = []
+        if beta <= 0.85:
+            cands_ip.append(
+                (
+                    phi("hssMomentPlastificationRect", 1.0)
+                    * fy * t**2 * hb * (1 / (2 * eta) + 2 / math.sqrt(1 - beta) + eta / (1 - beta))
+                    * qf,
+                    "Eq 6.10.251: Fy t² Hb [1/(2η) + 2/√(1-β) + η/(1-β)] Qf",
+                )
+            )  # fmt: skip
+            cands_op.append(
+                (
+                    phi("hssMomentPlastificationRect", 1.0)
+                    * fy * t**2
+                    * (0.5 * hb * (1 + beta) / (1 - beta)
+                       + math.sqrt(2 * bc * bb * (1 + beta) / (1 - beta)))
+                    * qf,
+                    "Eq 6.10.255: Fy t² [0.5 Hb (1+β)/(1-β) + √(2 B Bb (1+β)/(1-β))] Qf",
+                )
+            )  # fmt: skip
+        else:
+            cands_ip.append(
+                (
+                    phi("hssMomentSidewall", 1.0) * 0.5 * fy_star * t * (hb + 5 * t) ** 2,
+                    "Eq 6.10.252: 0.5 Fy* t (Hb + 5t)²",
+                )
+            )
+            cands_op.append(
+                (
+                    phi("hssMomentSidewall", 1.0) * fy_star * t * (bc - t) * (hb + 5 * t),
+                    "Eq 6.10.256: Fy* t (B - t)(Hb + 5t)",
+                )
+            )
+            beoi = min(10 / (bc / t) * (fy * t / (fyb * tb)) * bb, bb)
+            zb_ip = branch.Zx
+            zb_op = branch.Zy
+            cands_ip.append(
+                (
+                    phi("hssMomentUneven", 0.95) * fyb * (zb_ip - (1 - beoi / bb) * bb * hb * tb),
+                    "Eq 6.10.253: Fyb [Zb - (1 - beoi/Bb) Bb Hb tb]",
+                )
+            )
+            cands_op.append(
+                (
+                    phi("hssMomentUneven", 0.95)
+                    * fyb
+                    * (zb_op - 0.5 * (1 - beoi / bb) ** 2 * bb**2 * tb),
+                    "Eq 6.10.257: Fyb [Zb - 0.5 (1 - beoi/Bb)² Bb² tb]",
+                )
+            )
+        if not cross and not c.distortionPrevented:
+            cands_op.append(
+                (
+                    phi("hssMomentDistortion", 1.0)
+                    * 2 * fy * t * (hb * t + math.sqrt(bc * hc * t * (bc + hc))),
+                    "Eq 6.10.259: 2 Fy t [Hb t + √(B H t (B + H))] (chord distortion)",
+                )
+            )  # fmt: skip
+        mip, mip_note = min(cands_ip)
+        mop, mop_note = min(cands_op)
+        interaction_eq = "Eq 6.10.260: P/φPn + Mip/φMip + Mop/φMop"
+        squared = False
+    worst = None
+    for comb, n, m_ip, m_op in demands:
+        ratio = abs(n) / p_cap + (abs(m_ip) / mip) ** (2 if squared else 1) + abs(m_op) / mop
+        if worst is None or ratio > worst[0]:
+            worst = (ratio, comb, n, m_ip, m_op)
+    if worst is not None:
+        ratio, comb, n, m_ip, m_op = worst
+        row = max(demands, key=lambda r: abs(r[2]))
+        checks.append(
+            _check(
+                "in-plane moment strength",
+                abs(row[2]) / 1e6,
+                mip / 1e6,
+                "kN·m",
+                row[0],
+                f"{ref} {mip_note}",
+            )
+        )
+        row = max(demands, key=lambda r: abs(r[3]))
+        checks.append(
+            _check(
+                "out-of-plane moment strength",
+                abs(row[3]) / 1e6,
+                mop / 1e6,
+                "kN·m",
+                row[0],
+                f"{ref} {mop_note}",
+            )
+        )
+        row = max(demands, key=lambda r: abs(r[1]))
+        checks.append(
+            _check(
+                "branch axial strength",
+                abs(row[1]) / 1e3,
+                p_cap / 1e3,
+                "kN",
+                row[0],
+                p_note,
+            )
+        )
+        checks.append(
+            _check(
+                "axial force and moments",
+                ratio,
+                1.0,
+                "-",
+                comb,
+                f"{ref} {interaction_eq}: N = {n / 1e3:.1f} kN, Mip = {m_ip / 1e6:.1f}, "
+                f"Mop = {m_op / 1e6:.1f} kN·m",
+            )
+        )
+    for check in checks:
+        if check["unit"] == "":
+            check["unit"] = "-"
     return _result(
-        "hssJoint",
+        "hssMoment",
         checks,
         [
             (
-                f"{'round' if round_ else 'rectangular'} {joint} joint, θ = {c.angle:g}°, chord "
-                f"{chord.name}"
+                f"{'round' if round_ else 'rectangular'} {'cross' if cross else 'T or Y'} moment "
+                f"connection to the chord {chord.name}, θ = {c.angle:g}°"
+            ),
+            (
+                "in-plane moment: the beam's major-axis end moment; out-of-plane: its minor-axis "
+                "end moment"
             ),
             f"chord in compression, utilisation U = {c.chordUtilisation:g}"
             if c.chordCompression
             else "chord in tension (Qf = 1)",
-            "K joints: both branches of this section, loaded in opposite senses",
-            "the welds develop the branch (not checked); no overlapped joints",
+            "the welds develop the branch (not checked); the beam end is kept rigid",
         ],
     )
 

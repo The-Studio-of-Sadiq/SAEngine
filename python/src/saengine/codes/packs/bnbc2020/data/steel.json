@@ -24,6 +24,7 @@
     "webCompressionBuckling": 0.9,
     "panelZone": 0.9,
     "shearYielding": 1.0,
+    "shearRupture": 0.75,
     "hssPlastification": 0.9,
     "hssPlastificationRect": 1.0,
     "hssPunching": 0.95,
