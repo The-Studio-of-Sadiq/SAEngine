@@ -32,9 +32,6 @@ export const FemPlanned = {
 	/** T36: isolators and dampers. */
 	baseIsolation: 'fem.baseIsolation',
 	dampers: 'fem.dampers',
-	/** T44: composite steel and concrete. */
-	compositeBeams: 'fem.compositeBeams',
-	compositeColumns: 'fem.compositeColumns',
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
 	crackedSlabDeflection: 'fem.crackedSlabDeflection',
 	crackWidths: 'fem.crackWidths',

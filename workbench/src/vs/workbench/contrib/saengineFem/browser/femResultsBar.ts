@@ -1659,8 +1659,9 @@ export class FemResultsBar extends Disposable {
 		// A steel member's class, lengths, Cb and governing clause, then its connections.
 		const steel = steelSection(element);
 		this.renderDetailing(container, steel);
-		if (steel.length) {
-			this.appendPlanned(container, [FemPlanned.compositeBeams, FemPlanned.compositeColumns]);
+		// B32: composite beams are designed; their floor vibration is still planned.
+		if (steel.length && element.kind === 'beam' && element.checks.some(c => c.name.startsWith('Composite: '))) {
+			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		}
 		// A timber member's section, stresses and end joint, then the joints still planned (screws).
 		const timber = timberSection(element);
