@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemPushoverCurve, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, IFemPushoverCurve, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -732,6 +732,75 @@ export class FemResultsEditor extends EditorPane {
 		if (historyDesign) {
 			this.renderTimeHistoryDesign(historyDesign);
 		}
+		if (response.columnShortening) {
+			this.renderColumnShortening(response.columnShortening);
+		}
+	}
+
+	/** B25: the column shortening with the code pack's creep and shrinkage, line by line. */
+	private renderColumnShortening(found: IFemColumnShortening): void {
+		const section = this.section(
+			localize('femResults.shorteningHeading', "Column Shortening"),
+			localize('femResults.shorteningHelp', "Elastic, creep and shrinkage shortening of each concrete column line, storey by storey in time, by the creep and shrinkage model of the code pack in force. After casting: what the storeys below shorten after a floor is cast level, which the floors and the beams between lines feel."),
+		);
+		if (!found.available || !found.lines) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noShortening', "No column shortening: {0}", found.reason ?? '')));
+			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening], this.commandService));
+			return;
+		}
+		const length = this.units.length.scale;
+		const colors: ChartColor[] = ['blue', 'orange', 'green', 'red', 'purple', 'yellow'];
+		// The lines that shorten most at the top, at most six on the charts.
+		const top = (rows: readonly { readonly total: number }[]) => rows.length ? rows[rows.length - 1].total : 0;
+		const shown = [...found.lines].sort((a, b) => top(b.rows) - top(a.rows)).slice(0, colors.length);
+		renderChart(this.grid(section), {
+			title: localize('femResults.shorteningProfile', "Shortening after Casting at the End of the Service Life"),
+			xLabel: withUnit(localize('femResults.shortening', "Shortening"), this.units.length),
+			yLabel: localize('femResults.levelZ', "Level [m]"),
+			series: shown.map((line, k) => ({ name: line.line, color: colors[k], points: line.rows.map(r => [r.afterCasting * length, r.z]) })),
+		});
+		const history = found.history;
+		if (history) {
+			const shownNames = new Set(shown.map(l => l.line));
+			renderChart(this.grid(section), {
+				title: localize('femResults.shorteningHistory', "Top of the Line in Time"),
+				xLabel: localize('femResults.days', "Days from the start of construction"),
+				yLabel: withUnit(localize('femResults.shortening', "Shortening"), this.units.length),
+				series: history.lines.filter(l => shownNames.has(l.line)).map((l, k) => ({ name: l.line, color: colors[k % colors.length], points: history.days.map((d, i) => [d, l.values[i] * length]) })),
+			});
+		}
+		const clauses = found.clauses ?? {};
+		const inputs = found.inputs;
+		const value = (v: number) => this.format('length', v);
+		renderSheet(section, {
+			name: localize('femResults.shorteningTable', "Shortening per column line and level"),
+			columns: [
+				localize('femResults.lineCol', "Column line"), localize('femResults.levelCol', "Level"),
+				localize('femResults.elasticCol', "Elastic"), localize('femResults.creepCol', "Creep"), localize('femResults.shrinkageCol', "Shrinkage"),
+				localize('femResults.totalCol', "Total"), localize('femResults.afterCol', "After casting"),
+			],
+			rows: found.lines.flatMap(line => line.rows.map(r => [line.line, r.level, value(r.elastic), value(r.creep), value(r.shrinkage), value(r.total), value(r.afterCasting)])),
+			notes: [
+				...(inputs ? [localize('femResults.shorteningInputs', "Relative humidity {0} % ({1}), floor cycle {2} days, finishes and {3} % of the live load {4} days after completion, column steel ratio {5} %, service life {6} years{7}.",
+					inputs.humidity, inputs.exposure, inputs.cycle, Math.round(inputs.sustainedLive * 100), inputs.superimposedAfter, (inputs.steelRatio * 100).toFixed(2), inputs.serviceLife,
+					inputs.staged ? localize('femResults.shorteningStaged', ", dead load by the construction sequence") : localize('femResults.shorteningAtOnce', ", dead load at completion"))] : []),
+				...[clauses['creep'], clauses['creepFigure'], clauses['creepDevelopment'], clauses['shrinkageFigure'], clauses['reinforced'], clauses['phased'], clauses['effects']].filter((c): c is string => !!c),
+				...(found.notes ?? []),
+			],
+		});
+		if (found.differential?.length) {
+			renderSheet(section, {
+				name: localize('femResults.differentialTable', "Differential shortening of the beams between column lines"),
+				columns: [
+					localize('femResults.beamCol', "Beam"), localize('femResults.levelCol', "Level"), withUnit(localize('femResults.spanCol', "Span"), this.units.length),
+					localize('femResults.differenceCol', "Differential"), localize('femResults.rotationCol', "Δ/L"), withUnit(localize('femResults.momentCol', "6EIΔ/L²"), this.units.moment),
+				],
+				rows: found.differential.map(r => [r.beam, r.level, fixed(r.length * length, 0), value(r.difference), `1/${r.rotation > 0 ? Math.round(1 / r.rotation) : '∞'}`, fixed(r.moment * this.units.moment.scale, 1)]),
+				notes: [localize('femResults.differentialNote', "The indicative end moment of a beam fixed at both ends, with its section's E and I, without relief by its own creep.")],
+			});
+		}
+		// What stays planned: construction loads and shoring, the forces as a load case, walls.
+		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening], this.commandService));
 	}
 
 	/** The linear time-history design (B19): each suite's spectrum against the code's criterion, the suites' base shears and factors, the drifts. */
