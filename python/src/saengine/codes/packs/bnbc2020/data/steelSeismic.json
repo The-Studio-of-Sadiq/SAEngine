@@ -1,0 +1,211 @@
+{
+  "$schema": "../../../schemas/steelSeismic.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 10.1.1.1-10.1.1.2 (part 1 p. 1182, gazette p. 3763): the seismic provisions apply when R is taken above 3",
+    "BNBC 2020 Part 6 Sec 10.20.1-10.20.12, Tables 6.10.17-6.10.18, Eqs 6.10.298-6.10.302, Figure 6.10.3 (part 2 pp. 227-258, gazette pp. 4008-4039): seismic provisions for structural steel buildings, general requirements and moment frames",
+    "BNBC 2020 Part 6 Appendix N (part 2 pp. 579-582, gazette pp. 4360-4363): prequalification of beam-column connections",
+    "BNBC 2020 Part 6 Sec 2.5.9.1(b) (part 1 p. 634, gazette p. 3215): panel zone deformations in the drift of steel moment frames"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 10.20.1-10.20.12, Tables 6.10.17-6.10.18, Appendix N",
+  "trigger": {
+    "rAbove": 3.0,
+    "note": "Sec 10.1.1.2 and 10.20.1: the provisions apply when R is taken greater than 3, whatever the Seismic Design Category; with R of 3 or less they are not required."
+  },
+  "systems": {
+    "steelSmf": "smf",
+    "steelImf": "imf",
+    "steelOmf": "omf",
+    "steelDualSmfEbf": "smf",
+    "steelDualSmfScbf": "smf",
+    "steelDualImfScbf": "imf"
+  },
+  "omegaDefault": 2.0,
+  "expected": {
+    "rows": {
+      "shapesA36": {"application": "shapes", "match": ["A36\\b"], "Ry": 1.5, "Rt": 1.2, "label": "Hot-rolled shapes and bars, ASTM A36"},
+      "shapesA572g42": {"application": "shapes", "match": ["A572"], "fyMax": 300, "Ry": 1.3, "Rt": 1.1, "label": "Hot-rolled shapes, ASTM A572 Grade 42 (290)"},
+      "shapesA572g50": {"application": "shapes", "match": ["A572", "A913", "A588", "A992", "A1011"], "fyMin": 300, "Ry": 1.1, "Rt": 1.1, "label": "Hot-rolled shapes, ASTM A572 Grade 50/55, A913, A588, A992, A1011 HSLAS Grade 55"},
+      "shapesA529g50": {"application": "shapes", "match": ["A529"], "fyMax": 360, "Ry": 1.2, "Rt": 1.2, "label": "Hot-rolled shapes, ASTM A529 Grade 50 (345)"},
+      "shapesA529g55": {"application": "shapes", "match": ["A529"], "fyMin": 360, "Ry": 1.1, "Rt": 1.2, "label": "Hot-rolled shapes, ASTM A529 Grade 55 (380)"},
+      "hss": {"application": "hss", "match": ["A500", "A501"], "Ry": 1.4, "Rt": 1.3, "label": "Hollow structural sections, ASTM A500 (Grade B or C), A501"},
+      "pipe": {"application": "pipe", "match": ["A53"], "Ry": 1.6, "Rt": 1.2, "label": "Pipe, ASTM A53"},
+      "platesA36": {"application": "plates", "match": ["A36\\b"], "Ry": 1.3, "Rt": 1.2, "label": "Plates, ASTM A36"},
+      "platesA572": {"application": "plates", "match": ["A572", "A588"], "Ry": 1.1, "Rt": 1.2, "label": "Plates, ASTM A572 Grade 50 (345), A588"}
+    },
+    "fallbackRy": 1.6,
+    "fallbackRt": 1.3,
+    "note": "Table 6.10.17. A steel no row names (or an HSS of a steel that is not A500/A501) takes the largest Ry and Rt of the table: SAEngine practice, not BNBC (Sec 10.20.6.2 allows other values from tests of the steel). Ry Fy is the demand on the adjoining elements, so the largest is the safe side."
+  },
+  "toughness": {
+    "flangeThickness": 38,
+    "plateThickness": 50,
+    "energy": 27,
+    "temperature": 21,
+    "weldEnergy": 27,
+    "weldTemperature": -18
+  },
+  "widthThickness": {
+    "iFlange": 0.30,
+    "iFlangeRelaxed": 0.38,
+    "channelFlange": 0.30,
+    "hPileFlange": 0.45,
+    "flatBar": 2.5,
+    "angleLeg": 0.30,
+    "teeStem": 0.30,
+    "smfBeamWeb": 2.45,
+    "web": {
+      "split": 0.125,
+      "linearA": 3.14,
+      "linearB": 1.54,
+      "offsetA": 1.12,
+      "offsetB": 2.33,
+      "floor": 1.49,
+      "linearAbove": true,
+      "leastOfBoth": true,
+      "note": "Table 6.10.18 prints 3.14 √(E/Fy)(1 - 1.54 Ca) for Ca > 0.125 and 1.12 √(E/Fy)(2.33 - Ca) ≥ 1.49 √(E/Fy) for Ca ≤ 0.125, the two ranges swapped against the reference standard it follows. The more conservative of the printed and the swapped assignment is taken at every Ca (owner decision on misprints)."
+    },
+    "roundHss": 0.044,
+    "rectHss": 0.64,
+    "hPileWeb": 0.94,
+    "phiB": 0.90,
+    "relaxedRatio": 2.0,
+    "note": "Table 6.10.18 prints the round HSS limit as 0.044 √(E/Fy), which would allow D/t of about 1 (no tube passes); D/t ≤ 0.044 E/Fy is taken (the reference standard's form). Note [j]'s '1 - 275 Ca' is read as 1 - 2.75 Ca. Note [b]: columns of special moment frames may use λp of Table 6.10.1 when the Eq 6.10.300 ratio exceeds 2.0."
+  },
+  "columns": {
+    "axialRatio": 0.4,
+    "phi": 0.90,
+    "connectionFactor": 1.1
+  },
+  "splices": {
+    "pjpFactor": 2.0,
+    "flangeShare": 0.5,
+    "distance": 1200,
+    "shortStorey": 2400,
+    "gravityShear": 1.0,
+    "smfFlexure": 1.0,
+    "smfShear": 1.0
+  },
+  "bases": {
+    "shearFactor": 2.0,
+    "flexureFactor": 1.1
+  },
+  "frames": {
+    "smf": {
+      "driftAngle": 0.04,
+      "flexuralShare": 0.80,
+      "hingeFactor": 1.1,
+      "compactness": "seismic",
+      "fyLimit": 345,
+      "panelZone": true,
+      "panelZonePhi": 1.0,
+      "panelZoneOmega": 1.5,
+      "panelThicknessDivisor": 90,
+      "momentRatio": 1.0,
+      "axialExemption": 0.3,
+      "elasticRatio": 2.0,
+      "flangeBraceShare": 0.02,
+      "unbracedSlenderness": 60,
+      "unbracedAmplification": 1.25,
+      "beamBracing": 0.086,
+      "braceStrength": 0.06,
+      "note": "Sec 10.20.9"
+    },
+    "imf": {
+      "driftAngle": 0.02,
+      "flexuralShare": 0.80,
+      "hingeFactor": 1.1,
+      "compactness": "compact",
+      "fyLimit": 345,
+      "panelZone": false,
+      "beamBracing": 0.17,
+      "braceStrength": 0.06,
+      "note": "Sec 10.20.10: panel zone, column-beam moment ratio and the bracing at the connections need nothing beyond the Specification."
+    },
+    "omf": {
+      "hingeFactor": 1.1,
+      "compactness": "none",
+      "fyLimit": 380,
+      "panelZone": false,
+      "connectionMoment": 1.1,
+      "prShare": 0.5,
+      "weldFactor": 1.1,
+      "continuityCoefficient": 0.54,
+      "continuityWidthRatio": 6,
+      "plateOneSided": 0.5,
+      "plateTwoSided": 1.0,
+      "note": "Sec 10.20.11"
+    },
+    "stmf": {
+      "hingeFactor": 1.0,
+      "compactness": "seismic",
+      "fyLimit": 345,
+      "panelZone": false,
+      "note": "Sec 10.20.12; Table 6.2.19 gives no row (R, Ω0, Cd) for special truss moment frames, so no structural system selects it in this pack."
+    }
+  },
+  "truss": {
+    "spanMax": 20000,
+    "depthMax": 1800,
+    "segmentMin": 0.1,
+    "segmentMax": 0.5,
+    "segmentZone": 0.5,
+    "panelRatioMin": 0.67,
+    "panelRatioMax": 1.5,
+    "crossing": 0.25,
+    "diagonalGravity": 0.03,
+    "chordShear": 0.25,
+    "chordAxial": 0.45,
+    "phi": 0.90,
+    "diagonalCompression": 0.3,
+    "vneMoment": 3.75,
+    "vneStiffness": 0.075,
+    "braceInside": 0.06,
+    "braceOutside": 0.02,
+    "note": "Sec 10.20.12.1-10.20.12.6, Eq 6.10.302"
+  },
+  "connections": {
+    "bearingMax": 2.4,
+    "slipClass": "A",
+    "clipWeb": 38,
+    "clipFlange": 12,
+    "clipRadius": 12
+  },
+  "practice": {
+    "hingeOffsetDepths": 0.5,
+    "protectedDepths": 1.0,
+    "rigidZoneMax": 0.0,
+    "note": "SAEngine practice, not BNBC: the code takes the hinge location and the protected zone from the prequalified or tested connection (Sec 10.20.9.2.4, Appendix N); without one, the hinge is taken half a beam depth from the column face and the protected zone one beam depth from it. Panel zone deformations (Sec 2.5.9.1(b)) are taken into the drift by a centreline model: no rigid zone at the joints of a steel moment frame."
+  },
+  "sources": {
+    "trigger": "Sec 10.1.1.2, 10.20.1 (part 1 p. 1182; part 2 p. 227)",
+    "omega": "Sec 10.20.4.1 (part 2 p. 229)",
+    "materials": "Sec 10.20.6.1 (part 2 p. 230)",
+    "expected": "Sec 10.20.6.2, Table 6.10.17 (part 2 pp. 231-233)",
+    "toughness": "Sec 10.20.6.3, 10.20.7.3.1 (part 2 pp. 231, 233)",
+    "bolts": "Sec 10.20.7.2 (part 2 p. 232)",
+    "protected": "Sec 10.20.7.3.3, 10.20.9.2.4 (part 2 pp. 234, 243)",
+    "clips": "Sec 10.20.7.3.4 (part 2 p. 234)",
+    "compact": "Sec 10.20.8.2, Table 6.10.18 (part 2 pp. 235-239)",
+    "columnStrength": "Sec 10.20.8.3 (part 2 pp. 235-236)",
+    "splices": "Sec 10.20.8.4 (part 2 pp. 236-237)",
+    "bases": "Sec 10.20.8.5 (part 2 pp. 237, 240)",
+    "smfConnection": "Sec 10.20.9.2.1, Eq 6.10.298 (part 2 pp. 241-242)",
+    "conformance": "Sec 10.20.9.2.2, 10.20.10.2.2, Appendix N (part 2 pp. 242, 249, 579-582)",
+    "panelZone": "Sec 10.20.9.3.1 (part 2 p. 243)",
+    "panelThickness": "Sec 10.20.9.3.2, Eq 6.10.299 (part 2 p. 243)",
+    "doubler": "Sec 10.20.9.3.3 (part 2 p. 244)",
+    "smfMembers": "Sec 10.20.9.4 (part 2 p. 244)",
+    "momentRatio": "Sec 10.20.9.6, Eq 6.10.300 (part 2 pp. 245-247)",
+    "connectionBracing": "Sec 10.20.9.7 (part 2 pp. 247-248)",
+    "smfBeamBracing": "Sec 10.20.9.8 (part 2 p. 248)",
+    "smfSplices": "Sec 10.20.9.9 (part 2 p. 248)",
+    "imfConnection": "Sec 10.20.10.2.1 (part 2 p. 249)",
+    "imfMembers": "Sec 10.20.10.4 (part 2 p. 250)",
+    "imfBeamBracing": "Sec 10.20.10.8 (part 2 p. 251)",
+    "omfConnection": "Sec 10.20.11.2.1, Eq 6.10.301 (part 2 pp. 252-253)",
+    "omfPartial": "Sec 10.20.11.2.2 (part 2 p. 253)",
+    "omfContinuity": "Sec 10.20.11.5 (part 2 pp. 254-255)",
+    "stmf": "Sec 10.20.12, Eq 6.10.302 (part 2 pp. 255-258)",
+    "panelZoneDrift": "Sec 2.5.9.1(b) (part 1 p. 634)"
+  }
+}

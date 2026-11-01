@@ -6379,6 +6379,240 @@ class CompositeTable(TableModel):
     connections: CompositeConnections
 
 
+
+# ─────────────────────── steel seismic provisions: general and moment frames (B35) ───────────────────────
+# Read by saengine.design.steel.seismic (capacity design of the steel members, joints and
+# connections of the seismic load resisting system). B38 adds the braced frames, plate walls
+# and composite seismic systems to the same table.
+
+
+class SteelSeismicTrigger(_Group):
+    rAbove: Positive = Field(description="The provisions apply when R is taken above this.")
+    note: str = ""
+
+
+class SteelSeismicExpected(_Row):
+    """A row of the expected strength ratios: the steels it covers and Ry, Rt."""
+
+    application: Literal["shapes", "hss", "pipe", "plates"] = Field(
+        description="Hot-rolled shapes and bars, hollow sections, pipe or plates."
+    )
+    match: list[str] = Field(
+        min_length=1,
+        description="Regular expressions; a material matches when one is found in its grade, "
+        "standard, id or name (case ignored).",
+    )
+    fyMin: float | None = Field(default=None, gt=0, description="Least Fy of the row [MPa].")
+    fyMax: float | None = Field(default=None, gt=0, description="Largest Fy of the row [MPa].")
+    Ry: float = Field(ge=1, description="Expected yield stress / Fy.")
+    Rt: float = Field(ge=1, description="Expected tensile strength / Fu.")
+    label: str = ""
+
+
+class SteelSeismicExpectedTable(_Group):
+    rows: dict[str, SteelSeismicExpected]
+    fallbackRy: float = Field(ge=1, description="Ry of a steel no row matches.")
+    fallbackRt: float = Field(ge=1, description="Rt of a steel no row matches.")
+    note: str = ""
+
+
+class SteelSeismicToughness(_Group):
+    flangeThickness: Positive = Field(description="Rolled shapes this thick need the CVN [mm].")
+    plateThickness: Positive = Field(description="Plates this thick need the CVN [mm].")
+    energy: Positive = Field(description="[J]")
+    temperature: float = Field(description="[°C]")
+    weldEnergy: Positive = Field(description="Filler metal CVN [J].")
+    weldTemperature: float = Field(description="[°C]")
+
+
+class SteelSeismicWeb(_Group):
+    """Webs in flexure or flexure and axial compression: λ = a √(E/Fy) (1 - b Ca) on one side
+    of ``split`` and c √(E/Fy) (d - Ca) ≥ floor √(E/Fy) on the other."""
+
+    split: Positive = Field(description="Ca at the change of form.")
+    linearA: Positive
+    linearB: Positive
+    offsetA: Positive
+    offsetB: Positive
+    floor: Positive
+    linearAbove: bool = Field(
+        description="True: the linear form for Ca above the split (as printed)."
+    )
+    leastOfBoth: bool = Field(
+        description="Take the least of the printed assignment and the swapped one."
+    )
+    note: str = ""
+
+
+class SteelSeismicWidthThickness(_Group):
+    """λps (seismically compact) as coefficients of √(E/Fy) unless noted."""
+
+    iFlange: Positive = Field(description="Flanges of I-shapes, flexure or compression.")
+    iFlangeRelaxed: Positive = Field(description="Flanges of I-shaped columns where note [d].")
+    channelFlange: Positive = Field(description="Channels, angle pairs in contact, braces.")
+    hPileFlange: Positive
+    flatBar: Positive = Field(description="b/t of flat bars (a plain number).")
+    angleLeg: Positive = Field(description="Single angles, double angles, tee flanges.")
+    teeStem: Positive
+    smfBeamWeb: Positive = Field(description="Webs of beams in special moment frames.")
+    web: SteelSeismicWeb
+    roundHss: Positive = Field(description="D/t ≤ this × (E/Fy) (no root: see the note).")
+    rectHss: Positive
+    hPileWeb: Positive
+    phiB: Phi = Field(description="φb of Ca = Pu / (φb Py).")
+    relaxedRatio: Positive = Field(
+        description="Columns of special moment frames may use λp when the column-beam moment "
+        "ratio exceeds this."
+    )
+    note: str = ""
+
+
+class SteelSeismicColumns(_Group):
+    axialRatio: Positive = Field(description="Pu / φPn above this: the amplified seismic load.")
+    phi: Phi = Field(description="φ of φPn in the ratio.")
+    connectionFactor: Positive = Field(description="× Ry × the connecting members' strengths.")
+
+
+class SteelSeismicSplices(_Group):
+    pjpFactor: Positive = Field(description="PJP groove welds: at least this × required.")
+    flangeShare: Positive = Field(description="Each flange splice at least this × Ry Fy Af.")
+    distance: Positive = Field(description="Splices at least this from the connections [mm].")
+    shortStorey: Positive = Field(description="Clear height below this: splice at mid [mm].")
+    gravityShear: Positive = Field(description="Columns not in the SLRS: this × Mpc / H.")
+    smfFlexure: Positive = Field(description="Splices of SMF not groove welded: × Ry Fy Zx.")
+    smfShear: Positive = Field(description="Web splices of SMF: this × ΣMpc / H.")
+
+
+class SteelSeismicBases(_Group):
+    shearFactor: Positive = Field(description="Column base shear: this × Ry Fy Zx / H.")
+    flexureFactor: Positive = Field(description="Column base moment: this × Ry Fy Z.")
+
+
+class SteelSeismicFrame(_Group):
+    """The rules of one kind of moment frame; a missing rule is not required of it."""
+
+    driftAngle: float | None = Field(default=None, gt=0, description="Connection drift [rad].")
+    flexuralShare: float | None = Field(
+        default=None, gt=0, description="Connection resistance at the drift / Mp."
+    )
+    hingeFactor: Positive = Field(description="Expected moment = this × Ry Mp.")
+    compactness: Literal["seismic", "compact", "none"] = Field(
+        description="Width-thickness limits of the beams and columns."
+    )
+    fyLimit: Positive = Field(description="Fy of members expected to yield at most [MPa].")
+    panelZone: bool = Field(description="Panel zone shear and thickness of the frame's own.")
+    panelZonePhi: float | None = Field(default=None, gt=0, le=1)
+    panelZoneOmega: float | None = Field(default=None, gt=0)
+    panelThicknessDivisor: float | None = Field(
+        default=None, gt=0, description="t ≥ (dz + wz) / this."
+    )
+    momentRatio: float | None = Field(
+        default=None, gt=0, description="ΣM*pc / ΣM*pb must exceed this."
+    )
+    axialExemption: float | None = Field(
+        default=None, gt=0, description="Columns with Puc below this × Fyc Ag may be exempt."
+    )
+    elasticRatio: float | None = Field(
+        default=None, gt=0, description="A column is taken elastic above this moment ratio."
+    )
+    flangeBraceShare: float | None = Field(
+        default=None, gt=0, description="Column flange brace: this × Fy bf tbf."
+    )
+    unbracedSlenderness: float | None = Field(default=None, gt=0, description="L/r at most.")
+    unbracedAmplification: float | None = Field(
+        default=None, gt=0, description="E at most this × the frame's available strength."
+    )
+    beamBracing: float | None = Field(default=None, gt=0, description="Lb ≤ this × ry E / Fy.")
+    braceStrength: float | None = Field(
+        default=None, gt=0, description="Brace next to a hinge: Pu = this × Mu / ho."
+    )
+    connectionMoment: float | None = Field(
+        default=None, gt=0, description="FR connections: required M = this × Ry Mp."
+    )
+    prShare: float | None = Field(
+        default=None, gt=0, description="PR connections: Mn at least this × Mp."
+    )
+    weldFactor: float | None = Field(
+        default=None, gt=0, description="Tension welds: this × Ry Fy × the element's area."
+    )
+    continuityCoefficient: float | None = Field(
+        default=None, gt=0, description="Plates when tcf < this × √(bf tbf Fyb / Fyc)."
+    )
+    continuityWidthRatio: float | None = Field(
+        default=None, gt=0, description="... or when tcf < bf / this."
+    )
+    plateOneSided: float | None = Field(default=None, gt=0, description="× tbf, one-sided.")
+    plateTwoSided: float | None = Field(default=None, gt=0, description="× tbf, two-sided.")
+    note: str = ""
+
+
+class SteelSeismicTruss(_Group):
+    """Special truss moment frames: the special segment and its members."""
+
+    spanMax: Positive = Field(description="[mm]")
+    depthMax: Positive = Field(description="[mm]")
+    segmentMin: Share = Field(description="Special segment at least this × the span.")
+    segmentMax: Share
+    segmentZone: Share = Field(description="... inside the middle (between quarter points).")
+    panelRatioMin: Positive = Field(description="Panel length / depth at least.")
+    panelRatioMax: Positive
+    crossing: Positive = Field(description="X diagonals joined for this × Pnt.")
+    diagonalGravity: Positive = Field(description="Gravity axial at most this × Fy Ag.")
+    chordShear: Share = Field(description="Chords give at least this share of the shear.")
+    chordAxial: Positive = Field(description="Chord axial at most this × φ Fy Ag.")
+    phi: Phi
+    diagonalCompression: Positive = Field(description="0.3 Pnc of the diagonals' shear.")
+    vneMoment: Positive = Field(description="Eq 6.10.302: this × Ry Mnc / Ls.")
+    vneStiffness: Positive = Field(description="... + this × EI (L - Ls) / Ls³.")
+    braceInside: Positive = Field(description="Braces at and in the segment: × Ry Pnc.")
+    braceOutside: Positive = Field(description="Braces outside it: × Ry Pnc.")
+    note: str = ""
+
+
+class SteelSeismicConnections(_Group):
+    bearingMax: Positive = Field(description="Nominal bearing at most this × d t Fu.")
+    slipClass: Literal["A", "B"] = Field(description="Faying surface class of SLRS bolts.")
+    clipWeb: Positive = Field(description="Clip along the web beyond k [mm].")
+    clipFlange: Positive = Field(description="Clip along the flange beyond k1 at most [mm].")
+    clipRadius: Positive = Field(description="Least radius of a curved clip [mm].")
+
+
+class SteelSeismicPractice(_Group):
+    """SAEngine practice where the code defers to tested or prequalified connections."""
+
+    hingeOffsetDepths: float = Field(
+        ge=0, description="Plastic hinge this × the beam depth from the column face."
+    )
+    protectedDepths: Positive = Field(
+        description="Protected zone from the column face over this × the beam depth."
+    )
+    rigidZoneMax: float = Field(
+        ge=0, le=1, description="Rigid zone factor at most this for the panel zone drift."
+    )
+    note: str = ""
+
+
+class SteelSeismicTable(TableModel):
+    """Seismic provisions for structural steel buildings: when they apply, the expected
+    strengths, seismically compact sections, column strength, splices and bases, and the
+    moment frames (special, intermediate, ordinary, special truss)."""
+
+    trigger: SteelSeismicTrigger
+    systems: dict[str, str] = Field(
+        description="Structural system id -> the frame kind of ``frames`` its members follow."
+    )
+    omegaDefault: Positive = Field(description="Ω0 when the system gives none.")
+    expected: SteelSeismicExpectedTable
+    toughness: SteelSeismicToughness
+    widthThickness: SteelSeismicWidthThickness
+    columns: SteelSeismicColumns
+    splices: SteelSeismicSplices
+    bases: SteelSeismicBases
+    frames: dict[str, SteelSeismicFrame]
+    truss: SteelSeismicTruss
+    connections: SteelSeismicConnections
+    practice: SteelSeismicPractice
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -6420,6 +6654,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "construction": ConstructionTable,
     "concreteTime": ConcreteTimeTable,
     "composite": CompositeTable,
+    "steelSeismic": SteelSeismicTable,
 }
 
 
