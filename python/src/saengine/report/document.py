@@ -1005,6 +1005,56 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                     bad=rsd["separationFails"],
                 ),
             )
+        th = rsd.get("timeHistory")
+        if th and th.get("suites"):
+            used = (
+                "The earthquake of the design combinations comes from these suites"
+                if th["use"]
+                else "The suites are checked but the design uses the response spectrum"
+            )
+            out += full(
+                p(
+                    f"Linear time histories: {used}. Each suite (records in one direction, or "
+                    f"pairs applied simultaneously, {th['pairsClause']}) is scaled so that its "
+                    "mean spectrum meets the code's criterion over its period range "
+                    f"({th['recordsClause']}); the design value is the largest response below "
+                    "the code's number of records and the mean from it, times the factor that "
+                    f"lifts the base shear Vth to the static V ({th['responseClause']})."
+                ),
+                table(
+                    [
+                        "Suite",
+                        "Records",
+                        "Value",
+                        "Least ratio",
+                        "Vth [kN]",
+                        "V [kN]",
+                        "Factor",
+                        "Used",
+                    ],
+                    th["suites"],
+                    align="lrlrrrrc",
+                ),
+            )
+            if th.get("drift"):
+                out += full(
+                    table(
+                        [
+                            "Suite",
+                            "Dir.",
+                            "Storey",
+                            "h [m]",
+                            "Drift [mm]",
+                            "Cd·δ/I [mm]",
+                            "Ratio [%]",
+                            "Allowed [%]",
+                            "Result",
+                        ],
+                        th["drift"],
+                        align="lllrrrrrc",
+                        bad=th["driftFails"],
+                    ),
+                )
         if rsd["notes"]:
             out.append(bullets(rsd["notes"], 8.5))
     so = results["secondOrder"]

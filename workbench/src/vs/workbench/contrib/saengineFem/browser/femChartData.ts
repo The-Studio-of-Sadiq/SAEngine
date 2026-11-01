@@ -76,6 +76,33 @@ export interface IFemDesignDrift {
 	readonly ok: boolean;
 }
 
+/** One suite of time histories of the linear time-history design (B19). */
+export interface IFemTimeHistorySuite {
+	readonly key: 'X' | 'Y' | 'XY';
+	readonly part: string;
+	readonly count: number;
+	readonly rule: 'max' | 'mean';
+	readonly enough: boolean;
+	readonly complete: boolean;
+	readonly used: boolean;
+	readonly cases: readonly { readonly id: number; readonly name: string; readonly baseShear: { readonly x: number; readonly y: number } }[];
+	/** The suite's mean spectrum against the code's criterion over its period range. */
+	readonly check: { readonly period: number; readonly periods: readonly number[]; readonly mean: readonly number[]; readonly target: readonly number[]; readonly ratio: number; readonly least: number; readonly governing: number; readonly ok: boolean; readonly shortfall: number } | null;
+	readonly shortfall?: number;
+	readonly vHistory?: { readonly x: number; readonly y: number };
+	readonly vStatic?: { readonly x: number; readonly y: number };
+	readonly factor?: number;
+}
+
+/** The linear time-history design of a run (B19): suites, drifts, notes, clauses. */
+export interface IFemTimeHistoryDesign {
+	readonly use: boolean;
+	readonly suites: readonly IFemTimeHistorySuite[];
+	readonly drift: readonly (IFemDesignDrift & { readonly suite: string; readonly height: number; readonly elasticDrift: number; readonly designDrift: number })[];
+	readonly notes: readonly string[];
+	readonly clauses: { readonly [key: string]: string };
+}
+
 export interface IFemModeRow {
 	readonly number: number;
 	readonly period: number | null;
@@ -94,7 +121,7 @@ export interface IFemStoryResponse {
 	readonly spectrum: { readonly name: string; readonly periods: readonly number[]; readonly accelerations: readonly number[]; readonly damping: number | null } | null;
 	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
 	/** The response spectrum design of this run, when it has been worked out. */
-	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string } | null;
+	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string; readonly timeHistory?: IFemTimeHistoryDesign | null } | null;
 	readonly pushover: readonly { readonly key: string; readonly label: string; readonly displacement: readonly number[]; readonly shear: readonly number[] }[];
 	readonly histories: readonly { readonly key: string; readonly label: string; readonly node: number; readonly time: readonly number[]; readonly displacement: readonly (readonly number[])[] }[];
 	readonly notes: readonly string[];

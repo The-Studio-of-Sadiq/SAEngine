@@ -427,40 +427,21 @@ registerPlannedFeature({
 	],
 });
 registerPlannedFeature({
-	id: FemPlanned.timeHistoryDesign,
-	part: 'fem',
-	title: localize('planned.thDesign.title', "Time History in Design"),
-	summary: localize('planned.thDesign.summary', "Feeds the time-history results (the mean or the peak over the records) into the design envelopes beside the static and spectrum cases. Today the time history is shown but not designed for."),
-	steps: [
-		localize('planned.thDesign.step1', "Choose which time-history cases enter design, and how they combine over the suite."),
-		localize('planned.thDesign.step2', "Add them to the seismic combinations."),
-		localize('planned.thDesign.step3', "Design the members for the envelope."),
-	],
-	outputs: [
-		localize('planned.thDesign.out1', "Time-history envelopes in the design checks and Design Reinforcement"),
-	],
-	references: [
-		localize('planned.thDesign.ref1', "BNBC 2020 Part 6 Sec 2.5 (earthquake loads, pp. 609-648)"),
-		localize('planned.thDesign.ref2', "ASCE/SEI 7-16 Ch 16 (response history procedures)"),
-	],
-});
-registerPlannedFeature({
 	id: FemPlanned.recordScaling,
 	part: 'fem',
-	title: localize('planned.records.title', "Record Scaling and Spectral Matching"),
-	summary: localize('planned.records.summary', "Picks ground-motion records from open databases, with their licences checked, and scales them, or matches them in the time domain, to the project's design spectrum over the periods that matter."),
+	title: localize('planned.records.title', "Record Search and Spectral Matching"),
+	summary: localize('planned.records.summary', "Picks ground-motion records from open databases, with their licences checked, and matches them in the time domain to the project's design spectrum. Scaling a suite to the code spectrum is built: Project Settings, Analysis, Time histories (Scaling). The code pack gives no method for matching or for choosing records, so this part stays planned."),
 	steps: [
 		localize('planned.records.step1', "Search an open record database by magnitude, distance and site class."),
-		localize('planned.records.step2', "Scale each record, or match it to the spectrum."),
-		localize('planned.records.step3', "Check the suite's mean spectrum against the design spectrum."),
+		localize('planned.records.step2', "Match each record to the design spectrum in the time domain."),
+		localize('planned.records.step3', "Check the matched suite with the same criterion as the scaled one."),
 	],
 	inputs: [
 		{ label: localize('planned.records.range', "Period range"), unit: localize('planned.unit.s', "s") },
-		{ label: localize('planned.records.method', "Method"), example: localize('planned.records.methodExample', "Amplitude scaling or spectral matching") },
+		{ label: localize('planned.records.method', "Method"), example: localize('planned.records.methodExample', "Spectral matching in the time domain") },
 	],
 	outputs: [
-		localize('planned.records.out1', "Scaled or matched records with their source and licence"),
-		localize('planned.records.out2', "A chart of the suite's spectrum against the design spectrum"),
+		localize('planned.records.out1', "Matched records with their source and licence"),
 	],
 	references: [
 		localize('planned.records.ref1', "ASCE/SEI 7-16 Sec 16.2 (ground motion selection and modification)"),

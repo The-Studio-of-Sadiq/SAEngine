@@ -332,3 +332,31 @@ def test_a_pair_is_one_case_shaking_both_directions(tmp_path: Path) -> None:
         assert len(factors) == 1  # one scale factor on both components
     assert len(d.project["ground_motions"]) == 6
     assert any("time-history suite XY: 3 pairs scaled" in n for n in d.notes)
+
+
+def test_report_rows_of_the_time_history_design() -> None:
+    from saengine.report.build import _time_history_report
+
+    history = {
+        "available": True,
+        "use": True,
+        "suites": [
+            {
+                "key": "X", "count": 3, "rule": "max", "used": True, "factor": 1.25,
+                "vHistory": {"x": 800.0, "y": 0.0}, "vStatic": {"x": 1000.0, "y": 1000.0},
+                "check": {"least": 1.0, "governing": 0.3, "period": 1.0},
+            }
+        ],
+        "drift": [
+            {"suite": "X", "direction": "X", "bottom": 0.0, "top": 3.0, "height": 3.0,
+             "elasticDrift": 0.004, "designDrift": 0.02, "ratio": 0.0067,
+             "allowableRatio": 0.02, "ok": True}
+        ],
+        "clauses": {"records": "r", "response": "s", "pairs": "p"},
+    }  # fmt: skip
+    report = _time_history_report(history)
+    assert report["suites"] == [
+        ["X", "3", "largest", "1.000 at 0.30 s (T = 1.00 s)", "800.0", "1000.0", "1.250", "yes"]
+    ]
+    assert report["drift"][0][-1] == "OK" and report["driftFails"] == [False]
+    assert _time_history_report(None) is None
