@@ -30,7 +30,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { BNBC, MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES, MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { keepMaterialDefaults, projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
@@ -109,7 +109,7 @@ const KIND_HELP: { readonly [kind: string]: string } = {
 /** Ec = 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1) and fr = 0.62 √f'c (Eq. 6.6.3), rounded as the defaults are. */
 export function concreteFromFc(fc: number): { readonly E: number; readonly fr: number } {
 	const root = Math.sqrt(fc);
-	return { E: Math.round(BNBC.concrete.ec * root / 10) * 10, fr: Math.round(BNBC.concrete.fr * root * 100) / 100 };
+	return { E: Math.round(DEFAULT_CODE_TABLES.concrete.ec * root / 10) * 10, fr: Math.round(DEFAULT_CODE_TABLES.concrete.fr * root * 100) / 100 };
 }
 
 /** Whether `value` is the code relation of `fc` (within rounding): it then follows f'c. */

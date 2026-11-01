@@ -83,13 +83,7 @@ export interface IDefaultCodeTables {
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
 }
-
-/** @deprecated The former name of {@link IDefaultCodeTables}. */
-export type IBnbcTables = IDefaultCodeTables;
 """
-
-#: Exports kept under a former name: (old name, type, new name), written after the new ones.
-DEPRECATED_ALIASES = [("BNBC", "IDefaultCodeTables", "DEFAULT_CODE_TABLES")]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
@@ -282,12 +276,7 @@ def generate_typescript() -> str:
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports
     )
-    aliases = "".join(
-        f"\n/** @deprecated The former name of {{@link {new}}}. */\n"
-        f"export const {old}: {type_} = {new};\n"
-        for old, type_, new in DEPRECATED_ALIASES
-    )
-    return HEADER + "\n" + body + aliases
+    return HEADER + "\n" + body
 
 
 def main(argv: list[str] | None = None) -> int:

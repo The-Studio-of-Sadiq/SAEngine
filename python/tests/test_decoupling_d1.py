@@ -205,13 +205,14 @@ def test_code_data_is_the_former_library_bnbc() -> None:
     assert bnbc.STRUCTURAL_SYSTEMS is code_data.STRUCTURAL_SYSTEMS
 
 
-def test_generated_typescript_keeps_the_former_export_name() -> None:
+def test_generated_typescript_names_the_default_code_tables() -> None:
     from saengine.library.export import generate_typescript
 
     text = generate_typescript()
     assert "export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {" in text
-    assert "export const BNBC: IDefaultCodeTables = DEFAULT_CODE_TABLES;" in text
-    assert "export type IBnbcTables = IDefaultCodeTables;" in text
+    # D4 moved every user to the new names and dropped the former ones (BNBC, IBnbcTables).
+    assert "export const BNBC:" not in text
+    assert "IBnbcTables" not in text
 
 
 def test_former_liquefaction_method_is_read_as_code_pack() -> None:

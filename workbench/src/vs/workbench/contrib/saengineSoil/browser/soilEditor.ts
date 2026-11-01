@@ -38,7 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
-import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import {
@@ -1918,7 +1918,7 @@ export class SoilEditor extends EditorPane {
 			const tile = append(section, $('.soil-tile'));
 			append(tile, $('span.soil-tile-value', undefined, governing.class));
 			const text = append(tile, $('.soil-tile-text'));
-			const name = BNBC.siteClasses[governing.class] ?? localize('soil.siteClassNamed', "Site class {0}", governing.class);
+			const name = DEFAULT_CODE_TABLES.siteClasses[governing.class] ?? localize('soil.siteClassNamed', "Site class {0}", governing.class);
 			append(text, $('span.soil-tile-title', undefined, governing.provisional ? localize('soil.siteClassProvisionalTitle', "{0} (provisional: no borehole of this class reaches 30 m)", name) : name));
 			append(text, $('span.soil-tile-detail', undefined, this.averageText(governing.nBar, governing.suBar, governing.depth, governing.borehole)));
 			if (governing.note) {
@@ -2879,7 +2879,7 @@ export class SoilEditor extends EditorPane {
 			}), () => null);
 		}
 		model.pushStackElement();
-		const name = suggestion.location ? BNBC.locations[suggestion.location]?.name ?? suggestion.location : localize('soil.map.custom', "Custom");
+		const name = suggestion.location ? DEFAULT_CODE_TABLES.locations[suggestion.location]?.name ?? suggestion.location : localize('soil.map.custom', "Custom");
 		this.notificationService.info(localize('soil.map.applied', "The project settings now use {0} for the seismic zone and the basic wind speed. Save the settings to keep it.", name));
 	}
 

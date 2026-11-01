@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { PACKAGE_KINDS, PackageKind } from '../common/packageIndex.js';
 
 /*
@@ -256,7 +256,7 @@ export function readProblems(value: unknown): string[] {
  */
 export function builtinDefaultPack(): ICodePackInfo {
 	return {
-		id: DEFAULT_CODE_PACK, kind: 'designCode', name: BNBC.edition, edition: BNBC.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
+		id: DEFAULT_CODE_PACK, kind: 'designCode', name: DEFAULT_CODE_TABLES.edition, edition: DEFAULT_CODE_TABLES.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
 		extends: undefined, covers: [], scope: 'builtin', path: undefined, problems: [], usable: true, effective: true, shadowedBy: undefined, trust: 'none', hooksFrom: [],
 		author: '', licence: '', description: '', sources: [], tables: [], missingRequires: [],
 	};

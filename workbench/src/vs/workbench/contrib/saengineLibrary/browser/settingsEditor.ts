@@ -36,7 +36,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
-import { BNBC, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -127,7 +127,7 @@ const DETAILING = ['ordinary', 'intermediate', 'special'];
 
 /** The seismic zone of a zone coefficient Z: the zone whose Z is nearest (Table 6.2.14). */
 export function zoneOf(z: number): number {
-	const zones = Object.entries(BNBC.zoneCoefficient);
+	const zones = Object.entries(DEFAULT_CODE_TABLES.zoneCoefficient);
 	return Number(zones.reduce((best, zone) => Math.abs(zone[1] - z) < Math.abs(best[1] - z) ? zone : best)[0]);
 }
 
@@ -158,20 +158,20 @@ export function designCategory(settings: JsonObject, siteClass: string): IDesign
 	const object = (key: string) => (isObject(settings[key]) ? settings[key] : {}) as JsonObject;
 	const site = object('site');
 	const z = typeof site.zoneCoefficient === 'number' ? site.zoneCoefficient : undefined;
-	const zone = z !== undefined ? zoneOf(z) : BNBC.locations[String(site.location)]?.zone;
+	const zone = z !== undefined ? zoneOf(z) : DEFAULT_CODE_TABLES.locations[String(site.location)]?.zone;
 	if (zone === undefined) {
 		return undefined;
 	}
-	const table = BNBC.designCategories;
+	const table = DEFAULT_CODE_TABLES.designCategories;
 	const rows = table.bySiteClass;
 	const row = rows[table.aliases[siteClass] ?? siteClass] ?? Object.values(rows)[Object.keys(rows).length - 1];
 	const group = table.occupancyGroups[String(object('occupancy').category)] ?? Object.keys(row)[0];
 	const sdc = row[group][zone - 1];
 	const systemId = String(object('seismic').system);
-	const system = BNBC.systems[systemId];
+	const system = DEFAULT_CODE_TABLES.systems[systemId];
 	const limit = system?.heightLimits[sdc];
 	const permitted = !(limit !== null && limit !== undefined && limit <= 0);
-	const required = BNBC.requiredDetailing[sdc];
+	const required = DEFAULT_CODE_TABLES.requiredDetailing[sdc];
 	const detailing = system?.frame ?? null;
 	const tooLittleDetailing = !!detailing && !!required && DETAILING.indexOf(detailing) < DETAILING.indexOf(required);
 	const alternative = !permitted || tooLittleDetailing ? (systemId.startsWith('steel') ? 'steelSmf' : 'rcSmf') : undefined;
@@ -190,10 +190,10 @@ export function codeValues(settings: JsonObject, soilSiteClass?: { readonly clas
 	const occupancy = object('occupancy');
 	const seismic = object('seismic');
 	const wind = object('wind');
-	const location = BNBC.locations[String(site.location)];
-	const category = BNBC.categories[String(occupancy.category)];
+	const location = DEFAULT_CODE_TABLES.locations[String(site.location)];
+	const category = DEFAULT_CODE_TABLES.categories[String(occupancy.category)];
 	const systemId = String(seismic.system);
-	const system = BNBC.systems[systemId];
+	const system = DEFAULT_CODE_TABLES.systems[systemId];
 	const override = (value: JsonValue | undefined) => typeof value === 'number' ? value : undefined;
 	const values: ICodeValue[] = [];
 	const push = (label: string, value: number | string | undefined, source: string, extra: { overridden?: boolean; detail?: string; problem?: string } = {}) => {
@@ -205,7 +205,7 @@ export function codeValues(settings: JsonObject, soilSiteClass?: { readonly clas
 	} else {
 		push(localize('code.zone', "Seismic zone"), location ? String(location.zone) : undefined, localize('code.zoneSource', "Seismic zoning map"));
 	}
-	push(localize('code.z', "Zone coefficient Z"), z ?? (location ? BNBC.zoneCoefficient[String(location.zone)] : undefined), localize('code.zSource', "Table 6.2.14"), { overridden: z !== undefined });
+	push(localize('code.z', "Zone coefficient Z"), z ?? (location ? DEFAULT_CODE_TABLES.zoneCoefficient[String(location.zone)] : undefined), localize('code.zSource', "Table 6.2.14"), { overridden: z !== undefined });
 	const v = override(site.windSpeed);
 	push(localize('code.windSpeed', "Basic wind speed V (m/s)"), v ?? location?.windSpeed, localize('code.windSource', "Table 6.2.8"), { overridden: v !== undefined });
 	push(localize('code.seismicImportance', "Seismic importance factor I"), category?.seismicImportance, localize('code.seismicImportanceSource', "Table 6.2.17"));
@@ -215,7 +215,7 @@ export function codeValues(settings: JsonObject, soilSiteClass?: { readonly clas
 	// The class itself ("SD"); its description on hover keeps the narrow panel from overflowing.
 	push(localize('code.siteClass', "Site class"), siteClass, fromSoil
 		? localize('code.siteClassFromSoil', "Table 6.2.13, from 1 Soil Report: {0}", soilSiteClass!.label)
-		: localize('code.siteClassSource', "Table 6.2.13"), { detail: BNBC.siteClasses[siteClass] });
+		: localize('code.siteClassSource', "Table 6.2.13"), { detail: DEFAULT_CODE_TABLES.siteClasses[siteClass] });
 	const sdc = designCategory(settings, siteClass);
 	push(localize('code.sdc', "Seismic Design Category"), sdc?.sdc, sdc
 		? localize('code.sdcSource', "Table 6.2.18 (p. 617): zone {0}, site class {1}, occupancy category {2}", sdc.zone, sdc.siteClass, String(occupancy.category))
@@ -233,13 +233,13 @@ export function codeValues(settings: JsonObject, soilSiteClass?: { readonly clas
 			: undefined;
 	push(localize('code.detailing', "Seismic detailing"), system ? (system.frame ?? localize('code.detailingWalls', "per the system")) : undefined,
 		localize('code.detailingSource', "Sec 8.3.2 (pp. 1088-1089), from the structural system {0}", system?.name ?? systemId), { problem });
-	push(localize('code.exposure', "Wind exposure"), String(wind.exposure), localize('code.exposureSource', "6.2.9.3"), { detail: BNBC.exposures[String(wind.exposure)] });
+	push(localize('code.exposure', "Wind exposure"), String(wind.exposure), localize('code.exposureSource', "6.2.9.3"), { detail: DEFAULT_CODE_TABLES.exposures[String(wind.exposure)] });
 	const kd = override(wind.directionality);
-	push(localize('code.kd', "Directionality factor Kd"), kd ?? BNBC.wind.directionality, localize('code.kdSource', "Table 6.2.12"), { overridden: kd !== undefined });
+	push(localize('code.kd', "Directionality factor Kd"), kd ?? DEFAULT_CODE_TABLES.wind.directionality, localize('code.kdSource', "Table 6.2.12"), { overridden: kd !== undefined });
 	const kzt = override(wind.topographic);
-	push(localize('code.kzt', "Topographic factor Kzt"), kzt ?? BNBC.wind.topographic, localize('code.kztSource', "Sec 2.4.7, flat terrain"), { overridden: kzt !== undefined });
+	push(localize('code.kzt', "Topographic factor Kzt"), kzt ?? DEFAULT_CODE_TABLES.wind.topographic, localize('code.kztSource', "Sec 2.4.7, flat terrain"), { overridden: kzt !== undefined });
 	const gust = override(wind.gust);
-	push(localize('code.gust', "Gust effect factor G"), gust ?? BNBC.wind.gust, localize('code.gustSource', "Sec 2.4.8.1, rigid building; a flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 entered in Wind"), { overridden: gust !== undefined });
+	push(localize('code.gust', "Gust effect factor G"), gust ?? DEFAULT_CODE_TABLES.wind.gust, localize('code.gustSource', "Sec 2.4.8.1, rigid building; a flexible building (natural frequency below 1 Hz) needs Gf of Sec 2.4.8.2 entered in Wind"), { overridden: gust !== undefined });
 	return values;
 }
 
@@ -362,8 +362,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private seismicCell: HTMLElement | undefined;
 	private readonly seismicDisposables = this._register(new DisposableStore());
 	private readonly resetAction = this._register(Object.assign(
-		new Action('saengine.settings.resetCombinations', localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", BNBC.edition), undefined, true, () => this.resetCombinations()),
-		{ tooltip: localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", BNBC.edition) },
+		new Action('saengine.settings.resetCombinations', localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", DEFAULT_CODE_TABLES.edition), undefined, true, () => this.resetCombinations()),
+		{ tooltip: localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", DEFAULT_CODE_TABLES.edition) },
 	));
 
 	constructor(
@@ -486,7 +486,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The governing code's name ("BNBC 2020"), for the help, the status and the values panel. */
 	private get codeName(): string {
 		const id = chosenPackId(this.document);
-		return id === DEFAULT_CODE_PACK ? (this.chosenPack?.name ?? BNBC.edition) : (this.chosenPack?.name ?? id);
+		return id === DEFAULT_CODE_PACK ? (this.chosenPack?.name ?? DEFAULT_CODE_TABLES.edition) : (this.chosenPack?.name ?? id);
 	}
 
 	private createCodePack(frame: EditorFrame): void {
@@ -532,7 +532,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		], index);
 		const option = this.packChoices[index];
 		this.packHover?.update(this.packs === undefined
-			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Packages... in this list).", option?.label ?? BNBC.edition)
+			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Packages... in this list).", option?.label ?? DEFAULT_CODE_TABLES.edition)
 			: option?.description || option?.label || '');
 	}
 
@@ -657,7 +657,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				row.classList.remove('hidden');
 				const warning = append(site, $('span.settings-source-warning'));
 				append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
-				append(warning, $('span', undefined, localize('settings.siteSpecific', "1 Soil Report flags site class {0} (Table 6.2.13): {1} Sec 2.5.3.1 asks for a site-specific study. The analysis meanwhile uses the class shown above.", flags.join(', '), BNBC.edition)));
+				append(warning, $('span', undefined, localize('settings.siteSpecific', "1 Soil Report flags site class {0} (Table 6.2.13): {1} Sec 2.5.3.1 asks for a site-specific study. The analysis meanwhile uses the class shown above.", flags.join(', '), DEFAULT_CODE_TABLES.edition)));
 			}
 		}
 		const bearing = this.bearingSourceCell;
@@ -701,7 +701,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const frame = this.documentFrame!;
 		frame.element.classList.add('saengine-settings-editor');
 		frame.setTitle(localize('settings.title', "Project Settings"));
-		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. Get More Design Codes... and Manage Packages... at the end of the design code list open the Packages page.", BNBC.edition));
+		frame.setHelp(localize('settings.intro', "Codes, occupancy, site and loads of the project. The design code (a code pack, {0} by default) is chosen in the toolbar: its tables give the code values in the panel on the right, and every one can be overridden. The floor plan, the building model and the analysis read these settings. Get More Design Codes... and Manage Packages... at the end of the design code list open the Packages page.", DEFAULT_CODE_TABLES.edition));
 		this.createProjectType(frame);
 		this.createCodePack(frame);
 
@@ -799,12 +799,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	private get location() {
 		const site = isObject(this.document?.site) ? this.document.site : {};
-		return BNBC.locations[String(site.location)];
+		return DEFAULT_CODE_TABLES.locations[String(site.location)];
 	}
 
 	private get system() {
 		const seismic = isObject(this.document?.seismic) ? this.document.seismic : {};
-		return BNBC.systems[String(seismic.system)];
+		return DEFAULT_CODE_TABLES.systems[String(seismic.system)];
 	}
 
 	/**
@@ -846,20 +846,20 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		switch (path) {
 			case 'site.zoneCoefficient':
 				return typeof site.zoneCoefficient === 'number' && location
-					? localize('settings.zOverrideNote', "Override: {0} Table 6.2.14 gives {1} for {2} (zone {3}). Clear the field to use it.", BNBC.edition, format(BNBC.zoneCoefficient[String(location.zone)]), location.name, location.zone)
+					? localize('settings.zOverrideNote', "Override: {0} Table 6.2.14 gives {1} for {2} (zone {3}). Clear the field to use it.", DEFAULT_CODE_TABLES.edition, format(DEFAULT_CODE_TABLES.zoneCoefficient[String(location.zone)]), location.name, location.zone)
 					: typeof site.zoneCoefficient === 'number'
 						? localize('settings.zCustomNote', "Seismic zone {0} (Table 6.2.14: the zone whose Z is nearest).", zoneOf(site.zoneCoefficient))
 						: undefined;
 			case 'site.windSpeed':
 				return typeof site.windSpeed === 'number' && location
-					? localize('settings.vOverrideNote', "Override: {0} Table 6.2.8 gives {1} m/s for {2}. Clear the field to use it.", BNBC.edition, format(location.windSpeed), location.name)
+					? localize('settings.vOverrideNote', "Override: {0} Table 6.2.8 gives {1} m/s for {2}. Clear the field to use it.", DEFAULT_CODE_TABLES.edition, format(location.windSpeed), location.name)
 					: undefined;
 			case 'seismic.r':
 			case 'seismic.omega':
 			case 'seismic.cd': {
 				const key = path.slice('seismic.'.length) as 'r' | 'omega' | 'cd';
 				return typeof object('seismic')[key] === 'number' && system
-					? localize('settings.factorOverrideNote', "Override: {0} Table 6.2.19 row {1} gives {2} for {3}.", BNBC.edition, system.row, format(system[key]), system.name)
+					? localize('settings.factorOverrideNote', "Override: {0} Table 6.2.19 row {1} gives {2} for {3}.", DEFAULT_CODE_TABLES.edition, system.row, format(system[key]), system.name)
 					: undefined;
 			}
 		}
@@ -881,14 +881,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const system = this.system;
 		const row = system?.row ? localize('settings.rowShort', "Table 6.2.19 row {0}", system.row) : localize('settings.tableSystems', "Table 6.2.19");
 		switch (path) {
-			case 'site.zoneCoefficient': return location ? localize('settings.zPlaceholder', "{0} ({1}, Table 6.2.14)", format(BNBC.zoneCoefficient[String(location.zone)]), location.name) : localize('settings.zRequired', "required for a custom location");
+			case 'site.zoneCoefficient': return location ? localize('settings.zPlaceholder', "{0} ({1}, Table 6.2.14)", format(DEFAULT_CODE_TABLES.zoneCoefficient[String(location.zone)]), location.name) : localize('settings.zRequired', "required for a custom location");
 			case 'site.windSpeed': return location ? localize('settings.vPlaceholder', "{0} ({1}, Table 6.2.8)", format(location.windSpeed), location.name) : localize('settings.vRequired', "required for a custom location");
 			case 'seismic.r': return system ? `${format(system.r)} (${row})` : undefined;
 			case 'seismic.omega': return system ? `${format(system.omega)} (${row})` : undefined;
 			case 'seismic.cd': return system ? `${format(system.cd)} (${row})` : undefined;
-			case 'wind.directionality': return localize('settings.kdPlaceholder', "{0} (Table 6.2.12)", format(BNBC.wind.directionality));
-			case 'wind.topographic': return localize('settings.kztPlaceholder', "{0} (flat terrain)", format(BNBC.wind.topographic));
-			case 'wind.gust': return localize('settings.gustPlaceholder', "{0} (rigid, Sec 2.4.8.1)", format(BNBC.wind.gust));
+			case 'wind.directionality': return localize('settings.kdPlaceholder', "{0} (Table 6.2.12)", format(DEFAULT_CODE_TABLES.wind.directionality));
+			case 'wind.topographic': return localize('settings.kztPlaceholder', "{0} (flat terrain)", format(DEFAULT_CODE_TABLES.wind.topographic));
+			case 'wind.gust': return localize('settings.gustPlaceholder', "{0} (rigid, Sec 2.4.8.1)", format(DEFAULT_CODE_TABLES.wind.gust));
 			case 'foundation.allowableBearing': return localize('settings.qaPlaceholder', "from 1 Soil Report");
 			case 'analysis.seismicLiveFactor': {
 				const live = this.earthquakeLiveFactor();
@@ -920,14 +920,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			const symbol = { 'seismic.r': 'R', 'seismic.omega': 'Ω0', 'seismic.cd': 'Cd' }[path];
 			if (symbol && number <= 0) {
 				return system
-					? localize('settings.factorPositive', "{0} must be above 0. {1} Table 6.2.19 gives {2} for {3}; clear the field to use it.", symbol, BNBC.edition, format(system[path === 'seismic.r' ? 'r' : path === 'seismic.omega' ? 'omega' : 'cd']), system.name)
+					? localize('settings.factorPositive', "{0} must be above 0. {1} Table 6.2.19 gives {2} for {3}; clear the field to use it.", symbol, DEFAULT_CODE_TABLES.edition, format(system[path === 'seismic.r' ? 'r' : path === 'seismic.omega' ? 'omega' : 'cd']), system.name)
 					: localize('settings.factorPositiveNoSystem', "{0} must be above 0.", symbol);
 			}
 			if (path === 'site.zoneCoefficient' && (number <= 0 || number >= 1)) {
-				return localize('settings.zRange', "Z is a fraction of g between 0 and 1: {0} Table 6.2.14 gives 0.12, 0.20, 0.28 or 0.36 by zone.", BNBC.edition);
+				return localize('settings.zRange', "Z is a fraction of g between 0 and 1: {0} Table 6.2.14 gives 0.12, 0.20, 0.28 or 0.36 by zone.", DEFAULT_CODE_TABLES.edition);
 			}
 			if (path === 'site.windSpeed' && number <= 0) {
-				return localize('settings.vRange', "Enter the basic wind speed in m/s (3-second gust at 10 m, {0} Table 6.2.8).", BNBC.edition);
+				return localize('settings.vRange', "Enter the basic wind speed in m/s (3-second gust at 10 m, {0} Table 6.2.8).", DEFAULT_CODE_TABLES.edition);
 			}
 			return undefined;
 		}
@@ -950,7 +950,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const match = /^areaLoads\.(?<index>\d+)\.use$/.exec(path);
 		const load = match ? this.areaLoads[Number(match.groups!.index)] : undefined;
-		const use = load ? BNBC.areaUses[String(load.use)] : undefined;
+		const use = load ? DEFAULT_CODE_TABLES.areaUses[String(load.use)] : undefined;
 		if (load && use) {
 			load.live = use.live;
 			this.changed(true);
@@ -994,7 +994,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (!document || !site || !location || !entered.length) {
 			return;
 		}
-		const z = BNBC.zoneCoefficient[String(location.zone)];
+		const z = DEFAULT_CODE_TABLES.zoneCoefficient[String(location.zone)];
 		const values = [
 			typeof site.zoneCoefficient === 'number' ? localize('settings.siteZ', "Z {0} (the code gives {1})", format(site.zoneCoefficient), format(z)) : undefined,
 			typeof site.windSpeed === 'number' ? localize('settings.siteV', "V {0} m/s (the code gives {1})", format(site.windSpeed), format(location.windSpeed)) : undefined,
@@ -1002,7 +1002,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const useCode = await this.dialogService.prompt<boolean>({
 			type: 'question',
 			message: localize('settings.leaveCustomConfirm', "Use the code values of {0}?", location.name),
-			detail: localize('settings.leaveCustomDetail', "The custom site had {0}. Kept, they override {1}'s values from {2} Tables 6.2.14 and 6.2.8.", values, location.name, BNBC.edition),
+			detail: localize('settings.leaveCustomDetail', "The custom site had {0}. Kept, they override {1}'s values from {2} Tables 6.2.14 and 6.2.8.", values, location.name, DEFAULT_CODE_TABLES.edition),
 			buttons: [
 				{ label: localize('settings.useCodeValues', "&&Use the Code Values"), run: () => true },
 				{ label: localize('settings.keepOverrides', "&&Keep as Overrides"), run: () => false },
@@ -1022,14 +1022,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const document = this.document;
 		const occupancy = isObject(document?.occupancy) ? document.occupancy : {};
 		const useId = FLOOR_USE[String(occupancy.use)];
-		const use = useId ? BNBC.areaUses[useId] : undefined;
+		const use = useId ? DEFAULT_CODE_TABLES.areaUses[useId] : undefined;
 		const floor = this.areaLoads.find(a => a.id === document?.floorLoad);
 		if (!document || !use || !floor || floor.use === useId) {
 			return;
 		}
 		const { confirmed } = await this.dialogService.confirm({
 			message: localize('settings.floorUseConfirm', "Update the floor load {0} to {1}?", String(floor.id), use.name),
-			detail: localize('settings.floorUseDetail', "The floors ({0}) are loaded as {1} at {2} kN/m². {3} Table 6.2.3 gives {4} kN/m² for {5}.", String(floor.name ?? floor.id), String(BNBC.areaUses[String(floor.use)]?.name ?? floor.use), format(Number(floor.live)), BNBC.edition, format(use.live), use.name),
+			detail: localize('settings.floorUseDetail', "The floors ({0}) are loaded as {1} at {2} kN/m². {3} Table 6.2.3 gives {4} kN/m² for {5}.", String(floor.name ?? floor.id), String(DEFAULT_CODE_TABLES.areaUses[String(floor.use)]?.name ?? floor.use), format(Number(floor.live)), DEFAULT_CODE_TABLES.edition, format(use.live), use.name),
 			primaryButton: localize('settings.floorUseButton', "&&Update Floor Load"),
 			cancelButton: localize('settings.floorUseKeep', "Keep"),
 		});
@@ -1043,7 +1043,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** Switches the structural system to one the Seismic Design Category permits (after asking). */
 	private async switchSystem(target: string): Promise<void> {
 		const document = this.document;
-		const system = BNBC.systems[target];
+		const system = DEFAULT_CODE_TABLES.systems[target];
 		if (!document || !system) {
 			return;
 		}
@@ -1052,7 +1052,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const { confirmed } = await this.dialogService.confirm({
 			message: localize('settings.switchSystemConfirm', "Switch the structural system to {0}?", system.name),
 			detail: [
-				localize('settings.switchSystemDetail', "R, Ω0 and Cd become {0}, {1} and {2} ({3} Table 6.2.19 row {4}), and the members are designed and detailed as {5} (Sec 8.3).", format(system.r), format(system.omega), format(system.cd), BNBC.edition, system.row, system.name),
+				localize('settings.switchSystemDetail', "R, Ω0 and Cd become {0}, {1} and {2} ({3} Table 6.2.19 row {4}), and the members are designed and detailed as {5} (Sec 8.3).", format(system.r), format(system.omega), format(system.cd), DEFAULT_CODE_TABLES.edition, system.row, system.name),
 				...(overrides.length ? [localize('settings.switchSystemOverrides', "The overrides of R, Ω0 and Cd, which belonged to the old system, are cleared.")] : []),
 				localize('settings.switchSystemUndo', "Edit > Undo brings the old system back."),
 			].join(' '),
@@ -1086,10 +1086,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const current = Array.isArray(this.document.combinations) ? this.document.combinations.length : 0;
 		const { confirmed } = await this.dialogService.confirm({
-			message: localize('settings.resetConfirm', "Replace the load combinations with the {0} combinations?", BNBC.edition),
+			message: localize('settings.resetConfirm', "Replace the load combinations with the {0} combinations?", DEFAULT_CODE_TABLES.edition),
 			detail: current === 1
-				? localize('settings.resetDetailOne', "The 1 load combination of this project is replaced by the {0} strength design combinations. Edit > Undo brings it back.", BNBC.edition)
-				: localize('settings.resetDetail', "All {0} load combinations of this project are replaced by the {1} strength design combinations. Edit > Undo brings them back.", current, BNBC.edition),
+				? localize('settings.resetDetailOne', "The 1 load combination of this project is replaced by the {0} strength design combinations. Edit > Undo brings it back.", DEFAULT_CODE_TABLES.edition)
+				: localize('settings.resetDetail', "All {0} load combinations of this project are replaced by the {1} strength design combinations. Edit > Undo brings them back.", current, DEFAULT_CODE_TABLES.edition),
 			primaryButton: localize('settings.resetButton', "&&Replace Combinations"),
 		});
 		const document = this.document;
@@ -1183,7 +1183,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (section.id === 'combinations') {
 			// The code's combinations, one click from the section (also in the ... menu).
 			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
-			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", BNBC.edition)}`;
+			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", DEFAULT_CODE_TABLES.edition)}`;
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
 			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (finish, partitions). T applies to the temperature case (Analysis model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. Hover a column heading for its meaning.")));
 		}
@@ -1275,7 +1275,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			append(warning, $('span', undefined, detailing.problem));
 		}
 		if (category?.alternative) {
-			const target = BNBC.systems[category.alternative];
+			const target = DEFAULT_CODE_TABLES.systems[category.alternative];
 			const button = this.seismicDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, supportIcons: true }));
 			button.label = localize('settings.useSystem', "Use {0}", target?.name ?? category.alternative);
 			this.seismicDisposables.add(button.onDidClick(() => void this.switchSystem(category.alternative!)));
@@ -1356,7 +1356,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				row.classList.add('overridden');
 			}
 			// Where the value comes from, on hover: what it stands for, the table, or that it was overridden.
-			const source = value.overridden ? localize('settings.overriddenSource', "Overridden in the settings ({0} gives it in {1}).", BNBC.edition, value.source) : localize('settings.source', "{0}, {1}", BNBC.edition, value.source);
+			const source = value.overridden ? localize('settings.overriddenSource', "Overridden in the settings ({0} gives it in {1}).", DEFAULT_CODE_TABLES.edition, value.source) : localize('settings.source', "{0}, {1}", DEFAULT_CODE_TABLES.edition, value.source);
 			const content = [value.detail ? `${value.value}: ${value.detail}` : undefined, source, value.problem].filter(Boolean).join('\n');
 			this.valuesDisposables.add(this.hoverService.setupDelayedHover(row, { content }));
 			if (value.overridden) {
@@ -1370,14 +1370,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			append(panel, $('.sa-props-note.settings-values-problem', { role: 'alert' }, problems.join(' ')));
 		}
 		if (category?.alternative) {
-			const target = BNBC.systems[category.alternative];
+			const target = DEFAULT_CODE_TABLES.systems[category.alternative];
 			const button = this.valuesDisposables.add(new Button(append(panel, $('.settings-values-action')), { ...defaultButtonStyles, supportIcons: true }));
 			button.label = localize('settings.switchSystem', "Switch to {0}", target?.name ?? category.alternative);
 			this.valuesDisposables.add(button.onDidClick(() => void this.switchSystem(category.alternative!)));
 		}
-		append(panel, $('.sa-props-note', undefined, localize('settings.valuesNote', "From the {0} tables for the site, occupancy and structural system. * overridden in the settings. Hover a value for its source.", BNBC.edition)));
+		append(panel, $('.sa-props-note', undefined, localize('settings.valuesNote', "From the {0} tables for the site, occupancy and structural system. * overridden in the settings. Hover a value for its source.", DEFAULT_CODE_TABLES.edition)));
 		if (chosenPackId(this.document) !== DEFAULT_CODE_PACK) {
-			append(panel, $('.sa-props-note', undefined, localize('settings.valuesOtherPack', "These preview values come from the {0} tables built into this editor; the tables of {1} apply when the project is analysed and designed.", BNBC.edition, this.codeName)));
+			append(panel, $('.sa-props-note', undefined, localize('settings.valuesOtherPack', "These preview values come from the {0} tables built into this editor; the tables of {1} apply when the project is analysed and designed.", DEFAULT_CODE_TABLES.edition, this.codeName)));
 		}
 	}
 

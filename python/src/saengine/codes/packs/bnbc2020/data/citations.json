@@ -1,5 +1,8 @@
 {
   "$schema": "../../../schemas/citations.schema.json",
+  "$sources": [
+    "BNBC 2020 Parts 3, 4, 6 and 8: the clause each key names (short references, as the documents printed them before code packs)"
+  ],
   "source": "BNBC 2020: the clause references the calculation report, its worksheets, the drawings and the bill of quantities print (the clauses of the rules the engine applies with this pack); short references only",
   "clauses": {
     "soilSprings": "Part 6 Sec 1.2.7.3",

@@ -36,7 +36,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { IPartSectionOptions } from '../../../services/saengineProject/common/partSections.js';
-import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
@@ -1083,8 +1083,8 @@ export class ArchitectureEditor extends EditorPane {
 				this.inputRow(panel, localize('arch.roomNumber', "Number"), room.number ?? '', text => change({ number: text.trim() || undefined }, localize('arch.renumbered', "{0} is number {1}.", room.id, text.trim() || '-')));
 				const outline = this.drawing?.rooms.get(room.id);
 				appendPropertyRow(panel, localize('arch.area', "Net area"), outline ? localize('arch.roomArea', "{0} m²", outline.area.toFixed(2)) : localize('arch.notEnclosedShort', "not enclosed"), !outline);
-				const uses = Object.entries(BNBC.areaUses);
-				this.selectRow(panel, localize('arch.occupancy', "Occupancy"), [{ id: '', text: localize('arch.none', "(none)") }, ...uses.map(([id, use]) => ({ id, text: localize('arch.useLive', "{0} ({1} kPa)", use.name, use.live) }))], room.occupancy ?? '', id => change({ occupancy: id || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", room.id, id ? BNBC.areaUses[id]?.name ?? id : localize('arch.noOccupancy', "no occupancy"))));
+				const uses = Object.entries(DEFAULT_CODE_TABLES.areaUses);
+				this.selectRow(panel, localize('arch.occupancy', "Occupancy"), [{ id: '', text: localize('arch.none', "(none)") }, ...uses.map(([id, use]) => ({ id, text: localize('arch.useLive', "{0} ({1} kPa)", use.name, use.live) }))], room.occupancy ?? '', id => change({ occupancy: id || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", room.id, id ? DEFAULT_CODE_TABLES.areaUses[id]?.name ?? id : localize('arch.noOccupancy', "no occupancy"))));
 				for (const [field, kind, label] of [['floorFinish', 'floor', localize('arch.floorFinish', "Floor finish")], ['wallFinish', 'wall', localize('arch.wallFinish', "Wall finish")], ['ceilingFinish', 'ceiling', localize('arch.ceilingFinish', "Ceiling finish")]] as const) {
 					const finishes = arch.finishTypes.filter(f => f.kind === kind);
 					this.selectRow(panel, label, [{ id: '', text: localize('arch.none', "(none)") }, ...finishes.map(f => ({ id: f.id, text: `${f.name} (${f.thickness} mm)` }))], room[field] ?? '', id => change({ [field]: id || undefined }, localize('arch.finishChanged', "{0}: {1} {2}.", room.id, label, id || '-')));
@@ -1314,9 +1314,9 @@ export class ArchitectureEditor extends EditorPane {
 
 	/** The occupancy (an area use of the code pack, for the live load) of a roof or ramp. */
 	private occupancyRow(panel: HTMLElement, id: string, occupancy: string | undefined, change: (fields: { readonly [field: string]: unknown }, notice: string) => void): void {
-		const uses = Object.entries(BNBC.areaUses);
+		const uses = Object.entries(DEFAULT_CODE_TABLES.areaUses);
 		this.selectRow(panel, localize('arch.occupancy', "Occupancy"), [{ id: '', text: localize('arch.none', "(none)") }, ...uses.map(([use, value]) => ({ id: use, text: localize('arch.useLive', "{0} ({1} kPa)", value.name, value.live) }))], occupancy ?? '',
-			picked => change({ occupancy: picked || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", id, picked ? BNBC.areaUses[picked]?.name ?? picked : localize('arch.noOccupancy', "no occupancy"))));
+			picked => change({ occupancy: picked || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", id, picked ? DEFAULT_CODE_TABLES.areaUses[picked]?.name ?? picked : localize('arch.noOccupancy', "no occupancy"))));
 	}
 
 	private inputRow(panel: HTMLElement, label: string, value: string, apply: (text: string) => void): void {

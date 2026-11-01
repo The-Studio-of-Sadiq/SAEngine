@@ -30,9 +30,6 @@ export interface IDefaultCodeTables {
 	readonly loadCases: { readonly [id: string]: string };
 }
 
-/** @deprecated The former name of {@link IDefaultCodeTables}. */
-export type IBnbcTables = IDefaultCodeTables;
-
 export const MATERIALS_SCHEMA: IJSONSchema = {
 	$defs: {
 		Admixture: {
@@ -31267,6 +31264,3 @@ export const DEFAULT_REPORT_TEMPLATE: object = {
 		appendix: 'settings',
 	},
 };
-
-/** @deprecated The former name of {@link DEFAULT_CODE_TABLES}. */
-export const BNBC: IDefaultCodeTables = DEFAULT_CODE_TABLES;

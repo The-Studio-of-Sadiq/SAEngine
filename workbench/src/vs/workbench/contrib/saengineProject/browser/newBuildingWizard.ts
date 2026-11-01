@@ -39,7 +39,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { gridLabel } from '../../../services/saengineProject/common/gridLabels.js';
-import { BNBC, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
 	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, OccupancyCategory,
@@ -134,7 +134,7 @@ function materialChoices(category: string): IChoice<string>[] {
 
 /** The BNBC district towns of the project settings (Site > Location), without "Custom". */
 function locationChoices(): IChoice<string>[] {
-	return Object.entries(BNBC.locations).map(([id, location]) => ({ value: id, label: localize('location.choice', "{0} (zone {1}, {2} m/s)", location.name, location.zone, location.windSpeed) }));
+	return Object.entries(DEFAULT_CODE_TABLES.locations).map(([id, location]) => ({ value: id, label: localize('location.choice', "{0} (zone {1}, {2} m/s)", location.name, location.zone, location.windSpeed) }));
 }
 
 type SchemaEnum = { readonly enum?: readonly string[]; readonly enumDescriptions?: readonly string[] };

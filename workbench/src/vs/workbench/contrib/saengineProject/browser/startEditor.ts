@@ -35,7 +35,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { folderError, NEW_BUILDING_COMMAND } from './newBuildingModel.js';
-import { BNBC, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { CODES_LIST_COMMAND, DEFAULT_CODE_PACK, ICodePackInfo, packOptions, readCodePacks } from '../../saengineLibrary/browser/codePacksModel.js';
 import { ProjectOpener, projectFolderName } from './projectOpener.js';
 import { appendProjectPath } from './projectParts.js';
@@ -295,7 +295,7 @@ export class StartEditor extends EditorPane {
 
 		// Where the building stands: its seismic zone and wind speed (BNBC 2020 Part 6 Chapter 2).
 		append(form, $('label', undefined, localize('start.site', "Site")));
-		const sites = Object.entries(BNBC.locations).sort((a, b) => a[1].name.localeCompare(b[1].name));
+		const sites = Object.entries(DEFAULT_CODE_TABLES.locations).sort((a, b) => a[1].name.localeCompare(b[1].name));
 		const siteIndex = Math.max(0, sites.findIndex(([id]) => id === 'dhaka'));
 		const site = this.pageDisposables.add(new SelectBox(sites.map(([, l]) => ({ text: localize('start.siteOption', "{0} (zone {1}, wind {2} m/s)", l.name, l.zone, l.windSpeed) })), siteIndex, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('start.site', "Site") }));
 		site.render(append(form, $('.select')));
