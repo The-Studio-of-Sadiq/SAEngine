@@ -97,7 +97,7 @@ const ARCHITECTURE_INPUT = 'workbench.input.saengine.architecture';
 export function partSections(partId: string): readonly IPartSection[] {
 	switch (partId) {
 		case 'settings': return [
-			{ id: 'code', label: localize('partSection.settingsCode', "Code and Site"), sections: ['project', 'occupancy', 'site'] },
+			{ id: 'code', label: localize('partSection.settingsCode', "Code and Site"), sections: ['project', 'occupancy', 'construction', 'site'] },
 			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads"), sections: ['areaLoads'] },
 			{ id: 'seismic', label: localize('partSection.settingsSeismic', "Seismic"), sections: ['seismic'] },
 			{ id: 'wind', label: localize('partSection.settingsWind', "Wind"), sections: ['wind'] },

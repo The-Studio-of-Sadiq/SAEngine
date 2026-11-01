@@ -1,61 +1,225 @@
 {
   "$schema": "../../../schemas/fireResistance.schema.json",
   "$sources": [
-    "ACI 216.1-14 (the fire resistance standard ACI 318 refers to; BNBC 2020 Part 6 Chapter 6 gives no table of its own)"
+    "BNBC 2020 Part 3 Chapter 3 Sec 3.1.1-3.1.3, Tables 3.3.1(a) and (b) with their notes (pp. 165-172)",
+    "BNBC 2020 Part 4 Sec 1.5(a), (f) and Table 4.1.1 (pp. 282-284)",
+    "ACI 216.1-14 Tables 4.3.1.1, 4.3.1.2 and Sec 4.5.3: the covers, an advisory only (not BNBC)"
   ],
-  "source": "ACI 216.1-14 Tables 4.2, 4.3.1.1, 4.3.1.2, 4.5.1a and Sec 4.5.3, siliceous aggregate (the least favourable); required ratings by BNBC 2020 Part 4",
-  "ratings": [
-    1.0,
-    1.5,
-    2.0,
-    3.0,
-    4.0
-  ],
-  "slabThickness": [
-    89,
-    109,
-    127,
-    157,
-    178
-  ],
-  "slabCover": [
-    20,
-    20,
-    25,
-    32,
-    41
-  ],
-  "wallThickness": [
-    89,
-    109,
-    127,
-    157,
-    178
-  ],
-  "beamCover": [
-    20,
-    20,
-    20,
-    25,
-    44
-  ],
-  "beamWidth": 254,
-  "columnSize": [
-    203,
-    229,
-    254,
-    305,
-    356
-  ],
-  "columnCoverPerHour": 25,
-  "columnCoverMax": 50,
+  "source": "BNBC 2020 Part 3 Sec 3.1 and Tables 3.3.1(a)-(b) (pp. 165-172): the construction types and the ratings of their elements; Part 4 Sec 1.5(f), Table 4.1.1 (p. 284): the least equivalent thickness of concrete walls, floors and roofs, the least column dimension and the least equivalent thickness of clay masonry for a rating",
+  "name": "Fire resistance and construction type",
+  "clauses": {
+    "nonCombustible": "BNBC 2020 Part 3 Table 3.3.1(a)",
+    "combustible": "BNBC 2020 Part 3 Table 3.3.1(b)",
+    "thickness": "BNBC 2020 Part 4 Table 4.1.1",
+    "columnSize": "BNBC 2020 Part 4 Table 4.1.1",
+    "masonryThickness": "BNBC 2020 Part 4 Table 4.1.1",
+    "nonCombustibleAbove": "BNBC 2020 Part 3 Sec 3.1.1"
+  },
+  "constructionTypes": {
+    "I-A": {
+      "label": "Type I-A: non-combustible, 4 hour fire protected",
+      "group": "nonCombustible",
+      "exteriorBearing": [4, 4, 4, 4],
+      "exteriorNonBearing": [2, 2, 1.5, 0],
+      "interiorBearingWalls": 4,
+      "verticalExits": 2,
+      "framingOneFloor": 3,
+      "framingMoreFloors": 4,
+      "membersSupportingWalls": null,
+      "floors": 3,
+      "shafts": 2,
+      "fireSeparationWalls": 4,
+      "accessCorridors": 1
+    },
+    "I-B": {
+      "label": "Type I-B: non-combustible, 3 hour fire protected",
+      "group": "nonCombustible",
+      "exteriorBearing": [3, 3, 3, 3],
+      "exteriorNonBearing": [2, 2, 1.5, 0],
+      "interiorBearingWalls": 3,
+      "verticalExits": 2,
+      "framingOneFloor": 2,
+      "framingMoreFloors": 3,
+      "membersSupportingWalls": null,
+      "floors": 2,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "I-C": {
+      "label": "Type I-C: non-combustible, 2 hour fire protected",
+      "group": "nonCombustible",
+      "exteriorBearing": [2, 2, 2, 2],
+      "exteriorNonBearing": [2, 2, 1, 0],
+      "interiorBearingWalls": 2,
+      "verticalExits": 2,
+      "framingOneFloor": 1.5,
+      "framingMoreFloors": 2,
+      "membersSupportingWalls": null,
+      "floors": 1.5,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "I-D": {
+      "label": "Type I-D: non-combustible, 1 hour fire protected",
+      "group": "nonCombustible",
+      "exteriorBearing": [2, 2, 1, 1],
+      "exteriorNonBearing": [2, 2, 1, 0],
+      "interiorBearingWalls": 1,
+      "verticalExits": 2,
+      "framingOneFloor": 1,
+      "framingMoreFloors": 1,
+      "membersSupportingWalls": null,
+      "floors": 1,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "I-E": {
+      "label": "Type I-E: non-combustible, unprotected",
+      "group": "nonCombustible",
+      "exteriorBearing": [2, 2, 0, 0],
+      "exteriorNonBearing": [2, 2, 0, 0],
+      "interiorBearingWalls": 0,
+      "verticalExits": 2,
+      "framingOneFloor": 0,
+      "framingMoreFloors": 0,
+      "membersSupportingWalls": null,
+      "floors": 0,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "II-A": {
+      "label": "Type II-A: combustible, heavy timber",
+      "group": "combustible",
+      "exteriorBearing": [2, 2, 2, 1],
+      "exteriorNonBearing": [2, 2, 2, 0],
+      "interiorBearingWalls": 2,
+      "verticalExits": 2,
+      "framingOneFloor": null,
+      "framingMoreFloors": null,
+      "membersSupportingWalls": 3,
+      "floors": null,
+      "shafts": 2,
+      "fireSeparationWalls": 4,
+      "accessCorridors": 1
+    },
+    "II-B": {
+      "label": "Type II-B: combustible, protected wood joist",
+      "group": "combustible",
+      "exteriorBearing": [2, 2, 2, 1.5],
+      "exteriorNonBearing": [2, 2, 2, 0],
+      "interiorBearingWalls": 1,
+      "verticalExits": 2,
+      "framingOneFloor": 1,
+      "framingMoreFloors": 1,
+      "membersSupportingWalls": 2.5,
+      "floors": 1,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "II-C": {
+      "label": "Type II-C: combustible, unprotected wood joist",
+      "group": "combustible",
+      "exteriorBearing": [2, 2, 2, 1.5],
+      "exteriorNonBearing": [2, 2, 2, 0],
+      "interiorBearingWalls": 0,
+      "verticalExits": 1,
+      "framingOneFloor": 1,
+      "framingMoreFloors": 1,
+      "membersSupportingWalls": 2,
+      "floors": 1,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1,
+      "note": "Table 3.3.1(b) prints '0 or 1' (with a note) for the columns, framing and floors of II-C; the larger, 1 h, is used (the more conservative reading)."
+    },
+    "II-D": {
+      "label": "Type II-D: combustible, protected wood frame",
+      "group": "combustible",
+      "exteriorBearing": [2, 1, 1, 1],
+      "exteriorNonBearing": [2, 1, 1, 0],
+      "interiorBearingWalls": 1,
+      "verticalExits": 1,
+      "framingOneFloor": 1,
+      "framingMoreFloors": 1,
+      "membersSupportingWalls": 1.5,
+      "floors": 1,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    },
+    "II-E": {
+      "label": "Type II-E: combustible, unprotected wood frame",
+      "group": "combustible",
+      "exteriorBearing": [2, 1, 0, 0],
+      "exteriorNonBearing": [2, 1, 0, 0],
+      "interiorBearingWalls": 0,
+      "verticalExits": 1,
+      "framingOneFloor": 0,
+      "framingMoreFloors": 0,
+      "membersSupportingWalls": 1,
+      "floors": 0,
+      "shafts": 2,
+      "fireSeparationWalls": 2,
+      "accessCorridors": 1
+    }
+  },
+  "separationLimits": [0.9, 4.5, 9.0],
+  "nonCombustibleAbove": 33.0,
+  "aggregates": {
+    "siliceous": "Siliceous",
+    "carbonate": "Carbonate",
+    "sandLightweight": "Sand-lightweight",
+    "lightweight": "Lightweight"
+  },
+  "ratings": [1, 1.5, 2, 3, 4],
+  "thickness": {
+    "siliceous": [89, 109, 127, 157, 178],
+    "carbonate": [81, 102, 117, 145, 168],
+    "sandLightweight": [69, 84, 97, 117, 137],
+    "lightweight": [64, 79, 91, 112, 130]
+  },
+  "columnSize": {
+    "siliceous": [203, 229, 254, 305, 356],
+    "carbonate": [203, 229, 254, 279, 305],
+    "sandLightweight": [203, 216, 229, 267, 305]
+  },
+  "columnSizeFallback": {
+    "lightweight": "sandLightweight"
+  },
+  "masonryRatings": [0.5, 0.75, 1, 1.5, 2, 3, 4],
+  "masonryThickness": {
+    "clayUnfilled": [43, 51, 58, 72, 86, 109, 127],
+    "clayFilled": [58, 67, 76, 94, 112, 140, 168]
+  },
+  "advisory": {
+    "label": "ACI 216.1-14 (advisory, not BNBC: BNBC 2020 Part 4 Sec 1.5(a), (f) refers to ASCE 29 for the details)",
+    "ratings": [1, 1.5, 2, 3, 4],
+    "slabCover": [20, 20, 25, 32, 41],
+    "beamCover": [20, 20, 20, 25, 44],
+    "beamWidth": 254,
+    "columnCoverPerHour": 25,
+    "columnCoverMax": 50
+  },
   "sources": {
-    "slabThickness": "ACI 216.1-14 Table 4.2, siliceous aggregate: 3.5, 4.3, 5.0, 6.2, 7.0 in (from memory, to be checked)",
-    "slabCover": "ACI 216.1-14 Table 4.3.1.1, unrestrained nonprestressed slabs, siliceous: 3/4, 3/4, 1, 1-1/4, 1-5/8 in (from memory, to be checked)",
-    "wallThickness": "ACI 216.1-14 Table 4.2 (walls as slabs), siliceous (from memory, to be checked)",
-    "beamCover": "ACI 216.1-14 Table 4.3.1.2, nonprestressed beams at least 10 in (254 mm) wide: 3/4, 3/4, 3/4, 1, 1-3/4 in (from memory, to be checked)",
-    "beamWidth": "ACI 216.1-14 Table 4.3.1.2: narrower beams need more cover (checked as not covered)",
-    "columnSize": "ACI 216.1-14 Table 4.5.1a, siliceous: 8, 9, 10, 12, 14 in (from memory, to be checked)",
-    "columnCoverPerHour": "ACI 216.1-14 Sec 4.5.3: 1 in per hour of rating, need not exceed 2 in (from memory, to be checked)"
+    "constructionTypes": "BNBC 2020 Part 3 Sec 3.1.1-3.1.3 (pp. 165-167); Table 3.3.1(a) (pp. 167-169), Table 3.3.1(b) (pp. 169-170), notes a-l (pp. 171-172)",
+    "exteriorBearing": "Table 3.3.1(a)/(b) rows 'Exterior wall with fire separation distance of': bearing, one value per band of separationLimits",
+    "exteriorNonBearing": "Table 3.3.1(a)/(b) the same rows, non-bearing (note f)",
+    "interiorBearingWalls": "Table 3.3.1(a)/(b) row 'Interior bearing walls and bearing partitions'",
+    "framingOneFloor": "Table 3.3.1(a)/(b) row 'Columns, girders, trusses (other than roof trusses) and framing', supporting one floor (note k: the columns of a one-storey roof); null: 'as per provisions of this Code' (II-A)",
+    "framingMoreFloors": "Table 3.3.1(a)/(b) the same row, supporting more than one floor (note l)",
+    "membersSupportingWalls": "Table 3.3.1(b) row 'Structural members supporting walls'; Table 3.3.1(a): the rating of the wall supported, not less than the construction type's (null)",
+    "floors": "Table 3.3.1(a)/(b) row 'Floor construction including beams'; the roof rows are never higher than this one, so roofs are checked as floors",
+    "separationLimits": "Table 3.3.1(a)/(b) bands of the fire separation distance [m]: 0.9 m or less; more than 0.9 but less than 4.5; 4.5 or more but less than 9.0; 9.0 or more",
+    "nonCombustibleAbove": "BNBC 2020 Part 3 Sec 3.1.1 (p. 165): buildings higher than 33 m shall be of non-combustible materials",
+    "thickness": "BNBC 2020 Part 4 Table 4.1.1 (p. 284): minimum equivalent thickness of concrete walls, floors and roofs [mm], 1-4 h",
+    "columnSize": "BNBC 2020 Part 4 Table 4.1.1 (p. 284): minimum column dimension [mm], 1-4 h (no lightweight row)",
+    "columnSizeFallback": "SAEngine practice, not BNBC: Table 4.1.1 prints no column row for lightweight concrete; the sand-lightweight row is used (lightweight concrete never needs more than sand-lightweight in the table's thickness rows)",
+    "masonryThickness": "BNBC 2020 Part 4 Table 4.1.1 (p. 284): minimum equivalent thickness of clay masonry [mm], 0.5-4 h: brick of clay or shale unfilled; grouted or filled with perlite, vermiculite or expanded shale aggregate",
+    "advisory": "ACI 216.1-14 Tables 4.3.1.1 (unrestrained slabs, siliceous), 4.3.1.2 (unrestrained nonprestressed beams at least 254 mm wide) and Sec 4.5.3 (columns 25 mm per hour, at most 50 mm): not BNBC, which refers to ASCE 29 (Part 4 Sec 1.5(a), (f)); transcribed from memory and not checked against the standard; shown as an advisory, never failing a member"
   }
 }

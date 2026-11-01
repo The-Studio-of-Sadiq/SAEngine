@@ -703,6 +703,8 @@ def _design_masonry(
                 "ok": all(c["ok"] for c in strength),
                 "wallType": "masonryReinforced" if bars is not None else "masonryPlain",
                 "masonry": M.describe(m, bars is not None),
+                # B18: the masonry row of the fire checks (design/fire_resistance.py).
+                "fireMasonry": M.fire_row(m),
                 "curtains": bars.layers if bars is not None else None,
                 "curtainsRequired": None,
                 "boundary": None,
