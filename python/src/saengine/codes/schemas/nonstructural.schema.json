@@ -1,0 +1,782 @@
+{
+  "$defs": {
+    "ComponentConnections": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "bodyFactor": {
+          "description": "Bodies of connections: this × F.",
+          "exclusiveMinimum": 0,
+          "title": "Bodyfactor",
+          "type": "number"
+        },
+        "fastenerFactor": {
+          "description": "Fasteners: this × F.",
+          "exclusiveMinimum": 0,
+          "title": "Fastenerfactor",
+          "type": "number"
+        },
+        "jointDriftFactor": {
+          "description": "Joint movement: this × the storey drift.",
+          "exclusiveMinimum": 0,
+          "title": "Jointdriftfactor",
+          "type": "number"
+        },
+        "jointMinimum": {
+          "description": "Least joint movement [mm].",
+          "minimum": 0,
+          "title": "Jointminimum",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bodyFactor",
+        "fastenerFactor",
+        "jointDriftFactor",
+        "jointMinimum"
+      ],
+      "title": "ComponentConnections",
+      "type": "object"
+    },
+    "ComponentDefaults": {
+      "additionalProperties": false,
+      "description": "Which row a drawn item takes when none is chosen (component ids).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "interiorWall": {
+          "title": "Interiorwall",
+          "type": "string"
+        },
+        "parapet": {
+          "title": "Parapet",
+          "type": "string"
+        },
+        "curtainWall": {
+          "title": "Curtainwall",
+          "type": "string"
+        },
+        "structuralWall": {
+          "title": "Structuralwall",
+          "type": "string"
+        },
+        "equipment": {
+          "title": "Equipment",
+          "type": "string"
+        },
+        "equipmentKinds": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Equipmentkinds",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interiorWall",
+        "parapet",
+        "curtainWall",
+        "structuralWall",
+        "equipment"
+      ],
+      "title": "ComponentDefaults",
+      "type": "object"
+    },
+    "ComponentExemption": {
+      "additionalProperties": false,
+      "description": "Components the section does not apply to: all conditions hold, and one of the\n``alternatives`` when there are any.",
+      "properties": {
+        "flexibleConnections": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flexibleconnections"
+        },
+        "distribution": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distribution"
+        },
+        "maxMountHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm] above the floor.",
+          "title": "Maxmountheight"
+        },
+        "maxWeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[N].",
+          "title": "Maxweight"
+        },
+        "maxWeightPerLength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[N/m].",
+          "title": "Maxweightperlength"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Groups",
+          "type": "array"
+        },
+        "categories": {
+          "description": "Seismic Design Categories.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "importance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only with this Ic.",
+          "title": "Importance"
+        },
+        "exceptParapetsOnStructuralWalls": {
+          "default": false,
+          "title": "Exceptparapetsonstructuralwalls",
+          "type": "boolean"
+        },
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/ExemptionCondition"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "groups",
+        "categories"
+      ],
+      "title": "ComponentExemption",
+      "type": "object"
+    },
+    "ComponentForceRule": {
+      "additionalProperties": false,
+      "description": "The seismic design force of a component, by a method the engine names\n(:mod:`saengine.design.nonstructural`). ``amplifiedHeight``: F = αc·a·Wc·Ic/Rc ×\n(1 + heightFactor·z/h), minFactor·a·Wc·Ic ≤ F ≤ maxFactor·a·Wc·Ic, with a = groundFactor·Z·S\n(Z the zone coefficient, S the site factor of the seismic table); vertical ± verticalFactor·a·Wc.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "amplifiedHeight",
+          "default": "amplifiedHeight",
+          "title": "Method",
+          "type": "string"
+        },
+        "groundFactor": {
+          "description": "a = this × Z × S [g].",
+          "exclusiveMinimum": 0,
+          "title": "Groundfactor",
+          "type": "number"
+        },
+        "heightFactor": {
+          "description": "Of z/h in (1 + this·z/h).",
+          "minimum": 0,
+          "title": "Heightfactor",
+          "type": "number"
+        },
+        "minFactor": {
+          "description": "Least F over a·Wc·Ic.",
+          "minimum": 0,
+          "title": "Minfactor",
+          "type": "number"
+        },
+        "maxFactor": {
+          "description": "Largest F over a·Wc·Ic.",
+          "exclusiveMinimum": 0,
+          "title": "Maxfactor",
+          "type": "number"
+        },
+        "verticalFactor": {
+          "description": "Concurrent vertical force over a·Wc.",
+          "minimum": 0,
+          "title": "Verticalfactor",
+          "type": "number"
+        },
+        "zOverHMax": {
+          "default": 1.0,
+          "description": "Upper limit of z/h.",
+          "exclusiveMinimum": 0,
+          "title": "Zoverhmax",
+          "type": "number"
+        },
+        "symbols": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The code's symbols (force, amplification, ...).",
+          "title": "Symbols",
+          "type": "object"
+        },
+        "equation": {
+          "default": "",
+          "description": "The code's equation number.",
+          "title": "Equation",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "groundFactor",
+        "heightFactor",
+        "minFactor",
+        "maxFactor",
+        "verticalFactor"
+      ],
+      "title": "ComponentForceRule",
+      "type": "object"
+    },
+    "ComponentImportance": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "essential": {
+          "description": "Ic of a component marked essential.",
+          "exclusiveMinimum": 0,
+          "title": "Essential",
+          "type": "number"
+        },
+        "default": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Ic of any other component.",
+          "title": "Default"
+        }
+      },
+      "required": [
+        "essential",
+        "default"
+      ],
+      "title": "ComponentImportance",
+      "type": "object"
+    },
+    "ComponentInteraction": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "share": {
+          "description": "Components over this share of W: interaction.",
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "period": {
+          "description": "... with periods over this [s].",
+          "exclusiveMinimum": 0,
+          "title": "Period",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "period"
+      ],
+      "title": "ComponentInteraction",
+      "type": "object"
+    },
+    "ComponentIsolation": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factor": {
+          "description": "Force factor with a clearance over ``clearance``.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "clearance": {
+          "description": "[mm].",
+          "minimum": 0,
+          "title": "Clearance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "clearance"
+      ],
+      "title": "ComponentIsolation",
+      "type": "object"
+    },
+    "ComponentRow": {
+      "additionalProperties": false,
+      "description": "A row of the component coefficient tables.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "group": {
+          "description": "Key of ``groups`` (architectural, mechanical, ...).",
+          "title": "Group",
+          "type": "string"
+        },
+        "heading": {
+          "default": "",
+          "title": "Heading",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "alpha": {
+          "description": "Component amplification factor αc.",
+          "minimum": 1.0,
+          "title": "Alpha",
+          "type": "number"
+        },
+        "R": {
+          "description": "Component response reduction factor Rc.",
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "parapet": {
+          "default": false,
+          "description": "A parapet (for the exemptions).",
+          "title": "Parapet",
+          "type": "boolean"
+        },
+        "exterior": {
+          "default": false,
+          "description": "An exterior wall or wall element.",
+          "title": "Exterior",
+          "type": "boolean"
+        },
+        "distribution": {
+          "default": false,
+          "description": "A distribution system (per metre).",
+          "title": "Distribution",
+          "type": "boolean"
+        },
+        "isolated": {
+          "default": false,
+          "description": "On vibration isolators (``isolation``).",
+          "title": "Isolated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "group",
+        "label",
+        "alpha",
+        "R"
+      ],
+      "title": "ComponentRow",
+      "type": "object"
+    },
+    "ExemptionCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "flexibleConnections": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flexibleconnections"
+        },
+        "distribution": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distribution"
+        },
+        "maxMountHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm] above the floor.",
+          "title": "Maxmountheight"
+        },
+        "maxWeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[N].",
+          "title": "Maxweight"
+        },
+        "maxWeightPerLength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[N/m].",
+          "title": "Maxweightperlength"
+        }
+      },
+      "title": "ExemptionCondition",
+      "type": "object"
+    },
+    "RelativeDisplacementRule": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "allowableDrift",
+          "default": "allowableDrift",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "title": "RelativeDisplacementRule",
+      "type": "object"
+    },
+    "WallAnchorage": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minimum": {
+          "description": "Least anchorage force [kN/m of wall].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "maxSpacing": {
+          "description": "Anchors farther apart: wall bending between [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Maxspacing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum",
+        "maxSpacing"
+      ],
+      "title": "WallAnchorage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Seismic forces on nonstructural components (parapets, partitions, cladding, tanks,\nequipment, distribution systems), their relative displacements, the exterior panel\nconnections and the anchorage of walls.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+    },
+    "force": {
+      "$ref": "#/$defs/ComponentForceRule"
+    },
+    "importance": {
+      "$ref": "#/$defs/ComponentImportance"
+    },
+    "groups": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Groups",
+      "type": "object"
+    },
+    "components": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ComponentRow"
+      },
+      "title": "Components",
+      "type": "object"
+    },
+    "defaults": {
+      "$ref": "#/$defs/ComponentDefaults"
+    },
+    "exemptions": {
+      "items": {
+        "$ref": "#/$defs/ComponentExemption"
+      },
+      "title": "Exemptions",
+      "type": "array"
+    },
+    "interaction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentInteraction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "isolation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentIsolation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "connections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentConnections"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "anchorage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WallAnchorage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "relativeDisplacement": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RelativeDisplacementRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "force",
+    "importance",
+    "components",
+    "defaults"
+  ],
+  "title": "NonstructuralTable",
+  "type": "object",
+  "$id": "saengine.codePack.nonstructural/1"
+}

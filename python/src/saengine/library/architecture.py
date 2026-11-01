@@ -245,6 +245,19 @@ class ArchWall(_Model):
         title="Sits on",
         description="The floor-plan beam or wall it stands on (informative: no stiffness).",
     )
+    component: str | None = Field(
+        default=None,
+        title="Seismic component",
+        description="Its row of the code pack's nonstructural component table (e.g. "
+        "exteriorWall, parapetBracedAbove); empty: by its position (a wall with no story above "
+        "is a parapet, other walls interior partitions, curtain walls exterior wall elements).",
+    )
+    essential: bool = Field(
+        default=False,
+        description="Must function after an earthquake, holds hazardous materials, or is needed "
+        "for the continued operation of an essential facility: the code pack's higher component "
+        "importance factor.",
+    )
 
 
 class Door(_Model):

@@ -79,6 +79,24 @@ class _Project:
         return {m.id: m.mechanical.density for m in self.materials.materials}
 
 
+def _seismic_ground(project: _Project, building: BuildingModel, notes: list[str]) -> Any:
+    """(equipment_force, ground, pack) of saengine.design.nonstructural for the equipment's
+    seismic design forces, or None when the code pack has no nonstructural table."""
+    from saengine.design.nonstructural import equipment_force, ground_motion
+    from saengine.library.settings import code_pack, read_soil_text, resolve_site_class
+
+    try:
+        settings, _ = resolve_site_class(project.settings, read_soil_text(project.root))
+        pack = code_pack(settings)
+        if not pack.has("nonstructural"):
+            notes.append("seismic forces on equipment: not covered by the code pack")
+            return None
+        return equipment_force, ground_motion(settings, building, pack), pack
+    except Exception as error:  # noqa: BLE001 - the loads report stands without them
+        notes.append(f"seismic forces on equipment not computed: {error}")
+        return None
+
+
 def _analysis(project: _Project, out_dir: Path) -> tuple[openings.Analysis | None, str]:
     from saengine.design.check import _demands
 
@@ -126,7 +144,8 @@ def mep_report(
     (its loads reach the frame), "onGrade" (on the base level), "slabs", "host" (the
     first of them), "loads" {case: kN}, "load" (their sum, kN), "loadCase" ("SD", "SD + L"),
     "impactPercent", "impactSource", "plinth", "area", "pressure" (operating weight over the
-    footprint, kPa), "seismicWeight", "loadAs", "note"}], "stories": [per story {"story",
+    footprint, kPa), "seismicWeight", "loadAs", "note", "seismic" (its component design force,
+    :func:`saengine.design.nonstructural.component_force`)}], "stories": [per story {"story",
     "count", "load" (applied), "onGrade", "notApplied"}], "openings": [per opening {"id", "host", "hostKind", "kind", "service",
     "checks", "utilisation", "ok", "checked", "check" (the governing check), "note", "notes"}],
     "clashes": [see :func:`saengine.mep.clash.find_clashes`], "summary", "problems",
@@ -156,6 +175,7 @@ def mep_report(
     ]
     levels = {s.id: s.elevation for s in building.stories}
     base = min(levels.values()) if levels else 0.0
+    seismic = _seismic_ground(project, building, notes)
     equipment = []
     for item, discipline, own_id in owned:
         entry = loads.summary_of(item, mep.contentsAs, project.densities)
@@ -193,6 +213,9 @@ def mep_report(
                 entry["note"] = "; ".join(
                     n for n in ("on the beams of its bay", entry["note"]) if n
                 )
+        if seismic is not None:
+            # The component force (design.nonstructural, its one home) for its anchorage.
+            entry["seismic"] = seismic[0](item, seismic[1], levels, seismic[2])
         equipment.append(entry)
     heavy = [e for e in equipment if e.get("heavy")]
     if heavy and _fem_current(project, mep_text):
