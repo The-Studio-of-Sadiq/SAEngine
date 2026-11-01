@@ -62,6 +62,21 @@ def _material_templates() -> dict[str, dict[str, Any]]:
         "mechanical": {"E": 9800, "density": 650},
         "timber": {"group": "B", "location": "inside"},
     }
+    # B39: bamboo (Bambusa tulda, green; E the analysis's mean) and ferrocement mortar.
+    templates[f"Material:{Category.BAMBOO.value}"] = {
+        "id": "BAMBOO",
+        "name": "Bamboo, Bambusa tulda",
+        "category": "bamboo",
+        "mechanical": {"E": 10300, "density": 610},
+        "bamboo": {"species": "Bambusa tulda", "condition": "green"},
+    }
+    templates[f"Material:{Category.FERROCEMENT.value}"] = {
+        "id": "FERRO35",
+        "name": "Ferrocement mortar, f'c 35 MPa",
+        "category": "ferrocement",
+        "mechanical": {"E": 27800, "density": 2400},
+        "ferrocement": {"fc": 35},
+    }
     templates[f"Material:{Category.OTHER.value}"] = {
         "id": "MAT",
         "name": "New material",
@@ -81,6 +96,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "TimberProperties": {"group": "B", "location": "inside"},
     # timber members and joints (saengine.design.timber)
     "TimberMember": {},
+    # bamboo and ferrocement (B39, saengine.design.bamboo / saengine.design.ferrocement)
+    "BambooProperties": {"condition": "green"},
+    "BambooTested": {"rupture": 60, "E": 10000, "compression": 40},
+    "FerrocementProperties": {"fc": 35},
+    "BambooMember": {},
+    "BambooJoint": {"kind": "gusset", "fastening": "fishPlate"},
+    "FerrocementMember": {"mesh": "wovenSquare", "layers": 4, "wireDiameter": 1.0, "spacing": 13},
+    "FerrocementBars": {"diameter": 6, "spacing": 100},
     # steel beams' deflection limits (B9, saengine.design.steel.members.deflection_checks)
     "MemberServiceability": {},
     # composite beams and columns (B32, saengine.design.steel.composite); "concrete" names a

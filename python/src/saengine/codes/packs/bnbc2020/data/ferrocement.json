@@ -1,0 +1,73 @@
+{
+  "$schema": "../../../schemas/ferrocement.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 12 (ferrocement structures), gazette part 2 pp. 339-353; Appendix U (part 2 pp. 612-613)"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 12: ferrocement members designed as layered reinforced sections. Mesh yield strength and effective moduli (Table 6.12.2), global efficiency factor (Sec 12.4.2.1(b), Table 6.12.3), strength design (Sec 12.4.2), service load design (Sec 12.4.3), serviceability (Sec 12.4.4), design parameters (Sec 12.4.5), design aid (Sec 12.4.6), volume fraction (Appendix U).",
+  "method": "layeredSection",
+  "meshes": {
+    "wovenSquare": {"label": "Woven square mesh", "fy": 450.0, "Erl": 138000.0, "Ert": 165000.0, "eta": {"longitudinal": 0.5, "transverse": 0.5, "diagonal": 0.35}, "volumeFraction": "wires"},
+    "weldedSquare": {"label": "Welded square mesh", "fy": 450.0, "Erl": 200000.0, "Ert": 200000.0, "eta": {"longitudinal": 0.5, "transverse": 0.5, "diagonal": 0.35}, "volumeFraction": "wires"},
+    "hexagonal": {"label": "Hexagonal mesh", "fy": 310.0, "Erl": 104000.0, "Ert": 69000.0, "eta": {"longitudinal": 0.45, "transverse": 0.3, "diagonal": 0.3}, "volumeFraction": "weight"},
+    "expanded": {"label": "Expanded metal mesh", "fy": 310.0, "Erl": 138000.0, "Ert": 69000.0, "eta": {"longitudinal": 0.65, "transverse": 0.2, "diagonal": 0.3}, "volumeFraction": "weight"}
+  },
+  "bars": {"label": "Longitudinal (skeletal) bars", "fy": 410.0, "Erl": 200000.0, "eta": {"longitudinal": 1.0, "transverse": 0.0, "diagonal": 0.7}, "volumeFraction": "wires"},
+  "strength": {
+    "strainLimit": 0.003,
+    "stressBlock": 0.85,
+    "compressionShare": 0.85,
+    "phiFlexure": "tension",
+    "phiCompression": "compressionTied",
+    "fyMax": 690.0,
+    "efficiencyThickness": 50.0
+  },
+  "service": {"steelShare": 0.6, "liquidRetaining": 200.0, "mortarShare": 0.45},
+  "crackWidth": {"noncorrosive": 0.1, "corrosive": 0.05, "waterRetaining": 0.05},
+  "fatigue": {"oneMillion": 350.0, "twoMillion": 200.0},
+  "detailing": {
+    "coverWireFactor": 2.0,
+    "thinSection": 25.0,
+    "thinCover": 2.0,
+    "minLayers": 2,
+    "waterVolumeFraction": 0.035,
+    "waterSpecificSurface": 0.16,
+    "skeletalShare": 0.5,
+    "minMortarStrength": 35.0
+  },
+  "designAid": {"a": 0.005, "b": 0.422, "c": 0.0772},
+  "steelUnitWeight": 77.0,
+  "clauses": {
+    "chapter": "Part 6 Chapter 12 (ferrocement structures)",
+    "strength": "Part 6 Sec 12.4.2, Eq 6.12.1",
+    "meshes": "Part 6 Table 6.12.2",
+    "efficiency": "Part 6 Sec 12.4.2.1(b), Eq 6.12.2, Table 6.12.3",
+    "flexure": "Part 6 Sec 12.4.2.1",
+    "tension": "Part 6 Sec 12.4.2.2, Eqs 6.12.3-6.12.4",
+    "compression": "Part 6 Sec 12.4.2.3",
+    "service": "Part 6 Sec 12.4.3.1",
+    "steelStress": "Part 6 Sec 12.4.3.2",
+    "mortarStress": "Part 6 Sec 12.4.3.3",
+    "crackWidth": "Part 6 Sec 12.4.4.1",
+    "fatigue": "Part 6 Sec 12.4.4.2",
+    "cover": "Part 6 Sec 12.4.5.1",
+    "opening": "Part 6 Sec 12.4.5.2",
+    "waterRetaining": "Part 6 Sec 12.4.5.3",
+    "skeletal": "Part 6 Sec 12.4.5.5",
+    "layers": "Part 6 Sec 12.4.5.6",
+    "mortar": "Part 6 Sec 12.3.5",
+    "designAid": "Part 6 Sec 12.4.6, Eq 6.12.5",
+    "volumeFraction": "Part 6 Appendix U.1"
+  },
+  "sources": {
+    "meshes": "BNBC 2020 Part 6 Table 6.12.2 (part 2 p. 348) and Table 6.12.3 (p. 350); Vf of square or rectangular meshes from the wires, of hexagonal and expanded meshes from the mesh weight (Appendix U.1, p. 612)",
+    "bars": "BNBC 2020 Part 6 Table 6.12.2-6.12.3 longitudinal bars (part 2 pp. 348-350); Sec 12.3.6.4 (p. 346)",
+    "strength": "BNBC 2020 Part 6 Sec 12.4.2 (part 2 p. 347): φ of Sec 6.2.3 (the factors table), fy at most 690 MPa; Sec 12.4.2.1(a) εcu 0.003 (p. 348); Sec 12.4.2.3 0.85 f'c of the mortar alone (pp. 350-351); η of Table 6.12.3 for sections up to 50 mm (p. 349)",
+    "service": "BNBC 2020 Part 6 Sec 12.4.3.2 (part 2 p. 351): 0.60 fy, 200 MPa for liquid retaining and sanitary structures",
+    "service.mortarShare": "BNBC 2020 Part 6 Sec 12.4.3.3 (part 2 p. 351) prints the allowable compressive stress with its factor missing ('taken as  where  is the specified compressive strength'); 0.45 f'c, the service stress of concrete in flexure, is used as SAEngine practice, not BNBC, until the owner confirms it",
+    "crackWidth": "BNBC 2020 Part 6 Sec 12.4.4.1 (part 2 p. 352): less than 0.10 mm, 0.05 mm corrosive or water retaining. The code gives no method to predict the crack width: SAEngine reports the limit and checks the steel stress of Sec 12.4.3.2, which the code ties to crack width measurements",
+    "fatigue": "BNBC 2020 Part 6 Sec 12.4.4.2 (part 2 p. 352)",
+    "detailing": "BNBC 2020 Part 6 Sec 12.4.5.1-12.4.5.6 (part 2 pp. 352-353); Sec 12.3.5 (p. 345): f'c not less than 35 MPa for most applications",
+    "designAid": "BNBC 2020 Part 6 Sec 12.4.6, Eq 6.12.5 and Figure 6.12.3 (part 2 pp. 353-354). The equation prints the last term without its square; Figure 6.12.3 (a curve through Y = 0.40 at X = 1.2) shows it squared, which is used",
+    "steelUnitWeight": "BNBC 2020 Part 6 Table 6.2.1 (part 1 p. 530): steel 77.0 kN/m³, the γm of Appendix U.1"
+  }
+}

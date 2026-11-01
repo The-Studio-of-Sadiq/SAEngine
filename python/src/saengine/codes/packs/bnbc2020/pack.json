@@ -52,7 +52,9 @@
     "compositeConcrete",
     "steelSeismic",
     "isolation",
-    "nonlinearHistory"
+    "nonlinearHistory",
+    "bamboo",
+    "ferrocement"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -268,6 +270,12 @@
     "nonlinearHistory": [
       "BNBC 2020 Part 6 Sec 2.5.11.1-2.5.11.5 (pp. 638-641): nonlinear time history analysis, records, response, member acceptance, design review",
       "BNBC 2020 Part 6 Sec 2.5.14.1 (p. 647): storey drift of the nonlinear time history analysis"
+      ],
+    "bamboo": [
+      "BNBC 2020 Part 6 Chapter 4 Sec 4.4-4.7, Tables 6.4.6-6.4.8 (part 1 pp. 822-835): bamboo structures, permissible stresses, members and columns, joints"
+    ],
+    "ferrocement": [
+      "BNBC 2020 Part 6 Chapter 12 Sec 12.3-12.4, Tables 6.12.2-6.12.3, Eqs 6.12.1-6.12.5 (part 2 pp. 342-354) and Appendix U (part 2 pp. 612-613): ferrocement strength and service load design"
     ]
   },
   "basis": {
