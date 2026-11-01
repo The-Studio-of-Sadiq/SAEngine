@@ -146,6 +146,89 @@
       {"param": 0.7, "points": [[2.94, 0.0], [3.15, 0.021], [3.35, 0.035]]}
     ]
   },
+  "members": {
+    "torsion": {
+      "phi": 0.9,
+      "neglect": 0.2,
+      "shearYield": 0.6,
+      "normalYield": 1.0,
+      "roundLong": 1.23,
+      "roundShort": 0.6,
+      "rectYield": 2.45,
+      "rectInelastic": 3.07,
+      "rectMaxRatio": 260.0,
+      "rectElastic": 0.458,
+      "methods": {
+        "openSection": "warping",
+        "buckling": "leastCritical"
+      }
+    },
+    "builtUp": {
+      "welded": 0.82,
+      "componentShare": 0.75,
+      "componentK": 1.0,
+      "plateSpacing": 0.75,
+      "plateSpacingMax": 305.0,
+      "plateStaggered": 1.12,
+      "plateStaggeredMax": 460.0,
+      "lacingSingle": 140.0,
+      "lacingDouble": 200.0,
+      "lacingShear": 0.02,
+      "lacingDoubleLength": 0.7,
+      "tiePlateEnd": 1.0,
+      "tiePlateIntermediate": 0.5,
+      "tiePlateThickness": 0.02
+    },
+    "bars": {
+      "plasticCap": 1.6,
+      "yieldLimit": 0.08,
+      "ltbLimit": 1.9,
+      "ltbA": 1.52,
+      "ltbB": 0.274,
+      "elastic": 1.9
+    },
+    "tensionField": {
+      "kv": 5.0,
+      "aspectMax": 3.0,
+      "webLimit": 260.0,
+      "webFlange": 2.5,
+      "depthFlange": 6.0,
+      "factor": 1.15,
+      "stiffenerFree": 2.46,
+      "stiffenerJ": [
+        2.5,
+        2.0,
+        0.5
+      ],
+      "stiffenerBt": 0.56,
+      "stiffenerArea": 0.15,
+      "stiffenerWeb": 18.0,
+      "Ds": {
+        "pair": 1.0,
+        "angle": 1.8,
+        "plate": 2.4
+      }
+    },
+    "clauses": {
+      "torsionHss": "BNBC 2020 Part 6 Sec 10.8.3.1, Eqs 6.10.150-154",
+      "torsionHssCombined": "BNBC 2020 Part 6 Sec 10.8.3.2, Eq 6.10.155",
+      "torsionNormal": "BNBC 2020 Part 6 Sec 10.8.3.3(a), Eq 6.10.156",
+      "torsionShear": "BNBC 2020 Part 6 Sec 10.8.3.3(b), Eq 6.10.157",
+      "torsionBuckling": "BNBC 2020 Part 6 Sec 10.8.3.3(c), Eq 6.10.158",
+      "unsymmetric": "BNBC 2020 Part 6 Sec 10.8.2, Eq 6.10.149",
+      "builtUpSnug": "BNBC 2020 Part 6 Sec 10.5.6.1(a)(i), Eq 6.10.34",
+      "builtUpWelded": "BNBC 2020 Part 6 Sec 10.5.6.1(a)(ii), Eq 6.10.35",
+      "builtUpSpacing": "BNBC 2020 Part 6 Sec 10.5.6.2",
+      "bars": "BNBC 2020 Part 6 Sec 10.6.11, Eqs 6.10.121-124",
+      "unsymmetricFlexure": "BNBC 2020 Part 6 Sec 10.6.12, Eqs 6.10.125-128",
+      "angleMajorLtb": "BNBC 2020 Part 6 Sec 10.6.10.2, Eqs 6.10.113-114, 6.10.116-117",
+      "angleLegBuckling": "BNBC 2020 Part 6 Sec 10.6.10.3, Eqs 6.10.118-120",
+      "stiffenedShear": "BNBC 2020 Part 6 Sec 10.7.2.1, Eqs 6.10.136, 6.10.138-140 (kv of a stiffened web)",
+      "tensionField": "BNBC 2020 Part 6 Sec 10.7.3.2, Eqs 6.10.142-143",
+      "stiffeners": "BNBC 2020 Part 6 Secs 10.7.2.2, 10.7.3.3, Eqs 6.10.141, 6.10.144",
+      "barShear": "SAEngine practice, not BNBC: shear of solid bars and rounds at first yield of the peak elastic shear stress (BNBC Sec 10.7 gives no rule for them)"
+    }
+  },
   "sources": {
     "phi": "BNBC 2020 Part 6 Chapter 10 (part2 pp. 121-171). Bolts Eq 6.10.168 (p. 130), bearing 10.10.3.10 (p. 132), block shear Eq 6.10.178, welds Eqs 6.10.162-163 (p. 121); concrete bearing φc 0.60 Sec 10.10.8 (p. 137); anchor rods as threaded parts 10.10.9 (p. 138); concentrated forces 10.10.10: flange local bending 0.90 Eq 6.10.185, web local yielding 1.00 Eqs 6.10.186-187, web crippling 0.75 Eqs 6.10.188-189, web sidesway buckling 0.85 Eqs 6.10.190-191, web compression buckling 0.90 Eq 6.10.192, panel zone 0.90 Eqs 6.10.193-196 (pp. 139-144); plate-to-HSS 10.11.1: round 0.90 Eq 6.10.197, uneven load 0.95 Eq 6.10.198, punching 0.95 Eq 6.10.199, sidewall yielding 1.00 Eq 6.10.200, crippling 0.75 Eq 6.10.201, buckling 0.90 Eq 6.10.202 (pp. 147-149); cap plates 1.00 / 0.75 Eqs 6.10.207-208 (pp. 150-151); HSS truss 10.11.2: round plastification 0.90 Eqs 6.10.211, 6.10.213, 6.10.214, T/Y punching 0.95 Eq 6.10.212, rectangular wall plastification 1.00 Eq 6.10.221 (K 0.90 Eq 6.10.228), punching 0.95, sidewall 1.00 / 0.75 / 0.90, branch yielding 0.95 (pp. 153-161); HSS moment 10.11.3: 0.90 / 0.95 round, 1.00 / 0.95 rectangular (pp. 165-170)",
     "hssPunchingRoundK": "BNBC 2020 Part 6 Sec 10.11.2.2.3 Eq 6.10.217 (part2 p. 155): φ 0.90 printed next to Ω 1.58. Ω 1.58 pairs with φ 0.95 elsewhere, so 0.90 looks like a misprint, but it is the printed text and the safe side (owner decision): used for the punching of round gapped K joints only",
@@ -168,6 +251,14 @@
     "anchorRods": "BNBC 2020 Part 6 Sec 10.10.9 (part2 p. 138): anchor rods for the net tension of the base moments, as threaded parts of Table 6.10.10; their concrete anchorage by the anchors table (Appendix K)",
     "methods": "SAEngine practice, not BNBC (BNBC requires the effect but gives no method): prying by the T-stub method of the steel design manuals (Sec 10.10.3.6 requires prying in the bolt tension); the elastic method for eccentric bolt groups and weld lines; the Whitmore section (30° spread) and gusset buckling K for gussets; plate flexure φ 0.90 Fy Z; the anchor rod tension of moment bases (Sec 10.10.9 requires it) from a rigid plate on a rectangular bearing block at φc Pp / A1 (method bearingBlock)",
     "bracing": "BNBC 2020 Part 6 Sec 10.19 (part2 pp. 222-227): columns relative Eqs 6.10.285-286, nodal Eqs 6.10.287-288; beams lateral relative Eqs 6.10.289-290, nodal Eqs 6.10.291-292, torsional Eqs 6.10.293-297; φ 0.75; Sec 10.19.4 L/r <= 180",
-    "ponding": "BNBC 2020 Part 6 Sec 10.16 (part2 pp. 194-195): simplified Eqs 6.10.272-273 (Cp = 504 Ls Lp⁴ / Ip, Cs = 504 S Ls⁴ / Is, trusses and joists Is - 15 %), improved Eqs 6.10.274-275 with Figures 6.10.1 and 6.10.2 (part2 p. 197) digitised at about ±0.01 from the printed curves. The printed figures label their lowest curve 'Cp = 0' (Figure 6.10.1) and 'Cs = 0' (Figure 6.10.2): read here, as the text says, as Cs (Figure 6.10.1) and Cp (Figure 6.10.2)"
+    "ponding": "BNBC 2020 Part 6 Sec 10.16 (part2 pp. 194-195): simplified Eqs 6.10.272-273 (Cp = 504 Ls Lp⁴ / Ip, Cs = 504 S Ls⁴ / Is, trusses and joists Is - 15 %), improved Eqs 6.10.274-275 with Figures 6.10.1 and 6.10.2 (part2 p. 197) digitised at about ±0.01 from the printed curves. The printed figures label their lowest curve 'Cp = 0' (Figure 6.10.1) and 'Cs = 0' (Figure 6.10.2): read here, as the text says, as Cs (Figure 6.10.1) and Cp (Figure 6.10.2)",
+    "members": "BNBC 2020 Part 6 (part2 pp. 64-66, 86-89, 93-96, 101-106; gazette pp. 3845-3847, 3867-3870, 3874-3877, 3882-3887)",
+    "torsion": "BNBC 2020 Part 6 Sec 10.8.3 (part2 pp. 103-106): φT 0.90; HSS Tn = Fcr C (Eq 6.10.150), round Fcr the larger of 1.23 E / (√(L/D) (D/t)^(5/4)) and 0.60 E / (D/t)^(3/2), at most 0.6 Fy (Eqs 6.10.151a-b); rectangular h/t <= 2.45 √(E/Fy): 0.6 Fy, <= 3.07 √(E/Fy): 0.6 Fy (2.45 √(E/Fy)) / (h/t), <= 260: 0.458 π² E / (h/t)² (Eqs 6.10.152-154); Tr <= 20 % of Tc neglected, else Eq 6.10.155; non-HSS Fn = Fy, 0.6 Fy, Fcr (Eqs 6.10.156-158)",
+    "torsionMethods": "SAEngine practice, not BNBC (Sec 10.8.3.3 asks for the stresses and Fcr 'as determined by analysis' without a method): open sections by the warping torsion of thin-walled members (St. Venant and warping stresses from GJ φ' - E Cw φ''' = T, solved along the member with its end restraint against warping); Fcr of the buckling limit state the least of the member's axial (Sec 10.5) and lateral-torsional (Sec 10.6) critical stresses",
+    "unsymmetric": "BNBC 2020 Part 6 Sec 10.8.2 Eq 6.10.149 (part2 pp. 101-103): single angles about their principal axes, Fbw and Fbz from Sec 10.6.10 (Eqs 6.10.112-120)",
+    "builtUp": "BNBC 2020 Part 6 Sec 10.5.6 (part2 pp. 64-66): (KL/r)m Eqs 6.10.34-35 (0.82); K a / ri <= 3/4 of the governing KL/r; outside plates 0.75 √(E/Fy) t <= 305 mm, staggered 1.12 √(E/Fy) t <= 460 mm; lacing L/r <= 140 single / 200 double, shear 2 % of the available compressive strength, double lacing L 70 %; tie plates: end length >= the line distance, intermediate >= half, t >= 1/50 of it",
+    "componentK": "SAEngine practice, not BNBC: K = 1.0 for a component between connectors in K a / ri (Sec 10.5.6.2 does not give K)",
+    "bars": "BNBC 2020 Part 6 Sec 10.6.11 (part2 p. 88): Mp = Fy Z <= 1.6 My; Lb d / t² <= 0.08 E / Fy yielding, <= 1.9 E / Fy Mn = Cb (1.52 - 0.274 (Lb d / t²) Fy / E) My <= Mp, above Fcr = 1.9 E Cb / (Lb d / t²); minor axis and rounds: no LTB",
+    "tensionField": "BNBC 2020 Part 6 Secs 10.7.2.1-10.7.3.3 (part2 pp. 93-96): kv = 5 + 5 / (a/h)², 5 when a/h > 3.0 or > (260 / (h/tw))²; stiffeners not needed when h/tw <= 2.46 √(E/Fy); Ist >= a tw³ j, j = 2.5 / (a/h)² - 2 >= 0.5 (Eq 6.10.141); no tension field action in end panels, a/h > 3.0 or (260 / (h/tw))², 2 Aw / (Afc + Aft) > 2.5, h/bf > 6.0; Vn = 0.6 Fy Aw (Cv + (1 - Cv) / (1.15 √(1 + (a/h)²))) (Eq 6.10.143); (b/t)st <= 0.56 √(E/Fyst), Ast >= Fy/Fyst [0.15 Ds h tw (1 - Cv) Vr/Vc - 18 tw²] >= 0, Ds 1.0 / 1.8 / 2.4 (Eq 6.10.144)"
   }
 }

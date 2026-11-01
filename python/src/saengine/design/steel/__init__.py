@@ -4,7 +4,9 @@
 - :mod:`.classify`: local buckling classes (Sec 10.2.4, Table 6.10.1);
 - :mod:`.lengths`: unbraced lengths, K and Cb from the analysis model;
 - :mod:`.members`: tension, compression, flexure, shear and combined forces, and the design
-  report entry of a member (:func:`.members.design_steel_member`).
+  report entry of a member (:func:`.members.design_steel_member`);
+- :mod:`.torsion`: torsion of hollow, open and solid members (B31);
+- :mod:`.built_up`: built-up compression members, modified slenderness and spacing (B31).
 """
 
 from __future__ import annotations

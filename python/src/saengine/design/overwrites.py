@@ -20,6 +20,9 @@ Used by:
 - Steel members (:mod:`saengine.design.steel.lengths`): k per axis (K), Lu per axis (the
   unbraced length for compression buckling), ``Lb`` the laterally unbraced length of the
   compression flange (lateral-torsional buckling).
+- B31, steel members: ``stiffenerSpacing`` the clear distance between transverse web stiffeners
+  (tension field action), ``warping`` the ends' restraint against warping (torsion),
+  ``builtUp`` how a built-up member's components are joined.
 - ``liveLoadReduction``: the factor on the floor live load L of the member, given instead of the
   one :mod:`saengine.design.live_reduction` works out (BNBC 2020 Part 6 Sec 2.3.13).
 """
@@ -41,7 +44,22 @@ _SOURCE_TEXT = {MEMBER: " (overwrite)", TYPE: " (type overwrite)", DEFAULT: ""}
 
 
 #: The fields resolved one by one (``momentMagnifiers`` per factor).
-FIELDS = ("k2", "k3", "Lb", "Lu2", "Lu3", "framing", "cm", "deltaNs", "deltaS", "liveLoadReduction")
+FIELDS = (
+    "k2",
+    "k3",
+    "Lb",
+    "Lu2",
+    "Lu3",
+    "framing",
+    "cm",
+    "deltaNs",
+    "deltaS",
+    "liveLoadReduction",
+    # B31: steel members.
+    "stiffenerSpacing",
+    "warping",
+    "builtUp",
+)
 
 
 def _flat(value: DesignOverwrites | dict[str, Any] | None) -> dict[str, Any]:
@@ -102,6 +120,10 @@ class Resolved:
             if name in self.values:
                 value, source = self.values[name]
                 shown = f"{value:g}" if isinstance(value, float) else str(value)
+                if hasattr(value, "model_dump"):  # builtUp
+                    shown = ", ".join(
+                        f"{k} = {v}" for k, v in value.model_dump(exclude_none=True).items()
+                    )
                 out.append(f"{name} = {shown}{_SOURCE_TEXT[source]}")
         return out
 
@@ -193,7 +215,16 @@ def steel_options(resolved: Resolved | None, base: Any = None) -> Any:
         return options
     import dataclasses
 
-    return dataclasses.replace(options, lengths=steel_length_options(resolved, options.lengths))
+    extra: dict[str, Any] = {}
+    if resolved.has("stiffenerSpacing"):  # B31
+        extra["stiffener_spacing"] = float(resolved.get("stiffenerSpacing"))
+    if resolved.has("warping"):
+        extra["warping"] = str(resolved.get("warping"))
+    if resolved.has("builtUp"):
+        extra["built_up"] = resolved.get("builtUp")
+    return dataclasses.replace(
+        options, lengths=steel_length_options(resolved, options.lengths), **extra
+    )
 
 
 __all__ = [

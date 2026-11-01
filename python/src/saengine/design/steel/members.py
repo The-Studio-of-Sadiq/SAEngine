@@ -113,8 +113,17 @@ METHOD = [
         "span a multiple of its length, as the pack says)."
     ),
     (
-        "Not checked here: connections (see the steel connection checks), torsion (Sec 10.8.3), "
-        "vibration and wind-induced motion, fatigue, fire."
+        "Torsion (B31, the code pack's member data): hollow sections by their torsional strength "
+        "and, above the pack's share of it, the interaction with the other forces; open and "
+        "solid sections by the normal and shear stresses of the combined actions (warping "
+        "torsion along the member, the ends free to warp unless set) and buckling. Single "
+        "angles also by the principal-axis interaction of unsymmetric members; built-up "
+        "members by the modified slenderness and the connector spacing; stiffened webs with "
+        "tension field action outside the end panels; rectangular bars and rounds."
+    ),
+    (
+        "Not checked here: connections (see the steel connection checks), vibration and "
+        "wind-induced motion, fatigue, fire."
     ),
 ]
 
@@ -566,13 +575,78 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
     return _least(candidates, notes)
 
 
-def _least(candidates: list[tuple[float, str, str]], notes: list[str]) -> Capacity:
+def _least(candidates: list[tuple[float, str, str]], notes: list[str], prefix: str = S) -> Capacity:
+    """The least of the candidate (Mn, state, clause); ``prefix`` goes before the clause (the
+    pack's clause strings, B31, come whole: prefix "")."""
     mn, state, clause = min(candidates, key=lambda c: c[0])
     others = ", ".join(f"{s} {m / 1e6:.1f}" for m, s, _ in candidates if s != state)
     note = f"Mn = {mn / 1e6:.1f} kN·m ({state})" + (f"; also {others} kN·m" if others else "")
     if notes:
         note += "; " + "; ".join(notes)
-    return Capacity(_phi("flexure"), mn, state, S + clause, note)
+    return Capacity(_phi("flexure"), mn, state, prefix + clause, note)
+
+
+def _members_table() -> Any:
+    """The pack's member limit-state data (B31), or a :class:`SteelDesignError` saying the
+    pack in force does not cover the member."""
+    from saengine.design.steel.torsion import members_data
+
+    data = members_data()
+    if data is None:
+        raise SteelDesignError("the code pack in force does not cover solid bars and rounds")
+    return data
+
+
+def _bar_flexure(shape: ShapeProperties, steel: Steel, axis: str, lb: float, cb: float) -> Capacity:
+    """Rectangular bars and rounds (the pack's ``members.bars``; BNBC 2020 Sec 10.6.11):
+    yielding Mp = Fy Z <= 1.6 My, and lateral-torsional buckling of a bar bent about its major
+    axis by Lb d / t² (d the depth across the axis, t the width along it)."""
+    from saengine.design.steel.torsion import clause
+
+    data = _members_table().bars
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    z, sm = (shape.zx, shape.sx) if axis == "x" else (shape.zy, shape.sy)
+    my = fy * sm
+    mp = min(fy * z, data.plasticCap * my)
+    ref = clause("bars")
+    candidates = [(mp, "yielding", ref)]
+    notes: list[str] = []
+    if shape.family == "bar":
+        depth, t = (d["d"], d["b"]) if axis == "x" else (d["b"], d["d"])
+        if depth > t and lb > 0:
+            ratio = lb * depth / t**2
+            notes.append(f"Lb d / t² = {ratio:.0f}, Cb = {cb:.2f}")
+            if ratio > data.yieldLimit * e / fy:
+                if ratio <= data.ltbLimit * e / fy:
+                    mn = cb * (data.ltbA - data.ltbB * ratio * fy / e) * my
+                else:
+                    mn = data.elastic * e * cb / ratio * sm
+                candidates.append((min(mn, mp), "lateral-torsional buckling", ref))
+        else:
+            notes.append("bent about its minor axis: no lateral-torsional buckling")
+    else:
+        notes.append("round: no lateral-torsional buckling")
+    return _least(candidates, notes, prefix="")
+
+
+def flexure_unsymmetric(
+    s_least: float, fy: float, fcr_ltb: float | None = None, fcr_local: float | None = None
+) -> Capacity:
+    """Unsymmetrical shapes other than single angles (BNBC 2020 Sec 10.6.12, Eqs 6.10.125-128):
+    Mn = Fn S with S the least elastic modulus, Fn = Fy (yielding) or the lateral-torsional and
+    local buckling stresses Fcr <= Fy that an analysis of the section gives (None: that limit
+    state not given). No shape of the section table is of this kind (B31): the method is ready
+    for designed sections."""
+    from saengine.design.steel.torsion import clause
+
+    ref = clause("unsymmetricFlexure")
+    candidates = [(fy * s_least, "yielding", ref)]
+    if fcr_ltb is not None:
+        candidates.append((min(fcr_ltb, fy) * s_least, "lateral-torsional buckling", ref))
+    if fcr_local is not None:
+        candidates.append((min(fcr_local, fy) * s_least, "local buckling", ref))
+    return _least(candidates, [f"S = {s_least / 1e3:.1f}×10³ mm³ (the least)"], prefix="")
 
 
 def _hss_flexure(shape: ShapeProperties, steel: Steel, axis: str) -> Capacity:
@@ -734,6 +808,8 @@ def flexure_major(
             return _tee_flexure(shape, steel, lb, stem_compression=not top_compression)
         case "angle":
             return _angle_flexure(shape, steel, lb, cb, "x")
+        case "bar" | "round":
+            return _bar_flexure(shape, steel, "x", lb, cb)
     raise SteelDesignError(f"unknown shape family {shape.family}")
 
 
@@ -768,6 +844,8 @@ def flexure_minor(
             )
         case "angle":
             return _angle_flexure(shape, steel, lb, cb, "y")
+        case "bar" | "round":
+            return _bar_flexure(shape, steel, "y", lb, cb)
     raise SteelDesignError(f"unknown shape family {shape.family}")
 
 
@@ -800,11 +878,67 @@ def _chs_shear(shape: ShapeProperties, steel: Steel, lv: float) -> Capacity:
     )
 
 
-def shear_major(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capacity:
-    """φv Vn along the profile's depth (y)."""
+def _bar_shear(shape: ShapeProperties, steel: Steel) -> Capacity:
+    """Solid bars and rounds: 0.6 Fy at the peak of the elastic shear stress, 1.5 V / A of a
+    rectangle and 4/3 V / A of a circle (the pack labels the rule, B31)."""
+    from saengine.design.steel.torsion import clause
+
+    _members_table()
+    peak = 1.5 if shape.family == "bar" else 4 / 3
+    return Capacity(
+        _phi("shear"),
+        0.6 * steel.fy * shape.area / peak,
+        "shear yielding",
+        clause("barShear"),
+        f"A = {shape.area:.0f} mm², peak shear stress {peak:.2f} V / A",
+    )
+
+
+def stiffened_web(shape: ShapeProperties, steel: Steel, a: float) -> dict[str, Any] | None:
+    """kv and tension field data of an I-shape or channel web with transverse stiffeners at
+    the clear spacing ``a`` [mm] (the pack's ``members.tensionField``; BNBC 2020 Secs 10.7.2.1,
+    10.7.3.1): ``{kv, aspect, tfa, why}``, ``tfa`` whether tension field action may be counted
+    (not in end panels: the caller decides those); None without the pack's data."""
+    from saengine.design.steel.torsion import members_data
+
+    data = members_data()
+    if data is None or a <= 0 or shape.family not in ("I", "channel"):
+        return None
+    tf_data = data.tensionField
+    d = shape.dims
+    h, tw = d["h"], d["tw"]
+    aspect = a / h
+    h_tw = h / tw
+    plain = aspect > tf_data.aspectMax or aspect > (tf_data.webLimit / h_tw) ** 2
+    kv = tf_data.kv if plain else tf_data.kv + tf_data.kv / aspect**2
+    why = []
+    if plain:
+        why.append(f"a/h = {aspect:.2f} beyond the limits: kv of an unstiffened web")
+    flanges = 2 * d["bf"] * d["tf"]
+    if 2 * d["d"] * tw / flanges > tf_data.webFlange:
+        why.append(f"2 Aw / (Afc + Aft) > {tf_data.webFlange:g}")
+    if h / d["bf"] > tf_data.depthFlange:
+        why.append(f"h / bf > {tf_data.depthFlange:g}")
+    return {"kv": kv, "aspect": aspect, "tfa": not plain and len(why) == 0, "why": why}
+
+
+def shear_major(
+    shape: ShapeProperties,
+    steel: Steel,
+    lv: float = 0.0,
+    stiffeners: float | None = None,
+    tension_field: bool = False,
+) -> Capacity:
+    """φv Vn along the profile's depth (y). ``stiffeners``: the clear spacing a [mm] of the
+    transverse web stiffeners of an I-shape or channel (kv of a stiffened web, B31);
+    ``tension_field``: count tension field action where it is permitted (Sec 10.7.3; the
+    caller leaves it off in the end panels)."""
     e, fy = steel.e, steel.fy
     d = shape.dims
+    web = stiffened_web(shape, steel, stiffeners) if stiffeners else None
     match shape.family:
+        case "I" | "channel" if web is not None:
+            return _stiffened_shear(shape, steel, web, stiffeners or 0.0, tension_field)
         case "I" | "channel":
             h_tw = d["h"] / d["tw"]
             aw = d["d"] * d["tw"]
@@ -849,7 +983,91 @@ def shear_major(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
             return _rhs_shear(shape, steel, d["h"])
         case "chs":
             return _chs_shear(shape, steel, lv)
+        case "bar" | "round":
+            return _bar_shear(shape, steel)
     raise SteelDesignError(f"unknown shape family {shape.family}")
+
+
+def _stiffened_shear(
+    shape: ShapeProperties, steel: Steel, web: dict[str, Any], a: float, tension_field: bool
+) -> Capacity:
+    """A stiffened web: Vn of Sec 10.7.2.1 with kv of the stiffener spacing, or with tension
+    field action (Sec 10.7.3.2, Eqs 6.10.142-143) when permitted and asked for."""
+    from saengine.design.steel.torsion import clause, members_data
+
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    h_tw = d["h"] / d["tw"]
+    aw = d["d"] * d["tw"]
+    kv, aspect = web["kv"], web["aspect"]
+    cv = web_shear_coefficient(h_tw, kv, e, fy)
+    note = f"Aw = {aw:.0f} mm², h/tw = {h_tw:.1f}, a = {a:.0f} mm, a/h = {aspect:.2f}, kv = "
+    note += f"{kv:.2f}, Cv = {cv:.3f}"
+    if tension_field and web["tfa"]:
+        factor = members_data().tensionField.factor
+        if h_tw <= 1.10 * math.sqrt(kv * e / fy):
+            vn = 0.6 * fy * aw
+        else:
+            vn = 0.6 * fy * aw * (cv + (1 - cv) / (factor * math.sqrt(1 + aspect**2)))
+        return Capacity(
+            _phi("shear"),
+            vn,
+            "tension field yielding",
+            clause("tensionField"),
+            note + "; tension field action",
+        )
+    if web["why"]:
+        note += "; no tension field action: " + ", ".join(web["why"])
+    if h_tw >= 260 and kv <= members_data().tensionField.kv:
+        raise SteelDesignError(f"web h/tw = {h_tw:.0f} ≥ 260 needs stiffeners (Sec 10.7.2)")
+    return Capacity(
+        _phi("shear"),
+        0.6 * fy * aw * cv,
+        "shear yielding / buckling",
+        clause("stiffenedShear"),
+        note,
+    )
+
+
+def stiffener_requirements(
+    shape: ShapeProperties, steel: Steel, a: float, vr_vc: float, tension_field: bool
+) -> list[str]:
+    """What the transverse stiffeners at ``a`` [mm] must provide (BNBC 2020 Secs 10.7.2.2,
+    10.7.3.3: Eqs 6.10.141, 6.10.144), for the member's notes; ``vr_vc`` the largest Vr / Vc of
+    the panels with tension field action. Pairs of stiffeners of the web's steel assumed."""
+    from saengine.design.steel.torsion import clause, members_data
+
+    data = members_data()
+    web = stiffened_web(shape, steel, a)
+    if data is None or web is None:
+        return []
+    k = data.tensionField
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    h, tw = d["h"], d["tw"]
+    ref = clause("stiffeners")
+    out = []
+    if h / tw <= k.stiffenerFree * math.sqrt(e / fy):
+        out.append(
+            f"transverse stiffeners not required by the web: h/tw = {h / tw:.1f} <= "
+            f"{k.stiffenerFree:g} √(E/Fy) ({ref})"
+        )
+    ja, jb, jc = k.stiffenerJ
+    j = max(ja / web["aspect"] ** 2 - jb, jc)
+    out.append(
+        f"transverse stiffeners at a = {a:.0f} mm: Ist >= a tw³ j = {a * tw**3 * j / 1e4:.1f}"
+        f"×10⁴ mm⁴ (j = {j:.2f}) ({ref})"
+    )
+    if tension_field and web["tfa"]:
+        cv = web_shear_coefficient(h / tw, web["kv"], e, fy)
+        ds = k.Ds.get("pair", 1.0)
+        ast = max(0.0, k.stiffenerArea * ds * h * tw * (1 - cv) * vr_vc - k.stiffenerWeb * tw**2)
+        out.append(
+            f"tension field stiffeners (pairs, Ds = {ds:g}, Fyst = Fy): (b/t)st <= "
+            f"{k.stiffenerBt * (e / fy) ** 0.5:.1f}, Ast >= {ast:.0f} mm² at Vr/Vc = "
+            f"{vr_vc:.2f} ({ref})"
+        )
+    return out
 
 
 def _rhs_shear(shape: ShapeProperties, steel: Steel, h: float) -> Capacity:
@@ -896,6 +1114,8 @@ def shear_minor(shape: ShapeProperties, steel: Steel, lv: float = 0.0) -> Capaci
             return _rhs_shear(shape, steel, d["b"])
         case "chs":
             return _chs_shear(shape, steel, lv)
+        case "bar" | "round":
+            return _bar_shear(shape, steel)
     raise SteelDesignError(f"unknown shape family {shape.family}")
 
 
@@ -912,6 +1132,127 @@ def interaction(
     if p >= 0.2:
         return p + 8 / 9 * (mx + my), "Eq 6.10.147a"
     return p / 2 + mx + my, "Eq 6.10.147b"
+
+
+@dataclass(frozen=True)
+class AnglePrincipal:
+    """A single angle about its principal axes for Sec 10.8.2 (B31): ``cos``, ``sin`` of the
+    major principal axis w from the profile's x-axis, the design strengths φb Mn about w and z
+    [N·mm] (toe in compression: the lower of either sense) and how they were found."""
+
+    cos: float
+    sin: float
+    mcw: float
+    mcz: float
+    note: str
+
+
+def _angle_beta_w(shape: ShapeProperties, w: np.ndarray, z: np.ndarray) -> float:
+    """|βw| of an unequal-leg angle, (1/Iw) ∫ z (w² + z²) dA - 2 z0 on the legs' centrelines
+    (z0: the shear centre, at the legs' intersection), in the principal frame."""
+    d = shape.dims
+    t, cx, cy = d["t"], d["cx"], d["cy"]
+    n = 200
+    ys = np.linspace(0, d["d"], n + 1)
+    xs = np.linspace(t, d["b"], n + 1)
+    pts = [(t / 2 - cx, 0.5 * (ys[i] + ys[i + 1]) - cy, (ys[i + 1] - ys[i]) * t) for i in range(n)]
+    pts += [(0.5 * (xs[i] + xs[i + 1]) - cx, t / 2 - cy, (xs[i + 1] - xs[i]) * t) for i in range(n)]
+    iw = integral = 0.0
+    for x, y, da in pts:
+        pw, pz = x * w[0] + y * w[1], x * z[0] + y * z[1]
+        iw += pz * pz * da
+        integral += pz * (pw * pw + pz * pz) * da
+    x0, y0 = t / 2 - cx, t / 2 - cy
+    z0 = x0 * z[0] + y0 * z[1]
+    return abs(integral / iw - 2 * z0) if iw > 0 else 0.0
+
+
+def angle_principal(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> AnglePrincipal:
+    """φb Mn of a single angle about its major (w) and minor (z) principal axes (Sec 10.6.10:
+    yielding 1.5 My, lateral-torsional buckling about w with Me of Eq 6.10.116 (equal legs) or
+    6.10.117 (unequal legs, βw negative: the long leg taken in compression, conservative), and
+    leg local buckling with the toe in compression)."""
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    t = d["t"]
+    # Principal directions of the second-moment matrix [[∫x², ∫xy], [∫xy, ∫y²]]: the axis of
+    # the largest inertia (w) is normal to the eigenvector of the largest eigenvalue.
+    values, vectors = np.linalg.eigh(np.array([[shape.iy, shape.ixy], [shape.ixy, shape.ix]]))
+    n_w, n_z = vectors[:, 1], vectors[:, 0]  # normals: distance from w along n_w
+    iw, iz = float(values[1]), float(values[0])
+    w_dir = np.array([-n_w[1], n_w[0]])  # the w axis itself
+    cx, cy = d["cx"], d["cy"]
+    corners = [(0, 0), (0, d["d"]), (t, d["d"]), (d["b"], 0), (d["b"], t), (t, t)]
+    toes = corners[1:5]
+
+    def modulus(normal: np.ndarray, inertia: float, points: list) -> float:
+        reach = max(abs((x - cx) * normal[0] + (y - cy) * normal[1]) for x, y in points)
+        return inertia / reach
+
+    s_w, s_z = modulus(n_w, iw, corners), modulus(n_z, iz, corners)
+    sc_w, sc_z = modulus(n_w, iw, toes), modulus(n_z, iz, toes)
+    leg = max(d["d"], d["b"])
+    ratio = leg / t
+    root = math.sqrt(e / fy)
+
+    def local(sc: float) -> float | None:
+        if ratio <= 0.54 * root:
+            return None
+        if ratio <= 0.91 * root:
+            return fy * sc * (2.43 - 1.72 * ratio / root)
+        return 0.71 * e / ratio**2 * sc
+
+    my_w, my_z = fy * s_w, fy * s_z
+    mn_w = [1.5 * my_w]
+    notes = [f"principal axes: Iw = {iw / 1e4:.1f}, Iz = {iz / 1e4:.1f}×10⁴ mm⁴"]
+    if lb > 0:
+        cbx = min(cb, 1.5)
+        if abs(d["d"] - d["b"]) < 1e-9:
+            me = 0.46 * e * leg**2 * t**2 * cbx / lb
+            notes.append(f"Me = {me / 1e6:.1f} kN·m (Eq 6.10.116)")
+        else:
+            beta = -_angle_beta_w(shape, w_dir, np.array([-w_dir[1], w_dir[0]]))
+            rz = math.sqrt(iz / shape.area)
+            me = (
+                4.9
+                * e
+                * iz
+                * cbx
+                / lb**2
+                * (math.sqrt(beta**2 + 0.052 * (lb * t / rz) ** 2) + beta)
+            )
+            notes.append(f"Me = {me / 1e6:.1f} kN·m (Eq 6.10.117, βw = {beta:.1f} mm)")
+        if me <= my_w:
+            mn_w.append((0.92 - 0.17 * me / my_w) * me)
+        else:
+            mn_w.append(min((1.92 - 1.17 * math.sqrt(my_w / me)) * my_w, 1.5 * my_w))
+    mn_z = [1.5 * my_z]
+    for target, sc in ((mn_w, sc_w), (mn_z, sc_z)):
+        found = local(sc)
+        if found is not None:
+            target.append(found)
+    phi = _phi("flexure")
+    return AnglePrincipal(
+        float(w_dir[0]),
+        float(w_dir[1]),
+        phi * min(mn_w),
+        phi * min(mn_z),
+        "; ".join(notes),
+    )
+
+
+def unsymmetric_interaction(
+    p: float, pc: float, mx: float, my: float, principal: AnglePrincipal
+) -> tuple[float, float, float]:
+    """Eq 6.10.149 of a single angle, |fa/Fa| + |fbw/Fbw| + |fbz/Fbz| with the stress ratios
+    at their critical points added (conservative: the sense of the stresses is not used):
+    (ratio, Mw, Mz). ``mx``, ``my``: the (amplified) moments about the profile's axes [N·mm]."""
+    mw = abs(mx * principal.cos) + abs(my * principal.sin)
+    mz = abs(mx * principal.sin) + abs(my * principal.cos)
+    pa = abs(p) / pc if pc > 0 else (0.0 if p == 0 else math.inf)
+    fw = mw / principal.mcw if principal.mcw > 0 else math.inf
+    fz = mz / principal.mcz if principal.mcz > 0 else math.inf
+    return pa + fw + fz, mw, mz
 
 
 def amplifier_b1(cm: float, pr: float, pe1: float) -> float:
@@ -957,7 +1298,12 @@ class SteelOptions:
     stability design method of the run (:class:`saengine.design.steel.stability.Stability`;
     None: K from the bracing, no stability checks); ``anchors``: the earthquake side of the run
     for the anchors in concrete (:class:`saengine.design.anchors.SeismicContext`; None: no
-    seismic anchor rules)."""
+    seismic anchor rules). B31: ``stiffener_spacing`` the clear distance a [mm] between the
+    transverse web stiffeners (None: unstiffened web), ``tension_field`` whether tension field
+    action is counted where it is permitted, ``warping`` the ends' restraint against warping
+    ("free" or "fixed") in the torsion of open sections, ``built_up`` how the components of a
+    built-up member are joined (:class:`saengine.design.steel.built_up.BuiltUp` or its
+    model)."""
 
     erw: bool = True
     net_ratio: float = 1.0
@@ -966,6 +1312,10 @@ class SteelOptions:
     amplify: bool = True
     stability: Any = None
     anchors: Any = None
+    stiffener_spacing: float | None = None
+    tension_field: bool = True
+    warping: str = "free"
+    built_up: Any = None
 
     @classmethod
     def of(cls, value: SteelOptions | dict[str, Any] | None) -> SteelOptions:
@@ -985,7 +1335,8 @@ class SteelOptions:
 class Stations:
     """One combination's section forces along a member, sorted by position: ``s`` [m], ``P``
     (compression positive) [N], ``Mx`` (positive stretches the top) and ``My`` [N·mm], ``Vy``
-    (along the depth) and ``Vx`` [N], and where each station is."""
+    (along the depth) and ``Vx`` [N], and where each station is; ``T`` the torque about the
+    member's axis [N·mm] (B31; None: not known, torsion is not checked)."""
 
     combination: str
     s: np.ndarray
@@ -995,6 +1346,7 @@ class Stations:
     Vy: np.ndarray
     Vx: np.ndarray
     where: list[str]
+    T: np.ndarray | None = None
 
 
 def member_stations(
@@ -1018,10 +1370,27 @@ def member_stations(
         where = [f"{pieces[p].name} at {k / max(count - 1, 1):.2f} L" for p, k in order]
         result.append(
             Stations(
-                name, s, gather("P"), gather("Mx"), gather("My"), gather("Vy"), gather("Vx"), where
+                name,
+                s,
+                gather("P"),
+                gather("Mx"),
+                gather("My"),
+                gather("Vy"),
+                gather("Vx"),
+                where,
+                _torque(pieces, c, order),
             )
         )
     return result
+
+
+def _torque(pieces: Sequence[Any], c: int, order: Sequence[tuple[int, int]]) -> np.ndarray | None:
+    """The torque [N·mm] of combination ``c`` at the stations ``order`` (B31): column 3 of the
+    pieces' forces [N·m]; None when the forces carry no torque column."""
+    try:
+        return np.array([float(np.asarray(pieces[p].forces[c])[k, 3]) * 1e3 for p, k in order])
+    except (IndexError, TypeError, ValueError):
+        return None
 
 
 @dataclass
@@ -1070,6 +1439,182 @@ def _ratio(demand: float, capacity: float) -> float:
     return 0.0 if demand <= 0 else math.inf
 
 
+class _MemberTorsion:
+    """The torsion checks of one member (B31, :mod:`saengine.design.steel.torsion`): HSS by
+    their torsional strength and the interaction with the other forces, other members by the
+    normal and shear stresses of the combined actions and buckling."""
+
+    def __init__(self, shape: ShapeProperties, steel: Steel, length: float, warping: str) -> None:
+        from saengine.design.steel import torsion as tor
+
+        self.tor = tor
+        self.shape, self.steel, self.length, self.warping = shape, steel, length, warping
+        data = tor.members_data()
+        self.data = data.torsion
+        self.hss = shape.family in ("rhs", "chs")
+        self.capacity = tor.hss_torsion(shape, steel.fy, steel.e, length) if self.hss else None
+        methods = self.data.methods
+        self.open_method = methods.get("openSection") == "warping" and not self.hss
+        self.buckling = methods.get("buckling") == "leastCritical" and not self.hss
+        self.section = tor.section_torsion(shape) if not self.hss else None
+        self.g = _shear_modulus()
+        self.solutions: dict[int, Any] = {}
+        self.worst = {k: _Worst() for k in ("t", "t155", "tn", "tv", "tb")}
+        self.combined = False
+
+    @classmethod
+    def of(
+        cls,
+        shape: ShapeProperties,
+        steel: Steel,
+        stations: Sequence[Stations],
+        length: float,
+        warping: str,
+    ) -> _MemberTorsion | None:
+        from saengine.design.steel.torsion import has_torsion, members_data
+
+        if members_data() is None or not any(has_torsion(st.T) for st in stations):
+            return None
+        return cls(shape, steel, length, warping)
+
+    def solution(self, st: Stations) -> Any:
+        key = id(st)
+        if key not in self.solutions:
+            self.solutions[key] = self.tor.solve_warping(
+                st.s, st.T, self.g, self.steel.e, self.shape.j, self.shape.cw, self.warping
+            )
+        return self.solutions[key]
+
+    def offer(
+        self,
+        st: Stations,
+        k: int,
+        p: float,
+        pc: float,
+        cap_c: Capacity | None,
+        cap_mx: Capacity,
+        mrx: float,
+        mry: float,
+        mcy: float,
+        vy: float,
+        vx: float,
+        vcy: float,
+        vcx: float,
+        where: str,
+    ) -> None:
+        if st.T is None:
+            return
+        tor, shape, fy = self.tor, self.shape, self.steel.fy
+        phi = self.data.phi
+        tr = abs(float(st.T[k]))
+        if self.hss:
+            cap = self.capacity
+            if cap is None:
+                return
+            tc = cap.design
+            self.worst["t"].offer(
+                _ratio(tr, tc), tr, tc, st.combination, f"{cap.note}; {where}", cap.clause
+            )
+            if tr > self.data.neglect * tc:
+                self.combined = True
+                pr = _ratio(abs(p), pc)
+                mr = _ratio(mrx, cap_mx.design) + _ratio(mry, mcy)
+                vr = _ratio(vy, vcy) + _ratio(vx, vcx)
+                ratio = tor.hss_interaction(pr, mr, vr, _ratio(tr, tc))
+                self.worst["t155"].offer(
+                    ratio,
+                    ratio,
+                    1.0,
+                    st.combination,
+                    f"Pr/Pc = {pr:.2f}, ΣMr/Mc = {mr:.2f}, ΣVr/Vc = {vr:.2f}, Tr/Tc = "
+                    f"{_ratio(tr, tc):.2f}; {where}",
+                    tor.clause("torsionHssCombined"),
+                )
+            return
+        if not self.open_method:
+            return
+        sol = self.solution(st)
+        stress = tor.torsion_stresses(
+            self.section,
+            self.g,
+            self.steel.e,
+            float(sol.phi1[k]),
+            float(sol.phi2[k]),
+            float(sol.phi3[k]),
+        )
+        fa = abs(p) / shape.area
+        fbx, fby = mrx / shape.sx, mry / shape.sy
+        normal = fa + fbx + fby + stress.normal
+        limit = phi * self.data.normalYield * fy
+        what = (
+            f"fa = {fa:.1f}, fbx = {fbx:.1f}, fby = {fby:.1f}, σw = {stress.normal:.1f} MPa; T = "
+            f"{float(sol.torque[k]) / 1e6:.2f} kN·m (warping {self.warping} at the supports); "
+            f"{where}"
+        )
+        self.worst["tn"].offer(
+            normal / limit, normal, limit, st.combination, what, tor.clause("torsionNormal")
+        )
+        v_flange, v_web = tor.shear_stresses(shape, vy, vx)
+        flange, web = v_flange + stress.shear_flange, v_web + stress.shear_web
+        tau = max(flange, web)
+        limit_v = phi * self.data.shearYield * fy
+        self.worst["tv"].offer(
+            tau / limit_v,
+            tau,
+            limit_v,
+            st.combination,
+            f"flange {flange:.1f} MPa (shear {v_flange:.1f} + torsion {stress.shear_flange:.1f}), "
+            f"web {web:.1f} MPa (shear {v_web:.1f} + torsion {stress.shear_web:.1f}); {where}",
+            tor.clause("torsionShear"),
+        )
+        if not self.buckling:
+            return
+        critical = []
+        if p > 0 and cap_c is not None:
+            critical.append((cap_c.nominal / shape.area, "axial"))
+        if mrx > 0:
+            critical.append((cap_mx.nominal / shape.sx, "lateral-torsional"))
+        if not critical:
+            return
+        fcr, mode = min(critical)
+        compressive = (fa if p > 0 else 0.0) + fbx + fby + stress.normal
+        cap = phi * min(fcr, fy)
+        self.worst["tb"].offer(
+            compressive / cap,
+            compressive,
+            cap,
+            st.combination,
+            f"compressive stress {compressive:.1f} MPa against φT Fcr, Fcr = {fcr:.1f} MPa "
+            f"({mode}, the least critical stress); {where}",
+            tor.clause("torsionBuckling"),
+        )
+
+    def rows(self) -> list[dict[str, Any]]:
+        if self.hss:
+            if self.capacity is None:
+                return []
+            out = [_check("Torsion (HSS)", self.worst["t"], "kN·m", 1e6)]
+            if self.combined:
+                out.append(
+                    _check(
+                        "Torsion, shear, flexure and axial force (HSS)", self.worst["t155"], "", 1
+                    )
+                )
+            else:
+                out[0]["note"] += (
+                    f"; Tr <= {self.data.neglect:g} Tc: torsion neglected, the combined-force "
+                    "check governs"
+                )
+            return out
+        out = []
+        if self.open_method:
+            out.append(_check("Torsion: normal stress (yielding)", self.worst["tn"], "MPa", 1.0))
+            out.append(_check("Torsion: shear stress (yielding)", self.worst["tv"], "MPa", 1.0))
+        if self.buckling and self.worst["tb"].combination is not None:
+            out.append(_check("Torsion: buckling", self.worst["tb"], "MPa", 1.0))
+        return out
+
+
 def check_member(
     shape: ShapeProperties,
     steel: Steel,
@@ -1090,6 +1635,40 @@ def check_member(
     v_major = shear_major(shape, steel, lv)
     v_minor = shear_minor(shape, steel, lv)
     m_minor = flexure_minor(shape, steel, lengths.ltb_top.longest() * 1e3)
+    # B31: a stiffened web (tension field action outside the end panels), a built-up member,
+    # torsion, and single angles about their principal axes (Sec 10.8.2).
+    from saengine.design.steel.built_up import BuiltUp, dimensional_checks, modified_slenderness
+    from saengine.design.steel.torsion import clause as pack_clause
+    from saengine.design.steel.torsion import members_data
+
+    stiffened = options.stiffener_spacing if shape.family in ("I", "channel") else None
+    v_end = v_major
+    if stiffened and members_data() is not None:
+        v_major = shear_major(shape, steel, lv, stiffened, options.tension_field)
+        v_end = shear_major(shape, steel, lv, stiffened, False)
+        if v_major.state == "tension field yielding":
+            v_end = Capacity(
+                v_end.phi,
+                v_end.nominal,
+                v_end.state,
+                v_end.clause,
+                f"{v_end.note}; end panel: no tension field action",
+            )
+    else:
+        stiffened = None
+    worst_tfa = 0.0
+    built = BuiltUp.of(options.built_up)
+    torsion = _MemberTorsion.of(shape, steel, stations, lengths.length * 1e3, options.warping)
+    principal = (
+        angle_principal(
+            shape,
+            steel,
+            max(lengths.ltb_top.longest(), lengths.ltb_bottom.longest()) * 1e3,
+            1.0,
+        )
+        if shape.family == "angle" and members_data() is not None
+        else None
+    )
 
     compression_cache: dict[tuple[float, float, float], Capacity] = {}
     flexure_cache: dict[tuple[float, float, bool], Capacity] = {}
@@ -1103,7 +1682,26 @@ def check_member(
     def comp(klx: float, kly: float, klz: float) -> Capacity:
         key = (round(klx, 1), round(kly, 1), round(klz, 1))
         if key not in compression_cache:
-            compression_cache[key] = compression(shape, steel, klx, kly, klz)
+            note = ref = ""
+            if built is not None and built.spacing > 0:
+                # The buckling mode that shears the connectors: KL/r replaced by (KL/r)m.
+                r = shape.ry if built.axis == "y" else shape.rx
+                kl = kly if built.axis == "y" else klx
+                modified, note, ref = modified_slenderness(built, kl / r)
+                if built.axis == "y":
+                    kly = modified * r
+                else:
+                    klx = modified * r
+            cap = compression(shape, steel, klx, kly, klz)
+            if note:
+                cap = Capacity(
+                    cap.phi,
+                    cap.nominal,
+                    cap.state,
+                    f"{cap.clause}; {ref}" if ref else cap.clause,
+                    f"{cap.note}; {note}",
+                )
+            compression_cache[key] = cap
         return compression_cache[key]
 
     def flex(lb: float, cb: float, top: bool) -> Capacity:
@@ -1113,7 +1711,8 @@ def check_member(
         return flexure_cache[key]
 
     worst = {
-        k: _Worst() for k in ("ty", "tr", "c", "mx", "my", "vy", "vx", "h1", "klr", "lr", "k1")
+        k: _Worst()
+        for k in ("ty", "tr", "c", "mx", "my", "vy", "vx", "h1", "klr", "lr", "k1", "h2")
     }
     compressed = tensioned = False
     for st in stations:
@@ -1236,13 +1835,21 @@ def check_member(
                 m_minor.clause,
             )
             vy, vx = abs(float(st.Vy[k])), abs(float(st.Vx[k]))
+            v_here = v_major
+            if stiffened:
+                # No tension field action in the end panels (Sec 10.7.3.1).
+                at = float(s[k] - s[0]) * 1e3
+                if at < stiffened or float(s[-1] - s[k]) * 1e3 < stiffened:
+                    v_here = v_end
+                elif v_here is not v_end:
+                    worst_tfa = max(worst_tfa, _ratio(vy, v_here.design))
             worst["vy"].offer(
-                _ratio(vy, v_major.design),
+                _ratio(vy, v_here.design),
                 vy,
-                v_major.design,
+                v_here.design,
                 st.combination,
-                f"{v_major.note}; {where}",
-                v_major.clause,
+                f"{v_here.note}; {where}",
+                v_here.clause,
             )
             worst["vx"].offer(
                 _ratio(vx, v_minor.design),
@@ -1264,6 +1871,36 @@ def check_member(
                 f"/ Mcy = {m_minor.design / 1e6:.1f} kN·m{note_b1}; {where}",
                 S + "Sec 10.8.1, " + eq,
             )
+            if principal is not None:
+                ratio2, mw, mz = unsymmetric_interaction(p, pc, mrx, mry, principal)
+                worst["h2"].offer(
+                    ratio2,
+                    ratio2,
+                    1.0,
+                    st.combination,
+                    f"Pr = {abs(p) / 1e3:.1f} kN ({sense}), Pc = {pc / 1e3:.1f} kN, Mw = "
+                    f"{mw / 1e6:.2f} / Mcw = {principal.mcw / 1e6:.2f}, Mz = {mz / 1e6:.2f} / Mcz = "
+                    f"{principal.mcz / 1e6:.2f} kN·m (the stress ratios at their critical "
+                    f"points added); {principal.note}{note_b1}; {where}",
+                    pack_clause("unsymmetric"),
+                )
+            if torsion is not None:
+                torsion.offer(
+                    st,
+                    k,
+                    p,
+                    pc,
+                    cap_c,
+                    cap_mx,
+                    mrx,
+                    mry,
+                    m_minor.design,
+                    vy,
+                    vx,
+                    v_here.design,
+                    v_minor.design,
+                    where,
+                )
 
     checks: list[dict[str, Any]] = []
     if tensioned:
@@ -1276,10 +1913,28 @@ def check_member(
     checks.append(_check("Shear along y (depth)", worst["vy"], "kN", 1e3))
     checks.append(_check("Shear along x (width)", worst["vx"], "kN", 1e3))
     checks.append(_check("Axial force and flexure (H1)", worst["h1"], "", 1.0))
-    if shape.family in ("tee", "angle"):
-        checks[-1]["note"] += "; H1 of Sec 10.8.1 applied to a " + (
-            "tee" if shape.family == "tee" else "single angle (unsymmetric: Sec 10.8.2 not applied)"
+    if shape.family == "tee":
+        checks[-1]["note"] += "; H1 of Sec 10.8.1 applied to a tee (singly symmetric)"
+    elif shape.family == "angle" and principal is not None:
+        # B31: a single angle is unsymmetric; Sec 10.8.2 governs and H1 stays for information.
+        checks[-1]["flag"] = True
+        checks[-1]["note"] += "; single angle: for information, Eq 6.10.149 governs"
+        checks.append(
+            _check("Axial force and flexure, unsymmetric (principal axes)", worst["h2"], "", 1.0)
         )
+    elif shape.family == "angle":
+        checks[-1]["note"] += "; single angle: the code pack has no rule for unsymmetric members"
+    if torsion is not None:
+        checks.extend(torsion.rows())
+    if built is not None and compressed:
+        checks.extend(dimensional_checks(built, worst["klr"].demand, steel.fy, steel.e))
+    if stiffened:
+        tfa_notes = stiffener_requirements(
+            shape, steel, stiffened, worst_tfa, options.tension_field
+        )
+        for c in checks:
+            if c["name"].startswith("Shear along y"):
+                c["note"] += "; " + "; ".join(tfa_notes)
     # The slenderness limits are for members designed for axial force; a beam's axial force
     # from the frame is usually incidental, so for beams they are reported as flags.
     beam = kind == "beam"
@@ -1573,6 +2228,32 @@ def brace_slenderness_check(
     return _check("Slenderness L/r (stability bracing)", worst, "", 1.0, flag=True)
 
 
+def _b31_notes(
+    shape: ShapeProperties,
+    stations: Sequence[Stations],
+    checks: list[dict[str, Any]],
+    options: SteelOptions,
+) -> list[str]:
+    """The member's notes of B31: torsion the pack in force does not cover, the shear the
+    lacing of a built-up member is designed for."""
+    from saengine.design.steel.built_up import BuiltUp, lacing_shear
+    from saengine.design.steel.torsion import has_torsion, members_data
+
+    out = []
+    if members_data() is None and any(has_torsion(st.T) for st in stations):
+        out.append("torsion: not covered by the code pack in force (not checked)")
+    built = BuiltUp.of(options.built_up)
+    if built is not None and built.lacing in ("single", "double"):
+        comp = next((c for c in checks if c["name"] == "Compression: buckling"), None)
+        if comp is not None:
+            v = lacing_shear(comp["capacity"] * 1e3)
+            out.append(
+                f"built-up member: the lacing is designed for a shear of {v / 1e3:.1f} kN normal "
+                "to the member"
+            )
+    return out
+
+
 def is_steel_member(material: Any) -> bool:
     """Whether a member of ``material`` is designed here (structural steel with fy)."""
     category = getattr(
@@ -1620,6 +2301,7 @@ def design_steel_member(
         if slender is not None:
             checks.append(slender)
     bracing = bracing_requirements(shape, stations, lengths, kind)
+    extra = _b31_notes(shape, stations, checks, options)
     for note in (*shape.notes, *steel.notes):
         for c in checks:
             if c["name"].startswith(("Tension", "Compression")):
@@ -1650,6 +2332,7 @@ def design_steel_member(
                     f"Lb = {b['Lb']:g} m)"
                     for b in bracing
                 ),
+                *extra,
             ],
         },
         "lengths": slenderness_note(lengths),

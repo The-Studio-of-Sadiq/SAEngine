@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, MaterialLibrary
 from saengine.library.modifiers import (  # noqa: F401 - MomentMagnifiers: for the editors
+    BuiltUpMember,
     DesignOverwrites,
     FrameModifiers,
     MomentMagnifiers,

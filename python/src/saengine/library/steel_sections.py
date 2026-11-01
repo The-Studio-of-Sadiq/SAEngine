@@ -394,6 +394,26 @@ def chs_section(name: str, d: float, t: float) -> SteelSection:
     return _section(name, "CHS", "circleHollow", (d, d, t, t, 0.0, 0.0), props, 2 * i, 0.0)
 
 
+def bar_section(name: str, h: float, b: float) -> SteelSection:
+    """A solid rectangular bar (flat or square), depth ``h`` and width ``b`` (B31: steel members
+    of a rectangle profile). J of a solid rectangle (long side a, short side c): a c³ (1/3 -
+    0.21 c/a (1 - c⁴ / (12 a⁴))); Cw taken as 0 (negligible for a solid section)."""
+    props = _combine([_rect(0, b, 0, h)], b, h)
+    a, c = max(h, b), min(h, b)
+    j = a * c**3 * (1 / 3 - 0.21 * c / a * (1 - c**4 / (12 * a**4)))
+    return _section(name, "bar", "rectangle", (h, b, b, h, 0.0, 0.0), props, j, 0.0)
+
+
+def round_section(name: str, d: float) -> SteelSection:
+    """A solid round bar of diameter ``d`` (B31: steel members of a circle profile)."""
+    a = math.pi / 4 * d**2
+    i = math.pi / 64 * d**4
+    s = 2 * i / d
+    z = d**3 / 6
+    props = _Props(a, d / 2, d / 2, i, i, 0.0, s, s, z, z)
+    return _section(name, "round", "circle", (d, d, d, d, 0.0, 0.0), props, 2 * i, 0.0)
+
+
 # ─────────────────────────────────────── the table ───────────────────────────────────────
 
 

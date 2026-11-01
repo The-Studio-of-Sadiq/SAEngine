@@ -50,9 +50,8 @@ export const FemPlanned = {
 	/** T27: base plate thickness, end-plate moment connections (anchors in concrete and moment-base rod tension: built in B26). */
 	basePlateDesign: 'fem.basePlateDesign',
 	endPlateMoment: 'fem.endPlateMoment',
-	/** T28: AISC 341 seismic systems, member torsion. */
+	/** T28: AISC 341 seismic systems (member torsion: built in B31). */
 	steelSeismic: 'fem.steelSeismic',
-	steelTorsion: 'fem.steelTorsion',
 	/** T30: cold-formed purlins and girts (AISI S100). */
 	coldFormedSteel: 'fem.coldFormedSteel',
 } as const;
@@ -61,7 +60,7 @@ export const FemPlanned = {
 export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.endPlateMoment];
 
 /** The planned steel stability and seismic features, shown with the steel members' checks. */
-export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.steelSeismic, FemPlanned.steelTorsion];
+export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.steelSeismic];
 
 /** The planned steel shed features (cold-formed purlins and girts), shown with the steel members' checks. */
 export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedSteel];

@@ -1680,6 +1680,197 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'BraceGussetConnection',
 			type: 'object',
 		},
+		BuiltUpMember: {
+			additionalProperties: false,
+			description: 'How the components of a built-up steel compression member are joined (B31): the\nmember\'s profile is the built-up section; these say what the modified slenderness and\nthe dimensional limits need [mm].',
+			properties: {
+				connectors: {
+					default: 'snugTight',
+					description: 'Intermediate connectors: snug-tight bolts, or welds / pretensioned bolts.',
+					enum: ['snugTight', 'welded'],
+					title: 'Connectors',
+					type: 'string',
+				},
+				spacing: {
+					description: 'a, between connectors.',
+					exclusiveMinimum: 0,
+					title: 'Connector spacing',
+					type: 'number',
+				},
+				axis: {
+					default: 'y',
+					description: 'The member axis whose buckling shears the connectors (the profile\'s x or y).',
+					enum: ['x', 'y'],
+					title: 'Buckling axis',
+					type: 'string',
+				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A section of the steel table (e.g. \'L 75x75x6\'): its radii are used.',
+					title: 'Component',
+				},
+				ri: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Least radius of gyration of a component.',
+					title: 'ri',
+				},
+				rib: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Radius of gyration of a component about its axis parallel to the buckling axis.',
+					title: 'rib',
+				},
+				separation: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance between the components\' centroids.',
+					title: 'h',
+				},
+				outsidePlate: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thinner outside plate.',
+					title: 'Outside plate t',
+				},
+				platePitch: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along the outside plate.',
+					title: 'Plate fastener spacing',
+				},
+				staggered: {
+					default: false,
+					title: 'Staggered fasteners',
+					type: 'boolean',
+				},
+				lacing: {
+					default: 'none',
+					enum: ['none', 'single', 'double'],
+					title: 'Lacing',
+					type: 'string',
+				},
+				lacingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unsupported length.',
+					title: 'Lacing bar length',
+				},
+				lacingRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its least radius of gyration.',
+					title: 'Lacing bar r',
+				},
+				tieDistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Between the lines of fasteners or welds connecting a tie plate.',
+					title: 'Tie plate line distance',
+				},
+				tieLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'End tie plate length',
+				},
+				tieThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Tie plate thickness',
+				},
+			},
+			required: ['spacing'],
+			title: 'BuiltUpMember',
+			type: 'object',
+		},
 		CircleHollowProfile: {
 			additionalProperties: false,
 			description: 'IfcCircleHollowProfileDef (pipe, CHS).',
@@ -2253,6 +2444,47 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
+				},
+				stiffenerSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: clear distance a between the transverse web stiffeners [mm]; none: unstiffened web. Tension field action is counted outside the end panels where the code allows it.',
+					title: 'Stiffener spacing',
+				},
+				warping: {
+					anyOf: [
+						{
+							enum: ['free', 'fixed'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel members under torsion: the ends free to warp (default) or restrained against warping.',
+					title: 'Warping at the ends',
+				},
+				builtUp: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BuiltUpMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel compression members built up from shapes joined by connectors, lacing or tie plates.',
+					title: 'Built-up member',
 				},
 			},
 			title: 'DesignOverwrites',
@@ -11118,6 +11350,197 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'BeamCorbels',
 			type: 'object',
 		},
+		BuiltUpMember: {
+			additionalProperties: false,
+			description: 'How the components of a built-up steel compression member are joined (B31): the\nmember\'s profile is the built-up section; these say what the modified slenderness and\nthe dimensional limits need [mm].',
+			properties: {
+				connectors: {
+					default: 'snugTight',
+					description: 'Intermediate connectors: snug-tight bolts, or welds / pretensioned bolts.',
+					enum: ['snugTight', 'welded'],
+					title: 'Connectors',
+					type: 'string',
+				},
+				spacing: {
+					description: 'a, between connectors.',
+					exclusiveMinimum: 0,
+					title: 'Connector spacing',
+					type: 'number',
+				},
+				axis: {
+					default: 'y',
+					description: 'The member axis whose buckling shears the connectors (the profile\'s x or y).',
+					enum: ['x', 'y'],
+					title: 'Buckling axis',
+					type: 'string',
+				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A section of the steel table (e.g. \'L 75x75x6\'): its radii are used.',
+					title: 'Component',
+				},
+				ri: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Least radius of gyration of a component.',
+					title: 'ri',
+				},
+				rib: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Radius of gyration of a component about its axis parallel to the buckling axis.',
+					title: 'rib',
+				},
+				separation: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance between the components\' centroids.',
+					title: 'h',
+				},
+				outsidePlate: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thinner outside plate.',
+					title: 'Outside plate t',
+				},
+				platePitch: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along the outside plate.',
+					title: 'Plate fastener spacing',
+				},
+				staggered: {
+					default: false,
+					title: 'Staggered fasteners',
+					type: 'boolean',
+				},
+				lacing: {
+					default: 'none',
+					enum: ['none', 'single', 'double'],
+					title: 'Lacing',
+					type: 'string',
+				},
+				lacingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unsupported length.',
+					title: 'Lacing bar length',
+				},
+				lacingRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its least radius of gyration.',
+					title: 'Lacing bar r',
+				},
+				tieDistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Between the lines of fasteners or welds connecting a tie plate.',
+					title: 'Tie plate line distance',
+				},
+				tieLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'End tie plate length',
+				},
+				tieThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Tie plate thickness',
+				},
+			},
+			required: ['spacing'],
+			title: 'BuiltUpMember',
+			type: 'object',
+		},
 		Corbel: {
 			additionalProperties: false,
 			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
@@ -11355,6 +11778,47 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
+				},
+				stiffenerSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: clear distance a between the transverse web stiffeners [mm]; none: unstiffened web. Tension field action is counted outside the end panels where the code allows it.',
+					title: 'Stiffener spacing',
+				},
+				warping: {
+					anyOf: [
+						{
+							enum: ['free', 'fixed'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel members under torsion: the ends free to warp (default) or restrained against warping.',
+					title: 'Warping at the ends',
+				},
+				builtUp: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BuiltUpMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel compression members built up from shapes joined by connectors, lacing or tie plates.',
+					title: 'Built-up member',
 				},
 			},
 			title: 'DesignOverwrites',
@@ -13158,6 +13622,197 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'BlockElement',
 			type: 'object',
 		},
+		BuiltUpMember: {
+			additionalProperties: false,
+			description: 'How the components of a built-up steel compression member are joined (B31): the\nmember\'s profile is the built-up section; these say what the modified slenderness and\nthe dimensional limits need [mm].',
+			properties: {
+				connectors: {
+					default: 'snugTight',
+					description: 'Intermediate connectors: snug-tight bolts, or welds / pretensioned bolts.',
+					enum: ['snugTight', 'welded'],
+					title: 'Connectors',
+					type: 'string',
+				},
+				spacing: {
+					description: 'a, between connectors.',
+					exclusiveMinimum: 0,
+					title: 'Connector spacing',
+					type: 'number',
+				},
+				axis: {
+					default: 'y',
+					description: 'The member axis whose buckling shears the connectors (the profile\'s x or y).',
+					enum: ['x', 'y'],
+					title: 'Buckling axis',
+					type: 'string',
+				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A section of the steel table (e.g. \'L 75x75x6\'): its radii are used.',
+					title: 'Component',
+				},
+				ri: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Least radius of gyration of a component.',
+					title: 'ri',
+				},
+				rib: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Radius of gyration of a component about its axis parallel to the buckling axis.',
+					title: 'rib',
+				},
+				separation: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance between the components\' centroids.',
+					title: 'h',
+				},
+				outsidePlate: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thinner outside plate.',
+					title: 'Outside plate t',
+				},
+				platePitch: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Along the outside plate.',
+					title: 'Plate fastener spacing',
+				},
+				staggered: {
+					default: false,
+					title: 'Staggered fasteners',
+					type: 'boolean',
+				},
+				lacing: {
+					default: 'none',
+					enum: ['none', 'single', 'double'],
+					title: 'Lacing',
+					type: 'string',
+				},
+				lacingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Unsupported length.',
+					title: 'Lacing bar length',
+				},
+				lacingRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its least radius of gyration.',
+					title: 'Lacing bar r',
+				},
+				tieDistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Between the lines of fasteners or welds connecting a tie plate.',
+					title: 'Tie plate line distance',
+				},
+				tieLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'End tie plate length',
+				},
+				tieThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Tie plate thickness',
+				},
+			},
+			required: ['spacing'],
+			title: 'BuiltUpMember',
+			type: 'object',
+		},
 		ColumnElement: {
 			additionalProperties: false,
 			properties: {
@@ -13492,6 +14147,47 @@ export const BIM_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
+				},
+				stiffenerSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: clear distance a between the transverse web stiffeners [mm]; none: unstiffened web. Tension field action is counted outside the end panels where the code allows it.',
+					title: 'Stiffener spacing',
+				},
+				warping: {
+					anyOf: [
+						{
+							enum: ['free', 'fixed'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel members under torsion: the ends free to warp (default) or restrained against warping.',
+					title: 'Warping at the ends',
+				},
+				builtUp: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BuiltUpMember',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel compression members built up from shapes joined by connectors, lacing or tie plates.',
+					title: 'Built-up member',
 				},
 			},
 			title: 'DesignOverwrites',
@@ -15753,6 +16449,11 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			z: 0.0,
 		},
 		rotation: 0.0,
+	},
+	BuiltUpMember: {
+		connectors: 'snugTight',
+		spacing: 600,
+		component: 'L 75x75x6',
 	},
 };
 
