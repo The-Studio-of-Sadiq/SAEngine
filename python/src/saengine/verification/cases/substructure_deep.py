@@ -298,8 +298,10 @@ def static_pile_case(_: Path) -> Outcome:
             Quantity("Ultimate capacity Qult", "kN", h["Qult"], result["Qult"], CLOSE),
         ],
         notes=[
-            "The critical depth is measured from the ground; the clay above the sand is "
-            "shallower than 6 m only in part, so the sand's σ'v is that at 6 m throughout."
+            (
+                "The critical depth is measured from the ground: the sand starts at 10 m, below "
+                "the 6 m critical depth, so its σ'v is that at 6 m throughout (Sec 3.10.1.15)."
+            )
         ],
     )
 
