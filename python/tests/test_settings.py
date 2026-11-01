@@ -33,6 +33,13 @@ def test_defaults_follow_bnbc_2020() -> None:
         "R": 8.0,
         "omega": 3.0,
         "Cd": 5.5,
+        # B2: by direction (Sec 2.5.5.5.1), the same with one system
+        "RX": 8.0,
+        "RY": 8.0,
+        "CdX": 5.5,
+        "CdY": 5.5,
+        "omegaX": 3.0,
+        "omegaY": 3.0,
     }
     assert [(a.id, a.live) for a in default.areaLoads] == [("FL", 2.0), ("ST", 4.8), ("RF", 1.0)]
 
@@ -54,6 +61,13 @@ def test_derived_values_follow_location_category_system_and_overrides() -> None:
         "R": 7.0,
         "omega": 3.0,
         "Cd": 5.5,
+        # B2: the override applies in both directions
+        "RX": 7.0,
+        "RY": 7.0,
+        "CdX": 5.5,
+        "CdY": 5.5,
+        "omegaX": 3.0,
+        "omegaY": 3.0,
     }
 
 

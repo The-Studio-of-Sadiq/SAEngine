@@ -196,6 +196,11 @@ class StructuralSystem(_Row):
     )
     momentFrame: bool = False
     periodFamily: str | None = None
+    group: str | None = Field(
+        default=None, description="Group of the code's system table (bearingWall, dualSpecial...)."
+    )
+    dual: bool = Field(default=False, description="A dual system (one row of the table).")
+    note: str | None = None
 
 
 class PeriodCoefficient(_Row):
@@ -214,6 +219,83 @@ class DesignCategories(BaseModel):
     aliases: dict[str, str] = Field(default_factory=dict)
 
 
+class SiteSpecificStudy(BaseModel):
+    """Site classes the code gives no spectrum for: they need a site-specific study."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    classes: list[str] = Field(default_factory=list)
+    #: The class whose row of the category table is assumed meanwhile.
+    assumedClass: str | None = None
+    clause: str = ""
+    #: Text of the warning; {classes}, {code}, {clause}, {used} and {assumed} are filled in.
+    warning: str = ""
+
+
+class DriftLimit(_Row):
+    """A row of the allowable storey drift table; the first row whose conditions hold applies
+    (a condition left empty always holds), else ``allowableDrift``."""
+
+    id: str
+    label: str
+    masonry: bool | None = Field(default=None, description="The system is a masonry one.")
+    cantileverWalls: bool | None = Field(
+        default=None, description="The walls are cantilevered from the base (no coupling)."
+    )
+    maxStoreys: int | None = Field(default=None, gt=0)
+    driftTolerantFinishes: bool | None = Field(
+        default=None,
+        description="Interior walls, partitions, ceilings and exterior walls designed to "
+        "accommodate the storey drift.",
+    )
+    limits: dict[str, float] = Field(description="Δa/hsx by occupancy category.")
+
+
+class DampingCorrection(BaseModel):
+    """The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +
+    100ξ)), at least ``minimum``; ``none``: η = dampingEta."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["none", "squareRoot"] = "none"
+    referenceDamping: float = Field(default=0.05, gt=0, lt=1)
+    numerator: float = 10.0
+    offset: float = 5.0
+    minimum: float = 0.0
+
+
+class SystemCombination(BaseModel):
+    """How the values of several systems in one direction combine: "min" or "max"."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    R: Literal["min", "max"] = "min"
+    Cd: Literal["min", "max"] = "max"
+    Omega0: Literal["min", "max"] = "max"
+    heightLimit: Literal["min", "max"] = "min"
+
+
+class Separation(BaseModel):
+    """Separation from adjacent structures: the gap to the property line is at least
+    ``propertyLineFactor``·δ; between units of one property the ``sameProperty`` combination
+    ("srss" or "sum") of the two δ; times ``equalFloorLevelsFactor`` where the floors align."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    propertyLineFactor: float = Field(default=1.0, gt=0)
+    sameProperty: Literal["srss", "sum"] = "srss"
+    equalFloorLevelsFactor: float = Field(default=1.0, gt=0, le=1)
+
+
+class DiaphragmDeflection(BaseModel):
+    """In-plane diaphragm deflection limit [mm]; empty: the code gives no number (the
+    permissible deflection of the attached elements, which the engineer enters)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    limit: float | None = Field(default=None, gt=0)
+
+
 class SeismicTable(TableModel):
     """Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis."""
 
@@ -223,7 +305,26 @@ class SeismicTable(TableModel):
     designCategories: DesignCategories
     requiredDetailing: dict[str, Literal["special", "intermediate", "ordinary"]]
     allowableDrift: dict[str, float] = Field(description="Δa/hsx by occupancy category.")
+    allowableDriftLabel: str = Field(
+        default="", description="The structures allowableDrift is for."
+    )
+    driftLimits: list[DriftLimit] = Field(
+        default_factory=list, description="Rows of the drift table before allowableDrift."
+    )
+    driftRedundancyCategories: list[str] = Field(
+        default_factory=list,
+        description="Seismic Design Categories where the drift limit of systems of moment "
+        "frames only is divided by the redundancy factor ρ.",
+    )
+    siteSpecificStudy: SiteSpecificStudy = Field(default_factory=SiteSpecificStudy)
     dampingEta: float = 1.0
+    dampingCorrection: DampingCorrection = Field(default_factory=DampingCorrection)
+    systemCombination: SystemCombination = Field(default_factory=SystemCombination)
+    separation: Separation = Field(default_factory=Separation)
+    diaphragmDeflection: DiaphragmDeflection = Field(default_factory=DiaphragmDeflection)
+    clauses: dict[str, str] = Field(
+        default_factory=dict, description="Clause references of the seismic results, by key."
+    )
     liveShare: float = Field(description="Share of the floor live load in the seismic weight.")
     heavyLiveLimit: float | None = Field(
         default=None,

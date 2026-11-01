@@ -767,6 +767,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Importance factor I (seismic)", fmt(values["seismicImportance"], 2)],
             ["Importance factor (wind)", fmt(values["windImportance"], 2)],
         ]
+        basis["seismic"] += _seismic_basis_extra(settings, pack, values, parts)
         basis["areaLoads"] = [
             [
                 load.id,
@@ -1545,8 +1546,8 @@ def _seismic_design(
     orthogonal = (
         f"100 % + 30 %: E = EX + 0.3EY and 0.3EX + EY ({clauses.get('orthogonal', '')}); "
         "the 5 % shift of the mass in one direction at a time, the larger effect governing: "
-        "AX or 0.3·AY with EX + 0.3EY, AY or 0.3·AX with 0.3EX + EY (BNBC 2020 Part 6 Sec "
-        "2.5.7.6.3, p. 631)"
+        "AX or 0.3·AY with EX + 0.3EY, AY or 0.3·AX with 0.3EX + EY "
+        f"({clauses.get('orthogonalOneShift', '')})"
         if summary.get("orthogonal")
         else f"one direction at a time (Seismic Design Category {summary.get('category') or '–'}, "
         f"{clauses.get('orthogonal', '')})"
@@ -1573,6 +1574,19 @@ def _seismic_design(
             for axis, value in sorted((summary.get("torsionAmplification") or {}).items())
         ),
         "driftFails": [not d["ok"] for d in summary.get("drift", [])],
+        # B2: the drift table row, diaphragm deflection (Sec 2.5.14.2), separation (2.5.14.3)
+        "driftRow": str((summary.get("driftRow") or {}).get("label", "")),
+        "diaphragm": rs.diaphragm_rows(summary),
+        "diaphragmFails": [r["ok"] is False for r in summary.get("diaphragmDeflection") or []],
+        "diaphragmClause": str(clauses.get("diaphragmDeflection", "")),
+        "separation": rs.separation_rows(summary),
+        "separationFails": [
+            not c["ok"] for c in (summary.get("separation") or {}).get("checks", [])
+        ],
+        "separationClause": str(clauses.get("separation", "")),
+        "maxDisplacement": fmt(
+            1e3 * float((summary.get("separation") or {}).get("maxDisplacement") or 0.0), 0
+        ),
         "amplification": fmt(summary.get("amplification"), 2),
         "notes": [str(n) for n in summary.get("notes", [])],
     }
@@ -1725,9 +1739,17 @@ def _drifts(
         if values["Cd"] and values["seismicImportance"]:
             amplify = values["Cd"] / values["seismicImportance"]
         try:
-            allowable = allowable_drift_ratio(settings.occupancy.category)
+            # B2: the row of the drift table for the project's systems and storeys.
+            from saengine.fem.seismic_design import settings_drift_limit
+
+            allowable = settings_drift_limit(settings, storeys=max(len(levels) - 1, 0) or None)[
+                "ratio"
+            ]
         except Exception:  # noqa: BLE001 - a code pack without the table: no limit printed
-            allowable = None
+            try:
+                allowable = allowable_drift_ratio(settings.occupancy.category)
+            except Exception:  # noqa: BLE001
+                allowable = None
 
     rows = []
     for entry, result in loaded:
@@ -2554,6 +2576,65 @@ def _required(results_dir: Path, model_path: Path, warnings: list[str]) -> dict[
 
 
 # ─────────────────────────────────────── soil and foundations ──────────────────────────────────
+
+
+def _seismic_basis_extra(
+    settings: Any, pack: Any, values: dict[str, Any], parts: _Parts
+) -> list[list[str]]:
+    """B2 rows of the seismic design basis: the systems by direction when they differ or are
+    combined (with the pack's combination clauses), the damping and its η, and the warning of
+    a site class that needs a site-specific study (also in the report's warnings)."""
+    from saengine.fem.loads import damping_correction
+    from saengine.library.settings import site_specific_warning, soil_flags, system_values
+
+    table = pack.table("seismic")
+    code = pack.edition or pack.name
+    cite = table.clauses
+    rows: list[list[str]] = []
+    by_axis = system_values(settings, pack)
+    x, y = by_axis["X"], by_axis["Y"]
+    if x["combined"] or y["combined"] or x["primary"] != y["primary"]:
+        for axis in ("X", "Y"):
+            a = by_axis[axis]
+            rows.append(
+                [
+                    f"Systems along {axis}",
+                    (
+                        f"{' + '.join(a['names'])}: R {fmt(a['R'], 2)}, Ω0 {fmt(a['Omega0'], 2)}, "
+                        f"Cd {fmt(a['Cd'], 2)}"
+                    ),
+                ]
+            )
+        rows.append(
+            [
+                "Combination of systems",
+                (
+                    f"each direction its own R, Ω0, Cd ({code} {cite.get('combinationDirections', '')}); "
+                    f"several in one direction: R the least, Cd and Ω0 the largest, the most "
+                    f"stringent height limit ({code} {cite.get('combinationSame', '')})"
+                ),
+            ]
+        )
+    if settings.seismic.damping is not None:
+        rows.append(
+            [
+                "Damping ratio ξ, correction η",
+                (
+                    f"{fmt(100 * settings.seismic.damping, 1)} %, η = "
+                    f"{fmt(damping_correction(settings.seismic.damping), 3)} "
+                    f"({code} {cite.get('damping', '')})"
+                ),
+            ]
+        )
+    site = parts.site() or {}
+    warning = site_specific_warning(
+        settings, soil_flags(settings, parts.text(SOIL_FILE)), site.get("class")
+    )
+    if warning:
+        rows.append(["Site-specific study", warning])
+        if warning not in parts.warnings:
+            parts.warnings.append(warning)
+    return rows
 
 
 def _site_class_text(parts: _Parts) -> str:

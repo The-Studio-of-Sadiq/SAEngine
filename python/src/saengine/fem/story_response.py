@@ -421,9 +421,10 @@ def _spectrum_curve(project: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _drift_limit(project_path: str | Path) -> dict[str, Any] | None:
-    """BNBC 2020 Part 6 Table 6.2.21: the allowable design drift ratio with Cd and I."""
+    """The allowable design drift ratio with Cd and I (the pack's drift table: the row of the
+    project's systems; its clause from the pack)."""
     from saengine.fem.combinations import settings_beside
-    from saengine.fem.seismic_design import allowable_drift_ratio
+    from saengine.fem.seismic_design import CLAUSES, settings_drift_limit
     from saengine.library.settings import derived
 
     settings = settings_beside(project_path)
@@ -431,14 +432,15 @@ def _drift_limit(project_path: str | Path) -> dict[str, Any] | None:
         return None
     try:
         values = derived(settings)
-        ratio = allowable_drift_ratio(settings.occupancy.category)
+        limit = settings_drift_limit(settings)
     except (KeyError, AttributeError, ValueError):
         return None
     return {
-        "ratio": ratio,
+        "ratio": limit["ratio"],
+        "row": limit["label"],
         "cd": values.get("Cd"),
         "importance": values.get("seismicImportance"),
-        "clause": "BNBC 2020 Part 6 Sec 2.5.14.1, Table 6.2.21",
+        "clause": CLAUSES["drift"],
     }
 
 

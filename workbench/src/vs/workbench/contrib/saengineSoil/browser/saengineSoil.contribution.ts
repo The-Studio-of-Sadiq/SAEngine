@@ -172,13 +172,13 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// 1D site response is planned (not in this MVP): BNBC 2020 flags site classes SE, S1 and S2
-// (Part 6 Chapter 2, Table 6.2.13) but gives no site response method of its own.
+// 1D site response is planned (not in this MVP): the code pack asks for a site-specific study for
+// site classes S1 and S2 (it gives no spectrum for them; SE has its own) but gives no method.
 registerPlannedFeature({
 	id: SITE_RESPONSE_FEATURE,
 	part: 'soil',
 	title: localize('soil.planned.siteResponse', "1D Site Response"),
-	summary: localize('soil.planned.siteResponseSummary', "An equivalent-linear 1D site response of the soil column under the building, whose surface spectrum feeds the response spectrum analysis for site classes SE, S1 and S2."),
+	summary: localize('soil.planned.siteResponseSummary', "An equivalent-linear 1D site response of the soil column under the building, whose surface spectrum feeds the response spectrum analysis for site classes S1 and S2, which the code gives no spectrum for (SE has its own). Until then SAEngine warns and keeps an assumed class."),
 	steps: [
 		localize('soil.planned.siteResponse1', "Build the soil column from the 3D stratigraphy at the building: thickness, unit weight and shear wave velocity of each unit."),
 		localize('soil.planned.siteResponse2', "Pick the modulus reduction and damping curves of each unit and the rock outcrop motions."),

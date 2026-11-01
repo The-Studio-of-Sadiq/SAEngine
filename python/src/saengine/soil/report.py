@@ -329,7 +329,9 @@ def soil_report(soil_text: str, settings_text: str | None = None) -> dict[str, A
             skipped.append(p.id)
     if liquefiable:
         notes.append(
-            site_class.S2_NOTE.format(cls=project_site["class"] or "SD")
+            site_class.S2_NOTE.format(
+                cls=project_site["class"] or "SD", clause=site_class.site_specific_clause()
+            )
             + " Shallow foundations on liquefiable layers need ground improvement or piles "
             "through them."
         )

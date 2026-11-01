@@ -236,7 +236,7 @@ def tower_checks(
     shears: dict[str, dict[str, dict[str, Any]]],
     spectra: dict[str, dict[str, Any]],
     levels: list[float],
-    amplification: float,
+    amplification: float | dict[str, float],
     allowable: float,
     scale: dict[str, float],
     forces: dict[str, Any] | None,
@@ -249,7 +249,7 @@ def tower_checks(
     (the design's, with the towers' factors in), ``forces`` and ``torsion_factor`` as in
     :func:`saengine.fem.seismic_design.seismic_design`."""
     from saengine.fem.seismic_design import (
-        MINIMUM_FRACTION,
+        _seismic,
         storey_drifts,
         torsional_irregularity,
     )
@@ -293,7 +293,7 @@ def tower_checks(
             if v["scale"] > 1.0 + 1e-9:
                 notes.append(
                     f"tower {region.name}, {axis}: its response spectrum shear at the podium top "
-                    f"({v['dynamic'] / 1e3:.0f} kN) is less than {100 * MINIMUM_FRACTION:.0f} % "
+                    f"({v['dynamic'] / 1e3:.0f} kN) is less than {100 * _seismic().minimumScale:.0f} % "
                     f"of its share of the static shear ({v['static'] / 1e3:.0f} kN): factor "
                     f"{v['scale']:.3f}; the design scales the building by "
                     f"{float(scale.get(axis, 1.0)):.3f}, the largest of the building and its "

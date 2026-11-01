@@ -2020,7 +2020,8 @@ def _derive_fem(
                 settings.site.siteClass,
                 values["Z"],
                 values["seismicImportance"],
-                values["R"],
+                values.get(f"R{case[1]}", values["R"]),  # each direction its own R (B2)
+                settings.seismic.damping,
             )
             shear = sa * sum(weights)
             forces = fl.vertical_distribution(rel_levels, shear, period)
@@ -2061,10 +2062,14 @@ def _derive_fem(
     # Earthquake and wind each need only their own site values (BNBC 2020 Part 6 Sec 2.5 the
     # zone coefficient Z, Sec 2.4 the basic wind speed V); a missing one is reported, and its
     # cases stay empty, never the other's.
-    approximate = 0.0
+    approximate = approximate_y = 0.0
     if heights and values["Z"]:
+        # Each direction with the period of its own system (Sec 2.5.5.5.1; B2).
+        approximate_y = fl.approximate_period(
+            hn, settings.seismic.systemY or settings.seismic.system
+        )
         approximate = fl.approximate_period(hn, settings.seismic.system)
-        loads, info = seismic_loads({"X": approximate, "Y": approximate})
+        loads, info = seismic_loads({"X": approximate, "Y": approximate_y})
         for case, nodal in loads.items():
             target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
             for node_id, vector in nodal.items():
@@ -2072,7 +2077,9 @@ def _derive_fem(
         summary.update(
             {
                 "period_s": approximate,
-                "Cs": fl.normalized_spectrum(approximate, settings.site.siteClass),
+                "Cs": fl.normalized_spectrum(
+                    approximate, settings.site.siteClass, settings.seismic.damping
+                ),
                 "Sa_g": info["EX"]["Sa_g"],
                 "base_shear_kN": info["EX"]["base_shear_kN"],
                 "periodMethod": "approximate",
@@ -2081,6 +2088,28 @@ def _derive_fem(
         )
         if eccentric:
             summary["accidentalTorsion"] = info["levels"]
+        # ── B2: the site-specific study warning (S1, S2 flagged by the soil report) and the
+        # height limit of the systems in the Seismic Design Category ──
+        from saengine.fem.seismic_design import height_limit_note, seismic_design_category, zone_of
+        from saengine.library.settings import (
+            category_site_class,
+            site_specific_warning,
+            soil_flags,
+        )
+
+        flags = soil_flags(settings)
+        site_warning = site_specific_warning(settings, flags)
+        if site_warning:
+            b.notes.append(site_warning)
+            summary["siteSpecific"] = site_warning
+        sdc = seismic_design_category(
+            zone_of(values["Z"]),
+            category_site_class(settings, settings.site.siteClass, flags),
+            settings.occupancy.category,
+        )
+        height_note = height_limit_note(settings, sdc, hn)
+        if height_note:
+            b.notes.append(height_note)
     if heights and values["windSpeed"]:
         from saengine.fem.loads import wind_overrides
 
@@ -2403,32 +2432,40 @@ def _derive_fem(
                 "solver": "auto",
             }
         )
-        # ── response spectrum: the BNBC design spectrum (already reduced by R), in m/s² ──
+        # ── response spectrum: the code's design spectrum (already reduced by R), in m/s²;
+        # one per direction when the systems along X and Y differ in R (Sec 2.5.5.5.1), with
+        # the damping correction of the structure's damping (B2) ──
         if options.responseSpectrum and values["Z"]:
             periods = list(SPECTRUM_PERIODS)
-            spectra.append(
-                {
-                    "id": 1,
-                    "name": "BNBC design spectrum",
-                    "type": "ResponseSpectrum",
-                    "periods": periods,
-                    "accelerations": [
-                        round(
-                            G
-                            * fl.design_acceleration(
-                                t,
-                                settings.site.siteClass,
-                                values["Z"],
-                                values["seismicImportance"],
-                                values["R"],
-                            ),
-                            6,
-                        )
-                        for t in periods
-                    ],
-                    "damping_ratio": 0.05,
-                }
-            )
+            damping = settings.seismic.damping or 0.05
+            r_of = {axis: values.get(f"R{axis}", values["R"]) for axis in ("X", "Y")}
+            ids = {"X": 1, "Y": 1 if r_of["Y"] == r_of["X"] else 2}
+            for axis in dict.fromkeys(ids.values()):
+                which = "X" if axis == 1 else "Y"
+                spectra.append(
+                    {
+                        "id": axis,
+                        "name": "Design spectrum" if axis == 1 else "Design spectrum Y",
+                        "type": "ResponseSpectrum",
+                        "periods": periods,
+                        "accelerations": [
+                            round(
+                                G
+                                * fl.design_acceleration(
+                                    t,
+                                    settings.site.siteClass,
+                                    values["Z"],
+                                    values["seismicImportance"],
+                                    r_of[which],
+                                    settings.seismic.damping,
+                                ),
+                                6,
+                            )
+                            for t in periods
+                        ],
+                        "damping_ratio": damping,
+                    }
+                )
             for direction, axis in ((1, "X"), (2, "Y")):
                 analyses.append(
                     {
@@ -2436,10 +2473,10 @@ def _derive_fem(
                         "name": f"R{axis}: Response spectrum {axis}",
                         "type": "ResponseSpectrum",
                         "modal_case_id": modal_id,
-                        "spectrum_id": 1,
+                        "spectrum_id": ids[axis],
                         "direction": direction,
                         "combination": "CQC",
-                        "damping_ratio": 0.05,
+                        "damping_ratio": damping,
                     }
                 )
         # ── time histories: each record after the dead loads (D, SD) ──
@@ -2656,10 +2693,10 @@ def _derive_fem(
             project,
             summary,
             b.notes,
-            approximate,
+            {"X": approximate, "Y": approximate_y},
             seismic_table,
             seismic_loads,
-            lambda t: fl.normalized_spectrum(t, settings.site.siteClass),
+            lambda t: fl.normalized_spectrum(t, settings.site.siteClass, settings.seismic.damping),
         )
     # ── the gust-effect factor of a flexible building (BNBC 2020 Part 6 Sec 2.4.8.2) ──
     if summary.get("wind"):
@@ -2681,7 +2718,7 @@ def _analysis_period(
     project: dict[str, Any],
     summary: dict[str, Any],
     notes: list[str],
-    approximate: float,
+    approximate: float | dict[str, float],
     seismic_table: Any,
     seismic_loads: Any,
     normalized: Any,
@@ -2695,21 +2732,24 @@ def _analysis_period(
 
     from saengine.fem.seismic_design import fundamental_periods
 
+    # Each direction's own Ta (a different system along Y, Sec 2.5.5.5.1).
+    ta = approximate if isinstance(approximate, dict) else {"X": approximate, "Y": approximate}
     try:
         modal = fundamental_periods(project)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         notes.append(
             f"period: the modal analysis failed ({error}); the approximate period "
-            f"Ta = {approximate:.3f} s is used"
+            f"Ta = {min(ta.values()):.3f} s is used"
         )
         return
     factor = float(getattr(seismic_table, "periodUpperFactor", None) or PERIOD_UPPER_FACTOR)
-    cap = factor * approximate
+    caps = {axis: factor * ta[axis] for axis in ("X", "Y")}
+    cap = caps["X"]
     # Not below Ta either: BNBC gives only the upper limit, but a period below Ta would take a
     # short building onto the rising branch of the spectrum (T < TB) and lower its base shear;
     # like a commercial analysis program (and ASCE 7 practice) the approximate period is the
     # lower bound.
-    periods = {axis: min(max(modal[axis]["period"], approximate), cap) for axis in ("X", "Y")}
+    periods = {axis: min(max(modal[axis]["period"], ta[axis]), caps[axis]) for axis in ("X", "Y")}
     loads, info = seismic_loads(periods)
     by_name = {p.get("name"): p for p in project.get("load_patterns", [])}
     for case, nodal in loads.items():
@@ -2741,12 +2781,12 @@ def _analysis_period(
         "period from the modal analysis (BNBC 2020 Part 6 Sec 2.5.7.2 (a)): "
         + "; ".join(
             f"{axis}: T = {modal[axis]['period']:.3f} s (mode {modal[axis]['mode']})"
-            + (f", capped at 1.4 Ta = {cap:.3f} s" if modal[axis]["period"] > cap else "")
             + (
-                f", not below Ta = {approximate:.3f} s"
-                if modal[axis]["period"] < approximate
+                f", capped at {factor:g} Ta = {caps[axis]:.3f} s"
+                if modal[axis]["period"] > caps[axis]
                 else ""
             )
+            + (f", not below Ta = {ta[axis]:.3f} s" if modal[axis]["period"] < ta[axis] else "")
             + f", V = {info['E' + axis]['base_shear_kN']:.1f} kN"
             for axis in ("X", "Y")
         )

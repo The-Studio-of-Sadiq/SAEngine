@@ -35,12 +35,25 @@ def approximate_period(height: float, system: str) -> float:
     return ct * height**m
 
 
-def normalized_spectrum(period: float, site_class: str) -> float:
-    """Normalized acceleration response spectrum Cs(T) for the site class (5 % damping)."""
+def damping_correction(damping: float | None = None) -> float:
+    """The spectrum's damping correction η for the viscous damping ratio ``damping`` (of
+    critical; None: the pack's reference damping), by the code pack's ``dampingCorrection``
+    (``squareRoot``: η = √(numerator / (offset + 100ξ)), at least its minimum)."""
+    seismic = code_context.table("seismic")
+    rule = seismic.dampingCorrection
+    if rule.method == "none" or damping is None or damping == rule.referenceDamping:
+        return seismic.dampingEta
+    eta = math.sqrt(rule.numerator / (rule.offset + 100.0 * float(damping)))
+    return max(rule.minimum, eta)
+
+
+def normalized_spectrum(period: float, site_class: str, damping: float | None = None) -> float:
+    """Normalized acceleration response spectrum Cs(T) for the site class, with the damping
+    correction η of the viscous damping ratio ``damping`` (None: the code's reference, 5 %)."""
     seismic = code_context.table("seismic")
     site = seismic.siteClasses[site_class]
     s, tb, tc, td = site.S, site.TB, site.TC, site.TD
-    eta = seismic.dampingEta
+    eta = damping_correction(damping)
     if period <= tb:
         return s * (1 + period / tb * (2.5 * eta - 1))
     if period <= tc:
@@ -51,10 +64,16 @@ def normalized_spectrum(period: float, site_class: str) -> float:
 
 
 def design_acceleration(
-    period: float, site_class: str, z: float, importance: float, r: float
+    period: float,
+    site_class: str,
+    z: float,
+    importance: float,
+    r: float,
+    damping: float | None = None,
 ) -> float:
-    """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g."""
-    return 2 / 3 * z * importance / r * normalized_spectrum(period, site_class)
+    """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g (``damping``:
+    see :func:`normalized_spectrum`)."""
+    return 2 / 3 * z * importance / r * normalized_spectrum(period, site_class, damping)
 
 
 def vertical_distribution(

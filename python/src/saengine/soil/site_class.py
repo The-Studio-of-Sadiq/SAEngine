@@ -269,17 +269,27 @@ def soft_run(profile: Profile) -> str | None:
     layers = ", ".join(f"layer {layer.index + 1} {why}" for layer, why in run)
     return (
         f"S1 possible: {bottom - top:.1f} m of soft clay/silt from {top:.1f} to {bottom:.1f} m "
-        f"({layers}). BNBC Table 6.2.13's S1 is a layer at least 10 m thick of soft clays/silts "
+        f"({layers}). Table 6.2.13's S1 is a layer at least 10 m thick of soft clays/silts "
         "with PI > 40 and a high water content (su 10-20 kPa), which needs a site-specific "
-        "study (Sec 2.5.3.1); the water content is not checked. The class from the SPT is used "
-        "meanwhile."
+        f"study ({site_specific_clause()}); the water content is not checked. The class from "
+        "the SPT is used meanwhile."
     )
 
 
 S2_NOTE = (
-    "S2 — liquefiable layers found: BNBC Table 6.2.13 classes the site S2, which needs a "
-    "site-specific study (Sec 2.5.3.1); {cls} is used for the design spectrum meanwhile."
+    "S2 — liquefiable layers found: Table 6.2.13 classes the site S2, which needs a "
+    "site-specific study ({clause}); {cls} is used for the design spectrum meanwhile."
 )
+
+
+def site_specific_clause() -> str:
+    """Where the code in force asks for a site-specific study: its name and the pack's
+    ``seismic.siteSpecificStudy.clause``."""
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    clause = code_context.table("seismic").siteSpecificStudy.clause
+    return f"{pack.edition or pack.name} {clause}".strip()
 
 
 def flag_liquefaction(site: dict[str, Any], liquefiable: bool) -> dict[str, Any]:
@@ -288,7 +298,7 @@ def flag_liquefaction(site: dict[str, Any], liquefiable: bool) -> dict[str, Any]
     if not liquefiable or not site.get("class"):
         return site
     cls = softer(site["class"], "SD")
-    note = S2_NOTE.format(cls=cls)
+    note = S2_NOTE.format(cls=cls, clause=site_specific_clause())
     out = {**site, "flags": [*site.get("flags", []), {"class": "S2", "note": note}]}
     if cls != site["class"]:
         out["class"], out["fromSpt"] = cls, site["class"]
