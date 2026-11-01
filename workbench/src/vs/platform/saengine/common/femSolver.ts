@@ -711,6 +711,12 @@ export interface IQgisOpenResult {
 export type ProjectPlatformMethod =
 	| 'project/exportArchive' | 'project/inspectArchive' | 'project/importArchive'
 	| 'versions/status' | 'versions/list' | 'versions/save' | 'versions/diff' | 'versions/restore' | 'versions/markIssued'
+	// The office copy of the versions (`saengine.project.share`): `share/status` `{projectRoot, user?, fetch?}`,
+	// `share/connect` `{projectRoot, location, author?}`, `share/disconnect` `{projectRoot}`, `share/join`
+	// `{location, target}`, `share/sync` `{projectRoot, author?, resolutions?, user?}`, `share/lock`
+	// `{projectRoot, part, user?, note?}`, `share/unlock` `{projectRoot, part, user?, force?}`,
+	// `share/heartbeat` `{projectRoot, user?, part?, leaving?}`.
+	| 'share/status' | 'share/connect' | 'share/disconnect' | 'share/join' | 'share/sync' | 'share/lock' | 'share/unlock' | 'share/heartbeat'
 	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
 	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
 	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
