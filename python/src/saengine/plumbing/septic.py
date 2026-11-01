@@ -1,4 +1,5 @@
-"""Septic tank and soak well (BNBC 2020 Part 8 Sec 6.9.12-6.9.15, Appendix S).
+"""Septic tank and soak well (the code pack's; BNBC 2020 Part 8 Sec 6.9.12-6.9.15, Appendix S,
+in the default pack).
 
 - Volume (Appendix S Eq 8.S.1): V = P Q t + P S Y [litres]: P persons served, Q waste water
   flow (Appendix S, in the absence of data: 120 lpcd for occupancy groups A, C and D in cities,
@@ -11,7 +12,7 @@
   widths, 300 mm from the liquid to the cover, two chambers above 3000 litres (the inlet one
   2/3 of the length); at most 300 users for a residential tank (Sec 6.9.12.9): above 300
   residential users an Imhoff tank shall be used (Sec 6.9.13.2), which SAEngine reports as a
-  failing check and does not design (no septic tank is proposed). Other occupancies (BNBC sets
+  failing check and does not design (no septic tank is proposed). Other occupancies (the default pack sets
   no cap): SAEngine splits the users into tanks of at most 300. SAEngine proportions: liquid depth = width
   = (V/3)^(1/3) within 1 to 2 m, length = 3 widths, rounded up to 50 mm.
 - Soak well (seepage pit, Sec 6.9.15): liquid capacity at least twice the septic tank's (Sec
@@ -148,7 +149,7 @@ def septic_tank(plumbing: Any, building: Building, tank: Any = None) -> dict[str
         notes.append(
             f"{persons:g} equivalent users (of them {resident:g} residential, at most "
             f"{T.SEPTIC_MAX_USERS} a residential tank, Sec 6.9.12.9): {count} tanks proposed "
-            "(SAEngine: BNBC sets no cap for other occupancies)"
+            "(SAEngine: the code sets no cap for other occupancies)"
         )
     each = persons / count
     v = volume(each, flow, retention, desludging)

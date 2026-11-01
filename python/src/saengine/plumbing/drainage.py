@@ -1,4 +1,4 @@
-"""Sanitary drainage (BNBC 2020 Part 8 Sec 6.10): stacks, branches, vents, building drain.
+"""Sanitary drainage (the code pack's; Part 8 Sec 6.10 in the default pack): stacks, branches, vents, building drain.
 
 - Load (Sec 6.10.1): drainage fixture units of Table 8.6.12 (Table 8.6.13 for the washing
   machine, by a 50 mm trap). Soil fixtures (water closets, urinals; Table 8.6.2's soil

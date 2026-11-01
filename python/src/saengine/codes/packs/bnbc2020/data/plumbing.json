@@ -53,7 +53,17 @@
     "S": "BNBC 2020 Part 8 Appendix S Eq 8.S.1 and Table 8.S.1 (p1214-1215)",
     "4.4.1": "BNBC 2020 Part 4 Table 4.4.1 (Sec 4.2.1) (p322)",
     "3:2.4.4": "BNBC 2020 Part 3 Sec 2.4.4 (p94)",
-    "8.O.2": "BNBC 2020 Part 8 Appendix O Tables 8.O.2(a)-(c) (p1197-1199)"
+    "8.O.2": "BNBC 2020 Part 8 Appendix O Tables 8.O.2(a)-(c) (p1197-1199)",
+    "5.8.1": "BNBC 2020 Part 8 Sec 5.8.1 (p1040)",
+    "5.8.2": "BNBC 2020 Part 8 Sec 5.8.2 (p1040)",
+    "5.8.3": "BNBC 2020 Part 8 Sec 5.8.3 (p1040)",
+    "5.8.4": "BNBC 2020 Part 8 Sec 5.8.4 (p1040)",
+    "5.9.2.2": "BNBC 2020 Part 8 Sec 5.9.2.2 (p1043)",
+    "5.10.3": "BNBC 2020 Part 8 Sec 5.10.3 (p1045)",
+    "5.10.4.3": "BNBC 2020 Part 8 Sec 5.10.4.3 (p1048)",
+    "5.10.5": "BNBC 2020 Part 8 Sec 5.10.5 (p1048)",
+    "5.5-5.6": "BNBC 2020 Part 8 Sec 5.5-5.6",
+    "5.5.2-5.6": "BNBC 2020 Part 8 Sec 5.5.2, 5.6"
   },
   "occupancies": {
     "singleFamily": {
@@ -2217,6 +2227,314 @@
       "floorDrain": 1
     }
   },
+  "fixtureFlow": {
+    "wc": 11.4,
+    "urinal": 56.8,
+    "shower": 11.4,
+    "bathtub": 15.1,
+    "kitchenSink": 9.5
+  },
+  "fixtureFlowValve": {
+    "wc": 132.0
+  },
+  "outletAboveBottom": 50,
+  "fittings": {
+    "sizes": [
+      13,
+      19,
+      25,
+      32,
+      38,
+      50,
+      63,
+      75,
+      88,
+      100,
+      125,
+      150,
+      200
+    ],
+    "lengths": {
+      "elbow": [
+        0.49,
+        0.61,
+        0.79,
+        1.01,
+        1.22,
+        1.53,
+        1.83,
+        2.29,
+        2.75,
+        3.05,
+        3.97,
+        4.88,
+        6.1
+      ],
+      "teeBranch": [
+        0.92,
+        1.22,
+        1.53,
+        2.14,
+        2.44,
+        3.05,
+        3.66,
+        4.58,
+        5.49,
+        6.41,
+        7.63,
+        9.15,
+        12.2
+      ],
+      "teeRun": [
+        0.31,
+        0.43,
+        0.52,
+        0.7,
+        0.79,
+        1.01,
+        1.25,
+        1.53,
+        1.8,
+        2.04,
+        2.5,
+        3.05,
+        3.97
+      ],
+      "gate": [
+        0.21,
+        0.27,
+        0.31,
+        0.46,
+        0.55,
+        0.7,
+        0.85,
+        0.98,
+        1.22,
+        1.37,
+        1.83,
+        2.14,
+        2.75
+      ],
+      "check": [
+        1.83,
+        2.44,
+        3.05,
+        4.27,
+        4.88,
+        6.1,
+        7.63,
+        9.15,
+        10.68,
+        12.2,
+        15.25,
+        18.3,
+        24.4
+      ]
+    }
+  },
+  "tanks": {
+    "coverStrengths": [
+      20,
+      25,
+      30,
+      35,
+      40,
+      45,
+      50
+    ],
+    "cover": {
+      "mild": [
+        30,
+        25,
+        20,
+        20,
+        20,
+        20,
+        20
+      ],
+      "moderate": [
+        40,
+        35,
+        30,
+        25,
+        20,
+        20,
+        20
+      ],
+      "severe": [
+        null,
+        45,
+        40,
+        30,
+        25,
+        25,
+        20
+      ],
+      "verySevere": [
+        null,
+        null,
+        50,
+        40,
+        30,
+        30,
+        25
+      ],
+      "extreme": [
+        null,
+        null,
+        null,
+        60,
+        50,
+        40,
+        30
+      ]
+    },
+    "weatherCover": [
+      50,
+      40
+    ],
+    "weatherBarFrom": 19,
+    "againstEarth": 75,
+    "wallMinVertical": [
+      0.0012,
+      0.0015
+    ],
+    "wallMinHorizontal": [
+      0.002,
+      0.0025
+    ],
+    "wallMinBarUpTo": 16,
+    "wallMinFyFrom": 420,
+    "maxSpacingFactor": 3,
+    "maxSpacing": 450,
+    "maxWaterCement": 0.5,
+    "combinations": [
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (1)",
+        "factors": {
+          "D": 1.4,
+          "F": 1.4
+        },
+        "eachFluid": true
+      },
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (2), H = 0",
+        "factors": {
+          "D": 1.2,
+          "F": 1.2,
+          "Lr": 0.5
+        },
+        "eachFluid": true
+      },
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (2)",
+        "factors": {
+          "D": 1.2,
+          "F": 1.2,
+          "H": 1.6,
+          "Lr": 0.5
+        },
+        "eachFluid": true,
+        "requires": [
+          "H"
+        ]
+      },
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (2), F = 0",
+        "factors": {
+          "D": 1.2,
+          "H": 1.6,
+          "Lr": 0.5
+        },
+        "requires": [
+          "H"
+        ]
+      },
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (6), W = 0",
+        "factors": {
+          "D": 0.9,
+          "H": 1.6
+        },
+        "requires": [
+          "H"
+        ]
+      },
+      {
+        "kind": "strength",
+        "clause": "2.7.3.1 (3)",
+        "factors": {
+          "D": 1.2,
+          "Lr": 1.6
+        },
+        "requires": [
+          "Lr"
+        ]
+      },
+      {
+        "kind": "service",
+        "clause": "2.7.2.1 (1)",
+        "factors": {
+          "D": 1.0,
+          "F": 1.0
+        },
+        "eachFluid": true
+      },
+      {
+        "kind": "service",
+        "clause": "2.7.2.1 (2)",
+        "factors": {
+          "D": 1.0,
+          "F": 1.0,
+          "H": 1.0
+        },
+        "eachFluid": true,
+        "requires": [
+          "H"
+        ]
+      },
+      {
+        "kind": "service",
+        "clause": "2.7.2.1 (2), F = 0",
+        "factors": {
+          "D": 1.0,
+          "H": 1.0
+        },
+        "requires": [
+          "H"
+        ]
+      },
+      {
+        "kind": "service",
+        "clause": "2.7.2.1 (3)",
+        "factors": {
+          "D": 1.0,
+          "F": 1.0,
+          "H": 1.0,
+          "Lr": 1.0
+        },
+        "requires": [
+          "Lr"
+        ]
+      },
+      {
+        "kind": "service",
+        "clause": "2.7.2.1 (7), W = 0",
+        "factors": {
+          "D": 0.6,
+          "H": 1.0
+        },
+        "requires": [
+          "H"
+        ]
+      }
+    ]
+  },
   "sources": {
     "occupancies": "BNBC 2020 Part 8 Tables 8.5.1(a)-(d) (p1034-1037); residential rows take the Part 3 group of the building type; Table 8.5.1(c) ranges: the upper value",
     "familySize": "BNBC 2020 Part 8 Sec 5.6.3-5.6.4 (p1039)",
@@ -2262,11 +2580,24 @@
     "stormDrains": "BNBC 2020 Part 8 Table 8.7.4 (p1141)",
     "minStormDrain": "BNBC 2020 Part 8 Sec 7.10.6.3",
     "outsideDiameter": "SAEngine (from memory, to be checked against the manufacturer): plastics by the ISO metric series, metal by ISO 65 / BS EN 10255",
-    "hazenC": "SAEngine (from memory, to be checked)",
+    "hazenC": "SAEngine (from memory, to be checked): BNBC 2020 Part 8 gives only the C = 100 nomograph, Figure 8.O.4",
     "sleeveClearance": "SAEngine practice (BNBC Part 8 gives no sleeve rule)",
     "sleeveSizes": "SAEngine practice",
     "shaftClearance": "SAEngine practice",
     "wetRoomKinds": "SAEngine defaults from common Bangladeshi practice, not BNBC",
-    "roomFixtures": "SAEngine defaults from common Bangladeshi practice, not BNBC (Part 8 Sec 4 gives the fixtures of a building, not of a room)"
+    "roomFixtures": "SAEngine defaults from common Bangladeshi practice, not BNBC (Part 8 Sec 4 gives the fixtures of a building, not of a room)",
+    "fixtureFlow": "BNBC 2020 Part 8 Table 8.5.6 (p1047): required flow rate of a single fixture, the least flow a floor branch carries; pedestal urinal 56.8 l/min with a flush tank or a flushometer valve alike",
+    "fixtureFlowValve": "BNBC 2020 Part 8 Table 8.5.6 (p1047): water closet, flush valve",
+    "outletAboveBottom": "BNBC 2020 Part 8 Sec 5.9.2.2 (p1043): at least 50 mm",
+    "fittings": "BNBC 2020 Part 8 Appendix O Tables 8.O.2(a)-(c) (p1197-1199): (a) smooth bend elbow 90 degrees standard; (b) smooth bend tee, flow through the branch, and straight-through flow without reduction; (c) gate valve and swing check valve",
+    "septic.coverLive": "BNBC 2020 Part 8 Sec 6.9.12.14 (p1107): the manhole cover and the roof of a septic tank designed for at least 7 kPa",
+    "tanks.cover": "BNBC 2020 Part 6 Table 6.8.3 (p1069-1070): nominal cover by exposure and f'c, null below the least strength the table gives; Sec 8.1.7.4: the larger of it and Sec 8.1.7.2",
+    "tanks.weatherCover": "BNBC 2020 Part 6 Sec 8.1.7.2(b) (p1069): exposed to earth or weather, 50 mm for 19-57 mm bars, 40 mm for 16 mm and smaller",
+    "tanks.againstEarth": "BNBC 2020 Part 6 Sec 8.1.7.2(a) (p1069): cast against and permanently exposed to earth, 75 mm",
+    "tanks.wallMin": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.3 (p969): walls, vertical 0.0012 (bars up to 16 mm, fy at least 420 MPa) or 0.0015, horizontal 0.0020 or 0.0025 of the gross section",
+    "tanks.maxSpacing": "BNBC 2020 Part 6 Sec 6.6.3.5 (p969): wall bars at most 3h or 450 mm apart (SAEngine applies it to the slabs too, as ACI 318-19 7.7.2.3)",
+    "tanks.maxWaterCement": "BNBC 2020 Part 6 Sec 5.5.1.1 (p844): w/c at most 0.50 for concrete of low permeability",
+    "tanks.combinations": "BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and 2.7.2.1 (service) (p684-685), the cases a tank has: (2) also with H = 0 (tested full before backfilling) and F = 0 (empty, backfilled), as the effects of loads not acting shall be investigated; W = 0",
+    "tanks.uplift": "BNBC 2020 Part 6 Sec 2.6.5.2 (p680): uplift, the full hydrostatic pressure on the underside of the base"
   }
 }

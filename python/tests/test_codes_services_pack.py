@@ -32,7 +32,15 @@ def _user_folder(tmp_path, monkeypatch):
 def _differences(module_name: str, stem: str) -> list[str]:
     module = importlib.import_module(module_name)
     old = {k: v for k, v in frozen(stem).items() if "(" not in k}  # calls: their own tests
-    return [d for name in old for d in same(old[name], plain(getattr(module, name)), name)]
+    out = []
+    for name, value in old.items():
+        new = plain(getattr(module, name))
+        if name == "PAGES":
+            # D5: the modules cite more clauses from the pack (new keys after the old ones);
+            # every old citation is kept as it was.
+            new = {k: new[k] for k in list(new)[: len(value)]}
+        out += same(value, new, name)
+    return out
 
 
 def test_plumbing_table_equals_the_old_module():

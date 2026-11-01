@@ -6,22 +6,23 @@ The network is built from the ``plumbing`` section of ``07 MEP/mep.json`` and so
 standard solver of pipe networks:
 
 * each overhead tank is a fixed-head source (a WNTR reservoir) at its minimum water level: the
-  story it stands on + its base slab + the 50 mm the outlet stands above the tank bottom (BNBC
-  2020 Part 8 Sec 5.9.2.2): the steady state at the end of a draw-down, the worst case;
+  story it stands on + its base slab + the outlet's height above the tank bottom (the code
+  pack's; 50 mm, BNBC 2020 Part 8 Sec 5.9.2.2, in the default pack): the steady state at the
+  end of a draw-down, the worst case;
 * a header from the tank outlet to the top of each cold-water down-feed riser (horizontal at
   the outlet level, its length the plan distance |dx| + |dy|), the riser a chain of pipes
   between the take-offs at the floors it serves, and from each take-off a floor branch to a
   demand node at the critical fixture (the shower rose where the floor has showers, else the
   1 m of a tap);
-* the demands are the probable simultaneous demands of BNBC Table 8.5.5 (flush tanks; flush
+* the demands are the probable simultaneous demands of the code pack (Table 8.5.5 (flush tanks; flush
   valves when the supply says so) of the fixture units the riser carries, counted from its far
   end: each riser segment carries the Table 8.5.5 flow of all the fixture units below it (down
   feed), each floor branch the flow of its own floor;
-* Hazen-Williams friction (BNBC Sec 5.10.3 allows it for building pipes); fittings as
-  equivalent pipe lengths from BNBC Tables 8.O.2(a)-(c).
+* Hazen-Williams friction (the default pack's Sec 5.10.3 allows it for building pipes); fittings
+  as equivalent pipe lengths from the pack (Tables 8.O.2(a)-(c) in the default pack).
 
 The results are the residual heads at the take-offs and fixtures against the minimum flow
-pressure of BNBC Table 8.5.6 (55 kPa, 100 kPa for flush valves) during the peak (Sec 5.10.4.3),
+pressure of the pack (Table 8.5.6 in the default pack: 55 kPa, 100 kPa for flush valves) during the peak (Sec 5.10.4.3),
 the static head with the tank full against the 35 m (345 kPa) of Sec 5.10.4.2 (Sec 5.11.1: 350
 kPa) with the pressure zones a tall building needs (Sec 5.11.1: intermediate tanks or pressure
 reducing valves), the velocities against the probable maximum velocities of Sec 5.10.1(c)(ii),
@@ -46,68 +47,73 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from saengine.mep import code_pack
 from saengine.plumbing import tables as T
 from saengine.plumbing.demand import hunter_flow, supply_units
 from saengine.plumbing.supply import size_pipe, velocity_limit
 
 G = 9.80665  # m/s²
 RHO = 1000.0  # kg/m³, water
-KPA_PER_M = 9.807  # kPa per metre of water, as BNBC eq. 8.O.1
+KPA_PER_M = 9.807  # kPa per metre of water (ρg; eq. 8.O.1 of the default pack uses it)
 
 BIM_FILE = "06 BIM/bim.json"
 MEP_FILE = "07 MEP/mep.json"
 SETTINGS_FILE = "02 Project Settings/project-settings.json"
 
-# ─────────────────────────────────── BNBC 2020 Part 8 data ───────────────────────────────────
-# The tables of the plumbing sizing (saengine.plumbing.tables: Table 8.5.5, the supply fixture
-# units of Tables 8.O.1 and 8.5.4, the velocity limits of Sec 5.10.1(c)(ii), Table 8.5.6's flow
-# pressures, Sec 5.10.4.2's 35 m, the Hazen-Williams C) are shared, so that the hydraulics and
-# the sizing agree; this module adds what only the network needs.
+# ─────────────────────────────────── the code pack's data ───────────────────────────────────
+# The tables of the plumbing sizing (saengine.plumbing.tables: the probable demand, the supply
+# fixture units, the velocity limits, the flow pressures, the largest static head, the
+# Hazen-Williams C) are shared, so that the hydraulics and the sizing agree; the pack's
+# ``plumbing`` table also gives what only the network needs: the required flow of a single
+# fixture (FIXTURE_FLOW, FIXTURE_FLOW_VALVE), the tank outlet above its bottom
+# (OUTLET_ABOVE_BOTTOM [mm]) and the fittings' equivalent lengths (FITTING_SIZES, FITTINGS).
+# In the default pack: Table 8.5.6, Sec 5.9.2.2 and Tables 8.O.2(a)-(c) of BNBC 2020 Part 8.
 
-#: The table names this module offered under its own names, read from the pack in force:
-#: the minimum flow pressure at the fixtures, BNBC Table 8.5.6 (p. 1047) [kPa]; the maximum
-#: water head on any fitting, BNBC Sec 5.10.4.2 (p. 1047): 35 m (345 kPa; Sec 5.11.1 (p. 1049)
-#: gives 350 kPa for tall buildings); the Hazen-Williams C by pipe material (BNBC gives only the
-#: C = 100 nomograph, Figure 8.O.4).
+#: The table names this module offered under its own names, read from the pack in force.
 _TABLE_ALIASES = {
     "REQUIRED_KPA": "FLOW_PRESSURE_TANK",
     "REQUIRED_KPA_FLUSH_VALVE": "FLOW_PRESSURE_VALVE",
     "MAX_HEAD": "MAX_STATIC_HEAD",
     "HAZEN_C": "HAZEN_C",
+    "FIXTURE_FLOW": "FIXTURE_FLOW",
+    "FITTING_SIZES": "FITTING_SIZES",
+    "FITTINGS": "FITTINGS",
 }
 
 
 def __getattr__(name: str) -> Any:
     if name in _TABLE_ALIASES:
         return getattr(T, _TABLE_ALIASES[name])
+    if name == "FIXTURE_FLOW_FLUSH_VALVE_WC":  # the former constant
+        return T.FIXTURE_FLOW_VALVE["wc"]
+    if name == "OUTLET_ABOVE_BOTTOM":  # the former constant [m]
+        return outlet_above_bottom()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-#: Required flow rate of a single fixture [L/min], BNBC Table 8.5.6 (p. 1047): the least flow a
-#: floor branch carries (below the 20 units where Table 8.5.5 starts it can give less).
-#: Pedestal urinal 56.8 L/min with a flush tank or a flushometer valve alike.
-FIXTURE_FLOW = {"wc": 11.4, "urinal": 56.8, "shower": 11.4, "bathtub": 15.1, "kitchenSink": 9.5}
-FIXTURE_FLOW_FLUSH_VALVE_WC = 132.0
+def outlet_above_bottom() -> float:
+    """The outlet of a storage tank above its bottom [m] (the pack's ``outletAboveBottom``)."""
+    return T.OUTLET_ABOVE_BOTTOM / 1000.0
 
-#: The outlet of a storage tank at least 50 mm above its bottom, BNBC Sec 5.9.2.2 (p. 1043).
-OUTLET_ABOVE_BOTTOM = 0.050
 
-#: Equivalent lengths of fittings [m], BNBC Tables 8.O.2(a)-(c) (pp. 1197-1199), by nominal
-#: size [mm].
-FITTING_SIZES = (13, 19, 25, 32, 38, 50, 63, 75, 88, 100, 125, 150, 200)
-FITTINGS = {
-    # Table 8.O.2(a) smooth bend elbow 90° standard
-    "elbow": (0.49, 0.61, 0.79, 1.01, 1.22, 1.53, 1.83, 2.29, 2.75, 3.05, 3.97, 4.88, 6.10),
-    # Table 8.O.2(b) smooth bend tee, flow through the branch
-    "teeBranch": (0.92, 1.22, 1.53, 2.14, 2.44, 3.05, 3.66, 4.58, 5.49, 6.41, 7.63, 9.15, 12.20),
-    # Table 8.O.2(b) smooth bend tee, straight-through flow, no reduction
-    "teeRun": (0.31, 0.43, 0.52, 0.70, 0.79, 1.01, 1.25, 1.53, 1.80, 2.04, 2.50, 3.05, 3.97),
-    # Table 8.O.2(c) gate valve
-    "gate": (0.21, 0.27, 0.31, 0.46, 0.55, 0.70, 0.85, 0.98, 1.22, 1.37, 1.83, 2.14, 2.75),
-    # Table 8.O.2(c) swing check valve
-    "check": (1.83, 2.44, 3.05, 4.27, 4.88, 6.10, 7.63, 9.15, 10.68, 12.20, 15.25, 18.30, 24.40),
-}
-#: The fittings SAEngine allows on each kind of pipe (its own allowance, not BNBC's).
+def covered() -> bool:
+    """Whether the pack in force gives what the network needs (its ``plumbing`` table with the
+    fixture flows, the tank outlet and the fittings)."""
+    if not code_pack.covers("plumbing"):
+        return False
+    return None not in (T.FIXTURE_FLOW, T.OUTLET_ABOVE_BOTTOM, T.FITTINGS)
+
+
+def _by_material() -> str:
+    """The Hazen-Williams C by pipe material, materials of the same C together:
+    'uPVC/PPR/HDPE 150, GI 120, CI 100'."""
+    groups: dict[float, list[str]] = {}
+    for name, c in T.HAZEN_C.items():
+        groups.setdefault(c, []).append(name)
+    return ", ".join(f"{'/'.join(names)} {c:g}" for c, names in groups.items())
+
+
+#: The fittings SAEngine allows on each kind of pipe (its own allowance, not the code's).
 HEADER_FITTINGS = {"elbow": 2, "gate": 1}  # tank outlet valve and two bends
 RISER_FITTINGS = {"teeRun": 1}  # the take-off tee of each floor
 BRANCH_FITTINGS = {"teeBranch": 1, "gate": 1, "elbow": 4}  # floor control valve (Sec 5.8)
@@ -138,7 +144,7 @@ def estimated_pump_motor(plumbing: Any, building: Any) -> tuple[float, str] | No
     """The delivery pump's motor [kW] and how it was found, without the network: the pump's
     flow (:func:`saengine.plumbing.supply.pump`) lifted from the reservoir's bottom to the
     roof tank's top (the top storey's level plus :data:`TANK_DEPTHS`), plus
-    :data:`FRICTION_ALLOWANCE`, at the default efficiency (P = ρgQH/η, BNBC Sec 5.10.5); for
+    :data:`FRICTION_ALLOWANCE`, at the default efficiency (P = ρgQH/η, the default pack's Sec 5.10.5); for
     the electrical load until the plumbing's hydraulics give the pump. None without demand or
     stories."""
     from saengine.plumbing.demand import daily_demand
@@ -162,7 +168,7 @@ def estimated_pump_motor(plumbing: Any, building: Any) -> tuple[float, str] | No
 
 
 def probable_demand(units: float, flush_valves: bool = False, least: float = 0.0) -> float:
-    """Probable simultaneous demand [L/min] of ``units`` supply fixture units, BNBC Table 8.5.5
+    """Probable simultaneous demand [L/min] of ``units`` supply fixture units, the pack's Table 8.5.5
     (:func:`saengine.plumbing.demand.hunter_flow`), and at least ``least`` (the largest single
     fixture's flow of Table 8.5.6) when there are any units."""
     if units <= 0:
@@ -180,11 +186,11 @@ def hazen_williams_loss(flow: float, diameter: float, length: float, c: float) -
 
 
 def fitting_length(diameter_mm: float, fittings: dict[str, int]) -> float:
-    """Equivalent pipe length [m] of ``fittings`` (name -> count) at a size, BNBC Tables
-    8.O.2(a)-(c), linear between the sizes of the tables."""
+    """Equivalent pipe length [m] of ``fittings`` (name -> count) at a size, the pack's
+    fittings (Tables 8.O.2(a)-(c) in the default pack), linear between the sizes of the tables."""
     total = 0.0
     for name, count in fittings.items():
-        total += count * _interp(diameter_mm, FITTING_SIZES, FITTINGS[name])
+        total += count * _interp(diameter_mm, T.FITTING_SIZES, T.FITTINGS[name])
     return total
 
 
@@ -199,7 +205,7 @@ def _interp(x: float, xs: tuple[float, ...], ys: tuple[float, ...]) -> float:
 
 
 def size_for_flow(flow: float, material: str | None = None, smallest: float = 0.0) -> float | None:
-    """The size the plumbing sizing gives [mm] for ``flow`` [m³/s]: the smallest of BNBC's
+    """The size the plumbing sizing gives [mm] for ``flow`` [m³/s]: the smallest of the pack's
     sizes within the velocity limit and 1.6 m/100 m (:func:`saengine.plumbing.supply.size_pipe`);
     None above 200 mm."""
     found = size_pipe(flow * 60000, material, smallest)["diameter"]
@@ -233,8 +239,8 @@ class HydraulicOptions:
     tankRoof: float = 150.0
     tankFreeboard: float = 300.0
     tankWaterDepth: float = 1500.0
-    #: Pump: its flow [L/min] when given (else the plumbing sizing's delivery pump flow, BNBC
-    #: Sec 5.9.1.2(c)(ii): the peak hourly demand), pump efficiency (BNBC eq. 8.5.2 leaves it
+    #: Pump: its flow [L/min] when given (else the plumbing sizing's delivery pump flow, the
+    #: default pack's Sec 5.9.1.2(c)(ii): the peak hourly demand), pump efficiency (eq. 8.5.2 of the default pack leaves it
     #: to the pump), the residual head the float valve at the tank inlet needs [m].
     pumpFlow: float | None = None
     pumpEfficiency: float = 0.60
@@ -358,11 +364,10 @@ def floor_units(
     ]
     units, minimum, _ = supply_units(SimpleNamespace(**counts, other=other), column, flush_valves)
     least = 0.0
-    for name, flow in FIXTURE_FLOW.items():
+    valve = T.FIXTURE_FLOW_VALVE if flush_valves else {}
+    for name, flow in T.FIXTURE_FLOW.items():
         if counts.get(name):
-            if flush_valves and name == "wc":
-                flow = FIXTURE_FLOW_FLUSH_VALVE_WC
-            least = max(least, flow)
+            least = max(least, valve.get(name, flow))
     return float(units), least, counts["shower"] > 0, float(minimum)
 
 
@@ -420,7 +425,7 @@ def _tank(
             kind,
             x,
             y,
-            bottom + OUTLET_ABOVE_BOTTOM,
+            bottom + outlet_above_bottom(),
             bottom + depth,
             bottom + depth + freeboard,
             bottom,
@@ -553,6 +558,9 @@ def water_hydraulics(
     if not stories_sorted:
         problems.append("06 BIM has no stories.")
         return result
+    if not covered():
+        problems.append(code_pack.not_covered("Water-supply hydraulics"))
+        return result
 
     supply = plumbing.get("supply") or {}
     flush = bool(supply.get("flushValves", o.flushValves))
@@ -640,7 +648,7 @@ def water_hydraulics(
         elif supply.get("source") == "mains" and supply.get("mainsHead") is not None:
             level = full = ground + float(supply["mainsHead"])
             source, upfeed = "mains", True
-            notes.append(f"{rid}: no overhead tank: fed up from the city main (BNBC Sec 5.8.1).")
+            notes.append(f"{rid}: no overhead tank: fed up from the city main ({T.cite('5.8.1')}).")
         else:
             problems.append(f"{rid}: no overhead tank feeds it and no mains head is given.")
             continue
@@ -711,7 +719,8 @@ def water_hydraulics(
         )  # fmt: skip
     elif supply.get("source") == "deepTubewell":
         notes.append(
-            "Source: deep tube well (BNBC Sec 5.8.4): its pump into the reservoir is not analysed."
+            f"Source: deep tube well ({T.cite('5.8.4')}): its pump into the reservoir is not "
+            "analysed."
         )
     notes.extend(_method_notes(o, flush, required))
     return result
@@ -720,13 +729,13 @@ def water_hydraulics(
 def _method_notes(o: HydraulicOptions, flush: bool, required: float) -> list[str]:
     return [
         (
-            "Network solved with WNTR (EPANET 2.2), Hazen-Williams friction (BNBC 2020 Part 8 Sec "
-            "5.10.3); C by material: uPVC/PPR/HDPE 150, GI 120, CI 100 (BNBC gives only the C = "
-            "100 nomograph, Figure 8.O.4)."
+            f"Network solved with WNTR (EPANET 2.2), Hazen-Williams friction ({T.cite('5.10.3')}"
+            f"); C by material: {_by_material()} ({T.SOURCES.get('hazenC', '')})."
         ),
         (
-            "Overhead tank as a fixed head at its minimum water level (outlet 50 mm above the "
-            "bottom, Sec 5.9.2.2); static heads with the tank full."
+            "Overhead tank as a fixed head at its minimum water level (outlet "
+            f"{T.OUTLET_ABOVE_BOTTOM:g} mm above the bottom, {T.source('outletAboveBottom')}); "
+            "static heads with the tank full."
         ),
         (
             "Demands: probable simultaneous demand of Table 8.5.5 "
@@ -734,19 +743,21 @@ def _method_notes(o: HydraulicOptions, flush: bool, required: float) -> list[str
             "segment carries, units from Tables 8.5.4 and 8.O.1."
         ),
         (
-            "Fittings as equivalent lengths of Tables 8.O.2(a)-(c): floor branch "
+            f"Fittings as equivalent lengths of {T.cite('8.O.2')}: floor branch "
             f"{o.branchLength:g} m + rise with a branch tee, a gate valve and 4 elbows; a run "
             "tee per floor on the riser; 2 elbows and a gate valve on the header (SAEngine "
             "allowances)."
         ),
         (
-            f"Minimum head at the fixtures {required:.2f} m ({required * KPA_PER_M:.0f} kPa, Table "
-            "8.5.6); maximum 35 m (345 kPa, Sec 5.10.4.2) on any fitting."
+            f"Minimum head at the fixtures {required:.2f} m ({required * KPA_PER_M:.0f} kPa, "
+            f"{T.cite('8.5.6')}); maximum {T.MAX_STATIC_HEAD:g} m ({T.cite('5.10.4.2')}) on any "
+            "fitting."
         ),
         (
-            "Velocities against the probable maximum velocities of Sec 5.10.1(c)(ii) (13 mm 0.30, "
-            "50 mm 0.60, 75 mm 0.75, 100 mm 0.90, 150 mm 1.15, 200 mm 1.30 m/s, linear between, "
-            "as the plumbing sizing reads them); pipes SAEngine sizes also within 1.6 m/100 m."
+            f"Velocities against the probable maximum velocities of {T.cite('5.10.1')} ("
+            + ", ".join(f"{d:g} mm {v:.2f}" for d, v in T.VELOCITY_LIMITS)
+            + " m/s, linear between, as the plumbing sizing reads them); pipes SAEngine sizes "
+            f"also within {T.MAX_HEAD_LOSS:g} m/100 m."
         ),
     ]
 
@@ -854,7 +865,7 @@ def _floor_results(
                 v_header,
                 limit,
                 "m/s",
-                "BNBC Sec 5.10.1(c)(ii)",
+                T.cite("5.10.1"),
             )
         )
         for f in r.floors:
@@ -896,7 +907,7 @@ def _floor_results(
                 short = f.required - head_f
                 fix = (
                     f"; short by {short:.2f} m: the main's head is too low, give a roof tank "
-                    "(BNBC Sec 5.8.2, 5.8.3)"
+                    f"({T.cite('5.8.2')}, {T.cite('5.8.3')})"
                     if r.upfeed
                     else f"; short by {short:.2f} m: raise the tank {r.source} by at least "
                     f"{short:.2f} m, or feed this floor with a booster pump from the tank"
@@ -907,7 +918,7 @@ def _floor_results(
                     f.required,
                     max(head_f, 0.0),
                     "m",
-                    "BNBC Table 8.5.6, Sec 5.10.4.3" + fix,
+                    f"{T.cite('8.5.6')}, {T.cite('5.10.4.3')}" + fix,
                     ok=ok_pressure,
                 )
             )
@@ -917,7 +928,7 @@ def _floor_results(
                     static,
                     T.MAX_STATIC_HEAD,
                     "m",
-                    "BNBC Sec 5.10.4.2 (Sec 5.11.1: 350 kPa)",
+                    f"{T.cite('5.10.4.2')} ({T.cite('5.11.1')}: tall buildings)",
                 )
             )
             checks.append(
@@ -926,7 +937,7 @@ def _floor_results(
                     v_seg,
                     limit,
                     "m/s",
-                    "BNBC Sec 5.10.1(c)(ii)",
+                    T.cite("5.10.1"),
                 )
             )
             checks.append(
@@ -935,7 +946,7 @@ def _floor_results(
                     v_branch,
                     velocity_limit(f.branch_diameter),
                     "m/s",
-                    "BNBC Sec 5.10.1(c)(ii)",
+                    T.cite("5.10.1"),
                 )
             )
         _advice(r, [x for x in out if x["riser"] == r.id], notes)
@@ -951,7 +962,7 @@ def _advice(r: _Riser, floors: list[dict[str, Any]], notes: list[str]) -> None:
         if r.upfeed:
             notes.append(
                 f"{r.id}: the main's head is short by {deficit:.2f} m at {names}: provide a "
-                "ground tank and a roof tank (BNBC Sec 5.8.2, 5.8.3)."
+                f"ground tank and a roof tank ({T.cite('5.8.2')}, {T.cite('5.8.3')})."
             )
         else:
             notes.append(
@@ -970,7 +981,7 @@ def _zone_margin(
     floors = [replace(f) for f in members]
     zone = _Riser(
         f"{r.id}~zone", r.x, r.y, r.material, r.c, 0.0 if r.sized else r.diameter, r.sized,
-        "zone", outlet, outlet, False, floors, start=outlet - OUTLET_ABOVE_BOTTOM,
+        "zone", outlet, outlet, False, floors, start=outlet - outlet_above_bottom(),
     )  # fmt: skip
     wn = _new_network()
     _add_riser(wn, zone, o, flush, None)
@@ -997,7 +1008,7 @@ def _zones(
     notes: list[str],
     problems: list[str],
 ) -> list[dict[str, Any]]:
-    """Pressure zones (BNBC Sec 5.11.1): from the source down, a new zone where the static head
+    """Pressure zones (the default pack's Sec 5.11.1): from the source down, a new zone where the static head
     with the tank full would exceed 35 m (Sec 5.10.4.2).
 
     Each lower zone is fed by an intermediate tank at the riser (or a pressure reducing valve).
@@ -1056,8 +1067,8 @@ def _zones(
                 method = (
                     f"an intermediate tank at {r.id} above {above} with its outlet (minimum "
                     f"water level) at {outlet:.2f} m or higher, its bottom at "
-                    f"{outlet - OUTLET_ABOVE_BOTTOM:.2f} m and its top water level at "
-                    f"{full:.2f} m (BNBC Sec 5.11.1(a): its own down-take pipe; the floor it "
+                    f"{outlet - outlet_above_bottom():.2f} m and its top water level at "
+                    f"{full:.2f} m ({T.cite('5.11.1', '(a)')}: its own down-take pipe; the floor it "
                     f"stands on fed from the zone above), or a pressure reducing valve on "
                     f"{r.id} above {above} (Sec 5.11.1(b)) set to a downstream head level of "
                     f"{outlet:.2f} m to {lowest + T.MAX_STATIC_HEAD:.2f} m"
@@ -1069,7 +1080,7 @@ def _zones(
                     "stories": [m.story.id for m in members],
                     "names": [m.story.name for m in members],
                     "sourceLevel": round(outlet, 4),
-                    "tankBottom": round(outlet - OUTLET_ABOVE_BOTTOM, 4),
+                    "tankBottom": round(outlet - outlet_above_bottom(), 4),
                     "fullLevel": round(full, 4),
                     "lowestFitting": round(lowest, 4),
                     "maxStaticHead": round(full - lowest, 4),
@@ -1080,8 +1091,8 @@ def _zones(
             )
         notes.append(
             f"{r.id}: the static head exceeds {T.MAX_STATIC_HEAD:g} m from "
-            f"{groups[1]['members'][0].story.name} down: {len(groups)} pressure zones (BNBC Sec "
-            "5.11.1: intermediate tanks every 5-6 "
+            f"{groups[1]['members'][0].story.name} down: {len(groups)} pressure zones "
+            f"({T.cite('5.11.1')}: intermediate tanks every 5-6 "
             "storeys, or pressure reducing valves). Each lower zone was solved on its own to "
             "place its source (with its friction and the roof tank's draw-down); the floor "
             "heads above are those of the network as entered."
@@ -1115,7 +1126,7 @@ def _pump_flow(
 ) -> tuple[float, str, float | None]:
     """The delivery pump's flow [m³/s], how it was found and the daily demand [L/day].
 
-    BNBC Sec 5.9.1.2(c)(ii) (p. 1041): capacity of the delivery pump = the peak hourly demand.
+    The default pack's Sec 5.9.1.2(c)(ii): capacity of the delivery pump = the peak hourly demand.
     The flow is the plumbing sizing's (:func:`saengine.plumbing.supply.pump`, so the two
     agree): the peak hourly demand of Eq 8.5.1, or the daily demand over the contract's
     pumping hours when they are given. Without a daily demand (no occupancy or population),
@@ -1228,7 +1239,7 @@ def _pump(
             velocity,
             velocity_limit(diameter),
             "m/s",
-            "BNBC Sec 5.10.1(c)(ii)",
+            T.cite("5.10.1"),
         )
     )
     return {
@@ -1260,7 +1271,8 @@ def _pump(
         "horsepower": round(shaft / 0.7457, 4),
         "motor": motor_rating(shaft),
         "note": (
-            "BNBC Sec 5.10.5: H = hs + hd + hf + hv (eq. 8.5.3 velocity head) plus the inlet's "
+            f"{T.cite('5.10.5')}: H = hs + hd + hf + hv (eq. 8.5.3 velocity head) plus the "
+            "inlet's "
             f"residual; P = ρgQH/η (eq. 8.5.2 in SI); flow: {basis}; the reservoir at its "
             "inside bottom."
         ),
@@ -1304,7 +1316,7 @@ def _mains(
                 need,
                 head,
                 "m",
-                "BNBC Sec 5.8.3 (through a ball valve); service-pipe friction not included",
+                f"{T.cite('5.8.3')} (through a ball valve); service-pipe friction not included",
             )
         )
     direct = [
@@ -1319,7 +1331,7 @@ def _mains(
     if pumped and notes is not None:
         notes.append(
             "Supply: the city main fills the underground reservoir and a pump lifts the water to "
-            "the roof tank (BNBC Sec 5.8.3), so the main need not feed the fixtures or the roof "
+            f"the roof tank ({T.cite('5.8.3')}), so the main need not feed the fixtures or the roof "
             "tank directly (Sec 5.8.1, 5.8.2 apply only with sufficient pressure); those heads "
             "are reported, not checked."
         )
@@ -1332,7 +1344,7 @@ def _mains(
                 need,
                 head,
                 "m",
-                "BNBC Sec 5.8.1 (static; peak friction not included)",
+                f"{T.cite('5.8.1')} (static; peak friction not included)",
             )
         )
     if overhead:
@@ -1352,7 +1364,7 @@ def _mains(
                 need,
                 head,
                 "m",
-                "BNBC Sec 5.8.2; otherwise a ground tank and a pump, Sec 5.8.3; "
+                f"{T.cite('5.8.2')}; otherwise a ground tank and a pump, Sec 5.8.3; "
                 "no pumping from the main (Sec 5.8.1)",
             )
         )

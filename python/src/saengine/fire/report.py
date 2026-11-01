@@ -44,6 +44,7 @@ FIRE_ENGINE = 160.0
 HEAD_BELOW = 0.3
 STOREY = 3.0
 
+
 def method() -> list[str]:
     """How the report works, with the values and clauses of the code pack in force (the
     clause numbers are those of the default pack's Part 4)."""
@@ -1118,7 +1119,9 @@ def tank_options(fire: Any, tank: Any) -> dict[str, Any] | None:
     w = fire.supply.fireEngineWeight or FIRE_ENGINE
     walls = tank.walls or 200.0
     area = ((tank.length or 1.0) + 2 * walls) * ((tank.width or 1.0) + 2 * walls) / 1e6
-    return {"roofLive": round(max(1.0, w / max(area, 1e-6)), 2)}
+    from saengine.plumbing.tanks import default_roof_live
+
+    return {"roofLive": round(max(default_roof_live(), w / max(area, 1e-6)), 2)}
 
 
 def read_fire_designs(root: str | Path) -> dict[str, Any]:
