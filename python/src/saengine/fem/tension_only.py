@@ -30,8 +30,8 @@ stiffness: about twice the stiffness of an X-braced panel), and an envelope comb
 (``S ± E``) releases by its static part only; the release is not followed through second-order
 effects of the released structure beyond the preload's tangent stiffness. These are the usual
 limits of tension-only bracing in a linear analysis. The released members are then designed
-for tension alone (BNBC 2020 Part 6 Chapter 10, Sec 10.4 design of members for tension, which
-adopts AISC 360-05 chapter D; page to be checked against the BNBC text). BNBC gives no analysis
+for tension alone (the default pack's Part 6 Chapter 10, Sec 10.4 design of members for tension, which
+adopts AISC 360-05 chapter D; page to be checked against the default pack (BNBC) text). The default pack (BNBC) gives no analysis
 procedure of its own for tension-only members: the release above is the structural mechanics
 of removing a member from a linear model, not a code clause.
 """

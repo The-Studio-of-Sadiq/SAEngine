@@ -1582,5 +1582,8 @@
     "decrement": "exact",
     "hysteresisDivisor": 12.566371,
     "note": "Printed misprints resolved conservatively (owner decision 1): Eq 6.3.53 prints 1 - μ where Barkan's relation has 1 - μ², so both are enveloped; Eq 6.3.57 prints 4π² fn m, dimensionally k = 4π² fn² m; Eq 6.3.58 gives D ≈ δ/2π, the exact inverse δ/√(4π² + δ²) is smaller; Eq 6.3.59 prints D = ΔW/W, the loss per cycle gives D = ΔW/(4π W), smaller. Amplitude ranges at 500-1500 rpm are taken at their low end. The speed classes for resonance (300 and 1000 rpm, Sec 3.20.2.2) and the amplitude rows (500, 1500, 3000 rpm) are printed with different breaks and kept as printed."
+  },
+  "clauses": {
+    "subgradeModulus": "Part 6 Eq 6.3.9"
   }
 }

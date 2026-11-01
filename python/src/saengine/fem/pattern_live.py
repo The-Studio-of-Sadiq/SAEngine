@@ -1,7 +1,9 @@
-"""Pattern live loading: the arrangements of live load BNBC 2020 asks the frames to be designed
-for, as extra live load cases and the combinations that use them.
+"""Pattern live loading: the arrangements of live load the code pack asks the frames to be
+designed for, as extra live load cases and the combinations that use them. The clause references
+are the pack's ``concrete.clauses`` (``pattern*``) and the flat-slab exemption its
+``slabMethods.equivalentFrame.uniformLiveMax``.
 
-BNBC 2020 Part 6 Sec 6.1.12.2 (p. 894): "Arrangement of live load shall be permitted to be
+The default pack, BNBC 2020 Part 6 Sec 6.1.12.2 (p. 894): "Arrangement of live load shall be permitted to be
 assumed to be limited to combinations of: (a) factored dead load on all spans with full factored
 live load on two adjacent spans; and (b) factored dead load on all spans with full factored live
 load on alternate spans." Sec 6.1.12.1 (a) permits taking the live load on the floor under
@@ -16,11 +18,11 @@ the grid has two or more floor levels:
   moments, which bounds the floor-only arrangement (the same frame: 90.75 against 87.58 kN m)
   at no extra cases (two per direction);
 - (a) adjacent bays are loaded on each floor alone (``adjacent_floors="each"``, the default,
-  BNBC's own assumption; one case per pair and floor) or on alternate floors
+  the default pack's own assumption; one case per pair and floor) or on alternate floors
   (``"alternate"``, two cases per pair; the support moment then up to about 2 % below the
   floor-only one in the frame above, stated in the case label).
 
-This is done by arrangement, not by a factor: BNBC's only factor rule, three-quarters of the
+This is done by arrangement, not by a factor: the default pack's only factor rule, three-quarters of the
 full factored live load on the panel and alternate panels (Sec 6.5.7.6.3, p. 960), and its
 exemption when the live load does not exceed three-quarters of the dead load (Sec 6.5.7.6.2,
 p. 959), belong to two-way slab systems analysed by the equivalent frame method (Sec 6.5.7); for
@@ -40,8 +42,8 @@ between two neighbouring lines. In each plan direction with at least two bays:
 A load point (a shell's centre, a slab panel's centroid, a line load's middle) is loaded by an
 arrangement when the bay it lies in is; a point beyond the first or last line (a cantilever) is
 loaded with the alternate arrangement that continues the alternation, and by no adjacent
-arrangement. The full live load case L stays and is enveloped with the arrangements (BNBC
-6.5.7.6.4 states the full-load floor for slabs; for frames it is arrangement (a) and (b)'s
+arrangement. The full live load case L stays and is enveloped with the arrangements (the default pack (BNBC)
+6.5.7.6.4 in the default pack states the full-load floor for slabs; for frames it is arrangement (a) and (b)'s
 limiting case).
 
 :func:`saengine.fem.combinations.pattern_live_combinations` forms, from every gravity
@@ -58,10 +60,15 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from saengine.codes import context as code_context
 from saengine.design.slab import LINE_TOLERANCE  # one grid line: within 300 mm across
 
-CLAUSE_ADJACENT = "BNBC 2020 Part 6 Sec 6.1.12.2 (a)"
-CLAUSE_ALTERNATE = "BNBC 2020 Part 6 Sec 6.1.12.2 (b)"
+
+def clause(key: str) -> str:
+    """The code pack's clause of an arrangement (``concrete.clauses``: ``patternAdjacent``,
+    ``patternAdjacentFloor``, ``patternAlternate``, ``patternLive``), with the code's name; '' when the
+    pack has none."""
+    return code_context.cite("concrete", key)
 
 
 def grid_lines(values: Iterable[float], tolerance: float = LINE_TOLERANCE) -> tuple[float, ...]:
@@ -224,7 +231,7 @@ def live_patterns(
     prefix: str = "LP",
     adjacent_floors: str = "each",
 ) -> list[LivePattern]:
-    """The arrangements of BNBC 6.1.12.2 on ``grid`` (see the module notes), named
+    """The code pack's arrangements of live load on ``grid`` (see the module notes), named
     ``LP1``, ``LP2`` ... in the order: X alternate (odd, even bays), X adjacent pairs (by floor),
     then the same along Y. With two or more levels the alternate arrangements are checkerboards
     over the floors and the adjacent ones are by floor: ``adjacent_floors`` "each" (each floor
@@ -233,6 +240,9 @@ def live_patterns(
         raise ValueError(f"adjacent_floors is 'each' or 'alternate', not {adjacent_floors!r}")
     levels = grid.levels if len(grid.levels) >= 2 else ()
     found: list[LivePattern] = []
+    clause_adjacent = clause("patternAdjacent")
+    clause_alternate = clause("patternAlternate")
+    clause_floor = clause("patternAdjacentFloor") or clause_adjacent
 
     def add(
         label: str,
@@ -258,18 +268,18 @@ def live_patterns(
                 label = f"Live load on alternate bays along {direction}: {listed}"
                 if levels:
                     label += " (the other bays on every other floor: a checkerboard)"
-                add(label, CLAUSE_ALTERNATE, direction, bays, True, checker=bool(levels))
+                add(label, clause_alternate, direction, bays, True, checker=bool(levels))
         if adjacent and n >= 3:
             for k in range(n - 1):
                 label = f"Live load on adjacent bays along {direction}: {k + 1} and {k + 2}"
                 pair = frozenset({k, k + 1})
                 if not levels:
-                    add(label, CLAUSE_ADJACENT, direction, pair, False)
+                    add(label, clause_adjacent, direction, pair, False)
                 elif adjacent_floors == "each":
                     for f in range(len(levels)):
                         add(
                             f"{label}, floor at {floors_of([f])} only",
-                            CLAUSE_ADJACENT + " with 6.1.12.1 (a)",
+                            clause_floor,
                             direction,
                             pair,
                             False,
@@ -281,7 +291,7 @@ def live_patterns(
                         add(
                             f"{label}, floors at {floors_of(sorted(chosen))} (alternate floors: "
                             "the support moment may be about 2 % below one floor alone)",
-                            CLAUSE_ADJACENT,
+                            clause_adjacent,
                             direction,
                             pair,
                             False,
@@ -308,15 +318,22 @@ def centroid(outline: Sequence[Sequence[float]]) -> tuple[float, float]:
 
 
 def patterns_required(system: str, dead: float, live: float) -> tuple[bool, str]:
-    """Whether a floor needs the arrangements: always for beams and one-way slabs (BNBC
-    6.1.12.2 has no exemption); for a flat slab (two-way system by Sec 6.5.7) not when the
-    unfactored live load is at most three-quarters of the unfactored dead load (Sec
-    6.5.7.6.2). ``dead``, ``live``: service loads in one unit. Returns (needed, why)."""
-    if system == "flat" and live <= 0.75 * dead:
+    """Whether a floor needs the arrangements: always for beams and one-way slabs (the default
+    pack's Sec 6.1.12.2 has no exemption); for a flat slab (two-way system by the equivalent
+    frame method) not when the unfactored live load is at most the pack's
+    ``slabMethods.equivalentFrame.uniformLiveMax`` times the unfactored dead load (three
+    quarters, Sec 6.5.7.6.2 in the default pack; no exemption when the pack has none).
+    ``dead``, ``live``: service loads in one unit. Returns (needed, why)."""
+    pack = code_context.current()
+    frame = pack.table("slabMethods").equivalentFrame if pack.has("slabMethods") else None
+    limit = None if frame is None else float(frame.uniformLiveMax)
+    if system == "flat" and limit is not None and live <= limit * dead:
+        ref = code_context.cite("slabMethods", "patternExemption")
         return False, (
-            f"flat slab with live load {live:g} <= 0.75 x dead load {dead:g}: full live load on "
-            "all panels (BNBC 2020 Part 6 Sec 6.5.7.6.2)"
+            f"flat slab with live load {live:g} <= {limit:g} x dead load {dead:g}: full live "
+            "load on all panels" + (f" ({ref})" if ref else "")
         )
     if live <= 0:
         return False, "no live load"
-    return True, "live load arrangement of BNBC 2020 Part 6 Sec 6.1.12.2"
+    ref = clause("patternLive")
+    return True, "live load arrangement" + (f" of {ref}" if ref else "")

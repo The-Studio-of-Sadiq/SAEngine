@@ -2238,6 +2238,14 @@
       "title": "Sources",
       "type": "object"
     },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause reference of each check, by key.",
+      "title": "Clauses",
+      "type": "object"
+    },
     "method": {
       "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain) or 'strength' (strength design of reinforced walls).",
       "enum": [
@@ -2297,14 +2305,6 @@
       ],
       "default": null
     },
-    "clauses": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "Clause reference of each check, by key.",
-      "title": "Clauses",
-      "type": "object"
-    },
     "alternatives": {
       "description": "Methods a wall type may choose in lieu of 'method' (none: only 'method').",
       "items": {
@@ -2352,6 +2352,7 @@
     }
   },
   "required": [
+    "clauses",
     "method",
     "mortars",
     "quality",
@@ -2362,8 +2363,7 @@
     "reinforcement",
     "strength",
     "seismic",
-    "mortarFromMix",
-    "clauses"
+    "mortarFromMix"
   ],
   "title": "MasonryTable",
   "type": "object",

@@ -3,7 +3,7 @@
 ``modifiers``: factors on the analysis section properties of a frame member (``A``, ``As2``,
 ``As3``, ``J``, ``I22``, ``I33``, ``mass``, ``weight``) or of a shell (``membrane``,
 ``bending``, ``mass``, ``weight``), set per object type and per member: the member's wins over
-its type's, which wins over the code's cracked factor (concrete and masonry; BNBC 2020 Part 6
+its type's, which wins over the code's cracked factor (concrete and masonry; the default pack's Part 6
 Sec 6.3.10.4.1 in the code pack) or 1 (:func:`resolve_modifiers`). An absent key inherits.
 The stiffness factors replace the cracked factor for that property; ``mass`` and ``weight``
 multiply the member's self-weight mass and self-weight load.
@@ -48,7 +48,7 @@ class ShellModifiers(BaseModel):
 
 
 class MomentMagnifiers(BaseModel):
-    """Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10)."""
+    """Moment magnification factors given instead of worked out (RC columns, the default pack's 6.3.10)."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -175,7 +175,7 @@ class DesignOverwrites(BaseModel):
         gt=0,
         le=1.0,
         title="Live load reduction",
-        description="Live load reduction factor given instead of worked out (BNBC 2020 Part 6 "
+        description="Live load reduction factor given instead of worked out (the default pack's Part 6 "
         "Sec 2.3.13); it applies to the floor live load L even with the project's reduction off.",
     )
     # B31: steel members (saengine.design.steel).
@@ -231,7 +231,7 @@ class CorbelBars(BaseModel):
 
 
 class Corbel(BaseModel):
-    """A corbel (bracket) cast with a column that carries a beam's end (BNBC 2020 Part 6 Sec
+    """A corbel (bracket) cast with a column that carries a beam's end (the default pack's Part 6 Sec
     6.4.7). The beam's end shear from the analysis is its Vu."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)

@@ -2,7 +2,7 @@
 
 Where a beam frames into a column its clear span starts at the column's face; where a column
 meets the beams of a floor its clear height ends at their soffit. Like a commercial analysis
-program (and normal BNBC 2020 Part 6 Chapter 6 / ACI 318 practice), the analysis model
+program (and normal the default pack's Part 6 Chapter 6 / ACI 318 practice), the analysis model
 (:mod:`saengine.fem.derive`) gives such member ends an end offset:
 
 - the **end offset** ``a`` is the distance from the joint (the analysis node, on the column

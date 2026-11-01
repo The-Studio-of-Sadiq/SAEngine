@@ -148,7 +148,7 @@ class CurtainWallType(_Model):
 
     The weight is the glass's (thickness × unit weight) plus the frame's, per m² of wall; the
     frame's 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the
-    supplier's). BNBC 2020 Part 6 Sec 2.2 takes dead loads as the actual weights of the
+    supplier's). The default pack's Part 6 Sec 2.2 takes dead loads as the actual weights of the
     materials; glass's 25 kN/m³ is its usual density (2,500 kg/m³)."""
 
     id: Id
@@ -287,7 +287,8 @@ class Room(_Model):
     name: str = Field(default="Room", min_length=1)
     number: str = ""
     occupancy: str | None = Field(
-        default=None, description="Area use from the code pack (e.g. BNBC's), for its loads."
+        default=None,
+        description="Area use from the code pack (e.g. the default pack's), for its loads.",
     )
     floorFinish: Id | None = Field(default=None, title="Floor finish")
     wallFinish: Id | None = Field(default=None, title="Wall finish")
@@ -318,7 +319,7 @@ class Roof(_Model):
     )
     occupancy: str | None = Field(
         default=None,
-        description="Area use from the code pack for its live load (e.g. BNBC's roof uses).",
+        description="Area use from the code pack for its live load (e.g. the default pack's roof uses).",
     )
 
 

@@ -1,7 +1,7 @@
 """Column shortening of a building built storey by storey, with creep and shrinkage (B25).
 
 The code pack asks for the long-term properties of the materials in the analysis, for the
-additional stresses of phased construction and for creep and shrinkage (BNBC 2020 Part 6 Sec
+additional stresses of phased construction and for creep and shrinkage (the default pack's Part 6 Sec
 1.2.7, 1.2.16, 1.6.6(h),(j),(l); the clauses come from the pack's ``concreteTime`` sources).
 This module works them out for the concrete columns from a finished run:
 

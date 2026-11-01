@@ -425,7 +425,7 @@ def column_interaction(
                     "columns": columns,
                     "notes": [
                         (
-                            "φ-factored capacities (ACI 318-19 as BNBC 2020 Part 6 adopts); "
+                            "φ-factored capacities (the code pack's concrete design); "
                             "slender columns' demands carry their magnified moments."
                         )
                     ],

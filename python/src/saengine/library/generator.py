@@ -12,10 +12,10 @@ structural system and a few choices, and gets SAEngine's own parts, ready to edi
   seismic design category asks for), and the notes saying how every size was found.
 
 The sizes are PRELIMINARY: the code minimums for deflection and the seismic proportioning rules
-of BNBC 2020 where they apply, and stated rules of thumb elsewhere. They are a starting model
+of the default pack (BNBC 2020) where they apply, and stated rules of thumb elsewhere. They are a starting model
 for the analysis and design (Parts 8 and 10), which check and size the members for strength.
 
-BNBC 2020 Part 6 clauses used (pages of the code PDF):
+the default pack's Part 6 clauses used (pages of the code PDF):
 
 - Table 6.6.1 (p. 900): minimum thickness of non-prestressed beams and one-way slabs unless
   deflections are calculated: solid one-way slabs l/20, l/24, l/28 (simply supported, one end
@@ -40,7 +40,7 @@ BNBC 2020 Part 6 clauses used (pages of the code PDF):
   the design drift Cd δe / I (Sec 2.5.7.7, p. 631) against Δa of Table 6.2.21 (p. 648) / ρ
   (Sec 2.5.14.1, p. 647); the period against Cu Ta (Sec 2.5.7.2 (a), p. 627; eq. 6.2.38 and
   Table 6.2.20, p. 628); the roof sway under the service wind against the code pack's limit
-  (serviceability table; BNBC: H/500 under D + 0.5L + 0.7W, Sec 1.5.6.2 and 2.7.5).
+  (serviceability table; the default pack (BNBC): H/500 under D + 0.5L + 0.7W, Sec 1.5.6.2 and 2.7.5).
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.codes import context as code_context
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.bim import generate, source_stamp
 from saengine.library.defaults import default_material_library
 from saengine.library.floorplan import FloorPlan
@@ -85,7 +85,7 @@ OccupancyUse = Literal[
     "mixed",
 ]
 
-#: The floor area use (Table 6.2.3 selection, :data:`bnbc.AREA_USES`) of each building use.
+#: The floor area use (Table 6.2.3 selection, :data:`code_data.AREA_USES`) of each building use.
 AREA_USE_OF: dict[str, str] = {
     "residential": "residential",
     "office": "office",
@@ -164,7 +164,7 @@ class BuildingSpec(_Spec):
     occupancy: OccupancyUse = "residential"
     occupancyCategory: Literal["I", "II", "III", "IV"] | None = Field(
         default=None,
-        description="Occupancy category (BNBC Table 6.1.1); none: the conservative default of "
+        description="Occupancy category (the default pack's Table 6.1.1); none: the conservative default of "
         "the use (healthcare IV, educational and assembly III, else II), never below the "
         "settings' own.",
     )
@@ -268,20 +268,20 @@ def fy_factor(fy: float) -> float:
 
 def _flat_divisors() -> dict[float, tuple[float, float, float]]:
     """Table 6.6.3 (p. 902), no drop panels, the pack's ``concrete.twoWayThickness``: fy ->
-    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (BNBC
+    (exterior without edge beams, exterior with edge beams, interior) divisors of ln (the default pack (BNBC)
     2020: 280 -> 33, 36, 36; 420 -> 30, 33, 33; 520 -> 28, 31, 31)."""
     return code_context.table("concrete").twoWayThickness
 
 
 def _one_way_slab() -> tuple[float, float, float]:
     """Table 6.6.1 (p. 900) divisors of one-way slabs by the number of continuous ends (0, 1,
-    2), the pack's ``concrete.oneWaySlabThickness`` (BNBC 2020: 20, 24, 28)."""
+    2), the pack's ``concrete.oneWaySlabThickness`` (default pack: 20, 24, 28)."""
     return tuple(code_context.table("concrete").oneWaySlabThickness)
 
 
 def _beam_divisors() -> tuple[float, float, float]:
     """Table 6.6.1 (p. 900) divisors of beams by the number of continuous ends (0, 1, 2), the
-    pack's ``concrete.beamThickness`` (BNBC 2020: 16, 18.5, 21)."""
+    pack's ``concrete.beamThickness`` (default pack: 16, 18.5, 21)."""
     return tuple(code_context.table("concrete").beamThickness)
 
 
@@ -348,7 +348,7 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
             notes.append(
                 f"Seismic Design Category {category}: a flat slab-column frame is not a moment "
                 f"frame of the detailing the category needs (Sec 8.3.2); core walls are added "
-                f"and the system is {bnbc.STRUCTURAL_SYSTEMS[system].name} (Table 6.2.19 row "
+                f"and the system is {code_data.STRUCTURAL_SYSTEMS[system].name} (Table 6.2.19 row "
                 f"{row.row}): the slab-column frame is a gravity system (Sec 8.3.12)."
             )
             if system == "rcDualSpecial":
@@ -366,7 +366,7 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
 MAX_SIDE = 1500.0
 #: A storey group's columns are at most this share smaller than the group's below (SAEngine
 #: practice: a smooth stiffness change up the building, no soft or weak storey above a sudden
-#: step, cf. the soft and weak storeys of BNBC 2020 Part 6 Sec 2.5.5.3.2, vertical
+#: step, cf. the soft and weak storeys of the default pack's Part 6 Sec 2.5.5.3.2, vertical
 #: irregularities, after the plan ones of p. 617-618: the page is not in the code pack).
 MAX_COLUMN_STEP = 0.2
 #: Accidental eccentricity of the storey forces, as a share of the plan dimension across them
@@ -412,7 +412,7 @@ def _prune(points: list[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
 _SEARCHES: dict[tuple[Any, ...], Any] = {}
 
 
-# The cracked moments of inertia for the lateral deflections (BNBC 2020 Part 6 Sec 6.3.10.4.1:
+# The cracked moments of inertia for the lateral deflections (the default pack's Part 6 Sec 6.3.10.4.1:
 # columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, which Sec 6.1.10.2 (p. 893) uses for the
 # lateral deflections; the analysis model's default "cracked" stiffness) are the code pack's:
 # code_context.cracked_factors().
@@ -501,7 +501,7 @@ def wilbur_flexibility(
 #: service wind combination come from the code pack's ``serviceability`` table (B9:
 #: :func:`saengine.fem.serviceability.sway_basis`).
 #: Stiffness of the members for the lateral deflections under the SERVICE (wind) loads, as a
-#: factor on the cracked stiffness above: BNBC 2020 Part 6 Sec 6.1.10.1 (p. 893; ACI 318-11
+#: factor on the cracked stiffness above: the default pack's Part 6 Sec 6.1.10.1 (p. 893; ACI 318-11
 #: 8.8.1): 1.4 times the flexural stiffness of Sec 6.1.10.2.
 SERVICE_STIFFNESS = 1.4
 #: The deepest frame beam the stiffness pass makes, as span / depth (practice), and the widest,
@@ -561,9 +561,9 @@ def stiffness_estimate(
       Δa / ρ of Table 6.2.21 (p. 648, Sec 2.5.14.1, p. 647);
     - wind: the storey drift under the wind forces of the analysis model
       (:func:`saengine.fem.loads.wind_level_forces`) times the code pack's factor on W in its
-      service wind combination (BNBC: 0.7, Sec 2.7.5), the members at 1.4 times the cracked
+      service wind combination (default pack: 0.7, Sec 2.7.5), the members at 1.4 times the cracked
       stiffness (Sec 6.1.10.1, :data:`SERVICE_STIFFNESS`): the roof's deflection against the
-      pack's sway limit (BNBC: H / 500, Sec 1.5.6.2; :func:`saengine.fem.serviceability.
+      pack's sway limit (default pack: H / 500, Sec 1.5.6.2; :func:`saengine.fem.serviceability.
       sway_basis`); 0 when the pack has none.
 
     The rigid end zones are those of the analysis model (``analysis.endOffsets``,
@@ -1204,7 +1204,7 @@ def settings_patch(
         # "entered"): "soilReport" keeps the assumed class only until 1 Soil Report gives one.
         site.update(siteClass=s.siteClass, siteClassSource="soilReport")
         notes.append(
-            f"Site class {s.siteClass} ASSUMED (no soil report yet): BNBC 2020 Part 6 Table "
+            f"Site class {s.siteClass} ASSUMED (no soil report yet): the default pack's Part 6 Table "
             "6.2.13 (p. 609) classes the site by the average properties of the top 30 m "
             "(shear wave velocity, SPT N or undrained shear strength). It sets the "
             "spectrum (Table 6.2.16, p. 616), the Seismic Design Category (Table 6.2.18, p. "
@@ -1217,12 +1217,12 @@ def settings_patch(
     if site:
         patch["site"] = site
     use = AREA_USE_OF[s.occupancy]
-    code_live = bnbc.AREA_USES[use].live
+    code_live = code_data.AREA_USES[use].live
     live = max(s.live or code_live, code_live)
     if s.live is not None and s.live < code_live:
         notes.append(
             f"Live load {s.live:g} kN/m² is below the Table 6.2.3 minimum for "
-            f"{bnbc.AREA_USES[use].name.lower()}; {code_live:g} kN/m² is used."
+            f"{code_data.AREA_USES[use].name.lower()}; {code_live:g} kN/m² is used."
         )
     area_loads = [
         {**a, "use": use, "live": live} if a["id"] == base.floorLoad else a
@@ -1290,7 +1290,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         f"{final.site.siteClass}"
         f"{' assumed' if s.siteClass is not None and s.siteClassSource == 'assumed' else ''}"
         f", occupancy category {final.occupancy.category}); system "
-        f"{bnbc.STRUCTURAL_SYSTEMS[system_id].name}."
+        f"{code_data.STRUCTURAL_SYSTEMS[system_id].name}."
     )
     notes += system_notes
     notes.append("PRELIMINARY sizes: the analysis and Design mode check and size every member.")
@@ -1819,7 +1819,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         notes.append(
             f"Column transitions: a storey group's columns at most {MAX_COLUMN_STEP:.0%} smaller "
             "than the ones below (rounded up to 50 mm; SAEngine practice, to avoid a sudden "
-            "stiffness and strength step, cf. the soft and weak storeys of BNBC 2020 Part 6 Sec "
+            "stiffness and strength step, cf. the soft and weak storeys of the default pack's Part 6 Sec "
             "2.5.5.3.2, vertical irregularities; its page is not in the code pack: check it): "
             + ", ".join(stepped_up)
             + "."
@@ -1897,7 +1897,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
             f"{cracked.column:g} Ig, beams {cracked.beam:g} Ig without the slab flange"
             + (f", flat plate {cracked.plate:g} Ig" if flat else "")
-            + ", BNBC 2020 Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
+            + ", the default pack's Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
             "Sec 6.1.10.2, p. 893; "
             + (
                 f"the analysis model's rigid end zones, factor {rigid:g}"

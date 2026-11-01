@@ -298,5 +298,10 @@
     "alternates": "BNBC 2020 Part 6 Sec 2.7.2.1 and 2.7.3.1 '(Lr or R)' (pp. 684-685); Table 6.2.4 note (1) (p. 539): the greater of the roof live load and the rain load",
     "allowableStressIncrease": "BNBC 2020 Part 6 Sec 2.5.13.5 (p. 647): allowable stresses may be increased by 1.2 with Em (Sec 2.5.13.4) in allowable stress combinations 5, 6 and 8, not with other increases or reductions",
     "upliftDeadFactor": "BNBC 2020 Part 6 Sec 1.5.9 (p. 500): in allowable stress design the dead loads that reduce uplift are taken at 0.85; allowable stress combinations 7 and 8 (0.6D) are on the safe side of it"
+  },
+  "clauses": {
+    "strength": "Part 6 Sec 2.7.3.1",
+    "temperature": "Part 6 Sec 2.7.3.1",
+    "settlement": "Part 6 Sec 2.7.3.1 (p. 685), T including differential settlement"
   }
 }

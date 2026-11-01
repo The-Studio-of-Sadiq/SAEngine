@@ -190,8 +190,8 @@ class MemberLoads(_Model):
 
 
 def _dead_loads_table() -> dict[str, Any]:
-    """The code pack's ``deadLoads`` table as plain data (BNBC 2020 Part 6 Sec 2.2.4, Table
-    6.2.2, pp. 530-531, in the BNBC pack); empty when the pack has none (no default wall
+    """The code pack's ``deadLoads`` table as plain data (the default pack's Part 6 Sec 2.2.4, Table
+    6.2.2, pp. 530-531, in the default pack); empty when the pack has none (no default wall
     types: the engineer enters them)."""
     from saengine.codes import context as code_context
 
@@ -203,7 +203,7 @@ def _dead_loads_table() -> dict[str, Any]:
 
 
 def default_wall_types() -> list[WallType]:
-    """The wall types a new loads file starts with, from the code pack (BNBC 2020: 125 mm and
+    """The wall types a new loads file starts with, from the code pack (default pack: 125 mm and
     250 mm burnt-clay brick walls with 12.5 mm cement plaster on both faces)."""
     table = _dead_loads_table()
     masonry = table.get("masonry", {})

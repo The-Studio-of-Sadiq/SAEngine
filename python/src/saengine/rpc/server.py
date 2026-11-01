@@ -67,7 +67,7 @@ Methods:
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
 - ``soil/location`` ``{soilText, bimText?, settingsText?, projectRoot?}`` -> the site, boreholes and building
-  outline in WGS 84 with the nearest BNBC town (``saengine.gis.site``)
+  outline in WGS 84 with the nearest the default pack (BNBC) town (``saengine.gis.site``)
 - ``soil/plotCheck`` ``{soilText, floorPlanText, objectsText?}`` -> the plot and its buildable
   envelope in project mm and the floor plan's members outside them (``saengine.gis.plot``)
 - ``soil/gisExport`` ``{projectRoot, format: geojson|gpkg, outPath}`` -> ``{path, counts,
@@ -150,11 +150,11 @@ Methods:
 - ``mep/exportBcf`` ``{projectRoot, path, mepText?, issues?}`` -> ``{path, topics}`` BCF 3.0
 - ``mep/importBcf`` ``{projectRoot, path, mepText?}`` -> ``{coordination, counts}``
 - ``mep/checkIds`` ``{projectRoot, mepText?}`` -> IDS checks (IfcTester), issues merged
-- ``mep/plumbingReport`` ``{projectRoot, mepText?}`` -> the plumbing report (BNBC 2020 Part 8
+- ``mep/plumbingReport`` ``{projectRoot, mepText?}`` -> the plumbing report (the default pack's Part 8
   sizing, ``tankDesigns``, ``hydraulics``, missing sleeves), JSON-safe
 - ``mep/plumbingSizeTanks`` ``{projectRoot, mepText?}`` -> ``{tanks, notes}`` proposed tanks
 - ``mep/plumbingSleeves`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` missing sleeves
-- ``mep/plumbingOccupancies`` ``{}`` -> ``{occupancies}`` BNBC Table 8.5.1's rows
+- ``mep/plumbingOccupancies`` ``{}`` -> ``{occupancies}`` the default pack's Table 8.5.1's rows
 - ``mep/hvacReport`` ``{projectRoot, mepText?}`` -> the cooling loads (the cached EnergyPlus run
   of this input, else the estimate; EnergyPlus is not started) and the air side under ``air``
 - ``mep/hvacLoads`` ``{projectRoot, mepText?}`` -> the same after running EnergyPlus version
@@ -162,13 +162,13 @@ Methods:
 - ``mep/hvacCancelLoads`` ``{}`` -> ``{cancelled}`` stops the EnergyPlus runs in progress
 - ``mep/hvacProposePlant`` ``{projectRoot, mepText?}`` -> ``{plant, notes}`` proposed plant
 - ``mep/hvacDuctOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, conflicts, stale, notes}``
-- ``mep/hvacTables`` ``{}`` -> ``{cities, uses}`` BNBC Tables 8.2.2 (2 %) and 8.2.3
+- ``mep/hvacTables`` ``{}`` -> ``{cities, uses}`` the default pack's Tables 8.2.2 (2 %) and 8.2.3
 - ``mep/hvacConstructions`` ``{}`` -> ``{wall, roof, glazing}`` with their U-values
 - ``mep/electricalReport`` ``{projectRoot, mepText?}`` -> the electrical coordination report
 - ``mep/electricalProposeEquipment`` ``{projectRoot, mepText?}`` -> ``{equipment, notes}``
 - ``mep/electricalOpenings`` ``{projectRoot, mepText?}`` -> ``{openings, notes}`` still missing
-- ``mep/electricalUses`` ``{}`` -> ``{uses}`` BNBC Table 8.1.17's rows
-- ``mep/fireReport`` ``{projectRoot, mepText?}`` -> the fire protection report (BNBC 2020 Part 4
+- ``mep/electricalUses`` ``{}`` -> ``{uses}`` the default pack's Table 8.1.17's rows
+- ``mep/fireReport`` ``{projectRoot, mepText?}`` -> the fire protection report (the default pack's Part 4
   systems, sprinklers, hydraulics, reservoir, pumps, ``tankDesigns``, missing sleeves; in a
   worker thread, as the plumbing report)
 - ``mep/fireProposals`` ``{projectRoot, mepText?}`` -> ``{tanks, pumps, notes}`` proposed

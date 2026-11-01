@@ -11,8 +11,10 @@ text and never sees the folder. Two context variables carry what is needed:
   derivation of the analysis model, the seismic design), so that the pure functions below it
   (:mod:`saengine.fem.loads`) read their coefficient tables from :func:`current`.
 
-Without either, everything reads the built-in BNBC 2020 pack: results are those SAEngine always
-gave.
+Without either, everything reads the built-in default pack (:data:`registry.DEFAULT_PACK`).
+
+:func:`code_name` and :func:`cite` give the pack in force's name and its clause references
+(a table's ``clauses``), for the notes, results and reports that name the rule they apply.
 """
 
 from __future__ import annotations
@@ -54,7 +56,7 @@ _default_lock = threading.Lock()
 
 
 def default_pack() -> CodePack:
-    """The default pack (BNBC 2020) as the registry resolves it without a project: the built-in
+    """The default pack (:data:`registry.DEFAULT_PACK`) as the registry resolves it without a project: the built-in
     one, or a working user copy that replaces it (as :func:`registry.active` gives)."""
     global _default_memo
     generation = registry.default_registry().generation
@@ -102,7 +104,7 @@ def project(root: str | Path | None) -> Iterator[Path | None]:
 
 
 def pack_for(settings: Any = None, root: str | Path | None = None) -> CodePack:
-    """The pack a project's settings choose (``codePack``, default bnbc2020), with the project's
+    """The pack a project's settings choose (``codePack``, default :data:`DEFAULT_PACK`), with the project's
     own packs (``root``, else the project of :func:`project`). Raises
     :class:`saengine.codes.CodePackError` when it is not installed or cannot be used."""
     pack_id = registry.active_id(settings)
@@ -161,14 +163,60 @@ def table(name: str) -> Any:
 
 def pack_table(name: str) -> Any:
     """Table ``name`` of the pack in force; the default pack's when the pack in force has none,
-    and the built-in BNBC 2020 one when neither has it (a pack written before the table moved
-    into the code pack, such as a user copy of BNBC 2020)."""
+    and the built-in default pack's when neither has it (a pack written before the table moved
+    into the code pack, such as an older user copy of the default pack)."""
     for pack in (current(), default_pack()):
         if pack.has(name):
             return pack.table(name)
     from saengine.codes.tables import builtin_table
 
     return builtin_table(name, DEFAULT_PACK)
+
+
+def code_name(pack: CodePack | None = None) -> str:
+    """How results name the code of ``pack`` (default: the pack in force): its edition, else its
+    name (e.g. "BNBC 2020" for the default pack)."""
+    p = pack or current()
+    return p.edition or p.name
+
+
+def clause(table_name: str, key: str, pack: CodePack | None = None) -> str:
+    """The clause reference ``key`` of table ``table_name`` (its ``clauses``) in ``pack``
+    (default: the pack in force), without the code's name; '' when the pack has no such table
+    or clause (a pack that does not cover the rule)."""
+    p = pack or current()
+    if not p.has(table_name):
+        return ""
+    clauses = getattr(p.table(table_name), "clauses", None) or {}
+    return str(clauses.get(key) or "")
+
+
+def cite(table_name: str, key: str, pack: CodePack | None = None) -> str:
+    """The clause reference ``key`` of table ``table_name`` after the code's name (e.g. "BNBC
+    2020 Part 6 Sec 2.5.7.3" in the default pack); '' when the pack has none."""
+    p = pack or current()
+    text = clause(table_name, key, p)
+    return f"{code_name(p)} {text}" if text else ""
+
+
+def cited(table_name: str, key: str, pack: CodePack | None = None, sep: str = ", ") -> str:
+    """``sep`` + :func:`cite`, or '' when the pack has no such clause: for a reference that
+    follows other text in parentheses or a note."""
+    text = cite(table_name, key, pack)
+    return f"{sep}{text}" if text else ""
+
+
+def source_ref(table_name: str, key: str, pack: CodePack | None = None) -> str:
+    """The short reference of entry ``key`` of the table's ``sources`` in ``pack`` (default: the
+    pack in force): its text up to the first page note, ';' or ':' (e.g. "BNBC 2020 Part 8
+    Table 8.2.3" in the default pack); '' when the pack has none."""
+    p = pack or current()
+    if not p.has(table_name):
+        return ""
+    text = str((getattr(p.table(table_name), "sources", None) or {}).get(key) or "")
+    for stop in (" (", ";", ":", ","):
+        text = text.split(stop, 1)[0]
+    return text.strip()
 
 
 class TableNames:
@@ -195,7 +243,7 @@ class TableNames:
             return memo[2]
         source = pack_table(self.table_name)
         with self._lock:
-            # A project pack that extends BNBC 2020 resolves an equal copy of a table it does not
+            # A project pack that extends the default pack resolves an equal copy of a table it does not
             # change: the names built for an equal table are reused.
             names = next((n for t, n in self._built if t is source or t == source), None)
             if names is None:

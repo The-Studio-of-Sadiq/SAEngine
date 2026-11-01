@@ -1,4 +1,4 @@
-"""The material set a new project starts with: common Bangladeshi practice under BNBC 2020.
+"""The material set a new project starts with: common Bangladeshi practice under the default pack (BNBC 2020).
 
 Every value is either a specified/nominal value of the named standard, or derived from one
 with a code formula stated in the material's ``source``. Values marked "typical" are
@@ -28,7 +28,7 @@ PSI_TO_MPA = 0.00689476
 
 STEEL_E = 200_000.0  # MPa, ACI 318-19 20.2.2.2 / AISC 360-22
 STEEL_DENSITY = 7850.0
-CONCRETE_DENSITY = 2400.0  # reinforced normal-weight concrete, ~23.6 kN/m³ (BNBC 2020 Part 6)
+CONCRETE_DENSITY = 2400.0  # reinforced normal-weight concrete, ~23.6 kN/m³ (default pack Part 6)
 
 
 def _concrete(psi: int, mix: NominalMix | None) -> Material:

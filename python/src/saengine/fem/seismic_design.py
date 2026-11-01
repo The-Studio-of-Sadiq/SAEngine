@@ -1,7 +1,7 @@
-"""Seismic design from the response spectrum (BNBC 2020 Part 6 Chapter 2).
+"""Seismic design from the response spectrum (the default pack's Part 6 Chapter 2).
 
 The analysis model runs the response spectrum cases RX and RY (:mod:`saengine.fem.derive`: the
-BNBC design spectrum, already reduced by R, CQC of the modes). OpenSees Studio's runner keeps
+the default pack (BNBC) design spectrum, already reduced by R, CQC of the modes). OpenSees Studio's runner keeps
 only their peak translations (combined and per mode), so the member forces are found here:
 
 - **Modal forces.** For each mode k and direction d, the static response to the load
@@ -13,17 +13,17 @@ only their peak translations (combined and per mode), so the member forces are f
   runner, in ``<results>/rs-design`` (removed with the results when the analysis runs again),
   and their member end forces, shell forces and reactions are combined over the modes with the
   rule and correlation of the response spectrum case (CQC, Der Kiureghian), per component.
-  BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635): every response quantity is the combination of its
+  the default pack's Part 6 Sec 2.5.9.4 (p. 635): every response quantity is the combination of its
   modal values (SRSS or CQC; CQC where modes are closely spaced).
 - **Scaling** (Sec 2.5.9.4, p. 635): where the dynamic base shear V_rs is less than 85 % of the
   equivalent static base shear V (Sec 2.5.7, the cases EX and EY the model already has), all
-  the forces, but not the drifts, are multiplied by 0.85·V/V_rs. BNBC gives one fraction for
+  the forces, but not the drifts, are multiplied by 0.85·V/V_rs. The default pack (BNBC) gives one fraction for
   regular and irregular buildings alike. With several towers on a podium each tower's shear at
   the podium top is checked the same way (:mod:`saengine.fem.towers`) and the building is scaled
   by the largest factor; the towers' own periods, drifts and torsion are in ``towers``.
 - **Accidental torsion** (Sec 2.5.7.6.2, p. 630, eq. 6.2.43): ``M_ta,i = ±0.05·L_i·F_i`` at each
   level, ``F_i`` the equivalent static storey force, ``L_i`` the floor dimension perpendicular
-  to the force, the same direction at every floor. With dynamic analysis BNBC either offsets
+  to the force, the same direction at every floor. With dynamic analysis the default pack (BNBC) either offsets
   the centres of mass in the dynamic model (then no amplification Ax is needed, Sec 2.5.9.4)
   or, as here, adds the static torsional moments: the cases AX (the moments of the X forces,
   mass shifted along Y) and AY, enveloped with ± and added to the scaled RS. Where both
@@ -53,7 +53,7 @@ only their peak translations (combined and per mode), so the member forces are f
   Eh + Ev in 1.2D + 1.0E + 1.0L, E = Eh − Ev in 0.9D + 1.0E (H is not modelled), with the
   vertical component Ev = 0.50·a_h·D, a_h = (2/3)·Z·S (Sec 2.5.13.2, pp. 645-646). The live
   load factor may be 0.5 for L ≤ 5.0 kN/m² except garages and assembly (Sec 2.7.3.1 exception
-  1): taken from the project's own static earthquake combination. BNBC has no redundancy
+  1): taken from the project's own static earthquake combination. The default pack (BNBC) has no redundancy
   factor on E (ρ appears only in the drift limit) and asks for the overstrength factor Ω0
   only "where specifically required" (Sec 2.5.13.4, p. 646): not in the general combinations.
 - **Drift** (Sec 2.5.9.4, p. 635 and Sec 2.5.7.7, p. 631): the RS displacements and drifts,
@@ -692,7 +692,7 @@ def fundamental_periods(project: dict[str, Any], folder: Path | None = None) -> 
     """The fundamental period of the analysis model in X and in Y from its modal case (run on
     its own, on the stiffness the modal case has: cracked sections, P-Delta preload): per
     direction ``{"period" s, "mode", "massRatio"}``, the mode with the largest effective mass
-    in that direction (BNBC 2020 Part 6 Sec 2.5.7.2 (a), p. 627: a structural dynamics
+    in that direction (the default pack's Part 6 Sec 2.5.7.2 (a), p. 627: a structural dynamics
     procedure such as modal eigenvalue analysis). Raises ``ValueError`` when the model has no
     modal case or masses, or the run fails. ``folder``: where to run (a temporary folder by
     default)."""

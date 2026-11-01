@@ -262,7 +262,7 @@ export function readImportReport(value: unknown): IImportReport {
 		loads: {
 			carried: readLoadTotals(loads.carriedKN ?? loads.carried),
 			notCarried: readLoadTotals(loads.notCarriedKN ?? loads.notCarried),
-			replaced: readLoadTotals(loads.replacedByBnbcKN),
+			replaced: readLoadTotals(loads.replacedKN ?? loads.replacedByBnbcKN),
 		},
 		unread: approximated.unread + skipped.unread + replaced.unread + warnings.unread,
 	};

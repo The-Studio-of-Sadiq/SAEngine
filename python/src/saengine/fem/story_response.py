@@ -13,7 +13,8 @@ settings and response spectrum case:
   only), each load given to the nearest level and scaled by the load factor the case reached; of
   a response spectrum case from the modal inertia forces ``m ω² u`` of every mode, combined over
   the modes with the case's own rule (SRSS or CQC) storey by storey, and scaled like the
-  spectrum design (0.85·V/V_rs, BNBC 2020 Part 6 Sec 2.5.9.4) when it has been worked out;
+  spectrum design (the code pack's ``seismic.minimumScale``·V/V_rs; 0.85, the default pack's Part 6 Sec
+  2.5.9.4 in the default pack) when it has been worked out;
   its drifts are the spectrum design's (the modal drifts combined, unscaled);
 - the base reactions (sum over the supports) of the static cases and combinations.
 
@@ -21,7 +22,7 @@ Also the modal periods with the mass participation in X and Y (of the response s
 else worked out from the masses), the design response spectrum with the modal periods on it, the
 pushover capacity curves and the roof displacement of the time histories.
 
-Values in the model's units (SAEngine: m, N, N·m); levels in m. Elastic drift ratios: BNBC 2020
+Values in the model's units (SAEngine: m, N, N·m); levels in m. Elastic drift ratios: The default pack (BNBC 2020)
 Part 6 Sec 2.5.14.1 limits the design drift Cd·δ/I, which ``driftLimit`` gives with Cd and I.
 """
 
@@ -36,6 +37,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from saengine.codes import context as code_context
 
 #: Level tolerance [m]: a node within it of a level is on the level.
 LEVEL_TOLERANCE = 1e-3
@@ -234,7 +237,7 @@ def _spectrum_drifts(
 ) -> tuple[list[float | None], list[float | None]] | None:
     """The drift ratios of a response spectrum case in X and Y as the spectrum design works
     them out (:func:`saengine.fem.seismic_design.storey_drifts`): per storey the modal
-    combination of the modal drifts, unscaled (BNBC 2020 Part 6 Sec 2.5.9.4, p. 635), the
+    combination of the modal drifts, unscaled (the default pack's Part 6 Sec 2.5.9.4, p. 635), the
     largest over the plan positions. None when the manifest has no modes (older runs)."""
     from saengine.fem.seismic_design import storey_drifts
 
@@ -648,10 +651,13 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
         scaled = any(r.get("forceScale") is not None for r in results)
         notes.append(
             "Response spectrum drifts combine the modal drifts storey by storey, as the "
-            "spectrum design does; displacements and drifts are unscaled (BNBC 2020 Part 6 "
-            "Sec 2.5.9.4, p. 635). "
+            "spectrum design does; displacements and drifts are unscaled"
+            + code_context.cited("seismic", "scale", sep=" (")
+            + (")" if code_context.clause("seismic", "scale") else "")
+            + ". "
             + (
-                "Storey forces, shears and overturning are scaled to 0.85·V like the design."
+                "Storey forces, shears and overturning are scaled to "
+                f"{code_context.table('seismic').minimumScale:g}·V like the design."
                 if scaled
                 else "Storey forces, shears and overturning are unscaled: the response "
                 "spectrum design has not been worked out for this run."
