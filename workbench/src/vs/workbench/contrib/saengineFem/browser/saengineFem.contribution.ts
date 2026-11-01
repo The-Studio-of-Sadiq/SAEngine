@@ -598,7 +598,7 @@ registerPlannedFeature({
 	id: FemPlanned.crackWidths,
 	part: 'fem',
 	title: localize('fem.planned.crackWidths.title', "Crack Widths of Beams, Slabs and Walls"),
-	summary: localize('fem.planned.crackWidths.summary', "Calculated crack widths under service loads for beams, slabs and walls, checked against exposure limits. Today crack widths are checked for water tanks only."),
+	summary: localize('fem.planned.crackWidths.summary', "Calculated crack widths under service loads for beams, slabs and walls, checked against exposure limits. Today crack widths are checked for water tanks only; beams are checked for the code pack's crack-control bar spacing and skin steel."),
 	steps: [
 		localize('fem.planned.crackWidths.step1', "Take the service moments and axial forces of each member and slab strip."),
 		localize('fem.planned.crackWidths.step2', "Find the steel stress of the cracked section from the bars entered."),
