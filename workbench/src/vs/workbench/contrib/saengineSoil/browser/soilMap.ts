@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilPlanning, ISoilPlot, ISoilReport, ISoilSite, PLANNING_DEFAULT_USE } from './soilDocument.js';
+import { boreholePosition, formatNumber, IBorehole, IBtm, ILatLon, IPlotSide, ISoilLocationResult, ISoilOverheadLine, ISoilPlanning, ISoilPlot, ISoilReport, ISoilSite, PLANNING_DEFAULT_USE } from './soilDocument.js';
 
 /*
  * The model of the site map (soilMapView.ts), free of the DOM and of MapLibre: the tile source and
@@ -542,7 +542,7 @@ export interface IPlotEdit {
 	/** Removes the plot (boundary, corners, road side; the setbacks stay). */
 	readonly clear?: boolean;
 	/** Planning inputs merged into the plot's (a null value clears one); null removes the planning check. */
-	readonly planning?: { readonly [key: string]: string | number | null } | null;
+	readonly planning?: { readonly [key: string]: string | number | boolean | ISoilOverheadLine | null } | null;
 }
 
 /** Applies `edit` to `site` in place, the way the soil report stores the plot. */

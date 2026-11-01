@@ -563,6 +563,9 @@ def check(
         "use": plan.use,
         "useName": table.uses[plan.use].name if plan.use in table.uses else plan.use,
         "uses": [{"id": k, "name": v.name} for k, v in table.uses.items()],
+        "lineClasses": []
+        if code is None or code.overheadLines is None
+        else [{"id": c.id, "label": c.label} for c in code.overheadLines.classes],
         "checks": [],
         "notes": notes,
         "problems": problems,

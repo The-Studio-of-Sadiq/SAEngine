@@ -72,6 +72,7 @@ def test_overhead_line_check() -> None:
     result = planning.check(
         _site(overheadLine={"kind": "high", "voltage": 132, "vertical": 4000, "horizontal": 3000})
     )
+    assert [c["id"] for c in result["lineClasses"]] == ["lowMedium", "high"]
     checks = _by_label(result)
     assert not checks["Overhead line (High voltage lines), vertically"]["ok"]
     assert checks["Overhead line (High voltage lines), horizontally"]["ok"]

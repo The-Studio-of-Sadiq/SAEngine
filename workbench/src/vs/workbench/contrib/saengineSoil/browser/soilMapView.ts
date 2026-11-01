@@ -530,7 +530,9 @@ export class SoilMapView extends Disposable {
 	 * Planning compliance of the plot (saengine.gis.planning, the code pack's planning table):
 	 * the use and the road width it is checked for, FAR and MGC permitted, the setbacks Table 2
 	 * asks for against those entered, and the area statement from the building model (or areas
-	 * typed in).
+	 * typed in); with the building code's own site rules (the pack's planning.buildingCode):
+	 * levels, overhead line, open and unpaved area, height by road width and the project's
+	 * construction type, parking floors out of FAR, or its open spaces only (rules: code).
 	 */
 	private renderPlanningPanel(heading: (text: string) => HTMLElement, row: (label: string, value: string, title?: string) => HTMLElement): void {
 		const { report, location } = this.host;
@@ -538,7 +540,7 @@ export class SoilMapView extends Disposable {
 		const result = location?.planning ?? undefined;
 		heading(localize('soil.planning.heading', "Planning Compliance"));
 		if (!own) {
-			append(this.panel, $('p.soil-note', undefined, localize('soil.planning.intro', "FAR, ground coverage and setbacks of the plot by the planning rules of the code pack (Dhaka: Imarat Nirman Bidhimala 2008), with the area statement of the building.")));
+			append(this.panel, $('p.soil-note', undefined, localize('soil.planning.intro', "FAR, ground coverage and setbacks of the plot by the planning rules of the code pack, the building code's own site rules (levels, overhead lines, open area, height), and the area statement of the building.")));
 			this.button(append(this.panel, $('.soil-map-actions')), Codicon.checklist, localize('soil.planning.start', "Check Planning Rules"), () => this.host.editPlot({ planning: { use: PLANNING_DEFAULT_USE } }));
 			return;
 		}
@@ -557,6 +559,28 @@ export class SoilMapView extends Disposable {
 			option.selected = use.id === own.use;
 		}
 		this.panelDisposables.add(addDisposableListener(useSelect, EventType.CHANGE, () => this.host.editPlot({ planning: { use: useSelect.value } })));
+		// The rules (the authority's, or the building code's only) and the typology.
+		const choice = (key: string, label: string, title: string, options: readonly (readonly [string, string])[], current: string, edit: (value: string) => void) => {
+			const choiceRow = append(this.panel, $('.soil-map-row', { title }));
+			append(choiceRow, $('span.soil-map-label', undefined, label));
+			const select = append(append(choiceRow, $('span.soil-map-value.soil-prop-control')), $<HTMLSelectElement>('select.soil-input', { 'aria-label': label }));
+			select.dataset.key = key;
+			for (const [value, text] of options) {
+				const option = append(select, $<HTMLOptionElement>('option', { value }, text));
+				option.selected = value === current;
+			}
+			this.panelDisposables.add(addDisposableListener(select, EventType.CHANGE, () => edit(select.value)));
+		};
+		const codeName = result?.codeName ?? localize('soil.planning.buildingCode', "Building code");
+		choice('planningRules', localize('soil.planning.rules', "Rules"), localize('soil.planning.rulesTitle', "The planning authority's FAR, ground coverage and setbacks with the building code's own site rules, or the building code's open spaces only where no authority's rules apply"), [
+			['authority', localize('soil.planning.rulesAuthority', "Planning authority")],
+			['code', localize('soil.planning.rulesCode', "{0} only", codeName)],
+		], own.rules ?? 'authority', value => this.host.editPlot({ planning: { rules: value === 'authority' ? null : value } }));
+		choice('planningTypology', localize('soil.planning.typology', "Typology"), localize('soil.planning.typologyTitle', "The building code's side and rear open spaces depend on it"), [
+			['detached', localize('soil.planning.detached', "Detached")],
+			['semiDetached', localize('soil.planning.semiDetached', "Semi-detached")],
+			['row', localize('soil.planning.row', "Row type")],
+		], own.typology ?? 'detached', value => this.host.editPlot({ planning: { typology: value === 'detached' ? null : value } }));
 		// Numbers: road width, height and storeys (from the building model when empty), areas.
 		const numbers = append(this.panel, $('.soil-plot-setbacks.soil-planning-inputs'));
 		const field = (key: PlanningNumberKey, label: string, scale: number, placeholder: string, title: string) => {
@@ -571,7 +595,7 @@ export class SoilMapView extends Disposable {
 			this.panelDisposables.add(addDisposableListener(input, EventType.CHANGE, () => {
 				const text = input.value.trim();
 				const number = text ? Number(text) : undefined;
-				const valid = number === undefined || (Number.isFinite(number) && number >= 0);
+				const valid = number === undefined || (Number.isFinite(number) && (number >= 0 || key === 'formationHeight'));
 				input.classList.toggle('invalid', !valid);
 				if (valid) {
 					this.host.editPlot({ planning: { [key]: number === undefined ? null : key === 'storeys' ? Math.round(number) : number * scale } });
@@ -584,7 +608,63 @@ export class SoilMapView extends Disposable {
 		field('storeys', localize('soil.planning.storeys', "Storeys"), 1, measured(result?.storeys, 0), localize('soil.planning.storeysTitle', "Empty: from the building model"));
 		field('groundCoverage', localize('soil.planning.coverage', "Coverage (m²)"), 1, measured(result?.areas?.groundCoverage, 1), localize('soil.planning.coverageTitle', "Ground coverage; empty: the building model's slabs on plan"));
 		field('floorArea', localize('soil.planning.floorArea', "Floor area (m²)"), 1, measured(result?.areas?.grossFloorArea, 1), localize('soil.planning.floorAreaTitle', "Gross floor area; empty: the building model's storeys"));
-		field('excludedArea', localize('soil.planning.excluded', "Excluded (m²)"), 1, '0', localize('soil.planning.excludedTitle', "Floor area not counted in FAR (Rule 51(5): stair and lift rooms over the roof, parking, services, ...)"));
+		field('excludedArea', localize('soil.planning.excluded', "Excluded (m²)"), 1, '0', localize('soil.planning.excludedTitle', "Floor area the authority's rules leave out of FAR (stair and lift rooms over the roof, services, ...), other than the parking floors"));
+		field('parkingArea', localize('soil.planning.parking', "Parking floors (m²)"), 1, '0', localize('soil.planning.parkingTitle', "Floors (basements included) used mainly for car parking, the rest accessory plant: left out of FAR by the building code"));
+		field('openArea', localize('soil.planning.open', "Open area (m²)"), 1, measured(result?.areas?.openSpace, 1), localize('soil.planning.openTitle', "Exterior open spaces and interior courtyards, not light or ventilation shafts; empty: the plot less the ground coverage"));
+		field('unpavedArea', localize('soil.planning.unpaved', "Unpaved (m²)"), 1, '', localize('soil.planning.unpavedTitle', "Open area left unpaved (with or without vegetation); empty: not checked"));
+		field('plinthHeight', localize('soil.planning.plinth', "Plinth (m)"), 1000, '', localize('soil.planning.plinthTitle', "Plinth level above the road's centre line; empty: not checked"));
+		field('formationHeight', localize('soil.planning.formation', "Formation (m)"), 1000, '', localize('soil.planning.formationTitle', "Formation level of the plot above the road's centre line (negative: below); empty: not checked"));
+		// Flags: flood prone (levels by the development authority), approved area (unlimited height).
+		const flags = append(this.panel, $('.soil-plot-setbacks.soil-planning-inputs'));
+		const flag = (key: 'floodProne' | 'approvedArea', label: string, title: string) => {
+			const cell = append(flags, $('label.soil-plot-setback', { title }));
+			const box = append(cell, $<HTMLInputElement>('input', { type: 'checkbox', 'aria-label': label }));
+			box.dataset.key = `planning-${key}`;
+			box.checked = own[key] === true;
+			append(cell, $('span', undefined, label));
+			this.panelDisposables.add(addDisposableListener(box, EventType.CHANGE, () => this.host.editPlot({ planning: { [key]: box.checked ? true : null } })));
+		};
+		flag('floodProne', localize('soil.planning.flood', "Flood prone"), localize('soil.planning.floodTitle', "Flood or surge prone area: the plinth and formation levels are the development authority's"));
+		flag('approvedArea', localize('soil.planning.approved', "Approved area"), localize('soil.planning.approvedTitle', "The plot lies in an approved residential or business area (no height limit on a wide road, by the building code)"));
+		// The nearest overhead electric line and the building's distances to it.
+		const lineClasses = result?.lineClasses ?? [];
+		if (lineClasses.length || own.overheadLine) {
+			const line = own.overheadLine;
+			choice('planningLine', localize('soil.planning.line', "Overhead line"), localize('soil.planning.lineTitle', "The nearest overhead electric line"), [
+				['', localize('soil.planning.lineNone', "None")],
+				...lineClasses.map(c => [c.id, c.label] as const),
+			], line?.kind ?? '', value => this.host.editPlot({ planning: { overheadLine: value ? { ...line, kind: value } : null } }));
+			if (line) {
+				const lineNumbers = append(this.panel, $('.soil-plot-setbacks.soil-planning-inputs'));
+				const lineField = (key: 'voltage' | 'vertical' | 'horizontal', label: string, scale: number, title: string) => {
+					const cell = append(lineNumbers, $('label.soil-plot-setback', { title }));
+					append(cell, $('span', undefined, label));
+					const input = append(cell, $<HTMLInputElement>('input.soil-input.number', { type: 'text', spellcheck: 'false', 'aria-label': label }));
+					input.dataset.key = `planning-line-${key}`;
+					this.panelInputs.set(`planning-line-${key}`, input);
+					const value = line[key];
+					input.value = typeof value === 'number' ? formatNumber(value / scale, 3) : '';
+					this.panelDisposables.add(addDisposableListener(input, EventType.CHANGE, () => {
+						const text = input.value.trim();
+						const number = text ? Number(text) : undefined;
+						const valid = number === undefined || (Number.isFinite(number) && number > 0);
+						input.classList.toggle('invalid', !valid);
+						if (valid) {
+							const next = { ...line };
+							if (number === undefined) {
+								delete next[key];
+							} else {
+								next[key] = number * scale;
+							}
+							this.host.editPlot({ planning: { overheadLine: next } });
+						}
+					}));
+				};
+				lineField('voltage', localize('soil.planning.lineVoltage', "Voltage (kV)"), 1, localize('soil.planning.lineVoltageTitle', "Of a high voltage line"));
+				lineField('vertical', localize('soil.planning.lineVertical', "Vertical (m)"), 1000, localize('soil.planning.lineVerticalTitle', "From the building or any part of it to the line; empty: not checked"));
+				lineField('horizontal', localize('soil.planning.lineHorizontal', "Horizontal (m)"), 1000, localize('soil.planning.lineHorizontalTitle', "From the building or any part of it to the line; empty: not checked"));
+			}
+		}
 
 		if (this.host.locationState === 'computing' && !result) {
 			append(this.panel, $('p.soil-note', undefined, localize('soil.planning.checking', "Checking...")));
@@ -598,6 +678,13 @@ export class SoilMapView extends Disposable {
 		const permitted = result.permitted;
 		if (permitted?.allowed) {
 			row(localize('soil.planning.permitted', "Permitted"), localize('soil.planning.permittedValue', "FAR {0}, MGC {1} %", permitted.farText ?? '', formatNumber(permitted.mgc ?? 0, 1)), permitted.rule ?? '');
+		}
+		if (result.setbacksRow) {
+			row(localize('soil.planning.setbacksRow', "Open space row"), result.setbacksRow, result.setbacks?.rule ?? '');
+		}
+		const heightLimit = result.heightLimit;
+		if (heightLimit) {
+			row(localize('soil.planning.heightLimit', "Height limit"), localize('soil.planning.heightLimitValue', "{0} storeys, {1} m ({2})", heightLimit.storeys, formatNumber(heightLimit.height, 1), heightLimit.column), heightLimit.rule);
 		}
 		const limits = result.limits;
 		const areas = result.areas;
@@ -623,15 +710,20 @@ export class SoilMapView extends Disposable {
 			if (areas?.excluded) {
 				line(localize('soil.planning.excludedRow', "Less excluded (m²)"), formatNumber(areas.excluded, 1));
 			}
+			if (areas?.parking) {
+				line(localize('soil.planning.parkingRow', "Less parking floors (m²)"), formatNumber(areas.parking, 1));
+			}
 			line(localize('soil.planning.farRow', "Floor area for FAR (m²)"), measured(areas?.farArea, 1), limits ? (limits.floorArea === null ? localize('soil.planning.nr', "not restricted") : formatNumber(limits.floorArea, 1)) : '');
 		}
 		const list = append(this.panel, $('.soil-map-list.soil-planning-checks', { role: 'list', 'aria-label': localize('soil.planning.checks', "Planning checks") }));
 		for (const check of result.checks ?? []) {
-			const item = append(list, $('.soil-map-item', { role: 'listitem', title: check.rule }));
-			item.classList.toggle('fail', !check.ok);
-			append(item, $(`span${ThemeIcon.asCSSSelector(check.ok ? Codicon.pass : Codicon.error)}`));
+			const advisory = !check.ok && check.advisory === true;
+			const item = append(list, $('.soil-map-item', { role: 'listitem', title: advisory ? localize('soil.planning.advisoryTitle', "{0} (advisory: the planning authority's rules apply)", check.rule) : check.rule }));
+			item.classList.toggle('fail', !check.ok && !advisory);
+			append(item, $(`span${ThemeIcon.asCSSSelector(check.ok ? Codicon.pass : advisory ? Codicon.info : Codicon.error)}`));
 			const limit = check.limit === null ? localize('soil.planning.nr', "not restricted") : formatNumber(check.limit, 2);
-			append(item, $('span.soil-map-item-detail', undefined, localize('soil.planning.checkLine', "{0}: {1} {2} {3} {4}", check.label, formatNumber(check.provided, 2), check.sense, limit, check.unit).trim()));
+			const text = localize('soil.planning.checkLine', "{0}: {1} {2} {3} {4}", check.label, formatNumber(check.provided, 2), check.sense, limit, check.unit).trim();
+			append(item, $('span.soil-map-item-detail', undefined, advisory ? localize('soil.planning.advisoryLine', "{0} (advisory)", text) : text));
 		}
 		for (const note of [...result.problems ?? [], ...result.notes ?? []]) {
 			append(this.panel, $('p.soil-note', undefined, note));
