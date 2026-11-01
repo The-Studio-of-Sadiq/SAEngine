@@ -47,7 +47,7 @@ export const FemPlanned = {
 	/** T27: base plate thickness, end-plate moment connections (anchors in concrete and moment-base rod tension: built in B26). */
 	basePlateDesign: 'fem.basePlateDesign',
 	endPlateMoment: 'fem.endPlateMoment',
-	/** T28: AISC 341 seismic systems (member torsion: built in B31). */
+	/** T28: seismic steel braced frames and plate walls (B38; moment frames built in B35). */
 	steelSeismic: 'fem.steelSeismic',
 	/** T30: cold-formed purlins and girts (AISI S100). */
 	coldFormedSteel: 'fem.coldFormedSteel',

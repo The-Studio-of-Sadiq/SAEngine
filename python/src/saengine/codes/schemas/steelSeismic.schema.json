@@ -1,0 +1,1117 @@
+{
+  "$defs": {
+    "SteelSeismicBases": {
+      "additionalProperties": false,
+      "properties": {
+        "shearFactor": {
+          "description": "Column base shear: this × Ry Fy Zx / H.",
+          "exclusiveMinimum": 0,
+          "title": "Shearfactor",
+          "type": "number"
+        },
+        "flexureFactor": {
+          "description": "Column base moment: this × Ry Fy Z.",
+          "exclusiveMinimum": 0,
+          "title": "Flexurefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shearFactor",
+        "flexureFactor"
+      ],
+      "title": "SteelSeismicBases",
+      "type": "object"
+    },
+    "SteelSeismicColumns": {
+      "additionalProperties": false,
+      "properties": {
+        "axialRatio": {
+          "description": "Pu / φPn above this: the amplified seismic load.",
+          "exclusiveMinimum": 0,
+          "title": "Axialratio",
+          "type": "number"
+        },
+        "phi": {
+          "description": "φ of φPn in the ratio.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "connectionFactor": {
+          "description": "× Ry × the connecting members' strengths.",
+          "exclusiveMinimum": 0,
+          "title": "Connectionfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "axialRatio",
+        "phi",
+        "connectionFactor"
+      ],
+      "title": "SteelSeismicColumns",
+      "type": "object"
+    },
+    "SteelSeismicConnections": {
+      "additionalProperties": false,
+      "properties": {
+        "bearingMax": {
+          "description": "Nominal bearing at most this × d t Fu.",
+          "exclusiveMinimum": 0,
+          "title": "Bearingmax",
+          "type": "number"
+        },
+        "slipClass": {
+          "description": "Faying surface class of SLRS bolts.",
+          "enum": [
+            "A",
+            "B"
+          ],
+          "title": "Slipclass",
+          "type": "string"
+        },
+        "clipWeb": {
+          "description": "Clip along the web beyond k [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Clipweb",
+          "type": "number"
+        },
+        "clipFlange": {
+          "description": "Clip along the flange beyond k1 at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Clipflange",
+          "type": "number"
+        },
+        "clipRadius": {
+          "description": "Least radius of a curved clip [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Clipradius",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bearingMax",
+        "slipClass",
+        "clipWeb",
+        "clipFlange",
+        "clipRadius"
+      ],
+      "title": "SteelSeismicConnections",
+      "type": "object"
+    },
+    "SteelSeismicExpected": {
+      "additionalProperties": false,
+      "description": "A row of the expected strength ratios: the steels it covers and Ry, Rt.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "application": {
+          "description": "Hot-rolled shapes and bars, hollow sections, pipe or plates.",
+          "enum": [
+            "shapes",
+            "hss",
+            "pipe",
+            "plates"
+          ],
+          "title": "Application",
+          "type": "string"
+        },
+        "match": {
+          "description": "Regular expressions; a material matches when one is found in its grade, standard, id or name (case ignored).",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Match",
+          "type": "array"
+        },
+        "fyMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least Fy of the row [MPa].",
+          "title": "Fymin"
+        },
+        "fyMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest Fy of the row [MPa].",
+          "title": "Fymax"
+        },
+        "Ry": {
+          "description": "Expected yield stress / Fy.",
+          "minimum": 1,
+          "title": "Ry",
+          "type": "number"
+        },
+        "Rt": {
+          "description": "Expected tensile strength / Fu.",
+          "minimum": 1,
+          "title": "Rt",
+          "type": "number"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "application",
+        "match",
+        "Ry",
+        "Rt"
+      ],
+      "title": "SteelSeismicExpected",
+      "type": "object"
+    },
+    "SteelSeismicExpectedTable": {
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelSeismicExpected"
+          },
+          "title": "Rows",
+          "type": "object"
+        },
+        "fallbackRy": {
+          "description": "Ry of a steel no row matches.",
+          "minimum": 1,
+          "title": "Fallbackry",
+          "type": "number"
+        },
+        "fallbackRt": {
+          "description": "Rt of a steel no row matches.",
+          "minimum": 1,
+          "title": "Fallbackrt",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rows",
+        "fallbackRy",
+        "fallbackRt"
+      ],
+      "title": "SteelSeismicExpectedTable",
+      "type": "object"
+    },
+    "SteelSeismicFrame": {
+      "additionalProperties": false,
+      "description": "The rules of one kind of moment frame; a missing rule is not required of it.",
+      "properties": {
+        "driftAngle": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Connection drift [rad].",
+          "title": "Driftangle"
+        },
+        "flexuralShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Connection resistance at the drift / Mp.",
+          "title": "Flexuralshare"
+        },
+        "hingeFactor": {
+          "description": "Expected moment = this × Ry Mp.",
+          "exclusiveMinimum": 0,
+          "title": "Hingefactor",
+          "type": "number"
+        },
+        "compactness": {
+          "description": "Width-thickness limits of the beams and columns.",
+          "enum": [
+            "seismic",
+            "compact",
+            "none"
+          ],
+          "title": "Compactness",
+          "type": "string"
+        },
+        "fyLimit": {
+          "description": "Fy of members expected to yield at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fylimit",
+          "type": "number"
+        },
+        "panelZone": {
+          "description": "Panel zone shear and thickness of the frame's own.",
+          "title": "Panelzone",
+          "type": "boolean"
+        },
+        "panelZonePhi": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Panelzonephi"
+        },
+        "panelZoneOmega": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Panelzoneomega"
+        },
+        "panelThicknessDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "t ≥ (dz + wz) / this.",
+          "title": "Panelthicknessdivisor"
+        },
+        "momentRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ΣM*pc / ΣM*pb must exceed this.",
+          "title": "Momentratio"
+        },
+        "axialExemption": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Columns with Puc below this × Fyc Ag may be exempt.",
+          "title": "Axialexemption"
+        },
+        "elasticRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A column is taken elastic above this moment ratio.",
+          "title": "Elasticratio"
+        },
+        "flangeBraceShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Column flange brace: this × Fy bf tbf.",
+          "title": "Flangebraceshare"
+        },
+        "unbracedSlenderness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "L/r at most.",
+          "title": "Unbracedslenderness"
+        },
+        "unbracedAmplification": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "E at most this × the frame's available strength.",
+          "title": "Unbracedamplification"
+        },
+        "beamBracing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lb ≤ this × ry E / Fy.",
+          "title": "Beambracing"
+        },
+        "braceStrength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brace next to a hinge: Pu = this × Mu / ho.",
+          "title": "Bracestrength"
+        },
+        "connectionMoment": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "FR connections: required M = this × Ry Mp.",
+          "title": "Connectionmoment"
+        },
+        "prShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "PR connections: Mn at least this × Mp.",
+          "title": "Prshare"
+        },
+        "weldFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tension welds: this × Ry Fy × the element's area.",
+          "title": "Weldfactor"
+        },
+        "continuityCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Plates when tcf < this × √(bf tbf Fyb / Fyc).",
+          "title": "Continuitycoefficient"
+        },
+        "continuityWidthRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or when tcf < bf / this.",
+          "title": "Continuitywidthratio"
+        },
+        "plateOneSided": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× tbf, one-sided.",
+          "title": "Plateonesided"
+        },
+        "plateTwoSided": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× tbf, two-sided.",
+          "title": "Platetwosided"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hingeFactor",
+        "compactness",
+        "fyLimit",
+        "panelZone"
+      ],
+      "title": "SteelSeismicFrame",
+      "type": "object"
+    },
+    "SteelSeismicPractice": {
+      "additionalProperties": false,
+      "description": "SAEngine practice where the code defers to tested or prequalified connections.",
+      "properties": {
+        "hingeOffsetDepths": {
+          "description": "Plastic hinge this × the beam depth from the column face.",
+          "minimum": 0,
+          "title": "Hingeoffsetdepths",
+          "type": "number"
+        },
+        "protectedDepths": {
+          "description": "Protected zone from the column face over this × the beam depth.",
+          "exclusiveMinimum": 0,
+          "title": "Protecteddepths",
+          "type": "number"
+        },
+        "rigidZoneMax": {
+          "description": "Rigid zone factor at most this for the panel zone drift.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Rigidzonemax",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hingeOffsetDepths",
+        "protectedDepths",
+        "rigidZoneMax"
+      ],
+      "title": "SteelSeismicPractice",
+      "type": "object"
+    },
+    "SteelSeismicSplices": {
+      "additionalProperties": false,
+      "properties": {
+        "pjpFactor": {
+          "description": "PJP groove welds: at least this × required.",
+          "exclusiveMinimum": 0,
+          "title": "Pjpfactor",
+          "type": "number"
+        },
+        "flangeShare": {
+          "description": "Each flange splice at least this × Ry Fy Af.",
+          "exclusiveMinimum": 0,
+          "title": "Flangeshare",
+          "type": "number"
+        },
+        "distance": {
+          "description": "Splices at least this from the connections [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Distance",
+          "type": "number"
+        },
+        "shortStorey": {
+          "description": "Clear height below this: splice at mid [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Shortstorey",
+          "type": "number"
+        },
+        "gravityShear": {
+          "description": "Columns not in the SLRS: this × Mpc / H.",
+          "exclusiveMinimum": 0,
+          "title": "Gravityshear",
+          "type": "number"
+        },
+        "smfFlexure": {
+          "description": "Splices of SMF not groove welded: × Ry Fy Zx.",
+          "exclusiveMinimum": 0,
+          "title": "Smfflexure",
+          "type": "number"
+        },
+        "smfShear": {
+          "description": "Web splices of SMF: this × ΣMpc / H.",
+          "exclusiveMinimum": 0,
+          "title": "Smfshear",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pjpFactor",
+        "flangeShare",
+        "distance",
+        "shortStorey",
+        "gravityShear",
+        "smfFlexure",
+        "smfShear"
+      ],
+      "title": "SteelSeismicSplices",
+      "type": "object"
+    },
+    "SteelSeismicToughness": {
+      "additionalProperties": false,
+      "properties": {
+        "flangeThickness": {
+          "description": "Rolled shapes this thick need the CVN [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Flangethickness",
+          "type": "number"
+        },
+        "plateThickness": {
+          "description": "Plates this thick need the CVN [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Platethickness",
+          "type": "number"
+        },
+        "energy": {
+          "description": "[J]",
+          "exclusiveMinimum": 0,
+          "title": "Energy",
+          "type": "number"
+        },
+        "temperature": {
+          "description": "[°C]",
+          "title": "Temperature",
+          "type": "number"
+        },
+        "weldEnergy": {
+          "description": "Filler metal CVN [J].",
+          "exclusiveMinimum": 0,
+          "title": "Weldenergy",
+          "type": "number"
+        },
+        "weldTemperature": {
+          "description": "[°C]",
+          "title": "Weldtemperature",
+          "type": "number"
+        }
+      },
+      "required": [
+        "flangeThickness",
+        "plateThickness",
+        "energy",
+        "temperature",
+        "weldEnergy",
+        "weldTemperature"
+      ],
+      "title": "SteelSeismicToughness",
+      "type": "object"
+    },
+    "SteelSeismicTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "rAbove": {
+          "description": "The provisions apply when R is taken above this.",
+          "exclusiveMinimum": 0,
+          "title": "Rabove",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rAbove"
+      ],
+      "title": "SteelSeismicTrigger",
+      "type": "object"
+    },
+    "SteelSeismicTruss": {
+      "additionalProperties": false,
+      "description": "Special truss moment frames: the special segment and its members.",
+      "properties": {
+        "spanMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Spanmax",
+          "type": "number"
+        },
+        "depthMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Depthmax",
+          "type": "number"
+        },
+        "segmentMin": {
+          "description": "Special segment at least this × the span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Segmentmin",
+          "type": "number"
+        },
+        "segmentMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Segmentmax",
+          "type": "number"
+        },
+        "segmentZone": {
+          "description": "... inside the middle (between quarter points).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Segmentzone",
+          "type": "number"
+        },
+        "panelRatioMin": {
+          "description": "Panel length / depth at least.",
+          "exclusiveMinimum": 0,
+          "title": "Panelratiomin",
+          "type": "number"
+        },
+        "panelRatioMax": {
+          "exclusiveMinimum": 0,
+          "title": "Panelratiomax",
+          "type": "number"
+        },
+        "crossing": {
+          "description": "X diagonals joined for this × Pnt.",
+          "exclusiveMinimum": 0,
+          "title": "Crossing",
+          "type": "number"
+        },
+        "diagonalGravity": {
+          "description": "Gravity axial at most this × Fy Ag.",
+          "exclusiveMinimum": 0,
+          "title": "Diagonalgravity",
+          "type": "number"
+        },
+        "chordShear": {
+          "description": "Chords give at least this share of the shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Chordshear",
+          "type": "number"
+        },
+        "chordAxial": {
+          "description": "Chord axial at most this × φ Fy Ag.",
+          "exclusiveMinimum": 0,
+          "title": "Chordaxial",
+          "type": "number"
+        },
+        "phi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "diagonalCompression": {
+          "description": "0.3 Pnc of the diagonals' shear.",
+          "exclusiveMinimum": 0,
+          "title": "Diagonalcompression",
+          "type": "number"
+        },
+        "vneMoment": {
+          "description": "Eq 6.10.302: this × Ry Mnc / Ls.",
+          "exclusiveMinimum": 0,
+          "title": "Vnemoment",
+          "type": "number"
+        },
+        "vneStiffness": {
+          "description": "... + this × EI (L - Ls) / Ls³.",
+          "exclusiveMinimum": 0,
+          "title": "Vnestiffness",
+          "type": "number"
+        },
+        "braceInside": {
+          "description": "Braces at and in the segment: × Ry Pnc.",
+          "exclusiveMinimum": 0,
+          "title": "Braceinside",
+          "type": "number"
+        },
+        "braceOutside": {
+          "description": "Braces outside it: × Ry Pnc.",
+          "exclusiveMinimum": 0,
+          "title": "Braceoutside",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "spanMax",
+        "depthMax",
+        "segmentMin",
+        "segmentMax",
+        "segmentZone",
+        "panelRatioMin",
+        "panelRatioMax",
+        "crossing",
+        "diagonalGravity",
+        "chordShear",
+        "chordAxial",
+        "phi",
+        "diagonalCompression",
+        "vneMoment",
+        "vneStiffness",
+        "braceInside",
+        "braceOutside"
+      ],
+      "title": "SteelSeismicTruss",
+      "type": "object"
+    },
+    "SteelSeismicWeb": {
+      "additionalProperties": false,
+      "description": "Webs in flexure or flexure and axial compression: λ = a √(E/Fy) (1 - b Ca) on one side\nof ``split`` and c √(E/Fy) (d - Ca) ≥ floor √(E/Fy) on the other.",
+      "properties": {
+        "split": {
+          "description": "Ca at the change of form.",
+          "exclusiveMinimum": 0,
+          "title": "Split",
+          "type": "number"
+        },
+        "linearA": {
+          "exclusiveMinimum": 0,
+          "title": "Lineara",
+          "type": "number"
+        },
+        "linearB": {
+          "exclusiveMinimum": 0,
+          "title": "Linearb",
+          "type": "number"
+        },
+        "offsetA": {
+          "exclusiveMinimum": 0,
+          "title": "Offseta",
+          "type": "number"
+        },
+        "offsetB": {
+          "exclusiveMinimum": 0,
+          "title": "Offsetb",
+          "type": "number"
+        },
+        "floor": {
+          "exclusiveMinimum": 0,
+          "title": "Floor",
+          "type": "number"
+        },
+        "linearAbove": {
+          "description": "True: the linear form for Ca above the split (as printed).",
+          "title": "Linearabove",
+          "type": "boolean"
+        },
+        "leastOfBoth": {
+          "description": "Take the least of the printed assignment and the swapped one.",
+          "title": "Leastofboth",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "split",
+        "linearA",
+        "linearB",
+        "offsetA",
+        "offsetB",
+        "floor",
+        "linearAbove",
+        "leastOfBoth"
+      ],
+      "title": "SteelSeismicWeb",
+      "type": "object"
+    },
+    "SteelSeismicWidthThickness": {
+      "additionalProperties": false,
+      "description": "λps (seismically compact) as coefficients of √(E/Fy) unless noted.",
+      "properties": {
+        "iFlange": {
+          "description": "Flanges of I-shapes, flexure or compression.",
+          "exclusiveMinimum": 0,
+          "title": "Iflange",
+          "type": "number"
+        },
+        "iFlangeRelaxed": {
+          "description": "Flanges of I-shaped columns where note [d].",
+          "exclusiveMinimum": 0,
+          "title": "Iflangerelaxed",
+          "type": "number"
+        },
+        "channelFlange": {
+          "description": "Channels, angle pairs in contact, braces.",
+          "exclusiveMinimum": 0,
+          "title": "Channelflange",
+          "type": "number"
+        },
+        "hPileFlange": {
+          "exclusiveMinimum": 0,
+          "title": "Hpileflange",
+          "type": "number"
+        },
+        "flatBar": {
+          "description": "b/t of flat bars (a plain number).",
+          "exclusiveMinimum": 0,
+          "title": "Flatbar",
+          "type": "number"
+        },
+        "angleLeg": {
+          "description": "Single angles, double angles, tee flanges.",
+          "exclusiveMinimum": 0,
+          "title": "Angleleg",
+          "type": "number"
+        },
+        "teeStem": {
+          "exclusiveMinimum": 0,
+          "title": "Teestem",
+          "type": "number"
+        },
+        "smfBeamWeb": {
+          "description": "Webs of beams in special moment frames.",
+          "exclusiveMinimum": 0,
+          "title": "Smfbeamweb",
+          "type": "number"
+        },
+        "web": {
+          "$ref": "#/$defs/SteelSeismicWeb"
+        },
+        "roundHss": {
+          "description": "D/t ≤ this × (E/Fy) (no root: see the note).",
+          "exclusiveMinimum": 0,
+          "title": "Roundhss",
+          "type": "number"
+        },
+        "rectHss": {
+          "exclusiveMinimum": 0,
+          "title": "Recthss",
+          "type": "number"
+        },
+        "hPileWeb": {
+          "exclusiveMinimum": 0,
+          "title": "Hpileweb",
+          "type": "number"
+        },
+        "phiB": {
+          "description": "φb of Ca = Pu / (φb Py).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phib",
+          "type": "number"
+        },
+        "relaxedRatio": {
+          "description": "Columns of special moment frames may use λp when the column-beam moment ratio exceeds this.",
+          "exclusiveMinimum": 0,
+          "title": "Relaxedratio",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "iFlange",
+        "iFlangeRelaxed",
+        "channelFlange",
+        "hPileFlange",
+        "flatBar",
+        "angleLeg",
+        "teeStem",
+        "smfBeamWeb",
+        "web",
+        "roundHss",
+        "rectHss",
+        "hPileWeb",
+        "phiB",
+        "relaxedRatio"
+      ],
+      "title": "SteelSeismicWidthThickness",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Seismic provisions for structural steel buildings: when they apply, the expected\nstrengths, seismically compact sections, column strength, splices and bases, and the\nmoment frames (special, intermediate, ordinary, special truss).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "trigger": {
+      "$ref": "#/$defs/SteelSeismicTrigger"
+    },
+    "systems": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Structural system id -> the frame kind of ``frames`` its members follow.",
+      "title": "Systems",
+      "type": "object"
+    },
+    "omegaDefault": {
+      "description": "Ω0 when the system gives none.",
+      "exclusiveMinimum": 0,
+      "title": "Omegadefault",
+      "type": "number"
+    },
+    "expected": {
+      "$ref": "#/$defs/SteelSeismicExpectedTable"
+    },
+    "toughness": {
+      "$ref": "#/$defs/SteelSeismicToughness"
+    },
+    "widthThickness": {
+      "$ref": "#/$defs/SteelSeismicWidthThickness"
+    },
+    "columns": {
+      "$ref": "#/$defs/SteelSeismicColumns"
+    },
+    "splices": {
+      "$ref": "#/$defs/SteelSeismicSplices"
+    },
+    "bases": {
+      "$ref": "#/$defs/SteelSeismicBases"
+    },
+    "frames": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SteelSeismicFrame"
+      },
+      "title": "Frames",
+      "type": "object"
+    },
+    "truss": {
+      "$ref": "#/$defs/SteelSeismicTruss"
+    },
+    "connections": {
+      "$ref": "#/$defs/SteelSeismicConnections"
+    },
+    "practice": {
+      "$ref": "#/$defs/SteelSeismicPractice"
+    }
+  },
+  "required": [
+    "trigger",
+    "systems",
+    "omegaDefault",
+    "expected",
+    "toughness",
+    "widthThickness",
+    "columns",
+    "splices",
+    "bases",
+    "frames",
+    "truss",
+    "connections",
+    "practice"
+  ],
+  "title": "SteelSeismicTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelSeismic/1"
+}

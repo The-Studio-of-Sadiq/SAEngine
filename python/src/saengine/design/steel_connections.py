@@ -1241,9 +1241,11 @@ def panel_zone_shear(
     bcf: float = 0.0,
     tcf: float = 0.0,
     db: float = 1.0,
+    phi_v: float | None = None,
 ) -> tuple[float, str]:
     """φRn of the web panel zone in shear [N], Eqs 6.10.193-196 (``axial_ratio`` = Pr / Pc,
-    Pc = Py)."""
+    Pc = Py). ``phi_v``: a φ of its own (B35: the seismic provisions' special moment frames,
+    :mod:`saengine.design.steel.seismic`); None: the pack's panel zone φ."""
     base = 0.60 * fy * dc * tw
     if not in_analysis:
         if axial_ratio <= 0.4:
@@ -1258,7 +1260,7 @@ def panel_zone_shear(
             rn = base * boost * (1.9 - 1.2 * axial_ratio)
             eq = "6.10.196: ... (1.9 - 1.2 Pr/Pc)"
     note = f"Sec 10.10.10.6 Eq {eq}, Pr/Pc = {axial_ratio:.2f}"
-    return phi("panelZone", 0.9) * rn, note
+    return (phi("panelZone", 0.9) if phi_v is None else phi_v) * rn, note
 
 
 def column_side_checks(

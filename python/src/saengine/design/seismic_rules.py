@@ -958,6 +958,18 @@ def seismic_detailing_scope(
                 "a steel system: the RC detailing of Sec 8.3 does not apply to its members "
                 "(Part 6 Chapter 10)"
             )
+            # B35: the steel seismic provisions (saengine.design.steel.seismic) say whether
+            # they apply (R above the pack's limit) and to which frames.
+            from saengine.design.steel import seismic as steel_seismic
+
+            steel = steel_seismic.provisions(settings)
+            if steel.applies:
+                notes.append(
+                    f"the steel seismic provisions apply (R = {steel.r:g}): the steel members, "
+                    f"joints and connections are capacity designed as a {steel.frame} frame"
+                )
+            elif steel.reason:
+                notes.append(steel.reason)
     flat = _flat_slabs(objects, building)
     if flat and frame_type == "special" and row is not None and row.frame == "special":
         checks.append(

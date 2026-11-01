@@ -416,6 +416,15 @@ def _design_run(
         scope["omega"]["elements"] = sorted(omega_elements)
         if not scope["omega"].get("combinations"):
             scope["omega"]["combinations"] = omega_extra["combinations"]
+    # B35: the steel columns of a steel seismic system take the amplified seismic load for
+    # their axial strength (saengine.design.steel.seismic); their other checks leave it out.
+    steel_amplified = _steel_amplified_columns(resolved, building, objects, materials)
+    steel_amplified -= omega_elements
+    if steel_amplified and scope is not None:
+        omega_elements |= steel_amplified
+        scope["omega"]["elements"] = sorted(omega_elements)
+        if not scope["omega"].get("combinations"):
+            scope["omega"]["combinations"] = seismic_rules.omega_combinations(resolved)
     omega_static = (
         [
             LoadCombination(**{k: v for k, v in c.items() if k != "clause"})
@@ -740,6 +749,9 @@ def _design_run(
     skipped: list[dict[str, Any]] = []
     designed: list[seismic_detailing.Designed] = []
     steel_seen = False
+    from saengine.design.steel import seismic as steel_seismic
+
+    steel_members: list[steel_seismic.SteelMember] = []  # B35
     steel_stability = None
     anchor_seismic = None
     from saengine.design import timber as timber_design
@@ -786,7 +798,8 @@ def _design_run(
                     object_type,
                     steel_material,
                     mats,
-                    own,
+                    # B35: the amplified load only in the steel seismic axial check.
+                    _without(own, omega_indices) if member_id in steel_amplified else own,
                     combinations,
                     _turned(element, exact),
                     project,
@@ -802,6 +815,19 @@ def _design_run(
                 _steel_deflection(entry, own, service, project, object_type)  # B9
             checked.append(entry)
             steel_seen = True
+            if object_type.kind in ("beam", "column"):  # B35
+                steel_members.append(
+                    steel_seismic.SteelMember(
+                        member_id,
+                        object_type.kind,
+                        element,
+                        object_type,
+                        steel_material,
+                        own,
+                        _turned(element, exact),
+                        entry,
+                    )
+                )
             if collect is not None:
                 collect.setdefault("steel", []).append(steel_collected)
             continue
@@ -1097,6 +1123,28 @@ def _design_run(
             )
         )
 
+    # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
+    # connection checks on the steel entries, the project's own checks with the seismic ones.
+    steel_seismic_found = None
+    if steel_members:
+        try:
+            steel_seismic_found = steel_seismic.apply(
+                project,
+                building,
+                types,
+                mats,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            notes.append(f"the steel seismic provisions could not be checked: {error}")
+        if steel_seismic_found is not None:
+            notes += steel_seismic_found["notes"]
+            if scope is not None:
+                scope["steelSeismic"] = steel_seismic_found
+                scope["checks"] = scope.get("checks", []) + steel_seismic_found["checks"]
     # Integrator glue: the earthquake-resistant detailing of BNBC Sec 8.3 (seismic_detailing).
     joints: list[dict[str, Any]] = []
     if scope is not None:
@@ -1484,6 +1532,10 @@ def _assemble(
         from saengine.design.steel.stability import method_lines
 
         method += steel_design.METHOD + method_lines(steel_stability)
+        if ((scope or {}).get("steelSeismic") or {}).get("applies"):  # B35
+            from saengine.design.steel import seismic as steel_seismic
+
+            method += steel_seismic.method_lines()
     if timber_seen:
         from saengine.design import timber as timber_design
 
@@ -2855,6 +2907,57 @@ def _anchor_seismic(settings: Any, combinations: list[str], extra: dict[str, Any
         category = None
     names = frozenset(combinations[i] for i in earthquake_indices(extra, len(combinations)))
     return SeismicContext(category, names)
+
+
+def _steel_amplified_columns(
+    settings: Any, building: Any, objects: Any, materials: Any
+) -> set[str]:
+    """B35: the steel column elements of a steel seismic system (not marked gravity) when the
+    steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
+    from saengine.design.steel import seismic as steel_seismic
+
+    try:
+        if building is None or not steel_seismic.provisions(settings).applies:
+            return set()
+    except (ValueError, KeyError, AttributeError, TypeError):
+        return set()
+    types = {o.id: o for o in getattr(objects, "objects", [])}
+    mats = {m.id: m for m in getattr(materials, "materials", [])}
+    found: set[str] = set()
+    elements = list(getattr(building, "elements", []))
+    elements += list(getattr(getattr(building, "additions", None), "members", []) or [])
+    for e in elements:
+        t = types.get(getattr(e, "type", None))
+        if t is None or getattr(t, "kind", None) != "column":
+            continue
+        if not steel_design.is_steel(mats.get(t.material)):
+            continue
+        role = getattr(e, "seismicRole", None)
+        if role in (None, "auto"):
+            role = getattr(t, "seismicRole", None)
+        if role != "gravity":
+            found.add(e.id)
+    return found
+
+
+def _without(pieces: list[_Piece], indices: list[int]) -> list[_Piece]:
+    """Copies of ``pieces`` with the forces of the combinations ``indices`` zeroed."""
+    from dataclasses import replace
+
+    out = []
+    for piece in pieces:
+        changes: dict[str, Any] = {}
+        for name in ("forces", "sway", "sustained", "live", "roof"):
+            parts = getattr(piece, name)
+            if parts is None:
+                continue
+            parts = list(parts)
+            for c in indices:
+                if c < len(parts) and parts[c] is not None:
+                    parts[c] = np.zeros_like(parts[c])
+            changes[name] = parts
+        out.append(replace(piece, **changes))
+    return out
 
 
 def _drop_combinations(
