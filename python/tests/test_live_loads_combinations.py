@@ -139,7 +139,8 @@ def test_lr_or_r_alternate():
 def test_exceptions_and_cantilever_uplift():
     table = builtin_table("combinations")
     live = table.exceptions["reducedLive"]
-    assert (live.to, live.liveMax, live.rows) == (0.5, 5.0, ["3L", "4", "5"])
+    # B16: and the flood zone's combination 4 (1.6W replaced, Sec 2.7.3.1).
+    assert (live.to, live.liveMax, live.rows) == (0.5, 5.0, ["3L", "4", "5", "4Fa"])
     assert fc.exception_applies(live, live_loads=[("residential", 2.0)])[0]
     assert not fc.exception_applies(live, live_loads=[("parking", 2.0)])[0]
     assert not fc.exception_applies(live, live_loads=[("storageLight", 6.0)])[0]
