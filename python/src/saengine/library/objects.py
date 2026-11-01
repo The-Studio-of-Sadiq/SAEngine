@@ -1329,6 +1329,49 @@ class Staircase(_ObjectBase):
     headroom: float | None = Field(
         default=None, gt=0, description="Clear headroom provided [mm]; none: not checked."
     )
+    builtIntoWall: bool = Field(
+        default=False,
+        title="Built into walls",
+        description="Flights and landings built into the walls at their sides (by the code "
+        "pack's least embedment): a strip off the loaded width, a wider effective breadth.",
+    )
+    openWell: bool = Field(
+        default=False,
+        title="Open well",
+        description="A dog-legged stair with an open well: the load where the flight and "
+        "landing spans cross is shared between them.",
+    )
+    stringerBeams: bool = Field(
+        default=False,
+        title="Stringer beams",
+        description="The steps span across the flight between stringer beams at its sides "
+        "(the stringers' forces are reported for their design as beams).",
+    )
+    special: Literal["none", "freeStanding", "sawtooth", "helicoidal"] = Field(
+        default="none",
+        title="Special stair",
+        description="A special stair by the code pack's methods: free-standing (dog-legged, "
+        "landing unsupported), sawtooth (slabless) or helicoidal; none: a waist-slab stair.",
+    )
+    riserThickness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Riser thickness",
+        description="Sawtooth stairs [mm]; none: the waist.",
+    )
+    innerRadius: float | None = Field(
+        default=None, ge=0, title="Inner radius", description="Helicoidal stairs [mm]."
+    )
+    outerRadius: float | None = Field(
+        default=None, gt=0, title="Outer radius", description="Helicoidal stairs [mm]."
+    )
+    planAngle: float | None = Field(
+        default=None,
+        gt=0,
+        le=360,
+        title="Plan angle",
+        description="Helicoidal stairs: the total angle the helix subtends in plan [°].",
+    )
 
 
 class Footing(_ObjectBase):

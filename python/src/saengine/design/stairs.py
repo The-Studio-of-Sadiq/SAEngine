@@ -64,11 +64,17 @@ the reactions of the flights landing on them, spread over the landing's depth al
 travel; in (b) the strip of landing inside a flight's span is in that flight's reaction and
 its own load is not counted again there. The half landing of a dog-legged stair spanning
 between beams (a) is not designed (a note says so). A flight of one riser (no going) is
-skipped. Not handled: stairs with stringer beams, cantilever steps, free-standing, sawtooth and
-helicoidal stairs (Appendix M), the 150 mm strip of Sec 6.7.1.3.1 for flights built into walls
-(not deducted: conservative), the halved loads of open wells (Sec 6.7.1.3, Figure 6.6.27), the
-concentrated tread load of Table 6.2.3 note l (1.33 kN), and the stairs' part in the lateral
-system.
+skipped.
+
+B33, from the code pack's ``stairMethods``: flights built into walls (``builtIntoWall``: the
+demands per metre × (W - strip) / (W + breadth)); open wells (``openWell``: the landing strip
+inside a flight's span shared between the flight and the landing); stairs on stringer beams
+(``stringerBeams``: the steps span across W, the stringers' forces reported); and the special
+stairs (``special``: free-standing, sawtooth, helicoidal) of :mod:`saengine.design.
+special_stairs`. A pack without a group does not cover that stair.
+
+Not handled: cantilever steps, the concentrated tread load of Table 6.2.3 note l (1.33 kN), and
+the stairs' part in the lateral system.
 
 Units: mm, N, MPa; loads in kN/m² and kN/m, moments kN·m/m in the report.
 """
@@ -223,6 +229,15 @@ class StairSpec:
     well: float = 0.0  # gap between the flights of a dog-legged stair [mm]
     headroom: float | None = None  # clear headroom provided [mm]
     bars: StairBars | None = None
+    # B33: Sec 6.7.1.3.1 built-in flights and open wells, stringer beams, Appendix M stairs.
+    built_in: bool = False
+    open_well: bool = False
+    stringers: bool = False
+    special: str = "none"
+    riser_thickness: float | None = None
+    inner_radius: float | None = None
+    outer_radius: float | None = None
+    plan_angle: float | None = None
 
     @property
     def landing(self) -> float:
@@ -287,6 +302,14 @@ def spec_of(staircase: Any) -> StairSpec:
         well=float(get("wellWidth", 0.0)),
         headroom=get("headroom", None),
         bars=bars_of(getattr(staircase, "reinforcement", None)),
+        built_in=bool(get("builtIntoWall", False)),
+        open_well=bool(get("openWell", False)),
+        stringers=bool(get("stringerBeams", False)),
+        special=str(get("special", "none")),
+        riser_thickness=get("riserThickness", None),
+        inner_radius=get("innerRadius", None),
+        outer_radius=get("outerRadius", None),
+        plan_angle=get("planAngle", None),
     )
 
 
@@ -577,7 +600,58 @@ class Demand:
     reactions: dict[str, dict[str, float]] = field(default_factory=dict)  # service, kN/m
 
 
-def _flight_patches(flight: Flight, wf: float, wl: float) -> list[tuple[float, float, float]]:
+def method_rules() -> Any:
+    """B33: the pack's ``stairMethods`` table, None when the pack does not cover it."""
+    pack = code_context.current()
+    return pack.table("stairMethods") if pack.has("stairMethods") else None
+
+
+def method_clause(key: str) -> str:
+    """B33: the pack's clause ``key`` of ``stairMethods`` after its edition ("" when none)."""
+    table = method_rules()
+    text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
+    if not text:
+        return ""
+    pack = code_context.current()
+    return f"{pack.edition or pack.name} {text}"
+
+
+def open_well_share(spec: StairSpec) -> float:
+    """B33: the share of the load where a flight's span and a landing's span cross that each
+    carries (the pack's ``openWellShare`` for a dog-legged stair with an open well whose
+    landings span across the flights; 1 otherwise: the flight carries it all)."""
+    table = method_rules()
+    share = getattr(table, "openWellShare", None) if table is not None else None
+    if (
+        share is None
+        or not spec.open_well
+        or spec.arrangement != "dogLegged"
+        or spec.spanning != "landingEdges"
+    ):
+        return 1.0
+    return float(share)
+
+
+def built_in_factor(spec: StairSpec) -> tuple[float, str]:
+    """B33: the factor on the per-metre demands of flights built into walls (the pack's
+    ``builtIn``: (W - deductedStrip) / (W + addedBreadth)) and its note; (1, "") otherwise."""
+    table = method_rules()
+    rule = getattr(table, "builtIn", None) if table is not None else None
+    if rule is None or not spec.built_in:
+        return 1.0, ""
+    w = spec.width
+    factor = (w - float(rule.deductedStrip)) / (w + float(rule.addedBreadth))
+    return factor, (
+        f"built at least {rule.embedmentMin:g} mm into walls: loaded width W - "
+        f"{rule.deductedStrip:g}, effective breadth W + {rule.addedBreadth:g} mm "
+        f"(x {factor:.3f}, {method_clause('builtIn')})"
+    )
+
+
+def _flight_patches(
+    flight: Flight, wf: float, wl: float, common: float = 1.0
+) -> list[tuple[float, float, float]]:
+    wl = wl * common
     span = flight.span / 1000
     lb, lt = flight.landing_bottom / 1000, flight.landing_top / 1000
     patches = [(lb, span - lt, wf)]
@@ -603,10 +677,12 @@ def flight_demand(
         continuous_ends=continuous,
         going_share=flight.going / flight.span if flight.span else 1.0,
     )
+    common = open_well_share(spec)
+    factor, built = built_in_factor(spec)
     for name, fd, fl in loads.combinations:
-        wf = fd * on_flight.dead + fl * on_flight.live
-        wl = fd * on_landing.dead + fl * on_landing.live
-        beam = simple_beam(span, _flight_patches(flight, wf, wl))
+        wf = (fd * on_flight.dead + fl * on_flight.live) * factor
+        wl = (fd * on_landing.dead + fl * on_landing.live) * factor
+        beam = simple_beam(span, _flight_patches(flight, wf, wl, common))
         mean = (beam.left + beam.right) / span
         if spec.spanning == "landingsThreeSides":
             top = wf * span**2 / 8  # Sec 6.7.1.1(d): ±wl²/8
@@ -622,8 +698,15 @@ def flight_demand(
         ("D", on_flight.dead, on_landing.dead),
         ("L", on_flight.live, on_landing.live),
     ):
-        beam = simple_beam(span, _flight_patches(flight, wf, wl))
+        beam = simple_beam(span, _flight_patches(flight, wf, wl, common))
         demand.reactions[case] = {"bottom": beam.left, "top": beam.right}
+    if built:
+        demand.notes.append(built)
+    if common < 1:
+        demand.notes.append(
+            f"open well: {common:.0%} of the landing load inside its span "
+            f"({method_clause('openWell')})"
+        )
     if spec.spanning == "landingsThreeSides":
         demand.notes.append("Sec 6.7.1.1(d): positive and negative moments wl²/8")
     elif continuous:
@@ -659,6 +742,8 @@ def landing_demand(
     # already in that flight's reaction; its own load is not counted again under the flight.
     inside = min(spec.landing / 2, 1000.0) if spec.spanning == "landingEdges" else 0.0
     share = min(inside / landing.depth, 1.0) if landing.depth > 0 else 0.0
+    # B33: with an open well the flight carries only its share of that strip (the rest here).
+    share *= open_well_share(spec)
 
     def patches_of(own: float, r_of) -> list[tuple[float, float, float]]:
         patches = [(0.0, span, own)]
@@ -1184,9 +1269,19 @@ def design_stair(
         diameters = B.diameters("slab")
     geometry = stair_geometry(spec, rise)
     checks, notes = geometry_checks(spec, geometry, use, occupants)
-    demands = [flight_demand(f, spec, material, loads) for f in geometry.flights]
-    by_name = {d.part: d for d in demands}
-    demands += [landing_demand(lnd, by_name, spec, material, loads) for lnd in geometry.landings]
+    extra: list[dict[str, Any]] = []
+    if spec.special != "none":
+        # B33: the special stairs of the code pack's stairMethods (saengine.design.special_stairs).
+        demands, extra, special_notes = special_demands(spec, geometry, material, loads)
+        notes += [f"{stair_id}: {n}" for n in special_notes]
+    elif spec.stringers:
+        demands, extra = stringer_demands(spec, geometry, material, loads)
+    else:
+        demands = [flight_demand(f, spec, material, loads) for f in geometry.flights]
+        by_name = {d.part: d for d in demands}
+        demands += [
+            landing_demand(lnd, by_name, spec, material, loads) for lnd in geometry.landings
+        ]
     cover = spec.bars.cover if spec.bars else _cover()
     need = need_of(demands, cover, material, diameters)
     parts = [
@@ -1225,6 +1320,7 @@ def design_stair(
         return StairResult(None, "no reinforcement", notes, need, geometry)
     for demand in demands:
         checks += part_checks(demand, spec.bars, material)
+    checks += extra
     strength = [c for c in checks if not c["flag"]]
     entry = {
         "id": stair_id,
@@ -1430,3 +1526,114 @@ def _label(reinforcement: dict[str, Any]) -> str:
         for n in ("main", "distribution", "top", "landing")
         if (m := reinforcement.get(n))
     )
+
+
+# ───────────────────────── stringer beams and special stairs (B33) ─────────────────────────
+
+
+def _governing(dead: float, live: float, loads: StairLoads) -> tuple[float, str | None]:
+    """The largest factored load [kN/m²] of the combinations and its combination."""
+    return max(
+        ((fd * dead + fl * live, name) for name, fd, fl in loads.combinations), default=(0.0, None)
+    )
+
+
+def stringer_demands(
+    spec: StairSpec, geometry: StairGeometry, material: StairMaterial, loads: StairLoads
+) -> tuple[list[Demand], list[dict[str, Any]]]:
+    """Stairs on stringer beams (the pack's ``stringers``): the steps and waist span across the
+    flight between the stringers at its sides, a one-way slab W wide (the rules of one-way
+    slabs); each stringer carries half the flight's load along the flight's span, its moment
+    and shear reported for its design as a beam."""
+    from saengine.design.check import _check
+
+    table = method_rules()
+    if table is None or not getattr(table, "stringers", False):
+        raise ValueError(
+            f"stairs on stringer beams: not covered by the code pack {code_context.current().name}"
+        )
+    demands: list[Demand] = []
+    rows: list[dict[str, Any]] = []
+    width = spec.width / 1000
+    for flight in geometry.flights:
+        on_flight, _ = flight_loads(flight, spec, material, loads)
+        wu, name = _governing(on_flight.dead, on_flight.live, loads)
+        demand = Demand(f"{flight.name} (across)", "flight", spec.width, spec.waist)
+        demand.mu, demand.vu, demand.wu = wu * width**2 / 8, wu * width / 2, wu
+        demand.combination = name
+        demand.notes.append(
+            f"spans across the flight between its stringer beams ({method_clause('stringers')})"
+        )
+        demands.append(demand)
+        q = wu * width / 2
+        length = flight.span / 1000
+        for what, value, unit in (
+            ("moment", q * length**2 / 8, "kN·m"),
+            ("shear", q * length / 2, "kN"),
+        ):
+            row = _check(
+                f"{flight.name}: stringer beam {what}",
+                value,
+                value,
+                unit,
+                name,
+                f"each stringer {q:.1f} kN/m over {flight.span:.0f} mm, simply supported: "
+                "design the stringers as beams",
+                True,
+            )
+            rows.append(row)
+    return demands, rows
+
+
+def special_demands(
+    spec: StairSpec, geometry: StairGeometry, material: StairMaterial, loads: StairLoads
+) -> tuple[list[Demand], list[dict[str, Any]], list[str]]:
+    """The demands of a special stair (:mod:`saengine.design.special_stairs`)."""
+    from saengine.design import special_stairs as S
+
+    flight = geometry.flights[0]
+    gamma = material.unit_weight
+    if spec.special == "freeStanding":
+        if spec.arrangement != "dogLegged" or len(geometry.flights) != 2:
+            raise ValueError("a free-standing stair is dog-legged with two flights")
+        return S.free_standing(
+            spec.well,
+            spec.landing,
+            spec.width,
+            flight.going,
+            geometry.rise,
+            spec.waist,
+            spec.landing_h,
+            material.fc,
+            loads.live,
+            loads.combinations,
+        )
+    if spec.special == "sawtooth":
+        riser_h = spec.riser_thickness or spec.waist
+        demands, rows, notes = [], [], []
+        for f in geometry.flights:
+            dead = gamma * (spec.waist + riser_h * f.riser / f.tread) / 1000 + loads.finish
+            wu, name = _governing(dead, loads.live, loads)
+            d, r, n = S.sawtooth(
+                f.risers - 1, f.tread, f.riser, spec.waist, riser_h, f.going, wu, name
+            )
+            d[0].part = f"{f.name} (sawtooth)"
+            demands += d
+            rows += r
+            notes += n
+        return demands, rows, notes
+    if spec.special == "helicoidal":
+        if spec.inner_radius is None or not spec.outer_radius or not spec.plan_angle:
+            raise ValueError("a helicoidal stair needs its inner and outer radii and plan angle")
+        on_flight, _ = flight_loads(flight, spec, material, loads)
+        wu, name = _governing(on_flight.dead, on_flight.live, loads)
+        return S.helicoidal(
+            spec.inner_radius,
+            spec.outer_radius,
+            spec.plan_angle,
+            geometry.rise,
+            spec.waist,
+            wu,
+            name,
+        )
+    raise ValueError(f"unknown special stair '{spec.special}'")
