@@ -287,7 +287,7 @@ def design_walls(
     for e, t in candidates:
         concrete = mats.get(t.material)
         if concrete is not None and concrete.category == Category.MASONRY:
-            # T31: masonry walls (saengine.design.masonry, BNBC 2020 Part 6 Chapter 7).
+            # T31: masonry walls (saengine.design.masonry, the code pack's method).
             masonry_ready.append((e, t, concrete))
             continue
         if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
@@ -516,8 +516,23 @@ def design_walls(
     if flanged and elements:
         notes += design_flanged(building, types, elements, piers_of, infos, earthquake, story_names)
     concrete_designed = bool(elements)
+    masonry_piers: dict[str, list[dict[str, Any]]] = piers_of
+    masonry_lateral: frozenset[str] = frozenset(earthquake)
+    if masonry_ready:
+        masonry_piers, masonry_lateral, masonry_notes = _masonry_forces(
+            project, building, out_dir, piers_of, earthquake
+        )
+        notes += masonry_notes
     masonry_elements = _design_masonry(
-        masonry_ready, piers_of, spandrels_of, stacks, story_names, mats, skipped
+        masonry_ready,
+        masonry_piers,
+        spandrels_of,
+        stacks,
+        story_names,
+        mats,
+        skipped,
+        masonry_lateral,
+        len(building.stories),
     )
     elements += masonry_elements
     return {
@@ -529,6 +544,59 @@ def design_walls(
     }
 
 
+def _masonry_forces(
+    project: dict[str, Any],
+    building: Any,
+    out_dir: str | Path,
+    piers_of: dict[str, list[dict[str, Any]]],
+    earthquake: set[str],
+) -> tuple[dict[str, list[dict[str, Any]]], frozenset[str], list[str]]:
+    """The masonry walls' pier forces under the combinations of the code pack's masonry method
+    (:func:`saengine.design.masonry.combinations_kind`): ``(piers by wall, the combinations with
+    wind or earthquake, notes)``. The design combinations' piers (``piers_of``) serve a
+    strength method; an allowable stress method gets the pack's allowable stress combinations,
+    the gravity cases the model lacks (SD, L, Lr) taken as zero and the combinations whose wind
+    or earthquake cases have no results left out."""
+    from saengine.design import masonry as M
+    from saengine.design import wall_forces
+    from saengine.fem.combinations import DesignCombination, allowable_combinations
+
+    if M.combinations_kind() != "allowable":
+        return piers_of, frozenset(earthquake), []
+    notes: list[str] = []
+    try:
+        cases = wall_forces.case_shell_forces(project, out_dir)
+    except (OSError, ValueError, KeyError) as error:
+        return {}, frozenset(), [f"masonry walls: the load cases' forces were not found: {error}"]
+    present = set(cases)
+    formed = allowable_combinations(present)
+    combos: list[Any] = []
+    left_out = 0
+    for name, factors in formed:
+        own = {
+            c: v for c, v in factors.items() if v and (c in present or c not in ("SD", "L", "Lr"))
+        }
+        if any(c not in present for c in own):
+            left_out += 1
+            continue
+        combos.append(DesignCombination(name, own))
+    if left_out:
+        notes.append(
+            f"masonry walls: {left_out} allowable stress combinations left out (their wind or "
+            "earthquake cases have no results)"
+        )
+    if not combos:
+        return {}, frozenset(), notes + ["masonry walls: no allowable stress combinations"]
+    found = wall_forces.wall_forces(project, building, cases, combos)
+    lateral = frozenset(
+        c.name for c in combos if any(k[:1] in ("W", "E") and v for k, v in c.factors.items())
+    )
+    out: dict[str, list[dict[str, Any]]] = {}
+    for p in found["piers"]:
+        out.setdefault(p["wall"], []).append(p)
+    return out, lateral, notes
+
+
 def _design_masonry(
     masonry_ready: list[tuple[Any, Any, Any]],
     piers_of: dict[str, list[dict[str, Any]]],
@@ -537,11 +605,14 @@ def _design_masonry(
     story_names: dict[str, str],
     mats: dict[str, Any],
     skipped: list[dict[str, Any]],
+    lateral: frozenset[str] = frozenset(),
+    storeys: int | None = None,
 ) -> list[dict[str, Any]]:
     """T31 integrator glue: the masonry walls' design elements (``kind`` "wall", ``wallType``
     "masonryPlain" or "masonryReinforced"), each pier checked by
-    :func:`saengine.design.masonry.masonry_wall_checks`; walls that cannot be checked go to
-    ``skipped``."""
+    :func:`saengine.design.masonry.masonry_wall_checks` (the code pack's method) from the
+    forces of its combinations (``piers_of``; ``lateral`` those with wind or earthquake); walls
+    that cannot be checked go to ``skipped``."""
     from saengine.design import masonry as M
 
     out: list[dict[str, Any]] = []
@@ -560,13 +631,13 @@ def _design_masonry(
             skip(str(error))
             continue
         bars = W.wall_bars(t.reinforcement) if t.reinforcement is not None else None
-        fy, es = 420.0, None
+        fy = 420.0
         if bars is not None:
             steel = mats.get(t.reinforcement.material)
             if steel is None or steel.steel is None:
                 skip(f"unknown reinforcement material '{t.reinforcement.material}'")
                 continue
-            fy, es = steel.steel.fy, steel.mechanical.E
+            fy = steel.steel.fy
         bottom, top, _stack = stacks.get(e.id, (float(e.bottom), float(e.top), [e.id]))
         hw = top - bottom
         options = {
@@ -583,7 +654,7 @@ def _design_masonry(
             geometry = W.geometry_of(pier, wall_height=hw, **options)
             forces = W.pier_rows(pier, None, ("bottom", "middle", "top"))
             try:
-                d = M.masonry_wall_checks(geometry, bars, forces, m, fy, es or M.STEEL_E)
+                d = M.masonry_wall_checks(geometry, bars, forces, m, fy, lateral, storeys)
             except DesignError as error:
                 notes.append(f"{name}: not checked: {error}")
                 d = M.MasonryDesign(

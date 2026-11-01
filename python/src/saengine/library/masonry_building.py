@@ -13,12 +13,13 @@ beams); strip footings under the walls of each grid line. No columns or beams.
   serves meanwhile).
 - The masonry is the default first-class brick (03 Materials ``BRICK-1``) with a unit strength
   of 17.2 MPa where none is entered (a first-class brick, SAEngine's assumption to replace with
-  the test value); f'm follows from the units and the mortar (:func:`saengine.design.masonry.
-  prism_strength`) and Em = 700 f'm (clay).
+  the test value); f'm is the code pack's estimate from the units and the mortar grade
+  (:func:`saengine.design.masonry.prism_estimate`, used with the reduced allowable stresses)
+  and Em is the pack's (``masonry.elastic``).
 - Walls: 250 mm (one brick) in the top three storeys, 375 mm (one and a half bricks) below
   them (rule of thumb). Reinforced masonry walls get one central layer of 16 mm bars at 800 mm
-  vertically (each bar at least 129 mm²) and 10 mm at 400 mm horizontally (within the 3048 mm
-  of ordinary reinforced masonry shear walls).
+  vertically and 12 mm at 400 mm horizontally (within the bar sizes and spacings of the code
+  pack's seismic detailing of reinforced walls in Zones 2 and 3, ``masonry.seismic``).
 - Slabs: BNBC 2020 Part 6 Eq. 6.6.6 (αfm > 2, the walls as stiff supports), ln (0.8 + fy/1400)
   / (36 + 9 β) ≥ 90 mm, at least the spec's least slab, rounded up to 5 mm.
 - Strip footings: width from 1.1 × the gravity service load per metre of wall (the walls' own
@@ -62,7 +63,7 @@ THIN_STOREYS = 3
 #: Storeys above which the template warns that it is meant for low-rise buildings.
 LOW_RISE = 5
 #: Bars of a reinforced masonry wall: (dia, spacing) vertical and horizontal [mm].
-VERTICAL_BARS, HORIZONTAL_BARS = (16.0, 800.0), (10.0, 400.0)
+VERTICAL_BARS, HORIZONTAL_BARS = (16.0, 800.0), (12.0, 400.0)
 
 
 def generate_masonry_building(
@@ -96,9 +97,11 @@ def generate_masonry_building(
         brick.mechanical.nu = 0.2
     notes.append(
         f"Masonry {BRICK_ID}: unit strength {brick.masonry.unitStrength:g} MPa assumed for a "
-        f"first-class brick (enter the test value), type {masonry.mortar} mortar, f'm = "
-        f"{masonry.fm:.1f} MPa from the units (TMS 602 Table 1), Em = 700 f'm = "
-        f"{masonry.em:.0f} MPa; prism tests give f'm better (03 Materials)."
+        f"first-class brick (enter the test value), mortar {masonry.mortar or '-'}, f'm = "
+        f"{masonry.fm:.1f} MPa estimated from the units, Em = {masonry.em:.0f} MPa "
+        f"({M.clause('elastic')}); with an estimated f'm the walls are checked at "
+        f"{M.allowable_share(masonry):.0%} of the allowable stresses ({M.clause('quality')}): "
+        "prism tests and special inspection allow the full values (03 Materials)."
     )
     fy = rebar.steel.fy
     gamma_c = (concrete.mechanical.density or 2400.0) * G / 1000.0  # kN/m³

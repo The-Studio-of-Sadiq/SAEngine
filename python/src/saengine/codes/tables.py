@@ -2464,118 +2464,361 @@ class TimberTable(TableModel):
 # ───────────────────────────────────────── masonry ─────────────────────────────────────────
 
 
-class MasonryPhi(_Group):
-    """φ of masonry (strength design)."""
-
-    axialFlexureReinforced: Phi
-    axialFlexureUnreinforced: Phi
-    shear: Phi
-    bearing: Phi
+MasonryUnitKind = Literal["clay", "concrete"]
+MasonryUnits = Literal["solid", "hollow"]
 
 
-class MasonryAxial(_Group):
-    reduction: Share = Field(description="Pn = reduction × [stress × An f'm] × R(h/r).")
-    slendernessBreak: Positive = Field(description="h/r where the long-wall formula starts.")
-    short: Positive = Field(description="R = 1 - (h / (short r))² up to the break.")
-    long: Positive = Field(description="R = (long r / h)² above the break.")
+class MasonryMortar(_Group):
+    """One mortar grade: the cement : sand mix by volume and its least strength [MPa]."""
+
+    cement: Positive
+    sand: Positive
+    strength: Positive = Field(description="Least 28-day compressive strength [MPa].")
 
 
-class MasonryStressBlock(_Group):
-    stress: Share = Field(description="Stress of the block as a share of f'm.")
-    depth: Share = Field(description="Depth of the block a as a share of c.")
+class MasonryQuality(_Group):
+    reducedShare: Share = Field(
+        description="Share of the allowable masonry stresses without special inspection or "
+        "prism tests during construction."
+    )
+    reusedUnitsShare: Share = Field(description="Largest share for reused units.")
+    prismsBeforeConstruction: int = Field(gt=0)
+    prismsDuringConstruction: int = Field(gt=0)
+    wallAreaPerSet: Positive = Field(description="Wall area per set of prisms [m²].")
+    note: str = ""
 
 
-class MasonryPlainShear(_Group):
-    """Vn of unreinforced masonry [MPa]: the least of root √f'm, cap, and the bond's
-    constant + axialShare Nu/An."""
+class MasonryLateralIncrease(_Group):
+    factor: float = Field(ge=1, description="Allowable stresses × this with wind or earthquake.")
+    note: str = ""
 
-    root: Positive
+
+class MasonryAllowableAxial(_Group):
+    """Fa = fmShare f'm [1 - (h'/(slenderness t))^exponent]; columns + As Fsc/(columnSteelArea
+    Ag)."""
+
+    fmShare: Share
+    slenderness: Positive
+    exponent: Positive
+    columnSteelArea: Positive
+
+
+class MasonryShareCap(_Group):
+    """A stress fmShare × f'm (or factor × √f'm) at most cap [MPa]."""
+
+    fmShare: Share
     cap: Positive
-    runningBond: Positive
-    runningBondGrouted: Positive
-    stackBond: Positive
-    axialShare: Positive
 
 
-class MasonryReinforcedShear(_Group):
-    """Vnm = masonry [first - slope Mu/(Vu dv)] An √f'm + axialShare Pu; Vns = steelShare
-    (Av/s) fy dv; Vn ≤ maxLow An √f'm at Mu/(Vu dv) ≤ 0.25, maxHigh at ≥ 1 [MPa]."""
+class MasonryRootCap(_Group):
+    factor: Positive = Field(description="× √f'm [MPa].")
+    cap: Positive
 
-    masonry: Positive
+
+class MasonryFlexuralTension(_Group):
+    bedJoints: dict[MasonryUnits, Positive] = Field(description="Normal to bed joints [MPa].")
+    headJoints: dict[MasonryUnits, Positive] = Field(description="Normal to head joints [MPa].")
+    headJointsByUnit: dict[MasonryUnitKind, dict[MasonryUnits, Positive]]
+    fullMortars: list[str] = Field(description="Mortar grades with the full values.")
+    reducedMortars: list[str] = Field(description="Mortar grades with the reduced values.")
+    reduction: Share = Field(description="Reduction of the values for reducedMortars.")
+    note: str = ""
+
+
+class MasonryBeamShear(_Group):
+    unreinforced: MasonryRootCap
+    reinforced: MasonryRootCap
+
+
+class MasonryPlainWallShear(_Group):
+    clay: MasonryRootCap
+    concrete: dict[str, Positive] = Field(description="Fv by mortar grade [MPa].")
+    note: str = ""
+
+
+class MasonryShearRow(_Group):
+    """Fv = (1/divisor)(first - M/Vd) √f'm ≤ maxFirst - maxSlope M/Vd below M/Vd = 1;
+    above √f'm ≤ maxAbove at M/Vd ≥ 1 [MPa]."""
+
+    divisor: Positive
     first: Positive
-    slope: Positive
-    axialShare: Positive
-    steelShare: Positive
-    maxLow: Positive
-    maxHigh: Positive
+    above: Positive
+    maxFirst: Positive
+    maxSlope: Positive
+    maxAbove: Positive
 
 
-class MasonrySteelStrain(_Group):
-    """α of the extreme tension steel strain α εy at εmu, by wall detailing."""
-
-    ordinary: Positive
-    intermediate: Positive
-    special: Positive
+class MasonryReinforcedWallShear(_Group):
+    masonry: MasonryShearRow
+    reinforcement: MasonryShearRow
 
 
-class MasonrySlenderWall(_Group):
-    axialMax: Share = Field(description="Pu/Ag at most this × f'm.")
-    axialSlender: Share = Field(description="Above this × f'm, h/t is limited.")
-    heightThickness: Positive = Field(description="Largest h/t above axialSlender.")
+class MasonrySteelCap(_Group):
+    """A steel stress fyShare × fy at most cap [MPa]."""
+
+    fyShare: Share
+    cap: Positive
 
 
-class MasonryOrdinaryWalls(_Group):
-    maxSpacing: Positive = Field(description="Largest bar spacing, each way [mm].")
-    leastBarArea: Positive = Field(description="Least area of a vertical bar [mm²].")
+class MasonryAllowableSteel(_Group):
+    tensionDeformed: MasonrySteelCap
+    tensionPlain: MasonrySteelCap
+    compressionWalls: MasonrySteelCap
+    compressionFlexural: MasonrySteelCap
+
+
+class MasonryAllowable(_Group):
+    axial: MasonryAllowableAxial
+    flexuralCompression: MasonryShareCap
+    flexuralTension: MasonryFlexuralTension
+    bond: dict[Literal["plain", "deformed"], Positive]
+    beamShear: MasonryBeamShear
+    wallShearPlain: MasonryPlainWallShear
+    wallShearReinforced: MasonryReinforcedWallShear
+    steel: MasonryAllowableSteel
+    interaction: Positive = Field(description="fa/Fa + fb/Fb at most this.")
+
+
+class MasonryElastic(_Group):
+    emRatio: Positive = Field(description="Em = emRatio × f'm.")
+    emCap: Positive = Field(description="Em at most this [MPa].")
+    es: Positive = Field(description="Es [MPa].")
+    shearRatio: Positive = Field(description="G = shearRatio × Em.")
+
+
+class MasonryStiffening(BaseModel):
+    """Stiffening coefficient k by pilaster spacing / width (rows) and pilaster / wall
+    thickness (columns), linear between."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    spacingRatios: list[Positive] = Field(min_length=2)
+    thicknessRatios: list[Positive] = Field(min_length=2)
+    k: list[list[Positive]]
+
+    @model_validator(mode="after")
+    def _shape(self) -> MasonryStiffening:
+        if len(self.k) != len(self.spacingRatios) or any(
+            len(row) != len(self.thicknessRatios) for row in self.k
+        ):
+            raise ValueError("one k per spacing ratio and thickness ratio")
+        return self
+
+
+class MasonryStiffeningWall(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    wall: float | None = Field(gt=0, description="Wall thickness up to [mm]; null: any above.")
+    storeyHeight: Positive = Field(description="Largest storey height [mm].")
+    thickness: Positive = Field(description="Least stiffening wall, 1 to 3 storeys [mm].")
+    thicknessUpper: float | None = Field(
+        gt=0, description="Least stiffening wall, 4 and 5 storeys [mm]; null: not allowed."
+    )
+    spacing: Positive = Field(description="Largest spacing of the stiffening walls [mm].")
+
+
+class MasonryStability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lateralShare: Share = Field(description="Lateral load at a support, × the vertical load.")
+    maxStoreys: int = Field(gt=0)
+    heightWidth: Positive
+    openingWallShare: Share
+    lengthNeedingAnalysis: Positive = Field(description="Longer walls need analysis [mm].")
+    stiffeningWalls: list[MasonryStiffeningWall]
+    upperStoreys: int = Field(gt=0, description="From this many storeys: thicknessUpper.")
+
+
+class MasonryBasementRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    thickness: Positive
+    light: Positive = Field(description="Largest ground height, light wall loading [mm].")
+    heavy: Positive = Field(description="Largest ground height, heavy wall loading [mm].")
+
+
+class MasonryBasement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    unitStrength: Positive
+    leanestMortar: str
+    clearHeight: Positive
+    traffic: Positive = Field(description="Largest traffic load [kN/m²].")
+    loadLimit: Positive = Field(description="Permanent wall load between the columns [kN/m].")
+    rows: list[MasonryBasementRow] = Field(min_length=1)
+
+
+class MasonryFreeStandingRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pressure: Positive = Field(description="Design wind pressure up to [N/m²].")
+    ratio: Positive = Field(description="Largest height / thickness.")
+
+
+class MasonryFreeStanding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[int]
+    leanestMortar: str
+    belowGround: Positive
+    rows: list[MasonryFreeStandingRow] = Field(min_length=1)
+
+
+class MasonryDimensions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    effectiveHeight: dict[str, Any]
+    effectiveLength: dict[str, Positive]
+    stiffening: MasonryStiffening
+    slenderness: dict[Literal["wall", "column"], Positive]
+    heightThicknessAnalysis: Positive
+    flangeWidth: Positive
+    reinforcedWidth: dict[Literal["running", "stack"], Positive]
+    beamLateralSupport: Positive
+    bedJoint: dict[Literal["min", "max"], Positive]
+    supportDeflection: Positive
+    lintelBearing: Positive
+    lateralSupport: dict[str, Positive]
+    stability: MasonryStability
+    basement: MasonryBasement
+    freeStanding: MasonryFreeStanding
+    minimumThickness: dict[Literal["bearing", "oneStorey", "oneStoreyHeight", "gable"], Positive]
+    parapet: dict[Literal["thickness", "heightThickness"], Positive]
+    loadDispersion: Positive
+    concentratedLoadThickness: Positive
+    corbelSlope: Positive
+    archThrust: Share = Field(description="Line of thrust within this share of the section.")
+
+
+class MasonryBend(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    start: Positive = Field(alias="from", description="Bar diameter from [mm].")
+    to: Positive
+    diameters: Positive
+
+
+class MasonryReinforcement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plainBarMax: Positive
+    shearSpacing: dict[str, Positive]
+    column: dict[str, Positive]
+    maxBarDia: Positive
+    cellArea: dict[Literal["noSplice", "splice"], Share]
+    clearSpacing: dict[str, Positive]
+    groutClearance: dict[Literal["fine", "coarse"], Positive]
+    cover: dict[Literal["interior", "weather", "soil"], Positive]
+    development: dict[Literal["tension", "compression", "plainFactor"], Positive]
+    extension: dict[str, Positive]
+    spliceIncrease: dict[str, Positive]
+    hooks: dict[str, Positive]
+    bends: list[MasonryBend] = Field(min_length=1)
+    bendStirrups: dict[str, Positive]
+    laps: dict[str, Positive]
+
+
+class MasonryRupture(_Group):
+    factor: Positive
+    cap: Positive
+
+
+class MasonryStrength(BaseModel):
+    """Values of the strength design of slender walls and shear walls (the strength checks)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phi: dict[str, Positive]
+    ultimateStrain: Positive
+    stressBlock: dict[Literal["stress", "depth"], Share]
+    axial: dict[Literal["masonry", "reduction"], Share]
+    fmRange: dict[str, Any]
+    modulusOfRupture: dict[MasonryUnits, dict[Literal["full", "partial"], MasonryRupture | None]]
+    shear: dict[str, Any]
+    slenderWall: dict[str, Positive]
+    shearWall: dict[str, Positive]
+    boundary: dict[str, Positive]
+
+
+class MasonrySeismic(BaseModel):
+    """Values of the earthquake provisions (the seismic detailing checks)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zones: list[int]
+    unitStrengthMin: Positive
+    leanestMortar: str
+    zone23: dict[str, Positive]
+    zone4: dict[str, Positive]
 
 
 class MasonryPrisms(BaseModel):
-    """f'm from the unit's strength by mortar type (MPa), one value per entry of ``fm``."""
+    """f'm (MPa) from the unit's strength (MPa), one unit strength per entry of ``fm``."""
 
     model_config = ConfigDict(extra="forbid")
 
     fm: list[Positive] = Field(min_length=2)
-    MS: list[Positive] = Field(description="Unit strength with type M or S mortar.")
-    N: list[Positive] = Field(description="Unit strength with type N mortar.")
+    units: list[Positive] = Field(description="Unit strength giving each f'm.")
 
     @model_validator(mode="after")
     def _same_length(self) -> MasonryPrisms:
-        if len(self.MS) != len(self.fm) or len(self.N) != len(self.fm):
+        if len(self.units) != len(self.fm):
             raise ValueError("one unit strength per f'm")
-        for row in (self.fm, self.MS, self.N):
+        for row in (self.fm, self.units):
             if any(row[k + 1] <= row[k] for k in range(len(row) - 1)):
                 raise ValueError("the values must increase")
         return self
 
 
-MasonryUnitKind = Literal["clay", "concrete"]
-MortarType = Literal["M", "S", "N"]
+class MasonryPrismEstimate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(description="What the estimate is (shown with the f'm it gives).")
+    grades: list[str] = Field(description="Mortar grades the estimate may be used with.")
+    clay: MasonryPrisms
+    concrete: MasonryPrisms
 
 
 class MasonryTable(TableModel):
-    """Strength design of masonry walls: φ, Em, εmu, the stress block, axial strength and
-    slenderness, the modulus of rupture, shear, the steel limits and f'm from the units."""
+    """Masonry walls: the design method (by id), the mortar grades, the allowable stresses,
+    the dimension rules, the reinforcement details and the values of the strength design and
+    the earthquake provisions."""
 
-    phi: MasonryPhi
-    modulusRatio: dict[MasonryUnitKind, Positive] = Field(description="Em / f'm by unit.")
-    ultimateStrain: dict[MasonryUnitKind, Positive] = Field(description="εmu by unit.")
-    stressBlock: MasonryStressBlock
-    axial: MasonryAxial
-    fmRange: dict[MasonryUnitKind, tuple[Positive, Positive]] = Field(
-        description="f'm range of strength design by unit [MPa]."
+    method: Literal["allowableStress"] = Field(
+        description="The masonry design method: 'allowableStress' (working stress, linear "
+        "stress-strain)."
     )
-    modulusOfRupture: dict[Literal["solid", "hollow", "grouted"], dict[MortarType, Positive]] = (
-        Field(description="fr normal to the bed joints [MPa].")
+    mortars: dict[str, MasonryMortar] = Field(min_length=1, description="Mortar grades by id.")
+    quality: MasonryQuality
+    lateralIncrease: MasonryLateralIncrease
+    allowable: MasonryAllowable
+    elastic: MasonryElastic
+    dimensions: MasonryDimensions
+    reinforcement: MasonryReinforcement
+    strength: MasonryStrength
+    seismic: MasonrySeismic
+    mortarFromMix: Literal["grades"] = Field(
+        description="'grades': a mix gets the richest grade whose sand parts are at least its."
     )
-    plainShear: MasonryPlainShear
-    reinforcedShear: MasonryReinforcedShear
-    maxSteelStrain: MasonrySteelStrain
-    slenderWall: MasonrySlenderWall
-    ordinaryWalls: MasonryOrdinaryWalls
-    mortarFromMix: dict[Literal["M", "S"], Positive] = Field(
-        description="Largest sand parts per cement part of a nominal mortar mix of each type."
-    )
-    prismStrength: dict[MasonryUnitKind, MasonryPrisms]
+    prismEstimate: MasonryPrismEstimate | None = None
+    clauses: dict[str, str] = Field(description="Clause reference of each check, by key.")
+
+    @model_validator(mode="after")
+    def _known_mortars(self) -> MasonryTable:
+        known = set(self.mortars)
+        used = [
+            *self.allowable.flexuralTension.fullMortars,
+            *self.allowable.flexuralTension.reducedMortars,
+            *self.allowable.wallShearPlain.concrete,
+            *(self.prismEstimate.grades if self.prismEstimate else []),
+            self.dimensions.basement.leanestMortar,
+            self.dimensions.freeStanding.leanestMortar,
+            self.seismic.leanestMortar,
+        ]
+        unknown = sorted(set(used) - known)
+        if unknown:
+            raise ValueError(f"unknown mortar grades {unknown}")
+        return self
 
 
 # ───────────────────────────────────────── planning ─────────────────────────────────────────

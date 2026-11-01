@@ -235,7 +235,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 				},
 				unitKind: {
 					default: 'clay',
-					description: 'Burnt clay bricks or concrete blocks: sets Em and the ultimate strain of the masonry design (BNBC 2020 Part 6 Chapter 7).',
+					description: 'Burnt clay bricks or concrete blocks: sets the allowable shear and tension of the masonry design (the code pack\'s masonry table).',
 					enum: ['clay', 'concrete'],
 					enumDescriptions: ['Clay brick', 'Concrete block'],
 					title: 'Unit kind',
@@ -244,7 +244,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 				mortarType: {
 					anyOf: [
 						{
-							enum: ['M', 'S', 'N'],
+							maxLength: 16,
 							type: 'string',
 						},
 						{
@@ -252,8 +252,14 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'M, S or N; empty: from the mortar material\'s cement : sand mix.',
-					title: 'Mortar type',
+					description: 'A mortar grade of the code pack (e.g. M1 to M6); empty: from the mortar material\'s cement : sand mix.',
+					title: 'Mortar grade',
+				},
+				specialInspection: {
+					default: false,
+					description: 'The masonry is built under special inspection with prism tests during construction and f\'m is from prism tests: the full allowable stresses. Otherwise the code pack\'s reduced share of them (e.g. 50 %).',
+					title: 'Special inspection and prism tests',
+					type: 'boolean',
 				},
 				units: {
 					default: 'solid',
@@ -5174,6 +5180,7 @@ export const DEFAULT_MATERIALS: object = {
 				unit: 'first-class burnt clay brick',
 				mortar: 'M1-4',
 				unitKind: 'clay',
+				specialInspection: false,
 				units: 'solid',
 				grouting: 'none',
 				bond: 'running',
@@ -13103,6 +13110,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			unit: 'first-class burnt clay brick',
 			mortar: 'M1-4',
 			unitKind: 'clay',
+			specialInspection: false,
 			units: 'solid',
 			grouting: 'none',
 			bond: 'running',
