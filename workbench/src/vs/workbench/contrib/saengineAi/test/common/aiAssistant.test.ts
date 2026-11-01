@@ -41,7 +41,7 @@ suite('SAEngine - AI assistant', () => {
 		assert.deepStrictEqual(openai.toolCalls, [{ id: 'c', name: 'search_code', args: { query: 'R' } }]);
 		assert.strictEqual(providerUrl({ provider: 'openaiCompatible', endpoint: 'http://localhost:11434/v1/' }), 'http://localhost:11434/v1/chat/completions');
 		const request = openAiRequest({ provider: 'openaiCompatible', model: 'm', endpoint: 'http://localhost:1/v1', effort: 'high' }, 's', [{ role: 'user', text: 'q' }], []);
-		assert.strictEqual(request.headers['authorization'], undefined);
+		assert.strictEqual(request.headers.authorization, undefined);
 	});
 
 	test('the loop runs tools until the model answers', async () => {

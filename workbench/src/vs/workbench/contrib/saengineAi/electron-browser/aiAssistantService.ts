@@ -199,6 +199,7 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 			return;
 		}
 		if (!await this.consent(base.provider, host, base.model)) {
+			this.notice(localize('assistant.notSent', "Not sent."));
 			return;
 		}
 		const config: IProviderConfig = { ...base, apiKey };

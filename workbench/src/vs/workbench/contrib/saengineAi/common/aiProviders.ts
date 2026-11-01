@@ -227,7 +227,7 @@ export function openAiRequest(config: IProviderConfig, system: string, turns: re
 	}
 	const headers: Record<string, string> = {};
 	if (config.apiKey) {
-		headers['authorization'] = `Bearer ${config.apiKey}`;
+		headers.authorization = `Bearer ${config.apiKey}`;
 	}
 	return {
 		url,

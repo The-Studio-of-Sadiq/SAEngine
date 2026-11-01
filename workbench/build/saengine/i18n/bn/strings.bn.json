@@ -381,6 +381,11 @@
 					"bn": "আগে আপনার Anthropic API কী সেট করুন। এটি অপারেটিং সিস্টেমের সিক্রেট স্টোরে রাখা হয়।",
 					"status": "translated"
 				},
+				"assistant.notSent": {
+					"en": "Not sent.",
+					"bn": "পাঠানো হয়নি।",
+					"status": "translated"
+				},
 				"activity.assistantAsk": {
 					"en": "Assistant: a question ({0} characters) sent to {1} ({2}).",
 					"bn": "অ্যাসিস্ট্যান্ট: একটি প্রশ্ন ({0} অক্ষর) {1}-এ পাঠানো হয়েছে ({2})।",
