@@ -142,9 +142,7 @@ def test_reentrant_corners() -> None:
 def test_openings() -> None:
     from shapely.geometry import Polygon
 
-    floor = Polygon(
-        [(0, 0), (10, 0), (10, 10), (0, 10)], [[(1, 1), (9, 1), (9, 9), (1, 9)]]
-    )
+    floor = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)], [[(1, 1), (9, 1), (9, 9), (1, 9)]])
     open_area, gross = ir.opening_share(floor)
     assert open_area / gross == pytest.approx(0.64)
     assert open_area > ir.table().openingShare * gross
@@ -386,14 +384,40 @@ def test_wall_offset_in_plane() -> None:
     building = BuildingModel.model_validate(
         {
             "elements": [
-                {"id": "C1", "kind": "column", "type": "COL", "position": [0, 0], "bottom": 0,
-                 "top": 3000},
-                {"id": "C2", "kind": "column", "type": "COL", "position": [12000, 0],
-                 "bottom": 0, "top": 3000},
-                {"id": "WL", "kind": "wall", "type": "W", "start": [0, 0], "end": [3000, 0],
-                 "bottom": 0, "top": 3000},
-                {"id": "WU", "kind": "wall", "type": "W", "start": [8000, 0],
-                 "end": [11000, 0], "bottom": 3000, "top": 6000},
+                {
+                    "id": "C1",
+                    "kind": "column",
+                    "type": "COL",
+                    "position": [0, 0],
+                    "bottom": 0,
+                    "top": 3000,
+                },
+                {
+                    "id": "C2",
+                    "kind": "column",
+                    "type": "COL",
+                    "position": [12000, 0],
+                    "bottom": 0,
+                    "top": 3000,
+                },
+                {
+                    "id": "WL",
+                    "kind": "wall",
+                    "type": "W",
+                    "start": [0, 0],
+                    "end": [3000, 0],
+                    "bottom": 0,
+                    "top": 3000,
+                },
+                {
+                    "id": "WU",
+                    "kind": "wall",
+                    "type": "W",
+                    "start": [8000, 0],
+                    "end": [11000, 0],
+                    "bottom": 3000,
+                    "top": 6000,
+                },
             ]
         }
     )

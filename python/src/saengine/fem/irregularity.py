@@ -1319,9 +1319,16 @@ def assess_cached(
             return value.model_dump_json()
         return json.dumps(value, sort_keys=True, default=str)
 
+    # The analysis model counts only with its results (stamped by the manifest): its size
+    # stands in for it, as dumping a tall building's model each time costs seconds.
+    model = (
+        (len(project.get("nodes", [])), len(project.get("elements", [])))
+        if project is not None
+        else None
+    )
     stamp = _stamp(
         manifest,
-        hashlib.sha1(dump(project).encode()).hexdigest(),
+        model,
         hashlib.sha1(dump(building).encode()).hexdigest(),
         hashlib.sha1(dump(objects).encode()).hexdigest(),
         hashlib.sha1(dump(materials).encode()).hexdigest(),
