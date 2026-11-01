@@ -7856,6 +7856,12 @@ class FerrocementTable(TableModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class CitationsTable(TableModel):
+    """The clause references the documents print: the calculation report, its worksheets, the
+    drawings and the bill of quantities (``clauses``, without the code's name; read by
+    :mod:`saengine.codes.citations`). A key the pack does not give is not cited."""
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -7906,6 +7912,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "nonlinearHistory": NonlinearHistoryTable,
     "bamboo": BambooTable,
     "ferrocement": FerrocementTable,
+    "citations": CitationsTable,
 }
 
 

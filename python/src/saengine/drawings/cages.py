@@ -18,15 +18,15 @@ polylines (bends sharp; laps side by side are drawn on one line). Stirrups, hoop
 drawn at every position of their rows, spirals as helices. Slabs, walls, stairs and foundations
 are listed but not drawn in this version.
 
-Congestion (BNBC 2020 Part 6 Sec 8.1.6, p. 1068; the limits are the code pack's
-``detailing.spacing``):
+Congestion (the limits are the code pack's ``detailing.spacing``; BNBC 2020 Part 6 Sec 8.1.6,
+p. 1068, in the default pack):
 
 - bars of a layer of a beam at least max(db, 25 mm) clear (8.1.6.1), layers 25 mm apart
   (8.1.6.2), per beam type;
 - column bars at least max(1.5 db, 40 mm) clear (8.1.6.3), per column type;
 - at each beam-column joint: the beam bars passing the joint against the column bars they cross
   (a bar through a bar is a clash; less than the 8.1.6.1 clear spacing between them is tight,
-  practice where BNBC gives no figure for crossing bars: the concrete must pass), and the top or
+  practice where the code gives no figure for crossing bars: the concrete must pass), and the top or
   bottom bars of beams from two directions at the same level (they cannot both be in the outer
   layer: one direction goes a bar diameter lower, which the design's effective depth must allow).
 
@@ -48,7 +48,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 SCHEMA_ID = "saengine.rebar-cages/1"
-CODE = "BNBC 2020 Part 6"
 #: Points of a circular tie or of one turn of a spiral.
 CIRCLE_POINTS = 24
 #: Joint: beams within this of the column top are framing into it [mm].
@@ -59,8 +58,12 @@ PARALLEL_DEG = 10.0
 Point3 = tuple[float, float, float]
 
 
-def _page(clause: str) -> str:
-    return f"{CODE} Sec {clause}, p 1068"
+def _cite(key: str) -> str:
+    """The reference ``key`` of the code pack in force (its ``citations``, with the code's
+    name); '' when the pack gives none."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("citations", key)
 
 
 @dataclass
@@ -440,7 +443,7 @@ def _layer_checks(type_id: str, slots: list[Slot], lim: Limits) -> list[dict[str
                         f"{face} bars: clear spacing in the layer (Ø{db:g})",
                         lim.layer(db),
                         clear,
-                        _page("8.1.6.1"),
+                        _cite("barSpacing"),
                     )
                 )
         for (y1, r1), (y2, r2) in itertools.pairwise(layers):
@@ -452,7 +455,7 @@ def _layer_checks(type_id: str, slots: list[Slot], lim: Limits) -> list[dict[str
                     f"{face} bars: clear distance between layers",
                     lim.between_layers,
                     clear,
-                    _page("8.1.6.2"),
+                    _cite("barSpacingLayers"),
                 )
             )
     return out
@@ -475,7 +478,7 @@ def _column_checks(type_id: str, slots: list[Slot], lim: Limits) -> list[dict[st
             f"column bars: clear spacing (Ø{worst[2]:g})",
             worst[1],
             worst[0],
-            _page("8.1.6.3"),
+            _cite("barSpacingColumns"),
         )
     ]
 
@@ -535,7 +538,7 @@ def _joint_checks(
                 + (" (they clash)" if clear < 0 else ""),
                 need,
                 clear,
-                _page("8.1.6.1") + " taken for crossing bars (practice)",
+                (_cite("barSpacing") or "the bar spacing") + " taken for crossing bars (practice)",
                 "error" if clear < 0 else "warning",
             )
         )

@@ -35,24 +35,15 @@ __all__ = [
 @contextmanager
 def project_pack(project_root: str | Path | None) -> Iterator[list[str]]:
     """Within the block the code pack the project's settings choose is in force (the built-in
-    BNBC 2020 without a project, or when it cannot be used: the list it yields then says so)."""
-    from saengine.codes import context as code_context
+    default pack without a project, or when it cannot be used: the list it yields then says
+    so)."""
+    from saengine.report.clauses import in_force
 
-    problems: list[str] = []
     if not project_root:
-        yield problems
+        yield []
         return
-    root = Path(project_root)
-    with code_context.project(root):
-        try:
-            from saengine.report.build import _Parts
-
-            pack = code_context.pack_for(_Parts(root, []).settings(), root)
-        except Exception as error:  # noqa: BLE001 - a missing pack falls back to BNBC 2020
-            problems.append(f"the project's code pack could not be used ({error}); BNBC 2020")
-            pack = None
-        with code_context.using(pack):
-            yield problems
+    with in_force(Path(project_root)) as problems:
+        yield problems
 
 
 def worksheet_blocks(result: dict[str, Any], reference: str = "", notes: str = "") -> list[dict]:

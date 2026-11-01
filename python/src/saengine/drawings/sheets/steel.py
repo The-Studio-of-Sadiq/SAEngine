@@ -33,6 +33,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from saengine.codes.citations import after as cite_after
+from saengine.codes.citations import paren as cite_paren
 from saengine.drawings.sheets.layout import (
     TEXT,
     View,
@@ -417,15 +419,15 @@ def steel_notes(steel: SteelSet) -> list[str]:
                            for e in steel.electrodes)  # fmt: skip
     notes = [
         (
-            "Structural steel to BNBC 2020 Part 6 Chapter 10 (LRFD). Read with the general notes "
-            "of the concrete drawings, the design report and the architectural drawings."
+            f"Structural steel{cite_after('drawSteel', ' to ')} (LRFD). Read with the general "
+            "notes of the concrete drawings, the design report and the architectural drawings."
         ),
         "Steel grades: " + "; ".join(steel.grades) + ".",
     ]
     if bolts:
         notes.append(
-            "Bolts: " + "; ".join(bolts) + ", bearing type, in standard holes (BNBC 2020 Table "
-            "6.10.11), snug tight unless noted, with a hardened washer under the turned part. "
+            "Bolts: " + "; ".join(bolts) + ", bearing type, in standard holes"
+            f"{cite_paren('drawBoltHoles')}, snug tight unless noted, with a hardened washer under the turned part. "
             "Pitch, gauge, end and edge distances as the connection details."
         )
     if steel.electrodes:
@@ -1283,5 +1285,12 @@ CONNECTION_NOTES = [
         "Brace details: the work line through the gusset weld's centre; the tab clearances are "
         "drafting values to be confirmed on the shop drawings."
     ),
-    "Connections designed to BNBC 2020 Part 6 Sec 10.10 (design report).",
 ]
+
+
+def connection_notes() -> list[str]:
+    """The notes of the connection details, with the code pack in force's clause."""
+    return [
+        *CONNECTION_NOTES,
+        f"Connections designed{cite_after('drawConnections', ' to ')} (design report).",
+    ]

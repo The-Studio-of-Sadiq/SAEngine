@@ -18,7 +18,7 @@ from saengine.design import slab as S
 from saengine.design.rc import PHI_SHEAR, bar_area
 from saengine.fem import loads as L
 from saengine.fem import open_wind as OW
-from saengine.report.worksheets.concrete import BAR_GROUP, LOAD_GROUP, SECTION_GROUP, _aci, _bnbc
+from saengine.report.worksheets.concrete import BAR_GROUP, LOAD_GROUP, SECTION_GROUP, _aci, _code
 from saengine.report.worksheets.core import (
     Sheet,
     WorksheetInputError,
@@ -33,6 +33,19 @@ from saengine.soil.earth_pressure import rankine_active
 from saengine.substructure import shallow as SH
 
 SOIL_GROUP = "Soil"
+
+
+def earth_pressure_factor() -> float:
+    """The largest factor of H (lateral earth pressure) in the strength combinations of the code
+    pack in force (1.6 in the default pack)."""
+    factors = [
+        float((getattr(c, "factors", None) or {}).get("H", 0.0))
+        for c in code_context.table("combinations").strength
+    ]
+    if not factors or max(factors) <= 0:
+        raise WorksheetInputError("the code pack in force has no strength factor of H")
+    return max(factors)
+
 
 # ─────────────────────────────────────── footing ───────────────────────────────────────
 
@@ -68,7 +81,7 @@ SOIL_GROUP = "Soil"
         ),
         number("spacing", "Bar spacing", 150, "mm", minimum=75, group=BAR_GROUP),
     ],
-    references=(_aci("13.3, 22.5, 22.6, 7.6.1.1"), "BNBC 2020 Part 6 Ch 3"),
+    references=(_aci("13.3, 22.5, 22.6, 7.6.1.1"), _code("wsFoundations")),
 )
 def _footing(s: Sheet) -> None:
     lg, wd, h, fc, fy = s["length"], s["width"], s["h"], s["fc"], s["fy"]
@@ -77,7 +90,7 @@ def _footing(s: Sheet) -> None:
         raise WorksheetInputError("the column is wider than the footing")
     pressure = SH.soil_pressure(s["p"] * 1e3, 0.0, 0.0, lg, wd)
     q = s.step("q (service)", pressure.qmax * 1e3, "kPa", "P / (B L)")
-    s.check("q ≤ qa", q, s["qa"], "kPa", "BNBC 2020 Part 6 Ch 3 (allowable bearing)")
+    s.check("q ≤ qa", q, s["qa"], "kPa", _code("wsFoundations", " (allowable bearing)"))
     qu = s.step("qu (factored)", s["pu"] * 1e3 / (lg * wd) * 1e3, "kPa", "Pu / (B L)")
     qu_mpa = qu / 1e3
     d_outer = s.step("d (outer layer)", h - s["dc"], "mm", "h - cover to centroid")
@@ -165,7 +178,7 @@ def _footing(s: Sheet) -> None:
         number("q", "Applied pressure (0: not checked)", 0, "kPa", minimum=0, group="Check"),
     ],
     references=(
-        "BNBC 2020 Part 6 Ch 3 (shallow foundations)",
+        _code("wsFoundations", " (shallow foundations)"),
         "Vesic (1973) bearing capacity factors",
     ),
 )
@@ -182,7 +195,7 @@ def _bearing(s: Sheet) -> None:
     qu = s.step("qu", r["qu"], "kPa", "c Nc sc dc + q Nq sq dq + ½ γ B Nγ sγ")
     qa = s.step("qa", qu / s["fs"], "kPa", "qu / FS")
     if s["q"] > 0:
-        s.check("q ≤ qa", s["q"], qa, "kPa", "BNBC 2020 Part 6 Ch 3")
+        s.check("q ≤ qa", s["q"], qa, "kPa", _code("wsFoundations"))
     s.note("The settlement may govern the allowable pressure; see 1 Soil Report.")
 
 
@@ -222,7 +235,7 @@ def _bearing(s: Sheet) -> None:
             2.0,
             minimum=1,
             group="Stability",
-            help="The project's factor; BNBC 2020 does not set one for retaining walls.",
+            help="The project's factor (the default code pack sets none for retaining walls).",
         ),
         number(
             "fs_sl",
@@ -230,7 +243,7 @@ def _bearing(s: Sheet) -> None:
             1.5,
             minimum=1,
             group="Stability",
-            help="The project's factor; BNBC 2020 does not set one for retaining walls.",
+            help="The project's factor (the default code pack sets none for retaining walls).",
         ),
         number("gamma_c", "Concrete unit weight", 24, "kN/m³", minimum=15, group="Materials"),
         *concrete_inputs(),
@@ -239,7 +252,7 @@ def _bearing(s: Sheet) -> None:
         number("spacing", "Stem bar spacing", 150, "mm", minimum=75, group=BAR_GROUP),
     ],
     references=(
-        _bnbc("Sec 2.6.5, 2.7.3.1"),
+        _code("wsRetaining"),
         _aci("11, 22.2, 22.5"),
         "Rankine active earth pressure",
     ),
@@ -251,9 +264,9 @@ def _retaining(s: Sheet) -> None:
     ka = s.step("Ka", rankine_active(s["phi"]), "", "(1 - sin φ) / (1 + sin φ)", digits=3)
     s.heading("Stability (service, per metre)")
     pa_soil = s.step(
-        "Pa (soil)", 0.5 * ka * gamma * hm**2, "kN/m", "½ Ka γ H'²", _bnbc("Sec 2.6.5")
+        "Pa (soil)", 0.5 * ka * gamma * hm**2, "kN/m", "½ Ka γ H'²", _code("wsEarthPressure")
     )
-    pa_q = s.step("Pa (surcharge)", ka * q * hm, "kN/m", "Ka q H'", _bnbc("Sec 2.6.5"))
+    pa_q = s.step("Pa (surcharge)", ka * q * hm, "kN/m", "Ka q H'", _code("wsEarthPressure"))
     m_ot = s.step("Overturning moment", pa_soil * hm / 3 + pa_q * hm / 2, "kN·m/m", "about the toe")
     width = toe + t + heel
     stem_h = s["height"] / 1000
@@ -282,7 +295,7 @@ def _retaining(s: Sheet) -> None:
     pressure = SH.soil_pressure(total * 1e3, e * 1000, 0.0, width * 1000, 1000.0)
     s.step("q,max", pressure.qmax * 1e3, "kPa", "trapezoid or triangle (no tension)")
     s.step("q,min", pressure.qmin * 1e3, "kPa", "")
-    s.check("q,max ≤ qa", pressure.qmax * 1e3, s["qa"], "kPa", "BNBC 2020 Part 6 Ch 3")
+    s.check("q,max ≤ qa", pressure.qmax * 1e3, s["qa"], "kPa", _code("wsFoundations"))
     s.check(
         "Resultant in the middle third",
         abs(e),
@@ -293,11 +306,11 @@ def _retaining(s: Sheet) -> None:
     )
     s.heading("Stem at the top of the base (strength, per metre)")
     hs = stem_h
-    factor = 1.6  # H in BNBC 2020 Part 6 Sec 2.7.3.1 combinations (2) and (6)
+    factor = earth_pressure_factor()
     mu = factor * (ka * gamma * hs**3 / 6 + ka * q * hs**2 / 2)
     vu = factor * (ka * gamma * hs**2 / 2 + ka * q * hs)
-    s.step("Mu", mu, "kN·m/m", "1.6 (Ka γ h³/6 + Ka q h²/2)", _bnbc("Sec 2.7.3.1"))
-    s.step("Vu", vu, "kN/m", "1.6 (Ka γ h²/2 + Ka q h)", _bnbc("Sec 2.7.3.1"))
+    s.step("Mu", mu, "kN·m/m", f"{factor:g} (Ka γ h³/6 + Ka q h²/2)", _code("wsCombinations"))
+    s.step("Vu", vu, "kN/m", f"{factor:g} (Ka γ h²/2 + Ka q h)", _code("wsCombinations"))
     d = s.step("d", s["stem"] - s["dc"], "mm", "stem - cover to centroid")
     need = B.slab_flexure_need(mu * 1e6, d, s["fc"], s["fy"])
     s.step("As required", need.area, "mm²/m", "1 m strip, stress block", _aci("22.2"))
@@ -365,13 +378,13 @@ def _topography_settings(s: Sheet) -> Any:
 def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
     """The steps I, Kz, Kzt, Kd and qz at height ``z``; returns (qz, Kz)."""
     importance = code_context.table("occupancyCategories").categories[s["category"]]
-    i_w = s.step("I", importance.windImportance, "", "wind importance", _bnbc("Table 6.2.9"))
+    i_w = s.step("I", importance.windImportance, "", "wind importance", _code("wsWindImportance"))
     kz = s.step(
         f"Kz at {where}",
         L.exposure_coefficient(z, s["exposure"]),
         "",
         "2.01 (z/zg)^(2/α)",
-        _bnbc("Table 6.2.11"),
+        _code("wsExposure"),
     )
     terms = L.topographic_terms(z, s["exposure"])
     if terms is not None and terms["applies"]:
@@ -389,15 +402,15 @@ def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
         L.topographic_factor(z, s["exposure"]),
         "",
         "(1 + K1 K2 K3)²" if terms and terms["applies"] else "topographic factor",
-        _bnbc("Sec 2.4.7"),
+        _code("wsTopographic"),
     )
-    s.step("Kd", L.wind_factor("directionality"), "", "directionality", _bnbc("Table 6.2.12"))
+    s.step("Kd", L.wind_factor("directionality"), "", "directionality", _code("wsDirectionality"))
     q = s.step(
         "qz" if where != "h" else "qh",
         L.velocity_pressure(z, s["speed"], s["exposure"], i_w),
         "kN/m²",
         "0.000613 Kz Kzt Kd V² I",
-        _bnbc("Sec 2.4.6"),
+        _code("wsVelocityPressure"),
     )
     return float(q), float(kz)
 
@@ -417,7 +430,7 @@ def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
             minimum=20,
             maximum=100,
             group="Site",
-            help="BNBC 2020 Part 6 Table 6.2.8 for the location (Dhaka 65.7).",
+            help="The basic wind speed of the site's location in the code pack's table.",
         ),
         choice("exposure", "Exposure", "B", [("A", "A"), ("B", "B"), ("C", "C")], group="Site"),
         choice("category", "Occupancy category", "II", _categories(), group="Site"),
@@ -445,12 +458,7 @@ def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
         ),
         *_topography_inputs(),
     ],
-    references=(
-        _bnbc(
-            "Sec 2.4.13, Eq 6.2.29, Figure 6.2.20 (Tables 6.2.8, 6.2.9, 6.2.11, 6.2.12; "
-            "Sec 2.4.7, 2.4.8.1)"
-        ),
-    ),
+    references=(_code("wsSigns"),),
 )
 def _wind_sign(s: Sheet) -> None:
     h, sd, b = s["height"], s["depth"], s["width"]
@@ -461,9 +469,7 @@ def _wind_sign(s: Sheet) -> None:
         raise WorksheetInputError("the code pack in force has no force coefficients of signs")
     with L.wind_overrides(_topography_settings(s)):
         qh, kz = _velocity_steps(s, h, "h")
-        g = s.step(
-            "G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _bnbc("Sec 2.4.8.1")
-        )
+        g = s.step("G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _code("gustRigid"))
     s.step("s/h, B/s", f"{sd / h:.2f}, {b / sd:.2f}", "", "clearance and aspect ratios")
     corner = s["corner"] / sd if s["corner"] > 0 else None
     result = OW.solid_sign_wind(
@@ -568,7 +574,7 @@ def _wind_sign(s: Sheet) -> None:
         ),
         *_topography_inputs(),
     ],
-    references=(_bnbc("Sec 2.4.14-2.4.15, Eq 6.2.30, Figure 6.2.21"),),
+    references=(_code("wsChimneys"),),
 )
 def _wind_chimney(s: Sheet) -> None:
     wind = code_context.table("wind")
@@ -579,9 +585,7 @@ def _wind_chimney(s: Sheet) -> None:
     z = base + tall / 2
     with L.wind_overrides(_topography_settings(s)):
         qz, _ = _velocity_steps(s, z, "z (centroid of Af)")
-        g = s.step(
-            "G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _bnbc("Sec 2.4.8.1")
-        )
+        g = s.step("G", L.wind_factor("gust"), "", "gust-effect factor (rigid)", _code("gustRigid"))
     ratio = s.step("h/D", tall / d, "", "height over D")
     root = s.step("D√qz", d * math.sqrt(qz * 1e3), "", "D in m, qz in N/m²")
     cf = s.step(
@@ -649,7 +653,7 @@ def _zones() -> list[tuple[str, str]]:
         flag("period_given", "Use a period from analysis", False, group="Period"),
         number("period", "Period from analysis T", 1.0, "s", minimum=0.01, group="Period"),
     ],
-    references=(_bnbc("Sec 2.5 (Tables 6.2.14-6.2.20; Eq. 6.2.38; Sec 2.5.7)"),),
+    references=(_code("wsSeismic"),),
 )
 def _seismic(s: Sheet) -> None:
     table = code_context.table("seismic")
@@ -658,12 +662,12 @@ def _seismic(s: Sheet) -> None:
         code_context.table("zoneCoefficients").zones[int(s["zone"])],
         "",
         f"zone {s['zone']}",
-        _bnbc("Table 6.2.14"),
+        _code("wsZone"),
     )
     cat = code_context.table("occupancyCategories").categories[s["category"]]
-    i_e = s.step("I", cat.seismicImportance, "", f"category {s['category']}", _bnbc("Table 6.2.17"))
+    i_e = s.step("I", cat.seismicImportance, "", f"category {s['category']}", _code("wsImportance"))
     system = table.systems[s["system"]]
-    r = s.step("R", system.R, "", system.name, _bnbc(f"Table 6.2.19 row {system.row}"))
+    r = s.step("R", system.R, "", system.name, _code("wsSystem", f" row {system.row}"))
     family = system.periodFamily or "other"
     coef = table.periodCoefficients[family]
     ta = s.step(
@@ -671,34 +675,39 @@ def _seismic(s: Sheet) -> None:
         L.approximate_period(s["hn"], s["system"]),
         "s",
         f"Ct hn^m (Ct = {coef.Ct:g}, m = {coef.m:g})",
-        _bnbc("Table 6.2.20, Eq. 6.2.38"),
+        _code("wsPeriod"),
     )
     t = ta
+    upper = getattr(table, "periodUpperFactor", None)
     if s["period_given"]:
-        cap = float(getattr(table, "periodUpperFactor", None) or 1.4) * ta
-        t = s.step(
-            "T", min(max(s["period"], ta), cap), "s", "Ta ≤ T ≤ 1.4 Ta", _bnbc("Sec 2.5.7.2 (a)")
-        )
+        # The pack's cap on a period from analysis; none: the period is not capped.
+        cap = float(upper) * ta if upper else math.inf
+        bound = f"Ta ≤ T ≤ {float(upper):g} Ta" if upper else "Ta ≤ T"
+        t = s.step("T", min(max(s["period"], ta), cap), "s", bound, _code("periodCap"))
     site = table.siteClasses[s["site"]]
     s.step(
         "S, TB, TC, TD",
         f"{site.S:g}, {site.TB:g}, {site.TC:g}, {site.TD:g}",
         "",
         f"site class {s['site']}",
-        _bnbc("Table 6.2.16"),
+        _code("wsSiteFactors"),
     )
     s.step(
-        "Cs", L.normalized_spectrum(t, s["site"]), "", "normalized spectrum at T", _bnbc("Sec 2.5")
+        "Cs",
+        L.normalized_spectrum(t, s["site"]),
+        "",
+        "normalized spectrum at T",
+        _code("wsSpectrum"),
     )
     sa = s.step(
         "Sa",
         L.design_acceleration(t, s["site"], z, i_e, r),
         "g",
         "(2/3) Z I / R Cs",
-        _bnbc("Sec 2.5"),
+        _code("wsSpectrum"),
         digits=4,
     )
-    v = s.step("V", sa * s["weight"], "kN", "Sa W", _bnbc("Sec 2.5.7"))
+    v = s.step("V", sa * s["weight"], "kN", "Sa W", _code("wsBaseShear"))
     n = int(s["storeys"])
     if n:
         s.heading("Vertical distribution")
@@ -706,12 +715,15 @@ def _seismic(s: Sheet) -> None:
         levels = [((i + 1) * storey, s["weight"] / n) for i in range(n)]
         forces = L.vertical_distribution(levels, v, t)
         k = 1.0 if t <= 0.5 else 2.0 if t >= 2.5 else 1 + (t - 0.5) / 2
-        s.step("k", k, "", "1 for T ≤ 0.5 s, 2 for T ≥ 2.5 s", _bnbc("Sec 2.5.7"))
+        s.step("k", k, "", "1 for T ≤ 0.5 s, 2 for T ≥ 2.5 s", _code("wsBaseShear"))
         for (height, _), force in reversed(list(zip(levels, forces, strict=True))):
-            s.step(f"F at {height:.1f} m", force, "kN", "V wx hx^k / Σ wi hi^k", _bnbc("Sec 2.5.7"))
+            s.step(
+                f"F at {height:.1f} m", force, "kN", "V wx hx^k / Σ wi hi^k", _code("wsBaseShear")
+            )
     s.note(
         f"T = {t:.3f} s. The design of the model also adds the accidental torsion and checks "
-        "the drifts (Sec 2.5.7.6, 2.5.7.7)."
+        f"the drifts{_code('wsTorsionDrift').paren()}."
     )
     if math.isclose(t, ta):
-        s.note("Approximate period: a period from analysis may raise T up to 1.4 Ta.")
+        raise_to = f" up to {float(upper):g} Ta" if upper else ""
+        s.note(f"Approximate period: a period from analysis may raise T{raise_to}.")

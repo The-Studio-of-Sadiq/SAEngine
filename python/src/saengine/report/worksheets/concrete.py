@@ -1,7 +1,8 @@
 """Concrete worksheets: beams, columns, slabs, punching, bars, lintels and stairs.
 
-Every value comes from the design functions the model's design uses (BNBC 2020 Part 6
-Chapter 6 and 8, which adopt ACI 318); the clauses printed are those the functions name.
+Every value comes from the design functions the model's design uses (the code pack's concrete
+rules; BNBC 2020 Part 6 Chapter 6 and 8, which adopt ACI 318, in the default pack); the clauses
+printed are those the functions name, with the code pack in force's references.
 Inputs in mm, kN, kN·m, kN/m² and MPa; the functions take N and N·mm.
 """
 
@@ -19,11 +20,13 @@ from saengine.design.rc import PHI_SHEAR, PHI_SPIRAL, PHI_TIED, STEEL_E, bar_are
 from saengine.design.torsion import TorsionSection, cracking_torsion, threshold_torsion
 from saengine.drawings import detailing as DT
 from saengine.library.materials import EC_COEFFICIENT
+from saengine.report import clauses as _clauses
 from saengine.report.worksheets.core import (
-    CODE,
+    Cite,
     Sheet,
     WorksheetInputError,
     choice,
+    code_ref,
     concrete_inputs,
     flag,
     fmt,
@@ -31,29 +34,39 @@ from saengine.report.worksheets.core import (
     worksheet,
 )
 
-ACI = "ACI 318-19 (adopted by BNBC 2020 Part 6 Ch 6)"
+
+def _aci_adopted() -> str:
+    adopted = _clauses.ref("aciAdoption")
+    return f"ACI 318-19 (adopted by {adopted})" if adopted else "ACI 318-19"
 
 
-def _aci(clause: str) -> str:
-    return f"ACI 318-19 {clause} (BNBC 2020 Part 6 Ch 6)"
+#: ACI 318-19, as the code pack in force adopts it.
+ACI = Cite(_aci_adopted)
 
 
-def _bnbc(clause: str) -> str:
-    return f"{CODE} {clause}"
+def _aci(clause: str) -> Cite:
+    """ACI 318-19 ``clause``, with the code pack in force's adoption of it."""
+    return Cite(lambda: f"ACI 318-19 {clause}{_clauses.paren('aciAdoption')}")
+
+
+def _code(key: str, suffix: str = "") -> Cite:
+    """The code pack in force's reference ``key`` (+ ``suffix``)."""
+    return code_ref(key, suffix)
 
 
 def ec_of(fc: float) -> float:
-    """Ec [MPa] of normal-weight concrete (BNBC 2020 Part 6 Sec 6.1.7.1)."""
+    """Ec [MPa] of normal-weight concrete (the pack's modulus; BNBC 2020 Part 6 Sec 6.1.7.1 in
+    the default pack)."""
     return EC_COEFFICIENT * math.sqrt(fc)
 
 
 def factored(sheet: Sheet, dead: float, live: float, unit: str) -> tuple[float, str]:
-    """The governing gravity strength combination of ``dead`` and ``live`` (the pack's,
-    BNBC 2020 Part 6 Sec 2.7.3.1): writes each and returns (value, name)."""
+    """The governing gravity strength combination of ``dead`` and ``live`` (the pack's;
+    BNBC 2020 Part 6 Sec 2.7.3.1 in the default pack): writes each and returns (value, name)."""
     best, name = 0.0, ""
     for combo, fd, fl in ST.gravity_combinations():
         value = fd * dead + fl * live
-        sheet.step(f"w ({combo})", value, unit, f"{fd:g} D + {fl:g} L", _bnbc("Sec 2.7.3.1"))
+        sheet.step(f"w ({combo})", value, unit, f"{fd:g} D + {fl:g} L", _code("wsCombinations"))
         if value > best:
             best, name = value, combo
     return best, name
@@ -205,7 +218,7 @@ def _beam_shear(s: Sheet) -> None:
         flag("sensitive", "Carries elements likely to be damaged", False, group=LOAD_GROUP),
         *concrete_inputs(),
     ],
-    references=(_bnbc("Sec 6.2.5, Tables 6.6.1-6.6.2, Eqs. 6.6.1-6.6.4"),),
+    references=(_code("wsDeflection"),),
 )
 def _beam_deflection(s: Sheet) -> None:
     b, h, fc, fy, span = s["b"], s["h"], s["fc"], s["fy"], s["span"]
@@ -217,15 +230,15 @@ def _beam_deflection(s: Sheet) -> None:
         hmin,
         "mm",
         "l / divisor × (0.4 + fy/700)",
-        _bnbc("Table 6.6.1"),
+        _code("wsMinThickness"),
     )
     d = h - s["dc"]
-    ec = s.step("Ec", ec_of(fc), "MPa", "4700 √f'c", _bnbc("Sec 6.1.7.1"))
+    ec = s.step("Ec", ec_of(fc), "MPa", "4700 √f'c", _code("wsModulus"))
     n = STEEL_E / ec
     ig = b * h**3 / 12
     s.step("Ig", ig / 1e6, "×10⁶ mm⁴", "b h³ / 12")
     mcr = D.cracking_moment(fc, ig, h / 2)
-    s.step("Mcr", mcr / 1e6, "kN·m", "0.62 λ √f'c Ig / yt", _bnbc("Eqs. 6.6.2-6.6.3"))
+    s.step("Mcr", mcr / 1e6, "kN·m", "0.62 λ √f'c Ig / yt", _code("wsCrackingMoment"))
     bars = [(d, s["as_"])] + ([(s["dc"], s["asc"])] if s["asc"] > 0 else [])
     _, icr = D.cracked_section([D.Strip(b, 0.0, h)], bars, n)
     s.step("Icr", icr / 1e6, "×10⁶ mm⁴", "cracked transformed section, n = Es/Ec")
@@ -237,24 +250,28 @@ def _beam_deflection(s: Sheet) -> None:
         return 5 * moment * span**2 / (48 * ec * ie) if moment > 0 else 0.0
 
     md, ml = s["md"] * 1e6, s["ml"] * 1e6
-    dd = s.step("Δ dead", delta(md), "mm", "5 M l² / (48 Ec Ie), Ie at D", _bnbc("Eq. 6.6.1"))
-    dt = s.step("Δ dead + live", delta(md + ml), "mm", "Ie at D + L", _bnbc("Eq. 6.6.1"))
-    ds = s.step("Δ sustained", delta(md + s["psi"] * ml), "mm", "Ie at D + ψL", _bnbc("Eq. 6.6.1"))
+    dd = s.step(
+        "Δ dead", delta(md), "mm", "5 M l² / (48 Ec Ie), Ie at D", _code("wsEffectiveInertia")
+    )
+    dt = s.step("Δ dead + live", delta(md + ml), "mm", "Ie at D + L", _code("wsEffectiveInertia"))
+    ds = s.step(
+        "Δ sustained", delta(md + s["psi"] * ml), "mm", "Ie at D + ψL", _code("wsEffectiveInertia")
+    )
     live = dt - dd
     s.step("Δ live", live, "mm", "Δ(D+L) - Δ(D)")
     xi = D.xi_factor(s["months"], limits.xi)
-    s.step("ξ", xi, "", "time-dependent factor", _bnbc("Sec 6.2.5.2.5"))
+    s.step("ξ", xi, "", "time-dependent factor", _code("wsTimeFactor"))
     rho_p = s["asc"] / (b * d)
     lam = D.long_term_multiplier(rho_p, xi)
-    s.step("λΔ", lam, "", "ξ / (1 + 50 ρ')", _bnbc("Eq. 6.6.4"))
+    s.step("λΔ", lam, "", "ξ / (1 + 50 ρ')", _code("wsLongTerm"))
     after = lam * ds + live
-    s.step("Δ after attachment", after, "mm", "λΔ Δsustained + Δlive", _bnbc("Table 6.6.2"))
+    s.step("Δ after attachment", after, "mm", "λΔ Δsustained + Δlive", _code("wsDeflectionLimits"))
     s.check(
         "Δ live ≤ l / " + fmt(limits.live_floor),
         live,
         span / limits.live_floor,
         "mm",
-        _bnbc("Table 6.6.2"),
+        _code("wsDeflectionLimits"),
     )
     divisor = limits.attached_sensitive if s["sensitive"] else limits.attached_insensitive
     s.check(
@@ -262,7 +279,7 @@ def _beam_deflection(s: Sheet) -> None:
         after,
         span / divisor,
         "mm",
-        _bnbc("Table 6.6.2"),
+        _code("wsDeflectionLimits"),
     )
     s.note(
         "Immediate deflection of a uniformly loaded span with the midspan moment; the end "
@@ -292,7 +309,7 @@ def _beam_deflection(s: Sheet) -> None:
         number("nu", "Axial compression Nu", 0, "kN", minimum=0, group=LOAD_GROUP),
         number("fc", "f'c", 25, "MPa", minimum=10, maximum=100, group="Materials"),
     ],
-    references=(_bnbc("Sec 6.4.4.1, 6.4.4.2.2"),),
+    references=(_code("wsTorsion"),),
 )
 def _beam_torsion(s: Sheet) -> None:
     d = s["h"] - s["cover"] - s["stirrup"] - 10
@@ -316,11 +333,15 @@ def _beam_torsion(s: Sheet) -> None:
         tth / 1e6,
         "kN·m",
         "φ 0.083 λ √f'c Acp²/pcp √(1 + Nu/(0.33 Ag λ √f'c))",
-        _bnbc("Sec 6.4.4.1"),
+        _code("wsTorsionThreshold"),
     )
-    s.step("φTcr", tcr / 1e6, "kN·m", "φ 0.33 λ √f'c Acp²/pcp √(...)", _bnbc("Sec 6.4.4.2.2"))
+    s.step("φTcr", tcr / 1e6, "kN·m", "φ 0.33 λ √f'c Acp²/pcp √(...)", _code("wsTorsionCracking"))
     if s.check(
-        "Tu ≤ φTth (torsion may be neglected)", s["tu"], tth / 1e6, "kN·m", _bnbc("Sec 6.4.4.1")
+        "Tu ≤ φTth (torsion may be neglected)",
+        s["tu"],
+        tth / 1e6,
+        "kN·m",
+        _code("wsTorsionThreshold"),
     ):
         return
     s.note(
@@ -405,7 +426,7 @@ def _column_axial(s: Sheet) -> None:
         flag("transverse", "Transverse load between the ends", False, group=LOAD_GROUP),
         number("fc", "f'c", 25, "MPa", minimum=10, maximum=100, group="Materials"),
     ],
-    references=(_bnbc("Sec 6.3.10, Figure 6.6.5, Eqs. 6.6.14, 6.6.19-6.6.24"),),
+    references=(_code("wsSlenderness"),),
 )
 def _column_slenderness(s: Sheet) -> None:
     h, lu = s["h"], s["lu"]
@@ -414,32 +435,32 @@ def _column_slenderness(s: Sheet) -> None:
         SL.k_nonsway(s["psi_a"], s["psi_b"]),
         "",
         "nonsway alignment chart",
-        _bnbc("Figure 6.6.5 (a)"),
+        _code("wsAlignment"),
     )
-    r = s.step("r", 0.3 * h, "mm", "0.3 h (rectangle)", _bnbc("Sec 6.3.10.2"))
+    r = s.step("r", 0.3 * h, "mm", "0.3 h (rectangle)", _code("wsRadius"))
     ratio = s.step("k lu / r", k * lu / r, "", "")
     m2 = max(abs(s["m2"]), abs(s["m1"]))
     m1m2 = s["m1"] / m2 if m2 else 1.0
-    limit = s.step("Limit", SL.nonsway_limit(m1m2), "", "34 - 12 M1/M2 ≤ 40", _bnbc("Eq. 6.6.14"))
+    limit = s.step(
+        "Limit", SL.nonsway_limit(m1m2), "", "34 - 12 M1/M2 ≤ 40", _code("wsNonswayLimit")
+    )
     if ratio <= limit:
         s.note("k lu / r is within the limit: slenderness may be neglected.")
     ec = ec_of(s["fc"])
     ig = s["b"] * h**3 / 12
     ei = SL.effective_ei(ec, ig, s["beta"])
-    s.step("EI", ei / 1e12, "×10¹² N·mm²", "0.4 Ec Ig / (1 + βdns)", _bnbc("Eq. 6.6.22"))
+    s.step("EI", ei / 1e12, "×10¹² N·mm²", "0.4 Ec Ig / (1 + βdns)", _code("wsStiffness"))
     pc = SL.critical_load(ei, k, lu)
-    s.step("Pc", pc / 1e3, "kN", "π² EI / (k lu)²", _bnbc("Eq. 6.6.20"))
-    cm = s.step(
-        "Cm", SL.cm_factor(m1m2, s["transverse"]), "", "0.6 + 0.4 M1/M2", _bnbc("Eq. 6.6.23")
-    )
+    s.step("Pc", pc / 1e3, "kN", "π² EI / (k lu)²", _code("wsCriticalLoad"))
+    cm = s.step("Cm", SL.cm_factor(m1m2, s["transverse"]), "", "0.6 + 0.4 M1/M2", _code("wsCm"))
     pu = s["pu"] * 1e3
-    s.check("Pu < 0.75 Pc", s["pu"], 0.75 * pc / 1e3, "kN", _bnbc("Eq. 6.6.19"))
+    s.check("Pu < 0.75 Pc", s["pu"], 0.75 * pc / 1e3, "kN", _code("wsMagnifier"))
     dns = SL.delta_ns(cm, pu, pc)
-    s.step("δns", dns, "", "Cm / (1 - Pu / 0.75 Pc) ≥ 1", _bnbc("Eq. 6.6.19"))
+    s.step("δns", dns, "", "Cm / (1 - Pu / 0.75 Pc) ≥ 1", _code("wsMagnifier"))
     mmin = SL.minimum_moment(pu, h) / 1e6
-    s.step("M2,min", mmin, "kN·m", "Pu (15 + 0.03 h)", _bnbc("Eq. 6.6.24"))
+    s.step("M2,min", mmin, "kN·m", "Pu (15 + 0.03 h)", _code("wsMinimumMoment"))
     if math.isfinite(dns):
-        s.step("Mc", dns * max(m2, mmin), "kN·m", "δns max(M2, M2,min)", _bnbc("Sec 6.3.10.6"))
+        s.step("Mc", dns * max(m2, mmin), "kN·m", "δns max(M2, M2,min)", _code("wsMagnifiedMoment"))
         s.note("Design the section for Pu with Mc.")
 
 
@@ -496,7 +517,7 @@ SLAB_INPUTS = [
     "slab-one-way",
     "One-way slab",
     group="Concrete",
-    summary="Least thickness, the moments by BNBC's coefficients, steel and one-way shear of a "
+    summary="Least thickness, the moments by the code's coefficients, steel and one-way shear of a "
     "1 m strip.",
     inputs=[
         number("span", "Clear span ln", 3500, "mm", minimum=500, group="Span"),
@@ -513,14 +534,14 @@ SLAB_INPUTS = [
         ),
         *SLAB_INPUTS,
     ],
-    references=(_bnbc("Sec 6.1.4.3, Table 6.6.1"),),
+    references=(_code("wsOneWay"),),
 )
 def _slab_one_way(s: Sheet) -> None:
     span, h = s["span"], s["h"]
     ends = {"simple": 0, "end": 1, "interior": 2}[s["position"]]
     t = S.one_way_thickness(span, ends, s["fy"])
-    s.step("h,min", t.required, "mm", t.note, _bnbc("Table 6.6.1"))
-    s.check("h ≥ h,min", h, t.required, "mm", _bnbc("Table 6.6.1"), at_least=True)
+    s.step("h,min", t.required, "mm", t.note, _code("wsMinThickness"))
+    s.check("h ≥ h,min", h, t.required, "mm", _code("wsMinThickness"), at_least=True)
     d = s.step("d", h - s["dc"], "mm", "h - cover to centroid")
     sw = s.step("Self weight", s["gamma"] * h / 1000, "kN/m²", "γc h")
     wu, combo = factored(s, sw + s["dead"], s["live"], "kN/m²")
@@ -532,23 +553,25 @@ def _slab_one_way(s: Sheet) -> None:
     else:
         pos = coeff["positive"]["endIntegral" if ends == 1 else "interior"]
         neg = coeff["negative"]["firstInteriorMoreSpans" if ends == 1 else "otherInterior"]
-        s.step("M+", wu * ln**2 / pos, "kN·m/m", f"wu ln² / {pos:g}", _bnbc("Sec 6.1.4.3"))
+        s.step("M+", wu * ln**2 / pos, "kN·m/m", f"wu ln² / {pos:g}", _code("wsOneWayCoefficients"))
         s.step(
             "M- (interior support)",
             wu * ln**2 / neg,
             "kN·m/m",
             f"wu ln² / {neg:g}",
-            _bnbc("Sec 6.1.4.3"),
+            _code("wsOneWayCoefficients"),
         )
         s.note(
-            "BNBC's coefficients hold for two or more spans differing by no more than 20 %, "
-            "uniform load, and L ≤ 3 D (Sec 6.1.4.3)."
+            "The coefficients hold for two or more spans differing by no more than 20 %, "
+            f"uniform load, and L ≤ 3 D{_code('wsOneWayCoefficients').paren()}."
         )
     _slab_mesh_checks(s, wu * ln**2 / pos, d, h, "midspan")
     if neg:
         _slab_mesh_checks(s, wu * ln**2 / neg, d, h, "support")
-    share = coeff.get("shearFirstInterior", 1.15) if ends == 1 else 1.0
-    vu = s.step("Vu", share * wu * ln / 2, "kN/m", f"{share:g} wu ln / 2", _bnbc("Sec 6.1.4.3"))
+    share = coeff["shearFirstInterior"] if ends == 1 else 1.0
+    vu = s.step(
+        "Vu", share * wu * ln / 2, "kN/m", f"{share:g} wu ln / 2", _code("wsOneWayCoefficients")
+    )
     rho = max(bar_area(s["dia"]) * 1000 / s["spacing"] / (1000 * d), 1e-6)
     phi_vc, _ = S.one_way_shear(rho, d, s["fc"])
     s.check("Vu ≤ φVc", vu, phi_vc / 1e3, "kN/m", _aci("Table 22.5.5.1 (c)"))
@@ -559,7 +582,7 @@ def _slab_one_way(s: Sheet) -> None:
     "slab-two-way",
     "Two-way slab panel (coefficients)",
     group="Concrete",
-    summary="Moments of a two-way panel by BNBC's coefficient tables, steel each way and the "
+    summary="Moments of a two-way panel by the code's coefficient tables, steel each way and the "
     "least thickness.",
     inputs=[
         number("la", "Clear short span la", 4000, "mm", minimum=500, group="Panel"),
@@ -589,7 +612,7 @@ def _slab_one_way(s: Sheet) -> None:
         ),
         *SLAB_INPUTS,
     ],
-    references=(_bnbc("Sec 6.5.8, Tables 6.6.8-6.6.11"), _aci("8.3.1")),
+    references=(_code("wsTwoWay"), _aci("8.3.1")),
 )
 def _slab_two_way(s: Sheet) -> None:
     la, lb, h = s["la"], s["lb"], s["h"]
@@ -600,7 +623,7 @@ def _slab_two_way(s: Sheet) -> None:
     if m < 0.5:
         raise WorksheetInputError(f"la/lb = {m:.2f} below 0.5: a one-way slab")
     case = S.two_way_case(int(s["long_cont"]), int(s["short_cont"]))
-    s.step("Case", f"{case}", "", "continuity of the edges", _bnbc("Tables 6.6.8-6.6.11"))
+    s.step("Case", f"{case}", "", "continuity of the edges", _code("wsTwoWayCase"))
     c = S.two_way_coefficients(m, case)
     t = S.two_way_thickness(
         lb,
@@ -627,7 +650,7 @@ def _slab_two_way(s: Sheet) -> None:
             pos,
             "kN·m/m",
             f"C{label},dl wD l{label}² + C{label},ll wL l{label}² ({cd:.3f}, {cl:.3f})",
-            _bnbc("Tables 6.6.9-6.6.10"),
+            _code("wsTwoWayMoments"),
         )
         _slab_mesh_checks(s, pos, depth, h, f"{label}, midspan")
         if cneg is not None:
@@ -637,7 +660,7 @@ def _slab_two_way(s: Sheet) -> None:
                 cneg * wu * length**2,
                 "kN·m/m",
                 f"C{label},neg wu l{label}² ({cneg:.3f})",
-                _bnbc("Table 6.6.8"),
+                _code("wsTwoWayNegative"),
             )
             _slab_mesh_checks(s, neg, d, h, f"{label}, continuous edge")
 
@@ -754,7 +777,7 @@ def _punching(s: Sheet) -> None:
         flag("hook_confined", "Hook: inside ties at ≤ 3 db", False, group="Hook"),
         number("available", "Length available (0: not checked)", 0, "mm", minimum=0, group="Check"),
     ],
-    references=(_bnbc("Sec 8.2.3, 8.2.4, 8.2.6"),),
+    references=(_code("wsDevelopment"),),
 )
 def _development(s: Sheet) -> None:
     db, fy, fc = s["db"], s["fy"], s["fc"]
@@ -806,12 +829,12 @@ def _development(s: Sheet) -> None:
         ),
         flag("spacing_ok", "Spacing and cover at least db (with code stirrups)", True, group="Lap"),
     ],
-    references=(_bnbc("Sec 8.2.13, 8.2.14"),),
+    references=(_code("wsLap"),),
 )
 def _lap(s: Sheet) -> None:
     db, fy, fc = s["db"], s["fy"], s["fc"]
     cls = DT.splice_class(s["ratio"], s["share"])
-    s.step("Class", cls, "", "A: As,prov ≥ 2 As,req and ≤ half spliced", _bnbc("Sec 8.2.13.2"))
+    s.step("Class", cls, "", "A: As,prov ≥ 2 As,req and ≤ half spliced", _code("wsLapClass"))
     lap = DT.lap_tension(db, fy, fc, cls=cls, top=s["top"], spacing_ok=s["spacing_ok"])
     s.step("Tension lap", lap.value, "mm", lap.formula, lap.clause)
     comp = DT.lap_compression(db, fy, fc)
@@ -837,7 +860,7 @@ def _lap(s: Sheet) -> None:
         number("masonry", "Masonry unit weight", 18.85, "kN/m³", minimum=10, group=LOAD_GROUP),
         *concrete_inputs(),
     ],
-    references=(_bnbc("Table 6.6.1"), ACI),
+    references=(_code("wsMinThickness"), ACI),
 )
 def _lintel(s: Sheet) -> None:
     loads = lintel_loads(
@@ -891,7 +914,7 @@ def _lintel(s: Sheet) -> None:
         number("dist_dia", "Distribution bars", 10, "mm", minimum=6, maximum=16, group=BAR_GROUP),
         number("dist_spacing", "Distribution spacing", 200, "mm", minimum=75, group=BAR_GROUP),
     ],
-    references=(_bnbc("Sec 6.7.1, Table 6.6.1"), "BNBC 2020 Part 3 Sec 1.14"),
+    references=(_code("wsStairs"), _code("wsStairGeometry")),
 )
 def _stair(s: Sheet) -> None:
     end = "continuous" if s["continuous"] else "simple"

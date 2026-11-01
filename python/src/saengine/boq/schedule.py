@@ -1,7 +1,7 @@
 """The bill's reinforcement from the bars the drawings detail.
 
 A quantity lives in one place: the bars of a member are those the drawings detail
-(:func:`saengine.drawings.detailing.detailing_model`, BNBC 2020 Part 6 Chapter 8: laps at their
+(:func:`saengine.drawings.detailing.detailing_model`, the code pack's detailing: laps at their
 permitted places, hooks and bends, cut-off bars, the stirrups of each zone at its spacing) and
 schedule (:func:`saengine.drawings.bbs.bar_schedule`: number × BS 8666 cutting length per bar
 mark). The bill takes them for every element the drawings detail, so that the bill and the bar
@@ -39,7 +39,7 @@ _CACHE: OrderedDict[str, Any] = OrderedDict()
 TAKEN_NOTE = (
     "Reinforcement of the elements the drawings detail: measured from their detailed bars, the "
     "bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar "
-    "mark, with the BNBC 2020 laps at their places, the hooks and bends, cut-off bars and the "
+    "mark, with the code's laps at their places, the hooks and bends, cut-off bars and the "
     "stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), "
     "so that this bill and the schedule agree per bar size."
 )
@@ -239,7 +239,7 @@ def reconcile_notes(document: Any, schedule: Any, kept: list[str] | None = None)
     text = (
         "Reinforcement against the bar bending schedule of the drawings (BBS against this bill, "
         f"per bar size): {'; '.join(parts_dia)}; in total {rec.bbs:.1f} kg against "
-        f"{rec.boq:.1f} kg. The schedule cuts the detailed bars (BNBC 2020 laps and hooks, "
+        f"{rec.boq:.1f} kg. The schedule cuts the detailed bars (the code's laps and hooks, "
         "cut-off bars, BS 8666 cutting lengths); this bill measures by the estimating rules above."
     )
     if only:

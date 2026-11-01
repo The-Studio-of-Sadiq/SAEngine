@@ -39,6 +39,7 @@ import numpy as np
 
 import saengine
 from saengine.codes import context as code_context
+from saengine.report import clauses as _c
 
 TEMPLATE = Path(__file__).parent / "templates" / "report.typ"
 
@@ -188,14 +189,17 @@ def build_report(
         root, template or getattr(settings_report, "template", None)
     )
     appendix = None if chosen.members.appendix == "settings" else chosen.members.appendix
-    # The project's own code packs (02 Project Settings/code-packs) are found while it is built.
-    with code_context.project(root):
+    # The project's own code packs (02 Project Settings/code-packs) are found while it is built,
+    # and the pack its settings choose is in force (the clauses the report cites).
+    with _c.in_force(root, project_settings):
         data = report_data(root, version=version, appendix=appendix)
-    if "problems" in data:
-        return {"problems": data["problems"]}
-    data["warnings"].extend(template_problems)
-    # The project's language (Project Settings › Project › Language): labels and digits.
-    document = localize_document(report_document(data, chosen), project_language(project_settings))
+        if "problems" in data:
+            return {"problems": data["problems"]}
+        data["warnings"].extend(template_problems)
+        # The project's language (Project Settings › Project › Language): labels and digits.
+        document = localize_document(
+            report_document(data, chosen), project_language(project_settings)
+        )
     target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUTS[format]
     try:
         if format == "pdf":
@@ -401,8 +405,11 @@ def report_data(
     """Everything the report prints, as JSON-ready data with numbers formatted as text, or
     ``{"problems"}`` when the project has no analysis results to report. ``appendix``: which
     elements the appendix prints ("governing", "all", "none"); the project settings' when None."""
-    with results_loaded_once():
-        return _report_data(project_root, version=version, today=today, appendix=appendix)
+    with results_loaded_once(), _c.in_force(project_root) as problems:
+        data = _report_data(project_root, version=version, today=today, appendix=appendix)
+    if problems and "warnings" in data:
+        data["warnings"].extend(problems)
+    return data
 
 
 def _report_data(
@@ -874,7 +881,7 @@ def _supports_text(root: Path, analysis: Any) -> str:
             "9 Substructure, or not derived again): fixed"
         )
     text = (
-        "Soil springs (BNBC 2020 Part 6 Sec 1.2.7.3): each column base on its foundation of 9 "
+        f"Soil springs{_c.paren('soilSprings')}: each column base on its foundation of 9 "
         "Substructure, springs from the soil of 1 Soil Report (footings ASCE 41-06 Sec "
         "4.4.2.1.2, pile caps from their piles, rafts on subgrade springs); walls and columns "
         "without a foundation fixed. Foundations designed from the fixed-base run."
@@ -902,8 +909,9 @@ def _thermal_text(thermal: Any) -> str:
     return (
         f"ΔTu = ±{fmt(abs(thermal.uniform), 0)} °C on {where}, roof gradient ΔTg = "
         f"{fmt(thermal.gradient, 0)} °C (the roofs: the horizontal beams and slabs with nothing "
-        "above them, so stair or machine room roofs and the main roof around them; BNBC 2020 Part 6 Sec 2.6.4; T in 1.2(D + F + T) + "
-        "1.6L + 0.5Lr, Sec 2.7.3.1); equivalent fixed-end forces, analysed without the rigid "
+        "above them, so stair or machine room roofs and the main roof around them"
+        f"{_c.after('thermal', '; ')}; T in 1.2(D + F + T) + "
+        f"1.6L + 0.5Lr{_c.after('thermalCombination')}); equivalent fixed-end forces, analysed without the rigid "
         "diaphragms"
     )
 
@@ -1100,8 +1108,8 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
                 "Period used T (X)",
                 (
                     f"{fmt(values['periodUsed_s'], 3)} s (modal, at most "
-                    f"{fmt(values.get('periodCap_s') or 0, 3)} s = 1.4 Ta, BNBC 2020 Part 6 Sec "
-                    "2.5.7.2 (a))"
+                    f"{fmt(values.get('periodCap_s') or 0, 3)} s{_period_cap_text()}"
+                    f"{_c.after('periodCap')})"
                 ),
             ]
         )
@@ -1126,7 +1134,7 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
                 "Accidental torsion",
                 (
                     "static cases EXP, EXN, EYP, EYN: the story masses shifted ±5 % of the "
-                    "building's width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+                    f"building's width across the force{_c.paren('accidentalTorsion')}"
                 ),
             ]
         )
@@ -1163,7 +1171,7 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
             if "torsion_kNm" in level:
                 text += (
                     f"; Mt = {fmt(level['torsion_kNm'], 1)} kN·m with e = 0.15·B per face = "
-                    f"{fmt(level.get('e_m', 0), 2)} m (BNBC 2020 Part 6 Figure 6.2.9)"
+                    f"{fmt(level.get('e_m', 0), 2)} m{_c.paren('windTorsion')}"
                 )
             rows.append([f"Wind {case} at z = {fmt(level.get('z', 0), 2)} m", text])
     if wind.get("torsionCases"):
@@ -1172,14 +1180,12 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
                 "Wind design cases",
                 "torsional cases "
                 + ", ".join(wind["torsionCases"])
-                + ": each one-direction wind combination is designed for Cases 1-4 of BNBC 2020 "
-                "Part 6 Figure 6.2.9 (Sec 2.4.11.3)",
+                + ": each one-direction wind combination is designed for Cases 1-4"
+                + _c.after("windDesignCases", " of "),
             ]
         )
     elif wind.get("exempt"):
-        rows.append(
-            ["Wind design cases", "Cases 1 and 3 only (BNBC 2020 Part 6 Sec 2.4.11.3, Exception)"]
-        )
+        rows.append(["Wind design cases", f"Cases 1 and 3 only{_c.paren('windDesignCasesExempt')}"])
     rows += _wind_gust_rows(wind.get("gust") or {})
     rows += _wind_cladding_rows(wind.get("cladding") or {})
     rows += _flood_rows(values.get("flood") or {}, values.get("specialLoads") or {})  # B16
@@ -1188,7 +1194,7 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(
             [
                 "Live load arrangements",
-                f"{len(live['cases'])} cases (BNBC 2020 Part 6 Sec 6.1.12.2), enveloped with the "
+                f"{len(live['cases'])} cases{_c.paren('patternLive')}, enveloped with the "
                 "full live load: " + "; ".join(f"{c['case']}: {c['label']}" for c in live["cases"]),
             ]
         )
@@ -1348,9 +1354,26 @@ def _flood_rows(flood: dict[str, Any], special: dict[str, Any]) -> list[list[str
     return rows
 
 
+def _period_cap_text() -> str:
+    """The cap on the modal period as the code pack in force gives it (" = 1.4 Ta" in the
+    default pack); '' when it gives none."""
+    factor = getattr(code_context.table("seismic"), "periodUpperFactor", None)
+    return f" = {float(factor):g} Ta" if factor else ""
+
+
+def _cracked_text() -> str:
+    """The cracked-section factors of the code pack in force, with its clause."""
+    f = code_context.cracked_factors()
+    return (
+        f"{_c.ref('crackedStiffness') + ': ' if _c.ref('crackedStiffness') else ''}"
+        f"columns {f.column:.2f} Ig, beams {f.beam:.2f} Ig, walls {f.wall_uncracked:.2f} Ig or "
+        f"{f.wall:.2f} Ig, slabs {f.plate:.2f} Ig"
+    )
+
+
 def _wind_gust_rows(gust: dict[str, Any]) -> list[list[str]]:
-    """The gust-effect factor of each wind direction (BNBC 2020 Part 6 Sec 2.4.8), with the
-    terms of Gf for a flexible building (Sec 2.4.8.2)."""
+    """The gust-effect factor of each wind direction (the code pack's; BNBC 2020 Part 6 Sec 2.4.8
+    in the default pack), with the terms of Gf for a flexible building."""
     rows: list[list[str]] = []
     for axis in ("X", "Y"):
         entry = gust.get(axis)
@@ -1359,15 +1382,15 @@ def _wind_gust_rows(gust: dict[str, Any]) -> list[list[str]]:
         n1 = f"n1 = {fmt(entry.get('n1_Hz', 0), 3)} Hz from {gust.get('source', '')}"
         if "Gf" in entry:
             text = (
-                f"{n1}, flexible (n1 < 1 Hz): Gf = {fmt(entry['Gf'], 3)} (BNBC 2020 Part 6 Sec "
-                f"2.4.8.2) with β = {fmt(entry.get('beta', 0), 3)}, z̄ = "
+                f"{n1}, flexible (n1 < 1 Hz): Gf = {fmt(entry['Gf'], 3)}"
+                f"{_c.paren('gustFlexible')} with β = {fmt(entry.get('beta', 0), 3)}, z̄ = "
                 f"{fmt(entry.get('zbar_m', 0), 1)} m, Iz̄ = {fmt(entry.get('Iz', 0), 3)}, Lz̄ = "
                 f"{fmt(entry.get('Lz_m', 0), 1)} m, Q = {fmt(entry.get('Q', 0), 3)}, Vz̄ = "
                 f"{fmt(entry.get('Vz_ms', 0), 1)} m/s, R = {fmt(entry.get('R', 0), 3)}, gR = "
                 f"{fmt(entry.get('gR', 0), 3)}; WX/WY and their torsion scaled by Gf / G"
             )
         else:
-            text = f"{n1}, rigid: G = {fmt(entry.get('G', 0), 2)} (BNBC 2020 Part 6 Sec 2.4.8.1)"
+            text = f"{n1}, rigid: G = {fmt(entry.get('G', 0), 2)}{_c.paren('gustRigid')}"
         rows.append([f"Wind gust factor ({axis})", text])
     return rows
 
@@ -1381,7 +1404,8 @@ _ENCLOSURES = {
 
 
 def _wind_cladding_rows(cladding: dict[str, Any]) -> list[list[str]]:
-    """The components-and-cladding pressures by zone (BNBC 2020 Part 6 Sec 2.4.11.5)."""
+    """The components-and-cladding pressures by zone (the code pack's; BNBC 2020 Part 6 Sec
+    2.4.11.5 in the default pack)."""
     if not cladding.get("zones"):
         return []
     area = cladding.get("area_m2")
@@ -1433,7 +1457,8 @@ _WALL_ON = {
 
 def _architecture_rows(loads: dict[str, Any]) -> list[list[str]]:
     """The loads of the architecture (saengine.fem.architecture_loads): its walls as SD line
-    loads where they stand (BNBC 2020 Part 6 Sec 2.2.5), its rooms' finishes and live loads."""
+    loads where they stand (the code pack's partition rule; BNBC 2020 Part 6 Sec 2.2.5 in the
+    default pack), its rooms' finishes and live loads."""
     rows: list[list[str]] = []
     walls = [w for w in loads.get("walls") or [] if w.get("on") != "structural"]
     if walls or loads.get("walledStories"):
@@ -1442,8 +1467,8 @@ def _architecture_rows(loads: dict[str, Any]) -> list[list[str]]:
             [
                 "Partition walls",
                 (
-                    "from the architecture, as superimposed dead line loads in their positions "
-                    "(BNBC 2020 Part 6 Sec 2.2.5, p. 532), w × (h × L − openings) / L per piece; "
+                    "from the architecture, as superimposed dead line loads in their positions"
+                    f"{_c.paren('partitionWalls')}, w × (h × L − openings) / L per piece; "
                     f"the area load's partition allowance is dropped on {stories}"
                 ),
             ]
@@ -1479,8 +1504,7 @@ def _architecture_rows(loads: dict[str, Any]) -> list[list[str]]:
             parts.append(f"finish {room['finish']}{sunk} {fmt(room['finish_kNm2'], 2)} kN/m² (SD)")
         if room.get("live_kNm2") is not None:
             parts.append(
-                f"live {fmt(room['live_kNm2'], 2)} kN/m² ({room['use']}, BNBC 2020 Part 6 Table "
-                "6.2.3, pp. 533-539)"
+                f"live {fmt(room['live_kNm2'], 2)} kN/m² ({room['use']}{_c.after('roomLive')})"
             )
         rows.append(
             [
@@ -2346,8 +2370,7 @@ def _second_order(
     # since the run, and the results are not re-stamped on a settings change).
     cracked = _analysed_stiffness(model, parts)
     stiffness_text = (
-        "cracked sections (BNBC 2020 Part 6 Sec 6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, "
-        "walls 0.70 Ig or 0.35 Ig, slabs 0.25 Ig) "
+        f"cracked sections ({_cracked_text()}) "
         + (
             "for every case"
             if cracked == "all"
@@ -3064,7 +3087,8 @@ def _scwb_text(scwb: Any) -> str:
 
 
 def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
-    """The "Seismic detailing" chapter (BNBC 2020 Part 6 Sec 8.3) from the design report's
+    """The "Seismic detailing" chapter (the code pack's seismic detailing; BNBC 2020 Part 6 Sec
+    8.3 in the default pack) from the design report's
     ``seismic`` scope, the members' ``Detailing:`` checks and ``joints``."""
     scope = report.get("seismic")
     if not isinstance(scope, dict) or not scope.get("detailingLevel"):
@@ -4029,37 +4053,43 @@ def _mep(parts: _Parts) -> dict[str, Any]:
     }
 
 
-#: The tank design's method, as :mod:`saengine.plumbing.tanks` documents it (shortened).
-TANK_METHOD = [
-    (
-        "Tanks: a box of elastic shells (OpenSees Studio ASDShellQ4), an overhead tank pinned "
-        "along its walls' lines, a ground tank on Winkler springs (compression only where the "
-        "base lifts off; held along its walls where the net load is upward). Loads: D (self "
-        "weight, roof finish), F (water to the overflow, each compartment alone too), H (earth "
-        "pressure at rest K0 = 1 - sin φ' with the soil report's layers, the full hydrostatic "
-        "pressure below the design water table and the uplift on the base, BNBC 2020 Part 6 "
-        "Sec 2.6.5), Lr (roof live load, Table 6.2.3)."
-    ),
-    (
-        "Combinations: BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and Sec 2.7.2.1 (service), with "
-        "each load not acting investigated. Design per metre: Wood-Armer moments with the "
-        "membrane tension (ACI 318-19 flexure with axial tension), one-way shear with the axial "
-        "tension term (ACI 318-19 Table 22.5.5.1), minimum bars for early thermal restraint and "
-        "BNBC Sec 6.6.3 for walls, crack widths after EN 1992-1-1 7.3.4 against 0.2 mm, covers "
-        "BNBC Part 6 Sec 8.1.7; ground tanks: flotation (factor of safety 1.1), net bearing and "
-        "settlement (Table 6.3.8)."
-    ),
-    (
-        "Hydraulics: the water network of each riser solved with WNTR (EPANET 2.2), Hazen-"
-        "Williams friction, against the residual heads of Table 8.5.6 and the 35 m static limit "
-        "(Sec 5.11); the delivery pump at the peak hourly demand (Sec 5.9.1.2(c)(ii)) and its "
-        "head by Sec 5.10.5."
-    ),
-]
+def _tank_method() -> list[str]:
+    """The tank design's method, as :mod:`saengine.plumbing.tanks` documents it (shortened),
+    with the clauses of the code pack in force."""
+    return [
+        (
+            "Tanks: a box of elastic shells (OpenSees Studio ASDShellQ4), an overhead tank pinned "
+            "along its walls' lines, a ground tank on Winkler springs (compression only where the "
+            "base lifts off; held along its walls where the net load is upward). Loads: D (self "
+            "weight, roof finish), F (water to the overflow, each compartment alone too), H (earth "
+            "pressure at rest K0 = 1 - sin φ' with the soil report's layers, the full hydrostatic "
+            "pressure below the design water table and the uplift on the base"
+            f"{_c.after('tankEarth')}), Lr (roof live load{_c.after('tankRoofLive')})."
+        ),
+        (
+            f"Combinations: strength{_c.paren('tankStrength')} and service"
+            f"{_c.paren('tankService')}, with "
+            "each load not acting investigated. Design per metre: Wood-Armer moments with the "
+            "membrane tension (ACI 318-19 flexure with axial tension), one-way shear with the "
+            "axial tension term (ACI 318-19 Table 22.5.5.1), minimum bars for early thermal "
+            f"restraint and the walls' minimum{_c.paren('tankWallMinimum')}, crack widths after "
+            "EN 1992-1-1 7.3.4 against 0.2 mm, covers"
+            f"{_c.paren('tankCovers')}; ground tanks: flotation (factor of safety 1.1), net "
+            f"bearing and settlement{_c.paren('tankSettlement')}."
+        ),
+        (
+            "Hydraulics: the water network of each riser solved with WNTR (EPANET 2.2), Hazen-"
+            "Williams friction, against the residual heads"
+            f"{_c.paren('tankResidualHeads')} and the 35 m static limit"
+            f"{_c.paren('tankStaticLimit')}; the delivery pump at the peak hourly demand"
+            f"{_c.paren('tankPumpDemand')} and its head{_c.paren('tankPumpHead')}."
+        ),
+    ]
 
 
 def _plumbing(parts: _Parts) -> dict[str, Any]:
-    """The plumbing chapter (Part 7, BNBC 2020 Part 8): demand, storage, the sizes the
+    """The plumbing chapter (Part 7; the code pack's plumbing, BNBC 2020 Part 8 in the default
+    pack): demand, storage, the sizes the
     structure coordinates with (risers, stacks, tanks, sleeves), the tanks' RC design, the
     hydraulics and the septic tank (:func:`saengine.plumbing.project.full_report`); not printed
     while 07 MEP has no plumbing."""
@@ -4294,7 +4324,7 @@ def _plumbing(parts: _Parts) -> dict[str, Any]:
         "checkFails": [c.get("ok") is False for c in checks],
         "failed": failed,
         "low": low,
-        "method": [*(str(m) for m in report.get("method") or []), *TANK_METHOD],
+        "method": [*(str(m) for m in report.get("method") or []), *_tank_method()],
         "notes": notes,
     }
 
@@ -4370,7 +4400,8 @@ def _load_note(item_id: str, loaded: dict[str, dict[str, Any]], link: str | None
 
 
 def _hvac(parts: _Parts) -> dict[str, Any]:
-    """The HVAC coordination chapter (Part 7, BNBC 2020 Part 8 Chapter 2): the cooling loads
+    """The HVAC coordination chapter (Part 7; BNBC 2020 Part 8 Chapter 2 in the default pack):
+    the cooling loads
     (EnergyPlus version 26.2.0's cached run of this input, else the estimate: EnergyPlus is
     not started by the report), the plant with its weights on the structure, the ducts' openings
     through beams and slabs with their checks, the shafts; not printed while 07 MEP has no
@@ -4528,7 +4559,8 @@ OPTION_LABELS = {
 
 
 def _electrical(parts: _Parts) -> dict[str, Any]:
-    """The electrical coordination chapter (Part 7, BNBC 2020 Part 8 Chapter 1): the demand,
+    """The electrical coordination chapter (Part 7; BNBC 2020 Part 8 Chapter 1 in the default
+    pack): the demand,
     the substation, generator and their rooms, the equipment with its weights on the structure,
     the rising mains and trays with their openings, and the lightning protection's down-conductor
     columns and earthing for the structural drawings; not printed while 07 MEP has no
@@ -4638,7 +4670,7 @@ def _electrical(parts: _Parts) -> dict[str, Any]:
 
 
 def _fire(parts: _Parts) -> dict[str, Any]:
-    """The fire protection chapter (Part 7, BNBC 2020 Part 4): :mod:`saengine.fire.chapter`;
+    """The fire protection chapter (Part 7; BNBC 2020 Part 4 in the default pack): :mod:`saengine.fire.chapter`;
     not printed while 07 MEP has no fire section."""
     from saengine.fire.chapter import fire_chapter
     from saengine.library.mep import MEP_FILE, parse
