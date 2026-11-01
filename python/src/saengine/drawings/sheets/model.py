@@ -627,6 +627,9 @@ class DrawingSet:
     # the architecture (05 Floor Plan/architecture.json, saengine.library.architecture's model)
     # its sheets draw; None: no architectural sheets
     architecture: Any = None
+    # the post-tensioning tendon groups (saengine.drawings.sheets.pt.PtTendon) its PT sheets
+    # draw: the tendon plans, the profiles and the stressing schedule
+    pt: list[Any] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
     # members without reinforcement (never designed): {kind: {object type: count}}; while there
     # are any the sheets are not for construction

@@ -34,6 +34,9 @@ linetype and lineweight), except the north arrow's solid fill.
 | `S-HATCH` | 8 grey | Continuous | 0.09 | Hatching of cut concrete, blinding |
 | `S-REBAR-MAIN` | 1 red | Continuous | 0.50 | Main bars (lines and dots in section) |
 | `S-REBAR-LINK` | 5 blue | Continuous | 0.25 | Links, ties, stirrups, wall hoops |
+| `S-PT-TNDN` | 6 magenta | Continuous | 0.50 | Post-tensioning tendons in plan, the CGS in the tendon profiles |
+| `S-PT-ANCH` | 6 | Continuous | 0.35 | PT anchors: live end (filled triangle), dead end (filled square) |
+| `S-PT-PROF` | 6 | Continuous | 0.18 | PT profile marks: CGS heights at the profile points, supports |
 | `S-STEEL` | 30 orange | Continuous | 0.50 | Structural steel members (plans, elevations, details) |
 | `S-STEEL-AXIS` | 30 | `CENTER` | 0.18 | Steel members' work lines (centre lines) |
 | `S-STEEL-PLATE` | 4 cyan | Continuous | 0.35 | Connection plates: gussets, tabs, fin and end plates; the Whitmore section (dashed) |

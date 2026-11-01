@@ -1087,6 +1087,11 @@ def drawing_set(
         else:
             if architecture.walls:
                 data.architecture = architecture
+    if bim.additions.slabTendons:
+        from saengine.drawings.sheets.pt import pt_tendons
+
+        data.pt, problems = pt_tendons(bim, objects, materials)
+        data.problems += problems
     if materials is not None:
         from saengine.drawings.sheets.steel import steel_set
 
