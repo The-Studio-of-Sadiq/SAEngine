@@ -144,8 +144,10 @@ def free_standing(
     service = free_standing_service(values, method)
     factored = {k: v * scale * factor for k, v in service.items()}
     notes = [
-        (f"free-standing stair ({clause('freeStanding')}): service values × {scale:.3f} for "
-        f"{live:g} kN/m² live load, × {factor:.3f} ({governing}) to factored")
+        (
+            f"free-standing stair ({clause('freeStanding')}): service values × {scale:.3f} for "
+            f"{live:g} kN/m² live load, × {factor:.3f} ({governing}) to factored"
+        )
     ]
     half_c, half_b = width / 2000, landing / 2000
     flight = Demand("F (free-standing)", "flight", going, waist)

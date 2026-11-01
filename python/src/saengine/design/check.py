@@ -3140,6 +3140,21 @@ def _beam_checks(
             "; ".join(parts),
         )
     )
+    topping = getattr(beam, "compositeTopping", None)
+    if topping is not None:
+        # B33: composite concrete flexural members (saengine.design.composite_concrete).
+        from saengine.design import composite_concrete
+
+        try:
+            d_bottom = section.effective_depth(top=False)
+        except DesignError:
+            d_bottom = section.depth
+        checks += composite_concrete.beam_checks(
+            shear_demand[0], shear_demand[1], topping, section.width, d_bottom, section.fc,
+            section.fy, transverse.dia if transverse else None,
+            transverse.legs if transverse else 0, transverse.spacing if transverse else None,
+            float(code_context.table("factors").phi["shear"]),
+        )  # fmt: skip
     if not resistance.with_min_stirrups:
         # ACI 9.6.3.1: beams need at least Av,min where Vu > 0.083 φ λ √f'c bw d.
         checks.append(

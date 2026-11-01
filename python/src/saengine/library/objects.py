@@ -1067,6 +1067,30 @@ class MemberServiceability(_Model):
     )
 
 
+class CompositeTopping(_Model):
+    """A concrete beam built in two placements (a precast or first-cast stem and a
+    cast-in-place part over it) that act as one: the contact surface and its ties."""
+
+    toppingThickness: float = Field(
+        gt=0,
+        title="Cast-in-place thickness",
+        description="Least dimension of the part cast on top [mm] (the ties' spacing).",
+    )
+    surface: Literal["roughened", "smooth"] = Field(
+        default="roughened",
+        description="Contact surface clean and intentionally roughened, or not roughened.",
+    )
+    ties: bool = Field(
+        default=True, description="The stirrups run into the top part as ties across the surface."
+    )
+    contactWidth: float | None = Field(
+        default=None, gt=0, title="Contact width", description="[mm]; none: the beam's width."
+    )
+    tension: bool = Field(
+        default=False, description="Tension across the contact surface (shear only with ties)."
+    )
+
+
 class Beam(_ObjectBase):
     kind: Literal["beam"] = "beam"
     profile: Profile
@@ -1098,6 +1122,13 @@ class Beam(_ObjectBase):
         title="Deflection limits",
         description="Steel beams: the member use the deflection limits follow and a "
         "cantilever's free end; none: the code pack's default use, supported at both ends.",
+    )
+    compositeTopping: CompositeTopping | None = Field(
+        default=None,
+        title="Composite concrete",
+        description="Concrete beams cast in two placements acting as one (a precast stem with "
+        "a cast-in-place top): the horizontal shear at the contact surface is checked; none: "
+        "cast in one piece.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
