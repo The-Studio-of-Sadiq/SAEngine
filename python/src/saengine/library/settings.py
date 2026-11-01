@@ -1130,6 +1130,79 @@ class Settlement(_Model):
     )
 
 
+class TimeDependent(_Model):
+    """Creep, shrinkage and column shortening (B25): the time-dependent shortening of the
+    concrete columns of a building built storey by storey, by the creep and shrinkage model of
+    the code pack in force (fem.concrete_time, fem.staged), worked out from the run."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Column shortening",
+        description="Work out the elastic, creep and shrinkage shortening of every concrete "
+        "column line from the run, storey by storey in time, and the differential shortening "
+        "of the beams between them. Uses the construction sequence's stages when it is on.",
+    )
+    exposure: Literal["indoor", "outdoor"] = Field(
+        default="indoor",
+        description="Ambient exposure of the columns: the relative humidity and the "
+        "reinforced-section shrinkage coefficient of the code pack.",
+        json_schema_extra=_labels(["Indoor", "Outdoor"]),
+    )
+    relativeHumidity: float | None = Field(
+        default=None,
+        gt=0,
+        le=100,
+        title="Relative humidity",
+        description="Ambient relative humidity [%]. Empty: the code pack's value of the exposure.",
+    )
+    cycleDays: float = Field(
+        default=7.0,
+        gt=0,
+        le=365,
+        title="Floor cycle",
+        description="Days between casting one floor and the next.",
+    )
+    curingDays: float = Field(
+        default=7.0, ge=0, le=90, title="Curing", description="Days before drying starts."
+    )
+    superimposedAfterDays: float = Field(
+        default=90.0,
+        ge=0,
+        title="Finishes and occupancy",
+        description="Days after the frame is complete that the superimposed dead load and the "
+        "sustained live load are applied.",
+    )
+    sustainedLive: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        title="Sustained live share",
+        description="Share of the live load L that acts for long enough to creep.",
+    )
+    serviceLifeYears: float = Field(
+        default=30.0,
+        gt=0,
+        le=100,
+        title="Service life",
+        description="Years after completion the final shortening is worked out at (at most "
+        "the age the code pack's final creep is for).",
+    )
+    steelRatio: float = Field(
+        default=0.01,
+        ge=0,
+        le=0.08,
+        title="Column steel ratio",
+        description="Longitudinal steel ratio ρ of the columns for the transformed section and "
+        "the reinforced shrinkage (a lower ratio gives more shortening).",
+    )
+    waterContent: float | None = Field(
+        default=None,
+        gt=0,
+        title="Water content",
+        description="Free water of the mix [litre/m³]. Empty: the code pack's reference mix.",
+    )
+
+
 class PDeltaFactors(_Model):
     """Load factors of the gravity preload of the P-Delta analysis."""
 
@@ -1608,6 +1681,9 @@ class Analysis(_Model):
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
+    timeDependent: TimeDependent = Field(
+        default_factory=TimeDependent, title="Creep, shrinkage and column shortening"
+    )
     fireResistance: FireResistance = Field(
         default_factory=FireResistance,
         title="Fire resistance",

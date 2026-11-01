@@ -1,0 +1,129 @@
+{
+  "$schema": "../../../schemas/concreteTime.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 5.13.3, Eq 6.5.3 (part 1 p. 856, gazette p. 3437): creep, 40/60/80 % of the final creep after 1, 6 and 30 months",
+    "BNBC 2020 Part 6 Figure 6.5.1 (part 1 p. 857, gazette p. 3438): 30 year creep coefficient by relative humidity, age of loading and effective section thickness (digitised)",
+    "BNBC 2020 Part 6 Sec 5.13.4, Eq 6.5.4 (part 1 pp. 856-857, gazette pp. 3437-3438): shrinkage of plain and of symmetrically reinforced concrete",
+    "BNBC 2020 Part 6 Figure 6.5.2 (part 1 p. 858, gazette p. 3439): 6 month and 30 year drying shrinkage by relative humidity and effective section thickness (digitised)",
+    "BNBC 2020 Part 6 Sec 9.6.6-9.6.7, Table 6.9.3 (part 1 pp. 1144-1145, gazette pp. 3725-3726): creep and shrinkage for the prestress losses",
+    "BNBC 2020 Part 6 Sec 1.2.7 (p. 483), 1.2.16 (p. 486), 1.6.6(h),(j),(l) (p. 502), 2.6.9 (p. 683): long-term properties in the analysis, phased construction, creep and shrinkage, erection and construction loads"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 5.13.3-5.13.4, Figures 6.5.1-6.5.2 (pp. 856-858)",
+  "sources": {
+    "analysis": "BNBC 2020 Part 6 Sec 1.2.7 (p. 483): analysis taking both short and long term properties of the construction materials into account",
+    "phased": "BNBC 2020 Part 6 Sec 1.2.16 (p. 486): members investigated and designed for the additional stresses arising due to phased construction",
+    "effects": "BNBC 2020 Part 6 Sec 1.6.6(h), (j), (l) (p. 502): erection and construction loads, creep and shrinkage, construction loads",
+    "erection": "BNBC 2020 Part 6 Sec 2.6.9 (p. 683): erection and construction loads",
+    "creep": "BNBC 2020 Part 6 Sec 5.13.3, Eq 6.5.3 (p. 856): εcc = stress / Et × cc",
+    "creepFigure": "BNBC 2020 Part 6 Figure 6.5.1 (p. 857): 30 year creep coefficient",
+    "creepDevelopment": "BNBC 2020 Part 6 Sec 5.13.3 (p. 856): about 40 %, 60 % and 80 % of the final creep in the first 1, 6 and 30 months under load",
+    "thickness": "BNBC 2020 Part 6 Sec 5.13.3 (p. 856): effective section thickness 2 × area / exposed perimeter; 600 mm when drying is prevented",
+    "shrinkage": "BNBC 2020 Part 6 Sec 5.13.4 (pp. 856-857): drying shrinkage of plain concrete from Figure 6.5.2, proportional to the water content within 150-230 litre/m³",
+    "shrinkageFigure": "BNBC 2020 Part 6 Figure 6.5.2 (p. 858): 6 month and 30 year drying shrinkage",
+    "reinforced": "BNBC 2020 Part 6 Sec 5.13.4, Eq 6.5.4 (p. 857): εsh / (1 + K ρ), K = 25 internal and 15 external exposure",
+    "modulus": "BNBC 2020 Part 6 Sec 5.13.2 (p. 856): Ec of stone and brick aggregate concrete (concrete.modulus); Et at the age of loading by the same rule",
+    "prestressCreep": "BNBC 2020 Part 6 Sec 9.6.6, Table 6.9.3 (pp. 1144-1145)",
+    "prestressShrinkage": "BNBC 2020 Part 6 Sec 9.6.7 (p. 1145)"
+  },
+  "creep": {
+    "method": "tabulatedCoefficient",
+    "finalAgeDays": 10950,
+    "sealedThickness": 600,
+    "thicknesses": [150, 300, 600],
+    "relativeHumidity": [40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
+    "agesAtLoading": [1, 3, 7, 28, 90, 365],
+    "coefficients": {
+      "150": {
+        "1": [4.93, 4.77, 4.59, 4.41, 4.22, 3.99, 3.76, 3.5, 3.23, 2.94, 2.63, 2.27, 1.9],
+        "3": [4.45, 4.3, 4.15, 3.99, 3.81, 3.61, 3.4, 3.15, 2.88, 2.59, 2.29, 1.97, 1.65],
+        "7": [3.87, 3.72, 3.58, 3.42, 3.26, 3.08, 2.89, 2.67, 2.45, 2.19, 1.95, 1.66, 1.36],
+        "28": [3.24, 3.12, 2.99, 2.85, 2.7, 2.55, 2.39, 2.21, 2.03, 1.82, 1.63, 1.41, 1.18],
+        "90": [2.42, 2.34, 2.24, 2.14, 2.03, 1.91, 1.79, 1.66, 1.54, 1.4, 1.25, 1.11, 0.97],
+        "365": [1.6, 1.53, 1.47, 1.4, 1.33, 1.25, 1.17, 1.09, 1.01, 0.91, 0.81, 0.7, 0.59]
+      },
+      "300": {
+        "1": [3.83, 3.7, 3.56, 3.42, 3.28, 3.1, 2.92, 2.72, 2.51, 2.28, 2.04, 1.77, 1.47],
+        "3": [3.45, 3.34, 3.23, 3.1, 2.96, 2.8, 2.64, 2.44, 2.24, 2.01, 1.78, 1.53, 1.28],
+        "7": [3.01, 2.89, 2.78, 2.65, 2.53, 2.39, 2.24, 2.07, 1.9, 1.7, 1.51, 1.29, 1.06],
+        "28": [2.52, 2.42, 2.32, 2.21, 2.1, 1.98, 1.86, 1.71, 1.58, 1.42, 1.26, 1.09, 0.92],
+        "90": [1.88, 1.82, 1.74, 1.66, 1.57, 1.48, 1.39, 1.29, 1.19, 1.08, 0.97, 0.86, 0.75],
+        "365": [1.24, 1.19, 1.14, 1.09, 1.03, 0.97, 0.91, 0.84, 0.78, 0.71, 0.63, 0.54, 0.46]
+      },
+      "600": {
+        "1": [3.28, 3.17, 3.06, 2.94, 2.81, 2.66, 2.5, 2.33, 2.15, 1.96, 1.75, 1.51, 1.26],
+        "3": [2.96, 2.86, 2.77, 2.66, 2.54, 2.4, 2.26, 2.1, 1.92, 1.72, 1.52, 1.31, 1.1],
+        "7": [2.58, 2.48, 2.38, 2.28, 2.17, 2.05, 1.92, 1.78, 1.63, 1.46, 1.3, 1.1, 0.91],
+        "28": [2.16, 2.08, 1.99, 1.89, 1.8, 1.7, 1.59, 1.47, 1.35, 1.21, 1.08, 0.94, 0.79],
+        "90": [1.61, 1.56, 1.49, 1.42, 1.35, 1.27, 1.19, 1.1, 1.02, 0.93, 0.83, 0.74, 0.64],
+        "365": [1.06, 1.02, 0.98, 0.93, 0.88, 0.83, 0.78, 0.72, 0.67, 0.6, 0.54, 0.47, 0.39]
+      }
+    },
+    "development": [
+      { "days": 30, "share": 0.4 },
+      { "days": 182.5, "share": 0.6 },
+      { "days": 912.5, "share": 0.8 },
+      { "days": 10950, "share": 1.0 }
+    ],
+    "source": "BNBC 2020 Part 6 Sec 5.13.3, Eq 6.5.3 and Figure 6.5.1 (pp. 856-857)",
+    "note": "Figure 6.5.1 digitised from the gazette at 5 % relative humidity steps (read to about ±0.05). The figure's curves start at about 30-40 % relative humidity: below 40 % the 40 % value is used. Between the printed ages of loading, thicknesses and humidities the coefficient is interpolated linearly (ages on a log scale); outside them the nearest printed value is used. The development between the printed shares (40 % at 1 month, 60 % at 6 months, 80 % at 30 months, all at 30 years) is interpolated on log(1 + days under load): SAEngine practice, not BNBC."
+  },
+  "shrinkage": {
+    "method": "tabulatedStrain",
+    "thicknesses": [150, 300, 600],
+    "relativeHumidity": [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
+    "points": [
+      {
+        "days": 182.5,
+        "strains": {
+          "150": [197, 196, 194, 191, 187, 181, 175, 167, 158, 147, 130, 102, 59, 21, -31, -100],
+          "300": [106, 105, 104, 103, 100, 97, 94, 90, 85, 79, 70, 55, 32, 11, -31, -100],
+          "600": [46, 46, 46, 45, 44, 43, 41, 39, 37, 35, 30, 24, 14, 5, -31, -100]
+        }
+      },
+      {
+        "days": 10950,
+        "strains": {
+          "150": [438, 436, 432, 424, 415, 403, 389, 372, 351, 328, 289, 227, 132, 47, -59, -197],
+          "300": [383, 382, 378, 372, 363, 353, 340, 325, 307, 287, 253, 199, 115, 40, -61, -199],
+          "600": [316, 315, 311, 306, 299, 291, 280, 268, 253, 236, 208, 164, 95, 33, -61, -199]
+        }
+      }
+    ],
+    "strainUnit": 1e-6,
+    "referenceWater": 190,
+    "waterRange": [150, 230],
+    "reinforcementCoefficient": { "internal": 25, "external": 15 },
+    "source": "BNBC 2020 Part 6 Sec 5.13.4, Eq 6.5.4 and Figure 6.5.2 (pp. 856-858)",
+    "note": "Figure 6.5.2 digitised from the gazette at 5 % relative humidity steps (read to about ±5 × 10⁻⁶); negative values are swelling (above about 92 %). Shrinkage is proportional to the water content within 150-230 litre/m³ (190 litre/m³ for the figure). Eq 6.5.4 prints the divisor as 1 + kρ, with ρ the steel ratio and the coefficient K (25 internal, 15 external exposure) defined beside it: read as 1 + K ρ. Before 6 months the shrinkage is interpolated from zero at the start of drying on log(1 + days of drying), and between 6 months and 30 years on the same scale: SAEngine practice, not BNBC."
+  },
+  "exposure": {
+    "indoor": { "relativeHumidity": 45, "reinforcement": "internal" },
+    "outdoor": { "relativeHumidity": 85, "reinforcement": "external" },
+    "source": "BNBC 2020 Part 6 Figures 6.5.1-6.5.2 (pp. 857-858): the indoor and outdoor exposure lines",
+    "note": "The relative humidities are where the figures draw the indoor and outdoor exposure lines (about 45 % and 85 %). A project's own ambient humidity may replace them."
+  },
+  "strengthGain": {
+    "method": "hyperbolic",
+    "a": 4.0,
+    "b": 0.85,
+    "source": "SAEngine practice, not BNBC: f'c(t) = t / (a + b t) × f'c (ACI 209R, moist-cured ordinary cement)",
+    "note": "BNBC gives the modulus at 28 days only (Sec 5.13.2) and asks for the modulus at the age of loading Et in Eq 6.5.3, without a strength-age relation. SAEngine takes the strength gain t / (4 + 0.85 t), capped at f'c, and Et from the pack's Ec rule at that strength. Lower Et at early ages gives more creep: on the safe side for the shortening."
+  },
+  "prestress": {
+    "creepAgesDays": [7, 28, 365],
+    "creepCoefficients": [2.2, 1.6, 1.1],
+    "creepDevelopment": [
+      { "days": 30, "share": 0.5 },
+      { "days": 182.5, "share": 0.75 }
+    ],
+    "postTensionedCreepShare": 0.8,
+    "pretensionedShrinkage": 0.0003,
+    "postTensionedShrinkage": 0.0002,
+    "shrinkageDevelopment": [
+      { "days": 30, "share": 0.5 },
+      { "days": 182.5, "share": 0.75 }
+    ],
+    "source": "BNBC 2020 Part 6 Sec 9.6.6-9.6.7, Table 6.9.3 (pp. 1144-1145)",
+    "note": "For the prestress losses (Part 8 prestressed design). Post-tensioned shrinkage is 0.0002 / log10(t + 2) with t the age at transfer in days."
+  }
+}

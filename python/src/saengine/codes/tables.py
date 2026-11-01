@@ -5712,6 +5712,124 @@ class ConstructionTable(TableModel):
     formwork: FormworkRules | None = None
 
 
+# ─────────────────────── time-dependent concrete (creep and shrinkage, B25) ───────────────────────
+
+
+class TimeShare(_Row):
+    """A point of a development curve: the share of the final value reached after ``days``."""
+
+    days: Positive = Field(description="Days under load (creep) or of drying (shrinkage).")
+    share: Share = Field(description="Share of the final value reached by then.")
+
+
+class CreepModel(_Row):
+    """The final creep coefficient and its development in time (``fem.concrete_time``). Method
+    ``tabulatedCoefficient``: the coefficient tabulated by effective section thickness, ambient
+    relative humidity and age at loading (a digitised figure), developing by ``development``."""
+
+    method: Literal["tabulatedCoefficient"] = Field(
+        description="Method id (the engine's generic implementation)."
+    )
+    finalAgeDays: Positive = Field(description="Days under load the final coefficient is for.")
+    sealedThickness: Positive = Field(
+        description="Effective thickness [mm] of a member that cannot dry (immersed or sealed)."
+    )
+    thicknesses: list[Positive] = Field(min_length=1, description="Effective thicknesses [mm].")
+    relativeHumidity: list[Positive] = Field(min_length=2, description="Ambient RH [%].")
+    agesAtLoading: list[Positive] = Field(min_length=1, description="Ages at loading [days].")
+    coefficients: dict[str, dict[str, list[float]]] = Field(
+        description="thickness -> age at loading -> coefficient at each relative humidity."
+    )
+    development: list[TimeShare] = Field(
+        min_length=1, description="Share of the final creep after so many days under load."
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class ShrinkagePoint(_Row):
+    """Free shrinkage strains reached after ``days`` of drying, by thickness and humidity."""
+
+    days: Positive
+    strains: dict[str, list[float]] = Field(
+        description="thickness -> strain (× strainUnit) at each relative humidity; negative: "
+        "swelling."
+    )
+
+
+class ShrinkageModel(_Row):
+    """Drying shrinkage of plain concrete and of reinforced sections (``fem.concrete_time``).
+    Method ``tabulatedStrain``: strains tabulated by thickness and humidity at a few drying
+    times (a digitised figure); reinforced: ε / (1 + K ρ)."""
+
+    method: Literal["tabulatedStrain"] = Field(
+        description="Method id (the engine's generic implementation)."
+    )
+    thicknesses: list[Positive] = Field(min_length=1, description="Effective thicknesses [mm].")
+    relativeHumidity: list[Positive] = Field(min_length=2, description="Ambient RH [%].")
+    points: list[ShrinkagePoint] = Field(min_length=1)
+    strainUnit: Positive = Field(default=1e-6, description="Unit of the tabulated strains.")
+    referenceWater: Positive = Field(
+        description="Water content [litre/m³] the table is for; shrinkage is proportional to it."
+    )
+    waterRange: tuple[Positive, Positive] = Field(
+        description="Range [litre/m³] the proportionality holds in (water is clamped to it)."
+    )
+    reinforcementCoefficient: dict[str, float] = Field(
+        description="K of ε / (1 + K ρ) by exposure (internal, external)."
+    )
+    note: str = Field(default="", description="Why the values are what they are.")
+
+
+class ExposureClass(_Row):
+    relativeHumidity: Positive = Field(description="Ambient relative humidity [%].")
+    reinforcement: str = Field(description="Key of shrinkage.reinforcementCoefficient.")
+
+
+class ConcreteExposure(_Row):
+    """Ambient conditions of the exposures the figures mark."""
+
+    indoor: ExposureClass
+    outdoor: ExposureClass
+    note: str = Field(default="")
+
+
+class StrengthGain(_Row):
+    """Concrete strength at an age t (days) as a share of f'c: method ``hyperbolic``,
+    t / (a + b t), capped at 1; Et from the concrete pack's Ec rule at that strength."""
+
+    method: Literal["hyperbolic"] = Field(description="Method id.")
+    a: Positive
+    b: Positive
+    note: str = Field(default="")
+
+
+class PrestressTime(_Row):
+    """Lump creep and shrinkage of the prestress losses (Part 8 prestressed design)."""
+
+    creepAgesDays: list[Positive] = Field(min_length=1)
+    creepCoefficients: list[Positive] = Field(min_length=1)
+    creepDevelopment: list[TimeShare] = Field(default_factory=list)
+    postTensionedCreepShare: Share
+    pretensionedShrinkage: Positive
+    postTensionedShrinkage: Positive = Field(
+        description="Numerator of the post-tensioned shrinkage over log10(t + 2), t the age at "
+        "transfer in days."
+    )
+    shrinkageDevelopment: list[TimeShare] = Field(default_factory=list)
+    note: str = Field(default="")
+
+
+class ConcreteTimeTable(TableModel):
+    """Time-dependent properties of concrete: creep, shrinkage, exposure, the strength gain for
+    the modulus at the age of loading, and the lump values of the prestress losses."""
+
+    creep: CreepModel
+    shrinkage: ShrinkageModel
+    exposure: ConcreteExposure
+    strengthGain: StrengthGain
+    prestress: PrestressTime | None = None
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -5751,6 +5869,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "accessibility": AccessibilityTable,
     "anchors": AnchorsTable,
     "construction": ConstructionTable,
+    "concreteTime": ConcreteTimeTable,
 }
 
 
