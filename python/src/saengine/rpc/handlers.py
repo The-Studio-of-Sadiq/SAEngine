@@ -1560,7 +1560,7 @@ _PLUMBING_LOCK = threading.Lock()
 def plumbing_report(
     project_root: str, mep_text: str | None = None, designs: bool | str = True
 ) -> dict[str, Any]:
-    """The plumbing report (BNBC 2020 Part 8 sizing, tank designs, hydraulics), JSON-safe
+    """The plumbing report (the default pack's Part 8 sizing, tank designs, hydraulics), JSON-safe
     (``saengine.plumbing.project.full_report``); never raises. ``designs="cached"``: the quick
     first pass, with the tank designs not yet cached listed as pending."""
     from saengine.plumbing.project import full_report
@@ -1605,7 +1605,7 @@ def plumbing_sleeves(project_root: str, mep_text: str | None = None) -> dict[str
 
 
 def plumbing_occupancies() -> dict[str, Any]:
-    """BNBC 2020 Part 8 Table 8.5.1's occupancies: ``{occupancies: [{key, label, lpcd, ...}]}``."""
+    """The default pack's Part 8 Table 8.5.1's occupancies: ``{occupancies: [{key, label, lpcd, ...}]}``."""
     from saengine.plumbing.project import occupancies
 
     return {"occupancies": occupancies()}
@@ -1694,9 +1694,10 @@ def hvac_duct_openings(project_root: str, mep_text: str | None = None) -> dict[s
 
 
 def hvac_tables() -> dict[str, Any]:
-    """BNBC 2020 Part 8 Table 8.2.2's stations (2 % cooling design conditions, Sec 2.12.2.1)
+    """The default pack's Part 8 Table 8.2.2's stations (2 % cooling design conditions, Sec 2.12.2.1)
     and Table 8.2.3's occupancies: ``{cities: [{key, label, db, wb, range}], uses: [{key,
     label, perPerson, perArea, density, source}]}``."""
+    from saengine.codes import context as code_context
     from saengine.hvac import tables as T
 
     cities = [
@@ -1716,7 +1717,7 @@ def hvac_tables() -> dict[str, Any]:
             "perPerson": v.perPerson,
             "perArea": v.perArea,
             "density": v.density,
-            "source": "BNBC 2020 Part 8 Table 8.2.3",
+            "source": code_context.source_ref("hvac", "ventilation"),
         }
         for v in T.VENTILATION.values()
     ]
@@ -1775,14 +1776,16 @@ def electrical_openings(project_root: str, mep_text: str | None = None) -> dict[
 
 
 def electrical_uses() -> dict[str, Any]:
-    """BNBC 2020 Part 8 Table 8.1.17's occupancies (minimum load densities, W/m²):
+    """The code pack's occupancies of minimum load densities (W/m²; the default pack's Part 8 Table 8.1.17
+    in the default pack):
     ``{uses: [{key, label, nonAc, ac, source}]}``."""
+    from saengine.codes import context as code_context
     from saengine.electrical.tables import USES
 
     return {
         "uses": [
             {"key": u.key, "label": u.label, "nonAc": u.non_ac, "ac": u.ac,
-             "source": "BNBC 2020 Part 8 Table 8.1.17"}
+             "source": code_context.source_ref("electrical", "uses")}
             for u in USES.values()
         ]
     }  # fmt: skip
@@ -1790,7 +1793,7 @@ def electrical_uses() -> dict[str, Any]:
 
 def fire_report(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
     """The fire protection report of 7 MEP (``saengine.fire.report.fire_report``: the systems
-    BNBC 2020 Part 4 requires, sprinklers, hydraulics, water, pumps, the fire tanks' designs,
+    the default pack's Part 4 requires, sprinklers, hydraulics, water, pumps, the fire tanks' designs,
     missing sleeves), JSON-safe; never raises."""
     from saengine.fire.report import fire_report as report
 

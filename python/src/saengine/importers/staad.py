@@ -33,7 +33,7 @@ may change the length and force units anywhere, and command words abbreviated as
 
 Member and joint loads go onto the floor-plan beams and columns (``05 Floor Plan/loads.json``,
 see :mod:`saengine.importers.common`). Generated wind and seismic loads are listed as replaced
-by SAEngine's own (BNBC 2020); everything else (other generated loads, design parameters,
+by SAEngine's own (the default pack, BNBC 2020); everything else (other generated loads, design parameters,
 analysis commands) is skipped and listed in the import report.
 """
 

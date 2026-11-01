@@ -648,7 +648,7 @@ class _Differ:
         """What a coded value means, where SAEngine knows (the seismic zone of a district)."""
         if self.part == "settings" and key == "location" and not ctx.ids:
             try:
-                from saengine.library.bnbc import LOCATIONS
+                from saengine.library.code_data import LOCATIONS
 
                 zb = LOCATIONS[before].zone if before in LOCATIONS else None
                 za = LOCATIONS[after].zone if after in LOCATIONS else None

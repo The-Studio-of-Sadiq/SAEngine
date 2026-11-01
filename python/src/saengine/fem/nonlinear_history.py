@@ -4,7 +4,7 @@ mean for the design, by the rules of the code pack in force.
 The model (:func:`saengine.fem.nonlinear.history_model`) runs each time history of the project
 settings through the frames and walls as fibre elements, after the gravity loads, its records
 scaled to the pack's nonlinear target (:mod:`saengine.fem.records`, ``seismic.timeHistory``
-``targets``; BNBC 2020 Part 6 Sec 2.5.11.2: the real design spectrum, R = 1 and I = 1). This
+``targets``; the default pack's Part 6 Sec 2.5.11.2: the real design spectrum, R = 1 and I = 1). This
 module reads the runs with the pack's ``nonlinearHistory`` table
 (:class:`saengine.codes.tables.NonlinearHistoryTable`):
 

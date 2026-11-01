@@ -90,7 +90,7 @@ def test_builds_a_valid_project(tmp_path: Path) -> None:
     # The member load (5 kN/m over 6 m) and the joint load (10 kN) are member loads now; the
     # wind joint load is replaced by SAEngine's own wind, not lost.
     assert report["loads"]["notCarriedKN"] == {}
-    assert report["loads"]["replacedByBnbcKN"] == pytest.approx({"WY": 4})
+    assert report["loads"]["replacedKN"] == pytest.approx({"WY": 4})
     assert report["loads"]["carriedKN"]["D"] == pytest.approx(1.5 * 60 + 30)
     assert [(m.member, m.kind, m.case, m.value) for m in project.member_loads.loads] == [
         ("9", "line", "SD", 5),

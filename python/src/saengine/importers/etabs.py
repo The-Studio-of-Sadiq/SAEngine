@@ -18,7 +18,7 @@ reads the blocks a frame-and-shell building needs and hands them to
 - ``$ POINT COORDINATES``, ``$ LINE CONNECTIVITIES``, ``$ AREA CONNECTIVITIES`` with the
   ``$ LINE ASSIGNS`` and ``$ AREA ASSIGNS`` that place them on stories → columns, beams, braces,
   floors, wall panels and openings; end releases (steel beams and braces pinned at both ends get
-  a simple connection) and property modifiers (BNBC's cracked factors → SAEngine's cracked
+  a simple connection) and property modifiers (the default pack's cracked factors → SAEngine's cracked
   sections); offsets, insertion points and pier labels are reported;
 - ``$ POINT ASSIGNS``: restraints → supports (point springs are reported; no supports at all is
   an error of the report);
@@ -1068,21 +1068,21 @@ class _Importer:
         elif unmodified and not any(v for e in self.modifiers.values() for _, v in e):
             self.report.warn(
                 "The file has no property modifiers (gross sections): SAEngine analyses the "
-                "lateral cases on cracked concrete sections (BNBC 2020 Part 6 Sec 6.3.10.4.1; "
+                "lateral cases on cracked concrete sections (the default pack's Part 6 Sec 6.3.10.4.1; "
                 "02 Project Settings → Analysis model → Section stiffness)."
             )
 
     def _seismic_and_mass(self) -> None:
         """Reports the auto seismic definitions and how the mass source differs from SAEngine's
         seismic weight (dead and superimposed dead loads and a share of the live load)."""
-        from saengine.library.bnbc import SEISMIC_LIVE_SHARE
+        from saengine.library.code_data import SEISMIC_LIVE_SHARE
 
         for name, d in self.e.seismic.items():
             detail = f"{name}: {d.get('TYPE', '')}"
             if "SHEARCOEFF" in d:
                 detail += f", C {d['SHEARCOEFF']}, k {d.get('HEIGHTEXPONENT', '1')}"
             self.report.approximate(
-                "auto seismic definitions replaced by SAEngine's BNBC 2020 loads (02 Project "
+                "auto seismic definitions replaced by SAEngine's code pack loads (02 Project "
                 "Settings)",
                 detail,
             )
@@ -1291,7 +1291,7 @@ class _Importer:
             if name in self.e.cases and _is_spectrum(self.e.cases[name]["pairs"]):
                 self.report.approximate(
                     "response-spectrum terms of combinations taken as SAEngine's equivalent "
-                    "static earthquake cases EX / EY (BNBC 2020 loads, same factor and sign)",
+                    "static earthquake cases EX / EY (code pack loads, same factor and sign)",
                     name,
                 )
                 return _spectrum_terms(name, self.e.cases[name], self.report)

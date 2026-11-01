@@ -3,7 +3,7 @@
 A code pack (:mod:`saengine.codes`) keeps the reference data and the plain-number factors of a
 design code in ``data/<table>.json`` files; this module defines what each table holds, so a pack
 is validated (and its JSON Schema generated) from the same models the program reads. The models
-cover what SAEngine uses today with the BNBC 2020 pack and are kept general enough for other
+cover what SAEngine uses today with the default pack and are kept general enough for other
 codes: combinations are named lists of ``{load case: factor}`` by category, a structural system
 row is ``{R, Ω0, Cd, height limits by Seismic Design Category}``, and so on.
 
@@ -42,6 +42,12 @@ class TableModel(BaseModel):
     source: str = Field(default="", description="Clause (and page) the table comes from.")
     sources: dict[str, str] = Field(
         default_factory=dict, description="Clause references of single entries: {key: clause}."
+    )
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="Short clause references the results cite, by key, without the code's name "
+        "(e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does "
+        "not give is not cited.",
     )
 
     @model_validator(mode="before")
@@ -748,7 +754,7 @@ class Exposure(_Row):
     description: str
     alpha: float = Field(gt=0)
     zg: float = Field(gt=0, description="Gradient height [m].")
-    # The terrain constants of the gust-effect factor (BNBC 2020 Part 6 Table 6.2.10); None: a
+    # The terrain constants of the gust-effect factor (the default pack's Part 6 Table 6.2.10); None: a
     # pack without them gives rigid buildings only.
     c: float | None = Field(default=None, gt=0, description="Turbulence intensity factor c.")
     l: float | None = Field(default=None, gt=0, description="Integral length scale ℓ [m].")
@@ -759,7 +765,7 @@ class Exposure(_Row):
 
 
 class WindDesignCasesRow(_Row):
-    """The design wind load cases of the main wind-force resisting system (BNBC 2020 Part 6
+    """The design wind load cases of the main wind-force resisting system (the default pack's Part 6
     Sec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`."""
 
     partial: float = Field(gt=0, le=1, description="Case 2: share of the pressure with torsion.")
@@ -772,7 +778,7 @@ class WindDesignCasesRow(_Row):
 
 
 class FlexibleGustRow(_Row):
-    """The gust-effect factor Gf of a flexible or dynamically sensitive building (BNBC 2020 Part 6
+    """The gust-effect factor Gf of a flexible or dynamically sensitive building (the default pack's Part 6
     Sec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`."""
 
     frequencyLimit: float = Field(gt=0, description="A building below n1 [Hz] is flexible.")
@@ -879,7 +885,7 @@ class CladdingArchedTable(_Row):
 
 
 class CladdingTable(_Row):
-    """Components and cladding (BNBC 2020 Part 6 Sec 2.4.11.5): the (GCp) curves of walls and
+    """Components and cladding (the default pack's Part 6 Sec 2.4.11.5): the (GCp) curves of walls and
     flat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal
     pressure coefficients and the edge-zone width a."""
 
@@ -1205,7 +1211,7 @@ class TowerCf(_Row):
 
 
 class OpenStructuresTable(_Row):
-    """Design wind loads on other structures, F = qz·G·Cf·Af (BNBC 2020 Part 6 Sec 2.4, the
+    """Design wind loads on other structures, F = qz·G·Cf·Af (the default pack's Part 6 Sec 2.4, the
     provisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice
     frameworks, and trussed towers."""
 
@@ -1571,7 +1577,7 @@ class WallSteel(_Group):
 
 
 class TorsionLimits(_Group):
-    """Limits and choices of the torsion design of beams (BNBC 2020 Part 6 Sec 6.4.4)."""
+    """Limits and choices of the torsion design of beams (the default pack's Part 6 Sec 6.4.4)."""
 
     theta: float = Field(ge=30, le=60, description="Angle θ of the compression diagonals [°].")
     aoShare: Share = Field(description="Ao / Aoh.")
@@ -1768,7 +1774,7 @@ class PrestressLimits(_Group):
 
 class DeflectionLimitsGroup(_Group):
     """Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors
-    (BNBC 2020 Part 6 Sec 6.2.5)."""
+    (the default pack's Part 6 Sec 6.2.5)."""
 
     liveFloor: Positive = Field(description="Floors: immediate live-load deflection <= l/this.")
     liveRoof: Positive = Field(description="Flat roofs: immediate live-load deflection.")
@@ -1832,7 +1838,7 @@ class ConcreteTable(TableModel):
     slendernessLimit: float
     #: fy -> (exterior without edge beams, exterior with edge beams, interior) divisors of ln.
     twoWayThickness: dict[float, tuple[float, float, float]]
-    #: The same with drop panels (BNBC 2020 Table 6.6.3's right-hand columns).
+    #: The same with drop panels (the default pack's Table 6.6.3's right-hand columns).
     twoWayThicknessDrop: dict[float, tuple[float, float, float]] | None = None
     oneWaySlabThickness: tuple[float, float, float]
     beamThickness: tuple[float, float, float]
@@ -3036,7 +3042,7 @@ class Diaphragm(_Group):
 
 class TransferTable(TableModel):
     """Deep beams and transfer girders, corbels and brackets, diaphragm chords and collectors
-    (BNBC 2020 Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6)."""
+    (the default pack's Part 6 Sec 6.4.6, 6.4.7, 2.5.5.6)."""
 
     deepBeam: DeepBeam
     corbel: Corbel
@@ -3044,7 +3050,7 @@ class TransferTable(TableModel):
 
 
 class TwoWayTables(BaseModel):
-    """BNBC Tables 6.6.8-6.6.11: one row per span ratio m = la/lb (ascending), nine cases per
+    """The default pack's Tables 6.6.8-6.6.11: one row per span ratio m = la/lb (ascending), nine cases per
     row (None: no negative moment, that direction's edges discontinuous)."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -3088,7 +3094,7 @@ class TwoWayLimits(_Group):
 
 
 class OneWayTable(BaseModel):
-    """BNBC 6.1.4.3: M = w ln² / divisor; shear 1.15 w ln / 2 at the first interior support."""
+    """The default pack's 6.1.4.3: M = w ln² / divisor; shear 1.15 w ln / 2 at the first interior support."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -3110,7 +3116,7 @@ class SlabCoefficientsTable(TableModel):
     #: that older copies of a pack still load. Not read.
     brickAggregateFactor: float | None = Field(default=None, ge=1)
     discontinuousEdgeShare: Share = Field(
-        description="SAEngine practice, not a BNBC clause: top bars at a discontinuous edge "
+        description="SAEngine practice, not a clause of the default pack: top bars at a discontinuous edge "
         "for this share of the positive moment."
     )
 
@@ -3244,7 +3250,7 @@ class SlopedPipeRow(_Row):
 
 
 class PlumbingTable(_Services):
-    """BNBC 2020 Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
+    """The default pack's Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
     data where the code is silent (marked in ``sources``)."""
 
     occupancies: dict[str, WaterOccupancy]
@@ -3364,7 +3370,7 @@ class LeastWindowShare(_Group):
 
 
 class HvacTable(_Services):
-    """BNBC 2020 Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
+    """The default pack's Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
     stated assumptions where the code is silent (marked in ``sources``, listed in
     ``assumptions`` for the report)."""
 
@@ -3490,7 +3496,7 @@ class LtPanel(_Group):
 
 
 class ElectricalTable(_Services):
-    """BNBC 2020 Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
+    """The default pack's Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
     data for the first layout and SAEngine practice where the code is silent (marked in
     ``sources``)."""
 
@@ -3601,7 +3607,7 @@ class Extinguisher(_Group):
 
 
 class FireTable(_Services):
-    """BNBC 2020 Part 4 (fire protection): flows, durations, pressures, pump ratings, pipe
+    """The default pack's Part 4 (fire protection): flows, durations, pressures, pump ratings, pipe
     schedules, sprinkler spacing; the NFPA values the code leaves out (from memory, marked in
     ``sources``) and SAEngine's pipe and pump assumptions."""
 
@@ -3792,7 +3798,7 @@ class RoofReduction(_Group):
 
 
 class LiveReductionTable(TableModel):
-    """Reduction of floor live loads by influence area (BNBC 2020 Part 6 Sec 2.3.13)."""
+    """Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13)."""
 
     influenceMin: Positive = Field(description="Least KLL AT [m²] that is reduced.")
     constant: Share = Field(description="a of L = L0 (a + b / √(KLL AT)).")
@@ -4857,7 +4863,7 @@ class BetweenBuildings(_Row):
     rule: str = ""
 
 
-# B23: the building code's own site rules (BNBC 2020 Part 3 Ch 1 for the bnbc2020 pack), beside
+# B23: the building code's own site rules (the default pack's Part 3 Ch 1 for the bnbc2020 pack), beside
 # the planning authority's: the plinth and formation levels, overhead lines, the open area, the
 # fallback setbacks, the height by road width and construction type and the parking floors left
 # out of FAR. Read by saengine.gis.planning.
@@ -5022,7 +5028,7 @@ class PlanningCode(_Row):
 
 class PlanningTable(TableModel):
     """Planning rules of the plot: FAR and maximum ground coverage by use, plot size and road
-    width, and the setbacks (the planning authority's rules BNBC Part 3 defers to)."""
+    width, and the setbacks (the planning authority's rules the default pack's Part 3 defers to)."""
 
     clauses: dict[str, str] = Field(
         default_factory=dict,
@@ -6749,7 +6755,7 @@ class ExteriorStripShareTable(_Group):
 
 
 class EndSpanShares(_Group):
-    """Shares of Mo in an end span by the edge condition (Table 6.6.4 of BNBC 2020):
+    """Shares of Mo in an end span by the edge condition (Table 6.6.4 of the default pack (BNBC 2020)):
     ``interiorNegative``, ``positive``, ``exteriorNegative``, each by the conditions of
     ``conditions`` in that order."""
 
@@ -7934,12 +7940,20 @@ def table_schema(name: str) -> dict[str, Any]:
     return TABLE_MODELS[name].model_json_schema()
 
 
-@cache
-def builtin_table(name: str, pack_id: str = "bnbc2020") -> Any:
-    """Table ``name`` of a built-in root pack (no inheritance), validated; read once.
+def _default_pack_id() -> str:
+    from saengine.codes.registry import DEFAULT_PACK  # the registry imports no tables
 
-    :mod:`saengine.library.bnbc` reads the BNBC pack through this, without the registry, so the
-    library modules import nothing of the pack machinery (no import cycles)."""
+    return DEFAULT_PACK
+
+
+@cache
+def builtin_table(name: str, pack_id: str = "") -> Any:
+    """Table ``name`` of a built-in root pack (no inheritance), validated; read once; ``pack_id``
+    empty: the default pack (:data:`saengine.codes.registry.DEFAULT_PACK`).
+
+    :mod:`saengine.library.code_data` reads the default pack through this, without loading
+    packs through the registry."""
+    pack_id = pack_id or _default_pack_id()
     path = PACKS_DIR / pack_id / "data" / f"{name}.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(raw, dict) and "$data" in raw:
@@ -7948,7 +7962,8 @@ def builtin_table(name: str, pack_id: str = "bnbc2020") -> Any:
 
 
 @cache
-def builtin_manifest(pack_id: str = "bnbc2020") -> dict[str, Any]:
+def builtin_manifest(pack_id: str = "") -> dict[str, Any]:
+    pack_id = pack_id or _default_pack_id()
     return json.loads((PACKS_DIR / pack_id / "pack.json").read_text(encoding="utf-8"))
 
 

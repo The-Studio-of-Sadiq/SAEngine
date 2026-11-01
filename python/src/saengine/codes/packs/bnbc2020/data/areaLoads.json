@@ -513,5 +513,8 @@
     "vehicles": "BNBC 2020 Part 6 Sec 2.3.5 (p. 533): loads 1.5 m apart, each 40 % of the heaviest vehicle, on 750 mm x 750 mm; private vehicles: 9 kN wheel loads; Table 6.2.3 note b (p. 537): 13.35 kN on a 114 mm x 114 mm jack footprint; mechanical parking without a slab: 10 kN per wheel",
     "barriers": "BNBC 2020 Part 6 Sec 2.3.11, Table 6.2.5 and its notes (pp. 540-541): handrail loads horizontal or vertical, not together; vehicle barrier forces horizontal over any 1.5 m at bumper height (375 mm for light vehicles); ramps 50 % at 610 mm; straight exit ramps over 20 m long twice",
     "impact": "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 rows 1-4 (p. 541): additional load as a share of the static load including self-weight, increased if the manufacturer recommends (note 1); row 5, cranes, is in cranes.json"
+  },
+  "clauses": {
+    "partitions": "Part 6 Sec 2.3.6, p. 540"
   }
 }

@@ -8,19 +8,19 @@ response_spectrum`, :mod:`opensees_studio.core.scaling`), not a copy of them.
 - **Suites.** The time histories of a project form one suite per direction ("X", "Y": one
   horizontal record each, a two-dimensional suite) and one of pairs ("XY": a record with its
   orthogonal component, applied simultaneously, a three-dimensional suite). A suite needs the
-  pack's ``minimumRecords`` (BNBC 2020 Part 6 Sec 2.5.10.2: at least three).
+  pack's ``minimumRecords`` (the default pack's Part 6 Sec 2.5.10.2: at least three).
 - **Scaling** (``method`` "periodRange"): at every period from ``periodLower``·T to
   ``periodUpper``·T the mean of the records' ``spectrumDamping``-damped spectra (of a pair, the
   SRSS of its two components, one factor on both) is not below ``singleRatio`` (pairs:
   ``pairRatio``) times the target spectrum. The target is the design spectrum of the site
   (``targets.linear``: the building's own R and I) or, for the nonlinear procedure, the one
-  with the pack's R and I (``targets.nonlinear``; BNBC Sec 2.5.11.2: R = 1, I = 1). T is the
+  with the pack's R and I (``targets.nonlinear``; the default pack's Sec 2.5.11.2: R = 1, I = 1). T is the
   fundamental period of the direction (of the structure for pairs).
 - **Design value** (:func:`design_value`): the largest of the records' peaks below ``meanFrom``
-  records (or pairs), their mean from it (BNBC Sec 2.5.10.3: seven).
+  records (or pairs), their mean from it (the default pack's Sec 2.5.10.3: seven).
 - **Base shear** (:func:`base_shear_factor`): where the suite's base shear Vth is below
   ``baseShearShare``·V (V the equivalent static base shear), every response times
-  share·V/Vth (BNBC Sec 2.5.10.3).
+  share·V/Vth (the default pack's Sec 2.5.10.3).
 
 Accelerations are in g here unless a name says otherwise (``*_ms2``: m/s²).
 """

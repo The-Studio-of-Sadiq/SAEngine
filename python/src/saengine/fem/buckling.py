@@ -26,9 +26,9 @@ through the rigid diaphragms), solids, joint offsets (members are their clear ce
 length), and the frames' P-small-delta beyond one element per piece (each analysis piece is one
 element; the derived model splits members at every joint).
 
-Effective length factors (BNBC 2020 Part 6 Sec 10.5, KL/r; the elastic buckling load of a member
+Effective length factors (the default pack's Part 6 Sec 10.5, KL/r; the elastic buckling load of a member
 from a buckling analysis of the frame, as in AISC 360-05 Commentary Appendix 7, whose provisions
-BNBC 2020 Part 6 Chapter 10 adopts): K = (π / L) √(E I / Pcr), Pcr = λ1 |N| the member's axial
+the default pack's Part 6 Chapter 10 adopts): K = (π / L) √(E I / Pcr), Pcr = λ1 |N| the member's axial
 force at the first critical factor, for bending about each principal axis. It is meaningful for
 members that take part in the first mode; a member far from it gets a large K, which is shown
 as none above :data:`K_SHOWN_MAX`.

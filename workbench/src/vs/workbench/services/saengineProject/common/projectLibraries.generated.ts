@@ -8,8 +8,8 @@
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
-/** Reference tables from BNBC 2020 Part 6 Chapter 2 (see saengine.library.bnbc). */
-export interface IBnbcTables {
+/** Reference tables of the default code pack (see saengine.library.code_data); the clause numbers below are the default pack's. */
+export interface IDefaultCodeTables {
 	readonly edition: string;
 	readonly zoneCoefficient: { readonly [zone: string]: number };
 	readonly locations: { readonly [id: string]: { readonly name: string; readonly zone: number; readonly windSpeed: number } };
@@ -29,6 +29,9 @@ export interface IBnbcTables {
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
 }
+
+/** @deprecated The former name of {@link IDefaultCodeTables}. */
+export type IBnbcTables = IDefaultCodeTables;
 
 export const MATERIALS_SCHEMA: IJSONSchema = {
 	$defs: {
@@ -149,7 +152,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Tensile strength / modulus of rupture [MPa]. Follows f\'c (fr = 0.62 √f\'c, BNBC 2020 Part 6 Eq. 6.6.3) until another value is entered.',
+					description: 'Tensile strength / modulus of rupture [MPa]. Follows f\'c (fr = 0.62 √f\'c, the default pack\'s Part 6 Eq. 6.6.3) until another value is entered.',
 					title: 'Modulus of rupture fr',
 				},
 				maxAggregate: {
@@ -571,7 +574,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Young\'s modulus [MPa]. Concrete: follows f\'c (Ec = 4700 √f\'c, BNBC 2020 Part 6 Sec 6.1.7.1) until another value is entered.',
+					description: 'Young\'s modulus [MPa]. Concrete: follows f\'c (Ec = 4700 √f\'c, the default pack\'s Part 6 Sec 6.1.7.1) until another value is entered.',
 					title: 'Young\'s modulus E',
 				},
 				nu: {
@@ -770,7 +773,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Actual yield strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(i)).',
+					description: 'Actual yield strength from the mill tests [MPa] (the default pack\'s Sec 8.3.3.4(b)(i)).',
 					title: 'Actual fy (mill test)',
 				},
 				fuActual: {
@@ -784,7 +787,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Actual tensile strength from the mill tests [MPa] (BNBC Sec 8.3.3.4(b)(ii)).',
+					description: 'Actual tensile strength from the mill tests [MPa] (the default pack\'s Sec 8.3.3.4(b)(ii)).',
 					title: 'Actual fu (mill test)',
 				},
 			},
@@ -1311,14 +1314,14 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				seismicRole: {
 					default: 'auto',
-					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, BNBC Sec 8.3.12); auto: by the structural system.',
+					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, the default pack\'s Sec 8.3.12); auto: by the structural system.',
 					enum: ['auto', 'lateral', 'gravity'],
 					title: 'Seismic role',
 					type: 'string',
 				},
 				omegaCombinations: {
 					default: 'auto',
-					description: 'Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
+					description: 'Overstrength combinations (the default pack\'s Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
 					enum: ['auto', 'transfer', 'collector', 'none'],
 					title: 'Ω0 combinations',
 					type: 'string',
@@ -1505,7 +1508,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		BoundaryHoops: {
 			additionalProperties: false,
-			description: 'Hoops and crossties of a wall\'s boundary element (BNBC 2020 Part 6 Sec 8.3.6.6(d)(iii),\n8.3.5.4), or its end ties (8.3.6.6(e)(i)).',
+			description: 'Hoops and crossties of a wall\'s boundary element (the default pack\'s Part 6 Sec 8.3.6.6(d)(iii),\n8.3.5.4), or its end ties (8.3.6.6(e)(i)).',
 			properties: {
 				dia: {
 					default: 10,
@@ -2301,14 +2304,14 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				seismicRole: {
 					default: 'auto',
-					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, BNBC Sec 8.3.12); auto: by the structural system.',
+					description: 'Part of the seismic force-resisting system (lateral) or not (gravity, the default pack\'s Sec 8.3.12); auto: by the structural system.',
 					enum: ['auto', 'lateral', 'gravity'],
 					title: 'Seismic role',
 					type: 'string',
 				},
 				omegaCombinations: {
 					default: 'auto',
-					description: 'Overstrength combinations (BNBC Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
+					description: 'Overstrength combinations (the default pack\'s Sec 2.5.5.6, 2.5.13.4): transfer members under discontinuous columns or walls, collectors; auto: transfer members are found.',
 					enum: ['auto', 'transfer', 'collector', 'none'],
 					title: 'Ω0 combinations',
 					type: 'string',
@@ -2620,7 +2623,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		ColumnCapital: {
 			additionalProperties: false,
-			description: 'A flared column head under the slab (or under its drop panel) at every column the slab\nsits on: square in plan, widening from the column to ``size`` over ``depth`` (BNBC 2020\nPart 6 Sec 6.5; ACI 318-11 13.1.2: only the part inside a 90° cone or pyramid from the\ncolumn counts).',
+			description: 'A flared column head under the slab (or under its drop panel) at every column the slab\nsits on: square in plan, widening from the column to ``size`` over ``depth`` (the default pack (BNBC 2020)\nPart 6 Sec 6.5; ACI 318-11 13.1.2: only the part inside a 90° cone or pyramid from the\ncolumn counts).',
 			properties: {
 				size: {
 					description: 'Plan dimension of the capital where it meets the slab or drop panel [mm].',
@@ -3134,7 +3137,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		CouplingDiagonal: {
 			additionalProperties: false,
-			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7).',
+			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (the default pack\'s Part 6 Sec 8.3.6.7).',
 			properties: {
 				count: {
 					description: 'Bars per group (at least four, 8.3.6.7(d)(ii)).',
@@ -3283,7 +3286,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
+					description: 'Live load reduction factor given instead of worked out (the default pack\'s Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 				stiffenerSpacing: {
@@ -3356,7 +3359,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		DropPanel: {
 			additionalProperties: false,
-			description: 'A thickening of a flat slab under every column it sits on (BNBC 2020 Part 6 Sec 6.5;\nACI 318-19 8.2.4): a rectangle centred on the column, in the column\'s axes.',
+			description: 'A thickening of a flat slab under every column it sits on (the default pack\'s Part 6 Sec 6.5;\nACI 318-19 8.2.4): a rectangle centred on the column, in the column\'s axes.',
 			properties: {
 				depth: {
 					description: 'Projection below the slab\'s soffit [mm] (at least a quarter of the slab thickness to count as a drop panel).',
@@ -4823,7 +4826,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		MomentMagnifiers: {
 			additionalProperties: false,
-			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			description: 'Moment magnification factors given instead of worked out (RC columns, the default pack\'s 6.3.10).',
 			properties: {
 				cm: {
 					anyOf: [
@@ -5148,7 +5151,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		PunchingReinforcement: {
 			additionalProperties: false,
-			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
+			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (the default pack\'s Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
 			properties: {
 				kind: {
 					default: 'studs',
@@ -5705,7 +5708,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		SlabRibs: {
 			additionalProperties: false,
-			description: 'Ribs under the slab: a ribbed (one-way joist) slab, or a waffle slab with ribs both ways\n(BNBC 2020 Part 6 joist construction; ACI 318-19 9.8.1). The slab\'s thickness is then the\ntopping over the ribs.',
+			description: 'Ribs under the slab: a ribbed (one-way joist) slab, or a waffle slab with ribs both ways\n(the default pack\'s Part 6 joist construction; ACI 318-19 9.8.1). The slab\'s thickness is then the\ntopping over the ribs.',
 			properties: {
 				direction: {
 					default: 'both',
@@ -5823,7 +5826,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		SpliceZone: {
 			additionalProperties: false,
-			description: 'Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
+			description: 'Hoops or ties over the lap splices (the default pack\'s Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
 			properties: {
 				spacing: {
 					description: 'Spacing over the lap splices [mm].',
@@ -5977,7 +5980,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				spanning: {
 					default: 'betweenBeams',
-					description: 'How the flights span (BNBC 2020 Part 6 Sec 6.7.1.1 (a)-(d)).',
+					description: 'How the flights span (the default pack\'s Part 6 Sec 6.7.1.1 (a)-(d)).',
 					enum: ['betweenBeams', 'landingEdges', 'withLandings', 'landingsThreeSides'],
 					title: 'Spanning',
 					type: 'string',
@@ -6979,7 +6982,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		TransverseZone: {
 			additionalProperties: false,
-			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
+			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(the default pack\'s Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
 			properties: {
 				spacing: {
 					description: 'Hoop or tie spacing within the zone (so) [mm].',
@@ -7132,19 +7135,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 				braced: {
 					default: true,
-					description: 'Braced top and bottom against lateral translation (BNBC 6.6.5.2).',
+					description: 'Braced top and bottom against lateral translation (the default pack\'s 6.6.5.2).',
 					title: 'Braced',
 					type: 'boolean',
 				},
 				restrainedEnds: {
 					default: true,
-					description: 'Restrained against rotation at one or both ends (BNBC 6.6.5.2).',
+					description: 'Restrained against rotation at one or both ends (the default pack\'s 6.6.5.2).',
 					title: 'Restrained ends',
 					type: 'boolean',
 				},
 				basement: {
 					default: false,
-					description: 'Exterior basement or foundation wall (BNBC 6.6.3.4, 6.6.5.3).',
+					description: 'Exterior basement or foundation wall (the default pack\'s 6.6.3.4, 6.6.5.3).',
 					title: 'Basement',
 					type: 'boolean',
 				},
@@ -7235,7 +7238,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 		},
 		WallBoundary: {
 			additionalProperties: false,
-			description: 'Bars at each end of a wall: a boundary element of a special structural wall (BNBC 2020\nPart 6 Sec 8.3.6.6), or end bars with ties; the same at both ends.',
+			description: 'Bars at each end of a wall: a boundary element of a special structural wall (the default pack (BNBC 2020)\nPart 6 Sec 8.3.6.6), or end bars with ties; the same at both ends.',
 			properties: {
 				length: {
 					description: 'From the wall\'s end [mm].',
@@ -7938,7 +7941,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				partitionLoads: {
 					default: 'architecture',
-					description: 'From the architecture: the walls drawn in Architecture load the beams and slabs under them as line loads in their positions (BNBC 2020 Part 6 Sec 2.2.5), and the area load\'s partition allowance is dropped on the stories where they stand; stories without walls keep the allowance. Allowance: the walls are not applied and the area load\'s flat partition allowance holds everywhere (Sec 2.3.6).',
+					description: 'From the architecture: the walls drawn in Architecture load the beams and slabs under them as line loads in their positions (the default pack\'s Part 6 Sec 2.2.5), and the area load\'s partition allowance is dropped on the stories where they stand; stories without walls keep the allowance. Allowance: the walls are not applied and the area load\'s flat partition allowance holds everywhere (Sec 2.3.6).',
 					enum: ['architecture', 'allowance'],
 					enumDescriptions: ['From the architecture (where walls are drawn)', 'Flat allowance (area load)'],
 					title: 'Partition walls',
@@ -7954,32 +7957,32 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				massSource: {
 					$ref: '#/$defs/MassSource',
-					description: 'What forms the seismic weight W (BNBC 2020 Part 6 Sec 2.5.7.3): factors on the dead loads, the live load share and extra masses.',
+					description: 'What forms the seismic weight W (the default pack\'s Part 6 Sec 2.5.7.3): factors on the dead loads, the live load share and extra masses.',
 					title: 'Mass source',
 				},
 				accidentalEccentricity: {
 					default: true,
-					description: 'Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % of the building\'s width across the force (BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43). With equivalent static design, every E combination is checked with both.',
+					description: 'Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % of the building\'s width across the force (the default pack\'s Part 6 Sec 2.5.7.6.2, Eq. 6.2.43). With equivalent static design, every E combination is checked with both.',
 					title: 'Eccentric static earthquake cases',
 					type: 'boolean',
 				},
 				windTorsionCases: {
 					default: true,
-					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % in both with both torsions. Off: Cases 1 and 3 only.',
+					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of the default pack\'s Part 6 Figure 6.2.9 (Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % in both with both torsions. Off: Cases 1 and 3 only.',
 					title: 'Wind torsional cases',
 					type: 'boolean',
 				},
 				patternLive: {
-					default: 'bnbc',
-					description: 'BNBC 2020 Part 6 Sec 6.1.12.2: live load on two adjacent spans and on alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the full live load. BNBC: adjacent spans on each floor alone (one case per pair and floor) and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the full live load on every span.',
-					enum: ['bnbc', 'bnbcAlternateFloors', 'alternate', 'off'],
-					enumDescriptions: ['BNBC 6.1.12.2 (adjacent each floor, alternate checkerboard)', 'BNBC, adjacent on alternate floors (fewer cases)', 'Alternate spans only', 'Off (full live load only)'],
+					default: 'adjacent',
+					description: 'The code pack\'s arrangement of live load (the default pack\'s Part 6 Sec 6.1.12.2): live load on two adjacent spans and on alternate spans of the column grid, as extra cases LP1, LP2 ... enveloped with the full live load. Adjacent and alternate: adjacent spans on each floor alone (one case per pair and floor) and alternate spans as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support moments up to about 2 % lower. Alternate spans only. Off: the full live load on every span. The former values \'bnbc\' and \'bnbcAlternateFloors\' are read as \'adjacent\' and \'adjacentAlternateFloors\'.',
+					enum: ['adjacent', 'adjacentAlternateFloors', 'alternate', 'off'],
+					enumDescriptions: ['Adjacent and alternate spans (adjacent each floor, alternate checkerboard)', 'Adjacent on alternate floors (fewer cases)', 'Alternate spans only', 'Off (full live load only)'],
 					title: 'Live load arrangement',
 					type: 'string',
 				},
 				deflection: {
 					default: 'sensitive',
-					description: 'Beams are checked for deflection (BNBC 2020 Part 6 Sec 6.2.5) unless they are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 (l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are likely to be damaged (masonry partitions, the usual case) or l/240 where not (Table 6.6.2). Off: not checked.',
+					description: 'Beams are checked for deflection (the default pack\'s Part 6 Sec 6.2.5) unless they are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 (l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are likely to be damaged (masonry partitions, the usual case) or l/240 where not (Table 6.6.2). Off: not checked.',
 					enum: ['sensitive', 'insensitive', 'off'],
 					enumDescriptions: ['Partitions likely to be damaged (l/480)', 'Not likely to be damaged (l/240)', 'Off'],
 					title: 'Beam deflection limits',
@@ -8014,7 +8017,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				periodMethod: {
 					default: 'approximate',
-					description: 'Approximate: Ta = Ct·hn^m (BNBC 2020 Part 6 Eq. 6.2.38). Analysis: the modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.',
+					description: 'Approximate: Ta = Ct·hn^m (the default pack\'s Part 6 Eq. 6.2.38). Analysis: the modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.',
 					enum: ['approximate', 'analysis'],
 					enumDescriptions: ['Approximate Ta', 'From the modal analysis (≤ 1.4 Ta)'],
 					title: 'Period for the static base shear',
@@ -8042,15 +8045,15 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				responseSpectrum: {
 					default: true,
-					description: 'Add response spectrum analyses in X and Y with the BNBC design spectrum of the site (CQC of the modes).',
+					description: 'Add response spectrum analyses in X and Y with the code pack\'s design spectrum of the site (CQC of the modes).',
 					title: 'Response spectrum',
 					type: 'boolean',
 				},
 				stiffness: {
 					default: 'aci',
-					description: 'Cracked (default): concrete and masonry members with the moments of inertia of BNBC 2020 Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). BNBC 2020 Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than BNBC intends).',
+					description: 'Cracked (default): concrete and masonry members with the moments of inertia of the default pack\'s Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). The default pack\'s Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than the code intends).',
 					enum: ['gross', 'aci'],
-					enumDescriptions: ['Gross sections', 'Cracked (ACI / BNBC 6.3.10.4.1)'],
+					enumDescriptions: ['Gross sections', 'Cracked (the code pack\'s factors)'],
 					title: 'Section stiffness',
 					type: 'string',
 				},
@@ -8064,13 +8067,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				wallsCracked: {
 					default: false,
-					description: 'Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), BNBC 2020 Part 6 Sec 6.3.10.4.1.',
+					description: 'Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), the default pack\'s Part 6 Sec 6.3.10.4.1.',
 					title: 'Walls cracked',
 					type: 'boolean',
 				},
 				secondOrder: {
 					default: 'none',
-					description: 'None: columns are designed for slenderness by moment magnification (BNBC 2020 Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta transformations and every case is solved on the stiffness of the structure under the gravity preload (BNBC 2020 Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).',
+					description: 'None: columns are designed for slenderness by moment magnification (the default pack\'s Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta transformations and every case is solved on the stiffness of the structure under the gravity preload (the default pack\'s Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).',
 					enum: ['none', 'pDelta'],
 					enumDescriptions: ['None (moment magnification)', 'P-Delta analysis'],
 					title: 'Second-order analysis',
@@ -8078,18 +8081,18 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				pDeltaFactors: {
 					$ref: '#/$defs/PDeltaFactors',
-					description: 'The gravity loads the P-Delta stiffness is taken under: by default the gravity part of 1.2D + 1.0E + 1.0L (BNBC 2020 Part 6 Sec 2.7.3.1).',
+					description: 'The gravity loads the P-Delta stiffness is taken under: by default the gravity part of 1.2D + 1.0E + 1.0L (the default pack\'s Part 6 Sec 2.7.3.1).',
 					title: 'P-Delta preload factors',
 				},
 				firstOrderReference: {
 					default: true,
-					description: 'With P-Delta, also run each lateral static case first order (EX-1, ...), for the drift amplification and the stability coefficient θ of BNBC 2020 Part 6 Sec 2.5.7.9 in the report.',
+					description: 'With P-Delta, also run each lateral static case first order (EX-1, ...), for the drift amplification and the stability coefficient θ of the default pack\'s Part 6 Sec 2.5.7.9 in the report.',
 					title: 'First-order reference cases',
 					type: 'boolean',
 				},
 				notionalLoads: {
 					default: 'none',
-					description: 'How steel frames are designed for stability (the code pack\'s steel stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi in every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every combination, and every steel member checked with K = 1; required by the code where the second-order drift exceeds 1.5 times the first-order drift. The coefficients are the active code pack\'s (the values above are BNBC 2020\'s).',
+					description: 'How steel frames are designed for stability (the code pack\'s steel stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi in every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every combination, and every steel member checked with K = 1; required by the code where the second-order drift exceeds 1.5 times the first-order drift. The coefficients are the active code pack\'s (the values above are the default pack\'s).',
 					enum: ['none', 'secondOrder', 'firstOrder', 'directAnalysis'],
 					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)', 'Direct analysis method (reduced stiffness, K = 1)'],
 					title: 'Steel stability design method',
@@ -8125,9 +8128,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				seismicDesign: {
 					default: 'responseSpectrum',
-					description: 'Response spectrum: when the response spectrum cases run, E in the design combinations is the response spectrum, scaled up to 85 % of the equivalent static base shear (BNBC 2020 Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal rule below (the static cases EX and EY otherwise). Static: the equivalent static cases EX and EY. Linear time history: E is the design value over the suite of time histories (the largest response, or the mean from the number of records the code pack names), scaled up to the equivalent static base shear, with the accidental torsion; it needs the response spectrum cases too (torsional irregularity, walls), and a direction without a complete suite keeps the response spectrum.',
+					description: 'Response spectrum: when the response spectrum cases run, E in the design combinations is the response spectrum, scaled up to 85 % of the equivalent static base shear (the default pack\'s Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal rule below (the static cases EX and EY otherwise). Static: the equivalent static cases EX and EY. Linear time history: E is the design value over the suite of time histories (the largest response, or the mean from the number of records the code pack names), scaled up to the equivalent static base shear, with the accidental torsion; it needs the response spectrum cases too (torsional irregularity, walls), and a direction without a complete suite keeps the response spectrum.',
 					enum: ['static', 'responseSpectrum', 'timeHistory'],
-					enumDescriptions: ['Equivalent static (EX, EY)', 'Response spectrum, scaled (BNBC 2.5.9.4)', 'Linear time history, scaled'],
+					enumDescriptions: ['Equivalent static (EX, EY)', 'Response spectrum, scaled to the static base shear', 'Linear time history, scaled'],
 					title: 'Earthquake design forces',
 					type: 'string',
 				},
@@ -8155,7 +8158,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				seismicOrthogonal: {
 					default: 'auto',
-					description: 'Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D (BNBC 2020 Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also for a Category C building with non-parallel systems (irregularity type V).',
+					description: 'Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D (the default pack\'s Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also for a Category C building with non-parallel systems (irregularity type V).',
 					enum: ['auto', 'always', 'never'],
 					enumDescriptions: ['By the Seismic Design Category', 'Always', 'Never'],
 					title: 'Orthogonal effects (100 % + 30 %)',
@@ -8163,13 +8166,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				seismicAccidentalTorsion: {
 					default: true,
-					description: 'Add the static torsional moments ±0.05 L F at each floor (BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec 2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger effect governing (Sec 2.5.7.6.3).',
+					description: 'Add the static torsional moments ±0.05 L F at each floor (the default pack\'s Part 6 Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec 2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger effect governing (Sec 2.5.7.6.3).',
 					title: 'Accidental torsion',
 					type: 'boolean',
 				},
 				seismicVerticalComponent: {
 					default: true,
-					description: 'E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (BNBC 2020 Part 6 Sec 2.5.13.2).',
+					description: 'E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (the default pack\'s Part 6 Sec 2.5.13.2).',
 					title: 'Vertical earthquake component',
 					type: 'boolean',
 				},
@@ -8184,12 +8187,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Factor on L in 1.2D + 1.0E + L. Empty: the project\'s own static earthquake combination\'s (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, BNBC 2020 Part 6 Sec 2.7.3.1 exception 1).',
+					description: 'Factor on L in 1.2D + 1.0E + L. Empty: the project\'s own static earthquake combination\'s (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, the default pack\'s Part 6 Sec 2.7.3.1 exception 1).',
 					title: 'Live load factor with E',
 				},
 				seismicRedundancy: {
 					default: 1.0,
-					description: 'The allowable storey drift of moment frames in Category D is Δa/ρ (BNBC 2020 Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.',
+					description: 'The allowable storey drift of moment frames in Category D is Δa/ρ (the default pack\'s Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.',
 					maximum: 1.3,
 					minimum: 1.0,
 					title: 'Redundancy factor ρ (drift)',
@@ -8262,7 +8265,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				supports: {
 					default: 'fixed',
-					description: 'Fixed: the column bases are fixed. Soil springs: each column base stands on its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (BNBC 2020 Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their piles\' head stiffnesses. Rafts: shells on subgrade springs. Columns without a foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are then designed from a fixed-base run of the same model (Compare Fixed Base and Soil Springs; Run All runs it).',
+					description: 'Fixed: the column bases are fixed. Soil springs: each column base stands on its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (the default pack\'s Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their piles\' head stiffnesses. Rafts: shells on subgrade springs. Columns without a foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are then designed from a fixed-base run of the same model (Compare Fixed Base and Soil Springs; Run All runs it).',
 					enum: ['fixed', 'soilSprings'],
 					enumDescriptions: ['Fixed', 'Soil springs (Part 9 foundations on Part 1 soil)'],
 					title: 'Column supports',
@@ -8285,7 +8288,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				ssiPileGroupFactor: {
 					default: 1.0,
-					description: 'Multiplies the summed lateral and torsional stiffness of a cap\'s piles. 1.0: no pile-soil-pile interaction (BNBC 2020 Part 6 Sec 3.10.1.19 takes a group efficiency of 1.0 for capacity).',
+					description: 'Multiplies the summed lateral and torsional stiffness of a cap\'s piles. 1.0: no pile-soil-pile interaction (the default pack\'s Part 6 Sec 3.10.1.19 takes a group efficiency of 1.0 for capacity).',
 					exclusiveMinimum: 0,
 					maximum: 1,
 					title: 'Pile group factor (lateral)',
@@ -9032,7 +9035,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				developmentLength: {
 					default: 'simplified',
-					description: 'BNBC 2020 Part 6, 8.2.3: the simplified form (8.2.3.2) or the general Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).',
+					description: 'The default pack\'s Part 6, 8.2.3: the simplified form (8.2.3.2) or the general Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).',
 					enum: ['simplified', 'general'],
 					enumDescriptions: ['Simplified (8.2.3.2)', 'General, Eq. 6.8.1 (8.2.3.3)'],
 					title: 'Development length',
@@ -9477,13 +9480,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				T: {
 					default: 0,
-					description: 'Factor on the temperature case T (Analysis model → Temperature). BNBC 2020 Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					description: 'Factor on the temperature case T (Analysis model → Temperature). The default pack\'s Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
 					title: 'T',
 					type: 'number',
 				},
 				ST: {
 					default: 0,
-					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T of BNBC 2020 Part 6 Sec 2.7, so it takes T\'s factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T of the default pack\'s Part 6 Sec 2.7, so it takes T\'s factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
 					title: 'ST',
 					type: 'number',
 				},
@@ -9532,7 +9535,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		MassSource: {
 			additionalProperties: false,
-			description: 'What forms the seismic weight W and the masses (BNBC 2020 Part 6 Sec 2.5.7.3: the dead\nload including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full).',
+			description: 'What forms the seismic weight W and the masses (the default pack\'s Part 6 Sec 2.5.7.3: the dead\nload including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full).',
 			properties: {
 				dead: {
 					default: 1.0,
@@ -9622,7 +9625,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				category: {
 					default: 'II',
-					description: 'BNBC 2020 Table 6.1.1.',
+					description: 'The default pack\'s Table 6.1.1.',
 					enum: ['I', 'II', 'III', 'IV'],
 					enumDescriptions: ['I: Low hazard to human life on failure (agricultural, minor storage)', 'II: Standard occupancy (all buildings not in I, III or IV)', 'III: Substantial hazard: assembly, schools, health care without surgery', 'IV: Essential facilities: hospitals, fire and police stations, shelters'],
 					title: 'Occupancy category',
@@ -9634,7 +9637,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		OpenStructureWind: {
 			additionalProperties: false,
-			description: 'Wind on the members of a special structure by force coefficients (BNBC 2020 Part 6 Sec\n2.4, design wind loads on other structures: open signs and lattice frameworks, trussed\ntowers; :mod:`saengine.fem.open_wind`).',
+			description: 'Wind on the members of a special structure by force coefficients (the default pack\'s Part 6 Sec\n2.4, design wind loads on other structures: open signs and lattice frameworks, trussed\ntowers; :mod:`saengine.fem.open_wind`).',
 			properties: {
 				form: {
 					default: 'lattice',
@@ -10138,7 +10141,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Settlement: {
 			additionalProperties: false,
-			description: 'The support settlement case ST: imposed settlements of column bases. BNBC 2020 Part 6\ncounts differential settlement among the self-straining effects T of its load combinations\n(Sec 2.7); ST takes T\'s factor.',
+			description: 'The support settlement case ST: imposed settlements of column bases. The default pack\'s Part 6\ncounts differential settlement among the self-straining effects T of its load combinations\n(Sec 2.7); ST takes T\'s factor.',
 			properties: {
 				enabled: {
 					default: false,
@@ -10187,7 +10190,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				location: {
 					default: 'dhaka',
-					description: 'District town (BNBC 2020 Tables 6.2.8 and 6.2.15); sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
+					description: 'District town (the default pack\'s Tables 6.2.8 and 6.2.15); sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
 					enum: ['bagerhat', 'bandarban', 'barguna', 'barishal', 'bhola', 'bogura', 'brahmanbaria', 'chandpur', 'chapainawabganj', 'chattogram', 'chuadanga', 'coxsbazar', 'cumilla', 'dhaka', 'dinajpur', 'faridpur', 'feni', 'gaibandha', 'gazipur', 'gopalganj', 'habiganj', 'jamalpur', 'jashore', 'jhalokati', 'jhenaidah', 'joypurhat', 'khagrachhari', 'khulna', 'kishoreganj', 'kurigram', 'kushtia', 'lakshmipur', 'lalmonirhat', 'madaripur', 'magura', 'manikganj', 'meherpur', 'moulvibazar', 'munshiganj', 'mymensingh', 'naogaon', 'narail', 'narayanganj', 'narsingdi', 'natore', 'netrokona', 'nilphamari', 'noakhali', 'pabna', 'panchagarh', 'patuakhali', 'pirojpur', 'rajbari', 'rajshahi', 'rangamati', 'rangpur', 'satkhira', 'shariatpur', 'sherpur', 'sirajganj', 'srimangal', 'sunamganj', 'sylhet', 'tangail', 'thakurgaon', 'custom'],
 					enumDescriptions: ['Bagerhat (zone 1, Z 0.12, V 77.5 m/s)', 'Bandarban (zone 3, Z 0.28, V 62.5 m/s)', 'Barguna (zone 1, Z 0.12, V 80 m/s)', 'Barishal (zone 1, Z 0.12, V 78.7 m/s)', 'Bhola (zone 1, Z 0.12, V 69.5 m/s)', 'Bogura (zone 3, Z 0.28, V 61.9 m/s)', 'Brahmanbaria (zone 3, Z 0.28, V 56.7 m/s)', 'Chandpur (zone 2, Z 0.20, V 50.6 m/s)', 'Chapai Nawabganj (zone 1, Z 0.12, V 41.4 m/s)', 'Chattogram (zone 3, Z 0.28, V 80 m/s)', 'Chuadanga (zone 1, Z 0.12, V 61.9 m/s)', 'Cox\'s Bazar (zone 3, Z 0.28, V 80 m/s)', 'Cumilla (zone 2, Z 0.20, V 61.4 m/s)', 'Dhaka (zone 2, Z 0.20, V 65.7 m/s)', 'Dinajpur (zone 2, Z 0.20, V 41.4 m/s)', 'Faridpur (zone 2, Z 0.20, V 63.1 m/s)', 'Feni (zone 2, Z 0.20, V 64.1 m/s)', 'Gaibandha (zone 3, Z 0.28, V 65.6 m/s)', 'Gazipur (zone 2, Z 0.20, V 66.5 m/s)', 'Gopalganj (zone 1, Z 0.12, V 74.5 m/s)', 'Habiganj (zone 4, Z 0.36, V 54.2 m/s)', 'Jamalpur (zone 4, Z 0.36, V 56.7 m/s)', 'Jashore (zone 1, Z 0.12, V 64.1 m/s)', 'Jhalokati (zone 1, Z 0.12, V 80 m/s)', 'Jhenaidah (zone 1, Z 0.12, V 65 m/s)', 'Joypurhat (zone 2, Z 0.20, V 56.7 m/s)', 'Khagrachhari (zone 3, Z 0.28, V 56.7 m/s)', 'Khulna (zone 1, Z 0.12, V 73.3 m/s)', 'Kishoreganj (zone 4, Z 0.36, V 64.7 m/s)', 'Kurigram (zone 4, Z 0.36, V 65.6 m/s)', 'Kushtia (zone 2, Z 0.20, V 66.9 m/s)', 'Lakshmipur (zone 2, Z 0.20, V 51.9 m/s)', 'Lalmonirhat (zone 3, Z 0.28, V 63.7 m/s)', 'Madaripur (zone 2, Z 0.20, V 68.1 m/s)', 'Magura (zone 1, Z 0.12, V 65 m/s)', 'Manikganj (zone 2, Z 0.20, V 58.2 m/s)', 'Meherpur (zone 1, Z 0.12, V 58.2 m/s)', 'Moulvibazar (zone 4, Z 0.36, V 53 m/s)', 'Munshiganj (zone 2, Z 0.20, V 57.1 m/s)', 'Mymensingh (zone 4, Z 0.36, V 67.4 m/s)', 'Naogaon (zone 2, Z 0.20, V 55.2 m/s)', 'Narail (zone 1, Z 0.12, V 68.6 m/s)', 'Narayanganj (zone 2, Z 0.20, V 61.1 m/s)', 'Narsingdi (zone 3, Z 0.28, V 59.7 m/s)', 'Natore (zone 2, Z 0.20, V 61.9 m/s)', 'Netrokona (zone 4, Z 0.36, V 65.6 m/s)', 'Nilphamari (zone 1, Z 0.12, V 44.7 m/s)', 'Noakhali (zone 2, Z 0.20, V 57.1 m/s)', 'Pabna (zone 2, Z 0.20, V 63.1 m/s)', 'Panchagarh (zone 2, Z 0.20, V 41.4 m/s)', 'Patuakhali (zone 1, Z 0.12, V 80 m/s)', 'Pirojpur (zone 1, Z 0.12, V 80 m/s)', 'Rajbari (zone 2, Z 0.20, V 59.1 m/s)', 'Rajshahi (zone 1, Z 0.12, V 49.2 m/s)', 'Rangamati (zone 3, Z 0.28, V 56.7 m/s)', 'Rangpur (zone 3, Z 0.28, V 65.3 m/s)', 'Satkhira (zone 1, Z 0.12, V 57.6 m/s)', 'Shariatpur (zone 2, Z 0.20, V 61.9 m/s)', 'Sherpur (zone 4, Z 0.36, V 62.5 m/s)', 'Sirajganj (zone 3, Z 0.28, V 50.6 m/s)', 'Srimangal (zone 4, Z 0.36, V 50.6 m/s)', 'Sunamganj (zone 4, Z 0.36, V 61.1 m/s)', 'Sylhet (zone 4, Z 0.36, V 61.1 m/s)', 'Tangail (zone 3, Z 0.28, V 50.6 m/s)', 'Thakurgaon (zone 2, Z 0.20, V 41.4 m/s)', 'Custom (enter Z and V)'],
 					title: 'Location',
@@ -10203,7 +10206,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				siteClass: {
 					default: 'SD',
-					description: 'BNBC 2020 Table 6.2.13. Used when the source is Entered, or while the soil report has no boreholes that give a class.',
+					description: 'The default pack\'s Table 6.2.13. Used when the source is Entered, or while the soil report has no boreholes that give a class.',
 					enum: ['SA', 'SB', 'SC', 'SD', 'SE'],
 					enumDescriptions: ['SA: Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)', 'SB: Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)', 'SC: Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)', 'SD: Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)', 'SE: Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s'],
 					title: 'Site class',
@@ -10221,7 +10224,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value (BNBC 2020 Table 6.2.14: 0.12, 0.20, 0.28 or 0.36 by zone).',
+					description: 'Overrides the location\'s value (the default pack\'s Table 6.2.14: 0.12, 0.20, 0.28 or 0.36 by zone).',
 					title: 'Seismic zone coefficient Z',
 				},
 				windSpeed: {
@@ -10235,7 +10238,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value [m/s] (BNBC 2020 Table 6.2.8).',
+					description: 'Overrides the location\'s value [m/s] (the default pack\'s Table 6.2.8).',
 					title: 'Basic wind speed',
 				},
 				flood: {
@@ -10284,11 +10287,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Slenderness: {
 			additionalProperties: false,
-			description: 'How column slenderness is designed for (BNBC 2020 Part 6 Sec 6.3.10).',
+			description: 'How column slenderness is designed for (the default pack\'s Part 6 Sec 6.3.10).',
 			properties: {
 				effectiveLength: {
 					default: 'unity',
-					description: '1.0: conservative, allowed by BNBC 2020 Part 6 Sec 6.3.10.6.3. Chart: the nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat plates. Sway storeys always use the sway chart.',
+					description: '1.0: conservative, allowed by the default pack\'s Part 6 Sec 6.3.10.6.3. Chart: the nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat plates. Sway storeys always use the sway chart.',
 					enum: ['unity', 'chart'],
 					enumDescriptions: ['k = 1.0', 'Alignment chart'],
 					title: 'Effective length factor k (nonsway)',
@@ -10296,7 +10299,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				swayMagnifier: {
 					default: 'Q',
-					description: 'Q: δs = 1/(1 − Q) (BNBC 2020 Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = 1/(1 − ΣPu/(0.75 ΣPc)) (Eq. 6.6.28), Pc with EI/(1 + βdns) of each combination (Sec 6.3.10.7.4).',
+					description: 'Q: δs = 1/(1 − Q) (the default pack\'s Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = 1/(1 − ΣPu/(0.75 ΣPc)) (Eq. 6.6.28), Pc with EI/(1 + βdns) of each combination (Sec 6.3.10.7.4).',
 					enum: ['Q', 'sumPc'],
 					enumDescriptions: ['1/(1 − Q)', 'ΣPu / ΣPc'],
 					title: 'Sway magnifier δs',
@@ -10304,7 +10307,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				stiffness: {
 					default: '0.4EcIg',
-					description: '0.4 Ec Ig/(1 + βdns) (BNBC 2020 Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/(1 + βdns) with the bars (Eq. 6.6.21).',
+					description: '0.4 Ec Ig/(1 + βdns) (the default pack\'s Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/(1 + βdns) with the bars (Eq. 6.6.21).',
 					enum: ['0.4EcIg', 'bars'],
 					enumDescriptions: ['0.4 Ec Ig', '0.2 Ec Ig + Es Ise (with the bars)'],
 					title: 'EI for Pc',
@@ -10328,7 +10331,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Empty (automatic): 1.0 when the analysed model ran its lateral cases on cracked sections (read from the model, not from these settings); with gross sections each storey\'s first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; BNBC 2020 Part 6 Sec 6.3.10.4.1). A number is used as given.',
+					description: 'Empty (automatic): 1.0 when the analysed model ran its lateral cases on cracked sections (read from the model, not from these settings); with gross sections each storey\'s first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; the default pack\'s Part 6 Sec 6.3.10.4.1). A number is used as given.',
 					title: 'Storey drift factor for Q',
 				},
 			},
@@ -10337,17 +10340,17 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		Thermal: {
 			additionalProperties: false,
-			description: 'The temperature load case T (BNBC 2020 Part 6 Sec 2.6.4; T in the combinations of Sec\n2.7).',
+			description: 'The temperature load case T (the default pack\'s Part 6 Sec 2.6.4; T in the combinations of Sec\n2.7).',
 			properties: {
 				enabled: {
 					default: false,
-					description: 'Add the load case T: the members\' restrained expansion or contraction and the bending of a sun-heated roof. BNBC 2020 asks for temperature effects where significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor diaphragms, this case is analysed without them, so the floors can expand.',
+					description: 'Add the load case T: the members\' restrained expansion or contraction and the bending of a sun-heated roof. The code (the default pack) asks for temperature effects where significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor diaphragms, this case is analysed without them, so the floors can expand.',
 					title: 'Temperature case T',
 					type: 'boolean',
 				},
 				uniform: {
 					default: 20.0,
-					description: 'Change of the members\' temperature from the construction temperature [°C], + expansion. BNBC gives no design range; take the site\'s range of shade air temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); enter the larger. Suggestion for Bangladesh: 20 °C.',
+					description: 'Change of the members\' temperature from the construction temperature [°C], + expansion. The default pack gives no design range; take the site\'s range of shade air temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); enter the larger. Suggestion for Bangladesh: 20 °C.',
 					maximum: 60,
 					minimum: -60,
 					title: 'Uniform change ΔTu',
@@ -10355,7 +10358,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				gradient: {
 					default: 10.0,
-					description: 'Top face minus bottom face of the roof\'s beams and slabs [°C] (sun-heated roof); 0 for none. Not given by BNBC; about 10 °C is a common assumption for an uninsulated concrete roof.',
+					description: 'Top face minus bottom face of the roof\'s beams and slabs [°C] (sun-heated roof); 0 for none. Not given by the default pack; about 10 °C is a common assumption for an uninsulated concrete roof.',
 					maximum: 40,
 					minimum: -40,
 					title: 'Roof gradient ΔTg',
@@ -10579,7 +10582,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the code\'s value for buildings (BNBC 2020 Table 6.2.12).',
+					description: 'Overrides the code\'s value for buildings (the default pack\'s Table 6.2.12).',
 					title: 'Directionality factor Kd',
 				},
 				topographic: {
@@ -10593,7 +10596,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the code\'s value for flat terrain; above 1 on hills, ridges and escarpments (BNBC 2020 Sec 2.4.7).',
+					description: 'Overrides the code\'s value for flat terrain; above 1 on hills, ridges and escarpments (the default pack\'s Sec 2.4.7).',
 					title: 'Topographic factor Kzt',
 				},
 				gust: {
@@ -10607,7 +10610,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the code\'s value for every building (BNBC 2020 Sec 2.4.8.1). Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 from its modal frequency.',
+					description: 'Overrides the code\'s value for every building (the default pack\'s Sec 2.4.8.1). Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 from its modal frequency.',
 					title: 'Gust effect factor G',
 				},
 				naturalFrequency: {
@@ -10621,7 +10624,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'The building\'s fundamental natural frequency [Hz] for the gust-effect factor (BNBC 2020 Sec 2.4.8.2). Empty: from the modal analysis of the model, in each wind direction.',
+					description: 'The building\'s fundamental natural frequency [Hz] for the gust-effect factor (the default pack\'s Sec 2.4.8.2). Empty: from the modal analysis of the model, in each wind direction.',
 					title: 'Natural frequency n1',
 				},
 				damping: {
@@ -10636,12 +10639,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Damping ratio of the gust-effect factor Gf (BNBC 2020 Sec 2.4.8.2). Empty: the code pack\'s (0.02, a concrete building; 0.01 for steel).',
+					description: 'Damping ratio of the gust-effect factor Gf (the default pack\'s Sec 2.4.8.2). Empty: the code pack\'s (0.02, a concrete building; 0.01 for steel).',
 					title: 'Damping ratio β',
 				},
 				enclosure: {
 					default: 'enclosed',
-					description: 'Enclosure classification for the internal pressure (GCpi) of the components and cladding (BNBC 2020 Sec 2.4.2 and Figure 6.2.5).',
+					description: 'Enclosure classification for the internal pressure (GCpi) of the components and cladding (the default pack\'s Sec 2.4.2 and Figure 6.2.5).',
 					enum: ['enclosed', 'partiallyEnclosed', 'open'],
 					enumDescriptions: ['Enclosed (GCpi ±0.18)', 'Partially enclosed (GCpi ±0.55)', 'Open (GCpi 0)'],
 					title: 'Enclosure',
@@ -11402,7 +11405,7 @@ export const DEFAULT_SETTINGS: object = {
 		},
 		accidentalEccentricity: true,
 		windTorsionCases: true,
-		patternLive: 'bnbc',
+		patternLive: 'adjacent',
 		deflection: 'sensitive',
 		sustainedLive: 0.25,
 		liveLoadReduction: false,
@@ -11938,7 +11941,7 @@ export const REDUCED_LIVE: object = {
 	source: 'BNBC 2020 Part 6 Sec 2.7.3.1 exception 1 (p. 685): L at 0.5 in combinations 3, 4 and 5 where every uniform live load is at most 5.0 kN/m2, except garages and places of public assembly',
 };
 
-export const BNBC: IBnbcTables = {
+export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 	edition: 'BNBC 2020',
 	zoneCoefficient: {
 		'1': 0.12,
@@ -13289,7 +13292,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 		},
 		Corbel: {
 			additionalProperties: false,
-			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (the default pack\'s Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
 			properties: {
 				width: {
 					description: 'Across the beam [mm].',
@@ -13522,7 +13525,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
+					description: 'Live load reduction factor given instead of worked out (the default pack\'s Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 				stiffenerSpacing: {
@@ -13773,7 +13776,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 		},
 		MomentMagnifiers: {
 			additionalProperties: false,
-			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			description: 'Moment magnification factors given instead of worked out (RC columns, the default pack\'s 6.3.10).',
 			properties: {
 				cm: {
 					anyOf: [
@@ -13891,7 +13894,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					description: 'Corbels under the beam\'s ends, designed by the default pack\'s Part 6 Sec 6.4.7.',
 					title: 'Corbels',
 				},
 			},
@@ -15221,7 +15224,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Corbels under the beam\'s ends, designed by BNBC 2020 Part 6 Sec 6.4.7.',
+					description: 'Corbels under the beam\'s ends, designed by the default pack\'s Part 6 Sec 6.4.7.',
 					title: 'Corbels',
 				},
 			},
@@ -15658,7 +15661,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 		},
 		Corbel: {
 			additionalProperties: false,
-			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (BNBC 2020 Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (the default pack\'s Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
 			properties: {
 				width: {
 					description: 'Across the beam [mm].',
@@ -15891,7 +15894,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Live load reduction factor given instead of worked out (BNBC 2020 Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
+					description: 'Live load reduction factor given instead of worked out (the default pack\'s Part 6 Sec 2.3.13); it applies to the floor live load L even with the project\'s reduction off.',
 					title: 'Live load reduction',
 				},
 				stiffenerSpacing: {
@@ -16254,7 +16257,7 @@ export const BIM_SCHEMA: IJSONSchema = {
 		},
 		MomentMagnifiers: {
 			additionalProperties: false,
-			description: 'Moment magnification factors given instead of worked out (RC columns, BNBC 6.3.10).',
+			description: 'Moment magnification factors given instead of worked out (RC columns, the default pack\'s 6.3.10).',
 			properties: {
 				cm: {
 					anyOf: [
@@ -17819,7 +17822,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		},
 		accidentalEccentricity: true,
 		windTorsionCases: true,
-		patternLive: 'bnbc',
+		patternLive: 'adjacent',
 		deflection: 'sensitive',
 		sustainedLive: 0.25,
 		liveLoadReduction: false,
@@ -19830,9 +19833,9 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				liquefactionMethod: {
 					default: 'idrissBoulanger2014',
-					description: 'Idriss & Boulanger (2014), or BNBC 2020 Part 6 Sec 3.9.5 (FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT).',
-					enum: ['idrissBoulanger2014', 'bnbc2020'],
-					enumDescriptions: ['Idriss & Boulanger 2014', 'BNBC 2020 Sec 3.9.5'],
+					description: 'Idriss & Boulanger (2014), or the code pack\'s own procedure (the default pack\'s Part 6 Sec 3.9.5: FL = CRR/CSR, CSR of Eq 6.3.8 with rd = 1 - 0.015 z, CRR of Youd et al. 2001 from the SPT). The former value \'bnbc2020\' is read as \'codePack\'.',
+					enum: ['idrissBoulanger2014', 'codePack'],
+					enumDescriptions: ['Idriss & Boulanger 2014', 'The code pack\'s procedure'],
 					title: 'Liquefaction method',
 					type: 'string',
 				},
@@ -19854,7 +19857,7 @@ export const SOIL_SCHEMA: IJSONSchema = {
 				},
 				allowableSettlement: {
 					default: 25,
-					description: 'Settlement the settlement-controlled bearing pressure is worked out for [mm]. BNBC 2020 Table 6.3.8\'s permissible total settlement is shown next to the computed settlement for information.',
+					description: 'Settlement the settlement-controlled bearing pressure is worked out for [mm]. The default pack\'s Table 6.3.8\'s permissible total settlement is shown next to the computed settlement for information.',
 					exclusiveMinimum: 0,
 					maximum: 500,
 					title: 'Allowable settlement',
@@ -20486,7 +20489,7 @@ export const SOIL_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'At the ground surface [g]; empty: Z × S from the project settings: the zone coefficient of the seismic zoning map (BNBC 2020 Table 6.2.14, the maximum considered PGA on rock) amplified by the site class\'s soil factor S (Table 6.2.16), as BNBC 3.9.5 asks for the site amplification.',
+					description: 'At the ground surface [g]; empty: Z × S from the project settings: the zone coefficient of the seismic zoning map (the default pack\'s Table 6.2.14, the maximum considered PGA on rock) amplified by the site class\'s soil factor S (Table 6.2.16), as the default pack\'s 3.9.5 asks for the site amplification.',
 					title: 'Peak ground acceleration amax',
 				},
 			},
@@ -22629,7 +22632,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			properties: {
 				pileCompression: {
 					default: 2.5,
-					description: 'Overall factor of safety on the ultimate compression capacity of a pile: BNBC 2020 Table 6.3.10a gives 2.5 for permanent structures with normal control (2.0 good, 2.8 poor, 3.0 very poor); Sec 3.10.1.18 asks at least 3.0 without a load test at the site (Sec 3.10.4.10: bored piles too), so the design raises a smaller value to 3.0 unless a load test is given.',
+					description: 'Overall factor of safety on the ultimate compression capacity of a pile: the default pack\'s Table 6.3.10a gives 2.5 for permanent structures with normal control (2.0 good, 2.8 poor, 3.0 very poor); Sec 3.10.1.18 asks at least 3.0 without a load test at the site (Sec 3.10.4.10: bored piles too), so the design raises a smaller value to 3.0 unless a load test is given.',
 					maximum: 10,
 					minimum: 1,
 					title: 'Pile compression',
@@ -22637,13 +22640,13 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				pileLoadTest: {
 					default: false,
-					description: 'BNBC 2020 Sec 3.10.1.18: without a load test at the site the overall factor of safety in compression is at least 3.0 (2.0 with one, with good quality control); Sec 3.10.4.10 for bored piles.',
+					description: 'The default pack\'s Sec 3.10.1.18: without a load test at the site the overall factor of safety in compression is at least 3.0 (2.0 with one, with good quality control); Sec 3.10.4.10 for bored piles.',
 					title: 'Pile load test at the site',
 					type: 'boolean',
 				},
 				pileUplift: {
 					default: 2.5,
-					description: 'Overall factor of safety on the ultimate uplift capacity (BNBC 2020 Table 6.3.10a: downward and upward load).',
+					description: 'Overall factor of safety on the ultimate uplift capacity (the default pack\'s Table 6.3.10a: downward and upward load).',
 					maximum: 10,
 					minimum: 1,
 					title: 'Pile uplift',
@@ -22651,7 +22654,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				pileSkin: {
 					default: 1.5,
-					description: 'Partial factor of safety on the skin friction; the allowable load is the lesser of the overall and the partial ones (BNBC 2020 Sec 3.10.1.18: 1.5).',
+					description: 'Partial factor of safety on the skin friction; the allowable load is the lesser of the overall and the partial ones (the default pack\'s Sec 3.10.1.18: 1.5).',
 					maximum: 10,
 					minimum: 1,
 					title: 'Pile skin friction (partial)',
@@ -22659,7 +22662,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				pileEndBearing: {
 					default: 3.0,
-					description: 'Partial factor of safety on the end bearing (BNBC 2020 Sec 3.10.1.18: 3.0).',
+					description: 'Partial factor of safety on the end bearing (the default pack\'s Sec 3.10.1.18: 3.0).',
 					maximum: 10,
 					minimum: 1,
 					title: 'Pile end bearing (partial)',
@@ -24287,7 +24290,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 		},
 		PunchingReinforcement: {
 			additionalProperties: false,
-			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
+			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (the default pack\'s Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
 			properties: {
 				kind: {
 					default: 'studs',
@@ -24663,7 +24666,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				cover: {
 					default: 50,
-					description: 'To the bars at the faces of the stem against earth or weather [mm] (BNBC 2020 Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and smaller); 75 mm cast against earth is used under the base.',
+					description: 'To the bars at the faces of the stem against earth or weather [mm] (the default pack\'s Part 6 Sec 8.1.7.2 (b): 50 mm for 19 mm bars and larger, 40 mm for 16 mm and smaller); 75 mm cast against earth is used under the base.',
 					exclusiveMinimum: 0,
 					title: 'Cover',
 					type: 'number',
@@ -24704,7 +24707,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Horizontal distribution bars at each face (BNBC 2020 Part 6 Sec 6.6.3.3).',
+					description: 'Horizontal distribution bars at each face (the default pack\'s Part 6 Sec 6.6.3.3).',
 					title: 'Horizontal (each face)',
 				},
 				heelTop: {
@@ -24753,7 +24756,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 		},
 		SpliceZone: {
 			additionalProperties: false,
-			description: 'Hoops or ties over the lap splices (BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
+			description: 'Hoops or ties over the lap splices (the default pack\'s Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
 			properties: {
 				spacing: {
 					description: 'Spacing over the lap splices [mm].',
@@ -24905,7 +24908,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 		},
 		TransverseZone: {
 			additionalProperties: false,
-			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(BNBC 2020 Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
+			description: 'The end zones of a beam or column where the seismic detailing asks for closer hoops\n(the default pack\'s Part 6 Sec 8.3.4.3, 8.3.5.4, 8.3.9.2, 8.3.10.4, 8.3.10.5).',
 			properties: {
 				spacing: {
 					description: 'Hoop or tie spacing within the zone (so) [mm].',
@@ -25493,7 +25496,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Electrical: {
 			additionalProperties: false,
-			description: 'The electrical services the structure coordinates with (BNBC 2020 Part 8 Chapter 1).',
+			description: 'The electrical services the structure coordinates with (the default pack\'s Part 8 Chapter 1).',
 			properties: {
 				supply: {
 					$ref: '#/$defs/ElectricalSupply',
@@ -25693,7 +25696,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Imposes vibration (BNBC 2.3.12); empty: generators do.',
+					description: 'Imposes vibration (the default pack\'s 2.3.12); empty: generators do.',
 					title: 'Vibrating',
 				},
 				oil: {
@@ -25926,7 +25929,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		ElectricalStory: {
 			additionalProperties: false,
-			description: 'What a story draws: its use (BNBC Table 8.1.17), unit loads and other loads.',
+			description: 'What a story draws: its use (the default pack\'s Table 8.1.17), unit loads and other loads.',
 			properties: {
 				story: {
 					description: 'Building-model story.',
@@ -25938,7 +25941,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				use: {
 					default: 'office',
-					description: 'Row of BNBC 2020 Part 8 Table 8.1.17 (minimum load densities).',
+					description: 'Row of the default pack\'s Part 8 Table 8.1.17 (minimum load densities).',
 					enum: ['residenceSingle', 'residenceMulti', 'hospital', 'hotel', 'office', 'industrial', 'departmentStore', 'bank', 'restaurant', 'barber', 'school', 'parking', 'warehouse'],
 					enumDescriptions: ['Residence/dwelling: single family', 'Residence/dwelling: multi-family (other than hotels)', 'Hospitals', 'Hotels, including apartment house (no electric cooking)', 'Office and commercial multi-storeyed buildings', 'Industrial building (excluding the loads for machines)', 'Departmental stores', 'Banks', 'Restaurants (no electric cooking)', 'Barber shops and beauty parlours', 'Schools and colleges', 'Parking area in commercial buildings', 'Warehouses, large storage areas'],
 					title: 'Use',
@@ -26046,7 +26049,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Supply voltage; empty: 11 kV with a substation when the load is 50 kW or more (BNBC 2020 Part 8 Sec 1.3.20.1(e)), else 0.4 kV.',
+					description: 'Supply voltage; empty: 11 kV with a substation when the load is 50 kW or more (the default pack\'s Part 8 Sec 1.3.20.1(e)), else 0.4 kV.',
 					enumDescriptions: ['11 kV (HT)', '33 kV (HT)', '0.4 kV (LT)'],
 					title: 'Voltage',
 				},
@@ -26074,7 +26077,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Of the maximum demand (kVA = kW / pf); empty: 0.85 (SAEngine practice, BNBC gives none).',
+					description: 'Of the maximum demand (kVA = kW / pf); empty: 0.85 (SAEngine practice, the default pack gives none).',
 					title: 'Power factor',
 				},
 				loadFactor: {
@@ -26157,7 +26160,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Hours of full-load running the fuel tank holds; empty: 8 (SAEngine practice, BNBC gives none).',
+					description: 'Hours of full-load running the fuel tank holds; empty: 8 (SAEngine practice, the default pack gives none).',
 					title: 'Fuel hours',
 				},
 				upsLoad: {
@@ -26282,7 +26285,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				vibrating: {
 					default: false,
-					description: 'Machinery whose operation imposes vibration or impact (BNBC 2020 Sec 2.3.12): an impact allowance is added as live load (Table 6.2.6). Lifts always have it.',
+					description: 'Machinery whose operation imposes vibration or impact (the default pack\'s Sec 2.3.12): an impact allowance is added as live load (Table 6.2.6). Lifts always have it.',
 					title: 'Vibrating',
 					type: 'boolean',
 				},
@@ -26298,7 +26301,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Vertical impact load as a percentage of the operating weight, from the manufacturer; empty: BNBC 2020 Table 6.2.6 for the kind.',
+					description: 'Vertical impact load as a percentage of the operating weight, from the manufacturer; empty: the default pack\'s Table 6.2.6 for the kind.',
 					title: 'Impact allowance',
 				},
 				rotation: {
@@ -26387,7 +26390,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		FacadeGlazing: {
 			additionalProperties: false,
-			description: 'Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (BNBC 2020 Part 3 Sec\n4.5.1.2(a)).',
+			description: 'Window-to-wall ratio of each facade (0 to 0.9); empty: 0.2 (the default pack\'s Part 3 Sec\n4.5.1.2(a)).',
 			properties: {
 				N: {
 					anyOf: [
@@ -26451,7 +26454,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Fire: {
 			additionalProperties: false,
-			description: 'The fire protection the structure coordinates with (BNBC 2020 Part 4).',
+			description: 'The fire protection the structure coordinates with (the default pack\'s Part 4).',
 			properties: {
 				building: {
 					$ref: '#/$defs/FireBuilding',
@@ -27182,7 +27185,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Harvest: {
 			additionalProperties: false,
-			description: 'Rainwater harvesting storage (BNBC 2020 Part 8 Sec 7.8.9).',
+			description: 'Rainwater harvesting storage (the default pack\'s Part 8 Sec 7.8.9).',
 			properties: {
 				demand: {
 					description: 'Rainwater demand [lpcd].',
@@ -27240,7 +27243,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Hvac: {
 			additionalProperties: false,
-			description: 'Air-conditioning and ventilation the structure coordinates with (BNBC 2020 Part 8\nChapter 2): cooling loads, plant weights, ducts through the structure.',
+			description: 'Air-conditioning and ventilation the structure coordinates with (the default pack\'s Part 8\nChapter 2): cooling loads, plant weights, ducts through the structure.',
 			properties: {
 				system: {
 					default: 'split',
@@ -27284,7 +27287,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		HvacDesign: {
 			additionalProperties: false,
-			description: 'The design conditions (BNBC 2020 Part 8 Sec 2.7.2 and 2.12.2).',
+			description: 'The design conditions (the default pack\'s Part 8 Sec 2.7.2 and 2.12.2).',
 			properties: {
 				city: {
 					anyOf: [
@@ -27457,7 +27460,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				shading: {
 					default: 'none',
-					description: 'Overhang: a sunshade over every window 0.234 x its height deep (BNBC 2020 Part 3 Sec 4.4.3.1). Blinds: interior blinds, always drawn.',
+					description: 'Overhang: a sunshade over every window 0.234 x its height deep (the default pack\'s Part 3 Sec 4.4.3.1). Blinds: interior blinds, always drawn.',
 					enum: ['none', 'overhang', 'blinds'],
 					enumDescriptions: ['None', 'Overhangs (Part 3 Sec 4.4.3.1)', 'Interior blinds'],
 					title: 'Shading',
@@ -27651,7 +27654,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				use: {
 					default: 'officeSpace',
-					description: 'Row of BNBC 2020 Part 8 Table 8.2.3 (ventilation and occupant density).',
+					description: 'Row of the default pack\'s Part 8 Table 8.2.3 (ventilation and occupant density).',
 					enum: ['cellsNoPlumbing', 'cellsPlumbing', 'guardStations', 'dayRoom', 'bookingWaiting', 'coinDryCleaner', 'coinLaundry', 'commercialDryCleaner', 'commercialLaundry', 'laundryStorage', 'auditorium', 'mediaCenter', 'sportsLocker', 'musicTheaterDance', 'smokingLoungeEducation', 'dayCare', 'classroom5to8', 'classroom9plus', 'lectureClassroom', 'lectureHall', 'artClassroom', 'scienceLab', 'woodMetalShop', 'computerLab', 'multiuseAssembly', 'lockerDressing', 'bar', 'cafeteria', 'diningRoom', 'kitchenCooking', 'autopsy', 'medicalProcedure', 'operatingRoom', 'patientRoom', 'physicalTherapy', 'recoveryIcu', 'hotelAssembly', 'hotelBathroom', 'hotelBedroom', 'hotelConference', 'dormitory', 'casino', 'hotelLobby', 'conferenceRoom', 'officeSpace', 'reception', 'dataEntry', 'entryLobby', 'garageCommon', 'garageSeparate', 'dwellingKitchen', 'livingArea', 'dwellingToilet', 'corridor', 'elevatorCar', 'showerRoom', 'smokingLounge', 'publicToilet', 'worship', 'courtroom', 'legislative', 'library', 'museumChildren', 'museum', 'sales', 'dressingRoom', 'mall', 'shipping', 'smokingLoungeRetail', 'storageRoom', 'fuelStation', 'barber', 'beautySalon', 'embalming', 'petShop', 'supermarket', 'disco', 'bowling', 'arcade', 'iceArena', 'gym', 'spectator', 'pool', 'aerobics', 'weightRoom', 'parkingGarage', 'warehouse', 'theaterLobby', 'stage', 'ticketBooth', 'platform', 'transportWaiting', 'bankVault', 'darkroom', 'copyRoom', 'meatProcessing', 'pharmacy', 'photoStudio', 'computerRoom'],
 					enumDescriptions: ['Correctional: cells without plumbing fixtures', 'Correctional: cells with plumbing fixtures', 'Correctional: guard stations', 'Correctional: day room', 'Correctional: booking/waiting', 'Coin-operated dry cleaner', 'Coin-operated laundries', 'Commercial dry cleaner', 'Commercial laundry', 'Laundry storage, pick up', 'Education: auditoriums', 'Education: media center', 'Education: sports locker rooms', 'Education: music/theater/dance', 'Education: smoking lounges', 'Day care (through age 4)', 'Classrooms (ages 5-8)', 'Classrooms (age 9 plus)', 'Lecture classroom', 'Lecture hall (fixed seats)', 'Art classroom', 'Science laboratories', 'Wood/metal shops', 'Computer lab', 'Multiuse assembly', 'Locker/dressing rooms', 'Bars, cocktail lounges', 'Cafeteria, fast food', 'Dining rooms', 'Kitchens (cooking)', 'Autopsy rooms', 'Medical procedure rooms', 'Operating rooms', 'Patient rooms', 'Physical therapy', 'Recovery and ICU', 'Hotel: multipurpose assembly', 'Hotel: bathrooms/toilet-private', 'Hotel: bedroom/living room', 'Hotel: conference/meeting', 'Dormitory sleeping areas', 'Gambling casinos', 'Hotel: lobbies/pre-function', 'Office: conference rooms', 'Office spaces', 'Office: reception areas', 'Office: telephone/data entry', 'Office: main entry lobbies', 'Dwellings: garages, common for multiple units', 'Dwellings: garages, separate for each dwelling', 'Dwellings: kitchens', 'Dwellings: living areas', 'Dwellings: toilet rooms and bath rooms', 'Public spaces: corridors', 'Elevator car', 'Shower room (per shower head)', 'Smoking lounges', 'Toilet rooms - public', 'Places of religious worship', 'Courtrooms', 'Legislative chambers', 'Libraries', 'Museums (children\'s)', 'Museums/galleries', 'Retail: sales (except as below)', 'Retail: dressing rooms', 'Mall common areas', 'Retail: shipping and receiving', 'Retail: smoking lounges', 'Retail: storage rooms', 'Automotive motor-fuel dispensing stations', 'Barber', 'Beauty and nail salons', 'Embalming room', 'Pet shops (animal areas)', 'Supermarkets', 'Disco/dance floors', 'Bowling alleys (seating areas)', 'Game arcades', 'Ice arenas without combustion engines', 'Gym, stadium, arena (play area)', 'Spectator areas', 'Swimming pools (pool and deck area)', 'Health club/aerobics room', 'Health club/weight room', 'Repair garages, enclosed parking garages', 'Warehouses', 'Theaters: lobbies', 'Stages, studios', 'Ticket booths', 'Transportation: platforms', 'Transportation waiting', 'Bank vaults/safe deposit', 'Darkrooms', 'Copy, printing rooms', 'Meat processing', 'Pharmacy (prep. area)', 'Photo studios', 'Computer (without printing)'],
 					title: 'Use',
@@ -27905,7 +27908,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Lightning: {
 			additionalProperties: false,
-			description: 'Lightning protection and earthing (BNBC 2020 Part 8 Sec 1.3.33).',
+			description: 'Lightning protection and earthing (the default pack\'s Part 8 Sec 1.3.33).',
 			properties: {
 				enabled: {
 					default: true,
@@ -27923,7 +27926,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'IEC 62305 protection level, when the design follows it (BNBC uses none); its mesh and down-conductor spacing then govern where stricter.',
+					description: 'IEC 62305 protection level, when the design follows it (the default pack uses none); its mesh and down-conductor spacing then govern where stricter.',
 					title: 'Level',
 				},
 				downConductors: {
@@ -28009,7 +28012,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'A year (Table 8.1.27(c) index G); empty: over 21 (BNBC Table 8.1.28\'s examples).',
+					description: 'A year (Table 8.1.27(c) index G); empty: over 21 (the default pack\'s Table 8.1.28\'s examples).',
 					title: 'Thunderstorm days',
 				},
 				rule: {
@@ -28301,7 +28304,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		Plumbing: {
 			additionalProperties: false,
-			description: 'The plumbing the structure coordinates with (BNBC 2020 Part 8).',
+			description: 'The plumbing the structure coordinates with (the default pack\'s Part 8).',
 			properties: {
 				supply: {
 					$ref: '#/$defs/PlumbingSupply',
@@ -28390,7 +28393,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'One-hour rainfall [mm/h], BNBC 2020 Part 8 Appendix R; empty: Dhaka, 88.',
+					description: 'One-hour rainfall [mm/h], the default pack\'s Part 8 Appendix R; empty: Dhaka, 88.',
 					title: 'Rainfall intensity',
 				},
 				drains: {
@@ -28444,7 +28447,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				occupancy: {
 					default: 'residentialFlat',
-					description: 'Row of BNBC 2020 Table 8.5.1 (water consumption).',
+					description: 'Row of the default pack\'s Table 8.5.1 (water consumption).',
 					enum: ['singleFamily', 'apartmentLarge', 'residentialFlat', 'apartmentSmall', 'staffQuarter', 'townSingleFamily', 'townApartment', 'townSmallApartment', 'townStaffQuarter', 'villagePrivate', 'villagePublic', 'dormitory', 'hotel', 'school', 'college', 'preschool', 'childCare', 'custodialCapable', 'custodialIncapable', 'penalChildren', 'penalAdults', 'hospital', 'hospitalLarge', 'emergencyMedical', 'nursesQuarters', 'office', 'laboratory', 'essentialServices', 'shop', 'largeShop', 'refueling', 'industryLow', 'industryModerate', 'storageLow', 'storageModerate', 'assemblyLargeFixed', 'assemblySmallFixed', 'assemblyLarge', 'assemblySmall', 'sports', 'hazardExplosion', 'hazardChemical', 'hazardBiological', 'hazardRadiation', 'parking', 'privateGarage', 'repairGarage', 'utility', 'tanksTowers'],
 					enumDescriptions: ['Single family dwelling, high income (city)', 'Big apartment > 2500 sft, high income (city)', 'Moderate apartment < 2000 sft, middle income (city)', 'Small apartment < 1500 sft (city)', 'Junior staff flat < 1000 sft (city)', 'Single family dwelling (town)', 'Moderate apartment < 2000 sft (town)', 'Small apartment < 1500 sft (town)', 'Junior staff flat < 1000 sft (town)', 'Village, private source', 'Village, public source', 'Mess, boarding house, dormitory, hostel', 'Hotel, lodging house (per bed)', 'Educational up to higher secondary', 'Training and above higher secondary', 'Pre-school', 'Institution for care of children', 'Custodial institution, capable adults', 'Custodial institution, incapable adults', 'Penal and mental institution, children', 'Penal and mental institution, adults', 'Normal medical facility (small hospital)', 'Big hospital (over 100 beds)', 'Emergency medical facility', 'Nurses and medical quarters', 'Office', 'Research and testing laboratory', 'Essential services', 'Small shops and market', 'Large shops and market', 'Refueling station', 'Low hazard industry', 'Moderate hazard industry', 'Low fire risk storage', 'Moderate fire risk storage', 'Large assembly with fixed seats (per seat)', 'Small assembly with fixed seats (per seat)', 'Large assembly without fixed seats', 'Small assembly without fixed seats', 'Sports facility', 'Explosion hazard building', 'Chemical hazard building', 'Biological hazard building', 'Radiation hazard building', 'Parking garage (visitors)', 'Private garage (visitors)', 'Repair garage (visitors)', 'Utility', 'Fences, tanks and towers'],
 					title: 'Occupancy',
@@ -28517,7 +28520,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Hours a day the pump runs to fill the overhead tank; empty: the pump delivers the peak hourly demand (BNBC 2020 Part 8 Sec 5.9.1.2(c)(ii)).',
+					description: 'Hours a day the pump runs to fill the overhead tank; empty: the pump delivers the peak hourly demand (the default pack\'s Part 8 Sec 5.9.1.2(c)(ii)).',
 					title: 'Pumping hours',
 				},
 				minResidualHead: {
@@ -29184,7 +29187,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				use: {
-					description: 'Mapped to BNBC 2020 Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and services: not occupied (left out of every service\'s stories).',
+					description: 'Mapped to the default pack\'s Part 8 Tables 8.5.1, 8.2.3 and 8.1.17. Roof and services: not occupied (left out of every service\'s stories).',
 					enum: ['residential', 'office', 'retail', 'supermarket', 'restaurant', 'hotel', 'hospital', 'school', 'bank', 'assembly', 'industrial', 'storage', 'parking', 'services', 'roof'],
 					enumDescriptions: ['Residential flats', 'Offices', 'Shops', 'Supermarket', 'Restaurant', 'Hotel rooms', 'Hospital wards', 'School classrooms', 'Bank', 'Assembly hall', 'Light industry', 'Storage', 'Parking', 'Services, plant (not occupied)', 'Roof (not occupied)'],
 					title: 'Use',
@@ -29301,7 +29304,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 		},
 		contentsAs: {
 			default: 'fluid',
-			description: 'Fluid: the contents (operating minus empty weight) are the fluid load F of BNBC 2020 2.7.3.1, in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D combinations (live load until the analysis has an F case). Live: live load. Dead: superimposed dead load, also in the 0.9D combinations; only for contents that are always there.',
+			description: 'Fluid: the contents (operating minus empty weight) are the fluid load F of the default pack\'s Part 6 Sec 2.7.3.1, in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D combinations (live load until the analysis has an F case). Live: live load. Dead: superimposed dead load, also in the 0.9D combinations; only for contents that are always there.',
 			enum: ['fluid', 'live', 'dead'],
 			enumDescriptions: ['Fluid load F', 'Live load', 'Dead load (always full)'],
 			title: 'Contents as',
@@ -29317,7 +29320,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			],
 			default: null,
-			description: 'Water supply, drainage, rainwater and tanks, sized to BNBC 2020 Part 8.',
+			description: 'Water supply, drainage, rainwater and tanks, sized to the default pack\'s Part 8.',
 			title: 'Plumbing',
 		},
 		hvac: {
@@ -29330,7 +29333,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			],
 			default: null,
-			description: 'Air-conditioning and ventilation: cooling loads (EnergyPlus), plant and ducts, to BNBC 2020 Part 8 Chapter 2.',
+			description: 'Air-conditioning and ventilation: cooling loads (EnergyPlus), plant and ducts, to the default pack\'s Part 8 Chapter 2.',
 			title: 'HVAC',
 		},
 		electrical: {
@@ -29343,7 +29346,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			],
 			default: null,
-			description: 'Supply, plant rooms, risers, trays and lightning protection, coordinated to BNBC 2020 Part 8 Chapter 1.',
+			description: 'Supply, plant rooms, risers, trays and lightning protection, coordinated to the default pack\'s Part 8 Chapter 1.',
 			title: 'Electrical',
 		},
 		fire: {
@@ -29356,7 +29359,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			],
 			default: null,
-			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to BNBC 2020 Part 4.',
+			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to the default pack\'s Part 4.',
 			title: 'Fire',
 		},
 		coordination: {
@@ -29616,7 +29619,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 		},
 		CurtainWallType: {
 			additionalProperties: false,
-			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².\n\nThe weight is the glass\'s (thickness × unit weight) plus the frame\'s, per m² of wall; the\nframe\'s 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the\nsupplier\'s). BNBC 2020 Part 6 Sec 2.2 takes dead loads as the actual weights of the\nmaterials; glass\'s 25 kN/m³ is its usual density (2,500 kg/m³).',
+			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².\n\nThe weight is the glass\'s (thickness × unit weight) plus the frame\'s, per m² of wall; the\nframe\'s 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the\nsupplier\'s). The default pack\'s Part 6 Sec 2.2 takes dead loads as the actual weights of the\nmaterials; glass\'s 25 kN/m³ is its usual density (2,500 kg/m³).',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -30185,7 +30188,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Area use from the code pack for its live load (e.g. BNBC\'s roof uses).',
+					description: 'Area use from the code pack for its live load (e.g. the default pack\'s roof uses).',
 					title: 'Occupancy',
 				},
 			},
@@ -30270,7 +30273,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Area use from the code pack (e.g. BNBC\'s), for its loads.',
+					description: 'Area use from the code pack (e.g. the default pack\'s), for its loads.',
 					title: 'Occupancy',
 				},
 				floorFinish: {
@@ -31264,3 +31267,6 @@ export const DEFAULT_REPORT_TEMPLATE: object = {
 		appendix: 'settings',
 	},
 };
+
+/** @deprecated The former name of {@link DEFAULT_CODE_TABLES}. */
+export const BNBC: IDefaultCodeTables = DEFAULT_CODE_TABLES;

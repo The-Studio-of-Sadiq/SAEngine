@@ -492,6 +492,21 @@ class CodePack:
         """Id of the nearest pack in the chain with a data file for the table."""
         return self._provided_by.get(name)
 
+    def clause_code(self, name: str, key: str) -> str | None:
+        """How results name the code a clause reference comes from: the edition (else the
+        name) of the nearest pack in the chain whose own data file for table ``name`` gives
+        ``clauses[key]``; None when none does. A clause a pack inherits is named after the
+        pack that wrote it, not after the pack in force."""
+        for found in self._chain:
+            table = found.tables.get(name)
+            data = table.data if table is not None else None
+            clauses = data.get("clauses") if isinstance(data, dict) else None
+            if isinstance(clauses, dict) and clauses.get(key) and found.manifest is not None:
+                return found.manifest.edition or found.manifest.name
+            if table is not None and table.replace:
+                break
+        return None
+
     @property
     def trusted(self) -> bool:
         """Whether every pack in the chain with hooks is trusted (True without hooks)."""

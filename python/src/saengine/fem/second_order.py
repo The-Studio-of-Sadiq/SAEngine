@@ -5,7 +5,7 @@ model (Project Settings -> Analysis: ``secondOrder``, ``stiffness``, ``crackedFo
 :func:`saengine.fem.derive.derive_fem`, after the soil springs) and returns the modified one,
 the notes and a summary; ``"none"`` with ``"gross"`` returns it unchanged.
 
-Stiffness (BNBC 2020 Part 6 Sec 6.3.10.4.1, p 912, the same table as ACI 318-19 6.6.3.1.1):
+Stiffness (the default pack's Part 6 Sec 6.3.10.4.1, p 912, the same table as ACI 318-19 6.6.3.1.1):
 for an elastic second-order analysis the members may have E of Sec 6.1.7.1, area 1.0 Ag and
 moments of inertia columns 0.70 Ig, walls 0.70 Ig (uncracked) or 0.35 Ig (cracked), beams
 0.35 Ig, flat plates and flat slabs 0.25 Ig. Sec 6.1.10.2 (p 893) uses the same properties for
@@ -33,10 +33,10 @@ the gross E I and plate thickness). ``"lateral"``: the model keeps the gross sec
 and the lateral cases (wind and earthquake static cases, modal, response spectrum, time
 histories) carry the cracked sections as ``section_overrides``.
 
-Second order (BNBC 2020 Part 6 Sec 2.5.7.9, p 632-633, and Sec 6.3.10.4, p 912): with
+Second order (the default pack's Part 6 Sec 2.5.7.9, p 632-633, and Sec 6.3.10.4, p 912): with
 ``secondOrder = "pDelta"`` the vertical members get the ``PDelta`` geometric transformation
 (the beams stay ``Linear``) and the model gets a preload case "PDelta", the gravity loads
-``pDeltaFactors`` (by default 1.2D + 1.2SD + 1.2F + 1.0L, the gravity part of the BNBC seismic
+``pDeltaFactors`` (by default 1.2D + 1.2SD + 1.2F + 1.0L, the gravity part of the default pack (BNBC) seismic
 combination 1.2D + 1.0E + 1.0L) applied in one Newton step and locked. Every other static case,
 and the modal case (so the response spectrum), is then solved on the tangent stiffness of that
 preloaded structure, the geometric stiffness of its axial forces included, and reports the
@@ -49,8 +49,8 @@ P-Delta is governed by the total gravity load above a storey, which the preload 
 What it does not include:
 
 - P-small-delta along a member (each column is one element per storey and the ``PDelta``
-  transformation is a chord rotation): the nonsway moment magnification of BNBC Sec 6.3.10.6
-  (ACI 6.6.4.5) still applies to the columns (BNBC Sec 6.3.10.2.2, p 912);
+  transformation is a chord rotation): the nonsway moment magnification of the default pack's Sec 6.3.10.6
+  (ACI 6.6.4.5) still applies to the columns (the default pack's Sec 6.3.10.2.2, p 912);
 - shells: walls have no geometric stiffness (their P-Delta is left out, reported);
 - the construction-sequence dead load (a Staged case sums linear stages: it runs first order,
   ``linear_geometry``), the temperature case (``release_diaphragms``, a different structure);
@@ -60,11 +60,11 @@ What it does not include:
 With ``firstOrderReference`` (default) each lateral static case also runs first order (no
 preload) as ``<case>-1``, so :func:`drift_amplification` can report the storey drifts with and
 without P-Delta, their ratio (the measured amplification, about 1 / (1 - θ) for the preload's
-gravity loads) and, for the earthquake cases, the stability coefficient θ of BNBC Eq 6.2.48
-computed as BNBC defines it (unfactored Px, the drift of the centres of mass, δxe / I; p 631-633).
+gravity loads) and, for the earthquake cases, the stability coefficient θ of the default pack's Eq 6.2.48
+computed as the default pack (BNBC) defines it (unfactored Px, the drift of the centres of mass, δxe / I; p 631-633).
 
 Direct analysis method (``notionalLoads = "directAnalysis"``, the code pack's
-``steelStability.directAnalysis``; BNBC 2020 Part 6 Sec 10.14, part 2 pp. 187-189): the
+``steelStability.directAnalysis``; the default pack's Part 6 Sec 10.14, part 2 pp. 187-189): the
 P-Delta analysis above with its first-order reference cases, and the steel frame sections
 reduced to EA* = 0.8 EA and EI* = 0.8 τb EI with τb = 1 (Eqs 6.10.263-6.10.264) for the static
 cases, which give the required strengths; the modal, response spectrum, time history and
@@ -95,9 +95,9 @@ import numpy as np
 
 from saengine.codes import context as code_context
 
-# The moment of inertia factors (BNBC 2020 Part 6 Sec 6.3.10.4.1, ACI 318-19 Table
+# The moment of inertia factors (the default pack's Part 6 Sec 6.3.10.4.1, ACI 318-19 Table
 # 6.6.3.1.1(a)) are the code pack's: code_context.cracked_factors().
-#: The gravity loads of the P-Delta preload: the gravity part of 1.2D + 1.0E + 1.0L (BNBC 2020
+#: The gravity loads of the P-Delta preload: the gravity part of 1.2D + 1.0E + 1.0L (the default pack (BNBC 2020)
 #: Part 6 Sec 2.7.3.1); D's factor also applies to SD and F (as in the combinations).
 DEFAULT_PDELTA_FACTORS = {"D": 1.2, "SD": 1.2, "F": 1.2, "L": 1.0}
 #: The lateral cases (their first-order references are ``<code>-1``).
@@ -385,7 +385,8 @@ def apply_second_order(
         factors = code_context.cracked_factors()
         wall = factors.walls(options.wallsCracked)
         notes.append(
-            f"cracked stiffness (BNBC 2020 Part 6 Sec 6.3.10.4.1): columns {factors.column:.2f} "
+            f"cracked stiffness ({code_context.cite('concrete', 'crackedStiffness')}): columns "
+            f"{factors.column:.2f} "
             f"Ig, beams {factors.beam:.2f} Ig, walls {wall:.2f} Ig (E x {wall:.2f}: in a shell a "
             "wall's in-plane flexure is membrane action, so its in-plane axial and shear "
             f"stiffness are reduced too), slabs {factors.plate:.2f} Ig in bending (their "
@@ -486,7 +487,7 @@ def apply_second_order(
                 k: v for k, v in options.pDeltaFactors.items() if f"{v:g}{k}" in used
             }
             notes.append(
-                f"P-Delta (BNBC 2020 Part 6 Sec 2.5.7.9, Sec 6.3.10.4): {summary['pDeltaColumns']} "
+                f"P-Delta ({code_context.cite('seismic', 'pDelta')}): {summary['pDeltaColumns']} "
                 f"vertical members with PDelta transformations; every static case and the modal "
                 f"case are solved on the stiffness of the structure under {title} (the case "
                 f"'{PRELOAD_CODE}', one Newton step, then held), and report the increment from it, "
@@ -548,7 +549,7 @@ def _direct_analysis_stiffness(
 ) -> list[dict[str, Any]]:
     """Reduce, in place in the model ``p``, the steel frame sections to the direct analysis
     method's EA* = f_a EA and EI* = f_b τb EI with τb = 1 (the code pack's ``steelStability.
-    directAnalysis``; BNBC 2020: 0.8 and 0.8, Eqs 6.10.263-6.10.264). Every steel frame
+    directAnalysis``; the default pack (BNBC 2020): 0.8 and 0.8, Eqs 6.10.263-6.10.264). Every steel frame
     member takes it (the members whose stiffness contributes to the lateral stability, and
     the others, which the method permits). τb = 1: with the additive notional load, or checked
     per column by the design (:mod:`saengine.design.steel.stability`). Returns the nominal
@@ -683,7 +684,7 @@ def match_modal_stiffness(project: dict[str, Any], model: dict[str, Any]) -> dic
 
 def is_second_order(project: dict[str, Any]) -> bool:
     """Whether the static cases of ``project`` are second order (P-Delta from a preload): the
-    design then takes the sway moment magnification as done (BNBC Sec 6.3.10.4)."""
+    design then takes the sway moment magnification as done (the default pack's Sec 6.3.10.4)."""
     return any(
         _code(a.get("name", "")) == PRELOAD_CODE for a in project.get("analyses", [])
     ) and any(e.get("geom_transf") == "PDelta" for e in project.get("elements", []))
@@ -852,7 +853,7 @@ def level_displacement(
     return sum(float(displacement[n["id"]][axis]) for n, _ in rows) / len(rows)
 
 
-#: Load factors of Px in BNBC 2020 Part 6 Eq 6.2.48 (p 632: "no individual load factor need
+#: Load factors of Px in the default pack's Part 6 Eq 6.2.48 (p 632: "no individual load factor need
 #: exceed 1.0").
 STABILITY_GRAVITY_FACTORS = {"D": 1.0, "SD": 1.0, "F": 1.0, "L": 1.0}
 
@@ -867,11 +868,11 @@ def drift_amplification(
 ) -> dict[str, Any]:
     """Storey drifts of each lateral case with P-Delta (``EX``) and first order (``EX-1``) and
     their ratio second / first; for the earthquake cases also the stability coefficient θ of
-    BNBC 2020 Part 6 Sec 2.5.7.9 (p 632-633); for the report's seismic chapter and the design.
+    the default pack's Part 6 Sec 2.5.7.9 (p 632-633); for the report's seismic chapter and the design.
 
     Per storey: ``firstOrder``, ``secondOrder`` the largest drift ratio at any plan position
     (:func:`storey_drifts`), ``ratio`` second / first, ``impliedTheta`` = 1 - 1 / ratio (the
-    amplification measured, ratio = 1 / (1 - impliedTheta); not BNBC's θ). ``theta`` (EX, EY,
+    amplification measured, ratio = 1 / (1 - impliedTheta); not the default pack's θ). ``theta`` (EX, EY,
     with ``importance``): Eq 6.2.48 θ = Px Δ / (Vx hsx Cd) with Δ = Cd δxe / I (Eq 6.2.45,
     6.2.46: the drift of the centres of mass, p 631), so θ = Px δxe / (I Vx hsx); δxe the
     first-order elastic drift (the ``-1`` case) at the centres of mass
@@ -965,7 +966,9 @@ def drift_amplification(
         )
     elif importance is None:
         out["notes"].append(
-            "the stability coefficient θ (BNBC Eq 6.2.48) needs the importance factor I"
+            "the stability coefficient θ"
+            + (f" ({ref})" if (ref := code_context.cite("seismic", "stability")) else "")
+            + " needs the importance factor I"
         )
     return out
 

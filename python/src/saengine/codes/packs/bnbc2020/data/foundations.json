@@ -1613,5 +1613,8 @@
     "edgeDistance": 100.0,
     "embedment": 75.0,
     "singlePileDiameter": 600.0
+  },
+  "clauses": {
+    "subgradeModulus": "Part 6 Eq 6.3.9"
   }
 }

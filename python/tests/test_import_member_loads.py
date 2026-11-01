@@ -101,7 +101,7 @@ def test_etabs_lateral_loads_are_replaced_not_lost(etabs) -> None:  # type: igno
     assert replaced["loads.lateral.joint"]["examples"] == ["2-Story1 EQX"]
     assert replaced["loads.lateral.member"]["examples"] == ["B4-Story1 EQX"]
     assert replaced["loads.lateral.cases"]["examples"] == ["EQX", "EQY"]
-    assert report["loads"]["replacedByBnbcKN"] == pytest.approx({"EX": 12 + 3 * 6})
+    assert report["loads"]["replacedKN"] == pytest.approx({"EX": 12 + 3 * 6})
     assert "EX" not in report["loads"]["notCarriedKN"]
     assert not any(e.get("key", "").startswith("loads.lateral") for e in report["skipped"])
     assert any(
@@ -198,7 +198,7 @@ def test_frame_programs_word_lateral_loads_the_same(make) -> None:  # type: igno
     report = make().report.to_dict()
     replaced = keyed(report, "replaced")
     assert replaced["loads.lateral.joint"]["what"] == ITEMS["loads.lateral.joint"][1]
-    assert set(report["loads"]["replacedByBnbcKN"]) <= {"WX", "WY"}
+    assert set(report["loads"]["replacedKN"]) <= {"WX", "WY"}
     assert not set(report["loads"]["notCarriedKN"]) & {"WX", "WY", "EX", "EY"}
     assert all(c.F == 0 for c in file_combinations(make().settings.combinations).values())
 

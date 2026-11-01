@@ -331,7 +331,12 @@
     "prestressSpalling": "Part 6 Sec 9.13.4.7",
     "prestressTransferStrength": "Part 6 Sec 9.13.5.3",
     "prestressSlabAnchorage": "Part 6 Sec 9.14.2",
-    "prestressBursting": "Part 6 Sec 9.13.4.1 (c), 9.15.1 (AASHTO LRFD 2007 Art. 5.10.9.6.3)"
+    "prestressBursting": "Part 6 Sec 9.13.4.1 (c), 9.15.1 (AASHTO LRFD 2007 Art. 5.10.9.6.3)",
+    "crackedStiffness": "Part 6 Sec 6.3.10.4.1",
+    "patternLive": "Part 6 Sec 6.1.12.2",
+    "patternAdjacent": "Part 6 Sec 6.1.12.2 (a)",
+    "patternAdjacentFloor": "Part 6 Sec 6.1.12.2 (a) with 6.1.12.1 (a)",
+    "patternAlternate": "Part 6 Sec 6.1.12.2 (b)"
   },
   "sources": {
     "aggregates": "BNBC 2020 Part 6 Sec 5.13.2.1-5.13.2.2 (p. 856): Ec of stone and brick aggregate concrete; Sec 6.1.8.1 (p. 893): λ = 0.85 sand-lightweight, 0.75 all-lightweight, 1.0 normal weight (brick aggregate concrete is normal weight); Sec 8.1.11.2 (b) (p. 1075): shrinkage and temperature steel of brick aggregate concrete × 1.5",
