@@ -39,6 +39,336 @@
       "title": "BetweenBuildings",
       "type": "object"
     },
+    "CodeFront": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "fromCentre": {
+          "description": "Least distance from the street's centre [m].",
+          "minimum": 0,
+          "title": "Fromcentre",
+          "type": "number"
+        },
+        "fromBoundary": {
+          "description": "Least distance from the property line [m].",
+          "minimum": 0,
+          "title": "Fromboundary",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fromCentre",
+        "fromBoundary"
+      ],
+      "title": "CodeFront",
+      "type": "object"
+    },
+    "CodeSetbackRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "occupancies": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Occupancies",
+          "type": "array"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "typology": {
+          "anyOf": [
+            {
+              "enum": [
+                "detached",
+                "semiDetached",
+                "row"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null: any typology.",
+          "title": "Typology"
+        },
+        "tall": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True: above tallHeight or tallStoreys; null: any height.",
+          "title": "Tall"
+        },
+        "heightMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Row up to this height [m].",
+          "title": "Heightmax"
+        },
+        "storeysMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Row up to these storeys.",
+          "title": "Storeysmax"
+        },
+        "areaMin": {
+          "default": 0,
+          "description": "Plot area from [m²] (inclusive).",
+          "minimum": 0,
+          "title": "Areamin",
+          "type": "number"
+        },
+        "areaMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Plot area up to [m²].",
+          "title": "Areamax"
+        },
+        "rear": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rear distance [m]; null: by other provisions.",
+          "title": "Rear"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Side distances [m] (two for a semi-detached development: null is the pounding gap, PG); [] nil; null: by other provisions.",
+          "title": "Side"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "occupancies",
+        "label",
+        "rear",
+        "side"
+      ],
+      "title": "CodeSetbackRow",
+      "type": "object"
+    },
+    "CodeSetbacks": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/CodeSetbackRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "tallHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Tallheight",
+          "type": "number"
+        },
+        "tallStoreys": {
+          "exclusiveMinimum": 0,
+          "title": "Tallstoreys",
+          "type": "integer"
+        },
+        "poundingGap": {
+          "default": "",
+          "description": "The clause of the pounding gap (the seismic separation).",
+          "title": "Poundinggap",
+          "type": "string"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rows",
+        "tallHeight",
+        "tallStoreys"
+      ],
+      "title": "CodeSetbacks",
+      "type": "object"
+    },
+    "HeightColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "types": {
+          "description": "Construction types (fireResistance ids).",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Types",
+          "type": "array"
+        },
+        "storeys": {
+          "description": "Per band; one value: the same for every band.",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Storeys",
+          "type": "array"
+        },
+        "heights": {
+          "description": "Per band [m].",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Heights",
+          "type": "array"
+        },
+        "stepStoreys": {
+          "default": 0,
+          "description": "Added per step above the last band.",
+          "minimum": 0,
+          "title": "Stepstoreys",
+          "type": "integer"
+        },
+        "stepHeight": {
+          "default": 0,
+          "description": "Added per step above [m].",
+          "minimum": 0,
+          "title": "Stepheight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "types",
+        "storeys",
+        "heights"
+      ],
+      "title": "HeightColumn",
+      "type": "object"
+    },
     "NarrowRoad": {
       "additionalProperties": false,
       "properties": {
@@ -89,6 +419,416 @@
         "mgc"
       ],
       "title": "NarrowRoad",
+      "type": "object"
+    },
+    "OpenArea": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minPercent": {
+          "description": "Least total open area [% of the plot].",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Minpercent",
+          "type": "number"
+        },
+        "byOccupancy": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Occupancy group -> least open area [%].",
+          "title": "Byoccupancy",
+          "type": "object"
+        },
+        "unpavedPercent": {
+          "default": 0,
+          "description": "Of the minimum open space left unpaved [%].",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Unpavedpercent",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        },
+        "unpavedRule": {
+          "default": "",
+          "title": "Unpavedrule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "minPercent"
+      ],
+      "title": "OpenArea",
+      "type": "object"
+    },
+    "OverheadLineClass": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "vertical": {
+          "description": "Least vertical distance to the line [m].",
+          "minimum": 0,
+          "title": "Vertical",
+          "type": "number"
+        },
+        "horizontal": {
+          "description": "Least horizontal distance to the line [m].",
+          "minimum": 0,
+          "title": "Horizontal",
+          "type": "number"
+        },
+        "upToKv": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The distances hold up to this voltage [kV].",
+          "title": "Uptokv"
+        },
+        "stepKv": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Above upToKv: the distances grow per step or part [kV].",
+          "title": "Stepkv"
+        },
+        "stepVertical": {
+          "default": 0,
+          "description": "Added per step [m].",
+          "minimum": 0,
+          "title": "Stepvertical",
+          "type": "number"
+        },
+        "stepHorizontal": {
+          "default": 0,
+          "description": "Added per step [m].",
+          "minimum": 0,
+          "title": "Stephorizontal",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "vertical",
+        "horizontal"
+      ],
+      "title": "OverheadLineClass",
+      "type": "object"
+    },
+    "OverheadLines": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/OverheadLineClass"
+          },
+          "minItems": 1,
+          "title": "Classes",
+          "type": "array"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "classes"
+      ],
+      "title": "OverheadLines",
+      "type": "object"
+    },
+    "ParkingFloors": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "parkingShare": {
+          "description": "Share of a floor used for parking to leave it out of FAR.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Parkingshare",
+          "type": "number"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "parkingShare"
+      ],
+      "title": "ParkingFloors",
+      "type": "object"
+    },
+    "PlanningCode": {
+      "additionalProperties": false,
+      "description": "The building code's own site rules beside the planning authority's.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "description": "How the rules are named in results, e.g. 'BNBC 2020 Part 3'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "occupancies": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Use id of the authority's table -> occupancy group of the code.",
+          "title": "Occupancies",
+          "type": "object"
+        },
+        "withAuthority": {
+          "description": "Checks that bind also where the authority's rules are used (the others are shown as advisory): plinth, formation, overheadLines, unpaved, openArea, setbacks, height, unlimited.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Withauthority",
+          "type": "array"
+        },
+        "levels": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SiteLevels"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "overheadLines": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OverheadLines"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "openArea": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenArea"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "front": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeFront"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "setbacks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeSetbacks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "height": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanningHeight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unlimited": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnlimitedHeight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParkingFloors"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "occupancies"
+      ],
+      "title": "PlanningCode",
+      "type": "object"
+    },
+    "PlanningHeight": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "basis": {
+          "default": 2.0,
+          "description": "The limit's basis is basis × (road + front open space).",
+          "exclusiveMinimum": 0,
+          "title": "Basis",
+          "type": "number"
+        },
+        "bands": {
+          "description": "Upper bounds of the bands [m].",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        },
+        "step": {
+          "description": "Band width above the last band [m].",
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/HeightColumn"
+          },
+          "minItems": 1,
+          "title": "Columns",
+          "type": "array"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bands",
+        "step",
+        "columns"
+      ],
+      "title": "PlanningHeight",
       "type": "object"
     },
     "PlanningRow": {
@@ -434,6 +1174,174 @@
       ],
       "title": "SetbackRow",
       "type": "object"
+    },
+    "SiteLevels": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "plinthMin": {
+          "description": "Least plinth level above the road's centre-line surface [m].",
+          "minimum": 0,
+          "title": "Plinthmin",
+          "type": "number"
+        },
+        "formationMax": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest formation level above the road's centre line where the area is not flood prone [m]; the formation level is never below the road.",
+          "title": "Formationmax"
+        },
+        "plinthRule": {
+          "default": "",
+          "title": "Plinthrule",
+          "type": "string"
+        },
+        "formationRule": {
+          "default": "",
+          "title": "Formationrule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plinthMin"
+      ],
+      "title": "SiteLevels",
+      "type": "object"
+    },
+    "UnlimitedHeight": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minRoad": {
+          "description": "Least front road width [m].",
+          "exclusiveMinimum": 0,
+          "title": "Minroad",
+          "type": "number"
+        },
+        "occupancies": {
+          "description": "Uses that may be of unlimited height.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Occupancies",
+          "type": "array"
+        },
+        "types": {
+          "description": "Construction types that may be of unlimited height.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "rows": {
+          "description": "Least open spaces of an unlimited building.",
+          "items": {
+            "$ref": "#/$defs/UnlimitedRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        },
+        "openSpaceRule": {
+          "default": "",
+          "title": "Openspacerule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "minRoad",
+        "occupancies",
+        "types",
+        "rows"
+      ],
+      "title": "UnlimitedHeight",
+      "type": "object"
+    },
+    "UnlimitedRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "occupancies": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Occupancies",
+          "type": "array"
+        },
+        "front": {
+          "minimum": 0,
+          "title": "Front",
+          "type": "number"
+        },
+        "rear": {
+          "minimum": 0,
+          "title": "Rear",
+          "type": "number"
+        },
+        "side": {
+          "minimum": 0,
+          "title": "Side",
+          "type": "number"
+        }
+      },
+      "required": [
+        "occupancies",
+        "front",
+        "rear",
+        "side"
+      ],
+      "title": "UnlimitedRow",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -452,6 +1360,26 @@
       "description": "Clause references of single entries: {key: clause}.",
       "title": "Sources",
       "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clauses of the authority's rules named in results: coverage, far, envelope.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "buildingCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlanningCode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The building code's own site rules (levels, overhead lines, open area, fallback setbacks, height, parking floors); null: none."
     },
     "authority": {
       "description": "Whose rules these are.",

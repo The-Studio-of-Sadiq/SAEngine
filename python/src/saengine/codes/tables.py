@@ -4113,9 +4113,182 @@ class BetweenBuildings(_Row):
     rule: str = ""
 
 
+# B23: the building code's own site rules (BNBC 2020 Part 3 Ch 1 for the bnbc2020 pack), beside
+# the planning authority's: the plinth and formation levels, overhead lines, the open area, the
+# fallback setbacks, the height by road width and construction type and the parking floors left
+# out of FAR. Read by saengine.gis.planning.
+
+
+class OverheadLineClass(_Row):
+    id: str = Field(min_length=1)
+    label: str
+    vertical: float = Field(ge=0, description="Least vertical distance to the line [m].")
+    horizontal: float = Field(ge=0, description="Least horizontal distance to the line [m].")
+    upToKv: float | None = Field(
+        default=None, gt=0, description="The distances hold up to this voltage [kV]."
+    )
+    stepKv: float | None = Field(
+        default=None, gt=0, description="Above upToKv: the distances grow per step or part [kV]."
+    )
+    stepVertical: float = Field(default=0, ge=0, description="Added per step [m].")
+    stepHorizontal: float = Field(default=0, ge=0, description="Added per step [m].")
+
+
+class OverheadLines(_Row):
+    classes: list[OverheadLineClass] = Field(min_length=1)
+    rule: str = ""
+
+
+class SiteLevels(_Row):
+    plinthMin: float = Field(
+        ge=0, description="Least plinth level above the road's centre-line surface [m]."
+    )
+    formationMax: float | None = Field(
+        default=None,
+        ge=0,
+        description="Largest formation level above the road's centre line where the area is not "
+        "flood prone [m]; the formation level is never below the road.",
+    )
+    plinthRule: str = ""
+    formationRule: str = ""
+
+
+class OpenArea(_Row):
+    minPercent: float = Field(ge=0, le=100, description="Least total open area [% of the plot].")
+    byOccupancy: dict[str, float] = Field(
+        default_factory=dict, description="Occupancy group -> least open area [%]."
+    )
+    unpavedPercent: float = Field(
+        default=0, ge=0, le=100, description="Of the minimum open space left unpaved [%]."
+    )
+    rule: str = ""
+    unpavedRule: str = ""
+
+
+class CodeFront(_Row):
+    fromCentre: float = Field(ge=0, description="Least distance from the street's centre [m].")
+    fromBoundary: float = Field(ge=0, description="Least distance from the property line [m].")
+    rule: str = ""
+
+
+class CodeSetbackRow(_Row):
+    occupancies: list[str] = Field(min_length=1)
+    label: str
+    typology: Literal["detached", "semiDetached", "row"] | None = Field(
+        default=None, description="null: any typology."
+    )
+    tall: bool | None = Field(
+        default=None, description="True: above tallHeight or tallStoreys; null: any height."
+    )
+    heightMax: float | None = Field(default=None, gt=0, description="Row up to this height [m].")
+    storeysMax: int | None = Field(default=None, gt=0, description="Row up to these storeys.")
+    areaMin: float = Field(default=0, ge=0, description="Plot area from [m²] (inclusive).")
+    areaMax: float | None = Field(default=None, gt=0, description="Plot area up to [m²].")
+    rear: float | None = Field(ge=0, description="Rear distance [m]; null: by other provisions.")
+    side: list[float | None] | None = Field(
+        description="Side distances [m] (two for a semi-detached development: null is the "
+        "pounding gap, PG); [] nil; null: by other provisions."
+    )
+    note: str = ""
+
+
+class CodeSetbacks(_Row):
+    rows: list[CodeSetbackRow] = Field(min_length=1)
+    tallHeight: float = Field(gt=0)
+    tallStoreys: int = Field(gt=0)
+    poundingGap: str = Field(
+        default="", description="The clause of the pounding gap (the seismic separation)."
+    )
+    rule: str = ""
+
+
+class HeightColumn(_Row):
+    id: str = Field(min_length=1)
+    label: str
+    types: list[str] = Field(min_length=1, description="Construction types (fireResistance ids).")
+    storeys: list[int] = Field(
+        min_length=1, description="Per band; one value: the same for every band."
+    )
+    heights: list[float] = Field(min_length=1, description="Per band [m].")
+    stepStoreys: int = Field(default=0, ge=0, description="Added per step above the last band.")
+    stepHeight: float = Field(default=0, ge=0, description="Added per step above [m].")
+
+    @model_validator(mode="after")
+    def _same_length(self) -> HeightColumn:
+        if len(self.storeys) != len(self.heights):
+            raise ValueError("storeys and heights need the same length")
+        return self
+
+
+class PlanningHeight(_Row):
+    basis: float = Field(
+        default=2.0, gt=0, description="The limit's basis is basis × (road + front open space)."
+    )
+    bands: list[float] = Field(min_length=1, description="Upper bounds of the bands [m].")
+    step: float = Field(gt=0, description="Band width above the last band [m].")
+    columns: list[HeightColumn] = Field(min_length=1)
+    rule: str = ""
+
+
+class UnlimitedRow(_Row):
+    occupancies: list[str] = Field(min_length=1)
+    front: float = Field(ge=0)
+    rear: float = Field(ge=0)
+    side: float = Field(ge=0)
+
+
+class UnlimitedHeight(_Row):
+    minRoad: float = Field(gt=0, description="Least front road width [m].")
+    occupancies: list[str] = Field(description="Uses that may be of unlimited height.")
+    types: list[str] = Field(description="Construction types that may be of unlimited height.")
+    rows: list[UnlimitedRow] = Field(description="Least open spaces of an unlimited building.")
+    rule: str = ""
+    openSpaceRule: str = ""
+
+
+class ParkingFloors(_Row):
+    parkingShare: float = Field(
+        gt=0, le=1, description="Share of a floor used for parking to leave it out of FAR."
+    )
+    rule: str = ""
+
+
+class PlanningCode(_Row):
+    """The building code's own site rules beside the planning authority's."""
+
+    name: str = Field(description="How the rules are named in results, e.g. 'BNBC 2020 Part 3'.")
+    occupancies: dict[str, str] = Field(
+        description="Use id of the authority's table -> occupancy group of the code."
+    )
+    withAuthority: list[str] = Field(
+        default_factory=list,
+        description="Checks that bind also where the authority's rules are used (the others "
+        "are shown as advisory): plinth, formation, overheadLines, unpaved, openArea, "
+        "setbacks, height, unlimited.",
+    )
+    levels: SiteLevels | None = None
+    overheadLines: OverheadLines | None = None
+    openArea: OpenArea | None = None
+    front: CodeFront | None = None
+    setbacks: CodeSetbacks | None = None
+    height: PlanningHeight | None = None
+    unlimited: UnlimitedHeight | None = None
+    parking: ParkingFloors | None = None
+
+
 class PlanningTable(TableModel):
     """Planning rules of the plot: FAR and maximum ground coverage by use, plot size and road
     width, and the setbacks (the planning authority's rules BNBC Part 3 defers to)."""
+
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="Clauses of the authority's rules named in results: coverage, far, envelope.",
+    )
+    buildingCode: PlanningCode | None = Field(
+        default=None,
+        description="The building code's own site rules (levels, overhead lines, open area, "
+        "fallback setbacks, height, parking floors); null: none.",
+    )
 
     authority: str = Field(description="Whose rules these are.")
     plotBands: list[PlotBand] = Field(min_length=1)

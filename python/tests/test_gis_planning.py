@@ -114,7 +114,11 @@ def test_without_planning_entry_nothing_is_checked() -> None:
 
 
 def test_floor_areas_from_the_building_model() -> None:
-    slab = {"kind": "slab", "boundary": [[0, 0], [10000, 0], [10000, 10000], [0, 10000]]}
+    slab = {
+        "kind": "slab",
+        "type": "S150",
+        "boundary": [[0, 0], [10000, 0], [10000, 10000], [0, 10000]],
+    }
     bim = {
         "stories": [
             {"id": "L0", "name": "Ground", "elevation": 0},
