@@ -616,6 +616,20 @@ class PortalFrame(_Model):
         title="Wall panel type",
         description="Wall type of side wall cladding panels; none adds no panels.",
     )
+    endWallPanelType: Id | None = Field(
+        default=None,
+        title="End wall panel type",
+        description="Wall type of the gable end walls' cladding panels (between the end "
+        "posts, up to the roof); none adds no panels. With roof and side wall panels the shed "
+        "is clad all round: its wind can be the wall and roof pressures (wind form 'clad').",
+    )
+    overhang: float = Field(
+        default=0,
+        ge=0,
+        title="Eave overhang",
+        description="The roof (rafters, panels and an edge purlin) runs on past each eave by "
+        "this, in plan [mm]; a windward overhang also takes the wind on its underside.",
+    )
     supports: Supports = _supports()
     origin: Point = _origin()
     rotation: float = _rotation()
@@ -689,6 +703,9 @@ class PortalFrame(_Model):
             g.support((x, y, 0.0), self.supports)
 
         braced = set(self.bracedBays or ([1, n] if n > 1 else [1]))
+        # The roof past each eave: (x0, x1) of the overhang strips, in increasing x.
+        o = self.overhang
+        overhangs = [(-o, 0.0), (w, w + o)] if o > 0 else []
         for f, y in enumerate(frames):
             end_frame = f in (0, n)
             column(0.0, y, self.columnType)
@@ -701,6 +718,8 @@ class PortalFrame(_Model):
                         column(x, y, self.endColumnType or self.columnType)
             xs = rafter_points(y, end_frame)
             for x0, x1 in itertools.pairwise(xs):
+                g.line((x0, y, self.roof_z(x0)), (x1, y, self.roof_z(x1)), self.rafterType)
+            for x0, x1 in overhangs:
                 g.line((x0, y, self.roof_z(x0)), (x1, y, self.roof_z(x1)), self.rafterType)
 
         eave = self.eaveStrutType or self.purlinType
@@ -742,6 +761,18 @@ class PortalFrame(_Model):
                     g.panel(
                         [(x, y0, 0.0), (x, y1, 0.0), (x, y1, h), (x, y0, h)], self.wallPanelType
                     )
+            # The overhangs: an edge purlin at the tip and their panels.
+            for x0, x1 in overhangs:
+                tip = x0 if x0 < 0 else x1
+                if self.purlinType:
+                    z = self.roof_z(tip)
+                    g.line((tip, y0, z), (tip, y1, z), self.purlinType)
+                if self.roofPanelType:
+                    z0, z1 = self.roof_z(x0), self.roof_z(x1)
+                    g.panel(
+                        [(x0, y0, z0), (x1, y0, z1), (x1, y1, z1), (x0, y1, z0)],
+                        self.roofPanelType,
+                    )
 
         # End wall girts between the end wall columns (where both reach the girt).
         if self.girtType and (ends or interior):
@@ -750,6 +781,17 @@ class PortalFrame(_Model):
                 for x0, x1 in itertools.pairwise(posts):
                     for z in girt_heights(min(self.roof_z(x0), self.roof_z(x1))):
                         g.line((x0, y, z), (x1, y, z), self.girtType)
+        # End wall cladding: one panel between each pair of posts (and the ridge), up to the
+        # roof line.
+        if self.endWallPanelType:
+            posts = sorted({0.0, w, *interior, *ends, *ridge})
+            for y in (frames[0], frames[-1]):
+                for x0, x1 in itertools.pairwise(posts):
+                    z0, z1 = self.roof_z(x0), self.roof_z(x1)
+                    g.panel(
+                        [(x0, y, 0.0), (x1, y, 0.0), (x1, y, z1), (x0, y, z0)],
+                        self.endWallPanelType,
+                    )
         g.notes.append(
             "frame members are prismatic; tapered and haunched members are planned "
             "(structure.taperedMembers)"

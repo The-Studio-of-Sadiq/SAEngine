@@ -795,6 +795,29 @@
           "description": "Wall type of side wall cladding panels; none adds no panels.",
           "title": "Wall panel type"
         },
+        "endWallPanelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall type of the gable end walls' cladding panels (between the end posts, up to the roof); none adds no panels. With roof and side wall panels the shed is clad all round: its wind can be the wall and roof pressures (wind form 'clad').",
+          "title": "End wall panel type"
+        },
+        "overhang": {
+          "default": 0,
+          "description": "The roof (rafters, panels and an edge purlin) runs on past each eave by this, in plan [mm]; a windward overhang also takes the wind on its underside.",
+          "minimum": 0,
+          "title": "Eave overhang",
+          "type": "number"
+        },
         "supports": {
           "default": "pinned",
           "description": "Supports added where the shape meets the ground.",
