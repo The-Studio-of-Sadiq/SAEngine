@@ -1020,6 +1020,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Timber members: the nailed, bolted, split-ring or disc-dowel joint at both ends; none: not checked.',
 					title: 'Timber joint',
 				},
+				serviceability: {
+					anyOf: [
+						{
+							$ref: '#/$defs/MemberServiceability',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: the member use the deflection limits follow and a cantilever\'s free end; none: the code pack\'s default use, supported at both ends.',
+					title: 'Deflection limits',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -2853,6 +2866,37 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['material', 'cover'],
 			title: 'LinearReinforcement',
+			type: 'object',
+		},
+		MemberServiceability: {
+			additionalProperties: false,
+			description: 'What the deflection limits of a steel beam follow (serviceability, B9).',
+			properties: {
+				use: {
+					anyOf: [
+						{
+							enum: ['floor', 'roofPlasterCeiling', 'roofOtherCeiling', 'roofNoCeiling', 'wallBrittle', 'wallFlexible', 'farm', 'greenhouse', 'metalSheeting', 'metalRoofSecondary', 'metalWallSecondary'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The use whose deflection limits apply; none: the code pack\'s default use.',
+					enumDescriptions: ['Floor member', 'Roof member supporting a plaster ceiling', 'Roof member supporting a non-plaster ceiling', 'Roof member not supporting a ceiling', 'Wall member, brittle finishes', 'Wall member, flexible finishes', 'Farm building', 'Greenhouse', 'Formed metal roofing or siding', 'Purlin under formed metal roofing', 'Girt under formed metal siding'],
+					title: 'Member use',
+				},
+				freeEnd: {
+					default: 'none',
+					description: 'A cantilever: the end that is free (its span for the limits is the multiple of its length the code pack gives).',
+					enum: ['none', 'start', 'end'],
+					enumDescriptions: ['Supported at both ends', 'Start', 'End'],
+					title: 'Cantilever',
+					type: 'string',
+				},
+			},
+			title: 'MemberServiceability',
 			type: 'object',
 		},
 		MomentMagnifiers: {

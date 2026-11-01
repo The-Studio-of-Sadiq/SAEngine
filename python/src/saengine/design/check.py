@@ -136,6 +136,8 @@ SERVICE_CASES = ("D", "SD", "L", "Lr")
 LATERAL_CASES = ("WX", "WY", "EX", "EY")
 #: The fluid and earth pressure cases the allowable stress combinations also take.
 OTHER_CASES = ("F", "H")
+#: The wind cases of the members' wind deflection limits (B9).
+WIND_CASES = ("WX", "WY")
 
 
 @dataclass
@@ -695,6 +697,8 @@ def design(
             except SteelDesignError as error:
                 skip(str(error))
                 continue
+            if object_type.kind == "beam":
+                _steel_deflection(entry, own, service, project, object_type)  # B9
             checked.append(entry)
             steel_seen = True
             if collect is not None:
@@ -1263,6 +1267,57 @@ def _timber_profiles(
     sections = {x["id"]: x for x in project.get("sections", [])}
     e = sections.get(section_of.get(pieces[0].id), {}).get("E")
     return profiles, (float(e) / 1e6 if e else None)
+
+
+def _steel_deflection(
+    entry: dict[str, Any],
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    project: dict[str, Any] | None,
+    object_type: Any,
+) -> None:
+    """B9 glue: the deflection rows of a steel beam (:func:`saengine.design.steel.members.
+    deflection_checks`, the code pack's member deflection limits) added to its ``entry``, from
+    its nodes' displacements per unfactored case in ``service``; nothing when they are not
+    found or the pack has no limits."""
+    from saengine.design.steel.members import deflection_checks
+
+    moved = {**(service.get("displacements") or {}), **(service.get("windDisplacements") or {})}
+    if not project or "D" not in moved or not pieces:
+        return
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    order: list[int] = []
+    for piece in pieces:
+        for node in nodes_of.get(piece.id) or []:
+            if node not in order:
+                order.append(node)
+    if len(order) < 2 or any(n not in coords for n in order):
+        return
+    start = coords[order[0]]
+    order.sort(key=lambda n: float(np.linalg.norm(coords[n] - start)))
+    s = np.array([float(np.linalg.norm(coords[n] - start)) for n in order])
+    if s[-1] <= 0:
+        return
+    axis = (coords[order[-1]] - coords[order[0]]) / s[-1]
+    profiles = {
+        case: np.array([np.asarray(values.get(n, np.zeros(6)), dtype=float)[:3] for n in order])
+        for case, values in moved.items()
+    }
+    options = getattr(object_type, "serviceability", None)
+    rows = deflection_checks(
+        s,
+        axis,
+        profiles,
+        getattr(options, "use", None),
+        getattr(options, "freeEnd", "none") or "none",
+    )
+    if not rows:
+        return
+    entry["checks"] += rows
+    strength = [c for c in entry["checks"] if not c["flag"]]
+    entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
+    entry["ok"] = all(c["ok"] for c in strength)
 
 
 def _assemble(
@@ -2323,6 +2378,8 @@ def _demands(
             "lateralForces": {
                 c: by_case[c] for c in (*LATERAL_CASES, *OTHER_CASES) if c in by_case
             },
+            # B9: the wind cases' displacements, for the members' wind deflection limits.
+            "windDisplacements": {c: displacements[c] for c in WIND_CASES if c in displacements},
         }
 
     # Each combination of all the elements of one shape at once: the same sums element by

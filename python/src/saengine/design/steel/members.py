@@ -105,8 +105,16 @@ METHOD = [
     ),
     "Shear: Sec 10.7; combined forces: Sec 10.8.1 (H1), moments amplified by B1 (Eq 6.10.4).",
     (
+        "Deflection of beams (serviceability): the deflection relative to the chord between the "
+        "member's ends (a cantilever: the free end relative to the support), from the "
+        "analysis's unfactored load cases, under the live load (L and Lr), the wind (WX, WY "
+        "each) and the code pack's service combination of dead + live load, against the span "
+        "divisors of the member's use in the code pack's serviceability table (a cantilever's "
+        "span a multiple of its length, as the pack says)."
+    ),
+    (
         "Not checked here: connections (see the steel connection checks), torsion (Sec 10.8.3), "
-        "serviceability (Sec 10.12: deflections are reported by the analysis), fatigue, fire."
+        "vibration and wind-induced motion, fatigue, fire."
     ),
 ]
 
@@ -1288,6 +1296,107 @@ def _mass_per_metre(profile: Any, material: Any) -> float:
         return steel_sections.mass_per_metre(profile, _density(material))
     except (TypeError, ValueError, KeyError, AttributeError):
         return round(shape_properties(profile, erw=False).area * 1e-6 * _density(material), 3)
+
+
+# ─────────────────────────────── serviceability: deflection (B9) ───────────────────────────────
+
+
+def _relative_deflection(
+    s: np.ndarray, axis: np.ndarray, moved: np.ndarray, free_end: str
+) -> float:
+    """Largest deflection [same unit as ``moved``] of a member's nodes across its axis: relative
+    to the chord between its ends, or for a cantilever (``free_end`` "start" / "end") of the
+    free end relative to the supported one. ``moved``: (n, 3) node displacements along ``s``."""
+    across = moved - np.outer(moved @ axis, axis)  # the part across the member
+    if free_end in ("start", "end"):
+        tip, root = (0, -1) if free_end == "start" else (-1, 0)
+        return float(np.linalg.norm(across[tip] - across[root]))
+    t = (s - s[0]) / (s[-1] - s[0])
+    chord = across[0] + np.outer(t, across[-1] - across[0])
+    return float(np.max(np.linalg.norm(across - chord, axis=1)))
+
+
+def deflection_checks(
+    s: np.ndarray,
+    axis: np.ndarray,
+    profiles: dict[str, np.ndarray],
+    use: str | None = None,
+    free_end: str = "none",
+    table: Any = None,
+) -> list[dict[str, Any]]:
+    """The deflection rows of a beam under the code pack's member deflection limits
+    (``serviceability.deflection``): ``s`` the nodes' positions along it [m], ``axis`` its unit
+    direction, ``profiles`` per unfactored load case the nodes' displacements (n, 3) [m];
+    ``use`` the id of the member's use in the pack (None: the pack's default). Rows of the live
+    load (L + Lr), the wind (WX, WY, the larger) and the pack's dead + live service combination,
+    where the use has that limit; [] when the pack has no deflection limits or the use is not
+    in them."""
+    from saengine.fem.combinations import service_combinations
+
+    if table is None:
+        pack = code_context.current()
+        table = pack.table("serviceability") if pack.has("serviceability") else None
+    limits = getattr(table, "deflection", None)
+    if limits is None or len(s) < 2 or s[-1] - s[0] <= 0 or "D" not in profiles:
+        return []
+    key = use or limits.default
+    row = limits.uses.get(key)
+    if row is None:
+        return []
+    length = float(s[-1] - s[0]) * 1000.0
+    cantilever = free_end in ("start", "end")
+    span = length * (float(limits.cantileverSpan) if cantilever else 1.0)
+    clause = row.source or limits.source or ""
+
+    def summed(factors: dict[str, float]) -> np.ndarray | None:
+        parts = [f * profiles[c] for c, f in factors.items() if c in profiles and f]
+        return sum(parts) if parts else None
+
+    kinds: list[tuple[str, float | None, list[tuple[str, dict[str, float]]]]] = [
+        ("live load", row.live, [("L + Lr", {"L": 1.0, "Lr": 1.0})]),
+        ("wind", row.wind, [(c, {c: 1.0}) for c in ("WX", "WY")]),
+        (
+            "dead + live load",
+            row.deadLive,
+            [(n, f) for n, f, _r in service_combinations(set(profiles), limits.combination)],
+        ),
+    ]
+    out = []
+    for what, divisor, combinations in kinds:
+        if not divisor:
+            continue
+        best: tuple[float, str] | None = None
+        for name, factors in combinations:
+            moved = summed(factors)
+            if moved is None:
+                continue
+            value = 1000.0 * _relative_deflection(s, axis, moved, free_end)
+            if best is None or value > best[0]:
+                best = (value, name)
+        if best is None:
+            continue
+        limit = span / float(divisor)
+        u = best[0] / limit if limit > 0 else 99.0
+        out.append(
+            {
+                "name": f"Deflection: {what} ≤ l/{float(divisor):g}",
+                "demand": round(best[0], 2),
+                "capacity": round(limit, 2),
+                "unit": "mm",
+                "utilisation": round(u, 3),
+                "combination": best[1],
+                "ok": bool(u <= 1.0),
+                "note": f"{row.label}; l = {span:.0f} mm"
+                + (
+                    f" ({float(limits.cantileverSpan):g} × the cantilever length), free end"
+                    if cantilever
+                    else ", relative to the chord"
+                ),
+                "flag": False,
+                "clause": clause,
+            }
+        )
+    return out
 
 
 def is_steel_member(material: Any) -> bool:

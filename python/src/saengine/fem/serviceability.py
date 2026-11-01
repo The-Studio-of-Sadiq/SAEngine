@@ -68,6 +68,24 @@ def storey_drift_limit(
     return float(limits.longPeriod), f"T = {period:.2f} s ≥ {limits.periodSplit:g} s"
 
 
+def sway_basis() -> tuple[float, float, str] | None:
+    """(top sway / height limit, factor on W in the service wind combination, clause) of the
+    pack in force, for estimates that take the wind alone (the preliminary sizing); None when
+    the pack has no sway limit."""
+    from saengine.fem.combinations import service_combinations
+
+    found = table()
+    if found is None or found.sway is None:
+        return None
+    factor = 1.0
+    for _name, factors, _row in service_combinations(None, found.sway.combination):
+        winds = [abs(v) for c, v in factors.items() if c in WIND_AXES]
+        if winds:
+            factor = winds[0]
+            break
+    return float(found.sway.ratio), factor, found.sway.source or ""
+
+
 def unreinforced_axes(settings: Any, limits: Any = None) -> dict[str, bool]:
     """Per direction ("X", "Y") whether the project's seismic system there is one of the pack's
     unreinforced masonry systems."""
@@ -314,6 +332,7 @@ __all__ = [
     "overturning_checks",
     "resisting_moment",
     "storey_drift_limit",
+    "sway_basis",
     "table",
     "unreinforced_axes",
     "wind_checks",
