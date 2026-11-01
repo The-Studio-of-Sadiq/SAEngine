@@ -23,6 +23,7 @@ import { VersionsEditor } from './versionsEditor.js';
 import { VersionsEditorInput, VersionsEditorInputSerializer } from './versionsEditorInput.js';
 import { ISaveVersionCommandArgs, VersionsFlows } from './versionsFlows.js';
 import './versionsService.js';
+import './projectShare.contribution.js';
 import './structuralImport.contribution.js';
 import './revitLink.contribution.js';
 import './newBuildingWizard.contribution.js';

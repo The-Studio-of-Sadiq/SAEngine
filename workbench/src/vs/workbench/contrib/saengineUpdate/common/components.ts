@@ -95,7 +95,7 @@ export function componentPurpose(component: SetupComponent): string {
 		case 'libredwg': return localize('component.libredwgPurpose', "Reads the architects' DWG drawings (underlays, imports) and writes the drawing sheets as DWG. Without it a DWG must be saved as DXF first, and the sheets are DXF only.");
 		case 'ai': return localize('component.aiPurpose', "The chat that helps build and edit structures (needs a GitHub account). Without it there is no chat; assistants outside SAEngine can still connect (Allow AI Assistants to Control This Window).");
 		case 'git': return localize('component.gitPurpose', "Project history with Git and GitHub, in Developer Mode. Without it SAEngine keeps its own versions of the project.");
-		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access; live collaboration will be added here. Without it SAEngine works on this computer only.");
+		case 'collaboration': return localize('component.collaborationPurpose', "Port forwarding and Microsoft sign-in for remote access, and live co-editing of a shared project once its engine is added. Shared projects (office copy, sync, part locks, presence) work without it.");
 	}
 }
 

@@ -21,6 +21,7 @@ import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysi
 import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
+import { SHARE_CONNECT_COMMAND, SHARE_DISCONNECT_COMMAND, SHARE_HEARTBEAT_COMMAND, SHARE_JOIN_COMMAND, SHARE_LOCK_COMMAND, SHARE_STATUS_COMMAND, SHARE_SYNC_COMMAND, SHARE_UNLOCK_COMMAND } from '../browser/shareModel.js';
 import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMMAND, VERSIONS_RESTORE_COMMAND, VERSIONS_SAVE_COMMAND, VERSIONS_STATUS_COMMAND } from '../browser/versionsModel.js';
 
 /*
@@ -170,6 +171,58 @@ CommandsRegistry.registerCommand(VERSIONS_RESTORE_COMMAND, async (accessor, raw:
 CommandsRegistry.registerCommand(VERSIONS_MARK_ISSUED_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(raw);
 	return orThrow(await call(accessor, 'versions/markIssued', { projectRoot: args.projectRoot, version: args.version, label: args.label, author: author(accessor, args) }));
+});
+
+// --- Shared projects (office copy, locks, presence) -------------------------------------------
+
+/** Who takes locks and shows in presence: the versions author setting, else the computer's user. */
+function shareUser(accessor: ServicesAccessor, args: Bag): string | undefined {
+	return author(accessor, args);
+}
+
+CommandsRegistry.registerCommand(SHARE_STATUS_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/status', { projectRoot: args.projectRoot, user: shareUser(accessor, args), fetch: args.fetch === true }));
+});
+
+CommandsRegistry.registerCommand(SHARE_CONNECT_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/connect', { projectRoot: args.projectRoot, location: args.location, author: author(accessor, args) }));
+});
+
+CommandsRegistry.registerCommand(SHARE_DISCONNECT_COMMAND, async (accessor, raw: unknown) => {
+	return orThrow(await call(accessor, 'share/disconnect', { projectRoot: bag(raw).projectRoot }));
+});
+
+CommandsRegistry.registerCommand(SHARE_JOIN_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/join', { location: args.location, target: args.target }));
+});
+
+CommandsRegistry.registerCommand(SHARE_SYNC_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	const resolutions = bag(args.resolutions);
+	return orThrow(await call(accessor, 'share/sync', {
+		projectRoot: args.projectRoot,
+		author: author(accessor, args),
+		user: shareUser(accessor, args),
+		resolutions: Object.fromEntries(Object.entries(resolutions).filter(([, v]) => v === 'mine' || v === 'theirs')),
+	}));
+});
+
+CommandsRegistry.registerCommand(SHARE_LOCK_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/lock', { projectRoot: args.projectRoot, part: args.part, user: shareUser(accessor, args), note: str(args.note) }));
+});
+
+CommandsRegistry.registerCommand(SHARE_UNLOCK_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/unlock', { projectRoot: args.projectRoot, part: args.part, user: shareUser(accessor, args), force: args.force === true }));
+});
+
+CommandsRegistry.registerCommand(SHARE_HEARTBEAT_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'share/heartbeat', { projectRoot: args.projectRoot, user: shareUser(accessor, args), part: str(args.part), leaving: args.leaving === true }));
 });
 
 // --- Code packs -------------------------------------------------------------------------------

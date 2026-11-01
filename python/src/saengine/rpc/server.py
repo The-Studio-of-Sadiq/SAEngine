@@ -185,6 +185,13 @@ Methods:
   version history (``saengine.project.versions``; in threads of their own, one operation at a
   time per project, so a long save never holds up the other methods)
 
+- ``share/status`` ``{projectRoot, user?, fetch?}``, ``share/connect`` ``{projectRoot,
+  location, author?}``, ``share/disconnect``, ``share/join`` ``{location, target}``,
+  ``share/sync`` ``{projectRoot, author?, resolutions?, user?}``, ``share/lock`` /
+  ``share/unlock`` ``{projectRoot, part, user?, note?|force?}``, ``share/heartbeat``
+  ``{projectRoot, user?, part?, leaving?}``: the office copy of the versions
+  (``saengine.project.share``), in the versions threads.
+
 A refused archive or versions operation answers ``{ok: false, code, message, problems}``.
 
 Analyses themselves are not run here: the workbench starts
@@ -1160,6 +1167,60 @@ def create_server() -> JsonRPCServer:
     def _versions_mark_issued(args: dict[str, Any]) -> dict[str, Any]:
         return handlers.versions_mark_issued(
             args["projectRoot"], args["version"], args["label"], args.get("author")
+        )
+
+    # Shared projects (saengine.project.share): under the project's versions lock, since a
+    # sync saves and merges versions.
+    @server.feature("share/status")
+    @_versions_worker
+    def _share_status(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_status(
+            args["projectRoot"], args.get("user"), args.get("fetch") is not False
+        )
+
+    @server.feature("share/connect")
+    @_versions_worker
+    def _share_connect(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_connect(args["projectRoot"], args["location"], args.get("author"))
+
+    @server.feature("share/disconnect")
+    @_versions_worker
+    def _share_disconnect(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_disconnect(args["projectRoot"])
+
+    @server.feature("share/join")
+    async def _share_join(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return await asyncio.get_running_loop().run_in_executor(
+            _VERSIONS_WORKERS, handlers.share_join, args["location"], args["target"]
+        )
+
+    @server.feature("share/sync")
+    @_versions_worker
+    def _share_sync(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_sync(
+            args["projectRoot"], args.get("author"), args.get("resolutions"), args.get("user")
+        )
+
+    @server.feature("share/lock")
+    @_versions_worker
+    def _share_lock(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_lock(
+            args["projectRoot"], args["part"], args.get("user"), args.get("note")
+        )
+
+    @server.feature("share/unlock")
+    @_versions_worker
+    def _share_unlock(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_unlock(
+            args["projectRoot"], args["part"], args.get("user"), args.get("force") is True
+        )
+
+    @server.feature("share/heartbeat")
+    @_versions_worker
+    def _share_heartbeat(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.share_heartbeat(
+            args["projectRoot"], args.get("user"), args.get("part"), args.get("leaving") is True
         )
 
     # Code packs (Project Settings' Design code, the Code Packs page).
