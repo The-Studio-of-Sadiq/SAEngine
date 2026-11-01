@@ -300,6 +300,26 @@ def test_derived_model_has_the_isolators_and_the_isolated_forces() -> None:
     assert "isolation" in d.summary
 
 
+def test_sidecar_reads_back_into_the_report(tmp_path) -> None:
+    import json
+
+    from saengine.report.build import _isolation
+    from saengine.report.document import _isolation_blocks
+
+    d = derive_fem(_bay(), OBJECTS, MATERIALS, default_project_settings("Isolated"))
+    (tmp_path / iso.ISOLATION_FILE).write_text(json.dumps(d.isolation), encoding="utf-8")
+    assert iso.load(tmp_path)["schema"] == iso.SCHEMA
+    rows = _isolation(tmp_path)
+    assert rows is not None and len(rows["forces"]) == 2 and rows["review"]
+    assert _isolation_blocks(rows)
+    assert _isolation(tmp_path / "missing") is None
+    # The response spectrum design's block: Cd = RI, I = 1 and the spectrum drift limit.
+    notes: list[str] = []
+    block = iso.seismic_design_block(tmp_path, {}, notes)
+    assert block["allowable"] == 0.015
+    assert block["amplification"]["X"] == pytest.approx(d.isolation["forces"]["X"]["RI"])
+
+
 def test_no_isolator_no_change() -> None:
     plain = ObjectLibrary.model_validate(
         {

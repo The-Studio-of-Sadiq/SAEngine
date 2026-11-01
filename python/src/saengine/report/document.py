@@ -820,6 +820,75 @@ def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
+    """B37: the isolation system of a seismically isolated building."""
+    if not iso:
+        return []
+    out: list[Block] = [h(2, "Seismic isolation")]
+    out.append(
+        table(["Quantity", "Value", "Clause"], iso["summary"], ["auto", "auto", "1fr"], "lrl")
+    )
+    out.append(p(f"Forces above (Vs) and below (Vb) the isolators [kN] ({iso['forcesClause']})."))
+    out.append(
+        table(
+            ["Dir.", "R", "RI", "Vb", "Vb/RI", "Fixed base at TD", "Wind", "1.5 × activation",
+             "Vs", "Governs"],
+            iso["forces"],
+            ["auto"] * 9 + ["1fr"],
+            "lrrrrrrrrl",
+        )
+    )  # fmt: skip
+    out.append(p(iso["drift"]))
+    out.append(
+        table(
+            ["Check", "Value", "Limit", "Result", "Clause"],
+            iso["checks"],
+            ["1fr", "auto", "auto", "auto", "1fr"],
+            "lrrcl",
+            bad=iso.get("checkFails"),
+        )
+    )
+    out.append(
+        p(
+            "Equivalent static analysis "
+            + ("permitted" if iso["staticPermitted"] else "not permitted")
+            + f" ({iso['staticClause']}):"
+        )
+    )
+    out.append(table(["", "Condition", "Result"], iso["static"], ["auto", "1fr", "auto"], "llc"))
+    out.append(
+        table(
+            ["Column", "Isolator", "kDmax [kN/m]", "DTD [mm]", "DTM [mm]", "Capacity [mm]"],
+            iso["units"],
+            ["1fr"] + ["auto"] * 5,
+            "llrrrr",
+        )
+    )
+    out.append(p(f"Prototype tests of the isolators ({iso['testsClause']})."))
+    out.append(
+        table(
+            ["Type", "Step", "Amplitude", "Cycles", "Vertical load [kN]"],
+            iso["tests"],
+            ["auto", "1fr", "auto", "auto", "auto"],
+            "llrrr",
+        )
+    )
+    out.append(p(f"Requirements of the isolation system ({iso['requirementsClause']})."))
+    out.append(
+        table(
+            ["", "Requirement", "How", "Result"],
+            iso["requirements"],
+            ["auto", "1fr", "auto", "auto"],
+            "lllc",
+        )
+    )
+    out.append(p(f"Design review by an independent team ({iso['reviewClause']}):"))
+    out.append(bullets(iso["review"], 8.5))
+    if iso.get("notes"):
+        out.append(bullets(iso["notes"], 8.5))
+    return out
+
+
 def _irregularity_blocks(ir: dict[str, Any]) -> list[Block]:
     """B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections."""
     if not ir:
@@ -950,6 +1019,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
+    out += _isolation_blocks(results.get("isolation"))  # B37
     out += _pushover_blocks(results.get("pushover") or [])
     out += _column_shortening_blocks(results.get("columnShortening") or {})
     rsd = results["seismicDesign"]
