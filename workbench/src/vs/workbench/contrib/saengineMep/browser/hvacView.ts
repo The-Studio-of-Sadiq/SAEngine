@@ -17,6 +17,7 @@ import {
 	shadingLabel,
 } from './hvacDocument.js';
 import { storyUseOf } from './storyUses.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The HVAC's Data view and properties panel in the MEP editor: the system and the design
@@ -91,7 +92,7 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	const station = host.selectInput(tables.cities.map(cityOption), String(hvac?.design.city ?? ''), v => host.setOptional(h().design, 'city', v), 'hvac.design.city', localize('hvacView.f.city', "Station"), emptyStation);
 	station.title = station.selectedOptions[0]?.textContent ?? '';
 	setting(localize('hvacView.f.city', "Station"), station,
-		undefined, localize('hvacView.f.cityTitle', "The nearest station of BNBC Table 8.2.2 (outside design conditions); its cooling dry bulb / mean coincident wet bulb at 2 % (Sec 2.12.2.1) in brackets"));
+		undefined, localize('hvacView.f.cityTitle', "The nearest station of {0} Table 8.2.2 (outside design conditions); its cooling dry bulb / mean coincident wet bulb at 2 % (Sec 2.12.2.1) in brackets", defaultCodeName()));
 	const store = (target: () => { [key: string]: unknown }, key: string) => (v: number | string | undefined) => host.setField(target(), key, v);
 	const placeholder = (n: number | undefined) => n === undefined ? localize('hvacView.default', "default") : formatNumber(n, 2);
 	setting(H.outdoorDB.label, host.textInput(H.outdoorDB, hvac?.design.outdoorDB, store(() => h().design, 'outdoorDB'), 'hvac.design.outdoorDB', placeholder(city?.db)), H.outdoorDB.unit, H.outdoorDB.title);
@@ -100,7 +101,7 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	setting(H.indoorDB.label, host.textInput(H.indoorDB, hvac?.design.indoorDB, store(() => h().design, 'indoorDB'), 'hvac.design.indoorDB', localize('hvacView.code', "code")), H.indoorDB.unit, H.indoorDB.title);
 	setting(H.indoorRH.label, host.textInput(H.indoorRH, hvac?.design.indoorRH, store(() => h().design, 'indoorRH'), 'hvac.design.indoorRH', localize('hvacView.code', "code")), H.indoorRH.unit, H.indoorRH.title);
 	if (!tables.tablesFromBackend) {
-		append(design, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('hvacView.citiesWhat', "the stations of BNBC Table 8.2.2 and the uses of Table 8.2.3"))));
+		append(design, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('hvacView.citiesWhat', "the stations of {0} Table 8.2.2 and the uses of Table 8.2.3", defaultCodeName()))));
 	}
 
 	// Envelope.

@@ -10,13 +10,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport, PLANNING_DEFAULT_USE, PlanningNumberKey } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
-import { bnbcSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, IBnbcSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
+import { codeSiteSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, ICodeSiteSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The Map view of the soil report: the site and the boreholes on OpenStreetMap tiles (MapLibre
  * GL JS), the building outline from the site's georeference, and a side panel with the
- * coordinates (lat/lon, BTM, project x/y), the GIS exchange with QGIS and the BNBC suggestion.
+ * coordinates (lat/lon, BTM, project x/y), the GIS exchange with QGIS and the code pack's site suggestion.
  * Without tiles (offline, no WebGL) the view draws a plain grid of the project coordinates with
  * the outline and the boreholes instead. The view only shows and asks: every change goes back
  * to the editor (ISoilMapHost), which stores it in the report as one undoable edit.
@@ -40,7 +41,7 @@ export interface ISoilMapHost {
 	/** On the plain grid: the borehole's project position [mm]. */
 	moveBoreholeOnGrid(index: number, x: number, y: number): void;
 	select(index: number | undefined): void;
-	applyBnbc(suggestion: IBnbcSuggestion): void;
+	applyCodeSite(suggestion: ICodeSiteSuggestion): void;
 	exportGis(format: 'geojson' | 'gpkg'): void;
 	importGis(): void;
 	openInQgis(): void;
@@ -178,7 +179,7 @@ export class SoilMapView extends Disposable {
 	private renderBanner(): void {
 		this.bannerDisposables.clear();
 		clearNode(this.banner);
-		const suggestion = bnbcSuggestion(this.host.location);
+		const suggestion = codeSiteSuggestion(this.host.location);
 		this.banner.hidden = !suggestion;
 		if (!suggestion) {
 			return;
@@ -186,7 +187,7 @@ export class SoilMapView extends Disposable {
 		append(this.banner, $(`span.soil-map-banner-icon${ThemeIcon.asCSSSelector(Codicon.lightbulb)}`));
 		append(this.banner, $('span.soil-map-banner-text', undefined, suggestion.text));
 		const apply = append(this.banner, $<HTMLButtonElement>('button.soil-map-banner-apply', { type: 'button' }, localize('soil.map.apply', "Apply to Project Settings")));
-		this.bannerDisposables.add(addDisposableListener(apply, EventType.CLICK, () => this.host.applyBnbc(suggestion)));
+		this.bannerDisposables.add(addDisposableListener(apply, EventType.CLICK, () => this.host.applyCodeSite(suggestion)));
 	}
 
 	// ───────────────────────────── side panel ─────────────────────────────
@@ -225,7 +226,7 @@ export class SoilMapView extends Disposable {
 				row(localize('soil.map.btmLabel', "BTM"), formatBtm(location.site.btm), localize('soil.map.btmTitle', "Bangladesh Transverse Mercator (EPSG:9678)"));
 			}
 			if (!inBangladesh(own)) {
-				append(this.panel, $('p.soil-note.warning', undefined, localize('soil.map.outside', "This position is outside Bangladesh: the BNBC location towns do not apply.")));
+				append(this.panel, $('p.soil-note.warning', undefined, localize('soil.map.outside', "This position is outside Bangladesh: the {0} location towns do not apply.", activeCodeName())));
 			}
 		}
 		row(localize('soil.map.origin', "Project point"), formatProjectPoint(report.site?.x ?? 0, report.site?.y ?? 0), localize('soil.map.originTitle', "The point of the project coordinates at the site's position"));
@@ -287,7 +288,7 @@ export class SoilMapView extends Disposable {
 			this.button(gis, Codicon.linkExternal, localize('soil.map.openQgis', "Open in QGIS"), () => this.host.openInQgis(), this.host.qgis.version ? localize('soil.map.qgisVersion', "QGIS {0}", this.host.qgis.version) : this.host.qgis.path);
 		}
 		if (this.host.locationState === 'missing') {
-			append(this.panel, $('p.soil-note', undefined, localize('soil.map.noBackend', "The BTM coordinates, the building outline, the nearest BNBC town and the GIS exchange need the SAEngine backend, which is not available in this window.")));
+			append(this.panel, $('p.soil-note', undefined, localize('soil.map.noBackend', "The BTM coordinates, the building outline, the nearest {0} town and the GIS exchange need the SAEngine backend, which is not available in this window.", activeCodeName())));
 		} else if (this.host.locationState === 'error') {
 			append(this.panel, $('p.soil-note.warning', undefined, (location?.problems ?? []).join(' ') || localize('soil.map.locationFailed', "The positions could not be worked out.")));
 		}

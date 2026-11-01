@@ -35,7 +35,7 @@ MM2 = 1e-6
 #: Openings not deducted from brickwork, up to this area [m²]; from plaster, up to the first;
 #: one face deducted up to the second, both faces above it (no jambs, soffits or sills added).
 #: The South Asian method of measurement (IS 1200 Parts 3 and 12), which the PWD schedules of
-#: rates measure by; not BNBC values.
+#: rates measure by; not code values.
 BRICKWORK_OPENING = 0.1
 PLASTER_OPENING = 0.5
 PLASTER_ONE_FACE = 3.0
@@ -49,7 +49,7 @@ ARCHITECTURE_CONVENTIONS = [
         f"plaster layer, openings up to {PLASTER_OPENING:g} m² not deducted, up to "
         f"{PLASTER_ONE_FACE:g} m² deducted from one face, larger ones from both, jambs and "
         "soffits not added (the method of measurement of IS 1200 Parts 3 and 12, as the PWD "
-        "schedules measure; not BNBC values). Room floor finishes and ceilings over the net "
+        "schedules measure; not code values). Room floor finishes and ceilings over the net "
         "floor inside the wall faces; room wall finishes over the room's net perimeter to its "
         "clear height less the doors and windows in it, on top of the walls' plaster (the "
         "plaster is the wall types'; give the rooms the paint or tiles). Doors and windows are "

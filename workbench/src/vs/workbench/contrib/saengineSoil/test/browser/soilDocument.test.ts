@@ -146,6 +146,7 @@ suite('SAEngine - Soil report', () => {
 		const raw = {
 			...backend,
 			practice: 'bdConsultant',
+			// Results saved before the method was renamed: the former value is read as 'codePack'.
 			design: { liquefactionMethod: 'bnbc2020' },
 			methods: { ...backend.methods as object, spt: 'SPT (consultant)' },
 			amaxNote: 'amax = 0.378 g (soil report)',
@@ -183,7 +184,7 @@ suite('SAEngine - Soil report', () => {
 			],
 			plainBasis: [['Textbook', 'as set in the design options'], ['Idriss & Boulanger 2014', 'as set in the design options'], ['0.378 g', 'Z·S']],
 			derived: [{ class: 'S2', note: '', boreholes: ['BH-1', 'BH-2'] }],
-			choices: [['practice', 'textbook', ['textbook', 'bdConsultant'], 3], ['liquefactionMethod', 'idrissBoulanger2014', ['idrissBoulanger2014', 'bnbc2020'], 3]],
+			choices: [['practice', 'textbook', ['textbook', 'bdConsultant'], 3], ['liquefactionMethod', 'idrissBoulanger2014', ['idrissBoulanger2014', 'codePack'], 3]],
 			unknown: 'other',
 		});
 	});

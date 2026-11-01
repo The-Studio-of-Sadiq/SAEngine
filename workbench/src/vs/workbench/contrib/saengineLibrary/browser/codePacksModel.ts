@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { PACKAGE_KINDS, PackageKind } from '../common/packageIndex.js';
+import { activeCodeName, DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * Code packs: a design code (BNBC 2020, or a region's own) as a folder of data tables with a
@@ -29,7 +30,7 @@ export const CODES_VALIDATE_COMMAND = 'saengine.codes.validate';
 export const CODES_TRUST_COMMAND = 'saengine.codes.trust';
 
 /** The pack a project uses when its settings name none (and every project before code packs). */
-export const DEFAULT_CODE_PACK = 'bnbc2020';
+export const DEFAULT_CODE_PACK = DEFAULT_CODE_PACK_ID;
 
 /** The folder of a project's own packs, which travel with the project and its archive. */
 export const PROJECT_PACKS_FOLDER = '02 Project Settings/code-packs';
@@ -256,7 +257,7 @@ export function readProblems(value: unknown): string[] {
  */
 export function builtinDefaultPack(): ICodePackInfo {
 	return {
-		id: DEFAULT_CODE_PACK, kind: 'designCode', name: BNBC.edition, edition: BNBC.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
+		id: DEFAULT_CODE_PACK, kind: 'designCode', name: DEFAULT_CODE_TABLES.edition, edition: DEFAULT_CODE_TABLES.edition, region: localize('codePacks.bangladesh', "Bangladesh"), version: '',
 		extends: undefined, covers: [], scope: 'builtin', path: undefined, problems: [], usable: true, effective: true, shadowedBy: undefined, trust: 'none', hooksFrom: [],
 		author: '', licence: '', description: '', sources: [], tables: [], missingRequires: [],
 	};
@@ -432,7 +433,7 @@ export function packDescription(pack: ICodePackInfo, packs: readonly ICodePackIn
 export function changePackWarning(from: string, to: ICodePackOption): { readonly message: string; readonly detail: string } {
 	return {
 		message: localize('codePacks.changeMessage', "Use {0} as the design code of this project?", to.label),
-		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, so loads and design results will change (the project keeps its own load combinations; resistance factors and detailing limits are still BNBC 2020's in this version). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from),
+		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, so loads and design results will change (the project keeps its own load combinations; resistance factors and detailing limits are still {1}'s in this version). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from, activeCodeName()),
 	};
 }
 

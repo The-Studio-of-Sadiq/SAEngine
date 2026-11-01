@@ -16,8 +16,49 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-#: The printed name of the code the clauses refer to (the pack's own clauses carry it already).
-CODE = "BNBC 2020 Part 6"
+from saengine.report import clauses as _clauses
+
+
+class Cite:
+    """A clause reference worked out when it is printed, from the code pack in force then (a
+    kind's references are written when the module loads, before any pack is chosen)."""
+
+    __slots__ = ("_text",)
+
+    def __init__(self, text: Callable[[], str]) -> None:
+        self._text = text
+
+    def __str__(self) -> str:
+        return self._text()
+
+    def __bool__(self) -> bool:
+        return bool(self._text())
+
+    def __repr__(self) -> str:
+        return f"Cite({self._text()!r})"
+
+    def __add__(self, other: object) -> Cite:
+        return Cite(lambda: self._text() + str(other))
+
+    def __radd__(self, other: object) -> Cite:
+        return Cite(lambda: str(other) + self._text())
+
+    def paren(self, before: str = " ") -> str:
+        """``before`` + "(reference)", or '' when there is none."""
+        text = self._text()
+        return f"{before}({text})" if text else ""
+
+
+def code_ref(key: str, suffix: str = "") -> Cite:
+    """The reference ``key`` of the code pack in force (its ``citations`` table, with the code's
+    name), followed by ``suffix``; empty when the pack gives none."""
+
+    def text() -> str:
+        found = _clauses.ref(key)
+        return f"{found}{suffix}" if found else ""
+
+    return Cite(text)
+
 
 InputKind = Literal["number", "choice", "bool"]
 
@@ -129,7 +170,7 @@ class Sheet:
         value: float | str,
         unit: str = "",
         formula: str = "",
-        clause: str = "",
+        clause: str | Cite = "",
         digits: int | None = None,
     ) -> float | str:
         """Writes one intermediate value and returns it (for the next line)."""
@@ -139,7 +180,7 @@ class Sheet:
             "value": text,
             "unit": unit,
             "formula": formula,
-            "clause": clause,
+            "clause": str(clause),
         }
         if not isinstance(value, str):
             row["number"] = float(value) if math.isfinite(float(value)) else None
@@ -152,7 +193,7 @@ class Sheet:
         demand: float,
         capacity: float,
         unit: str = "",
-        clause: str = "",
+        clause: str | Cite = "",
         *,
         at_least: bool = False,
         digits: int | None = None,
@@ -175,12 +216,12 @@ class Sheet:
                 "unit": unit,
                 "utilisation": round(util, 3) if math.isfinite(util) else None,
                 "ok": ok,
-                "clause": clause,
+                "clause": str(clause),
             }
         )
         return ok
 
-    def adopt(self, check: dict[str, Any], clause: str = "") -> bool:
+    def adopt(self, check: dict[str, Any], clause: str | Cite = "") -> bool:
         """Writes a check made by a design module (:func:`saengine.design.check._check`:
         ``{name, demand, capacity, unit, utilisation, ok, note}``) as it is."""
         util = check.get("utilisation")
@@ -193,7 +234,7 @@ class Sheet:
                 "unit": str(check.get("unit") or ""),
                 "utilisation": None if util is None or util >= 99 else float(util),
                 "ok": bool(check["ok"]),
-                "clause": "; ".join(t for t in (str(check.get("note") or ""), clause) if t),
+                "clause": "; ".join(t for t in (str(check.get("note") or ""), str(clause)) if t),
             }
         )
         return bool(check["ok"])
@@ -213,7 +254,11 @@ class Kind:
     summary: str
     inputs: tuple[Input, ...]
     calculate: Calculation
-    references: tuple[str, ...] = ()
+    references: tuple[str | Cite, ...] = ()
+
+    def cited(self) -> list[str]:
+        """The references, with the clauses of the code pack in force (the empty left out)."""
+        return [t for t in (str(r) for r in self.references) if t]
 
     def describe(self) -> dict[str, Any]:
         return {
@@ -222,7 +267,7 @@ class Kind:
             "group": self.group,
             "summary": self.summary,
             "inputs": [i.describe() for i in self.inputs],
-            "references": list(self.references),
+            "references": self.cited(),
         }
 
     def defaults(self) -> dict[str, Any]:
@@ -239,7 +284,7 @@ def worksheet(
     group: str,
     summary: str,
     inputs: Sequence[Input],
-    references: Sequence[str] = (),
+    references: Sequence[str | Cite] = (),
 ) -> Callable[[Calculation], Calculation]:
     """Registers a worksheet kind."""
 
@@ -310,7 +355,7 @@ def calculate(kind_id: str, inputs: dict[str, Any] | None = None) -> dict[str, A
     out: dict[str, Any] = {
         "kind": kind.id,
         "title": kind.title,
-        "references": list(kind.references),
+        "references": kind.cited(),
         "inputs": shown,
         "steps": [],
         "checks": [],

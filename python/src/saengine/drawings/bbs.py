@@ -13,12 +13,12 @@ Conventions (units: mm for lengths and dimensions, m for total lengths, kg for m
   ``SHAPES``); the dimensions are outside dimensions, as BS 8666 schedules them, and the
   cutting length ``L`` deducts the bends with the bend radius ``r``;
 - the bend radius is the larger of BS 8666's minimum scheduling radius (``BS8666_RADIUS``) and
-  half BNBC 2020's minimum inside bend diameter (Part 6, 8.1.2.2 and Table 6.8.1, PDF pp.
-  1065-1066: 6 d for 10-25 mm bars, 8 d over 25 to 40 mm, 10 d over 40 mm; 4 d for stirrups and
-  ties of 16 mm and smaller);
+  half the code's least inside bend diameter (:func:`saengine.drawings.detailing.bend_diameter`;
+  in the default pack BNBC 2020 Part 6, 8.1.2.2 and Table 6.8.1: 6 d for 10-25 mm bars, 8 d
+  over 25 to 40 mm, 10 d over 40 mm; 4 d for stirrups and ties of 16 mm and smaller);
 - the default hook of a link (shape 51 and 63 ends) is a 135° seismic hook with an extension of
-  6 d but not less than 75 mm (BNBC 2020 Part 6, 8.1.2.1 (c)(iv) and (d), PDF p. 1066), and no
-  straight end is shorter than BS 8666's minimum end projection ``P``;
+  6 d but not less than 75 mm (the default pack's BNBC 2020 Part 6, 8.1.2.1 (c)(iv) and (d)),
+  and no straight end is shorter than BS 8666's minimum end projection ``P``;
 - cutting lengths are rounded up to the next 25 mm; bar mass is ``d² / 162`` kg/m (7850 kg/m³).
 
 The BS 8666 radii, end projections and formulas in this module were written from memory and are
@@ -109,20 +109,25 @@ def end_projection(dia: float) -> float:
     return round_up(bs8666_radius(dia) + 11 * dia, 5)
 
 
-def bnbc_bend_diameter(dia: float, transverse: bool = False) -> float:
-    """BNBC 2020 minimum inside bend diameter [mm] (Part 6, 8.1.2.2, Table 6.8.1)."""
-    if transverse and dia <= 16:
-        return 4.0 * dia
-    if dia <= 25:
-        return 6.0 * dia
-    if dia <= 40:
-        return 8.0 * dia
-    return 10.0 * dia
+def code_bend_diameter(dia: float, transverse: bool = False) -> float:
+    """The code's least inside bend diameter [mm]
+    (:func:`saengine.drawings.detailing.bend_diameter`)."""
+    from saengine.drawings.detailing import bend_diameter
+
+    return float(bend_diameter(dia, transverse).value)
+
+
+def _bend_reference() -> str:
+    """The code's bend diameter clause, as the schedule's note names it ("BNBC 2020 Part 6,
+    8.1.2.2" in the default pack)."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("citations", "bbsBend") or "the code's least bend diameter"
 
 
 def bend_radius(dia: float, transverse: bool = False) -> float:
-    """The bend radius to schedule [mm]: BS 8666's minimum or BNBC's, whichever is larger."""
-    return max(bs8666_radius(dia), bnbc_bend_diameter(dia, transverse) / 2)
+    """The bend radius to schedule [mm]: BS 8666's minimum or the code's, whichever is larger."""
+    return max(bs8666_radius(dia), code_bend_diameter(dia, transverse) / 2)
 
 
 def seismic_hook(dia: float, radius: float | None = None) -> float:
@@ -480,7 +485,7 @@ def _scheduled(
     transverse = shape.transverse or any(r in role for r in TRANSVERSE_ROLES)
     radius = bend_radius(dia, transverse)
     bend_dia = _get(bar, "bendDia", _get(bar, "bend_dia"))
-    if bend_dia is not None:  # the detailing model's least inside bend diameter (BNBC)
+    if bend_dia is not None:  # the detailing model's least inside bend diameter (the code's)
         radius = max(radius, _num(bend_dia, "the bend diameter") / 2)
     if _get(bar, "radius") is not None:
         radius = _num(_get(bar, "radius"), "the bend radius")
@@ -584,7 +589,7 @@ def bar_schedule(detailing: Any) -> BarSchedule:
                 schedule.rows.append(row)
     schedule.notes.append(
         "Shape codes, cutting lengths and minimum radii after BS 8666; bend radii not less than "
-        "BNBC 2020 Part 6, 8.1.2.2; lengths rounded up to 25 mm; mass d²/162 kg/m."
+        f"{_bend_reference()}; lengths rounded up to 25 mm; mass d²/162 kg/m."
     )
     return schedule
 
@@ -872,10 +877,10 @@ def reconcile(schedule: BarSchedule, boq: Any, tolerance: float = 0.5) -> Reconc
             if abs(x - y) <= tolerance:
                 continue
             why = {
-                "transverse": "hooks to BS 8666 / BNBC 135° seismic hooks and bend deductions "
+                "transverse": "hooks to BS 8666 / the code's 135° seismic hooks and bend deductions "
                 "(BOQ: centre line + 2 × 10 d), and link counts by zone (BOQ: length / spacing "
                 "+ 1 at one spacing)",
-                "longitudinal": "laps at the detailed splice positions with BNBC lap lengths "
+                "longitudinal": "laps at the detailed splice positions with the code's lap lengths "
                 "(BOQ: 40 d per 12 m stock bar), anchorage bends and cut-off bars (BOQ: every "
                 "bar the member's full length)",
                 "mesh": "bars counted per panel with end anchorage and laps (BOQ: area / "

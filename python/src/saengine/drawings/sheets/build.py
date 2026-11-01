@@ -484,7 +484,7 @@ def _steel_categories(
                 st.CONNECTION_SCALE,
                 specs,
                 scale_text=f"1:{st.CONNECTION_SCALE:g}",
-                notes=st.CONNECTION_NOTES,
+                notes=st.connection_notes(),
             )
         )
     return out

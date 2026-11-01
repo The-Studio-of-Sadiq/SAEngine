@@ -36,6 +36,7 @@ from saengine.library.report_template import (
     ReportTemplate,
     default_report_template,
 )
+from saengine.report import clauses as _c
 
 Block = dict[str, Any]
 
@@ -529,8 +530,7 @@ def _foundations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Pile capacity"),
             p(
-                "Single-pile capacity at each pile cap (BNBC 2020 Part 6 Sec 3.10, geotechnical "
-                "design of deep foundations): Qult = Qs + Qb - W, Qa the lesser of Qult / FS and "
+                f"Single-pile capacity at each pile cap{_c.paren('pileCapacity')}: Qult = Qs + Qb - W, Qa the lesser of Qult / FS and "
                 "the partial factors; Ta the allowable uplift."
             ),
             table(
@@ -643,7 +643,7 @@ def _model(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [h(2, "Equivalent static loads")] + full(
             p(
                 "Values of the derivation of the analysis model from the building model and the "
-                "project settings (BNBC 2020 6.2)."
+                f"project settings{_c.paren('equivalentStatic')}."
             ),
             pairs(model["derived"]),
         )
@@ -1263,10 +1263,11 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
             p(
                 "It is a second-order (P-Delta) analysis: the columns have P-Delta "
                 "transformations and every case is solved on the stiffness of the structure "
-                "under the gravity preload (BNBC 2020 Part 6 Sec 2.5.7.9 and 6.3.10.4), so the "
+                f"under the gravity preload{_c.paren('pDelta')}, so the "
                 "sway moment magnification of the columns is taken as done; their magnification "
                 "along the length (δns) still applies. Storey drift with and without P-Delta, and "
-                "the stability coefficient θ = Px Δ / (Vx hsx Cd) of BNBC Eq. 6.2.48 (θ ≤ 0.10: "
+                f"the stability coefficient θ = Px Δ / (Vx hsx Cd){_c.after('stability', ' of ')} "
+                "(θ ≤ 0.10: "
                 "P-Delta need not be considered; above θmax: redesign):"
             )
         )
@@ -1286,8 +1287,8 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out.append(
             p(
                 "It is a first-order analysis: the columns are designed for slenderness by "
-                "moment magnification (BNBC 2020 Part 6 Sec 6.3.10.6 and 6.3.10.7, see Member "
-                "design)."
+                f"moment magnification ({_c.ref('magnification') + ', ' if _c.ref('magnification') else ''}"
+                "see Member design)."
             )
         )
     return {"blocks": out}
@@ -1429,8 +1430,7 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
             p(
                 "Each wall is designed by its piers (the wall between openings in a storey; "
                 "under a window the whole wall at its bottom level too), from section cuts of "
-                "the shell model (BNBC 2020 Part 6 Sec 6.6, 6.4.8; special structural walls Sec "
-                "8.3.6). Forces of the governing combination at the cut it governs (else the "
+                f"the shell model{_c.paren('walls')}. Forces of the governing combination at the cut it governs (else the "
                 "pier's bottom): P [kN, compression +], V2 [kN], M3 [kN·m]."
             ),
             table(
@@ -1498,8 +1498,8 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Steel members"),
             p(
-                "Structural steel beams, columns and braces by LRFD to BNBC 2020 Part 6 Chapter "
-                "10: the section (hollow sections with the design wall thickness 0.93 t), its "
+                f"Structural steel beams, columns and braces by LRFD{_c.after('steel', ' to ')}"
+                ": the section (hollow sections with the design wall thickness 0.93 t), its "
                 "local buckling class, the mass [kg/m], the unbraced lengths and K, and the "
                 "governing check; every check is in the member's own checks below."
             ),
@@ -1540,8 +1540,7 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Stairs"),
             p(
-                "Flights and landings as one-way slabs per metre width (BNBC 2020 Part 6 Sec "
-                "6.7): span [mm], thickness h [mm], factored load wu [kN/m²], moment Mu [kN·m/m] "
+                f"Flights and landings as one-way slabs per metre width{_c.paren('stairs')}: span [mm], thickness h [mm], factored load wu [kN/m²], moment Mu [kN·m/m] "
                 "and shear Vu [kN/m]; the geometry checks are in the stair's own checks below."
             ),
             table(
@@ -1558,7 +1557,7 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
             h(2, "Lintels"),
             p(
                 "Lintels over the openings of masonry and partition walls, simply supported "
-                "(BNBC 2020 Part 6 Sec 7.4.3.2): span [mm], section b × h [mm], Mu [kN·m], Vu "
+                f"{_c.paren('lintels', '')}: span [mm], section b × h [mm], Mu [kN·m], Vu "
                 "[kN] and the bars designed."
             ),
             table(
@@ -1629,7 +1628,8 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Punching shear reinforcement"),
             p(
-                "Headed shear studs (BNBC 2020 Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3) round "
+                f"Headed shear studs{_c.paren('punchingStuds')} or stirrups"
+                f"{_c.paren('punchingStirrups')} round "
                 "the columns where the concrete alone is not enough: elements per peripheral "
                 "line, lines, first line from the column face and the spacing of the lines s0 / "
                 "s [mm]; proposed unless the slab type gives them."
@@ -1656,8 +1656,8 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += full(
             h(2, "Stability index Q per storey"),
             p(
-                "Storeys are nonsway where Q = ΣPu Δo / (Vus lc) ≤ 0.05 (BNBC 2020 Part 6 Sec "
-                "6.3.10.5.2, Eq. 6.6.17), at the combination with the largest Q."
+                "Storeys are nonsway where Q = ΣPu Δo / (Vus lc) ≤ 0.05"
+                f"{_c.paren('stabilityIndex')}, at the combination with the largest Q."
             ),
             table(
                 [
@@ -1682,7 +1682,7 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += full(
             h(2, "Slenderness"),
             p(
-                "Column slenderness per bending axis (BNBC 2020 Part 6 Sec 6.3.10): k lu / r "
+                f"Column slenderness per bending axis{_c.paren('slenderness')}: k lu / r "
                 "against the limit below which it may be neglected, the moment magnifiers δns "
                 "and δs, and the governing moment M2 before and after magnification [kN·m]."
             ),
@@ -1732,8 +1732,7 @@ def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         return None
     out: list[Block] = [
         p(
-            "Earthquake-resistant detailing to BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. "
-            "1088-1123). The detailing checks below count in each member's utilisation in Member "
+            f"Earthquake-resistant detailing{_c.after('seismicDetailing', ' to ')}. The detailing checks below count in each member's utilisation in Member "
             'design (their names start with "Detailing:").'
         ),
         pairs(sd["lines"], "45%"),
@@ -2035,7 +2034,8 @@ def _plumbing(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         return _unavailable(plb, "plumbing")
     out: list[Block] = [
         p(
-            "The plumbing of 7 MEP sized to BNBC 2020 Part 8 for its coordination with the "
+            f"The plumbing of 7 MEP sized{_c.after('plumbing', ' to ')} for its coordination "
+            "with the "
             "structure: the water demand and storage, the risers and stacks with their sleeves "
             "and shafts, the water tanks, septic tank and reservoir with their reinforced "
             "concrete design, and the water-supply hydraulics. The plumbing design itself is the "
@@ -2156,7 +2156,7 @@ def _hvac(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
     out: list[Block] = [
         p(
             "The air-conditioning and ventilation of 7 MEP for their coordination with the "
-            "structure (BNBC 2020 Part 8 Chapter 2): the cooling loads that size the plant, the "
+            f"structure{_c.paren('hvac')}: the cooling loads that size the plant, the "
             "plant's weights on the floors, the openings the ducts need through beams and slabs "
             "with their checks, and the shafts. The HVAC design itself is the services "
             "engineer's."
@@ -2196,8 +2196,7 @@ def _hvac(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
             p(
                 "Sizes [mm] (L x W x H), capacity (kW cooling, m³/s for fans and fresh-air "
                 "units), operating weight [kN] and how the analysis loads it (dead load SD, the "
-                "impact allowance of BNBC 2020 Part 6 Table 6.2.6 as live load for rotating "
-                "plant)."
+                f"impact allowance{_c.after('impact', ' of ')} as live load for rotating plant)."
             ),
             table(
                 ["Id", "Kind", "Story", "Size", "Capacity", "Weight", "In the analysis"],
@@ -2272,8 +2271,8 @@ def _electrical(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         return _unavailable(el, "electrical services")
     out: list[Block] = [
         p(
-            "The electrical services of 7 MEP for their coordination with the structure (BNBC "
-            "2020 Part 8 Chapter 1): the demand that sizes the substation and generator, their "
+            "The electrical services of 7 MEP for their coordination with the structure"
+            f"{_c.paren('electrical')}: the demand that sizes the substation and generator, their "
             "rooms, the equipment's weights on the floors, the rising mains and cable trays with "
             "the openings they need, and the lightning protection with the columns' reinforcement "
             "as down conductors and the foundations as the earth electrode. The electrical design "
@@ -2384,8 +2383,8 @@ def _fire(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         return _unavailable(fi, "fire protection")
     out: list[Block] = [
         p(
-            "The fire protection of 7 MEP for its coordination with the structure (BNBC 2020 "
-            "Part 4): which systems the building needs and why, the fire water and its "
+            "The fire protection of 7 MEP for its coordination with the structure"
+            f"{_c.paren('fire')}: which systems the building needs and why, the fire water and its "
             "reservoir, the fire pumps and their room, the fire tanks designed as the plumbing "
             "tanks and their weights, the hanger and riser-support loads and the sleeves through "
             "the slabs and beams. The fire protection design itself is the services engineer's; "

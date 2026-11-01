@@ -201,7 +201,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		name: 'search_code',
 		assistant: 'code',
 		title: 'Search the design code',
-		description: 'Searches the code pack in force (BNBC 2020 unless the project chooses another) and the SAEngine manual for passages that answer a question, each with the clauses, tables and pages it comes from. Answer code questions ONLY from these passages and cite their clauses; when "found" is false or no passage answers it, say the code pack does not cover it. Never quote a clause from memory.',
+		description: 'Searches the code pack in force (the default pack unless the project chooses another) and the SAEngine manual for passages that answer a question, each with the clauses, tables and pages it comes from. Answer code questions ONLY from these passages and cite their clauses; when "found" is false or no passage answers it, say the code pack does not cover it. Never quote a clause from memory.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -276,7 +276,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 				footing: { type: 'string', enum: ['isolated', 'mat', 'none'] },
 				concrete: { type: 'string', description: 'Concrete material id of 03 Materials, e.g. "C24.1".' },
 				rebar: { type: 'string', description: 'Rebar material id, e.g. "B420DWR".' },
-				location: { type: 'string', description: 'BNBC location id (a town, e.g. "dhaka").' },
+				location: { type: 'string', description: 'Location id of the code pack\'s location table (a town, e.g. "dhaka").' },
 				siteClass: { type: 'string', enum: ['SA', 'SB', 'SC', 'SD', 'SE'] },
 				occupancy: { type: 'string', description: 'Building use, e.g. "residential", "office".' },
 				occupancyCategory: { type: 'string', enum: ['I', 'II', 'III', 'IV'] },

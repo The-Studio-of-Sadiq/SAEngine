@@ -22,7 +22,7 @@ from saengine.drawings.sheets.model import (
 )
 
 BLINDING = 75.0  # mm of lean concrete under a footing, drawn
-COVER_UNDER = 75.0  # mm to the bars under a base cast against earth (BNBC Part 6 Sec 8.1.7.2)
+COVER_UNDER = 75.0  # mm to the bars under a base cast against earth (default pack: Sec 8.1.7.2)
 
 
 def _bars_label(mesh: Mesh | None, where: str) -> str:

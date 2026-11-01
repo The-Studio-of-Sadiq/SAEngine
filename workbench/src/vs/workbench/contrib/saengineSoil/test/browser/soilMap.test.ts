@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILatLon, ISoilLocationResult, ISoilReport, ISoilSite, newSoilReport } from '../../browser/soilDocument.js';
-import { applyPlotEdit, bnbcSuggestion, boreholePoints, boreholeXY, positionMismatch, syncPlacedXY, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
+import { applyPlotEdit, codeSiteSuggestion, boreholePoints, boreholeXY, positionMismatch, syncPlacedXY, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
 
 function report(extra: Partial<ISoilReport> = {}): ISoilReport {
 	return {
@@ -147,15 +147,15 @@ suite('SAEngine - Soil site map', () => {
 	test('suggests the nearest BNBC town until the settings use it', () => {
 		const dhaka = { town: 'Dhaka', distanceKm: 3.2, zone: 2, Z: 0.2, windSpeed: 65.7, windTown: 'Dhaka', windDistanceKm: 3.2, settingsLocation: 'dhaka' };
 		assert.deepStrictEqual([
-			bnbcSuggestion({ suggestion: dhaka }),
-			bnbcSuggestion({ suggestion: { ...dhaka, current: { location: 'chattogram', Z: 0.28, windSpeed: 80 }, differs: true } }),
-			bnbcSuggestion({ suggestion: { ...dhaka, current: { location: 'dhaka', Z: 0.2, windSpeed: 65.7 }, differs: false } }),
+			codeSiteSuggestion({ suggestion: dhaka }),
+			codeSiteSuggestion({ suggestion: { ...dhaka, current: { location: 'chattogram', Z: 0.28, windSpeed: 80 }, differs: true } }),
+			codeSiteSuggestion({ suggestion: { ...dhaka, current: { location: 'dhaka', Z: 0.2, windSpeed: 65.7 }, differs: false } }),
 			// The zone town is listed but the wind is a nearer other town's: the banner's wind is kept as the override, and the
 			// banner stays while the settings' values differ although their location is the zone town.
-			bnbcSuggestion({ suggestion: { town: 'Rajshahi', distanceKm: 20.1, zone: 1, Z: 0.12, windSpeed: 69.5, windTown: 'Ishurdi', windDistanceKm: 12.4, settingsLocation: 'rajshahi', current: { location: 'rajshahi', Z: 0.12, windSpeed: 72.1 }, differs: true } }),
-			bnbcSuggestion({ suggestion: { town: 'Gazipur', distanceKm: 0.64, zone: 2, Z: 0.2, windSpeed: 66.5, windTown: 'Tangail', windDistanceKm: 41.3, settingsLocation: null } }),
-			bnbcSuggestion({ suggestion: null }),
-			bnbcSuggestion(undefined),
+			codeSiteSuggestion({ suggestion: { town: 'Rajshahi', distanceKm: 20.1, zone: 1, Z: 0.12, windSpeed: 69.5, windTown: 'Ishurdi', windDistanceKm: 12.4, settingsLocation: 'rajshahi', current: { location: 'rajshahi', Z: 0.12, windSpeed: 72.1 }, differs: true } }),
+			codeSiteSuggestion({ suggestion: { town: 'Gazipur', distanceKm: 0.64, zone: 2, Z: 0.2, windSpeed: 66.5, windTown: 'Tangail', windDistanceKm: 41.3, settingsLocation: null } }),
+			codeSiteSuggestion({ suggestion: null }),
+			codeSiteSuggestion(undefined),
 		], [
 			{ location: 'dhaka', Z: 0.2, windSpeed: 65.7, text: 'Nearest town Dhaka, 3.2 km: seismic zone 2, wind 65.7 m/s' },
 			{ location: 'dhaka', Z: 0.2, windSpeed: 65.7, text: 'Nearest town Dhaka, 3.2 km: seismic zone 2, wind 65.7 m/s' },

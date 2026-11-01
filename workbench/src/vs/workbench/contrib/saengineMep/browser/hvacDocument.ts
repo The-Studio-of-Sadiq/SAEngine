@@ -12,6 +12,7 @@ import {
 	roofStory, statusOf, storyAbove, storyBetween, strings, worst,
 } from './mepRead.js';
 import { allIds } from './plumbingDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The HVAC section of the MEP part (`hvac` in `07 MEP/mep.json`), as the structural engineer
@@ -690,7 +691,7 @@ export function checkHvac(document: IMep, context: IMepContext, cities: readonly
 	}
 	const design = hvac.design;
 	if (design.city !== undefined && cities.length && !cities.some(c => c.key === design.city)) {
-		add('hvac.design.city', 'warning', localize('hvac.p.city', "'{0}' is not a station of BNBC Table 8.2.2; give the outdoor conditions yourself.", String(design.city)));
+		add('hvac.design.city', 'warning', localize('hvac.p.city', "'{0}' is not a station of {1} Table 8.2.2; give the outdoor conditions yourself.", String(design.city), defaultCodeName()));
 	}
 	for (const key of ['outdoorDB', 'outdoorWB', 'indoorDB'] as const) {
 		const v = design[key];
@@ -728,7 +729,7 @@ export function checkHvac(document: IMep, context: IMepContext, cities: readonly
 			add(path('story'), 'error', localize('hvac.p.rowTwice', "HVAC: story {0} is listed twice.", row.story));
 		}
 		if (row.use !== undefined && uses.length && !uses.some(u => u.key === row.use)) {
-			add(path('use'), 'warning', localize('hvac.p.use', "{0}: '{1}' is not a use of BNBC Table 8.2.3.", row.story, String(row.use)));
+			add(path('use'), 'warning', localize('hvac.p.use', "{0}: '{1}' is not a use of {2} Table 8.2.3.", row.story, String(row.use), defaultCodeName()));
 		}
 		if (row.occupants !== undefined && !(Number.isInteger(row.occupants) && row.occupants >= 0)) {
 			add(path('occupants'), 'error', localize('hvac.p.occupants', "{0}: the occupants must be a whole number, 0 or more.", row.story));

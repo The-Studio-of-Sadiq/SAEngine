@@ -19,6 +19,7 @@ import { PLANNED_CODE_PACK_EUROCODES, PLANNED_CODE_PACK_INDIA, PLANNED_CODE_PACK
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { CodePacksEditor, IInstallCodePackArgs, INewCodePackArgs, IShowPackagesArgs } from './codePacksEditor.js';
 import { CodePacksEditorInput, CodePacksEditorInputSerializer } from './codePacksEditorInput.js';
+import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 const category = localize2('saengine.category', "SAEngine");
 
@@ -93,11 +94,11 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_US,
 	part: 'settings',
 	title: localize('codePacks.planned.us', "Code Pack: ACI 318-19 + ASCE 7-22 (US)"),
-	summary: localize('codePacks.planned.usSummary', "A design-code pack for projects designed to the US codes: concrete design to ACI 318-19 with the loads and load combinations of ASCE 7-22, installed from the Packages page and chosen in Project Settings like BNBC 2020."),
+	summary: localize('codePacks.planned.usSummary', "A design-code pack for projects designed to the US codes: concrete design to ACI 318-19 with the loads and load combinations of ASCE 7-22, installed from the Packages page and chosen in Project Settings like {0}.", activeCodeName()),
 	steps: [
 		localize('codePacks.planned.us1', "Install the pack from the Packages page (a data package, signed and listed in the official index)."),
 		localize('codePacks.planned.us2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
-		localize('codePacks.planned.us3', "Loads, combinations and design checks read their factors and limits from the pack instead of BNBC 2020."),
+		localize('codePacks.planned.us3', "Loads, combinations and design checks read their factors and limits from the pack instead of {0}.", activeCodeName()),
 		localize('codePacks.planned.us4', "Reports cite the pack's sections; checks the pack does not cover stay marked as not covered."),
 	],
 	inputs: [
@@ -107,7 +108,7 @@ registerPlannedFeature({
 	],
 	outputs: [
 		localize('codePacks.planned.usOut1', "Coverage: concrete members (beams, columns, slabs, walls, footings), seismic detailing, wind, seismic and gravity loads, load combinations"),
-		localize('codePacks.planned.usOut2', "The same reports and drawings as BNBC 2020, citing ACI 318-19 and ASCE 7-22"),
+		localize('codePacks.planned.usOut2', "The same reports and drawings as {0}, citing ACI 318-19 and ASCE 7-22", activeCodeName()),
 	],
 	references: ['ACI 318-19 Building Code Requirements for Structural Concrete', 'ASCE/SEI 7-22 Minimum Design Loads and Associated Criteria for Buildings and Other Structures'],
 });
@@ -119,7 +120,7 @@ registerPlannedFeature({
 	summary: localize('codePacks.planned.eurocodesSummary', "The Eurocodes EN 1990 to EN 1998 as one base pack, and each country's National Annex as a small pack that extends it: the annex sets only the Nationally Determined Parameters and inherits everything else."),
 	steps: [
 		localize('codePacks.planned.eurocodes1', "Install the Eurocodes base pack (EN 1990 basis, EN 1991 actions, EN 1992 concrete, EN 1993 steel, EN 1997 geotechnics, EN 1998 seismic)."),
-		localize('codePacks.planned.eurocodes2', "Install the National Annex pack of the country; it names the base pack in `extends`, the same mechanism a BNBC office pack uses today."),
+		localize('codePacks.planned.eurocodes2', "Install the National Annex pack of the country; it names the base pack in `extends`, the same mechanism a {0} office pack uses today.", activeCodeName()),
 		localize('codePacks.planned.eurocodes3', "Choose the National Annex pack as the design code: its Nationally Determined Parameters override the base pack's recommended values, the rest comes from the base."),
 		localize('codePacks.planned.eurocodes4', "Without a National Annex the base pack's recommended values apply, and reports say so."),
 	],
@@ -143,7 +144,7 @@ registerPlannedFeature({
 	steps: [
 		localize('codePacks.planned.india1', "Install the pack from the Packages page."),
 		localize('codePacks.planned.india2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
-		localize('codePacks.planned.india3', "Loads, combinations, member design and detailing read the pack instead of BNBC 2020."),
+		localize('codePacks.planned.india3', "Loads, combinations, member design and detailing read the pack instead of {0}.", activeCodeName()),
 	],
 	inputs: [
 		{ label: localize('codePacks.planned.indiaZone', "Seismic zone"), example: 'III' },
@@ -152,7 +153,7 @@ registerPlannedFeature({
 	],
 	outputs: [
 		localize('codePacks.planned.indiaOut1', "Coverage: dead, live, wind and seismic loads, combinations, concrete and steel members, ductile detailing"),
-		localize('codePacks.planned.indiaOut2', "The same reports and drawings as BNBC 2020, citing the IS clauses"),
+		localize('codePacks.planned.indiaOut2', "The same reports and drawings as {0}, citing the IS clauses", activeCodeName()),
 	],
 	references: ['IS 456:2000 Plain and Reinforced Concrete', 'IS 1893 (Part 1):2016 Earthquake Resistant Design', 'IS 800:2007 General Construction in Steel', 'IS 875 (Parts 1–5) Design Loads', 'IS 13920:2016 Ductile Design and Detailing'],
 });

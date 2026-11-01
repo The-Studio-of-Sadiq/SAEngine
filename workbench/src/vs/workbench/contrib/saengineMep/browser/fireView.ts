@@ -10,6 +10,7 @@ import { formatNumber, IFieldSpec } from '../../saengineSoil/browser/soilDocumen
 import { IMepFormHost, ITEM_FIELDS, settingsGrid, storyRowIds, UNIT_KN, UNIT_MM } from './mepForm.js';
 import { storyFloorArea } from './mepRead.js';
 import { IOccupancy, ITank, plumbingOf } from './plumbingDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 import {
 	CEILINGS, CONSTRUCTIONS, CORRIDORS, ensureFire, FIRE_HAZARDS, FIRE_PUMP_DUTIES, FIRE_RISER_SYSTEMS, fireChoiceLabel, fireOf, firePumpLabel, firePumpLetters, fireRiserLabel, fireRiserLetters,
 	fireStatusLabel, fireStoryRow, FireRiserSystem, hazardLabel, HOSES, IFirePump, IFireReport, IFireRiser, PIPE_MATERIALS, PUMP_TYPES, STANDBYS, STORAGES,
@@ -66,7 +67,7 @@ export function renderFireData(view: HTMLElement, host: IMepFormHost, occupancie
 	const f = () => ensureFire(document);
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('fireView.dataTitle', "Fire protection set-up")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('fireView.dataSubtitle', "Each storey's use decides the systems BNBC 2020 Part 4 requires; the risers, pump sets and fire tanks carry their sleeves and weights into the structure. Sizes in mm, positions in m.")));
+	append(header, $('span.mep-view-subtitle', undefined, localize('fireView.dataSubtitle', "Each storey's use decides the systems {0} Part 4 requires; the risers, pump sets and fire tanks carry their sleeves and weights into the structure. Sizes in mm, positions in m.", defaultCodeName())));
 
 	// Building and supply.
 	const settings = host.section(localize('fireView.settings', "Building and water supply"), undefined);

@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatUtilisation, IFemDesignCheck, IFemDesignElement, IFemDesignReport } from './femDesign.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * Seismic detailing of reinforced-concrete moment frames (BNBC 2020 Part 6 Sec 8.3): what the
@@ -359,7 +360,7 @@ function jointTypeLabel(type: string | undefined): string | undefined {
 export function describeJointsSummary(report: IFemDesignReport | undefined): string {
 	const joints = jointsOf(report);
 	if (!joints.length) {
-		return localize('femDetailing.noJoints', "No beam-column joints are checked: the joint shear and strong-column/weak-beam checks apply to special moment frames (BNBC 2020 Part 6 Sec 8.3.5.2, 8.3.7).");
+		return localize('femDetailing.noJoints', "No beam-column joints are checked: the joint shear and strong-column/weak-beam checks apply to special moment frames ({0} Part 6 Sec 8.3.5.2, 8.3.7).", defaultCodeName());
 	}
 	const failed = joints.filter(j => !jointOk(j)).length;
 	let largest: { joint: IFemJoint; utilisation: number; check: FemJointGoverning | undefined } | undefined;

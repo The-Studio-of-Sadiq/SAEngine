@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
 import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The substructure document (`09 Substructure/substructure.json`, schema
@@ -2079,7 +2080,7 @@ function pileLayoutProblems(document: ISubstructure, pileTypes: ReadonlyMap<stri
 			if (distance < d - 1e-6) {
 				warning(`piles.${j}.position`, localize('sub.p.pilesOverlap', "{0} and {1} overlap: their centres are {2} mm apart, less than the diameter.", a.id, b.id, formatNumber(distance, 0)));
 			} else if (distance < need - 0.5) {
-				warning(`piles.${j}.position`, localize('sub.p.pilesClose', "{0} and {1} are {2} mm apart, less than {3} mm (2.5 diameters and 750 mm, BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30).", a.id, b.id, formatNumber(distance, 0), formatNumber(need, 0)));
+				warning(`piles.${j}.position`, localize('sub.p.pilesClose', "{0} and {1} are {2} mm apart, less than {3} mm (2.5 diameters and 750 mm, {4} Part 6 Secs 3.10.1.19 and 3.10.1.30).", a.id, b.id, formatNumber(distance, 0), formatNumber(need, 0), defaultCodeName()));
 			}
 		}
 	}
@@ -2120,19 +2121,19 @@ function pileProblems(f: IFoundation, pile: IPileType, piles: readonly Point[], 
 	if (spacing !== undefined) {
 		const endBearing = Math.max(750, 2.5 * d);
 		if (pile.kind === 'driven' && spacing <= endBearing) {
-			warning(at('piles'), localize('sub.p.spacingDriven', "{0}: driven piles {1} mm apart; BNBC 2020 Part 6 Sec 3.10.1.30 asks end-bearing driven piles to be more than {2} mm apart (the greater of 750 mm and 2.5 diameters), friction piles generally 3 diameters ({3} mm).", f.id, formatNumber(spacing, 0), formatNumber(endBearing, 0), formatNumber(3 * d, 0)));
+			warning(at('piles'), localize('sub.p.spacingDriven', "{0}: driven piles {1} mm apart; {4} Part 6 Sec 3.10.1.30 asks end-bearing driven piles to be more than {2} mm apart (the greater of 750 mm and 2.5 diameters), friction piles generally 3 diameters ({3} mm).", f.id, formatNumber(spacing, 0), formatNumber(endBearing, 0), formatNumber(3 * d, 0), defaultCodeName()));
 		} else if (spacing < 3 * d - 1) {
 			warning(at('piles'), pile.kind === 'driven'
-				? localize('sub.p.spacingFriction', "{0}: driven piles {1} mm apart; BNBC 2020 Part 6 Sec 3.10.1.30 generally asks friction piles to be at least 3 diameters ({2} mm) apart.", f.id, formatNumber(spacing, 0), formatNumber(3 * d, 0))
-				: localize('sub.p.spacingBored', "{0}: bored piles {1} mm apart, less than 3 diameters ({2} mm), the spacing BNBC 2020 Part 6 Sec 3.10.1.30 generally asks for driven friction piles; check that their zones of support do not overlap.", f.id, formatNumber(spacing, 0), formatNumber(3 * d, 0)));
+				? localize('sub.p.spacingFriction', "{0}: driven piles {1} mm apart; {3} Part 6 Sec 3.10.1.30 generally asks friction piles to be at least 3 diameters ({2} mm) apart.", f.id, formatNumber(spacing, 0), formatNumber(3 * d, 0), defaultCodeName())
+				: localize('sub.p.spacingBored', "{0}: bored piles {1} mm apart, less than 3 diameters ({2} mm), the spacing {3} Part 6 Sec 3.10.1.30 generally asks for driven friction piles; check that their zones of support do not overlap.", f.id, formatNumber(spacing, 0), formatNumber(3 * d, 0), defaultCodeName()));
 		}
 	}
 	if (length > 0 && width > 0) {
 		const edge = Math.min(...piles.map(([x, y]) => Math.min(length / 2 - Math.abs(x), width / 2 - Math.abs(y)))) - d / 2;
 		if (edge < 100 - 0.5) {
 			warning(at('length'), pile.kind === 'driven'
-				? localize('sub.p.edge', "{0}: a pile's side is {1} mm from the cap's edge; BNBC 2020 Part 6 Sec 3.10.1.30 asks for at least 100 mm.", f.id, formatNumber(edge, 0))
-				: localize('sub.p.edgeBored', "{0}: a pile's side is {1} mm from the cap's edge, less than the 100 mm BNBC 2020 Part 6 Sec 3.10.1.30 asks for driven piles.", f.id, formatNumber(edge, 0)));
+				? localize('sub.p.edge', "{0}: a pile's side is {1} mm from the cap's edge; {2} Part 6 Sec 3.10.1.30 asks for at least 100 mm.", f.id, formatNumber(edge, 0), defaultCodeName())
+				: localize('sub.p.edgeBored', "{0}: a pile's side is {1} mm from the cap's edge, less than the 100 mm {2} Part 6 Sec 3.10.1.30 asks for driven piles.", f.id, formatNumber(edge, 0), defaultCodeName()));
 		}
 	}
 }

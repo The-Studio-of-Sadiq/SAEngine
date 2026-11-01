@@ -26,6 +26,7 @@ import { registerPlannedFeature } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /** Opens the substructure editor and sizes all foundations (the sizing assistant). */
 export const SUBSTRUCTURE_SIZE_ALL_COMMAND = 'saengine.substructure.sizeAll';
@@ -178,7 +179,7 @@ registerPlannedFeature({
 	],
 	references: [
 		'Broms (1964), Lateral resistance of piles in cohesive / cohesionless soils, ASCE JSMFD',
-		'BNBC 2020 Part 6 Chapter 3 (deep foundations)',
+		`${defaultCodeName()} Part 6 Chapter 3 (deep foundations)`,
 	],
 });
 
@@ -225,7 +226,7 @@ registerPlannedFeature({
 	],
 	outputs: [
 		localize('planned.piledRaft.o1', "Pile loads and the raft's contact pressure"),
-		localize('planned.piledRaft.o2', "Settlement and differential settlement against BNBC Table 6.3.8"),
+		localize('planned.piledRaft.o2', "Settlement and differential settlement against {0} Table 6.3.8", defaultCodeName()),
 		localize('planned.piledRaft.o3', "Raft moments and pile design forces"),
 	],
 	references: [
@@ -254,7 +255,7 @@ registerPlannedFeature({
 	],
 	references: [
 		'Poulos & Davis (1980), Pile Foundation Analysis and Design',
-		'Default code pack, BNBC 2020 Part 6 Sec 3.10.5 (single pile, group ratio and equivalent raft, checked now; no interaction factors)',
+		`Default code pack, ${defaultCodeName()} Part 6 Sec 3.10.5 (single pile, group ratio and equivalent raft, checked now; no interaction factors)`,
 	],
 });
 
@@ -285,7 +286,7 @@ registerPlannedFeature({
 		localize('planned.pileWall.o3', "Pile and capping beam reinforcement, wall layout drawing"),
 	],
 	references: [
-		'BNBC 2020 Part 6 Chapter 3 (earth retaining structures, excavation)',
+		`${defaultCodeName()} Part 6 Chapter 3 (earth retaining structures, excavation)`,
 		'CIRIA C580 (embedded retaining walls)',
 		'EAB, Recommendations on Excavations',
 	],
@@ -312,7 +313,7 @@ registerPlannedFeature({
 	],
 	references: [
 		'Blum (1931), free and fixed earth support of sheet pile walls',
-		'BNBC 2020 Part 6 Chapter 3 (excavation)',
+		`${defaultCodeName()} Part 6 Chapter 3 (excavation)`,
 	],
 });
 
@@ -339,6 +340,6 @@ registerPlannedFeature({
 	references: [
 		'Terzaghi & Peck apparent earth pressure diagrams',
 		'FHWA GEC No. 4 (ground anchors and anchored systems)',
-		'BNBC 2020 Part 6 Chapter 3 (excavation)',
+		`${defaultCodeName()} Part 6 Chapter 3 (excavation)`,
 	],
 });

@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "description": "The clause references the documents print: the calculation report, its worksheets, the\ndrawings and the bill of quantities (``clauses``, without the code's name; read by\n:mod:`saengine.codes.citations`). A key the pack does not give is not cited.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "title": "CitationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.citations/1"
+}

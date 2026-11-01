@@ -38,7 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
-import { BNBC } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import {
@@ -56,9 +56,10 @@ import { LabTest } from './soilLabTests.js';
 import { SoilLabPanel } from './soilLabPanel.js';
 import { appendSoilPatterns, appendSoilSwatch, renderBoreholeLog, renderFence, renderLiquefactionChart } from './soilLog.js';
 import { IStrataViewState, renderStrataView } from './soilStrata.js';
-import { applyPlotEdit, boreholeXY, formatDistance, IBnbcSuggestion, positionMismatch, syncPlacedXY, tileSource } from './soilMap.js';
+import { applyPlotEdit, boreholeXY, formatDistance, ICodeSiteSuggestion, positionMismatch, syncPlacedXY, tileSource } from './soilMap.js';
 import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
 import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
+import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 type View = SoilView;
 
@@ -263,7 +264,7 @@ export class SoilEditor extends EditorPane {
 		}));
 		frame.element.classList.add('saengine-soil-editor');
 		frame.setTitle(localize('soil.title', "Soil Report"));
-		frame.setHelp(localize('soil.help', "The boreholes of the site investigation: strata, SPT blow counts and lab test results, entered here or imported from a CSV or Excel file. From them SAEngine finds the site class (BNBC 2020), the allowable bearing pressure for a range of footing sizes, the liquefaction screening from SPT, the modulus of subgrade reaction and the pile design parameters per layer for the substructure. Depths are in m below the borehole's ground."));
+		frame.setHelp(localize('soil.help', "The boreholes of the site investigation: strata, SPT blow counts and lab test results, entered here or imported from a CSV or Excel file. From them SAEngine finds the site class ({0}), the allowable bearing pressure for a range of footing sizes, the liquefaction screening from SPT, the modulus of subgrade reaction and the pile design parameters per layer for the substructure. Depths are in m below the borehole's ground.", activeCodeName()));
 
 		const views = append(frame.controlsSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('soil.viewsAria', "Soil report view") }));
 		for (const { view, label, icon } of VIEWS) {
@@ -322,7 +323,7 @@ export class SoilEditor extends EditorPane {
 				this.inputDisposables.add(settings.object.textEditorModel.onDidChangeContent(() => {
 					this.computeScheduler.schedule();
 					if (this.view === 'map') {
-						this.locationScheduler.schedule(); // the BNBC suggestion follows the settings
+						this.locationScheduler.schedule(); // the code pack's site suggestion follows the settings
 					}
 				}));
 			} catch {
@@ -1912,13 +1913,13 @@ export class SoilEditor extends EditorPane {
 
 	/** The site class, its averages per borehole and the S1 / S2 warnings; returns the warnings shown. */
 	private renderSiteClass(view: HTMLElement, report: ISoilReport, results: ISoilResults): readonly ISiteClassFlag[] {
-		const section = this.resultSection(view, localize('soil.siteClass', "Site class"), localize('soil.siteClassDetail', "BNBC 2020 Table 6.2.13, harmonic mean SPT N or undrained strength of the top 30 m"));
+		const section = this.resultSection(view, localize('soil.siteClass', "Site class"), localize('soil.siteClassDetail', "{0} Table 6.2.13, harmonic mean SPT N or undrained strength of the top 30 m", defaultCodeName()));
 		const governing = results.siteClass;
 		if (governing) {
 			const tile = append(section, $('.soil-tile'));
 			append(tile, $('span.soil-tile-value', undefined, governing.class));
 			const text = append(tile, $('.soil-tile-text'));
-			const name = BNBC.siteClasses[governing.class] ?? localize('soil.siteClassNamed', "Site class {0}", governing.class);
+			const name = DEFAULT_CODE_TABLES.siteClasses[governing.class] ?? localize('soil.siteClassNamed', "Site class {0}", governing.class);
 			append(text, $('span.soil-tile-title', undefined, governing.provisional ? localize('soil.siteClassProvisionalTitle', "{0} (provisional: no borehole of this class reaches 30 m)", name) : name));
 			append(text, $('span.soil-tile-detail', undefined, this.averageText(governing.nBar, governing.suBar, governing.depth, governing.borehole)));
 			if (governing.note) {
@@ -1977,7 +1978,7 @@ export class SoilEditor extends EditorPane {
 			[localize('soil.immediate', "Immediate"), mm], [localize('soil.consolidation', "Consolidation"), mm], [localize('soil.total', "Total"), mm],
 		];
 		if (anyPermissible) {
-			headers.push([localize('soil.permissible', "Permissible (BNBC Table 6.3.8)"), mm]);
+			headers.push([localize('soil.permissible', "Permissible ({0} Table 6.3.8)", defaultCodeName()), mm]);
 		}
 		const dash = (value: number | undefined, decimals: number) => typeof value === 'number' ? formatNumber(value, decimals) : '—';
 		const table = this.simpleTable(section, headers, rows.map(b => {
@@ -2628,7 +2629,7 @@ export class SoilEditor extends EditorPane {
 				this.changed(true);
 			},
 			select: index => this.select(index),
-			applyBnbc: suggestion => this.applyBnbc(suggestion),
+			applyCodeSite: suggestion => this.applyCodeSite(suggestion),
 			exportGis: format => void this.exportGis(format),
 			importGis: () => void this.importGis(),
 			openInQgis: () => void this.openInQgis(),
@@ -2857,7 +2858,7 @@ export class SoilEditor extends EditorPane {
 	 * location when the settings list it, else Custom with its Z and V; the overrides of a listed
 	 * location are removed, except the wind speed when a nearer other town gives it. One undoable edit of the settings file, its formatting kept.
 	 */
-	applyBnbc(suggestion: IBnbcSuggestion): void {
+	applyCodeSite(suggestion: ICodeSiteSuggestion): void {
 		const model = this.settings.value?.object.textEditorModel;
 		if (!model || model.isDisposed()) {
 			this.notificationService.info(localize('soil.map.noSettings', "The project settings could not be opened."));
@@ -2879,7 +2880,7 @@ export class SoilEditor extends EditorPane {
 			}), () => null);
 		}
 		model.pushStackElement();
-		const name = suggestion.location ? BNBC.locations[suggestion.location]?.name ?? suggestion.location : localize('soil.map.custom', "Custom");
+		const name = suggestion.location ? DEFAULT_CODE_TABLES.locations[suggestion.location]?.name ?? suggestion.location : localize('soil.map.custom', "Custom");
 		this.notificationService.info(localize('soil.map.applied', "The project settings now use {0} for the seismic zone and the basic wind speed. Save the settings to keep it.", name));
 	}
 

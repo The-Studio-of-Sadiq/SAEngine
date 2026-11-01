@@ -20,7 +20,7 @@ Measurement rules (stated in the document's notes too):
   wall/column joints); special-structure members run node to node;
 - reinforcement: the bars of every element the drawings detail are its detailed bars, those of
   the bar bending schedule (:mod:`saengine.boq.schedule`: number × cutting length per bar mark,
-  with the BNBC 2020 laps, hooks, cut-off bars and stirrup zones), so the bill and the schedule
+  with the code's laps, hooks, cut-off bars and stirrup zones), so the bill and the schedule
   agree per bar size. The estimating rules below measure only the elements the drawings do not
   detail (and all of them when the bars cannot be detailed): longitudinal bars run the member's
   full length (beams centreline to centreline, into the columns) with a lap of 40 bar diameters
@@ -103,7 +103,7 @@ Group = Literal[
 Unit = Literal["m3", "m2", "kg", "nr", "m", "cft", "bag", "l"]
 
 #: The materials take-off of the concrete and the masonry's mortar (estimating practice in
-#: Bangladesh and South Asia, not BNBC values): the dry volume of a nominal mix's ingredients
+#: Bangladesh and South Asia, not code values): the dry volume of a nominal mix's ingredients
 #: per m³ of wet concrete or mortar, the wet mortar in a m³ of brickwork, the loose bulk
 #: densities that turn cement into kg and a design mix's sand and stone into volumes, the bag.
 DRY_VOLUME_CONCRETE = 1.54
@@ -118,7 +118,7 @@ CFT = 35.3147  # cubic feet per m³
 #: The nominal mix assumed for a concrete with no mix in 03 Materials (cement : sand : stone by
 #: volume), by f'c [MPa]: the nominal mixes of IS 456:2000 Table 9 (M10 1:3:6, M15 1:2:4, M20
 #: 1:1.5:3), the richest one above M20, where a design mix is the practice. Estimating practice,
-#: not BNBC values: enter the mix in 03 Materials to replace it.
+#: not code values: enter the mix in 03 Materials to replace it.
 ASSUMED_MIXES: tuple[tuple[float, tuple[float, float, float]], ...] = (
     (12.0, (1.0, 3.0, 6.0)),
     (17.0, (1.0, 2.0, 4.0)),
@@ -158,7 +158,7 @@ MATERIALS_CONVENTIONS = [
         f"mortar per m³. Cement weighs {CEMENT_DENSITY:g} kg/m³ loose. A design mix gives kg per "
         f"m³; its sand and stone are turned into volumes at {SAND_DENSITY:g} and "
         f"{STONE_DENSITY:g} kg/m³ loose. Water from the water/cement ratio. These are estimating "
-        "practice values, not BNBC values; no wastage is added. The bags are shown rounded up "
+        "practice values, not code values; no wastage is added. The bags are shown rounded up "
         "(a part bag is bought whole); the bill keeps the exact number."
     ),
 ]
@@ -243,8 +243,8 @@ CONVENTIONS = [
     ),
     (
         "Reinforcement is measured from the detailed bars of the drawings for every element they "
-        "detail: the bar bending schedule's number × cutting length per bar mark, with the BNBC "
-        "2020 laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so "
+        "detail: the bar bending schedule's number × cutting length per bar mark, with the code's "
+        "laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so "
         "the bill and the schedule agree per bar size. Elements the drawings do not detail (see "
         "below) are measured by estimating rules: longitudinal bars over the member's full length "
         "(beams centreline to centreline) with a lap of 40 bar diameters at every joint between "

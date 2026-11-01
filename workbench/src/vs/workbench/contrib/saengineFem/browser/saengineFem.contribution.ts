@@ -33,6 +33,7 @@ import { FemStrutAndTieInput, FemStrutAndTieInputSerializer } from './femStrutAn
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
 import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
 import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, IFemResultsEditorOptions, memberNames } from './femResultsView.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -394,7 +395,7 @@ registerPlannedFeature({
 		localize('planned.assessment.out2', "An assessment report"),
 	],
 	references: [
-		localize('planned.assessment.ref1', "BNBC 2020 Part 6 Chapter 6, and Chapter 8 Sec 8.3 (pp. 1088-1122), for new members"),
+		localize('planned.assessment.ref1', "{0} Part 6 Chapter 6, and Chapter 8 Sec 8.3 (pp. 1088-1122), for new members", defaultCodeName()),
 		localize('planned.assessment.ref2', "ASCE/SEI 41-17 Ch 3, 6 and 10 (evaluation, data collection and knowledge factor, concrete)"),
 	],
 });
@@ -604,7 +605,7 @@ registerPlannedFeature({
 		localize('planned.floorVibration.out3', "A floor vibration section in the design report"),
 	],
 	references: [
-		localize('planned.floorVibration.ref1', "BNBC 2020 Part 6 (no floor vibration method)"),
+		localize('planned.floorVibration.ref1', "{0} Part 6 (no floor vibration method)", defaultCodeName()),
 		localize('planned.floorVibration.ref2', "AISC Design Guide 11 (floor vibrations due to human activity)"),
 		localize('planned.floorVibration.ref3', "CCIP-016 (design of floors for vibration)"),
 	],
@@ -658,7 +659,7 @@ registerPlannedFeature({
 		localize('planned.endPlateMoment.out2', "An end-plate detail on the steel drawings"),
 	],
 	references: [
-		localize('planned.endPlateMoment.ref1', "BNBC 2020 Part 6 Sec 10.10 (bolts and welds; no yield-line method)"),
+		localize('planned.endPlateMoment.ref1', "{0} Part 6 Sec 10.10 (bolts and welds; no yield-line method)", defaultCodeName()),
 		localize('planned.endPlateMoment.ref2', "AISC Design Guide 4 and 16 (end-plate moment connections)"),
 		localize('planned.endPlateMoment.ref3', "AISC 358 (prequalified connections)"),
 	],
@@ -688,7 +689,7 @@ registerPlannedFeature({
 		localize('planned.coldFormed.out2', "A purlin and girt schedule"),
 	],
 	references: [
-		localize('planned.coldFormed.ref1', "BNBC 2020 Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions)"),
+		localize('planned.coldFormed.ref1', "{0} Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions)", defaultCodeName()),
 		localize('planned.coldFormed.ref2', "AISI S100 (North American specification for cold-formed steel structural members)"),
 	],
 });

@@ -23,6 +23,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from saengine.codes.citations import after as cite_after
+from saengine.codes.citations import ref as cite
 from saengine.drawings.sheets.layout import TitleInfo
 from saengine.drawings.sheets.model import (
     BeamBar,
@@ -968,7 +970,8 @@ def stair_detail(e: dict[str, Any], t: Any, levels: dict[str, Level]) -> StairDe
 
 
 def lap_table(dias: list[float], fy: float, fc: float) -> Table:
-    """Development and lap lengths per bar size (BNBC 2020 Part 6 Sec 8.2, by the detailing
+    """Development and lap lengths per bar size (the code pack's; BNBC 2020 Part 6 Sec 8.2 in the
+    default pack; by the detailing
     rules of :mod:`saengine.drawings.detailing`)."""
     from saengine.drawings import detailing as dt
 
@@ -1001,7 +1004,7 @@ def lap_table(dias: list[float], fy: float, fc: float) -> Table:
         f"Development and lap lengths (f'c {fc:g} MPa, fy {fy:g} MPa)",
         columns,
         rows,
-        notes=["BNBC 2020 Part 6 Sec 8.2.3.2, 8.2.4, 8.2.6, 8.2.13.1, 8.2.14.1 (detailing model)"],
+        notes=[f"{cite('drawLaps') or 'The code'} (detailing model)"],
     )
 
 
@@ -1294,7 +1297,7 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
             "from the drawings; work to the figured dimensions."
         ),
         (
-            "Design and detailing to BNBC 2020 (Part 6 Chapters 6 and 8). Read these drawings "
+            f"Design and detailing{cite_after('drawBasis', ' to ')}. Read these drawings "
             "with the design report and the architectural drawings."
         ),
     ]

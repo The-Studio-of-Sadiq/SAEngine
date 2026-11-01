@@ -30,7 +30,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { BNBC, MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { DEFAULT_CODE_TABLES, MATERIALS_SCHEMA, OBJECTS_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { keepMaterialDefaults, projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
@@ -40,6 +40,7 @@ import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 import { parseSection, SECTIONS_FOLDER } from './sectionDesignerModel.js';
 import { modifiersView, objectTypeTarget, pruneForKind, readCodeStiffness, resetObjectTypeGroup, setObjectTypeField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 interface IVariant {
 	/** Value of the item's discriminator field (material category, object kind). */
@@ -109,7 +110,7 @@ const KIND_HELP: { readonly [kind: string]: string } = {
 /** Ec = 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1) and fr = 0.62 √f'c (Eq. 6.6.3), rounded as the defaults are. */
 export function concreteFromFc(fc: number): { readonly E: number; readonly fr: number } {
 	const root = Math.sqrt(fc);
-	return { E: Math.round(BNBC.concrete.ec * root / 10) * 10, fr: Math.round(BNBC.concrete.fr * root * 100) / 100 };
+	return { E: Math.round(DEFAULT_CODE_TABLES.concrete.ec * root / 10) * 10, fr: Math.round(DEFAULT_CODE_TABLES.concrete.fr * root * 100) / 100 };
 }
 
 /** Whether `value` is the code relation of `fc` (within rounding): it then follows f'c. */
@@ -466,10 +467,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 		}
 		const derived = concreteFromFc(fc);
 		if (path === 'mechanical.E') {
-			return localize('library.ePlaceholder', "{0} (4700 √f'c, BNBC Sec 6.1.7.1)", derived.E);
+			return localize('library.ePlaceholder', "{0} (4700 √f'c, {1} Sec 6.1.7.1)", derived.E, defaultCodeName());
 		}
 		if (path === 'concrete.ft') {
-			return localize('library.frPlaceholder', "{0} (0.62 √f'c, BNBC Eq. 6.6.3)", derived.fr);
+			return localize('library.frPlaceholder', "{0} (0.62 √f'c, {1} Eq. 6.6.3)", derived.fr, defaultCodeName());
 		}
 		return undefined;
 	}
@@ -485,10 +486,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const derived = concreteFromFc(fc);
 		const mechanical = isObject(item.mechanical) ? item.mechanical : {};
 		if (path === 'mechanical.E' && typeof mechanical.E === 'number' && follows(mechanical.E, derived.E)) {
-			return localize('library.eFollows', "Code value 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1): follows f'c until you type another, e.g. from tests.");
+			return localize('library.eFollows', "Code value 4700 √f'c ({0} Part 6 Sec 6.1.7.1): follows f'c until you type another, e.g. from tests.", defaultCodeName());
 		}
 		if (path === 'concrete.ft' && typeof concrete!.ft === 'number' && follows(concrete!.ft, derived.fr)) {
-			return localize('library.frFollows', "Code value 0.62 √f'c (BNBC 2020 Part 6 Eq. 6.6.3): follows f'c until you type another.");
+			return localize('library.frFollows', "Code value 0.62 √f'c ({0} Part 6 Eq. 6.6.3): follows f'c until you type another.", defaultCodeName());
 		}
 		return undefined;
 	}
@@ -976,7 +977,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const control = append(row, $('.form-control', { 'aria-live': 'polite' }));
 		append(control, $('span', undefined, `${(rho * 100).toFixed(2)} %`));
 		const warning = rho < COLUMN_RHO_MIN
-			? localize('library.rhoLow', "Below the 1 % minimum of a column (ACI 318 10.6.1.1, as BNBC 2020 Part 6 Chapter 6): add bars or use larger ones.")
+			? localize('library.rhoLow', "Below the 1 % minimum of a column (ACI 318 10.6.1.1, as {0} Part 6 Chapter 6): add bars or use larger ones.", defaultCodeName())
 			: rho > COLUMN_RHO_PRACTICAL
 				? localize('library.rhoHigh', "Above 4 %: the lapped bars crowd the section (ACI 318 R10.6.1.1); a larger column is usually better.")
 				: undefined;

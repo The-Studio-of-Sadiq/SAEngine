@@ -49,6 +49,7 @@ import {
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { HEAT_STEPS, IPlanDrawing, renderPlan, renderRaftHeatMap } from './substructurePlan.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 type View = 'plan' | 'data' | 'results';
 
@@ -122,8 +123,8 @@ const F = {
 	downdragDepth: { key: 'downdragDepth', label: localize('sub.f.downdragDepth', "Settling soil to"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.downdragDepthTitle', "Depth below the ground down to which the soil settles round the piles. Empty: the fill, organic and soft layers of the soil report from the top.") },
 	swellingDepth: { key: 'swellingDepth', label: localize('sub.f.swellingDepth', "Swelling zone to"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.swellingDepthTitle', "Depth below the ground of the zone of seasonal moisture change in expansive soil. Empty: the layers whose samples the soil report finds expansive.") },
 	level: { key: 'level', label: localize('sub.f.level', "Level"), unit: M, kind: 'length', title: localize('sub.f.levelTitle', "Top of the tie beam; the foundations' top when empty"), width: 72 },
-	pileCompression: { key: 'pileCompression', label: localize('sub.f.fsCompression', "FS pile compression"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsCompressionTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control. Sec 3.10.1.18 (bored piles: Sec 3.10.4.10) asks at least 3.0 unless the design rests on a load test at the site (then 2.0): the design raises a smaller value.") },
-	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control") },
+	pileCompression: { key: 'pileCompression', label: localize('sub.f.fsCompression', "FS pile compression"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsCompressionTitle', "{0} Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control. Sec 3.10.1.18 (bored piles: Sec 3.10.4.10) asks at least 3.0 unless the design rests on a load test at the site (then 2.0): the design raises a smaller value.", defaultCodeName()) },
+	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "{0} Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control", defaultCodeName()) },
 	bearing: { key: 'bearing', label: localize('sub.f.fsBearing', "FS bearing"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsBearingTitle', "Factor of safety on the bearing capacity of footings and rafts; the soil report's when empty") },
 	raftMeshSize: { key: 'raftMeshSize', label: localize('sub.f.raftMesh', "Raft mesh size"), unit: MM, kind: 'number', min: 100, max: 5000 },
 	slopeDistance: { key: 'slopeDistance', label: localize('sub.f.slopeDistance', "Distance to a slope face"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.slopeDistanceTitle', "A footing on or near a slope: horizontal distance from its centre to the sloping surface at its base level, checked against the code pack's least multiple of its width. Empty: level ground.") },
@@ -141,7 +142,7 @@ const F = {
 	pileY: { key: 'y', label: 'Y', unit: M, kind: 'length', required: true, title: localize('sub.f.pileYTitle', "Plan position of the pile's centre") },
 	originX: { key: 'originX', label: localize('sub.f.originX', "Origin X"), unit: M, kind: 'length', title: localize('sub.f.originTitle', "Plan position of the pile grid's origin (its first lines' crossing)") },
 	originY: { key: 'originY', label: localize('sub.f.originY', "Origin Y"), unit: M, kind: 'length', title: localize('sub.f.originTitle', "Plan position of the pile grid's origin (its first lines' crossing)") },
-	spacingFactor: { key: 'spacingFactor', label: localize('sub.f.spacingFactor', "Spacing k"), unit: '× D', kind: 'number', min: MIN_SPACING_FACTOR, max: 10, title: localize('sub.f.spacingFactorTitle', "Pile group spacing s = k · D centre to centre; BNBC 2020 Part 6 Secs 3.10.1.19 and 3.10.1.30: at least 2.5 D and 750 mm, 3 D for friction piles") },
+	spacingFactor: { key: 'spacingFactor', label: localize('sub.f.spacingFactor', "Spacing k"), unit: '× D', kind: 'number', min: MIN_SPACING_FACTOR, max: 10, title: localize('sub.f.spacingFactorTitle', "Pile group spacing s = k · D centre to centre; {0} Part 6 Secs 3.10.1.19 and 3.10.1.30: at least 2.5 D and 750 mm, 3 D for friction piles", defaultCodeName()) },
 } satisfies { [key: string]: IFieldSpec };
 
 /**
@@ -3205,7 +3206,7 @@ export class SubstructureEditor extends EditorPane {
 	private pileBarsInput(pile: IPileType, key: string): HTMLInputElement {
 		const input = $<HTMLInputElement>('input.sub-input', { type: 'text', spellcheck: 'false', 'aria-label': localize('sub.f.pileBars', "Bars"), placeholder: localize('sub.plain', "plain") });
 		input.value = formatPileBars(pile.reinforcement);
-		input.title = localize('sub.pileBarsTitle', "Bars round the perimeter, count Ø diameter (e.g. 8Ø16); BNBC 2020 Part 6 Table 6.3.11 gives the least for a bored pile. Empty: plain concrete.");
+		input.title = localize('sub.pileBarsTitle', "Bars round the perimeter, count Ø diameter (e.g. 8Ø16); {0} Part 6 Table 6.3.11 gives the least for a bored pile. Empty: plain concrete.", defaultCodeName());
 		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
 			const parsed = parsePileBars(input.value);
 			this.markInvalid(input, parsed.error);
@@ -3835,7 +3836,7 @@ export class SubstructureEditor extends EditorPane {
 				applyPileLayout(document, this.context, foundation, pile, Number(value), this.spacingFactor);
 				this.changed(true);
 			}, path('piles'), localize('sub.f.layout', "Layout"), true);
-			this.propertyRow(panel, localize('sub.f.relayout', "Lay out again"), layoutSelect, undefined, localize('sub.layoutTitleK', "Replaces its piles by a standard group at k diameters centre to centre (k of the pile tools, at least 2.5: BNBC 2020 Part 6 Secs 3.10.1.19, 3.10.1.30), centred on its columns, and fits the cap 150 mm beyond the piles"));
+			this.propertyRow(panel, localize('sub.f.relayout', "Lay out again"), layoutSelect, undefined, localize('sub.layoutTitleK', "Replaces its piles by a standard group at k diameters centre to centre (k of the pile tools, at least 2.5: {0} Part 6 Secs 3.10.1.19, 3.10.1.30), centred on its columns, and fits the cap 150 mm beyond the piles", defaultCodeName()));
 			appendPropertyRow(panel, localize('sub.f.piles', "Piles"), count ? `${count} · ${(foundation.piles ?? []).join(', ')}` : '0');
 			const center = foundation.center;
 			const columns = this.context.columns.filter(c => foundation.columns?.includes(c.id));
@@ -4009,7 +4010,7 @@ export class SubstructureEditor extends EditorPane {
 		place.label = columns.length > 1 ? localize('sub.placeGroups', "Place a Group under Each") : localize('sub.placeGroup', "Place Pile Group");
 		place.element.classList.add('sub-prop-button');
 		this.propertiesDisposables.add(place.onDidClick(() => this.placeGroups()));
-		appendPropertyNote(panel, localize('sub.groupNote', "Standard groups of 2 to 6 piles at k · D centre to centre (BNBC 2020 Part 6: at least 2.5 D and 750 mm), centred under the column and turned with the pile grid. Then select the piles and the column and Make Pile Cap; the cap need not be centred on the column."));
+		appendPropertyNote(panel, localize('sub.groupNote', "Standard groups of 2 to 6 piles at k · D centre to centre ({0} Part 6: at least 2.5 D and 750 mm), centred under the column and turned with the pile grid. Then select the piles and the column and Make Pile Cap; the cap need not be centred on the column.", defaultCodeName()));
 	}
 
 	/** The pile tools' settings: the pile type placed, the group's pile count and the spacing factor k. */
@@ -4194,7 +4195,7 @@ export class SubstructureEditor extends EditorPane {
 			}
 			this.changed(true);
 		}, 'design.factorOfSafety.pileLoadTest', loadTestLabel), undefined,
-			localize('sub.loadTestTitle', "BNBC 2020 Part 6 Sec 3.10.1.18 (bored piles: Sec 3.10.4.10): the overall factor of safety in compression is at least 3.0 unless the design rests on a load test at the site with good quality control, then at least 2.0."));
+			localize('sub.loadTestTitle', "{0} Part 6 Sec 3.10.1.18 (bored piles: Sec 3.10.4.10): the overall factor of safety in compression is at least 3.0 unless the design rests on a load test at the site with good quality control, then at least 2.0.", defaultCodeName()));
 		const usedValue = $('span');
 		appendPropertyRow(panel, localize('sub.fsUsed', "FS used (compression / uplift)"), usedValue);
 		const usedNote = appendPropertyNote(panel, '');
@@ -4202,7 +4203,7 @@ export class SubstructureEditor extends EditorPane {
 			const used = pileFactorsUsed(design);
 			usedValue.textContent = `${formatNumber(used.compression, 1)} / ${formatNumber(used.uplift, 1)}`;
 			usedNote.textContent = used.raised === 'loadTest'
-				? localize('sub.fsRaisedLoadTest', "Compression FS raised from {0} to {1}: BNBC 2020 Part 6 Sec 3.10.1.18 asks at least 3.0 unless the design rests on a load test at the site.", formatNumber(used.given, 1), formatNumber(used.compression, 1))
+				? localize('sub.fsRaisedLoadTest', "Compression FS raised from {0} to {1}: {2} Part 6 Sec 3.10.1.18 asks at least 3.0 unless the design rests on a load test at the site.", formatNumber(used.given, 1), formatNumber(used.compression, 1), defaultCodeName())
 				: used.raised === 'spt' ? localize('sub.fsRaisedSpt', "FS raised to {0} with the SPT relations.", formatNumber(used.compression, 1)) : '';
 			usedNote.hidden = !used.raised;
 		};
@@ -4212,7 +4213,7 @@ export class SubstructureEditor extends EditorPane {
 		this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 		this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
 		this.raftSpringsRow(panel, design);
-		appendPropertyNote(panel, localize('sub.designNote', "Empty values use the defaults: pile factors of safety 2.5 (BNBC 2020 Part 6 Table 6.3.10a, permanent structure, normal control; in compression raised to 3.0 without a load test at the site), the soil report's bearing factor and subgrade modulus, a 500 mm raft mesh."));
+		appendPropertyNote(panel, localize('sub.designNote', "Empty values use the defaults: pile factors of safety 2.5 ({0} Part 6 Table 6.3.10a, permanent structure, normal control; in compression raised to 3.0 without a load test at the site), the soil report's bearing factor and subgrade modulus, a 500 mm raft mesh.", defaultCodeName()));
 	}
 
 	/** The design choices of the code pack's rules of shallow foundations: the type of structure
