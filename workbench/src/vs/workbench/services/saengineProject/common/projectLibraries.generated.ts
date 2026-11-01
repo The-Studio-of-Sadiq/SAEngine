@@ -2689,6 +2689,79 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'CompositeDeck',
 			type: 'object',
 		},
+		ConfiningElement: {
+			additionalProperties: false,
+			description: 'A tie column or tie beam of a confined masonry wall: cast-in-place RC after the masonry\nis built (checked by :mod:`saengine.design.confined_masonry`).',
+			properties: {
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Across the wall [mm]; empty: the wall\'s thickness.',
+					title: 'Width',
+				},
+				depth: {
+					default: 200,
+					description: 'In the plane of the wall [mm]: along it for a tie column, vertical for a tie beam.',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				count: {
+					default: 4,
+					description: 'Longitudinal bars.',
+					minimum: 2,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					default: 12,
+					description: 'Longitudinal bar diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				tieDia: {
+					default: 6,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie diameter',
+					type: 'number',
+				},
+				tieSpacing: {
+					default: 150,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie spacing',
+					type: 'number',
+				},
+				endTieSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: 100,
+					description: 'Tie columns: at the top and bottom of each storey [mm]; empty: as the rest.',
+					title: 'End-zone tie spacing',
+				},
+			},
+			title: 'ConfiningElement',
+			type: 'object',
+		},
 		CouplingDiagonal: {
 			additionalProperties: false,
 			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7).',
@@ -4068,6 +4141,70 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['material', 'cover'],
 			title: 'LinearReinforcement',
+			type: 'object',
+		},
+		MasonryAnchorBolts: {
+			additionalProperties: false,
+			description: 'The anchor bolts that tie a masonry wall to each floor or roof (checked by\n:mod:`saengine.design.masonry_anchors` against the wall\'s anchorage force).',
+			properties: {
+				kind: {
+					default: 'headed',
+					description: 'Headed, plate or bent-bar (J or L) anchor bolts.',
+					enum: ['headed', 'plate', 'bent'],
+					title: 'Kind',
+					type: 'string',
+				},
+				placement: {
+					default: 'face',
+					description: 'In the face of the wall (the anchorage force is tension: a ledger) or in its top (the anchorage force is shear: a sill or bearing plate).',
+					enum: ['face', 'top'],
+					title: 'Placement',
+					type: 'string',
+				},
+				dia: {
+					default: 16,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				embedment: {
+					default: 150,
+					description: 'Effective embedment lb [mm].',
+					exclusiveMinimum: 0,
+					title: 'Embedment',
+					type: 'number',
+				},
+				edge: {
+					default: 100,
+					description: 'Edge distance lbe [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge',
+					type: 'number',
+				},
+				spacing: {
+					default: 600,
+					description: 'Along the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				fy: {
+					default: 250,
+					description: '[MPa]',
+					exclusiveMinimum: 0,
+					title: 'Bolt fy',
+					type: 'number',
+				},
+				shearPerMetre: {
+					default: 0.0,
+					description: 'Load at right angles to the anchorage force [kN/m]: gravity on a ledger or diaphragm shear on a sill.',
+					minimum: 0,
+					title: 'Other load per metre',
+					type: 'number',
+				},
+			},
+			title: 'MasonryAnchorBolts',
 			type: 'object',
 		},
 		MemberServiceability: {
@@ -6181,6 +6318,47 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
 					title: 'Stiffness modifiers',
 				},
+				masonryMethod: {
+					anyOf: [
+						{
+							enum: ['allowableStress', 'strength'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Masonry walls: the code pack\'s method (empty) or one it permits in lieu of it (strength design of reinforced slender walls and shear walls).',
+					enumDescriptions: ['Allowable stress design', 'Strength design'],
+					title: 'Masonry design method',
+				},
+				confinement: {
+					anyOf: [
+						{
+							$ref: '#/$defs/WallConfinement',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Masonry walls confined by RC tie columns and tie beams; empty: not confined.',
+					title: 'Confined masonry',
+				},
+				anchorBolts: {
+					anyOf: [
+						{
+							$ref: '#/$defs/MasonryAnchorBolts',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Masonry walls: the bolts anchoring the wall to each floor or roof.',
+					title: 'Anchor bolts',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Wall',
@@ -6223,6 +6401,52 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['length', 'count', 'dia'],
 			title: 'WallBoundary',
+			type: 'object',
+		},
+		WallConfinement: {
+			additionalProperties: false,
+			description: 'A confined masonry wall: tie columns at the wall\'s ends, beside the larger openings and\nwithin long walls, and a tie beam at every floor, placed by the code pack\'s rules.',
+			properties: {
+				concrete: {
+					description: 'Concrete of the tie columns and tie beams.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				rebar: {
+					description: 'Reinforcement of the tie columns and tie beams.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Rebar',
+					type: 'string',
+				},
+				cover: {
+					default: 25,
+					description: 'Clear cover to the ties [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				tieColumn: {
+					$ref: '#/$defs/ConfiningElement',
+					title: 'Tie columns',
+				},
+				tieBeam: {
+					$ref: '#/$defs/ConfiningElement',
+					title: 'Tie beams',
+				},
+				toothed: {
+					default: true,
+					description: 'Toothed edges at the tie columns; False: steel dowels in the bed joints.',
+					title: 'Toothed',
+					type: 'boolean',
+				},
+			},
+			required: ['concrete', 'rebar'],
+			title: 'WallConfinement',
 			type: 'object',
 		},
 		WallReinforcement: {

@@ -411,7 +411,7 @@ def _shear_wall(
     fr = modulus_of_rupture(m)
     mcr = fr * t * lw * lw / 6.0
     sw = s.shearWall
-    axial, flexure, shear, boundary = [], [], [], []
+    axial, flexure, shear, boundary, cracking = [], [], [], [], []
     flexure_mode = False
     for f in forces:
         pu = max(f.P, 0.0)
@@ -470,7 +470,7 @@ def _shear_wall(
         )
         if in_flexure:
             factor = float(sw["crackingFull"] if m.grouting == "full" else sw["crackingPartial"])
-            flexure.append(
+            cracking.append(
                 _row(
                     f"Shear wall Mn ≥ {factor:g} Mcr ({M.clause('shearWallReinforcement')})",
                     factor * mcr / 1e6,
@@ -480,7 +480,7 @@ def _shear_wall(
                     f"{f.where}; Mcr = S fr, fr {fr:.2f} MPa",
                 )
             )
-    rows += [_worst(axial), _worst(flexure), _worst(shear)]
+    rows += [_worst(axial), _worst(flexure), _worst(shear), _worst(cracking)]
     # Reinforcement (Sec 7.7.2.6): the least reinforcement of every seismic area, vertical ≥
     # share of horizontal, horizontal spacing in flexure mode.
     z4 = M.table().seismic.zone4

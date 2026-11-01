@@ -476,6 +476,12 @@ class WallDetail:
     openings: list[tuple[float, float, float, float]] = field(default_factory=list)  # x, sill, w, h
     levels: list[tuple[str, float]] = field(default_factory=list)  # name, height above bottom
     lintels: list[LintelDetail] = field(default_factory=list)
+    # B34: a confined masonry wall's tie columns (centres from the start) and tie beam.
+    tie_columns: list[float] = field(default_factory=list)
+    tie_depth: float = 0.0  # tie columns along the wall [mm]
+    tie_beam_depth: float = 0.0
+    tie_text: str = ""  # "4Ø12, TIES Ø6@150 (100 AT THE ENDS)"
+    tie_beam_text: str = ""
 
 
 @dataclass

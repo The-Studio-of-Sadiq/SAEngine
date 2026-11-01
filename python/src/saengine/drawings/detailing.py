@@ -2626,6 +2626,13 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
             element["at"].update(length=math.dist(wall.start, wall.end))
             if getattr(t, "thickness", None):
                 element["at"].update(thickness=float(t.thickness))
+        if t is not None and getattr(t, "confinement", None) is not None and not t.reinforcement:
+            # B34: a confined masonry wall: its elevation shows the tie columns and tie beams.
+            element["at"].update(
+                length=math.dist(wall.start, wall.end), thickness=float(t.thickness)
+            )
+            element["notes"].append("confined masonry: the tie columns and tie beams are drawn")
+            continue
         if t is None or getattr(t, "kind", None) != "wall" or t.reinforcement is None:
             element["notes"].append(
                 "no wall reinforcement: not detailed"

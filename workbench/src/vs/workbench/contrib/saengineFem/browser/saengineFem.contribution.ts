@@ -794,30 +794,4 @@ registerPlannedFeature({
 	],
 });
 
-// T31: confined masonry (MVP: BNBC 2020 Part 6 Chapter 7 gives the plain and reinforced masonry
-// walls SAEngine designs; confined masonry needs guides BNBC does not give).
-registerPlannedFeature({
-	id: FemPlanned.confinedMasonry,
-	part: 'fem',
-	title: localize('fem.planned.confinedMasonry.title', "Confined Masonry Walls"),
-	summary: localize('fem.planned.confinedMasonry.summary', "Designs masonry walls built first and then confined by cast-in-place RC tie columns at their ends and openings and tie beams at each floor, the usual low-rise system where plain masonry is not permitted."),
-	steps: [
-		localize('fem.planned.confinedMasonry.step1', "Mark the masonry walls that are confined and place the tie columns and tie beams round each panel."),
-		localize('fem.planned.confinedMasonry.step2', "Check the wall density of each storey in each direction against the seismic demand."),
-		localize('fem.planned.confinedMasonry.step3', "Check each panel's in-plane shear and the tie columns' tension and shear from the panel forces."),
-		localize('fem.planned.confinedMasonry.step4', "Size the tie columns' and tie beams' bars and ties, and their spacing limits."),
-	],
-	inputs: [
-		{ label: localize('fem.planned.confinedMasonry.tieColumn', "Tie column size"), unit: 'mm', example: '250 × 250' },
-		{ label: localize('fem.planned.confinedMasonry.tieBeam', "Tie beam depth"), unit: 'mm', example: '250' },
-		{ label: localize('fem.planned.confinedMasonry.spacing', "Largest tie column spacing"), unit: 'mm', example: '4000' },
-	],
-	outputs: [
-		localize('fem.planned.confinedMasonry.out1', "Wall density per storey and direction"),
-		localize('fem.planned.confinedMasonry.out2', "Panel shear checks and the tie columns' and tie beams' bars"),
-	],
-	references: [
-		'Eurocode 8 Part 1 Sec 9.5 (confined masonry)',
-		'Seismic design guide for low-rise confined masonry buildings (Confined Masonry Network, EERI)',
-	],
-});
+// T31 / B34: confined masonry is built (design/confined_masonry.py, Sec 7.11).

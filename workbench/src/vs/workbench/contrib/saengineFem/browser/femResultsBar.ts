@@ -1677,9 +1677,6 @@ export class FemResultsBar extends Disposable {
 				this.renderPierDiagram(container, diagram);
 			}
 			this.renderDetailing(container, wallSection(element, selection.id));
-			if (String(element.wallType ?? '').startsWith('masonry')) {
-				this.appendPlanned(container, [FemPlanned.confinedMasonry]);
-			}
 		} else if (isStaircase(element)) {
 			this.renderDetailing(container, staircaseSection(element));
 		}

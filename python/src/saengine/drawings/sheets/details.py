@@ -448,6 +448,7 @@ def wall_detail(w: WallDetail, scale: float = 50, section_scale: float = 25) -> 
             e.rect(x0, 0, x0 + w.boundary_length, H, "S-REBAR-LINK", linetype="DASHED")
         for k, lt in enumerate(w.lintels):
             _lintel(e, lt, k)
+        _confining_elevation(e, w)
         for name, z in w.levels:
             e.line((-300, z), (0, z), "S-TEXT")
             e.text(f"{name} {z / 1000:+.3f}", (-300 - e.real(1), z), TEXT, "MR")
@@ -517,6 +518,7 @@ def wall_detail(w: WallDetail, scale: float = 50, section_scale: float = 25) -> 
                     )
                     for y in (c + 10 + d / 2, t - c - 10 - d / 2):
                         s.dot((x, y), d / 2)
+        _confining_section(s, w)
         s.dim((0, 0), (L, 0), -5)
         s.dim((L, 0), (L, t), -5, angle=90)
         view.text(f"SECTION (PLAN)   COVER {c:g}", (15 + L / S / 2, 6), TEXT, "TC")
@@ -530,6 +532,47 @@ def wall_detail(w: WallDetail, scale: float = 50, section_scale: float = 25) -> 
         subtitle=f"{t:g} THK   ELEVATION 1:{E:g}, SECTION 1:{S:g}",
         key=f"wall:{w.mark}",
     )
+
+
+def _confining_elevation(e: View, w: WallDetail) -> None:
+    """B34: a confined masonry wall's tie columns (full height) and tie beam (at the top) in the
+    elevation, with their bars."""
+    if not w.tie_columns:
+        return
+    L, H, d = w.length, w.height, w.tie_depth
+    for x in w.tie_columns:
+        x0 = min(max(x - d / 2, 0.0), L - d)
+        e.rect(x0, 0, x0 + d, H, "S-WALL")
+        e.rect(x0 + w.cover, 0, x0 + d - w.cover, H, "S-REBAR-LINK", linetype="DASHED")
+    if w.tie_beam_depth:
+        e.rect(0, H - w.tie_beam_depth, L, H, "S-WALL")
+    first = min(max(w.tie_columns[0] - d / 2, 0.0), L - d)
+    e.label(
+        f"TIE COLUMN {d:g} {w.tie_text}",
+        (first + d / 2, H * 0.4),
+        [(0, 0, "MC")],
+        rotation=90,
+    )
+    if w.tie_beam_depth:
+        e.label(
+            f"TIE BEAM {w.tie_beam_depth:g} {w.tie_beam_text}",
+            (L / 2, H - w.tie_beam_depth / 2),
+            [(0, 0, "MC")],
+        )
+
+
+def _confining_section(s: View, w: WallDetail) -> None:
+    """B34: the tie columns in the plan section with their four corner bars."""
+    if not w.tie_columns:
+        return
+    L, t, d, c = w.length, w.thickness, w.tie_depth, w.cover
+    for x in w.tie_columns:
+        x0 = min(max(x - d / 2, 0.0), L - d)
+        s.rect(x0, 0, x0 + d, t, "S-WALL")
+        s.rect(x0 + c, c, x0 + d - c, t - c, "S-REBAR-LINK")
+        for bx in (x0 + c + 8, x0 + d - c - 8):
+            for by in (c + 8, t - c - 8):
+                s.dot((bx, by), 6)
 
 
 def _lintel(e: View, lt: LintelDetail, index: int) -> None:
