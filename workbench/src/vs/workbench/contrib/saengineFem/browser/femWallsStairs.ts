@@ -83,8 +83,10 @@ export type FemWallElement = IFemDesignElement & {
 	/** Curtains (layers) of reinforcement provided and required (two when Vu is large, Sec 8.3.6.2). */
 	readonly curtains?: number | null;
 	readonly curtainsRequired?: number | null;
-	/** "special" (Sec 8.3.6), "ordinary". */
+	/** "special" (Sec 8.3.6), "ordinary", "masonryPlain" or "masonryReinforced" (Part 6 Chapter 7). */
 	readonly wallType?: string | null;
+	/** A masonry wall's masonry: "Plain clay masonry, f'm 9.9 MPa, Em 6941 MPa, type S mortar". */
+	readonly masonry?: string | null;
 	readonly notes?: readonly string[] | null;
 };
 
@@ -363,10 +365,13 @@ export function wallSection(element: FemWallElement, selectedShell: number | und
 	const beams = arrayOf(element.couplingBeams);
 	const items: FemDetailingItem[] = [];
 	const wallItems = [...curtainItems(element), ...boundaryItems(element.boundary)];
-	if (wallItems.length || element.wallType) {
+	if (wallItems.length || element.wallType || element.masonry) {
 		items.push({ kind: 'heading', text: localize('femWalls.wallHeading', "Wall") });
 		if (element.wallType) {
 			items.push({ kind: 'row', name: localize('femWalls.wallType', "Type"), value: wallTypeLabel(element.wallType) });
+		}
+		if (element.masonry) {
+			items.push({ kind: 'row', name: localize('femWalls.masonry', "Masonry"), value: element.masonry });
 		}
 		items.push(...wallItems);
 	}
@@ -397,7 +402,9 @@ function wallTypeLabel(type: string): string {
 	const key = type.toLowerCase();
 	return key.startsWith('special') ? localize('femWalls.special', "Special structural wall")
 		: key.startsWith('ordinary') ? localize('femWalls.ordinary', "Ordinary structural wall")
-			: type;
+			: key === 'masonryplain' ? localize('femWalls.masonryPlain', "Plain masonry wall")
+				: key === 'masonryreinforced' ? localize('femWalls.masonryReinforced', "Reinforced masonry wall")
+					: type;
 }
 
 function couplingBeamItems(beam: IFemCouplingBeam): FemDetailingItem[] {

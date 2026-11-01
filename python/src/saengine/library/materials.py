@@ -36,6 +36,7 @@ class Category(str, Enum):
     REBAR = "rebar"
     STEEL = "steel"
     MASONRY = "masonry"
+    TIMBER = "timber"
     MORTAR = "mortar"
     OTHER = "other"
 
@@ -111,6 +112,53 @@ class MasonryProperties(_Model):
         default=None, gt=0, description="Masonry (prism) compressive strength f'm [MPa]."
     )
     mortar: Id | None = Field(default=None, description="Id of the mortar material.")
+    unitKind: Literal["clay", "concrete"] = Field(
+        default="clay",
+        title="Unit kind",
+        description="Burnt clay bricks or concrete blocks: sets Em and the ultimate strain of "
+        "the masonry design (BNBC 2020 Part 6 Chapter 7).",
+        json_schema_extra={"enumDescriptions": ["Clay brick", "Concrete block"]},
+    )
+    mortarType: Literal["M", "S", "N"] | None = Field(
+        default=None,
+        title="Mortar type",
+        description="M, S or N; empty: from the mortar material's cement : sand mix.",
+    )
+    units: Literal["solid", "hollow"] = Field(
+        default="solid",
+        description="Solid units (bricks) or hollow units (blocks).",
+        json_schema_extra={"enumDescriptions": ["Solid", "Hollow"]},
+    )
+    grouting: Literal["none", "partial", "full"] = Field(
+        default="none",
+        description="Grout in the cores or cavities: none, at the bars only, or every cell.",
+        json_schema_extra={"enumDescriptions": ["Not grouted", "Partly grouted", "Fully grouted"]},
+    )
+    bond: Literal["running", "stack"] = Field(
+        default="running",
+        description="Running bond (staggered head joints) or stack bond.",
+        json_schema_extra={"enumDescriptions": ["Running bond", "Stack bond"]},
+    )
+
+
+class TimberProperties(_Model):
+    """Sawn structural timber (BNBC 2020 Part 6 Chapter 11)."""
+
+    species: str | None = Field(default=None, description="Species, e.g. Sal, Garjan, Teak.")
+    group: Literal["A", "B", "C"] = Field(
+        default="B",
+        title="Strength group",
+        description="Strength group by modulus of elasticity: A (E at least 12.6 GPa), B "
+        "(9.8-12.6 GPa), C (5.6-9.8 GPa); the code pack gives each group's permissible "
+        "stresses.",
+        json_schema_extra={"enumDescriptions": ["Group A", "Group B", "Group C"]},
+    )
+    location: Literal["inside", "outside", "wet"] = Field(
+        default="inside",
+        title="Location of use",
+        description="Inside (dry), outside (exposed to the weather) or wet (always damp).",
+        json_schema_extra={"enumDescriptions": ["Inside", "Outside", "Wet"]},
+    )
 
 
 class NominalMix(_Model):
@@ -167,6 +215,7 @@ class Material(_Model):
     concrete: ConcreteProperties | None = None
     steel: SteelProperties | None = None
     masonry: MasonryProperties | None = None
+    timber: TimberProperties | None = None
     composition: Composition | None = Field(
         default=None, description="Mix of a concrete or mortar, used for quantities (BOQ)."
     )
@@ -179,16 +228,17 @@ class Material(_Model):
             Category.REBAR: "steel",
             Category.STEEL: "steel",
             Category.MASONRY: "masonry",
+            Category.TIMBER: "timber",
         }.get(self.category)
         if required and getattr(self, required) is None:
             raise ValueError(f"a {self.category.value} material needs '{required}' properties")
-        for group in ("concrete", "steel", "masonry"):
+        for group in ("concrete", "steel", "masonry", "timber"):
             if getattr(self, group) is not None and group != required:
                 raise ValueError(
                     f"'{group}' properties do not apply to a {self.category.value} material"
                 )
         if (
-            self.category in (Category.CONCRETE, Category.REBAR, Category.STEEL)
+            self.category in (Category.CONCRETE, Category.REBAR, Category.STEEL, Category.TIMBER)
             and self.mechanical.E is None
         ):
             raise ValueError(f"a {self.category.value} material needs mechanical.E")

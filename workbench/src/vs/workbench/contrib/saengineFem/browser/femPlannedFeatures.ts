@@ -44,6 +44,10 @@ export const FemPlanned = {
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
 	/** T26: floor vibration from walking. */
 	floorVibration: 'fem.floorVibration',
+	/** T45: nailed, screwed and bolted timber connections. */
+	timberConnections: 'fem.timberConnections',
+	/** T31: confined masonry walls (tie columns and tie beams). */
+	confinedMasonry: 'fem.confinedMasonry',
 	/** T27: base plate thickness and moment bases, anchors in concrete, end-plate moment connections. */
 	basePlateDesign: 'fem.basePlateDesign',
 	anchorConcrete: 'fem.anchorConcrete',

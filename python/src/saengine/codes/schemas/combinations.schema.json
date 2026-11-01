@@ -76,6 +76,14 @@
       "title": "Service",
       "type": "array"
     },
+    "allowable": {
+      "description": "Allowable stress design (ASD) combinations, for the materials designed by permissible stresses (timber).",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Allowable",
+      "type": "array"
+    },
     "temperature": {
       "description": "Strength combinations with T (rise +, fall -).",
       "items": {

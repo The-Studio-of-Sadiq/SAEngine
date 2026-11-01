@@ -132,6 +132,8 @@ METHOD = [
 
 #: The unfactored gravity cases the deflection checks use.
 SERVICE_CASES = ("D", "SD", "L", "Lr")
+#: The static lateral cases whose forces the allowable stress combinations take (T45).
+LATERAL_CASES = ("WX", "WY", "EX", "EY")
 
 
 @dataclass
@@ -598,6 +600,9 @@ def design(
     skipped: list[dict[str, Any]] = []
     designed: list[seismic_detailing.Designed] = []
     steel_seen = False
+    from saengine.design import timber as timber_design
+
+    timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
@@ -645,6 +650,18 @@ def design(
             steel_seen = True
             if collect is not None:
                 collect.setdefault("steel", []).append(steel_collected)
+            continue
+        # Integrator glue (T45): timber beams, columns and braces (BNBC 2020 Part 6 Ch 11,
+        # saengine.design.timber), under the allowable stress combinations after this loop.
+        if isinstance(object_type, (Beam, Column, Brace)) and timber_design.is_timber(
+            steel_material
+        ):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            timber_todo.append(
+                (member_id, object_type, steel_material, own, _turned(element, exact))
+            )
             continue
         if not isinstance(object_type, (Beam, Column)):
             skip(f"{object_type.kind} members are not designed here")
@@ -915,6 +932,9 @@ def design(
                 m["seismicContext"] = d.context
                 m["element"] = d.element
 
+    timber_seen = False
+    if timber_todo:
+        timber_seen = _design_timber(timber_todo, service, checked, skipped, notes)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
@@ -1039,6 +1059,7 @@ def design(
             stairs_found,
             context,
             slender_options,
+            timber_seen,
         )
 
     # Integrator glue (T9): fire resistance by least sizes and covers
@@ -1067,6 +1088,74 @@ def design(
     return result
 
 
+def _design_timber(
+    todo: list[tuple[str, Any, Any, list[_Piece], bool]],
+    service: dict[str, Any],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+) -> bool:
+    """T45 integrator glue: the timber members of ``todo`` (``(id, object type, material,
+    pieces, turned)``) under the code pack's allowable stress combinations, formed from the
+    analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``); their
+    entries go to ``checked``, the members that cannot be checked to ``skipped``. True when a
+    member was checked."""
+    from saengine.design import timber as timber_design
+
+    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
+    formed = timber_design.allowable_combinations()
+
+    def skip(member_id: str, object_type: Any, reason: str) -> None:
+        skipped.append(
+            {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
+        )
+
+    if not formed or not case_forces:
+        reason = (
+            "the code pack has no allowable stress combinations"
+            if not formed
+            else "the load cases' forces were not found"
+        )
+        for member_id, object_type, *_ in todo:
+            skip(member_id, object_type, f"timber not checked: {reason}")
+        return False
+    # Combinations whose lateral cases have no results (no wind or earthquake in the model)
+    # are left out.
+    usable = [
+        (name, f)
+        for name, f in formed
+        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
+    ]
+    names = [n for n, _ in usable]
+    factors = [f for _, f in usable]
+    lateral = timber_design.lateral_kinds(factors, names)
+    left_out = len(formed) - len(usable)
+    if left_out:
+        notes.append(
+            f"timber: {left_out} allowable stress combinations left out (their wind or "
+            "earthquake cases have no results)"
+        )
+    seen = False
+    for member_id, object_type, material, own, turned in todo:
+        try:
+            entry = timber_design.design_timber_member(
+                member_id,
+                object_type.kind,
+                object_type,
+                material,
+                timber_design.asd_pieces(own, case_forces, factors),
+                names,
+                lateral,
+                turned,
+            )
+        except timber_design.TimberDesignError as error:
+            skip(member_id, object_type, str(error))
+            continue
+        checked.append(entry)
+        seen = True
+    return seen
+
+
 def _assemble(
     settings: ProjectSettings,
     checked: list[dict[str, Any]],
@@ -1085,6 +1174,7 @@ def _assemble(
     stairs_found: dict[str, Any],
     context: slenderness_design.SlenderContext,
     slender_options: slenderness_design.SlenderOptions,
+    timber_seen: bool = False,
 ) -> dict[str, Any]:
     """The report of :func:`design` from its elements, notes and what it designed."""
     from saengine.design import face_forces, seismic_detailing, wall_design
@@ -1105,12 +1195,20 @@ def _assemble(
         notes.append(face_forces.JOINT_NOTE)
     if steel_seen:
         method += steel_design.METHOD
+    if timber_seen:
+        from saengine.design import timber as timber_design
+
+        method += timber_design.METHOD
     if "shells" in slabs_seen:
         method += slab.METHOD
     if "coefficients" in slabs_seen:
         method.append(slab.COEFFICIENT_METHOD)
     if walls_found["designed"]:
         method += wall_design.METHOD
+    if walls_found.get("masonry"):
+        from saengine.design import masonry as masonry_design
+
+        method += masonry_design.METHOD
     if lintels_found["elements"]:
         method += lintel_design.METHOD
     if slabs_seen and any(
@@ -2088,6 +2186,9 @@ def _demands(
         extra["service"] = {
             "forces": {c: by_case[c] for c in SERVICE_CASES if c in by_case},
             "displacements": {c: displacements[c] for c in SERVICE_CASES if c in displacements},
+            # T45: the wind and earthquake cases' forces, for the allowable stress
+            # combinations of timber (saengine.design.timber).
+            "lateralForces": {c: by_case[c] for c in LATERAL_CASES if c in by_case},
         }
 
     # Each combination of all the elements of one shape at once: the same sums element by
