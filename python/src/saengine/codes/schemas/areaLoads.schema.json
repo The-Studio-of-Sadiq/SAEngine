@@ -25,6 +25,59 @@
           "minimum": 0,
           "title": "Live",
           "type": "number"
+        },
+        "concentrated": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Minimum concentrated live load [kN], applied alone (not with the uniform load) on the patch ``patch``; empty: none.",
+          "title": "Concentrated"
+        },
+        "patch": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Side of the square the concentrated load acts on [mm]; empty: the table's ``concentratedPatch``.",
+          "title": "Patch"
+        },
+        "reducible": {
+          "default": true,
+          "description": "False: the uniform load is never reduced (a nonreducible row).",
+          "title": "Reducible",
+          "type": "boolean"
+        },
+        "roof": {
+          "default": false,
+          "description": "A roof live load (case Lr): reduced by the roof rule, not the floor rule.",
+          "title": "Roof",
+          "type": "boolean"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The row's notes, for the user.",
+          "title": "Note"
         }
       },
       "required": [
@@ -33,10 +86,476 @@
       ],
       "title": "AreaUse",
       "type": "object"
+    },
+    "BarrierLoads": {
+      "additionalProperties": false,
+      "description": "Live loads on handrails, parapets and vehicle barriers.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/BarrierRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "vehicleLength": {
+          "description": "Length a vehicle force spreads over [m].",
+          "exclusiveMinimum": 0,
+          "title": "Vehiclelength",
+          "type": "number"
+        },
+        "bumperHeight": {
+          "description": "Bumper height of light vehicles [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Bumperheight",
+          "type": "number"
+        },
+        "rampShare": {
+          "description": "Ramp barrier force as a share of the row's.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rampshare",
+          "type": "number"
+        },
+        "rampHeight": {
+          "description": "Height of the ramp barrier force [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Rampheight",
+          "type": "number"
+        },
+        "longRampLength": {
+          "description": "Straight exit ramps longer than this [m] ...",
+          "exclusiveMinimum": 0,
+          "title": "Longramplength",
+          "type": "number"
+        },
+        "longRampFactor": {
+          "description": "... take the row's force times this.",
+          "exclusiveMinimum": 0,
+          "title": "Longrampfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rows",
+        "vehicleLength",
+        "bumperHeight",
+        "rampShare",
+        "rampHeight",
+        "longRampLength",
+        "longRampFactor"
+      ],
+      "title": "BarrierLoads",
+      "type": "object"
+    },
+    "BarrierRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "load": {
+          "description": "Line load [kN/m] or vehicle barrier force [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Load",
+          "type": "number"
+        },
+        "unit": {
+          "default": "kN/m",
+          "enum": [
+            "kN/m",
+            "kN"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "widthMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applies up to this width [m].",
+          "title": "Widthmax"
+        },
+        "widthMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applies above this width [m].",
+          "title": "Widthmin"
+        },
+        "massMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vehicle gross mass up to [kg].",
+          "title": "Massmax"
+        },
+        "massMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vehicle gross mass above [kg].",
+          "title": "Massmin"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "load"
+      ],
+      "title": "BarrierRow",
+      "type": "object"
+    },
+    "ImpactRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "vertical": {
+          "description": "Vertical impact, share of the static load.",
+          "minimum": 0,
+          "title": "Vertical",
+          "type": "number"
+        },
+        "horizontal": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Horizontal share.",
+          "title": "Horizontal"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "vertical"
+      ],
+      "title": "ImpactRow",
+      "type": "object"
+    },
+    "PartitionAllowance": {
+      "additionalProperties": false,
+      "description": "Uniform live load in lieu of light partitions not shown on the plans.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "share": {
+          "description": "Uniform load per kN/m of partition weight [kN/m² per kN/m].",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "Least uniform partition allowance [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "lightMax": {
+          "description": "Heaviest partition [kN/m] the uniform allowance stands in for.",
+          "exclusiveMinimum": 0,
+          "title": "Lightmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "minimum",
+        "lightMax"
+      ],
+      "title": "PartitionAllowance",
+      "type": "object"
+    },
+    "RoofLiveRow": {
+      "additionalProperties": false,
+      "description": "A row of the minimum roof live loads by type and slope (pitched roofs by slope = rise /\nrun, arched roofs and domes by rise / span).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "live": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Distributed load [kN/m²]; empty: as the floor table.",
+          "title": "Live"
+        },
+        "concentrated": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Concentrated load [kN].",
+          "title": "Concentrated"
+        },
+        "slopeMin": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least slope (rise / run).",
+          "title": "Slopemin"
+        },
+        "slopeMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slope (rise / run) the row stops below.",
+          "title": "Slopemax"
+        },
+        "riseMin": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least rise / span of an arched roof or dome.",
+          "title": "Risemin"
+        },
+        "riseMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rise / span the row stops below.",
+          "title": "Risemax"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RoofLiveRow",
+      "type": "object"
+    },
+    "VehicleLoads": {
+      "additionalProperties": false,
+      "description": "Concentrated loads where vehicles are used or stored, applied without the uniform load.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "vehicleShare": {
+          "description": "Each load as a share of the heaviest vehicle.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Vehicleshare",
+          "type": "number"
+        },
+        "spacing": {
+          "description": "Spacing of the loads [m].",
+          "exclusiveMinimum": 0,
+          "title": "Spacing",
+          "type": "number"
+        },
+        "patch": {
+          "description": "Side of the square each load acts on [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Patch",
+          "type": "number"
+        },
+        "wheel": {
+          "description": "Least wheel load of private vehicle storage [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Wheel",
+          "type": "number"
+        },
+        "jack": {
+          "description": "Jack load of passenger vehicle garages [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Jack",
+          "type": "number"
+        },
+        "jackPatch": {
+          "description": "Side of the jack footprint [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Jackpatch",
+          "type": "number"
+        },
+        "mechanicalWheel": {
+          "description": "Load per wheel of mechanical parking without a slab [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Mechanicalwheel",
+          "type": "number"
+        }
+      },
+      "required": [
+        "vehicleShare",
+        "spacing",
+        "patch",
+        "wheel",
+        "jack",
+        "jackPatch",
+        "mechanicalWheel"
+      ],
+      "title": "VehicleLoads",
+      "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "Minimum live loads by use of the floor area.",
+  "description": "Minimum live loads by use of the floor area, with their concentrated loads, the roof\nlive loads by slope, the partition allowance, vehicle and barrier loads, and the impact of\nequipment.",
   "properties": {
     "source": {
       "default": "",
@@ -58,6 +577,67 @@
       },
       "title": "Uses",
       "type": "object"
+    },
+    "concentratedPatch": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Side of the square a concentrated load acts on [mm].",
+      "title": "Concentratedpatch"
+    },
+    "roofLive": {
+      "items": {
+        "$ref": "#/$defs/RoofLiveRow"
+      },
+      "title": "Rooflive",
+      "type": "array"
+    },
+    "partitions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PartitionAllowance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "vehicles": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VehicleLoads"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "barriers": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BarrierLoads"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "impact": {
+      "items": {
+        "$ref": "#/$defs/ImpactRow"
+      },
+      "title": "Impact",
+      "type": "array"
     }
   },
   "required": [

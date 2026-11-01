@@ -300,10 +300,18 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Area loads"),
             table(
-                ["Id", "Name", "Use", "Live [kN/m²]", "Finish [kN/m²]", "Partitions [kN/m²]"],
+                [
+                    "Id",
+                    "Name",
+                    "Use",
+                    "Live [kN/m²]",
+                    "Concentrated [kN]",
+                    "Finish [kN/m²]",
+                    "Partitions [kN/m²]",
+                ],
                 basis["areaLoads"],
-                ["auto", "1fr", "1fr", "auto", "auto", "auto"],
-                "lllrrr",
+                ["auto", "1fr", "1fr", "auto", "auto", "auto", "auto"],
+                "lllrrrr",
             ),
         ]
     out.append(h(2, "Load cases"))
@@ -317,9 +325,11 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         out += [
             h(2, "Load combinations"),
             p(
-                "The strength design load combinations of the project settings (BNBC 2020 "
-                "2.7.3); D includes the superimposed dead loads."
+                "The strength design load combinations of the project settings ("
+                + (combos.get("source") or "the code pack")
+                + "); D includes the superimposed dead loads."
             ),
+            *(p(note) for note in combos.get("notes", [])),
         ]
         if combos["rows"]:
             out += full(

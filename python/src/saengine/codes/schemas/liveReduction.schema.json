@@ -55,6 +55,123 @@
       ],
       "title": "LiveElementFactors",
       "type": "object"
+    },
+    "RoofReduction": {
+      "additionalProperties": false,
+      "description": "Lr = L0 R1 R2 within [minimum, maximum]: R1 from the tributary area, R2 from the slope.",
+      "properties": {
+        "areaLow": {
+          "description": "R1 = 1 up to this tributary area [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Arealow",
+          "type": "number"
+        },
+        "areaHigh": {
+          "description": "R1 = r1Min from this tributary area [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Areahigh",
+          "type": "number"
+        },
+        "r1Constant": {
+          "description": "a of R1 = a - b AT between the two.",
+          "exclusiveMinimum": 0,
+          "title": "R1Constant",
+          "type": "number"
+        },
+        "r1Coefficient": {
+          "description": "b of R1 = a - b AT [1/m²].",
+          "exclusiveMinimum": 0,
+          "title": "R1Coefficient",
+          "type": "number"
+        },
+        "r1Min": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "R1Min",
+          "type": "number"
+        },
+        "riseLow": {
+          "description": "R2 = 1 up to this F.",
+          "exclusiveMinimum": 0,
+          "title": "Riselow",
+          "type": "number"
+        },
+        "riseHigh": {
+          "description": "R2 = r2Min from this F.",
+          "exclusiveMinimum": 0,
+          "title": "Risehigh",
+          "type": "number"
+        },
+        "r2Constant": {
+          "description": "a of R2 = a - b F between the two.",
+          "exclusiveMinimum": 0,
+          "title": "R2Constant",
+          "type": "number"
+        },
+        "r2Coefficient": {
+          "description": "b of R2 = a - b F.",
+          "exclusiveMinimum": 0,
+          "title": "R2Coefficient",
+          "type": "number"
+        },
+        "r2Min": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "R2Min",
+          "type": "number"
+        },
+        "slopeF": {
+          "description": "Pitched roof: F = this × slope in per cent.",
+          "exclusiveMinimum": 0,
+          "title": "Slopef",
+          "type": "number"
+        },
+        "archF": {
+          "description": "Arch or dome: F = this × rise / span.",
+          "exclusiveMinimum": 0,
+          "title": "Archf",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "Least reduced roof live load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "maximum": {
+          "description": "Most reduced roof live load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Maximum",
+          "type": "number"
+        },
+        "uses": {
+          "description": "Area uses the rule reduces (ordinary roofs).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaLow",
+        "areaHigh",
+        "r1Constant",
+        "r1Coefficient",
+        "r1Min",
+        "riseLow",
+        "riseHigh",
+        "r2Constant",
+        "r2Coefficient",
+        "r2Min",
+        "slopeF",
+        "archF",
+        "minimum",
+        "maximum",
+        "uses"
+      ],
+      "title": "RoofReduction",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -128,6 +245,20 @@
       "title": "Notreduced",
       "type": "array"
     },
+    "assemblyMax": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The ``notReduced`` uses are not reduced up to this L0 [kN/m²] (above it the heavy load rule applies); empty: never reduced.",
+      "title": "Assemblymax"
+    },
     "twoFloorsOnly": {
       "description": "Area uses reduced only on 2+ floors.",
       "items": {
@@ -136,8 +267,42 @@
       "title": "Twofloorsonly",
       "type": "array"
     },
+    "notReducedBuildings": {
+      "description": "Building kinds (project occupancy flags such as cycloneShelter) whose live loads are never reduced.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notreducedbuildings",
+      "type": "array"
+    },
+    "oneWaySlabWidth": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "AT of a one-way slab at most its span times this many spans wide.",
+      "title": "Onewayslabwidth"
+    },
     "kll": {
       "$ref": "#/$defs/LiveElementFactors"
+    },
+    "roof": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RoofReduction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reduction of the ordinary roof live load (Lr)."
     }
   },
   "required": [

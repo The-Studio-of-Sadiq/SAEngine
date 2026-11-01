@@ -773,6 +773,10 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
                 load.name,
                 uses[load.use].name if load.use in uses else "Custom",
                 fmt(load.live, 2),
+                # The use's least concentrated load, applied alone (the code pack's).
+                fmt(uses[load.use].concentrated, 2)
+                if load.use in uses and uses[load.use].concentrated
+                else "-",
                 fmt(load.finish, 2),
                 fmt(load.partitions, 2),
             ]
@@ -782,7 +786,11 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         used = [c for c in cases if any(getattr(k, c) for k in settings.combinations)]
         if any(a.get("name", "").startswith("F:") for a in model.get("analyses", [])):
             used.append("F")  # the fluid case, only in a model with equipment contents
+        combination_table = pack.table("combinations")
         basis["combinations"] = {
+            "source": combination_table.source,
+            # The pack's notes on its rows (what a row adds beyond the code).
+            "notes": sorted({r.note for r in combination_table.strength if r.note}),
             "columns": used,
             "rows": [
                 [k.name, *(_factor(getattr(k, c) or 0.0) for c in used)]

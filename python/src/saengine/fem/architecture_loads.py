@@ -89,10 +89,35 @@ from saengine.fem.member_loads import KN, MM, MemberLineLoad, MemberPointLoad
 from saengine.library import architecture as arch_lib
 from saengine.library.bim import BeamElement, BuildingModel, SlabElement, WallElement
 
-#: Sec 2.3.6: the uniform equivalent of light partitions, a share of their weight per metre run
-#: (kN/m² per kN/m), for partitions of at most LIGHT_PARTITION kN/m.
-PARTITION_SHARE = 0.33
-LIGHT_PARTITION = 5.5  # kN/m
+#: The uniform equivalent of light partitions when the code pack gives none (``areaLoads.
+#: partitions``): a share of their weight per metre run (kN/m² per kN/m), for partitions of at
+#: most the light partition weight [kN/m].
+_PARTITION_SHARE = 0.33
+_LIGHT_PARTITION = 5.5
+
+
+def partition_rule() -> tuple[float, float, str]:
+    """(share, lightest heavy partition [kN/m], clause) of the code pack's uniform equivalent of
+    light partitions (``areaLoads.partitions``)."""
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    rule = pack.table("areaLoads").partitions if pack.has("areaLoads") else None
+    if rule is None:
+        return _PARTITION_SHARE, _LIGHT_PARTITION, ""
+    table = pack.table("areaLoads")
+    return rule.share, rule.lightMax, table.sources.get("partitions", table.source).split(":")[0]
+
+
+def __getattr__(name: str) -> Any:
+    # PARTITION_SHARE, LIGHT_PARTITION (older callers): the pack's values, read when asked.
+    if name == "PARTITION_SHARE":
+        return partition_rule()[0]
+    if name == "LIGHT_PARTITION":
+        return partition_rule()[1]
+    raise AttributeError(name)
+
+
 #: How far a wall's centre line may stray from a beam's axis beyond half the beam's width and
 #: still sit on it [mm] (a 250 mm wall on a 250 mm beam drawn a little off the grid).
 ON_BEAM = 25.0
@@ -636,12 +661,13 @@ def _wall(
                     out.cuts.setdefault(beam.id, []).append((x, y, floor))
                     out.wall_rows[-1]["point"] = True
             else:
-                if load > LIGHT_PARTITION:
+                _share, light, where = partition_rule()
+                if load > light:
                     out.notes.append(
                         f"{wall.id}: {load:.2f} kN/m on slab {member} is more than the "
-                        f"{LIGHT_PARTITION:g} kN/m of a light partition (BNBC 2020 Part 6 Sec "
-                        "2.3.6, p. 540): with slabs as loads to beams it is spread over the "
-                        "panel; model the slabs as shells or put a beam under it"
+                        f"{light:g} kN/m of a light partition ({where}): with slabs as loads to "
+                        "beams it is spread over the panel; model the slabs as shells or put a "
+                        "beam under it"
                     )
                 out.slabs.append(SlabWallLoad(wall.id, member, p0, p1, load * KN))  # type: ignore[arg-type]
         along += length
@@ -664,8 +690,8 @@ def _lines(geometry: Any) -> list[Any]:
 
 def panel_pressures(loads: ArchitectureLoads, slab: SlabElement) -> tuple[float, list[str]]:
     """The uniform SD pressure [N/m²] on a slab panel (slabs as loads to beams) for the walls
-    on it: the larger of their weight over its area and 33 % of the heaviest wall's weight per
-    metre run (BNBC 2020 Part 6 Sec 2.3.6, p. 540), and the walls."""
+    on it: the larger of their weight over its area and the code pack's share (33 %) of the
+    heaviest wall's weight per metre run (``areaLoads.partitions``), and the walls."""
     on = [w for w in loads.slabs if w.slab == slab.id]
     if not on:
         return 0.0, []
@@ -674,7 +700,7 @@ def panel_pressures(loads: ArchitectureLoads, slab: SlabElement) -> tuple[float,
         return 0.0, []
     total = sum(w.load * math.dist(w.start, w.end) for w in on)  # N
     heaviest = max(w.load for w in on)  # N/m
-    return max(total / area, PARTITION_SHARE * heaviest), sorted({w.source for w in on})
+    return max(total / area, partition_rule()[0] * heaviest), sorted({w.source for w in on})
 
 
 def room_shares(loads: ArchitectureLoads, slab: SlabElement) -> list[tuple[RoomLoad, float]]:

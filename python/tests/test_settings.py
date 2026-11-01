@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from saengine.library import ProjectSettings, default_project_settings
 from saengine.library.check import check_library
-from saengine.library.settings import LoadCombination, derived, strength_combinations
+from saengine.library.settings import LoadCombination, derived, problems, strength_combinations
 
 
 def settings(**changes: object) -> dict:
@@ -70,7 +70,9 @@ def test_strength_combinations() -> None:
         "EX": 0,
         "EY": 0,
         "T": 0,
+        "ST": 0,
         "F": 1.2,
+        "H": 1.6,
     }
     assert combinations["0.9D + 1.0(-EY)"].EY == -1.0
     assert combinations["1.2D + 1.6WX + 1.0L + 0.5Lr"].WX == 1.6
@@ -109,7 +111,7 @@ def test_check_reports_code_minimums_and_references() -> None:
         "there is no area load 'RF'",
         (
             "FL: live load 2 kN/m² is below the BNBC 2020 minimum of 2.4 kN/m² for office "
-            "(Table 6.2.3)"
+            "(BNBC 2020 Part 6 Table 6.2.3, Office buildings, offices (p. 535))"
         ),
         "a custom location needs the seismic zone coefficient Z (Table 6.2.14)",
         "a custom location needs the basic wind speed V (Table 6.2.8)",
@@ -181,3 +183,25 @@ def test_old_codes_are_read_but_not_written_back() -> None:
     assert "codes" not in model.model_dump(mode="json", by_alias=True)
     assert holds_defaults(old, "settings")
     assert ProjectSettings.model_json_schema()["properties"]["codes"]["deprecated"] is True
+
+
+def test_reduced_live_factor_follows_the_pack_exception() -> None:
+    # BNBC 2020 Part 6 Sec 2.7.3.1 exception 1 (p. 685): 0.5L in combinations 3, 4 and 5 where
+    # every live load is at most 5.0 kN/m², not for garages or assembly.
+    default = default_project_settings("Tower")
+    default.analysis.reducedLiveFactor = True
+    names = [c.name for c in strength_combinations(settings=default)]
+    assert "1.2D + 1.6Lr + 0.5L" in names and "1.2D + 1.0EX + 0.5L" in names
+    assert "1.2D + 1.6L + 0.5Lr" in names  # combination 2 keeps 1.6L
+    default.areaLoads[0].use = "parking"
+    names = [c.name for c in strength_combinations(settings=default)]
+    assert "1.2D + 1.6Lr + 1.0L" in names
+    assert any(p[0] == "analysis.reducedLiveFactor" for p in problems(default))
+
+
+def test_partition_allowance_minimum() -> None:
+    # BNBC 2020 Part 6 Sec 2.3.6 (p. 538): at least 1.2 kN/m².
+    default = default_project_settings("Tower")
+    assert default.areaLoads[0].partitions == 1.2
+    default.areaLoads[0].partitions = 1.0
+    assert any(p[0] == "areaLoads.0.partitions" for p in problems(default))

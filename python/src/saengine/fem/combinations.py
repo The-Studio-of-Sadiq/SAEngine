@@ -56,6 +56,204 @@ _FORCES = ["Fx", "Fy", "Fz", "Mx", "My", "Mz"]
 _END_FORCES = ["N", "Vy", "Vz", "T", "My", "Mz"]
 
 
+# ─────────────────────────────── the code pack's combination rows ───────────────────────────────
+#
+# The code pack (``combinations.json``) lists its combinations by category as rows of
+# ``{id, name, factors: {kind: factor}, source, note}``; the kinds are D (with SD), L, Lr, F, H,
+# T, R, W and E. The functions below form the program's combinations from those rows, whatever
+# the code: W and E expand to the plan directions and signs, T to a rise and a fall, the
+# optional cases the model lacks are left out, "Lr or R" forms a twin on R, and the pack's
+# permitted factor changes (``exceptions``) apply by row id. Other tracks add rows to the pack,
+# never code here.
+
+#: Factor kinds that act in a plan direction: each expands to +X, -X, +Y and -Y.
+DIRECTIONAL = ("W", "E")
+#: The analysis cases each factor kind of a pack row stands for (W and E expand by direction).
+KIND_CASES = {"D": ("D", "SD")}
+
+
+def _pack() -> Any:
+    from saengine.codes import context as code_context
+
+    return code_context.pack_table("combinations")
+
+
+def _token(value: float, kind: str) -> str:
+    return (
+        f"{value:.1f}{kind}" if abs(value * 10 - round(value * 10)) < 1e-9 else f"{value:g}{kind}"
+    )
+
+
+def apply_exception(row: Any, exception: Any) -> Any:
+    """A copy of a pack row with ``exception``'s factor (``case`` at ``to``) when the row's id is
+    one of its rows, its name updated (``1.0L`` -> ``0.5L``); else the row itself."""
+    old = row.factors.get(exception.case)
+    if row.id not in exception.rows or old is None or old == exception.to:
+        return row
+    name = row.name.replace(_token(old, exception.case), _token(exception.to, exception.case), 1)
+    if name == row.name:
+        name = f"{row.name} ({exception.case} × {exception.to:g})"
+    return row.model_copy(
+        update={"name": name, "factors": {**row.factors, exception.case: exception.to}}
+    )
+
+
+def exception_applies(
+    exception: Any,
+    live_loads: list[tuple[str, float]] | None = None,
+    directionality: float | None = None,
+    material: str | None = None,
+) -> tuple[bool, str]:
+    """(whether a pack exception's conditions hold, why not): ``live_loads`` the floor area
+    loads ``(use, L0)``, ``directionality`` the wind's directionality factor, ``material`` the
+    frame's material category."""
+    if exception.liveMax is not None:
+        if live_loads is None:
+            return False, "the area loads are not known"
+        heavy = [use for use, live in live_loads if live > exception.liveMax + 1e-9]
+        if heavy:
+            return False, f"a live load is over {exception.liveMax:g} kN/m² ({', '.join(heavy)})"
+        excluded = sorted({use for use, _ in live_loads if use in exception.excludedUses})
+        if excluded:
+            return False, f"not for {', '.join(excluded)}"
+    if exception.directionality is not None and (
+        directionality is None or abs(directionality - exception.directionality) > 1e-9
+    ):
+        return False, f"the wind is reduced by a directionality factor of {directionality}"
+    if exception.material is not None and material != exception.material:
+        return False, f"only for {exception.material} frames"
+    return True, ""
+
+
+def expand_rows(rows: list[Any]) -> list[tuple[str, dict[str, float], Any]]:
+    """``(name, {kind: factor}, row)`` of pack rows, a row with W or E once per plan direction
+    and sign: ``1.2D + 1.6WX + ...``, ``1.2D + 1.6(-WX) + ...`` (kinds W, E become WX, WY, EX,
+    EY; the other kinds stay)."""
+    out: list[tuple[str, dict[str, float], Any]] = []
+    for row in rows:
+        factors = dict(row.factors)
+        lateral = next((kind for kind in DIRECTIONAL if kind in factors), None)
+        if lateral is None:
+            out.append((row.name, factors, row))
+            continue
+        base = {k: v for k, v in factors.items() if k != lateral}
+        for axis in ("X", "Y"):
+            for sign in (1, -1):
+                label = (
+                    row.name.replace(lateral, f"{lateral}{axis}", 1)
+                    if sign > 0
+                    else row.name.replace(lateral, f"(-{lateral}{axis})", 1)
+                )
+                out.append((label, {**base, f"{lateral}{axis}": sign * factors[lateral]}, row))
+    return out
+
+
+def allowable_combinations(
+    present: set[str] | frozenset[str] | None = None,
+) -> list[tuple[str, dict[str, float]]]:
+    """The code pack's allowable stress combinations (``combinations.allowable``) as ``(name,
+    {analysis case: factor})``: wind and earthquake in ±X and ±Y, D on D and SD, T as a rise
+    and a fall. With ``present`` (the cases that have results), the pack's optional cases
+    (F, H, T, R) the model lacks are left out of a combination (the combination with a load
+    not acting, as the code asks), and each combination with Lr is also formed on its
+    alternate R when the model has it."""
+    table = _pack()
+    optional = set(getattr(table, "optionalCases", ()) or ())
+    out: list[tuple[str, dict[str, float]]] = []
+    for name, factors, _row in expand_rows(list(getattr(table, "allowable", None) or [])):
+        cases: dict[str, float] = {}
+        for kind, value in factors.items():
+            if present is not None and kind in optional and kind not in present:
+                continue
+            for case in KIND_CASES.get(kind, (kind,)):
+                cases[case] = value
+        temperature = cases.pop("T", None)
+        signs = [(name, cases)]
+        if temperature:
+            signs = [
+                (f"{name} + {_token(temperature, 'T')}", {**cases, "T": temperature}),
+                (f"{name} − {_token(temperature, 'T')}", {**cases, "T": -temperature}),
+            ]
+        for label, combination in signs:
+            out.append((label, combination))
+            for case, alternates in (getattr(table, "alternates", None) or {}).items():
+                if not combination.get(case):
+                    continue
+                for alternate in alternates:
+                    if present is not None and alternate not in present:
+                        continue
+                    twin = {k: v for k, v in combination.items() if k != case}
+                    twin[alternate] = combination[case]
+                    out.append((f"{label} [{case} → {alternate}]", twin))
+    return out
+
+
+def allowable_stress_increase(row_id: str | None, overstrength: bool) -> float:
+    """The allowable stress increase of allowable stress combination ``row_id`` (the pack row's
+    id): the pack's ``allowableStressIncrease`` when the combination takes the overstrength
+    seismic load Em (``overstrength``) and the row is one of ``allowableStressIncreaseRows``,
+    else 1.0 (no increase, as the code's general rule is)."""
+    table = _pack()
+    increase = getattr(table, "allowableStressIncrease", None)
+    if not increase or not overstrength or row_id not in table.allowableStressIncreaseRows:
+        return 1.0
+    return float(increase)
+
+
+def uplift_dead_factor() -> float | None:
+    """The factor on the dead load that resists uplift in allowable stress design (the pack's
+    ``upliftDeadFactor``), None when the pack sets none."""
+    return getattr(_pack(), "upliftDeadFactor", None)
+
+
+#: The name prefix of the cantilever uplift combination (:func:`cantilever_uplift`); the design
+#: applies it to the members with a free end only.
+CANTILEVER_PREFIX = "Cantilever uplift: "
+
+
+def cantilever_uplift(category: str | None) -> LoadCombination | None:
+    """The code pack's net upward force on horizontal cantilevers (``cantileverUplift``: a
+    share of the dead load, in the Seismic Design Categories it lists) as a combination of the
+    dead load acting upward, ``"Cantilever uplift: −0.2D"``; None when the pack has none or
+    the category is not one of its."""
+    rule = getattr(_pack(), "cantileverUplift", None)
+    if rule is None or category not in rule.categories:
+        return None
+    return LoadCombination(
+        name=f"{CANTILEVER_PREFIX}−{rule.factor:g}D", D=-rule.factor, F=0.0, H=0.0
+    )
+
+
+def alternate_combinations(
+    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+) -> list[LoadCombination] | None:
+    """The combinations followed by, for each with a case that has an alternate in the code
+    pack (``alternates``: "Lr or R") the model has, a twin with the alternate at the same
+    factor, named "<name> [Lr → R]". None when the model has no alternate case."""
+    alternates = getattr(_pack(), "alternates", None) or {}
+    pairs = [(case, alt) for case, alts in alternates.items() for alt in alts if alt in present]
+    if not pairs:
+        return None
+    out = list(combinations)
+    for combination in combinations:
+        for case, alternate in pairs:
+            value = getattr(combination, case, 0) or 0
+            if not value:
+                continue
+            data = combination.model_dump(by_alias=True)
+            out.append(
+                CaseCombination(
+                    **{
+                        **data,
+                        case: 0.0,
+                        "cases": {**(data.get("cases") or {}), alternate: value},
+                        "name": f"{combination.name} [{case} → {alternate}]",
+                    }
+                )
+            )
+    return out
+
+
 def combination_factors(
     combination: LoadCombination, present: set[str] | frozenset[str] | None = None
 ) -> dict[str, float]:

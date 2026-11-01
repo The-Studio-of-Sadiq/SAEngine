@@ -36,7 +36,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
-import { BNBC, DEFAULT_SETTINGS, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { BNBC, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -62,11 +62,29 @@ function format(value: number): string {
 }
 
 /**
+ * Whether the code pack's reduced live load factor applies to `settings`: chosen (Analysis model,
+ * Reduced live load factor) and every area load within the pack's conditions.
+ */
+export function reducedLiveApplies(settings: JsonObject): boolean {
+	const analysis = isObject(settings.analysis) ? settings.analysis : undefined;
+	const rule = REDUCED_LIVE as JsonObject;
+	if (analysis?.reducedLiveFactor !== true || !Array.isArray(rule.combinations)) {
+		return false;
+	}
+	const liveMax = typeof rule.liveMax === 'number' ? rule.liveMax : Infinity;
+	const excluded = Array.isArray(rule.excludedUses) ? rule.excludedUses : [];
+	const loads = Array.isArray(settings.areaLoads) ? settings.areaLoads.filter(isObject) : [];
+	return loads.every(a => (typeof a.live !== 'number' || a.live <= liveMax + 1e-9) && !excluded.includes(a.use as JsonValue));
+}
+
+/**
  * The code's strength combinations for `settings`: with the temperature case on (Analysis model →
- * Temperature), combination 2 also with ±T right after it (BNBC 2020 Part 6 Sec 2.7.3.1).
+ * Temperature), combination 2 also with ±T right after it; with the reduced live load factor
+ * where the code pack permits it.
  */
 export function codeCombinations(settings: JsonObject): JsonValue[] {
-	const combinations = clone((DEFAULT_SETTINGS as JsonObject).combinations as JsonValue) as JsonValue[];
+	const source = reducedLiveApplies(settings) ? (REDUCED_LIVE as JsonObject).combinations : (DEFAULT_SETTINGS as JsonObject).combinations;
+	const combinations = clone(source as JsonValue) as JsonValue[];
 	const analysis = isObject(settings.analysis) ? settings.analysis : undefined;
 	const thermal = analysis && isObject(analysis.thermal) ? analysis.thermal : undefined;
 	const settlement = analysis && isObject(analysis.settlement) ? analysis.settlement : undefined;

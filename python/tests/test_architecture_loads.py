@@ -107,14 +107,15 @@ def test_wall_on_a_6_m_beam_with_a_door_by_hand() -> None:
     [row] = loads.wall_rows
     assert row["on"] == "beam" and row["openings_m2"] == pytest.approx(2.1)
     assert row["total_kN"] == pytest.approx(85.065, abs=1e-3)
-    # In the model: + 85.065 kN of SD, less the L1 slab's partition allowance (1.0 kN/m² over
-    # 6 × 5 = 30 m², dropped where walls are drawn, never both): + 55.065 kN against the
-    # allowance alone; the seismic weight takes SD in full.
+    # In the model: + 85.065 kN of SD, less the L1 slab's partition allowance (1.2 kN/m², the
+    # least of BNBC 2020 Part 6 Sec 2.3.6, over 6 × 5 = 30 m² = 36 kN, dropped where walls are
+    # drawn, never both): + 49.065 kN against the allowance alone; the seismic weight takes SD
+    # in full.
     with_walls = derived(arch)
     allowance = derived(arch, mode="allowance")
-    assert sd(with_walls) - sd(allowance) == pytest.approx(85.065 - 30.0, rel=1e-6)
+    assert sd(with_walls) - sd(allowance) == pytest.approx(85.065 - 36.0, rel=1e-6)
     assert with_walls.summary["weight_kN"] - allowance.summary["weight_kN"] == pytest.approx(
-        85.065 - 30.0, rel=1e-3
+        85.065 - 36.0, rel=1e-3
     )
     rows = with_walls.summary["architectureLoads"]
     assert rows["walledStories"] == ["L1"] and rows["walls"][0]["member"] == "B11"
@@ -158,12 +159,12 @@ def test_wall_across_the_slab() -> None:
     base = derived(None)
     # Slabs as loads to beams: the panel takes max(41.33 kN / 30 m² = 1.378, 0.33 × 8.8875 =
     # 2.933) kN/m² (BNBC Sec 2.3.6) = 87.99 kN, the beams 2 × 0.175 × 8.8875 = 3.111 kN; the
-    # 30 kN partition allowance goes.
+    # 36 kN partition allowance (1.2 kN/m² × 30 m²) goes.
     beams = derived(arch)
-    assert sd(beams) - sd(base) == pytest.approx(0.33 * 8.8875 * 30 + 0.35 * 8.8875 - 30, rel=1e-6)
-    # Shells: the wall is a line load on the shells, its weight exact: 44.4375 − 30 kN.
+    assert sd(beams) - sd(base) == pytest.approx(0.33 * 8.8875 * 30 + 0.35 * 8.8875 - 36, rel=1e-6)
+    # Shells: the wall is a line load on the shells, its weight exact: 44.4375 − 36 kN.
     shells = derived(arch, "shells")
-    assert sd(shells) - sd(derived(None, "shells")) == pytest.approx(44.4375 - 30, rel=1e-6)
+    assert sd(shells) - sd(derived(None, "shells")) == pytest.approx(44.4375 - 36, rel=1e-6)
 
 
 def test_room_finish_replaces_the_flat_finish() -> None:
