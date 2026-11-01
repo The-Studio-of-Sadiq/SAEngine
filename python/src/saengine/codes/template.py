@@ -139,6 +139,12 @@ TABLE_HELP: dict[str, str] = {
     "redundantCharts). A group left out is not covered.",
     "compositeConcrete": "Composite concrete flexural members (precast and cast-in-place parts "
     "placed separately): the horizontal shear limits at the contact surface and the ties.",
+    "bamboo": "Round bamboo members (permissible stresses): safe working stresses by species, "
+    "by density or from tests with the factors of safety, load duration factors, the column "
+    "rules and the joints. A pack without it does not cover bamboo.",
+    "ferrocement": "Ferrocement members: the mesh types (fy, effective moduli, efficiency "
+    "factor), strength and service load design, crack width and fatigue limits, the detailing "
+    "rules. A pack without it does not cover ferrocement.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

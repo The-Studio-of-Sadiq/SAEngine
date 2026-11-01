@@ -82,9 +82,9 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 
 /** The material categories each kind of object type can be made of (members never of rebar or mortar alone). */
 const KIND_MATERIALS: { readonly [kind: string]: readonly string[] } = {
-	beam: ['concrete', 'steel', 'timber', 'other'],
-	column: ['concrete', 'steel', 'masonry', 'timber', 'other'],
-	brace: ['steel', 'timber', 'other'],
+	beam: ['concrete', 'steel', 'timber', 'bamboo', 'ferrocement', 'other'],
+	column: ['concrete', 'steel', 'masonry', 'timber', 'bamboo', 'ferrocement', 'other'],
+	brace: ['steel', 'timber', 'bamboo', 'other'],
 	slab: ['concrete', 'other'],
 	wall: ['concrete', 'masonry', 'other'],
 	staircase: ['concrete', 'other'],
@@ -781,12 +781,17 @@ export class LibraryEditor extends JsonDocumentEditor {
 			const material = this.materialIds.members.find(m => m.id === item.material);
 			return material?.category === 'steel' ? undefined : 'hidden';
 		}
+		if (this.config?.listKey === 'objects' && item && (path === 'bamboo' || path === 'ferrocement') && item[path] === undefined) {
+			// B39: a bamboo or ferrocement member's design data, shown for its material only.
+			const material = this.materialIds.members.find(m => m.id === item.material);
+			return material?.category === path ? undefined : 'hidden';
+		}
 		if (this.config?.listKey !== 'materials' || !item) {
 			return undefined;
 		}
 		const category = item.category;
-		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry', timber: 'timber' }[String(category)];
-		if (path === 'concrete' || path === 'steel' || path === 'masonry' || path === 'timber') {
+		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry', timber: 'timber', bamboo: 'bamboo', ferrocement: 'ferrocement' }[String(category)];
+		if (path === 'concrete' || path === 'steel' || path === 'masonry' || path === 'timber' || path === 'bamboo' || path === 'ferrocement') {
 			return path === group ? 'required' : 'hidden';
 		}
 		if (path === 'composition' && category !== 'concrete' && category !== 'mortar') {
