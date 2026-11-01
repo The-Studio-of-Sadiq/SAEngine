@@ -211,6 +211,17 @@ def table_factor(structure: str = "permanent", control: str = "normal") -> float
     return f.pileSafety[structure][list(f.pileControls).index(control)]
 
 
+#: The pile kinds; a driven cast-in-place pile has the capacity of a driven pile and the round
+#: section of a bored one.
+KINDS = ("bored", "driven", "drivenCastInPlace")
+
+
+def capacity_kind(kind: str) -> str:
+    """The kind whose unit values a pile takes: driven cast-in-place piles those of driven
+    piles (they displace the soil as they are driven)."""
+    return "driven" if kind == "drivenCastInPlace" else kind
+
+
 def section_shape(kind: str, size: float) -> tuple[float, float]:
     """Shaft perimeter and section area of a pile of ``size`` (any unit): a bored pile a circle
     of diameter ``size``, a driven precast pile a square of side ``size``."""
@@ -309,8 +320,9 @@ def single_pile(
     """Ultimate and allowable axial capacity [kN] of a circular pile D × L [m] whose head is
     ``head`` m below the borehole's ground (see the module notes). ``construction``: the
     drilled shaft's (K/K0, δ/φ) construction ids of the pack, for its β in sand."""
-    if kind not in ("bored", "driven"):
-        raise ValueError(f"pile kind {kind!r}: bored or driven")
+    if kind not in KINDS:
+        raise ValueError(f"pile kind {kind!r}: {', '.join(KINDS)}")
+    shape_kind, kind = kind, capacity_kind(kind)
     method = method_id(method)
     if method not in METHODS:
         raise ValueError(f"pile capacity method {method!r}: {', '.join(METHODS)}")
@@ -325,7 +337,7 @@ def single_pile(
     given = factors or FactorsOfSafety()
     factors = given.for_method(method)
     tip = head + length
-    perimeter, area = section_shape(kind, diameter)
+    perimeter, area = section_shape(shape_kind, diameter)
     notes: list[str] = []
     raised = given.raised(method)
     if raised:
@@ -402,7 +414,7 @@ def single_pile(
         )
     return {
         "borehole": profile.id,
-        "kind": kind,
+        "kind": shape_kind,
         "method": method,
         "diameter": round(diameter * 1e3),
         "length": round(length * 1e3),
@@ -644,7 +656,7 @@ def structural_checks(
                 combination,
                 f"ACI 318-19 22.4.2 φPn,max of the {shape} section ({tie}), {bars}, "
                 f"As = {section.steel_area:.0f} mm² ({100 * section.steel_area / area:.2f} %); "
-                "fully embedded: not a long column (BNBC Sec 3.10.1.31)",
+                f"fully embedded: not a long column ({_embedded_clause()})",
             )
         )
         checks.append(
@@ -681,41 +693,36 @@ def structural_checks(
                     f"{reason}: an unreinforced pile cannot carry tension; reinforce it",
                 )
             )
-    if kind == "driven":
+    from saengine.substructure.pile_detailing import cite, rules
+
+    found = rules()
+    if kind == "driven" and found is not None:
+        share = found.driven.serviceStress
         checks.append(
             _check(
                 "Pile service stress (driven precast)",
                 service * 1e3 / area,
-                0.33 * fc,
+                share * fc,
                 "MPa",
                 None,
-                "BNBC 2020 Part 6 Sec 3.10.1.31: at most 0.33 f'c on a precast concrete pile",
+                f"at most {share:g} f'c on a precast concrete pile ({cite('detailing.driven')})",
             )
         )
     return checks
 
 
+def _embedded_clause() -> str:
+    """The clause by which a fully embedded pile is not a long column (the pack's)."""
+    from saengine.substructure.pile_detailing import cite
+
+    return cite("lateral.unbracedCu") or "where the soil supports it laterally"
+
+
 def min_reinforcement_note(diameter: float) -> str:
-    """BNBC Table 6.3.11's guidance for a bored pile of this diameter [mm] (build-ability)."""
-    rows = (
-        (400, "6Ø16, hoops Ø8 @ 200"),
-        (450, "6Ø16, hoops Ø8 @ 200"),
-        (500, "8Ø16, hoops Ø8 @ 250"),
-        (600, "8Ø16, hoops Ø8 @ 250"),
-        (750, "10Ø16, hoops Ø10 @ 300"),
-        (900, "10Ø16, hoops Ø10 @ 300"),
-        (1050, "12Ø16, hoops Ø10 @ 300"),
-        (1200, "12Ø16, hoops Ø10 @ 300"),
-        (1500, "12Ø20, hoops Ø10 @ 400"),
-        (1800, "12Ø20, hoops Ø10 @ 400"),
-        (2100, "16Ø20, hoops Ø10 @ 400"),
-        (2400, "16Ø25, hoops Ø12 @ 500"),
-    )
-    found = next((text for d, text in rows if diameter <= d + 1e-6), rows[-1][1])
-    return (
-        f"BNBC Table 6.3.11 (guidance, compression only, fy 420): {found} for a Ø{diameter:.0f} "
-        "bored pile, to at least 3 m below the cut-off"
-    )
+    """The code pack's build-ability guidance for a bored pile of this diameter [mm]."""
+    from saengine.substructure.pile_detailing import guidance_note, not_covered
+
+    return guidance_note(diameter) or not_covered("Bored pile reinforcement guidance")
 
 
 # ─────────────────────────────────────── tables for the editor ───────────────────────────────

@@ -17968,6 +17968,42 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					title: 'Raft springs',
 					type: 'string',
 				},
+				downdrag: {
+					default: true,
+					description: 'Check the piles for downdrag where the soil around them settles (fill, organic and soft soil by the code pack), to the neutral point.',
+					title: 'Negative skin friction',
+					type: 'boolean',
+				},
+				downdragDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the ground down to which the soil settles round the piles [mm]; empty: the settling layers of the soil report from the top.',
+					title: 'Settling soil to',
+				},
+				swellingDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the ground of the zone of seasonal moisture change in expansive soil [mm]; empty: the layers whose samples the soil report finds expansive.',
+					title: 'Swelling zone to',
+				},
 			},
 			title: 'Design',
 			type: 'object',
@@ -18673,6 +18709,100 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'PileGridLine',
 			type: 'object',
 		},
+		PileLoadTest: {
+			additionalProperties: false,
+			description: 'A static load test of a pile type at the site: its load-movement curve.',
+			properties: {
+				id: {
+					description: 'Its mark, e.g. TP1 (test pile) or WP3 (working pile).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				pileType: {
+					description: 'Pile type id.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Pile type',
+					type: 'string',
+				},
+				kind: {
+					default: 'compression',
+					description: 'Axial compression, uplift (tension) or lateral load.',
+					enum: ['compression', 'uplift', 'lateral'],
+					enumDescriptions: ['Compression', 'Uplift', 'Lateral'],
+					title: 'Kind',
+					type: 'string',
+				},
+				test: {
+					default: 'initial',
+					description: 'Initial test on a test pile (to twice the design load or failure) or routine test on a working pile (to one and a half times).',
+					enum: ['initial', 'routine'],
+					enumDescriptions: ['Initial (test pile)', 'Routine (working pile)'],
+					title: 'Test',
+					type: 'string',
+				},
+				group: {
+					default: false,
+					description: 'A compression test on a pile group (its own criteria).',
+					title: 'Group',
+					type: 'boolean',
+				},
+				points: {
+					description: 'The curve: [load kN, movement mm] at each stage of loading, from the start (movement at the pile head; lateral tests: the head\'s lateral movement).',
+					items: {
+						maxItems: 2,
+						minItems: 2,
+						prefixItems: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'number',
+							},
+						],
+						type: 'array',
+					},
+					title: 'Points',
+					type: 'array',
+				},
+				breakLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Uplift tests: the load at which the curve shows a clear break [kN]; empty: none seen.',
+					title: 'Clear break',
+				},
+				bulbDiameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Under-reamed piles: the bulb\'s diameter [mm] (its share of settlement).',
+					title: 'Bulb diameter',
+				},
+			},
+			required: ['id', 'pileType'],
+			title: 'PileLoadTest',
+			type: 'object',
+		},
 		PileType: {
 			additionalProperties: false,
 			description: 'A pile: kind, size and reinforcement.',
@@ -18686,9 +18816,9 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				kind: {
 					default: 'bored',
-					description: 'Bored cast-in-situ or driven precast.',
-					enum: ['bored', 'driven'],
-					enumDescriptions: ['Bored (cast in situ)', 'Driven (precast)'],
+					description: 'Bored cast-in-situ, driven precast (square), or driven cast-in-place (a shell or tube driven and filled with concrete: round, the capacity of a driven pile).',
+					enum: ['bored', 'driven', 'drivenCastInPlace'],
+					enumDescriptions: ['Bored (cast in situ)', 'Driven (precast)', 'Driven (cast in place)'],
 					title: 'Kind',
 					type: 'string',
 				},
@@ -18772,6 +18902,94 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report [mm]; none: the pile is designed for axial force only.',
 					title: 'Depth to fixity',
+				},
+				tipDiameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Driven cast-in-place piles tapered towards the tip: its diameter [mm]; empty: uniform.',
+					title: 'Tip diameter',
+				},
+				placement: {
+					default: 'submerged',
+					description: 'Bored piles: concrete placed in a dry bore, or by tremie under water or slurry (the code pack\'s least cement content and mix by placement).',
+					enum: ['dry', 'submerged'],
+					enumDescriptions: ['Dry bore', 'Tremie under water or slurry'],
+					title: 'Concrete placement',
+					type: 'string',
+				},
+				hardDriving: {
+					default: false,
+					description: 'Driven piles: driving stresses above the code pack\'s limit (1000 kPa in the default pack), which asks for a higher concrete grade.',
+					title: 'Hard driving',
+					type: 'boolean',
+				},
+				reinforcedLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Length of the longitudinal bars below the cut-off [mm]; empty: the full length of the pile.',
+					title: 'Cage length',
+				},
+				casingDepth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bored piles: depth of the temporary casing below the cut-off [mm]; the cage runs past it by the code pack\'s length.',
+					title: 'Temporary casing',
+				},
+				unbracedLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Length below the cap standing in air or water, in scour, or in soil that cannot support it laterally [mm]: that part is designed as a column. Soil weaker than the code pack\'s cu limit is found from the soil report.',
+					title: 'Unbraced length',
+				},
+				lateralDeflection: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The performance requirement on the pile head\'s lateral movement [mm]; empty: the code pack\'s.',
+					title: 'Allowable head deflection',
 				},
 			},
 			required: ['id', 'diameter', 'length', 'material'],
@@ -19560,6 +19778,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Tie beams',
 			type: 'array',
 		},
+		loadTests: {
+			description: 'Static load tests at the site: their curves give the safe loads, and a compression test lets the pile type\'s capacity take the factor of safety with a test.',
+			items: {
+				$ref: '#/$defs/PileLoadTest',
+			},
+			title: 'Pile load tests',
+			type: 'array',
+		},
 		groundSlabs: {
 			description: 'Ground-bearing slabs on the compacted ground.',
 			items: {
@@ -19595,6 +19821,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	pileTypes: [],
 	piles: [],
 	tieBeams: [],
+	loadTests: [],
 	groundSlabs: [],
 	retainingWalls: [],
 	earthPressure: {
@@ -19617,6 +19844,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		wallLengthHeight: 2.0,
 		temporary: false,
 		raftSprings: 'noTension',
+		downdrag: true,
 	},
 };
 

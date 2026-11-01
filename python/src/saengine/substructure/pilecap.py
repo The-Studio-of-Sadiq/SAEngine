@@ -88,7 +88,15 @@ from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.materials import concrete_modulus
 from saengine.library.objects import BarMesh
-from saengine.substructure import pile_settlement, pile_static, shallow_rules
+from saengine.substructure import (
+    downdrag,
+    load_tests,
+    pile_detailing,
+    pile_lateral,
+    pile_settlement,
+    pile_static,
+    shallow_rules,
+)
 from saengine.substructure.pilehead import METHOD as PILE_HEAD_METHOD
 from saengine.substructure.precast import PRECAST_METHOD
 from saengine.substructure.shallow import (
@@ -726,6 +734,7 @@ def pile_cap_design(
     worst_t = (math.inf, None)
     total_max = (0.0, None)
     gravity_max = (0.0, None)
+    gravity_pile = 0.0
     for name, loads in service.items():
         weight = _service_weight(spec, name, dead_factor)
         reactions, found = pile_reactions(spec, loads, weight)
@@ -741,8 +750,10 @@ def pile_cap_design(
         total = float(reactions.sum())
         if total > total_max[0]:
             total_max = (total, name)
-        if not any(c in name for c in ("W", "E")) and total > gravity_max[0]:
-            gravity_max = (total, name)
+        if not any(c in name for c in ("W", "E")):
+            gravity_pile = max(gravity_pile, float(reactions.max()))
+            if total > gravity_max[0]:
+                gravity_max = (total, name)
     qa, ta = pile["Qa"], pile["Ta"]
     if worst_c[1] is not None:
         checks.append(
@@ -933,7 +944,7 @@ def pile_cap_design(
             tu[1],
         )
     if kind == "driven" and pile_section is not None:
-        from saengine.substructure.precast import handling_checks, reinforcement_checks
+        from saengine.substructure.precast import handling_checks
 
         checks += handling_checks(
             dia,
@@ -943,7 +954,6 @@ def pile_cap_design(
             pile_section.get("reinforcement"),
             pile_section.get("unitWeight", 2400 * G * 1e-9),
         )
-        checks += reinforcement_checks(dia, pile_section.get("reinforcement"))
     head_detail = None
     head_moments = None
     if lateral is not None and strength and pile_section is not None:
@@ -1006,6 +1016,17 @@ def pile_cap_design(
         "cap": cap,
         "pileHead": head_detail,
         "notes": notes,
+        # per pile [kN]: the largest and least service loads, the largest gravity (sustained)
+        # load and the largest factored load; per strength combination the factored extremes
+        "loads": {
+            "serviceMax": _kn(float(service_max.max())) if service else 0.0,
+            "serviceMin": _kn(float(service_min.min())) if service else 0.0,
+            "gravityMax": _kn(gravity_pile),
+            "factoredMax": _kn(pu[0]),
+            "axial": axial,
+            "groupMax": _kn(total_max[0]),
+            "groupCombination": total_max[1],
+        },
     }
 
 
@@ -1109,7 +1130,190 @@ PILE_CAP_METHOD = [
     ),
     PILE_HEAD_METHOD,
     PRECAST_METHOD,
+    (
+        "Pile rules of the code pack: structural detailing by pile kind (least f'c, diameter, "
+        "longitudinal steel, bars, cover, hoops or ties, cage length, cement content; the cover "
+        "on a corrosive site); lateral load the least of the head deflection on the Winkler "
+        "springs (Khh by the head fixity, times the group ratio of in-line piles), the pile "
+        "section and a lateral load test, unbraced piles designed as columns; load tests "
+        "interpreted by the pack's criteria, a compression test giving the factor of safety "
+        "with a test and capping the allowable load; negative skin friction to the neutral "
+        "point and swelling uplift in expansive soil. Lateral soil failure (Broms) is planned."
+    ),
 ]
+
+
+def _apply_tests(pile: dict[str, Any], tests: dict[str, Any]) -> None:
+    """A pile type's load tests on its capacity: the allowable compression at most the safe
+    load of its single-pile compression tests, the allowable uplift at most its uplift tests'."""
+    for kind, key in (("compression", "Qa"), ("uplift", "Ta")):
+        found = tests.get(kind)
+        if found is None:
+            continue
+        pile[f"{key}Analysis"] = pile[key]
+        if found["safe"] < pile[key]:
+            pile[key] = found["safe"]
+            pile["notes"].append(
+                f"{'Qa' if kind == 'compression' else 'Ta'} = {found['safe']:.0f} kN, the safe "
+                f"load of load test {found['id']} ({found['basis']}; {found['source']})"
+            )
+
+
+def _corrosive(report: Any) -> list[str]:
+    """Why the soil report's chemistry makes the site corrosive (empty: it does not)."""
+    from saengine.soil.chemistry import corrosive_site
+
+    reasons: list[str] = []
+    if report is None:
+        return reasons
+    for borehole in report.boreholes:
+        for sample in borehole.samples:
+            if sample.chemistry is None:
+                continue
+            reasons += [f"{borehole.id}: {r}" for r in corrosive_site(sample)]
+    return reasons
+
+
+def _pile_rules_checks(
+    ctx: Any,
+    pile_type: Any,
+    spec: CapSpec,
+    out: dict[str, Any],
+    pile: dict[str, Any],
+    profile: Any,
+    report: Any,
+    tests: dict[str, Any],
+    section: dict[str, Any],
+    lateral: dict[str, Any],
+    construction: Any,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The code pack's pile rules on a cap's piles: detailing, lateral load, unbraced piles,
+    load tests, downdrag and swelling (:mod:`pile_detailing`, :mod:`pile_lateral`,
+    :mod:`load_tests`, :mod:`downdrag`). Sets ``out["pileRules"]``."""
+    from saengine.design.check import _check
+    from saengine.substructure.pilehead import head_actions
+
+    checks: list[dict[str, Any]] = []
+    notes: list[str] = []
+    n = len(spec.piles)
+    kind = pile_type.kind
+    loads = out.get("loads") or {}
+    detail: dict[str, Any] = {}
+
+    found, found_notes = pile_detailing.detailing_checks(
+        pile_type,
+        section["fc"],
+        section["fy"],
+        composition=section.get("composition"),
+        corrosive=_corrosive(report),
+    )
+    checks += found
+    notes += found_notes
+
+    offsets = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
+    ratios = (
+        pile_lateral.group_ratio(offsets, spec.pile_diameter, 0),
+        pile_lateral.group_ratio(offsets, spec.pile_diameter, 1),
+    )
+    if n > 1:
+        notes += [f"lateral load along {axis}: {r[1]}" for axis, r in zip("uv", ratios) if r[1]]
+    found, found_notes = pile_lateral.lateral_checks(
+        lateral["service"],
+        n,
+        lateral["stiffness"],
+        (ratios[0][0], ratios[1][0]),
+        getattr(pile_type, "lateralDeflection", None),
+        tests.get("lateral"),
+    )
+    checks += found
+    notes += found_notes
+    detail["groupRatio"] = [round(ratios[0][0], 3), round(ratios[1][0], 3)]
+    stiffness = lateral["stiffness"]
+    if stiffness is not None:
+        detail["headStiffness"] = round(stiffness["K"], 1)  # kN/m == N/mm
+
+    unsupported, why = pile_lateral.unsupported_length(
+        profile, lateral["head"], getattr(pile_type, "unbracedLength", None)
+    )
+    if unsupported > 0:
+        moments = {
+            name: head_actions(h, n, lateral["fixity"], lateral["depth"])["design"]
+            for name, h in lateral["strength"].items()
+        }
+        checks += pile_lateral.unbraced_checks(
+            spec.pile_diameter,
+            kind == "driven",
+            section["fc"],
+            section["fy"],
+            section["ec"],
+            section.get("reinforcement"),
+            loads.get("axial") or {},
+            moments,
+            unsupported,
+            lateral["depth"],
+            lateral["fixity"],
+            why,
+        )
+        detail["unsupported"] = round(unsupported)
+
+    single = tests.get("compression")
+    group = tests.get("group")
+    if group is not None and loads.get("groupMax"):
+        checks.append(
+            _check(
+                "Group load (load test)",
+                loads["groupMax"],
+                group["safe"],
+                "kN",
+                loads.get("groupCombination"),
+                f"group load test {group['id']}: {group['basis']} ({group['source']})",
+            )
+        )
+    if tests["results"]:
+        h_max = max(
+            (float(np.hypot(*h)) / max(n, 1) / 1e3 for h in lateral["service"].values()),
+            default=0.0,
+        )
+        design_loads = {
+            "compression": loads.get("serviceMax") or 0.0,
+            "group": loads.get("groupMax") or 0.0,
+            "uplift": max(-(loads.get("serviceMin") or 0.0), 0.0),
+            "lateral": h_max,
+        }
+        same = sum(1 for p in ctx.substructure.piles if p.type == pile_type.id)
+        tested = sum(
+            1
+            for t in ctx.substructure.loadTests
+            if t.pileType == pile_type.id and t.kind == "compression" and not t.group
+        )
+        checks += load_tests.adequacy_checks(tests, design_loads, same, tested, kind)
+    notes += tests["notes"]
+    if single is None and load_tests.rules() is not None:
+        rules_ = load_tests.rules().compression
+        notes.append(
+            f"no compression load test of {pile_type.id}: at least {100 * rules_.minShare:g} % "
+            f"of the piles are to be tested (at least {rules_.minBored} for bored piles), and "
+            f"integrity tests on {100 * rules_.integrityShare:g} % of them "
+            f"({load_tests.cite('loadTests.compression')})"
+        )
+
+    if profile is not None:
+        found, found_notes, movement = downdrag.checks(
+            profile,
+            pile,
+            ctx.substructure.design,
+            loads.get("serviceMax") or 0.0,
+            loads.get("serviceMin") or 0.0,
+            loads.get("gravityMax") or 0.0,
+            loads.get("factoredMax") or 0.0,
+            {k: section[k] for k in ("fc", "fy", "reinforcement")},
+            construction,
+        )
+        checks += found
+        notes += found_notes
+        detail.update(movement)
+    out["pileRules"] = detail
+    return checks, notes
 
 
 def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
@@ -1155,12 +1359,17 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         head = 0.0
     design = ctx.substructure.design
     fos = design.factorOfSafety
+    pile_ep = pile_concrete.mechanical.E or concrete_modulus(pile_concrete.concrete.fc)
+    tests = load_tests.pile_type_tests(
+        getattr(ctx.substructure, "loadTests", []), pile_type, pile_ep
+    )
     factors = FactorsOfSafety(
         fos.pileCompression,
         fos.pileUplift,
         fos.pileSkin,
         fos.pileEndBearing,
-        bool(getattr(fos, "pileLoadTest", False)),  # optional field (see the integration notes)
+        # a load test at the site: the design's flag, or a compression test of the pile type
+        bool(getattr(fos, "pileLoadTest", False)) or tests["loadTest"],
     )
     kind = pile_type.kind
     construction = shaft_construction(pile_type)
@@ -1179,6 +1388,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     except ValueError as error:
         raise Skip(str(error)) from error
     pile["distance"] = round(distance)
+    _apply_tests(pile, tests)
     notes += [f"{foundation.id}, pile {pile_type.id}: {n}" for n in pile["notes"]]
     foundation_settings = ctx.settings.foundation
     cover = max(0.0, foundation_settings.groundLevel - footing.elevation)
@@ -1212,7 +1422,26 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     }
     from saengine.substructure.pilehead import cap_shears
 
-    _, strength_shears = cap_shears(loads, placed)
+    service_shears, strength_shears = cap_shears(loads, placed)
+    fixity = getattr(pile_type, "headFixity", "fixed")
+    stiffness = pile_lateral.head_stiffness(
+        profile,
+        head,
+        kind,
+        pile_type.diameter,
+        pile_type.length,
+        pile_ep,
+        fixity,
+        pile_lateral.soil_ratio(ctx.settings),
+    )
+    depth = getattr(pile_type, "fixityDepth", None)
+    if not depth and stiffness is not None:
+        depth = pile_lateral.fixity_depth(stiffness)
+        notes.append(
+            f"{foundation.id}, pile {pile_type.id}: depth to fixity {depth:.0f} mm = 1.4 R of "
+            "the Winkler springs (Davisson & Robinson 1965, SAEngine practice); enter the "
+            "geotechnical report's to replace it"
+        )
     out = pile_cap_design(
         spec,
         service,
@@ -1228,13 +1457,37 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         service_dead,
         loads.dead,
         kind,
-        {
-            "shears": strength_shears,
-            "fixity": getattr(pile_type, "headFixity", "fixed"),
-            "depth": getattr(pile_type, "fixityDepth", None),
-        },
+        {"shears": strength_shears, "fixity": fixity, "depth": depth},
         pile_concrete.mechanical.E or concrete_modulus(pile_concrete.concrete.fc),
     )
+    extra, extra_notes = _pile_rules_checks(
+        ctx,
+        pile_type,
+        spec,
+        out,
+        pile,
+        profile,
+        report,
+        tests,
+        {
+            "fc": pile_concrete.concrete.fc,
+            "fy": pile_fy,
+            "ec": pile_ep,
+            "reinforcement": pile_type.reinforcement,
+            "composition": getattr(pile_concrete, "composition", None),
+        },
+        {
+            "service": service_shears,
+            "strength": strength_shears,
+            "stiffness": stiffness,
+            "depth": depth,
+            "fixity": fixity,
+            "head": head,
+        },
+        construction,
+    )
+    out["checks"] += extra
+    out["notes"] += extra_notes
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
     table = capacity_table(
@@ -1284,6 +1537,8 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         group=out["group"],
         cap=out["cap"],
         pileHead=out["pileHead"],
+        loadTests=tests["results"],
+        pileRules=out.get("pileRules"),
         capacityTable=table,
     )
     return result, notes + [f"{foundation.id}: {n}" for n in out["notes"]]
