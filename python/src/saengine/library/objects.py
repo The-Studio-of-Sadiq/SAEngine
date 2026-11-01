@@ -1243,6 +1243,30 @@ class MemberServiceability(_Model):
     )
 
 
+class CompositeTopping(_Model):
+    """A concrete beam built in two placements (a precast or first-cast stem and a
+    cast-in-place part over it) that act as one: the contact surface and its ties."""
+
+    toppingThickness: float = Field(
+        gt=0,
+        title="Cast-in-place thickness",
+        description="Least dimension of the part cast on top [mm] (the ties' spacing).",
+    )
+    surface: Literal["roughened", "smooth"] = Field(
+        default="roughened",
+        description="Contact surface clean and intentionally roughened, or not roughened.",
+    )
+    ties: bool = Field(
+        default=True, description="The stirrups run into the top part as ties across the surface."
+    )
+    contactWidth: float | None = Field(
+        default=None, gt=0, title="Contact width", description="[mm]; none: the beam's width."
+    )
+    tension: bool = Field(
+        default=False, description="Tension across the contact surface (shear only with ties)."
+    )
+
+
 class Beam(_ObjectBase):
     kind: Literal["beam"] = "beam"
     profile: Profile
@@ -1279,6 +1303,13 @@ class Beam(_ObjectBase):
         default=None,
         description="Steel beams: acting with the slab through shear connectors; none: the "
         "steel alone.",
+    )
+    compositeTopping: CompositeTopping | None = Field(
+        default=None,
+        title="Composite concrete",
+        description="Concrete beams cast in two placements acting as one (a precast stem with "
+        "a cast-in-place top): the horizontal shear at the contact surface is checked; none: "
+        "cast in one piece.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -1419,6 +1450,24 @@ class Slab(_ObjectBase):
     )
 
 
+class GradeBeamWall(_Model):
+    """A wall designed as a grade beam spanning between its supports (footings, pile caps)."""
+
+    span: float | None = Field(
+        default=None,
+        gt=0,
+        description="Clear span between the supports [mm]; none: the wall's length.",
+    )
+    continuous: bool = Field(
+        default=False,
+        description="Continuous over its supports (top bars over them); else simply supported.",
+    )
+    bottomBars: int = Field(default=2, ge=0, title="Bottom bars")
+    bottomDia: float = Field(default=16, gt=0, title="Bottom bar size", description="[mm]")
+    topBars: int = Field(default=2, ge=0, title="Top bars")
+    topDia: float = Field(default=16, gt=0, title="Top bar size", description="[mm]")
+
+
 class Wall(_ObjectBase):
     kind: Literal["wall"] = "wall"
     thickness: Length
@@ -1444,6 +1493,13 @@ class Wall(_ObjectBase):
         title="Stiffness modifiers",
         description="Factors on the analysis shell stiffness, mass and weight (empty: the "
         "code's cracked factors for concrete and masonry, else 1).",
+    )
+    gradeBeam: GradeBeamWall | None = Field(
+        default=None,
+        title="Grade beam",
+        description="The wall also spans as a grade beam between its supports: top and bottom "
+        "bars for the moment and its vertical bars for the shear (the code pack's walls as "
+        "grade beams); none: not a grade beam.",
     )
 
 
@@ -1489,6 +1545,49 @@ class Staircase(_ObjectBase):
     )
     headroom: float | None = Field(
         default=None, gt=0, description="Clear headroom provided [mm]; none: not checked."
+    )
+    builtIntoWall: bool = Field(
+        default=False,
+        title="Built into walls",
+        description="Flights and landings built into the walls at their sides (by the code "
+        "pack's least embedment): a strip off the loaded width, a wider effective breadth.",
+    )
+    openWell: bool = Field(
+        default=False,
+        title="Open well",
+        description="A dog-legged stair with an open well: the load where the flight and "
+        "landing spans cross is shared between them.",
+    )
+    stringerBeams: bool = Field(
+        default=False,
+        title="Stringer beams",
+        description="The steps span across the flight between stringer beams at its sides "
+        "(the stringers' forces are reported for their design as beams).",
+    )
+    special: Literal["none", "freeStanding", "sawtooth", "helicoidal"] = Field(
+        default="none",
+        title="Special stair",
+        description="A special stair by the code pack's methods: free-standing (dog-legged, "
+        "landing unsupported), sawtooth (slabless) or helicoidal; none: a waist-slab stair.",
+    )
+    riserThickness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Riser thickness",
+        description="Sawtooth stairs [mm]; none: the waist.",
+    )
+    innerRadius: float | None = Field(
+        default=None, ge=0, title="Inner radius", description="Helicoidal stairs [mm]."
+    )
+    outerRadius: float | None = Field(
+        default=None, gt=0, title="Outer radius", description="Helicoidal stairs [mm]."
+    )
+    planAngle: float | None = Field(
+        default=None,
+        gt=0,
+        le=360,
+        title="Plan angle",
+        description="Helicoidal stairs: the total angle the helix subtends in plan [°].",
     )
 
 

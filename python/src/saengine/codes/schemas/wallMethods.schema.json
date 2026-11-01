@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "GradeBeamWallRules": {
+      "additionalProperties": false,
+      "description": "Walls designed as grade beams: flexure and shear as a beam, the exposed part as a wall.",
+      "properties": {
+        "method": {
+          "const": "beam",
+          "default": "beam",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "title": "GradeBeamWallRules",
+      "type": "object"
+    },
+    "SlenderWallRules": {
+      "additionalProperties": false,
+      "description": "Out-of-plane design of slender walls by the second-order midheight moment (method id\n``midheightMoment``).",
+      "properties": {
+        "method": {
+          "const": "midheightMoment",
+          "default": "midheightMoment",
+          "title": "Method",
+          "type": "string"
+        },
+        "maxAxialShare": {
+          "description": "Pu/Ag at midheight at most this x f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maxaxialshare",
+          "type": "number"
+        },
+        "deflectionFactor": {
+          "description": "Δu = 5 Mu lc² / (factor 48 Ec Icr).",
+          "exclusiveMinimum": 0,
+          "title": "Deflectionfactor",
+          "type": "number"
+        },
+        "deflectionDivisor": {
+          "description": "Service Δs at most lc / divisor.",
+          "exclusiveMinimum": 0,
+          "title": "Deflectiondivisor",
+          "type": "number"
+        },
+        "minModularRatio": {
+          "description": "Es/Ec not less than this in Icr.",
+          "exclusiveMinimum": 0,
+          "title": "Minmodularratio",
+          "type": "number"
+        },
+        "serviceCrackShare": {
+          "description": "Δs by the bilinear rule above this x Mcr.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Servicecrackshare",
+          "type": "number"
+        },
+        "ruptureCoefficient": {
+          "description": "fr = coefficient λ √f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Rupturecoefficient",
+          "type": "number"
+        },
+        "spreadSlope": {
+          "description": "Concentrated loads spread 'slope' down to 1 across.",
+          "exclusiveMinimum": 0,
+          "title": "Spreadslope",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxAxialShare",
+        "deflectionFactor",
+        "deflectionDivisor",
+        "minModularRatio",
+        "serviceCrackShare",
+        "ruptureCoefficient",
+        "spreadSlope"
+      ],
+      "title": "SlenderWallRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Methods of reinforced-concrete walls beyond the compression-member design.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "slender": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SlenderWallRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "gradeBeam": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GradeBeamWallRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    }
+  },
+  "title": "WallMethodsTable",
+  "type": "object",
+  "$id": "saengine.codePack.wallMethods/1"
+}

@@ -787,8 +787,14 @@ def wall_checks(
     drift: float | None = None,
     surface: InteractionSurface | PierInteraction | None = None,
     fyt: float | None = None,
+    grade_beam: Any = None,
 ) -> WallDesign:
     """All checks of a wall pier (ordinary, and 8.3.6 when ``special``).
+
+    B33: the pack's slender-wall method out of the plane (:func:`slender_wall_checks`, checks
+    where k lc / r exceeds the slenderness limit, informative otherwise) and, with
+    ``grade_beam`` (the type's ``GradeBeamWall``), the wall as a grade beam
+    (:func:`grade_beam_checks`).
 
     ``drift``: δu/hw of the wall (the design displacement at its top over its height, BNBC
     2.5.9 Cd δe / I) for the displacement-based boundary elements; None: the stress-based method
@@ -1007,6 +1013,9 @@ def wall_checks(
         f"{t:.0f}) = {klr:.1f}: moment magnification by Sec 6.3.10 (6.6.4)"
         + (" may be neglected" if klr <= 22 else " applies")
     )
+    out.checks += slender_wall_checks(geometry, bars, forces, fc, fy, es, lam, required=klr > 22)
+    out.checks += grade_beam_checks(geometry, grade_beam, bars, forces, fc, fy, es, lam)
+    out.checks += _joint_rows(geometry, bars, forces, fc, fy)
 
     # Empirical method (informative alternative to 6.6.4) and its least thickness.
     p_case = _largest(forces, lambda f: f.P)
@@ -1696,3 +1705,329 @@ def coupling_beam_checks(
             )
         )
     return out
+
+
+# ─────────────────────────── slender walls and walls as grade beams (B33) ───────────────────────────
+
+
+def wall_methods() -> Any:
+    """The pack's ``wallMethods`` table, None when the pack in force does not cover it."""
+    pack = code_context.current()
+    return pack.table("wallMethods") if pack.has("wallMethods") else None
+
+
+def method_clause(key: str) -> str:
+    """The pack's clause ``key`` of ``wallMethods`` after its edition ("" when none)."""
+    table = wall_methods()
+    text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
+    if not text:
+        return ""
+    pack = code_context.current()
+    return f"{pack.edition or pack.name} {text}"
+
+
+@dataclass(frozen=True)
+class SlenderSection:
+    """The out-of-plane section of a slender wall at midheight under an axial force:
+    the effective tension steel Ase = As + Pu h / (2 fy d) [mm²], the stress block a and the
+    neutral axis c [mm], Icr [mm⁴], the nominal moment Mn [N·mm] and εt."""
+
+    ase: float
+    a: float
+    c: float
+    icr: float
+    mn: float
+    eps_t: float
+
+
+def slender_section(
+    length: float, t: float, d: float, as_: float, pu: float, fc: float, fy: float, es: float,
+    ec: float, rules: Any,
+) -> SlenderSection:  # fmt: skip
+    """The midheight section of a wall ``length`` long and ``t`` thick (Eq 6.6.95 of the
+    pack's slender-wall method): Ase = As + (Pu/fy)(t/2d), a = Ase fy / (0.85 f'c lw),
+    c = a/β1, Icr = n Ase (d - c)² + lw c³ / 3 with n = Es/Ec not less than
+    ``minModularRatio``, Mn = Ase fy (d - a/2)."""
+    ase = as_ + max(pu, 0.0) / fy * t / (2 * d)
+    a = ase * fy / (0.85 * fc * length)
+    c = a / beta1(fc)
+    n = max(es / ec, float(rules.minModularRatio))
+    icr = n * ase * (d - c) ** 2 + length * c**3 / 3
+    mn = ase * fy * (d - a / 2)
+    eps_t = EPS_CU * (d - c) / c if c > 0 else math.inf
+    return SlenderSection(ase, a, c, icr, mn, eps_t)
+
+
+def second_order_moment(mua: float, pu: float, lc: float, ec: float, icr: float, rules: Any):
+    """Mu = Mua / (1 - 5 Pu lc² / (factor 48 Ec Icr)) (Eq 6.6.94) and Δu = 5 Mu lc² /
+    (factor 48 Ec Icr) (Eq 6.6.93); (inf, inf) when the wall buckles (denominator <= 0)."""
+    k = 5 * lc**2 / (float(rules.deflectionFactor) * 48 * ec * icr)
+    denominator = 1 - pu * k
+    if denominator <= 0:
+        return math.inf, math.inf
+    mu = mua / denominator
+    return mu, mu * k
+
+
+def service_deflection(
+    msa: float, ps: float, lc: float, ec: float, ig: float, icr: float, mcr: float, mn: float,
+    rules: Any, iterations: int = 50,
+) -> tuple[float, float]:  # fmt: skip
+    """(Δs [mm], Ma [N·mm]) of a slender wall under service loads, Ma = Msa + Ps Δs by
+    iteration (Eqs 6.6.96-6.6.99): Δs = (Ma/Mcr) Δcr up to ``serviceCrackShare`` Mcr, else
+    (2/3)Δcr + (Ma - (2/3)Mcr)/(Mn - (2/3)Mcr) (Δn - (2/3)Δcr); Δcr = 5 Mcr lc²/(48 Ec Ig),
+    Δn = 5 Mn lc²/(48 Ec Icr)."""
+    share = float(rules.serviceCrackShare)
+    d_cr = 5 * mcr * lc**2 / (48 * ec * ig)
+    d_n = 5 * mn * lc**2 / (48 * ec * icr)
+    delta = 0.0
+    ma = msa
+    for _ in range(iterations):
+        ma = msa + ps * delta
+        if ma <= share * mcr:
+            new = ma / mcr * d_cr
+        else:
+            span = mn - share * mcr
+            new = share * d_cr + ((ma - share * mcr) / span if span > 0 else math.inf) * (
+                d_n - share * d_cr
+            )
+        if not math.isfinite(new) or abs(new - delta) < 1e-6:
+            delta = new
+            break
+        delta = new
+    return delta, ma
+
+
+def slender_wall_checks(
+    geometry: WallGeometry,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+    lam: float = 1.0,
+    service: list[PierForces] | None = None,
+    required: bool = False,
+) -> list[dict[str, Any]]:
+    """The pack's alternative design of slender walls (``wallMethods.slender``, method
+    ``midheightMoment``) out of the plane, from the out-of-plane moment M2 and the axial force P
+    of each combination (the wall as a simply supported panel lc high, the whole length): the
+    axial stress, φMn >= Mcr, tension control and φMn >= Mu with the P-Δ moment; with
+    ``service`` forces, the service deflection. ``required``: the rows are checks (the wall is
+    slender), else informative. [] when the pack has no such method or there is no M2."""
+    from saengine.design.rc_detailing import concrete_modulus
+
+    table = wall_methods()
+    rules = getattr(table, "slender", None) if table is not None else None
+    if rules is None or not forces or max(abs(f.M2) for f in forces) <= 0:
+        return []
+    t, lw, lc = geometry.thickness, geometry.length, geometry.clear_height
+    d = t - bars.cover - bars.horizontal_dia - bars.vertical_dia / 2 if bars.layers == 2 else t / 2
+    as_ = bar_area(bars.vertical_dia) * lw / bars.vertical_spacing  # one face
+    ec, _ = concrete_modulus(fc)
+    ig = lw * t**3 / 12
+    fr = float(rules.ruptureCoefficient) * lam * _root(fc)
+    mcr = fr * ig / (t / 2)
+    rows: list[dict[str, Any]] = []
+    where = method_clause("slender")
+    worst_axial = max(forces, key=lambda f: f.P)
+    stress = max(worst_axial.P, 0.0) / (lw * t)
+    rows.append(
+        _row(
+            f"Slender wall: Pu/Ag at midheight ({method_clause('slenderAxial')})",
+            stress,
+            float(rules.maxAxialShare) * fc,
+            "MPa",
+            worst_axial.combination,
+            f"at most {rules.maxAxialShare:g} f'c for the method of {where}",
+        )
+    )
+    worst: tuple[float, PierForces, float, float, SlenderSection] | None = None
+    for f in forces:
+        section = slender_section(lw, t, d, as_, f.P, fc, fy, es, ec, rules)
+        mu, delta = second_order_moment(abs(f.M2), max(f.P, 0.0), lc, ec, section.icr, rules)
+        ratio = mu / (PHI_TENSION * section.mn) if section.mn > 0 else math.inf
+        if worst is None or ratio > worst[0]:
+            worst = (ratio, f, mu, delta, section)
+    assert worst is not None
+    ratio, f, mu, delta, section = worst
+    rows.append(
+        _row(
+            f"Slender wall: φMn >= Mu with P-Δ ({method_clause('slenderStrength')})",
+            mu / 1e6,
+            PHI_TENSION * section.mn / 1e6,
+            "kN·m",
+            f.combination,
+            f"Mua = {abs(f.M2) / 1e6:.1f} kN·m, Pu = {max(f.P, 0) / 1e3:.0f} kN, Δu = "
+            f"{delta:.1f} mm, Icr = {section.icr / 1e6:.0f}e6 mm⁴, Ase = {section.ase:.0f} mm², "
+            f"d = {d:.0f} mm, lc = {lc:.0f} mm",
+            utilisation=ratio,
+        )
+    )
+    rows.append(
+        _row(
+            f"Slender wall: φMn >= Mcr ({method_clause('slenderCracking')})",
+            mcr / 1e6,
+            PHI_TENSION * section.mn / 1e6,
+            "kN·m",
+            f.combination,
+            f"Mcr = fr Ig / (t/2), fr = {rules.ruptureCoefficient:g} λ √f'c = {fr:.2f} MPa",
+        )
+    )
+    rows.append(
+        _row(
+            f"Slender wall: tension-controlled ({method_clause('slenderTension')})",
+            fy / es + EPS_CU,
+            section.eps_t,
+            "",
+            f.combination,
+            f"εt = {section.eps_t:.4f} at least εty + 0.003 (tension-controlled)",
+        )
+    )
+    if service:
+        worst_s = None
+        for s in service:
+            sec = slender_section(lw, t, d, as_, s.P, fc, fy, es, ec, rules)
+            delta_s, ma = service_deflection(
+                abs(s.M2), max(s.P, 0.0), lc, ec, ig, sec.icr, mcr, sec.mn, rules
+            )
+            if worst_s is None or delta_s > worst_s[0]:
+                worst_s = (delta_s, ma, s)
+        assert worst_s is not None
+        delta_s, ma, s = worst_s
+        rows.append(
+            _row(
+                f"Slender wall: service deflection ({method_clause('slenderDeflection')})",
+                delta_s,
+                lc / float(rules.deflectionDivisor),
+                "mm",
+                s.combination,
+                f"Ma = {ma / 1e6:.1f} kN·m with P-Δ by iteration, lc/{rules.deflectionDivisor:g}",
+            )
+        )
+    if not required:
+        for row in rows:
+            row["flag"] = True
+            row["note"] += "; informative: the wall is not slender out of its plane"
+    return rows
+
+
+def grade_beam_checks(
+    geometry: WallGeometry,
+    grade: Any,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+    lam: float = 1.0,
+) -> list[dict[str, Any]]:
+    """A wall designed as a grade beam (``wallMethods.gradeBeam``, method ``beam``;
+    ``grade``: the type's ``GradeBeamWall``): the largest axial force at its cuts spread
+    uniformly along the span, w = Pu / lw, simply supported (w ln²/8 sagging) or continuous
+    (w ln²/8 also hogging over the supports, conservative), shear w ln / 2; flexure of the
+    rectangle t x hw with the bottom (top) bars, shear with the vertical web bars as stirrups.
+    The wall's own minimum steel rows stand for the part above grade. [] when the pack has no
+    such method."""
+    table = wall_methods()
+    rules = getattr(table, "gradeBeam", None) if table is not None else None
+    if rules is None or grade is None:
+        return []
+    t, hw = geometry.thickness, geometry.clear_height
+    ln = float(grade.span or geometry.length)
+    worst = max(forces, key=lambda f: f.P)
+    w = max(worst.P, 0.0) / geometry.length  # N/mm
+    mu = w * ln**2 / 8
+    vu = w * ln / 2
+    rows: list[dict[str, Any]] = []
+    where = method_clause("gradeBeam")
+    for label, count, dia, demand in (
+        ("bottom", grade.bottomBars, grade.bottomDia, mu),
+        ("top", grade.topBars, grade.topDia, mu if grade.continuous else 0.0),
+    ):
+        if demand <= 0:
+            continue
+        d = hw - bars.cover - bars.horizontal_dia - dia / 2
+        area = count * bar_area(dia)
+        a = area * fy / (0.85 * fc * t)
+        phi_mn = PHI_TENSION * area * fy * (d - a / 2) if area > 0 else 0.0
+        rows.append(
+            _row(
+                f"Grade beam wall: flexure, {label} bars ({where})",
+                demand / 1e6,
+                phi_mn / 1e6,
+                "kN·m",
+                worst.combination,
+                f"{count} Ø{dia:g}, d = {d:.0f} mm; w = Pu/lw = {w:.1f} kN/m over ln = "
+                f"{ln:.0f} mm, w ln²/8"
+                + (" (also over the supports: continuous)" if label == "top" else ""),
+            )
+        )
+    d = hw - bars.cover - bars.horizontal_dia - grade.bottomDia / 2
+    vc = 0.17 * lam * _root(fc) * t * d
+    av = bars.layers * bar_area(bars.vertical_dia)
+    vs = av * min(fy, FYT_SHEAR_MAX) * d / bars.vertical_spacing
+    rows.append(
+        _row(
+            f"Grade beam wall: shear ({where})",
+            vu / 1e3,
+            PHI_SHEAR * (vc + vs) / 1e3,
+            "kN",
+            worst.combination,
+            f"Vc = 0.17 λ √f'c t d, Vs = Av fy d / s of the vertical bars ({bars.layers} x "
+            f"Ø{bars.vertical_dia:g} @ {bars.vertical_spacing:g}); w ln / 2"
+            + ("; ln/h < 4: a deep beam" if ln / hw < 4 else ""),
+        )
+    )
+    if ln / hw < 4:
+        rows[-1]["note"] += " (design it by the deep beam rules as well)"
+    rows.append(
+        _row(
+            f"Grade beam wall: above grade ({method_clause('gradeBeamExposed')})",
+            0.0,
+            1.0,
+            "",
+            None,
+            "the wall's own minimum reinforcement rows apply to the part above grade",
+        )
+    )
+    rows[-1]["flag"] = True
+    return rows
+
+
+def _joint_rows(
+    geometry: WallGeometry, bars: WallBars, forces: list[PierForces], fc: float, fy: float
+) -> list[dict[str, Any]]:
+    """B33 (left by B21): shear friction across the horizontal construction joint at the
+    pier's bottom under its own storey shear V2, the vertical bars crossing it
+    (:func:`saengine.design.rc_detailing.wall_joint_check`; [] when the pack has no rule)."""
+    from types import SimpleNamespace
+
+    from saengine.design.rc_detailing import wall_joint_check
+
+    base = [f for f in forces if f.where.split(" ")[-1] == "bottom"] or forces
+    worst = max(base, key=lambda f: abs(f.V2), default=None)
+    if worst is None or abs(worst.V2) <= 0:
+        return []
+    wall_type = SimpleNamespace(
+        thickness=geometry.thickness,
+        reinforcement=SimpleNamespace(
+            layers=bars.layers,
+            vertical=SimpleNamespace(dia=bars.vertical_dia, spacing=bars.vertical_spacing),
+        ),
+    )
+    row = wall_joint_check(
+        "Construction joint at the pier's bottom (storey shear)",
+        abs(worst.V2),
+        wall_type,
+        geometry.length,
+        fc,
+        fy,
+        worst.combination,
+    )
+    if row is None:
+        return []
+    # Reported: the design mode does not size the vertical bars or dowels for it yet.
+    row["flag"] = True
+    row["note"] += "; informative: add dowels across the joint where it is exceeded"
+    return [row]

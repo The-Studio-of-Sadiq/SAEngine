@@ -1,0 +1,106 @@
+{
+  "$schema": "../../../schemas/slabMethods.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.5.5.1.1 (part 1 p. 949, gazette p. 3530): slab systems for gravity load by the direct design method or the equivalent frame method",
+    "BNBC 2020 Part 6 Sec 6.5.6, Eqs 6.6.82-6.6.87, Tables 6.6.4-6.6.7 (part 1 pp. 950-956, gazette pp. 3531-3537): direct design method",
+    "BNBC 2020 Part 6 Sec 6.5.7, Eq 6.6.88 (part 1 pp. 956-960, gazette pp. 3537-3541): equivalent frame method",
+    "BNBC 2020 Part 6 Sec 6.5.3.6, Figure 6.6.19 (part 1 pp. 946-947, gazette pp. 3527-3528): corner reinforcement",
+    "BNBC 2020 Part 6 Sec 6.5.4 (part 1 p. 949, gazette p. 3530): openings in slab systems"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 6.5.3-6.5.7 (pp. 946-960)",
+  "sources": {
+    "twoWayMethods": "BNBC 2020 Part 6 Sec 6.5.5.1.1 (p. 949): the direct design method of Sec 6.5.6 or the equivalent frame method of Sec 6.5.7",
+    "directDesign.limits": "BNBC 2020 Part 6 Sec 6.5.6.1.1-6.5.6.1.6, Eq 6.6.82 (pp. 950-951): three spans, 2 : 1 panels, spans within one third, column offsets 10 %, gravity load with L <= 2D, 0.2 <= αf1 l2² / αf2 l1² <= 5",
+    "directDesign.static": "BNBC 2020 Part 6 Sec 6.5.6.2, Eq 6.6.84 (pp. 951-952): Mo = qu l2 ln² / 8, ln >= 0.65 l1",
+    "directDesign.distribution": "BNBC 2020 Part 6 Sec 6.5.6.3, Table 6.6.4 (p. 952): 0.65 / 0.35 in interior spans and the end span shares",
+    "directDesign.strips": "BNBC 2020 Part 6 Sec 6.5.6.4-6.5.6.6, Tables 6.6.5-6.6.7, Eqs 6.6.85-6.6.86 (pp. 953-955)",
+    "directDesign.transfer": "BNBC 2020 Part 6 Sec 6.5.6.3.6 (p. 953): 0.3 Mo to an edge column; Sec 6.5.6.9.2, Eq 6.6.87 (p. 956)",
+    "directDesign.modification": "BNBC 2020 Part 6 Sec 6.5.6.7 (p. 955): 10 % if Mo is kept",
+    "equivalentFrame": "BNBC 2020 Part 6 Sec 6.5.7.2-6.5.7.7, Eq 6.6.88 (pp. 956-960): slab-beams with Is/(1 - c2/l2)² to the column centre, equivalent columns with torsional members, live load patterns of 3/4 L when L > 0.75 D, face moments not farther than 0.175 l1; C by Eq 6.6.86 (p. 953); a wall across at least 0.75 l2 taken as fixing the slab-beam as the uniform distribution of Sec 6.5.6.4.3 (p. 954) takes it",
+    "corner": "BNBC 2020 Part 6 Sec 6.5.3.6.1-6.5.3.6.4, Figure 6.6.19 (pp. 946-947): top and bottom steel for the largest positive moment over l/5 at exterior corners with edge walls or αf > 1; bars at most 2h apart",
+    "openings": "BNBC 2020 Part 6 Sec 6.5.4.2.1-6.5.4.2.4 (p. 949): openings in slabs without beams"
+  },
+  "twoWayMethods": ["directDesign", "equivalentFrame"],
+  "directDesign": {
+    "minSpans": 3,
+    "maxPanelRatio": 2.0,
+    "maxSpanDifference": 0.3333333333,
+    "maxColumnOffset": 0.10,
+    "maxLiveToDead": 2.0,
+    "stiffnessRatioRange": [0.2, 5.0],
+    "staticDivisor": 8.0,
+    "minClearSpanShare": 0.65,
+    "interiorNegative": 0.65,
+    "interiorPositive": 0.35,
+    "endSpan": {
+      "conditions": ["unrestrained", "beamsAll", "noBeams", "noBeamsEdgeBeam", "restrained"],
+      "interiorNegative": [0.75, 0.70, 0.70, 0.70, 0.65],
+      "positive": [0.63, 0.57, 0.52, 0.50, 0.35],
+      "exteriorNegative": [0.0, 0.16, 0.26, 0.30, 0.65]
+    },
+    "interiorStrip": {
+      "ratios": [0.5, 1.0, 2.0],
+      "alphaZero": [75, 75, 75],
+      "alphaFull": [90, 75, 45]
+    },
+    "exteriorStrip": {
+      "ratios": [0.5, 1.0, 2.0],
+      "alphaZeroBetaZero": [100, 100, 100],
+      "alphaZeroBetaFull": [75, 75, 75],
+      "alphaFullBetaZero": [100, 100, 100],
+      "alphaFullBetaFull": [90, 75, 45],
+      "betaLimit": 2.5
+    },
+    "positiveStrip": {
+      "ratios": [0.5, 1.0, 2.0],
+      "alphaZero": [60, 60, 60],
+      "alphaFull": [90, 75, 45]
+    },
+    "alphaLimit": 1.0,
+    "beamShare": 0.85,
+    "uniformSupportShare": 0.75,
+    "edgeTransferShare": 0.3,
+    "modification": 0.10,
+    "columnMomentFactor": 0.07,
+    "columnMomentLiveShare": 0.5,
+    "torsionShape": 0.63,
+    "wallEdgeMiddleFactor": 2.0
+  },
+  "equivalentFrame": {
+    "torsionFactor": 9.0,
+    "uniformLiveMax": 0.75,
+    "patternLiveShare": 0.75,
+    "faceLimit": 0.175,
+    "farSpans": 2,
+    "torsionShape": 0.63,
+    "fixedWallShare": 0.75
+  },
+  "corner": {
+    "alphaMin": 1.0,
+    "extentShare": 0.2,
+    "spacingFactor": 2.0
+  },
+  "openings": {
+    "columnColumnShare": 0.125,
+    "columnMiddleShare": 0.25
+  },
+  "clauses": {
+    "methods": "Part 6 Sec 6.5.5.1.1",
+    "directDesign": "Part 6 Sec 6.5.6",
+    "limits": "Part 6 Sec 6.5.6.1",
+    "static": "Part 6 Sec 6.5.6.2, Eq 6.6.84",
+    "distribution": "Part 6 Sec 6.5.6.3, Table 6.6.4",
+    "strips": "Part 6 Sec 6.5.6.4-6.5.6.6, Tables 6.6.5-6.6.7",
+    "beams": "Part 6 Sec 6.5.6.5",
+    "edgeTransfer": "Part 6 Sec 6.5.6.3.6",
+    "columnMoment": "Part 6 Sec 6.5.6.9.2, Eq 6.6.87",
+    "equivalentFrame": "Part 6 Sec 6.5.7",
+    "torsion": "Part 6 Sec 6.5.7.5, Eq 6.6.88",
+    "pattern": "Part 6 Sec 6.5.7.6",
+    "face": "Part 6 Sec 6.5.7.7",
+    "corner": "Part 6 Sec 6.5.3.6",
+    "openings": "Part 6 Sec 6.5.4",
+    "openingsAnalysis": "Part 6 Sec 6.5.4.1",
+    "openingShear": "Part 6 Sec 6.5.4.2.4"
+  }
+}

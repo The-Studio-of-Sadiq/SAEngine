@@ -764,6 +764,7 @@ class _Wall:
                 self.es,
                 special=self.special,
                 drift=self.drift,
+                grade_beam=getattr(self.object, "gradeBeam", None),
             )
         except DesignError as error:
             # Not checked is not passing: the pier stays in the wall with a failing row.

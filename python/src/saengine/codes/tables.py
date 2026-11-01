@@ -6379,6 +6379,296 @@ class CompositeTable(TableModel):
     connections: CompositeConnections
 
 
+# ─────────────────────── slab, wall, stair and composite methods (B33) ───────────────────────
+
+
+class StripShareTable(_Group):
+    """Percent of a moment a column strip takes, by l2/l1 (``ratios``) for αf1 l2/l1 = 0
+    (``alphaZero``) and >= ``alphaLimit`` (``alphaFull``), linear between (both ways)."""
+
+    ratios: list[Positive] = Field(min_length=2)
+    alphaZero: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+    alphaFull: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+
+
+class ExteriorStripShareTable(_Group):
+    """Percent of an exterior negative moment a column strip takes, by l2/l1, for αf1 l2/l1 = 0
+    and >= ``alphaLimit`` and βt = 0 (``betaZero``: one value per ratio) and >= ``betaLimit``."""
+
+    ratios: list[Positive] = Field(min_length=2)
+    alphaZeroBetaZero: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+    alphaZeroBetaFull: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+    alphaFullBetaZero: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+    alphaFullBetaFull: list[Annotated[float, Field(ge=0, le=100)]] = Field(min_length=2)
+    betaLimit: Positive
+
+
+class EndSpanShares(_Group):
+    """Shares of Mo in an end span by the edge condition (Table 6.6.4 of BNBC 2020):
+    ``interiorNegative``, ``positive``, ``exteriorNegative``, each by the conditions of
+    ``conditions`` in that order."""
+
+    conditions: list[
+        Literal["unrestrained", "beamsAll", "noBeams", "noBeamsEdgeBeam", "restrained"]
+    ] = Field(min_length=1)
+    interiorNegative: list[Share]
+    positive: list[Share]
+    exteriorNegative: list[Annotated[float, Field(ge=0, le=1)]]
+
+
+class DirectDesignRules(_Group):
+    """The direct design method of two-way slab systems on columns or walls (method id
+    ``directDesign``): its limits, the static moment and its distribution to the strips."""
+
+    minSpans: int = Field(ge=1, description="Least continuous spans each way.")
+    maxPanelRatio: Positive = Field(description="Longer over shorter span of a panel at most.")
+    maxSpanDifference: Share = Field(
+        description="Successive spans differ by at most this share of the longer."
+    )
+    maxColumnOffset: Share = Field(
+        description="Columns off the line by at most this share of the span."
+    )
+    maxLiveToDead: Positive = Field(description="Unfactored live load over dead load at most.")
+    stiffnessRatioRange: tuple[Positive, Positive] = Field(
+        description="αf1 l2² / (αf2 l1²) within these for panels with beams on all sides."
+    )
+    staticDivisor: Positive = Field(description="Mo = wu l2 ln² / staticDivisor.")
+    minClearSpanShare: Share = Field(description="ln at least this share of l1.")
+    interiorNegative: Share
+    interiorPositive: Share
+    endSpan: EndSpanShares
+    interiorStrip: StripShareTable
+    exteriorStrip: ExteriorStripShareTable
+    positiveStrip: StripShareTable
+    alphaLimit: Positive = Field(description="αf1 l2/l1 from which the 'full' columns apply.")
+    beamShare: Share = Field(
+        description="Share of the column strip moment beams take at αf1 l2/l1 >= alphaLimit."
+    )
+    uniformSupportShare: Share = Field(
+        description="Supports at least this share of l2 wide spread the negative moment over l2."
+    )
+    edgeTransferShare: Share = Field(description="Gravity moment to an edge column: this x Mo.")
+    modification: Annotated[float, Field(ge=0, lt=1)] = Field(
+        description="Moments may be changed by this share if Mo is kept."
+    )
+    columnMomentFactor: Positive = Field(
+        description="Msc = factor [(qDu + share qLu) l2 ln² - ...]."
+    )
+    columnMomentLiveShare: Share
+    torsionShape: Positive = Field(description="C = Σ (1 - shape x/y) x³ y / 3.")
+    wallEdgeMiddleFactor: Positive = Field(
+        description="A middle strip beside a wall-supported edge takes this times its half."
+    )
+
+
+class EquivalentFrameRules(_Group):
+    """The equivalent frame method (method id ``equivalentFrame``)."""
+
+    torsionFactor: Positive = Field(description="Kt = Σ factor Ecs C / (l2 (1 - c2/l2)³).")
+    uniformLiveMax: Positive = Field(
+        description="Full live load on all panels when L <= this x D (else patterns)."
+    )
+    patternLiveShare: Share = Field(description="The share of the live load of the patterns.")
+    faceLimit: Share = Field(
+        description="Negative moment at the face, not farther than this x l1 from the column centre."
+    )
+    farSpans: int = Field(ge=1, description="Spans each way taken in the analysis of one support.")
+    torsionShape: Positive = Field(description="C = Σ (1 - shape x/y) x³ y / 3.")
+    fixedWallShare: Share = Field(
+        description="A wall across the frame at least this share of l2 long fixes the slab."
+    )
+
+
+class CornerRules(_Group):
+    """Corner reinforcement of two-way slabs at exterior corners."""
+
+    alphaMin: Positive = Field(description="Edge beams stiffer than this αf need corner steel.")
+    extentShare: Share = Field(description="Over this share of the longer span from the corner.")
+    spacingFactor: Positive = Field(description="Bars at most this x h apart.")
+
+
+class OpeningRules(_Group):
+    """Openings in slabs without beams designed without an analysis of them."""
+
+    columnColumnShare: Share = Field(
+        description="Where column strips cross: at most this share of a column strip's width cut."
+    )
+    columnMiddleShare: Share = Field(
+        description="Where a column and a middle strip cross: at most this share of either's bars."
+    )
+
+
+class SlabMethodsTable(TableModel):
+    """Analysis methods of two-way slab systems on columns, walls or flexible beams, chosen by
+    id in ``twoWayMethods`` (tried in order: the first whose limits a slab meets), and the
+    detailing rules of two-way slabs (corners, openings)."""
+
+    twoWayMethods: list[Literal["directDesign", "equivalentFrame"]] = Field(default_factory=list)
+    directDesign: DirectDesignRules | None = None
+    equivalentFrame: EquivalentFrameRules | None = None
+    corner: CornerRules | None = None
+    openings: OpeningRules | None = None
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class SlenderWallRules(_Group):
+    """Out-of-plane design of slender walls by the second-order midheight moment (method id
+    ``midheightMoment``)."""
+
+    method: Literal["midheightMoment"] = "midheightMoment"
+    maxAxialShare: Share = Field(description="Pu/Ag at midheight at most this x f'c.")
+    deflectionFactor: Positive = Field(description="Δu = 5 Mu lc² / (factor 48 Ec Icr).")
+    deflectionDivisor: Positive = Field(description="Service Δs at most lc / divisor.")
+    minModularRatio: Positive = Field(description="Es/Ec not less than this in Icr.")
+    serviceCrackShare: Share = Field(description="Δs by the bilinear rule above this x Mcr.")
+    ruptureCoefficient: Positive = Field(description="fr = coefficient λ √f'c [MPa].")
+    spreadSlope: Positive = Field(description="Concentrated loads spread 'slope' down to 1 across.")
+
+
+class GradeBeamWallRules(_Group):
+    """Walls designed as grade beams: flexure and shear as a beam, the exposed part as a wall."""
+
+    method: Literal["beam"] = "beam"
+
+
+class WallMethodsTable(TableModel):
+    """Methods of reinforced-concrete walls beyond the compression-member design."""
+
+    slender: SlenderWallRules | None = None
+    gradeBeam: GradeBeamWallRules | None = None
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class BuiltInStairRules(_Group):
+    """Flights and landings built into walls and spanning along the flight."""
+
+    embedmentMin: Positive = Field(description="Built in at least this [mm].")
+    deductedStrip: Positive = Field(description="Strip [mm] taken off the loaded width.")
+    addedBreadth: Positive = Field(description="Effective breadth increased by this [mm].")
+
+
+class PowerTerm(_Row):
+    """One factor [base + coefficient (variable - offset)^exponent] of an empirical product
+    (the sign of (variable - offset) is kept through the power)."""
+
+    variable: Literal["A", "B", "C", "L", "H", "T", "fc"]
+    base: float
+    coefficient: float
+    offset: float = 0.0
+    exponent: Positive = 1.0
+
+
+class EmpiricalExpression(_Row):
+    """value = factor × Π terms (service value of a free-standing stair)."""
+
+    id: Literal["deflection", "MS", "MF", "MK", "Mo", "AF", "TF", "MI", "Vo"]
+    name: str
+    unit: Literal["m", "kN", "kN·m"]
+    factor: float
+    terms: list[PowerTerm]
+
+
+class FreeStandingRules(_Group):
+    """Free-standing (landing unsupported) stairs by service-load expressions (method id
+    ``empiricalTable``), scaled to the live load and factored."""
+
+    method: Literal["empiricalTable"] = "empiricalTable"
+    expressions: list[EmpiricalExpression] = Field(min_length=1)
+    ranges: dict[Literal["A", "B", "C", "L", "H", "T", "fc"], tuple[float, float]]
+    referenceLive: Positive = Field(description="Live load [kN/m²] of the expressions.")
+    unitWeight: Positive = Field(description="Concrete unit weight [kN/m³] of the expressions.")
+    liveScale: tuple[float, float, float] = Field(
+        description="(a, b, c): values × (a T + LL + b) / (a T + c)."
+    )
+    outerShareSupport: Share = Field(description="Share of the MS steel in the outer half.")
+    innerShareJunction: Share = Field(description="Share of the MK steel in the inner half.")
+
+
+class SawtoothCurve(_Row):
+    """Support moment coefficients (magnitudes) by number of treads for one tread/riser
+    stiffness ratio k (None: k infinite); None where the figure gives no value."""
+
+    k: Annotated[float, Field(ge=0)] | None
+    coefficients: list[Positive | None]
+
+
+class SawtoothRules(_Group):
+    """Sawtooth (slabless) stairs: support moment Ms = coefficient n l² from a chart by the
+    number of treads and the stiffness ratio (method id ``supportChart``)."""
+
+    method: Literal["supportChart"] = "supportChart"
+    treads: list[int] = Field(min_length=2)
+    curves: list[SawtoothCurve] = Field(min_length=2)
+    freeDivisor: Positive = Field(
+        description="Free moment n l² / divisor (× (j² + 1)/j² for odd j)."
+    )
+    reentrantFactor: Positive = Field(description="Re-entrant corners take this × the steel.")
+
+
+class HelicoidalCurve(_Row):
+    """Values of one redundant coefficient (k1, k2 or k3) by β for one helix slope φ."""
+
+    k: Literal["k1", "k2", "k3"]
+    phi: Positive = Field(description="Slope of the helix [°].")
+    values: list[float]
+
+
+class HelicoidalChart(_Row):
+    """One chart: the coefficients for one R1/R2 and b/h."""
+
+    radiusRatio: Positive
+    widthRatio: Positive
+    betas: list[Positive] = Field(min_length=2, description="Total angle subtended in plan [°].")
+    curves: list[HelicoidalCurve] = Field(min_length=3)
+
+
+class HelicoidalRules(_Group):
+    """Helicoidal stairs: midspan redundants Mo = k1 n R2², H = k2 n R2 and the support moment
+    Mvs = k3 n R2² from charts (method id ``redundantCharts``), the forces along the helix by
+    the closed-form equations."""
+
+    method: Literal["redundantCharts"] = "redundantCharts"
+    charts: list[HelicoidalChart] = Field(min_length=1)
+
+
+class StairMethodsTable(TableModel):
+    """Load distribution rules and the methods of special stairs."""
+
+    builtIn: BuiltInStairRules | None = None
+    openWellShare: Share | None = Field(
+        default=None, description="Load on areas common to two crossing spans, each way."
+    )
+    stringers: bool = Field(default=False, description="Stairs on stringer beams are covered.")
+    freeStanding: FreeStandingRules | None = None
+    sawtooth: SawtoothRules | None = None
+    helicoidal: HelicoidalRules | None = None
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class RoughenedTiedLimit(_Group):
+    """Vnh = (base + steelShare ρv fy) λ bv d, at most cap bv d [MPa terms]."""
+
+    base: Positive
+    steelShare: Positive
+    cap: Positive
+
+
+class CompositeConcreteTable(TableModel):
+    """Composite concrete flexural members (precast and cast-in-place concrete placed
+    separately): horizontal shear at the contact surface and its ties."""
+
+    roughenedLimit: Positive = Field(description="Vnh <= this bv d [MPa], roughened, no ties.")
+    tiedSmoothLimit: Positive = Field(description="Vnh <= this bv d, minimum ties, not roughened.")
+    roughenedTied: RoughenedTiedLimit
+    minTies: dict[Literal["sqrtShare", "floor"], Positive] = Field(
+        description="Av,min = max(sqrtShare √f'c, floor) bw s / fyt."
+    )
+    roughness: Positive = Field(description="Full amplitude of the roughening [mm].")
+    tieSpacingFactor: Positive = Field(description="Ties at most this × the least dimension.")
+    tieSpacingMax: Positive = Field(description="Ties at most this far apart [mm].")
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -6420,6 +6710,10 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "construction": ConstructionTable,
     "concreteTime": ConcreteTimeTable,
     "composite": CompositeTable,
+    "slabMethods": SlabMethodsTable,
+    "wallMethods": WallMethodsTable,
+    "stairMethods": StairMethodsTable,
+    "compositeConcrete": CompositeConcreteTable,
 }
 
 

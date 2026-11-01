@@ -1254,6 +1254,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel beams: acting with the slab through shear connectors; none: the steel alone.',
 					title: 'Composite',
 				},
+				compositeTopping: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CompositeTopping',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete beams cast in two placements acting as one (a precast stem with a cast-in-place top): the horizontal shear at the contact surface is checked; none: cast in one piece.',
+					title: 'Composite concrete',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -2689,6 +2702,54 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'CompositeDeck',
 			type: 'object',
 		},
+		CompositeTopping: {
+			additionalProperties: false,
+			description: 'A concrete beam built in two placements (a precast or first-cast stem and a\ncast-in-place part over it) that act as one: the contact surface and its ties.',
+			properties: {
+				toppingThickness: {
+					description: 'Least dimension of the part cast on top [mm] (the ties\' spacing).',
+					exclusiveMinimum: 0,
+					title: 'Cast-in-place thickness',
+					type: 'number',
+				},
+				surface: {
+					default: 'roughened',
+					description: 'Contact surface clean and intentionally roughened, or not roughened.',
+					enum: ['roughened', 'smooth'],
+					title: 'Surface',
+					type: 'string',
+				},
+				ties: {
+					default: true,
+					description: 'The stirrups run into the top part as ties across the surface.',
+					title: 'Ties',
+					type: 'boolean',
+				},
+				contactWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]; none: the beam\'s width.',
+					title: 'Contact width',
+				},
+				tension: {
+					default: false,
+					description: 'Tension across the contact surface (shear only with ties).',
+					title: 'Tension',
+					type: 'boolean',
+				},
+			},
+			required: ['toppingThickness'],
+			title: 'CompositeTopping',
+			type: 'object',
+		},
 		CouplingDiagonal: {
 			additionalProperties: false,
 			description: 'One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of\na special structural wall (BNBC 2020 Part 6 Sec 8.3.6.7).',
@@ -3694,6 +3755,60 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'FrameModifiers',
+			type: 'object',
+		},
+		GradeBeamWall: {
+			additionalProperties: false,
+			description: 'A wall designed as a grade beam spanning between its supports (footings, pile caps).',
+			properties: {
+				span: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Clear span between the supports [mm]; none: the wall\'s length.',
+					title: 'Span',
+				},
+				continuous: {
+					default: false,
+					description: 'Continuous over its supports (top bars over them); else simply supported.',
+					title: 'Continuous',
+					type: 'boolean',
+				},
+				bottomBars: {
+					default: 2,
+					minimum: 0,
+					title: 'Bottom bars',
+					type: 'integer',
+				},
+				bottomDia: {
+					default: 16,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bottom bar size',
+					type: 'number',
+				},
+				topBars: {
+					default: 2,
+					minimum: 0,
+					title: 'Top bars',
+					type: 'integer',
+				},
+				topDia: {
+					default: 16,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Top bar size',
+					type: 'number',
+				},
+			},
+			title: 'GradeBeamWall',
 			type: 'object',
 		},
 		HssCapPlate: {
@@ -5216,6 +5331,88 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Clear headroom provided [mm]; none: not checked.',
 					title: 'Headroom',
 				},
+				builtIntoWall: {
+					default: false,
+					description: 'Flights and landings built into the walls at their sides (by the code pack\'s least embedment): a strip off the loaded width, a wider effective breadth.',
+					title: 'Built into walls',
+					type: 'boolean',
+				},
+				openWell: {
+					default: false,
+					description: 'A dog-legged stair with an open well: the load where the flight and landing spans cross is shared between them.',
+					title: 'Open well',
+					type: 'boolean',
+				},
+				stringerBeams: {
+					default: false,
+					description: 'The steps span across the flight between stringer beams at its sides (the stringers\' forces are reported for their design as beams).',
+					title: 'Stringer beams',
+					type: 'boolean',
+				},
+				special: {
+					default: 'none',
+					description: 'A special stair by the code pack\'s methods: free-standing (dog-legged, landing unsupported), sawtooth (slabless) or helicoidal; none: a waist-slab stair.',
+					enum: ['none', 'freeStanding', 'sawtooth', 'helicoidal'],
+					title: 'Special stair',
+					type: 'string',
+				},
+				riserThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sawtooth stairs [mm]; none: the waist.',
+					title: 'Riser thickness',
+				},
+				innerRadius: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Helicoidal stairs [mm].',
+					title: 'Inner radius',
+				},
+				outerRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Helicoidal stairs [mm].',
+					title: 'Outer radius',
+				},
+				planAngle: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 360,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Helicoidal stairs: the total angle the helix subtends in plan [°].',
+					title: 'Plan angle',
+				},
 			},
 			required: ['id', 'name', 'material', 'waistThickness', 'riser', 'tread', 'flightWidth'],
 			title: 'Staircase',
@@ -6180,6 +6377,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
 					title: 'Stiffness modifiers',
+				},
+				gradeBeam: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GradeBeamWall',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The wall also spans as a grade beam between its supports: top and bottom bars for the moment and its vertical bars for the shear (the code pack\'s walls as grade beams); none: not a grade beam.',
+					title: 'Grade beam',
 				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
