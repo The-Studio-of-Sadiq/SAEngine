@@ -1,5 +1,5 @@
 """Post-tensioning sheets (T16): the tendons in plan, the profile, the elongations of the
-stressing schedule (ACI 318-11 18.20.1, as BNBC 2020 Part 6 Chapter 9 follows) and the sheets."""
+stressing schedule, the anchorage zone bars (B30) and the sheets."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def test_elongation_without_friction_is_pl_over_ae():
 
 
 def test_elongation_with_wobble():
-    # P(x) = Pj e^(-K x): Δ = fpj / Ep x (1 - e^(-K L)) / K (ACI 318-11 18.6.2.1, K per metre)
+    # P(x) = Pj e^(-K x): Δ = fpj / Ep x (1 - e^(-K L)) / K (BNBC Sec 9.6.8, Eq 6.9.2, K per metre)
     k = 0.0033
     item = _item(_tendon(wobble=k))
     expected = 0.80 * FPU / EP * (1 - math.exp(-k * 20.0)) / k * 1000
@@ -112,3 +112,18 @@ def test_pt_sheets_in_the_set():
     assert "Post-tensioning plan - Level 1" in titles
     assert any(t.startswith("Tendon profiles") for t in titles)
     assert "Tendon and stressing schedule" in titles
+
+
+def test_schedule_lists_the_friction_coefficients_and_the_age_at_stressing():
+    """BNBC Sec 9.6.9: K and μ used in design shown on the drawings."""
+    item = _item(_tendon(wobble=0.0033, friction=0.07, transferAge=5))
+    row = pt.schedule_row(item, "Level 1")
+    assert row[-2:] == ["5", "0.0033 / 0.07"]
+
+
+def test_monostrand_anchorage_zone_bars():
+    """BNBC Sec 9.14.2: two 12 mm bars within h/2 ahead of the anchors, 150 mm beyond."""
+    item = _item(_tendon())
+    assert item.anchorage.edge_bars == (2, 12, 100, 150)
+    assert any("Sec 9.14.2" in note for note in pt.plan_notes())
+    assert any("Sec 9.5.4 (a)" in note for note in pt.schedule_notes())

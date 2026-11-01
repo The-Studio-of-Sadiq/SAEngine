@@ -405,7 +405,6 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "width": 4000,
         "count": 8,
         "strands": 1,
-        "longTermLoss": 100,
         "profile": [
             {"at": 0, "height": 125},
             {"at": 3600, "height": 40},
