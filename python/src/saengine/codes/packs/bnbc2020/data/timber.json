@@ -1,41 +1,1458 @@
 {
   "$schema": "../../../schemas/timber.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Chapter 11",
-    "IS 883:1994 (design of structural timber), which the chapter follows"
+    "BNBC 2020 Part 6 Chapter 11 (timber structures), gazette part 2 pp. 278-338"
   ],
-  "source": "BNBC 2020 Part 6 Chapter 11 (timber structures): permissible stress design of sawn timber by strength group (A, B, C) and location of use, with the column formulas and the modification factors of IS 883:1994 that the chapter follows. The stresses are from memory, to be checked against the tables of the BNBC text (section and page numbers too).",
+  "source": "BNBC 2020 Part 6 Chapter 11: permissible stress design of structural timber. Species and strength groups (Sec 11.4.1, Tables 6.11.1 and 6.11.9), grade and durability factors (Sec 11.5.2), modification factors K1 to K7 (Sec 11.5.3, 11.6.6), flexural members (Sec 11.6.6), solid, box and spaced columns (Sec 11.6.7), combined stresses (Sec 11.6.8), nailed joints (Sec 11.7), bolted joints (Sec 11.9), connector and disc-dowel joints (Sec 11.10), nail and screw holding (Sec 11.18).",
   "groups": {
     "A": {
-      "label": "Group A (E at least 12.6 GPa)",
+      "label": "Group A (E above 12.6 GPa)",
       "E": 12600.0,
-      "bending": {"inside": 18.0, "outside": 15.0, "wet": 12.0},
-      "tension": {"inside": 18.0, "outside": 15.0, "wet": 12.0},
+      "bending": {
+        "inside": 18.0,
+        "outside": 15.0,
+        "wet": 12.0
+      },
+      "tension": {
+        "inside": 18.0,
+        "outside": 15.0,
+        "wet": 12.0
+      },
       "shearHorizontal": 1.05,
       "shearAlong": 1.5,
-      "compressionParallel": {"inside": 11.7, "outside": 10.6, "wet": 8.8},
-      "compressionPerpendicular": {"inside": 4.0, "outside": 3.0, "wet": 2.5}
+      "compressionParallel": {
+        "inside": 11.7,
+        "outside": 9.75,
+        "wet": 7.8
+      },
+      "compressionPerpendicular": {
+        "inside": 4.0,
+        "outside": 3.333,
+        "wet": 2.667
+      }
     },
     "B": {
       "label": "Group B (E 9.8-12.6 GPa)",
       "E": 9800.0,
-      "bending": {"inside": 12.0, "outside": 10.1, "wet": 8.2},
-      "tension": {"inside": 12.0, "outside": 10.1, "wet": 8.2},
+      "bending": {
+        "inside": 12.0,
+        "outside": 10.0,
+        "wet": 8.0
+      },
+      "tension": {
+        "inside": 12.0,
+        "outside": 10.0,
+        "wet": 8.0
+      },
       "shearHorizontal": 0.64,
       "shearAlong": 0.91,
-      "compressionParallel": {"inside": 7.8, "outside": 7.0, "wet": 5.9},
-      "compressionPerpendicular": {"inside": 2.5, "outside": 1.9, "wet": 1.6}
+      "compressionParallel": {
+        "inside": 7.8,
+        "outside": 6.5,
+        "wet": 5.2
+      },
+      "compressionPerpendicular": {
+        "inside": 2.5,
+        "outside": 2.083,
+        "wet": 1.667
+      }
     },
     "C": {
       "label": "Group C (E 5.6-9.8 GPa)",
       "E": 5600.0,
-      "bending": {"inside": 8.5, "outside": 7.0, "wet": 5.7},
-      "tension": {"inside": 8.5, "outside": 7.0, "wet": 5.7},
+      "bending": {
+        "inside": 8.5,
+        "outside": 7.083,
+        "wet": 5.667
+      },
+      "tension": {
+        "inside": 8.5,
+        "outside": 7.083,
+        "wet": 5.667
+      },
       "shearHorizontal": 0.49,
       "shearAlong": 0.7,
-      "compressionParallel": {"inside": 4.9, "outside": 4.6, "wet": 3.9},
-      "compressionPerpendicular": {"inside": 1.1, "outside": 0.8, "wet": 0.6}
+      "compressionParallel": {
+        "inside": 4.9,
+        "outside": 4.083,
+        "wet": 3.267
+      },
+      "compressionPerpendicular": {
+        "inside": 1.1,
+        "outside": 0.917,
+        "wet": 0.733
+      }
     }
+  },
+  "species": {
+    "acacia-nilotica": {
+      "botanical": "Acacia nilotica",
+      "name": "Babla",
+      "density": 797,
+      "durability": "I",
+      "treatability": "b",
+      "seasoning": "B",
+      "note": "Table 6.11.1 row incomplete (E or the inside bending stress not printed): no stresses, design with the strength group"
+    },
+    "aglaia-odulis": {
+      "botanical": "Aglaia odulis",
+      "name": "Aglaia",
+      "density": 815,
+      "seasoning": "A",
+      "E": 12560.0,
+      "bending": {
+        "inside": 18.2,
+        "outside": 15.2,
+        "wet": 12.1
+      },
+      "shearHorizontal": 1.4,
+      "shearAlong": 2.0,
+      "compressionParallel": {
+        "inside": 10.1,
+        "outside": 8.9,
+        "wet": 7.3
+      },
+      "compressionPerpendicular": {
+        "inside": 4.4,
+        "outside": 3.4,
+        "wet": 2.8
+      }
+    },
+    "ailantahus-grandis": {
+      "botanical": "Ailantahus grandis",
+      "name": "Gokul",
+      "density": 404,
+      "durability": "III",
+      "seasoning": "C",
+      "E": 7940.0,
+      "bending": {
+        "inside": 8.3,
+        "outside": 6.9,
+        "wet": 5.5
+      },
+      "shearHorizontal": 0.6,
+      "shearAlong": 0.8,
+      "compressionParallel": {
+        "inside": 5.3,
+        "outside": 4.7,
+        "wet": 3.9
+      },
+      "compressionPerpendicular": {
+        "inside": 1.1,
+        "outside": 0.9,
+        "wet": 0.7
+      }
+    },
+    "altingia-excelsa": {
+      "botanical": "Altingia excelsa",
+      "name": "Jutili",
+      "density": 795,
+      "durability": "II",
+      "treatability": "e",
+      "seasoning": "A",
+      "E": 11370.0,
+      "bending": {
+        "inside": 17.1,
+        "outside": 14.3,
+        "wet": 11.4
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.8,
+      "compressionParallel": {
+        "inside": 11.0,
+        "outside": 9.8,
+        "wet": 8.0
+      },
+      "compressionPerpendicular": {
+        "inside": 6.8,
+        "outside": 5.3,
+        "wet": 4.4
+      }
+    },
+    "amoora-rehituka": {
+      "botanical": "Amoora rehituka",
+      "name": "Pitraj",
+      "density": 668,
+      "durability": "I",
+      "seasoning": "B",
+      "E": 8980.0,
+      "bending": {
+        "inside": 12.3,
+        "outside": 10.2,
+        "wet": 8.2
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 8.0,
+        "outside": 7.1,
+        "wet": 5.8
+      },
+      "compressionPerpendicular": {
+        "inside": 4.0,
+        "outside": 3.1,
+        "wet": 2.6
+      }
+    },
+    "amoora-wallichii": {
+      "botanical": "Amoora wallichii",
+      "name": "Lali",
+      "density": 583
+    },
+    "amoora-spp": {
+      "botanical": "Amoora spp.",
+      "name": "Arnari",
+      "density": 625,
+      "durability": "II",
+      "treatability": "d",
+      "seasoning": "B",
+      "note": "Table 6.11.1 row has an evident misprint (1.05 13.4 1.1 9.2 0.9 1.3 8.4 7.4 6.0 3.7 2.9 2.4): no stresses, design with the strength group"
+    },
+    "anisoplera-glabra": {
+      "botanical": "Anisoplera glabra",
+      "name": "Boilam",
+      "density": 573,
+      "durability": "III",
+      "treatability": "b"
+    },
+    "aphenamixis-polystachya": {
+      "botanical": "Aphenamixis polystachya",
+      "name": "Pitraj",
+      "density": 583,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "B"
+    },
+    "arlocarpus-chaplasha": {
+      "botanical": "Arlocarpus chaplasha",
+      "name": "Chapalish",
+      "density": 515,
+      "durability": "III",
+      "treatability": "d",
+      "seasoning": "B",
+      "E": 9110.0,
+      "bending": {
+        "inside": 13.2,
+        "outside": 11.0,
+        "wet": 8.8
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 8.5,
+        "outside": 7.5,
+        "wet": 6.2
+      },
+      "compressionPerpendicular": {
+        "inside": 3.6,
+        "outside": 2.8,
+        "wet": 2.3
+      }
+    },
+    "artocarpus-integrifolia": {
+      "botanical": "Artocarpus integrifolia",
+      "name": "Kanthal",
+      "density": 537,
+      "durability": "III",
+      "treatability": "c",
+      "seasoning": "B"
+    },
+    "azadirachta-indica": {
+      "botanical": "Azadirachta indica",
+      "name": "Neem",
+      "density": 836,
+      "E": 8520.0,
+      "bending": {
+        "inside": 14.6,
+        "outside": 12.1,
+        "wet": 9.7
+      },
+      "shearHorizontal": 1.3,
+      "shearAlong": 1.8,
+      "compressionParallel": {
+        "inside": 10.0,
+        "outside": 8.9,
+        "wet": 7.3
+      },
+      "compressionPerpendicular": {
+        "inside": 5.0,
+        "outside": 3.9,
+        "wet": 3.2
+      }
+    },
+    "betula-lnoides": {
+      "botanical": "Betula lnoides",
+      "name": "Birch",
+      "density": 625,
+      "seasoning": "B",
+      "E": 9230.0,
+      "bending": {
+        "inside": 9.6,
+        "outside": 8.0,
+        "wet": 6.4
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.1,
+      "compressionParallel": {
+        "inside": 5.7,
+        "outside": 5.0,
+        "wet": 4.1
+      },
+      "compressionPerpendicular": {
+        "inside": 2.2,
+        "outside": 1.7,
+        "wet": 1.4
+      }
+    },
+    "bischofia-javanica": {
+      "botanical": "Bischofia javanica",
+      "name": "Bhadi",
+      "density": 769,
+      "durability": "III",
+      "seasoning": "A",
+      "E": 8840.0,
+      "bending": {
+        "inside": 9.6,
+        "outside": 8.2,
+        "wet": 6.5
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.1,
+      "compressionParallel": {
+        "inside": 5.9,
+        "outside": 5.3,
+        "wet": 4.3
+      },
+      "compressionPerpendicular": {
+        "inside": 3.6,
+        "outside": 2.8,
+        "wet": 2.3
+      }
+    },
+    "bruguiera-conjugata": {
+      "botanical": "Bruguiera conjugata",
+      "name": "Kankra",
+      "density": 879,
+      "seasoning": "A"
+    },
+    "bucklandia-populnea": {
+      "botanical": "Bucklandia populnea",
+      "name": "Plpli",
+      "density": 672,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "C",
+      "E": 9890.0,
+      "bending": {
+        "inside": 12.8,
+        "outside": 10.7,
+        "wet": 8.6
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 7.9,
+        "outside": 7.0,
+        "wet": 5.7
+      },
+      "compressionPerpendicular": {
+        "inside": 3.5,
+        "outside": 2.7,
+        "wet": 2.2
+      }
+    },
+    "canarium-strictum": {
+      "botanical": "Canarium strictum",
+      "name": "White dhup",
+      "density": 569,
+      "durability": "III",
+      "seasoning": "C",
+      "E": 10540.0,
+      "bending": {
+        "inside": 10.1,
+        "outside": 8.4,
+        "wet": 6.7
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.1,
+      "compressionParallel": {
+        "inside": 6.2,
+        "outside": 5.5,
+        "wet": 4.5
+      },
+      "compressionPerpendicular": {
+        "inside": 2.1,
+        "outside": 1.6,
+        "wet": 1.3
+      }
+    },
+    "cassia-fistula": {
+      "botanical": "Cassia fistula",
+      "name": "Sonalu",
+      "density": 865,
+      "durability": "I",
+      "seasoning": "A",
+      "E": 11800.0,
+      "bending": {
+        "inside": 19.2,
+        "outside": 16.0,
+        "wet": 12.8
+      },
+      "shearHorizontal": 1.4,
+      "shearAlong": 2.0,
+      "compressionParallel": {
+        "inside": 12.3,
+        "outside": 10.9,
+        "wet": 8.9
+      },
+      "compressionPerpendicular": {
+        "inside": 7.2,
+        "outside": 5.6,
+        "wet": 4.6
+      }
+    },
+    "castanopsis-hystrix": {
+      "botanical": "Castanopsis hystrix",
+      "name": "Chestanut",
+      "density": 624,
+      "durability": "II",
+      "treatability": "b",
+      "seasoning": "B",
+      "E": 9850.0,
+      "bending": {
+        "inside": 10.6,
+        "outside": 8.8,
+        "wet": 7.0
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 6.4,
+        "outside": 5.7,
+        "wet": 4.6
+      },
+      "compressionPerpendicular": {
+        "inside": 2.7,
+        "outside": 2.1,
+        "wet": 1.7
+      }
+    },
+    "carallia-lucida": {
+      "botanical": "Carallia lucida",
+      "name": "Maniawaga",
+      "density": 748,
+      "E": 12600.0,
+      "bending": {
+        "inside": 18.4,
+        "outside": 15.3,
+        "wet": 12.3
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.7,
+      "compressionParallel": {
+        "inside": 11.4,
+        "outside": 10.1,
+        "wet": 8.3
+      },
+      "compressionPerpendicular": {
+        "inside": 5.9,
+        "outside": 4.6,
+        "wet": 3.8
+      }
+    },
+    "cassia-siamea": {
+      "botanical": "Cassia siamea",
+      "name": "Minjiri",
+      "density": 695
+    },
+    "chukrasia-tabularis": {
+      "botanical": "Chukrasia tabularis",
+      "name": "Chickrassy",
+      "density": 666,
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 8350.0,
+      "bending": {
+        "inside": 11.8,
+        "outside": 9.8,
+        "wet": 7.9
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 7.1,
+        "outside": 6.3,
+        "wet": 5.2
+      },
+      "compressionPerpendicular": {
+        "inside": 3.9,
+        "outside": 3.1,
+        "wet": 2.5
+      }
+    },
+    "dalbergia-sissoo": {
+      "botanical": "Dalbergia sissoo",
+      "name": "Sissoo",
+      "density": 808,
+      "seasoning": "B"
+    },
+    "dillenia-indica": {
+      "botanical": "Dillenia indica",
+      "name": "Dillenia",
+      "density": 617,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "B",
+      "E": 8610.0,
+      "bending": {
+        "inside": 12.1,
+        "outside": 10.0,
+        "wet": 8.0
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 7.3,
+        "outside": 6.5,
+        "wet": 5.3
+      },
+      "compressionPerpendicular": {
+        "inside": 2.7,
+        "outside": 2.1,
+        "wet": 1.7
+      }
+    },
+    "dillenia-pentagyne": {
+      "botanical": "Dillenia pentagyne",
+      "name": "Dillenia",
+      "density": 622,
+      "durability": "III",
+      "treatability": "d",
+      "seasoning": "B",
+      "E": 7560.0,
+      "bending": {
+        "inside": 11.8,
+        "outside": 9.9,
+        "wet": 7.9
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.3,
+      "compressionParallel": {
+        "inside": 7.1,
+        "outside": 6.3,
+        "wet": 5.2
+      },
+      "compressionPerpendicular": {
+        "inside": 3.5,
+        "outside": 2.7,
+        "wet": 2.2
+      }
+    },
+    "dipterocarpus-alatus": {
+      "botanical": "Dipterocarpus alatus",
+      "name": "Garjan",
+      "density": 721,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "B"
+    },
+    "dipterocarpus-rnacrocarpus": {
+      "botanical": "Dipterocarpus rnacrocarpus",
+      "name": "Hollong",
+      "density": 726,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "B",
+      "E": 13340.0,
+      "bending": {
+        "inside": 14.5,
+        "outside": 12.0,
+        "wet": 9.6
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.1,
+      "compressionParallel": {
+        "inside": 8.8,
+        "outside": 7.9,
+        "wet": 6.4
+      },
+      "compressionPerpendicular": {
+        "inside": 3.5,
+        "outside": 2.7,
+        "wet": 2.2
+      }
+    },
+    "duabanga-sonneratioides": {
+      "botanical": "Duabanga sonneratioides",
+      "name": "Banderhol",
+      "density": 485,
+      "durability": "III",
+      "treatability": "c",
+      "seasoning": "C",
+      "E": 8380.0,
+      "bending": {
+        "inside": 9.8,
+        "outside": 8.2,
+        "wet": 6.5
+      },
+      "shearHorizontal": 0.6,
+      "shearAlong": 0.9,
+      "compressionParallel": {
+        "inside": 6.4,
+        "outside": 5.7,
+        "wet": 4.7
+      },
+      "compressionPerpendicular": {
+        "inside": 1.8,
+        "outside": 1.4,
+        "wet": 1.1
+      }
+    },
+    "garuga-piannata": {
+      "botanical": "Garuga piannata",
+      "name": "Garuga",
+      "density": 571,
+      "durability": "I",
+      "treatability": "e",
+      "seasoning": "B",
+      "E": 7580.0,
+      "bending": {
+        "inside": 11.7,
+        "outside": 9.7,
+        "wet": 7.8
+      },
+      "shearHorizontal": 1.0,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 7.2,
+        "outside": 6.4,
+        "wet": 5.3
+      },
+      "compressionPerpendicular": {
+        "inside": 3.4,
+        "outside": 2.6,
+        "wet": 2.1
+      }
+    },
+    "geriops-roxbarghiana": {
+      "botanical": "Geriops roxbarghiana",
+      "name": "Goran",
+      "density": 869
+    },
+    "gmelina-arborea": {
+      "botanical": "Gmelina arborea",
+      "name": "Garnar",
+      "density": 501,
+      "durability": "I",
+      "treatability": "e",
+      "seasoning": "B",
+      "E": 7020.0,
+      "bending": {
+        "inside": 9.8,
+        "outside": 8.2,
+        "wet": 6.6
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.4,
+      "compressionParallel": {
+        "inside": 5.7,
+        "outside": 5.0,
+        "wet": 4.1
+      },
+      "compressionPerpendicular": {
+        "inside": 4.2,
+        "outside": 3.2,
+        "wet": 2.7
+      }
+    },
+    "grewia-veslita": {
+      "botanical": "Grewia veslita",
+      "name": "Dhaman",
+      "density": 758,
+      "durability": "III",
+      "treatability": "d",
+      "seasoning": "B",
+      "E": 12000.0,
+      "bending": {
+        "inside": 15.4,
+        "outside": 12.6,
+        "wet": 10.3
+      },
+      "shearHorizontal": 1.4,
+      "shearAlong": 2.0,
+      "compressionParallel": {
+        "inside": 9.1,
+        "outside": 8.1,
+        "wet": 6.6
+      },
+      "compressionPerpendicular": {
+        "inside": 4.1,
+        "outside": 3.2,
+        "wet": 2.6
+      }
+    },
+    "heritiera-spp": {
+      "botanical": "Heritiera spp.",
+      "name": "Sundri",
+      "density": 872,
+      "durability": "I",
+      "seasoning": "A",
+      "E": 13370.0,
+      "bending": {
+        "inside": 17.9,
+        "outside": 14.9,
+        "wet": 11.9
+      },
+      "shearHorizontal": 1.3,
+      "shearAlong": 1.8,
+      "compressionParallel": {
+        "inside": 11.0,
+        "outside": 9.8,
+        "wet": 8.0
+      },
+      "compressionPerpendicular": {
+        "inside": 6.5,
+        "outside": 5.0,
+        "wet": 4.1
+      }
+    },
+    "hopea-odorata": {
+      "botanical": "Hopea odorata",
+      "name": "Telsur",
+      "density": 711,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "B"
+    },
+    "kayea-floribund": {
+      "botanical": "Kayea floribund",
+      "name": "Karal",
+      "density": 813,
+      "durability": "III",
+      "note": "Table 6.11.1 row has an evident misprint (10.88 16.8 14.0 1.1 1.1 1.6 10.1 9.0 7.3 4.4 3.4 2.8): no stresses, design with the strength group"
+    },
+    "lagerstrocmia-spp": {
+      "botanical": "Lagerstrocmia spp.",
+      "name": "Jarul",
+      "density": 654,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "B"
+    },
+    "machilus-macrantha": {
+      "botanical": "Machilus macrantha",
+      "name": "Machilus",
+      "density": 692,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "B/C",
+      "E": 10000.0,
+      "bending": {
+        "inside": 12.4,
+        "outside": 10.3,
+        "wet": 8.3
+      },
+      "shearHorizontal": 1.0,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 8.2,
+        "outside": 7.3,
+        "wet": 6.0
+      },
+      "compressionPerpendicular": {
+        "inside": 3.5,
+        "outside": 2.7,
+        "wet": 2.2
+      }
+    },
+    "manglietia-insignia": {
+      "botanical": "Manglietia insignia",
+      "density": 449,
+      "E": 10370.0,
+      "bending": {
+        "inside": 10.9,
+        "outside": 9.1,
+        "wet": 7.3
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.4,
+      "compressionParallel": {
+        "inside": 8.0,
+        "outside": 7.1,
+        "wet": 5.8
+      },
+      "compressionPerpendicular": {
+        "inside": 3.4,
+        "outside": 2.6,
+        "wet": 2.1
+      }
+    },
+    "manilota-polyandra": {
+      "botanical": "Manilota polyandra",
+      "name": "Ping",
+      "density": 903,
+      "durability": "III",
+      "treatability": "b",
+      "seasoning": "A",
+      "note": "Table 6.11.1 row has an evident misprint (13.20 19.1 15.9 12.7 1.3 1.8 1.2 10.0 8.5 5.7 4.4 3.6): no stresses, design with the strength group"
+    },
+    "mesua-assamica": {
+      "botanical": "Mesua assamica",
+      "name": "Keyea",
+      "density": 842,
+      "durability": "II",
+      "treatability": "e",
+      "E": 12830.0,
+      "bending": {
+        "inside": 17.4,
+        "outside": 14.5,
+        "wet": 11.6
+      },
+      "shearHorizontal": 1.0,
+      "shearAlong": 1.4,
+      "compressionParallel": {
+        "inside": 11.7,
+        "outside": 10.4,
+        "wet": 8.5
+      },
+      "compressionPerpendicular": {
+        "inside": 5.3,
+        "outside": 4.1,
+        "wet": 3.3
+      }
+    },
+    "mesua-ferrea": {
+      "botanical": "Mesua ferrea",
+      "name": "Mesua",
+      "density": 965,
+      "durability": "I",
+      "seasoning": "A",
+      "E": 16300.0,
+      "bending": {
+        "inside": 23.3,
+        "outside": 19.4,
+        "wet": 15.5
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.8,
+      "compressionParallel": {
+        "inside": 15.5,
+        "outside": 13.8,
+        "wet": 11.3
+      },
+      "compressionPerpendicular": {
+        "inside": 5.9,
+        "outside": 4.6,
+        "wet": 3.7
+      }
+    },
+    "michelia-champaca": {
+      "botanical": "Michelia champaca",
+      "name": "Champa",
+      "density": 644,
+      "seasoning": "B"
+    },
+    "michelia-montana": {
+      "botanical": "Michelia montana",
+      "name": "Champ",
+      "density": 512,
+      "durability": "I",
+      "seasoning": "B",
+      "E": 8250.0,
+      "bending": {
+        "inside": 10.9,
+        "outside": 9.1,
+        "wet": 7.3
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.0,
+      "compressionParallel": {
+        "inside": 6.6,
+        "outside": 5.9,
+        "wet": 4.8
+      },
+      "compressionPerpendicular": {
+        "inside": 2.8,
+        "outside": 2.2,
+        "wet": 1.8
+      }
+    },
+    "michelia-excelsa": {
+      "botanical": "Michelia excelsa",
+      "name": "Champ",
+      "density": 513,
+      "durability": "II",
+      "treatability": "e",
+      "seasoning": "B",
+      "E": 10120.0,
+      "bending": {
+        "inside": 9.8,
+        "outside": 8.2,
+        "wet": 6.5
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.0,
+      "compressionParallel": {
+        "inside": 6.1,
+        "outside": 5.5,
+        "wet": 4.5
+      },
+      "compressionPerpendicular": {
+        "inside": 1.6,
+        "outside": 1.3,
+        "wet": 1.0
+      }
+    },
+    "mitragyna-pervifolia": {
+      "botanical": "Mitragyna pervifolia",
+      "name": "Dakroom",
+      "density": 651,
+      "durability": "III",
+      "treatability": "b",
+      "seasoning": "B",
+      "E": 7820.0,
+      "bending": {
+        "inside": 12.6,
+        "outside": 10.5,
+        "wet": 8.4
+      },
+      "shearHorizontal": 1.0,
+      "shearAlong": 1.5,
+      "compressionParallel": {
+        "inside": 7.9,
+        "outside": 7.0,
+        "wet": 5.7
+      },
+      "compressionPerpendicular": {
+        "inside": 3.7,
+        "outside": 2.9,
+        "wet": 2.4
+      }
+    },
+    "palaquium-polyanthum": {
+      "botanical": "Palaquium polyanthum",
+      "name": "Tali",
+      "density": 734,
+      "seasoning": "B",
+      "E": 11240.0,
+      "bending": {
+        "inside": 14.9,
+        "outside": 12.4,
+        "wet": 10.0
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.6,
+      "compressionParallel": {
+        "inside": 9.9,
+        "outside": 8.8,
+        "wet": 7.2
+      },
+      "compressionPerpendicular": {
+        "inside": 4.7,
+        "outside": 3.7,
+        "wet": 3.0
+      }
+    },
+    "phoebe-hainesiana": {
+      "botanical": "Phoebe hainesiana",
+      "name": "Bonsum",
+      "density": 566,
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 9500.0,
+      "bending": {
+        "inside": 13.2,
+        "outside": 11.0,
+        "wet": 8.8
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 8.8,
+        "outside": 7.8,
+        "wet": 6.4
+      },
+      "compressionPerpendicular": {
+        "inside": 2.8,
+        "outside": 2.1,
+        "wet": 1.8
+      }
+    },
+    "phoebe-goalperansis": {
+      "botanical": "Phoebe goalperansis",
+      "name": "Bonsum",
+      "density": 511,
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 7650.0,
+      "bending": {
+        "inside": 9.7,
+        "outside": 8.1,
+        "wet": 6.5
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.0,
+      "compressionParallel": {
+        "inside": 6.6,
+        "outside": 5.9,
+        "wet": 4.8
+      },
+      "compressionPerpendicular": {
+        "inside": 2.2,
+        "outside": 1.7,
+        "wet": 1.4
+      }
+    },
+    "plerygota-alata": {
+      "botanical": "Plerygota alata",
+      "name": "Narikel",
+      "density": 593,
+      "durability": "III",
+      "seasoning": "C",
+      "E": 10950.0,
+      "bending": {
+        "inside": 13.4,
+        "outside": 11.8,
+        "wet": 8.9
+      },
+      "shearHorizontal": 0.8,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 8.2,
+        "outside": 7.3,
+        "wet": 6.0
+      },
+      "compressionPerpendicular": {
+        "inside": 2.7,
+        "outside": 2.1,
+        "wet": 1.7
+      }
+    },
+    "prunus-napeulensis": {
+      "botanical": "Prunus napeulensis",
+      "name": "Arupati",
+      "density": 548,
+      "note": "Table 6.11.1 row has an evident misprint (9.41 4.4 8.7 69.6 0.9 1.2 6.7 6.0 4.9 2.4 1.9 1.6): no stresses, design with the strength group"
+    },
+    "pterespermum-acerifolium": {
+      "botanical": "Pterespermum acerifolium",
+      "name": "Hattipaila",
+      "density": 607,
+      "durability": "III",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 9550.0,
+      "bending": {
+        "inside": 13.5,
+        "outside": 11.3,
+        "wet": 9.0
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 8.7,
+        "outside": 7.7,
+        "wet": 6.3
+      },
+      "compressionPerpendicular": {
+        "inside": 3.2,
+        "outside": 2.5,
+        "wet": 2.0
+      }
+    },
+    "quercus-lineate": {
+      "botanical": "Quercus lineate",
+      "name": "Oak",
+      "density": 874,
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "A",
+      "E": 12630.0,
+      "bending": {
+        "inside": 15.2,
+        "outside": 12.7,
+        "wet": 10.1
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.7,
+      "compressionParallel": {
+        "inside": 9.6,
+        "outside": 8.6,
+        "wet": 7.0
+      },
+      "compressionPerpendicular": {
+        "inside": 5.3,
+        "outside": 4.1,
+        "wet": 3.4
+      }
+    },
+    "quercus-lamellosa": {
+      "botanical": "Quercus lamellosa",
+      "name": "Oak",
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "A",
+      "E": 12440.0,
+      "bending": {
+        "inside": 14.5,
+        "outside": 12.1,
+        "wet": 9.7
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.7,
+      "compressionParallel": {
+        "inside": 8.7,
+        "outside": 7.8,
+        "wet": 6.4
+      },
+      "compressionPerpendicular": {
+        "inside": 3.8,
+        "outside": 2.9,
+        "wet": 2.4
+      },
+      "note": "density printed 87 kg/m3 (misprint), left out"
+    },
+    "schima-wallichii": {
+      "botanical": "Schima wallichii",
+      "name": "Chilauni",
+      "density": 693,
+      "durability": "III",
+      "treatability": "d",
+      "seasoning": "B",
+      "E": 9570.0,
+      "bending": {
+        "inside": 11.1,
+        "outside": 9.3,
+        "wet": 7.4
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.3,
+      "compressionParallel": {
+        "inside": 6.6,
+        "outside": 5.9,
+        "wet": 4.8
+      },
+      "compressionPerpendicular": {
+        "inside": 2.3,
+        "outside": 1.8,
+        "wet": 1.4
+      }
+    },
+    "seritiera-fomes": {
+      "botanical": "Seritiera fomes",
+      "name": "Sundri",
+      "density": 1073,
+      "durability": "III",
+      "treatability": "b",
+      "seasoning": "B"
+    },
+    "shotea-assamica": {
+      "botanical": "Shotea assamica",
+      "name": "Makai",
+      "density": 548,
+      "durability": "III",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 9270.0,
+      "bending": {
+        "inside": 11.1,
+        "outside": 9.2,
+        "wet": 7.4
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.3,
+      "compressionParallel": {
+        "inside": 7.1,
+        "outside": 6.3,
+        "wet": 5.2
+      },
+      "compressionPerpendicular": {
+        "inside": 2.9,
+        "outside": 2.2,
+        "wet": 1.8
+      }
+    },
+    "shorea-robusta": {
+      "botanical": "Shorea robusta",
+      "name": "Sal",
+      "density": 889,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "B"
+    },
+    "sonneralia-apetale": {
+      "botanical": "Sonneralia apetale",
+      "name": "Keora",
+      "density": 617,
+      "durability": "II",
+      "seasoning": "B",
+      "E": 8630.0,
+      "bending": {
+        "inside": 12.8,
+        "outside": 10.7,
+        "wet": 8.5
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.3,
+      "compressionParallel": {
+        "inside": 7.4,
+        "outside": 6.6,
+        "wet": 5.4
+      },
+      "compressionPerpendicular": {
+        "inside": 4.8,
+        "outside": 3.7,
+        "wet": 3.0
+      }
+    },
+    "swintonia-floribunda": {
+      "botanical": "Swintonia floribunda",
+      "name": "Civit",
+      "density": 665,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "C"
+    },
+    "syzygium-cumini": {
+      "botanical": "Syzygium cumini",
+      "name": "Jamun",
+      "density": 841,
+      "durability": "II",
+      "treatability": "e",
+      "seasoning": "A",
+      "E": 10550.0,
+      "bending": {
+        "inside": 14.8,
+        "outside": 12.4,
+        "wet": 9.9
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.6,
+      "compressionParallel": {
+        "inside": 9.0,
+        "outside": 8.0,
+        "wet": 6.5
+      },
+      "compressionPerpendicular": {
+        "inside": 6.9,
+        "outside": 5.4,
+        "wet": 4.4
+      }
+    },
+    "syzygium-spp": {
+      "botanical": "Syzygium spp.",
+      "name": "Jam",
+      "density": 823,
+      "durability": "III",
+      "treatability": "e",
+      "seasoning": "A"
+    },
+    "taxus-buccata": {
+      "botanical": "Taxus buccata",
+      "name": "Yew",
+      "density": 705,
+      "E": 7790.0,
+      "bending": {
+        "inside": 14.3,
+        "outside": 11.9,
+        "wet": 9.5
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.7,
+      "compressionParallel": {
+        "inside": 8.7,
+        "outside": 7.8,
+        "wet": 6.4
+      },
+      "compressionPerpendicular": {
+        "inside": 4.7,
+        "outside": 3.7,
+        "wet": 3.0
+      }
+    },
+    "tectona-grandis": {
+      "botanical": "Tectona grandis",
+      "name": "Teak",
+      "density": 660,
+      "durability": "I",
+      "treatability": "e",
+      "seasoning": "B",
+      "E": 9970.0,
+      "bending": {
+        "inside": 15.5,
+        "outside": 12.9,
+        "wet": 10.3
+      },
+      "shearHorizontal": 1.2,
+      "shearAlong": 1.6,
+      "compressionParallel": {
+        "inside": 9.4,
+        "outside": 8.3,
+        "wet": 6.8
+      },
+      "compressionPerpendicular": {
+        "inside": 4.5,
+        "outside": 3.5,
+        "wet": 2.8
+      }
+    },
+    "toena-ciliata": {
+      "botanical": "Toena ciliata",
+      "name": "Toon",
+      "density": 487,
+      "durability": "II",
+      "treatability": "c",
+      "seasoning": "B",
+      "E": 6400.0,
+      "bending": {
+        "inside": 8.7,
+        "outside": 7.3,
+        "wet": 5.8
+      },
+      "shearHorizontal": 0.7,
+      "shearAlong": 1.0,
+      "compressionParallel": {
+        "inside": 5.4,
+        "outside": 4.8,
+        "wet": 3.9
+      },
+      "compressionPerpendicular": {
+        "inside": 2.4,
+        "outside": 1.8,
+        "wet": 1.5
+      }
+    },
+    "terminalia-citrna": {
+      "botanical": "Terminalia citrna",
+      "density": 755,
+      "E": 11890.0,
+      "bending": {
+        "inside": 17.1,
+        "outside": 14.3,
+        "wet": 11.4
+      },
+      "shearHorizontal": 1.1,
+      "shearAlong": 1.6,
+      "compressionParallel": {
+        "inside": 10.8,
+        "outside": 9.6,
+        "wet": 7.9
+      },
+      "compressionPerpendicular": {
+        "inside": 5.0,
+        "outside": 3.9,
+        "wet": 3.2
+      }
+    },
+    "terminalia-myriocarpa": {
+      "botanical": "Terminalia myriocarpa",
+      "name": "Hollock",
+      "density": 615,
+      "durability": "III",
+      "treatability": "a",
+      "seasoning": "B",
+      "E": 9620.0,
+      "bending": {
+        "inside": 11.9,
+        "outside": 9.9,
+        "wet": 8.0
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 7.6,
+        "outside": 6.7,
+        "wet": 5.5
+      },
+      "compressionPerpendicular": {
+        "inside": 2.9,
+        "outside": 2.2,
+        "wet": 1.8
+      }
+    },
+    "xylia-dolabriformis": {
+      "botanical": "Xylia dolabriformis",
+      "name": "Lohakat",
+      "density": 1007
+    },
+    "xylocarpus-rolloensis": {
+      "botanical": "Xylocarpus rolloensis",
+      "name": "Passur",
+      "density": 757,
+      "seasoning": "B"
+    },
+    "zanthoxylum-budranga": {
+      "botanical": "Zanthoxylum budranga",
+      "name": "Mullilam",
+      "density": 587,
+      "durability": "I",
+      "treatability": "e",
+      "seasoning": "B",
+      "E": 10650.0,
+      "bending": {
+        "inside": 14.7,
+        "outside": 12.2,
+        "wet": 9.8
+      },
+      "shearHorizontal": 0.9,
+      "shearAlong": 1.2,
+      "compressionParallel": {
+        "inside": 9.5,
+        "outside": 8.4,
+        "wet": 6.9
+      },
+      "compressionPerpendicular": {
+        "inside": 3.4,
+        "outside": 2.6,
+        "wet": 2.1
+      }
+    }
+  },
+  "grades": {
+    "select": 1.16,
+    "I": 1.0,
+    "II": 0.84
+  },
+  "lowDurability": {
+    "factor": 0.8,
+    "classes": [
+      "III"
+    ],
+    "locations": [
+      "outside"
+    ]
+  },
+  "slopeOfGrain": [
+    {
+      "slope": 10.0,
+      "beams": 0.8,
+      "columns": 0.74
+    },
+    {
+      "slope": 12.0,
+      "beams": 0.9,
+      "columns": 0.82
+    },
+    {
+      "slope": 14.0,
+      "beams": 0.98,
+      "columns": 0.8
+    },
+    {
+      "slope": 15.0,
+      "beams": 1.0,
+      "columns": 1.0
+    }
+  ],
+  "duration": {
+    "continuous": 1.0,
+    "twoMonths": 1.15,
+    "sevenDays": 1.25,
+    "windEarthquake": 1.33,
+    "impact": 2.0
   },
   "column": {
     "short": 11.0,
@@ -44,26 +1461,611 @@
     "long": 0.329,
     "maxSlenderness": 50.0
   },
+  "boxColumn": {
+    "short": 8.0,
+    "k9": 0.7025,
+    "planks": [
+      {
+        "t": 25.0,
+        "U": 0.8,
+        "q": 1.0
+      },
+      {
+        "t": 30.0,
+        "U": 0.6,
+        "q": 1.0
+      }
+    ]
+  },
+  "spacedColumn": {
+    "restraint": {
+      "end20": 2.5,
+      "end10to20": 3.0
+    },
+    "k10": 0.702,
+    "maxSlenderness": 80.0
+  },
   "depthFactor": {
     "above": 300.0,
     "factor": 0.81,
     "a": 89400.0,
     "b": 55000.0
   },
-  "duration": {
-    "permanent": 1.0,
-    "wind": 1.3333,
-    "earthquake": 1.3333
+  "formFactors": {
+    "boxBase": 0.8,
+    "boxFactor": 0.8,
+    "circle": 1.18,
+    "squareDiagonal": 1.414
   },
+  "flexure": {
+    "minWidth": 50.0,
+    "widthSpanRatio": 50.0,
+    "depthWidthRatio": 3.0,
+    "spanWidthRatio": 50.0,
+    "restraintWidthRatio": 50.0,
+    "notchDepthShare": 0.2,
+    "notchSpanShare": 0.16667,
+    "notchSectionShare": 0.25,
+    "minBearing": 75.0
+  },
+  "bearing": {
+    "fullLength": 150.0,
+    "fromEnd": 75.0,
+    "k7": [
+      {
+        "length": 15.0,
+        "factor": 1.67
+      },
+      {
+        "length": 25.0,
+        "factor": 1.4
+      },
+      {
+        "length": 40.0,
+        "factor": 1.25
+      },
+      {
+        "length": 50.0,
+        "factor": 1.2
+      },
+      {
+        "length": 75.0,
+        "factor": 1.13
+      },
+      {
+        "length": 100.0,
+        "factor": 1.1
+      },
+      {
+        "length": 150.0,
+        "factor": 1.0
+      }
+    ]
+  },
+  "concentratedNearSupport": [
+    {
+      "distance": 1.5,
+      "reduction": 0.6
+    },
+    {
+      "distance": 2.0,
+      "reduction": 0.4
+    },
+    {
+      "distance": 2.5,
+      "reduction": 0.2
+    },
+    {
+      "distance": 3.0,
+      "reduction": 0.0
+    }
+  ],
   "deflection": {
+    "brittle": 360.0,
     "span": 240.0,
-    "cantilever": 180.0
+    "cantilever": 150.0,
+    "deadLoadFactor": 2.0
+  },
+  "nails": {
+    "minThickness": 30.0,
+    "diameterMin": 11.0,
+    "diameterMax": 6.0,
+    "penetration": 1.5,
+    "minNode": 2,
+    "minLengthening": 4,
+    "clenched": 1.2,
+    "spacing": {
+      "endTension": 12.0,
+      "endCompression": 10.0,
+      "alongTension": 10.0,
+      "alongCompression": 5.0,
+      "edge": 5.0,
+      "rows": 5.0
+    },
+    "sizes": {
+      "3.55": {
+        "diameter": 3.55,
+        "lengths": [
+          80.0
+        ],
+        "strengths": {
+          "acacia-nilotica": {
+            "lengthening": 1500.0,
+            "node": 1100.0,
+            "temporary": 3400.0
+          },
+          "aphenamixis-polystachya": {
+            "lengthening": 1900.0,
+            "node": 900.0,
+            "temporary": 1900.0
+          },
+          "canarium-strictum": {
+            "lengthening": 900.0,
+            "node": 800.0,
+            "temporary": 1050.0
+          },
+          "castanopsis-hystrix": {
+            "lengthening": 1800.0,
+            "node": 1050.0,
+            "temporary": 2350.0
+          },
+          "chukrasia-tabularis": {
+            "lengthening": 2400.0,
+            "node": 800.0,
+            "temporary": 2700.0
+          },
+          "dillenia-pentagyne": {
+            "lengthening": 1650.0,
+            "node": 1200.0,
+            "temporary": 1600.0
+          },
+          "dipterocarpus-rnacrocarpus": {
+            "lengthening": 1700.0,
+            "node": 700.0,
+            "temporary": 2000.0
+          },
+          "grewia-veslita": {
+            "lengthening": 1300.0,
+            "node": 500.0,
+            "temporary": 2400.0
+          },
+          "hopea-odorata": {
+            "lengthening": 3150.0,
+            "node": 1300.0,
+            "temporary": 2850.0
+          },
+          "lagerstrocmia-spp": {
+            "lengthening": 2450.0,
+            "node": 2150.0,
+            "temporary": 2250.0
+          },
+          "manilota-polyandra": {
+            "lengthening": 2600.0,
+            "node": 2350.0,
+            "temporary": 3200.0
+          },
+          "mesua-ferrea": {
+            "lengthening": 2600.0,
+            "node": 800.0,
+            "temporary": 4100.0
+          },
+          "michelia-excelsa": {
+            "lengthening": 1300.0,
+            "node": 900.0,
+            "temporary": 2000.0
+          },
+          "phoebe-hainesiana": {
+            "lengthening": 1200.0,
+            "node": 600.0,
+            "temporary": 1300.0
+          },
+          "shorea-robusta": {
+            "lengthening": 2300.0,
+            "node": 1550.0,
+            "temporary": 1950.0
+          },
+          "syzygium-spp": {
+            "lengthening": 1500.0,
+            "node": 1200.0,
+            "temporary": 2500.0
+          },
+          "tectona-grandis": {
+            "lengthening": 1400.0,
+            "node": 800.0,
+            "temporary": 1300.0
+          },
+          "terminalia-myriocarpa": {
+            "lengthening": 1300.0,
+            "node": 1000.0,
+            "temporary": 1900.0
+          },
+          "toena-ciliata": {
+            "lengthening": 1600.0,
+            "node": 900.0,
+            "temporary": 2100.0
+          }
+        }
+      },
+      "4": {
+        "diameter": 4.0,
+        "lengths": [
+          100.0
+        ],
+        "strengths": {
+          "acacia-nilotica": {
+            "lengthening": 1500.0,
+            "node": 1100.0,
+            "temporary": 3400.0
+          },
+          "aphenamixis-polystachya": {
+            "lengthening": 1900.0,
+            "node": 900.0,
+            "temporary": 1900.0
+          },
+          "canarium-strictum": {
+            "lengthening": 900.0,
+            "node": 800.0,
+            "temporary": 1050.0
+          },
+          "castanopsis-hystrix": {
+            "lengthening": 1800.0,
+            "node": 1050.0,
+            "temporary": 2350.0
+          },
+          "chukrasia-tabularis": {
+            "lengthening": 2400.0,
+            "node": 800.0,
+            "temporary": 2700.0
+          },
+          "dillenia-pentagyne": {
+            "lengthening": 1650.0,
+            "node": 1200.0,
+            "temporary": 1600.0
+          },
+          "dipterocarpus-rnacrocarpus": {
+            "lengthening": 1700.0,
+            "node": 700.0,
+            "temporary": 2000.0
+          },
+          "grewia-veslita": {
+            "lengthening": 1300.0,
+            "node": 500.0,
+            "temporary": 2400.0
+          },
+          "hopea-odorata": {
+            "lengthening": 3150.0,
+            "node": 1300.0,
+            "temporary": 2850.0
+          },
+          "lagerstrocmia-spp": {
+            "lengthening": 2450.0,
+            "node": 2150.0,
+            "temporary": 2250.0
+          },
+          "manilota-polyandra": {
+            "lengthening": 2600.0,
+            "node": 2350.0,
+            "temporary": 3200.0
+          },
+          "mesua-ferrea": {
+            "lengthening": 2600.0,
+            "node": 800.0,
+            "temporary": 4100.0
+          },
+          "michelia-excelsa": {
+            "lengthening": 1300.0,
+            "node": 900.0,
+            "temporary": 2000.0
+          },
+          "phoebe-hainesiana": {
+            "lengthening": 1200.0,
+            "node": 600.0,
+            "temporary": 1300.0
+          },
+          "shorea-robusta": {
+            "lengthening": 2300.0,
+            "node": 1550.0,
+            "temporary": 1950.0
+          },
+          "syzygium-spp": {
+            "lengthening": 1500.0,
+            "node": 1200.0,
+            "temporary": 2500.0
+          },
+          "tectona-grandis": {
+            "lengthening": 1400.0,
+            "node": 800.0,
+            "temporary": 1300.0
+          },
+          "terminalia-myriocarpa": {
+            "lengthening": 1300.0,
+            "node": 1000.0,
+            "temporary": 1900.0
+          },
+          "toena-ciliata": {
+            "lengthening": 1600.0,
+            "node": 900.0,
+            "temporary": 2100.0
+          }
+        }
+      },
+      "5": {
+        "diameter": 5.0,
+        "lengths": [
+          125.0,
+          150.0
+        ],
+        "strengths": {
+          "acacia-nilotica": {
+            "lengthening": 2700.0,
+            "node": 1350.0,
+            "temporary": 5300.0
+          },
+          "dalbergia-sissoo": {
+            "lengthening": 1700.0,
+            "node": 1500.0,
+            "temporary": 4300.0
+          },
+          "mesua-ferrea": {
+            "lengthening": 2400.0,
+            "node": 1550.0,
+            "temporary": 5750.0
+          },
+          "michelia-excelsa": {
+            "lengthening": 2600.0,
+            "node": 1250.0,
+            "temporary": 3900.0
+          },
+          "phoebe-hainesiana": {
+            "lengthening": 2000.0,
+            "node": 750.0,
+            "temporary": 3000.0
+          },
+          "shorea-robusta": {
+            "lengthening": 1950.0,
+            "node": 1700.0,
+            "temporary": 3700.0
+          },
+          "syzygium-spp": {
+            "lengthening": 1800.0,
+            "node": 1450.0,
+            "temporary": 3850.0
+          },
+          "tectona-grandis": {
+            "lengthening": 2800.0,
+            "node": 1300.0,
+            "temporary": 3000.0
+          },
+          "terminalia-myriocarpa": {
+            "lengthening": 2750.0,
+            "node": 900.0,
+            "temporary": 4100.0
+          }
+        }
+      }
+    }
+  },
+  "bolts": {
+    "singleShear": 0.5,
+    "minNode": 2,
+    "minLengthening": 4,
+    "minMain": 40.0,
+    "minSide": 20.0,
+    "sideShare": 0.5,
+    "diameterFactor": {
+      "6": 5.7,
+      "10": 3.6,
+      "12": 3.35,
+      "16": 3.15,
+      "20": 3.05,
+      "22": 3.0,
+      "25": 2.9
+    },
+    "spacing": {
+      "inRow": 4.0,
+      "rowsPerpendicularLow": 2.5,
+      "rowsPerpendicularHigh": 5.0,
+      "ratioLow": 2.0,
+      "ratioHigh": 6.0,
+      "rowsParallel": 2.5,
+      "endTensionSoftwood": 7.0,
+      "endTensionHardwood": 5.0,
+      "endCompression": 4.0,
+      "edgeParallel": 1.5,
+      "edgePerpendicular": 4.0
+    },
+    "bearing": [
+      {
+        "ratio": 1.0,
+        "parallel": 100,
+        "perpendicular": 100
+      },
+      {
+        "ratio": 1.5,
+        "parallel": 100,
+        "perpendicular": 96
+      },
+      {
+        "ratio": 2.0,
+        "parallel": 100,
+        "perpendicular": 88
+      },
+      {
+        "ratio": 2.5,
+        "parallel": 100,
+        "perpendicular": 80
+      },
+      {
+        "ratio": 3.0,
+        "parallel": 100,
+        "perpendicular": 72
+      },
+      {
+        "ratio": 3.5,
+        "parallel": 100,
+        "perpendicular": 66
+      },
+      {
+        "ratio": 4.0,
+        "parallel": 96,
+        "perpendicular": 60
+      },
+      {
+        "ratio": 4.5,
+        "parallel": 90,
+        "perpendicular": 56
+      },
+      {
+        "ratio": 5.0,
+        "parallel": 80,
+        "perpendicular": 52
+      },
+      {
+        "ratio": 5.5,
+        "parallel": 72,
+        "perpendicular": 49
+      },
+      {
+        "ratio": 6.0,
+        "parallel": 65,
+        "perpendicular": 46
+      },
+      {
+        "ratio": 6.5,
+        "parallel": 58,
+        "perpendicular": 43
+      },
+      {
+        "ratio": 7.0,
+        "parallel": 52,
+        "perpendicular": 40
+      },
+      {
+        "ratio": 7.5,
+        "parallel": 46,
+        "perpendicular": 39
+      },
+      {
+        "ratio": 8.0,
+        "parallel": 40,
+        "perpendicular": 38
+      },
+      {
+        "ratio": 8.5,
+        "parallel": 36,
+        "perpendicular": 36
+      },
+      {
+        "ratio": 9.0,
+        "parallel": 34,
+        "perpendicular": 34
+      },
+      {
+        "ratio": 9.5,
+        "parallel": 32,
+        "perpendicular": 33
+      },
+      {
+        "ratio": 10.0,
+        "parallel": 30,
+        "perpendicular": 31
+      },
+      {
+        "ratio": 10.5,
+        "perpendicular": 31
+      },
+      {
+        "ratio": 11.0,
+        "perpendicular": 30
+      },
+      {
+        "ratio": 11.5,
+        "perpendicular": 30
+      },
+      {
+        "ratio": 12.0,
+        "perpendicular": 28
+      }
+    ]
+  },
+  "connectors": {
+    "ringMinMain": 57.0,
+    "ringMinSide": 38.0,
+    "ringEdge": 1.0,
+    "ringEnd": 1.75,
+    "dowelThickness": [
+      25.0,
+      35.0
+    ],
+    "dowelDiameter": [
+      50.0,
+      150.0
+    ],
+    "dowelRatio": [
+      3.25,
+      3.5
+    ],
+    "dowelEdge": [
+      12.0,
+      20.0
+    ],
+    "dowelEndTension": 1.0,
+    "dowelEndCompression": 0.75
+  },
+  "clauses": {
+    "chapter": "Part 6 Chapter 11",
+    "species": "Part 6 Sec 11.4.1, Table 6.11.1",
+    "groups": "Part 6 Sec 11.5.1, Table 6.11.9",
+    "grade": "Part 6 Sec 11.5.2",
+    "slope": "Part 6 Sec 11.5.3.1, Table 6.11.10",
+    "duration": "Part 6 Sec 11.5.3.2, Table 6.11.11",
+    "bending": "Part 6 Sec 11.6.6.3-11.6.6.4, Eqs 6.11.1-6.11.4",
+    "width": "Part 6 Sec 11.6.6.5",
+    "depth": "Part 6 Sec 11.6.6.6",
+    "restraint": "Part 6 Sec 11.6.6.6.1",
+    "shear": "Part 6 Sec 11.6.6.7, Eqs 6.11.5a-b",
+    "shearSupport": "Part 6 Sec 11.6.6.7.3(b), Eq 6.11.6b",
+    "shearAlong": "Part 6 Table 6.11.9 note 2",
+    "notch": "Part 6 Sec 11.6.6.7, Eqs 6.11.5c-e",
+    "notchLimits": "Part 6 Sec 11.6.6.7.4(a), 11.6.4.3",
+    "bearing": "Part 6 Sec 11.6.6.8.3, Table 6.11.13",
+    "minBearing": "Part 6 Sec 11.6.6.8.1",
+    "deflection": "Part 6 Sec 11.6.6.9, Eq 6.11.8",
+    "column": "Part 6 Sec 11.6.7.1, Eqs 6.11.9-6.11.11",
+    "boxColumn": "Part 6 Sec 11.6.7.2, Eqs 6.11.12-6.11.14",
+    "spacedColumn": "Part 6 Sec 11.6.7.3, Eqs 6.11.15-6.11.16",
+    "tension": "Part 6 Table 6.11.9",
+    "combinedCompression": "Part 6 Sec 11.6.8.1, Eq 6.11.17",
+    "combinedTension": "Part 6 Sec 11.6.8.2, Eq 6.11.18",
+    "nails": "Part 6 Sec 11.7.7, Tables 6.11.2-6.11.3",
+    "nailSpacing": "Part 6 Sec 11.7.5, Table 6.11.14",
+    "nailRules": "Part 6 Sec 11.7.2, 11.7.4.2, 11.7.6, 11.7.7.4",
+    "bolts": "Part 6 Sec 11.9.4, Eqs 6.11.19-6.11.21, Tables 6.11.16-6.11.17",
+    "boltRules": "Part 6 Sec 11.9.2.2, 11.9.2.3",
+    "boltSpacing": "Part 6 Sec 11.9.3.1",
+    "fastenerDuration": "Part 6 Sec 11.5.3.2.3",
+    "rings": "Part 6 Sec 11.10.1",
+    "dowels": "Part 6 Sec 11.10.2, Figure 6.11.9",
+    "holding": "Part 6 Sec 11.18"
   },
   "sources": {
-    "groups": "IS 883:1994 Table 1 and Sec 5.1 (grouping by E: A at least 12.6, B 9.8-12.6, C 5.6-9.8 GPa), standard grade; inside, outside and wet locations (from memory, to be checked against BNBC 2020 Part 6 Chapter 11)",
-    "column": "IS 883:1994 Sec 7.3: short columns (Le/d ≤ 11) Fc; intermediate Fc [1 - (1/3) (Le/(d K8))⁴], K8 = 0.702 √(E/Fc); long 0.329 E/(Le/d)²; Le/d ≤ 50",
-    "depthFactor": "IS 883:1994 Sec 6.2.1.3 (K3): beams deeper than 300 mm, 0.81 (D² + 89400) / (D² + 55000)",
-    "duration": "IS 883:1994 Sec 5.3: permissible stresses increased by one third for wind and earthquake",
-    "deflection": "IS 883:1994 Sec 6.2.2.1: span/240 for beams (span/180 cantilevers); not checked by SAEngine yet"
+    "groups": "BNBC 2020 Part 6 Sec 11.5.1, Table 6.11.9 (gazette part 2 p. 296): inside values; outside and wet 5/6 and 2/3 of them (note 1). Group A shear along the grain is printed 15, an evident misprint for 1.5: the conservative 1.5 is used.",
+    "species": "BNBC 2020 Part 6 Table 6.11.1 (pp. 285-287): Grade I permissible stresses by species and location, E (all locations), durability class, treatability grade and seasoning class. Rows with an evident misprint or a missing value carry no stresses (design them by strength group); botanical names as printed.",
+    "grades": "BNBC 2020 Part 6 Sec 11.5.2 (p. 295): select grade 1.16, grade II 0.84 (all stresses except E)",
+    "lowDurability": "BNBC 2020 Part 6 Sec 11.5.2 (p. 295): low durability timber (Table 6.11.1 durability class III, average life below 60 months) on outside locations, x 0.80",
+    "slopeOfGrain": "BNBC 2020 Part 6 Sec 11.5.3.1, Table 6.11.10 (p. 296): K1 for ungraded timber, interpolated. The posts and columns value at 1 in 14 is printed 0.8 (below 0.82 at 1 in 12); the printed value is kept as the conservative one.",
+    "duration": "BNBC 2020 Part 6 Sec 11.5.3.2, Table 6.11.11 (p. 297): K2; the shortest duration load of a combination governs (11.5.3.2.2); K2 also on E for columns (11.5.3.2.1) and on fastener loads (11.5.3.2.3)",
+    "column": "BNBC 2020 Part 6 Sec 11.6.7.1, Eqs 6.11.9-6.11.11 (p. 305): S/d up to 11 short; intermediate fcp [1 - (1/3) (S/(K8 d))^4]; long 0.329 E/(S/d)^2; S/d at most 50. K8 is printed 0.584 sqrt(E/fcp) (Sec 11.3, p. 282); 0.702 is the value at which Eqs 6.11.10 and 6.11.11 meet and the more conservative one (owner decision 2026-11-01).",
+    "boxColumn": "BNBC 2020 Part 6 Sec 11.6.7.2, Eqs 6.11.12-6.11.14 (p. 306): ratio S/sqrt(d1^2 + d2^2), short below 8; K9 = (pi/2) sqrt(U E/(5 q fcp)) (Sec 11.3, p. 283) = 0.7025 sqrt(U E/(q fcp)); U and q by plank thickness. Eq 6.11.13 is printed without K9 in the ratio; read with K9, as the classification (b) gives.",
+    "spacedColumn": "BNBC 2020 Part 6 Sec 11.6.7.3, Eqs 6.11.15-6.11.16 (p. 307): restraint factor 2.5 (fasteners at S/20 from the end) or 3 (S/10 to S/20); long 0.329 E x factor/(S/d)^2; S/d of each member at most 80. K10 is printed 0.584 sqrt(2.5 E/fcp) (p. 283); 0.702 sqrt(factor E/fcp) is used, as for K8, where the two formulas meet (conservative).",
+    "depthFactor": "BNBC 2020 Part 6 Sec 11.6.6.4(a), Eq 6.11.2 (p. 299): K3 = 0.81 (D^2 + 89400)/(D^2 + 55000), not for D up to 300 mm",
+    "formFactors": "BNBC 2020 Part 6 Sec 11.6.6.4(b)-(d), Eqs 6.11.3-6.11.4 (p. 299): K4 = 0.8 + 0.8 y ((D^2 + 89400)/(D^2 + 55000) - 1), y printed p1^2 + (6 - 8 p1 + 3 p1^2)(1 - q1) + q1; the product p1^2 (6 - 8 p1 + 3 p1^2)(1 - q1) + q1 is used (smaller y, the conservative reading). K5 = 1.18 (solid circular), K6 = 1.414 (square loaded on the diagonal).",
+    "flexure": "BNBC 2020 Part 6 Sec 11.6.6.5-11.6.6.6.1 (pp. 299-300): width at least 50 mm and span/50; depth over 3 x width or span over 50 x width needs lateral restraint at most 50 x width apart; Sec 11.6.6.7.4(a) (p. 301): notches at most D/5 deep and within span/6 of the support; Sec 11.6.4.3 (p. 298): at most a quarter of the section; Sec 11.6.6.8.1 (p. 302): bearing at least 75 mm",
+    "bearing": "BNBC 2020 Part 6 Sec 11.6.6.8.3, Table 6.11.13 (pp. 303-304): K7 for bearings shorter than 150 mm at least 75 mm from the end; at the ends of a member K7 = 1; Eq 6.11.7 for stress at an angle to the grain",
+    "concentratedNearSupport": "BNBC 2020 Part 6 Sec 11.6.6.7.3(c), Table 6.11.12 (p. 301): reduction factor of concentrated loads at 1.5D or less (printed LSD), 2D, 2.5D and 3D or more from the support, interpolated; read as the share of the load removed",
+    "deflection": "BNBC 2020 Part 6 Sec 11.6.6.9 (p. 304): span/360 supporting brittle finishes, span/240 otherwise, cantilevers 1/150 of the free length; 11.6.6.9.2: twice the dead load for the long-term effect on E",
+    "nails": "BNBC 2020 Part 6 Sec 11.7 (pp. 308-310), Tables 6.11.2-6.11.3 (pp. 290-291, permissible lateral strength in double shear, printed in N x 10^2, here in N), Table 6.11.14 (p. 309, multiples of the shank diameter n); the 3.55 mm values also hold for 4 mm x 100 mm nails (Table 6.11.2 note); Sec 11.8.3.2 (p. 316): clenched nails 20% more",
+    "bolts": "BNBC 2020 Part 6 Sec 11.9 (pp. 317-322), Table 6.11.16 (p. 319, percentages of the compressive stress by t'/d3; the parallel column ends at 10), Table 6.11.17 (p. 319), Eqs 6.11.19-6.11.21 (p. 322): P = fcp a lambda1, R = fcn a lambda2 df, F = P R/(P sin^2 + R cos^2); single shear half the double shear load (11.9.2.2)",
+    "connectors": "BNBC 2020 Part 6 Sec 11.10.1-11.10.2 (pp. 322-323): split rings (main 57 mm, side 38 mm, loaded edge at least D, end at least 1.75 D); disc dowels (25-35 mm thick, 50-150 mm across, diameter 3.25-3.5 x thickness, edge 12-20 mm, end at least d in tension and 0.75 d in compression); Figure 6.11.9: pi d^2/4 s = d t/2 c"
   }
 }

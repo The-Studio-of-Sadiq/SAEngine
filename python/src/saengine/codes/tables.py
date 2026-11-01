@@ -2081,12 +2081,71 @@ class TimberGroup(BaseModel):
     compressionPerpendicular: dict[TimberLocation, Positive]
 
 
+class TimberSpecies(BaseModel):
+    """A species of the code's table: its characters and, where the table gives them, its own
+    permissible stresses [MPa] (else the member is designed with its strength group)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    botanical: str
+    name: str | None = Field(default=None, description="Trade name.")
+    density: Positive | None = Field(default=None, description="At 12% moisture [kg/m³].")
+    durability: str | None = Field(default=None, description="Durability class (I, II, III).")
+    treatability: str | None = None
+    seasoning: str | None = None
+    E: Positive | None = Field(default=None, description="[MPa]")
+    bending: dict[TimberLocation, Positive] | None = None
+    shearHorizontal: Positive | None = None
+    shearAlong: Positive | None = None
+    compressionParallel: dict[TimberLocation, Positive] | None = None
+    compressionPerpendicular: dict[TimberLocation, Positive] | None = None
+    note: str | None = None
+
+    @property
+    def has_stresses(self) -> bool:
+        return self.E is not None and self.bending is not None
+
+
+class TimberSlope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slope: Positive = Field(description="Slope of grain 1 in `slope`.")
+    beams: Positive = Field(description="K1 of beams, joists and ties.")
+    columns: Positive = Field(description="K1 of posts and columns.")
+
+
+class TimberLowDurability(_Group):
+    factor: Positive
+    classes: list[str]
+    locations: list[TimberLocation]
+
+
 class TimberColumn(_Group):
-    short: Positive = Field(description="Le/d up to which a column is short.")
-    k8: Positive = Field(description="K8 = k8 √(E/Fc), where long columns start.")
-    intermediate: Positive = Field(description="Fc [1 - (Le/(d K8))⁴ / intermediate].")
-    long: Positive = Field(description="Long columns: long · E / (Le/d)².")
-    maxSlenderness: Positive = Field(description="Largest Le/d.")
+    short: Positive = Field(description="S/d up to which a column is short.")
+    k8: Positive = Field(description="K8 = k8 √(E/fcp), where long columns start.")
+    intermediate: Positive = Field(description="fcp [1 - (S/(K8 d))⁴ / intermediate].")
+    long: Positive = Field(description="Long columns: long · E / (S/d)².")
+    maxSlenderness: Positive = Field(description="Largest S/d.")
+
+
+class TimberPlank(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    t: Positive = Field(description="Plank thickness [mm].")
+    U: Positive
+    q: Positive
+
+
+class TimberBoxColumn(_Group):
+    short: Positive = Field(description="S/√(d1² + d2²) below which a box column is short.")
+    k9: Positive = Field(description="K9 = k9 √(U E/(q fcp)).")
+    planks: list[TimberPlank] = Field(min_length=1)
+
+
+class TimberSpacedColumn(_Group):
+    restraint: dict[str, Positive] = Field(description="End-connector position -> factor.")
+    k10: Positive = Field(description="K10 = k10 √(factor E/fcp).")
+    maxSlenderness: Positive = Field(description="Largest S/d of each member.")
 
 
 class TimberDepthFactor(_Group):
@@ -2096,27 +2155,170 @@ class TimberDepthFactor(_Group):
     b: Positive
 
 
+class TimberFormFactors(_Group):
+    boxBase: Positive = Field(description="K4 = boxBase + boxFactor y (K3/factor - 1).")
+    boxFactor: Positive
+    circle: Positive = Field(description="K5 of solid circular sections.")
+    squareDiagonal: Positive = Field(description="K6 of squares loaded on the diagonal.")
+
+
 class TimberDuration(_Group):
-    permanent: Positive
-    wind: Positive
-    earthquake: Positive
+    continuous: Positive
+    twoMonths: Positive
+    sevenDays: Positive
+    windEarthquake: Positive
+    impact: Positive
+
+
+class TimberFlexure(_Group):
+    minWidth: Positive = Field(description="[mm]")
+    widthSpanRatio: Positive = Field(description="Width at least span / this.")
+    depthWidthRatio: Positive = Field(description="Deeper than this × width: restrain.")
+    spanWidthRatio: Positive = Field(description="Longer than this × width: restrain.")
+    restraintWidthRatio: Positive = Field(description="Restraints at most this × width apart.")
+    notchDepthShare: Share
+    notchSpanShare: Share
+    notchSectionShare: Share
+    minBearing: Positive = Field(description="[mm]")
+
+
+class TimberK7(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    length: Positive = Field(description="Bearing length [mm].")
+    factor: Positive
+
+
+class TimberBearing(_Group):
+    fullLength: Positive = Field(description="Bearings this long or more: K7 = 1 [mm].")
+    fromEnd: Positive = Field(description="K7 only for bearings this far from the end [mm].")
+    k7: list[TimberK7] = Field(min_length=1)
+
+
+class TimberNearSupport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    distance: Positive = Field(description="Load to the support, in beam depths.")
+    reduction: Annotated[float, Field(ge=0, le=1)]
 
 
 class TimberDeflection(_Group):
+    brittle: Positive = Field(description="Span / this, supporting brittle finishes.")
     span: Positive
     cantilever: Positive
+    deadLoadFactor: Positive = Field(description="Dead load × this for the long term.")
+
+
+class TimberNailStrength(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lengthening: Positive = Field(description="Permanent, lengthening joints [N].")
+    node: Positive = Field(description="Permanent, node joints [N].")
+    temporary: Positive = Field(description="Temporary structures [N].")
+
+
+class TimberNailSize(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    diameter: Positive = Field(description="[mm]")
+    lengths: list[Positive] = Field(description="[mm]")
+    strengths: dict[str, TimberNailStrength] = Field(description="Species id -> strengths.")
+
+
+class TimberNailSpacing(_Group):
+    endTension: Positive
+    endCompression: Positive
+    alongTension: Positive
+    alongCompression: Positive
+    edge: Positive
+    rows: Positive
+
+
+class TimberNails(_Group):
+    minThickness: Positive = Field(description="Main members, mono-chord [mm].")
+    diameterMin: Positive = Field(description="Diameter at least the least thickness / this.")
+    diameterMax: Positive = Field(description="Diameter at most the least thickness / this.")
+    penetration: Positive = Field(description="Lap joints: × the thinner member.")
+    minNode: Annotated[int, Field(gt=0)]
+    minLengthening: Annotated[int, Field(gt=0)]
+    clenched: Positive
+    spacing: TimberNailSpacing
+    sizes: dict[str, TimberNailSize] = Field(min_length=1)
+
+
+class TimberBoltBearing(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ratio: Positive = Field(description="t'/d3.")
+    parallel: Positive | None = Field(default=None, description="λ1 [%].")
+    perpendicular: Positive = Field(description="λ2 [%].")
+
+
+class TimberBoltSpacing(_Group):
+    inRow: Positive
+    rowsPerpendicularLow: Positive
+    rowsPerpendicularHigh: Positive
+    ratioLow: Positive
+    ratioHigh: Positive
+    rowsParallel: Positive
+    endTensionSoftwood: Positive
+    endTensionHardwood: Positive
+    endCompression: Positive
+    edgeParallel: Positive
+    edgePerpendicular: Positive
+
+
+class TimberBolts(_Group):
+    singleShear: Share
+    minNode: Annotated[int, Field(gt=0)]
+    minLengthening: Annotated[int, Field(gt=0)]
+    minMain: Positive = Field(description="[mm]")
+    minSide: Positive = Field(description="[mm]")
+    sideShare: Share = Field(description="Side members at least this × the main member.")
+    bearing: list[TimberBoltBearing] = Field(min_length=1)
+    diameterFactor: dict[str, Positive] = Field(description="Bolt diameter [mm] -> df.")
+    spacing: TimberBoltSpacing
+
+
+class TimberConnectors(_Group):
+    ringMinMain: Positive
+    ringMinSide: Positive
+    ringEdge: Positive = Field(description="Loaded edge × the ring diameter.")
+    ringEnd: Positive = Field(description="End distance × the ring diameter.")
+    dowelThickness: tuple[Positive, Positive]
+    dowelDiameter: tuple[Positive, Positive]
+    dowelRatio: tuple[Positive, Positive]
+    dowelEdge: tuple[Positive, Positive]
+    dowelEndTension: Positive
+    dowelEndCompression: Positive
 
 
 class TimberTable(TableModel):
-    """Permissible stress design of sawn timber: stresses by strength group and location, the
-    column formulas, the depth factor, load duration factors and deflection limits."""
+    """Permissible stress design of structural timber: stresses by strength group, species and
+    location, grade, durability, slope-of-grain and duration factors, form factors, the column
+    formulas (solid, box, spaced), flexural member rules, bearing, deflection, and the nailed,
+    bolted, split-ring and disc-dowel joints. ``clauses``: the clause of each check (after the
+    pack's name in results)."""
 
     groups: dict[str, TimberGroup] = Field(min_length=1)
-    column: TimberColumn
-    depthFactor: TimberDepthFactor
+    species: dict[str, TimberSpecies] = Field(default_factory=dict)
+    grades: dict[str, Positive] = Field(description="Grade -> factor on the stresses.")
+    lowDurability: TimberLowDurability
+    slopeOfGrain: list[TimberSlope] = Field(min_length=1)
     duration: TimberDuration
+    column: TimberColumn
+    boxColumn: TimberBoxColumn
+    spacedColumn: TimberSpacedColumn
+    depthFactor: TimberDepthFactor
+    formFactors: TimberFormFactors
+    flexure: TimberFlexure
+    bearing: TimberBearing
+    concentratedNearSupport: list[TimberNearSupport] = Field(min_length=1)
     deflection: TimberDeflection
-
+    nails: TimberNails
+    bolts: TimberBolts
+    connectors: TimberConnectors
+    clauses: dict[str, str] = Field(default_factory=dict)
 
 # ───────────────────────────────────────── masonry ─────────────────────────────────────────
 

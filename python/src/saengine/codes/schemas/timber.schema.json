@@ -1,34 +1,283 @@
 {
   "$defs": {
+    "TimberBearing": {
+      "additionalProperties": false,
+      "properties": {
+        "fullLength": {
+          "description": "Bearings this long or more: K7 = 1 [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Fulllength",
+          "type": "number"
+        },
+        "fromEnd": {
+          "description": "K7 only for bearings this far from the end [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Fromend",
+          "type": "number"
+        },
+        "k7": {
+          "items": {
+            "$ref": "#/$defs/TimberK7"
+          },
+          "minItems": 1,
+          "title": "K7",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fullLength",
+        "fromEnd",
+        "k7"
+      ],
+      "title": "TimberBearing",
+      "type": "object"
+    },
+    "TimberBoltBearing": {
+      "additionalProperties": false,
+      "properties": {
+        "ratio": {
+          "description": "t'/d3.",
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "parallel": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "λ1 [%].",
+          "title": "Parallel"
+        },
+        "perpendicular": {
+          "description": "λ2 [%].",
+          "exclusiveMinimum": 0,
+          "title": "Perpendicular",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio",
+        "perpendicular"
+      ],
+      "title": "TimberBoltBearing",
+      "type": "object"
+    },
+    "TimberBoltSpacing": {
+      "additionalProperties": false,
+      "properties": {
+        "inRow": {
+          "exclusiveMinimum": 0,
+          "title": "Inrow",
+          "type": "number"
+        },
+        "rowsPerpendicularLow": {
+          "exclusiveMinimum": 0,
+          "title": "Rowsperpendicularlow",
+          "type": "number"
+        },
+        "rowsPerpendicularHigh": {
+          "exclusiveMinimum": 0,
+          "title": "Rowsperpendicularhigh",
+          "type": "number"
+        },
+        "ratioLow": {
+          "exclusiveMinimum": 0,
+          "title": "Ratiolow",
+          "type": "number"
+        },
+        "ratioHigh": {
+          "exclusiveMinimum": 0,
+          "title": "Ratiohigh",
+          "type": "number"
+        },
+        "rowsParallel": {
+          "exclusiveMinimum": 0,
+          "title": "Rowsparallel",
+          "type": "number"
+        },
+        "endTensionSoftwood": {
+          "exclusiveMinimum": 0,
+          "title": "Endtensionsoftwood",
+          "type": "number"
+        },
+        "endTensionHardwood": {
+          "exclusiveMinimum": 0,
+          "title": "Endtensionhardwood",
+          "type": "number"
+        },
+        "endCompression": {
+          "exclusiveMinimum": 0,
+          "title": "Endcompression",
+          "type": "number"
+        },
+        "edgeParallel": {
+          "exclusiveMinimum": 0,
+          "title": "Edgeparallel",
+          "type": "number"
+        },
+        "edgePerpendicular": {
+          "exclusiveMinimum": 0,
+          "title": "Edgeperpendicular",
+          "type": "number"
+        }
+      },
+      "required": [
+        "inRow",
+        "rowsPerpendicularLow",
+        "rowsPerpendicularHigh",
+        "ratioLow",
+        "ratioHigh",
+        "rowsParallel",
+        "endTensionSoftwood",
+        "endTensionHardwood",
+        "endCompression",
+        "edgeParallel",
+        "edgePerpendicular"
+      ],
+      "title": "TimberBoltSpacing",
+      "type": "object"
+    },
+    "TimberBolts": {
+      "additionalProperties": false,
+      "properties": {
+        "singleShear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Singleshear",
+          "type": "number"
+        },
+        "minNode": {
+          "exclusiveMinimum": 0,
+          "title": "Minnode",
+          "type": "integer"
+        },
+        "minLengthening": {
+          "exclusiveMinimum": 0,
+          "title": "Minlengthening",
+          "type": "integer"
+        },
+        "minMain": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minmain",
+          "type": "number"
+        },
+        "minSide": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minside",
+          "type": "number"
+        },
+        "sideShare": {
+          "description": "Side members at least this × the main member.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sideshare",
+          "type": "number"
+        },
+        "bearing": {
+          "items": {
+            "$ref": "#/$defs/TimberBoltBearing"
+          },
+          "minItems": 1,
+          "title": "Bearing",
+          "type": "array"
+        },
+        "diameterFactor": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Bolt diameter [mm] -> df.",
+          "title": "Diameterfactor",
+          "type": "object"
+        },
+        "spacing": {
+          "$ref": "#/$defs/TimberBoltSpacing"
+        }
+      },
+      "required": [
+        "singleShear",
+        "minNode",
+        "minLengthening",
+        "minMain",
+        "minSide",
+        "sideShare",
+        "bearing",
+        "diameterFactor",
+        "spacing"
+      ],
+      "title": "TimberBolts",
+      "type": "object"
+    },
+    "TimberBoxColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "short": {
+          "description": "S/√(d1² + d2²) below which a box column is short.",
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        },
+        "k9": {
+          "description": "K9 = k9 √(U E/(q fcp)).",
+          "exclusiveMinimum": 0,
+          "title": "K9",
+          "type": "number"
+        },
+        "planks": {
+          "items": {
+            "$ref": "#/$defs/TimberPlank"
+          },
+          "minItems": 1,
+          "title": "Planks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "short",
+        "k9",
+        "planks"
+      ],
+      "title": "TimberBoxColumn",
+      "type": "object"
+    },
     "TimberColumn": {
       "additionalProperties": false,
       "properties": {
         "short": {
-          "description": "Le/d up to which a column is short.",
+          "description": "S/d up to which a column is short.",
           "exclusiveMinimum": 0,
           "title": "Short",
           "type": "number"
         },
         "k8": {
-          "description": "K8 = k8 √(E/Fc), where long columns start.",
+          "description": "K8 = k8 √(E/fcp), where long columns start.",
           "exclusiveMinimum": 0,
           "title": "K8",
           "type": "number"
         },
         "intermediate": {
-          "description": "Fc [1 - (Le/(d K8))⁴ / intermediate].",
+          "description": "fcp [1 - (S/(K8 d))⁴ / intermediate].",
           "exclusiveMinimum": 0,
           "title": "Intermediate",
           "type": "number"
         },
         "long": {
-          "description": "Long columns: long · E / (Le/d)².",
+          "description": "Long columns: long · E / (S/d)².",
           "exclusiveMinimum": 0,
           "title": "Long",
           "type": "number"
         },
         "maxSlenderness": {
-          "description": "Largest Le/d.",
+          "description": "Largest S/d.",
           "exclusiveMinimum": 0,
           "title": "Maxslenderness",
           "type": "number"
@@ -44,9 +293,130 @@
       "title": "TimberColumn",
       "type": "object"
     },
+    "TimberConnectors": {
+      "additionalProperties": false,
+      "properties": {
+        "ringMinMain": {
+          "exclusiveMinimum": 0,
+          "title": "Ringminmain",
+          "type": "number"
+        },
+        "ringMinSide": {
+          "exclusiveMinimum": 0,
+          "title": "Ringminside",
+          "type": "number"
+        },
+        "ringEdge": {
+          "description": "Loaded edge × the ring diameter.",
+          "exclusiveMinimum": 0,
+          "title": "Ringedge",
+          "type": "number"
+        },
+        "ringEnd": {
+          "description": "End distance × the ring diameter.",
+          "exclusiveMinimum": 0,
+          "title": "Ringend",
+          "type": "number"
+        },
+        "dowelThickness": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dowelthickness",
+          "type": "array"
+        },
+        "dowelDiameter": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Doweldiameter",
+          "type": "array"
+        },
+        "dowelRatio": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dowelratio",
+          "type": "array"
+        },
+        "dowelEdge": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Doweledge",
+          "type": "array"
+        },
+        "dowelEndTension": {
+          "exclusiveMinimum": 0,
+          "title": "Dowelendtension",
+          "type": "number"
+        },
+        "dowelEndCompression": {
+          "exclusiveMinimum": 0,
+          "title": "Dowelendcompression",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ringMinMain",
+        "ringMinSide",
+        "ringEdge",
+        "ringEnd",
+        "dowelThickness",
+        "dowelDiameter",
+        "dowelRatio",
+        "dowelEdge",
+        "dowelEndTension",
+        "dowelEndCompression"
+      ],
+      "title": "TimberConnectors",
+      "type": "object"
+    },
     "TimberDeflection": {
       "additionalProperties": false,
       "properties": {
+        "brittle": {
+          "description": "Span / this, supporting brittle finishes.",
+          "exclusiveMinimum": 0,
+          "title": "Brittle",
+          "type": "number"
+        },
         "span": {
           "exclusiveMinimum": 0,
           "title": "Span",
@@ -56,11 +426,19 @@
           "exclusiveMinimum": 0,
           "title": "Cantilever",
           "type": "number"
+        },
+        "deadLoadFactor": {
+          "description": "Dead load × this for the long term.",
+          "exclusiveMinimum": 0,
+          "title": "Deadloadfactor",
+          "type": "number"
         }
       },
       "required": [
+        "brittle",
         "span",
-        "cantilever"
+        "cantilever",
+        "deadLoadFactor"
       ],
       "title": "TimberDeflection",
       "type": "object"
@@ -102,28 +480,148 @@
     "TimberDuration": {
       "additionalProperties": false,
       "properties": {
-        "permanent": {
+        "continuous": {
           "exclusiveMinimum": 0,
-          "title": "Permanent",
+          "title": "Continuous",
           "type": "number"
         },
-        "wind": {
+        "twoMonths": {
           "exclusiveMinimum": 0,
-          "title": "Wind",
+          "title": "Twomonths",
           "type": "number"
         },
-        "earthquake": {
+        "sevenDays": {
           "exclusiveMinimum": 0,
-          "title": "Earthquake",
+          "title": "Sevendays",
+          "type": "number"
+        },
+        "windEarthquake": {
+          "exclusiveMinimum": 0,
+          "title": "Windearthquake",
+          "type": "number"
+        },
+        "impact": {
+          "exclusiveMinimum": 0,
+          "title": "Impact",
           "type": "number"
         }
       },
       "required": [
-        "permanent",
-        "wind",
-        "earthquake"
+        "continuous",
+        "twoMonths",
+        "sevenDays",
+        "windEarthquake",
+        "impact"
       ],
       "title": "TimberDuration",
+      "type": "object"
+    },
+    "TimberFlexure": {
+      "additionalProperties": false,
+      "properties": {
+        "minWidth": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minwidth",
+          "type": "number"
+        },
+        "widthSpanRatio": {
+          "description": "Width at least span / this.",
+          "exclusiveMinimum": 0,
+          "title": "Widthspanratio",
+          "type": "number"
+        },
+        "depthWidthRatio": {
+          "description": "Deeper than this × width: restrain.",
+          "exclusiveMinimum": 0,
+          "title": "Depthwidthratio",
+          "type": "number"
+        },
+        "spanWidthRatio": {
+          "description": "Longer than this × width: restrain.",
+          "exclusiveMinimum": 0,
+          "title": "Spanwidthratio",
+          "type": "number"
+        },
+        "restraintWidthRatio": {
+          "description": "Restraints at most this × width apart.",
+          "exclusiveMinimum": 0,
+          "title": "Restraintwidthratio",
+          "type": "number"
+        },
+        "notchDepthShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Notchdepthshare",
+          "type": "number"
+        },
+        "notchSpanShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Notchspanshare",
+          "type": "number"
+        },
+        "notchSectionShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Notchsectionshare",
+          "type": "number"
+        },
+        "minBearing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minbearing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minWidth",
+        "widthSpanRatio",
+        "depthWidthRatio",
+        "spanWidthRatio",
+        "restraintWidthRatio",
+        "notchDepthShare",
+        "notchSpanShare",
+        "notchSectionShare",
+        "minBearing"
+      ],
+      "title": "TimberFlexure",
+      "type": "object"
+    },
+    "TimberFormFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "boxBase": {
+          "description": "K4 = boxBase + boxFactor y (K3/factor - 1).",
+          "exclusiveMinimum": 0,
+          "title": "Boxbase",
+          "type": "number"
+        },
+        "boxFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Boxfactor",
+          "type": "number"
+        },
+        "circle": {
+          "description": "K5 of solid circular sections.",
+          "exclusiveMinimum": 0,
+          "title": "Circle",
+          "type": "number"
+        },
+        "squareDiagonal": {
+          "description": "K6 of squares loaded on the diagonal.",
+          "exclusiveMinimum": 0,
+          "title": "Squarediagonal",
+          "type": "number"
+        }
+      },
+      "required": [
+        "boxBase",
+        "boxFactor",
+        "circle",
+        "squareDiagonal"
+      ],
+      "title": "TimberFormFactors",
       "type": "object"
     },
     "TimberGroup": {
@@ -223,10 +721,560 @@
       ],
       "title": "TimberGroup",
       "type": "object"
+    },
+    "TimberK7": {
+      "additionalProperties": false,
+      "properties": {
+        "length": {
+          "description": "Bearing length [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Length",
+          "type": "number"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "length",
+        "factor"
+      ],
+      "title": "TimberK7",
+      "type": "object"
+    },
+    "TimberLowDurability": {
+      "additionalProperties": false,
+      "properties": {
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "locations": {
+          "items": {
+            "enum": [
+              "inside",
+              "outside",
+              "wet"
+            ],
+            "type": "string"
+          },
+          "title": "Locations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "factor",
+        "classes",
+        "locations"
+      ],
+      "title": "TimberLowDurability",
+      "type": "object"
+    },
+    "TimberNailSize": {
+      "additionalProperties": false,
+      "properties": {
+        "diameter": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Diameter",
+          "type": "number"
+        },
+        "lengths": {
+          "description": "[mm]",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Lengths",
+          "type": "array"
+        },
+        "strengths": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimberNailStrength"
+          },
+          "description": "Species id -> strengths.",
+          "title": "Strengths",
+          "type": "object"
+        }
+      },
+      "required": [
+        "diameter",
+        "lengths",
+        "strengths"
+      ],
+      "title": "TimberNailSize",
+      "type": "object"
+    },
+    "TimberNailSpacing": {
+      "additionalProperties": false,
+      "properties": {
+        "endTension": {
+          "exclusiveMinimum": 0,
+          "title": "Endtension",
+          "type": "number"
+        },
+        "endCompression": {
+          "exclusiveMinimum": 0,
+          "title": "Endcompression",
+          "type": "number"
+        },
+        "alongTension": {
+          "exclusiveMinimum": 0,
+          "title": "Alongtension",
+          "type": "number"
+        },
+        "alongCompression": {
+          "exclusiveMinimum": 0,
+          "title": "Alongcompression",
+          "type": "number"
+        },
+        "edge": {
+          "exclusiveMinimum": 0,
+          "title": "Edge",
+          "type": "number"
+        },
+        "rows": {
+          "exclusiveMinimum": 0,
+          "title": "Rows",
+          "type": "number"
+        }
+      },
+      "required": [
+        "endTension",
+        "endCompression",
+        "alongTension",
+        "alongCompression",
+        "edge",
+        "rows"
+      ],
+      "title": "TimberNailSpacing",
+      "type": "object"
+    },
+    "TimberNailStrength": {
+      "additionalProperties": false,
+      "properties": {
+        "lengthening": {
+          "description": "Permanent, lengthening joints [N].",
+          "exclusiveMinimum": 0,
+          "title": "Lengthening",
+          "type": "number"
+        },
+        "node": {
+          "description": "Permanent, node joints [N].",
+          "exclusiveMinimum": 0,
+          "title": "Node",
+          "type": "number"
+        },
+        "temporary": {
+          "description": "Temporary structures [N].",
+          "exclusiveMinimum": 0,
+          "title": "Temporary",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lengthening",
+        "node",
+        "temporary"
+      ],
+      "title": "TimberNailStrength",
+      "type": "object"
+    },
+    "TimberNails": {
+      "additionalProperties": false,
+      "properties": {
+        "minThickness": {
+          "description": "Main members, mono-chord [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Minthickness",
+          "type": "number"
+        },
+        "diameterMin": {
+          "description": "Diameter at least the least thickness / this.",
+          "exclusiveMinimum": 0,
+          "title": "Diametermin",
+          "type": "number"
+        },
+        "diameterMax": {
+          "description": "Diameter at most the least thickness / this.",
+          "exclusiveMinimum": 0,
+          "title": "Diametermax",
+          "type": "number"
+        },
+        "penetration": {
+          "description": "Lap joints: × the thinner member.",
+          "exclusiveMinimum": 0,
+          "title": "Penetration",
+          "type": "number"
+        },
+        "minNode": {
+          "exclusiveMinimum": 0,
+          "title": "Minnode",
+          "type": "integer"
+        },
+        "minLengthening": {
+          "exclusiveMinimum": 0,
+          "title": "Minlengthening",
+          "type": "integer"
+        },
+        "clenched": {
+          "exclusiveMinimum": 0,
+          "title": "Clenched",
+          "type": "number"
+        },
+        "spacing": {
+          "$ref": "#/$defs/TimberNailSpacing"
+        },
+        "sizes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimberNailSize"
+          },
+          "minProperties": 1,
+          "title": "Sizes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "minThickness",
+        "diameterMin",
+        "diameterMax",
+        "penetration",
+        "minNode",
+        "minLengthening",
+        "clenched",
+        "spacing",
+        "sizes"
+      ],
+      "title": "TimberNails",
+      "type": "object"
+    },
+    "TimberNearSupport": {
+      "additionalProperties": false,
+      "properties": {
+        "distance": {
+          "description": "Load to the support, in beam depths.",
+          "exclusiveMinimum": 0,
+          "title": "Distance",
+          "type": "number"
+        },
+        "reduction": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Reduction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "distance",
+        "reduction"
+      ],
+      "title": "TimberNearSupport",
+      "type": "object"
+    },
+    "TimberPlank": {
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "description": "Plank thickness [mm].",
+          "exclusiveMinimum": 0,
+          "title": "T",
+          "type": "number"
+        },
+        "U": {
+          "exclusiveMinimum": 0,
+          "title": "U",
+          "type": "number"
+        },
+        "q": {
+          "exclusiveMinimum": 0,
+          "title": "Q",
+          "type": "number"
+        }
+      },
+      "required": [
+        "t",
+        "U",
+        "q"
+      ],
+      "title": "TimberPlank",
+      "type": "object"
+    },
+    "TimberSlope": {
+      "additionalProperties": false,
+      "properties": {
+        "slope": {
+          "description": "Slope of grain 1 in `slope`.",
+          "exclusiveMinimum": 0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "beams": {
+          "description": "K1 of beams, joists and ties.",
+          "exclusiveMinimum": 0,
+          "title": "Beams",
+          "type": "number"
+        },
+        "columns": {
+          "description": "K1 of posts and columns.",
+          "exclusiveMinimum": 0,
+          "title": "Columns",
+          "type": "number"
+        }
+      },
+      "required": [
+        "slope",
+        "beams",
+        "columns"
+      ],
+      "title": "TimberSlope",
+      "type": "object"
+    },
+    "TimberSpacedColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "restraint": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "End-connector position -> factor.",
+          "title": "Restraint",
+          "type": "object"
+        },
+        "k10": {
+          "description": "K10 = k10 √(factor E/fcp).",
+          "exclusiveMinimum": 0,
+          "title": "K10",
+          "type": "number"
+        },
+        "maxSlenderness": {
+          "description": "Largest S/d of each member.",
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "restraint",
+        "k10",
+        "maxSlenderness"
+      ],
+      "title": "TimberSpacedColumn",
+      "type": "object"
+    },
+    "TimberSpecies": {
+      "additionalProperties": false,
+      "description": "A species of the code's table: its characters and, where the table gives them, its own\npermissible stresses [MPa] (else the member is designed with its strength group).",
+      "properties": {
+        "botanical": {
+          "title": "Botanical",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Trade name.",
+          "title": "Name"
+        },
+        "density": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "At 12% moisture [kg/m³].",
+          "title": "Density"
+        },
+        "durability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Durability class (I, II, III).",
+          "title": "Durability"
+        },
+        "treatability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Treatability"
+        },
+        "seasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seasoning"
+        },
+        "E": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[MPa]",
+          "title": "E"
+        },
+        "bending": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "inside",
+                  "outside",
+                  "wet"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bending"
+        },
+        "shearHorizontal": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shearhorizontal"
+        },
+        "shearAlong": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shearalong"
+        },
+        "compressionParallel": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "inside",
+                  "outside",
+                  "wet"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compressionparallel"
+        },
+        "compressionPerpendicular": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "inside",
+                  "outside",
+                  "wet"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compressionperpendicular"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "botanical"
+      ],
+      "title": "TimberSpecies",
+      "type": "object"
     }
   },
   "additionalProperties": false,
-  "description": "Permissible stress design of sawn timber: stresses by strength group and location, the\ncolumn formulas, the depth factor, load duration factors and deflection limits.",
+  "description": "Permissible stress design of structural timber: stresses by strength group, species and\nlocation, grade, durability, slope-of-grain and duration factors, form factors, the column\nformulas (solid, box, spaced), flexural member rules, bearing, deflection, and the nailed,\nbolted, split-ring and disc-dowel joints. ``clauses``: the clause of each check (after the\npack's name in results).",
   "properties": {
     "source": {
       "default": "",
@@ -250,25 +1298,103 @@
       "title": "Groups",
       "type": "object"
     },
-    "column": {
-      "$ref": "#/$defs/TimberColumn"
+    "species": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TimberSpecies"
+      },
+      "title": "Species",
+      "type": "object"
     },
-    "depthFactor": {
-      "$ref": "#/$defs/TimberDepthFactor"
+    "grades": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Grade -> factor on the stresses.",
+      "title": "Grades",
+      "type": "object"
+    },
+    "lowDurability": {
+      "$ref": "#/$defs/TimberLowDurability"
+    },
+    "slopeOfGrain": {
+      "items": {
+        "$ref": "#/$defs/TimberSlope"
+      },
+      "minItems": 1,
+      "title": "Slopeofgrain",
+      "type": "array"
     },
     "duration": {
       "$ref": "#/$defs/TimberDuration"
     },
+    "column": {
+      "$ref": "#/$defs/TimberColumn"
+    },
+    "boxColumn": {
+      "$ref": "#/$defs/TimberBoxColumn"
+    },
+    "spacedColumn": {
+      "$ref": "#/$defs/TimberSpacedColumn"
+    },
+    "depthFactor": {
+      "$ref": "#/$defs/TimberDepthFactor"
+    },
+    "formFactors": {
+      "$ref": "#/$defs/TimberFormFactors"
+    },
+    "flexure": {
+      "$ref": "#/$defs/TimberFlexure"
+    },
+    "bearing": {
+      "$ref": "#/$defs/TimberBearing"
+    },
+    "concentratedNearSupport": {
+      "items": {
+        "$ref": "#/$defs/TimberNearSupport"
+      },
+      "minItems": 1,
+      "title": "Concentratednearsupport",
+      "type": "array"
+    },
     "deflection": {
       "$ref": "#/$defs/TimberDeflection"
+    },
+    "nails": {
+      "$ref": "#/$defs/TimberNails"
+    },
+    "bolts": {
+      "$ref": "#/$defs/TimberBolts"
+    },
+    "connectors": {
+      "$ref": "#/$defs/TimberConnectors"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
     }
   },
   "required": [
     "groups",
-    "column",
-    "depthFactor",
+    "grades",
+    "lowDurability",
+    "slopeOfGrain",
     "duration",
-    "deflection"
+    "column",
+    "boxColumn",
+    "spacedColumn",
+    "depthFactor",
+    "formFactors",
+    "flexure",
+    "bearing",
+    "concentratedNearSupport",
+    "deflection",
+    "nails",
+    "bolts",
+    "connectors"
   ],
   "title": "TimberTable",
   "type": "object",
