@@ -533,6 +533,28 @@ def architecture_check(architecture_text: str, floor_plan_text: str | None) -> d
     return {"problems": check(architecture, floor_plan), "rooms": rooms}
 
 
+def architecture_ramps(architecture_text: str, settings_text: str | None) -> dict[str, Any]:
+    """Every ramp of the architecture checked against the ramp rules of the code pack the
+    settings choose (``saengine.design.ramps.check_ramps``), or ``{"problems"}``."""
+    from pydantic import ValidationError
+
+    from saengine.design.ramps import check_ramps
+    from saengine.library.architecture import parse
+    from saengine.library.settings import ProjectSettings
+
+    try:
+        architecture = parse(architecture_text)
+    except (ValidationError, ValueError) as exc:
+        return {"problems": [_first_line(exc)], "ramps": []}
+    settings = None
+    if settings_text:
+        try:
+            settings = ProjectSettings.model_validate_json(settings_text)
+        except (ValidationError, ValueError):
+            settings = None
+    return {"problems": [], **check_ramps(architecture, settings)}
+
+
 def _substructure_inputs(
     substructure_text: str | None, settings_text: str | None, building: Any = None
 ) -> tuple[Any, float, list[str]]:

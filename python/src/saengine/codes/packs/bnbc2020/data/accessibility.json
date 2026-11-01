@@ -1,0 +1,164 @@
+{
+  "$schema": "../../../schemas/accessibility.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 3 Sec 1.2 (p. 44): Ramp, Ramp (Accessibility), Ramped Driveway, Ramp Gradient",
+    "BNBC 2020 Part 3 Sec 1.10.2 (p. 65), 1.14.11.5 (p. 70)",
+    "BNBC 2020 Part 3 Appendix D Sec D.5.1-D.5.2, Table 3.D.2 (pp. 227-228), D.11, D.11.1 (p. 236)",
+    "BNBC 2020 Part 3 Appendix F Sec F.7.3.1, Table 3.F.5 (p. 272), F.7.3.2-F.7.3.3 (p. 273)",
+    "BNBC 2020 Part 4 Sec 3.11.1-3.11.9 (p. 315)"
+  ],
+  "source": "BNBC 2020 Part 3 Sec 1.2, 1.10.2, 1.14.11.5, Appendices D and F; Part 4 Sec 3.11 (pp. 44, 65, 70, 227-236, 272-273, 315)",
+  "rampThreshold": {
+    "oneIn": 20,
+    "source": "BNBC 2020 Part 3 Sec 1.2 'Ramp' (p. 44); Part 4 Sec 3.11.1 (p. 315): a ramp is steeper than 1 in 20"
+  },
+  "ramps": {
+    "walkway": {
+      "name": "Walking ramp",
+      "source": "BNBC 2020 Part 3 Sec 1.2 (p. 44), 1.14.11.5 (p. 70); Part 4 Sec 3.11 (p. 315)",
+      "maxSlope": {
+        "oneIn": 8,
+        "source": "BNBC 2020 Part 3 Sec 1.14.11.5 (p. 70); Part 4 Sec 3.11.1 (p. 315)"
+      },
+      "flight": {
+        "min": 915,
+        "max": 9150,
+        "source": "BNBC 2020 Part 4 Sec 3.11.6 (p. 315)"
+      },
+      "landing": {
+        "min": 915,
+        "atLeastWidth": true,
+        "source": "BNBC 2020 Part 4 Sec 3.11.7 (p. 315)"
+      },
+      "handrails": {
+        "steeperThan": null,
+        "source": "BNBC 2020 Part 3 Sec 1.2 'Ramp' (p. 44): a ramp shall have guard and handrail. Part 4 Sec 3.11.4 asks for them above 1 in 15 only; the Part 3 definition (every ramp) is the more conservative and is kept"
+      },
+      "notes": [
+        {
+          "text": "Level landings at the bottom and the top, at least as wide as the ramp; a landing at a door opening is at least 1525 mm long where the door swings onto it.",
+          "source": "BNBC 2020 Part 4 Sec 3.11.7 (p. 315)"
+        },
+        {
+          "text": "Changes of direction only at level landings.",
+          "source": "BNBC 2020 Part 4 Sec 3.11.5 (p. 315)"
+        }
+      ]
+    },
+    "accessible": {
+      "name": "Accessible ramp",
+      "source": "BNBC 2020 Part 3 Appendix D Sec D.5.2, Table 3.D.2 (pp. 227-228), D.11.1 (p. 236)",
+      "byRise": [
+        {"riseMax": 75, "oneIn": 8, "runMax": 600, "source": "BNBC 2020 Part 3 Table 3.D.2 (p. 228): 0 to 75 mm"},
+        {"riseMax": 150, "oneIn": 10, "runMax": 1500, "source": "BNBC 2020 Part 3 Table 3.D.2 (p. 228): more than 75 to 150 mm"},
+        {"riseMax": null, "oneIn": 12, "runMax": 9000, "source": "BNBC 2020 Part 3 Table 3.D.2 (p. 228): more than 150 mm; Sec D.11.1 (p. 236): a landing where the run exceeds 9.0 m; Part 4 Sec 3.11.1 (p. 315): not steeper than 1 in 12"}
+      ],
+      "landing": {
+        "min": 1500,
+        "source": "BNBC 2020 Part 3 Appendix D Sec D.11.1 (p. 236)"
+      },
+      "width": {
+        "min": 1200,
+        "source": "BNBC 2020 Part 3 Appendix D Sec D.11.1 (p. 236)"
+      },
+      "handrails": {
+        "steeperThan": null,
+        "source": "BNBC 2020 Part 3 Appendix D Sec D.11.1 (p. 236): hand rails on both sides (Sec D.9), extended to floor or wall (Figure 3.D.19)"
+      },
+      "notes": [
+        {
+          "text": "Slip-resistant surface with a detectable warning surface of contrasting colour and texture; tactile warning on the landings.",
+          "source": "BNBC 2020 Part 3 Appendix D Sec D.5.1 (p. 227), D.11.1 (p. 236)"
+        },
+        {
+          "text": "Contrasting colour markings at the top and the bottom of the ramp or on its slope.",
+          "source": "BNBC 2020 Part 3 Appendix D Sec D.5.2, Figure 3.D.6 (pp. 227-228)"
+        }
+      ]
+    },
+    "exit": {
+      "name": "Exit ramp",
+      "source": "BNBC 2020 Part 4 Sec 3.11 (p. 315)",
+      "maxSlope": {
+        "oneIn": 8,
+        "source": "BNBC 2020 Part 4 Sec 3.11.3 (p. 315)"
+      },
+      "flight": {
+        "min": 915,
+        "max": 9150,
+        "source": "BNBC 2020 Part 4 Sec 3.11.6 (p. 315)"
+      },
+      "landing": {
+        "min": 915,
+        "atLeastWidth": true,
+        "source": "BNBC 2020 Part 4 Sec 3.11.7 (p. 315)"
+      },
+      "handrails": {
+        "steeperThan": null,
+        "source": "BNBC 2020 Part 3 Sec 1.2 'Ramp' (p. 44): a ramp shall have guard and handrail. Part 4 Sec 3.11.4 asks for them above 1 in 15 only; the Part 3 definition (every ramp) is the more conservative and is kept"
+      },
+      "notes": [
+        {
+          "text": "Surfaced with approved non-slip material or finished to prevent slipping.",
+          "steeperThan": 10,
+          "source": "BNBC 2020 Part 4 Sec 3.11.3 (p. 315)"
+        },
+        {
+          "text": "At least as wide as the corridors or passages the exit needs.",
+          "source": "BNBC 2020 Part 4 Sec 3.11.2 (p. 315)"
+        },
+        {
+          "text": "Level landings at the bottom and the top, at least as wide as the ramp; a landing at a door opening is at least 1525 mm long where the door swings onto it; no door opens onto the slope.",
+          "source": "BNBC 2020 Part 4 Sec 3.11.7-3.11.8 (p. 315)"
+        },
+        {
+          "text": "Changes of direction only at level landings.",
+          "source": "BNBC 2020 Part 4 Sec 3.11.5 (p. 315)"
+        }
+      ]
+    },
+    "vehicle": {
+      "name": "Carriageway ramp",
+      "walking": false,
+      "source": "BNBC 2020 Part 3 Appendix F Sec F.7.3 (pp. 272-273)",
+      "maxSlope": {
+        "oneIn": 8,
+        "source": "BNBC 2020 Part 3 Appendix F Sec F.7.3.2 (p. 273): 12.5 percent, measured along the centre line"
+      },
+      "transitions": {
+        "oneIn": 5,
+        "transitionShare": 0.5,
+        "source": "BNBC 2020 Part 3 Appendix F Sec F.7.3.2, Figure 3.F.10(b) (p. 273): up to 20 percent with transition slopes at both ends at half the main slope"
+      },
+      "width": {
+        "byLanes": {"1": 3600, "2": 6000},
+        "source": "BNBC 2020 Part 3 Appendix F Table 3.F.5(a) (p. 272): straight carriageway ramp"
+      },
+      "notes": [
+        {
+          "text": "Not credited as a walking ramp or as a component of the means of exit.",
+          "steeperThan": 8,
+          "source": "BNBC 2020 Part 3 Sec 1.2 'Ramped Driveway' (p. 44), 1.10.2 (p. 65); Part 4 Sec 3.11.9 (p. 315)"
+        },
+        {
+          "text": "A walkway beside the driveway is demarcated, separated by safety guard rails and curbs, and follows the walking ramp rules.",
+          "source": "BNBC 2020 Part 3 Sec 1.2 'Ramped Driveway' (p. 44), 1.10.2 (p. 65)"
+        },
+        {
+          "text": "A driveway entering below grade is protected against water flowing into the levels it leads to.",
+          "source": "BNBC 2020 Part 3 Sec 1.10.2 (p. 65)"
+        }
+      ]
+    },
+    "parking": {
+      "name": "Parking ramp",
+      "walking": false,
+      "source": "BNBC 2020 Part 3 Appendix F Sec F.7.3.3 (p. 273)",
+      "maxSlope": {
+        "oneIn": 20,
+        "source": "BNBC 2020 Part 3 Appendix F Sec F.7.3.3 (p. 273): 5 percent"
+      },
+      "notes": []
+    }
+  }
+}

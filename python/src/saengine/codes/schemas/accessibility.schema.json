@@ -1,0 +1,474 @@
+{
+  "$defs": {
+    "RampFlight": {
+      "additionalProperties": false,
+      "description": "The length of the sloping part between level landings [mm] (along plan).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "min": {
+          "default": 0,
+          "description": "Shortest flight [mm].",
+          "minimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Longest flight [mm].",
+          "title": "Max"
+        }
+      },
+      "title": "RampFlight",
+      "type": "object"
+    },
+    "RampHandrails": {
+      "additionalProperties": false,
+      "description": "Guards and handrails on both sides of the ramp.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "steeperThan": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required on ramps steeper than 1 in this (None: on every such ramp).",
+          "title": "Steeperthan"
+        }
+      },
+      "title": "RampHandrails",
+      "type": "object"
+    },
+    "RampLanding": {
+      "additionalProperties": false,
+      "description": "The level landings between flights (and at the ends) of a ramp.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "min": {
+          "description": "Least landing length in the direction of travel [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "atLeastWidth": {
+          "default": false,
+          "description": "A landing is also at least as long as the ramp is wide.",
+          "title": "Atleastwidth",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "min"
+      ],
+      "title": "RampLanding",
+      "type": "object"
+    },
+    "RampNote": {
+      "additionalProperties": false,
+      "description": "A requirement the program cannot check from the model: shown with the ramp's checks.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "steeperThan": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applies to ramps steeper than 1 in this only (None: always).",
+          "title": "Steeperthan"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "RampNote",
+      "type": "object"
+    },
+    "RampRiseBand": {
+      "additionalProperties": false,
+      "description": "A row of a gradient-by-change-of-level table: up to ``riseMax`` of rise, the slope may be\nat most 1 in ``oneIn`` and the ramp at most ``runMax`` long.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "riseMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Greatest change of level of the row [mm] (None: any more).",
+          "title": "Risemax"
+        },
+        "oneIn": {
+          "description": "Steepest slope of the row, 1 in this.",
+          "exclusiveMinimum": 0,
+          "title": "Onein",
+          "type": "number"
+        },
+        "runMax": {
+          "description": "Greatest length of the ramp [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Runmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "oneIn",
+        "runMax"
+      ],
+      "title": "RampRiseBand",
+      "type": "object"
+    },
+    "RampRules": {
+      "additionalProperties": false,
+      "description": "The rules of one kind of ramp (``design.ramps``). A rule left out is not checked.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "description": "What the code calls this kind of ramp.",
+          "title": "Name",
+          "type": "string"
+        },
+        "walking": {
+          "default": true,
+          "description": "A walking ramp: no flatter than the ramp threshold it is a level walkway and no ramp rule applies.",
+          "title": "Walking",
+          "type": "boolean"
+        },
+        "maxSlope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampSlope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "byRise": {
+          "description": "Gradient and length by change of level, in increasing rise; the first row whose riseMax is not exceeded applies.",
+          "items": {
+            "$ref": "#/$defs/RampRiseBand"
+          },
+          "title": "Byrise",
+          "type": "array"
+        },
+        "transitions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampTransitions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "flight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampFlight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "landing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampLanding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampWidth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "handrails": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RampHandrails"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/RampNote"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RampRules",
+      "type": "object"
+    },
+    "RampSlope": {
+      "additionalProperties": false,
+      "description": "A slope limit, as 1 vertical in ``oneIn`` horizontal (8: 1 in 8, 12.5 %).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "oneIn": {
+          "description": "Horizontal run per unit rise.",
+          "exclusiveMinimum": 0,
+          "title": "Onein",
+          "type": "number"
+        }
+      },
+      "required": [
+        "oneIn"
+      ],
+      "title": "RampSlope",
+      "type": "object"
+    },
+    "RampTransitions": {
+      "additionalProperties": false,
+      "description": "A steeper main slope allowed with transition slopes at both ends (vehicle ramps).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "oneIn": {
+          "description": "Steepest main slope with transitions, 1 in this.",
+          "exclusiveMinimum": 0,
+          "title": "Onein",
+          "type": "number"
+        },
+        "transitionShare": {
+          "description": "Each transition is sloped at this × the main slope.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Transitionshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "oneIn",
+        "transitionShare"
+      ],
+      "title": "RampTransitions",
+      "type": "object"
+    },
+    "RampWidth": {
+      "additionalProperties": false,
+      "description": "The least clear width of a ramp [mm], by number of traffic lanes for vehicle ramps.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least width [mm].",
+          "title": "Min"
+        },
+        "byLanes": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least width [mm] by number of lanes (vehicle ramps).",
+          "title": "Bylanes",
+          "type": "object"
+        }
+      },
+      "title": "RampWidth",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Ramps: what counts as one, and the rules of each kind (walkway, accessible, exit,\nvehicle, parking). A kind the pack leaves out is not covered by it.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "rampThreshold": {
+      "$ref": "#/$defs/RampSlope",
+      "description": "A sloping walking surface is a ramp when steeper than 1 in this."
+    },
+    "ramps": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RampRules"
+      },
+      "description": "Rules by kind of ramp (the architecture's Ramp.kind).",
+      "title": "Ramps",
+      "type": "object"
+    }
+  },
+  "required": [
+    "rampThreshold"
+  ],
+  "title": "AccessibilityTable",
+  "type": "object",
+  "$id": "saengine.codePack.accessibility/1"
+}

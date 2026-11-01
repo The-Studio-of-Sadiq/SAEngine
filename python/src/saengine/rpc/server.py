@@ -21,6 +21,8 @@ Methods:
   what was skipped (in a worker thread)
 - ``architecture/check`` ``{architectureText, floorPlanText?}`` -> the architecture's problems and
   its rooms' net outlines and areas
+- ``architecture/ramps`` ``{architectureText, settingsText?}`` -> every ramp checked against the
+  code pack's ramp rules (gradient, flight, width, landings, handrails)
 - ``structure/shapeGeometry`` ``{shape}`` -> a parametric shape's members, areas and supports
 - ``structure/importGeometry`` ``{path, options, objectsText?}`` -> a DXF, DWG, IFC or Rhino
   file's
@@ -485,6 +487,11 @@ def create_server() -> JsonRPCServer:
     def _architecture_check(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.architecture_check(args["architectureText"], args.get("floorPlanText"))
+
+    @server.feature("architecture/ramps")
+    def _architecture_ramps(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_ramps(args["architectureText"], args.get("settingsText"))
 
     @server.feature("structure/shapeGeometry")
     def _shape_geometry(params: Any) -> dict[str, Any]:
