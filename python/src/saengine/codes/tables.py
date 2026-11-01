@@ -5323,6 +5323,246 @@ class AccessibilityTable(TableModel):
     )
 
 
+# ─────────────────────────── construction: excavation, fills, formwork ───────────────────────────
+
+
+class ExcavationNotices(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    adjoiningDays: Positive | None = Field(
+        default=None, description="Written notice to an adjoining owner before excavating [days]."
+    )
+    operationsHours: Positive | None = Field(
+        default=None,
+        description="Written notice before piling, compaction or densification that may load "
+        "or move the adjoining property [h].",
+    )
+    monitoringHours: Positive | None = Field(
+        default=None,
+        description="Largest interval between level readings of adjacent buildings when a "
+        "potential hazard exists [h].",
+    )
+
+
+class ExcavationRules(_Clause):
+    """The rules of an excavation and its sides. A rule left out is not checked."""
+
+    underFooting: Positive | None = Field(
+        default=None,
+        description="An excavation shall not come within this distance under a footing that is "
+        "not underpinned [mm].",
+    )
+    geotechnicalDepth: Positive | None = Field(
+        default=None,
+        description="Deeper than this, the excavation's design is checked by a geotechnical "
+        "engineer [mm]; so is one in soft or erratic soil.",
+    )
+    protectionDepth: Positive | None = Field(
+        default=None,
+        description="Sides this deep or deeper (to the deepest point) are shored, sheeted or "
+        "retained, or sloped [mm].",
+    )
+    slopeHorizontal: Positive | None = Field(
+        default=None,
+        description="An unsupported side slopes at no steeper than 1 vertical to this many "
+        "horizontal (a stepped side on average).",
+    )
+    maxStepHeight: Positive | None = Field(
+        default=None, description="Highest step of a stepped side [mm]."
+    )
+    guardRailHeight: Positive | None = Field(
+        default=None, description="Guard rail or solid enclosure along open sides [mm]."
+    )
+    guardRailSlopeExempt: Positive | None = Field(
+        default=None,
+        description="No guard rail where the sides slope at 1 vertical to this many horizontal "
+        "or flatter.",
+    )
+    surchargeZone: Positive | None = Field(
+        default=None,
+        description="Spoil, materials and equipment kept back from the edge by this many times "
+        "the depth, unless the sides are sloped or sheeted and shored for the load.",
+    )
+    sheetPileProjection: float | None = Field(
+        default=None,
+        ge=0,
+        description="Sheet piles extend at least this far above the natural ground [mm].",
+    )
+    machinerySetback: Positive | None = Field(
+        default=None, description="Heavy machinery kept back from a trench by this many depths."
+    )
+    machinerySetbackMax: Positive | None = Field(
+        default=None, description="The machinery setback need not exceed this [mm]."
+    )
+    escapeDepth: Positive | None = Field(
+        default=None, description="Deeper than this: ladders, ramps or other means of escape [mm]."
+    )
+    inspectionDepth: Positive | None = Field(
+        default=None,
+        description="Underpinning and the support of adjacent property for excavations this deep "
+        "or deeper are under controlled inspection [mm].",
+    )
+    nightLighting: Positive | None = Field(
+        default=None, description="Lighting of the work site at night [lux]."
+    )
+    notices: ExcavationNotices = Field(default_factory=ExcavationNotices)
+
+
+class SeepageRules(_Clause):
+    """Seepage at the base of an excavation below the water table: the method that finds the
+    exit gradient, and the factor of safety against heave when the code gives one."""
+
+    method: Literal["averageGradient"] | None = Field(
+        default=None,
+        description="averageGradient: the head over the shortest flow path round the cut-off "
+        "(down its back and up its front); None: not computed.",
+    )
+    factorOfSafety: Positive | None = Field(
+        default=None,
+        description="Required icr / i and weight / uplift; None: the code gives none (1.0, the "
+        "physical limit, is checked and the margin left to the engineer).",
+    )
+
+
+class FillRules(_Clause):
+    """Fills that support foundations, and the backfill round them."""
+
+    compaction: Share | None = Field(
+        default=None, description="Least dry density as a share of the laboratory maximum."
+    )
+    compactionTest: str = Field(default="", description="The laboratory compaction test.")
+    maxLift: Positive | None = Field(default=None, description="Thickest compacted layer [mm].")
+    maxParticle: Positive | None = Field(default=None, description="Largest particle [mm].")
+    testPitArea: Positive | None = Field(
+        default=None, description="One test pit in an uncontrolled fill per this area [m²]."
+    )
+    testPitDepth: Positive | None = Field(
+        default=None, description="Test pits reach this far below the foundations [mm]."
+    )
+    soilTypes: list[str] = Field(
+        default_factory=lambda: ["fill"],
+        description="Soil types of the soil report that are fill.",
+    )
+
+
+class WaterproofingRules(_Clause):
+    """Below-grade walls and floors: waterproofed under hydrostatic pressure, else
+    damp-proofed with a perimeter drain."""
+
+    aboveWaterTable: Positive | None = Field(
+        default=None,
+        description="Wall waterproofing from this far above the highest water table [mm].",
+    )
+    dampAboveGrade: Positive | None = Field(
+        default=None, description="Damp-proofing up to this far above the finished grade [mm]."
+    )
+    membrane: Positive | None = Field(
+        default=None, description="Thinnest PVC or polyethylene membrane [mm]."
+    )
+    lap: Positive | None = Field(default=None, description="Membrane joints lapped [mm].")
+    pargeting: Positive | None = Field(
+        default=None, description="Cement mortar pargeting of masonry walls [mm]."
+    )
+    floorBase: Positive | None = Field(
+        default=None, description="Gravel or crushed stone base under a damp-proofed floor [mm]."
+    )
+    finesPassing: Share | None = Field(
+        default=None, description="Most of the base or drain passing the 4.75 mm sieve."
+    )
+    drainBeyond: Positive | None = Field(
+        default=None, description="Perimeter drain beyond the foundation's outer edge [mm]."
+    )
+    drainAboveFoundation: Positive | None = Field(
+        default=None, description="Top of the drain above the top of the foundation [mm]."
+    )
+    gradingSlope: Positive | None = Field(
+        default=None, description="Ground sloped away at 1 vertical in this many horizontal."
+    )
+    gradingDistance: Positive | None = Field(
+        default=None, description="Over this distance from the wall [mm]."
+    )
+
+
+class FormworkPost(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    minDiameter: Positive | None = Field(default=None, description="[mm]")
+    topDiameter: Positive | None = Field(default=None, description="Spread at the top [mm].")
+    maxHeight: Positive | None = Field(default=None, description="[mm]; None: any height.")
+    note: str = ""
+
+
+class FormworkSize(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    min: tuple[float, float] = Field(description="Smallest section [b, h] mm (a sheet: [t, t]).")
+    max: tuple[float, float] | None = Field(default=None, description="Largest section [mm].")
+
+
+class FormworkRules(_Clause):
+    """Formwork and its supports: the design loads, the timber's allowable stress, the camber,
+    the posts and the standard member sizes."""
+
+    loadFactor: Positive | None = Field(
+        default=None, description="Formwork and scaffolds carry this many times the load."
+    )
+    concreteWeight: Positive | None = Field(
+        default=None, description="Weight of wet concrete [kN/m³]."
+    )
+    liveLoad: tuple[float, float] | None = Field(
+        default=None,
+        description="Workmen and the impact of ramming or vibrating, light to heavy duty [kPa].",
+    )
+    timberBending: Positive | None = Field(
+        default=None, description="Allowable bending stress of soft timber [kPa]."
+    )
+    tableSpan: Positive | None = Field(
+        default=None, description="The standard sizes apply to spans up to this [mm]."
+    )
+    tableHeight: Positive | None = Field(
+        default=None, description="The standard sizes apply to heights up to this [mm]."
+    )
+    camber: Positive | None = Field(default=None, description="Beams and slabs: 1 in this.")
+    cantileverCamber: Positive | None = Field(
+        default=None, description="Cantilevers: 1 in this of the projected length."
+    )
+    bracedPostHeight: Positive | None = Field(
+        default=None,
+        description="Posts higher than this are braced horizontally and diagonally [mm].",
+    )
+    lateralBracingHeight: Positive | None = Field(
+        default=None,
+        description="Floor height above which all centering is braced laterally [mm].",
+    )
+    steelBeamPostSpacing: Positive | None = Field(
+        default=None, description="Steel posts under beam bottoms at most this far apart [mm]."
+    )
+    nonCombustibleHeight: Positive | None = Field(
+        default=None, description="Scaffolding higher than this is non-combustible [mm]."
+    )
+    posts: dict[str, FormworkPost] = Field(
+        default_factory=dict, description="Post limits by kind (bamboo, timber, steel)."
+    )
+    sizes: list[FormworkSize] = Field(
+        default_factory=list, description="Standard sizes of formwork members."
+    )
+
+
+class ConstructionTable(TableModel):
+    """Construction practice the design must show or check: excavations and their sides,
+    adjoining property, seepage at the base, fills, waterproofing and formwork. A group the
+    pack leaves out is not covered by it."""
+
+    excavation: ExcavationRules | None = None
+    seepage: SeepageRules | None = None
+    fill: FillRules | None = None
+    waterproofing: WaterproofingRules | None = None
+    formwork: FormworkRules | None = None
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -5360,6 +5600,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "flood": FloodTable,
     "pushover": PushoverTable,
     "accessibility": AccessibilityTable,
+    "construction": ConstructionTable,
 }
 
 
