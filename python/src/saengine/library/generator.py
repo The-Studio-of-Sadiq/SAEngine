@@ -39,7 +39,8 @@ BNBC 2020 Part 6 clauses used (pages of the code PDF):
   by Sec 6.1.10.2 (p. 893) and at 1.4 times under service loads by Sec 6.1.10.1 (p. 893);
   the design drift Cd δe / I (Sec 2.5.7.7, p. 631) against Δa of Table 6.2.21 (p. 648) / ρ
   (Sec 2.5.14.1, p. 647); the period against Cu Ta (Sec 2.5.7.2 (a), p. 627; eq. 6.2.38 and
-  Table 6.2.20, p. 628); wind deflection H/500 (Sec 1.5.6.1, page not in the code pack).
+  Table 6.2.20, p. 628); the roof sway under the service wind against the code pack's limit
+  (serviceability table; BNBC: H/500 under D + 0.5L + 0.7W, Sec 1.5.6.2 and 2.7.5).
 """
 
 from __future__ import annotations
@@ -496,10 +497,9 @@ def wilbur_flexibility(
     return h / (48 * ec) * bracket * 1e3, columns / bracket
 
 
-#: Lateral deflection under the service wind, as a share of the building height: BNBC 2020
-#: Part 6 Sec 1.5.6.1 limits the lateral deflection or drift due to wind to H/500 (the page is
-#: not in the code pack: check it). Taken at the roof.
-WIND_DRIFT = 1 / 500
+#: The roof sway limit under the service wind (a share of the height) and the factor on W of the
+#: service wind combination come from the code pack's ``serviceability`` table (B9:
+#: :func:`saengine.fem.serviceability.sway_basis`).
 #: Stiffness of the members for the lateral deflections under the SERVICE (wind) loads, as a
 #: factor on the cracked stiffness above: BNBC 2020 Part 6 Sec 6.1.10.1 (p. 893; ACI 318-11
 #: 8.8.1): 1.4 times the flexural stiffness of Sec 6.1.10.2.
@@ -559,10 +559,12 @@ def stiffness_estimate(
     - earthquake: δe of each storey under the equivalent static forces at Ta (Sec 2.5.7,
       :mod:`saengine.fem.loads`), the design drift Cd δe / I (Sec 2.5.7.7, p. 631) against
       Δa / ρ of Table 6.2.21 (p. 648, Sec 2.5.14.1, p. 647);
-    - wind: the storey drift under the service wind forces of the analysis model
-      (:func:`saengine.fem.loads.wind_level_forces`, factor 1.0), the members at 1.4 times
-      the cracked stiffness (Sec 6.1.10.1, :data:`SERVICE_STIFFNESS`): the roof's deflection
-      against H / 500 (:data:`WIND_DRIFT`).
+    - wind: the storey drift under the wind forces of the analysis model
+      (:func:`saengine.fem.loads.wind_level_forces`) times the code pack's factor on W in its
+      service wind combination (BNBC: 0.7, Sec 2.7.5), the members at 1.4 times the cracked
+      stiffness (Sec 6.1.10.1, :data:`SERVICE_STIFFNESS`): the roof's deflection against the
+      pack's sway limit (BNBC: H / 500, Sec 1.5.6.2; :func:`saengine.fem.serviceability.
+      sway_basis`); 0 when the pack has none.
 
     The rigid end zones are those of the analysis model (``analysis.endOffsets``,
     ``rigidZoneFactor``: beams offset half the column at each end, columns the deepest beam at
@@ -570,8 +572,10 @@ def stiffness_estimate(
     """
     from saengine.fem import loads as fl
     from saengine.fem import seismic_design as sd
+    from saengine.fem.serviceability import sway_basis
     from saengine.library.settings import derived
 
+    sway = sway_basis()
     nx, ny, n = len(xs), len(ys), len(heights) - 1
     values = derived(settings)
     tops = list(itertools.accumulate(heights[1:]))
@@ -639,7 +643,8 @@ def stiffness_estimate(
             v * f / SERVICE_STIFFNESS
             for v, f in zip(shears(wind.get(axis, [0.0] * n)), flex, strict=True)
         )
-        out.windRatio[axis] = roof / (WIND_DRIFT * tops[-1])
+        # B9: the pack's service wind combination (its factor on W) and sway limit.
+        out.windRatio[axis] = sway[1] * roof / (sway[0] * tops[-1]) if sway is not None else 0.0
     return out
 
 
@@ -1846,7 +1851,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             )
             return (
                 "T " + ", ".join(f"{a} {e.period[a]:.2f} s" for a in ("X", "Y")) + seismic
-                + ", roof wind deflection / (H/500) "
+                + ", roof wind sway / limit "
                 + ", ".join(f"{a} {e.windRatio[a]:.2f}" for a in ("X", "Y"))
             )  # fmt: skip
 
@@ -1884,6 +1889,9 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                 estimate.period.values()),
         ) <= 1.0 + 1e-6  # fmt: skip
         cracked = code_context.cracked_factors()
+        from saengine.fem.serviceability import sway_basis
+
+        sway = sway_basis()
         stiffness_note = (
             "Stiffness (PRELIMINARY drift and period check, before the P-M sizing of the "
             "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
@@ -1900,10 +1908,14 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             "model counts it. Checked: (1) the earthquake design drift Cd δe / I of every "
             f"storey (Sec 2.5.7.7, p. 631) against {limit}, δe under the equivalent static "
             f"forces at Ta = {first_estimate.ta:.2f} s (the analysis' default period); (2) the "
-            "roof deflection under the service wind (1.0 W, the analysis model's wind forces; "
-            f"members at {SERVICE_STIFFNESS:g} x those stiffnesses, Sec 6.1.10.1, p. 893) "
-            "against H/500 (Sec 1.5.6.1; its page is not in the code pack: check it); (3) the "
-            "period by Rayleigh's quotient against "
+            + (
+                f"roof sway under the service wind ({sway[1]:g} W, the analysis model's wind "
+                f"forces; members at {SERVICE_STIFFNESS:g} x those stiffnesses, Sec 6.1.10.1, "
+                f"p. 893) against H/{1 / sway[0]:.0f} ({sway[2]}); "
+                if sway is not None
+                else "roof sway under wind: not covered by the code pack; "
+            )
+            + "(3) the period by Rayleigh's quotient against "
             f"{PERIOD_TARGET:g} Cu Ta = {PERIOD_TARGET * first_estimate.periodLimit:.2f} s "
             f"(Cu Ta = {first_estimate.periodLimit:.2f} s, Sec 2.5.7.2 (a), p. 627; Ta = Ct "
             "hn^m, eq. 6.2.38, Table 6.2.20, p. 628). Cu Ta caps the period the static forces "

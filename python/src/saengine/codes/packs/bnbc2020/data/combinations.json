@@ -1,7 +1,8 @@
 {
   "$schema": "../../../schemas/combinations.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685)"
+    "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685)",
+    "BNBC 2020 Part 6 Sec 2.7.5 (p. 686)"
   ],
   "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685); D includes the superimposed dead load SD",
   "loadCases": {
@@ -69,6 +70,27 @@
       "name": "0.9D + 1.0E",
       "factors": {"D": 0.9, "E": 1.0, "H": 1.6},
       "source": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 7, 0.9D + 1.0E + 1.6H (p. 685); E = Eh - Ev (Sec 2.5.13, p. 644); H is 0 where it counteracts E (exception 2)"
+    }
+  ],
+  "service": [
+    {
+      "id": "1",
+      "name": "D + L",
+      "factors": {"D": 1.0, "L": 1.0, "Lr": 1.0},
+      "source": "BNBC 2020 Part 6 Sec 2.7.5 combination 1, D + L (p. 686): vertical deflection, short-term effects; limits of Sec 1.2.5 Table 6.1.2",
+      "note": "L taken with the roof live load Lr at 1.0 (a member carries one or the other)"
+    },
+    {
+      "id": "2",
+      "name": "D + 0.5L",
+      "factors": {"D": 1.0, "L": 0.5},
+      "source": "BNBC 2020 Part 6 Sec 2.7.5 combination 2, D + 0.5L (p. 686): creep, settlement and other long-term effects"
+    },
+    {
+      "id": "3",
+      "name": "D + 0.5L + 0.7W",
+      "factors": {"D": 1.0, "L": 0.5, "W": 0.7},
+      "source": "BNBC 2020 Part 6 Sec 2.7.5 combination 3, D + 0.5L + 0.7W (p. 686): lateral deflection due to wind, against Sec 1.5.6"
     }
   ],
   "allowable": [
@@ -190,6 +212,7 @@
   },
   "sources": {
     "strength": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685); the combination with one or more loads not acting is investigated (Sec 2.7.1, p. 684): F, H and T are left out where the model has no such case",
+    "service": "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations, unfactored; not used for strength",
     "allowable": "BNBC 2020 Part 6 Sec 2.7.2.1 (p. 684), allowable stress design combinations 1-8 with H, F and T; no allowable stress increase (Sec 2.7.2.2) except Sec 2.5.13.5; once Sec 2.7.2 or 2.7.3 is chosen for a material it is used for that material throughout (Sec 2.7.1, p. 683)",
     "temperature": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 2 with T, 1.2(D + F + T) (p. 685)",
     "seismicDeadUpper": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 5 (p. 685)",

@@ -752,6 +752,55 @@ class _ObjectBase(_Model):
     description: str | None = None
 
 
+#: Member uses of the deflection limits (the code pack's serviceability table names the span
+#: divisors of each; a use the pack does not list is not checked).
+DEFLECTION_USES = (
+    "floor",
+    "roofPlasterCeiling",
+    "roofOtherCeiling",
+    "roofNoCeiling",
+    "wallBrittle",
+    "wallFlexible",
+    "farm",
+    "greenhouse",
+    "metalSheeting",
+    "metalRoofSecondary",
+    "metalWallSecondary",
+)
+
+
+class MemberServiceability(_Model):
+    """What the deflection limits of a steel beam follow (serviceability, B9)."""
+
+    use: Literal[DEFLECTION_USES] | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Member use",
+        description="The use whose deflection limits apply; none: the code pack's default use.",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Floor member",
+                "Roof member supporting a plaster ceiling",
+                "Roof member supporting a non-plaster ceiling",
+                "Roof member not supporting a ceiling",
+                "Wall member, brittle finishes",
+                "Wall member, flexible finishes",
+                "Farm building",
+                "Greenhouse",
+                "Formed metal roofing or siding",
+                "Purlin under formed metal roofing",
+                "Girt under formed metal siding",
+            ]
+        },
+    )
+    freeEnd: Literal["none", "start", "end"] = Field(
+        default="none",
+        title="Cantilever",
+        description="A cantilever: the end that is free (its span for the limits is the "
+        "multiple of its length the code pack gives).",
+        json_schema_extra={"enumDescriptions": ["Supported at both ends", "Start", "End"]},
+    )
+
+
 class Beam(_ObjectBase):
     kind: Literal["beam"] = "beam"
     profile: Profile
@@ -777,6 +826,12 @@ class Beam(_ObjectBase):
         title="Timber joint",
         description="Timber members: the nailed, bolted, split-ring or disc-dowel joint at both "
         "ends; none: not checked.",
+    )
+    serviceability: MemberServiceability | None = Field(
+        default=None,
+        title="Deflection limits",
+        description="Steel beams: the member use the deflection limits follow and a "
+        "cantilever's free end; none: the code pack's default use, supported at both ends.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,

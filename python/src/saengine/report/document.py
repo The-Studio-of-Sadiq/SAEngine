@@ -665,6 +665,70 @@ def _model(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
 # ─────────────────────────────────────── analysis results ───────────────────────────────────────
 
 
+def _serviceability_blocks(sv: dict[str, Any]) -> list[Block]:
+    """B9: storey drift and sway under the service wind combination, overturning stability."""
+    if not sv:
+        return []
+    if not sv.get("available"):
+        return [h(2, "Serviceability"), p(str(sv.get("reason", "")))]
+    out: list[Block] = [h(2, "Serviceability")]
+    combos = ", ".join(sv.get("combinations") or [])
+    if sv["drift"]:
+        out += full(
+            p(
+                "Storey drift under loads other than earthquake: the largest storey drift ratio "
+                f"along the wind under the service combinations ({combos}), the governing "
+                f"storey per direction ({sv['driftClause']})."
+            ),
+            table(
+                ["Dir.", "Combination", "Storey", "Δ/h [%]", "Limit [%]", "Basis", "Result"],
+                sv["drift"],
+                ["auto", "1fr", "auto", "auto", "auto", "1fr", "auto"],
+                "lllrrlc",
+                bad=sv["driftFails"],
+            ),
+        )
+    if sv["sway"]:
+        out += full(
+            p(
+                "Sway: the largest horizontal displacement of the top level along the wind over "
+                f"the height above the base ({sv['swayClause']})."
+            ),
+            table(
+                ["Dir.", "Combination", "Top [mm]", "H [m]", "Sway", "Limit", "Result"],
+                sv["sway"],
+                ["auto", "1fr"] + ["auto"] * 5,
+                "llrrrrc",
+                bad=sv["swayFails"],
+            ),
+        )
+    if sv["overturning"]:
+        out += full(
+            p(
+                "Overturning of the whole building: the base overturning moment of each lateral "
+                "case against the dead load's resisting moment about the nearer edge of the "
+                f"supports ({sv['overturningClause']}). {sv['overturningNote']}"
+            ),
+            table(
+                [
+                    "Case",
+                    "M overturning [kN·m]",
+                    "M resisting [kN·m]",
+                    "Factor",
+                    "Required",
+                    "Result",
+                ],
+                sv["overturning"],
+                ["1fr"] + ["auto"] * 5,
+                "lrrrrc",
+                bad=sv["overturningFails"],
+            ),
+        )
+    if sv.get("notes"):
+        out.append(bullets(sv["notes"], 8.5))
+    return out
+
+
 @register_section("results")
 def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     results = data["results"]
@@ -711,6 +775,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         ]
     if results["notes"]:
         out.append(bullets(results["notes"], 8.5))
+    out += _serviceability_blocks(results.get("serviceability") or {})
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [
