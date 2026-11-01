@@ -134,6 +134,7 @@ largest deviation in each case:
 | AP4 | 1.0000 | 0.1 % | | | |
 | | | | D11 | 0.9999 | 0.5 % |
 | | | | D12 | 1.0024 | 1 % |
+| | | | D13 | 1.0000 | 0.1 % |
 
 ## Known issues (failing cases)
 
