@@ -261,6 +261,21 @@ def test_rpc_handler_round_trip(tmp_path):
     made = handlers.strut_and_tie_template("corbel", {"load": 300})
     result = handlers.strut_and_tie(made["model"], None)
     assert result["cases"] and result["checks"]
+    assert result["code"]
     bad = handlers.strut_and_tie({"name": "x"}, None)
     assert bad["problems"]
     assert "error" in handlers.strut_and_tie_template("nope", None)
+
+
+def test_report_section(tmp_path):
+    from saengine.library.strut_and_tie import StrutAndTieFile
+
+    file = tmp_path / "strut-and-tie.json"
+    assert sm.report_section(file) == {"models": []}
+    content = StrutAndTieFile(models=[sm.template("corbel"), _deep_beam()])
+    file.write_text(content.model_dump_json(by_alias=True), encoding="utf-8")
+    warnings: list[str] = []
+    section = sm.report_section(file, warnings)
+    assert [m["name"] for m in section["models"]] == ["Corbel", "Deep beam"]
+    assert section["models"][1]["members"][0][0] == "T1"
+    assert warnings  # the template ties have no bars yet

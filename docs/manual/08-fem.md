@@ -214,6 +214,26 @@ To fix it:
 
 Run All's summary counts these as *, 2 section(s) too small*.
 
+## Strut-and-tie models of D-regions
+
+Deep beams, transfer girders, corbels and pile caps are checked with their own strut-and-tie
+models. For any other D-region (a dapped end, a corbel with several loads, a frame corner, a wall
+or beam with an opening) open **Strut-and-Tie Models** (the button under *Diaphragms and Deep
+Members* in the results, or the Command Palette):
+
+1. **New Model from Template** (deep beam, dapped end, corbel, frame corner) or **New Model**.
+2. Draw in the region's plane, x along the member and y up, in mm: **Add Node** (click the
+   drawing), **Add Strut** and **Add Tie** (click two nodes). Select a node to set its support,
+   bearing length, tie anchorage and its load in the case shown; select a member for its width,
+   shape, bars or tendons.
+3. Put the factored forces from the analysis on the nodes, one load case per combination
+   (**Add Load Case**), and the distributed web bars under *Region*.
+4. The truss is solved for every case and each strut, tie and nodal zone is checked with the
+   project's code pack (BNBC 2020: Appendix I, φ = 0.75 of Sec 6.2.3.2.6): a strut drawn in
+   tension or a tie in compression fails; a tie without bars shows the *Ats needed*.
+
+The models are saved in `08 FEM/strut-and-tie.json` and printed in the design report.
+
 ## Commands
 
 | Command (category SAEngine) | Does |
@@ -223,6 +243,7 @@ Run All's summary counts these as *, 2 section(s) too small*.
 | Run Selected Analysis Cases... | Runs the cases you pick |
 | Show Analysis Log | The *SAEngine Analysis* output |
 | Design Reinforcement | The design proposal |
+| Strut-and-Tie Models | Strut-and-tie models of D-regions |
 | Check Python Runtime | Checks the backend |
 
 ## Files

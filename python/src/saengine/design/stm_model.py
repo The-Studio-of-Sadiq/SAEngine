@@ -168,6 +168,16 @@ def solve(model: StmModel, case: StmLoadCase) -> Solution:
 # ─────────────────────────────────────── checks ───────────────────────────────────────
 
 
+def _pack_name() -> str:
+    """The display name of the code pack in force."""
+    try:
+        from saengine.codes import context as code_context
+
+        return code_context.current().name
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _row(*args: Any, **kwargs: Any) -> dict[str, Any]:
     from saengine.design.check import _check
 
@@ -307,6 +317,7 @@ def check_model(model: StmModel) -> dict[str, Any]:
         "assumptions": [],
         "source": _cite("general", "equilibrium"),
         "covered": stm.covers_general(),
+        "code": _pack_name(),
     }
     if problems:
         return result
@@ -661,3 +672,66 @@ def template(kind: str, parameters: dict[str, float] | None = None) -> StmModel:
     if kind not in TEMPLATES:
         raise ValueError(f"no strut-and-tie template {kind!r}")
     return TEMPLATES[kind][0](parameters or {})
+
+
+# ─────────────────────────────────────── report ───────────────────────────────────────
+
+
+def report_section(path: Any, warnings: list[str] | None = None) -> dict[str, Any]:
+    """The strut-and-tie models of ``path`` (``08 FEM/strut-and-tie.json``) for the design
+    report: ``{"models": [{"name", "member", "ok", "utilisation", "problems", "members":
+    [[id, kind, nodes, force kN, case, util, result]], "bad", "fails": [check text],
+    "source"}]}``; no models when there is no file. A file that cannot be read, or a model that
+    fails, adds to ``warnings``."""
+    from pathlib import Path
+
+    from pydantic import ValidationError
+
+    from saengine.library.strut_and_tie import StrutAndTieFile
+
+    file = Path(path)
+    if not file.is_file():
+        return {"models": []}
+    try:
+        models = StrutAndTieFile.model_validate_json(file.read_text(encoding="utf-8")).models
+    except (OSError, ValidationError, ValueError) as exc:
+        if warnings is not None:
+            warnings.append(f"{file.name} could not be read: {str(exc).splitlines()[0]}")
+        return {"models": []}
+    out = []
+    for model in models:
+        result = check_model(model)
+        drawn = {m.id: m for m in model.members}
+        rows = [
+            [
+                member["id"],
+                member["kind"],
+                f"{drawn[member['id']].start}-{drawn[member['id']].end}",
+                f"{member['force']:.1f}",
+                str(member["case"] or "–"),
+                f"{member['utilisation']:.3f}",
+                "OK" if member["ok"] else "FAIL",
+            ]
+            for member in result["members"]
+        ]
+        fails = [
+            f"{c['name']}: {c['demand']} / {c['capacity']} {c['unit']} ({c['note']})"
+            for c in result["checks"]
+            if not c["ok"]
+        ]
+        out.append(
+            {
+                "name": model.name,
+                "member": model.member,
+                "ok": result["ok"],
+                "utilisation": result["utilisation"],
+                "problems": list(result["problems"]),
+                "members": rows,
+                "bad": [r[-1] != "OK" for r in rows],
+                "fails": fails,
+                "source": result["source"],
+            }
+        )
+        if warnings is not None and not result["ok"]:
+            warnings.append(f"The strut-and-tie model {model.name} fails its checks.")
+    return {"models": out}
