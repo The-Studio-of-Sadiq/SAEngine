@@ -13,7 +13,7 @@ the usual frame programs), ``k2``, ``Lu2`` about its y-axis (``My``, local 2).
 
 Used by:
 
-- RC columns (:mod:`saengine.design.slender`, BNBC 2020 Part 6 Sec 6.3.10): k replaces the
+- RC columns (:mod:`saengine.design.slender`, the default pack's BNBC 2020 Part 6 Sec 6.3.10): k replaces the
   chart's or 1.0, Lu the unsupported length lu, ``framing`` "braced" designs the column as
   nonsway and "sway" as sway whatever its storey's stability index Q says (6.3.10.5 lets
   either be assumed when justified), ``momentMagnifiers`` replace Cm, δns or δs.
@@ -24,7 +24,7 @@ Used by:
   (tension field action), ``warping`` the ends' restraint against warping (torsion),
   ``builtUp`` how a built-up member's components are joined.
 - ``liveLoadReduction``: the factor on the floor live load L of the member, given instead of the
-  one :mod:`saengine.design.live_reduction` works out (BNBC 2020 Part 6 Sec 2.3.13).
+  one :mod:`saengine.design.live_reduction` works out (default pack BNBC 2020 Part 6 Sec 2.3.13).
 """
 
 from __future__ import annotations

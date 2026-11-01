@@ -1,4 +1,4 @@
-"""Deep beams and transfer girders (BNBC 2020 Part 6 Sec 6.4.6).
+"""Deep beams and transfer girders (default pack BNBC 2020 Part 6 Sec 6.4.6).
 
 A beam span is deep (Sec 6.4.6.1, ACI 318-11 Sec 11.7.1) when its clear span ln is at most 4 h,
 or when a concentrated load lies within 2 h of a support's face, with the beam loaded on one
@@ -14,7 +14,7 @@ beam is flagged as reference: the strut-and-tie model governs):
 - the least distributed web steel: vertical Av >= 0.0025 bw s, horizontal Avh >= 0.0015 bw s2,
   s and s2 at most d/5 and 300 mm (Sec 6.4.6.3, 6.4.6.4);
 - a strut-and-tie model, the one of the deep pile caps (:mod:`saengine.design.stm`, the
-  pack's strut-and-tie procedure: BNBC 2020 Appendix I, which Sec 6.3.7.1 and 6.4.6 send deep
+  pack's strut-and-tie procedure: the default pack's BNBC 2020 Appendix I, which Sec 6.3.7.1 and 6.4.6 send deep
   beams to; φ = 0.75 of Sec 6.2.3.2.6): at each
   support a strut from the support's node to the load, the bottom bars as the tie at z = 0.9 d
   (the pack's ``tieArm``) over the span. The load of a span is the landing column's (the jump
@@ -39,7 +39,9 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design import stm
-from saengine.design.rc import FYT_SHEAR_MAX, PHI_SHEAR, RcSection, bar_area
+from saengine.design.clauses import Clauses, short_clause
+from saengine.design.rc import RcSection, bar_area
+from saengine.design.rc import value as rc_value
 
 __all__ = [
     "CLAUSES",
@@ -51,17 +53,18 @@ __all__ = [
     "web_steel",
 ]
 
-CLAUSES = {
-    "deep": "BNBC 2020 Part 6 Sec 6.4.6.1",
-    "limit": "BNBC 2020 Part 6 Sec 6.4.6.2",
-    "vertical": "BNBC 2020 Part 6 Sec 6.4.6.3",
-    "horizontal": "BNBC 2020 Part 6 Sec 6.4.6.4",
-    "phi": "BNBC 2020 Part 6 Sec 6.2.3.2.6 (p. 898)",
-    "stm": "BNBC 2020 Part 6 Appendix I",
-}
+#: The clause of each check, from the code pack in force (``designClauses.deepBeams``).
+CLAUSES: Clauses = Clauses("deepBeams")
 
-#: Said on the sectional shear checks of a deep span.
-REFERENCE_NOTE = "deep span: for reference, the strut-and-tie model governs (BNBC Sec 6.4.6)"
+
+def __getattr__(name: str) -> str:
+    # ``REFERENCE_NOTE``, said on the sectional shear checks of a deep span (read from the pack).
+    if name == "REFERENCE_NOTE":
+        return (
+            "deep span: for reference, the strut-and-tie model governs "
+            f"({short_clause('deepBeamsText', 'reference')})"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _table() -> Any:
@@ -157,7 +160,7 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
     checks: list[dict[str, Any]] = []
     root = math.sqrt(span.fc)
     vu, v_combination = demands.shear
-    limit = PHI_SHEAR * table.shearLimit * root * span.width * span.d
+    limit = rc_value("PHI_SHEAR") * table.shearLimit * root * span.width * span.d
     checks.append(
         _check(
             "Deep beam shear limit",
@@ -165,7 +168,7 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
             limit / 1e3,
             "kN",
             v_combination,
-            f"φ {table.shearLimit:g} √f'c bw d, φ = {PHI_SHEAR:g}, bw = {span.width:.0f} mm, "
+            f"φ {table.shearLimit:g} √f'c bw d, φ = {rc_value('PHI_SHEAR'):g}, bw = {span.width:.0f} mm, "
             f"d = {span.d:.0f} mm ({CLAUSES['limit']}){suffix}",
         )
     )
@@ -429,7 +432,7 @@ def member_checks(
     stations = _stations(pieces, combinations, turned, a, axis)
     checks: list[dict[str, Any]] = []
     notes: list[str] = []
-    fyt = min(section.fy, FYT_SHEAR_MAX)
+    fyt = min(section.fy, rc_value("FYT_SHEAR_MAX"))
     for (s0, w0), (s1, w1) in itertools.pairwise(below):
         left, right = s0 + w0 / 2, s1 - w1 / 2
         clear = right - left

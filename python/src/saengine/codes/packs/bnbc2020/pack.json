@@ -54,7 +54,9 @@
     "isolation",
     "nonlinearHistory",
     "bamboo",
-    "ferrocement"
+    "ferrocement",
+    "designClauses",
+    "designLimits"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -276,6 +278,12 @@
     ],
     "ferrocement": [
       "BNBC 2020 Part 6 Chapter 12 Sec 12.3-12.4, Tables 6.12.2-6.12.3, Eqs 6.12.1-6.12.5 (part 2 pp. 342-354) and Appendix U (part 2 pp. 612-613): ferrocement strength and service load design"
+    ],
+    "designClauses": [
+      "BNBC 2020 Parts 3, 4 and 6: the clause references of the member and connection design checks, notes and method text"
+    ],
+    "designLimits": [
+      "BNBC 2020 Part 6 Sec 6.4.1.2, 10.2.3.12; Part 3 Sec 1.14.5 and Part 4 Sec 3.10, Tables 4.3.5-4.3.6 (pp. 309-313): the cap of sqrt f'c in shear, the ERW wall thickness factor, the stair geometry rules"
     ]
   },
   "basis": {

@@ -4,7 +4,7 @@ and corbels, :mod:`saengine.design.deep_beams`) and the general model of any D-r
 (:mod:`saengine.design.stm_model`).
 
 The procedure is the code pack's (``foundations.strutAndTie``, its clauses in the table's
-``sources``; BNBC 2020: Part 6 Appendix I and Sec 6.2.3.2.6):
+``sources``; the default pack's BNBC 2020: Part 6 Appendix I and Sec 6.2.3.2.6):
 
 - a strut: Fns = fce Acs + As' fs', fce = effective × βs × f'c, the smaller of the strut's and
   the nodal zones' at its ends; βs ``betaPrism`` for a strut of uniform section, ``betaBottle``

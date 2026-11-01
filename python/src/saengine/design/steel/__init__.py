@@ -1,4 +1,4 @@
-"""Steel member design to BNBC 2020 Part 6 Chapter 10 (LRFD, the provisions of AISC 360-05).
+"""Steel member design to the default pack's BNBC 2020 Part 6 Chapter 10 (LRFD, the provisions of AISC 360-05).
 
 - :mod:`.properties`: section properties of rolled and hollow shapes from their plates;
 - :mod:`.classify`: local buckling classes (Sec 10.2.4, Table 6.10.1);
@@ -11,9 +11,9 @@
 
 from __future__ import annotations
 
+from saengine.design.clauses import clause
+from saengine.design.steel import members as _members
 from saengine.design.steel.members import (
-    CODE,
-    METHOD,
     Steel,
     SteelDesignError,
     SteelOptions,
@@ -37,3 +37,12 @@ __all__ = [
     "member_stations",
     "shape_properties",
 ]
+
+
+def __getattr__(name: str) -> object:
+    # The members' code name and method text, from the code pack in force.
+    if name == "CODE":
+        return clause("steelMembers", "code")
+    if name == "METHOD":
+        return _members.METHOD
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

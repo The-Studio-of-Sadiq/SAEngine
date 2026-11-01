@@ -1,5 +1,5 @@
 """Which earthquake-resistant detailing provisions apply, and the general requirements, to
-BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. 1088-1123 of the code PDF) with the system rules of
+the default pack's BNBC 2020 Part 6 Chapter 8 Sec 8.3 (pp. 1088-1123 of the code PDF) with the system rules of
 Part 6 Chapter 2 Sec 2.5 (pp. 617-625, 646).
 
 What this module decides, from the project settings, materials, object types and building:
@@ -27,32 +27,22 @@ import math
 from typing import Any, Literal, NamedTuple
 
 from saengine.codes import context as code_context
-from saengine.library import bnbc
+from saengine.design.clauses import Clauses, clause, short_clause, short_name, text
 
 FrameType = Literal["special", "intermediate", "ordinary"]
 
 #: Detailing levels in increasing order of stringency.
 LEVELS: tuple[FrameType, ...] = ("ordinary", "intermediate", "special")
 
-CLAUSES = {
-    "scope": "BNBC 2020 Part 6 Sec 8.3.1 (p. 1088)",
-    "provisions": "BNBC 2020 Part 6 Sec 8.3.2 (pp. 1088-1089)",
-    "sdc": "BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617)",
-    "systems": "BNBC 2020 Part 6 Sec 2.5.5.4, Table 6.2.19 (pp. 619-624)",
-    "analysis": "BNBC 2020 Part 6 Sec 8.3.3.1 (p. 1089)",
-    "phi": "BNBC 2020 Part 6 Sec 8.3.3.2 (p. 1089)",
-    "concrete": "BNBC 2020 Part 6 Sec 8.3.3.3 (p. 1089)",
-    "reinforcement": "BNBC 2020 Part 6 Sec 8.3.3.4 (pp. 1089-1090)",
-    "welding": "BNBC 2020 Part 6 Sec 8.3.3.5 (p. 1090)",
-    "splices": "BNBC 2020 Part 6 Sec 8.3.4.2(b), 8.3.5.3(b) (pp. 1091, 1096)",
-    "lightweight": "BNBC 2020 Part 6 Sec 6.1 definitions (p. 868), Sec 6.1.8 (p. 893)",
-    "shearFy": "BNBC 2020 Part 6 Sec 6.4.3.2 (p. 924)",
-    "discontinuous": "BNBC 2020 Part 6 Sec 2.5.5.6.1 (p. 625)",
-    "irregularForces": "BNBC 2020 Part 6 Sec 2.5.5.6.2 (p. 625)",
-    "collectors": "BNBC 2020 Part 6 Sec 2.5.5.6.3 (p. 625)",
-    "omega": "BNBC 2020 Part 6 Sec 2.5.13.4 (p. 646)",
-    "vertical": "BNBC 2020 Part 6 Sec 2.5.13.2, eq. 6.2.56 (pp. 645-646)",
-}
+#: The clause of each provision, from the code pack in force (``designClauses.seismicRules``).
+CLAUSES: Clauses = Clauses("seismicRules")
+
+
+def system_name(system: str) -> str:
+    """The name of structural system ``system`` in the pack in force (its id when unlisted)."""
+    entry = code_context.table("seismic").systems.get(system)
+    return entry.name if entry is not None else system
+
 
 #: Sections of 8.3 with their page and title.
 SECTIONS: dict[str, tuple[int, str]] = {
@@ -91,7 +81,7 @@ NP = 0.0
 
 
 def system_row(system: str) -> SystemRow | None:
-    """The Table 6.2.19 row (pp. 621-624) of ``system`` (a ``bnbc.STRUCTURAL_SYSTEMS`` id) in the
+    """The Table 6.2.19 row (pp. 621-624) of ``system`` (a ``seismic.systems`` id) in the
     pack in force (``seismic.systems``); None for a system the pack does not list."""
     entry = code_context.table("seismic").systems.get(system)
     if entry is None:
@@ -118,7 +108,7 @@ def required_level(sdc: str | None) -> FrameType | None:
     return code_context.table("seismic").requiredDetailing.get(sdc)
 
 
-# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (BNBC 2020:
+# The material limits of Sec 8.3.3.3-8.3.3.4 are the pack's ``materials`` table (default pack BNBC 2020:
 # f'c at least 21 MPa, lightweight concrete (density at most 1850 kg/m³, Sec 6.1 definitions,
 # p. 868) at most 35 MPa; the permitted grades fy 275, 300, 350, 400, 420 MPa (ASTM A706 Grade
 # 420; BDS ISO 6935-2 Grades 300, 350, 400, 420; ASTM A615 Grades 275 and 420), at most 420;
@@ -126,10 +116,27 @@ def required_level(sdc: str | None) -> FrameType | None:
 # often entered as 415: an SAEngine choice); actual fy at most fy + 125 MPa (retests +20);
 # actual fu/fy at least 1.25), read when the checks run.
 
-#: Sec 8.3.3.4(c): fyt of the confinement reinforcement at most 700 MPa.
-FYT_CONFINEMENT_MAX = 700.0
-#: Sec 6.4.3.2 via 8.3.3.4(d): fy, fyt of shear reinforcement at most 420 MPa.
-FYT_SHEAR_MAX = 420.0
+
+def _fyt_confinement_max() -> float:
+    """The largest fyt of confinement reinforcement, the pack's
+    ``detailing.special.fytConfinementMax`` (the default pack: 700 MPa, Sec 8.3.3.4(c))."""
+    return float(code_context.table("detailing").special["fytConfinementMax"])
+
+
+def _fyt_shear_max() -> float:
+    """The largest fy, fyt of shear reinforcement, the pack's ``concrete.fytShearMax`` (the
+    default pack: 420 MPa, Sec 6.4.3.2 via 8.3.3.4(d))."""
+    return float(code_context.table("concrete").fytShearMax)
+
+
+def __getattr__(name: str) -> float:
+    # The former module constants, read from the code pack in force.
+    if name == "FYT_CONFINEMENT_MAX":
+        return _fyt_confinement_max()
+    if name == "FYT_SHEAR_MAX":
+        return _fyt_shear_max()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 #: Position tolerance of the discontinuity search [mm].
 TOLERANCE = 50.0
@@ -189,7 +196,7 @@ def seismic_design_category(settings: Any) -> tuple[str | None, int | None]:
 
 def building_height(building: Any) -> float | None:
     """Height of the structure [m]: the highest column or wall top or beam level over the lowest
-    column or wall bottom (BNBC's height above the base, taken from the elements); None without
+    column or wall bottom (the default pack's (BNBC) height above the base, taken from the elements); None without
     columns or walls."""
     if building is None:
         return None
@@ -218,7 +225,7 @@ def system_checks(
     if row is None or sdc is None:
         return []
     limit = row.limits["BCD".index(sdc)]
-    name = bnbc.STRUCTURAL_SYSTEMS[system].name if system in bnbc.STRUCTURAL_SYSTEMS else system
+    name = system_name(system)
     checks = []
     if limit == NP:
         checks.append(
@@ -490,16 +497,18 @@ def material_checks(
         if has_ties:
             checks.append(
                 _check(
-                    f"fyt of confinement ≤ 700 MPa (Sec 8.3.3.4(c), p. 1090): {mid}",
+                    f"fyt of confinement ≤ {_fyt_confinement_max():g} MPa "
+                    f"({text('seismicRulesNotes', 'confinement')}): {mid}",
                     fy,
-                    FYT_CONFINEMENT_MAX,
+                    _fyt_confinement_max(),
                     "MPa",
                     "the transverse bars use the member's reinforcement material",
                 )
             )
     notes.append(
-        f"BNBC 2020 Part 6 Sec 8.3.3.4(d) (p. 1090) and {CLAUSES['shearFy']}: fy, fyt of shear reinforcement "
-        "at most 420 MPa; the shear design (saengine.design.rc.shear) already caps fyt at 420 MPa"
+        f"{clause('seismicRulesNotes', 'reinforcementD')} and {CLAUSES['shearFy']}: fy, fyt of shear reinforcement "
+        f"at most {_fyt_shear_max():g} MPa; the shear design (saengine.design.rc.shear) already "
+        f"caps fyt at {_fyt_shear_max():g} MPa"
     )
     notes.append(
         f"{CLAUSES['welding']}: reinforcement required by the earthquake combinations is not to "
@@ -511,7 +520,8 @@ def material_checks(
         f"{CLAUSES['splices']}: welded splices and mechanical connections to Sec 8.2.12.3(a)-(d) "
         "only at alternate bars of a layer, 600 mm apart along the member; welded splices and "
         "Type 1 mechanical connections not within twice the member depth of a joint face or "
-        "where yielding is likely. BNBC 8.3 does not define Type 1/Type 2 itself (ACI 318 "
+        f"where yielding is likely. {short_clause('seismicRulesNotes', 'chapter')} does not define "
+        "Type 1/Type 2 itself (ACI 318 "
         "18.2.7 does); the model holds no splice positions, so this is a drawing note"
     )
     return checks, notes
@@ -785,7 +795,7 @@ def _member_provisions(kind: str, role: str, row: SystemRow | None, sdc: str | N
     Members not part of the seismic force-resisting system: in Category D, 8.3.2(b) puts
     8.3.3 in force, and 8.3.3.1(d) (p. 1089) sends them to 8.3.9; 8.3.12.1(a) (p. 1122) adds
     8.3.12 in D. In B, 8.3.2(d) makes 8.3.9 apply to all RC structures. In C, 8.3.2(c) asks for
-    8.3.10 only, and 8.3.10.1 covers the frames proportioned to resist earthquake: BNBC sets no
+    8.3.10 only, and 8.3.10.1 covers the frames proportioned to resist earthquake: the default pack's BNBC sets no
     8.3 provision for gravity members there (Chapter 6 only)."""
     level = detailing_level(row, sdc)
     if level is None:
@@ -895,7 +905,7 @@ def seismic_detailing_scope(
     overrides: dict[str, dict[str, str]] | None = None,
     height: float | None = None,
 ) -> dict[str, Any]:
-    """Which provisions of BNBC 2020 Part 6 Sec 8.3 apply to the project, and its general
+    """Which provisions of the default pack's BNBC 2020 Part 6 Sec 8.3 apply to the project, and its general
     requirements: ``{"system", "systemName", "sdc", "zone", "R", "Cd", "Omega0", "frameType"
     (the level of the system's RC moment frames; None for building frame and steel systems),
     "detailingLevel" (the level members marked lateral are detailed to), "requiredFrameType", "systemFrameType", "height", "applies": {section: {"applies", "page",
@@ -928,14 +938,6 @@ def seismic_detailing_scope(
         )
     checks += system_checks(system, row, sdc, height)
     if row is not None:
-        table = {"R": row.r, "Omega0": row.omega, "Cd": row.cd}
-        library = bnbc.STRUCTURAL_SYSTEMS.get(system)
-        for key, own in (("R", "r"), ("Omega0", "omega"), ("Cd", "cd")):
-            if library is not None and abs(getattr(library, own) - table[key]) > 1e-9:
-                notes.append(
-                    f"{key} of {library.name}: the project's default is "
-                    f"{getattr(library, own):g}, Table 6.2.19 row {row.row} gives {table[key]:g}"
-                )
         if row.frame and required and not _level_at_least(row.frame, required):
             notes.append(
                 f"the system's frames are {row.frame}; Category {sdc} requires {required} seismic "
@@ -1012,7 +1014,7 @@ def seismic_detailing_scope(
     notes += m_notes
     if level and frame_type is None and row is not None and row.concrete:
         notes.append(
-            f"{bnbc.STRUCTURAL_SYSTEMS[system].name if system in bnbc.STRUCTURAL_SYSTEMS else system}"
+            f"{system_name(system)}"
             " has no moment frame in its seismic force-resisting system (Table 6.2.19 group B): "
             "its beams and columns are gravity members unless marked lateral, so the special or "
             "intermediate moment frame sections apply only to members marked lateral"
@@ -1068,7 +1070,7 @@ def seismic_detailing_scope(
             "8.3.2(d): in Category B all RC structures follow the ordinary detailing of 8.3.9; "
             "in Category D 8.3.3.1(d) (in force by 8.3.2(b)): members not part of the seismic "
             "force-resisting system conform to 8.3.9; in Category C (8.3.2(c): 8.3.10 only) "
-            "BNBC sets no 8.3 provision for gravity members",
+            f"{short_name()} sets no 8.3 provision for gravity members",
         ),
         "8.3.10": entry(
             "8.3.10",
@@ -1120,9 +1122,7 @@ def seismic_detailing_scope(
     )
     return {
         "system": system,
-        "systemName": bnbc.STRUCTURAL_SYSTEMS[system].name
-        if system in bnbc.STRUCTURAL_SYSTEMS
-        else system,
+        "systemName": system_name(system),
         "systemRow": row.row if row else None,
         "sdc": sdc,
         "zone": zone,

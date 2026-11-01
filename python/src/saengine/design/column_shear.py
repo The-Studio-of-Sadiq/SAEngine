@@ -1,5 +1,5 @@
 """Shear of reinforced-concrete columns from the analysis forces, with the axial force's
-effect on Vc: BNBC 2020 Part 6 Sec 6.4 (pp. 921-927). Units: N, mm, MPa.
+effect on Vc: the default pack's BNBC 2020 Part 6 Sec 6.4 (pp. 921-927). Units: N, mm, MPa.
 
 This is the strength check of every column (gravity columns, ordinary frames, and the
 analysis shear of the others); the capacity-design shear of special and intermediate moment
@@ -19,7 +19,7 @@ frames stays in :mod:`saengine.design.ductile_joints` (Sec 8.3.8, 8.3.10.3).
   the shear (``legs`` run along the profile's y, ``legsX`` along x).
 - Where shear reinforcement is needed (Vu > φVc, Sec 6.4.3.6.1) the tie spacing must not exceed
   d/2 nor 600 mm, halved where Vs > 0.33 √f'c bw d (Sec 6.4.3.4.1, 6.4.3.4.3, p. 924).
-- Minimum shear reinforcement: BNBC Sec 6.4.3.5.1 is written for flexural members. Where
+- Minimum shear reinforcement: the default pack's BNBC Sec 6.4.3.5.1 is written for flexural members. Where
   Vu > 0.5 φ Vc and the ties give less than Av,min (Eq. 6.6.55) a reported-only row (``flag``)
   says so (ACI 318-19 10.6.2.1 asks it of columns; from memory, to be checked).
 """
@@ -33,11 +33,22 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.clauses import limits, short_clause
 from saengine.design.rc import DesignError, RcSection, bar_area
 from saengine.library.objects import CircleProfile, RectangleProfile
 
-#: √f'c used in shear is capped at this [MPa] (BNBC 2020 Part 6 Sec 6.4.1.2).
-ROOT_FC_MAX = 8.3
+#: √f'c used in shear is capped at this [MPa] (default pack BNBC 2020 Part 6 Sec 6.4.1.2).
+
+
+def _root_fc_max() -> float:
+    """√f'c used in shear is capped at this [MPa]: the pack's ``designLimits.shearRootFcMax``."""
+    return float(limits().shearRootFcMax)
+
+
+def __getattr__(name: str) -> float:
+    if name == "ROOT_FC_MAX":
+        return _root_fc_max()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _check(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -115,7 +126,7 @@ class ColumnShear:
 
 def concrete_shear(nu: float, ag: float, bw: float, d: float, fc: float, lam: float = 1.0):
     """Vc [N] with the axial force ``nu`` [N, compression positive] (Eqs. 6.6.50, 6.6.54)."""
-    root = min(math.sqrt(fc), ROOT_FC_MAX)
+    root = min(math.sqrt(fc), _root_fc_max())
     if nu >= 0:
         factor = 1 + nu / (14 * ag)
     else:
@@ -139,7 +150,7 @@ def column_shear_strength(
     vs_max = 0.66 * math.sqrt(fc) * part.bw * part.d
     limited = vs > vs_max
     vs = min(vs, vs_max)
-    root = min(math.sqrt(fc), ROOT_FC_MAX)
+    root = min(math.sqrt(fc), _root_fc_max())
     av_min = max(0.062 * root, 0.35) * part.bw * part.spacing / fyt if part.spacing else 0.0
     return ColumnShear(phi * (vc + vs), vc, vs, limited, av_min)
 
@@ -197,7 +208,7 @@ def column_shear_checks(
     if len(pu):
         # Every point at once, the same arithmetic as column_shear_strength and in its order;
         # the first point of equals is kept, as one by one.
-        fc_root = min(math.sqrt(section.fc), ROOT_FC_MAX)
+        fc_root = min(math.sqrt(section.fc), _root_fc_max())
         factor = np.where(pu >= 0, 1 + pu / (14 * ag), np.maximum(0.0, 1 + 0.29 * pu / ag))
         if circle:
             vu_all = np.array(
@@ -301,8 +312,8 @@ def column_shear_checks(
                     "mm²",
                     combination_m,
                     "Vu above 0.5 φVc with Av below 0.062 √f'c bw s/fyt (≥ 0.35 bw s/fyt); "
-                    "BNBC 6.4.3.5.1 names flexural members, ACI 318-19 10.6.2.1 columns too"
-                    + (f"; {where_m}" if where_m else ""),
+                    f"{short_clause('columnShear', 'minimum')} names flexural members, ACI 318-19 "
+                    "10.6.2.1 columns too" + (f"; {where_m}" if where_m else ""),
                     flag=True,
                 )
             )

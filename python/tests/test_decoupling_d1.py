@@ -198,11 +198,14 @@ def test_former_pattern_live_values_are_read_as_the_new_ones() -> None:
 
 
 def test_code_data_is_the_former_library_bnbc() -> None:
-    from saengine.library import bnbc, code_data
+    import importlib.util
+
+    from saengine.library import code_data
 
     assert code_data.PACK_ID == registry.DEFAULT_PACK
-    assert bnbc.LOCATIONS is code_data.LOCATIONS
-    assert bnbc.STRUCTURAL_SYSTEMS is code_data.STRUCTURAL_SYSTEMS
+    assert code_data.STRUCTURAL_SYSTEMS["rcSmf"].omega == 3.0
+    # D2 removed the deprecated library/bnbc.py shim once nothing imported it.
+    assert importlib.util.find_spec("saengine.library.bnbc") is None
 
 
 def test_generated_typescript_keeps_the_former_export_name() -> None:

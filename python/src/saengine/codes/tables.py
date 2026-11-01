@@ -7976,3 +7976,93 @@ def _register_with_registry() -> None:
 
 
 _register_with_registry()
+
+
+# ─────────────────────── designClauses (clause references of saengine.design) ───────────────────────
+
+
+class DesignClausesTable(TableModel):
+    """Clause references of the member and connection design (``saengine.design``), grouped by
+    module: ``clauses.<group>.<key>`` is the clause without the code's name (the design puts the
+    pack's display name before it). ``shortName``: the code's name in compact notes (e.g.
+    "<short> 6.1.4.3"). A pack without this table names only itself in the design notes."""
+
+    shortName: str = Field(default="", description="The code's short name in compact notes.")
+    clauses: dict[str, dict[str, str]] = Field(
+        default_factory=dict, description="Clause reference of each check: {group: {key: clause}}."
+    )
+
+
+TABLE_MODELS["designClauses"] = DesignClausesTable
+
+
+def _register_design_clauses() -> None:
+    try:
+        from saengine.codes.registry import register
+    except ImportError:  # the registry is optional for the readers of the built-in pack
+        return
+    register("designClauses", DesignClausesTable, MERGE_KEYS.get("designClauses"))
+
+
+_register_design_clauses()
+
+
+# ──────────────────── designLimits (code values of saengine.design not in other tables) ────────────────────
+
+
+class StairGeometryLimits(_Group):
+    """Stair geometry rules: 2R + T, the (riser, tread) table, flight rise, headroom, riser
+    variation and the landing cap [mm]."""
+
+    twoRiserTread: tuple[Positive, Positive] = Field(description="(least, largest) 2R + T [mm].")
+    riserTread: list[tuple[Positive, Positive]] = Field(
+        description="(riser, tread) combinations the code lists [mm]."
+    )
+    riserTreadSkip: list[tuple[Positive, Positive]] = Field(
+        default_factory=list,
+        description="Rows of riserTread left out of the nearest-row search (misprints) [mm].",
+    )
+    flightRiseMax: Positive = Field(description="Largest rise of a flight between landings [mm].")
+    flightRiseMaxAssembly: Positive = Field(description="... in assembly buildings [mm].")
+    headroom: Positive = Field(description="Clear headroom between flights [mm].")
+    headroomReduced: Positive = Field(
+        description="Reduced headroom for not more than three flights in a staircase [mm]."
+    )
+    riserVariation: Positive = Field(
+        description="Largest variation between adjacent risers or treads [mm]."
+    )
+    straightLandingCap: Positive = Field(
+        description="Width in the travel direction a landing of a straight run need not exceed [mm]."
+    )
+    widthResidential: Positive = Field(description="Least stair width, residential [mm].")
+    widthEducational: Positive = Field(description="... educational, up to the occupants [mm].")
+    widthEducationalLarge: Positive = Field(description="... educational, more occupants [mm].")
+    educationalOccupants: int = Field(gt=0, description="Occupants of the educational rows.")
+    widthHealthcare: Positive = Field(description="... hospital patient areas [mm].")
+    widthHealthcareStaff: Positive = Field(description="... hospital staff areas [mm].")
+
+
+class DesignLimitsTable(TableModel):
+    """Code values of the member design that no other table holds: the cap of √f'c in shear
+    and torsion, the design wall thickness factor of ERW hollow sections, and the stair
+    geometry rules. A pack without it does not cover the checks that read it."""
+
+    shearRootFcMax: Positive = Field(description="Cap of √f'c in shear and torsion [MPa].")
+    erwWallFactor: Share = Field(
+        description="Design wall thickness of electric-resistance-welded HSS over the nominal."
+    )
+    stairs: StairGeometryLimits
+
+
+TABLE_MODELS["designLimits"] = DesignLimitsTable
+
+
+def _register_design_limits() -> None:
+    try:
+        from saengine.codes.registry import register
+    except ImportError:  # the registry is optional for the readers of the built-in pack
+        return
+    register("designLimits", DesignLimitsTable, MERGE_KEYS.get("designLimits"))
+
+
+_register_design_limits()

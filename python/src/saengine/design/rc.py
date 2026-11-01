@@ -1,6 +1,6 @@
 """Section capacities of reinforced-concrete members by strength design.
 
-The code basis is ACI 318-19, which BNBC 2020 Part 6 Chapter 6 adopts: the same clauses and
+The code basis is ACI 318-19, which the default pack's BNBC 2020 Part 6 Chapter 6 adopts: the same clauses and
 factors apply to both.
 
 - Flexure and axial force: strain compatibility with the ACI rectangular stress block
@@ -44,16 +44,49 @@ import numpy as np
 
 from saengine.library.objects import CircleProfile, LinearReinforcement, RectangleProfile
 
-EPS_CU = 0.003
-"""Concrete strain at the extreme compression fibre at nominal strength (ACI 22.2.2.1)."""
-STEEL_E = 200_000.0
-PHI_TENSION = 0.90
-PHI_TIED = 0.65
-PHI_SPIRAL = 0.75
-PHI_SHEAR = 0.75
-FYT_SHEAR_MAX = 420.0
-SLENDERNESS_LIMIT = 22.0
-"""k lu / r below which slenderness may be neglected in sway frames (ACI 6.2.5.1(a))."""
+#: The code values of the strength design, from the code pack in force (read when used; also
+#: module attributes, ``rc.PHI_SHEAR``): EPS_CU, the concrete strain at the extreme compression
+#: fibre at nominal strength (``materials.concreteStrain``); STEEL_E (``materials.steelE``);
+#: the φ factors of tension-controlled sections, tied and spiral columns and shear
+#: (``factors.phi``); FYT_SHEAR_MAX, the largest fyt of shear reinforcement
+#: (``concrete.fytShearMax``); SLENDERNESS_LIMIT, k lu / r below which slenderness may be
+#: neglected in sway frames (``concrete.slendernessLimit``).
+_VALUES: dict[str, tuple[str, ...]] = {
+    "EPS_CU": ("materials", "concreteStrain"),
+    "STEEL_E": ("materials", "steelE"),
+    "PHI_TENSION": ("factors", "phi", "tension"),
+    "PHI_TIED": ("factors", "phi", "compressionTied"),
+    "PHI_SPIRAL": ("factors", "phi", "compressionSpiral"),
+    "PHI_SHEAR": ("factors", "phi", "shear"),
+    "FYT_SHEAR_MAX": ("concrete", "fytShearMax"),
+    "SLENDERNESS_LIMIT": ("concrete", "slendernessLimit"),
+}
+_memo: tuple[Any, dict[str, float]] | None = None
+
+
+def value(name: str) -> float:
+    """Code value ``name`` (see above) of the code pack in force."""
+    global _memo
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    memo = _memo
+    if memo is None or memo[0] is not pack:
+        values: dict[str, float] = {}
+        for key, (table_name, *path) in _VALUES.items():
+            found: Any = code_context.pack_table(table_name)
+            for part in path:
+                found = found[part] if isinstance(found, dict) else getattr(found, part)
+            values[key] = float(found)
+        memo = _memo = (pack, values)
+    return memo[1][name]
+
+
+def __getattr__(name: str) -> float:
+    if name in _VALUES:
+        return value(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 #: Neutral-axis angles of the interaction surface's computed meridians, this far apart.
 _STEP = math.radians(7.5)
@@ -80,15 +113,18 @@ def beta1(fc: float) -> float:
     return 0.85 - 0.05 * (fc - 28) / 7
 
 
-def phi_axial_flexure(eps_t: float, fy: float, es: float = STEEL_E, spiral: bool = False) -> float:
-    """φ for moment and axial force from the net tensile strain (ACI Table 21.2.2)."""
-    eps_ty = fy / es
-    low = PHI_SPIRAL if spiral else PHI_TIED
+def phi_axial_flexure(
+    eps_t: float, fy: float, es: float | None = None, spiral: bool = False
+) -> float:
+    """φ for moment and axial force from the net tensile strain (ACI Table 21.2.2); ``es``:
+    default the code pack's Es."""
+    eps_ty = fy / (value("STEEL_E") if es is None else es)
+    low = value("PHI_SPIRAL") if spiral else value("PHI_TIED")
     if eps_t <= eps_ty:
         return low
-    if eps_t >= eps_ty + EPS_CU:
-        return PHI_TENSION
-    return low + (PHI_TENSION - low) * (eps_t - eps_ty) / EPS_CU
+    if eps_t >= eps_ty + value("EPS_CU"):
+        return value("PHI_TENSION")
+    return low + (value("PHI_TENSION") - low) * (eps_t - eps_ty) / value("EPS_CU")
 
 
 def bar_area(dia: float) -> float:
@@ -111,7 +147,7 @@ class RcSection:
     bars: tuple[Bar, ...]
     fc: float
     fy: float
-    es: float = STEEL_E
+    es: float = field(default_factory=lambda: value("STEEL_E"))
     spiral: bool = False
     transverse_dia: float = 0.0
     notes: tuple[str, ...] = field(default=())
@@ -145,13 +181,13 @@ class RcSection:
     def phi_pn_max(self) -> float:
         """Largest design axial compression [N] (ACI Table 22.4.2.1)."""
         if self.spiral:
-            return 0.85 * PHI_SPIRAL * self.p0
-        return 0.80 * PHI_TIED * self.p0
+            return 0.85 * value("PHI_SPIRAL") * self.p0
+        return 0.80 * value("PHI_TIED") * self.p0
 
     @property
     def phi_tension(self) -> float:
         """Design axial tension [N]: the bars at yield."""
-        return PHI_TENSION * self.fy * self.steel_area
+        return value("PHI_TENSION") * self.fy * self.steel_area
 
     @property
     def symmetric(self) -> bool:
@@ -188,7 +224,7 @@ def section_of(
     reinforcement: LinearReinforcement,
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
     aggregate: float | None = None,
 ) -> RcSection:
     """The section of a member type, with its bars laid out from the reinforcement groups.
@@ -197,6 +233,8 @@ def section_of(
     the concrete's largest aggregate size [mm], which sets the least clear spacing of the bars
     of a row with the bar diameter and 25 mm (ACI 25.2.1).
     """
+    if es is None:
+        es = value("STEEL_E")
     if not isinstance(profile, (RectangleProfile, CircleProfile)):
         shape = getattr(profile, "shape", "?")
         raise DesignError(f"profile '{shape}' is not supported (rectangle and circle only)")
@@ -418,7 +456,7 @@ def _concrete_section(section: RcSection):
             compressive_strength=section.fc,
             alpha=0.85,
             gamma=beta1(section.fc),
-            ultimate_strain=EPS_CU,
+            ultimate_strain=value("EPS_CU"),
         ),
         flexural_tensile_strength=0.62 * math.sqrt(section.fc),
         colour="lightgrey",
@@ -465,12 +503,12 @@ def flexure(section: RcSection, hogging: bool) -> Flexure:
 
     tension = [b for b in section.bars if (b.y > 0 if hogging else b.y < 0)]
     if not tension:
-        return Flexure(0.0, 0.0, PHI_TENSION, float("inf"))
+        return Flexure(0.0, 0.0, value("PHI_TENSION"), float("inf"))
     try:
         result = section.analysis.ultimate_bending_capacity(theta=math.pi if hogging else 0.0, n=0)
     except AnalysisError:
-        return Flexure(0.0, 0.0, PHI_TENSION, float("inf"))
-    eps_t = EPS_CU * (1 / result.k_u - 1)
+        return Flexure(0.0, 0.0, value("PHI_TENSION"), float("inf"))
+    eps_t = value("EPS_CU") * (1 / result.k_u - 1)
     phi = phi_axial_flexure(eps_t, section.fy, section.es, section.spiral)
     mn = abs(result.m_x)
     return Flexure(phi * mn, mn, phi, eps_t)
@@ -493,7 +531,7 @@ class Shear:
     @property
     def av_min_threshold(self) -> float:
         """Vu [N] above which ACI 9.6.3.1 requires at least Av,min: 0.083 φ λ √f'c bw d."""
-        return PHI_SHEAR * self.vc_simplified * 0.083 / 0.17
+        return value("PHI_SHEAR") * self.vc_simplified * 0.083 / 0.17
 
 
 def shear(
@@ -525,7 +563,7 @@ def shear(
     ]
     rho_w = min(a for a in faces if a > 0) / (b * d)
     root = min(math.sqrt(section.fc), 8.3)
-    fyt = min(section.fy, FYT_SHEAR_MAX)
+    fyt = min(section.fy, value("FYT_SHEAR_MAX"))
     av = legs * bar_area(stirrup_dia) if stirrup_dia and spacing else 0.0
     av_min = max(0.062 * root, 0.35) * b * spacing / fyt if av else 0.0
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
@@ -541,7 +579,7 @@ def shear(
     limited = vs > vs_max
     vs = min(vs, vs_max)
     return Shear(
-        PHI_SHEAR * (vc + vs),
+        value("PHI_SHEAR") * (vc + vs),
         vc,
         vs,
         limited,
@@ -603,7 +641,9 @@ class InteractionSurface:
         # factored diagram inwards at εty and at εty + 0.003, and in between it may curve the
         # wrong way, so chords there need closely spaced points.
         points = 5 if coarse else _TRANSITION_POINTS
-        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, points))
+        transition = value("EPS_CU") / (
+            value("EPS_CU") + eps_ty + value("EPS_CU") * np.linspace(0, 1, points)
+        )
         depths = _DEPTHS[::2] if coarse else _DEPTHS
         ratios = np.unique(np.concatenate([depths, transition]))
         computed = angles if self.symmetric else angles[:-1]  # the full turn: 2π is 0
@@ -657,7 +697,7 @@ class InteractionSurface:
             ultimate_results=UltimateBendingResults(default_units=cp.default_units, theta=theta),
         )
         k_u = result.k_u if result.k_u else math.inf
-        eps_t = EPS_CU * (1 / k_u - 1) if math.isfinite(d_n) else -EPS_CU
+        eps_t = value("EPS_CU") * (1 / k_u - 1) if math.isfinite(d_n) else -value("EPS_CU")
         phi = phi_axial_flexure(eps_t, self.section.fy, self.section.es, self.section.spiral)
         mx, my = phi * result.m_x, phi * result.m_y
         if self.symmetric:

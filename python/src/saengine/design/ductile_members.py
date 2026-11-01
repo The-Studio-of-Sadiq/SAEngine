@@ -1,5 +1,5 @@
-"""Seismic detailing of the beams and columns of reinforced-concrete moment frames, to BNBC 2020
-Part 6 Chapter 8 Sec 8.3 "Earthquake-Resistant Design Provisions" (bnbc-2020-part1.pdf pages
+"""Seismic detailing of the beams and columns of reinforced-concrete moment frames, to the default pack's BNBC 2020
+Part 6 Chapter 8 Sec 8.3 "Earthquake-Resistant Design Provisions" (the code PDF) pages
 1088-1123, the gazette pages 3669-3704).
 
 Pure functions over what :func:`saengine.design.check.design` already has for a member: its
@@ -10,7 +10,7 @@ report's check format ``{name, demand, capacity, unit, utilisation, combination,
 flag}`` (as ``check._check``), notes, and the requirements the design mode works from.
 
 Which rules a member gets (the frame type, from the seismic design category and the
-structural system, BNBC 8.3.2): ``frame`` is "special" (SDC D: Sections 8.3.3 to 8.3.8),
+structural system, the default pack's BNBC 8.3.2): ``frame`` is "special" (SDC D: Sections 8.3.3 to 8.3.8),
 "intermediate" (SDC C: Sec 8.3.10) or "ordinary" (SDC B: Sec 8.3.9); 8.3.2(e) lets a lower
 SDC use a higher frame type. ``lateral`` False is a member not designated as part of the
 seismic-force-resisting system: Sec 8.3.12 in a special frame (SDC D), Sec 8.3.9 otherwise
@@ -54,7 +54,7 @@ Columns of special moment frames (8.3.5, p. 1095-1099)
 Intermediate moment frames (8.3.10, p. 1114-1117)
 - 8.3.10.4(a) beams: Mn+ >= Mn- / 3 at the face, Mn+ and Mn- >= max Mn / 5 anywhere; (b)
   stirrups over 2h, the first <= 50 mm from the face, spacing <= min(d/4, 8 db,min, 24 ds,
-  300 mm); (c) <= d/2 throughout. BNBC sets no dimensional limits or steel ratio limits for
+  300 mm); (c) <= d/2 throughout. The default pack's BNBC sets no dimensional limits or steel ratio limits for
   IMF beams (Figure 6.8.17's ρmax = ρ at εt = 0.004 is Chapter 6's, checked by the strength
   checks).
 - 8.3.10.5 columns: (a) so <= min(8 db,min, 24 dt, least dimension / 2, 300 mm) over lo >=
@@ -65,7 +65,7 @@ Intermediate moment frames (8.3.10, p. 1114-1117)
 Ordinary moment frames (8.3.9, p. 1113)
 - 8.3.9.2 members with Pu > 0.1 Ag f'c (unless they satisfy 8.3.5.4): so <= min(8 db,min,
   24 dt, least dimension / 2) over lo >= max(ln/6, largest dimension, 450 mm); first tie <=
-  so/2; <= 2 so anywhere. BNBC 8.3.9 sets no rule for the beams of an ordinary moment frame
+  so/2; <= 2 so anywhere. The default pack's BNBC 8.3.9 sets no rule for the beams of an ordinary moment frame
   that resist the earthquake: Chapter 6 governs them.
 - 8.3.9.1(b) members not part of the lateral system: 8.3.4.2(a). The induced moments under
   twice the lateral displacement that 8.3.9.1(a) asks for are not computed: noted.
@@ -99,6 +99,7 @@ from typing import Any, Literal
 
 from saengine.codes import context as code_context
 from saengine.design.bars import round_down, spacing_step
+from saengine.design.clauses import short_clause
 from saengine.design.rc import (
     ROW_CLEAR,
     Bar,
@@ -114,7 +115,7 @@ Frame = Literal["special", "intermediate", "ordinary"]
 FRAMES: tuple[str, ...] = ("special", "intermediate", "ordinary")
 
 # The plain-number limits of special moment frame members are the pack's
-# ``detailing.special`` group, read when the checks run (BNBC 2020): ``axialShare`` 0.10, the
+# ``detailing.special`` group, read when the checks run (default pack BNBC 2020): ``axialShare`` 0.10, the
 # share of Ag f'c above which a frame member is designed as a column (8.3.4.1(a), 8.3.5.1,
 # 8.3.9.2, 8.3.10.2, 8.3.12.2); ``beamRhoMax`` 0.025, the largest beam steel ratio (8.3.4.2(a));
 # ``columnRho`` (0.01, 0.06), the column steel ratio limits (8.3.5.3(a)); ``beamMinWidth``
@@ -128,12 +129,12 @@ FRAMES: tuple[str, ...] = ("special", "intermediate", "ordinary")
 
 
 def _special(name: str) -> float:
-    """The pack's ``detailing.special`` limit ``name`` (BNBC 2020: see above)."""
+    """The pack's ``detailing.special`` limit ``name`` (default pack BNBC 2020: see above)."""
     return float(code_context.table("detailing").special[name])
 
 
 def _column_rho() -> tuple[float, float]:
-    """The pack's column steel ratio limits (least, largest) (BNBC 2020 8.3.5.3(a): 0.01, 0.06)."""
+    """The pack's column steel ratio limits (least, largest) (default pack BNBC 2020 8.3.5.3(a): 0.01, 0.06)."""
     low, high = code_context.table("detailing").special.columnRho
     return (float(low), float(high))
 
@@ -474,7 +475,8 @@ def beam_checks(
     ag_fc = b * h * section.fc
     if frame == "ordinary" and lateral:
         out.notes.append(
-            "BNBC 8.3.9 sets no rule for the beams of an ordinary moment frame that resist the "
+            f"{short_clause('ductileMembers', 'ordinary')} sets no rule for the beams of an "
+            "ordinary moment frame that resist the "
             "earthquake: Chapter 6 governs them"
         )
         return out
@@ -737,7 +739,7 @@ class ColumnNeed:
 def _column_depth(section: RcSection) -> float:
     """The smallest effective depth of a column over its four faces [mm]: the section
     dimension less the distance from the opposite face to the centroid of the outer bar row
-    (0.8 D for a circle, as ACI 318-19 22.5.2.2 takes for shear: BNBC is silent)."""
+    (0.8 D for a circle, as ACI 318-19 22.5.2.2 takes for shear: the default pack's BNBC is silent)."""
     if isinstance(section.profile, CircleProfile):
         return 0.8 * 2 * section.profile.radius
     b, h = _rectangle(section)

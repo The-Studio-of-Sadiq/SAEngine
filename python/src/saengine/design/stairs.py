@@ -1,12 +1,12 @@
-"""Design of reinforced-concrete waist-slab stairs (BNBC 2020 Part 6 Sec 6.7, with the stair
+"""Design of reinforced-concrete waist-slab stairs (default pack BNBC 2020 Part 6 Sec 6.7, with the stair
 geometry rules of Part 3 Sec 1.14.5 and Part 4 Sec 3.10).
 
 Stairs are not in the analysis model (``saengine.fem.derive`` reports them as not modelled), so
 they are designed by hand methods, as a structural office does: each flight is a one-way slab
-spanning horizontally (BNBC Sec 6.7.1.1: "the effective span of stairs without stringer beams
+spanning horizontally (default pack BNBC Sec 6.7.1.1: "the effective span of stairs without stringer beams
 shall be taken as the following horizontal distances"), loaded per plan area.
 
-Pages cited are those of the BNBC 2020 PDF (Bangladesh Gazette, 11 February 2021).
+Pages cited are those of the default pack's BNBC 2020 PDF (Bangladesh Gazette, 11 February 2021).
 
 Geometry (:func:`stair_geometry`). A ``Stair`` of 06 BIM rises from its base story to its top
 story; its type (04 Objects, ``Staircase``) gives the riser, tread, waist and flight width.
@@ -27,15 +27,15 @@ Effective span (Sec 6.7.1.1, pp. 972-973; ``spanning`` of the type):
 - "withLandings" (c): the landings span in the direction of the flight: centre to centre of
   the supporting beams or walls, landing + going + landing + supportWidth;
 - "landingsThreeSides" (d): landings at right angles supported on three sides: the going;
-  positive and negative moments wl²/8 (BNBC's own rule); the landings span across.
+  positive and negative moments wl²/8 (the default pack's (BNBC) own rule); the landings span across.
 
 A type without ``spanning`` is (a): the BIM stair is a flight from floor to floor with no
 landings drawn, so the floor beams at its ends are its supports.
 
 Loads (:func:`loads_from_settings`): the stairs area load of the project settings (use
-"stairs"), else BNBC Table 6.2.3 (p. 536) "Stairs and exit ways" 4.80 kN/m² (2.00 for one-
+"stairs"), else the default pack's BNBC Table 6.2.3 (p. 536) "Stairs and exit ways" 4.80 kN/m² (2.00 for one-
 and two-family residences only); its floor finish on plan. Self weight: the concrete
-material's density x g (as the analysis takes it; BNBC Table 6.2.1, p. 530: 22.8 kN/m³ stone
+material's density x g (as the analysis takes it; the default pack's BNBC Table 6.2.1, p. 530: 22.8 kN/m³ stone
 aggregate plain concrete, plus 0.63 kN/m³ per 1% of steel). Strength combinations: the gravity
 combinations of the settings (no wind, earthquake or temperature), else 1.4D and 1.2D + 1.6L
 (Sec 2.7.3.1, p. 685); Sec 6.7.1.2 (p. 973) refers stairs to them.
@@ -43,7 +43,7 @@ combinations of the settings (no wind, earthquake or temperature), else 1.4D and
 Strength (per metre width, Sec 6.7.1.5.1, p. 974: the rules for beams and one-way slabs):
 the moment of a simply supported beam with the flight and landing loads as patches (both ends
 simple: no end restraint is counted; at an end entered as continuous a support moment of
-w L² / 10 with w the mean load is designed for, an SAEngine adoption, not a BNBC clause; for
+w L² / 10 with w the mean load is designed for, an SAEngine adoption, not a default-pack (BNBC) clause; for
 (d) wl²/8 at both ends). Flexure by the rectangular stress block (saengine.design.slab /
 bars, the slab strip code of the design mode). As,min = the shrinkage and temperature ratio of
 Sec 8.1.11.2(a) (p. 1075: 0.0020 for fy 275 or 350, 0.0018 for 420, 0.0018 x 420 / fy above,
@@ -90,21 +90,61 @@ from typing import Any
 from saengine.codes import context as code_context
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
-from saengine.design.rc import PHI_SHEAR, bar_area
+from saengine.design.clauses import clause, limits, short_clause
+from saengine.design.rc import bar_area
+from saengine.design.rc import value as rc_value
 
 G = 9.80665  # m/s², as saengine.fem.derive
 DENSITY = 2400.0  # kg/m³ when the material gives none
 SUPPORT_WIDTH = 250.0  # mm, width of the supporting beams or walls when not entered
 SPANNINGS = ("betweenBeams", "landingEdges", "withLandings", "landingsThreeSides")
 
-#: Live load on stairs, BNBC 2020 Part 6 Table 6.2.3 (p. 536) [kN/m²].
-LIVE_STAIRS = 4.80
-LIVE_STAIRS_DWELLING = 2.00
+#: The live loads on stairs are the pack's ``areaLoads`` rows ``stairs`` and ``stairsDwelling``;
+#: the stair geometry rules its ``designLimits.stairs``: read when used (also as the module
+#: attributes LIVE_STAIRS, LIVE_STAIRS_DWELLING, TWO_R_PLUS_T, TABLE_4_3_5, FLIGHT_RISE_MAX,
+#: FLIGHT_RISE_MAX_ASSEMBLY, HEADROOM, HEADROOM_REDUCED, RISER_VARIATION, STRAIGHT_LANDING_CAP).
+_GEOMETRY = {
+    "TWO_R_PLUS_T": "twoRiserTread",
+    "TABLE_4_3_5": "riserTread",
+    "FLIGHT_RISE_MAX": "flightRiseMax",
+    "FLIGHT_RISE_MAX_ASSEMBLY": "flightRiseMaxAssembly",
+    "HEADROOM": "headroom",
+    "HEADROOM_REDUCED": "headroomReduced",
+    "RISER_VARIATION": "riserVariation",
+    "STRAIGHT_LANDING_CAP": "straightLandingCap",
+}
+
+
+def _stair_live(dwelling: bool = False) -> float:
+    """The live load on stairs [kN/m²] of the pack's ``areaLoads`` (one- and two-family
+    residences with ``dwelling``)."""
+    return float(
+        code_context.table("areaLoads").uses["stairsDwelling" if dwelling else "stairs"].live
+    )
+
+
+def _geometry() -> Any:
+    return limits().stairs
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":
+        return _method()
+    if name == "LIVE_STAIRS":
+        return _stair_live()
+    if name == "LIVE_STAIRS_DWELLING":
+        return _stair_live(True)
+    if name in _GEOMETRY:
+        value = getattr(_geometry(), _GEOMETRY[name])
+        if isinstance(value, list):
+            return tuple(tuple(row) for row in value)
+        return tuple(value) if isinstance(value, tuple) else float(value)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def gravity_combinations() -> tuple[tuple[str, float, float], ...]:
     """The strength combinations with gravity loads only, as (name, D factor, L factor): the
-    pack's ``combinations.gravity`` (BNBC 2020 Part 6 Sec 2.7.3.1, p. 685: 1.4D and
+    pack's ``combinations.gravity`` (default pack BNBC 2020 Part 6 Sec 2.7.3.1, p. 685: 1.4D and
     1.2D + 1.6L)."""
     return tuple(
         (c.name, c.factors["D"], c.factors.get("L", 0.0))
@@ -114,70 +154,39 @@ def gravity_combinations() -> tuple[tuple[str, float, float], ...]:
 
 def _cover() -> float:
     """Cover [mm] assumed when no reinforcement is entered (as the design mode's slabs): the
-    pack's ``concrete.cover.stair`` (BNBC 2020: 20 mm)."""
+    pack's ``concrete.cover.stair`` (default pack BNBC 2020: 20 mm)."""
     return float(code_context.table("concrete").cover["stair"])
 
 
-#: Sum of two risers and one tread, BNBC Part 3 Sec 1.14.5.2 (p. 69) [mm].
-TWO_R_PLUS_T = (610.0, 648.0)
-#: BNBC Part 4 Table 4.3.5 (p. 310): (riser, tread) combinations [mm].
-TABLE_4_3_5 = (
-    (127, 406),
-    (133, 394),
-    (140, 375),
-    (146, 356),
-    (152, 343),
-    (159, 330),
-    (165, 311),
-    (171, 324),  # as printed (out of sequence)
-    (178, 279),
-    (184, 267),
-    (190, 254),
-    (197, 241),
-    (203, 229),
-    (210, 216),
-    (216, 210),
-    (222, 206),
-    (229, 203),
-)
-#: Largest rise of a flight between landings, Part 3 Sec 1.14.5.3 (p. 69) [mm].
-FLIGHT_RISE_MAX = 3660.0
-FLIGHT_RISE_MAX_ASSEMBLY = 2440.0
-#: Clear headroom between flights, Part 3 Sec 1.14.5.4 (p. 69) [mm].
-HEADROOM = 2150.0
-HEADROOM_REDUCED = 2030.0  # for not more than three flights in any staircase
-#: Variation between adjacent risers or treads, Part 4 Sec 3.10.6 (p. 313) [mm].
-RISER_VARIATION = 5.0
-#: Landing in a straight run need not be wider in the travel direction, Part 4 Sec 3.10.2.
-STRAIGHT_LANDING_CAP = 1200.0
-
-METHOD = [
-    (
-        "Stairs (not in the analysis model): each flight a one-way slab spanning horizontally, "
-        "per metre width, with the effective spans of BNBC 2020 Part 6 Sec 6.7.1.1 (a)-(d) "
-        "(between beams: centre to centre; at landing edges: going + min(landing/2, 1.0 m) "
-        "each end; landings spanning with the flight: centre to centre of their supports; "
-        "landings on three sides: the going, ±wl²/8). Loads on plan: self weight with the "
-        "mean thickness t/cosθ + R/2 (t the waist perpendicular to the soffit, Sec 6.7.1.4), "
-        "the stairs area load's finish and live load (Table 6.2.3: 4.80 kN/m²), the gravity "
-        "strength combinations (Sec 2.7.3.1). Moments of a simply supported span with the "
-        "flight and landing loads as patches; at an end entered as continuous wL²/10 "
-        "(SAEngine adoption)."
-    ),
-    (
-        "Stair sections: flexure by the rectangular stress block, d = t - cover - db/2, εt ≥ "
-        "0.004; As,min and distribution steel by Sec 8.1.11.2 (0.0018 for fy 420; x1.5 brick "
-        "aggregate), main bars at most min(3h, 450 mm) apart (Sec 6.3.5.4, 8.1.6.5), "
-        "distribution bars min(5h, 450 mm) (8.1.11.2(c)); one-way shear φ 0.17 √f'c b d "
-        "(Sec 6.4.2.1.1) against the support reaction; minimum thickness of Table 6.6.1 "
-        "with the ratio increased by 15% where the flight is at least 60% of the span "
-        "(Sec 6.7.1.5.2), reported. Landings spanning across the flights carry the flights' "
-        "reactions spread over their depth. Geometry: 2R + T within 610-648 mm (Part 3 Sec "
-        "1.14.5.2), risers within Table 4.3.5 of Part 4, flight rise ≤ 3660 mm (2440 mm "
-        "assembly, Sec 1.14.5.3), headroom ≥ 2.15 m (Sec 1.14.5.4), stair width by Part 4 "
-        "Table 4.3.6, landing depth ≥ the stair width (Part 4 Sec 3.10.2)."
-    ),
-]
+def _method() -> list[str]:
+    """``METHOD``: the method text, with the clauses of the pack in force."""
+    return [
+        (
+            "Stairs (not in the analysis model): each flight a one-way slab spanning horizontally, "
+            f"per metre width, with the effective spans of {clause('stairs', 'spans')} (a)-(d) "
+            "(between beams: centre to centre; at landing edges: going + min(landing/2, 1.0 m) "
+            "each end; landings spanning with the flight: centre to centre of their supports; "
+            "landings on three sides: the going, ±wl²/8). Loads on plan: self weight with the "
+            "mean thickness t/cosθ + R/2 (t the waist perpendicular to the soffit, Sec 6.7.1.4), "
+            "the stairs area load's finish and live load (Table 6.2.3: 4.80 kN/m²), the gravity "
+            "strength combinations (Sec 2.7.3.1). Moments of a simply supported span with the "
+            "flight and landing loads as patches; at an end entered as continuous wL²/10 "
+            "(SAEngine adoption)."
+        ),
+        (
+            "Stair sections: flexure by the rectangular stress block, d = t - cover - db/2, εt ≥ "
+            "0.004; As,min and distribution steel by Sec 8.1.11.2 (0.0018 for fy 420; x1.5 brick "
+            "aggregate), main bars at most min(3h, 450 mm) apart (Sec 6.3.5.4, 8.1.6.5), "
+            "distribution bars min(5h, 450 mm) (8.1.11.2(c)); one-way shear φ 0.17 √f'c b d "
+            "(Sec 6.4.2.1.1) against the support reaction; minimum thickness of Table 6.6.1 "
+            "with the ratio increased by 15% where the flight is at least 60% of the span "
+            "(Sec 6.7.1.5.2), reported. Landings spanning across the flights carry the flights' "
+            "reactions spread over their depth. Geometry: 2R + T within 610-648 mm (Part 3 Sec "
+            "1.14.5.2), risers within Table 4.3.5 of Part 4, flight rise ≤ 3660 mm (2440 mm "
+            "assembly, Sec 1.14.5.3), headroom ≥ 2.15 m (Sec 1.14.5.4), stair width by Part 4 "
+            "Table 4.3.6, landing depth ≥ the stair width (Part 4 Sec 3.10.2)."
+        ),
+    ]
 
 
 # ─────────────────────────────────────── inputs ───────────────────────────────────────
@@ -367,7 +376,7 @@ class StairLoads:
 
 def loads_from_settings(settings: Any | None) -> StairLoads:
     """The stairs area load (use "stairs") and gravity combinations of the project settings,
-    with BNBC's values where the settings have none (see the module notes)."""
+    with the default pack's (BNBC) values where the settings have none (see the module notes)."""
     area = None
     combos: list[tuple[str, float, float]] = []
     use = None
@@ -386,16 +395,20 @@ def loads_from_settings(settings: Any | None) -> StairLoads:
     if area is not None:
         live, finish = float(area.live), float(area.finish) + float(area.partitions)
         source = f"area load {area.id} ({area.name})"
-        if live < LIVE_STAIRS:
-            source += f"; below BNBC Table 6.2.3's {LIVE_STAIRS} kN/m² for stairs"
-            if use == "residential" and live >= LIVE_STAIRS_DWELLING:
+        stairs_live, dwelling_live = _stair_live(), _stair_live(True)
+        if live < stairs_live:
+            source += (
+                f"; below {short_clause('stairs', 'liveTable')}'s {stairs_live} kN/m² for stairs"
+            )
+            if use == "residential" and live >= dwelling_live:
                 source += (
-                    f" (its {LIVE_STAIRS_DWELLING} kN/m² row is for one- and two-family "
-                    "residences only)"
+                    f" (its {dwelling_live} kN/m² row is for one- and two-family residences only)"
                 )
     else:
-        live, finish = LIVE_STAIRS, 0.0
-        source = f"BNBC Table 6.2.3 (p. 536): stairs and exit ways {LIVE_STAIRS} kN/m²"
+        live, finish = _stair_live(), 0.0
+        source = (
+            f"{short_clause('stairs', 'liveTable')} (p. 536): stairs and exit ways {live} kN/m²"
+        )
     if not combos:
         combos = list(gravity_combinations())
     return StairLoads(finish, live, tuple(combos), source)
@@ -786,9 +799,11 @@ def _range_check(name: str, value: float, lo: float, hi: float, unit: str, note:
 
 
 def table_tread(riser: float) -> float:
-    """The tread of BNBC Part 4 Table 4.3.5 for ``riser``, interpolated between its rows in
+    """The tread of the default pack's BNBC Part 4 Table 4.3.5 for ``riser``, interpolated between its rows in
     riser order (the printed 171/324 row is left out of the interpolation: out of sequence)."""
-    rows = [(r, t) for r, t in TABLE_4_3_5 if (r, t) != (171, 324)]
+    geometry = _geometry()
+    skip = {tuple(row) for row in geometry.riserTreadSkip}
+    rows = [(r, t) for r, t in (tuple(row) for row in geometry.riserTread) if (r, t) not in skip]
     if riser <= rows[0][0]:
         return float(rows[0][1])
     for (r0, t0), (r1, t1) in pairwise(rows):
@@ -798,19 +813,28 @@ def table_tread(riser: float) -> float:
 
 
 def minimum_width(use: str | None, occupants: int | None = None) -> tuple[float | None, str]:
-    """The least stair width of BNBC Part 4 Table 4.3.6 (p. 311) for the building use of the
+    """The least stair width of the default pack's BNBC Part 4 Table 4.3.6 (p. 311) for the building use of the
     settings, or None where the table gives none ("as per provisions of this Code")."""
+    g = _geometry()
     if use == "residential":
-        return 1120.0, (
-            "residential A3-A5: 1120 mm (Table 4.3.6; for A1, A2 the table refers to itself: "
-            "1120 mm taken)"
+        w = float(g.widthResidential)
+        return w, (
+            f"residential A3-A5: {w:.0f} mm (Table 4.3.6; for A1, A2 the table refers to itself: "
+            f"{w:.0f} mm taken)"
         )
     if use == "educational":
-        if occupants is not None and occupants > 130:
-            return 2235.0, "educational, more than 130 occupants: 2235 mm (Table 4.3.6)"
-        return 1120.0, "educational, up to 130 occupants: 1120 mm (Table 4.3.6)"
+        n = g.educationalOccupants
+        if occupants is not None and occupants > n:
+            w = float(g.widthEducationalLarge)
+            return w, f"educational, more than {n} occupants: {w:.0f} mm (Table 4.3.6)"
+        w = float(g.widthEducational)
+        return w, f"educational, up to {n} occupants: {w:.0f} mm (Table 4.3.6)"
     if use == "healthcare":
-        return 2235.0, "hospital patient area: 2235 mm (Table 4.3.6; staff area 1120 mm)"
+        w = float(g.widthHealthcare)
+        return w, (
+            f"hospital patient area: {w:.0f} mm (Table 4.3.6; staff area "
+            f"{float(g.widthHealthcareStaff):.0f} mm)"
+        )
     return None, f"Table 4.3.6 gives no width for '{use}' (as per provisions of the Code)"
 
 
@@ -820,21 +844,23 @@ def geometry_checks(
     use: str | None = None,
     occupants: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """The BNBC stair geometry checks (design report format) and notes on what is not checked."""
+    """The default pack's BNBC stair geometry checks (design report format) and notes on what is not checked."""
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
     notes: list[str] = []
     r, t = geometry.riser, spec.tread
-    lo, hi = TWO_R_PLUS_T
+    rules = _geometry()
+    lo, hi = rules.twoRiserTread
     checks.append(
         _range_check(
-            "2R + T (BNBC Part 3 Sec 1.14.5.2, p. 69)",
+            f"2R + T ({short_clause('stairs', 'twoRiserTread')})",
             2 * r + t,
             lo,
             hi,
             "mm",
-            f"R = {r:.1f} mm (rise / {geometry.risers}), T = {t:.0f} mm; 610 ≤ 2R + T ≤ 648 mm",
+            f"R = {r:.1f} mm (rise / {geometry.risers}), T = {t:.0f} mm; {lo:.0f} ≤ 2R + T ≤ "
+            f"{hi:.0f} mm",
         )
     )
     diff = abs(r - spec.riser)
@@ -842,7 +868,7 @@ def geometry_checks(
         _check(
             "Riser as built against the type's riser",
             diff,
-            RISER_VARIATION,
+            float(rules.riserVariation),
             "mm",
             None,
             f"rise {geometry.rise:.0f} mm / {geometry.risers} risers = {r:.1f} mm against the "
@@ -884,7 +910,7 @@ def geometry_checks(
             flag=True,
         )
     )
-    limit = FLIGHT_RISE_MAX_ASSEMBLY if use == "assembly" else FLIGHT_RISE_MAX
+    limit = float(rules.flightRiseMaxAssembly if use == "assembly" else rules.flightRiseMax)
     highest = max(geometry.flights, key=lambda f: f.rise)
     checks.append(
         _check(
@@ -916,8 +942,10 @@ def geometry_checks(
         need = spec.width
         rule = "least dimension at least the stair width"
         if spec.arrangement != "dogLegged":
-            need = min(need, STRAIGHT_LANDING_CAP)
-            rule += ", in a straight run not more than 1.2 m needed"
+            need = min(need, float(rules.straightLandingCap))
+            rule += (
+                f", in a straight run not more than {rules.straightLandingCap / 1000:g} m needed"
+            )
         checks.append(
             _check(
                 "Landing depth (Part 4 Sec 3.10.2, p. 309)",
@@ -929,15 +957,17 @@ def geometry_checks(
             )
         )
     if spec.headroom is not None:
-        reduced = HEADROOM_REDUCED <= spec.headroom < HEADROOM
+        headroom, headroom_reduced = float(rules.headroom), float(rules.headroomReduced)
+        reduced = headroom_reduced <= spec.headroom < headroom
         checks.append(
             _check(
                 "Headroom (Part 3 Sec 1.14.5.4, p. 69)",
-                HEADROOM_REDUCED if reduced else HEADROOM,
+                headroom_reduced if reduced else headroom,
                 spec.headroom,
                 "mm",
                 None,
-                "at least 2.15 m; 2.03 m allowed for not more than three flights"
+                f"at least {headroom / 1000:g} m; {headroom_reduced / 1000:g} m allowed for not "
+                "more than three flights"
                 + (" (taken: check the number of flights)" if reduced else ""),
                 flag=reduced,
             )
@@ -957,7 +987,7 @@ def geometry_checks(
 
 
 def min_ratio(fy: float, brick_aggregate: bool = False) -> float:
-    """Shrinkage and temperature (and As,min) ratio of BNBC Sec 8.1.11.2(a), (b)."""
+    """Shrinkage and temperature (and As,min) ratio of the default pack's BNBC Sec 8.1.11.2(a), (b)."""
     # B21: the aggregate factor is the code pack's (the project's aggregate unless set here).
     return slab_design.min_steel_ratio(fy, "brick" if brick_aggregate else None)
 
@@ -972,7 +1002,7 @@ def thickness_rule(demand: Demand, fy: float) -> tuple[float, str]:
 
 def phi_vc(d: float, fc: float) -> float:
     """φVc per metre [kN/m]: 0.75 x 0.17 √f'c b d (Sec 6.4.2.1.1, Eq. 6.6.49), λ = 1."""
-    return PHI_SHEAR * 0.17 * math.sqrt(fc) * 1000 * d / 1000
+    return rc_value("PHI_SHEAR") * 0.17 * math.sqrt(fc) * 1000 * d / 1000
 
 
 def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> list[dict[str, Any]]:
@@ -1034,7 +1064,8 @@ def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> lis
             phi_vc(d, fc),
             "kN/m",
             None,
-            "φVc = 0.75 x 0.17 √f'c b d (BNBC Sec 6.4.2.1.1, p. 922) at the support reaction",
+            f"φVc = {rc_value('PHI_SHEAR'):g} x 0.17 √f'c b d ({short_clause('stairs', 'shear')}) at "
+            "the support reaction",
         )
     )
     ratio = min_ratio(fy, material.brick_aggregate)

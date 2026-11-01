@@ -7,7 +7,7 @@ one design element of ``kind`` "wall": its piers (one per storey band, more wher
 windows split it, bottom up) each checked by :func:`saengine.design.walls.wall_checks` from its
 bottom, middle and top cuts; under a window or opening that leaves the wall continuous at a
 level, the whole wall at the band's bottom level as one more "pier" (the continuous section,
-the critical section of BNBC 2020 Part 6 Sec 8.3.6.6(b) at a wall's base); and for special
+the critical section of the default pack's BNBC 2020 Part 6 Sec 8.3.6.6(b) at a wall's base); and for special
 structural walls (the seismic scope puts Sec 8.3.6 in force, :func:`walls.special_applies`)
 the boundary elements and the coupling beams (the spandrels over openings between two piers,
 :func:`walls.coupling_beam_checks`). Spandrels over an opening between two piers that no
@@ -37,39 +37,45 @@ from typing import Any
 import numpy as np
 
 from saengine.design import walls as W
+from saengine.design.clauses import clause
 from saengine.design.ductile_members import _row
 from saengine.design.rc import DesignError
+from saengine.design.rc import value as rc_value
 
 #: Static earthquake cases (as saengine.fem.combinations.EARTHQUAKE_CASES).
 EARTHQUAKE_CASES = ("EX", "EY")
 OMEGA = "Ω0: "
 
-METHOD = [
-    (
-        "Walls (BNBC 2020 Part 6 Sec 6.6, 6.4.8; special structural walls Sec 8.3.6): the forces "
-        "of each pier (the wall between openings in a storey) from section cuts of the shell "
-        "model (the shells' nodal forces summed over the cut, as ETABS forms pier forces), at "
-        "its bottom, middle and top; axial force with in-plane and out-of-plane bending on the "
-        "pier's section with its distributed and end bars (strain compatibility, 6.6.4); "
-        "in-plane shear by 6.4.8 (ordinary) or Eq. 6.8.9 (special); the minimum ratios, "
-        "spacings and layers of 6.6.3, 6.4.8.9 and 8.3.6.2; the boundary elements of 8.3.6.6 "
-        "(displacement-based with δu = Cd δe / I where the wall rises from the base, else the "
-        "0.2 f'c stress trigger); coupling beams by 8.3.6.7. Under a window the whole wall at "
-        "its bottom level is checked too (the continuous section)."
-    ),
-    (
-        "Flanged walls (Sec 8.3.6.5): walls meeting at an L, T or C in a storey are checked as "
-        "one section per direction, the walls along it webs and the others flanges of "
-        "effective width min(half the distance to the adjacent web, 25 % of the wall height) "
-        "beyond the web face (8.3.6.5(b), also for ordinary walls), with the sum of their "
-        "piers' forces: axial force and biaxial bending by strain compatibility on the "
-        "composite section, the webs' shear together (8.3.6.4(d)), boundary elements at the "
-        "web ends and flanges (8.3.6.6(c), (d)(ii)); the rectangular piers' P-M and boundary "
-        "rows are then informative. Spandrels over an opening between two piers without "
-        "diagonal bars are designed as beams (8.3.6.7(a), (c); the capacity-design shear of "
-        "8.3.8.1(a) for special walls)."
-    ),
-]
+
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            f"Walls ({clause('wallDesign', 'walls')}; special structural walls Sec 8.3.6): the forces "
+            "of each pier (the wall between openings in a storey) from section cuts of the shell "
+            "model (the shells' nodal forces summed over the cut, as ETABS forms pier forces), at "
+            "its bottom, middle and top; axial force with in-plane and out-of-plane bending on the "
+            "pier's section with its distributed and end bars (strain compatibility, 6.6.4); "
+            "in-plane shear by 6.4.8 (ordinary) or Eq. 6.8.9 (special); the minimum ratios, "
+            "spacings and layers of 6.6.3, 6.4.8.9 and 8.3.6.2; the boundary elements of 8.3.6.6 "
+            "(displacement-based with δu = Cd δe / I where the wall rises from the base, else the "
+            "0.2 f'c stress trigger); coupling beams by 8.3.6.7. Under a window the whole wall at "
+            "its bottom level is checked too (the continuous section)."
+        ),
+        (
+            "Flanged walls (Sec 8.3.6.5): walls meeting at an L, T or C in a storey are checked as "
+            "one section per direction, the walls along it webs and the others flanges of "
+            "effective width min(half the distance to the adjacent web, 25 % of the wall height) "
+            "beyond the web face (8.3.6.5(b), also for ordinary walls), with the sum of their "
+            "piers' forces: axial force and biaxial bending by strain compatibility on the "
+            "composite section, the webs' shear together (8.3.6.4(d)), boundary elements at the "
+            "web ends and flanges (8.3.6.6(c), (d)(ii)); the rectangular piers' P-M and boundary "
+            "rows are then informative. Spandrels over an opening between two piers without "
+            "diagonal bars are designed as beams (8.3.6.7(a), (c); the capacity-design shear of "
+            "8.3.8.1(a) for special walls)."
+        ),
+    ]
 
 
 def _base_name(name: str) -> str:
@@ -198,13 +204,13 @@ def boundary_entry(need: W.BoundaryNeed | None, fc: float) -> dict[str, Any] | N
             f"c = {need.c:.0f} mm {'≥' if need.required else '<'} lw / (600 δu/hw) = "
             f"{trigger:.0f} mm"
         )
-        clause = "BNBC 2020 Part 6 Sec 8.3.6.6(b), Eq. 6.8.10"
+        clause_ = clause("wallDesign", "boundaryDisplacement")
     else:
         reason = (
             f"σ = {need.stress:.1f} MPa {'>' if need.required else '≤'} 0.2 f'c = "
             f"{W.special_limit('stressRequired') * fc:.1f} MPa"
         )
-        clause = "BNBC 2020 Part 6 Sec 8.3.6.6(c)"
+        clause_ = clause("wallDesign", "boundaryStress")
     if need.required and need.height:
         reason += f"; over {need.height:.0f} mm above the critical section"
     if not need.required and need.ties:
@@ -214,7 +220,7 @@ def boundary_entry(need: W.BoundaryNeed | None, fc: float) -> dict[str, Any] | N
         "length": round(float(need.length), 0) if need.required else None,
         "reason": reason,
         "method": need.method,
-        "clause": clause,
+        "clause": clause_,
         "c": round(float(need.c), 1),
         "trigger": None if need.trigger is None else round(float(need.trigger), 1),
         "stress": round(float(need.stress), 2),
@@ -1381,8 +1387,8 @@ def design_flanged(
             element["ok"] = all(c["ok"] for c in own)
     if any(e.get("flanged") for e in elements):
         notes.append(
-            "walls: walls meeting at an L, T or C are checked as flanged sections (BNBC 2020 "
-            "Part 6 Sec 8.3.6.5); their piers' rectangular P-M and boundary rows are informative"
+            "walls: walls meeting at an L, T or C are checked as flanged sections "
+            f"({clause('wallFlangesText', 'section')}); their piers' rectangular P-M and boundary rows are informative"
         )
     return notes
 
@@ -1417,7 +1423,7 @@ def shear_ratio(collected: dict[str, Any]) -> float:
         return W._rho_t_shear(g, forces, fc, fy, 1.0)
     vu = max((abs(f.V2) for f in forces), default=0.0)
     need = vu / W.wall_phi("shearSeismic") / g.gross_area - W.alpha_c(g.aspect) * math.sqrt(fc)
-    return max(need, 0.0) / min(fy, W.FYT_SHEAR_MAX)
+    return max(need, 0.0) / min(fy, rc_value("FYT_SHEAR_MAX"))
 
 
 def search_need(collected: dict[str, Any], layers: int | None = None) -> W.WallNeed:
@@ -1784,3 +1790,10 @@ def proposal_entries(
             }
         )
     return entries
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
