@@ -653,6 +653,11 @@ def _envelope(cut: _Cut, seismic: Any) -> dict[str, np.ndarray]:
         out[part] = float(seismic.scale[part[1]]) * combine(peaks, omegas, damping, rule)
     for part, r in seismic.torsion.items():
         out[part] = np.abs(cut.resultant(of(r)))
+    # B19: the time-history parts of the cut, from the spectrum's (saengine.fem.
+    # linear_time_history.TimeHistoryForces.derived_parts).
+    derived = getattr(seismic, "derived_parts", None)
+    if derived is not None:
+        out.update(derived(out))
     return out
 
 

@@ -1933,6 +1933,26 @@ def _seismic_design(
         ),
         "amplification": fmt(summary.get("amplification"), 2),
         "notes": [str(n) for n in summary.get("notes", [])],
+        # B19: the linear time-history design (saengine.fem.linear_time_history).
+        "timeHistory": _time_history_report(summary.get("timeHistory")),
+    }
+
+
+def _time_history_report(history: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The time-history suites and drifts of a seismic design summary as report rows."""
+    if not history or not history.get("available"):
+        return None
+    from saengine.fem import linear_time_history as lth
+
+    clauses = history.get("clauses") or {}
+    return {
+        "use": bool(history.get("use")),
+        "suites": lth.suite_rows(history),
+        "drift": lth.drift_rows(history),
+        "driftFails": [not d["ok"] for d in history.get("drift", [])],
+        "recordsClause": str(clauses.get("records", "")),
+        "responseClause": str(clauses.get("response", "")),
+        "pairsClause": str(clauses.get("pairs", "")),
     }
 
 

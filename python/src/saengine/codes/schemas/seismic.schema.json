@@ -957,6 +957,129 @@
       },
       "title": "SystemCombination",
       "type": "object"
+    },
+    "TimeHistoryRules": {
+      "additionalProperties": false,
+      "description": "Ground motion suites of the response history procedures (B19; B36 for the nonlinear\ntarget). ``method``: how a suite is scaled (``periodRange``: the mean spectrum of the\nrecords, or of the pairs' SRSS spectra, is not below ``singleRatio`` / ``pairRatio`` times\nthe target spectrum at every period from ``periodLower``·T to ``periodUpper``·T, the\nspectra ``spectrumDamping`` damped); ``minimumRecords`` per suite; ``meanFrom``: from this\nmany records (or pairs) the design value is the mean of their peaks, fewer the largest;\n``baseShearShare``: the responses are scaled by share·V/Vth where the suite's base shear\nVth is below share·V (the equivalent static V); ``scaleDrifts``: that factor also on the\ndisplacements and drifts; ``simultaneousPairs``: a pair's components act together (no\northogonal 100 % + 30 % rule); ``targets``: by procedure (``linear``, ``nonlinear``).",
+      "properties": {
+        "method": {
+          "const": "periodRange",
+          "default": "periodRange",
+          "title": "Method",
+          "type": "string"
+        },
+        "minimumRecords": {
+          "minimum": 1,
+          "title": "Minimumrecords",
+          "type": "integer"
+        },
+        "periodLower": {
+          "exclusiveMinimum": 0,
+          "title": "Periodlower",
+          "type": "number"
+        },
+        "periodUpper": {
+          "exclusiveMinimum": 0,
+          "title": "Periodupper",
+          "type": "number"
+        },
+        "spectrumDamping": {
+          "default": 0.05,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Spectrumdamping",
+          "type": "number"
+        },
+        "singleRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Singleratio",
+          "type": "number"
+        },
+        "pairRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Pairratio",
+          "type": "number"
+        },
+        "meanFrom": {
+          "minimum": 1,
+          "title": "Meanfrom",
+          "type": "integer"
+        },
+        "baseShearShare": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Baseshearshare",
+          "type": "number"
+        },
+        "scaleDrifts": {
+          "default": true,
+          "title": "Scaledrifts",
+          "type": "boolean"
+        },
+        "simultaneousPairs": {
+          "default": true,
+          "title": "Simultaneouspairs",
+          "type": "boolean"
+        },
+        "targets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimeHistoryTarget"
+          },
+          "title": "Targets",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "minimumRecords",
+        "periodLower",
+        "periodUpper",
+        "singleRatio",
+        "pairRatio",
+        "meanFrom"
+      ],
+      "title": "TimeHistoryRules",
+      "type": "object"
+    },
+    "TimeHistoryTarget": {
+      "additionalProperties": false,
+      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own).",
+      "properties": {
+        "R": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R"
+        },
+        "I": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "I"
+        }
+      },
+      "title": "TimeHistoryTarget",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1099,6 +1222,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/DiaphragmConnections"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "timeHistory": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeHistoryRules"
         },
         {
           "type": "null"

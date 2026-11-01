@@ -278,7 +278,17 @@ def _spectrum_scale(out_dir: str | Path, project_path: str | Path) -> dict[str, 
             for d in summary.get("drift", [])
         ],
         "clause": summary["scale"].get("clause", rs.CLAUSES["scale"]),
+        # B19: the linear time-history design of the run (saengine.fem.linear_time_history).
+        "timeHistory": _time_history_view(summary.get("timeHistory")),
     }
+
+
+def _time_history_view(history: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The time-history design for the results view: its suites (with the spectrum check's
+    curves), drift rows, notes and clauses."""
+    if not history or not history.get("available"):
+        return None
+    return {k: history.get(k) for k in ("use", "suites", "parts", "drift", "notes", "clauses")}
 
 
 def _storeys(

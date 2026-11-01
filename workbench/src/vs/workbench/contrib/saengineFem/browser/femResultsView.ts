@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnInteraction, IFemMemberForces, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -650,7 +650,83 @@ export class FemResultsEditor extends EditorPane {
 				yLabel: withUnit(localize('femResults.displacement', "Displacement"), this.units.length),
 				series: (['X', 'Y'] as const).map((axis, a) => ({ name: axis, color: AXIS_COLORS[axis], points: history.time.map((t, k) => [t, history.displacement[k][a] * this.units.length.scale]) })),
 			});
-			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.nonlinearTimeHistory, FemPlanned.timeHistoryDesign, FemPlanned.recordScaling], this.commandService));
+			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.nonlinearTimeHistory, FemPlanned.recordScaling], this.commandService));
+		}
+		const historyDesign = response.spectrumDesign?.timeHistory;
+		if (historyDesign) {
+			this.renderTimeHistoryDesign(historyDesign);
+		}
+	}
+
+	/** The linear time-history design (B19): each suite's spectrum against the code's criterion, the suites' base shears and factors, the drifts. */
+	private renderTimeHistoryDesign(design: IFemTimeHistoryDesign): void {
+		const clauses = [design.clauses['records'], design.clauses['response']].filter(c => !!c).join('; ');
+		const section = this.section(
+			localize('femResults.thDesignHeading', "Time History Design"),
+			design.use
+				? localize('femResults.thDesignUsed', "The earthquake in the design combinations comes from these suites ({0}).", clauses)
+				: localize('femResults.thDesignShown', "The suites against the code pack's criteria ({0}). Choose Linear time history under Earthquake design forces in Project Settings to design with them.", clauses),
+		);
+		const yes = localize('femResults.yes', "yes");
+		const no = localize('femResults.no', "no");
+		for (const suite of design.suites) {
+			const check = suite.check;
+			if (!check) {
+				continue;
+			}
+			renderChart(this.grid(section), {
+				title: localize('femResults.thSuiteChart', "Suite {0}: mean spectrum, T = {1} s", suite.key, check.period.toFixed(3)),
+				xLabel: localize('femResults.period', "Period [s]"),
+				yLabel: localize('femResults.thSa', "Sa [g]"),
+				series: [
+					{ name: localize('femResults.thMean', "Mean of the suite"), color: 'blue', points: check.periods.map((t, k) => [t, check.mean[k]]) },
+					{ name: localize('femResults.thTarget', "{0} × design spectrum", check.ratio), color: 'red', points: check.periods.map((t, k) => [t, check.ratio * check.target[k]]) },
+				],
+				caption: check.ok ? undefined : localize('femResults.thShort', "Short of the criterion by {0}: the suite's responses are scaled up by it.", check.shortfall.toFixed(3)),
+			});
+		}
+		renderSheet(section, {
+			name: localize('femResults.thSuites', "Suites"),
+			columns: [
+				localize('femResults.thSuite', "Suite"),
+				localize('femResults.thCount', "Records"),
+				localize('femResults.thRule', "Design value"),
+				localize('femResults.thLeast', "Least mean / criterion"),
+				withUnit(localize('femResults.thVth', "Vth"), this.units.force),
+				withUnit(localize('femResults.thV', "V static"), this.units.force),
+				localize('femResults.thFactor', "Factor"),
+				localize('femResults.thUsed', "Used"),
+			],
+			rows: design.suites.map(s => {
+				const axis = s.key === 'Y' ? 'y' : 'x';
+				const force = (kn: number | undefined) => kn === undefined ? '' : kn * 1e3 * this.units.force.scale;
+				return [
+					s.key,
+					s.count,
+					s.rule === 'mean' ? localize('femResults.thMeanRule', "mean") : localize('femResults.thMaxRule', "largest"),
+					s.check ? s.check.least : '',
+					force(s.vHistory?.[axis]),
+					force(s.vStatic?.[axis]),
+					s.factor ?? '',
+					s.used ? yes : no,
+				];
+			}),
+			notes: design.notes,
+		});
+		if (design.drift.length) {
+			renderSheet(section, {
+				name: localize('femResults.thDrift', "Storey drift (Cd/I)"),
+				columns: [
+					localize('femResults.thSuite', "Suite"),
+					localize('femResults.direction', "Direction"),
+					localize('femResults.storey', "Storey"),
+					localize('femResults.thDriftRatio', "Drift [%]"),
+					localize('femResults.thAllowable', "Allowable [%]"),
+					localize('femResults.okCol', "OK"),
+				],
+				rows: design.drift.map(d => [d.suite, d.direction, `${d.bottom} to ${d.top} m`, 100 * d.ratio, 100 * d.allowableRatio, d.ok ? yes : no]),
+				notes: design.clauses['drift'] ? [design.clauses['drift']] : undefined,
+			});
 		}
 	}
 

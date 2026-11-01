@@ -2593,42 +2593,75 @@ def _derive_fem(
                         "damping_ratio": damping,
                     }
                 )
-        # ── time histories: each record after the dead loads (D, SD) ──
-        for history in options.timeHistories:
+        # ── time histories: each record after the dead loads (D, SD); B19: suites scaled to
+        # the code spectrum (saengine.fem.records) and pairs applied simultaneously ──
+        code_factors: dict[int, float] = {}
+        if options.timeHistories and model_dir is not None:
+            from saengine.fem.records import suite_factors
+
+            code_factors, th_notes = suite_factors(
+                options.timeHistories,
+                settings,
+                Path(model_dir).parent,
+                {"X": approximate, "Y": approximate_y},
+            )
+            b.notes.extend(th_notes)
+        for index, history in enumerate(options.timeHistories):
             record = _ground_motion(history, len(records) + 1, model_dir)
             if isinstance(record, str):
                 b.notes.append(f"time history '{history.name}' left out: {record}")
                 continue
-            records.append(record)
-            series_id = len(time_series) + 1
-            time_series.append(
-                {
-                    "id": series_id,
-                    "name": history.name,
-                    "type": "Path",
-                    "factor": history.scale * (G if history.units == "g" else 1.0),
-                    "dt": record["dt"],
-                    "record_id": record["id"],
-                }
-            )
-            pattern_id = len(load_patterns) + 1
-            load_patterns.append(
-                {
-                    "id": pattern_id,
-                    "name": history.name,
-                    "type": "UniformExcitation",
-                    "direction": 1 if history.direction == "X" else 2,
-                    "accel_series_id": series_id,
-                }
-            )
+            components = [(history, record, history.direction)]
+            if history.recordOrthogonal:
+                other = history.model_copy(
+                    update={
+                        "record": history.recordOrthogonal,
+                        "name": f"{history.name} ({'Y' if history.direction == 'X' else 'X'})",
+                    }
+                )
+                second = _ground_motion(other, len(records) + 2, model_dir)
+                if isinstance(second, str):
+                    b.notes.append(f"time history '{history.name}' left out: {second}")
+                    continue
+                components.append((other, second, "Y" if history.direction == "X" else "X"))
+            amplitude = code_factors.get(index, history.scale)
+            pattern_ids = []
+            for part, found, axis in components:
+                records.append(found)
+                series_id = len(time_series) + 1
+                time_series.append(
+                    {
+                        "id": series_id,
+                        "name": part.name,
+                        "type": "Path",
+                        "factor": amplitude * (G if history.units == "g" else 1.0),
+                        "dt": found["dt"],
+                        "record_id": found["id"],
+                    }
+                )
+                pattern_id = len(load_patterns) + 1
+                load_patterns.append(
+                    {
+                        "id": pattern_id,
+                        "name": part.name,
+                        "type": "UniformExcitation",
+                        "direction": 1 if axis == "X" else 2,
+                        "accel_series_id": series_id,
+                    }
+                )
+                pattern_ids.append(pattern_id)
+            # A pair runs as long as its shorter component, at the finer step.
+            step = min(c[1]["dt"] for c in components)
+            span = min((c[1]["npts"] - 1) * c[1]["dt"] for c in components)
+            steps = round(span / step) + 1 if len(components) > 1 else record["npts"]
             analyses.append(
                 {
                     "id": len(analyses) + 1,
                     "name": f"TH: {history.name}",
                     "type": "Transient",
-                    "pattern_ids": [pattern_id],
-                    "dt": record["dt"],
-                    "n_steps": record["npts"],
+                    "pattern_ids": pattern_ids,
+                    "dt": step,
+                    "n_steps": steps,
                     "system": SOLVER,
                     "algorithm": "Newton",
                     "rayleigh_mode1_damping": history.damping,

@@ -28,7 +28,6 @@ export const FemPlanned = {
 	retrofit: 'fem.retrofit',
 	/** T35: nonlinear time history. */
 	nonlinearTimeHistory: 'fem.nonlinearTimeHistory',
-	timeHistoryDesign: 'fem.timeHistoryDesign',
 	recordScaling: 'fem.recordScaling',
 	/** T36: isolators and dampers. */
 	baseIsolation: 'fem.baseIsolation',
