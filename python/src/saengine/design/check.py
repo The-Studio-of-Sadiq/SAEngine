@@ -58,6 +58,7 @@ from saengine.design.rc import (
     shear,
 )
 from saengine.design.steel import SteelDesignError
+from saengine.fem import irregularity
 from saengine.library.bim import (
     AreaElement,
     BeamElement,
@@ -398,6 +399,22 @@ def design(
         if omega_static
         else settings
     )
+    # B12: the building's irregularities (saengine.fem.irregularity); the soft storeys' columns
+    # and beams take the pack's factor on E, their structural walls the wall factor, through
+    # combinations kept for those members only (as the Ω0 ones below).
+    irregular, soft, irregular_notes = _irregularities(
+        project, out_dir, building, objects, materials, resolved, settings
+    )
+    soft_static = [
+        LoadCombination(**c)
+        for factor, prefix, ids in _soft_parts(soft)
+        if ids
+        for c in irregularity.soft_storey_combinations(settings.combinations, factor, prefix)
+    ]
+    if soft_static:
+        with_omega = with_omega.model_copy(
+            update={"combinations": with_omega.combinations + soft_static}
+        )
     # Integrator glue (0.0.45): the design wind load cases of BNBC 2020 Part 6 Figure 6.2.9
     # (Sec 2.4.11.3) and the live load arrangements of Sec 6.1.12.2, from the cases the model
     # has (saengine.fem.combinations).
@@ -483,7 +500,13 @@ def design(
     # out once.
     share = _SHARED.get()
     key = (
-        (str(Path(out_dir).resolve()), with_omega.model_dump_json(), tuple(sorted(omega_elements)))
+        (
+            str(Path(out_dir).resolve()),
+            with_omega.model_dump_json(),
+            tuple(sorted(omega_elements)),
+            tuple(sorted(soft["frames"])),
+            tuple(sorted(soft["walls"])),
+        )
         if share is not None
         else None
     )
@@ -507,14 +530,21 @@ def design(
                 return found
 
             summary = None
-            if omega_elements:
+            if omega_elements or soft_static:
                 summary = seismic_design.load_summary(out_dir)
                 if summary and summary.get("combinations"):
-                    summary = {
-                        **summary,
-                        "combinations": summary["combinations"]
-                        + seismic_rules.omega_rs_combinations(summary["combinations"], resolved),
-                    }
+                    added = (
+                        seismic_rules.omega_rs_combinations(summary["combinations"], resolved)
+                        if omega_elements
+                        else []
+                    )
+                    # B12: the soft storey combinations from the response spectrum ones.
+                    for factor, prefix, ids in _soft_parts(soft):
+                        if ids:
+                            added += irregularity.soft_storey_rs_combinations(
+                                summary["combinations"], factor, prefix
+                            )
+                    summary = {**summary, "combinations": summary["combinations"] + added}
             combinations, pieces, notes, shell_forces = seismic_design.design_demands(
                 project, out_dir, with_omega, extra, summary=summary, base=static_demands
             )
@@ -573,6 +603,25 @@ def design(
         if omega_extra["ids"]:
             notes.append(overstrength.em_factors(settings)["clause"])
     notes += omega_extra["notes"]
+    # B12: the soft storey combinations act on the soft storeys' members only.
+    for factor, prefix, ids in _soft_parts(soft):
+        indices = [c for c, name in enumerate(combinations) if name.startswith(prefix)]
+        if not indices:
+            continue
+        walls = prefix == irregularity.wall_prefix(factor)
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            indices,
+            keep=set() if walls else set(ids),
+            keep_shells=_shells_of(project, set(ids)) if walls else set(),
+        )
+        notes.append(
+            f"{prefix.rstrip(': ')} ({soft['clause']}): applied to "
+            + ", ".join(sorted(ids))
+            + f" of the soft storey(s) {', '.join(soft['storeys'])} only"
+        )
+    notes += irregular_notes
     uplift_indices = [
         c for c, name in enumerate(combinations) if name.startswith(CANTILEVER_PREFIX)
     ]
@@ -1101,7 +1150,9 @@ def design(
     from saengine.design import diaphragms as diaphragm_design
 
     try:
-        diaphragms_found = diaphragm_design.diaphragms_of(project, building, types, mats, settings)
+        diaphragms_found = diaphragm_design.diaphragms_of(
+            project, building, types, mats, settings, irregular=irregular
+        )
     except (ValueError, KeyError, AttributeError, TypeError) as error:
         diaphragms_found = {
             "elements": [],
@@ -2480,6 +2531,65 @@ def _combined_stacks(
             for k, row in enumerate(rows):
                 row.append(total[k] if isinstance(total, np.ndarray) else total)
         out.update(zip(members, rows, strict=True))
+    return out
+
+
+def _irregularities(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    building: Any,
+    objects: Any,
+    materials: Any,
+    resolved: Any,
+    settings: Any,
+) -> tuple[dict[str, Any] | None, dict[str, Any], list[str]]:
+    """B12: (the irregularity assessment, the soft storey members of
+    :func:`saengine.fem.irregularity.soft_storey_members`, notes) of the design; the response
+    spectrum design's torsion rows when the design uses it."""
+    from saengine.fem import seismic_design
+
+    none: dict[str, Any] = {"frames": set(), "walls": set(), "storeys": []}
+    if irregularity.table() is None:
+        return None, none, []
+    try:
+        torsion_rows = None
+        if seismic_design.design_uses_spectrum(settings):
+            summary = seismic_design.load_summary(out_dir) or {}
+            if summary.get("available"):
+                torsion_rows = summary.get("torsionalIrregularity")
+        found = irregularity.assess_cached(
+            project, out_dir, building, objects, materials, resolved, torsion_rows
+        )
+        soft = irregularity.soft_storey_members(found, building, objects)
+    except (ValueError, KeyError, AttributeError, TypeError, OSError) as error:
+        return None, none, [f"the building irregularities could not be checked: {error}"]
+    notes = []
+    if found["findings"]:
+        notes.append(
+            "building irregularities: "
+            + ", ".join(irregularity.label(t) for t in found["types"])
+            + f" ({found['clauses']['plan']}; {found['clauses']['vertical']})"
+        )
+    dynamic = found.get("dynamic") or {}
+    if dynamic.get("required") and not dynamic.get("used"):
+        notes.append(
+            "dynamic analysis is required ("
+            + "; ".join(dynamic["reasons"])
+            + "): the design uses the static cases"
+        )
+    return found, soft, notes
+
+
+def _soft_parts(soft: dict[str, Any]) -> list[tuple[float, str, set[str]]]:
+    """(factor, combination name prefix, member or wall ids) of the soft storey frames and
+    walls."""
+    out = []
+    if soft.get("frames"):
+        factor = soft["frameFactor"]
+        out.append((factor, irregularity.frame_prefix(factor), soft["frames"]))
+    if soft.get("walls"):
+        factor = soft["wallFactor"]
+        out.append((factor, irregularity.wall_prefix(factor), soft["walls"]))
     return out
 
 

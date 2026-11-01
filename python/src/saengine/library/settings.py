@@ -275,6 +275,25 @@ class Seismic(_Model):
         description="Other buildings or structurally independent units next to this one, for "
         "the separation check against pounding.",
     )
+    # ── B12: soft storeys ──
+    softStoreys: list[str] = Field(
+        default_factory=list,
+        title="Soft storeys",
+        description="Storeys (by name) to design as soft storeys besides those the stiffness "
+        "check finds: for example an open parking floor below storeys with infill walls, "
+        "which the analysis model leaves out.",
+    )
+    softStoreyDesign: Literal["factors", "dynamicInfill"] = Field(
+        default="factors",
+        title="Soft storey design",
+        description="factors: the soft storey's columns and beams take the code's factor on the "
+        "earthquake forces, its structural walls the wall factor. dynamicInfill: a dynamic "
+        "analysis with the infill walls and the members' inelastic deformation was done "
+        "outside SAEngine (the factors are not applied; the engineer is responsible for it).",
+        json_schema_extra=_labels(
+            ["Factors on the earthquake forces", "Dynamic analysis with infill (outside)"]
+        ),
+    )
 
 
 class CladdingRoof(_Model):

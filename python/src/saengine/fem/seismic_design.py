@@ -73,6 +73,10 @@ only their peak translations (combined and per mode), so the member forces are f
   for the same floor levels), by the pack's ``seismic.separation``.
 - **Site-specific study** (Sec 2.5.3.1, 2.5.4.3): S1 or S2 flagged by the soil report gives the
   pack's warning in the notes and the category of its assumed class (SE).
+- **Other irregularities** (B12, :mod:`saengine.fem.irregularity`): the plan and vertical
+  irregularities with the torsion rows above, whether dynamic analysis is required, the soft
+  storeys; in the categories the pack names (C), non-parallel systems ask for 100 % + 30 %
+  (Sec 2.5.13.1(b)).
 
 Every value and clause reference comes from the code pack in force (its ``seismic`` table).
 
@@ -1821,6 +1825,21 @@ def seismic_design(
             "torsional irregularity checked without the accidental torsion case (not run), so "
             "Ax is not applied"
         )
+    # ── B12: the other irregularities, the dynamic analysis requirement, the soft storeys and
+    # the orthogonal rule of Category C with non-parallel systems (saengine.fem.irregularity) ──
+    irregular = _irregularities(out_dir, project_path, settings, irregularity, notes)
+    if (
+        irregular is not None
+        and "nonparallel" in irregular["types"]
+        and category in _orthogonal_categories()
+        and options.orthogonal == "auto"
+        and not orthogonal
+    ):
+        orthogonal = True
+        notes.append(
+            f"Seismic Design Category {category} with non-parallel systems: 100 % + 30 % "
+            f"({CLAUSES['orthogonal']})"
+        )
     drift = storey_drifts(project, spectra, storeys, by_axis_amplification, allowable, forces, ax)
     tower_summary = None
     if towers is not None:
@@ -1851,10 +1870,10 @@ def seismic_design(
         "signs: ± the envelope, each force component at its peak (conservative); columns and "
         "walls at the corners ±N, ±My, ±Mz"
     )
-    if category == "C" and options.orthogonal == "auto":
+    if category == "C" and options.orthogonal == "auto" and not orthogonal:
         notes.append(
-            "Seismic Design Category C: the directions are taken one at a time; choose 100 % + "
-            "30 % if the building has non-parallel systems (irregularity type V, Sec 2.5.13.1(b))"
+            "Seismic Design Category C: the directions are taken one at a time (no non-parallel "
+            f"systems found; {CLAUSES['orthogonal']})"
         )
 
     summary = {
@@ -1882,6 +1901,7 @@ def seismic_design(
         "torsion": torsion_levels,
         "torsionalIrregularity": irregularity,
         "torsionAmplification": ax,
+        "irregularities": _irregularity_summary(irregular),
         "combinations": seismic_combinations(settings, options, orthogonal, torsion, ax),
         "signs": options.signs,
         "drift": drift,
@@ -1896,6 +1916,61 @@ def seismic_design(
         if memo_key is not None:
             _remember_summary(memo_key, (folder / SUMMARY_FILE).stat().st_mtime_ns, summary)
     return summary
+
+
+def _orthogonal_categories() -> set[str]:
+    """The Seismic Design Categories where non-parallel systems ask for 100 % + 30 % (the
+    pack's ``irregularities.nonparallelOrthogonal``)."""
+    found = getattr(_seismic(), "irregularities", None)
+    return set(found.nonparallelOrthogonal) if found is not None else set()
+
+
+def _irregularities(
+    out_dir: Path,
+    project_path: Path,
+    settings: Any,
+    torsion_rows: list[dict[str, Any]],
+    notes: list[str],
+) -> dict[str, Any] | None:
+    """B12: the building's irregularities (:func:`saengine.fem.irregularity.assessment_of`)
+    with the response spectrum torsion rows; their notes go into ``notes``. None when the
+    building model cannot be read (a bare analysis model) or the pack does not cover them."""
+    from saengine.fem import irregularity
+
+    if irregularity.table() is None:
+        return None
+    try:
+        found = irregularity.assessment_of(out_dir, project_path, settings, torsion_rows)
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
+        return None
+    for finding in found["findings"]:
+        if finding["type"] in ("torsion", "extremeTorsion"):
+            continue  # noted above with Ax
+        notes.append(
+            f"{finding['label']}: {finding['where']}"
+            + (f" in {finding['direction']}" if finding.get("direction") else "")
+            + f", {finding['value']} ({finding['clause']})"
+        )
+    notes.extend(found["notes"])
+    return found
+
+
+def _irregularity_summary(found: dict[str, Any] | None) -> dict[str, Any] | None:
+    if found is None:
+        return None
+    return {
+        k: found.get(k)
+        for k in (
+            "types",
+            "plan",
+            "vertical",
+            "irregular",
+            "findings",
+            "softStoreys",
+            "dynamic",
+            "connections",
+        )
+    }
 
 
 _SUMMARY_MEMO: tuple[tuple[Any, ...], int, dict[str, Any]] | None = None

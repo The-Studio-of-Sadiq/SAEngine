@@ -1,5 +1,26 @@
 {
   "$defs": {
+    "AdjacentRatio": {
+      "additionalProperties": false,
+      "description": "Irregular when a storey's value is more than ``adjacent`` × an adjacent storey's.",
+      "properties": {
+        "adjacent": {
+          "exclusiveMinimum": 1,
+          "title": "Adjacent",
+          "type": "number"
+        },
+        "topExempt": {
+          "default": true,
+          "title": "Topexempt",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "adjacent"
+      ],
+      "title": "AdjacentRatio",
+      "type": "object"
+    },
     "DampingCorrection": {
       "additionalProperties": false,
       "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta.",
@@ -75,6 +96,50 @@
         "bySiteClass"
       ],
       "title": "DesignCategories",
+      "type": "object"
+    },
+    "DiaphragmConnections": {
+      "additionalProperties": false,
+      "description": "The connection force increase of irregular buildings (the factor is the pack's\n``transfer.diaphragm.irregularIncrease``): in the ``categories`` with an irregularity of\n``types``. ``wingTypes``: irregularities whose projecting wings need chords and collectors\nfor independent motion, satisfied by a dynamic 3D analysis when ``wingsDynamicExempt``.",
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "wingTypes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Wingtypes",
+          "type": "array"
+        },
+        "wingsDynamicExempt": {
+          "default": false,
+          "title": "Wingsdynamicexempt",
+          "type": "boolean"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "wingsClause": {
+          "default": "",
+          "title": "Wingsclause",
+          "type": "string"
+        }
+      },
+      "title": "DiaphragmConnections",
       "type": "object"
     },
     "DiaphragmDeflection": {
@@ -190,6 +255,259 @@
         "limits"
       ],
       "title": "DriftLimit",
+      "type": "object"
+    },
+    "DynamicAnalysis": {
+      "additionalProperties": false,
+      "description": "When the equivalent static method is not enough. ``regularHeights`` and\n``irregularHeights``: height [m] above which dynamic analysis is required, by seismic zone\n(\"1\"..\"4\"); ``recommendedIrregular``: zones where it is recommended for an irregular building\nbelow that height. The static procedure also needs T below ``periodTcFactor`` × TC and\n``periodMax`` and no vertical irregularity (``verticalIrregularity``).",
+      "properties": {
+        "regularHeights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Regularheights",
+          "type": "object"
+        },
+        "irregularHeights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Irregularheights",
+          "type": "object"
+        },
+        "recommendedIrregular": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Recommendedirregular",
+          "type": "array"
+        },
+        "periodTcFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodtcfactor"
+        },
+        "periodMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodmax"
+        },
+        "verticalIrregularity": {
+          "default": false,
+          "title": "Verticalirregularity",
+          "type": "boolean"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "staticClause": {
+          "default": "",
+          "title": "Staticclause",
+          "type": "string"
+        }
+      },
+      "title": "DynamicAnalysis",
+      "type": "object"
+    },
+    "Irregularities": {
+      "additionalProperties": false,
+      "description": "Plan and vertical irregularity thresholds (each block empty: not checked).",
+      "properties": {
+        "reentrantProjection": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reentrantprojection"
+        },
+        "openingShare": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Openingshare"
+        },
+        "diaphragmStiffnessChange": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diaphragmstiffnesschange"
+        },
+        "nonparallelTolerance": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 45,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nonparalleltolerance"
+        },
+        "nonparallelOrthogonal": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nonparallelorthogonal",
+          "type": "array"
+        },
+        "offsets": {
+          "default": false,
+          "title": "Offsets",
+          "type": "boolean"
+        },
+        "inPlaneOffset": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inplaneoffset"
+        },
+        "soft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extremeSoft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdjacentRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdjacentRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "weak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extremeWeak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "strength": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyStrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "labels": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "Irregularities",
       "type": "object"
     },
     "PeriodCoefficient": {
@@ -343,6 +661,111 @@
         }
       },
       "title": "SiteSpecificStudy",
+      "type": "object"
+    },
+    "SoftStoreyDesign": {
+      "additionalProperties": false,
+      "description": "Design of a soft storey without the overstrength factor. ``forceFactors``: the soft\nstorey's columns and beams take ``frameFactor`` × the earthquake forces, its structural walls\n``wallFactor`` ×; ``types``: the irregularity types that make a storey soft.",
+      "properties": {
+        "method": {
+          "const": "forceFactors",
+          "default": "forceFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "frameFactor": {
+          "exclusiveMinimum": 1,
+          "title": "Framefactor",
+          "type": "number"
+        },
+        "wallFactor": {
+          "exclusiveMinimum": 1,
+          "title": "Wallfactor",
+          "type": "number"
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frameFactor",
+        "wallFactor"
+      ],
+      "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "StoreyRatio": {
+      "additionalProperties": false,
+      "description": "A storey irregular when its value is below ``storeyAbove`` × the storey above's, or\nbelow ``threeAbove`` × the mean of the three storeys above (empty: not checked).",
+      "properties": {
+        "storeyAbove": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Storeyabove"
+        },
+        "threeAbove": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threeabove"
+        }
+      },
+      "title": "StoreyRatio",
+      "type": "object"
+    },
+    "StoreyStrength": {
+      "additionalProperties": false,
+      "description": "How a storey's lateral strength is estimated for the weak storey check. ``shearStrength``:\nthe sum of the nominal shear strengths of the storey's columns and structural walls in the\ndirection, Vn = concreteFactor·λ·√f'c·bw·d + Av·fyt·d/s, d = depthFactor × the depth.",
+      "properties": {
+        "method": {
+          "const": "shearStrength",
+          "default": "shearStrength",
+          "title": "Method",
+          "type": "string"
+        },
+        "concreteFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Concretefactor",
+          "type": "number"
+        },
+        "depthFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Depthfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concreteFactor",
+        "depthFactor"
+      ],
+      "title": "StoreyStrength",
       "type": "object"
     },
     "StructuralSystem": {
@@ -638,6 +1061,50 @@
     },
     "diaphragmDeflection": {
       "$ref": "#/$defs/DiaphragmDeflection"
+    },
+    "irregularities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Irregularities"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dynamicAnalysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DynamicAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "softStorey": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SoftStoreyDesign"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "diaphragmConnections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiaphragmConnections"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "clauses": {
       "additionalProperties": {

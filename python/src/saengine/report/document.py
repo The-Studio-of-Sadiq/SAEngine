@@ -729,6 +729,87 @@ def _serviceability_blocks(sv: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _irregularity_blocks(ir: dict[str, Any]) -> list[Block]:
+    """B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections."""
+    if not ir:
+        return []
+    if not ir.get("available"):
+        return [h(2, "Building irregularity"), p(str(ir.get("reason", "")))]
+    out: list[Block] = [h(2, "Building irregularity")]
+    out.append(
+        p(
+            f"Plan irregularities ({ir['planClause']}) and vertical irregularities "
+            f"({ir['verticalClause']}) found in the building model and the static earthquake "
+            "cases (the storey stiffness k = V / Δ of EX and EY, the floors' seismic weight, the "
+            "storey strength estimated from the columns' and walls' shear strength)."
+        )
+    )
+    if ir["findings"]:
+        out.append(
+            table(
+                ["Irregularity", "Where", "Dir.", "Value", "Limit", "Clause"],
+                ir["findings"],
+                ["1fr", "1fr", "auto", "1fr", "auto", "1fr"],
+                "llllll",
+            )
+        )
+    else:
+        out.append(empty("No irregularity was found."))
+    if ir["storeys"]:
+        out.append(
+            table(
+                [
+                    "Storey",
+                    "kX [kN/mm]",
+                    "kY [kN/mm]",
+                    "kX / above [%]",
+                    "kY / above [%]",
+                    "W [kN]",
+                    "VnX [kN]",
+                    "VnY [kN]",
+                ],
+                ir["storeys"],
+                ["1fr"] + ["auto"] * 7,
+                "lrrrrrrr",
+            )
+        )
+    dynamic = ir.get("dynamic")
+    if dynamic:
+        if dynamic["required"]:
+            text = (
+                "Dynamic analysis is required: "
+                + "; ".join(dynamic["reasons"])
+                + ". "
+                + (
+                    "The design uses the response spectrum."
+                    if dynamic["used"]
+                    else "The design uses the equivalent static cases: choose the response "
+                    "spectrum design."
+                )
+            )
+        else:
+            text = (
+                f"Dynamic analysis is not required: height {dynamic['height']} m, limit "
+                f"{dynamic['limit']} m in zone {dynamic['zone']} ({dynamic['clause']})"
+                + (
+                    ", but it is recommended for this irregular building."
+                    if dynamic["recommended"]
+                    else "."
+                )
+            )
+        out.append(p(text))
+    if ir["soft"]:
+        out += full(
+            p(f"Soft storeys, designed for {ir['softDesign']} ({ir['softClause']}):"),
+            table(["Storey", "Dir.", "Found as"], ir["soft"], ["1fr", "auto", "1fr"], "lll"),
+        )
+    if ir.get("connections"):
+        out.append(p(f"Diaphragm connections: {ir['connections']}."))
+    if ir.get("notes"):
+        out.append(bullets(ir["notes"], 8.5))
+    return out
+
+
 @register_section("results")
 def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     results = data["results"]
@@ -776,6 +857,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     if results["notes"]:
         out.append(bullets(results["notes"], 8.5))
     out += _serviceability_blocks(results.get("serviceability") or {})
+    out += _irregularity_blocks(results.get("irregularity") or {})
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

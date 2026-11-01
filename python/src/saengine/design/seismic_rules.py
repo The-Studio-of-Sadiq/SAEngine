@@ -1089,7 +1089,8 @@ def seismic_detailing_scope(
             f"{CLAUSES['irregularForces']}: in Category D with plan irregularity Type I.a, I.b, "
             "II, III or IV or vertical Type IV, the forces of diaphragm-to-vertical-element and "
             "collector connections go up 25 % (unless the collectors take the Ω0 combinations); "
-            "SAEngine designs no diaphragm connections"
+            "the diaphragm design lists the connection forces with the increase where the "
+            "building has those irregularities"
         )
     if sdc in ("C", "D"):
         notes.append(
