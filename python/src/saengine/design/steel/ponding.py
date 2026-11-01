@@ -21,6 +21,7 @@ spacing, mm⁴ for the inertias, MPa for the stresses.
 
 from __future__ import annotations
 
+import itertools
 import math
 from typing import Any
 
@@ -102,7 +103,7 @@ def _curve_x(points: list[tuple[float, float]], u: float) -> float:
     linear between the points, held at the last point above (the figure's range)."""
     if u <= points[0][0]:
         return 0.0
-    for (u1, x1), (u2, x2) in zip(points, points[1:], strict=False):
+    for (u1, x1), (u2, x2) in itertools.pairwise(points):
         if u <= u2:
             return x1 + (x2 - x1) * (u - u1) / (u2 - u1)
     return points[-1][1]
@@ -114,7 +115,7 @@ def _limit(curves: list[Any], u: float, param: float) -> float:
     ordered = sorted(curves, key=lambda c: c.param)
     if param <= ordered[0].param:
         return _curve_x(list(ordered[0].points), u)
-    for lo, hi in zip(ordered, ordered[1:], strict=False):
+    for lo, hi in itertools.pairwise(ordered):
         if param <= hi.param:
             xa = _curve_x(list(lo.points), u)
             xb = _curve_x(list(hi.points), u)

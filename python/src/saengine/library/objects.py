@@ -945,8 +945,8 @@ class Beam(_ObjectBase):
     connection: SteelConnection | None = Field(
         default=None,
         description="Steel beams: the connection at both ends (fin plate or shear end plate: "
-        "simple, the ends pinned in the analysis; flange plates: a moment connection, the ends "
-        "kept rigid); none: not checked.",
+        "simple, the ends pinned in the analysis; flange plates or a welded HSS moment "
+        "connection: the ends kept rigid); none: not checked.",
     )
     splice: SteelSplice | None = Field(
         default=None, description="Steel I-beams: a bolted cover-plate splice; none: no splice."

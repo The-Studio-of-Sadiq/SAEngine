@@ -974,7 +974,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Steel beams: the connection at both ends (fin plate or shear end plate: simple, the ends pinned in the analysis; flange plates: a moment connection, the ends kept rigid); none: not checked.',
+					description: 'Steel beams: the connection at both ends (fin plate or shear end plate: simple, the ends pinned in the analysis; flange plates or a welded HSS moment connection: the ends kept rigid); none: not checked.',
 					title: 'Connection',
 				},
 				splice: {
