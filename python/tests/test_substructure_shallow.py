@@ -1382,3 +1382,14 @@ def test_sized_footings_never_overlap_and_stay_below_ground() -> None:
     for k, a in enumerate(shapes):
         for b in shapes[k + 1 :]:
             assert penetration(a, b) <= 0.5
+
+
+@pytest.fixture(autouse=True)
+def _general_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests pin the engine's general footing design (the allowable-stress service
+    combinations, no code pack rules for shallow foundations); the default pack's rules
+    (combinations, lateral increase, stability, depths, settlements) are pinned in
+    test_substructure_shallow_rules.py."""
+    from saengine.substructure import shallow_rules
+
+    monkeypatch.setattr(shallow_rules, "rules", lambda: None)

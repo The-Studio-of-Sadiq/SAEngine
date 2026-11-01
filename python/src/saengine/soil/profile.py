@@ -209,6 +209,7 @@ class SoilLayer:
     clay_fraction: float | None = None  # finer than 0.005 mm [%]
     cc: float | None = None
     cr: float | None = None
+    calpha: float | None = None  # secondary compression index Cα
     e0: float | None = None
     ocr: float = 1.0
     n60: float | None = None  # mean N60 of the tests in the layer
@@ -459,6 +460,7 @@ class Profile:
             clay_fraction=clay_fraction,
             cc=cc,
             cr=cr,
+            calpha=layer.Calpha,
             e0=e0,
             ocr=layer.OCR or 1.0,
             sources=sources,

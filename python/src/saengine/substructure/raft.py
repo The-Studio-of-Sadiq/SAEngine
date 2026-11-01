@@ -37,11 +37,10 @@ From the results (:func:`raft_design`):
   secant net pressure / settlement), so the uniform rebound of the overburden the excavation
   removed is taken off (exact for linear springs in contact; it does not change the
   differential settlements); the largest, and for every pair of neighbouring columns the
-  differential settlement and the angular distortion δ/L, against BNBC 2020 Part 6 Table
-  6.3.8 for rafts of RCC structures: 75 mm, 0.0021 L and 1/500 on sand and hard clay, 100 mm,
-  0.002 L and 1/500 on plastic clay ("a guide", Table 6.3.8's note; L the centre-to-centre
-  distance of the columns). Neighbours: the columns within 1.5 times a column's distance to
-  its nearest one;
+  differential settlement and the angular distortion δ/L, against the code pack's permissible
+  settlements of rafts for the substructure's type of structure (``design.structureType``; "a
+  guide" in the default pack; L the centre-to-centre distance of the columns). Neighbours:
+  the columns within 1.5 times a column's distance to its nearest one;
 - flexure and one-way shear of the raft by :func:`saengine.design.slab.slab_checks` (Wood-Armer
   moments at every integration point averaged over design strips on the column lines, ACI
   318-19), with the raft's shells, its columns and its reinforcement (strength combinations);
@@ -118,12 +117,6 @@ TENSION_SHARE = 1e-6
 RETRY_STEPS = 10
 #: Gmsh keeps global state: one raft mesh at a time.
 MESH_LOCK = threading.Lock()
-#: BNBC 2020 Part 6 Table 6.3.8, raft foundations of RCC structures: soil column ->
-#: (maximum settlement [mm], differential settlement / L, angular distortion).
-RAFT_LIMITS = {
-    "sand": (75.0, 0.0021, 1 / 500),
-    "plasticClay": (100.0, 0.002, 1 / 500),
-}
 SOIL_NAMES = {"sand": "sand and hard clay", "plasticClay": "plastic clay"}
 #: A column's neighbours lie within this multiple of its distance to the nearest one.
 NEIGHBOURS = 1.5
@@ -593,6 +586,7 @@ def raft_design(
     dead_factor: dict[str, float] | None = None,
     strength_dead_factor: dict[str, float] | None = None,
     gravity: list[str] | None = None,
+    limits: tuple[float, float, float, str] | None = None,
 ) -> dict[str, Any]:
     """Analyse the raft under every combination and check it (see the module notes).
 
@@ -630,12 +624,17 @@ def raft_design(
     settlement_env = np.zeros(len(mesh.nodes))
     worst_p = (0.0, None)
     uplift = (0, None)
+    from saengine.substructure.shallow_rules import allowed as allowed_qa
+
+    worst_use = -math.inf
     for name in service:
         w = results.w[f"S: {name}"]
         pressure = _pressure(spec, w)
         pressure_env = np.maximum(pressure_env, pressure)
-        if pressure.max() > worst_p[0]:
-            worst_p = (float(pressure.max()), name)
+        # With wind or earthquake qa may be increased (the code pack's lateral increase).
+        use = (float(pressure.max()) - overburden) / (allowed_qa(qa, name)[0] if qa else 1.0)
+        if worst_p[1] is None or use > worst_use:
+            worst_p, worst_use = (float(pressure.max()), name), use
         lifted = int(np.sum(w > 0))
         if lifted > uplift[0]:
             uplift = (lifted, name)
@@ -644,16 +643,17 @@ def raft_design(
     if worst_p[1] is not None:
         net = worst_p[0] - overburden
         if qa is not None:
+            qa_allowed, increase = allowed_qa(qa, worst_p[1])
             checks.append(
                 _check(
                     "Contact pressure (net)",
                     net,
-                    qa,
+                    qa_allowed,
                     "kPa",
                     worst_p[1],
                     f"gross {worst_p[0]:.0f} kPa (Winkler springs, ks = {spec.ks:.0f} kN/m³) "
                     f"less the overburden {overburden:.0f} kPa, against the net allowable "
-                    "pressure qa of the soil report",
+                    "pressure qa of the soil report" + (f"; {increase}" if increase else ""),
                 )
             )
         else:
@@ -666,21 +666,29 @@ def raft_design(
             f"{uplift[0]} nodes lift off the soil under {uplift[1]}"
             + (" (compression-only springs)" if spec.compression_only else " (springs pull)")
         )
-    limit, ratio, angular = RAFT_LIMITS[soil]
     soil_name = SOIL_NAMES[soil]
     max_settlement = float(settlement_env.max()) if len(settlement_env) else 0.0
-    checks.append(
-        _check(
-            "Settlement (max)",
-            max_settlement,
-            limit,
-            "mm",
-            None,
-            f"Winkler settlement under the net pressure, (p - overburden {overburden:.0f} "
-            f"kPa)/ks, gravity service combinations; BNBC 2020 Table 6.3.8, raft of RCC "
-            f"structures on {soil_name}: {limit:g} mm (a guide)",
+    if limits is None:
+        notes.append(
+            "settlement, differential settlement and angular distortion not checked: the code "
+            "pack gives no limits for this type of structure on a raft"
         )
-    )
+        limit = ratio = angular = math.inf
+        label = ""
+    else:
+        limit, ratio, angular, label = limits
+        checks.append(
+            _check(
+                "Settlement (max)",
+                max_settlement,
+                limit,
+                "mm",
+                None,
+                f"Winkler settlement under the net pressure, (p - overburden {overburden:.0f} "
+                f"kPa)/ks, gravity service combinations; {label}, raft on {soil_name}: "
+                f"{limit:g} mm (a guide)",
+            )
+        )
     column_settlement: dict[str, float] = {}
     column_pressure: dict[str, float] = {}
     for column in spec.columns:
@@ -707,7 +715,7 @@ def raft_design(
             distortion = delta / span
             if distortion / angular > worst_angle[0]:
                 worst_angle = (distortion / angular, distortion, f"{a.id}-{b.id}", name)
-    if worst_diff[0] >= 0:
+    if worst_diff[0] >= 0 and limits is not None:
         _, delta, allowed, where = worst_diff
         checks.append(
             _check(
@@ -716,8 +724,7 @@ def raft_design(
                 allowed,
                 "mm",
                 None,
-                f"between neighbouring columns, BNBC Table 6.3.8: {ratio:g} L on {soil_name}; "
-                f"{where}",
+                f"between neighbouring columns, {label}: {ratio:g} L on {soil_name}; {where}",
             )
         )
         _, distortion, pair, name = worst_angle
@@ -728,7 +735,7 @@ def raft_design(
                 angular * 1e3,
                 "‰",
                 name,
-                f"δ/L between {pair}, BNBC Table 6.3.8: 1/{1 / angular:.0f} on {soil_name}",
+                f"δ/L between {pair}, {label}: 1/{1 / angular:.0f} on {soil_name}",
             )
         )
 
@@ -1035,10 +1042,10 @@ RAFT_METHOD = [
         "combinations); the largest net settlement (-w less the overburden's rebound "
         "overburden/ks, as ks is the soil's net pressure over its settlement), the differential "
         "settlement and angular distortion between neighbouring columns (gravity service "
-        "combinations) against BNBC 2020 Part 6 Table 6.3.8 for rafts of RCC structures (75 "
-        "mm, 0.0021 L, 1/500 on sand and hard clay; 100 mm, 0.002 L, 1/500 on plastic clay; a "
-        "guide); flexure and one-way shear by the slab design (Wood-Armer moments averaged "
-        "over column and middle strips, ACI 318-19); punching at d/2 round each column with "
+        "combinations) against the code pack's permissible settlements of rafts for the type "
+        "of structure of 9 Substructure → Design (a guide); with wind or earthquake qa "
+        "increased by the code pack's lateral increase; flexure and one-way shear by the slab "
+        "design (Wood-Armer moments averaged over column and middle strips, ACI 318-19); punching at d/2 round each column with "
         "Vu = P plus the raft's factored weight and surcharge inside the section less the soil "
         "reaction there, plus γv M c / Jc (ACI 22.6, 8.4.4.2)."
     ),
@@ -1199,9 +1206,28 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         ]
         for case, reactions in loads.cases.items()
     }
-    service = {name: combine(per_case, f) for name, f in loads.service}
+    # The floor live load of each column reduced as in its design (the normal live load).
+    from saengine.design.live_reduction import is_live_case
+    from saengine.substructure.shallow import footing_combinations
+
+    live_factors = getattr(loads, "live_factors", None) or {}
+    if live_factors:
+        for case, actions in per_case.items():
+            if is_live_case(case):
+                per_case[case] = [
+                    a * live_factors.get(c.id, 1.0) for a, c in zip(actions, columns, strict=True)
+                ]
+    # The code pack's bearing combinations of shallow foundations (the buoyancy one is the
+    # flotation check of the basement), else the allowable-stress service combinations.
+    combos = footing_combinations(loads)
+    service_set = (
+        [(n, f) for n, f in combos.bearing if n not in combos.buoyancy]
+        if combos is not None
+        else loads.service
+    )
+    service = {name: combine(per_case, f) for name, f in service_set}
     strength = {name: combine(per_case, f) for name, f in loads.strength}
-    service_dead = {name: f.get("D", f.get("SD", 1.0)) for name, f in loads.service}
+    service_dead = {name: f.get("D", f.get("SD", 1.0)) for name, f in service_set}
     kept_service, kept_strength = governing_combinations(outline, columns, service, strength)
     if len(kept_service) + len(kept_strength) < len(service) + len(strength):
         notes.append(
@@ -1270,16 +1296,33 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         surcharge=surcharge,
         punching_reinforcement=getattr(foundation, "punchingReinforcement", None),
     )
+    from saengine.substructure import shallow_rules
+
+    design = ctx.substructure.design
+    found_limit = shallow_rules.settlement_limit(
+        design.structureType, "raft", soil, design.wallLengthHeight
+    )
+    limits = None
+    if found_limit is not None:
+        limit, row = found_limit
+        limits = (limit.total, limit.differential, limit.angular, row)
     with tempfile.TemporaryDirectory(prefix="saengine-raft-") as folder:
         try:
             out = raft_design(
                 spec, service, strength, folder, bearing.qa, overburden, soil, service_dead,
-                loads.dead, gravity,
+                loads.dead, gravity, limits,
             )  # fmt: skip
         except RuntimeError as error:
             raise Skip(str(error)) from error
     raft = out["raft"]
     raft["ksNote"] = ks_note
+    # The least depth of a raft (the code pack's, by the soil at the founding level).
+    natural = ctx.ground_level
+    if bearing.ground_level is not None:
+        natural = min(natural, bearing.ground_level)
+    out["checks"] += shallow_rules.depth_check(
+        foundation.id, natural - founding, False, bearing.founding_soil, raft=True
+    )
     pressure_check = next((c for c in out["checks"] if c["name"] == "Contact pressure (net)"), None)
     pressure = None
     if pressure_check is not None:

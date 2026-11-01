@@ -114,6 +114,12 @@ def report(ctx: Context) -> dict[str, Any]:
     def skip(item: Any, kind: str, reason: str) -> None:
         skipped.append({"id": item.id, "type": kind, "reason": reason})
 
+    if ctx.loads is not None:
+        from saengine.substructure.loads import reduce_live_loads
+
+        reduce_live_loads(ctx.loads, ctx.building, ctx.settings)
+    notes += factor_of_safety_warnings(ctx)
+
     for foundation in substructure.foundations:
         try:
             if foundation.type in ("isolated", "combined", "strip"):
@@ -138,6 +144,8 @@ def report(ctx: Context) -> dict[str, Any]:
         foundations.append(result)
         notes += found
     mark_overlaps(foundations)
+    notes += differential_settlements(ctx, foundations)
+    building = building_stability(ctx)
     ties: list[dict[str, Any]] = []
     for tie in substructure.tieBeams:
         try:
@@ -189,6 +197,8 @@ def report(ctx: Context) -> dict[str, Any]:
     if "shallow" in used:
         method = list(SHALLOW_METHOD) + method
 
+    if building is not None:
+        walls.append(building)
     designed = foundations + ties + slabs + walls
     return {
         "foundations": foundations,
@@ -329,4 +339,216 @@ def check_summary(
         "maxUtilisation": governing["utilisation"] if governing else None,
         "governing": governing["id"] if governing else None,
         "analysed": loads is not None,
+    }
+
+
+# ─────────────────────────────── code pack rules across foundations ───────────────────────────────
+
+
+def factor_of_safety_warnings(ctx: Context) -> list[str]:
+    """Warnings when the factor of safety on the bearing capacity (the substructure's, else the
+    soil report's) lies outside the code pack's range."""
+    from saengine.substructure import shallow_rules
+
+    found = shallow_rules.rules()
+    if found is None:
+        return []
+    low, high = found.factorOfSafety
+    value = ctx.substructure.design.factorOfSafety.bearing
+    where = "9 Substructure → Design"
+    if value is None and ctx.soil.report is not None:
+        value, where = ctx.soil.report.design.factorOfSafety, "1 Soil Report"
+    if value is None or low <= value <= high:
+        return []
+    clause = shallow_rules.clause("factorOfSafety")
+    return [
+        f"Factor of safety on the bearing capacity {value:g} ({where}) is outside "
+        + f"{low:g}-{high:g} ({clause})"
+    ]
+
+
+def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) -> list[str]:
+    """The computed settlement of each footing, and the differential settlement and angular
+    distortion between neighbouring footings, against the code pack's permissible values for
+    the substructure's type of structure; the checks go onto each footing's result (its worst
+    pair). Neighbours: within 1.5 times a footing's distance to its nearest one."""
+    from saengine.substructure import shallow_rules
+
+    design = ctx.substructure.design
+    rows = [r for r in foundations if r.get("settlement") and r.get("sizes")]
+    notes: list[str] = []
+    if not rows:
+        return notes
+
+    def limit(soil: str) -> tuple[Any, str] | None:
+        return shallow_rules.settlement_limit(
+            design.structureType, "isolated", soil, design.wallLengthHeight
+        )
+
+    clause = shallow_rules.clause("settlementLimits")
+    for row in rows:
+        found = limit(row["settlement"]["soil"])
+        if found is None:
+            continue
+        value, name = found
+        s = row["settlement"]
+        _add(
+            row,
+            _check(
+                "Settlement",
+                s["value"],
+                value.total,
+                "mm",
+                s["combination"],
+                f"computed at {s['borehole']} under the net {s['q']:.0f} kPa; {name} on "
+                f"{_soil_name(s['soil'])}: {value.total:g} mm, a guide ({clause})",
+            ),
+        )
+    centres = [np.array(r["sizes"]["center"], dtype=float) for r in rows]
+    for i, row in enumerate(rows):
+        others = [
+            (float(np.linalg.norm(centres[j] - centres[i])), j) for j in range(len(rows)) if j != i
+        ]
+        if not others:
+            continue
+        nearest = min(d for d, _ in others)
+        worst_diff: dict[str, Any] | None = None
+        worst_angle: dict[str, Any] | None = None
+        for span, j in others:
+            if span > 1.5 * nearest + 1e-6 or span <= 0:
+                continue
+            other = rows[j]
+            soils = {row["settlement"]["soil"], other["settlement"]["soil"]}
+            soil = "plasticClay" if "plasticClay" in soils else "sand"
+            found = limit(soil)
+            if found is None:
+                continue
+            value, name = found
+            delta = abs(row["settlement"]["value"] - other["settlement"]["value"])
+            pair = f"{row['id']}-{other['id']}, L = {span:.0f} mm"
+            diff = _check(
+                "Differential settlement",
+                delta,
+                value.differential * span,
+                "mm",
+                None,
+                f"{pair}; {name} on {_soil_name(soil)}: {value.differential:g} L, a guide",
+            )
+            angle = _check(
+                "Angular distortion",
+                delta / span * 1e3,
+                value.angular * 1e3,
+                "‰",
+                None,
+                f"δ/L {pair}; {name} on {_soil_name(soil)}: 1/{1 / value.angular:.0f}, a guide",
+            )
+            if worst_diff is None or diff["utilisation"] > worst_diff["utilisation"]:
+                worst_diff = diff
+            if worst_angle is None or angle["utilisation"] > worst_angle["utilisation"]:
+                worst_angle = angle
+        for check_row in (worst_diff, worst_angle):
+            if check_row is not None:
+                _add(row, check_row)
+    return notes
+
+
+def _soil_name(soil: str) -> str:
+    return "sand and hard clay" if soil == "sand" else "plastic clay"
+
+
+def _add(result: dict[str, Any], row: dict[str, Any]) -> None:
+    result["checks"].append(row)
+    if not row["flag"]:
+        result["utilisation"] = max(result["utilisation"], row["utilisation"])
+        result["ok"] = result["ok"] and row["ok"]
+
+
+def building_stability(ctx: Context) -> dict[str, Any] | None:
+    """The overturning and sliding of the structure as a whole under the code pack's stability
+    combinations (the dead load resisting): sliding FS = μ ΣV / |ΣH| over the column and wall
+    bases, the vertical load of the bases on pile caps not counted (their base friction is
+    discounted) and no passive resistance; overturning FS = a / e, e the shift of the
+    resultant from the dead load's centroid and a the distance from that centroid to the edge
+    of the bases' plan (their convex hull) in the direction of the shift. None without loads,
+    rules or foundations."""
+    from shapely.geometry import LineString, MultiPoint, Point
+
+    from saengine.substructure import shallow_rules
+    from saengine.substructure.shallow import footing_combinations
+
+    loads = ctx.loads
+    found = shallow_rules.rules()
+    if loads is None or found is None or not ctx.substructure.foundations or not loads.bases:
+        return None
+    combos = footing_combinations(loads)
+    if combos is None or not combos.stability:
+        return None
+    on_piles = {c for f in ctx.substructure.foundations if f.type == "pileCap" for c in f.columns}
+    origin = np.zeros(3)
+
+    def totals(factors: dict[str, float], bases: list[str]) -> np.ndarray:
+        return sum((loads.resultant(b, factors, origin) for b in bases), np.zeros(6))
+
+    bases = list(loads.bases)
+    soil_bases = [b for b in bases if b not in on_piles]
+    points = [p for b in bases for _, p in loads.bases[b].nodes]
+    hull = MultiPoint([(float(p[0]), float(p[1])) for p in points]).convex_hull
+    dead = {c: 1.0 for c in ("D", "SD") if c in loads.cases}
+    d_total = totals(dead, bases)
+    weight = -float(d_total[2])
+    if weight <= 0:
+        return None
+    centroid = np.array([float(d_total[4]) / weight, -float(d_total[3]) / weight])
+    clause = shallow_rules.clause("overturning")
+    worst_slide: dict[str, Any] | None = None
+    worst_over: dict[str, Any] | None = None
+    bounds = hull.bounds
+    reach = max(bounds[2] - bounds[0], bounds[3] - bounds[1], 1.0) * 10
+    inside = hull.geom_type == "Polygon" and hull.contains(Point(*centroid))
+    for name, factors in combos.stability:
+        all_total = totals(factors, bases)
+        horizontal = float(np.hypot(all_total[0], all_total[1]))
+        vertical = -float(totals(factors, soil_bases)[2]) if soil_bases else 0.0
+        row = shallow_rules.sliding_check(name, horizontal, vertical, False, None)
+        if row is not None:
+            row["name"] = "Sliding of the building"
+            if on_piles:
+                row["note"] += "; bases on pile caps: no base friction counted (the piles resist)"
+            if worst_slide is None or row["utilisation"] > worst_slide["utilisation"]:
+                worst_slide = row
+        p = -float(all_total[2])
+        if p <= 0 or not inside:
+            continue
+        resultant = np.array([float(all_total[4]) / p, -float(all_total[3]) / p])
+        shift = resultant - centroid
+        e = float(np.linalg.norm(shift))
+        if e < 1e-6:
+            continue
+        ray = LineString([tuple(centroid), tuple(centroid + shift / e * reach)])
+        hit = hull.exterior.intersection(ray)
+        a = float(Point(*centroid).distance(hit)) if not hit.is_empty else 0.0
+        fs = min(a / e, 99.0)
+        row = _check(
+            "Overturning of the building",
+            found.overturning,
+            fs,
+            "FS",
+            name,
+            f"FS = a / e = {a / 1e3:.2f} / {e / 1e3:.2f} m: the resultant moves e from the dead "
+            f"load's centroid, a to the edge of the bases' plan ({clause})",
+            utilisation=found.overturning / max(fs, 1e-6),
+        )
+        if worst_over is None or row["utilisation"] > worst_over["utilisation"]:
+            worst_over = row
+    checks = [r for r in (worst_over, worst_slide) if r is not None]
+    if not checks:
+        return None
+    counted = [c for c in checks if not c["flag"]]
+    return {
+        "id": "Building",
+        "type": "stability",
+        "columns": [],
+        "checks": checks,
+        "utilisation": max((c["utilisation"] for c in counted), default=0.0),
+        "ok": all(c["ok"] for c in counted),
     }
