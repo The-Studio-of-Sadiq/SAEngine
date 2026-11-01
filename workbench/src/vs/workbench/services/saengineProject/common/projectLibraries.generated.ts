@@ -14877,6 +14877,22 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					title: 'Creep time',
 					type: 'number',
 				},
+				primaryYears: {
+					default: 1.0,
+					description: 'Time at which the primary consolidation ends, tp [years], for the secondary consolidation settlement of layers with Cα.',
+					exclusiveMinimum: 0,
+					maximum: 100,
+					title: 'End of primary consolidation',
+					type: 'number',
+				},
+				secondaryYears: {
+					default: 50.0,
+					description: 'Time the secondary consolidation is computed to, t [years] (the design life): Cα / (1 + e0) H log10(t / tp).',
+					exclusiveMinimum: 0,
+					maximum: 500,
+					title: 'Secondary consolidation time',
+					type: 'number',
+				},
 				tableWidths: {
 					description: 'Widths B of the square footings of the bearing table [mm].',
 					items: {
@@ -15394,6 +15410,21 @@ export const SOIL_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Recompression index Cr',
+				},
+				Calpha: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Change of void ratio per log cycle of time after the primary consolidation, for the secondary consolidation settlement; empty: none computed.',
+					title: 'Secondary compression index Cα',
 				},
 				e0: {
 					anyOf: [
@@ -16863,6 +16894,8 @@ export const DEFAULT_SOIL: object = {
 			type: 'bored',
 		},
 		creepYears: 0.1,
+		primaryYears: 1.0,
+		secondaryYears: 50.0,
 		tableWidths: [1000.0, 1500.0, 2000.0, 3000.0, 4000.0],
 		tableDepths: [1000.0, 1500.0, 2000.0, 3000.0],
 		subgradeWidth: 2000.0,
@@ -17009,6 +17042,40 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					description: 'Modulus of subgrade reaction of rafts: from the soil report, or a value [kN/m³].',
 					title: 'Subgrade springs',
 				},
+				structureType: {
+					default: 'rcc',
+					description: 'Row of the code pack\'s permissible settlements (total, differential, angular distortion) the footings and rafts are checked against: steel, rcc, framed (multistoried framed building with panel walls), loadBearingWalls (L/H below), silo, waterTank.',
+					enum: ['steel', 'rcc', 'framed', 'loadBearingWalls', 'silo', 'waterTank'],
+					enumDescriptions: ['Steel structure', 'RCC structure', 'Multistoried framed building with panel walls', 'Load bearing walls', 'Silo', 'Water tank'],
+					title: 'Type of structure (settlement limits)',
+					type: 'string',
+				},
+				wallLengthHeight: {
+					default: 2.0,
+					description: 'Length of the deflected part of the wall over its height, for the load bearing wall rows (interpolated).',
+					exclusiveMinimum: 0,
+					title: 'Load bearing walls L/H',
+					type: 'number',
+				},
+				temporary: {
+					default: false,
+					description: 'The code pack\'s least depth of exterior footings of temporary structures applies instead of that of permanent ones.',
+					title: 'Temporary structure',
+					type: 'boolean',
+				},
+				presumptiveSoil: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Without a soil report and without a qa override: the row of the code pack\'s presumptive bearing values (lightly loaded structures and preliminary design), e.g. sand, clay, softClay. Empty: none.',
+					title: 'Presumptive soil (no soil report)',
+				},
 				raftSprings: {
 					default: 'noTension',
 					description: 'No tension: where the raft lifts off, the soil carries nothing (solved iteratively); linear: the springs may pull.',
@@ -17117,7 +17184,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Factor of safety on the bearing capacity of footings and rafts; empty: the soil report\'s.',
+					description: 'Factor of safety on the bearing capacity of footings and rafts; empty: the soil report\'s. The code pack\'s range (2.0-3.0 in the default pack) is warned outside.',
 					title: 'Bearing',
 				},
 			},
@@ -17348,6 +17415,21 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Net allowable bearing pressure of this foundation [kPa], instead of the soil report\'s at its position, founding level and size (and of the project\'s override).',
 					title: 'Allowable bearing override qa',
+				},
+				slopeDistance: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A footing on or near a slope: horizontal distance from its centre to the sloping surface at its base level [mm], checked against the code pack\'s least multiple of its width; empty: level ground.',
+					title: 'Distance to a slope face',
 				},
 				material: {
 					anyOf: [
@@ -18151,9 +18233,24 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				passive: {
 					default: false,
-					description: 'Count the passive pressure of the soil in front of the base against sliding (divided by its factor of safety); off on the safe side, as the soil in front may be dug away.',
+					description: 'The soil in front of the base cannot be removed inadvertently by excavation: count its passive pressure against sliding (with the code pack\'s factor). Off: not counted, as the code pack requires where the soil could be removed.',
 					title: 'Passive resistance in front',
 					type: 'boolean',
+				},
+				frictionCoefficient: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.5,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A base friction factor verified by analysis and test, instead of the code pack\'s (0.5 in the default pack); empty: the pack\'s.',
+					title: 'Verified base friction factor',
 				},
 				seismic: {
 					default: true,
@@ -18606,6 +18703,9 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		},
 		raftMeshSize: 500.0,
 		springsFrom: 'soilReport',
+		structureType: 'rcc',
+		wallLengthHeight: 2.0,
+		temporary: false,
 		raftSprings: 'noTension',
 	},
 };
