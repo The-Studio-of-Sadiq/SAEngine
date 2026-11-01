@@ -785,33 +785,8 @@ registerPlannedFeature({
 	],
 });
 
-// T28: the direct analysis method, AISC 341 seismic steel systems and member torsion. The
-// notional loads of BNBC 2020 Part 6 Sec 10.3.2.2 are built (Project Settings → Analysis).
-registerPlannedFeature({
-	id: FemPlanned.directAnalysis,
-	part: 'fem',
-	title: localize('planned.directAnalysis.title', "Direct Analysis Method"),
-	summary: localize('planned.directAnalysis.summary', "Designs steel frames by the direct analysis method: a second-order analysis on reduced stiffness with notional loads, so every member takes K = 1. Today the notional loads and the P-Delta analysis are available, and the members take K from their bracing or the buckling analysis."),
-	steps: [
-		localize('planned.directAnalysis.step1', "Reduce the stiffness of the steel members that contribute to stability: 0.8 EA and 0.8 τb EI, τb from each member's axial force."),
-		localize('planned.directAnalysis.step2', "Add the notional loads 0.002 Yi at each level, in every combination or in the gravity-only ones when the drift ratio allows."),
-		localize('planned.directAnalysis.step3', "Run a second-order analysis per combination, iterating τb."),
-		localize('planned.directAnalysis.step4', "Check the members with K = 1 and report the second-order to first-order drift ratios."),
-	],
-	inputs: [
-		{ label: localize('planned.directAnalysis.tau', "τb"), example: localize('planned.directAnalysis.tauExample', "From Pr / Py, or 1.0 with 0.001 Yi added") },
-		{ label: localize('planned.directAnalysis.notional', "Notional load coefficient"), example: '0.002' },
-	],
-	outputs: [
-		localize('planned.directAnalysis.out1', "Member forces from the reduced-stiffness second-order analysis"),
-		localize('planned.directAnalysis.out2', "Member checks with K = 1 and the drift ratios per storey"),
-	],
-	references: [
-		localize('planned.directAnalysis.ref1', "BNBC 2020 Part 6 Sec 10.3 (design for stability)"),
-		localize('planned.directAnalysis.ref2', "AISC 360 Chapter C / AISC 360-05 Appendix 7 (direct analysis method)"),
-	],
-});
-
+// T28: AISC 341 seismic steel systems and member torsion (the direct analysis method is built:
+// Project Settings → Analysis → Steel stability design method).
 registerPlannedFeature({
 	id: FemPlanned.steelSeismic,
 	part: 'fem',

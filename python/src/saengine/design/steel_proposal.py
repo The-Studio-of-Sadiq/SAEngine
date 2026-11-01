@@ -97,6 +97,9 @@ class SteelMemberDemand:
     #: combination, as :func:`saengine.design.steel.member_stations` gives them).
     forces: list[Any]
     kind: str = "member"  # "beam", "column" or "brace"
+    #: The member checks' options (:class:`saengine.design.steel.SteelOptions`: the stability
+    #: design method of the run), passed to a checker that takes ``options``.
+    options: Any = None
 
 
 #: checker(forces, section, material, lengths, kind=...) -> [check dicts]; ``section`` is the
@@ -308,6 +311,12 @@ def _call(checker: MemberChecker, member: SteelMemberDemand, s: SteelSection, m:
         params = inspect.signature(checker).parameters
     except (TypeError, ValueError):
         params = {}
+    if member.options is not None and (
+        "options" in params or any(p.kind is p.VAR_KEYWORD for p in params.values())
+    ):
+        return checker(
+            member.forces, s, m, member.lengths, kind=member.kind, options=member.options
+        )
     if "kind" in params or any(p.kind is p.VAR_KEYWORD for p in params.values()):
         return checker(member.forces, s, m, member.lengths, kind=member.kind)
     return checker(member.forces, s, m, member.lengths)

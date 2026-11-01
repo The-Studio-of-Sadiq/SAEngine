@@ -4269,6 +4269,86 @@ class NonstructuralTable(TableModel):
         return self
 
 
+# ── design of steel frames for stability (fem/notional_loads.py, fem/second_order.py,
+# design/steel/stability.py) ──
+
+
+class StabilityAlpha(_Group):
+    """α on the required axial strength Pr: 1.0 under the strength (LRFD) combinations, a
+    larger factor under the allowable stress (ASD) ones."""
+
+    lrfd: Positive = Field(description="α for design by the strength (LRFD) combinations.")
+    asd: Positive = Field(description="α for design by the allowable stress (ASD) combinations.")
+    source: str | None = Field(default=None, description="Clause (and page).")
+
+
+class StabilityNotional(_Row):
+    """Notional lateral loads Ni = coefficient × Yi of the stability design methods."""
+
+    secondOrder: Positive = Field(
+        description="Ni / Yi in the gravity-only combinations, design by second-order analysis."
+    )
+    firstOrderDriftFactor: Positive = Field(
+        description="Design by first-order analysis: Ni = this × (Δ/L) × Yi ..."
+    )
+    firstOrderMinimum: Positive = Field(description="... and at least this × Yi.")
+
+
+class StabilityLimits(_Row):
+    """When each design method may be used (ratios of second-order to first-order drift and of
+    αPr to Py)."""
+
+    directAnalysisRequiredAbove: Positive = Field(
+        description="Δ2nd / Δ1st above which the direct analysis method is required."
+    )
+    secondOrderUnitKMax: Positive = Field(
+        description="Design by second-order analysis: K = 1 while Δ2nd / Δ1st is at most this."
+    )
+    firstOrderAxialMax: Share = Field(
+        description="Design by first-order analysis: αPr / Py at most this (K = 1)."
+    )
+
+
+class DirectAnalysis(_Row):
+    """The direct analysis method: a second-order analysis on reduced stiffness with notional
+    loads, the members checked with K = 1."""
+
+    method: Literal["directAnalysis"] = Field(
+        default="directAnalysis", description="Method id (the engine's generic implementation)."
+    )
+    effectiveLengthFactor: Positive = Field(description="K of the member strengths.")
+    notionalCoefficient: Positive = Field(description="Ni / Yi, in every combination.")
+    additiveNotionalCoefficient: Positive = Field(
+        description="Ni / Yi added when τb = 1 is used for every member."
+    )
+    gravityOnlyDriftRatioMax: Positive = Field(
+        description="Δ2nd / Δ1st up to which Ni may be applied in the gravity-only "
+        "combinations only."
+    )
+    flexuralStiffnessFactor: Share = Field(description="EI* = this × τb × EI.")
+    axialStiffnessFactor: Share = Field(description="EA* = this × EA.")
+    tauLimit: Share = Field(description="τb = 1 while αPr / Py is at most this ...")
+    tauFactor: Positive = Field(description="... above it τb = this × (αPr / Py) × (1 - αPr / Py).")
+    pSmallDeltaLimit: Share = Field(
+        description="P-δ on the lateral displacement may be neglected while αPr < this × PeL."
+    )
+    asdAnalysisFactor: Positive = Field(
+        description="ASD: the analysis runs under this times the combinations, results divided "
+        "by it."
+    )
+
+
+class SteelStabilityTable(TableModel):
+    """Design of steel frames for stability: the notional loads of the methods by first- and
+    second-order analysis, when each method may be used, and the direct analysis method (None in
+    a pack that does not cover it: the option then shows as not covered)."""
+
+    alpha: StabilityAlpha
+    notional: StabilityNotional
+    limits: StabilityLimits
+    directAnalysis: DirectAnalysis | None = None
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -4302,6 +4382,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "siteInvestigation": SiteInvestigationTable,
     "serviceability": ServiceabilityTable,
     "nonstructural": NonstructuralTable,
+    "steelStability": SteelStabilityTable,
 }
 
 

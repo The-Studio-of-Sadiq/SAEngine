@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "DirectAnalysis": {
+      "additionalProperties": false,
+      "description": "The direct analysis method: a second-order analysis on reduced stiffness with notional\nloads, the members checked with K = 1.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "directAnalysis",
+          "default": "directAnalysis",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "effectiveLengthFactor": {
+          "description": "K of the member strengths.",
+          "exclusiveMinimum": 0,
+          "title": "Effectivelengthfactor",
+          "type": "number"
+        },
+        "notionalCoefficient": {
+          "description": "Ni / Yi, in every combination.",
+          "exclusiveMinimum": 0,
+          "title": "Notionalcoefficient",
+          "type": "number"
+        },
+        "additiveNotionalCoefficient": {
+          "description": "Ni / Yi added when τb = 1 is used for every member.",
+          "exclusiveMinimum": 0,
+          "title": "Additivenotionalcoefficient",
+          "type": "number"
+        },
+        "gravityOnlyDriftRatioMax": {
+          "description": "Δ2nd / Δ1st up to which Ni may be applied in the gravity-only combinations only.",
+          "exclusiveMinimum": 0,
+          "title": "Gravityonlydriftratiomax",
+          "type": "number"
+        },
+        "flexuralStiffnessFactor": {
+          "description": "EI* = this × τb × EI.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flexuralstiffnessfactor",
+          "type": "number"
+        },
+        "axialStiffnessFactor": {
+          "description": "EA* = this × EA.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axialstiffnessfactor",
+          "type": "number"
+        },
+        "tauLimit": {
+          "description": "τb = 1 while αPr / Py is at most this ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Taulimit",
+          "type": "number"
+        },
+        "tauFactor": {
+          "description": "... above it τb = this × (αPr / Py) × (1 - αPr / Py).",
+          "exclusiveMinimum": 0,
+          "title": "Taufactor",
+          "type": "number"
+        },
+        "pSmallDeltaLimit": {
+          "description": "P-δ on the lateral displacement may be neglected while αPr < this × PeL.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psmalldeltalimit",
+          "type": "number"
+        },
+        "asdAnalysisFactor": {
+          "description": "ASD: the analysis runs under this times the combinations, results divided by it.",
+          "exclusiveMinimum": 0,
+          "title": "Asdanalysisfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "effectiveLengthFactor",
+        "notionalCoefficient",
+        "additiveNotionalCoefficient",
+        "gravityOnlyDriftRatioMax",
+        "flexuralStiffnessFactor",
+        "axialStiffnessFactor",
+        "tauLimit",
+        "tauFactor",
+        "pSmallDeltaLimit",
+        "asdAnalysisFactor"
+      ],
+      "title": "DirectAnalysis",
+      "type": "object"
+    },
+    "StabilityAlpha": {
+      "additionalProperties": false,
+      "description": "α on the required axial strength Pr: 1.0 under the strength (LRFD) combinations, a\nlarger factor under the allowable stress (ASD) ones.",
+      "properties": {
+        "lrfd": {
+          "description": "α for design by the strength (LRFD) combinations.",
+          "exclusiveMinimum": 0,
+          "title": "Lrfd",
+          "type": "number"
+        },
+        "asd": {
+          "description": "α for design by the allowable stress (ASD) combinations.",
+          "exclusiveMinimum": 0,
+          "title": "Asd",
+          "type": "number"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page).",
+          "title": "Source"
+        }
+      },
+      "required": [
+        "lrfd",
+        "asd"
+      ],
+      "title": "StabilityAlpha",
+      "type": "object"
+    },
+    "StabilityLimits": {
+      "additionalProperties": false,
+      "description": "When each design method may be used (ratios of second-order to first-order drift and of\nαPr to Py).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "directAnalysisRequiredAbove": {
+          "description": "Δ2nd / Δ1st above which the direct analysis method is required.",
+          "exclusiveMinimum": 0,
+          "title": "Directanalysisrequiredabove",
+          "type": "number"
+        },
+        "secondOrderUnitKMax": {
+          "description": "Design by second-order analysis: K = 1 while Δ2nd / Δ1st is at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Secondorderunitkmax",
+          "type": "number"
+        },
+        "firstOrderAxialMax": {
+          "description": "Design by first-order analysis: αPr / Py at most this (K = 1).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Firstorderaxialmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "directAnalysisRequiredAbove",
+        "secondOrderUnitKMax",
+        "firstOrderAxialMax"
+      ],
+      "title": "StabilityLimits",
+      "type": "object"
+    },
+    "StabilityNotional": {
+      "additionalProperties": false,
+      "description": "Notional lateral loads Ni = coefficient × Yi of the stability design methods.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "secondOrder": {
+          "description": "Ni / Yi in the gravity-only combinations, design by second-order analysis.",
+          "exclusiveMinimum": 0,
+          "title": "Secondorder",
+          "type": "number"
+        },
+        "firstOrderDriftFactor": {
+          "description": "Design by first-order analysis: Ni = this × (Δ/L) × Yi ...",
+          "exclusiveMinimum": 0,
+          "title": "Firstorderdriftfactor",
+          "type": "number"
+        },
+        "firstOrderMinimum": {
+          "description": "... and at least this × Yi.",
+          "exclusiveMinimum": 0,
+          "title": "Firstorderminimum",
+          "type": "number"
+        }
+      },
+      "required": [
+        "secondOrder",
+        "firstOrderDriftFactor",
+        "firstOrderMinimum"
+      ],
+      "title": "StabilityNotional",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Design of steel frames for stability: the notional loads of the methods by first- and\nsecond-order analysis, when each method may be used, and the direct analysis method (None in\na pack that does not cover it: the option then shows as not covered).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "alpha": {
+      "$ref": "#/$defs/StabilityAlpha"
+    },
+    "notional": {
+      "$ref": "#/$defs/StabilityNotional"
+    },
+    "limits": {
+      "$ref": "#/$defs/StabilityLimits"
+    },
+    "directAnalysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DirectAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "alpha",
+    "notional",
+    "limits"
+  ],
+  "title": "SteelStabilityTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelStability/1"
+}

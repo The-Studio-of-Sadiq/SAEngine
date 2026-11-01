@@ -5965,10 +5965,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				notionalLoads: {
 					default: 'none',
-					description: 'Lateral notional loads Ni at each level for the stability design of steel frames (BNBC 2020 Part 6 Sec 10.3.2.2), as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi, added to the gravity-only combinations in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi, added to every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y).',
-					enum: ['none', 'secondOrder', 'firstOrder'],
-					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)'],
-					title: 'Notional loads (steel stability)',
+					description: 'How steel frames are designed for stability (the code pack\'s steel stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi in every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every combination, and every steel member checked with K = 1; required by the code where the second-order drift exceeds 1.5 times the first-order drift. The coefficients are the active code pack\'s (the values above are BNBC 2020\'s).',
+					enum: ['none', 'secondOrder', 'firstOrder', 'directAnalysis'],
+					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)', 'Direct analysis method (reduced stiffness, K = 1)'],
+					title: 'Steel stability design method',
 					type: 'string',
 				},
 				notionalDrift: {
@@ -5978,6 +5978,22 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					minimum: 0,
 					title: 'First-order drift ratio Δ/L',
 					type: 'number',
+				},
+				directAnalysisTau: {
+					default: 'additive',
+					description: 'τb of the reduced flexural stiffness 0.8 τb EI. Additive: τb = 1 for every member with the additive notional load 0.001 Yi on top of 0.002 Yi, valid whatever the axial forces. Checked: τb = 1 without the additive load, and each steel column is checked for αPr <= 0.5 Py, where τb = 1 holds (a column above it fails: use Additive or a heavier section).',
+					enum: ['additive', 'checked'],
+					enumDescriptions: ['τb = 1 with the additive notional load', 'τb = 1, checked per column'],
+					title: 'Direct analysis: τb',
+					type: 'string',
+				},
+				directAnalysisNotional: {
+					default: 'allCombinations',
+					description: 'All combinations: the notional loads are added to every combination, in the direction of its lateral load (the gravity-only ones in ±X and ±Y). Gravity-only combinations: allowed where the second-order drift is at most 1.5 times the first-order drift, which the design then checks.',
+					enum: ['allCombinations', 'gravityOnly'],
+					enumDescriptions: ['All combinations', 'Gravity-only combinations'],
+					title: 'Direct analysis: notional loads in',
+					type: 'string',
 				},
 				slenderness: {
 					$ref: '#/$defs/Slenderness',
@@ -8497,6 +8513,8 @@ export const DEFAULT_SETTINGS: object = {
 		firstOrderReference: true,
 		notionalLoads: 'none',
 		notionalDrift: 0.0,
+		directAnalysisTau: 'additive',
+		directAnalysisNotional: 'allCombinations',
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',
@@ -14213,6 +14231,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		firstOrderReference: true,
 		notionalLoads: 'none',
 		notionalDrift: 0.0,
+		directAnalysisTau: 'additive',
+		directAnalysisNotional: 'allCombinations',
 		slenderness: {
 			effectiveLength: 'unity',
 			swayMagnifier: 'Q',

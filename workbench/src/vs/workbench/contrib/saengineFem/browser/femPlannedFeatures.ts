@@ -52,8 +52,7 @@ export const FemPlanned = {
 	basePlateDesign: 'fem.basePlateDesign',
 	anchorConcrete: 'fem.anchorConcrete',
 	endPlateMoment: 'fem.endPlateMoment',
-	/** T28: the direct analysis method, AISC 341 seismic systems, member torsion. */
-	directAnalysis: 'fem.directAnalysis',
+	/** T28: AISC 341 seismic systems, member torsion. */
 	steelSeismic: 'fem.steelSeismic',
 	steelTorsion: 'fem.steelTorsion',
 	/** T30: cold-formed purlins and girts (AISI S100). */
@@ -64,7 +63,7 @@ export const FemPlanned = {
 export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.anchorConcrete, FemPlanned.endPlateMoment];
 
 /** The planned steel stability and seismic features, shown with the steel members' checks. */
-export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.directAnalysis, FemPlanned.steelSeismic, FemPlanned.steelTorsion];
+export const STEEL_STABILITY_PLANNED: readonly string[] = [FemPlanned.steelSeismic, FemPlanned.steelTorsion];
 
 /** The planned steel shed features (cold-formed purlins and girts), shown with the steel members' checks. */
 export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedSteel];
