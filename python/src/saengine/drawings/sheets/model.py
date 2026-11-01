@@ -630,6 +630,9 @@ class DrawingSet:
     # the post-tensioning tendon groups (saengine.drawings.sheets.pt.PtTendon) its PT sheets
     # draw: the tendon plans, the profiles and the stressing schedule
     pt: list[Any] = field(default_factory=list)
+    # the building services (07 MEP/mep.json, saengine.drawings.sheets.mep.MepDrawing) its MEP
+    # sheets draw; None: no MEP sheets
+    mep: Any = None
     problems: list[str] = field(default_factory=list)
     # members without reinforcement (never designed): {kind: {object type: count}}; while there
     # are any the sheets are not for construction
