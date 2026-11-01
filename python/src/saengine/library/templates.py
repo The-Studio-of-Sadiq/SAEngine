@@ -349,6 +349,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "ExtraMass": {"story": "L1", "weight": 50},
     "Analysis": Analysis().model_dump(mode="json"),
     "Pushover": {"directions": ["X", "Y"]},
+    "NonlinearHistory": {"fibreWalls": True},
     "Solid": {"id": "MASS", "name": "Mass concrete", "kind": "solid", "material": _CONCRETE},
     "Block": {
         "id": "K1",

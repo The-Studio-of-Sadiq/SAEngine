@@ -17117,6 +17117,9 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	Pushover: {
 		directions: ['X', 'Y'],
 	},
+	NonlinearHistory: {
+		fibreWalls: true,
+	},
 	Solid: {
 		id: 'MASS',
 		name: 'Mass concrete',
