@@ -502,6 +502,8 @@ def cladding_pressures(
     area: float | None = None,
     enclosure: str = "enclosed",
     parapet: float | None = None,
+    opening_area: float | None = None,
+    volume: float | None = None,
 ) -> dict[str, Any] | None:
     """The design pressures of components and cladding by zone (BNBC 2020 Part 6 Sec 2.4.11.5;
     ASCE 7-05 Sec 6.5.12.4) of a flat-roofed building (θ ≤ 10°) of mean roof height ``height``
@@ -511,7 +513,8 @@ def cladding_pressures(
 
         p = qh·[(GCp) − (±GCpi)]  [kN/m²]
 
-    (h ≤ 18.3 m, Eq. 6.2.22; above it Eq. 6.2.23, q = qh on the leeward and side walls and
+    (Sec 2.4.11.4, p. 560: h ≤ 18.3 m, Eq. 6.2.24; above it Eq. 6.2.25, q = qh on the leeward
+    and side walls and
     the roof, qz on the windward wall, which is qh at the top: the pressures given are those
     at h, the largest). Positive towards the surface. A parapet ``parapet`` m high, at least the
     code pack's 0.9 m, turns roof zone 3 into zone 2 (figure notes); the parapet's own net
@@ -520,13 +523,16 @@ def cladding_pressures(
     suction on the front) (ASCE 7-05 Sec 6.5.12.4.4, a solid parapet, GCpi = 0). Returns
     ``{"h_m", "qh_kPa", "lowRise", "a_m", "area_m2", "enclosure", "GCpi", "zones": [{"surface",
     "zone", "label", "GCpPos", "GCpNeg", "pPos_kPa", "pNeg_kPa"}], "parapet"}``; None when the
-    code pack has no cladding table."""
+    code pack has no cladding table. ``opening_area`` Aog [m²] and ``volume`` Vi [m³]: the
+    reduction Ri of a partially enclosed building with one unpartitioned volume
+    (:func:`internal_pressure_coefficient`)."""
     table = getattr(code_context.table("wind"), "cladding", None)
     if table is None:
         return None
     low = height <= table.lowRiseHeight
     curves = table.lowRise if low else table.highRise
-    gcpi = float(table.internal.get(enclosure, table.internal.get("enclosed", 0.18)))
+    gcpi_full, ri = internal_pressure_coefficient(enclosure, opening_area, volume)
+    gcpi = gcpi_full * ri
     qh = velocity_pressure(height, speed, exposure, importance)
     walls = table.lowRiseWallFactor if low else 1.0
     corner_as_edge = parapet is not None and parapet >= table.parapetCorner
@@ -568,6 +574,7 @@ def cladding_pressures(
         "area_m2": area,
         "enclosure": enclosure,
         "GCpi": gcpi,
+        "Ri": ri,
         "zones": zones,
         "parapet": None,
     }
@@ -582,6 +589,367 @@ def cladding_pressures(
             "caseA_kPa": qp * (wall_pos - roof),
             "caseB_kPa": qp * (wall_pos - wall_neg),
         }
+    return out
+
+
+# ─────────── wind: internal pressure and the MWFRS pressures on walls and roofs ───────────
+#
+# The code pack's ``wind.internalPressure`` and ``wind.mwfrs`` (BNBC 2020 Part 6 Sec 2.4.10,
+# 2.4.11.2, Figures 6.2.5-6.2.8 and 6.2.10). Positive pressures act toward the surface.
+
+
+def internal_pressure_coefficient(
+    enclosure: str, opening_area: float | None = None, volume: float | None = None
+) -> tuple[float, float]:
+    """(GCpi, Ri): the internal pressure coefficient's magnitude of the ``enclosure``
+    classification (Sec 2.4.10.1, Figure 6.2.5) and the reduction factor of a partially
+    enclosed building with one unpartitioned large volume (Eq 6.2.18, p. 556):
+
+        Ri = 0.5·(1 + 1/√(1 + Vi/(6951·Aog))) ≤ 1.0
+
+    with Aog = ``opening_area`` the total area of openings in the envelope [m²] and Vi =
+    ``volume`` the unpartitioned internal volume [m³]; Ri = 1 when either is not given or the
+    enclosure is not one the pack reduces. (0, 1) when the code pack has no coefficients."""
+    wind = code_context.table("wind")
+    table = getattr(wind, "internalPressure", None)
+    if table is None:
+        cladding = getattr(wind, "cladding", None)
+        coefficients = (getattr(cladding, "internal", None) or {}) if cladding else {}
+        return float(coefficients.get(enclosure, 0.0)), 1.0
+    gcpi = float(table.coefficients.get(enclosure, 0.0))
+    if (
+        enclosure not in table.reducedEnclosures
+        or not opening_area
+        or not volume
+        or opening_area <= 0
+        or volume <= 0
+    ):
+        return gcpi, 1.0
+    ri = table.reductionBase * (1 + 1 / math.sqrt(1 + volume / (table.volumeFactor * opening_area)))
+    return gcpi, min(1.0, ri)
+
+
+def _mwfrs() -> Any:
+    """The code pack's MWFRS wall and roof table, None without one."""
+    return getattr(code_context.table("wind"), "mwfrs", None)
+
+
+def _interpolate(x: float, xs: list[float], ys: list[float]) -> float:
+    """Linear interpolation, the end values beyond the ends."""
+    if x <= xs[0]:
+        return ys[0]
+    for (x0, y0), (x1, y1) in pairwise(zip(xs, ys, strict=True)):
+        if x <= x1:
+            return y0 if x1 == x0 else y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return ys[-1]
+
+
+def _across_rows(rows: list[Any], ratio: float, value: Any) -> Any:
+    """``value(row)`` interpolated between the rows by their ``hOverL`` (each value a number or
+    a tuple of numbers), the end rows beyond the ends."""
+    keys = [float(r.hOverL) for r in rows]
+    values = [value(r) for r in rows]
+    if isinstance(values[0], tuple):
+        return tuple(
+            _interpolate(ratio, keys, [v[k] for v in values]) for k in range(len(values[0]))
+        )
+    return _interpolate(ratio, keys, values)
+
+
+def roof_windward_cp(theta: float, h_over_l: float) -> tuple[float, float]:
+    """(first, second) Cp of a windward roof slope θ [°] for wind normal to the ridge (Figure
+    6.2.6, p. 572): where two values are listed the roof is designed for both (note 3), else
+    both are the one value. Linear between angles and h/L ratios, between values of the same
+    column (note 2: a value not printed counts 0.0); Cp = 0.01θ from 60° and 0.8 above 80° (the
+    pack's ``steepFrom``, ``verticalFrom``)."""
+    table = _mwfrs().roof
+    if theta > table.verticalFrom:
+        return float(table.verticalCp), float(table.verticalCp)
+    if theta >= table.steepFrom:
+        v = table.steepFactor * theta
+        return v, v
+    angles = [float(a) for a in table.angles]
+
+    def column(values: list[float | None]) -> list[float]:
+        return [
+            table.steepFactor * a if a >= table.steepFrom else (0.0 if v is None else float(v))
+            for a, v in zip(angles, values, strict=True)
+        ]
+
+    def row(r: Any) -> tuple[float, float]:
+        first = column(r.first)
+        second = column(r.second) if r.second is not None else first
+        return _interpolate(theta, angles, first), _interpolate(theta, angles, second)
+
+    return _across_rows(table.windward, h_over_l, row)
+
+
+def roof_leeward_cp(theta: float, h_over_l: float) -> float:
+    """Cp of a leeward roof slope θ [°] for wind normal to the ridge (Figure 6.2.6, p. 572)."""
+    table = _mwfrs().roof
+    angles = [float(a) for a in table.leewardAngles]
+    return _across_rows(
+        table.leeward,
+        h_over_l,
+        lambda r: _interpolate(theta, angles, [float(v or 0.0) for v in r.first]),
+    )
+
+
+def _area_reduction(table: Any, area: float | None) -> float:
+    """The factor on the reducible roof Cp (Figure 6.2.6, **) for the ``area`` [m²] it acts
+    over, linear between the pack's points; 1 when not given."""
+    points = table.areaReduction
+    if area is None or not points:
+        return 1.0
+    return _interpolate(area, [p[0] for p in points], [p[1] for p in points])
+
+
+def roof_parallel_cp(
+    distance: float, height: float, h_over_l: float, area: float | None = None
+) -> tuple[float, float]:
+    """(first, second) Cp of a roof point ``distance`` [m] from the windward edge, for a roof
+    θ < 10° or wind parallel to the ridge (Figure 6.2.6, p. 572): by zones of the mean roof
+    height ``height`` h, interpolated between h/L rows. ``area`` [m²]: of the first zone, which
+    reduces the -1.3 value (**)."""
+    table = _mwfrs().roof
+
+    def row(r: Any) -> tuple[float, float]:
+        ratio = distance / height if height > 0 else math.inf
+        zone = next((z for z in r.zones if z.upTo is None or ratio <= z.upTo), r.zones[-1])
+        values = [float(v) for v in zone.cp]
+        if table.reducible is not None and values[0] == table.reducible:
+            values[0] *= _area_reduction(table, area)
+        return values[0], values[-1]
+
+    return _across_rows(table.parallel, h_over_l, row)
+
+
+def dome_point_cps(rise_ratio: float, base_ratio: float) -> dict[str, float] | None:
+    """Cp at A (windward springline), B (top) and C (leeward springline) of a dome of f/D
+    ``rise_ratio`` on a base hD/D ``base_ratio`` (Figure 6.2.7, p. 573: the curves read
+    from the figure, linear between hD/D curves); None below the figure's least f/D (note 8:
+    Figure 6.2.6 instead) or without the pack's dome table."""
+    table = getattr(_mwfrs(), "domes", None)
+    if table is None or rise_ratio < table.minRise:
+        return None
+
+    def at(curves: list[Any]) -> float:
+        keys = [float(c.hdOverD) for c in curves]
+        values = [
+            _interpolate(rise_ratio, [p[0] for p in c.points], [p[1] for p in c.points])
+            for c in curves
+        ]
+        return _interpolate(base_ratio, keys, values)
+
+    return {"A": at(table.A), "B": at(table.B), "C": at(table.C)}
+
+
+def dome_cp(cps: dict[str, float], theta: float, windward: bool, case: str) -> float:
+    """Cp of a dome point at θ [°] along its arc parallel to the wind (0 at the springline, 90
+    at the top), on the windward (A to B) or leeward (C to B) side (Figure 6.2.7, note 1): Case
+    A linear along the arcs; Case B the constant A up to 25° (the pack's ``caseBAngle``), then
+    linear to B; the leeward side linear from B to C in both."""
+    theta = min(max(theta, 0.0), 90.0)
+    if not windward:
+        return cps["C"] + (cps["B"] - cps["C"]) * theta / 90
+    if case == "B":
+        start = float(_mwfrs().domes.caseBAngle)
+        if theta <= start:
+            return cps["A"]
+        return cps["A"] + (cps["B"] - cps["A"]) * (theta - start) / (90 - start)
+    return cps["A"] + (cps["B"] - cps["A"]) * theta / 90
+
+
+def arched_roof_cps(rise_ratio: float, elevated: bool) -> dict[str, Any] | None:
+    """Cp of an arched roof of rise-to-span ``rise_ratio`` r (Figure 6.2.8, p. 574):
+    ``windward`` (the windward quarter's values: the alternate (6r − 2.1) too where it shall
+    also be used), ``centre`` (the centre half) and ``leeward`` (the leeward quarter); None
+    outside the table's r or without the pack's arched table."""
+    table = getattr(_mwfrs(), "arched", None)
+    if table is None:
+        return None
+    rows = [r for r in table.rows if r.elevated == elevated]
+    row = next(
+        (r for r in rows if r.riseFrom <= rise_ratio < r.riseTo),
+        next((r for r in rows if math.isclose(rise_ratio, r.riseTo)), None),
+    )
+    if row is None:
+        return None
+    windward = [row.windward[0] * rise_ratio + row.windward[1]]
+    if row.alternate is not None:
+        windward.append(row.alternate[0] * rise_ratio + row.alternate[1])
+    return {
+        "windward": windward,
+        "centre": table.centre[0] * rise_ratio + table.centre[1],
+        "leeward": float(table.leeward),
+    }
+
+
+def low_rise_gcpf(theta: float) -> dict[str, float] | None:
+    """(GCpf) by building surface (1-6, 1E-4E) of a low-rise building with roof angle θ [°]
+    (Figure 6.2.10, p. 577, linear between angles, note 2); None without the pack's table."""
+    table = getattr(_mwfrs(), "lowRise", None)
+    if table is None:
+        return None
+    rows = sorted(table.rows, key=lambda r: r.angle)
+    angles = [float(r.angle) for r in rows]
+    return {
+        surface: _interpolate(theta, angles, [float(r.gcpf[surface]) for r in rows])
+        for surface in rows[0].gcpf
+    }
+
+
+def is_low_rise(height: float, least: float) -> bool:
+    """Whether an enclosed or partially enclosed building is low-rise (Sec 2.1.3, p. 513):
+    mean roof height h up to the pack's 18.3 m and not over its least horizontal dimension."""
+    table = getattr(_mwfrs(), "lowRise", None)
+    return table is not None and height <= table.maxHeight and height <= least
+
+
+def mean_roof_height(eave: float, top: float, theta: float) -> float:
+    """h of Figures 6.2.6 and 6.2.10 (notation): the mean of the eave and the top of the roof,
+    the eave height for θ ≤ 10° (the pack's ``flatAngle``)."""
+    mwfrs = _mwfrs()
+    flat = float(mwfrs.roof.flatAngle) if mwfrs is not None else 0.0
+    return eave if theta <= flat else (eave + top) / 2
+
+
+def building_mwfrs_pressures(
+    height: float,
+    depth: float,
+    width: float,
+    speed: float,
+    exposure: str,
+    importance: float,
+    *,
+    enclosure: str = "enclosed",
+    opening_area: float | None = None,
+    volume: float | None = None,
+) -> dict[str, Any] | None:
+    """The MWFRS design pressures p = q·G·Cp − qh·(±GCpi) (Eq 6.2.19, p. 557) on the walls and
+    the flat roof (θ < 10°) of a building of mean roof height ``height`` h, ``depth`` L along
+    the wind and ``width`` B across it [m] (Figure 6.2.6): windward wall at h (qz, the largest),
+    leeward and side walls and the roof zones by distance from the windward edge at qh. Returns
+    ``{"qh_kPa", "G", "GCpi", "Ri", "hOverL", "surfaces": [{"surface", "from_m", "to_m", "Cp",
+    "pPos_kPa", "pNeg_kPa"}]}`` (``pPos``/``pNeg``: with −GCpi/+GCpi, the external Cp the
+    larger in magnitude where two are listed); None without the pack's MWFRS table."""
+    mwfrs = _mwfrs()
+    if mwfrs is None or height <= 0 or depth <= 0 or width <= 0:
+        return None
+    qh = velocity_pressure(height, speed, exposure, importance)
+    gust = wind_factor("gust")
+    wind = code_context.table("wind")
+    gcpi, ri = internal_pressure_coefficient(enclosure, opening_area, volume)
+    inner = gcpi * ri * qh
+    ratio = height / depth
+    rows: list[dict[str, Any]] = []
+
+    def add(surface: str, cp: float, start: float | None = None, end: float | None = None) -> None:
+        external = qh * gust * cp
+        rows.append(
+            {
+                "surface": surface,
+                "from_m": start,
+                "to_m": end,
+                "Cp": cp,
+                "pPos_kPa": external + inner,
+                "pNeg_kPa": external - inner,
+            }
+        )
+
+    add("windward wall", float(wind.cpWindward))
+    add("leeward wall", leeward_coefficient(depth / width))
+    add("side wall", float(mwfrs.sideWall))
+    zone_area = min(height / 2, depth) * width
+    edges = sorted({0.0, *(min(f * height, depth) for f in (0.5, 1.0, 2.0)), depth})
+    for start, end in pairwise(edges):
+        if end - start <= 1e-9:
+            continue
+        first, _ = roof_parallel_cp((start + end) / 2, height, ratio, zone_area)
+        add("roof", first, start, end)
+    return {
+        "qh_kPa": qh,
+        "G": gust,
+        "GCpi": gcpi,
+        "Ri": ri,
+        "hOverL": ratio,
+        "surfaces": rows,
+    }
+
+
+# ─────────── wind: the load cases of clad structures (directions, variants, internal) ───────────
+
+#: The wind case of the opposite direction (−X, −Y) of a structure whose pressures are not
+#: symmetric (roofs, :mod:`saengine.fem.open_wind` clad structures): a combination's −WX takes
+#: WXN at +1, not WX at −1.
+WIND_OPPOSITE_CASES = {"WX": "WXN", "WY": "WYN"}
+#: The internal pressure case: (GCpi)·Ri·qh toward the internal surfaces of the envelope
+#: (outward), taken by the combinations with ± (Figure 6.2.5, note 3).
+WIND_INTERNAL_CASE = "WI"
+#: At most this many external pressure variants per wind direction (WX, WX2, ...).
+WIND_MAX_VARIANTS = 9
+
+
+def wind_variant_case(direction: str, variant: int) -> str:
+    """The name of external pressure variant ``variant`` (1, 2, ...) of the wind case
+    ``direction`` (WX, WXN, WY, WYN): the case itself for 1, else ``<case><variant>``."""
+    return direction if variant <= 1 else f"{direction}{variant}"
+
+
+def wind_pressure_cases() -> list[str]:
+    """Every case name the clad structures' wind may add after WX and WY, in order."""
+    out = []
+    for base in ("WX", "WXN", "WY", "WYN"):
+        out += [wind_variant_case(base, k) for k in range(1, WIND_MAX_VARIANTS + 1)]
+    return [c for c in out if c not in ("WX", "WY")] + [WIND_INTERNAL_CASE]
+
+
+def resolve_wind_cases(
+    variants: list[tuple[str, dict[str, float]]], present: set[str] | frozenset[str]
+) -> list[tuple[str, dict[str, float]]]:
+    """The design wind variants (:func:`wind_design_variants`) on the cases the model has: a
+    negative factor on WX or WY goes to the opposite direction's case (WXN, WYN) at its
+    magnitude where the model has it; each direction's external pressure variants (WX2, ...)
+    each give a row; and with the internal pressure case WI, each row twice, with ±WI at the
+    largest wind factor's magnitude (Figure 6.2.5, note 3). A model with none of these cases
+    gets ``variants`` unchanged."""
+    if not any(c in present for c in wind_pressure_cases()):
+        return variants
+    internal = WIND_INTERNAL_CASE in present
+    out: list[tuple[str, dict[str, float]]] = []
+    for label, factors in variants:
+        rows: list[tuple[str, dict[str, float]]] = [("", {})]
+        for direction in ("WX", "WY"):
+            f = factors.get(direction, 0.0)
+            if not f:
+                continue
+            opposite = WIND_OPPOSITE_CASES[direction]
+            base, value = (opposite, -f) if f < 0 and opposite in present else (direction, f)
+            names = [base] + [
+                wind_variant_case(base, k)
+                for k in range(2, WIND_MAX_VARIANTS + 1)
+                if wind_variant_case(base, k) in present
+            ]
+            named = base != direction or len(names) > 1
+            rows = [
+                (text + (f" {name}" if named else ""), {**row, name: value})
+                for text, row in rows
+                for name in names
+            ]
+        rest = {k: v for k, v in factors.items() if k not in ("WX", "WY")}
+        for text, row in rows:
+            merged = {**rest, **row}
+            if internal and row:
+                magnitude = max(abs(v) for v in row.values())
+                for sign, mark in ((1.0, "+"), (-1.0, "-")):
+                    out.append(
+                        (
+                            f"{label}{text} {mark}{WIND_INTERNAL_CASE}".strip(),
+                            {**merged, WIND_INTERNAL_CASE: sign * magnitude},
+                        )
+                    )
+            else:
+                out.append((f"{label}{text}".strip(), merged))
     return out
 
 

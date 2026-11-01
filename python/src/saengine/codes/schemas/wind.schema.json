@@ -1,5 +1,135 @@
 {
   "$defs": {
+    "ArchRow": {
+      "additionalProperties": false,
+      "description": "A rise-to-span range of an arched roof: windward quarter Cp = a·r + b (and the alternate\ncoefficient that shall also be used, where given).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "elevated": {
+          "description": "Roof on an elevated structure (else from the ground).",
+          "title": "Elevated",
+          "type": "boolean"
+        },
+        "riseFrom": {
+          "minimum": 0,
+          "title": "Risefrom",
+          "type": "number"
+        },
+        "riseTo": {
+          "exclusiveMinimum": 0,
+          "title": "Riseto",
+          "type": "number"
+        },
+        "windward": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Windward",
+          "type": "array"
+        },
+        "alternate": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alternate"
+        }
+      },
+      "required": [
+        "elevated",
+        "riseFrom",
+        "riseTo",
+        "windward"
+      ],
+      "title": "ArchRow",
+      "type": "object"
+    },
+    "ArchedTable": {
+      "additionalProperties": false,
+      "description": "Arched roofs: windward quarter by r, centre half Cp = a·r + b, leeward quarter Cp.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ArchRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "centre": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Centre",
+          "type": "array"
+        },
+        "leeward": {
+          "title": "Leeward",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rows",
+        "centre",
+        "leeward"
+      ],
+      "title": "ArchedTable",
+      "type": "object"
+    },
     "CladdingCurve": {
       "additionalProperties": false,
       "description": "One external pressure coefficient (GCp) of components and cladding: ``gcp1`` at an\neffective wind area up to ``area1`` [m²], ``gcp2`` from ``area2``, linear in log A between.",
@@ -113,12 +243,20 @@
           "type": "number"
         },
         "internal": {
-          "additionalProperties": {
-            "type": "number"
-          },
-          "description": "(GCpi) magnitude by enclosure.",
-          "title": "Internal",
-          "type": "object"
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(GCpi) magnitude by enclosure; None: the wind table's internalPressure.",
+          "title": "Internal"
         },
         "edgeFraction": {
           "description": "a ≤ edgeFraction · least plan dimension.",
@@ -156,7 +294,6 @@
         "lowRise",
         "highRise",
         "lowRiseWallFactor",
-        "internal",
         "edgeFraction",
         "edgeHeightFraction",
         "edgeMinFraction",
@@ -164,6 +301,119 @@
         "parapetCorner"
       ],
       "title": "CladdingTable",
+      "type": "object"
+    },
+    "DomeCurve": {
+      "additionalProperties": false,
+      "description": "Cp at one point of a dome (A windward springline, B top, C leeward springline) against\nf/D, for one hD/D.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hdOverD": {
+          "minimum": 0,
+          "title": "Hdoverd",
+          "type": "number"
+        },
+        "points": {
+          "description": "(f/D, Cp) points.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hdOverD",
+        "points"
+      ],
+      "title": "DomeCurve",
+      "type": "object"
+    },
+    "DomeTable": {
+      "additionalProperties": false,
+      "description": "Domed roofs on a circular base: Cp at A, B and C by f/D and hD/D, Case A interpolated\nalong arcs A-B-C, Case B constant A up to ``caseBAngle`` then to B and C.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minRise": {
+          "description": "Below this f/D, the planar roof table holds.",
+          "exclusiveMinimum": 0,
+          "title": "Minrise",
+          "type": "number"
+        },
+        "caseBAngle": {
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Casebangle",
+          "type": "number"
+        },
+        "A": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "A",
+          "type": "array"
+        },
+        "B": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "B",
+          "type": "array"
+        },
+        "C": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "C",
+          "type": "array"
+        }
+      },
+      "required": [
+        "minRise",
+        "caseBAngle",
+        "A",
+        "B",
+        "C"
+      ],
+      "title": "DomeTable",
       "type": "object"
     },
     "Exposure": {
@@ -356,6 +606,60 @@
       "title": "FlexibleGustRow",
       "type": "object"
     },
+    "InternalPressureTable": {
+      "additionalProperties": false,
+      "description": "Internal pressure coefficients (GCpi) by enclosure classification and the reduction\nfactor Ri of a partially enclosed building with one unpartitioned large volume:\nRi = reductionBase·(1 + 1/√(1 + Vi/(volumeFactor·Aog))) ≤ 1, Vi the internal volume [m³],\nAog the total area of openings in the envelope [m²]\n(read by :func:`saengine.fem.loads.internal_pressure_coefficient`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "coefficients": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "(GCpi) magnitude by enclosure.",
+          "title": "Coefficients",
+          "type": "object"
+        },
+        "reducedEnclosures": {
+          "description": "Enclosures whose (GCpi) Ri may reduce.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Reducedenclosures",
+          "type": "array"
+        },
+        "reductionBase": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Reductionbase",
+          "type": "number"
+        },
+        "volumeFactor": {
+          "description": "The constant before Aog in Ri [m].",
+          "exclusiveMinimum": 0,
+          "title": "Volumefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficients",
+        "volumeFactor"
+      ],
+      "title": "InternalPressureTable",
+      "type": "object"
+    },
     "LatticeCfRow": {
       "additionalProperties": false,
       "description": "Force coefficient Cf of an open sign or lattice framework up to a solidity ratio ε: by\nmember shape, flat-sided or rounded (small and large D√qz).",
@@ -406,6 +710,192 @@
         "roundLarge"
       ],
       "title": "LatticeCfRow",
+      "type": "object"
+    },
+    "LowRiseRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "description": "Roof angle θ [°].",
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "gcpf": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "(GCpf) by building surface (1-6, 1E-4E).",
+          "title": "Gcpf",
+          "type": "object"
+        }
+      },
+      "required": [
+        "angle",
+        "gcpf"
+      ],
+      "title": "LowRiseRow",
+      "type": "object"
+    },
+    "LowRiseTable": {
+      "additionalProperties": false,
+      "description": "Low-rise buildings: the combined (GCpf) by building surface and roof angle, the end\nzones 2a wide, the zone 2 extent, the torsional load cases' share.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxHeight": {
+          "description": "Low-rise: mean roof height h up to this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Maxheight",
+          "type": "number"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/LowRiseRow"
+          },
+          "minItems": 2,
+          "title": "Rows",
+          "type": "array"
+        },
+        "endZoneFactor": {
+          "description": "E zones extend endZoneFactor·a.",
+          "exclusiveMinimum": 0,
+          "title": "Endzonefactor",
+          "type": "number"
+        },
+        "zone2Fraction": {
+          "description": "Negative zone 2: up to this · L ...",
+          "exclusiveMinimum": 0,
+          "title": "Zone2Fraction",
+          "type": "number"
+        },
+        "zone2EaveFactor": {
+          "description": "... or this · he, the less.",
+          "exclusiveMinimum": 0,
+          "title": "Zone2Eavefactor",
+          "type": "number"
+        },
+        "torsionalShare": {
+          "description": "Zones 1T-4T: this · zones 1-4.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Torsionalshare",
+          "type": "number"
+        },
+        "exemptHeight": {
+          "description": "One storey up to this h: no torsional cases.",
+          "exclusiveMinimum": 0,
+          "title": "Exemptheight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxHeight",
+        "rows",
+        "endZoneFactor",
+        "zone2Fraction",
+        "zone2EaveFactor",
+        "torsionalShare",
+        "exemptHeight"
+      ],
+      "title": "LowRiseTable",
+      "type": "object"
+    },
+    "MwfrsTable": {
+      "additionalProperties": false,
+      "description": "External pressures of the main wind-force resisting system on walls and roofs of\nenclosed and partially enclosed buildings (read by :mod:`saengine.fem.loads` and\n:mod:`saengine.fem.open_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "sideWall": {
+          "description": "Side wall Cp.",
+          "title": "Sidewall",
+          "type": "number"
+        },
+        "overhang": {
+          "description": "Cp on the underside of a windward roof overhang.",
+          "title": "Overhang",
+          "type": "number"
+        },
+        "roof": {
+          "$ref": "#/$defs/RoofCpTable"
+        },
+        "domes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DomeTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arched": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArchedTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lowRise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LowRiseTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "sideWall",
+        "overhang",
+        "roof"
+      ],
+      "title": "MwfrsTable",
       "type": "object"
     },
     "OpenStructuresTable": {
@@ -474,6 +964,283 @@
         "roundTower"
       ],
       "title": "OpenStructuresTable",
+      "type": "object"
+    },
+    "RoofCpRow": {
+      "additionalProperties": false,
+      "description": "One h/L row of a roof pressure coefficient table: per tabulated angle, the first\n(suction) and second (pressure, where two are listed) Cp; None where none is printed (0.0 for\ninterpolation).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverL": {
+          "minimum": 0,
+          "title": "Hoverl",
+          "type": "number"
+        },
+        "first": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "First",
+          "type": "array"
+        },
+        "second": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Second"
+        }
+      },
+      "required": [
+        "hOverL",
+        "first"
+      ],
+      "title": "RoofCpRow",
+      "type": "object"
+    },
+    "RoofCpTable": {
+      "additionalProperties": false,
+      "description": "Roof pressure coefficients Cp of the main wind-force resisting system (all heights): the\nwindward and leeward slopes for wind normal to the ridge (θ ≥ ``flatAngle``) by θ and h/L,\nand the zones by distance from the windward edge for θ < ``flatAngle`` and wind parallel to\nthe ridge. Values between rows and angles are interpolated linearly between values of the\nsame column.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angles": {
+          "description": "Windward slope angles θ [°].",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Angles",
+          "type": "array"
+        },
+        "windward": {
+          "items": {
+            "$ref": "#/$defs/RoofCpRow"
+          },
+          "minItems": 1,
+          "title": "Windward",
+          "type": "array"
+        },
+        "steepFrom": {
+          "description": "θ [°] from which Cp = steepFactor·θ.",
+          "title": "Steepfrom",
+          "type": "number"
+        },
+        "steepFactor": {
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "verticalFrom": {
+          "description": "θ [°] above which the slope takes verticalCp.",
+          "title": "Verticalfrom",
+          "type": "number"
+        },
+        "verticalCp": {
+          "title": "Verticalcp",
+          "type": "number"
+        },
+        "leewardAngles": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Leewardangles",
+          "type": "array"
+        },
+        "leeward": {
+          "items": {
+            "$ref": "#/$defs/RoofCpRow"
+          },
+          "minItems": 1,
+          "title": "Leeward",
+          "type": "array"
+        },
+        "flatAngle": {
+          "description": "θ [°] below which the roof is flat.",
+          "exclusiveMinimum": 0,
+          "title": "Flatangle",
+          "type": "number"
+        },
+        "parallel": {
+          "items": {
+            "$ref": "#/$defs/RoofParallelRow"
+          },
+          "minItems": 1,
+          "title": "Parallel",
+          "type": "array"
+        },
+        "reducible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The Cp value that may be reduced with its area.",
+          "title": "Reducible"
+        },
+        "areaReduction": {
+          "description": "(area [m²], factor) points of that reduction.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Areareduction",
+          "type": "array"
+        }
+      },
+      "required": [
+        "angles",
+        "windward",
+        "steepFrom",
+        "steepFactor",
+        "verticalFrom",
+        "verticalCp",
+        "leewardAngles",
+        "leeward",
+        "flatAngle",
+        "parallel"
+      ],
+      "title": "RoofCpTable",
+      "type": "object"
+    },
+    "RoofParallelRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverL": {
+          "minimum": 0,
+          "title": "Hoverl",
+          "type": "number"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/RoofParallelZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hOverL",
+        "zones"
+      ],
+      "title": "RoofParallelRow",
+      "type": "object"
+    },
+    "RoofParallelZone": {
+      "additionalProperties": false,
+      "description": "A zone of the roof by its horizontal distance from the windward edge (in multiples of\nh): Cp values listed (one or two).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Zone ends this many h from the windward edge; None: the rest.",
+          "title": "Upto"
+        },
+        "cp": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Cp",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cp"
+      ],
+      "title": "RoofParallelZone",
       "type": "object"
     },
     "TowerCf": {
@@ -670,6 +1437,30 @@
       ],
       "default": null,
       "description": "Components and cladding pressures; None: not computed."
+    },
+    "internalPressure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InternalPressureTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Internal pressure coefficients and Ri; None: cladding's."
+    },
+    "mwfrs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MwfrsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Wall and roof pressures of the main wind-force resisting system; None: storey forces only and no wind on clad special structures."
     },
     "openStructures": {
       "anyOf": [

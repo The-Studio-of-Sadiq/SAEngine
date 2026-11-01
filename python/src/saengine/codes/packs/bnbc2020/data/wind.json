@@ -69,13 +69,15 @@
     "exposures": "BNBC 2020 Part 6 Table 6.2.11 (p. 602) and its α, zg",
     "directionality": "BNBC 2020 Part 6 Table 6.2.12 (p. 603)",
     "gust": "BNBC 2020 Part 6 Sec 2.4.8.1 (p. 553), rigid structures",
-    "cpWindward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
-    "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6 (page not checked)",
+    "cpWindward": "BNBC 2020 Part 6 Figure 6.2.6, wall pressure coefficients (p. 571)",
+    "cpLeeward": "BNBC 2020 Part 6 Figure 6.2.6, wall pressure coefficients (p. 571)",
     "designCases": "BNBC 2020 Part 6 Sec 2.4.11.3 (p. 559) and Figure 6.2.9 (pp. 574-575)",
     "exposureTerrain": "BNBC 2020 Part 6 Table 6.2.10 (terrain exposure constants, page not checked); ASCE 7-05 Table 6-2 (Exposures B, C, D = BNBC A, B, C)",
     "flexible": "BNBC 2020 Part 6 Sec 2.4.8.2, Eq. 6.2.8-6.2.16 (p. 553, page not checked); ASCE 7-05 Sec 6.5.8.2. Damping β = 2 % for concrete buildings (ASCE 7-05 Commentary C6.5.8; 1 % for steel)",
-    "cladding": "BNBC 2020 Part 6 Sec 2.4.11.5 and the components-and-cladding figures (pages not checked); ASCE 7-05 Figures 6-11A (walls, h ≤ 60 ft), 6-11B (roofs θ ≤ 7°), 6-17 (h > 60 ft, θ ≤ 10°); internal pressure (GCpi): BNBC 2020 Part 6 Figure 6.2.5, ASCE 7-05 Figure 6-5; parapets: ASCE 7-05 Sec 6.5.12.4.4",
-    "openStructures": "BNBC 2020 Part 6 Sec 2.4 (other structures; page not checked) = ASCE 7-05 Sec 6.5.15, Eq 6-28 and Figures 6-22 (open signs and lattice frameworks), 6-23 (trussed towers)"
+    "cladding": "BNBC 2020 Part 6 Sec 2.4.11.4 (Eqs 6.2.24, 6.2.25, p. 560) and the components-and-cladding figures (pages not checked); ASCE 7-05 Figures 6-11A (walls, h ≤ 60 ft), 6-11B (roofs θ ≤ 7°), 6-17 (h > 60 ft, θ ≤ 10°); internal pressure (GCpi): the table internalPressure; parapets: ASCE 7-05 Sec 6.5.12.4.4",
+    "openStructures": "BNBC 2020 Part 6 Sec 2.4 (other structures; page not checked) = ASCE 7-05 Sec 6.5.15, Eq 6-28 and Figures 6-22 (open signs and lattice frameworks), 6-23 (trussed towers)",
+    "internalPressure": "BNBC 2020 Part 6 Sec 2.4.10.1 and Figure 6.2.5 (p. 570) (GCpi); Eq 6.2.18 (p. 556) Ri; enclosure classes Sec 2.1.3 (pp. 513-514) and Sec 2.4.9",
+    "mwfrs": "BNBC 2020 Part 6 Sec 2.4.10.2, 2.4.10.4, 2.4.11.2 (Eqs 6.2.19-6.2.20, pp. 557-558); Figures 6.2.6 (pp. 571-572), 6.2.7 (p. 573), 6.2.8 (p. 574), 6.2.10 (pp. 576-577)"
   },
   "flexible": {
     "frequencyLimit": 1.0,
@@ -245,11 +247,6 @@
       }
     ],
     "lowRiseWallFactor": 0.9,
-    "internal": {
-      "enclosed": 0.18,
-      "partiallyEnclosed": 0.55,
-      "open": 0.0
-    },
     "edgeFraction": 0.1,
     "edgeHeightFraction": 0.4,
     "edgeMinFraction": 0.04,
@@ -297,6 +294,480 @@
       "a": 0.51,
       "b": 0.0,
       "c": 0.57
+    }
+  },
+  "internalPressure": {
+    "source": "BNBC 2020 Part 6 Figure 6.2.5 (p. 570) and Eq 6.2.18 (p. 556)",
+    "coefficients": {
+      "enclosed": 0.18,
+      "partiallyEnclosed": 0.55,
+      "open": 0.0
+    },
+    "reducedEnclosures": [
+      "partiallyEnclosed"
+    ],
+    "reductionBase": 0.5,
+    "volumeFactor": 6951.0
+  },
+  "mwfrs": {
+    "source": "BNBC 2020 Part 6 Sec 2.4.10.2-2.4.11.2, Figures 6.2.6-6.2.8 and 6.2.10 (pp. 557-558, 571-577)",
+    "sideWall": -0.7,
+    "overhang": 0.8,
+    "roof": {
+      "source": "BNBC 2020 Part 6 Figure 6.2.6 (Contd.), roof pressure coefficients and notes 2-4, 7, 9 and # (p. 572)",
+      "angles": [
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        45,
+        60
+      ],
+      "windward": [
+        {
+          "hOverL": 0.25,
+          "first": [
+            -0.7,
+            -0.5,
+            -0.3,
+            -0.2,
+            -0.2,
+            0.0,
+            null,
+            null
+          ],
+          "second": [
+            -0.18,
+            0.0,
+            0.2,
+            0.3,
+            0.3,
+            0.4,
+            0.4,
+            null
+          ]
+        },
+        {
+          "hOverL": 0.5,
+          "first": [
+            -0.9,
+            -0.7,
+            -0.4,
+            -0.3,
+            -0.2,
+            -0.2,
+            0.0,
+            null
+          ],
+          "second": [
+            -0.18,
+            -0.18,
+            0.0,
+            0.2,
+            0.2,
+            0.3,
+            0.4,
+            null
+          ]
+        },
+        {
+          "hOverL": 1.0,
+          "first": [
+            -1.3,
+            -1.0,
+            -0.7,
+            -0.5,
+            -0.3,
+            -0.2,
+            0.0,
+            null
+          ],
+          "second": [
+            -0.18,
+            -0.18,
+            -0.18,
+            0.0,
+            0.2,
+            0.2,
+            0.3,
+            null
+          ]
+        }
+      ],
+      "steepFrom": 60,
+      "steepFactor": 0.01,
+      "verticalFrom": 80,
+      "verticalCp": 0.8,
+      "leewardAngles": [
+        10,
+        15,
+        20
+      ],
+      "leeward": [
+        {
+          "hOverL": 0.25,
+          "first": [
+            -0.3,
+            -0.5,
+            -0.6
+          ]
+        },
+        {
+          "hOverL": 0.5,
+          "first": [
+            -0.5,
+            -0.5,
+            -0.6
+          ]
+        },
+        {
+          "hOverL": 1.0,
+          "first": [
+            -0.7,
+            -0.6,
+            -0.6
+          ]
+        }
+      ],
+      "flatAngle": 10,
+      "parallel": [
+        {
+          "hOverL": 0.5,
+          "zones": [
+            {
+              "upTo": 0.5,
+              "cp": [
+                -0.9,
+                -0.18
+              ]
+            },
+            {
+              "upTo": 1.0,
+              "cp": [
+                -0.9,
+                -0.18
+              ]
+            },
+            {
+              "upTo": 2.0,
+              "cp": [
+                -0.5,
+                -0.18
+              ]
+            },
+            {
+              "cp": [
+                -0.3,
+                -0.18
+              ]
+            }
+          ]
+        },
+        {
+          "hOverL": 1.0,
+          "zones": [
+            {
+              "upTo": 0.5,
+              "cp": [
+                -1.3,
+                -0.18
+              ]
+            },
+            {
+              "cp": [
+                -0.7,
+                -0.18
+              ]
+            }
+          ]
+        }
+      ],
+      "reducible": -1.3,
+      "areaReduction": [
+        [
+          9.3,
+          1.0
+        ],
+        [
+          23.2,
+          0.9
+        ],
+        [
+          92.9,
+          0.8
+        ]
+      ]
+    },
+    "domes": {
+      "source": "BNBC 2020 Part 6 Figure 6.2.7 (p. 573), curves digitised from the figure (read to about ±0.05)",
+      "minRise": 0.05,
+      "caseBAngle": 25,
+      "A": [
+        {
+          "hdOverD": 0.0,
+          "points": [
+            [
+              0.05,
+              0.15
+            ],
+            [
+              0.5,
+              0.8
+            ]
+          ]
+        },
+        {
+          "hdOverD": 0.25,
+          "points": [
+            [
+              0.05,
+              -1.4
+            ],
+            [
+              0.5,
+              0.8
+            ]
+          ]
+        },
+        {
+          "hdOverD": 1.0,
+          "points": [
+            [
+              0.05,
+              -1.4
+            ],
+            [
+              0.1,
+              -1.7
+            ],
+            [
+              0.33,
+              -1.4
+            ],
+            [
+              0.5,
+              0.8
+            ]
+          ]
+        }
+      ],
+      "B": [
+        {
+          "hdOverD": 0.0,
+          "points": [
+            [
+              0.05,
+              -0.25
+            ],
+            [
+              0.5,
+              -1.2
+            ]
+          ]
+        },
+        {
+          "hdOverD": 0.5,
+          "points": [
+            [
+              0.05,
+              -0.55
+            ],
+            [
+              0.1,
+              -0.8
+            ],
+            [
+              0.26,
+              -1.2
+            ],
+            [
+              0.5,
+              -1.5
+            ]
+          ]
+        }
+      ],
+      "C": [
+        {
+          "hdOverD": 0.0,
+          "points": [
+            [
+              0.05,
+              0.0
+            ],
+            [
+              0.5,
+              0.0
+            ]
+          ]
+        },
+        {
+          "hdOverD": 0.5,
+          "points": [
+            [
+              0.05,
+              -0.5
+            ],
+            [
+              0.5,
+              -0.5
+            ]
+          ]
+        }
+      ]
+    },
+    "arched": {
+      "source": "BNBC 2020 Part 6 Figure 6.2.8 and its notes (p. 574)",
+      "rows": [
+        {
+          "elevated": true,
+          "riseFrom": 0.0,
+          "riseTo": 0.2,
+          "windward": [
+            0.0,
+            -0.9
+          ]
+        },
+        {
+          "elevated": true,
+          "riseFrom": 0.2,
+          "riseTo": 0.3,
+          "windward": [
+            1.5,
+            -0.3
+          ],
+          "alternate": [
+            6.0,
+            -2.1
+          ]
+        },
+        {
+          "elevated": true,
+          "riseFrom": 0.3,
+          "riseTo": 0.6,
+          "windward": [
+            2.75,
+            -0.7
+          ]
+        },
+        {
+          "elevated": false,
+          "riseFrom": 0.0,
+          "riseTo": 0.6,
+          "windward": [
+            1.4,
+            0.0
+          ]
+        }
+      ],
+      "centre": [
+        -1.0,
+        -0.7
+      ],
+      "leeward": -0.5
+    },
+    "lowRise": {
+      "source": "BNBC 2020 Part 6 Figure 6.2.10 and notes 3-9 (pp. 576-577); low-rise building: Sec 2.1.3 (p. 513). The table lists surfaces 1-6 and 1E-4E only (no 5E, 6E)",
+      "maxHeight": 18.3,
+      "rows": [
+        {
+          "angle": 0,
+          "gcpf": {
+            "1": 0.4,
+            "2": -0.69,
+            "3": -0.37,
+            "4": -0.29,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.61,
+            "2E": -1.07,
+            "3E": -0.53,
+            "4E": -0.43
+          }
+        },
+        {
+          "angle": 5,
+          "gcpf": {
+            "1": 0.4,
+            "2": -0.69,
+            "3": -0.37,
+            "4": -0.29,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.61,
+            "2E": -1.07,
+            "3E": -0.53,
+            "4E": -0.43
+          }
+        },
+        {
+          "angle": 20,
+          "gcpf": {
+            "1": 0.53,
+            "2": -0.69,
+            "3": -0.48,
+            "4": -0.43,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.8,
+            "2E": -1.07,
+            "3E": -0.69,
+            "4E": -0.64
+          }
+        },
+        {
+          "angle": 30,
+          "gcpf": {
+            "1": 0.56,
+            "2": 0.21,
+            "3": -0.43,
+            "4": -0.37,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.69,
+            "2E": 0.27,
+            "3E": -0.53,
+            "4E": -0.48
+          }
+        },
+        {
+          "angle": 45,
+          "gcpf": {
+            "1": 0.56,
+            "2": 0.21,
+            "3": -0.43,
+            "4": -0.37,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.69,
+            "2E": 0.27,
+            "3E": -0.53,
+            "4E": -0.48
+          }
+        },
+        {
+          "angle": 90,
+          "gcpf": {
+            "1": 0.56,
+            "2": 0.56,
+            "3": -0.37,
+            "4": -0.37,
+            "5": -0.45,
+            "6": -0.45,
+            "1E": 0.69,
+            "2E": 0.69,
+            "3E": -0.48,
+            "4E": -0.48
+          }
+        }
+      ],
+      "endZoneFactor": 2.0,
+      "zone2Fraction": 0.5,
+      "zone2EaveFactor": 2.5,
+      "torsionalShare": 0.25,
+      "exemptHeight": 9.1
     }
   }
 }

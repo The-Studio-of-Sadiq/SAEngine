@@ -2162,7 +2162,9 @@ def _derive_fem(
             )
         b.notes.extend(wind_notes)
     if special:
-        wind_open = _open_structure_wind(b, building, types, settings, values, add_element_load)
+        wind_open = _open_structure_wind(
+            b, building, types, settings, values, add_element_load, patterns
+        )
         summary.update(wind_open)
     crane_cases: list[tuple[str, str]] = []  # (code, label) of the moving crane load cases
     if settings.cranes:
@@ -2338,8 +2340,11 @@ def _derive_fem(
     cases += [c for c in ECCENTRIC_CASES if c in patterns]
     # The torsional wind cases (BNBC Figure 6.2.9) and the live load arrangements after them.
     cases += [c for c in fl.WIND_TORSION_CASES.values() if c in patterns]
+    # B11: the clad structures' wind cases (other directions, variants, internal pressure).
+    cases += [c for c in fl.wind_pressure_cases() if c in patterns]
     cases += [p.name for p in live_cases]
     extra_labels = {p.name: p.label for p in live_cases}
+    extra_labels.update((summary.get("cladWind") or {}).get("labels") or {})
     # The moving crane load cases (saengine.fem.cranes) after them.
     cases += [code for code, _ in crane_cases]
     extra_labels.update(dict(crane_cases))
@@ -3052,10 +3057,12 @@ def _open_structure_wind(
     settings: ProjectSettings,
     values: dict[str, Any],
     add_element_load: Any,
+    patterns: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The wind cases WX and WY of a special structure: member loads by force coefficients
-    (:mod:`saengine.fem.open_wind`, BNBC 2020 Part 6 Sec 2.4, other structures). Returns the
-    summary entry ``{"openWind": ...}``, empty when there is no wind."""
+    (:mod:`saengine.fem.open_wind`, BNBC 2020 Part 6 Sec 2.4, other structures), or for a clad
+    one (form ``clad``) the pressures on its panels (:func:`_clad_structure_wind`). Returns the
+    summary entry ``{"openWind": ...}`` (``{"cladWind": ...}``), empty when there is no wind."""
     from saengine.fem import open_wind as ow
     from saengine.fem.loads import velocity_pressure, wind_factor, wind_overrides
 
@@ -3063,6 +3070,11 @@ def _open_structure_wind(
     table = getattr(code_context.table("wind"), "openStructures", None)
     if not values.get("windSpeed") or options.form == "none":
         return {}
+    if options.form == "clad":
+        clad = _clad_structure_wind(b, building, settings, values, patterns)
+        if clad:
+            return clad
+        options = options.model_copy(update={"form": "lattice"})
     if table is None:
         b.notes.append(
             "wind: the code pack has no force coefficients of open structures; the special "
@@ -3116,6 +3128,182 @@ def _open_structure_wind(
         + ". Panels (cladding) take no wind here"
     )
     return {"openWind": {"form": options.form, "gust": gust, "cases": result.summary}}
+
+
+def _polygon_normal(points: list[np.ndarray]) -> np.ndarray | None:
+    """The unit normal of a planar polygon (Newell's method), None when degenerate."""
+    n = np.zeros(3)
+    for p, q in zip(points, points[1:] + points[:1], strict=True):
+        n += np.array(
+            [
+                (p[1] - q[1]) * (p[2] + q[2]),
+                (p[2] - q[2]) * (p[0] + q[0]),
+                (p[0] - q[0]) * (p[1] + q[1]),
+            ]
+        )
+    size = float(np.linalg.norm(n))
+    return n / size if size > 1e-12 else None
+
+
+def _clad_structure_wind(
+    b: _Builder,
+    building: BuildingModel,
+    settings: ProjectSettings,
+    values: dict[str, Any],
+    patterns: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """The wind of a clad special structure (B11; settings ``wind.openStructure.form`` "clad"):
+    the main wind-force resisting system's pressures on its panels (the shells of its area
+    elements; :func:`saengine.fem.open_wind.clad_structure_wind`) as nodal forces in the cases
+    WX, WXN, WY, WYN, their variants and the internal pressure case WI. Returns the summary
+    entry ``{"cladWind": ...}``, or {} (with a note) when the structure cannot take it: then
+    the members take force coefficients instead."""
+    from saengine.fem import open_wind as ow
+    from saengine.fem.loads import (
+        _mwfrs,
+        internal_pressure_coefficient,
+        velocity_pressure,
+        wind_factor,
+        wind_overrides,
+    )
+
+    wind = settings.wind
+    options = wind.openStructure
+    mwfrs = _mwfrs()
+    panels = {e.id: e for e in building.elements if isinstance(e, AreaElement)}
+    shells = [(k, s) for k, s in enumerate(b.shells) if s.source in panels]
+    if patterns is None or mwfrs is None or not shells:
+        b.notes.append(
+            "wind (clad structure): "
+            + (
+                "the code pack has no wall and roof pressures"
+                if mwfrs is None
+                else "the model has no cladding panels (area elements) to take the pressures"
+            )
+            + "; the members take force coefficients (lattice) instead"
+        )
+        return {}
+    if wind.enclosure == "open":
+        b.notes.append(
+            "wind (clad structure): an open building takes the net pressures of free roofs, not "
+            "the enclosed building's wall and roof pressures (not covered here yet); the members "
+            "take force coefficients (lattice) instead"
+        )
+        return {}
+    base = min(float(c[2]) for c in b.coords.values())
+    vertical = math.cos(math.radians(float(mwfrs.roof.verticalFrom)))
+    outlines = {
+        pid: [np.array(p, dtype=float) * MM for p in e.outline] for pid, e in panels.items()
+    }
+    plan = np.array([p[:2] for pts in outlines.values() for p in pts])
+    centre = (plan.min(axis=0) + plan.max(axis=0)) / 2
+    normals: dict[str, np.ndarray] = {}
+    for pid, pts in outlines.items():
+        n = _polygon_normal(pts)
+        if n is None:
+            continue
+        middle = np.mean(pts, axis=0)
+        if abs(n[2]) < vertical:  # a wall: outward from the plan's centre
+            if float(n[:2] @ (middle[:2] - centre)) < 0:
+                n = -n
+        elif n[2] < 0:  # a roof: upward
+            n = -n
+        normals[pid] = n
+    walls = [pid for pid, n in normals.items() if abs(n[2]) < vertical]
+    if walls:
+        wall_xy = np.array([p[:2] for pid in walls for p in outlines[pid]])
+        footprint = (wall_xy.min(axis=0), wall_xy.max(axis=0))
+    elif building.supports:
+        at = np.array([s.at[:2] for s in building.supports], dtype=float) * MM
+        footprint = (at.min(axis=0), at.max(axis=0))
+    else:
+        footprint = (plan.min(axis=0), plan.max(axis=0))
+    low, high = footprint
+
+    def inside(p: np.ndarray) -> bool:
+        return bool(np.all(p[:2] >= low - 1e-3) and np.all(p[:2] <= high + 1e-3))
+
+    roof_z = [
+        float(p[2]) - base
+        for pid, n in normals.items()
+        if abs(n[2]) >= vertical
+        for p in outlines[pid]
+        if inside(p)
+    ]
+    every_z = [float(p[2]) - base for pts in outlines.values() for p in pts]
+    eave = min(roof_z) if roof_z else max(every_z)
+    top = max(every_z)
+    points = []
+    shares_of: dict[int, list[float]] = {}
+    for k, shell in shells:
+        n = normals.get(shell.source)
+        if n is None:
+            continue
+        corners = [b.coords[node] for node in shell.nodes]
+        shares_of[k] = shell_node_shares(corners)
+        centroid = np.mean(corners, axis=0)
+        centroid[2] -= base
+        points.append(ow.CladPoint(k, shell.source, centroid, n, float(sum(shares_of[k]))))
+    volume = wind.internalVolume
+    if volume is None:
+        # The volume under the roof: each roof piece's plan area times its height.
+        volume = sum(
+            float(p.centroid[2]) * p.area * abs(float(p.normal[2]))
+            for p in points
+            if abs(float(p.normal[2])) >= vertical and inside(p.centroid)
+        )
+    speed, importance = float(values["windSpeed"]), float(values["windImportance"])
+    gcpi, ri = internal_pressure_coefficient(wind.enclosure, wind.openingArea, volume)
+    with wind_overrides(wind):
+        result = ow.clad_structure_wind(
+            points,
+            eave=eave,
+            top=top,
+            footprint=(np.array([*low, 0.0]), np.array([*high, 0.0])),
+            qz_of=lambda z: 1000.0 * velocity_pressure(z, speed, wind.exposure, importance),
+            gust=wind_factor("gust"),
+            gcpi=gcpi,
+            ri=ri,
+            method=options.method,
+            roof_form=options.roof,
+        )
+    if not result.pressures:
+        b.notes.extend(f"wind (clad structure): {n}" for n in result.notes)
+        return {}
+    by_key = {p.key: p for p in points}
+
+    def apply(case: str, key: int, pressure: float) -> None:
+        """Pressure [Pa] toward the outer surface: nodal forces along −n."""
+        target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
+        normal = by_key[key].normal
+        for node, share in zip(b.shells[key].nodes, shares_of[key], strict=True):
+            target.setdefault(node, np.zeros(6))[:3] -= pressure * share * normal
+
+    for case, pressures in result.pressures.items():
+        for key, pressure in pressures.items():
+            apply(case, key, pressure)
+    if result.internal:
+        from saengine.fem.loads import WIND_INTERNAL_CASE
+
+        for key in result.inside:
+            apply(WIND_INTERNAL_CASE, key, -result.internal)  # toward the inner surface
+    s = result.summary
+    b.notes.extend(f"wind (clad structure): {n}" for n in result.notes)
+    b.notes.append(
+        "wind (clad structure): the main wind-force resisting system's pressures on "
+        f"{len({p.panel for p in points})} panel(s) ("
+        + ("low-rise (GCpf)" if s["method"] == "lowRise" else "all heights, q·G·Cp")
+        + f", {options.roof} roof; h {s['h_m']:.2f} m, θ {s['theta_deg']:.1f}°, qh "
+        f"{s['qh_Pa'] / 1e3:.3f} kN/m², (GCpi) {gcpi:g}"
+        + (f" × Ri {ri:.3f}" if ri < 1 else "")
+        + "); "
+        + "; ".join(
+            f"{case}: Fx {c['Fx_kN']:g}, Fy {c['Fy_kN']:g}, Fz {c['Fz_kN']:g} kN"
+            for case, c in s["cases"].items()
+        )
+        + ". The members take no force coefficients as well"
+    )
+    return {"cladWind": {**s, "Vi_m3": volume, "labels": result.labels}}
 
 
 def _wind_loads(
@@ -3271,7 +3459,41 @@ def _wind_loads(
             area=getattr(settings, "claddingArea", None),
             enclosure=getattr(settings, "enclosure", None) or "enclosed",
             parapet=getattr(settings, "parapetHeight", None) or None,
+            opening_area=getattr(settings, "openingArea", None),
+            volume=getattr(settings, "internalVolume", None),
         )
+        # B11: the MWFRS pressures on the walls and the flat roof in each direction (Eq
+        # 6.2.19, Figure 6.2.6): reported (the roof's uplift on its slabs and beams); the storey
+        # forces above are the walls' net along the wind, where the internal pressure cancels.
+        mwfrs = {}
+        for axis, case in ((0, "WX"), (1, "WY")):
+            table = fl.building_mwfrs_pressures(
+                rel[-1],
+                float(high[axis] - low[axis]),
+                float(high[1 - axis] - low[1 - axis]),
+                speed,
+                exposure,
+                importance,
+                enclosure=getattr(settings, "enclosure", None) or "enclosed",
+                opening_area=getattr(settings, "openingArea", None),
+                volume=getattr(settings, "internalVolume", None),
+            )
+            if table is not None:
+                mwfrs[case] = table
+        if mwfrs:
+            summary["wind"]["mwfrs"] = mwfrs
+            summary["wind"]["lowRise"] = fl.is_low_rise(rel[-1], least)
+            uplift = min(
+                row["pNeg_kPa"]
+                for t in mwfrs.values()
+                for row in t["surfaces"]
+                if row["surface"] == "roof"
+            )
+            notes.append(
+                "wind MWFRS on the walls and roof (Sec 2.4.11.2, Eq 6.2.19, Figure 6.2.6): roof "
+                f"suction up to {uplift:.2f} kN/m² with the internal pressure (GCpi) "
+                f"{next(iter(mwfrs.values()))['GCpi']:g}; reported, not applied to the floors"
+            )
         if cladding is not None:
             summary["wind"]["cladding"] = cladding
             worst = min(z["pNeg_kPa"] for z in cladding["zones"] if z["pNeg_kPa"] is not None)
