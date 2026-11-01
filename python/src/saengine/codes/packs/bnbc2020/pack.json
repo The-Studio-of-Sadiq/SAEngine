@@ -83,7 +83,11 @@
       "Sec 2.4.8.2 and Table 6.2.10: gust-effect factor Gf of flexible buildings",
       "Sec 2.4.11.4 and Figures 6.2.11-6.2.17 (pp. 560, 578-588): components and cladding (GCp) by zone, roof form and angle (gable, hip, monoslope, multispan, sawtooth, stepped, arched, domes)",
       "Sec 2.4.12, Eqs 6.2.27-6.2.28 and Figures 6.2.18-6.2.19 (pp. 561-562, 589-595): open buildings, free roofs (MWFRS and components and cladding)",
-      "Other structures (open signs and lattice frameworks, trussed towers): force coefficients Cf (page not checked)"
+      "Sec 2.4.14, Eq 6.2.30 and Figures 6.2.21-6.2.23 (pp. 563, 598-601): other structures (chimneys, tanks, open signs and lattice frameworks, trussed towers), force coefficients Cf",
+      "Sec 2.4.7, Eq 6.2.5 and Figure 6.2.4 (pp. 553, 569-570): topographic factor Kzt of hills, ridges and escarpments",
+      "Sec 2.4.11.3, Eq 6.2.23 (p. 559): torsional eccentricity of flexible buildings",
+      "Sec 2.4.13, Eq 6.2.29 and Figure 6.2.20 (pp. 562-563, 596-597): solid freestanding walls and signs",
+      "Sec 2.4.15 (p. 563): rooftop structures and equipment on buildings with h ≤ 18.3 m"
     ],
     "materials": [
       "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"

@@ -130,6 +130,125 @@
       "title": "ArchedTable",
       "type": "object"
     },
+    "ChimneyRow": {
+      "additionalProperties": false,
+      "description": "Cf of a cross-section and surface by h/D; ``small``: rounded with D√qz up to the\nlimit.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "section": {
+          "enum": [
+            "square",
+            "squareDiagonal",
+            "polygonal",
+            "round"
+          ],
+          "title": "Section",
+          "type": "string"
+        },
+        "surface": {
+          "default": "all",
+          "enum": [
+            "all",
+            "moderatelySmooth",
+            "rough",
+            "veryRough"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "small": {
+          "default": false,
+          "title": "Small",
+          "type": "boolean"
+        },
+        "cf": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Cf",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "section",
+        "cf"
+      ],
+      "title": "ChimneyRow",
+      "type": "object"
+    },
+    "ChimneysTable": {
+      "additionalProperties": false,
+      "description": "Chimneys, tanks, rooftop equipment and similar structures, F = qz·G·Cf·Af (read by\n:mod:`saengine.fem.other_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverD": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Hoverd",
+          "type": "array"
+        },
+        "roundLimit": {
+          "description": "D√qz limit of round sections (D m, qz N/m²).",
+          "exclusiveMinimum": 0,
+          "title": "Roundlimit",
+          "type": "number"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ChimneyRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hOverD",
+        "roundLimit",
+        "rows"
+      ],
+      "title": "ChimneysTable",
+      "type": "object"
+    },
     "CladdingArchedTable": {
       "additionalProperties": false,
       "description": "Arched roofs: at the perimeter, the roof figures with θ the springline slope; elsewhere\nthe MWFRS arched roof Cp times ``interiorFactor``.",
@@ -1019,6 +1138,20 @@
           "exclusiveMinimum": 0,
           "title": "Damping",
           "type": "number"
+        },
+        "eccentricity": {
+          "anyOf": [
+            {
+              "const": "gustWeighted",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Torsional eccentricity of a flexible building: gustWeighted, e from eQ and eR weighted by the background and resonant responses (:func:`saengine.fem.loads.flexible_eccentricity`); None: the rigid e.",
+          "title": "Eccentricity"
         }
       },
       "required": [
@@ -1838,7 +1971,7 @@
           "type": "array"
         },
         "roundLimit": {
-          "description": "D√qz limit between the rounded-member columns, in ft·√psf.",
+          "description": "D√qz limit between the rounded-member columns (D in m, qz in N/m²).",
           "exclusiveMinimum": 0,
           "title": "Roundlimit",
           "type": "number"
@@ -1878,6 +2011,54 @@
         "roundTower"
       ],
       "title": "OpenStructuresTable",
+      "type": "object"
+    },
+    "ReturnCorner": {
+      "additionalProperties": false,
+      "description": "The factor on the first region's Cf (B/s ≥ ``fromAspect``) with a return corner, by\nLr/s.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "fromAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Fromaspect",
+          "type": "number"
+        },
+        "factors": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Factors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fromAspect",
+        "factors"
+      ],
+      "title": "ReturnCorner",
       "type": "object"
     },
     "RoofCpRow": {
@@ -2157,6 +2338,389 @@
       "title": "RoofParallelZone",
       "type": "object"
     },
+    "RooftopTable": {
+      "additionalProperties": false,
+      "description": "The force on rooftop structures and equipment of a low building × ``factor`` for\nAf ≤ ``fullShare``·B·h, linear down to 1 at Af = ``noneShare``·B·h.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxHeight": {
+          "description": "Buildings with h up to this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Maxheight",
+          "type": "number"
+        },
+        "factor": {
+          "minimum": 1,
+          "title": "Factor",
+          "type": "number"
+        },
+        "fullShare": {
+          "exclusiveMinimum": 0,
+          "title": "Fullshare",
+          "type": "number"
+        },
+        "noneShare": {
+          "exclusiveMinimum": 0,
+          "title": "Noneshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxHeight",
+        "factor",
+        "fullShare",
+        "noneShare"
+      ],
+      "title": "RooftopTable",
+      "type": "object"
+    },
+    "SolidSignRegion": {
+      "additionalProperties": false,
+      "description": "A region of a long sign (case C) up to ``end``·s from the windward edge (None: the rest):\nCf by the aspect ratios of the table, None where the sign is not that long.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "cf": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Cf",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cf"
+      ],
+      "title": "SolidSignRegion",
+      "type": "object"
+    },
+    "SolidSignsCaseC": {
+      "additionalProperties": false,
+      "description": "Case C (B/s ≥ ``minAspect``): Cf of each region by B/s, × (``reductionConstant`` − s/h)\nabove s/h of ``reductionAbove``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "aspect": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Aspect",
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/SolidSignRegion"
+          },
+          "minItems": 1,
+          "title": "Regions",
+          "type": "array"
+        },
+        "minAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Minaspect",
+          "type": "number"
+        },
+        "reductionAbove": {
+          "exclusiveMinimum": 0,
+          "title": "Reductionabove",
+          "type": "number"
+        },
+        "reductionConstant": {
+          "exclusiveMinimum": 0,
+          "title": "Reductionconstant",
+          "type": "number"
+        }
+      },
+      "required": [
+        "aspect",
+        "regions",
+        "minAspect",
+        "reductionAbove",
+        "reductionConstant"
+      ],
+      "title": "SolidSignsCaseC",
+      "type": "object"
+    },
+    "SolidSignsTable": {
+      "additionalProperties": false,
+      "description": "Solid freestanding walls and solid signs, F = qh·G·Cf·As (read by\n:mod:`saengine.fem.other_wind`): Cf of cases A and B by s/h (``clearance``) and B/s\n(``aspect``), case C by region.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "clearance": {
+          "description": "s/h of the rows.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Clearance",
+          "type": "array"
+        },
+        "aspect": {
+          "description": "B/s of the columns.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Aspect",
+          "type": "array"
+        },
+        "caseAB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Caseab",
+          "type": "array"
+        },
+        "caseC": {
+          "$ref": "#/$defs/SolidSignsCaseC"
+        },
+        "returnCorner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReturnCorner"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "solidMin": {
+          "description": "A sign is solid from this ε up.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Solidmin",
+          "type": "number"
+        },
+        "openingExponent": {
+          "description": "Openings: Cf × (1 − (1 − ε)^this).",
+          "exclusiveMinimum": 0,
+          "title": "Openingexponent",
+          "type": "number"
+        },
+        "caseBOffset": {
+          "description": "Case B: F this × B toward the windward edge.",
+          "minimum": 0,
+          "title": "Caseboffset",
+          "type": "number"
+        },
+        "fullHeightLift": {
+          "description": "s/h = 1: F this × s above the centre.",
+          "minimum": 0,
+          "title": "Fullheightlift",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "clearance",
+        "aspect",
+        "caseAB",
+        "caseC",
+        "solidMin",
+        "openingExponent",
+        "caseBOffset",
+        "fullHeightLift"
+      ],
+      "title": "SolidSignsTable",
+      "type": "object"
+    },
+    "TopographyShape": {
+      "additionalProperties": false,
+      "description": "A topographic feature's speed-up parameters: K1/(H/Lh) by exposure, γ and μ.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "k1": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "K1 / (H/Lh) by exposure.",
+          "title": "K1",
+          "type": "object"
+        },
+        "gamma": {
+          "description": "Height attenuation factor γ.",
+          "exclusiveMinimum": 0,
+          "title": "Gamma",
+          "type": "number"
+        },
+        "muUpwind": {
+          "description": "Horizontal attenuation μ upwind of the crest.",
+          "exclusiveMinimum": 0,
+          "title": "Muupwind",
+          "type": "number"
+        },
+        "muDownwind": {
+          "description": "Horizontal attenuation μ downwind of it.",
+          "exclusiveMinimum": 0,
+          "title": "Mudownwind",
+          "type": "number"
+        }
+      },
+      "required": [
+        "k1",
+        "gamma",
+        "muUpwind",
+        "muDownwind"
+      ],
+      "title": "TopographyShape",
+      "type": "object"
+    },
+    "TopographyTable": {
+      "additionalProperties": false,
+      "description": "Wind speed-up over isolated hills, ridges and escarpments: Kzt = (1 + K1·K2·K3)² with\nK1 = (K1/(H/Lh))·H/Lh, K2 = 1 − |x|/(μ·Lh), K3 = e^(−γ·z/Lh) (read by\n:func:`saengine.fem.loads.topographic_factor`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "shapes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TopographyShape"
+          },
+          "propertyNames": {
+            "enum": [
+              "ridge",
+              "escarpment",
+              "hill"
+            ]
+          },
+          "title": "Shapes",
+          "type": "object"
+        },
+        "minSlope": {
+          "description": "No speed-up below H/Lh of this.",
+          "exclusiveMinimum": 0,
+          "title": "Minslope",
+          "type": "number"
+        },
+        "maxSlope": {
+          "description": "Above it, H/Lh is taken as this for K1 and Lh as H/this for K2, K3.",
+          "exclusiveMinimum": 0,
+          "title": "Maxslope",
+          "type": "number"
+        },
+        "minHeight": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "No speed-up below a feature height H [m].",
+          "title": "Minheight",
+          "type": "object"
+        }
+      },
+      "required": [
+        "shapes",
+        "minSlope",
+        "maxSlope",
+        "minHeight"
+      ],
+      "title": "TopographyTable",
+      "type": "object"
+    },
     "TowerCf": {
       "additionalProperties": false,
       "description": "Cf = a·ε² + b·ε + c of a trussed tower's face.",
@@ -2399,6 +2963,54 @@
       ],
       "default": null,
       "description": "Force coefficients of open structures (lattice frameworks, trussed towers); None: special structures get no wind."
+    },
+    "topography": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TopographyTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Kzt of hills, ridges and escarpments; None: Kzt = topographic."
+    },
+    "solidSigns": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SolidSignsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cf of solid freestanding walls and signs; None: not covered."
+    },
+    "chimneys": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChimneysTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cf of chimneys, tanks and rooftop equipment; None: not covered."
+    },
+    "rooftop": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RooftopTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Increase of the force on rooftop equipment; None: none."
     }
   },
   "required": [

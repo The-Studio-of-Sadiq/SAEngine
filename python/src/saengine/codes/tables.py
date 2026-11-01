@@ -745,6 +745,12 @@ class FlexibleGustRow(_Row):
     heightFactor: float = Field(gt=0, description="z̄ = heightFactor · h.")
     lead: float = Field(gt=0, description="The factor before the fraction (0.925).")
     damping: float = Field(gt=0, lt=1, description="Damping ratio β of a concrete building.")
+    eccentricity: Literal["gustWeighted"] | None = Field(
+        default=None,
+        description="Torsional eccentricity of a flexible building: gustWeighted, e from eQ "
+        "and eR weighted by the background and resonant responses "
+        "(:func:`saengine.fem.loads.flexible_eccentricity`); None: the rigid e.",
+    )
 
 
 class CladdingCurve(_Row):
@@ -1129,6 +1135,19 @@ class WindTable(TableModel):
         description="Force coefficients of open structures (lattice frameworks, trussed "
         "towers); None: special structures get no wind.",
     )
+    # B22: topography, solid signs and walls, chimneys and tanks, rooftop equipment.
+    topography: TopographyTable | None = Field(
+        default=None, description="Kzt of hills, ridges and escarpments; None: Kzt = topographic."
+    )
+    solidSigns: SolidSignsTable | None = Field(
+        default=None, description="Cf of solid freestanding walls and signs; None: not covered."
+    )
+    chimneys: ChimneysTable | None = Field(
+        default=None, description="Cf of chimneys, tanks and rooftop equipment; None: not covered."
+    )
+    rooftop: RooftopTable | None = Field(
+        default=None, description="Increase of the force on rooftop equipment; None: none."
+    )
 
 
 class LatticeCfRow(_Row):
@@ -1156,7 +1175,7 @@ class OpenStructuresTable(_Row):
 
     lattice: list[LatticeCfRow] = Field(min_length=1)
     roundLimit: float = Field(
-        gt=0, description="D√qz limit between the rounded-member columns, in ft·√psf."
+        gt=0, description="D√qz limit between the rounded-member columns (D in m, qz in N/m²)."
     )
     squareTower: TowerCf
     triangularTower: TowerCf
@@ -1166,6 +1185,102 @@ class OpenStructuresTable(_Row):
     roundTower: TowerCf = Field(
         description="Factor on Cf of a tower of rounded members (a·ε² + b·ε + c), at most 1."
     )
+
+
+class TopographyShape(_Row):
+    """A topographic feature's speed-up parameters: K1/(H/Lh) by exposure, γ and μ."""
+
+    k1: dict[str, float] = Field(description="K1 / (H/Lh) by exposure.")
+    gamma: float = Field(gt=0, description="Height attenuation factor γ.")
+    muUpwind: float = Field(gt=0, description="Horizontal attenuation μ upwind of the crest.")
+    muDownwind: float = Field(gt=0, description="Horizontal attenuation μ downwind of it.")
+
+
+class TopographyTable(_Row):
+    """Wind speed-up over isolated hills, ridges and escarpments: Kzt = (1 + K1·K2·K3)² with
+    K1 = (K1/(H/Lh))·H/Lh, K2 = 1 − |x|/(μ·Lh), K3 = e^(−γ·z/Lh) (read by
+    :func:`saengine.fem.loads.topographic_factor`)."""
+
+    shapes: dict[Literal["ridge", "escarpment", "hill"], TopographyShape]
+    minSlope: float = Field(gt=0, description="No speed-up below H/Lh of this.")
+    maxSlope: float = Field(
+        gt=0, description="Above it, H/Lh is taken as this for K1 and Lh as H/this for K2, K3."
+    )
+    minHeight: dict[str, float] = Field(description="No speed-up below a feature height H [m].")
+
+
+class SolidSignRegion(_Row):
+    """A region of a long sign (case C) up to ``end``·s from the windward edge (None: the rest):
+    Cf by the aspect ratios of the table, None where the sign is not that long."""
+
+    end: float | None = Field(default=None, gt=0)
+    cf: list[float | None]
+
+
+class SolidSignsCaseC(_Row):
+    """Case C (B/s ≥ ``minAspect``): Cf of each region by B/s, × (``reductionConstant`` − s/h)
+    above s/h of ``reductionAbove``."""
+
+    aspect: list[float] = Field(min_length=2)
+    regions: list[SolidSignRegion] = Field(min_length=1)
+    minAspect: float = Field(gt=0)
+    reductionAbove: float = Field(gt=0)
+    reductionConstant: float = Field(gt=0)
+
+
+class ReturnCorner(_Row):
+    """The factor on the first region's Cf (B/s ≥ ``fromAspect``) with a return corner, by
+    Lr/s."""
+
+    fromAspect: float = Field(gt=0)
+    factors: list[tuple[float, float]] = Field(min_length=1)
+
+
+class SolidSignsTable(_Row):
+    """Solid freestanding walls and solid signs, F = qh·G·Cf·As (read by
+    :mod:`saengine.fem.other_wind`): Cf of cases A and B by s/h (``clearance``) and B/s
+    (``aspect``), case C by region."""
+
+    clearance: list[float] = Field(min_length=2, description="s/h of the rows.")
+    aspect: list[float] = Field(min_length=2, description="B/s of the columns.")
+    caseAB: list[list[float]] = Field(min_length=2)
+    caseC: SolidSignsCaseC
+    returnCorner: ReturnCorner | None = None
+    solidMin: float = Field(gt=0, le=1, description="A sign is solid from this ε up.")
+    openingExponent: float = Field(gt=0, description="Openings: Cf × (1 − (1 − ε)^this).")
+    caseBOffset: float = Field(ge=0, description="Case B: F this × B toward the windward edge.")
+    fullHeightLift: float = Field(ge=0, description="s/h = 1: F this × s above the centre.")
+    note: str | None = None
+
+
+class ChimneyRow(_Row):
+    """Cf of a cross-section and surface by h/D; ``small``: rounded with D√qz up to the
+    limit."""
+
+    section: Literal["square", "squareDiagonal", "polygonal", "round"]
+    surface: Literal["all", "moderatelySmooth", "rough", "veryRough"] = "all"
+    small: bool = False
+    cf: list[float] = Field(min_length=1)
+    note: str | None = None
+
+
+class ChimneysTable(_Row):
+    """Chimneys, tanks, rooftop equipment and similar structures, F = qz·G·Cf·Af (read by
+    :mod:`saengine.fem.other_wind`)."""
+
+    hOverD: list[float] = Field(min_length=1)
+    roundLimit: float = Field(gt=0, description="D√qz limit of round sections (D m, qz N/m²).")
+    rows: list[ChimneyRow] = Field(min_length=1)
+
+
+class RooftopTable(_Row):
+    """The force on rooftop structures and equipment of a low building × ``factor`` for
+    Af ≤ ``fullShare``·B·h, linear down to 1 at Af = ``noneShare``·B·h."""
+
+    maxHeight: float = Field(gt=0, description="Buildings with h up to this [m].")
+    factor: float = Field(ge=1)
+    fullShare: float = Field(gt=0)
+    noneShare: float = Field(gt=0)
 
 
 # ─────────────────────────────────────── crane loads ───────────────────────────────────────

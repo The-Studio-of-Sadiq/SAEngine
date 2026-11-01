@@ -617,9 +617,108 @@ class Wind(_Model):
         default_factory=lambda: OpenStructureWind(),
         title="Open structures",
         description="Wind on the members of a special structure (trusses, frames, towers, "
-        "canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other "
+        "canopy frames, chimneys): F = qz·G·Cf·Af on each member (the code pack's other "
         "structures).",
     )
+    # B22: topography, the flexible building's eccentricity, rooftop equipment.
+    topography: WindTopography = Field(
+        default_factory=lambda: WindTopography(),
+        title="Topography",
+        description="An isolated hill, ridge or escarpment at the site: the topographic factor "
+        "Kzt at each height from the code pack's speed-up multipliers (unless Kzt is given "
+        "above).",
+    )
+    shearCentreDistance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Shear centre offset eR",
+        description="Distance between the floors' elastic shear centre and centre of mass [m] "
+        "of a flexible building (natural frequency below 1 Hz): its torsional eccentricity "
+        "follows the code pack's flexible-building formula. Empty: the rigid building's "
+        "eccentricity.",
+    )
+    rooftopEquipment: list[RooftopEquipment] = Field(
+        default_factory=list,
+        title="Rooftop equipment",
+        description="Tanks, plant, stair and lift rooms and similar structures on the roof: "
+        "their wind force (with the code pack's increase on low buildings) is added to the "
+        "roof level's wind.",
+    )
+
+
+class WindTopography(_Model):
+    """A hill, ridge or escarpment at the site (the code pack's topographic effects; read by
+    :func:`saengine.fem.loads.topographic_terms`)."""
+
+    feature: Literal["none", "ridge", "escarpment", "hill"] = Field(
+        default="none",
+        title="Feature",
+        description="The topographic feature the building stands on or near.",
+        json_schema_extra=_labels(
+            ["None (flat terrain)", "2-D ridge", "2-D escarpment", "3-D axisymmetrical hill"]
+        ),
+    )
+    height: float | None = Field(
+        default=None,
+        gt=0,
+        title="Height H",
+        description="Height of the feature over the upwind terrain [m].",
+    )
+    length: float | None = Field(
+        default=None,
+        gt=0,
+        title="Half-height distance Lh",
+        description="Distance upwind of the crest to where the ground is half the feature's "
+        "height [m].",
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance from the crest x",
+        description="Horizontal distance from the crest to the building [m]. Empty: 0, at "
+        "the crest.",
+    )
+    side: Literal["upwind", "downwind"] = Field(
+        default="upwind",
+        title="Side of the crest",
+        description="Whether the building is upwind or downwind of the crest.",
+        json_schema_extra=_labels(["Upwind", "Downwind"]),
+    )
+    isolated: bool = Field(
+        default=True,
+        title="Isolated and unobstructed",
+        description="The feature is isolated, unobstructed upwind, protrudes above the "
+        "upwind terrain by a factor of two or more, and the building stands in its upper half "
+        "or near the crest. Off: no speed-up (Kzt 1).",
+    )
+
+
+class RooftopEquipment(_Model):
+    """A rooftop structure or piece of equipment (the code pack's chimneys, tanks and rooftop
+    equipment force coefficients)."""
+
+    name: str = ""
+    section: Literal["square", "polygonal", "round"] = Field(
+        default="square",
+        title="Cross-section",
+        description="Square or rectangular, hexagonal or octagonal, or round.",
+        json_schema_extra=_labels(["Square or rectangular", "Hexagonal or octagonal", "Round"]),
+    )
+    surface: Literal["moderatelySmooth", "rough", "veryRough"] = Field(
+        default="moderatelySmooth",
+        title="Surface (round)",
+        description="Surface of a round section; ribs and spoilers make it rough (D'/D 0.02) "
+        "or very rough (0.08).",
+        json_schema_extra=_labels(["Moderately smooth", "Rough", "Very rough"]),
+    )
+    sizeX: float = Field(
+        gt=0, title="Size along X", description="Plan size along X [m] (round: the diameter)."
+    )
+    sizeY: float = Field(
+        gt=0, title="Size along Y", description="Plan size along Y [m] (round: the diameter)."
+    )
+    height: float = Field(gt=0, title="Height", description="Height above the roof [m].")
+    count: int = Field(default=1, ge=1, title="Count", description="How many alike.")
 
 
 class OpenStructureWind(_Model):
@@ -627,21 +726,42 @@ class OpenStructureWind(_Model):
     2.4, design wind loads on other structures: open signs and lattice frameworks, trussed
     towers; :mod:`saengine.fem.open_wind`)."""
 
-    form: Literal["lattice", "squareTower", "triangularTower", "clad", "none"] = Field(
+    form: Literal["lattice", "squareTower", "triangularTower", "clad", "chimney", "none"] = Field(
         default="lattice",
         description="Lattice: an open framework (trusses, frames); towers: Cf of a trussed "
         "tower's face; clad: a clad shed, vault or dome, the wall and roof pressures (with "
         "internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) "
-        "the free roof's net pressures; none: no wind on special structures.",
+        "the free roof's net pressures; chimney: a chimney, stack or tank modelled as members, "
+        "Cf by its cross-section and h/D; none: no wind on special structures.",
         json_schema_extra=_labels(
             [
                 "Lattice framework",
                 "Square trussed tower",
                 "Triangular trussed tower",
                 "Clad building or canopy (pressures on its panels)",
+                "Chimney, stack or tank",
                 "None",
             ]
         ),
+    )
+    chimneySection: Literal["square", "squareDiagonal", "polygonal", "round"] = Field(
+        default="round",
+        title="Chimney: cross-section",
+        description="Cross-section of a chimney, stack or tank (form chimney).",
+        json_schema_extra=_labels(
+            [
+                "Square, wind normal to a face",
+                "Square, wind along the diagonal",
+                "Hexagonal or octagonal",
+                "Round",
+            ]
+        ),
+    )
+    chimneySurface: Literal["moderatelySmooth", "rough", "veryRough"] = Field(
+        default="moderatelySmooth",
+        title="Chimney: surface (round)",
+        description="Surface of a round chimney or tank.",
+        json_schema_extra=_labels(["Moderately smooth", "Rough", "Very rough"]),
     )
     method: Literal["allHeights", "lowRise"] = Field(
         default="allHeights",

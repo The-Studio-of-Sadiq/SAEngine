@@ -7503,10 +7503,26 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				form: {
 					default: 'lattice',
-					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) the free roof\'s net pressures; none: no wind on special structures.',
-					enum: ['lattice', 'squareTower', 'triangularTower', 'clad', 'none'],
-					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building or canopy (pressures on its panels)', 'None'],
+					description: 'Lattice: an open framework (trusses, frames); towers: Cf of a trussed tower\'s face; clad: a clad shed, vault or dome, the wall and roof pressures (with internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) the free roof\'s net pressures; chimney: a chimney, stack or tank modelled as members, Cf by its cross-section and h/D; none: no wind on special structures.',
+					enum: ['lattice', 'squareTower', 'triangularTower', 'clad', 'chimney', 'none'],
+					enumDescriptions: ['Lattice framework', 'Square trussed tower', 'Triangular trussed tower', 'Clad building or canopy (pressures on its panels)', 'Chimney, stack or tank', 'None'],
 					title: 'Form',
+					type: 'string',
+				},
+				chimneySection: {
+					default: 'round',
+					description: 'Cross-section of a chimney, stack or tank (form chimney).',
+					enum: ['square', 'squareDiagonal', 'polygonal', 'round'],
+					enumDescriptions: ['Square, wind normal to a face', 'Square, wind along the diagonal', 'Hexagonal or octagonal', 'Round'],
+					title: 'Chimney: cross-section',
+					type: 'string',
+				},
+				chimneySurface: {
+					default: 'moderatelySmooth',
+					description: 'Surface of a round chimney or tank.',
+					enum: ['moderatelySmooth', 'rough', 'veryRough'],
+					enumDescriptions: ['Moderately smooth', 'Rough', 'Very rough'],
+					title: 'Chimney: surface (round)',
 					type: 'string',
 				},
 				method: {
@@ -7759,6 +7775,61 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Report',
+			type: 'object',
+		},
+		RooftopEquipment: {
+			additionalProperties: false,
+			description: 'A rooftop structure or piece of equipment (the code pack\'s chimneys, tanks and rooftop\nequipment force coefficients).',
+			properties: {
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				section: {
+					default: 'square',
+					description: 'Square or rectangular, hexagonal or octagonal, or round.',
+					enum: ['square', 'polygonal', 'round'],
+					enumDescriptions: ['Square or rectangular', 'Hexagonal or octagonal', 'Round'],
+					title: 'Cross-section',
+					type: 'string',
+				},
+				surface: {
+					default: 'moderatelySmooth',
+					description: 'Surface of a round section; ribs and spoilers make it rough (D\'/D 0.02) or very rough (0.08).',
+					enum: ['moderatelySmooth', 'rough', 'veryRough'],
+					enumDescriptions: ['Moderately smooth', 'Rough', 'Very rough'],
+					title: 'Surface (round)',
+					type: 'string',
+				},
+				sizeX: {
+					description: 'Plan size along X [m] (round: the diameter).',
+					exclusiveMinimum: 0,
+					title: 'Size along X',
+					type: 'number',
+				},
+				sizeY: {
+					description: 'Plan size along Y [m] (round: the diameter).',
+					exclusiveMinimum: 0,
+					title: 'Size along Y',
+					type: 'number',
+				},
+				height: {
+					description: 'Height above the roof [m].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					description: 'How many alike.',
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+			},
+			required: ['sizeX', 'sizeY', 'height'],
+			title: 'RooftopEquipment',
 			type: 'object',
 		},
 		Seismic: {
@@ -8406,11 +8477,110 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				openStructure: {
 					$ref: '#/$defs/OpenStructureWind',
-					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames): F = qz·G·Cf·Af on each member (BNBC 2020 Part 6 Sec 2.4, other structures).',
+					description: 'Wind on the members of a special structure (trusses, frames, towers, canopy frames, chimneys): F = qz·G·Cf·Af on each member (the code pack\'s other structures).',
 					title: 'Open structures',
+				},
+				topography: {
+					$ref: '#/$defs/WindTopography',
+					description: 'An isolated hill, ridge or escarpment at the site: the topographic factor Kzt at each height from the code pack\'s speed-up multipliers (unless Kzt is given above).',
+					title: 'Topography',
+				},
+				shearCentreDistance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance between the floors\' elastic shear centre and centre of mass [m] of a flexible building (natural frequency below 1 Hz): its torsional eccentricity follows the code pack\'s flexible-building formula. Empty: the rigid building\'s eccentricity.',
+					title: 'Shear centre offset eR',
+				},
+				rooftopEquipment: {
+					description: 'Tanks, plant, stair and lift rooms and similar structures on the roof: their wind force (with the code pack\'s increase on low buildings) is added to the roof level\'s wind.',
+					items: {
+						$ref: '#/$defs/RooftopEquipment',
+					},
+					title: 'Rooftop equipment',
+					type: 'array',
 				},
 			},
 			title: 'Wind',
+			type: 'object',
+		},
+		WindTopography: {
+			additionalProperties: false,
+			description: 'A hill, ridge or escarpment at the site (the code pack\'s topographic effects; read by\n:func:`saengine.fem.loads.topographic_terms`).',
+			properties: {
+				feature: {
+					default: 'none',
+					description: 'The topographic feature the building stands on or near.',
+					enum: ['none', 'ridge', 'escarpment', 'hill'],
+					enumDescriptions: ['None (flat terrain)', '2-D ridge', '2-D escarpment', '3-D axisymmetrical hill'],
+					title: 'Feature',
+					type: 'string',
+				},
+				height: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height of the feature over the upwind terrain [m].',
+					title: 'Height H',
+				},
+				length: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Distance upwind of the crest to where the ground is half the feature\'s height [m].',
+					title: 'Half-height distance Lh',
+				},
+				distance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Horizontal distance from the crest to the building [m]. Empty: 0, at the crest.',
+					title: 'Distance from the crest x',
+				},
+				side: {
+					default: 'upwind',
+					description: 'Whether the building is upwind or downwind of the crest.',
+					enum: ['upwind', 'downwind'],
+					enumDescriptions: ['Upwind', 'Downwind'],
+					title: 'Side of the crest',
+					type: 'string',
+				},
+				isolated: {
+					default: true,
+					description: 'The feature is isolated, unobstructed upwind, protrudes above the upwind terrain by a factor of two or more, and the building stands in its upper half or near the crest. Off: no speed-up (Kzt 1).',
+					title: 'Isolated and unobstructed',
+					type: 'boolean',
+				},
+			},
+			title: 'WindTopography',
 			type: 'object',
 		},
 	},
@@ -8571,11 +8741,19 @@ export const DEFAULT_SETTINGS: object = {
 		},
 		openStructure: {
 			form: 'lattice',
+			chimneySection: 'round',
+			chimneySurface: 'moderatelySmooth',
 			method: 'allHeights',
 			roof: 'planar',
 			roundMembers: false,
 			blockage: 'clear',
 		},
+		topography: {
+			feature: 'none',
+			side: 'upwind',
+			isolated: true,
+		},
+		rooftopEquipment: [],
 	},
 	areaLoads: [
 		{

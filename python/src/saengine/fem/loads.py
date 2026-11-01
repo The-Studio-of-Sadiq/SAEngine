@@ -105,17 +105,119 @@ def wind_overrides(wind: Any) -> Iterator[None]:
         if (v := getattr(wind, k, None)) is not None
     }
     token = _WIND_OVERRIDES.set(values)
+    topo_token = _TOPOGRAPHY.set(Topography.of(getattr(wind, "topography", None)))
     try:
         yield
     finally:
+        _TOPOGRAPHY.reset(topo_token)
         _WIND_OVERRIDES.reset(token)
 
 
 def wind_factor(name: str) -> float:
     """Kd ("directionality"), Kzt ("topographic") or G ("gust"): the project's override, else
-    the code pack's (BNBC 2020 Table 6.2.12, Sec 2.4.7, Sec 2.4.8.1)."""
+    the code pack's (BNBC 2020 Table 6.2.12, Sec 2.4.7, Sec 2.4.8.1). Kzt here is the flat
+    terrain's (or the override); :func:`topographic_factor` gives it at a height on a hill."""
     own = (_WIND_OVERRIDES.get() or {}).get(name)
     return own if own is not None else float(getattr(code_context.table("wind"), name))
+
+
+# ─────────────── wind: topographic factor Kzt of hills, ridges and escarpments ───────────────
+
+
+@dataclass(frozen=True)
+class Topography:
+    """The site's topographic feature (the wind settings' ``topography``): ``feature`` ridge,
+    escarpment or hill; ``height`` H of the feature over the upwind terrain [m]; ``length`` Lh,
+    the distance upwind of the crest to where the ground is half the feature's height [m];
+    ``distance`` x from the crest to the building [m], ``downwind`` of the crest or not."""
+
+    feature: str
+    height: float
+    length: float
+    distance: float = 0.0
+    downwind: bool = False
+
+    @classmethod
+    def of(cls, settings: Any) -> Topography | None:
+        """From the wind settings' ``topography`` block; None when it has no feature, is not
+        isolated (Sec 2.4.7.1 (i)-(iii) not met) or lacks H or Lh."""
+        if settings is None or getattr(settings, "feature", "none") in (None, "none"):
+            return None
+        if not getattr(settings, "isolated", True):
+            return None
+        height, length = getattr(settings, "height", None), getattr(settings, "length", None)
+        if not height or not length:
+            return None
+        return cls(
+            feature=str(settings.feature),
+            height=float(height),
+            length=float(length),
+            distance=float(getattr(settings, "distance", None) or 0.0),
+            downwind=getattr(settings, "side", "upwind") == "downwind",
+        )
+
+
+#: The site's topography while a project's wind loads are made (:func:`wind_overrides`).
+_TOPOGRAPHY: ContextVar[Topography | None] = ContextVar("wind_topography", default=None)
+
+
+def topographic_terms(
+    height: float, exposure: str, topography: Topography | None = None
+) -> dict[str, Any] | None:
+    """K1, K2, K3 and Kzt = (1 + K1·K2·K3)² at ``height`` z [m] above the local ground of a
+    site on ``topography`` (default: the project's) by the code pack's ``wind.topography``
+    (BNBC 2020 Part 6 Sec 2.4.7, Eq 6.2.5 and Figure 6.2.4):
+
+        K1 = (K1/(H/Lh))·H/Lh,   K2 = 1 − |x|/(μ·Lh) ≥ 0,   K3 = e^(−γ·z/Lh)
+
+    with H/Lh above ``maxSlope`` taken as it for K1 and Lh = H/maxSlope for K2 and K3 (note 2).
+    A feature lower than ``minSlope`` or ``minHeight`` gives no speed-up (Kzt 1, ``applies``
+    False and the ``reason``). None when there is no feature or the pack has no table."""
+    topo = topography if topography is not None else _TOPOGRAPHY.get()
+    table = getattr(code_context.table("wind"), "topography", None)
+    if topo is None or table is None:
+        return None
+    shape = table.shapes.get(topo.feature)
+    if shape is None:
+        return None
+    slope = topo.height / topo.length
+    least = float(table.minHeight.get(exposure, 0.0))
+    if slope < table.minSlope or topo.height < least:
+        reason = (
+            f"H/Lh = {slope:.2f} below {table.minSlope:g}"
+            if slope < table.minSlope
+            else f"H = {topo.height:g} m below {least:g} m for exposure {exposure}"
+        )
+        return {"Kzt": 1.0, "applies": False, "reason": reason, "H_Lh": slope}
+    length = topo.length
+    if slope > table.maxSlope:
+        slope, length = table.maxSlope, topo.height / table.maxSlope
+    k1 = float(shape.k1[exposure]) * slope
+    mu = shape.muDownwind if topo.downwind else shape.muUpwind
+    k2 = max(0.0, 1.0 - abs(topo.distance) / (mu * length))
+    k3 = math.exp(-shape.gamma * max(height, 0.0) / length)
+    return {
+        "Kzt": (1.0 + k1 * k2 * k3) ** 2,
+        "applies": True,
+        "K1": k1,
+        "K2": k2,
+        "K3": k3,
+        "H_Lh": topo.height / topo.length,
+        "Lh_m": length,
+        "mu": mu,
+        "gamma": shape.gamma,
+    }
+
+
+def topographic_factor(height: float, exposure: str) -> float:
+    """Kzt at ``height`` z [m]: the project's override where given, else that of the site's
+    hill, ridge or escarpment (:func:`topographic_terms`), else the code pack's flat terrain
+    value."""
+    if (_WIND_OVERRIDES.get() or {}).get("topographic") is None:
+        terms = topographic_terms(height, exposure)
+        if terms is not None:
+            return float(terms["Kzt"])
+    return wind_factor("topographic")
 
 
 def exposure_coefficient(height: float, exposure: str) -> float:
@@ -126,11 +228,12 @@ def exposure_coefficient(height: float, exposure: str) -> float:
 
 
 def velocity_pressure(height: float, speed: float, exposure: str, importance: float) -> float:
-    """qz = 0.000613·Kz·Kzt·Kd·V²·I [kN/m²], V in m/s."""
+    """qz = 0.000613·Kz·Kzt·Kd·V²·I [kN/m²], V in m/s; Kzt at ``height`` on a hill
+    (:func:`topographic_factor`)."""
     return (
         0.000613
         * exposure_coefficient(height, exposure)
-        * wind_factor("topographic")
+        * topographic_factor(height, exposure)
         * wind_factor("directionality")
         * speed**2
         * importance
@@ -452,6 +555,41 @@ def is_flexible(frequency: float) -> bool:
     fundamental natural frequency less than 1 Hz" (BNBC 2020 Part 6 Sec 2.4.2, definitions)."""
     table = getattr(code_context.table("wind"), "flexible", None)
     return table is not None and frequency < table.frequencyLimit
+
+
+def flexible_eccentricity(rigid: float, offset: float, terms: dict[str, float]) -> float | None:
+    """The torsional eccentricity e of a flexible building in one wind direction (BNBC 2020
+    Part 6 Sec 2.4.11.3, Eq 6.2.23; the code pack's ``flexible.eccentricity`` "gustWeighted"):
+
+        e = (eQ + 1.7·Iz̄·√((gQ·Q·eQ)² + (gR·R·eR)²)) / (1 + 1.7·Iz̄·√((gQ·Q)² + (gR·R)²))
+
+    ``rigid`` eQ, the rigid building's e [m] (Figure 6.2.9: 0.15·B); ``offset`` eR, the distance
+    between the floor's elastic shear centre and its centre of mass [m]; ``terms`` those of
+    :func:`flexible_gust_factor` (Iz, Q, R, gR). None when the pack has no such method."""
+    table = getattr(code_context.table("wind"), "flexible", None)
+    if table is None or getattr(table, "eccentricity", None) != "gustWeighted":
+        return None
+    iz, q, r, g_r, g_q = terms["Iz"], terms["Q"], terms["R"], terms["gR"], table.gQ
+    background, resonant = g_q * q, g_r * r
+    top = rigid + 1.7 * iz * math.hypot(background * rigid, resonant * offset)
+    return top / (1 + 1.7 * iz * math.hypot(background, resonant))
+
+
+def rooftop_factor(area: float, width: float, height: float) -> float:
+    """The factor on the force F = qz·G·Cf·Af of a rooftop structure or equipment of projected
+    area ``area`` Af [m²] on a building ``width`` B across the wind and ``height`` h [m]
+    (BNBC 2020 Part 6 Sec 2.4.15, the code pack's ``wind.rooftop``): 1.9 for Af up to 0.1·B·h,
+    linear down to 1.0 at Af = B·h, on buildings with h ≤ 18.3 m; 1 otherwise."""
+    table = getattr(code_context.table("wind"), "rooftop", None)
+    if table is None or height > table.maxHeight or width <= 0 or height <= 0:
+        return 1.0
+    share = area / (width * height)
+    if share <= table.fullShare:
+        return float(table.factor)
+    if share >= table.noneShare:
+        return 1.0
+    t = (share - table.fullShare) / (table.noneShare - table.fullShare)
+    return float(table.factor + (1.0 - table.factor) * t)
 
 
 # ───────────────────── wind: components and cladding (Sec 2.4.11.5) ─────────────────────
