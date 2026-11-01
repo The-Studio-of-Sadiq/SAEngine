@@ -437,6 +437,21 @@ towns are validated and listed but cannot yet be chosen in the settings.
   and page of each table are in its `source`. Check every value of a pack you write against the
   edition of the code that governs your project.
 
+## Planned code packs
+
+SAEngine is built on BNBC 2020. Three more design-code packs are planned. They are listed under
+*Planned Design Codes* on the Packages page and shown disabled ("Planned") in the New Building
+wizard's design code selector. Each has a page that describes its coverage:
+
+- **ACI 318-19 + ASCE 7-22** (United States).
+- **Eurocodes EN 1990–1998 with National Annexes**. There is one base pack with the
+  recommended values. Each country's National Annex is a small pack that `extends` the base
+  and sets only its Nationally Determined Parameters, in the same way an office pack extends
+  BNBC 2020 today.
+- **Indian Standards**: IS 456, 1893, 800, 875 and 13920.
+
+None of their tables, values or clause text are included yet.
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

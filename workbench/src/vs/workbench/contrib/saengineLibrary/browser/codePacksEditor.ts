@@ -40,6 +40,8 @@ import { ISaengineProjectService } from '../../../services/saengineProject/commo
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { runningVersion } from '../../saengineUpdate/common/updateCheck.js';
 import { COMPONENTS_SHOW_COMMAND } from '../../saengineUpdate/common/components.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
+import { plannedCodePacks } from '../common/plannedCodePacks.js';
 import {
 	CODES_REMOVE_COMMAND, IIndexPackage, IInstalledPackage, IPackageDownload, IPackageIndex, IPackageIndexState, IPackageUpdate, kindLabel, kindPluralLabel, missingRequirements, needsNewerSaengine,
 	newestPackages, PACKAGE_KINDS, packageFileName, packageUpdates, PackageKind, PACKAGES_COPY_COMMAND, PACKAGES_DISCARD_COMMAND, PACKAGES_DOWNLOAD_COMMAND, PACKAGES_INDEX_COMMAND, PACKAGES_OPEN_BUNDLE_COMMAND, readPackageIndex, sizeLabel,
@@ -851,12 +853,31 @@ export class CodePacksEditor extends EditorPane {
 				this.renderRow(section, pack);
 			}
 		}
+		this.renderPlannedCodes();
 		const components = append(this.list, $('.code-packs-group.packages-components'));
 		append(components, $('.code-packs-group-title', undefined, localize('packages.componentsTitle', "Installer Components")));
 		append(components, $('.code-packs-empty', undefined, localize('packages.componentsText', "Optional programs of the SAEngine setup (EnergyPlus, LibreCAD, LibreDWG, the AI assistant, Git, collaboration) are added or removed by running the setup again.")));
 		const button = this.listDisposables.add(new Button(append(components, $('.code-packs-trust-button')), { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('packages.componentsButton', "Show Installer Components...");
 		this.listDisposables.add(button.onDidClick(() => this.commandService.executeCommand(COMPONENTS_SHOW_COMMAND)));
+	}
+
+	/**
+	 * The design codes planned after BNBC 2020 (ACI/ASCE, Eurocodes, IS): listed, not installable,
+	 * each with its planned-feature page. Shown with design codes (Installed and Browse).
+	 */
+	private renderPlannedCodes(): void {
+		if (!this.fits('designCode')) {
+			return;
+		}
+		const title = localize('packages.plannedTitle', "Planned Design Codes");
+		const section = append(this.list, $('.code-packs-group.packages-planned', { role: 'group', 'aria-label': title }));
+		append(section, $('.code-packs-group-title', undefined, title));
+		append(section, $('.code-packs-empty', undefined, localize('packages.plannedText', "SAEngine is built on BNBC 2020. These code packs are planned and not in this MVP; open one to see what it will cover.")));
+		const chips = append(section, $('.code-packs-chips'));
+		for (const pack of plannedCodePacks()) {
+			this.listDisposables.add(appendPlannedFeatureChip(chips, pack.feature, this.commandService));
+		}
 	}
 
 	private renderRow(container: HTMLElement, pack: ICodePackInfo): void {
@@ -936,6 +957,7 @@ export class CodePacksEditor extends EditorPane {
 		}
 		const items = this.browseItems;
 		const section = append(this.list, $('.code-packs-group', { role: 'group' }));
+		this.renderPlannedCodes();
 		if (!items.length) {
 			append(section, $('.code-packs-empty', undefined, this.kindFilter === 'all'
 				? localize('packages.browseEmpty', "No packages are published yet.")
