@@ -47,6 +47,7 @@ import {
 	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, splitError, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, KS_LOW, siteClassLabel, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
 	GisFormat, ILatLon, IOpenInQgisRequest, IOpenInQgisResult, ISoilGisExportRequest, ISoilGisExportResult, ISoilGisImportRequest, ISoilGisImportResult, ISoilLocationRequest, ISoilLocationResult, ISoilSample, QgisProgramResult,
 	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
+	GEO_HAZARDS, GeoHazardReview, idWords, INVESTIGATION_CHOICES, INVESTIGATION_FIELDS,
 } from './soilDocument.js';
 import { SoilEditorInput } from './soilEditorInput.js';
 import { canCreate, DEFAULT_VIEW, editBoreholeEntry, ENTRY_STEPS, EntryStep, entryProblems, entryStepOf, firstStepWithError, goToStep, IEntryProblem, IEntryState, newBoreholeEntry, nextStep, shownProblems, SoilView } from './soilEntry.js';
@@ -1743,6 +1744,8 @@ export class SoilEditor extends EditorPane {
 		this.renderLiquefaction(view, report, results);
 		this.renderSubgrade(view, report);
 		this.renderPiles(view, report);
+		this.renderInvestigation(view, results);
+		this.renderChemistry(view, results);
 
 		// A note that repeats a site class flag keeps only what it adds to it.
 		const notes = [...(results.notes ?? []).map(n => {
@@ -1760,6 +1763,86 @@ export class SoilEditor extends EditorPane {
 			if (results.details?.length) {
 				this.appendDetails(section, results.details);
 			}
+		}
+	}
+
+	/** The adequacy of the borings by the project's code pack: one row per check, with its clause. */
+	private renderInvestigation(view: HTMLElement, results: ISoilResults): void {
+		const inv = results.investigation;
+		if (!inv) {
+			return;
+		}
+		const section = this.resultSection(view, localize('soil.investigation', "Site investigation"), inv.covered
+			? localize('soil.investigationDetail', "number, spacing and depth of the borings · {0}", inv.code)
+			: undefined);
+		if (!inv.covered) {
+			append(section, $('p.soil-note.warning', undefined, localize('soil.investigationNotCovered', "The code pack {0} does not cover the site investigation checks.", inv.code)));
+			return;
+		}
+		const status = (s: string) => s === 'ok' ? localize('soil.st.ok', "OK")
+			: s === 'fail' ? localize('soil.st.fail', "Not adequate")
+				: s === 'warning' ? localize('soil.st.warning', "Check") : localize('soil.st.notChecked', "Not checked");
+		const table = this.simpleTable(section, [
+			[localize('soil.inv.item', "Check")], [localize('soil.inv.required', "Required")], [localize('soil.inv.provided', "Provided")], [localize('soil.inv.status', "Status")], [localize('soil.inv.clause', "Clause")],
+		], inv.checks.map(c => [c.item, c.required, c.provided, status(c.status), c.clause]), () => false);
+		inv.checks.forEach((c, i) => {
+			const row = table.tBodies[0]?.rows[i];
+			if (row) {
+				row.classList.toggle('soil-row-fail', c.status === 'fail');
+				if (c.note) {
+					row.title = c.note;
+				}
+			}
+		});
+	}
+
+	/** Sulphate class, corrosive site, corrosivity and what the concrete in the ground must meet. */
+	private renderChemistry(view: HTMLElement, results: ISoilResults): void {
+		const chem = results.chemistry;
+		if (!chem || chem.covered && !chem.samples.length) {
+			return;
+		}
+		const section = this.resultSection(view, localize('soil.chemistry', "Soil chemistry"), chem.covered
+			? localize('soil.chemistryDetail', "buried concrete and steel · {0}", chem.code)
+			: undefined);
+		if (!chem.covered) {
+			append(section, $('p.soil-note.warning', undefined, localize('soil.chemistryNotCovered', "The code pack {0} does not cover the soil chemistry.", chem.code)));
+			return;
+		}
+		const list = append(section, $('dl.soil-basis'));
+		const row = (label: string, value: string, detail?: string) => {
+			append(list, $('dt', undefined, label));
+			const dd = append(list, $('dd'));
+			append(dd, $('span.soil-basis-value', undefined, value));
+			if (detail) {
+				append(dd, $('span.soil-basis-detail', undefined, detail));
+			}
+		};
+		row(localize('soil.sulphateClass', "Sulphate exposure"), chem.sulphateClass ?? localize('soil.notTested', "not tested"));
+		row(localize('soil.corrosiveSite', "Corrosive site"), chem.corrosive.length ? localize('soil.yes', "Yes") : localize('soil.no', "No"), chem.corrosive.length ? `${chem.corrosive.join('; ')} (${chem.corrosiveClause ?? ''})` : undefined);
+		row(localize('soil.corrosivity', "Soil corrosivity"), chem.corrosivityRating ? idWords(chem.corrosivityRating) : localize('soil.notTested', "not tested"));
+		if (chem.concrete) {
+			const c = chem.concrete;
+			const parts = [localize('soil.wc', "w/c ≤ {0}", formatNumber(c.maxWaterCement, 2))];
+			if (c.cement) {
+				parts.push(localize('soil.cement', "cement {0}", c.cement));
+			}
+			if (c.noCalciumChloride) {
+				parts.push(localize('soil.noCaCl2', "no calcium chloride"));
+			}
+			row(localize('soil.foundationConcrete', "Concrete in the ground"), parts.join(', '), c.reasons.join('; '));
+		}
+		const rates = Object.entries(chem.steelCorrosion);
+		if (rates.length) {
+			row(localize('soil.steelCorrosion', "Steel corrosion"), rates.map(([k, v]) => `${idWords(k)} ${formatNumber(v, 3)}`).join(', ') + ' ' + localize('soil.mmPerYear', "mm/side/year"), chem.steelCorrosionClause);
+		}
+		if (chem.samples.length) {
+			this.simpleTable(section, [
+				[localize('soil.borehole', "Borehole")], [localize('soil.sample', "Sample")], [localize('soil.depth', "Depth"), 'm'], [localize('soil.sulphateClass', "Sulphate exposure")], [localize('soil.score', "Score")], [localize('soil.corrosivity', "Soil corrosivity")],
+			], chem.samples.map(s => [
+				s.borehole, s.sample ?? '', formatNumber(s.depth / 1000, 2), s.sulphate ?? '–', s.score === undefined ? '–' : formatNumber(s.score, 0),
+				s.rating ? idWords(s.rating) + (s.missing.length ? localize('soil.missingItems', " ({0} not tested)", s.missing.map(idWords).join(', ')) : '') : '–',
+			]), column => column === 2 || column === 4);
 		}
 	}
 
@@ -2366,6 +2449,98 @@ export class SoilEditor extends EditorPane {
 			}, `props|design.${field.key}`, placeholder);
 		}
 		appendPropertyNote(panel, localize('soil.designNote', "Empty values use the defaults: textbook practice, Idriss & Boulanger 2014, hammer energy 60%, factor of safety 3, settlement 25 mm, magnitude 7.5."));
+		this.renderInvestigationProperties(panel, report);
+	}
+
+	/** The building and foundation the borings are checked for, and the geo-hazard review. */
+	private renderInvestigationProperties(panel: HTMLElement, report: ISoilReport): void {
+		appendPropertyHeading(panel, localize('soil.investigationHeading', "Site investigation"));
+		const inv = () => report.investigation ??= {};
+		const current = report.investigation ?? {};
+		const select = (label: string, title: string, options: readonly { value: string; label: string }[], value: string, store: (value: string) => void) => {
+			const element = $<HTMLSelectElement>('select.soil-select.soil-prop-select', { 'aria-label': label });
+			for (const option of options) {
+				const o = append(element, $<HTMLOptionElement>('option', { value: option.value }, option.label));
+				o.selected = option.value === value;
+			}
+			this.propertiesDisposables.add(addDisposableListener(element, EventType.CHANGE, () => store(element.value)));
+			const control = $('.soil-prop-control');
+			append(control, element);
+			const row = appendPropertyRow(panel, label, control);
+			row.classList.add('soil-prop-row');
+			row.title = title;
+		};
+		for (const spec of INVESTIGATION_CHOICES) {
+			const value = typeof current[spec.key] === 'string' ? current[spec.key] as string : spec.defaultValue;
+			select(spec.label, spec.title, spec.options, value, next => {
+				(inv() as Record<string, unknown>)[spec.key] = next;
+				this.changed(false);
+				this.flush();
+			});
+		}
+		for (const field of INVESTIGATION_FIELDS) {
+			this.propertyInput(panel, field, current[field.key], next => {
+				if (next === undefined) {
+					delete inv()[field.key];
+				} else {
+					inv()[field.key] = next;
+				}
+				this.changed(false);
+			}, `props|investigation.${field.key}`);
+		}
+		const rock = append(panel, $('label.soil-prop-check', { title: localize('soil.inv.onRockTitle', "Piles or shafts bear on or in rock: rock cores are then required at each boring.") }));
+		const rockBox = append(rock, $<HTMLInputElement>('input', { type: 'checkbox' }));
+		rockBox.checked = current.onRock === true;
+		append(rock, $('span', undefined, localize('soil.inv.onRock', "Bearing on rock")));
+		this.propertiesDisposables.add(addDisposableListener(rockBox, EventType.CHANGE, () => {
+			if (rockBox.checked) {
+				inv().onRock = true;
+			} else {
+				delete inv().onRock;
+			}
+			this.changed(true, localize('soil.inv.onRockEdit', "Bearing on Rock"));
+		}));
+		// The footprint: the building's outline from the floor plan (the map's), else the plot.
+		const outline = (this.location?.outlineProject ?? []).filter(p => p.length >= 2 && p.every(Number.isFinite));
+		const footprint = current.footprint ?? [];
+		appendPropertyRow(panel, localize('soil.inv.footprint', "Footprint"), footprint.length >= 3
+			? localize('soil.inv.footprintPoints', "{0} corners", footprint.length)
+			: localize('soil.inv.footprintPlot', "the plot (none entered)"));
+		if (outline.length >= 3) {
+			const link = append(panel, $<HTMLAnchorElement>('a.soil-prop-link', { role: 'button', tabIndex: 0 }));
+			append(link, $(ThemeIcon.asCSSSelector(Codicon.symbolStructure)));
+			append(link, $('span', undefined, localize('soil.inv.useOutline', "Use the Building Outline")));
+			const use = () => {
+				inv().footprint = outline.map(p => [p[0], p[1]]);
+				this.changed(true, localize('soil.inv.useOutlineEdit', "Building Footprint"));
+			};
+			this.propertiesDisposables.add(addDisposableListener(link, EventType.CLICK, use));
+			this.propertiesDisposables.add(addDisposableListener(link, EventType.KEY_DOWN, e => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					use();
+				}
+			}));
+		}
+		appendPropertyHeading(panel, localize('soil.geoHazardHeading', "Geo-hazard review"));
+		const reviews = [
+			{ value: '', label: localize('soil.hz.notReviewed', "Not reviewed") },
+			{ value: 'none', label: localize('soil.hz.none', "None") },
+			{ value: 'possible', label: localize('soil.hz.possible', "Possible") },
+			{ value: 'significant', label: localize('soil.hz.significant', "Significant") },
+		];
+		for (const hazard of GEO_HAZARDS) {
+			select(hazard.label, localize('soil.hz.title', "Preliminary review of the site; a significant hazard needs a detailed analysis."), reviews, current.geoHazards?.[hazard.key] ?? '', next => {
+				const hazards = inv().geoHazards ??= {};
+				if (next) {
+					hazards[hazard.key] = next as GeoHazardReview;
+				} else {
+					delete hazards[hazard.key];
+				}
+				this.changed(false);
+				this.flush();
+			});
+		}
 	}
 
 	/** A design option picked from a list; the row's hover says what each option does. */

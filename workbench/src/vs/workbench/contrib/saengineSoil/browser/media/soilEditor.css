@@ -2204,3 +2204,8 @@
 	stroke: var(--vscode-editor-foreground);
 	stroke-width: 2;
 }
+
+/* Site investigation: a check the borings fail. */
+.saengine-soil-editor .soil-result-table tr.soil-row-fail td {
+	color: var(--vscode-errorForeground);
+}
