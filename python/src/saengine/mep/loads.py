@@ -988,6 +988,23 @@ def with_services_equipment(mep: MepModel, materials: Any = None) -> tuple[MepMo
     return mep.model_copy(update={"equipment": [*mep.equipment, *extra]}), notes
 
 
+def seismic_components(
+    mep: MepModel,
+    ground: Any,
+    elevations: Mapping[str, float],
+    materials: Any = None,
+    pack: Any = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The seismic design force of every piece of equipment of 07 MEP and its disciplines
+    (tanks, plant, electrical equipment: :func:`with_services_equipment`, each once), by
+    :func:`saengine.design.nonstructural.equipment_force` (the forces' one home), and notes.
+    ``ground``: :func:`saengine.design.nonstructural.ground_motion`'s."""
+    from saengine.design.nonstructural import equipment_force
+
+    full, notes = with_services_equipment(mep, materials)
+    return [equipment_force(item, ground, elevations, pack) for item in full.equipment], notes
+
+
 def has_model_content(mep: MepModel) -> bool:
     """Whether 07 MEP gives the analysis model anything: equipment, openings, shafts, an
     overhead plumbing tank, HVAC plant or electrical equipment (their weights)."""

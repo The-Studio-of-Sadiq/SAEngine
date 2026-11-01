@@ -130,6 +130,31 @@ class Equipment(_Model):
         "empty: the four corners of the footprint.",
     )
     plinth: Plinth | None = None
+    component: str | None = Field(
+        default=None,
+        title="Seismic component",
+        description="Its row of the code pack's nonstructural component table (e.g. "
+        "hvacAirSide, isolatedSpring); empty: by its kind.",
+    )
+    essential: bool = Field(
+        default=False,
+        description="Must function after an earthquake, holds hazardous materials, or is needed "
+        "for the continued operation of an essential facility: the code pack's higher component "
+        "importance factor.",
+    )
+    flexibleConnections: bool = Field(
+        default=False,
+        title="Flexible connections",
+        description="Flexible connections to its ducts, pipes and conduits (for the exemptions "
+        "of light equipment).",
+    )
+    isolatorClearance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Isolator clearance",
+        description="On vibration isolators: the nominal air gap to its bumper restraints or "
+        "snubbers [mm] (a larger gap than the code pack's limit doubles the design force).",
+    )
 
     @model_validator(mode="after")
     def _weights(self) -> Equipment:

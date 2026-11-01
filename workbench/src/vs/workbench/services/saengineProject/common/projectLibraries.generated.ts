@@ -21309,6 +21309,45 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Plinth',
 				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its row of the code pack\'s nonstructural component table (e.g. hvacAirSide, isolatedSpring); empty: by its kind.',
+					title: 'Seismic component',
+				},
+				essential: {
+					default: false,
+					description: 'Must function after an earthquake, holds hazardous materials, or is needed for the continued operation of an essential facility: the code pack\'s higher component importance factor.',
+					title: 'Essential',
+					type: 'boolean',
+				},
+				flexibleConnections: {
+					default: false,
+					description: 'Flexible connections to its ducts, pipes and conduits (for the exemptions of light equipment).',
+					title: 'Flexible connections',
+					type: 'boolean',
+				},
+				isolatorClearance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'On vibration isolators: the nominal air gap to its bumper restraints or snubbers [mm] (a larger gap than the code pack\'s limit doubles the design force).',
+					title: 'Isolator clearance',
+				},
 			},
 			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],
 			title: 'Equipment',
@@ -24401,6 +24440,25 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					description: 'The floor-plan beam or wall it stands on (informative: no stiffness).',
 					title: 'Sits on',
 				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its row of the code pack\'s nonstructural component table (e.g. exteriorWall, parapetBracedAbove); empty: by its position (a wall with no story above is a parapet, other walls interior partitions, curtain walls exterior wall elements).',
+					title: 'Seismic component',
+				},
+				essential: {
+					default: false,
+					description: 'Must function after an earthquake, holds hazardous materials, or is needed for the continued operation of an essential facility: the code pack\'s higher component importance factor.',
+					title: 'Essential',
+					type: 'boolean',
+				},
 			},
 			required: ['id', 'type', 'base', 'path'],
 			title: 'ArchWall',
@@ -24499,6 +24557,25 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'The floor-plan beam or wall it stands on (informative: no stiffness).',
 					title: 'Sits on',
+				},
+				component: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its row of the code pack\'s nonstructural component table (e.g. exteriorWall, parapetBracedAbove); empty: by its position (a wall with no story above is a parapet, other walls interior partitions, curtain walls exterior wall elements).',
+					title: 'Seismic component',
+				},
+				essential: {
+					default: false,
+					description: 'Must function after an earthquake, holds hazardous materials, or is needed for the continued operation of an essential facility: the code pack\'s higher component importance factor.',
+					title: 'Essential',
+					type: 'boolean',
 				},
 			},
 			required: ['id', 'type', 'base', 'path'],
