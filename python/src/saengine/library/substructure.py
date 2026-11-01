@@ -1083,6 +1083,199 @@ class Formwork(_Model):
     )
 
 
+MACHINE_KINDS = {
+    "periodic": "Reciprocating engine or compressor (periodic force)",
+    "impact": "Forge hammer or punch press (impact)",
+    "rotary": "Turbine, generator or rotary compressor (high speed)",
+}
+
+MACHINE_STIFFNESS = {
+    "barkan": "From E of the soil (Barkan)",
+    "subgrade": "From the subgrade modulus ks",
+    "plateLoad": "From a repeated plate load test",
+    "resonance": "From a resonance test",
+    "given": "Given",
+}
+
+
+class MachineFoundation(_Model):
+    """A block foundation under a machine or generator: the soil under it as one spring and
+    dashpot, checked by the code pack's machine foundation rules (resonance, amplitudes, static
+    pressure, eccentricity, ground water). Masses in t, forces in kN, stiffness in kN/m."""
+
+    id: Id = Field(description="Its mark, e.g. MF1.")
+    name: str | None = Field(default=None, description="The machine, e.g. 'Generator 500 kVA'.")
+    kind: Literal["periodic", "impact", "rotary"] = Field(
+        default="rotary",
+        description="What the machine produces.",
+        json_schema_extra=_labels(list(MACHINE_KINDS.values())),
+    )
+    form: Literal["block", "box", "wall", "frame"] = Field(
+        default="block",
+        description="Block, box (hollow block), wall or framed foundation; the method takes it "
+        "as a rigid block on the soil.",
+        json_schema_extra=_labels(["Block", "Box", "Wall", "Framed"]),
+    )
+    center: Point2 | None = Field(
+        default=None, description="Plan centre of the base [x, y] mm (the nearest borehole)."
+    )
+    length: Length = Field(description="Base length L [mm].")
+    width: Length = Field(description="Base width B [mm].")
+    height: Length = Field(description="Depth of the block [mm].")
+    foundingLevel: float = Field(
+        title="Founding level", description="Underside of the block [mm, project datum]."
+    )
+    material: Id | None = Field(
+        default=None,
+        description="Concrete material id (03 Materials) for the block's weight; empty: the "
+        "project's concrete.",
+    )
+    blockMass: float | None = Field(
+        default=None,
+        gt=0,
+        title="Block mass",
+        description="Mass of the block [t]; empty: from its size (a box or frame: enter it).",
+    )
+    machineMass: float = Field(gt=0, title="Machine mass", description="[t]")
+    speed: float = Field(
+        gt=0,
+        title="Operating speed",
+        description="[rpm]; a hammer: blows per minute.",
+    )
+    machineOffset: Point2 | None = Field(
+        default=None,
+        title="Machine offset",
+        description="Centre of gravity of the machine from the centre of the base, along L "
+        "and B [mm].",
+    )
+    force: float | None = Field(
+        default=None,
+        ge=0,
+        title="Unbalanced force",
+        description="Vertical amplitude of the unbalanced force at the operating speed [kN].",
+    )
+    unbalance: float | None = Field(
+        default=None,
+        ge=0,
+        description="Rotating unbalance m·e [kg·m]: the force m·e·ω² at any speed (instead of "
+        "the force).",
+    )
+    horizontalForce: float | None = Field(
+        default=None, ge=0, title="Horizontal force", description="[kN] at the operating speed."
+    )
+    horizontalStiffness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Horizontal stiffness",
+        description="[kN/m]: the horizontal mode is checked only with it (the code's methods "
+        "give the vertical spring).",
+    )
+    impulse: float | None = Field(
+        default=None,
+        gt=0,
+        description="Impulse of one blow [kN·s] (hammers: the amplitude I / (m ωn)).",
+    )
+    impactLoad: float | None = Field(
+        default=None,
+        ge=0,
+        title="Impact live load",
+        description="Live load causing the impact [kN] (for the impact rule).",
+    )
+    movingEquipment: bool = Field(
+        default=False,
+        title="Crane or moving equipment",
+        description="It carries cranes, heavy machinery or moving equipment (impact designed for).",
+    )
+    looseGranular: bool = Field(
+        default=False,
+        title="Loose granular soil",
+        description="It bears on loose granular soil (impact designed for).",
+    )
+    allowableAmplitude: float | None = Field(
+        default=None,
+        gt=0,
+        title="Maker's amplitude",
+        description="Permissible amplitude given by the manufacturer [mm]; empty: the code's.",
+    )
+    stiffnessMethod: Literal["barkan", "subgrade", "plateLoad", "resonance", "given"] = Field(
+        default="barkan",
+        title="Spring from",
+        json_schema_extra=_labels(list(MACHINE_STIFFNESS.values())),
+    )
+    E: float | None = Field(
+        default=None,
+        gt=0,
+        title="Young's modulus E",
+        description="Of the soil from a laboratory test [MPa]; empty: G below, else 1 Soil "
+        "Report's layers under the base.",
+    )
+    G: float | None = Field(
+        default=None,
+        gt=0,
+        title="Shear modulus G",
+        description="Of the soil from a torsional test [MPa]: E = 2G(1 + μ).",
+    )
+    poisson: float = Field(
+        default=0.35, gt=0, lt=0.5, title="Poisson's ratio μ", description="Of the soil."
+    )
+    ks: float | None = Field(
+        default=None,
+        gt=0,
+        title="Subgrade modulus ks",
+        description="[kN/m³]; empty: 1 Soil Report's at the nearest borehole.",
+    )
+    plateStiffness: float | None = Field(
+        default=None, gt=0, title="Plate stiffness kp", description="[kN/m]"
+    )
+    plateWidth: float | None = Field(default=None, gt=0, title="Plate width Bp", description="[mm]")
+    cohesive: bool | None = Field(
+        default=None,
+        description="Plate load test in cohesive soil; empty: from the soil report's layer.",
+    )
+    testFrequency: float | None = Field(
+        default=None, gt=0, title="Resonance frequency", description="Of the test [Hz]."
+    )
+    testMass: float | None = Field(
+        default=None, gt=0, title="Vibrator mass", description="Of the test [t]."
+    )
+    stiffness: float | None = Field(
+        default=None, gt=0, description="Given vertical spring k [kN/m]."
+    )
+    damping: float | None = Field(
+        default=None, gt=0, lt=1, title="Damping factor D", description="Empty: from below."
+    )
+    decrement: float | None = Field(
+        default=None, gt=0, title="Logarithmic decrement δ", description="Of a test."
+    )
+    workLost: float | None = Field(
+        default=None, gt=0, title="Work lost ΔW", description="Hysteresis loop of a test."
+    )
+    workDone: float | None = Field(
+        default=None, gt=0, title="Work done W", description="Of the same loop."
+    )
+    participatingMass: float | None = Field(
+        default=None,
+        ge=0,
+        title="Participating soil ms / mf",
+        description="Empty: the code's range is enveloped.",
+    )
+    designWaterTable: float | None = Field(
+        default=None,
+        title="Design water table",
+        description="Depth below the ground [m]; empty: the substructure's, else the borehole's.",
+    )
+    adjacentFoundingLevel: float | None = Field(
+        default=None,
+        title="Adjacent foundations",
+        description="Founding level of the adjacent building's foundations [mm, project datum].",
+    )
+    separated: bool = Field(
+        default=True,
+        description="Separated from the building's foundations and floors by a gap or joint.",
+    )
+    note: str | None = None
+
+
 class EarthPressure(_Model):
     """The basement walls of the building in the analysis model (load case H)."""
 
@@ -1177,6 +1370,11 @@ class Substructure(_Model):
         default=None,
         description="The slab formwork, checked against the code pack's construction loads.",
     )
+    machineFoundations: list[MachineFoundation] = Field(
+        default_factory=list,
+        title="Machine foundations",
+        description="Block foundations of machines and generators under their dynamic forces.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1197,6 +1395,7 @@ class Substructure(_Model):
             ("slabs on grade", self.groundSlabs),
             ("retaining walls", self.retainingWalls),
             ("excavations", self.excavations),
+            ("machine foundations", self.machineFoundations),
         ):
             ids = [i.id for i in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})

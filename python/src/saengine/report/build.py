@@ -3393,6 +3393,7 @@ FOUNDATION_TYPE_NAMES = {
     "tieBeam": "Tie beam",
     "excavation": "Excavation",
     "formwork": "Formwork",
+    "machineFoundation": "Machine foundation",
 }
 
 
@@ -3462,6 +3463,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
     summary = report.get("summary", {})
     designed = report.get("foundations", []) + report.get("tieBeams", [])
     designed += report.get("excavations", []) + report.get("temporaryWorks", [])
+    designed += report.get("machineFoundations", [])
     rows, fails = [], []
     for result in designed:
         check = _governing(result)
