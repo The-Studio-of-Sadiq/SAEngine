@@ -2038,6 +2038,186 @@ class PileSettlement(_Group):
     modulus: list[JanbuRow]
 
 
+#: ``[from, ratio, inclusive]``: the ratio of the last row whose bound the value reaches (at or
+#: above it when ``inclusive``, above it otherwise).
+RatioBand = tuple[float, float, bool]
+
+
+class BoredGuidanceRow(_Row):
+    """A row of the bored piles' build-ability guidance: bars and hoops by diameter [mm]."""
+
+    diameter: Positive
+    bar: Positive
+    count: int = Field(ge=1)
+    hoop: Positive
+    pitch: Positive
+
+
+class BoredMix(_Row):
+    """A recommended concrete mix of bored piles: its slump [mm] and conditions of use."""
+
+    id: str
+    slump: Positive
+    use: str
+
+
+class BoredDetailing(_Group):
+    """Structural detailing of bored cast-in-situ piles and drilled shafts."""
+
+    minFc: Positive = Field(description="Least f'c [MPa].")
+    minDiameter: Positive = Field(description="Least shaft diameter [mm].")
+    diameterStep: Positive = Field(description="Shafts sized in steps of this [mm].")
+    minFy: Positive = Field(description="Least fy of the longitudinal bars [MPa].")
+    minSteel: list[RatioBand] = Field(description="Least As/Ac by the gross area Ac [m²].")
+    minBars: int = Field(ge=1, description="Least number of longitudinal bars.")
+    largeDiameter: Positive = Field(description="From this diameter [mm] the bars are large.")
+    largeMinBar: Positive = Field(description="Least bar diameter of large piles [mm].")
+    cover: Positive = Field(description="Least cover to the cage [mm].")
+    minHoopPitch: Positive = Field(description="Hoops not closer than this [mm].")
+    reinforcedDepth: Positive = Field(description="Bars at least this below the cut-off [mm].")
+    casingExtra: Positive = Field(description="And this below a temporary casing [mm].")
+    guidance: list[BoredGuidanceRow]
+    guidanceFy: Positive = Field(description="fy the guidance assumes [MPa].")
+    cement: dict[Literal["dry", "submerged"], Positive] = Field(
+        description="Least cement content by placement [kg/m³]."
+    )
+    waterCement: Positive = Field(description="Recommended water/cement ratio.")
+    mixes: list[BoredMix]
+
+
+class DrivenDetailing(_Group):
+    """Structural detailing of driven precast concrete piles."""
+
+    minFc: Positive = Field(description="Least f'c [MPa].")
+    hardFc: Positive = Field(description="Least f'c for hard driving [MPa].")
+    hardDrivingStress: Positive = Field(description="Driving stress above which it is hard [kPa].")
+    maxSlenderness: Positive = Field(description="L/B at most this (else a segmental pile).")
+    steelByLength: list[RatioBand] = Field(description="Least As/Ag by L/B.")
+    minTie: Positive = Field(description="Least tie diameter [mm].")
+    tieEnd: Share = Field(description="Least tie volume over the gross volume at the ends.")
+    tieBody: Share = Field(description="Least tie volume over the gross volume in the body.")
+    tieEndLength: Positive = Field(description="The ends: this × B from each end.")
+    serviceStress: Share = Field(description="Service stress at most this × f'c on Ag.")
+    bucklingCu: Positive = Field(description="Below this cu [kPa] the pile may buckle.")
+    impact: float = Field(ge=0, description="Handling: the weight × (1 + this) for impact.")
+
+
+class CastInPlaceDetailing(_Group):
+    """Driven cast-in-place concrete piles."""
+
+    minButtArea: Positive = Field(description="Least area at the butt [mm²].")
+    minTip: Positive = Field(description="Least diameter at the tip [mm].")
+    cover: Positive = Field(description="Least clear cover [mm].")
+    corrosiveCover: Positive = Field(
+        description="Least clear cover in corrosive ground or under water or slurry [mm]."
+    )
+    unsupportedBarsBelow: Positive = Field(
+        description="Bars this far below the plane of lateral restraint [mm]."
+    )
+
+
+class FoundationConcrete(_Row):
+    """A row of the foundation concrete table."""
+
+    id: Literal["footing", "bored", "driven"]
+    name: str
+    cement: Positive = Field(description="Least cement content [kg/m³].")
+    fc: Positive = Field(description="Least f'c [MPa].")
+    slump: tuple[float, float] = Field(description="Slump range [mm].")
+
+
+class PileDetailing(_Group):
+    """Structural detailing of piles by kind, and the foundation concrete."""
+
+    bored: BoredDetailing
+    driven: DrivenDetailing
+    castInPlace: CastInPlaceDetailing
+    drilledShaftBarsBelow: Positive = Field(
+        description="Drilled shafts: bars this far below the plane of lateral restraint [mm]."
+    )
+    corrosiveCover: Positive = Field(description="Least cover of piles on a corrosive site [mm].")
+    concrete: list[FoundationConcrete]
+
+
+class PileLateral(_Group):
+    """Lateral load on piles: the head deflection, the group ratios, unbraced piles."""
+
+    allowableDeflection: Positive = Field(description="Allowable head deflection [mm].")
+    individualNormal: Positive = Field(description="Individual beyond this × B normal to H.")
+    individualParallel: Positive = Field(description="And beyond this × B parallel to it.")
+    groupRatio: list[tuple[float, float]] = Field(
+        description="[in-line c/c × B, ratio of the lateral resistance in the group]."
+    )
+    unbracedCu: Positive = Field(description="Soil below this cu [kPa] gives no lateral support.")
+
+
+class TestLoadFactors(_Group):
+    initial: Positive = Field(description="A test pile to this × the design load.")
+    routine: Positive = Field(description="A working pile to this × the design load.")
+
+
+class CompressionTestRules(_Group):
+    """Interpretation of axial compression load tests."""
+
+    testLoad: TestLoadFactors
+    movement: Positive = Field(description="Single pile: the load at this settlement [mm] ...")
+    movementShare: Share = Field(description="... times this.")
+    diameterShare: Share = Field(description="Single pile: the load at this × D ...")
+    underReamedShare: Share = Field(description="(this × the bulb of an under-reamed pile) ...")
+    diameterLoadShare: Share = Field(description="... times this.")
+    groupMovement: Positive = Field(description="Group: the load at this settlement [mm] ...")
+    groupMovementShare: Share
+    groupSecondMovement: Positive = Field(description="Group: the load at this settlement ...")
+    groupSecondShare: Share
+    davissonOffset: Positive = Field(description="Davisson's offset [mm] ...")
+    davissonDiameter: Positive = Field(description="... + D / this.")
+    bsShare: Share = Field(description="Ultimate at a settlement of this × D.")
+    bsAllowableShare: Share = Field(description="Allowable this × that load.")
+    isMovement: Positive = Field(description="IS: also the load at this settlement [mm].")
+    butlerHoySlope: Positive = Field(description="Tangent at this settlement per ton [mm].")
+    butlerHoyTon: Positive = Field(description="The ton [kN].")
+    brinchHansenShare: Share = Field(description="Settlement twice that under this × the load.")
+    failureSafety: Positive = Field(description="Ultimate from a test over this.")
+    minShare: Share = Field(description="At least this share of the piles tested.")
+    minBored: int = Field(ge=0, description="At least this many bored piles tested.")
+    integrityShare: Share = Field(description="Integrity tests on this share of the piles.")
+
+
+class UpliftTestRules(_Group):
+    testLoad: TestLoadFactors
+    movement: Positive = Field(description="The load at this uplift [mm] ...")
+    movementShare: Share
+    breakShare: Share = Field(description="This × the load at the clear break.")
+    failureSafety: Positive
+    transientTestSafety: Positive = Field(description="FS on a tested uplift due to W or E.")
+    transientAnalysisSafety: Positive = Field(description="FS on an analysed uplift by W or E.")
+
+
+class LateralTestRules(_Group):
+    testLoad: Positive = Field(description="Tests to at least this × the design load.")
+    headMovement: Positive = Field(description="The load at this head movement [mm] ...")
+    headShare: Share
+    totalMovement: Positive = Field(description="The load at this total displacement [mm] ...")
+    totalShare: Share
+
+
+class PileLoadTestRules(_Group):
+    compression: CompressionTestRules
+    uplift: UpliftTestRules
+    lateral: LateralTestRules
+
+
+class PileDowndrag(_Group):
+    """Negative skin friction (downdrag) and swelling uplift on piles."""
+
+    method: Literal["neutralPoint"] = Field(
+        description="Engine method (``neutralPoint``: load transfer to the neutral point)."
+    )
+    settlingSoils: list[str] = Field(description="Soil types that settle (fill, organic, ...).")
+    softClay: bool = Field(description="Soft clays settle too.")
+    dragloadFactor: Positive = Field(description="Load factor on the dragload in the section.")
+
+
 class PileRules(_Group):
     """Deep foundation rules: the static method by id, its values, drilled shafts, the SPT
     relations and the settlement of piles."""
@@ -2051,6 +2231,18 @@ class PileRules(_Group):
     drilledShaft: DrilledShaft
     spt: dict[Literal["bored", "driven"], dict[Literal["clay", "sand", "silt"], SptRelation]]
     settlement: PileSettlement
+    detailing: PileDetailing | None = Field(
+        default=None, description="Structural detailing; empty: not covered by the pack."
+    )
+    lateral: PileLateral | None = Field(
+        default=None, description="Lateral load rules; empty: not covered by the pack."
+    )
+    loadTests: PileLoadTestRules | None = Field(
+        default=None, description="Load test interpretation; empty: not covered by the pack."
+    )
+    downdrag: PileDowndrag | None = Field(
+        default=None, description="Downdrag and swelling uplift; empty: not covered by the pack."
+    )
 
 
 class FoundationsTable(TableModel):

@@ -42,7 +42,7 @@ import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengin
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
-	errorSummary, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
+	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
@@ -107,7 +107,18 @@ const F = {
 	note: { key: 'note', label: localize('sub.f.note', "Note"), kind: 'text' },
 	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80, title: localize('sub.f.diameterTitle', "Bored piles: the diameter; driven precast piles: the side of the square") },
 	pileLength: { key: 'length', label: localize('sub.f.pileLength', "Length"), unit: M, kind: 'length', min: 0.001, required: true, width: 72 },
-	fixityDepth: { key: 'fixityDepth', label: localize('sub.f.fixityDepth', "Depth to fixity"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.fixityDepthTitle', "Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report. Empty: the piles are designed for axial force only."), width: 80 },
+	fixityDepth: { key: 'fixityDepth', label: localize('sub.f.fixityDepth', "Depth to fixity"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.fixityDepthTitle', "Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report. Empty: 1.4 R of the Winkler springs at the nearest borehole (without a soil report: axial force only)."), width: 80 },
+	tipDiameter: { key: 'tipDiameter', label: localize('sub.f.tipDiameter', "Tip Ø"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.tipDiameterTitle', "Driven cast-in-place piles tapered to the tip: the tip's diameter. Empty: uniform."), width: 72 },
+	reinforcedLength: { key: 'reinforcedLength', label: localize('sub.f.reinforcedLength', "Cage length"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.reinforcedLengthTitle', "Length of the longitudinal bars below the cut-off. Empty: the full length of the pile."), width: 80 },
+	casingDepth: { key: 'casingDepth', label: localize('sub.f.casingDepth', "Temporary casing"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.casingDepthTitle', "Bored piles: depth of the temporary casing below the cut-off; the cage runs past it by the code pack's length."), width: 80 },
+	unbracedLength: { key: 'unbracedLength', label: localize('sub.f.unbracedLength', "Unbraced length"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.unbracedLengthTitle', "Length below the cap standing in air or water, in scour, or in soil that cannot support it: designed as a column. Weak soil below the code pack's cu limit is found from the soil report."), width: 80 },
+	lateralDeflection: { key: 'lateralDeflection', label: localize('sub.f.lateralDeflection', "Head deflection"), unit: MM, kind: 'number', min: 0.1, title: localize('sub.f.lateralDeflectionTitle', "The allowable lateral movement of the pile head (the structure's performance requirement). Empty: the code pack's."), width: 80 },
+	testId: { key: 'id', label: localize('sub.f.testId', "Test"), kind: 'text', required: true, width: 64 },
+	testCurve: { key: 'points', label: localize('sub.f.testCurve', "Curve (load kN, movement mm; ...)"), kind: 'text', title: localize('sub.f.testCurveTitle', "The load and the head movement at each stage of loading, e.g. 0 0; 500 2.1; 1000 4.8"), width: 320 },
+	breakLoad: { key: 'breakLoad', label: localize('sub.f.breakLoad', "Clear break"), unit: localize('sub.unit.kn', "kN"), kind: 'number', min: 0.001, title: localize('sub.f.breakLoadTitle', "Uplift tests: the load at which the curve shows a clear break. Empty: none seen."), width: 80 },
+	bulbDiameter: { key: 'bulbDiameter', label: localize('sub.f.bulbDiameter', "Bulb Ø"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.bulbDiameterTitle', "Under-reamed piles: the bulb's diameter (its share of the settlement criterion)."), width: 72 },
+	downdragDepth: { key: 'downdragDepth', label: localize('sub.f.downdragDepth', "Settling soil to"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.downdragDepthTitle', "Depth below the ground down to which the soil settles round the piles. Empty: the fill, organic and soft layers of the soil report from the top.") },
+	swellingDepth: { key: 'swellingDepth', label: localize('sub.f.swellingDepth', "Swelling zone to"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.swellingDepthTitle', "Depth below the ground of the zone of seasonal moisture change in expansive soil. Empty: the layers whose samples the soil report finds expansive.") },
 	level: { key: 'level', label: localize('sub.f.level', "Level"), unit: M, kind: 'length', title: localize('sub.f.levelTitle', "Top of the tie beam; the foundations' top when empty"), width: 72 },
 	pileCompression: { key: 'pileCompression', label: localize('sub.f.fsCompression', "FS pile compression"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsCompressionTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control. Sec 3.10.1.18 (bored piles: Sec 3.10.4.10) asks at least 3.0 unless the design rests on a load test at the site (then 2.0): the design raises a smaller value.") },
 	pileUplift: { key: 'pileUplift', label: localize('sub.f.fsUplift', "FS pile uplift"), kind: 'number', min: 1, max: 10, title: localize('sub.f.fsTitle', "BNBC 2020 Part 6 Table 6.3.10a: 2.5 for a permanent structure under normal control") },
@@ -1897,6 +1908,8 @@ export class SubstructureEditor extends EditorPane {
 		append(header, $('span.sub-view-subtitle', undefined, localize('sub.dataSubtitle', "Sizes in mm, levels and positions in m; click a row to edit the rest in Properties.")));
 		this.renderFoundationTable(document);
 		this.renderPileTypeTable(document);
+		this.renderPileDetailTable(document);
+		this.renderLoadTestTable(document);
 		this.renderPileTable(document);
 		this.renderTieBeamTable(document);
 		this.renderGroundSlabTable(document);
@@ -2169,6 +2182,156 @@ export class SubstructureEditor extends EditorPane {
 		const planned = append(section, $('.sub-planned'));
 		for (const id of PLANNED_PILE_FEATURES) {
 			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
+		}
+	}
+
+	/** The pile types' detailing and lateral inputs: placement and driving, cage, casing,
+	 * unbraced length and the allowable head deflection (the code pack's rules check them). */
+	private renderPileDetailTable(document: ISubstructure): void {
+		if (!document.pileTypes.length) {
+			return;
+		}
+		const section = this.section(localize('sub.pileDetails', "Pile detailing and lateral load"), document.pileTypes.length);
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const columns = [
+			{ label: F.id.label, width: 64 }, { label: localize('sub.f.placement', "Concrete / driving"), width: 170 },
+			{ label: F.tipDiameter.label, unit: MM, numeric: true, width: 72 }, { label: F.reinforcedLength.label, unit: M, numeric: true, width: 80 },
+			{ label: F.casingDepth.label, unit: M, numeric: true, width: 80 }, { label: F.unbracedLength.label, unit: M, numeric: true, width: 80 },
+			{ label: F.lateralDeflection.label, unit: MM, numeric: true, width: 80 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const optional = (pile: IPileType, field: keyof IPileType & string) => (value: number | string | undefined) => {
+			if (typeof value === 'number') {
+				pile[field] = value;
+			} else {
+				delete pile[field];
+			}
+			this.changed(false);
+		};
+		document.pileTypes.forEach((pile, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `pileTypes.${index}.${field}`;
+			append(row, $('td', undefined, pile.id));
+			const cell = append(row, $('td'));
+			if (pile.kind === 'driven') {
+				append(cell, this.selectInput([
+					{ value: 'easy', label: localize('sub.driving.easy', "Easy driving") },
+					{ value: 'hard', label: localize('sub.driving.hard', "Hard driving") },
+				], pile.hardDriving ? 'hard' : 'easy', value => {
+					if (value === 'hard') {
+						pile.hardDriving = true;
+					} else {
+						delete pile.hardDriving;
+					}
+					this.changed(false);
+				}, path('hardDriving'), localize('sub.f.hardDriving', "Driving")));
+			} else {
+				append(cell, this.selectInput(PILE_PLACEMENTS.map(k => ({ value: k, label: pilePlacementLabel(k) })), pile.placement ?? 'submerged', value => {
+					if (value === 'submerged') {
+						delete pile.placement;
+					} else {
+						pile.placement = value as IPileType['placement'];
+					}
+					this.changed(false);
+				}, path('placement'), localize('sub.f.placement', "Concrete / driving")));
+			}
+			const tip = append(row, $('td'));
+			if (pile.kind === 'drivenCastInPlace') {
+				append(tip, this.textInput(F.tipDiameter, pile.tipDiameter, optional(pile, 'tipDiameter'), path('tipDiameter')));
+			}
+			append(append(row, $('td')), this.textInput(F.reinforcedLength, pile.reinforcedLength, optional(pile, 'reinforcedLength'), path('reinforcedLength'), localize('sub.fullLength', "full")));
+			const casing = append(row, $('td'));
+			if (pile.kind === 'bored') {
+				append(casing, this.textInput(F.casingDepth, pile.casingDepth, optional(pile, 'casingDepth'), path('casingDepth')));
+			}
+			append(append(row, $('td')), this.textInput(F.unbracedLength, pile.unbracedLength, optional(pile, 'unbracedLength'), path('unbracedLength')));
+			append(append(row, $('td')), this.textInput(F.lateralDeflection, pile.lateralDeflection, optional(pile, 'lateralDeflection'), path('lateralDeflection'), localize('sub.codePack', "code pack")));
+		});
+		appendPropertyNote(section, localize('sub.pileDetailsNote', "The code pack's pile rules check the concrete, bars, ties, cover and cage of each kind, the head deflection on the soil springs (with the group ratio of in-line piles) and unbraced piles as columns."));
+	}
+
+	/** Static pile load tests at the site: each one's pile type, kind, stage and curve. */
+	private renderLoadTestTable(document: ISubstructure): void {
+		const tests = document.loadTests ?? [];
+		if (!document.pileTypes.length && !tests.length) {
+			return;
+		}
+		const section = this.section(localize('sub.loadTests', "Pile load tests"), tests.length, {
+			label: localize('sub.addLoadTest', "Add Load Test"),
+			run: () => {
+				(document.loadTests ??= []).push(newLoadTest(document));
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const columns = [
+			{ label: F.testId.label, width: 64 }, { label: localize('sub.f.pileType', "Pile type"), width: 96 },
+			{ label: localize('sub.f.testKind', "Kind"), width: 120 }, { label: localize('sub.f.testStage', "Stage"), width: 170 },
+			{ label: localize('sub.f.testGroup', "On"), width: 96 }, { label: F.testCurve.label, width: 320 },
+			{ label: F.breakLoad.label, unit: localize('sub.unit.kn', "kN"), numeric: true, width: 80 },
+			{ label: F.bulbDiameter.label, unit: MM, numeric: true, width: 72 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		tests.forEach((test, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `loadTests.${index}.${field}`;
+			append(append(row, $('td')), this.textInput(F.testId, test.id, value => {
+				if (value) {
+					test.id = String(value);
+					this.changed(false);
+				}
+			}, path('id')));
+			append(append(row, $('td')), this.selectInput(document.pileTypes.map(p => ({ value: p.id, label: p.id })), test.pileType, value => {
+				test.pileType = value;
+				this.changed(true);
+			}, path('pileType'), localize('sub.f.pileType', "Pile type")));
+			append(append(row, $('td')), this.selectInput(PILE_TEST_KINDS.map(k => ({ value: k, label: pileTestKindLabel(k) })), test.kind ?? 'compression', value => {
+				test.kind = value as IPileLoadTest['kind'];
+				this.changed(true);
+			}, path('kind'), localize('sub.f.testKind', "Kind")));
+			append(append(row, $('td')), this.selectInput(PILE_TEST_STAGES.map(k => ({ value: k, label: pileTestStageLabel(k) })), test.test ?? 'initial', value => {
+				test.test = value as IPileLoadTest['test'];
+				this.changed(false);
+			}, path('test'), localize('sub.f.testStage', "Stage")));
+			append(append(row, $('td')), this.selectInput([
+				{ value: 'single', label: localize('sub.test.single', "Single pile") },
+				{ value: 'group', label: localize('sub.test.group', "Pile group") },
+			], test.group ? 'group' : 'single', value => {
+				if (value === 'group') {
+					test.group = true;
+				} else {
+					delete test.group;
+				}
+				this.changed(false);
+			}, path('group'), localize('sub.f.testGroup', "On")));
+			const curve: HTMLInputElement = this.textInput(F.testCurve, formatTestCurve(test.points ?? []), value => {
+				const points = parseTestCurve(String(value ?? ''));
+				this.markInvalid(curve, points ? undefined : localize('sub.testCurveInvalid', "Pairs of load (kN) and movement (mm), not negative, separated by ';'."));
+				if (points) {
+					test.points = points;
+					this.changed(false);
+				}
+			}, path('points'), '0 0; 500 2.1; 1000 4.8');
+			append(append(row, $('td')), curve);
+			for (const field of [F.breakLoad, F.bulbDiameter]) {
+				append(append(row, $('td')), this.textInput(field, test[field.key], value => {
+					if (typeof value === 'number') {
+						test[field.key] = value;
+					} else {
+						delete test[field.key];
+					}
+					this.changed(false);
+				}, path(field.key)));
+			}
+			this.removeButton(row, () => {
+				tests.splice(index, 1);
+				this.changed(true);
+			});
+		});
+		if (!tests.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noLoadTests', "None yet. A compression test of a pile type lets its capacity take the code pack's factor of safety with a load test, and caps its allowable load at the test's safe load.")));
 		}
 	}
 
@@ -3604,6 +3767,7 @@ export class SubstructureEditor extends EditorPane {
 			usedNote.hidden = !used.raised;
 		};
 		refreshUsed();
+		this.pileGroundRows(panel, design);
 		this.shallowRulesRows(panel, design);
 		this.fieldRow(panel, F.raftMeshSize, design.raftMeshSize, value => this.setDesign('raftMeshSize', value), 'design.raftMeshSize', String(RAFT_MESH_SIZE));
 		this.fieldRow(panel, F.springs, typeof design.springsFrom === 'number' ? design.springsFrom : undefined, value => this.setDesign('springsFrom', value), 'design.springsFrom', localize('sub.fromSoil', "soil report"));
@@ -3661,6 +3825,27 @@ export class SubstructureEditor extends EditorPane {
 			{ value: 'verySoftClay', label: localize('sub.presumptive.verySoftClay', "Very soft clay") },
 		], design.presumptiveSoil ?? '', value => this.setDesign('presumptiveSoil', value || undefined), 'design.presumptiveSoil', presumptiveLabel), undefined,
 			localize('sub.presumptiveTitle', "Without a soil report and without a qa override: the code pack's presumptive allowable bearing value for lightly loaded structures and preliminary design, reduced where the design water table is near the base."));
+	}
+
+	/** Vertical ground movement on the piles: negative skin friction and swelling uplift. */
+	private pileGroundRows(panel: HTMLElement, design: ISubstructureDesign): void {
+		const label = localize('sub.f.downdrag', "Negative skin friction");
+		this.propertyRow(panel, label, this.selectInput([
+			{ value: 'yes', label: localize('sub.downdrag.yes', "Check") },
+			{ value: 'no', label: localize('sub.downdrag.no', "Do not check") },
+		], design.downdrag === false ? 'no' : 'yes', value => {
+			if (value === 'no') {
+				design.downdrag = false;
+			} else {
+				delete design.downdrag;
+			}
+			this.changed(false);
+		}, 'design.downdrag', label), undefined,
+			localize('sub.downdragTitle', "Downdrag where the soil round the piles settles (fill, organic and soft soil by the code pack): the dragload to the neutral point is part of the design load."));
+		if (design.downdrag !== false) {
+			this.fieldRow(panel, F.downdragDepth, design.downdragDepth, value => this.setDesign('downdragDepth', value), 'design.downdragDepth', localize('sub.fromSoil', "soil report"));
+		}
+		this.fieldRow(panel, F.swellingDepth, design.swellingDepth, value => this.setDesign('swellingDepth', value), 'design.swellingDepth', localize('sub.fromSoil', "soil report"));
 	}
 
 	private raftSpringsRow(panel: HTMLElement, design: ISubstructureDesign): void {

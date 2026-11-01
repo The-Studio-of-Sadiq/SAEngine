@@ -240,10 +240,13 @@ class PileType(_Model):
     """A pile: kind, size and reinforcement."""
 
     id: Id
-    kind: Literal["bored", "driven"] = Field(
+    kind: Literal["bored", "driven", "drivenCastInPlace"] = Field(
         default="bored",
-        description="Bored cast-in-situ or driven precast.",
-        json_schema_extra=_labels(["Bored (cast in situ)", "Driven (precast)"]),
+        description="Bored cast-in-situ, driven precast (square), or driven cast-in-place (a "
+        "shell or tube driven and filled with concrete: round, the capacity of a driven pile).",
+        json_schema_extra=_labels(
+            ["Bored (cast in situ)", "Driven (precast)", "Driven (cast in place)"]
+        ),
     )
     diameter: Length = Field(description="Diameter (driven square piles: the side) [mm].")
     length: Length = Field(description="Below the underside of the cap [mm].")
@@ -275,6 +278,96 @@ class PileType(_Model):
         description="Below the pile head, where the pile acts as fixed against the lateral load, "
         "from the geotechnical report [mm]; none: the pile is designed for axial force only.",
     )
+    tipDiameter: Length | None = Field(
+        default=None,
+        title="Tip diameter",
+        description="Driven cast-in-place piles tapered towards the tip: its diameter [mm]; "
+        "empty: uniform.",
+    )
+    placement: Literal["dry", "submerged"] = Field(
+        default="submerged",
+        title="Concrete placement",
+        description="Bored piles: concrete placed in a dry bore, or by tremie under water or "
+        "slurry (the code pack's least cement content and mix by placement).",
+        json_schema_extra=_labels(["Dry bore", "Tremie under water or slurry"]),
+    )
+    hardDriving: bool = Field(
+        default=False,
+        title="Hard driving",
+        description="Driven piles: driving stresses above the code pack's limit (1000 kPa in "
+        "the default pack), which asks for a higher concrete grade.",
+    )
+    reinforcedLength: Length | None = Field(
+        default=None,
+        title="Cage length",
+        description="Length of the longitudinal bars below the cut-off [mm]; empty: the full "
+        "length of the pile.",
+    )
+    casingDepth: Length | None = Field(
+        default=None,
+        title="Temporary casing",
+        description="Bored piles: depth of the temporary casing below the cut-off [mm]; the cage "
+        "runs past it by the code pack's length.",
+    )
+    unbracedLength: Length | None = Field(
+        default=None,
+        title="Unbraced length",
+        description="Length below the cap standing in air or water, in scour, or in soil that "
+        "cannot support it laterally [mm]: that part is designed as a column. Soil weaker "
+        "than the code pack's cu limit is found from the soil report.",
+    )
+    lateralDeflection: float | None = Field(
+        default=None,
+        gt=0,
+        title="Allowable head deflection",
+        description="The performance requirement on the pile head's lateral movement [mm]; "
+        "empty: the code pack's.",
+    )
+
+
+class PileLoadTest(_Model):
+    """A static load test of a pile type at the site: its load-movement curve."""
+
+    id: Id = Field(description="Its mark, e.g. TP1 (test pile) or WP3 (working pile).")
+    pileType: Id = Field(title="Pile type", description="Pile type id.")
+    kind: Literal["compression", "uplift", "lateral"] = Field(
+        default="compression",
+        description="Axial compression, uplift (tension) or lateral load.",
+        json_schema_extra=_labels(["Compression", "Uplift", "Lateral"]),
+    )
+    test: Literal["initial", "routine"] = Field(
+        default="initial",
+        description="Initial test on a test pile (to twice the design load or failure) or "
+        "routine test on a working pile (to one and a half times).",
+        json_schema_extra=_labels(["Initial (test pile)", "Routine (working pile)"]),
+    )
+    group: bool = Field(
+        default=False, description="A compression test on a pile group (its own criteria)."
+    )
+    points: list[tuple[float, float]] = Field(
+        default_factory=list,
+        description="The curve: [load kN, movement mm] at each stage of loading, from the "
+        "start (movement at the pile head; lateral tests: the head's lateral movement).",
+    )
+    breakLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Clear break",
+        description="Uplift tests: the load at which the curve shows a clear break [kN]; "
+        "empty: none seen.",
+    )
+    bulbDiameter: Length | None = Field(
+        default=None,
+        title="Bulb diameter",
+        description="Under-reamed piles: the bulb's diameter [mm] (its share of settlement).",
+    )
+
+    @model_validator(mode="after")
+    def _curve(self) -> PileLoadTest:
+        for load, movement in self.points:
+            if load < 0 or movement < 0:
+                raise ValueError(f"load test {self.id}: loads and movements are not negative")
+        return self
 
 
 class Pile(_Model):
@@ -484,6 +577,24 @@ class Design(_Model):
         description="No tension: where the raft lifts off, the soil carries nothing (solved "
         "iteratively); linear: the springs may pull.",
         json_schema_extra=_labels(["No tension (iterative)", "Linear"]),
+    )
+    downdrag: bool = Field(
+        default=True,
+        title="Negative skin friction",
+        description="Check the piles for downdrag where the soil around them settles (fill, "
+        "organic and soft soil by the code pack), to the neutral point.",
+    )
+    downdragDepth: Length | None = Field(
+        default=None,
+        title="Settling soil to",
+        description="Depth below the ground down to which the soil settles round the piles "
+        "[mm]; empty: the settling layers of the soil report from the top.",
+    )
+    swellingDepth: Length | None = Field(
+        default=None,
+        title="Swelling zone to",
+        description="Depth below the ground of the zone of seasonal moisture change in "
+        "expansive soil [mm]; empty: the layers whose samples the soil report finds expansive.",
     )
 
 
@@ -828,6 +939,12 @@ class Substructure(_Model):
         description="Every pile, placed in plan; a pile cap lists the ones it stands on.",
     )
     tieBeams: list[TieBeam] = Field(default_factory=list, title="Tie beams")
+    loadTests: list[PileLoadTest] = Field(
+        default_factory=list,
+        title="Pile load tests",
+        description="Static load tests at the site: their curves give the safe loads, and a "
+        "compression test lets the pile type's capacity take the factor of safety with a test.",
+    )
     groundSlabs: list[GroundSlab] = Field(
         default_factory=list,
         title="Slabs on grade",
@@ -859,6 +976,7 @@ class Substructure(_Model):
             ("foundations", self.foundations),
             ("pile types", self.pileTypes),
             ("piles", self.piles),
+            ("load tests", self.loadTests),
             ("tie beams", self.tieBeams),
             ("slabs on grade", self.groundSlabs),
             ("retaining walls", self.retainingWalls),
@@ -871,6 +989,9 @@ class Substructure(_Model):
         for pile in self.piles:
             if pile.type not in types:
                 raise ValueError(f"{pile.id}: unknown pile type '{pile.type}'")
+        for test in self.loadTests:
+            if test.pileType not in types:
+                raise ValueError(f"load test {test.id}: unknown pile type '{test.pileType}'")
         piles = {p.id: p for p in self.piles}
         carried: dict[str, str] = {}
         capped: dict[str, str] = {}

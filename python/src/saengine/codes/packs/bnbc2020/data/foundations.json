@@ -112,7 +112,25 @@
     "piles.settlement.groupWidthExponent": "BNBC 2020 Part 6 Eqs 6.3.37-6.3.38 (p. 768): Sg = St (B/D)^0.5 and Rs = n^0.5; the larger is taken",
     "piles.settlement.blockDepth": "BNBC 2020 Part 6 Sec 3.10.5, long term settlement for pile group (p. 769): a solid foundation at 2/3 of the pile length",
     "piles.settlement.modulus": "BNBC 2020 Part 6 Eqs 6.3.40-6.3.41 and Table 6.3.14 (pp. 769-770); the lower M of each range is used. Eq 6.3.40 prints ln((σ1'/σ0')^j), which is zero for j = 0; read as the j = 0 form S = H/M ln(σ1'/σ0'), and Eq 6.3.41 as the j > 0 form S = H/(M j) [(σ1'/σr)^j - (σ0'/σr)^j] (2H/M for j = 0.5). For a clay with j > 0 the larger of the two is taken",
-    "piles.settlement.limits": "BNBC 2020 Part 6 Sec 3.10.5 (p. 766) refers to the shallow foundations' limits as 'Table 6.3.7', an evident misprint for Table 6.3.8 (Table 6.3.7 is the presumptive bearing values); Table 6.3.8 is used"
+    "piles.settlement.limits": "BNBC 2020 Part 6 Sec 3.10.5 (p. 766) refers to the shallow foundations' limits as 'Table 6.3.7', an evident misprint for Table 6.3.8 (Table 6.3.7 is the presumptive bearing values); Table 6.3.8 is used",
+    "piles.detailing.bored": "BNBC 2020 Part 6 Secs 3.10.4.1-3.10.4.2 and 3.10.4.9 (pp. 761-766): f'c >= 21 MPa, shafts in 50 mm steps from 400 mm; fy >= 420 MPa, longitudinal steel >= 0.5 % of Ac for Ac <= 0.5 m2, 0.375 % for 0.5-1 m2, 0.25 % above, bars >= 16 mm for diameters >= 600 mm, at least 6 bars, hoops not closer than 100 mm, cover >= 75 mm, cement 350 kg/m3 dry and 400 kg/m3 submerged, w/c 0.45, Table 6.3.12 mixes (pp. 765-766)",
+    "piles.detailing.bored.guidance": "BNBC 2020 Part 6 Table 6.3.11 (p. 764): build-ability guidance for piles in compression only, fy 420 MPa, reinforced at least 3 m below the cut-off (note c)",
+    "piles.detailing.bored.casingExtra": "BNBC 2020 Part 6 Sec 3.10.4.9 (p. 763): reinforce compression piles 2 m below the temporary casing; Table 6.3.11 note (c) (p. 764) prints 1 m. The more conservative 2 m is used",
+    "piles.detailing.driven": "BNBC 2020 Part 6 Sec 3.10.1.31 (pp. 756-757): service stress <= 0.33 f'c; not a long column where cu > 10 kPa; L/B <= 50; longitudinal steel 1 % for L < 30B, 1.5 % for 30-40B, 2 % above 40B; ties >= 6 mm, >= 0.4 % of the gross volume over 3B at each end and 0.2 % in the body; f'c >= 21 MPa, 28 MPa for hard driving (driving stress > 1000 kPa)",
+    "piles.detailing.driven.impact": "BNBC 2020 Part 6 Sec 3.10.3.2 (p. 760): handling stresses with the pile's weight plus 50 % for impact. The clause is printed for prestressed piles; it is the code's only handling impact allowance and is applied to precast piles too (formerly cited as ACI 543R)",
+    "piles.detailing.castInPlace": "BNBC 2020 Part 6 Secs 3.10.2.2, 3.10.2.3 and 3.10.2.7 (p. 758): butt area >= 650 cm2, tip diameter >= 200 mm; Sec 3.10.2.3: portions not laterally supported designed as columns, bars 3000 mm below that plane; Sec 3.10.2.7: clear cover >= 50 mm, 75 mm in corrosive or marine environments or concrete placed by water or slurry displacement",
+    "piles.detailing.drilledShaftBarsBelow": "BNBC 2020 Part 6 Sec 3.10.6.21 (p. 781): unsupported portions of drilled shafts designed as columns, bars at least 5 m below the plane of adequate lateral restraint",
+    "piles.detailing.corrosiveCover": "SAEngine practice, not BNBC (after BNBC 2020 Part 6 Secs 3.10.1.29 and 3.10.2.7, pp. 754-758): Sec 3.10.1.29(b) asks for minimum cover of concrete piles on a corrosive site (Sec 3.10.1.29(a): chloride >= 500 ppm, sulphate >= 2000 ppm or pH < 6) without a value; the 75 mm of Sec 3.10.2.7 is applied to every concrete pile there",
+    "piles.detailing.concrete": "BNBC 2020 Part 6 Sec 3.6.1 and Table 6.3.5 (p. 715): Table 6.3.5 prints 18 MPa for cast-in-situ piles against 21 MPa in Sec 3.10.4.1, and 25 MPa for driven piles against 21 MPa in Sec 3.10.1.31: the larger of each pair is the least f'c checked",
+    "piles.lateral.allowableDeflection": "SAEngine practice, not BNBC: BNBC 2020 Part 6 Sec 3.10.1.21 (p. 752) asks the least of soil failure, structure and head deflection, and Sec 3.10.6.15 (p. 779) leaves the tolerable movement to the designer; without the pile type's own limit, the head deflection of the analysis is held to the 5 mm of the load-test criterion (ii) of Sec 3.10.1.21",
+    "piles.lateral.groupRatio": "BNBC 2020 Part 6 Sec 3.10.6.15 and Table 6.3.16 (p. 778): shafts act individually at c/c > 2.5B normal to the load and > 8B parallel to it; in-line ratios 1.00 at 8B, 0.70 at 6B, 0.40 at 4B, 0.25 at 3B (interpolated; 0.25 below 3B)",
+    "piles.lateral.unbracedCu": "BNBC 2020 Part 6 Secs 3.10.1.21 and 3.10.1.31 (pp. 752, 756): piles standing unbraced in air, water or soils not capable of lateral support designed as columns; Sec 3.10.1.31 (p. 756): fully embedded piles are not long columns where cu > 10 kPa",
+    "piles.loadTests.compression": "BNBC 2020 Part 6 Secs 3.10.1.17 and 3.11.1-3.11.2.1 (pp. 749, 789-794): Sec 3.10.1.17: test pile to 2 x the design load, working pile 1.5 x; safe load of a single pile the lesser of 2/3 of the load at 12 mm and 1/2 of the load at 10 % of D (7.5 % of the bulb of under-reamed piles); of a group, the load at 25 mm and 2/3 of the load at 40 mm. Sec 3.11.2 (p. 791): at least 2 % of the piles tested, at least one bored pile per project, not earlier than 4 weeks. Sec 3.11.2.1 (pp. 793-794): Davisson offset 0.15 in + D/120 (driven precast piles), BS 8004 10 % of D (allowable 50 % of it), IS 2911 (10 % of D or 12 mm; allowable 2/3 at 12 mm, 1/2 at 10 % D), Butler-Hoy (tangent at 1.27 mm/ton), Brinch Hansen 90 %; ultimate / FS 2.0-2.5 where failure occurs (2.0, Sec 3.10.1.18). Sec 3.11.1 (p. 789): integrity tests on 100 % of the piles. Sec 3.11.2.1 refers working-pile tests to 'Sec 3.10.1.16', an evident misprint for Sec 3.10.1.17",
+    "piles.loadTests.compression.butlerHoyTon": "BNBC 2020 Part 6 Sec 3.11.2.1(f) (p. 794) prints 1.27 mm/ton without saying which ton; the metric tonne (9.81 kN: the smaller slope per kN, so the earlier and lower failure load) is taken as the conservative reading",
+    "piles.loadTests.uplift": "BNBC 2020 Part 6 Sec 3.11.3 (pp. 796-797): ultimate from a test / FS 2.0 (1.5 by test, 2.0 by analysis where the uplift is due to wind or earthquake); safe load the lesser of 2/3 of the load at 12 mm and 1/2 of the load at the clear break; initial test to 2 x the design load, routine tests to 1.5 x or 12 mm",
+    "piles.loadTests.lateral": "BNBC 2020 Part 6 Sec 3.10.1.21 (p. 752) and Sec 3.11.4 (p. 797): tests to at least 2 x the design load; allowable lateral load the lesser of 1/2 of the load at 12 mm head movement and the load at 5 mm total displacement. Sec 3.11.4 cites 'Sec 3.10.1.20', an evident misprint for Sec 3.10.1.21",
+    "piles.downdrag": "BNBC 2020 Part 6 Secs 3.10.1.22-3.10.1.23 (pp. 752-753) and 3.10.6.17-3.10.6.19 (p. 780): downdrag of piles in compressible fill or soft soil by a load-transfer analysis to the neutral point, the full ground movement assumed, as part of the design load; swelling uplift resisted below the zone of moisture change. Soft clay by Sec 3.5.8 (pp. 713-714)",
+    "piles.downdrag.dragloadFactor": "SAEngine practice, not BNBC: BNBC gives no load factor on the dragload; 1.25 (the downdrag factor of the α method in AASHTO LRFD Table 3.4.1-2) is used in the strength check of the section"
   },
   "retainingWall": {
     "sliding": 1.5,
@@ -1122,6 +1140,299 @@
           "j": 0.0
         }
       ]
+    },
+    "detailing": {
+      "bored": {
+        "minFc": 21,
+        "minDiameter": 400,
+        "diameterStep": 50,
+        "minFy": 420,
+        "minSteel": [
+          [
+            0.0,
+            0.005,
+            true
+          ],
+          [
+            0.5,
+            0.00375,
+            false
+          ],
+          [
+            1.0,
+            0.0025,
+            false
+          ]
+        ],
+        "minBars": 6,
+        "largeDiameter": 600,
+        "largeMinBar": 16,
+        "cover": 75,
+        "minHoopPitch": 100,
+        "reinforcedDepth": 3000,
+        "casingExtra": 2000,
+        "guidance": [
+          {
+            "diameter": 400,
+            "bar": 16,
+            "count": 6,
+            "hoop": 8,
+            "pitch": 200
+          },
+          {
+            "diameter": 450,
+            "bar": 16,
+            "count": 6,
+            "hoop": 8,
+            "pitch": 200
+          },
+          {
+            "diameter": 500,
+            "bar": 16,
+            "count": 8,
+            "hoop": 8,
+            "pitch": 250
+          },
+          {
+            "diameter": 600,
+            "bar": 16,
+            "count": 8,
+            "hoop": 8,
+            "pitch": 250
+          },
+          {
+            "diameter": 750,
+            "bar": 16,
+            "count": 10,
+            "hoop": 10,
+            "pitch": 300
+          },
+          {
+            "diameter": 900,
+            "bar": 16,
+            "count": 10,
+            "hoop": 10,
+            "pitch": 300
+          },
+          {
+            "diameter": 1050,
+            "bar": 16,
+            "count": 12,
+            "hoop": 10,
+            "pitch": 300
+          },
+          {
+            "diameter": 1200,
+            "bar": 16,
+            "count": 12,
+            "hoop": 10,
+            "pitch": 300
+          },
+          {
+            "diameter": 1500,
+            "bar": 20,
+            "count": 12,
+            "hoop": 10,
+            "pitch": 400
+          },
+          {
+            "diameter": 1800,
+            "bar": 20,
+            "count": 12,
+            "hoop": 10,
+            "pitch": 400
+          },
+          {
+            "diameter": 2100,
+            "bar": 20,
+            "count": 16,
+            "hoop": 10,
+            "pitch": 400
+          },
+          {
+            "diameter": 2400,
+            "bar": 25,
+            "count": 16,
+            "hoop": 12,
+            "pitch": 500
+          }
+        ],
+        "guidanceFy": 420,
+        "cement": {
+          "dry": 350,
+          "submerged": 400
+        },
+        "waterCement": 0.45,
+        "mixes": [
+          {
+            "id": "A",
+            "slump": 125,
+            "use": "Poured into a water-free unlined bore; widely spaced bars leaving ample room for the concrete to move between them"
+          },
+          {
+            "id": "B",
+            "slump": 150,
+            "use": "Bars not spaced widely enough for free movement of the concrete; cut-off level within the casing; pile diameter below 600 mm"
+          },
+          {
+            "id": "C",
+            "slump": 200,
+            "use": "Placed by tremie under water or bentonite slurry"
+          }
+        ]
+      },
+      "driven": {
+        "minFc": 21,
+        "hardFc": 28,
+        "hardDrivingStress": 1000,
+        "maxSlenderness": 50,
+        "steelByLength": [
+          [
+            0.0,
+            0.01,
+            true
+          ],
+          [
+            30.0,
+            0.015,
+            true
+          ],
+          [
+            40.0,
+            0.02,
+            false
+          ]
+        ],
+        "minTie": 6,
+        "tieEnd": 0.004,
+        "tieBody": 0.002,
+        "tieEndLength": 3,
+        "serviceStress": 0.33,
+        "bucklingCu": 10,
+        "impact": 0.5
+      },
+      "castInPlace": {
+        "minButtArea": 65000,
+        "minTip": 200,
+        "cover": 50,
+        "corrosiveCover": 75,
+        "unsupportedBarsBelow": 3000
+      },
+      "drilledShaftBarsBelow": 5000,
+      "corrosiveCover": 75,
+      "concrete": [
+        {
+          "id": "footing",
+          "name": "Footing or raft",
+          "cement": 350,
+          "fc": 20,
+          "slump": [
+            25,
+            125
+          ]
+        },
+        {
+          "id": "bored",
+          "name": "Drilled shaft or cast-in-situ pile (tremie concrete)",
+          "cement": 400,
+          "fc": 18,
+          "slump": [
+            125,
+            200
+          ]
+        },
+        {
+          "id": "driven",
+          "name": "Driven pile",
+          "cement": 350,
+          "fc": 25,
+          "slump": [
+            25,
+            125
+          ]
+        }
+      ]
+    },
+    "lateral": {
+      "allowableDeflection": 5,
+      "individualNormal": 2.5,
+      "individualParallel": 8,
+      "groupRatio": [
+        [
+          3,
+          0.25
+        ],
+        [
+          4,
+          0.4
+        ],
+        [
+          6,
+          0.7
+        ],
+        [
+          8,
+          1.0
+        ]
+      ],
+      "unbracedCu": 10
+    },
+    "loadTests": {
+      "compression": {
+        "testLoad": {
+          "initial": 2.0,
+          "routine": 1.5
+        },
+        "movement": 12,
+        "movementShare": 0.6667,
+        "diameterShare": 0.1,
+        "underReamedShare": 0.075,
+        "diameterLoadShare": 0.5,
+        "groupMovement": 25,
+        "groupMovementShare": 1.0,
+        "groupSecondMovement": 40,
+        "groupSecondShare": 0.6667,
+        "davissonOffset": 3.81,
+        "davissonDiameter": 120,
+        "bsShare": 0.1,
+        "bsAllowableShare": 0.5,
+        "isMovement": 12,
+        "butlerHoySlope": 1.27,
+        "butlerHoyTon": 9.80665,
+        "brinchHansenShare": 0.9,
+        "failureSafety": 2.0,
+        "minShare": 0.02,
+        "minBored": 1,
+        "integrityShare": 1.0
+      },
+      "uplift": {
+        "testLoad": {
+          "initial": 2.0,
+          "routine": 1.5
+        },
+        "movement": 12,
+        "movementShare": 0.6667,
+        "breakShare": 0.5,
+        "failureSafety": 2.0,
+        "transientTestSafety": 1.5,
+        "transientAnalysisSafety": 2.0
+      },
+      "lateral": {
+        "testLoad": 2.0,
+        "headMovement": 12,
+        "headShare": 0.5,
+        "totalMovement": 5,
+        "totalShare": 1.0
+      }
+    },
+    "downdrag": {
+      "method": "neutralPoint",
+      "settlingSoils": [
+        "fill",
+        "organic"
+      ],
+      "softClay": true,
+      "dragloadFactor": 1.25
     }
   }
 }

@@ -12,16 +12,13 @@ weight bends it. Statics of a uniform beam of weight w = γc B² per metre and l
   equal: ``M = 0.0214 w L²``;
 - pitching from one point 0.293 L from the head, the foot on the ground: ``M = 0.0429 w L²``.
 
-Each times the impact allowance of 1.5 (50 % of the weight, as ACI 543R-12 asks for handling
-stresses) against φMn of the square section about its axis (ACI 318-19 22.3, the bars as laid
-out, φ = 0.9), and, reported only, against the cracking moment ``Mcr = fr B³ / 6``, ``fr =
-0.62 √f'c`` (ACI 318-19 19.2.3.1), above which the pile cracks while it is handled. BNBC 2020
-Part 6 Sec 3.10.1.31 sets the service stress of a precast pile, 0.33 f'c, which
-:func:`saengine.substructure.piles.structural_checks` checks.
-
-Reinforcement (:func:`reinforcement_checks`): at least four longitudinal bars and 1 % of the
-gross section, the usual least reinforcement of a precast pile that is driven (ACI 543R-12
-practice; BNBC 2020 Part 6 Ch 3 gives the build-ability table 6.3.11 for bored piles only).
+Each times the impact allowance of the code pack (``foundations.piles.detailing.driven.
+impact``, the weight plus 50 % in the default pack) against φMn of the square section about its
+axis (ACI 318-19 22.3, the bars as laid out, φ = 0.9), and, reported only, against the cracking
+moment ``Mcr = fr B³ / 6``, ``fr = 0.62 √f'c`` (ACI 318-19 19.2.3.1), above which the pile cracks
+while it is handled. The pack's service stress of a precast pile is checked by
+:func:`saengine.substructure.piles.structural_checks`, its least bars, ties, grade and
+slenderness by :mod:`saengine.substructure.pile_detailing`.
 
 Units: N and mm inside; reported in kN·m.
 """
@@ -35,19 +32,26 @@ from typing import Any
 TWO_POINT = (0.207, 0.0214)
 #: Pitching from one point 0.293 L from the head: M = 0.0429 w L².
 ONE_POINT = (0.293, 0.0429)
-#: Impact allowance on the weight during handling (ACI 543R-12).
-IMPACT = 1.5
-#: Least longitudinal steel of a driven precast pile, of the gross section.
-MIN_RATIO = 0.01
-#: Least number of longitudinal bars.
-MIN_BARS = 4
+#: Impact allowance on the weight during handling when the pack gives none (no impact).
+NO_IMPACT = 0.0
+
+
+def impact_factor() -> tuple[float, str]:
+    """The handling weight's factor, 1 + the pack's impact allowance, and its clause."""
+    from saengine.substructure.pile_detailing import cite, rules
+
+    found = rules()
+    if found is None:
+        return 1.0 + NO_IMPACT, "no impact allowance in the code pack"
+    return 1.0 + found.driven.impact, cite("detailing.driven.impact")
+
 
 PRECAST_METHOD = (
     "Driven precast piles: square, side B (perimeter 4B, area B²); handling by statics of the "
     "pile under its own weight, two-point lift at 0.207 L (M = 0.0214 w L²) and pitching from "
-    "0.293 L (M = 0.0429 w L²), times 1.5 for impact (ACI 543R-12), against φMn of the square "
-    "section (ACI 318-19 22.3) and, reported only, the cracking moment fr B³/6; at least four "
-    "bars and 1 % of the section; service stress 0.33 f'c (BNBC 2020 Part 6 Sec 3.10.1.31)."
+    "0.293 L (M = 0.0429 w L²), times the code pack's impact allowance, against φMn of the "
+    "square section (ACI 318-19 22.3) and, reported only, the cracking moment fr B³/6; the "
+    "code pack's least bars by L/B, ties, grade, slenderness and service stress."
 )
 
 
@@ -90,12 +94,13 @@ def handling_checks(
     section = square_section(side, reinforcement, fc, fy)
     capacity = InteractionSurface(section).moment_capacity(0.0, 0.0) if section else 0.0
     mcr = cracking_moment(side, fc)
+    impact, clause = impact_factor()
     checks: list[dict[str, Any]] = []
     for key, (at, coefficient), label in (
         ("twoPoint", TWO_POINT, "lifted at two points"),
         ("onePoint", ONE_POINT, "pitched from one point"),
     ):
-        mu = IMPACT * moments[key]
+        mu = impact * moments[key]
         checks.append(
             _check(
                 f"Pile handling, {label}",
@@ -104,12 +109,12 @@ def handling_checks(
                 "kN·m",
                 None,
                 f"M = {coefficient:g} w L² with the pick-up at {at:g} L, w = γc B², L = "
-                f"{length / 1e3:.1f} m, × {IMPACT:g} for impact (ACI 543R-12); φMn of the "
+                f"{length / 1e3:.1f} m, × {impact:g} for impact ({clause}); φMn of the "
                 f"{side:.0f} mm square section (ACI 318-19 22.3)"
                 + ("" if section else ": no bars, an unreinforced precast pile cannot be handled"),
             )
         )
-    worst = IMPACT * max(moments.values())
+    worst = impact * max(moments.values())
     checks.append(
         _check(
             "Pile handling, cracking",
@@ -124,29 +129,3 @@ def handling_checks(
         )
     )
     return checks
-
-
-def reinforcement_checks(side: float, reinforcement: Any) -> list[dict[str, Any]]:
-    """Least longitudinal bars of a driven precast pile (see the module notes)."""
-    from saengine.design.check import _check
-
-    longitudinal = getattr(reinforcement, "longitudinal", None) or []
-    count = sum(g.count for g in longitudinal)
-    steel = sum(g.count * math.pi * g.dia**2 / 4 for g in longitudinal)
-    gross = side * side
-    return [
-        _check(
-            "Precast pile bars",
-            MIN_RATIO * gross,
-            steel,
-            "mm²",
-            None,
-            f"{count} bars, {100 * steel / gross:.2f} % of the {side:.0f} mm square; at least "
-            f"{MIN_BARS} bars and {MIN_RATIO:.0%} of the section for a driven precast pile "
-            "(ACI 543R-12 practice)",
-            utilisation=max(
-                MIN_RATIO * gross / steel if steel > 0 else math.inf,
-                MIN_BARS / count if count else math.inf,
-            ),
-        )
-    ]

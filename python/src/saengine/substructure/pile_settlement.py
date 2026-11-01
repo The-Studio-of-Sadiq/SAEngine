@@ -72,7 +72,7 @@ def single_settlement(
     found = rules()
     if found is None:
         return None
-    from saengine.substructure.piles import section_shape
+    from saengine.substructure.piles import capacity_kind, section_shape
 
     kind = pile["kind"]
     d = pile["diameter"] / 1e3
@@ -91,7 +91,7 @@ def single_settlement(
     s_ax = (qp + a * qs) * length / (area * modulus * 1e3)
     tip_layer = profile.layer_at(pile["tip"] / 1e3 + 1e-6)
     key = _cp_key(tip_layer)
-    cp = found.cp[kind][key]
+    cp = found.cp[capacity_kind(kind)][key]
     qo = pile["qb"]
     if qo <= 0:
         s_pt = s_sf = 0.0

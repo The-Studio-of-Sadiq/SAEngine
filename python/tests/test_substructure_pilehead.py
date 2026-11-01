@@ -20,7 +20,7 @@ def _bars(count: int = 8, dia: float = 16, tie: Transverse | None = None) -> Lin
     return LinearReinforcement(
         material="B420",
         cover=75,
-        longitudinal=[BarGroup(count=count, dia=dia)],
+        longitudinal=[BarGroup(position="perimeter", count=count, dia=dia)],
         transverse=tie,
     )
 

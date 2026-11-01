@@ -53,7 +53,7 @@ def test_handling_checks_apply_impact() -> None:
         "Pile handling, pitched from one point",
         "Pile handling, cracking",
     ]
-    # 1.5 × 23.26 = 34.89 kN·m pitched from one point.
+    # 1.5 × 23.26 = 34.89 kN·m pitched from one point (the pack's 50 % impact, Sec 3.10.3.2).
     assert checks[1]["demand"] == pytest.approx(34.89, abs=0.01)
     assert checks[2]["flag"]
 
@@ -63,7 +63,23 @@ def test_unreinforced_precast_pile_cannot_be_handled() -> None:
     assert not checks[0]["ok"]
 
 
-def test_least_bars_of_a_precast_pile() -> None:
-    # 1 % of 400² = 1600 mm²: 8Ø16 = 1608 mm² passes, 4Ø16 = 804 mm² fails.
-    assert precast.reinforcement_checks(400, _bars(8, 16))[0]["ok"]
-    assert not precast.reinforcement_checks(400, _bars(4, 16))[0]["ok"]
+def test_least_bars_of_a_precast_pile_by_slenderness() -> None:
+    # BNBC 2020 Sec 3.10.1.31 (pack): 1 % of 400² = 1600 mm² for L = 11 m < 30 B: 8Ø16 = 1608
+    # mm² passes, 4Ø16 = 804 mm² fails (there is no four-bar rule).
+    from saengine.substructure import pile_detailing
+
+    def bars(pile_type):
+        checks, _ = pile_detailing.detailing_checks(pile_type, 30, 420)
+        return next(c for c in checks if c["name"] == "Precast pile bars")
+
+    assert bars(_type(_bars(8, 16)))["ok"]
+    assert not bars(_type(_bars(4, 16)))["ok"]
+
+
+def _type(reinforcement: LinearReinforcement):
+    from saengine.library.substructure import PileType
+
+    return PileType(
+        id="P1", kind="driven", diameter=400, length=11000, material="C30",
+        reinforcement=reinforcement,
+    )  # fmt: skip

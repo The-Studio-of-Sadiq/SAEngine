@@ -1,5 +1,297 @@
 {
   "$defs": {
+    "BoredDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of bored cast-in-situ piles and drilled shafts.",
+      "properties": {
+        "minFc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfc",
+          "type": "number"
+        },
+        "minDiameter": {
+          "description": "Least shaft diameter [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mindiameter",
+          "type": "number"
+        },
+        "diameterStep": {
+          "description": "Shafts sized in steps of this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Diameterstep",
+          "type": "number"
+        },
+        "minFy": {
+          "description": "Least fy of the longitudinal bars [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfy",
+          "type": "number"
+        },
+        "minSteel": {
+          "description": "Least As/Ac by the gross area Ac [m²].",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Minsteel",
+          "type": "array"
+        },
+        "minBars": {
+          "description": "Least number of longitudinal bars.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        },
+        "largeDiameter": {
+          "description": "From this diameter [mm] the bars are large.",
+          "exclusiveMinimum": 0,
+          "title": "Largediameter",
+          "type": "number"
+        },
+        "largeMinBar": {
+          "description": "Least bar diameter of large piles [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Largeminbar",
+          "type": "number"
+        },
+        "cover": {
+          "description": "Least cover to the cage [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "minHoopPitch": {
+          "description": "Hoops not closer than this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Minhooppitch",
+          "type": "number"
+        },
+        "reinforcedDepth": {
+          "description": "Bars at least this below the cut-off [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Reinforceddepth",
+          "type": "number"
+        },
+        "casingExtra": {
+          "description": "And this below a temporary casing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Casingextra",
+          "type": "number"
+        },
+        "guidance": {
+          "items": {
+            "$ref": "#/$defs/BoredGuidanceRow"
+          },
+          "title": "Guidance",
+          "type": "array"
+        },
+        "guidanceFy": {
+          "description": "fy the guidance assumes [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Guidancefy",
+          "type": "number"
+        },
+        "cement": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least cement content by placement [kg/m³].",
+          "propertyNames": {
+            "enum": [
+              "dry",
+              "submerged"
+            ]
+          },
+          "title": "Cement",
+          "type": "object"
+        },
+        "waterCement": {
+          "description": "Recommended water/cement ratio.",
+          "exclusiveMinimum": 0,
+          "title": "Watercement",
+          "type": "number"
+        },
+        "mixes": {
+          "items": {
+            "$ref": "#/$defs/BoredMix"
+          },
+          "title": "Mixes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "minFc",
+        "minDiameter",
+        "diameterStep",
+        "minFy",
+        "minSteel",
+        "minBars",
+        "largeDiameter",
+        "largeMinBar",
+        "cover",
+        "minHoopPitch",
+        "reinforcedDepth",
+        "casingExtra",
+        "guidance",
+        "guidanceFy",
+        "cement",
+        "waterCement",
+        "mixes"
+      ],
+      "title": "BoredDetailing",
+      "type": "object"
+    },
+    "BoredGuidanceRow": {
+      "additionalProperties": false,
+      "description": "A row of the bored piles' build-ability guidance: bars and hoops by diameter [mm].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "exclusiveMinimum": 0,
+          "title": "Diameter",
+          "type": "number"
+        },
+        "bar": {
+          "exclusiveMinimum": 0,
+          "title": "Bar",
+          "type": "number"
+        },
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "hoop": {
+          "exclusiveMinimum": 0,
+          "title": "Hoop",
+          "type": "number"
+        },
+        "pitch": {
+          "exclusiveMinimum": 0,
+          "title": "Pitch",
+          "type": "number"
+        }
+      },
+      "required": [
+        "diameter",
+        "bar",
+        "count",
+        "hoop",
+        "pitch"
+      ],
+      "title": "BoredGuidanceRow",
+      "type": "object"
+    },
+    "BoredMix": {
+      "additionalProperties": false,
+      "description": "A recommended concrete mix of bored piles: its slump [mm] and conditions of use.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "slump": {
+          "exclusiveMinimum": 0,
+          "title": "Slump",
+          "type": "number"
+        },
+        "use": {
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "slump",
+        "use"
+      ],
+      "title": "BoredMix",
+      "type": "object"
+    },
+    "CastInPlaceDetailing": {
+      "additionalProperties": false,
+      "description": "Driven cast-in-place concrete piles.",
+      "properties": {
+        "minButtArea": {
+          "description": "Least area at the butt [mm²].",
+          "exclusiveMinimum": 0,
+          "title": "Minbuttarea",
+          "type": "number"
+        },
+        "minTip": {
+          "description": "Least diameter at the tip [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mintip",
+          "type": "number"
+        },
+        "cover": {
+          "description": "Least clear cover [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "corrosiveCover": {
+          "description": "Least clear cover in corrosive ground or under water or slurry [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Corrosivecover",
+          "type": "number"
+        },
+        "unsupportedBarsBelow": {
+          "description": "Bars this far below the plane of lateral restraint [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Unsupportedbarsbelow",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minButtArea",
+        "minTip",
+        "cover",
+        "corrosiveCover",
+        "unsupportedBarsBelow"
+      ],
+      "title": "CastInPlaceDetailing",
+      "type": "object"
+    },
     "ColumnBaseTransfer": {
       "additionalProperties": false,
       "properties": {
@@ -45,6 +337,176 @@
         "minBars"
       ],
       "title": "ColumnBaseTransfer",
+      "type": "object"
+    },
+    "CompressionTestRules": {
+      "additionalProperties": false,
+      "description": "Interpretation of axial compression load tests.",
+      "properties": {
+        "testLoad": {
+          "$ref": "#/$defs/TestLoadFactors"
+        },
+        "movement": {
+          "description": "Single pile: the load at this settlement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Movement",
+          "type": "number"
+        },
+        "movementShare": {
+          "description": "... times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Movementshare",
+          "type": "number"
+        },
+        "diameterShare": {
+          "description": "Single pile: the load at this × D ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diametershare",
+          "type": "number"
+        },
+        "underReamedShare": {
+          "description": "(this × the bulb of an under-reamed pile) ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Underreamedshare",
+          "type": "number"
+        },
+        "diameterLoadShare": {
+          "description": "... times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diameterloadshare",
+          "type": "number"
+        },
+        "groupMovement": {
+          "description": "Group: the load at this settlement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Groupmovement",
+          "type": "number"
+        },
+        "groupMovementShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Groupmovementshare",
+          "type": "number"
+        },
+        "groupSecondMovement": {
+          "description": "Group: the load at this settlement ...",
+          "exclusiveMinimum": 0,
+          "title": "Groupsecondmovement",
+          "type": "number"
+        },
+        "groupSecondShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Groupsecondshare",
+          "type": "number"
+        },
+        "davissonOffset": {
+          "description": "Davisson's offset [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Davissonoffset",
+          "type": "number"
+        },
+        "davissonDiameter": {
+          "description": "... + D / this.",
+          "exclusiveMinimum": 0,
+          "title": "Davissondiameter",
+          "type": "number"
+        },
+        "bsShare": {
+          "description": "Ultimate at a settlement of this × D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bsshare",
+          "type": "number"
+        },
+        "bsAllowableShare": {
+          "description": "Allowable this × that load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bsallowableshare",
+          "type": "number"
+        },
+        "isMovement": {
+          "description": "IS: also the load at this settlement [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ismovement",
+          "type": "number"
+        },
+        "butlerHoySlope": {
+          "description": "Tangent at this settlement per ton [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Butlerhoyslope",
+          "type": "number"
+        },
+        "butlerHoyTon": {
+          "description": "The ton [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Butlerhoyton",
+          "type": "number"
+        },
+        "brinchHansenShare": {
+          "description": "Settlement twice that under this × the load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Brinchhansenshare",
+          "type": "number"
+        },
+        "failureSafety": {
+          "description": "Ultimate from a test over this.",
+          "exclusiveMinimum": 0,
+          "title": "Failuresafety",
+          "type": "number"
+        },
+        "minShare": {
+          "description": "At least this share of the piles tested.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minshare",
+          "type": "number"
+        },
+        "minBored": {
+          "description": "At least this many bored piles tested.",
+          "minimum": 0,
+          "title": "Minbored",
+          "type": "integer"
+        },
+        "integrityShare": {
+          "description": "Integrity tests on this share of the piles.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Integrityshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "movement",
+        "movementShare",
+        "diameterShare",
+        "underReamedShare",
+        "diameterLoadShare",
+        "groupMovement",
+        "groupMovementShare",
+        "groupSecondMovement",
+        "groupSecondShare",
+        "davissonOffset",
+        "davissonDiameter",
+        "bsShare",
+        "bsAllowableShare",
+        "isMovement",
+        "butlerHoySlope",
+        "butlerHoyTon",
+        "brinchHansenShare",
+        "failureSafety",
+        "minShare",
+        "minBored",
+        "integrityShare"
+      ],
+      "title": "CompressionTestRules",
       "type": "object"
     },
     "DrilledShaft": {
@@ -332,6 +794,118 @@
       "title": "DrilledShaft",
       "type": "object"
     },
+    "DrivenDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of driven precast concrete piles.",
+      "properties": {
+        "minFc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfc",
+          "type": "number"
+        },
+        "hardFc": {
+          "description": "Least f'c for hard driving [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Hardfc",
+          "type": "number"
+        },
+        "hardDrivingStress": {
+          "description": "Driving stress above which it is hard [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Harddrivingstress",
+          "type": "number"
+        },
+        "maxSlenderness": {
+          "description": "L/B at most this (else a segmental pile).",
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        },
+        "steelByLength": {
+          "description": "Least As/Ag by L/B.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Steelbylength",
+          "type": "array"
+        },
+        "minTie": {
+          "description": "Least tie diameter [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mintie",
+          "type": "number"
+        },
+        "tieEnd": {
+          "description": "Least tie volume over the gross volume at the ends.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tieend",
+          "type": "number"
+        },
+        "tieBody": {
+          "description": "Least tie volume over the gross volume in the body.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiebody",
+          "type": "number"
+        },
+        "tieEndLength": {
+          "description": "The ends: this × B from each end.",
+          "exclusiveMinimum": 0,
+          "title": "Tieendlength",
+          "type": "number"
+        },
+        "serviceStress": {
+          "description": "Service stress at most this × f'c on Ag.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Servicestress",
+          "type": "number"
+        },
+        "bucklingCu": {
+          "description": "Below this cu [kPa] the pile may buckle.",
+          "exclusiveMinimum": 0,
+          "title": "Bucklingcu",
+          "type": "number"
+        },
+        "impact": {
+          "description": "Handling: the weight × (1 + this) for impact.",
+          "minimum": 0,
+          "title": "Impact",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minFc",
+        "hardFc",
+        "hardDrivingStress",
+        "maxSlenderness",
+        "steelByLength",
+        "minTie",
+        "tieEnd",
+        "tieBody",
+        "tieEndLength",
+        "serviceStress",
+        "bucklingCu",
+        "impact"
+      ],
+      "title": "DrivenDetailing",
+      "type": "object"
+    },
     "FootingCombination": {
       "additionalProperties": false,
       "description": "A load combination of the geotechnical design of shallow foundations: ``{case: factor}``\nwith D the dead load (D and SD), L the normal live load (L and Lr), W and E the wind and\nearthquake (each direction, each sign), B the buoyancy (uplift) of the water at the base.",
@@ -383,6 +957,74 @@
         "factors"
       ],
       "title": "FootingCombination",
+      "type": "object"
+    },
+    "FoundationConcrete": {
+      "additionalProperties": false,
+      "description": "A row of the foundation concrete table.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "enum": [
+            "footing",
+            "bored",
+            "driven"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "cement": {
+          "description": "Least cement content [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Cement",
+          "type": "number"
+        },
+        "fc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fc",
+          "type": "number"
+        },
+        "slump": {
+          "description": "Slump range [mm].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Slump",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cement",
+        "fc",
+        "slump"
+      ],
+      "title": "FoundationConcrete",
       "type": "object"
     },
     "JanbuRow": {
@@ -460,6 +1102,211 @@
       "title": "JanbuRow",
       "type": "object"
     },
+    "LateralTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "testLoad": {
+          "description": "Tests to at least this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Testload",
+          "type": "number"
+        },
+        "headMovement": {
+          "description": "The load at this head movement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Headmovement",
+          "type": "number"
+        },
+        "headShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Headshare",
+          "type": "number"
+        },
+        "totalMovement": {
+          "description": "The load at this total displacement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Totalmovement",
+          "type": "number"
+        },
+        "totalShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Totalshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "headMovement",
+        "headShare",
+        "totalMovement",
+        "totalShare"
+      ],
+      "title": "LateralTestRules",
+      "type": "object"
+    },
+    "PileDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of piles by kind, and the foundation concrete.",
+      "properties": {
+        "bored": {
+          "$ref": "#/$defs/BoredDetailing"
+        },
+        "driven": {
+          "$ref": "#/$defs/DrivenDetailing"
+        },
+        "castInPlace": {
+          "$ref": "#/$defs/CastInPlaceDetailing"
+        },
+        "drilledShaftBarsBelow": {
+          "description": "Drilled shafts: bars this far below the plane of lateral restraint [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Drilledshaftbarsbelow",
+          "type": "number"
+        },
+        "corrosiveCover": {
+          "description": "Least cover of piles on a corrosive site [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Corrosivecover",
+          "type": "number"
+        },
+        "concrete": {
+          "items": {
+            "$ref": "#/$defs/FoundationConcrete"
+          },
+          "title": "Concrete",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bored",
+        "driven",
+        "castInPlace",
+        "drilledShaftBarsBelow",
+        "corrosiveCover",
+        "concrete"
+      ],
+      "title": "PileDetailing",
+      "type": "object"
+    },
+    "PileDowndrag": {
+      "additionalProperties": false,
+      "description": "Negative skin friction (downdrag) and swelling uplift on piles.",
+      "properties": {
+        "method": {
+          "const": "neutralPoint",
+          "description": "Engine method (``neutralPoint``: load transfer to the neutral point).",
+          "title": "Method",
+          "type": "string"
+        },
+        "settlingSoils": {
+          "description": "Soil types that settle (fill, organic, ...).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Settlingsoils",
+          "type": "array"
+        },
+        "softClay": {
+          "description": "Soft clays settle too.",
+          "title": "Softclay",
+          "type": "boolean"
+        },
+        "dragloadFactor": {
+          "description": "Load factor on the dragload in the section.",
+          "exclusiveMinimum": 0,
+          "title": "Dragloadfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "settlingSoils",
+        "softClay",
+        "dragloadFactor"
+      ],
+      "title": "PileDowndrag",
+      "type": "object"
+    },
+    "PileLateral": {
+      "additionalProperties": false,
+      "description": "Lateral load on piles: the head deflection, the group ratios, unbraced piles.",
+      "properties": {
+        "allowableDeflection": {
+          "description": "Allowable head deflection [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Allowabledeflection",
+          "type": "number"
+        },
+        "individualNormal": {
+          "description": "Individual beyond this × B normal to H.",
+          "exclusiveMinimum": 0,
+          "title": "Individualnormal",
+          "type": "number"
+        },
+        "individualParallel": {
+          "description": "And beyond this × B parallel to it.",
+          "exclusiveMinimum": 0,
+          "title": "Individualparallel",
+          "type": "number"
+        },
+        "groupRatio": {
+          "description": "[in-line c/c × B, ratio of the lateral resistance in the group].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Groupratio",
+          "type": "array"
+        },
+        "unbracedCu": {
+          "description": "Soil below this cu [kPa] gives no lateral support.",
+          "exclusiveMinimum": 0,
+          "title": "Unbracedcu",
+          "type": "number"
+        }
+      },
+      "required": [
+        "allowableDeflection",
+        "individualNormal",
+        "individualParallel",
+        "groupRatio",
+        "unbracedCu"
+      ],
+      "title": "PileLateral",
+      "type": "object"
+    },
+    "PileLoadTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "$ref": "#/$defs/CompressionTestRules"
+        },
+        "uplift": {
+          "$ref": "#/$defs/UpliftTestRules"
+        },
+        "lateral": {
+          "$ref": "#/$defs/LateralTestRules"
+        }
+      },
+      "required": [
+        "compression",
+        "uplift",
+        "lateral"
+      ],
+      "title": "PileLoadTestRules",
+      "type": "object"
+    },
     "PileRules": {
       "additionalProperties": false,
       "description": "Deep foundation rules: the static method by id, its values, drilled shafts, the SPT\nrelations and the settlement of piles.",
@@ -504,6 +1351,54 @@
         },
         "settlement": {
           "$ref": "#/$defs/PileSettlement"
+        },
+        "detailing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileDetailing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structural detailing; empty: not covered by the pack."
+        },
+        "lateral": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileLateral"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lateral load rules; empty: not covered by the pack."
+        },
+        "loadTests": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileLoadTestRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Load test interpretation; empty: not covered by the pack."
+        },
+        "downdrag": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileDowndrag"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Downdrag and swelling uplift; empty: not covered by the pack."
         }
       },
       "required": [
@@ -1608,6 +2503,84 @@
         "k"
       ],
       "title": "SubgradeRow",
+      "type": "object"
+    },
+    "TestLoadFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "description": "A test pile to this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Initial",
+          "type": "number"
+        },
+        "routine": {
+          "description": "A working pile to this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Routine",
+          "type": "number"
+        }
+      },
+      "required": [
+        "initial",
+        "routine"
+      ],
+      "title": "TestLoadFactors",
+      "type": "object"
+    },
+    "UpliftTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "testLoad": {
+          "$ref": "#/$defs/TestLoadFactors"
+        },
+        "movement": {
+          "description": "The load at this uplift [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Movement",
+          "type": "number"
+        },
+        "movementShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Movementshare",
+          "type": "number"
+        },
+        "breakShare": {
+          "description": "This × the load at the clear break.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Breakshare",
+          "type": "number"
+        },
+        "failureSafety": {
+          "exclusiveMinimum": 0,
+          "title": "Failuresafety",
+          "type": "number"
+        },
+        "transientTestSafety": {
+          "description": "FS on a tested uplift due to W or E.",
+          "exclusiveMinimum": 0,
+          "title": "Transienttestsafety",
+          "type": "number"
+        },
+        "transientAnalysisSafety": {
+          "description": "FS on an analysed uplift by W or E.",
+          "exclusiveMinimum": 0,
+          "title": "Transientanalysissafety",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "movement",
+        "movementShare",
+        "breakShare",
+        "failureSafety",
+        "transientTestSafety",
+        "transientAnalysisSafety"
+      ],
+      "title": "UpliftTestRules",
       "type": "object"
     }
   },

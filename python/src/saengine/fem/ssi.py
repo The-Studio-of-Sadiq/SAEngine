@@ -63,7 +63,10 @@ How each foundation is modelled (SI units inside: m, N, Pa):
     the cap ``Khh = 4EIβ³``, head rotation ``Kθθ = 2EIβ`` (the coupling ``-2EIβ²`` left out);
     a note when βL < 3 (not a long pile);
   - the cap: ``Kz = Σ kv``, ``Krx = Σ kv y² + Σ Kθθ``, ``Kry = Σ kv x² + Σ Kθθ`` (x, y from the
-    cap's centre), ``Kx = Ky = f Σ Khh``, ``Krz = f Σ Khh (x² + y²)``.
+    cap's centre), ``Kx = f rx Σ Khh``, ``Ky = f ry Σ Khh``, ``Krz = f (rx + ry)/2 Σ Khh (x² +
+    y²)``, with rx, ry the code pack's group ratios of the lateral resistance of in-line piles
+    along x and y (BNBC 2020 Part 6 Sec 3.10.6.15, Table 6.3.16:
+    :func:`saengine.substructure.pile_lateral.group_ratio`; 1.0 where the pack has none).
 - Rafts: the raft becomes part of the model, four-node shells (``ElasticMembranePlateSection``
   of its thickness and concrete) at its mid-plane meshed by Gmsh with a node at every column,
   each node on a vertical spring ``k = ks A`` (A its consistent share of the plan area, as
@@ -353,19 +356,23 @@ def pile_group_springs(
     khh: float,
     ktt: float,
     group_factor: float = 1.0,
+    ratios: tuple[float, float] = (1.0, 1.0),
 ) -> list[float]:
     """``[Kx, Ky, Kz, Krx, Kry, Krz]`` of a rigid cap on identical piles at ``piles`` [(x, y) m
-    from the cap's centre, global axes]."""
+    from the cap's centre, global axes]; ``ratios`` the code pack's group ratios of the lateral
+    resistance along x and y (:func:`saengine.substructure.pile_lateral.group_ratio`), the
+    torsional sum taking their mean."""
     n = len(piles)
     sx2 = sum(x * x for x, _ in piles)
     sy2 = sum(y * y for _, y in piles)
+    rx, ry = ratios
     return [
-        group_factor * n * khh,
-        group_factor * n * khh,
+        group_factor * rx * n * khh,
+        group_factor * ry * n * khh,
         n * kv,
         kv * sy2 + n * ktt,
         kv * sx2 + n * ktt,
-        group_factor * khh * (sx2 + sy2),
+        group_factor * (rx + ry) / 2 * khh * (sx2 + sy2),
     ]
 
 
@@ -806,7 +813,14 @@ def _pile_cap(
         ((c * dx - s * dy) / 1e3, (s * dx + c * dy) / 1e3)
         for dx, dy in substructure.pile_offsets(foundation)
     ]
-    k = pile_group_springs(piles, kv, lateral["Khh"], lateral["Ktt"], options.pile_group_factor)
+    from saengine.substructure.pile_lateral import group_ratio
+
+    plan = [(x * 1e3, y * 1e3) for x, y in piles]
+    along_x, why = group_ratio(plan, d * 1e3, 0)
+    along_y, _ = group_ratio(plan, d * 1e3, 1)
+    k = pile_group_springs(
+        piles, kv, lateral["Khh"], lateral["Ktt"], options.pile_group_factor, (along_x, along_y)
+    )
     basis = [
         (
             f"{len(piles)} piles {pile.id}: {pile.kind}, d = {d * 1e3:.0f} mm, L = {length:.1f} m, "
@@ -820,10 +834,14 @@ def _pile_cap(
         f"kN·m/rad per pile (Winkler, BNBC 2020 Part 6 Eq 6.3.9: kB = "
         f"{lateral['kB'] / 1e3:.0f} kN/m², β = {lateral['beta']:.3f} /m): " + top.basis(ratio),
         (
-            f"cap: Kz = Σkv, Kr = Σkv·r² + ΣKθθ, Kh = {options.pile_group_factor:g} ΣKhh "
-            "(pile-soil-pile interaction not modelled)"
+            f"cap: Kz = Σkv, Kr = Σkv·r² + ΣKθθ, Kx = {options.pile_group_factor:g} × "
+            f"{along_x:.2f} ΣKhh, Ky = {options.pile_group_factor:g} × {along_y:.2f} ΣKhh (the "
+            "code pack's group ratios of in-line piles; axial pile-soil-pile interaction not "
+            "modelled)"
         ),
     ]
+    if why and len(piles) > 1:
+        basis.append(why)
     if lateral["beta"] * length < LONG_PILE_BETA_L:
         basis.append(
             f"βL = {lateral['beta'] * length:.2f} < {LONG_PILE_BETA_L:g}: not a long pile, its "
