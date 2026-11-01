@@ -6177,6 +6177,208 @@ class ConcreteTimeTable(TableModel):
     prestress: PrestressTime | None = None
 
 
+# ──────────────────────────── steel-concrete composite members (B32) ────────────────────────────
+# Read by saengine.design.steel.composite (composite beams with shear connectors, encased and
+# filled composite columns, their connectors, detailing and connections).
+
+
+class CompositeMaterials(_Group):
+    concreteMin: Positive = Field(description="Least f'c for the available strength [MPa].")
+    concreteMaxNormal: Positive = Field(description="Largest f'c, normal weight [MPa].")
+    concreteMaxLight: Positive = Field(description="Largest f'c, lightweight [MPa].")
+    lightweightBelow: Positive = Field(description="Density below this is lightweight [kg/m³].")
+    steelFyMax: Positive = Field(description="Fy of steel and bars used at most this [MPa].")
+    note: str = ""
+
+
+class CompositeModulus(_Group):
+    steel: Positive = Field(description="Es [MPa].")
+    concreteCoefficient: Positive = Field(description="Ec = this × wc^exponent × √f'c [MPa].")
+    concreteExponent: Positive
+    densityMin: Positive = Field(description="wc taken at least this [kg/m³].")
+    densityMax: Positive = Field(description="wc taken at most this [kg/m³].")
+    densityDefault: Positive = Field(description="wc when the material gives none [kg/m³].")
+    note: str = ""
+
+
+class CompositeStressBlock(_Group):
+    concrete: Share = Field(description="Concrete stress of the plastic distribution / f'c.")
+    roundFilled: Share = Field(description="Round filled HSS in uniform compression / f'c.")
+    strainLimit: Positive = Field(description="Concrete strain of the strain-compatibility method.")
+
+
+class CompositeFactors(_Group):
+    """φ (LRFD) or Ω (ASD) by limit state."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    compression: Positive
+    tension: Positive
+    flexure: Positive
+    flexureEncasedComposite: Positive = Field(
+        description="Encased and filled members by the plastic composite section (Sec 13.3.4(c))."
+    )
+    bearing: Positive
+
+
+class CompositeBuckling(_Group):
+    ratio: Positive = Field(description="Inelastic buckling when Pe ≥ this × Po.")
+    base: Positive = Field(description="Pn = Po × this^(Po/Pe).")
+    elastic: Positive = Field(description="Pn = this × Pe otherwise.")
+
+
+class CompositeEncased(_Group):
+    barRatioMin: Rho = Field(description="Least ρsr = Asr / Ag (scope).")
+    barRatioDetailing: Rho = Field(description="Least bar area / Ag (detailing).")
+    barRatioMax: Rho = Field(description="Largest bar area / net concrete area.")
+    barStiffnessShare: Share = Field(description="EIeff = Es Is + this × Es Isr + C1 Ec Ic.")
+    c1Base: Positive
+    c1Slope: Positive
+    c1Max: Share
+    tieAreaPerSpacing: Positive = Field(description="Least tie area per tie spacing [mm²/mm].")
+    cover: Positive = Field(description="Least clear cover [mm].")
+    barSpacingLeastShare: Share = Field(description="Bar spacing at most this × least side.")
+    tieLarge: Positive = Field(description="Tie bar [mm] when a side exceeds tieSmallSideMax.")
+    tieSmall: Positive = Field(description="Least tie bar [mm] otherwise.")
+    tieSmallSideMax: Positive = Field(description="[mm]")
+    tieGreatestSideShare: Share = Field(description="Tie at least this × the greatest side.")
+    tieRequiredMax: Positive = Field(description="A tie larger than this [mm] is never required.")
+    tieSpacingLeastShare: Share
+    tieSpacingBarDiameters: Positive
+    tieSpacingMax: Positive = Field(description="[mm]")
+    tieSpacingTieDiameters: Positive
+    tieSpacingLeastHalf: Share
+    coreFyMaxTied: Positive = Field(description="Core Fy limit of the Chapter 6 method [MPa].")
+    connectorLength: Positive = Field(description="Connectors over this × the depth each side.")
+    note: str = ""
+
+
+class CompositeFilled(_Group):
+    c2Rectangular: Share
+    c2Circular: Share
+    c3Base: Positive
+    c3Slope: Positive
+    c3Max: Share
+    rectSlenderness: Positive = Field(description="b/t at most this / √Fy.")
+    roundSlenderness: Positive = Field(description="D/t at most this / Fy.")
+    concreteAxialMin: Positive = Field(description="[MPa]")
+    concreteAxialMax: Positive = Field(description="[MPa]")
+    concreteBendingMin: Positive = Field(description="[MPa]")
+    concreteBendingMax: Positive = Field(description="[MPa]")
+    wallRectangular: Positive = Field(description="t ≥ b √(fy / (this × Es)).")
+    wallCircular: Positive = Field(description="t ≥ D √(fy / (this × Es)).")
+    connectorLength: Positive = Field(description="Connectors over this × the width each side.")
+    note: str = ""
+
+
+class CompositeColumnRules(_Group):
+    steelShareMin: Share = Field(description="Least As / Ag.")
+    buckling: CompositeBuckling
+    bearingCoefficient: Positive = Field(description="Pp = this × f'c × A_B.")
+    encased: CompositeEncased
+    filled: CompositeFilled
+    connectorSpacingMax: Positive = Field(description="[mm]")
+
+
+class CompositeDeck(_Group):
+    ribHeightMax: Positive = Field(description="[mm]")
+    ribWidthMin: Positive = Field(description="[mm]")
+    studDiameterMax: Positive = Field(description="[mm]")
+    studAboveDeck: Positive = Field(description="Studs extend at least this above the deck [mm].")
+    studCover: Positive = Field(description="Concrete above the studs [mm].")
+    slabAboveDeck: Positive = Field(description="[mm]")
+    anchorageSpacing: Positive = Field(description="Deck anchored at most this apart [mm].")
+    haunchDepth: Positive = Field(description="Parallel decks this deep need the haunch [mm].")
+    haunchWidthFirst: Positive = Field(description="[mm] for the first stud in a row.")
+    haunchWidthPerStud: Positive = Field(description="× stud diameter per further stud.")
+    ribRatio: Positive = Field(description="wr / hr limit of the Rg cases.")
+    emidHt: Positive = Field(description="e_mid-ht limit of the Rp cases [mm].")
+
+
+class CompositeStuds(_Group):
+    lengthMin: Positive = Field(description="Stud length at least this × its diameter.")
+    coefficient: Positive = Field(description="Qn = this × Asc √(f'c Ec).")
+    rgOne: Positive
+    rgTwo: Positive
+    rgThreeOrMore: Positive
+    rgDirect: Positive
+    rgParallelWide: Positive
+    rgParallelNarrow: Positive
+    rpDirect: Positive
+    rpStrong: Positive
+    rpParallel: Positive
+    rpWeak: Positive
+    note: str = ""
+
+
+class CompositeChannel(_Group):
+    coefficient: Positive = Field(description="Qn = this × (tf + webShare tw) Lc √(f'c Ec).")
+    webShare: Positive
+
+
+class CompositeSpacing(_Group):
+    longitudinal: Positive = Field(description="Least spacing along the beam / d.")
+    transverse: Positive = Field(description="Least spacing across the beam / d.")
+    ribs: Positive = Field(description="Least spacing in perpendicular deck ribs / d.")
+    slabMultiple: Positive = Field(description="Largest spacing / total slab thickness.")
+    max: Positive = Field(description="Largest spacing [mm].")
+    flangeRatio: Positive = Field(description="d at most this × flange thickness off the web.")
+    lateralCover: Positive = Field(description="[mm]")
+
+
+class CompositeDeflection(_Group):
+    coefficient: Positive = Field(description="Ie = Is + this × p^exponent × (It - Is).")
+    exponent: Positive
+    creep: Positive = Field(description="Long-term deflection increase (share).")
+
+
+class CompositeSlab(_Group):
+    transverseOnDeck: Rho
+    transverseParallel: Rho
+    transversePerpendicular: Rho
+    endBars: Positive = Field(description="Bars at the ends of beams with perpendicular ribs.")
+    endBarDiameter: Positive = Field(description="[mm]")
+
+
+class CompositeBeamRules(_Group):
+    spanShare: Share = Field(description="Effective width per side at most this × span.")
+    spacingShare: Share = Field(description="... and this × the distance to the next beam.")
+    webCompact: Positive = Field(description="Plastic when h/tw ≤ this × √(E/Fy).")
+    constructionStrength: Share = Field(description="Steel alone until f'c reaches this share.")
+    constructionDeadFactor: Positive
+    constructionLiveFactor: Positive
+    deck: CompositeDeck
+    studs: CompositeStuds
+    channel: CompositeChannel
+    spacing: CompositeSpacing
+    deflection: CompositeDeflection
+    slab: CompositeSlab
+
+
+class CompositeConnections(_Group):
+    seismicReduction: Share = Field(
+        description="Bearing and shear friction reduced by this share in seismic systems."
+    )
+    note: str = ""
+
+
+class CompositeTable(TableModel):
+    """Steel-concrete composite members: composite beams with shear connectors on solid slabs
+    and formed steel deck, encased and filled composite columns, their load transfer,
+    detailing and connections. ``method``: how the nominal section strength is found (the
+    engine's ``plasticStress`` implementation)."""
+
+    method: Literal["plasticStress"] = Field(description="Method id.")
+    materials: CompositeMaterials
+    modulus: CompositeModulus
+    stressBlock: CompositeStressBlock
+    phi: CompositeFactors
+    omega: CompositeFactors
+    column: CompositeColumnRules
+    beam: CompositeBeamRules
+    connections: CompositeConnections
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -6217,6 +6419,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "anchors": AnchorsTable,
     "construction": ConstructionTable,
     "concreteTime": ConcreteTimeTable,
+    "composite": CompositeTable,
 }
 
 

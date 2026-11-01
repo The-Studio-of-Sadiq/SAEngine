@@ -521,55 +521,6 @@ registerPlannedFeature({
 	],
 });
 
-// T44: composite beams and columns.
-registerPlannedFeature({
-	id: FemPlanned.compositeBeams,
-	part: 'fem',
-	title: localize('planned.compositeBeams.title', "Composite Beams"),
-	summary: localize('planned.compositeBeams.summary', "Designs steel beams acting with the concrete slab on metal deck through shear studs: full or partial composite action, the construction stage before the concrete hardens, camber, deflection and floor vibration."),
-	steps: [
-		localize('planned.compositeBeams.step1', "Mark the steel beams that act compositely, and give the deck and slab."),
-		localize('planned.compositeBeams.step2', "Check the bare steel beam for the construction stage."),
-		localize('planned.compositeBeams.step3', "Check the composite section, choosing the studs for full or partial action."),
-		localize('planned.compositeBeams.step4', "Give the camber, and check deflection and walking vibration."),
-	],
-	inputs: [
-		{ label: localize('planned.compositeBeams.deck', "Deck profile"), example: localize('planned.compositeBeams.deckExample', "Ribs perpendicular to the beam") },
-		{ label: localize('planned.compositeBeams.slab', "Slab depth above the deck"), unit: localize('planned.unit.mm', "mm") },
-		{ label: localize('planned.compositeBeams.stud', "Stud diameter"), unit: localize('planned.unit.mm', "mm") },
-	],
-	outputs: [
-		localize('planned.compositeBeams.out1', "Stud count and layout per beam"),
-		localize('planned.compositeBeams.out2', "Composite checks, camber, and the vibration check"),
-	],
-	references: [
-		localize('planned.compositeBeams.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; the provisions of AISC 360-05)"),
-		localize('planned.compositeBeams.ref2', "AISC 360 Ch I (composite members)"),
-		localize('planned.compositeBeams.ref3', "AISC Design Guide 11 (floor vibrations)"),
-	],
-});
-registerPlannedFeature({
-	id: FemPlanned.compositeColumns,
-	part: 'fem',
-	title: localize('planned.compositeColumns.title', "Composite Columns"),
-	summary: localize('planned.compositeColumns.summary', "Designs steel sections encased in concrete, and concrete-filled steel tubes, for axial force and bending."),
-	steps: [
-		localize('planned.compositeColumns.step1', "Give the steel section, the concrete around or inside it, and the bars."),
-		localize('planned.compositeColumns.step2', "Work out the section's axial and flexural strength and their interaction."),
-		localize('planned.compositeColumns.step3', "Check the column under every design combination."),
-	],
-	inputs: [
-		{ label: localize('planned.compositeColumns.type', "Type"), example: localize('planned.compositeColumns.typeExample', "Encased or filled") },
-	],
-	outputs: [
-		localize('planned.compositeColumns.out1', "The P-M interaction and the column checks"),
-	],
-	references: [
-		localize('planned.compositeColumns.ref1', "BNBC 2020 Part 6 Chapter 10 (steel; the provisions of AISC 360-05)"),
-		localize('planned.compositeColumns.ref2', "AISC 360 Ch I (composite members)"),
-	],
-});
-
 // T14: cracked long-term FE deflection of slabs, and crack widths.
 registerPlannedFeature({
 	id: FemPlanned.crackedSlabDeflection,

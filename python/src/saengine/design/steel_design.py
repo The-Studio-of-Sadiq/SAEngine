@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from saengine.design import steel as steel_members
+from saengine.design.steel import composite as composite_design
 from saengine.design.steel.lengths import member_lengths
 
 #: The design report's kinds of steel members by object type kind.
@@ -41,6 +42,7 @@ METHOD = [
         "stiffeners and doublers (Sec 10.10.10.8-9), plates and cap plates on HSS (Sec 10.11.1), "
         "overlapped K joints and HSS moment connections (Sec 10.11.3)."
     ),
+    *composite_design.METHOD,  # B32: composite beams and columns
 ]
 
 
@@ -411,13 +413,18 @@ def design_member(
         strength = [c for c in entry["checks"] if not c["flag"]]
         entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
         entry["ok"] = all(c["ok"] for c in strength)
+    lengths = member_lengths(project, pieces, turned, options.lengths)
+    # B32: a composite beam or column's checks (none for a steel-alone type).
+    composite_design.apply(
+        entry, kind, object_type, material, mats, stations, lengths, list(combinations)
+    )
     collected = {
         "id": member_id,
         "kind": kind,
         "type": object_type.id,
         "object": object_type,
         "material": material,
-        "lengths": member_lengths(project, pieces, turned, options.lengths),
+        "lengths": lengths,
         "stations": stations,
         # B17: the stability design method, for the design mode's re-checks.
         "options": steel_members.SteelOptions(stability=options.stability)

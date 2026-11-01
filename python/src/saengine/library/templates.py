@@ -83,6 +83,12 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "TimberMember": {},
     # steel beams' deflection limits (B9, saengine.design.steel.members.deflection_checks)
     "MemberServiceability": {},
+    # composite beams and columns (B32, saengine.design.steel.composite); "concrete" names a
+    # concrete of the default library
+    "CompositeBeam": {"type": "compositeBeam", "concrete": "C20.7"},
+    "CompositeColumn": {"type": "compositeColumn", "concrete": "C20.7"},
+    "CompositeDeck": {},
+    "SlabShrinkage": {"freeStrain": 0.0004, "coefficient": 1.0, "aging": 0.8, "creep": 2.0},
     "TimberNotch": {"face": "tension", "depth": 30, "length": 100},
     "TimberSpaced": {"pieces": 2, "connectors": "end20"},
     "TimberNailedJoint": {"type": "nails", "size": "3.55", "count": 8},

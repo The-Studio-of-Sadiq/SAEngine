@@ -874,7 +874,182 @@ class HssCapPlate(_Model):
     )
 
 
-# ───────────────────────────── timber members and joints ─────────────────────────────
+# ──────────────────────────── steel-concrete composite members ────────────────────────────
+# Checked by saengine.design.steel.composite under the code pack's ``composite`` table: a steel
+# beam acting with the slab through shear connectors, a steel column encased in concrete or a
+# concrete-filled HSS. The deck and stud data are the product's (the code gives the limits).
+
+
+class CompositeDeck(_Model):
+    """The formed steel deck under the slab (none: a solid slab)."""
+
+    orientation: Literal["perpendicular", "parallel"] = Field(
+        default="perpendicular",
+        description="The deck ribs run across the beam or along it.",
+        json_schema_extra={"enumDescriptions": ["Across the beam", "Along the beam"]},
+    )
+    ribHeight: float = Field(default=50, gt=0, description="Nominal rib height hr [mm].")
+    ribWidth: float = Field(
+        default=150,
+        gt=0,
+        description="Average width of the concrete rib or haunch wr [mm] (no more than the "
+        "least clear width near the top of the deck).",
+    )
+    ribPitch: float = Field(default=300, gt=0, description="Centres of the ribs [mm].")
+    weight: float = Field(default=0.1, ge=0, description="Self weight of the deck [kN/m²].")
+    anchorageSpacing: float | None = Field(
+        default=None, gt=0, description="Deck anchored to the beams at these centres [mm]."
+    )
+
+
+class ShearConnectors(_Model):
+    """The shear connectors on the top flange: headed studs (or hot-rolled channels)."""
+
+    kind: Literal["stud", "channel"] = Field(
+        default="stud",
+        json_schema_extra={"enumDescriptions": ["Headed stud", "Hot-rolled channel"]},
+    )
+    diameter: float = Field(default=19, gt=0, description="Stud shank diameter [mm].")
+    height: float = Field(default=100, gt=0, description="Stud length after welding [mm].")
+    fu: float = Field(
+        default=450, gt=0, description="Specified tensile strength of the studs Fu [MPa]."
+    )
+    perRow: int = Field(
+        default=1, ge=1, le=4, description="Studs side by side in a row (or in one deck rib)."
+    )
+    transverseSpacing: float | None = Field(
+        default=None, gt=0, description="Centres of the studs of a row [mm]."
+    )
+    spacing: float | None = Field(
+        default=None,
+        gt=0,
+        description="Rows along the beam at these centres [mm]; none: the least number of rows "
+        "that carries the moment is designed (at the rib pitch on a perpendicular deck).",
+    )
+    eMidHeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="e mid-ht",
+        description="Stud shank to the deck web at mid-height of the rib, in the stud's load "
+        "direction [mm]; none: the weak position.",
+    )
+    overWeb: bool = Field(default=True, description="The studs stand over the beam web.")
+    channelFlange: float = Field(default=8, gt=0, description="Channel flange thickness [mm].")
+    channelWeb: float = Field(default=5, gt=0, description="Channel web thickness [mm].")
+    channelLength: float = Field(default=100, gt=0, description="Channel length Lc [mm].")
+
+
+class SlabShrinkage(_Model):
+    """The inputs of the shrinkage deflection of a simply supported composite beam."""
+
+    freeStrain: float = Field(gt=0, lt=0.01, description="Free shrinkage strain εf [-].")
+    coefficient: float = Field(
+        gt=0, description="Empirical coefficient c matching theory with tests [-]."
+    )
+    aging: float = Field(gt=0, le=1, description="Aging coefficient χ [-].")
+    creep: float = Field(ge=0, description="Creep coefficient φ [-].")
+
+
+class CompositeBeam(_Model):
+    """A steel beam acting with the concrete slab through shear connectors."""
+
+    type: Literal["compositeBeam"] = "compositeBeam"
+    concrete: Id = Field(description="03 Materials id of the slab concrete.")
+    slabThickness: float = Field(
+        default=130, gt=0, description="Total slab depth tc, to the top of the deck [mm]."
+    )
+    deck: CompositeDeck | None = Field(
+        default_factory=CompositeDeck, description="The formed steel deck; none: a solid slab."
+    )
+    spacingLeft: float | None = Field(
+        default=3000, gt=0, description="To the next beam on the left [mm]; none: no beam."
+    )
+    spacingRight: float | None = Field(
+        default=3000, gt=0, description="To the next beam on the right [mm]; none: no beam."
+    )
+    edgeLeft: float | None = Field(
+        default=None, gt=0, description="To the slab edge on the left [mm]; none: no edge."
+    )
+    edgeRight: float | None = Field(
+        default=None, gt=0, description="To the slab edge on the right [mm]; none: no edge."
+    )
+    connectors: ShearConnectors = Field(default_factory=ShearConnectors)
+    shored: bool = Field(
+        default=False, description="Temporary shores carry the wet concrete (else the steel)."
+    )
+    constructionLive: float = Field(
+        default=0,
+        ge=0,
+        description="Erection load on the wet slab during the construction [kN/m²].",
+    )
+    slabBars: float | None = Field(
+        default=None,
+        gt=0,
+        description="Developed longitudinal bars in the effective width over the supports "
+        "[mm²]; none: negative flexure on the steel alone.",
+    )
+    slabBarFy: float = Field(default=415, gt=0, description="fy of the slab bars [MPa].")
+    sustainedLive: float = Field(
+        default=0, ge=0, le=1, description="Share of the live load that is long-term [-]."
+    )
+    shrinkage: SlabShrinkage | None = Field(
+        default=None, description="The shrinkage deflection's inputs; none: not computed."
+    )
+    embeddedEnds: bool = Field(
+        default=False,
+        description="The beam ends are embedded in reinforced concrete columns or walls.",
+    )
+
+
+class CompositeColumn(_Model):
+    """A steel column encased in reinforced concrete, or a concrete-filled HSS."""
+
+    type: Literal["compositeColumn"] = "compositeColumn"
+    form: Literal["encased", "filled"] = Field(
+        default="encased",
+        json_schema_extra={"enumDescriptions": ["Encased in concrete", "Concrete-filled HSS"]},
+    )
+    concrete: Id = Field(description="03 Materials id of the concrete.")
+    width: float = Field(
+        default=500, gt=0, description="Encased: concrete width across the flanges [mm]."
+    )
+    depth: float = Field(
+        default=500, gt=0, description="Encased: concrete depth along the web [mm]."
+    )
+    bars: int = Field(default=4, ge=0, description="Longitudinal bars (4 at the corners).")
+    barDiameter: float = Field(default=20, gt=0, description="[mm]")
+    barFy: float = Field(default=415, gt=0, description="fy of the bars [MPa].")
+    cover: float = Field(default=40, gt=0, description="Clear cover to the ties [mm].")
+    tieDiameter: float = Field(default=10, gt=0, description="[mm]")
+    tieSpacing: float = Field(default=200, gt=0, description="[mm]")
+    loadApplied: Literal["steel", "concrete", "bearing"] = Field(
+        default="steel",
+        description="Where the floor's force enters the column.",
+        json_schema_extra={
+            "enumDescriptions": [
+                "To the steel (studs transfer the concrete's share)",
+                "To the concrete (studs transfer the steel's share)",
+                "Bearing on the concrete",
+            ]
+        },
+    )
+    bearingArea: float | None = Field(
+        default=None, gt=0, description="Bearing: the loaded concrete area [mm²]."
+    )
+    transferForce: float | None = Field(
+        default=None,
+        gt=0,
+        description="The force the floor brings into the column at a connection [kN]; none: "
+        "the column's largest compression (conservative).",
+    )
+    studDiameter: float = Field(default=19, gt=0, description="Transfer studs [mm].")
+    studFu: float = Field(default=450, gt=0, description="Transfer studs' Fu [MPa].")
+    studSpacing: float = Field(default=300, gt=0, description="Transfer studs' centres [mm].")
+    studFaces: int = Field(
+        default=2, ge=1, le=4, description="Faces of the steel shape with transfer studs."
+    )
+
+
 # Checked by saengine.design.timber (permissible stress design of the code pack's ``timber``
 # table); the models live here so the beam, column and brace types can carry them.
 
@@ -1100,6 +1275,11 @@ class Beam(_ObjectBase):
         description="Steel beams: the member use the deflection limits follow and a "
         "cantilever's free end; none: the code pack's default use, supported at both ends.",
     )
+    composite: CompositeBeam | None = Field(
+        default=None,
+        description="Steel beams: acting with the slab through shear connectors; none: the "
+        "steel alone.",
+    )
     modifiers: FrameModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
@@ -1133,6 +1313,11 @@ class Column(_ObjectBase):
         title="Cap plate",
         description="Rectangular HSS columns: a cap plate at the top carrying a beam that "
         "bears on it; none: not checked.",
+    )
+    composite: CompositeColumn | None = Field(
+        default=None,
+        description="Steel columns: encased in reinforced concrete or a concrete-filled HSS; "
+        "none: the steel alone.",
     )
     timber: TimberMember | None = Field(
         default=None,
