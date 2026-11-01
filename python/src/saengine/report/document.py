@@ -763,6 +763,58 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
     return out
 
 
+def _nonlinear_history_blocks(nh: dict[str, Any]) -> list[Block]:
+    """B36: the suites, storey drift and member acceptance of the nonlinear time histories."""
+    if not nh:
+        return []
+    out: list[Block] = [h(2, "Nonlinear time history analysis")]
+    if not nh.get("available"):
+        out.append(p(f"Not worked out: {nh.get('reason', '')}."))
+        return out
+    out.append(
+        table(
+            [
+                "Suite",
+                "Records",
+                "Design value",
+                "T [s]",
+                "Spectrum check",
+                "V [kN]",
+                "Ran",
+                "Used",
+            ],
+            nh["suites"],
+            ["auto"] * 8,
+            "lrlrlrcc",
+        )
+    )
+    out.append(p(str(nh.get("driftText", ""))))
+    if nh.get("drift"):
+        out.append(
+            table(
+                ["Suite", "Direction", "Storey", "Drift [mm]", "Ratio [%]", "Limit [%]", "Result"],
+                nh["drift"],
+                ["auto"] * 6 + ["auto"],
+                "lllrrrc",
+                bad=nh.get("driftFails"),
+            )
+        )
+    out.append(p(str(nh.get("membersText", ""))))
+    if nh.get("members"):
+        out.append(
+            table(
+                ["Member", "Suite", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"],
+                nh["members"],
+                ["1fr"] + ["auto"] * 7,
+                "llllrrrc",
+                bad=nh.get("memberFails"),
+            )
+        )
+    if nh.get("notes"):
+        out.append(bullets([str(n) for n in nh["notes"]], 8.5))
+    return out
+
+
 def _column_shortening_blocks(cs: dict[str, Any]) -> list[Block]:
     """B25: the column shortening with creep and shrinkage."""
     if not cs:
@@ -1021,6 +1073,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _isolation_blocks(results.get("isolation"))  # B37
     out += _pushover_blocks(results.get("pushover") or [])
+    out += _nonlinear_history_blocks(results.get("nonlinearHistory") or {})
     out += _column_shortening_blocks(results.get("columnShortening") or {})
     rsd = results["seismicDesign"]
     if rsd.get("available"):

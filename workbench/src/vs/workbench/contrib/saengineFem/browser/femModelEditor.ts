@@ -1303,7 +1303,7 @@ export class FemModelEditor extends EditorPane {
 		const store = new DisposableStore();
 		store.add(appendPlannedChips(panel, localize('femEditor.plannedAnalyses', "Planned Analyses"), [
 			FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening,
-			FemPlanned.pushoverHinges, FemPlanned.performancePoint, FemPlanned.nonlinearTimeHistory,
+			FemPlanned.pushoverHinges, FemPlanned.performancePoint,
 		], this.commandService));
 		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Dampers, Existing Buildings"), [
 			FemPlanned.dampers, FemPlanned.existingAssessment, FemPlanned.retrofit,

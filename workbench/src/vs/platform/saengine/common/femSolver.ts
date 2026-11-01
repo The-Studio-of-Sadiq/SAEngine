@@ -220,6 +220,8 @@ export interface IFemDerivation {
 	readonly text?: string;
 	/** The `pushover.osmodel` text (frames as fiber elements), when the settings ask for pushovers. */
 	readonly pushoverText?: string;
+	/** B36: the `nonlinear-history.osmodel` text (the time histories with fibre members), when the settings ask for it. */
+	readonly historyText?: string;
 	/** The temperature case's fixed-end forces (`08 FEM/thermal.json`), when the settings have the case T. */
 	readonly thermalText?: string;
 	/** The soil springs of the column bases (`08 FEM/ssi.json`), when the supports are soil springs. */

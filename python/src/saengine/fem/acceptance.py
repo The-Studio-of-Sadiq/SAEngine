@@ -137,15 +137,14 @@ def _worst(
 # ───────────────────────────────────── the check ─────────────────────────────────────
 
 
-def fibre_strain(
-    project: dict[str, Any], results: Any, step: int, rule: Any
-) -> list[dict[str, Any]]:
-    """Method ``fibreStrain``: per member (element name before any ``#``) its governing fibre
-    at ``step`` of the pushover ``results`` of the model ``project``."""
+def _fibre_elements(project: dict[str, Any], rule: Any) -> Any:
+    """The fibre elements of a model: ``(element, member, limits per fibre, gravity)``. A
+    member carries gravity loads when it is vertical or horizontal (inclined members, braces,
+    do not), or always with the rule's ``gravityLossAllMembers`` (B36)."""
     materials = {int(m["id"]): m for m in project.get("materials", [])}
     sections = {int(s["id"]): s for s in project.get("sections", [])}
     coords = {int(n["id"]): n["coords"] for n in project.get("nodes", [])}
-    members: dict[str, dict[str, Any]] = {}
+    every = bool(getattr(rule, "gravityLossAllMembers", False))
     for element in project.get("elements", []):
         if element.get("type") not in ("ForceBeamColumn", "DispBeamColumn"):
             continue
@@ -159,35 +158,92 @@ def fibre_strain(
         length = float(np.linalg.norm(axis))
         slope = abs(axis[2]) / length if length else 1.0
         # Columns, walls and beams carry gravity loads; inclined members (braces) do not.
-        gravity = slope > 0.999 or slope < 0.05
+        gravity = every or slope > 0.999 or slope < 0.05
         limits = _limits(_fibre_kinds(section, materials), materials, rule, gravity)
         member = str(element.get("name") or element["id"]).split("#")[0]
+        yield element, member, limits, gravity
+
+
+def _keep(
+    members: dict[str, dict[str, Any]],
+    member: str,
+    element: dict[str, Any],
+    end: str,
+    found: tuple[float, str, float, float],
+    gravity: bool,
+) -> None:
+    """Keep ``found`` as the member's row when it governs."""
+    ratio, kind, demand, allowed = found
+    row = members.get(member)
+    if row is None or ratio > row["ratio"]:
+        members[member] = {
+            "member": member,
+            "element": int(element["id"]),
+            "end": end,
+            "fibre": kind,
+            "strain": demand,
+            "limit": allowed,
+            "ratio": ratio,
+            "gravity": bool(gravity),
+            "ok": bool(ratio <= 1.0),
+        }
+
+
+def fibre_strain(
+    project: dict[str, Any], results: Any, step: int, rule: Any
+) -> list[dict[str, Any]]:
+    """Method ``fibreStrain``: per member (element name before any ``#``) its governing fibre
+    at ``step`` of the pushover ``results`` of the model ``project``."""
+    members: dict[str, dict[str, Any]] = {}
+    for element, member, limits, gravity in _fibre_elements(project, rule):
         for end, store in (("i", results.element_start_fibers), ("j", results.element_end_fibers)):
             history = store.get(int(element["id"]))
             if history is None or step >= len(history):
                 continue
             found = _worst(np.asarray(history[step]), limits)
-            if found is None:
+            if found is not None:
+                _keep(members, member, element, end, found, gravity)
+    return sorted(members.values(), key=lambda r: -r["ratio"])
+
+
+def _worst_peaks(
+    peaks: np.ndarray, limits: list[tuple[str, float, int] | None]
+) -> tuple[float, str, float, float] | None:
+    """:func:`_worst` of the peak strains of a run (rows y, z, area, least strain, largest
+    strain): a fibre checked in compression counts its least strain, the others the larger
+    magnitude."""
+    if len(peaks) != len(limits):
+        return None
+    rows = np.zeros((len(peaks), 5))
+    for k, (row, limit) in enumerate(zip(peaks, limits, strict=True)):
+        least, largest = float(row[3]), float(row[4])
+        if limit is not None and limit[2] < 0:
+            rows[k, 4] = least
+        else:
+            rows[k, 4] = least if abs(least) > abs(largest) else largest
+    return _worst(rows, limits)
+
+
+def fibre_strain_peaks(project: dict[str, Any], peaks_of: Any, rule: Any) -> list[dict[str, Any]]:
+    """Method ``fibreStrain`` over a whole run (B36, a nonlinear time history): per member its
+    governing fibre by the peak strains ``peaks_of(element id)`` gives (``{"start", "end"}`` ->
+    rows y, z, area, least strain, largest strain)."""
+    members: dict[str, dict[str, Any]] = {}
+    for element, member, limits, gravity in _fibre_elements(project, rule):
+        peaks = peaks_of(int(element["id"])) or {}
+        for end, key in (("i", "start"), ("j", "end")):
+            if key not in peaks:
                 continue
-            ratio, kind, demand, allowed = found
-            row = members.get(member)
-            if row is None or ratio > row["ratio"]:
-                members[member] = {
-                    "member": member,
-                    "element": int(element["id"]),
-                    "end": end,
-                    "fibre": kind,
-                    "strain": demand,
-                    "limit": allowed,
-                    "ratio": ratio,
-                    "gravity": bool(gravity),
-                    "ok": bool(ratio <= 1.0),
-                }
+            found = _worst_peaks(np.asarray(peaks[key], dtype=float), limits)
+            if found is not None:
+                _keep(members, member, element, end, found, gravity)
     return sorted(members.values(), key=lambda r: -r["ratio"])
 
 
 #: Acceptance methods by the id a code pack gives (``acceptance.method``).
 METHODS = {"fibreStrain": fibre_strain}
+#: The same methods over a whole run's peaks (B36, the nonlinear time histories).
+PEAK_METHODS = {"fibreStrain": fibre_strain_peaks}
 
 
 def evaluate(project: dict[str, Any], results: Any, target: dict[str, Any]) -> dict[str, Any]:

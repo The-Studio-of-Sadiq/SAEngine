@@ -63,6 +63,7 @@ export const DERIVATION_INPUTS: readonly string[] = [...DERIVATION_SOURCES.map(s
 interface IFemDerivation {
 	readonly text?: string;
 	readonly pushoverText?: string;
+	readonly historyText?: string;
 	readonly thermalText?: string;
 	readonly ssiText?: string;
 	readonly facesText?: string;
@@ -107,6 +108,8 @@ export interface IFemWindSummary {
 
 /** The pushover model, derived beside the analysis model when the settings ask for pushovers. */
 export const PUSHOVER_FILE = 'pushover.osmodel';
+/** B36: the nonlinear time history model, derived beside the analysis model when the settings ask for it. */
+export const HISTORY_FILE = 'nonlinear-history.osmodel';
 /** The temperature case's fixed-end forces, beside the model when the settings have the case T (`saengine.fem.thermal`). */
 export const THERMAL_FILE = 'thermal.json';
 /** The column bases' soil springs, beside the model when the supports are soil springs (`saengine.fem.ssi`). */
@@ -260,6 +263,9 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	if (result.pushoverText) {
 		await fileService.writeFile(joinPath(folder, PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));
 	}
+	if (result.historyText) {
+		await fileService.writeFile(joinPath(folder, HISTORY_FILE), VSBuffer.fromString(result.historyText));
+	}
 	const summary = result.summary ?? {};
 	return {
 		ok: true,
@@ -330,7 +336,7 @@ export class FemDerivation extends Disposable {
 		this.reading = true;
 		const root = this.projectService.project?.root;
 		const model = root && partFile(root, 'fem');
-		this.resource = model && resource && (isEqual(resource, model) || isEqual(resource, joinPath(dirname(model), PUSHOVER_FILE))) ? resource : undefined;
+		this.resource = model && resource && (isEqual(resource, model) || isEqual(resource, joinPath(dirname(model), PUSHOVER_FILE)) || isEqual(resource, joinPath(dirname(model), HISTORY_FILE))) ? resource : undefined;
 		if (root && this.resource) {
 			for (const part of DERIVATION_INPUTS) {
 				try {

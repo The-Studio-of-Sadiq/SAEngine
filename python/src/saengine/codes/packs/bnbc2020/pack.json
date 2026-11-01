@@ -51,7 +51,8 @@
     "stairMethods",
     "compositeConcrete",
     "steelSeismic",
-    "isolation"
+    "isolation",
+    "nonlinearHistory"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -263,6 +264,10 @@
     ],
     "isolation": [
       "BNBC 2020 Part 6 Sec 2.5.16-2.5.16.5, Eqs 6.2.62-6.2.68, Table 6.2.24 (pp. 652-666): seismically isolated buildings"
+    ],
+    "nonlinearHistory": [
+      "BNBC 2020 Part 6 Sec 2.5.11.1-2.5.11.5 (pp. 638-641): nonlinear time history analysis, records, response, member acceptance, design review",
+      "BNBC 2020 Part 6 Sec 2.5.14.1 (p. 647): storey drift of the nonlinear time history analysis"
     ]
   },
   "basis": {

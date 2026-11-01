@@ -142,6 +142,7 @@ BOQ_SOURCES = (
 TANK_BARS_PENDING = "its bars are not measured: it has no current design"
 
 PUSHOVER_FILE = "pushover.osmodel"
+HISTORY_FILE = "nonlinear-history.osmodel"  # B36
 THERMAL_FILE = "thermal.json"
 SSI_FILE = "ssi.json"
 FACES_FILE = "faces.json"
@@ -442,6 +443,9 @@ def _derive(project: Project, step: StepResult) -> bool:
     if result.get("pushoverText"):
         write_text(folder / PUSHOVER_FILE, result["pushoverText"])
         step.outputs.append(_relative(project, folder / PUSHOVER_FILE))
+    if result.get("historyText"):  # B36: written, not run by Run All (a long analysis)
+        write_text(folder / HISTORY_FILE, result["historyText"])
+        step.outputs.append(_relative(project, folder / HISTORY_FILE))
     summary = result.get("summary") or {}
     step.counts = {
         "nodes": summary.get("nodes", 0),

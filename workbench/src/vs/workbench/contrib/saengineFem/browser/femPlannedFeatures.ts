@@ -26,8 +26,7 @@ export const FemPlanned = {
 	/** T22: existing RC buildings. */
 	existingAssessment: 'fem.existingAssessment',
 	retrofit: 'fem.retrofit',
-	/** T35: nonlinear time history. */
-	nonlinearTimeHistory: 'fem.nonlinearTimeHistory',
+	/** T35 / B36: what stays planned of the time histories: record search and spectral matching (the nonlinear time history is built). */
 	recordScaling: 'fem.recordScaling',
 	/** T36: dampers (seismic isolators are built: B37). */
 	dampers: 'fem.dampers',

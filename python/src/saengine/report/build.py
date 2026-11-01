@@ -1669,7 +1669,100 @@ def _results(
     out["pushover"] = _pushover(model_path.parent, warnings)
     # B25: the column shortening with creep and shrinkage.
     out["columnShortening"] = _column_shortening(model_path, results_dir, warnings)
+    # B36: the nonlinear time histories: suites, storey drift, member acceptance.
+    out["nonlinearHistory"] = _nonlinear_history(model_path.parent, warnings)
     return out
+
+
+def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
+    """B36: the nonlinear time history design of ``08 FEM/nonlinear-history.osmodel`` (when it
+    has been run, :func:`saengine.fem.nonlinear_history.results_of`) as report rows. Lengths
+    in mm, forces in kN."""
+    from saengine.fem import nonlinear_history
+
+    try:
+        found = nonlinear_history.results_of(folder)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The nonlinear time history results could not be evaluated: {error}")
+        return {}
+    if not found:
+        return {}
+    if not found.get("available"):
+        return {"available": False, "reason": str(found.get("reason", ""))}
+    yes = {True: "yes", False: "no"}
+    suites = [
+        [
+            s["key"],
+            str(s["count"]),
+            "mean" if s["rule"] == "mean" else "largest",
+            f"{s['period']:.3f}" if s.get("period") else "-",
+            (
+                f"{s['check']['least']:.3f} at {s['check']['governing']:.2f} s"
+                if s.get("check")
+                else "-"
+            ),
+            " / ".join(
+                f"{(s.get('baseShear') or {}).get(a, 0.0):.0f}"
+                for a in (["x", "y"] if s["key"] == "XY" else [s["key"].lower()])
+            ),
+            yes[bool(s.get("complete"))],
+            yes[bool(s.get("used"))],
+        ]
+        for s in found["suites"]
+    ]
+    drift = [
+        [
+            d["suite"],
+            d["direction"],
+            f"{d['bottom']:g} to {d['top']:g} m",
+            f"{1e3 * d['drift']:.1f}",
+            f"{100 * d['ratio']:.3f}",
+            f"{100 * d['limitRatio']:.3f}",
+            "OK" if d["ok"] else "FAIL",
+        ]
+        for d in found["drift"]
+    ]
+    accepted = found["acceptance"]
+    rows = accepted["rows"]
+    members = [
+        [
+            r["member"],
+            r["suite"],
+            r["end"],
+            r["fibre"],
+            f"{1e3 * r['strain']:.2f}",
+            f"{1e3 * r['limit']:.2f}",
+            fmt(r["ratio"], 2),
+            "OK" if r["ok"] else "FAIL",
+        ]
+        for r in rows[:MAX_PUSHOVER_MEMBERS]
+    ]
+    limit = found["limit"]
+    if not found.get("ok"):
+        warnings.append(
+            "Nonlinear time history: the suites, storey drifts or member deformations do not "
+            "meet the code pack's rules (see the nonlinear time history section)."
+        )
+    return {
+        "available": True,
+        "suites": suites,
+        "drift": drift,
+        "driftFails": [row[-1] == "FAIL" for row in drift],
+        "driftText": (
+            f"Storey drift of the design value over each suite against {limit['factor']:g} × the "
+            f"allowable storey drift {100 * limit['allowable']:.2f} % = "
+            f"{100 * limit['ratio']:.3f} % ({found['clauses'].get('drift', '')})."
+        ),
+        "members": members,
+        "memberFails": [row[-1] == "FAIL" for row in members],
+        "membersText": (
+            f"{accepted['failed']} of {len(rows)} members fail; the "
+            f"{min(len(rows), MAX_PUSHOVER_MEMBERS)} with the largest ratios are listed "
+            f"({accepted['clause']})."
+        ),
+        "notes": [str(n) for n in found.get("notes", []) if n],
+        "ok": bool(found.get("ok")),
+    }
 
 
 def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:

@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "NonlinearHistoryAcceptance": {
+      "additionalProperties": false,
+      "description": "Acceptance of the members over the records (``fem.acceptance``). Method\n``fibreStrain``: each fibre's peak strain at the member's end sections against a share of\nthe strain at which its material fails.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "fibreStrain",
+          "description": "Method id (the engine's generic implementation).",
+          "title": "Method",
+          "type": "string"
+        },
+        "deformationShare": {
+          "description": "A member's deformation may reach at most this × the deformation at which it fails.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deformationshare",
+          "type": "number"
+        },
+        "residualStrengthShare": {
+          "description": "Strength (share of the peak) below which the component has failed.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Residualstrengthshare",
+          "type": "number"
+        },
+        "gravityLossAllMembers": {
+          "default": true,
+          "description": "The smaller of the gravity-loss and the strength-loss deformation for every member (false: the gravity loss only for members carrying gravity loads).",
+          "title": "Gravitylossallmembers",
+          "type": "boolean"
+        },
+        "reinforcementFractureStrain": {
+          "description": "Strain at which a reinforcing bar is taken as lost (fracture or buckling).",
+          "exclusiveMinimum": 0,
+          "title": "Reinforcementfracturestrain",
+          "type": "number"
+        },
+        "steelFractureStrain": {
+          "description": "Strain at which a structural steel fibre is taken as lost.",
+          "exclusiveMinimum": 0,
+          "title": "Steelfracturestrain",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "deformationShare",
+        "residualStrengthShare",
+        "reinforcementFractureStrain",
+        "steelFractureStrain"
+      ],
+      "title": "NonlinearHistoryAcceptance",
+      "type": "object"
+    },
+    "NonlinearHistoryDrift": {
+      "additionalProperties": false,
+      "description": "The storey drift of the nonlinear time histories against the allowable drift of the\nlinear procedures (the pack's ``seismic`` drift table, with its redundancy rule).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "limitFactor": {
+          "description": "The drift may reach this × the allowable storey drift of the linear procedures.",
+          "exclusiveMinimum": 0,
+          "title": "Limitfactor",
+          "type": "number"
+        },
+        "amplify": {
+          "default": false,
+          "description": "Whether the drifts are multiplied by Cd/I (false: the nonlinear drifts are the real ones).",
+          "title": "Amplify",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "limitFactor"
+      ],
+      "title": "NonlinearHistoryDrift",
+      "type": "object"
+    },
+    "NonlinearHistoryProcedure": {
+      "additionalProperties": false,
+      "description": "How the nonlinear time histories are run and read (``fem.nonlinear_history``).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "target": {
+          "default": "nonlinear",
+          "description": "The ``seismic.timeHistory.targets`` entry the records are scaled to (its R and I; the period range, ratios and least number of records of that table apply).",
+          "title": "Target",
+          "type": "string"
+        },
+        "meanFrom": {
+          "description": "From this many records (or pairs) the design value is the mean of their peak responses, with fewer the largest.",
+          "minimum": 1,
+          "title": "Meanfrom",
+          "type": "integer"
+        },
+        "scaleToStaticShear": {
+          "default": false,
+          "description": "Whether the responses are scaled up to the equivalent static base shear (the nonlinear results are used as they come when false).",
+          "title": "Scaletostaticshear",
+          "type": "boolean"
+        },
+        "pDelta": {
+          "default": true,
+          "description": "P-Delta effects in the columns and walls.",
+          "title": "Pdelta",
+          "type": "boolean"
+        },
+        "designReview": {
+          "default": false,
+          "description": "The code asks for an independent design review.",
+          "title": "Designreview",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "meanFrom"
+      ],
+      "title": "NonlinearHistoryProcedure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Nonlinear time history analysis: the procedure, the drift limit and the acceptance of\nthe members.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "procedure": {
+      "$ref": "#/$defs/NonlinearHistoryProcedure"
+    },
+    "drift": {
+      "$ref": "#/$defs/NonlinearHistoryDrift"
+    },
+    "acceptance": {
+      "$ref": "#/$defs/NonlinearHistoryAcceptance"
+    }
+  },
+  "required": [
+    "procedure",
+    "drift",
+    "acceptance"
+  ],
+  "title": "NonlinearHistoryTable",
+  "type": "object",
+  "$id": "saengine.codePack.nonlinearHistory/1"
+}
