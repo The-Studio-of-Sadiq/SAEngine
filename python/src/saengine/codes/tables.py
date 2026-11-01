@@ -73,10 +73,46 @@ class Location(_Row):
     windSpeed: float = Field(gt=0, description="Basic wind speed V [m/s].")
 
 
+class Town(_Row):
+    """A town of the code's hazard tables and where it is (WGS 84), for the map's suggestion."""
+
+    name: str = Field(description="The town as the code spells it.")
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    z: float | None = Field(
+        default=None, gt=0, description="Seismic zone coefficient Z; empty: not in the table."
+    )
+    windSpeed: float | None = Field(
+        default=None, gt=0, description="Basic wind speed V [m/s]; empty: not in the table."
+    )
+    location: str | None = Field(
+        default=None, description="Its ``locations`` id (Project Settings), where there is one."
+    )
+
+
+class TownMap(_Row):
+    """The towns of the code's zone and wind tables with their coordinates: the site map
+    suggests the nearest one's Z and V (D3: they were module constants of ``gis/towns.py``)."""
+
+    area: str = Field(description="Where the code applies (for the outside-the-area note).")
+    bounds: tuple[float, float, float, float] = Field(
+        description="(south, west, north, east) [degrees] of the area."
+    )
+    zClause: str = Field(description="The table of the towns' Z.")
+    windClause: str = Field(description="The table of the towns' V.")
+    governs: str = Field(default="", description="What governs over the nearest town.")
+    towns: list[Town] = Field(min_length=1)
+
+
 class LocationsTable(TableModel):
     """Towns with their seismic zone and basic wind speed."""
 
     locations: dict[str, Location]
+    towns: TownMap | None = Field(
+        default=None,
+        description="Towns with coordinates for the site map's suggestion; empty: the pack "
+        "does not cover the suggestion.",
+    )
 
 
 class ZoneCoefficientsTable(TableModel):
@@ -2351,6 +2387,11 @@ class RetainingWallFactors(_Group):
         default=0.5,
         description="kh of a wall free to yield as a share of the peak ground acceleration.",
     )
+    baseCover: Positive | None = Field(
+        default=None,
+        description="Clear cover [mm] of the base's bars cast against the earth; empty: the "
+        "wall's own cover.",
+    )
 
 
 class FootingCombination(_Row):
@@ -2421,6 +2462,28 @@ class ColumnBaseTransfer(_Group):
     minBars: int = Field(ge=1, description="Least number of bars across the interface.")
 
 
+class TieBeamRules(_Group):
+    """Tie beams between foundations: the strut-tie force and the least size."""
+
+    forceShare: Share = Field(description="Force: this × the larger footing or column load.")
+    zones: list[int] = Field(description="Seismic zones that require them (else reported only).")
+    spanDivisor: Positive = Field(description="Least dimension: the clear span / this ...")
+    sizeMax: Positive = Field(description="... need not exceed this [mm].")
+
+
+class PileCapRules(_Group):
+    """Pile spacing and the cap's edges and pile embedment."""
+
+    spacing: Positive = Field(description="Least c/c spacing × D.")
+    spacingMin: Positive = Field(description="Least c/c spacing [mm].")
+    frictionSpacing: Positive = Field(description="Least c/c spacing × D of friction piles.")
+    edgeDistance: Positive = Field(description="Least clear distance pile face to cap edge [mm].")
+    embedment: Positive = Field(description="Least embedment of the piles in the cap [mm].")
+    singlePileDiameter: Positive | None = Field(
+        default=None, description="A single pile under a column at least this diameter [mm]."
+    )
+
+
 class ShallowFoundations(_Group):
     """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
     allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
@@ -2473,6 +2536,9 @@ class ShallowFoundations(_Group):
         description="The general rule for pad footings: total on sand, on clay, differential [mm]."
     )
     columnBase: ColumnBaseTransfer
+    tieBeams: TieBeamRules | None = Field(
+        default=None, description="Tie beams between foundations; empty: not covered."
+    )
 
 
 #: Soil classes of the pile rules: sand by density, clay by consistency, silt by density.
@@ -2921,6 +2987,15 @@ class FoundationsTable(TableModel):
     machine: MachineFoundationRules | None = Field(
         default=None,
         description="Machine foundations under dynamic forces; empty: not covered by the pack.",
+    )
+    # D3: values that were module constants of the substructure modules.
+    upliftSkin: Share | None = Field(
+        default=None,
+        description="Share of the skin friction resisting uplift: Tult = this × Qs + W; empty: "
+        "the pack gives none (the pile's weight alone).",
+    )
+    pileCap: PileCapRules | None = Field(
+        default=None, description="Pile spacing, cap edges and embedment; empty: not covered."
     )
 
 
@@ -5186,6 +5261,66 @@ class GeoHazards(_Clause):
     items: list[str]
 
 
+class Liquefaction(_Clause):
+    """The code's own liquefaction procedure (the soil report's ``codePack`` method) and its
+    screening rule of thumb (applied with every method)."""
+
+    method: Literal["linearRdYoud"] = Field(
+        description="Engine method: ``linearRdYoud``: CSR = csrFactor (amax/g) rd σv/σ'v with "
+        "rd = 1 - rdSlope z, CRR of Youd et al. (2001) from the SPT, FL = CRR/CSR."
+    )
+    rdSlope: Positive = Field(description="rd = 1 - rdSlope z, z in m.")
+    csrFactor: Positive = Field(description="CSR = csrFactor (amax/g) rd σv/σ'v.")
+    fieldNLimit: Positive | None = Field(
+        default=None,
+        description="Soil with a field N above this does not liquefy (rule of thumb); empty: "
+        "the code gives none.",
+    )
+
+
+class ClassBand(_Band):
+    siteClass: str
+
+
+class SoftSiteRule(BaseModel):
+    """A soft-clay site class (S1 of the default pack) the SPT can only flag."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    siteClass: str
+    suRange: tuple[float, float] = Field(description="su [kPa] of the soft clays.")
+    thickness: Positive = Field(description="Least thickness of the layer [m].")
+    pi: Positive = Field(description="PI above which a clay counts.")
+
+
+class SiteClassification(_Clause):
+    """The site class of a borehole from the SPT and su over the top of the profile."""
+
+    method: Literal["harmonicMeans"] = Field(
+        description="Engine method: harmonic means of N (field) and su over ``depth``, the "
+        "softer class of the two."
+    )
+    table: str = Field(default="", description="The table's short name used in the notes.")
+    depth: Positive = Field(description="Depth classified [m].")
+    nMax: Positive = Field(description="N counted at most this.")
+    suMax: Positive = Field(description="su counted at most this [kPa].")
+    order: list[str] = Field(min_length=1, description="The classes, stiffest first.")
+    byN: list[ClassBand] = Field(min_length=1)
+    bySu: list[ClassBand] = Field(min_length=1)
+    rockClass: str = Field(description="The class of rock near the surface without a Vs.")
+    rockShallow: Positive = Field(description="Rock within this depth [m] gives rockClass.")
+    rockDeep: Positive = Field(description="Rock-like material up to this depth [m] flags ...")
+    rockDeepClass: str = Field(description="... this class (it needs the Vs).")
+    rockVs: Positive = Field(description="Vs [m/s] of rock (the stiffest class).")
+    soft: SoftSiteRule | None = None
+    liquefiableClass: str | None = Field(
+        default=None, description="The class of a site with liquefiable soil (S2)."
+    )
+    liquefiableAssumed: str | None = Field(
+        default=None, description="The class used meanwhile for a liquefiable site."
+    )
+
+
 class SiteInvestigationTable(TableModel):
     """Site investigation and soil chemistry: the number, spacing and depth of the borings, the
     identification of problem soils (organic, expansive, collapsible, dispersive, soft), the
@@ -5208,6 +5343,9 @@ class SiteInvestigationTable(TableModel):
     sulphate: Sulphate | None = None
     chloride: ChlorideExposure | None = None
     geoHazards: GeoHazards | None = None
+    # D3: the code's liquefaction procedure and its site classification by the SPT.
+    liquefaction: Liquefaction | None = None
+    siteClassification: SiteClassification | None = None
 
 
 # ─────────────────────────────────────── serviceability ───────────────────────────────────────

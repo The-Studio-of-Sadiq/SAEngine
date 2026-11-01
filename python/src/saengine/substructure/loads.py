@@ -9,9 +9,9 @@ static cases, as :mod:`saengine.fem.combinations` forms them.
 Two kinds of combinations, as is usual for foundations (ACI 318-19 13.2.6.1, 13.3.1.1):
 
 - SERVICE (unfactored) allowable-stress combinations for bearing, settlement and the pile
-  loads against their allowable capacities: BNBC 2020 Part 6 2.7.2 (ASCE 7-05 2.4.1), for this
-  project's nominal (service-level) wind: D, D + L + Lr (enveloping BNBC 2.7.2.1 (2)-(4): D + L,
-  D + Lr and D + 0.75L + Lr), D + W, D + 0.75L + 0.75Lr + 0.75W,
+  loads against their allowable capacities: ASCE 7-05 2.4.1 (the default pack's BNBC 2020 Part
+  6 Sec 2.7.2 has the same set), for this project's nominal (service-level) wind: D, D + L + Lr
+  (enveloping D + L, D + Lr and D + 0.75L + Lr), D + W, D + 0.75L + 0.75Lr + 0.75W,
   0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E and 0.6D + 0.7E, wind and earthquake in ±X
   and ±Y, D standing for the dead and superimposed dead cases. When the project's strength
   combinations treat wind as strength-level (no wind factor above 1.0), the ASCE 7-16 2.4.1
@@ -40,7 +40,7 @@ def service_combinations(
     flood: str | None = None,
 ) -> list[tuple[str, dict[str, float]]]:
     """The allowable-stress combinations of :func:`_service_combinations`, then those with the
-    temperature case T when it was analysed (BNBC 2020 Part 6 Sec 2.7.2.1 combinations 2 and 4,
+    temperature case T when it was analysed (the default pack's Sec 2.7.2.1 combinations 2 and 4,
     :func:`saengine.fem.thermal.service_combinations_with_t`), the earth pressure H in every
     one, and the fluid case F wherever D is
     (a tank's contents act with its weight; there is no 0.6D service combination with F)."""
@@ -50,7 +50,7 @@ def service_combinations(
     result += service_combinations_with_t(cases)
     if "H" in set(cases):
         # The earth pressure acts with every service combination (ASCE 7-05 2.4.1: D + H + F
-        # + L ..., 0.6D + W + H; BNBC 2020 Part 6 Sec 2.7.2.1).
+        # + L ..., 0.6D + W + H; the default pack's Sec 2.7.2.1).
         result = [(name, {**factors, "H": 1.0}) for name, factors in result]
     if "F" in set(cases):
         result = [
@@ -127,10 +127,11 @@ def _service_combinations(
 ) -> list[tuple[str, dict[str, float]]]:
     """The allowable-stress combinations the static ``cases`` allow, as (name, {case: factor});
     ``D`` stands for the dead and superimposed dead cases. Wind is nominal (service-level) as
-    BNBC 2020 Part 6 defines it, with the 2.7.2 combinations (ASCE 7-05 2.4.1): D + W,
+    the default pack defines it, with the combinations of ASCE 7-05 2.4.1: D + W,
     D + 0.75L + 0.75Lr + 0.75W and 0.6D + W; ``strength_level_wind`` takes the ASCE 7-16 2.4.1
-    factors 0.6W and 0.45W instead. Each wind term is each design wind load case of BNBC 2020
-    Figure 6.2.9 (Sec 2.4.11.3: Case 1, and Cases 2-4 with WTX, WTY when they were analysed),
+    factors 0.6W and 0.45W instead. Each wind term is each design wind load case of the code
+    pack (the default pack's Figure 6.2.9: Case 1, and Cases 2-4 with WTX, WTY when they were
+    analysed),
     named "<combination> [Case k ...]". Earthquake is strength-level: 0.7E and 0.525E."""
     cases = set(cases)
     dead = [c for c in ("D", "SD") if c in cases]
@@ -187,8 +188,8 @@ def _service_combinations(
 
 
 def _wind_variants(cases: set[str]) -> Any:
-    """``(case, sign) -> [(label, {case: unit factor})]``: the design wind load cases of BNBC
-    2020 Part 6 Sec 2.4.11.3 and Figure 6.2.9 (p. 559 and pp. 574-575) of one wind direction,
+    """``(case, sign) -> [(label, {case: unit factor})]``: the design wind load cases of the
+    code pack (the default pack's Sec 2.4.11.3 and Figure 6.2.9) of one wind direction,
     from :func:`saengine.fem.loads.wind_design_variants` (one definition with the strength
     combinations); Case 1 is labelled "" and duplicates are dropped. Only Case 1 when the code
     pack has no design cases."""
@@ -272,7 +273,7 @@ def strength_combinations(
     settings: ProjectSettings, cases: set[str] | dict[str, Any]
 ) -> list[tuple[str, dict[str, float]]]:
     """The project's strength combinations whose cases were all analysed, each one-direction
-    wind combination for the design wind load cases of BNBC 2020 Part 6 Figure 6.2.9 when the
+    wind combination for the design wind load cases of the code pack when the
     model has them (:func:`saengine.fem.combinations.wind_case_combinations`)."""
     from saengine.fem.combinations import (
         combination_factors,
@@ -295,7 +296,8 @@ def strength_combinations(
 
 
 def is_strength_level_wind(strength: list[tuple[str, dict[str, float]]]) -> bool:
-    """Wind is nominal when a strength combination factors it above 1.0 (1.6W, BNBC 2.7.3)."""
+    """Wind is nominal when a strength combination factors it above 1.0 (1.6W in the default
+    pack)."""
     factors = [abs(f) for _, fs in strength for case, f in fs.items() if case[:1] == "W"]
     return bool(factors) and max(factors) <= 1.0 + 1e-9
 

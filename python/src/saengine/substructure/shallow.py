@@ -30,9 +30,10 @@ contact polygon computed exactly.
 
 Strip footings under walls are designed per metre of wall across their width; strip footings
 under columns (a column line, with or without walls) as a rigid continuous footing, like a
-combined footing. Tie beams between footings take the strut-tie force of BNBC 2020 Part 6
-Sec 1.8.5.2 (b): 10 % of the larger footing or column load, in tension or compression, and the
-moment and shear of a given differential settlement between their ends.
+combined footing. Tie beams between footings take the strut-tie force of the code pack's
+``foundations.shallow.tieBeams`` (the default pack: BNBC 2020 Part 6 Sec 1.8.5.2 (b), 10 % of the
+larger footing or column load), in tension or compression, and the moment and shear of a given
+differential settlement between their ends.
 
 Units: mm, N, N·mm and MPa inside; reported in kN, kN·m/m, kPa, mm²/m.
 """
@@ -61,7 +62,7 @@ MIN_CONTACT = 0.25
 #: A service combination with wind or earthquake (its name names the case: WX, WTY, EX...).
 LATERAL = re.compile(r"\b[\d.]*(W|E)T?[XY]\b")
 
-SHALLOW_METHOD = [
+_SHALLOW_METHOD = [
     (
         "Footings (isolated, combined and strip): the support reactions of the columns and "
         "walls they carry, reversed, in the footing's axes; a horizontal reaction adds H times "
@@ -69,9 +70,8 @@ SHALLOW_METHOD = [
         "drawn, circles as the square of the same area (ACI R13.2.7.1)."
     ),
     (
-        "Bearing under the allowable-stress combinations of BNBC 2020 Part 6 2.7.2 "
-        "(ASCE 7-05 2.4.1) for nominal wind: D, D + L + Lr (enveloping BNBC D + L, D + Lr and "
-        "D + 0.75L + Lr), D + W, "
+        "Bearing under the allowable-stress combinations of ASCE 7-05 2.4.1 for nominal wind: "
+        "D, D + L + Lr (enveloping D + L, D + Lr and D + 0.75L + Lr), D + W, "
         "D + 0.75L + 0.75Lr + 0.75W, 0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E, "
         "0.6D + 0.7E; W and E in ±X and ±Y (with strength-level wind, ASCE 7-16 2.4.1: "
         "0.6W and 0.45W). Gross pressure q = P/A ± Mx/Sx ± My/Sy with the footing's weight "
@@ -154,22 +154,55 @@ SHALLOW_METHOD = [
         "punching at walls); a long strip on soft soil is better analysed as a beam on an "
         "elastic foundation."
     ),
-    (
-        "Tie beams: BNBC 2020 Part 6 Sec 1.8.5.2 (seismic zones 2, 3 and 4): the strut ties "
-        "between footings resist in tension or compression at least 10 % of the larger "
-        "footing or column load (here the largest factored compression of either foundation, "
-        "all its columns and walls together, or of any one column on them), unless friction "
-        "and passive soil resistance give equivalent "
-        "restraint; φPn in tension φ fy As (φ = 0.9) and in compression 0.80 φ P0 (φ = 0.65, "
-        "a short member braced by the soil). Sec 8.3.11.3 (b): the smallest cross-section "
-        "dimension at least the clear spacing between the connected columns / 20, need not "
-        "exceed 450 mm (as in ACI 318-19 18.13.3). A given differential settlement Δ between "
-        "the ends adds M = 6 E (0.35 Ig) Δ / L² and V = 2M / L (both ends fixed; 0.35 Ig per "
-        "ACI 318-19 Table 6.6.3.1.1), checked with the axial force on the interaction "
-        "surface and for shear (ACI Table 22.5.5.1, Vc reduced by Nu / (6 Ag) bw d for the "
-        "tie force in tension, not below zero)."
-    ),
 ]
+
+
+def _tie_beam_method() -> str:
+    """The tie beams' method line, with the pack in force's rules and clauses."""
+    from saengine.substructure import shallow_rules
+
+    ties = _tie_rules()
+    common = (
+        "A given differential settlement Δ between the ends adds M = 6 E (0.35 Ig) Δ / L² and "
+        "V = 2M / L (both ends fixed; 0.35 Ig per ACI 318-19 Table 6.6.3.1.1), checked with the "
+        "axial force on the interaction surface and for shear (ACI Table 22.5.5.1, Vc reduced by "
+        "Nu / (6 Ag) bw d for the tie force in tension, not below zero)."
+    )
+    if ties is None:
+        return (
+            "Tie beams: "
+            + shallow_rules.not_covered("the strut-tie force and size")
+            + ". "
+            + common
+        )
+    clause = shallow_rules.cite("shallow.tieBeams", shallow_rules.code_name())
+    size = shallow_rules.cite("shallow.tieBeams.size")
+    zones = ", ".join(str(z) for z in ties.zones[:-1]) + (
+        f" and {ties.zones[-1]}" if len(ties.zones) > 1 else str(ties.zones[0])
+    )
+    return (
+        f"Tie beams: {clause} (seismic zones {zones}): the strut ties between footings resist "
+        f"in tension or compression at least {ties.forceShare * 100:g} % of the larger footing "
+        "or column load (here the largest factored compression of either foundation, all its "
+        "columns and walls together, or of any one column on them), unless friction and passive "
+        "soil resistance give equivalent restraint; φPn in tension φ fy As (φ = 0.9) and in "
+        "compression 0.80 φ P0 (φ = 0.65, a short member braced by the soil)."
+        + (f" {size}:" if size else "")
+        + " the smallest cross-section dimension at least the clear spacing between the "
+        f"connected columns / {ties.spanDivisor:g}, need not exceed {ties.sizeMax:g} mm (as in "
+        f"ACI 318-19 18.13.3). {common}"
+    )
+
+
+def shallow_method() -> list[str]:
+    """The footings' method lines, with the pack in force's tie beam rules."""
+    return [*_SHALLOW_METHOD, _tie_beam_method()]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "SHALLOW_METHOD":  # the former constant, with the pack in force
+        return shallow_method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ─────────────────────────────────────── soil pressure ───────────────────────────────────────
@@ -2279,10 +2312,16 @@ def footing_load(loads: Any, columns: list[str]) -> float:
     )
 
 
-def tie_force(loads: Any, ends: list[tuple[str, list[str]]]) -> tuple[float, str | None]:
-    """BNBC 2020 Part 6 Sec 1.8.5.2 (b): 10 % of the larger footing or column load [N] of the
-    two foundations ``ends`` (id, the columns it carries): the largest factored compression of
-    a foundation (all its columns together) or of any one column; and what governs it."""
+def tie_force(
+    loads: Any, ends: list[tuple[str, list[str]]], share: float | None = None
+) -> tuple[float, str | None]:
+    """The pack's ``tieBeams.forceShare`` (the default pack: 10 %, BNBC 2020 Part 6 Sec
+    1.8.5.2 (b)) of the larger footing or column load [N] of the two foundations ``ends`` (id,
+    the columns it carries): the largest factored compression of a foundation (all its columns
+    together) or of any one column; and what governs it."""
+    if share is None:
+        ties = _tie_rules()
+        share = 0.0 if ties is None else float(ties.forceShare)
     best, which = 0.0, None
     for foundation_id, columns in ends:
         carried = [c for c in columns if c in loads.bases]
@@ -2294,13 +2333,23 @@ def tie_force(loads: Any, ends: list[tuple[str, list[str]]]) -> tuple[float, str
             p = footing_load(loads, carried)
             if p > best + 1e-6:
                 best, which = p, f"{foundation_id} ({', '.join(carried)})"
-    return 0.1 * best, which
+    return share * best, which
+
+
+def _tie_rules() -> Any | None:
+    """The pack's tie beam rules (``foundations.shallow.tieBeams``), or None. Read on their
+    own: they do not depend on the shallow foundations' geotechnical rules being used."""
+    from saengine.substructure import shallow_rules
+
+    shallow = shallow_rules.foundations_value("shallow")
+    return None if shallow is None else shallow.tieBeams
 
 
 def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
-    """The checks of a tie beam between two foundations: the strut-tie force of BNBC 2020 Part 6
-    Sec 1.8.5.2 in tension and compression, its size against Sec 8.3.11.3 (b), and the moment
-    and shear of a given differential settlement. Raises
+    """The checks of a tie beam between two foundations: the strut-tie force of the pack's
+    ``tieBeams`` rules in tension and compression and its least size (the default pack: BNBC
+    2020 Part 6 Secs 1.8.5.2 and 8.3.11.3 (b)), and the moment and shear of a given differential
+    settlement. Raises
     :class:`~saengine.substructure.context.Skip` when it cannot be designed."""
     from saengine.design.rc import DesignError, InteractionSurface, section_of, shear
     from saengine.library.objects import Beam, RectangleProfile
@@ -2331,63 +2380,82 @@ def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
         raise Skip(str(error)) from error
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
-    force, governing = tie_force(loads, [(f.id, _carried(ctx, f)) for f in ends])
-    flag = derived(ctx.settings)["zone"] == 1
-    rule = "10 % of the larger footing or column load (BNBC 2020 Part 6 Sec 1.8.5.2 (b))"
-    if governing is not None:
-        rule += f": {governing}, {force * 10 / 1e3:.0f} kN factored"
-    if flag:
-        rule += "; seismic zone 1: not required by Sec 1.8.5, reported only"
-    checks.append(
-        _check(
-            "Tie force (tension)",
-            force / 1e3,
-            section.phi_tension / 1e3,
-            "kN",
-            None,
-            f"{rule}; φ fy As, φ = 0.90, As = {section.steel_area:.0f} mm²",
-            flag,
-        )
-    )
-    checks.append(
-        _check(
-            "Tie force (compression)",
-            force / 1e3,
-            section.phi_pn_max / 1e3,
-            "kN",
-            None,
-            f"{rule}; 0.80 φ P0, φ = 0.65 (a short member braced by the soil)",
-            flag,
-        )
-    )
+    from saengine.substructure import shallow_rules
 
-    # Size: the clear spacing between the connected columns / 20, at most 450 mm.
+    ties = _tie_rules()
+    force, governing = 0.0, None
+    if ties is None:
+        notes.append(f"{tie.id}: " + shallow_rules.not_covered("the tie force and least size"))
+    else:
+        force, governing = tie_force(
+            loads, [(f.id, _carried(ctx, f)) for f in ends], float(ties.forceShare)
+        )
+        zone = derived(ctx.settings)["zone"]
+        flag = zone not in ties.zones
+        share = float(ties.forceShare)
+        clause = shallow_rules.cite("shallow.tieBeams", shallow_rules.code_name())
+        rule = f"{share * 100:g} % of the larger footing or column load ({clause})"
+        if governing is not None:
+            rule += f": {governing}, {force / share / 1e3:.0f} kN factored"
+        if flag:
+            rule += f"; seismic zone {zone}: not required by {clause}, reported only"
+        checks.append(
+            _check(
+                "Tie force (tension)",
+                force / 1e3,
+                section.phi_tension / 1e3,
+                "kN",
+                None,
+                f"{rule}; φ fy As, φ = 0.90, As = {section.steel_area:.0f} mm²",
+                flag,
+            )
+        )
+        checks.append(
+            _check(
+                "Tie force (compression)",
+                force / 1e3,
+                section.phi_pn_max / 1e3,
+                "kN",
+                None,
+                f"{rule}; 0.80 φ P0, φ = 0.65 (a short member braced by the soil)",
+                flag,
+            )
+        )
+
+    # Size: the clear spacing between the connected columns / the pack's divisor, at most its
+    # largest size (the default pack: / 20, 450 mm).
     centres = [ctx.center(f) for f in ends]
-    positions = [[(c, p) for c in f.columns if (p := ctx.position(c)) is not None] for f in ends]
-    clear = float(np.linalg.norm(centres[1] - centres[0]))
-    if positions[0] and positions[1]:
-        (ca, a), (cb, b) = min(
-            ((pa, pb) for pa in positions[0] for pb in positions[1]),
-            key=lambda pair: float(np.linalg.norm(pair[1][1] - pair[0][1])),
+    if ties is not None:
+        positions = [
+            [(c, p) for c in f.columns if (p := ctx.position(c)) is not None] for f in ends
+        ]
+        clear = float(np.linalg.norm(centres[1] - centres[0]))
+        if positions[0] and positions[1]:
+            (ca, a), (cb, b) = min(
+                ((pa, pb) for pa in positions[0] for pb in positions[1]),
+                key=lambda pair: float(np.linalg.norm(pair[1][1] - pair[0][1])),
+            )
+            direction = (b - a) / max(float(np.linalg.norm(b - a)), 1e-9)
+            clear = float(np.linalg.norm(b - a))
+            for column_id in (ca, cb):
+                clear -= _half_depth(ctx, column_id, direction)
+        clear = max(clear, 0.0)
+        divisor, largest = float(ties.spanDivisor), float(ties.sizeMax)
+        required = min(clear / divisor, largest)
+        size_clause = shallow_rules.cite("shallow.tieBeams.size")
+        checks.append(
+            _check(
+                "Least size",
+                required,
+                min(profile.xDim, profile.yDim),
+                "mm",
+                None,
+                f"smallest dimension ≥ the clear spacing {clear:.0f} mm between the columns / "
+                f"{divisor:g}, need not exceed {largest:g} mm"
+                + (f" ({size_clause})" if size_clause else ""),
+                flag,
+            )
         )
-        direction = (b - a) / max(float(np.linalg.norm(b - a)), 1e-9)
-        clear = float(np.linalg.norm(b - a))
-        for column_id in (ca, cb):
-            clear -= _half_depth(ctx, column_id, direction)
-    clear = max(clear, 0.0)
-    required = min(clear / 20, 450.0)
-    checks.append(
-        _check(
-            "Size (BNBC 8.3.11.3)",
-            required,
-            min(profile.xDim, profile.yDim),
-            "mm",
-            None,
-            f"smallest dimension ≥ the clear spacing {clear:.0f} mm between the columns / 20, "
-            "need not exceed 450 mm (BNBC 2020 Part 6 Sec 8.3.11.3 (b))",
-            flag,
-        )
-    )
 
     if tie.settlement:
         e = concrete.mechanical.E or 4700 * math.sqrt(concrete.concrete.fc)

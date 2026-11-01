@@ -244,7 +244,7 @@ def test_permissible_settlements_of_table_6_3_8() -> None:
 
 
 def test_youd_pieces() -> None:
-    assert liquefaction.rd_bnbc(10.0) == pytest.approx(0.85)
+    assert liquefaction.rd_linear(10.0, 0.015) == pytest.approx(0.85)
     assert liquefaction.youd_fines(5) == (0.0, 1.0)
     assert liquefaction.youd_fines(35) == (5.0, 1.2)
     a, b = liquefaction.youd_fines(15)

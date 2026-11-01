@@ -687,7 +687,7 @@ def test_tie_beam_force_size_and_settlement_by_hand() -> None:
         0.8 * 0.65 * p0 / KN, rel=1e-3
     )
     # Size: the clear spacing between the column faces 6000 - 400 = 5600 mm / 20 = 280 mm.
-    size = checks["Size (BNBC 8.3.11.3)"]
+    size = checks["Least size"]
     assert (size["demand"], size["capacity"], size["ok"]) == (280, 250, False)
     # Settlement: M = 6 E (0.35 Ig) Δ / L², V = 2M / L.
     e = default_material_library().get("C24.1").mechanical.E
@@ -720,7 +720,7 @@ def test_tie_beam_force_size_and_settlement_by_hand() -> None:
     assert [c["name"] for c in result["checks"]] == [
         "Tie force (tension)",
         "Tie force (compression)",
-        "Size (BNBC 8.3.11.3)",
+        "Least size",
     ]
 
 

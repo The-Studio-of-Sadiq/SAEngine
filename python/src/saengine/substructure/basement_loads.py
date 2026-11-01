@@ -5,8 +5,9 @@ A wall of 6 BIM is loaded when its wall type is a basement wall (``basement`` in
 or a retaining wall of 9 Substructure names it (``wall``), and ``earthPressure.basementWalls``
 is on. The pressure is at rest (a wall propped by the floors cannot yield), from the one
 earth-pressure engine (:mod:`saengine.substructure.earth_pressure`) on the soil of 1 Soil
-Report at the wall's middle: ``K0 (σ'v + q) + u`` below the finished ground (BNBC 2020 Part 6
-Sec 2.6.5.1, p680). It pushes the wall away from the soil: the soil is on the side of the wall
+Report at the wall's middle: ``K0 (σ'v + q) + u`` below the finished ground (the code pack's
+``retainingWall.pressure`` clause). It pushes the wall away from the soil: the soil is on the
+side of the wall
 away from the building's middle, or on the retaining wall's ``soilSide``.
 
 Units: mm for levels and positions, kPa returned.
@@ -117,10 +118,18 @@ def basement_pressures(
     if found:
         notes.append(
             f"H: earth and water pressure at rest on the basement walls "
-            f"{', '.join(w.wall for w in found)} (BNBC 2020 Part 6 Sec 2.6.5.1; soil: "
+            f"{', '.join(w.wall for w in found)} ({_pressure_clause()}soil: "
             f"{'; '.join(sorted(sources))})"
         )
     return found, notes
+
+
+def _pressure_clause() -> str:
+    """ "<clause>; " of the pack's earth and water pressure on basement walls ("" if none)."""
+    from saengine.substructure.shallow_rules import cite
+
+    clause = cite("retainingWall.pressure")
+    return f"{clause}; " if clause else ""
 
 
 def has_earth_pressure(building: Any, objects: Any, substructure: Any = None) -> bool:

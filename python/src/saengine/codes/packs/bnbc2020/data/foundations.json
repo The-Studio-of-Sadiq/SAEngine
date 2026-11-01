@@ -185,7 +185,18 @@
     "strutAndTie.compressionSteel": "BNBC 2020 Part 6 Appendix I Sec I.3.5, Eq 6.I.5 (part 2 p. 491): Fns = fce Acs + As' fs', fs' = fy for Grade 40 or 60 bars",
     "strutAndTie.nodeArea": "BNBC 2020 Part 6 Appendix I Sec I.5.1, Eq 6.I.7 (part 2 p. 494): Fnn = fce Anz",
     "strutAndTie.equilibrium": "BNBC 2020 Part 6 Appendix I Secs I.2.1-I.2.2 and I.2.6, Eq 6.I.1 (part 2 pp. 486-488): the truss in equilibrium with the factored loads, φ Fn ≥ Fu, Fu the largest of all load cases",
-    "strutAndTie.anchorage": "BNBC 2020 Part 6 Appendix I Secs I.4.3.1-I.4.3.3 (part 2 p. 493): the tie force developed where its bar centroid leaves the extended nodal zone"
+    "strutAndTie.anchorage": "BNBC 2020 Part 6 Appendix I Secs I.4.3.1-I.4.3.3 (part 2 p. 493): the tie force developed where its bar centroid leaves the extended nodal zone",
+    "retainingWall.baseCover": "BNBC 2020 Part 6 Sec 8.1.7.2 (a) (p. 1069): concrete cast against and permanently exposed to earth, 75 mm",
+    "retainingWall.pressure": "BNBC 2020 Part 6 Sec 2.6.5.1 (p. 680): submerged unit weight of the soil plus the full hydrostatic pressure below the water table",
+    "retainingWall.uplift": "BNBC 2020 Part 6 Sec 2.6.5.2 (p. 680): the full hydrostatic pressure under basement floors",
+    "shallow.tieBeams": "BNBC 2020 Part 6 Sec 1.8.5.2 (b) (p. 507): strut ties for 10% of the larger footing or column load, in seismic zones 2, 3 and 4 (Sec 1.8.5)",
+    "shallow.tieBeams.size": "BNBC 2020 Part 6 Sec 8.3.11.3 (b) (p. 1120): the smallest dimension at least the clear spacing between the connected columns / 20, need not exceed 450 mm",
+    "upliftSkin": "BNBC 2020 Part 6 Eq 6.3.12 (p. 743): Qult = 0.7 Qs + W in uplift",
+    "pileCap": "BNBC 2020 Part 6 Sec 3.10.1.20 (p. 751): the soil under the cap carries no load; piles embedded at least 75 mm; the cap at least 100 mm beyond the piles; clear cover at least 50 mm over a 75 mm levelling course",
+    "pileCap.spacing": "BNBC 2020 Part 6 Sec 3.10.1.30 (p. 755): end bearing piles more than the greater of 750 mm and 2.5 D apart; friction piles generally at least 3.0 D",
+    "pileCap.bracing": "BNBC 2020 Part 6 Sec 3.10.1.19 (p. 751): group efficiency, and a two pile group braced along its axis only",
+    "pileCap.singlePileDiameter": "BNBC 2020 Part 6 Sec 3.10.4.11 (p. 766)",
+    "pileCap.upliftTopBars": "BNBC 2020 Part 6 Sec 8.3.11.2 (d) (p. 1120): top flexural reinforcement where earthquake effects create uplift"
   },
   "retainingWall": {
     "sliding": 1.5,
@@ -198,7 +209,8 @@
     "hFactor": 1.6,
     "yieldingKh": 0.5,
     "flotationDead": 0.9,
-    "frictionCoefficient": 0.5
+    "frictionCoefficient": 0.5,
+    "baseCover": 75.0
   },
   "shallow": {
     "bearingCombinations": [
@@ -673,6 +685,16 @@
       "areaRatioMax": 2.0,
       "dowelRatio": 0.005,
       "minBars": 4
+    },
+    "tieBeams": {
+      "forceShare": 0.1,
+      "zones": [
+        2,
+        3,
+        4
+      ],
+      "spanDivisor": 20.0,
+      "sizeMax": 450.0
     }
   },
   "piles": {
@@ -1582,6 +1604,15 @@
     "decrement": "exact",
     "hysteresisDivisor": 12.566371,
     "note": "Printed misprints resolved conservatively (owner decision 1): Eq 6.3.53 prints 1 - μ where Barkan's relation has 1 - μ², so both are enveloped; Eq 6.3.57 prints 4π² fn m, dimensionally k = 4π² fn² m; Eq 6.3.58 gives D ≈ δ/2π, the exact inverse δ/√(4π² + δ²) is smaller; Eq 6.3.59 prints D = ΔW/W, the loss per cycle gives D = ΔW/(4π W), smaller. Amplitude ranges at 500-1500 rpm are taken at their low end. The speed classes for resonance (300 and 1000 rpm, Sec 3.20.2.2) and the amplitude rows (500, 1500, 3000 rpm) are printed with different breaks and kept as printed."
+  },
+  "upliftSkin": 0.7,
+  "pileCap": {
+    "spacing": 2.5,
+    "spacingMin": 750.0,
+    "frictionSpacing": 3.0,
+    "edgeDistance": 100.0,
+    "embedment": 75.0,
+    "singlePileDiameter": 600.0
   },
   "clauses": {
     "subgradeModulus": "Part 6 Eq 6.3.9"

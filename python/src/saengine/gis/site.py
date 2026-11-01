@@ -1,7 +1,7 @@
 """The soil report's site on the map, and the exchange with QGIS: the API the workbench calls.
 
 - :func:`soil_location`: the site, the boreholes in every coordinate system, the building
-  outline (06 BIM) on the map, and the BNBC location the site suggests;
+  outline (06 BIM) on the map, and the code pack's location the site suggests;
 - :func:`gis_export`: the site, its boundary, the boreholes (with their key values) and the
   building outline as GeoJSON or a GeoPackage, in WGS 84;
 - :func:`gis_import`: boreholes (points) and the site boundary (a polygon) from GeoJSON or a
@@ -136,11 +136,16 @@ def _settings_location(settings_text: str | None) -> dict[str, Any] | None:
 
 def suggestion(
     latitude: float, longitude: float, settings_text: str | None = None
-) -> dict[str, Any]:
-    """The BNBC zone and wind speed of the nearest listed towns, as a suggestion."""
+) -> dict[str, Any] | None:
+    """The code pack's zone and wind speed of the nearest listed towns, as a suggestion; None
+    when the pack lists no towns (it does not cover the suggestion)."""
+    found = towns.town_map()
+    if found is None or not found.towns:
+        return None
     z_town, z_km = towns.nearest(latitude, longitude, need="z")
     v_town, v_km = towns.nearest(latitude, longitude, need="wind")
-    zone = towns.ZONES[z_town.z] if z_town.z is not None else None
+    zone = towns.zones()[z_town.z] if z_town.z is not None else None
+    governs = f"; {found.governs}" if found.governs else ""
     out: dict[str, Any] = {
         "town": z_town.name,
         "distanceKm": round(z_km, 1),
@@ -149,9 +154,9 @@ def suggestion(
         "windSpeed": v_town.wind_speed,
         "windTown": v_town.name,
         "windDistanceKm": round(v_km, 1),
-        "settingsLocation": towns.SETTINGS_IDS.get(z_town.name),
-        "source": "BNBC 2020 Table 6.2.15 (Z) and Table 6.2.8 (V) of the nearest listed town; "
-        "the zoning map (Figure 6.2.24) and the wind map (Figure 6.2.1) govern",
+        "settingsLocation": towns.settings_ids().get(z_town.name),
+        "source": f"{found.zClause} (Z) and {found.windClause} (V) of the nearest "
+        f"listed town{governs}",
         "note": "A suggestion only: confirm the location in Project Settings.",
     }
     current = _settings_location(settings_text)
@@ -176,12 +181,12 @@ def suggestion(
         notes = []
         if z_differs:
             notes.append(
-                f"Z: Project Settings {current['Z']:g}, BNBC 2020 Table 6.2.15 for {z_town.name} "
+                f"Z: Project Settings {current['Z']:g}, {found.zClause} for {z_town.name} "
                 f"{z_town.z:g}"
             )
         if v_differs:
             notes.append(
-                f"V: Project Settings {current['windSpeed']:g} m/s, BNBC 2020 Table 6.2.8 for "
+                f"V: Project Settings {current['windSpeed']:g} m/s, {found.windClause} for "
                 f"{v_town.name} {v_town.wind_speed:g} m/s"
             )
         out["valueNotes"] = notes
@@ -307,12 +312,14 @@ def soil_location(
     out = locate(report, bim_text, settings_text)
     point = out.pop("_point")
     out["suggestion"] = suggestion(point[0], point[1], settings_text) if point else None
-    if point is not None:
+    found = towns.town_map()
+    if point is not None and found is not None:
         lat, lon = point
-        if not (20.3 <= lat <= 26.8 and 88.0 <= lon <= 92.8):
+        south, west, north, east = found.bounds
+        if not (south <= lat <= north and west <= lon <= east):
             out["problems"].append(
-                f"The site ({lat:.4f}, {lon:.4f}) is outside Bangladesh: the BNBC suggestion is "
-                "of the nearest Bangladeshi town only."
+                f"The site ({lat:.4f}, {lon:.4f}) is outside {found.area}: the code pack's "
+                f"suggestion is of the nearest town of {found.area} only."
             )
     return out
 
@@ -434,8 +441,8 @@ def _layers(project_root: str) -> tuple[list[gpkg.Layer], list[str]]:
             "btm_e": "REAL",
             "btm_n": "REAL",
         },
-        description="Boreholes: depth, ground level and water table [m], N̄ of the top 30 m "
-        "(BNBC Table 6.2.13), site class",
+        description="Boreholes: depth, ground level and water table [m], N̄ of the code pack's "
+        "site classification (the top 30 m in the default pack), site class",
     )
     unplaced = []
     for borehole, where in zip(report.boreholes, location["boreholes"], strict=True):

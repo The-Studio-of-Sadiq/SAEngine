@@ -1,6 +1,6 @@
 """Adequacy of the site investigation: the number, pattern, spacing and depth of the borings.
 
-What the code pack asks for (``siteInvestigation.borings`` and ``.depth``; with BNBC 2020:
+What the code pack asks for (``siteInvestigation.borings`` and ``.depth``; the default pack:
 Part 6 Sec 3.4.4(viii)-(ix) and Sec 3.4.5) is checked against the soil report's boreholes for
 the building and foundation of ``SoilReport.investigation`` (defaults: a large building on
 spread footings, average stratification, the footing of the design options' subgrade width and
@@ -69,8 +69,9 @@ def spread_depth_widths(spread: list[tuple[float, float]], b: float, l_: float) 
 
 
 def zone_widths(b: float, l_: float) -> float:
-    """The exploration depth below a footing in footing widths by the pack in force (BNBC 2020
-    Sec 3.4.5(i): 2 for L ≤ 2B, 4 for L ≥ 5B); 2 when the pack does not cover it."""
+    """The exploration depth below a footing in footing widths by the pack in force (the
+    default pack's BNBC 2020 Sec 3.4.5(i): 2 for L ≤ 2B, 4 for L ≥ 5B); when the pack does not
+    cover it, 2 (the stress bulb of a square footing, SAEngine practice)."""
     table = code_data.table()
     if table is None:
         return 2.0

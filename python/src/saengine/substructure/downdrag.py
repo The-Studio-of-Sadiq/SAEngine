@@ -2,7 +2,8 @@
 (Part 9, deep foundations).
 
 The code pack's ``foundations.piles.downdrag`` group chooses the method and holds its values
-(BNBC 2020: Secs 3.10.1.22-3.10.1.23, 3.10.6.17-3.10.6.19); a pack without it does not cover
+(the default pack: Secs 3.10.1.22-3.10.1.23, 3.10.6.17-3.10.6.19); a pack without it does not
+cover
 them. ``method`` ``"neutralPoint"`` (:func:`neutral_point`), a load-transfer analysis along the
 shaft at the borehole nearest the cap, the full ground movement assumed:
 
@@ -218,8 +219,9 @@ def swelling(
     profile: Any, single: dict[str, Any], zone: float, construction: Any = None
 ) -> dict[str, Any]:
     """The swelling uplift on a pile and the resistance below the zone [kN] (see the module
-    notes): ``{"zone" mm, "U", "Qbelow", "R"}``, R = 0.7 Qs(below) + W."""
-    from saengine.substructure.piles import UPLIFT_SKIN
+    notes): ``{"zone" mm, "U", "Qbelow", "R"}``, R = upliftSkin Qs(below) + W (the pack's
+    share, 0.7 in the default pack)."""
+    from saengine.substructure.piles import uplift_skin
 
     rows, _ = _slices(profile, single, zone, construction)
     uplift = sum(f for z, f in rows if z < zone)
@@ -228,7 +230,7 @@ def swelling(
         "zone": round(zone * 1e3),
         "U": round(uplift, 1),
         "Qbelow": round(below, 1),
-        "R": round(UPLIFT_SKIN * below + float(single["W"]), 1),
+        "R": round(uplift_skin() * below + float(single["W"]), 1),
     }
 
 

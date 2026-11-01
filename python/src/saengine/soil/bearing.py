@@ -26,9 +26,9 @@ loads (gross pressure minus the total overburden at the founding level, as
     with drained c', φ' are also checked drained and the lower value used.
 
     Every layer to the code pack's exploration depth below the base and beyond is checked
-    (BNBC 2020 Part 6 Sec 3.4.5(i): two footing widths for L <= 2B to four for L >= 5B, linear
-    between; :func:`saengine.soil.investigation.zone_widths`; Sec 3.9.3 asks for established
-    bearing capacity equations). The layer the footing stands on gives qt by the equation above. Each
+    (the default pack's BNBC 2020 Part 6 Sec 3.4.5(i): two footing widths for L <= 2B to four
+    for L >= 5B, linear between; :func:`saengine.soil.investigation.zone_widths`; its Sec
+    3.9.3 asks for established bearing capacity equations). The layer the footing stands on gives qt by the equation above. Each
     deeper layer, at H below the base, is checked for failing through the layers above it
     (strong over weak; both methods are in Bowles 1996, ch. 4, layered soils), capped at qt:
 
@@ -170,8 +170,8 @@ def gamma_for_width(profile: Profile, layer: SoilLayer, df: float, b: float) -> 
 
 def zone_widths(b: float, l_: float) -> float:
     """Depth below the base, in footing widths, within which a layer must have a strength: the
-    code pack's exploration depth below a spread footing (BNBC 2020 Part 6 Sec 3.4.5(i): 2B for
-    L <= 2B to 4B for L >= 5B)."""
+    code pack's exploration depth below a spread footing (the default pack's BNBC 2020 Part 6
+    Sec 3.4.5(i): 2B for L <= 2B to 4B for L >= 5B)."""
     from saengine.soil.investigation import zone_widths as widths
 
     return widths(b, l_)

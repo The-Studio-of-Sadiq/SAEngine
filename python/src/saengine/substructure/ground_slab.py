@@ -16,11 +16,12 @@ Record 1043):
 - corner: ``σc = 3 P / h² (1 - (c / l)^0.72)``, c the side of the square contact;
 
 each against the modulus of rupture over a factor of safety, ``fr / FS`` with ``fr = 0.62 λ
-√f'c`` (ACI 318-19 19.2.3.1; BNBC 2020 Part 6 Ch 6 takes the same value). Edge and corner
+√f'c`` (ACI 318-19 19.2.3.1; the default pack's code takes the same value). Edge and corner
 stresses assume no load transfer across the joints (on the safe side for dowelled joints).
 
 The slab under the concentrated load is checked for punching as plain concrete: the factored
-load ``1.6 P`` (BNBC 2020 Part 2 Ch 2 Sec 2.7.3, live load factor), with nothing taken off for
+load ``γL P`` (γL the largest live load factor of the code pack's strength combinations: 1.6
+in the default pack), with nothing taken off for
 the ground under it, against ``φVn = 0.60 × 0.11 (1 + 2/β) λ √f'c b0 h ≤ 0.60 × 0.22 λ √f'c b0
 h`` round the contact at h/2 (ACI 318-19 14.5.5.1 (b), φ of Table 21.2.1).
 
@@ -39,8 +40,27 @@ from typing import Any
 
 #: Strength reduction factor of plain concrete (ACI 318-19 Table 21.2.1).
 PHI_PLAIN = 0.60
-#: Live load factor for the punching check (BNBC 2020 Part 2 Sec 2.7.3: 1.2 D + 1.6 L).
-LIVE_FACTOR = 1.6
+
+
+def live_factor() -> tuple[float | None, str]:
+    """The largest live load factor of the pack's strength combinations (the default pack: 1.6,
+    1.2D + 1.6L) and the clause of that combination; (None, "") when the pack has none."""
+    from saengine.codes import context as code_context
+
+    best: tuple[float | None, str] = (None, "")
+    for row in code_context.table("combinations").strength:
+        factor = row.factors.get("L")
+        if factor is not None and (best[0] is None or factor > best[0]):
+            best = (float(factor), (row.source or "").split(",")[0].split(" (")[0])
+    return best
+
+
+def __getattr__(name: str) -> Any:
+    if name == "LIVE_FACTOR":  # the former constant, with the pack in force
+        return live_factor()[0]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 #: Contraction joints of a plain slab on grade at most this many thicknesses apart.
 JOINT_SPACING = 30.0
 #: Shrinkage and temperature ratio of the gross section (ACI 318-19 24.4.3.2, fy 420).
@@ -51,7 +71,8 @@ GROUND_SLAB_METHOD = [
         "Slabs on grade: the largest concentrated load by Westergaard's plate on a Winkler "
         "subgrade with the corrections of Ioannides et al. (1985): interior, edge and corner "
         "flexural stresses against fr / FS, fr = 0.62 λ √f'c (ACI 318-19 19.2.3.1); "
-        "punching of the plain slab round the contact under 1.6 P (ACI 14.5.5.1 (b)); the "
+        "punching of the plain slab round the contact under γL P (the code pack's largest live "
+        "load factor; ACI 14.5.5.1 (b)); the "
         "uniform floor load needs no flexure on a uniformly supported slab. The crack-control "
         "mesh (0.0018 Ag) and the joint spacing (≤ 30 h without a mesh) are reported only."
     ),
@@ -147,18 +168,20 @@ def ground_slab_checks(
                 )
             )
         capacity, b0 = plain_punching(side, h, fc)
-        checks.append(
-            _check(
-                "Punching under the concentrated load",
-                LIVE_FACTOR * slab.pointLoad,
-                capacity / 1e3,
-                "kN",
-                None,
-                f"Pu = 1.6 P (BNBC 2020 Part 2 Sec 2.7.3), plain concrete φVn = 0.60 × 0.22 √f'c "
-                f"b0 h (0.11 (1 + 2/β) ≤ 0.22, β = 1) with b0 = {b0:.0f} mm at h/2 (ACI 318-19 14.5.5.1 (b)); the ground under "
-                "the load is not taken off",
+        factor, clause = live_factor()
+        if factor is not None:  # else design_ground_slab notes it
+            checks.append(
+                _check(
+                    "Punching under the concentrated load",
+                    factor * slab.pointLoad,
+                    capacity / 1e3,
+                    "kN",
+                    None,
+                    f"Pu = {factor:g} P ({clause}), plain concrete φVn = 0.60 × 0.22 √f'c b0 h "
+                    f"(0.11 (1 + 2/β) ≤ 0.22, β = 1) with b0 = {b0:.0f} mm at h/2 (ACI 318-19 "
+                    "14.5.5.1 (b)); the ground under the load is not taken off",
+                )
             )
-        )
     mesh = slab.mesh
     required = SHRINKAGE_RATIO * h * 1000
     if mesh is not None:
@@ -219,6 +242,11 @@ def design_ground_slab(ctx: Any, slab: Any) -> tuple[dict[str, Any], list[str]]:
             raise Skip("its mesh needs a rebar material (03 Materials)")
         fy = ctx.rebar(slab.meshMaterial).steel.fy
     checks = ground_slab_checks(slab, fc, e, nu, k, fy)
+    if slab.pointLoad > 0 and live_factor()[0] is None:
+        notes.append(
+            f"{slab.id}: punching under the concentrated load: not covered by the code pack "
+            "(no live load factor in its strength combinations)"
+        )
     if slab.pointLoad <= 0:
         notes.append(
             f"{slab.id}: no concentrated load: a uniform load on a uniformly supported slab on "
