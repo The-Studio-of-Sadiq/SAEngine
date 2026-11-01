@@ -420,7 +420,9 @@ def test_builtin_shapes_presets_are_the_generate_panel_defaults(user_data):
         Path(rel).stem: model.model_validate_json(Path(info.path, rel).read_bytes())
         for rel in info.contents
     }
-    defaults = ("space-truss", "plane-truss", "arch", "dome", "barrel-vault", "cable-net")
+    defaults = (
+        "space-truss", "plane-truss", "arch", "dome", "barrel-vault", "cable-net", "portal-frame"
+    )  # fmt: skip
     # One preset per shape at the Generate panel's starting values (change both together).
     assert [presets[name].shape for name in defaults] == list(_SHAPES)
     assert len(presets) > len(defaults)  # and named variants

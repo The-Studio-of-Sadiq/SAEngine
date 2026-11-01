@@ -66,6 +66,7 @@ from saengine.codes import context as code_context
 from saengine.fem import loads as fl
 from saengine.fem import slab_load_shapes as sls
 from saengine.fem.mesh import Surface, Volume, mesh, shell_node_shares
+from saengine.fem.tension_only import RELEASE_LABEL, tension_only_cases
 from saengine.fem.towers import region_of as tower_region
 from saengine.fem.towers import towers_of
 from saengine.library.bim import (
@@ -995,6 +996,12 @@ def _derive_fem(
             and material.category.value == "steel"
         )
 
+    # Members whose brace type is tension-only (saengine.fem.tension_only): their sources.
+    tension_sources: set[str] = set()
+
+    def tension_only(type_id: str) -> bool:
+        return bool(getattr(types.get(type_id), "tensionOnly", False))
+
     for source, type_id, a, c in linear:
         axis = c - a
         sec = section(type_id, 0, abs(axis[2]) > abs(axis[0]), modifiers_of.get(source))
@@ -1012,6 +1019,8 @@ def _derive_fem(
             line_sources[source] = (source, sec)
         if simple(type_id):
             simple_ends[source] = (np.asarray(a, dtype=float), np.asarray(c, dtype=float))
+        if tension_only(type_id):
+            tension_sources.add(source)
 
     for element in building.elements:
         if not isinstance(element, MemberElement):
@@ -1033,6 +1042,8 @@ def _derive_fem(
         line_sources[element.id] = (element.id, sec)
         if simple(element.type):
             simple_ends[element.id] = (a.astype(float), c.astype(float))
+        if tension_only(element.type):
+            tension_sources.add(element.id)
 
     area_loads_of: dict[str, str | None] = {}
     for element in building.elements:
@@ -2248,6 +2259,19 @@ def _derive_fem(
     cases += [c for c in fl.WIND_TORSION_CASES.values() if c in patterns]
     cases += [p.name for p in live_cases]
     extra_labels = {p.name: p.label for p in live_cases}
+    # The release cases of the tension-only members (saengine.fem.tension_only): a unit pair of
+    # forces pulling each such element's ends apart, last so the other cases keep their ids.
+    for code, element_name, pair in tension_only_cases(elements, b.coords, tension_sources):
+        patterns[code] = {"nodal": pair, "element": {}}
+        cases.append(code)
+        extra_labels[code] = f"{RELEASE_LABEL} {element_name}"
+    if tension_sources:
+        b.notes.append(
+            f"tension-only members: {len(tension_sources)} brace(s) (e.g. "
+            + ", ".join(sorted(tension_sources)[:5])
+            + ") carry no compression: each load combination releases the ones it compresses "
+            "(release cases TO1, TO2...); the modal and response spectrum cases keep them all"
+        )
     load_patterns = []
     for number, case in enumerate(cases, start=1):
         pattern = patterns[case]

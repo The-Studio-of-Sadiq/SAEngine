@@ -2,8 +2,9 @@
 
 Presets of the parametric shapes built into SAEngine (`saengine.library.shapes`): one file per
 preset in `templates/`, each a name, a description and the shape's parameters as the modeller's
-Generate panel edits them. The six files named after a shape (`space-truss.json`,
-`plane-truss.json`, `arch.json`, `dome.json`, `barrel-vault.json`, `cable-net.json`) are the
+Generate panel edits them. The seven files named after a shape (`space-truss.json`,
+`plane-truss.json`, `arch.json`, `dome.json`, `barrel-vault.json`, `cable-net.json`,
+`portal-frame.json`) are the
 starting values of the Generate panel (`saengine.library.templates._SHAPES`, checked by the
 tests); the others are named variants.
 

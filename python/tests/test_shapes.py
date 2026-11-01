@@ -21,6 +21,7 @@ from saengine.library.shapes import (
     CableNet,
     Dome,
     PlaneTruss,
+    PortalFrame,
     SpaceTruss,
     insert,
     shape_geometry,
@@ -248,3 +249,60 @@ def test_rpc_handlers(tmp_path: Path) -> None:
     assert missing["problems"] == [
         "x.step: x.step: only DXF, DWG, IFC and Rhino (.3dm) files can be imported"
     ]
+
+
+# ───────────────────────────── portal frames (PEB sheds) ─────────────────────────────
+
+
+def _peb(**changes: object) -> PortalFrame:
+    values: dict[str, object] = {
+        "width": 30000,
+        "length": 72000,
+        "bays": 9,
+        "eaveHeight": 9000,
+        "endColumns": 3,
+        "columnType": "C",
+        "rafterType": "R",
+        "purlinType": "P",
+        "girtType": "G",
+        "bracingType": "B",
+    }
+    return PortalFrame.model_validate({**values, **changes})
+
+
+def test_portal_frame_gable_geometry():
+    shape = _peb()
+    g = shape_geometry(shape)
+    # 10 frames x 2 columns + 3 end wall columns at each gable end, all supported.
+    assert len(g.supports) == 26
+    assert all(s.fixity == "pinned" for s in g.supports)
+    ridge = 9000 + 15000 * np.tan(np.radians(5.71))
+    tops = max(max(m.start[2], m.end[2]) for m in g.members)
+    assert tops == pytest.approx(ridge, abs=0.5)
+    # Purlins at equal spacing no wider than 1500 mm along the slope.
+    lines = shape.purlin_lines()
+    steps = np.diff(lines[: len(lines) // 2 + 1])
+    assert np.all(steps / np.cos(np.radians(5.71)) <= 1500 + 1e-6)
+    # Two braced bays (the end bays): 2 walls x 2 + 2 slopes x 2 panels x 2 diagonals each.
+    braces = [m for m in g.members if m.type == "B"]
+    assert len(braces) == 2 * (2 * 2 + 2 * 2 * 2)
+    # Every purlin and roof brace end lies on a rafter node (rafters are split there).
+    rafter_nodes = {
+        tuple(np.round(p, 1)) for m in g.members if m.type == "R" for p in (m.start, m.end)
+    }
+    for m in g.members:
+        if m.type in ("P", "B") and min(m.start[2], m.end[2]) > 9000 - 1:
+            assert tuple(np.round(m.start, 1)) in rafter_nodes
+
+
+def test_portal_frame_mono_slope_two_spans_and_checks():
+    shape = _peb(roof="monoSlope", slope=5, spans=2, endColumns=0, bracedBays=[5])
+    g = shape_geometry(shape)
+    high = 9000 + 30000 * np.tan(np.radians(5))
+    assert max(max(m.start[2], m.end[2]) for m in g.members) == pytest.approx(high, abs=0.5)
+    # Interior column line at mid-width, up to the roof, in every frame.
+    interior = [m for m in g.members if m.type == "C" and abs(m.start[0] - 15000) < 1]
+    assert len({round(m.start[1]) for m in interior}) == 10
+    assert {round(min(m.start[1], m.end[1])) for m in g.members if m.type == "B"} == {32000}
+    with pytest.raises(ValidationError):
+        _peb(bracedBays=[10])

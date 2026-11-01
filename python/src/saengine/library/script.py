@@ -11,7 +11,7 @@ it from the 3D modeller, it gets the model as ``model`` and adds to it::
                           memberType="CHS", origin=(0, 0, 8000)))
 
 The shapes of :mod:`saengine.library.shapes` (``SpaceTruss``, ``PlaneTruss``, ``Arch``,
-``Dome``, ``BarrelVault``, ``CableNet``), ``math`` and ``numpy`` (as ``np``) are at hand
+``Dome``, ``BarrelVault``, ``CableNet``, ``PortalFrame``), ``math`` and ``numpy`` (as ``np``) are at hand
 without imports. What the script adds goes in as one edit, through
 :func:`saengine.library.shapes.insert`, so it can be undone in one step.
 
@@ -42,7 +42,7 @@ TIMEOUT = 300
 TEMPLATE = '''"""Builds part of the structural model. Run it from the 3D modeller (Script).
 
 `model` is the structural model. Lengths are in mm, angles in degrees, Z is up. The shapes
-SpaceTruss, PlaneTruss, Arch, Dome, BarrelVault and CableNet, `math` and `np` (numpy) are
+SpaceTruss, PlaneTruss, Arch, Dome, BarrelVault, CableNet and PortalFrame, `math` and `np` (numpy) are
 available without imports.
 """
 

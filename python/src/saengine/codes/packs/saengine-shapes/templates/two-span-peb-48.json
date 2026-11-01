@@ -1,0 +1,14 @@
+{
+  "name": "Two-span PEB 48 × 90 m",
+  "description": "Gable frames over two 24 m spans with an interior column line, 10 bays of 9 m, 10 m eave.",
+  "shape": {
+    "kind": "portalFrame",
+    "width": 48000.0,
+    "length": 90000.0,
+    "bays": 10,
+    "eaveHeight": 10000.0,
+    "spans": 2,
+    "columnType": "MEMBER",
+    "rafterType": "MEMBER"
+  }
+}

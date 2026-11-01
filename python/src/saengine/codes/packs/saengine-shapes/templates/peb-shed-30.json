@@ -1,0 +1,17 @@
+{
+  "name": "PEB shed 30 × 72 m, braced",
+  "description": "Pre-engineered gable shed: 9 bays of 8 m, 9 m eave, 3 end wall columns, purlins at 1.5 m, girts at 1.8 m, X-bracing in the end bays (pick the purlin, girt and bracing types).",
+  "shape": {
+    "kind": "portalFrame",
+    "width": 30000.0,
+    "length": 72000.0,
+    "bays": 9,
+    "eaveHeight": 9000.0,
+    "endColumns": 3,
+    "columnType": "MEMBER",
+    "rafterType": "MEMBER",
+    "purlinType": "MEMBER",
+    "girtType": "MEMBER",
+    "bracingType": "MEMBER"
+  }
+}

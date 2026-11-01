@@ -51,6 +51,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { loadViewerModule } from '../../saengineFem/browser/viewerModule.js';
 import { formatPropertyValue, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
 import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, EditResult, isStructure, mirrorElements, moveElements, parseOffset, removeElements } from './structureEdits.js';
@@ -103,6 +104,17 @@ const FIELD_KINDS: { readonly [path: string]: readonly string[] } = {
 	'shape.webType': MEMBER_KINDS,
 	'shape.edgeType': MEMBER_KINDS,
 	'shape.panelType': ['slab', 'wall'],
+	// Portal frame (PEB) sheds.
+	'shape.columnType': ['column'],
+	'shape.rafterType': ['beam'],
+	'shape.interiorColumnType': ['column'],
+	'shape.endColumnType': ['column'],
+	'shape.purlinType': ['beam'],
+	'shape.girtType': ['beam'],
+	'shape.eaveStrutType': ['beam'],
+	'shape.bracingType': ['brace'],
+	'shape.roofPanelType': ['slab'],
+	'shape.wallPanelType': ['wall'],
 	'options.memberType': ['beam', 'brace'],
 	'options.columnType': ['column'],
 	'options.slabType': ['slab'],
@@ -119,6 +131,9 @@ const SCRIPTS_FOLDER = 'scripts';
 
 /** Output channel of model scripts (registered by the contribution). */
 export const SCRIPT_OUTPUT_CHANNEL_ID = 'saengine.structureScripts';
+
+/** Planned feature (registered in the contribution): tapered and haunched portal frame members. */
+export const PLANNED_TAPERED_MEMBERS = 'structure.taperedMembers';
 
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value));
@@ -197,6 +212,8 @@ export class StructureModelerEditor extends EditorPane {
 	/** The coded template being generated (round M5), with its form; undefined for a built-in shape. */
 	private coded: { readonly preset: IStructurePreset; readonly schema: IJSONSchema; readonly value: JsonObject; readonly form: SchemaForm } | undefined;
 	private readonly codedForm = this._register(new DisposableStore());
+	/** Planned feature chips under the Generate form (a portal frame's tapered members). */
+	private readonly plannedChips = this._register(new DisposableStore());
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 
 	private model: ITextModel | undefined;
@@ -924,13 +941,32 @@ export class StructureModelerEditor extends EditorPane {
 		return drawn && types.includes(drawn) ? drawn : types[0];
 	}
 
-	/** A shape's starting values, with the member type placeholder replaced. */
+	/** A shape's starting values, with the member type placeholders replaced. */
 	private template(defName: string): JsonObject {
 		const value = clone((TEMPLATES[defName] ?? {}) as JsonObject);
-		if (value.memberType === 'MEMBER') {
-			value.memberType = this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
-		}
+		this.fillTypes(value);
 		return value;
+	}
+
+	/**
+	 * Replaces the "MEMBER" placeholders of a shape (and an empty member type) by an object
+	 * type: the member type by a brace or beam type, a portal frame's column and rafter types by
+	 * a column and a beam type.
+	 */
+	private fillTypes(shape: JsonObject): void {
+		const member = () => this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
+		if (shape.memberType === 'MEMBER' || (shape.kind !== 'portalFrame' && (typeof shape.memberType !== 'string' || !shape.memberType))) {
+			shape.memberType = member();
+		}
+		const placeholders = [
+			['columnType', ['column']], ['rafterType', ['beam']], ['purlinType', ['beam']],
+			['girtType', ['beam']], ['eaveStrutType', ['beam']], ['bracingType', ['brace']],
+		] as const;
+		for (const [key, kinds] of placeholders) {
+			if (shape[key] === 'MEMBER') {
+				shape[key] = this.defaultType(kinds) ?? member();
+			}
+		}
 	}
 
 	private openShape(): void {
@@ -993,9 +1029,7 @@ export class StructureModelerEditor extends EditorPane {
 			return;
 		}
 		const shape = clone(preset.shape as JsonObject);
-		if (shape.memberType === 'MEMBER' || typeof shape.memberType !== 'string' || !shape.memberType) {
-			shape.memberType = this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
-		}
+		this.fillTypes(shape);
 		const origin = (this.shapeValue?.shape as JsonObject | undefined)?.origin;
 		if (origin !== undefined && shape.origin === undefined) {
 			shape.origin = origin;
@@ -1081,6 +1115,11 @@ export class StructureModelerEditor extends EditorPane {
 		} else if (source.kind === 'shape' && this.shapeValue) {
 			this.panelTitle.textContent = localize('modeler.generateTitleShort', "Generate Shape");
 			this.shapeForm.render(this.panelForm, SHAPE_SCHEMA, this.shapeValue);
+			this.plannedChips.clear();
+			if ((this.shapeValue.shape as JsonObject | undefined)?.kind === 'portalFrame') {
+				const chips = append(this.panelForm, $('.saengine-planned-chips'));
+				this.plannedChips.add(appendPlannedFeatureChip(chips, PLANNED_TAPERED_MEMBERS, this.commandService));
+			}
 		} else if (source.kind === 'import' && this.importValue) {
 			this.panelTitle.textContent = localize('modeler.importFile', "Import {0}", basename(source.file));
 			this.importForm.render(this.panelForm, IMPORT_SCHEMA, this.importValue);

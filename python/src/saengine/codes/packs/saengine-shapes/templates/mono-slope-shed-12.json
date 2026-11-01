@@ -1,0 +1,15 @@
+{
+  "name": "Mono-slope shed 12 × 36 m",
+  "description": "Lean-to portal frames at 6 m, 6 m at the low eave, 5° roof.",
+  "shape": {
+    "kind": "portalFrame",
+    "width": 12000.0,
+    "length": 36000.0,
+    "bays": 6,
+    "eaveHeight": 6000.0,
+    "roof": "monoSlope",
+    "slope": 5.0,
+    "columnType": "MEMBER",
+    "rafterType": "MEMBER"
+  }
+}
