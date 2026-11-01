@@ -154,6 +154,29 @@ class Site(_Model):
     )
 
 
+class AdjacentStructure(_Model):
+    name: str = Field(min_length=1, description="The adjacent building or unit.")
+    gap: float = Field(ge=0, title="Gap", description="Clear distance [mm] to it.")
+    displacement: float = Field(
+        default=0.0,
+        ge=0,
+        title="Its maximum displacement",
+        description="Its computed maximum horizontal displacement [mm] at the levels facing "
+        "this building (0: not known).",
+    )
+    sameProperty: bool = Field(
+        default=True,
+        title="Same property",
+        description="It belongs to the same property (another unit of this building). Not on "
+        "the same property, the gap counts to the property line.",
+    )
+    sameFloorLevels: bool = Field(
+        default=False,
+        title="Same floor levels",
+        description="Its floors are at the same elevations as this building's.",
+    )
+
+
 class Seismic(_Model):
     system: SystemId = Field(  # type: ignore[valid-type]
         default="rcSmf",
@@ -180,6 +203,71 @@ class Seismic(_Model):
         gt=0,
         title="Deflection amplification Cd",
         description="Overrides the system's value.",
+    )
+    # ── B2: combinations of systems, damping, drift table rows, diaphragms and separation ──
+    systemY: SystemId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Structural system in Y",
+        description="A different seismic force-resisting system along Y: its own R, Ω0 and Cd "
+        "apply in Y, with its limitations. Empty: the structural system above in both "
+        "directions.",
+        json_schema_extra=_labels([v.name for v in bnbc.STRUCTURAL_SYSTEMS.values()]),
+    )
+    otherSystems: list[SystemId] = Field(  # type: ignore[valid-type]
+        default_factory=list,
+        title="Other systems in X",
+        description="Other seismic force-resisting systems that resist the forces along X "
+        "together with the structural system (beside it or in other storeys), other than a "
+        "dual system: R is the least of them, Cd and Ω0 the largest, and the most stringent "
+        "height limit applies. Without a system in Y they apply in Y too.",
+    )
+    otherSystemsY: list[SystemId] = Field(  # type: ignore[valid-type]
+        default_factory=list,
+        title="Other systems in Y",
+        description="The same along Y, with a structural system in Y.",
+    )
+    damping: float | None = Field(
+        default=None,
+        gt=0,
+        lt=0.5,
+        title="Viscous damping ratio ξ",
+        description="Damping of the structure as a ratio of critical (0.05 for 5 %). The design "
+        "spectrum is corrected by the code's damping factor η. Empty: the code's reference "
+        "damping (5 %, η = 1).",
+    )
+    driftTolerantFinishes: bool = Field(
+        default=False,
+        title="Finishes designed for the storey drift",
+        description="The interior walls, partitions, ceilings and exterior walls are designed to "
+        "accommodate the storey drifts: a building of few storeys may take the larger "
+        "allowable drift of the code's drift table.",
+    )
+    cantileverMasonryWalls: bool = Field(
+        default=False,
+        title="Masonry walls cantilevered",
+        description="Masonry shear walls cantilevered from their base, with negligible coupling "
+        "between them: the drift table's row for masonry cantilever shear walls.",
+    )
+    diaphragmDeflectionLimit: float | None = Field(
+        default=None,
+        gt=0,
+        title="Permissible diaphragm deflection",
+        description="In-plane deflection [mm] the elements attached to the floors (walls, "
+        "partitions, cladding) can take while keeping their integrity. The diaphragm "
+        "deflection is checked against it; empty: it is reported only.",
+    )
+    propertyLineGap: float | None = Field(
+        default=None,
+        ge=0,
+        title="Gap to the property line",
+        description="Least distance [mm] from the building to the property line. It must be at "
+        "least the building's computed maximum displacement.",
+    )
+    adjacent: list[AdjacentStructure] = Field(
+        default_factory=list,
+        title="Adjacent structures",
+        description="Other buildings or structurally independent units next to this one, for "
+        "the separation check against pounding.",
     )
 
 
@@ -1412,7 +1500,128 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
         "R": settings.seismic.r or system.R,
         "omega": settings.seismic.omega or system.Omega0,
         "Cd": settings.seismic.cd or system.Cd,
+        **_combined_values(settings, pack),
     }
+
+
+# ───────────── combinations of seismic systems (the pack's systemCombination) ─────────────
+
+
+def _pick(how: str, values: list[float]) -> float:
+    return min(values) if how == "min" else max(values)
+
+
+def system_values(settings: ProjectSettings, pack: CodePack | None = None) -> dict[str, Any]:
+    """The seismic force-resisting systems along X and Y and their combined values, by the
+    pack's ``seismic.systemCombination`` (different systems in the two directions each keep
+    their own values; several in one direction take the least R, the largest Cd and Ω0 and
+    the most stringent height limit): ``{"X": {...}, "Y": {...}}``, each ``{"primary",
+    "systems", "names", "rows", "R", "Omega0", "Cd", "heightLimits" (by category: None no
+    limit, 0 not permitted), "momentFramesOnly", "masonry", "combined"}``. The overrides of R,
+    Ω0 and Cd apply in both directions."""
+    pack = pack or code_pack(settings)
+    table = pack.table("seismic")
+    rule = table.systemCombination
+    seismic = settings.seismic
+    out: dict[str, Any] = {}
+    for axis in ("X", "Y"):
+        own_y = axis == "Y" and seismic.systemY is not None
+        primary = seismic.systemY if own_y else seismic.system
+        others = seismic.otherSystemsY if own_y else seismic.otherSystems
+        ids = [primary, *dict.fromkeys(o for o in others if o != primary)]
+        ids = [i for i in ids if i in table.systems] or [seismic.system]
+        rows = [table.systems[i] for i in ids]
+        limits: dict[str, float | None] = {}
+        for sdc in dict.fromkeys(k for row in rows for k in row.heightLimits):
+            given = [row.heightLimits.get(sdc) for row in rows]
+            if any(v is not None and v <= 0 for v in given):
+                limits[sdc] = 0.0
+            else:
+                finite = [float(v) for v in given if v is not None]
+                limits[sdc] = _pick(rule.heightLimit, finite) if finite else None
+        out[axis] = {
+            "primary": ids[0],
+            "systems": ids,
+            "names": [row.name for row in rows],
+            "rows": [row.row for row in rows],
+            "R": seismic.r or _pick(rule.R, [row.R for row in rows]),
+            "Omega0": seismic.omega or _pick(rule.Omega0, [row.Omega0 for row in rows]),
+            "Cd": seismic.cd or _pick(rule.Cd, [row.Cd for row in rows]),
+            "heightLimits": limits,
+            "momentFramesOnly": all(row.momentFrame for row in rows),
+            "masonry": any(row.masonry for row in rows),
+            "combined": len(rows) > 1,
+        }
+    return out
+
+
+def _combined_values(settings: ProjectSettings, pack: CodePack) -> dict[str, Any]:
+    """derived()'s values of the systems by direction (RX, RY, CdX, ...) and, when the
+    directions or the systems in one differ, R (the least), Cd and Ω0 (the largest) for the
+    checks that take one value."""
+    by_axis = system_values(settings, pack)
+    rule = pack.table("seismic").systemCombination
+    x, y = by_axis["X"], by_axis["Y"]
+    values: dict[str, Any] = {
+        "RX": x["R"],
+        "RY": y["R"],
+        "CdX": x["Cd"],
+        "CdY": y["Cd"],
+        "omegaX": x["Omega0"],
+        "omegaY": y["Omega0"],
+    }
+    if x["combined"] or y["combined"] or x["primary"] != y["primary"]:
+        values["R"] = _pick(rule.R, [x["R"], y["R"]])
+        values["Cd"] = _pick(rule.Cd, [x["Cd"], y["Cd"]])
+        values["omega"] = _pick(rule.Omega0, [x["Omega0"], y["Omega0"]])
+    return values
+
+
+def site_specific_warning(
+    settings: ProjectSettings, flags: list[str] | None, used: str | None = None
+) -> str | None:
+    """The warning of the pack's ``seismic.siteSpecificStudy`` when the soil report flags a
+    site class the code gives no spectrum for (S1, S2), else None. ``used``: the class the
+    spectrum uses (default the settings')."""
+    pack = code_pack(settings)
+    study = pack.table("seismic").siteSpecificStudy
+    found = [c for c in (flags or []) if c in study.classes]
+    if not found or not study.warning:
+        return None
+    return study.warning.format(
+        classes=" and ".join(found),
+        code=pack.edition or pack.name,
+        clause=study.clause,
+        used=used or settings.site.siteClass,
+        assumed=study.assumedClass or used or settings.site.siteClass,
+    )
+
+
+def soil_flags(settings: ProjectSettings, soil_text: str | None = None) -> list[str]:
+    """The site classes the soil report flags (S1, S2, SE of its boreholes), whatever the
+    site class source: ``soil_text``, else the report of the project in context; [] without
+    one."""
+    if soil_text is None:
+        root = code_context.project_root()
+        if root is None:
+            return []
+        soil_text = read_soil_text(root)
+    try:
+        return list(soil_site_class(soil_text, settings).get("flags") or [])
+    except Exception:  # noqa: BLE001 - a broken soil report is reported by Part 1
+        return []
+
+
+def category_site_class(
+    settings: ProjectSettings, site_class: str, flags: list[str] | None
+) -> str:
+    """The site class the Seismic Design Category is read with: the pack's assumed class
+    (``siteSpecificStudy.assumedClass``) when the soil report flags a class that needs a
+    site-specific study, else ``site_class``."""
+    study = code_pack(settings).table("seismic").siteSpecificStudy
+    if study.assumedClass and any(c in study.classes for c in flags or []):
+        return study.assumedClass
+    return site_class
 
 
 def check(settings: ProjectSettings) -> list[str]:
@@ -1445,7 +1654,20 @@ def design_category(settings: ProjectSettings, site_class: str | None = None) ->
     row = rows.get(table.aliases.get(site, site)) or list(rows.values())[-1]
     group = table.occupancyGroups.get(settings.occupancy.category) or next(iter(row))
     sdc = row[group][int(zone) - 1]
-    limit = system.heightLimits.get(sdc) if system else None
+    # Every system of both directions: the most stringent limitation (systemCombination).
+    by_axis = system_values(settings, pack) if system else {}
+    limits = [a["heightLimits"].get(sdc) for a in by_axis.values()]
+    limit = (
+        0.0
+        if any(v is not None and v <= 0 for v in limits)
+        else min((v for v in limits if v is not None), default=None)
+    )
+    banned = []
+    for axis in by_axis.values():
+        for key in axis["systems"]:
+            own = seismic.systems[key].heightLimits.get(sdc)
+            if own is not None and own <= 0 and key not in banned:
+                banned.append(key)
     return {
         **result,
         "sdc": sdc,
@@ -1454,6 +1676,7 @@ def design_category(settings: ProjectSettings, site_class: str | None = None) ->
         "detailing": system.frame if system else None,
         "required": seismic.requiredDetailing.get(sdc),
         "row": system.row if system else "",
+        "notPermitted": banned,
     }
 
 
@@ -1572,12 +1795,20 @@ def _system_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
                 site_class = soil_site_class(read_soil_text(root), settings).get("class")
             except Exception:  # noqa: BLE001 - a broken soil report is reported by Part 1
                 site_class = None
+    site_class = category_site_class(
+        settings, site_class or settings.site.siteClass, soil_flags(settings)
+    )
     info = design_category(settings, site_class)
     sdc = info["sdc"]
     if sdc is None:
         return []
     edition = pack.edition or pack.name
-    system = pack.table("seismic").systems[settings.seismic.system]
+    systems = pack.table("seismic").systems
+    system = systems[settings.seismic.system]
+    if info.get("notPermitted") and settings.seismic.system not in info["notPermitted"]:
+        # Another system of the combination is NP: the more stringent limitation applies.
+        system = systems[info["notPermitted"][0]]
+        info = {**info, "row": system.row}
     where = f"Table 6.2.19 row {info['row']}" if info["row"] else "Table 6.2.19"
     basis = (
         f"zone {info['zone']}, site class {info['siteClass']}, occupancy category "

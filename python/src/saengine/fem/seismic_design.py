@@ -71,6 +71,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -90,38 +91,44 @@ RS_FOLDER = "rs-design"
 SUMMARY_FILE = "seismic-design.json"
 SUMMARY_SCHEMA = "saengine.seismicDesign/1"
 
-#: BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635): the smallest share of the equivalent static base shear
-#: the response spectrum base shear is scaled up to.
-MINIMUM_FRACTION = 0.85
-#: Accidental eccentricity as a share of the floor dimension (Sec 2.5.7.6.2, p. 630).
-ACCIDENTAL_ECCENTRICITY = 0.05
-#: Share of the orthogonal direction (Sec 2.5.13.1(b), p. 645).
-ORTHOGONAL_SHARE = 0.30
-#: Required combined modal mass participation (Sec 2.5.9.2, p. 634).
-MASS_PARTICIPATION = 0.90
+# The code values (the least scale of the response spectrum base shear, the accidental
+# eccentricity, the orthogonal share, the mass participation, the torsional irregularity
+# ratios and the limit of Ax, the moment frame systems) and the clause references all come
+# from the code pack in force (its ``seismic`` table): see :func:`_seismic` and
+# :func:`clauses`.
 
-CLAUSES = {
-    "scale": "BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635)",
-    "torsion": "BNBC 2020 Part 6 Sec 2.5.7.6.2-2.5.7.6.3 (pp. 630-631)",
-    "orthogonal": "BNBC 2020 Part 6 Sec 2.5.13.1(b) (p. 645)",
-    "vertical": "BNBC 2020 Part 6 Sec 2.5.13 and 2.5.13.2 (pp. 644-646)",
-    "combinations": "BNBC 2020 Part 6 Sec 2.7.3.1 combinations 5 and 7 (p. 685)",
-    "drift": "BNBC 2020 Part 6 Sec 2.5.7.7, 2.5.9.4, 2.5.14.1, Table 6.2.21 (pp. 631, 635, 647-648)",
-    "sdc": "BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617)",
-    "modes": "BNBC 2020 Part 6 Sec 2.5.9.2 (p. 634)",
-    "irregularity": "BNBC 2020 Part 6 Sec 2.5.5.3.1(i) (p. 617)",
-    "amplification": "BNBC 2020 Part 6 Sec 2.5.7.6.2, eq. 6.2.44 (p. 630)",
-}
 
-#: Torsional irregularity: storey drift at one end over the average of the two ends (Sec
-#: 2.5.5.3.1(i), p. 617); above the second, extreme torsional irregularity.
-TORSION_IRREGULAR = 1.2
-TORSION_EXTREME = 1.4
-#: Upper limit of the torsional amplification factor Ax (eq. 6.2.44, p. 630).
-AX_LIMIT = 3.0
+def _seismic() -> Any:
+    """The ``seismic`` table of the code pack in force."""
+    return code_context.table("seismic")
 
-#: Systems "comprised solely of moment frames" (Sec 2.5.14.1, p. 647): Δa/ρ in Category D.
-MOMENT_FRAMES = frozenset({"rcSmf", "rcImf", "rcOmf", "steelSmf", "steelOmf"})
+
+def clauses() -> dict[str, str]:
+    """The clause references of the seismic results, from the code pack in force (its
+    ``seismic.clauses``, each after the pack's name, e.g. "<code> Part 6 Sec 2.5.9.4")."""
+    pack = code_context.current()
+    code = pack.edition or pack.name
+    return {key: f"{code} {text}" for key, text in _seismic().clauses.items()}
+
+
+class _Clauses(dict):
+    """``CLAUSES[key]``: the pack's clause reference, read when it is used (empty when the
+    pack has none)."""
+
+    def __getitem__(self, key: str) -> str:
+        return clauses().get(key, "")
+
+    def get(self, key: str, default: Any = "") -> Any:  # type: ignore[override]
+        return clauses().get(key, default)
+
+
+CLAUSES: dict[str, str] = _Clauses()
+
+
+def moment_frame_systems() -> frozenset[str]:
+    """Systems "comprised solely of moment frames" (the pack's ``momentFrame`` flag): Δa/ρ in
+    Category D."""
+    return frozenset(k for k, v in _seismic().systems.items() if v.momentFrame)
 
 #: The envelope parts :class:`SeismicForces` gives: the scaled response spectrum in X and Y and
 #: the accidental torsion cases of the X and Y forces (all peaks, ≥ 0).
@@ -182,12 +189,13 @@ def design_uses_spectrum(settings: Any) -> bool:
 # ─────────────────────────────────────── code values ───────────────────────────────────────
 
 
-def scale_factor(v_static: float, v_dynamic: float, fraction: float = MINIMUM_FRACTION) -> float:
+def scale_factor(v_static: float, v_dynamic: float, fraction: float | None = None) -> float:
     """``max(1, fraction·V / V_rs)`` (Sec 2.5.9.4): the factor on the response spectrum forces.
     1 without a dynamic or a static base shear."""
     if v_dynamic <= 0 or v_static <= 0:
         return 1.0
-    return max(1.0, fraction * v_static / v_dynamic)
+    share = _seismic().minimumScale if fraction is None else fraction
+    return max(1.0, share * v_static / v_dynamic)
 
 
 def zone_of(z: float | None) -> int | None:
@@ -233,20 +241,109 @@ def peak_ground_acceleration(settings: Any) -> float:
 
 
 def vertical_coefficient(settings: Any) -> float:
-    """Ev / D = 0.50·a_h (eq. 6.2.56, p. 645)."""
-    return 0.5 * peak_ground_acceleration(settings)
+    """Ev / D = verticalFactor·a_h (the pack's; eq. 6.2.56, p. 645: 0.50)."""
+    return _seismic().verticalFactor * peak_ground_acceleration(settings)
+
+
+def drift_limit(
+    occupancy: str,
+    category: str | None = None,
+    system: str = "",
+    redundancy: float = 1.0,
+    *,
+    storeys: int | None = None,
+    masonry: bool | None = None,
+    cantilever: bool = False,
+    tolerant: bool = False,
+    moment_frames_only: bool | None = None,
+) -> dict[str, Any]:
+    """The allowable storey drift Δa / hsx and the row of the pack's drift table it comes from:
+    ``{"ratio", "row", "label"}``. The first of ``seismic.driftLimits`` whose conditions hold
+    (a masonry system, its walls cantilevered, at most ``maxStoreys`` storeys, finishes
+    designed for the drift), else ``allowableDrift``; divided by ρ for systems of moment
+    frames only in the pack's ``driftRedundancyCategories``."""
+    table = _seismic()
+    entry = table.systems.get(system)
+    if masonry is None:
+        masonry = bool(entry and entry.masonry)
+    limits, row, label = table.allowableDrift, "other", table.allowableDriftLabel
+    for candidate in table.driftLimits:
+        if candidate.masonry is not None and candidate.masonry != masonry:
+            continue
+        if candidate.cantileverWalls is not None and candidate.cantileverWalls != cantilever:
+            continue
+        if candidate.maxStoreys is not None and (storeys is None or storeys > candidate.maxStoreys):
+            continue
+        if (
+            candidate.driftTolerantFinishes is not None
+            and candidate.driftTolerantFinishes != tolerant
+        ):
+            continue
+        limits, row, label = candidate.limits, candidate.id, candidate.label
+        break
+    ratio = limits.get(occupancy, limits.get("II", next(iter(limits.values()))))
+    if moment_frames_only is None:
+        moment_frames_only = system in moment_frame_systems()
+    if category in table.driftRedundancyCategories and moment_frames_only and redundancy > 0:
+        ratio /= redundancy
+    return {"ratio": ratio, "row": row, "label": label}
 
 
 def allowable_drift_ratio(
-    occupancy: str, category: str | None = None, system: str = "", redundancy: float = 1.0
+    occupancy: str,
+    category: str | None = None,
+    system: str = "",
+    redundancy: float = 1.0,
+    **conditions: Any,
 ) -> float:
-    """Δa / hsx: Table 6.2.21 (p. 648), "all other structures", divided by ρ for moment frames
-    in Category D (Sec 2.5.14.1, p. 647)."""
-    drift = code_context.table("seismic").allowableDrift
-    ratio = drift.get(occupancy, drift["II"])
-    if category == "D" and system in MOMENT_FRAMES and redundancy > 0:
-        ratio /= redundancy
-    return ratio
+    """Δa / hsx (Table 6.2.21, p. 648; Δa/ρ, Sec 2.5.14.1, p. 647): :func:`drift_limit`'s
+    ratio; without ``conditions`` the "all other structures" row (or the masonry rows of a
+    masonry ``system``)."""
+    return drift_limit(occupancy, category, system, redundancy, **conditions)["ratio"]
+
+
+def settings_drift_limit(
+    settings: Any, category: str | None = None, storeys: int | None = None,
+    redundancy: float = 1.0,
+) -> dict[str, Any]:
+    """:func:`drift_limit` for the project: its occupancy, its systems in both directions
+    (masonry when one is, moment frames only when all are), the cantilever masonry walls and
+    the drift-tolerant finishes of its settings."""
+    from saengine.library.settings import system_values
+
+    by_axis = system_values(settings)
+    return drift_limit(
+        settings.occupancy.category,
+        category,
+        settings.seismic.system,
+        redundancy,
+        storeys=storeys,
+        masonry=any(a["masonry"] for a in by_axis.values()),
+        cantilever=bool(settings.seismic.cantileverMasonryWalls),
+        tolerant=bool(settings.seismic.driftTolerantFinishes),
+        moment_frames_only=all(a["momentFramesOnly"] for a in by_axis.values()),
+    )
+
+
+def height_limit_note(settings: Any, category: str | None, height: float) -> str | None:
+    """A note when the building of ``height`` [m] is taller than the height limit of its
+    systems in Seismic Design Category ``category`` (the most stringent of the systems of both
+    directions, ``seismic.systemCombination``), else None."""
+    from saengine.library.settings import system_values
+
+    if category is None:
+        return None
+    worst: tuple[float, str] | None = None
+    for axis in system_values(settings).values():
+        limit = axis["heightLimits"].get(category)
+        if limit is not None and limit > 0 and (worst is None or limit < worst[0]):
+            worst = (float(limit), " + ".join(axis["names"]))
+    if worst is None or height <= worst[0] + 1e-6:
+        return None
+    return (
+        f"the building is {height:.1f} m tall, above the {worst[0]:g} m height limit of "
+        f"{worst[1]} in Seismic Design Category {category} ({CLAUSES['systems']})"
+    )
 
 
 def combine(peaks: np.ndarray, omegas: list[float], damping: float | None, rule: str) -> np.ndarray:
@@ -324,7 +421,7 @@ def torsion_loads(project: dict[str, Any], case: str) -> tuple[list[dict[str, An
     for level in static_storey_forces(project, case):
         here = [xyz for xyz in coords.values() if abs(xyz[2] - level["z"]) < 1e-3]
         span = float(max(c[across] for c in here) - min(c[across] for c in here)) if here else 0.0
-        moment = ACCIDENTAL_ECCENTRICITY * span * abs(level["force"])
+        moment = _seismic().accidentalEccentricity * span * abs(level["force"])
         levels.append({"z": level["z"], "force": level["force"], "L": span, "moment": moment})
         weights = {n: abs(f) for n, f in level["nodes"].items()}
         total = sum(weights.values())
@@ -905,13 +1002,14 @@ def storey_drifts(
     project: dict[str, Any],
     spectra: dict[str, dict[str, Any]],
     levels: list[float],
-    amplification: float,
+    amplification: float | dict[str, float],
     allowable: float,
     torsion: dict[str, Any] | None = None,
     torsion_factor: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Design storey drifts from the response spectrum: per direction and storey, the largest
-    over the plan positions with a node at both levels of Cd/I·(Δ_rs + Ax·|Δ_torsion|), Δ_rs
+    over the plan positions with a node at both levels of Cd/I·(Δ_rs + Ax·|Δ_torsion|) (Cd/I
+    one value, or by direction), Δ_rs
     the modal combination of the modal drifts (unscaled: Sec 2.5.9.4), Ax the direction's
     ``torsion_factor`` (default 1). Heights and drifts in m."""
     at_level = _positions(project, levels)
@@ -922,6 +1020,7 @@ def storey_drifts(
         omegas = [data["modes"][k]["angular_frequency"] for k in used]
         twist = (torsion or {}).get(f"A{axis}")
         factor = float((torsion_factor or {}).get(axis, 1.0))
+        amp = float(amplification[axis] if isinstance(amplification, dict) else amplification)
         for k in range(1, len(levels)):
             height = levels[k] - levels[k - 1]
             if height <= 0:
@@ -950,7 +1049,7 @@ def storey_drifts(
                             _last(twist.node_disp, top, 6)[a] - _last(twist.node_disp, bottom, 6)[a]
                         )
                     )
-                design = amplification * (elastic + extra)
+                design = amp * (elastic + extra)
                 if best is None or design > best["designDrift"]:
                     best = {
                         "direction": axis,
@@ -981,6 +1080,272 @@ def _positions(project: dict[str, Any], levels: list[float]) -> list[dict[tuple[
                 here[(round(xyz[0] * 1e3), round(xyz[1] * 1e3))] = node_id
         at_level.append(here)
     return at_level
+
+
+# ─────────────────────────────── diaphragm deflection, separation ───────────────────────────────
+
+
+def _amp(amplification: float | dict[str, float], axis: str) -> float:
+    return float(amplification[axis] if isinstance(amplification, dict) else amplification)
+
+
+def _modal_values(data: dict[str, Any], nodes: list[int], a: int) -> tuple[np.ndarray, list]:
+    """The signed modal peaks of ``nodes`` in direction ``a`` (modes × nodes) and the
+    frequencies of the modes used."""
+    used = [k for k, m in enumerate(data["modes"]) if m.get("angular_frequency", 0) > 0]
+    omegas = [data["modes"][k]["angular_frequency"] for k in used]
+    values = np.array(
+        [
+            [float(np.asarray(data["peaks"][k].get(n, np.zeros(3)))[a]) for n in nodes]
+            for k in used
+        ]
+    ).reshape(len(used), len(nodes))
+    return values, omegas
+
+
+def diaphragm_deflections(
+    project: dict[str, Any],
+    spectra: dict[str, dict[str, Any]],
+    levels: list[float],
+    amplification: float | dict[str, float],
+    limit_mm: float | None = None,
+) -> list[dict[str, Any]]:
+    """The in-plane deflection of each floor diaphragm (Sec 2.5.14.2, p. 647; Sec 1.7.3.8):
+    per direction and level, the largest displacement of a floor node relative to the rigid
+    motion (two translations and a rotation, least squares) of the floor's nodes on vertical
+    elements (columns, walls, braces reaching below the floor), each mode on its own, combined over the modes
+    like the drifts and times Cd/I. A rigid diaphragm gives none. ``limit_mm``: the permissible
+    deflection of the attached elements (the code gives no number), else no verdict. Rows
+    ``{"direction", "level", "deflection" m, "position" [x, y] m, "limit" m | None, "ok"}``,
+    only for floors with nodes off the vertical elements."""
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    at_level = _positions(project, levels)
+    limit = None if limit_mm is None else float(limit_mm) / 1e3
+    pack_limit = _seismic().diaphragmDeflection.limit
+    if limit is None and pack_limit is not None:
+        limit = float(pack_limit) / 1e3
+    # Nodes on vertical elements: an element of theirs reaches below them (columns, walls).
+    vertical: set[int] = set()
+    for element in project.get("elements", []):
+        ids = [int(n) for n in element.get("nodes", []) if int(n) in coords]
+        if len(ids) < 2:
+            continue
+        bottom = min(coords[n][2] for n in ids)
+        vertical.update(n for n in ids if coords[n][2] > bottom + 1e-3)
+    rows: list[dict[str, Any]] = []
+    for k in range(1, len(levels)):
+        here = at_level[k]
+        supports = [p for p, n in here.items() if n in vertical]
+        if len(supports) < 2 or len(here) <= len(supports):
+            continue
+        positions = list(here)
+        nodes = [here[p] for p in positions]
+        xy = np.array([coords[n][:2] for n in nodes])
+        centre = xy.mean(axis=0)
+        index = {p: i for i, p in enumerate(positions)}
+        s = [index[p] for p in supports]
+        # Rigid motion u = (tx − θ·dy, ty + θ·dx) fitted to the supports' (ux, uy).
+        d = xy[s] - centre
+        fit = np.zeros((2 * len(s), 3))
+        fit[0::2, 0], fit[0::2, 2] = 1.0, -d[:, 1]
+        fit[1::2, 1], fit[1::2, 2] = 1.0, d[:, 0]
+        solve = np.linalg.pinv(fit)
+        dall = xy - centre
+        for axis, data in spectra.items():
+            ux, omegas = _modal_values(data, nodes, 0)
+            uy, _ = _modal_values(data, nodes, 1)
+            if not omegas:
+                continue
+            b = np.empty((ux.shape[0], 2 * len(s)))
+            b[:, 0::2], b[:, 1::2] = ux[:, s], uy[:, s]
+            params = b @ solve.T  # modes × (tx, ty, θ)
+            a = _AXES[axis] - 1
+            rigid = (
+                params[:, 0:1] - params[:, 2:3] * dall[:, 1]
+                if a == 0
+                else params[:, 1:2] + params[:, 2:3] * dall[:, 0]
+            )
+            own = (ux if a == 0 else uy) - rigid
+            combined = np.abs(combine(own, omegas, data["damping"], data["rule"]))
+            worst = int(np.argmax(combined))
+            value = _amp(amplification, axis) * float(combined[worst])
+            rows.append(
+                {
+                    "direction": axis,
+                    "level": round(levels[k], 3),
+                    "deflection": value,
+                    "position": [positions[worst][0] / 1e3, positions[worst][1] / 1e3],
+                    "limit": limit,
+                    "ok": None if limit is None else bool(value <= limit + 1e-12),
+                }
+            )
+    return rows
+
+
+def diaphragm_notes(rows: list[dict[str, Any]], limit_mm: float | None) -> list[str]:
+    """The notes of :func:`diaphragm_deflections`: the failures, or the largest deflection
+    when there is no permissible deflection to check it with."""
+    if not rows:
+        return []
+    clause = CLAUSES["diaphragmDeflection"]
+    worst = max(rows, key=lambda r: r["deflection"])
+    failing = [r for r in rows if r["ok"] is False]
+    if failing:
+        bad = max(failing, key=lambda r: r["deflection"])
+        return [
+            f"diaphragm in-plane deflection {1e3 * bad['deflection']:.1f} mm in "
+            f"{bad['direction']} at {bad['level']:g} m exceeds the permissible "
+            f"{1e3 * bad['limit']:.1f} mm of the attached elements ({clause})"
+        ]
+    if worst["limit"] is None and worst["deflection"] > 1e-4:
+        return [
+            f"diaphragm in-plane deflection up to {1e3 * worst['deflection']:.1f} mm "
+            f"({worst['direction']} at {worst['level']:g} m): enter the permissible deflection "
+            f"of the attached elements (Project Settings, Seismic) to check it ({clause})"
+        ]
+    return []
+
+
+def level_displacements(
+    project: dict[str, Any],
+    spectra: dict[str, dict[str, Any]],
+    levels: list[float],
+    amplification: float | dict[str, float],
+    torsion: dict[str, Any] | None = None,
+    torsion_factor: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
+    """The computed maximum horizontal displacement δx = Cd·δxe / I of each level (Sec
+    2.5.7.7, Eq. 6.2.45): per direction the largest over the level's nodes of the modal
+    combination (unscaled, as the drifts) plus Ax·|the accidental torsion case|. Rows
+    ``{"level", "X", "Y"}`` [m], bottom up from the first level above the base."""
+    at_level = _positions(project, levels)
+    rows: list[dict[str, Any]] = []
+    for k in range(1, len(levels)):
+        nodes = list(at_level[k].values())
+        if not nodes:
+            continue
+        row: dict[str, Any] = {"level": round(levels[k], 3), "X": 0.0, "Y": 0.0}
+        for axis, data in spectra.items():
+            a = _AXES[axis] - 1
+            values, omegas = _modal_values(data, nodes, a)
+            if not omegas:
+                continue
+            elastic = np.abs(combine(values, omegas, data["damping"], data["rule"]))
+            twist = (torsion or {}).get(f"A{axis}")
+            if twist is not None:
+                from saengine.fem.display import _last
+
+                factor = float((torsion_factor or {}).get(axis, 1.0))
+                elastic = elastic + factor * np.array(
+                    [abs(float(_last(twist.node_disp, n, 6)[a])) for n in nodes]
+                )
+            row[axis] = _amp(amplification, axis) * float(np.max(elastic))
+        rows.append(row)
+    return rows
+
+
+def separation_checks(
+    project: dict[str, Any],
+    spectra: dict[str, dict[str, Any]],
+    levels: list[float],
+    amplification: float | dict[str, float],
+    settings: Any,
+    torsion: dict[str, Any] | None = None,
+    torsion_factor: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Separation from adjacent structures (Sec 2.5.14.3 (i)-(iii), pp. 648-649) by the pack's
+    ``seismic.separation``: to the property line at least δmax (the building's largest
+    computed displacement, either direction, :func:`level_displacements`); to a unit of the
+    same property the SRSS of the two δmax; times the reduction where the floor levels are the
+    same. ``{"displacements": rows, "maxDisplacement" m, "checks": [{"name", "gap" m,
+    "required" m, "basis", "ok"}], "notes"}``."""
+    rule = _seismic().separation
+    clause = CLAUSES["separation"]
+    rows = level_displacements(project, spectra, levels, amplification, torsion, torsion_factor)
+    delta = max((max(r["X"], r["Y"]) for r in rows), default=0.0)
+    seismic = settings.seismic
+    checks: list[dict[str, Any]] = []
+    if seismic.propertyLineGap is not None:
+        required = rule.propertyLineFactor * delta
+        checks.append(
+            {
+                "name": "property line",
+                "gap": seismic.propertyLineGap / 1e3,
+                "required": required,
+                "basis": "δmax of this building",
+                "ok": bool(seismic.propertyLineGap / 1e3 >= required - 1e-9),
+            }
+        )
+    for other in seismic.adjacent:
+        theirs = other.displacement / 1e3
+        if other.sameProperty:
+            required = (
+                math.hypot(delta, theirs) if rule.sameProperty == "srss" else delta + theirs
+            )
+            basis = (
+                "SRSS of the two δmax" if rule.sameProperty == "srss" else "sum of the two δmax"
+            )
+        else:
+            required = rule.propertyLineFactor * delta
+            basis = "δmax of this building to the property line"
+        if other.sameFloorLevels and rule.equalFloorLevelsFactor < 1:
+            required *= rule.equalFloorLevelsFactor
+            basis += f", × {rule.equalFloorLevelsFactor:g} (same floor levels)"
+        checks.append(
+            {
+                "name": other.name,
+                "gap": other.gap / 1e3,
+                "required": required,
+                "basis": basis,
+                "ok": bool(other.gap / 1e3 >= required - 1e-9),
+            }
+        )
+    notes = [
+        f"separation from {c['name']}: {1e3 * c['gap']:.0f} mm is less than the "
+        f"{1e3 * c['required']:.0f} mm required ({c['basis']}; {clause})"
+        for c in checks
+        if not c["ok"]
+    ]
+    if not checks and delta > 0:
+        notes.append(
+            f"largest computed displacement δmax = {1e3 * delta:.0f} mm "
+            f"({CLAUSES['displacement']}): enter the gap to the property line and the "
+            f"adjacent structures (Project Settings, Seismic) to check the separation ({clause})"
+        )
+    return {"displacements": rows, "maxDisplacement": delta, "checks": checks, "notes": notes}
+
+
+def diaphragm_rows(summary: dict[str, Any]) -> list[list[str]]:
+    """The diaphragm deflections of a :func:`seismic_design` summary as report rows:
+    direction, level [m], deflection [mm], permissible [mm], result."""
+    out = []
+    for r in summary.get("diaphragmDeflection") or []:
+        out.append(
+            [
+                r["direction"],
+                f"{r['level']:g}",
+                f"{1e3 * r['deflection']:.2f}",
+                "–" if r["limit"] is None else f"{1e3 * r['limit']:.1f}",
+                "–" if r["ok"] is None else "OK" if r["ok"] else "FAIL",
+            ]
+        )
+    return out
+
+
+def separation_rows(summary: dict[str, Any]) -> list[list[str]]:
+    """The separation checks of a :func:`seismic_design` summary as report rows: to, gap
+    [mm], required [mm], basis, result."""
+    sep = summary.get("separation") or {}
+    return [
+        [
+            str(c["name"]),
+            f"{1e3 * c['gap']:.0f}",
+            f"{1e3 * c['required']:.0f}",
+            str(c["basis"]),
+            "OK" if c["ok"] else "FAIL",
+        ]
+        for c in sep.get("checks", [])
+    ]
 
 
 def torsional_irregularity(
@@ -1059,7 +1424,7 @@ def torsional_irregularity(
                 u_max, u_avg = max(disp_ends), sum(disp_ends) / 2
                 ratio = d_max / d_avg if d_avg > 1e-12 else 1.0
                 if best is None or ratio > best["ratio"]:
-                    amp = (u_max / (TORSION_IRREGULAR * u_avg)) ** 2 if u_avg > 1e-12 else 1.0
+                    amp = (u_max / (_seismic().torsionIrregular * u_avg)) ** 2 if u_avg > 1e-12 else 1.0
                     best = {
                         "direction": axis,
                         "bottom": round(levels[k - 1], 3),
@@ -1067,11 +1432,11 @@ def torsional_irregularity(
                         "driftMax": d_max,
                         "driftAvg": d_avg,
                         "ratio": ratio,
-                        "irregular": bool(ratio > TORSION_IRREGULAR + 1e-12),
-                        "extreme": bool(ratio > TORSION_EXTREME + 1e-12),
+                        "irregular": bool(ratio > _seismic().torsionIrregular + 1e-12),
+                        "extreme": bool(ratio > _seismic().torsionExtreme + 1e-12),
                         "displacementMax": u_max,
                         "displacementAvg": u_avg,
-                        "amplification": float(min(AX_LIMIT, max(1.0, amp))),
+                        "amplification": float(min(_seismic().torsionAmplificationMax, max(1.0, amp))),
                     }
             if best is not None:
                 rows.append(best)
@@ -1146,7 +1511,7 @@ def seismic_combinations(
     live = _live_factor(settings, options)
     ax = {k: round(float(v), 4) for k, v in (amplification or {}).items()}
     tx, ty = ax.get("X", 1.0), ax.get("Y", 1.0)
-    share = ORTHOGONAL_SHARE
+    share = _seismic().orthogonalShare
     if orthogonal and torsion:
         directions = [
             ("EX + 0.3EY", {"RX": 1.0, "RY": share, "AX": tx}),
@@ -1273,10 +1638,20 @@ def seismic_design(
             "the analysis results changed while they were read (the analysis is still "
             "running); the design uses the static cases EX, EY until it has finished"
         )
+    from saengine.library.settings import category_site_class, site_specific_warning, soil_flags
+
     values = derived(settings)
+    # S1 / S2 flagged by the soil report: the pack's assumed class for the category, and its
+    # warning in the notes (never silent).
+    flags = soil_flags(settings)
     category = seismic_design_category(
-        zone_of(values["Z"]), settings.site.siteClass, settings.occupancy.category
+        zone_of(values["Z"]),
+        category_site_class(settings, settings.site.siteClass, flags),
+        settings.occupancy.category,
     )
+    site_warning = site_specific_warning(settings, flags)
+    if site_warning:
+        notes.append(site_warning)
 
     # ── scaling (Sec 2.5.9.4) ──
     v_static, v_dynamic, scale, participation = {}, {}, {}, {}
@@ -1296,10 +1671,10 @@ def seismic_design(
                 f"{axis}: no equivalent static base shear (case E{axis} has no forces), so the "
                 "response spectrum forces are not scaled"
             )
-        if participation[axis] < MASS_PARTICIPATION - 1e-9:
+        if participation[axis] < _seismic().massParticipation - 1e-9:
             notes.append(
                 f"{axis}: the modes reach {100 * participation[axis]:.1f} % of the mass, less "
-                f"than the 90 % of {CLAUSES['modes']}; add modes"
+                f"than the {100 * _seismic().massParticipation:g} % of {CLAUSES['modes']}; add modes"
             )
 
     # ── towers on a podium (saengine.fem.towers): each tower's response spectrum shear at the
@@ -1381,10 +1756,21 @@ def seismic_design(
         if values["Cd"] and values["seismicImportance"]
         else 1.0
     )
-    allowable = allowable_drift_ratio(
-        settings.occupancy.category, category, settings.seismic.system, options.redundancy
-    )
+    # Each direction with the Cd of its own systems (Sec 2.5.5.5.1).
+    by_axis_amplification = {
+        axis: (
+            values.get(f"Cd{axis}", values["Cd"]) / values["seismicImportance"]
+            if values["seismicImportance"]
+            else 1.0
+        )
+        for axis in ("X", "Y")
+    }
     storeys = _levels(project, levels)
+    limit_row = settings_drift_limit(settings, category, max(len(storeys) - 1, 0), options.redundancy)
+    allowable = limit_row["ratio"]
+    height_note = height_limit_note(settings, category, storeys[-1] - storeys[0] if storeys else 0.0)
+    if height_note:
+        notes.append(height_note)
     # ── torsional irregularity and Ax (Sec 2.5.5.3.1(i), 2.5.7.6.2) ──
     irregularity = torsional_irregularity(project, spectra, storeys, scale, forces)
     ax = torsion_amplification(irregularity, category, torsion and bool(forces))
@@ -1410,13 +1796,23 @@ def seismic_design(
             "torsional irregularity checked without the accidental torsion case (not run), so "
             "Ax is not applied"
         )
-    drift = storey_drifts(project, spectra, storeys, amplification, allowable, forces, ax)
+    drift = storey_drifts(project, spectra, storeys, by_axis_amplification, allowable, forces, ax)
     tower_summary = None
     if towers is not None:
         tower_summary = tower_checks(
-            project, towers, shears, spectra, storeys, amplification, allowable, scale, forces, ax
-        )
+            project, towers, shears, spectra, storeys, by_axis_amplification, allowable, scale,
+            forces, ax,
+        )  # fmt: skip
         notes.extend(tower_summary["notes"])
+    # ── diaphragm deflection (Sec 2.5.14.2) and separation (Sec 2.5.14.3) ──
+    diaphragm = diaphragm_deflections(
+        project, spectra, storeys, by_axis_amplification, settings.seismic.diaphragmDeflectionLimit
+    )
+    separation = separation_checks(
+        project, spectra, storeys, by_axis_amplification, settings, forces, ax
+    )
+    notes.extend(diaphragm_notes(diaphragm, settings.seismic.diaphragmDeflectionLimit))
+    notes.extend(separation["notes"])
     if any(not d["ok"] for d in drift):
         worst = max(drift, key=lambda d: d["ratio"])
         notes.append(
@@ -1444,7 +1840,7 @@ def seismic_design(
             "y": scale["Y"],
             "vStatic": {"x": v_static["X"] / 1e3, "y": v_static["Y"] / 1e3},
             "vDynamic": {"x": v_dynamic["X"] / 1e3, "y": v_dynamic["Y"] / 1e3},
-            "fraction": MINIMUM_FRACTION,
+            "fraction": _seismic().minimumScale,
             "clause": CLAUSES["scale"],
         },
         "massParticipation": {"x": participation["X"], "y": participation["Y"]},
@@ -1452,7 +1848,12 @@ def seismic_design(
         "orthogonal": orthogonal,
         "verticalCoefficient": vertical_coefficient(settings) if options.verticalComponent else 0.0,
         "amplification": amplification,
+        "amplificationByAxis": by_axis_amplification,
         "allowableDrift": allowable,
+        "driftRow": limit_row,
+        "diaphragmDeflection": diaphragm,
+        "separation": separation,
+        "siteSpecific": site_warning,
         "torsion": torsion_levels,
         "torsionalIrregularity": irregularity,
         "torsionAmplification": ax,
@@ -1461,7 +1862,7 @@ def seismic_design(
         "drift": drift,
         "towers": tower_summary,
         "notes": notes,
-        "clauses": CLAUSES,
+        "clauses": clauses(),
     }
     if run_info is not None:
         summary["run"] = run_info

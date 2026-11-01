@@ -1,5 +1,44 @@
 {
   "$defs": {
+    "DampingCorrection": {
+      "additionalProperties": false,
+      "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta.",
+      "properties": {
+        "method": {
+          "default": "none",
+          "enum": [
+            "none",
+            "squareRoot"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "referenceDamping": {
+          "default": 0.05,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Referencedamping",
+          "type": "number"
+        },
+        "numerator": {
+          "default": 10.0,
+          "title": "Numerator",
+          "type": "number"
+        },
+        "offset": {
+          "default": 5.0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "minimum": {
+          "default": 0.0,
+          "title": "Minimum",
+          "type": "number"
+        }
+      },
+      "title": "DampingCorrection",
+      "type": "object"
+    },
     "DesignCategories": {
       "additionalProperties": false,
       "properties": {
@@ -38,6 +77,121 @@
       "title": "DesignCategories",
       "type": "object"
     },
+    "DiaphragmDeflection": {
+      "additionalProperties": false,
+      "description": "In-plane diaphragm deflection limit [mm]; empty: the code gives no number (the\npermissible deflection of the attached elements, which the engineer enters).",
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        }
+      },
+      "title": "DiaphragmDeflection",
+      "type": "object"
+    },
+    "DriftLimit": {
+      "additionalProperties": false,
+      "description": "A row of the allowable storey drift table; the first row whose conditions hold applies\n(a condition left empty always holds), else ``allowableDrift``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "masonry": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The system is a masonry one.",
+          "title": "Masonry"
+        },
+        "cantileverWalls": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The walls are cantilevered from the base (no coupling).",
+          "title": "Cantileverwalls"
+        },
+        "maxStoreys": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxstoreys"
+        },
+        "driftTolerantFinishes": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interior walls, partitions, ceilings and exterior walls designed to accommodate the storey drift.",
+          "title": "Drifttolerantfinishes"
+        },
+        "limits": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Δa/hsx by occupancy category.",
+          "title": "Limits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "limits"
+      ],
+      "title": "DriftLimit",
+      "type": "object"
+    },
     "PeriodCoefficient": {
       "additionalProperties": false,
       "properties": {
@@ -70,6 +224,36 @@
         "m"
       ],
       "title": "PeriodCoefficient",
+      "type": "object"
+    },
+    "Separation": {
+      "additionalProperties": false,
+      "description": "Separation from adjacent structures: the gap to the property line is at least\n``propertyLineFactor``·δ; between units of one property the ``sameProperty`` combination\n(\"srss\" or \"sum\") of the two δ; times ``equalFloorLevelsFactor`` where the floors align.",
+      "properties": {
+        "propertyLineFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Propertylinefactor",
+          "type": "number"
+        },
+        "sameProperty": {
+          "default": "srss",
+          "enum": [
+            "srss",
+            "sum"
+          ],
+          "title": "Sameproperty",
+          "type": "string"
+        },
+        "equalFloorLevelsFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Equalfloorlevelsfactor",
+          "type": "number"
+        }
+      },
+      "title": "Separation",
       "type": "object"
     },
     "SiteClass": {
@@ -122,6 +306,43 @@
         "TD"
       ],
       "title": "SiteClass",
+      "type": "object"
+    },
+    "SiteSpecificStudy": {
+      "additionalProperties": false,
+      "description": "Site classes the code gives no spectrum for: they need a site-specific study.",
+      "properties": {
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "assumedClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assumedclass"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "warning": {
+          "default": "",
+          "title": "Warning",
+          "type": "string"
+        }
+      },
+      "title": "SiteSpecificStudy",
       "type": "object"
     },
     "StructuralSystem": {
@@ -228,6 +449,37 @@
           ],
           "default": null,
           "title": "Periodfamily"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Group of the code's system table (bearingWall, dualSpecial...).",
+          "title": "Group"
+        },
+        "dual": {
+          "default": false,
+          "description": "A dual system (one row of the table).",
+          "title": "Dual",
+          "type": "boolean"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
         }
       },
       "required": [
@@ -237,6 +489,50 @@
         "Cd"
       ],
       "title": "StructuralSystem",
+      "type": "object"
+    },
+    "SystemCombination": {
+      "additionalProperties": false,
+      "description": "How the values of several systems in one direction combine: \"min\" or \"max\".",
+      "properties": {
+        "R": {
+          "default": "min",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "R",
+          "type": "string"
+        },
+        "Cd": {
+          "default": "max",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Cd",
+          "type": "string"
+        },
+        "Omega0": {
+          "default": "max",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Omega0",
+          "type": "string"
+        },
+        "heightLimit": {
+          "default": "min",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Heightlimit",
+          "type": "string"
+        }
+      },
+      "title": "SystemCombination",
       "type": "object"
     }
   },
@@ -301,10 +597,47 @@
       "title": "Allowabledrift",
       "type": "object"
     },
+    "allowableDriftLabel": {
+      "default": "",
+      "description": "The structures allowableDrift is for.",
+      "title": "Allowabledriftlabel",
+      "type": "string"
+    },
+    "driftLimits": {
+      "description": "Rows of the drift table before allowableDrift.",
+      "items": {
+        "$ref": "#/$defs/DriftLimit"
+      },
+      "title": "Driftlimits",
+      "type": "array"
+    },
+    "siteSpecificStudy": {
+      "$ref": "#/$defs/SiteSpecificStudy"
+    },
     "dampingEta": {
       "default": 1.0,
       "title": "Dampingeta",
       "type": "number"
+    },
+    "dampingCorrection": {
+      "$ref": "#/$defs/DampingCorrection"
+    },
+    "systemCombination": {
+      "$ref": "#/$defs/SystemCombination"
+    },
+    "separation": {
+      "$ref": "#/$defs/Separation"
+    },
+    "diaphragmDeflection": {
+      "$ref": "#/$defs/DiaphragmDeflection"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of the seismic results, by key.",
+      "title": "Clauses",
+      "type": "object"
     },
     "liveShare": {
       "description": "Share of the floor live load in the seismic weight.",

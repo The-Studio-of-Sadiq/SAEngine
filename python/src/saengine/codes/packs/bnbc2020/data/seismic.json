@@ -1,7 +1,8 @@
 {
   "$schema": "../../../schemas/seismic.schema.json",
   "$sources": [
-    "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
+    "BNBC 2020 Part 6 Sec 2.5 (pp. 607-649)",
+    "BNBC 2020 Part 6 Sec 1.5.7 and 1.7.3.8 (pp. 500, 505)"
   ],
   "source": "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)",
   "siteClasses": {
@@ -57,7 +58,9 @@
       "specialWalls": false,
       "concrete": true,
       "momentFrame": true,
-      "periodFamily": "concreteMomentFrame"
+      "periodFamily": "concreteMomentFrame",
+      "group": "momentFrame",
+      "dual": false
     },
     "rcImf": {
       "name": "RC intermediate moment frame",
@@ -74,14 +77,16 @@
       "specialWalls": false,
       "concrete": true,
       "momentFrame": true,
-      "periodFamily": "concreteMomentFrame"
+      "periodFamily": "concreteMomentFrame",
+      "group": "momentFrame",
+      "dual": false
     },
     "rcOmf": {
       "name": "RC ordinary moment frame",
       "R": 3.0,
       "Omega0": 3.0,
       "Cd": 2.5,
-      "row": "C.5 (p. 623)",
+      "row": "C.6 (p. 623)",
       "heightLimits": {
         "B": null,
         "C": 0.0,
@@ -91,7 +96,10 @@
       "specialWalls": false,
       "concrete": true,
       "momentFrame": true,
-      "periodFamily": "concreteMomentFrame"
+      "periodFamily": "concreteMomentFrame",
+      "group": "momentFrame",
+      "dual": false,
+      "note": "Printed as a second row 5 in group C of Table 6.2.19 (p. 623): the sixth row."
     },
     "rcSpecialWallFrame": {
       "name": "Building frame with RC special shear walls",
@@ -108,7 +116,9 @@
       "specialWalls": true,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
     },
     "rcOrdinaryWallFrame": {
       "name": "Building frame with RC ordinary shear walls",
@@ -125,7 +135,9 @@
       "specialWalls": false,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
     },
     "rcDualSpecial": {
       "name": "Dual: RC special moment frame and special shear walls",
@@ -142,7 +154,9 @@
       "specialWalls": true,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true
     },
     "steelSmf": {
       "name": "Steel special moment frame",
@@ -159,7 +173,9 @@
       "specialWalls": false,
       "concrete": false,
       "momentFrame": true,
-      "periodFamily": "steelMomentFrame"
+      "periodFamily": "steelMomentFrame",
+      "group": "momentFrame",
+      "dual": false
     },
     "steelOmf": {
       "name": "Steel ordinary moment frame",
@@ -176,7 +192,9 @@
       "specialWalls": false,
       "concrete": false,
       "momentFrame": true,
-      "periodFamily": "steelMomentFrame"
+      "periodFamily": "steelMomentFrame",
+      "group": "momentFrame",
+      "dual": false
     },
     "steelScbf": {
       "name": "Steel special concentrically braced frame",
@@ -193,7 +211,9 @@
       "specialWalls": false,
       "concrete": false,
       "momentFrame": false,
-      "periodFamily": null
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
     },
     "masonryOrdinaryReinforced": {
       "name": "Bearing walls: ordinary reinforced masonry shear walls",
@@ -212,7 +232,8 @@
       "masonry": true,
       "momentFrame": false,
       "periodFamily": null,
-      "source": "BNBC 2020 Part 6 Table 6.2.19, bearing wall systems (row and page to be checked against the text; the values are those of ASCE 7-05 Table 12.2-1 A.11 that the table follows)"
+      "group": "bearingWall",
+      "dual": false
     },
     "masonryOrdinaryPlain": {
       "name": "Bearing walls: ordinary plain (unreinforced) masonry shear walls",
@@ -221,7 +242,7 @@
       "Cd": 1.25,
       "row": "A.4 (p. 621)",
       "heightLimits": {
-        "B": null,
+        "B": 18.0,
         "C": 0.0,
         "D": 0.0
       },
@@ -231,7 +252,335 @@
       "masonry": true,
       "momentFrame": false,
       "periodFamily": null,
-      "source": "BNBC 2020 Part 6 Table 6.2.19, bearing wall systems (row and page to be checked against the text; the values are those of ASCE 7-05 Table 12.2-1 A.13 that the table follows)"
+      "group": "bearingWall",
+      "dual": false
+    },
+    "rcSpecialBearingWall": {
+      "name": "Bearing walls: RC special shear walls",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "A.1 (p. 621)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": null,
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "bearingWall",
+      "dual": false
+    },
+    "rcOrdinaryBearingWall": {
+      "name": "Bearing walls: RC ordinary shear walls",
+      "R": 4.0,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "A.2 (p. 621)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "bearingWall",
+      "dual": false
+    },
+    "steelEbfMoment": {
+      "name": "Steel eccentrically braced frame, moment-resisting connections at columns away from links",
+      "R": 8.0,
+      "Omega0": 2.0,
+      "Cd": 4.0,
+      "row": "B.1 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": "eccentricallyBracedSteelFrame",
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "steelEbf": {
+      "name": "Steel eccentrically braced frame, non-moment-resisting connections at columns away from links",
+      "R": 7.0,
+      "Omega0": 2.0,
+      "Cd": 4.0,
+      "row": "B.2 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": "eccentricallyBracedSteelFrame",
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "steelOcbf": {
+      "name": "Steel ordinary concentrically braced frame",
+      "R": 3.25,
+      "Omega0": 2.0,
+      "Cd": 3.25,
+      "row": "B.4 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 11.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "masonryOrdinaryReinforcedFrame": {
+      "name": "Building frame with ordinary reinforced masonry shear walls",
+      "R": 2.0,
+      "Omega0": 2.5,
+      "Cd": 2.0,
+      "row": "B.7 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": 50.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "masonryOrdinaryPlainFrame": {
+      "name": "Building frame with ordinary plain (unreinforced) masonry shear walls",
+      "R": 1.5,
+      "Omega0": 2.5,
+      "Cd": 1.25,
+      "row": "B.8 (p. 622)",
+      "heightLimits": {
+        "B": 18.0,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "steelImf": {
+      "name": "Steel intermediate moment frame",
+      "R": 4.5,
+      "Omega0": 3.0,
+      "Cd": 4.0,
+      "row": "C.2 (p. 622)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 35.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "group": "momentFrame",
+      "dual": false
+    },
+    "steelDualSmfEbf": {
+      "name": "Dual: steel special moment frame and eccentrically braced frames",
+      "R": 8.0,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "D.1 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true,
+      "note": "Table 6.2.20 gives Ct 0.0731 for eccentrically braced frames; a dual system is not one alone, so the 'all other structural systems' row (the shorter, more conservative period) is used."
+    },
+    "steelDualSmfScbf": {
+      "name": "Dual: steel special moment frame and special concentrically braced frames",
+      "R": 7.0,
+      "Omega0": 2.5,
+      "Cd": 5.5,
+      "row": "D.2 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true
+    },
+    "rcDualSpecialOrdinaryWalls": {
+      "name": "Dual: RC special moment frame and ordinary shear walls",
+      "R": 6.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "D.4 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true
+    },
+    "steelDualImfScbf": {
+      "name": "Dual: steel intermediate moment frame and special concentrically braced frames",
+      "R": 6.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "E.1 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 11.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualIntermediate",
+      "dual": true
+    },
+    "rcDualIntermediateSpecialWalls": {
+      "name": "Dual: RC intermediate moment frame and special shear walls",
+      "R": 6.5,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "E.2 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 50.0
+      },
+      "frame": "intermediate",
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualIntermediate",
+      "dual": true
+    },
+    "masonryDualIntermediateFrame": {
+      "name": "Dual: intermediate moment frame and ordinary reinforced masonry shear walls",
+      "R": 3.0,
+      "Omega0": 3.0,
+      "Cd": 3.0,
+      "row": "E.3 (p. 623)",
+      "heightLimits": {
+        "B": null,
+        "C": 50.0,
+        "D": 0.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualIntermediate",
+      "dual": true
+    },
+    "rcDualIntermediateOrdinaryWalls": {
+      "name": "Dual: RC intermediate moment frame and ordinary shear walls",
+      "R": 5.5,
+      "Omega0": 2.5,
+      "Cd": 4.5,
+      "row": "E.4 (p. 624)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualIntermediate",
+      "dual": true
+    },
+    "rcDualOrdinary": {
+      "name": "Dual: RC ordinary moment frame and ordinary shear walls",
+      "R": 4.5,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "F (p. 624)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualOrdinary",
+      "dual": true
+    },
+    "steelNotDetailed": {
+      "name": "Steel system not specifically detailed for seismic resistance",
+      "R": 3.0,
+      "Omega0": 3.0,
+      "Cd": 3.0,
+      "row": "G (p. 624)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "steelNotDetailed",
+      "dual": false
     }
   },
   "periodCoefficients": {
@@ -242,6 +591,10 @@
     "steelMomentFrame": {
       "Ct": 0.0724,
       "m": 0.8
+    },
+    "eccentricallyBracedSteelFrame": {
+      "Ct": 0.0731,
+      "m": 0.75
     },
     "other": {
       "Ct": 0.0488,
@@ -332,6 +685,15 @@
       "S2": "SE"
     }
   },
+  "siteSpecificStudy": {
+    "classes": [
+      "S1",
+      "S2"
+    ],
+    "assumedClass": "SE",
+    "clause": "Part 6 Sec 2.5.3.1 (p. 607) and Sec 2.5.4.3 (p. 613)",
+    "warning": "Site class {classes} (flagged by the soil report): {code} {clause} requires a site-specific study of the ground motion for this site class, and the code gives no spectrum for it. Until one is made, the design spectrum uses site class {used} and the Seismic Design Category uses {assumed}: an assumption, not a value of the code."
+  },
   "requiredDetailing": {
     "D": "special",
     "C": "intermediate",
@@ -343,7 +705,70 @@
     "III": 0.015,
     "IV": 0.01
   },
+  "allowableDriftLabel": "All other structures",
+  "driftRedundancyCategories": [
+    "D"
+  ],
+  "driftLimits": [
+    {
+      "id": "masonryCantilever",
+      "label": "Masonry cantilever shear wall structures",
+      "masonry": true,
+      "cantileverWalls": true,
+      "limits": {
+        "I": 0.01,
+        "II": 0.01,
+        "III": 0.01,
+        "IV": 0.01
+      }
+    },
+    {
+      "id": "masonryOther",
+      "label": "Other masonry shear wall structures",
+      "masonry": true,
+      "limits": {
+        "I": 0.007,
+        "II": 0.007,
+        "III": 0.007,
+        "IV": 0.007
+      }
+    },
+    {
+      "id": "lowRise",
+      "label": "4 storeys or less, finishes and partitions designed for the storey drift",
+      "masonry": false,
+      "maxStoreys": 4,
+      "driftTolerantFinishes": true,
+      "limits": {
+        "I": 0.025,
+        "II": 0.025,
+        "III": 0.02,
+        "IV": 0.015
+      }
+    }
+  ],
   "dampingEta": 1.0,
+  "dampingCorrection": {
+    "method": "squareRoot",
+    "referenceDamping": 0.05,
+    "numerator": 10.0,
+    "offset": 5.0,
+    "minimum": 0.55
+  },
+  "systemCombination": {
+    "R": "min",
+    "Cd": "max",
+    "Omega0": "max",
+    "heightLimit": "min"
+  },
+  "separation": {
+    "propertyLineFactor": 1.0,
+    "sameProperty": "srss",
+    "equalFloorLevelsFactor": 0.7
+  },
+  "diaphragmDeflection": {
+    "limit": null
+  },
   "liveShare": 0.25,
   "heavyLiveLimit": 3.0,
   "heavyLiveShare": 0.5,
@@ -359,9 +784,9 @@
   "verticalFactor": 0.5,
   "sources": {
     "siteClasses": "BNBC 2020 Part 6 Table 6.2.13 (p. 609) descriptions; Table 6.2.16 (p. 616) S, TB, TC, TD",
-    "systems": "BNBC 2020 Part 6 Sec 2.5.5.4, Table 6.2.19 (pp. 619-624)",
-    "periodCoefficients": "BNBC 2020 Part 6 Table 6.2.20 (p. 628)",
-    "designCategories": "BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617)",
+    "systems": "BNBC 2020 Part 6 Sec 2.5.5.4, Table 6.2.19 (pp. 619-624): every row A.1 to G",
+    "periodCoefficients": "BNBC 2020 Part 6 Table 6.2.20 (p. 628), with the eccentrically braced steel frame row",
+    "designCategories": "BNBC 2020 Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617); aliases S1, S2 -> SE for the category only (see siteSpecificStudy)",
     "requiredDetailing": "BNBC 2020 Part 6 Sec 8.3.2(b)-(d) (pp. 1088-1089)",
     "allowableDrift": "BNBC 2020 Part 6 Table 6.2.21 (p. 648), all other structures",
     "liveShare": "BNBC 2020 Part 6 Sec 2.5.7, seismic weight W (p. 628)",
@@ -374,9 +799,37 @@
     "torsionAmplificationMax": "BNBC 2020 Part 6 Sec 2.5.7.6.2, eq. 6.2.44 (p. 630)",
     "pgaFactor": "BNBC 2020 Part 6 Sec 2.5.13.2 (p. 646), a_h = (2/3) Z S",
     "verticalFactor": "BNBC 2020 Part 6 Sec 2.5.13.2, eq. 6.2.56 (pp. 645-646)",
-    "dampingEta": "5 % damping: η = 1 (page not checked)",
+    "dampingEta": "BNBC 2020 Part 6 Sec 2.5.4.3, Eq. 6.2.36 (p. 613): eta = 1 at 5 % damping",
     "heavyLiveLimit": "BNBC 2020 Part 6 Sec 2.5.7.3 (b) (p. 628): live load above 3 kN/m², a minimum of 50 percent",
     "heavyLiveShare": "BNBC 2020 Part 6 Sec 2.5.7.3 (b) (p. 628)",
-    "periodUpperFactor": "BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627): not more than 40 percent above Ta of Eq. 6.2.38"
+    "periodUpperFactor": "BNBC 2020 Part 6 Sec 2.5.7.2 (a) (p. 627): not more than 40 percent above Ta of Eq. 6.2.38",
+    "dampingCorrection": "BNBC 2020 Part 6 Sec 2.5.4.3, Eq. 6.2.36 (p. 613): eta = sqrt(10 / (5 + xi)), at least 0.55, xi in percent",
+    "driftRedundancyCategories": "BNBC 2020 Part 6 Sec 2.5.14.1 (p. 647): moment frames only, Category D, Delta_a / rho",
+    "driftLimits": "BNBC 2020 Part 6 Table 6.2.21 and its notes 1-3 (p. 648); note 2 (no limit for single-storey structures) is not used: conservative",
+    "siteSpecificStudy": "BNBC 2020 Part 6 Sec 2.5.3.1 (p. 607) and Sec 2.5.4.3 (p. 613): S1 and S2 need site-specific studies; SE assumed for the category, with a warning (owner decision 2026-11-01)",
+    "systemCombination": "BNBC 2020 Part 6 Sec 2.5.5.5.1 (p. 624) and 2.5.5.5.2 (p. 625): least R, largest Cd, the more stringent limitation; the largest Omega0 is SAEngine practice, not BNBC (the clause names R and Cd only)",
+    "separation": "BNBC 2020 Part 6 Sec 2.5.14.3 (i)-(iii) (pp. 648-649)",
+    "diaphragmDeflection": "BNBC 2020 Part 6 Sec 2.5.14.2 (p. 647) and Sec 1.7.3.8 (p. 505): the permissible deflection of the attached elements; the code gives no number",
+    "clauses": "BNBC 2020 Part 6 Sec 2.5 clause references of the seismic results"
+  },
+  "clauses": {
+    "scale": "Part 6 Sec 2.5.9.4 (p. 635)",
+    "torsion": "Part 6 Sec 2.5.7.6.2-2.5.7.6.3 (pp. 630-631)",
+    "orthogonal": "Part 6 Sec 2.5.13.1(b) (p. 645)",
+    "vertical": "Part 6 Sec 2.5.13 and 2.5.13.2 (pp. 644-646)",
+    "combinations": "Part 6 Sec 2.7.3.1 combinations 5 and 7 (p. 685)",
+    "drift": "Part 6 Sec 2.5.7.7, 2.5.9.4, 2.5.14.1, Table 6.2.21 (pp. 631, 635, 647-648)",
+    "sdc": "Part 6 Sec 2.5.5.2, Table 6.2.18 (p. 617)",
+    "modes": "Part 6 Sec 2.5.9.2 (p. 634)",
+    "irregularity": "Part 6 Sec 2.5.5.3.1(i) (p. 617)",
+    "amplification": "Part 6 Sec 2.5.7.6.2, eq. 6.2.44 (p. 630)",
+    "systems": "Part 6 Table 6.2.19 (pp. 621-624)",
+    "combinationDirections": "Part 6 Sec 2.5.5.5.1 (p. 624)",
+    "combinationSame": "Part 6 Sec 2.5.5.5.2 (p. 625)",
+    "damping": "Part 6 Sec 2.5.4.3, Eq. 6.2.36 (p. 613)",
+    "diaphragmDeflection": "Part 6 Sec 2.5.14.2 (p. 647) and Sec 1.7.3.8 (p. 505)",
+    "separation": "Part 6 Sec 2.5.14.3 (pp. 648-649) and Sec 1.5.7 (p. 500)",
+    "displacement": "Part 6 Sec 2.5.7.7, Eq. 6.2.45 (p. 631)",
+    "orthogonalOneShift": "Part 6 Sec 2.5.7.6.3 (p. 631)"
   }
 }
