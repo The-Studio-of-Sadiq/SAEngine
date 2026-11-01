@@ -695,9 +695,10 @@ def panel_zone_checks(
     db = max(b.depth for b in beams)
     tbf = max(b.tf for b in beams)
     ru = sum(b.m_face / (b.depth - b.tf) for b in beams)
-    cap, note = sc.panel_zone_shear(column_fy, dc, tw, axial_ratio, in_analysis, bcf, tcf, db)
     phi = rules.panelZonePhi or 1.0
-    rn = cap / sc.phi("panelZone", 0.9)
+    rn, note = sc.panel_zone_shear(
+        column_fy, dc, tw, axial_ratio, in_analysis, bcf, tcf, db, phi_v=1.0
+    )
     if doubler > 0:
         rn += 0.60 * column_fy * dc * doubler
         note += f"; doubler {doubler:g} mm adds 0.60 Fy dc td"
