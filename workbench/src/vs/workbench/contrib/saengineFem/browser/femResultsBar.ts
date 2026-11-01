@@ -22,10 +22,10 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
-import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, PLANNED_STM_GENERAL, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary } from './femDesign.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -1793,8 +1793,8 @@ export class FemResultsBar extends Disposable {
 
 	/**
 	 * The floors' diaphragm chords and collectors (BNBC 2020 Part 6 Sec 2.5.5.6), under the
-	 * summary: like the stairs they have no analysis elements to pick. Below them, the strut-and-tie
-	 * models of other D-regions that are planned.
+	 * summary: like the stairs they have no analysis elements to pick. Below them, the way to the
+	 * strut-and-tie models of other D-regions (Strut-and-Tie Models).
 	 */
 	private renderDiaphragms(container: HTMLElement, report: IFemDesignReport): void {
 		const diaphragms = report.elements.filter(e => e.kind === 'diaphragm');
@@ -1810,9 +1810,11 @@ export class FemResultsBar extends Disposable {
 			appendPropertyNote(container, localize('femResults.diaphragmsNone', "No diaphragm chords or collectors: the model has no equivalent static earthquake cases (EX, EY) or no slabs."));
 		}
 		appendPropertyNote(container, localize('femResults.deepMembersNote', "Deep beams, transfer girders and corbels are checked with their beams: select one for its strut-and-tie and corbel checks."));
-		const chips = append(container, $('.fem-planned-chips'));
+		appendPropertyNote(container, localize('femResults.stmNote', "Other D-regions (dapped ends, corbels with several loads, frame corners, openings): draw and check their strut-and-tie models."));
 		this.diaphragmChips.clear();
-		this.diaphragmChips.add(appendPlannedFeatureChip(chips, PLANNED_STM_GENERAL, this.commandService));
+		const open = this.diaphragmChips.add(new Button(append(container, $('.fem-results-stm')), { ...defaultButtonStyles, secondary: true, title: localize('femResults.stmOpenTitle', "Open the strut-and-tie models of this analysis model") }));
+		open.label = localize('femResults.stmOpen', "Strut-and-Tie Models...");
+		this.diaphragmChips.add(open.onDidClick(() => this.commandService.executeCommand(STRUT_AND_TIE_COMMAND, this.resource)));
 	}
 
 	/**

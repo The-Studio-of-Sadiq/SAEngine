@@ -636,6 +636,20 @@ CommandsRegistry.registerCommand('saengine.design.required', async (accessor, ar
 });
 
 /**
+ * Strut-and-tie models of D-regions (Strut-and-Tie Models, femStrutAndTieEditor.ts): one model
+ * solved and checked with the project's code pack, and a model to start from. Internal: called by id.
+ */
+CommandsRegistry.registerCommand('saengine.design.strutAndTie', async (accessor, args: { readonly model: object; readonly projectPath?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'design/strutAndTie', { model: args.model, projectPath: args.projectPath });
+});
+
+CommandsRegistry.registerCommand('saengine.design.strutAndTieTemplate', async (accessor, args: { readonly template: string; readonly parameters?: object }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'design/strutAndTieTemplate', { template: args.template, parameters: args.parameters });
+});
+
+/**
  * The earthquake design from the response spectrum of a run (scaling to 85 % of the static base
  * shear, orthogonal rule, accidental torsion, drifts; null when the project designs from the
  * static cases) and what the P-Delta analysis changed. Internal: the results bar calls them by

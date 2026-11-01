@@ -229,8 +229,176 @@ export interface IFemTakedown {
 /** `(model?: URI) => void`: opens the Design Reinforcement page (registered by this contribution). */
 export const DESIGN_REINFORCEMENT_COMMAND = 'saengine.fem.designReinforcement';
 
-/** Planned: strut-and-tie models of any D-region (registered in saengineFem.contribution.ts). */
-export const PLANNED_STM_GENERAL = 'fem.stm-general';
+/** `(model?: URI) => void`: opens the Strut-and-Tie Models page of an analysis model (registered by this contribution). */
+export const STRUT_AND_TIE_COMMAND = 'saengine.fem.strutAndTie';
+/** `{model: IStmModel, projectPath?} => IStmResult`: one strut-and-tie model solved and checked (the backend's `design/strutAndTie`). */
+export const STM_CHECK_COMMAND = 'saengine.design.strutAndTie';
+/** `{template, parameters?} => {model} | {error}`: a strut-and-tie model to start from (`design/strutAndTieTemplate`). */
+export const STM_TEMPLATE_COMMAND = 'saengine.design.strutAndTieTemplate';
+
+/** The strut-and-tie models of the D-regions, beside the analysis model (`saengine.library.strut_and_tie`). */
+export const STM_FILE = 'strut-and-tie.json';
+
+/** The strut-and-tie models' file of an analysis model (`08 FEM/strut-and-tie.json`). */
+export function stmFile(model: URI): URI {
+	return joinPath(dirname(model), STM_FILE);
+}
+
+/** A node of a strut-and-tie model (mm). */
+export interface IStmNode {
+	id: string;
+	x: number;
+	y: number;
+	/** `pin` holds x and y, `rollerX` holds y, `rollerY` holds x, '' free. */
+	support: '' | 'pin' | 'rollerX' | 'rollerY';
+	/** Bearing length at the node [mm] (0: its bearing face is not checked). */
+	bearing: number;
+	anchorage: '' | 'hook' | 'plate' | 'through';
+	anchorLength: number;
+}
+
+/** A strut or tie of a strut-and-tie model. */
+export interface IStmMember {
+	id: string;
+	start: string;
+	end: string;
+	kind: 'strut' | 'tie';
+	/** Strut width ws, or tie effective width wt [mm]. */
+	width: number;
+	shape: 'prism' | 'bottle' | 'tension' | 'other';
+	steelArea: number;
+	barArea: number;
+	barDiameter: number;
+	prestressArea: number;
+	fse: number;
+	fpy: number;
+	bonded: boolean;
+}
+
+export interface IStmLoad {
+	node: string;
+	/** kN */
+	fx: number;
+	fy: number;
+}
+
+export interface IStmLoadCase {
+	name: string;
+	loads: IStmLoad[];
+}
+
+export interface IStmWebLayer {
+	area: number;
+	spacing: number;
+	/** Direction from the x axis [degrees]. */
+	angle: number;
+}
+
+/** One D-region and its model (mm, MPa, kN). */
+export interface IStmModel {
+	name: string;
+	member: string;
+	template: string;
+	thickness: number;
+	depth: number;
+	fc: number;
+	fy: number;
+	lam: number;
+	nodes: IStmNode[];
+	members: IStmMember[];
+	cases: IStmLoadCase[];
+	web: IStmWebLayer[];
+}
+
+/** Content of {@link STM_FILE}. */
+export interface IStmFile {
+	$schema?: string;
+	models: IStmModel[];
+}
+
+/** A member's governing result. */
+export interface IStmMemberResult {
+	readonly id: string;
+	readonly kind: 'strut' | 'tie';
+	/** kN, tension positive. */
+	readonly force: number;
+	readonly case: string | null;
+	readonly utilisation: number;
+	readonly ok: boolean;
+	/** A tie's Ats needed [mm²]. */
+	readonly required?: number;
+}
+
+export interface IStmNodeResult {
+	readonly id: string;
+	readonly type: string;
+	readonly betaN: number;
+	readonly utilisation: number;
+	readonly ok: boolean;
+}
+
+/** Answer of {@link STM_CHECK_COMMAND}. */
+export interface IStmResult {
+	readonly name?: string;
+	readonly ok: boolean;
+	readonly utilisation: number | null;
+	readonly problems: readonly string[];
+	readonly warnings?: readonly string[];
+	readonly cases?: readonly { readonly name: string; readonly forces: { readonly [member: string]: number }; readonly reactions: { readonly [node: string]: readonly [number, number] } }[];
+	readonly members?: readonly IStmMemberResult[];
+	readonly nodes?: readonly IStmNodeResult[];
+	readonly checks: readonly IFemDesignCheck[];
+	readonly assumptions?: readonly string[];
+	readonly source?: string;
+	/** Whether the active code pack covers strut-and-tie models of any D-region. */
+	readonly covered?: boolean;
+	readonly code?: string;
+}
+
+/** A new, empty strut-and-tie model. */
+export function emptyStmModel(name: string): IStmModel {
+	return { name, member: '', template: '', thickness: 300, depth: 0, fc: 28, fy: 420, lam: 1, nodes: [], members: [], cases: [{ name: 'U1', loads: [] }], web: [] };
+}
+
+/** A strut-and-tie file read leniently: a missing or broken file is an empty one. */
+export function parseStmFile(text: string | undefined): IStmFile {
+	if (!text) {
+		return { models: [] };
+	}
+	try {
+		const parsed = JSON.parse(text);
+		return { $schema: parsed?.$schema, models: Array.isArray(parsed?.models) ? parsed.models : [] };
+	} catch {
+		return { models: [] };
+	}
+}
+
+/** The next free name with `prefix` among `taken` ("N4" after N1..N3). */
+export function nextStmId(prefix: string, taken: readonly string[]): string {
+	const used = new Set(taken);
+	for (let k = 1; ; k++) {
+		if (!used.has(`${prefix}${k}`)) {
+			return `${prefix}${k}`;
+		}
+	}
+}
+
+/** Solves and checks one strut-and-tie model with the backend; undefined when it is not available. */
+export async function checkStmModel(commandService: ICommandService, model: IStmModel, analysisModel: URI | undefined): Promise<IStmResult | undefined> {
+	if (!CommandsRegistry.getCommand(STM_CHECK_COMMAND)) {
+		return undefined;
+	}
+	return commandService.executeCommand<IStmResult>(STM_CHECK_COMMAND, { model, projectPath: analysisModel?.fsPath });
+}
+
+/** A strut-and-tie model from a template, or the backend's error. */
+export async function stmTemplate(commandService: ICommandService, template: string, parameters?: { readonly [key: string]: number }): Promise<IStmModel | string | undefined> {
+	if (!CommandsRegistry.getCommand(STM_TEMPLATE_COMMAND)) {
+		return undefined;
+	}
+	const answer = await commandService.executeCommand<{ model?: IStmModel; error?: string }>(STM_TEMPLATE_COMMAND, { template, parameters });
+	return answer?.model ?? answer?.error;
+}
 
 /** `{outDir, projectPath} => IFemDesignRequired`: the steel required by every member of a run. */
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
