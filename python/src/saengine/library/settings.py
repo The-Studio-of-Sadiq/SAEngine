@@ -47,6 +47,14 @@ class ProjectInfo(_Model):
     client: str | None = None
     engineer: str | None = Field(default=None, title="Structural engineer")
     address: str | None = None
+    language: Literal["en", "bn"] = Field(
+        default="en",
+        title="Language",
+        description="Language of the reports and drawings: labels, headings and notes, with "
+        "Bengali digits in Bangla. Units, symbols and code clause numbers stay as they are. "
+        "SAEngine's own screens follow the display language, which Project offers to match.",
+        json_schema_extra=_labels(["English", "বাংলা (Bangla)"]),
+    )
 
 
 class Codes(_Model):

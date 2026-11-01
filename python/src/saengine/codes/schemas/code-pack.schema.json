@@ -184,14 +184,29 @@
     },
     "kind": {
       "default": "designCode",
-      "description": "What the package holds: a design code (default), a structure template (presets of a parametric shape) or a building template.",
+      "description": "What the package holds: a design code (default), a structure template (presets of a parametric shape), a building template or a language pack.",
       "enum": [
         "designCode",
         "structureTemplate",
-        "buildingTemplate"
+        "buildingTemplate",
+        "languagePack"
       ],
       "title": "Kind",
       "type": "string"
+    },
+    "language": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Language pack: the language it translates to (BCP 47, e.g. 'bn').",
+      "title": "Language"
     },
     "id": {
       "description": "Unique id: lower case letters, digits, '.', '_' and '-', e.g. 'bnbc2020'.",

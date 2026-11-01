@@ -75,6 +75,7 @@ PROJECT_PACKS = Path("02 Project Settings") / "code-packs"
 KIND_USER_FOLDERS: dict[str, str] = {
     "structureTemplate": "structure-templates",
     "buildingTemplate": "building-templates",
+    "languagePack": "language-packs",
 }
 BUILTIN_DIR = Path(__file__).resolve().parent / "packs"
 # A folder given directly (``saengine codepack validate <dir>``): above every other scope.
@@ -340,7 +341,9 @@ def _package_problems(found: _Found) -> list[Problem]:
                 )
     found.contents, more = contents.content_files(found.path, m)
     problems.extend(more)
-    if m.kind != DEFAULT_KIND:
+    if m.kind == "languagePack":
+        problems.extend(contents.check_language_pack(found.path, found.contents, m.language))
+    elif m.kind != DEFAULT_KIND:
         problems.extend(
             contents.check_template(
                 found.path, m.kind, found.contents, m.author or "", bool(m.hooks)

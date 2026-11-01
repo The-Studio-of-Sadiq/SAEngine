@@ -15,6 +15,7 @@ The models of the templates are imported only when a template is checked.
 from __future__ import annotations
 
 import json
+import re
 import stat
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -351,3 +352,60 @@ def preview_file(pack_dir: Path, manifest: PackManifest) -> tuple[Path | None, l
             )
         ]
     return path, []
+
+
+# ─────────────────────────────────── language packs ───────────────────────────────────
+
+_PLACEHOLDER = re.compile(r"\{\d+\}")
+
+
+def check_language_pack(pack_dir: Path, files: list[str], language: str | None) -> list[Problem]:
+    """A ``languagePack`` package: its ``language`` and its files.
+
+    - ``messages/*.json``: the reports' and drawings' labels, ``{"language", "messages":
+      {english: translation}}`` (read by :mod:`saengine.i18n`);
+    - ``ui/*.i18n.json``: SAEngine's screens in the format of the workbench's language packs,
+      ``{"contents": {module id: {key: translation}}}`` (the format of
+      ``extensions/saengine-language-pack-bn/translations/main.i18n.json``).
+
+    Each message keeps the ``{0}`` placeholders of its English text."""
+    problems: list[Problem] = []
+    if not language:
+        problems.append(
+            Problem(message="a language pack needs 'language' (e.g. \"bn\")", file=MANIFEST_FILE)
+        )
+    if not files:
+        problems.append(
+            Problem(
+                message="a language pack needs messages/*.json or ui/*.i18n.json (contents)",
+                file=MANIFEST_FILE,
+            )
+        )
+    for rel in files:
+        try:
+            data = json.loads((pack_dir / rel).read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError) as error:
+            problems.append(Problem(message=f"cannot be read: {error}", file=rel))
+            continue
+        if rel.endswith(".i18n.json"):
+            contents = data.get("contents") if isinstance(data, dict) else None
+            if not isinstance(contents, dict) or not all(
+                isinstance(m, dict) and all(isinstance(v, str) for v in m.values())
+                for m in contents.values()
+            ):
+                problems.append(
+                    Problem(message='must be {"contents": {module: {key: text}}}', file=rel)
+                )
+            continue
+        messages = data.get("messages") if isinstance(data, dict) else None
+        if not isinstance(messages, dict) or not all(isinstance(v, str) for v in messages.values()):
+            problems.append(Problem(message='must be {"messages": {english: text}}', file=rel))
+            continue
+        if language and data.get("language") not in (None, language):
+            problems.append(
+                Problem(message=f"language {data.get('language')!r} is not {language!r}", file=rel)
+            )
+        for english, text in messages.items():
+            if sorted(_PLACEHOLDER.findall(english)) != sorted(_PLACEHOLDER.findall(text)):
+                problems.append(Problem(message=f"{english!r}: the placeholders differ", file=rel))
+    return problems

@@ -175,13 +175,15 @@ def build_report(
     include, and Typst's own warnings; ``pages`` for a PDF), or ``{"problems"}`` when there is
     nothing to report or the file could not be written.
     """
+    from saengine.i18n import localize_document, project_language
     from saengine.library.report_template import load_template
     from saengine.report.document import report_document
 
     if format not in FORMATS:
         return {"problems": [f"Unknown report format {format!r}: one of {', '.join(FORMATS)}."]}
     root = Path(project_root)
-    settings_report = getattr(_Parts(root, []).settings(), "report", None)
+    project_settings = _Parts(root, []).settings()
+    settings_report = getattr(project_settings, "report", None)
     chosen, template_problems = load_template(
         root, template or getattr(settings_report, "template", None)
     )
@@ -192,7 +194,8 @@ def build_report(
     if "problems" in data:
         return {"problems": data["problems"]}
     data["warnings"].extend(template_problems)
-    document = report_document(data, chosen)
+    # The project's language (Project Settings › Project › Language): labels and digits.
+    document = localize_document(report_document(data, chosen), project_language(project_settings))
     target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUTS[format]
     try:
         if format == "pdf":

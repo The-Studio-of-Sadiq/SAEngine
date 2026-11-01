@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 EXIT_OK, EXIT_CHECKS, EXIT_USAGE, EXIT_ERROR = 0, 1, 2, 3
-KIND_CHOICES = ("designCode", "structureTemplate", "buildingTemplate")
+KIND_CHOICES = ("designCode", "structureTemplate", "buildingTemplate", "languagePack")
 ALIASES = ("package",)
 
 
