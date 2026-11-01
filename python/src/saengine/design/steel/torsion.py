@@ -37,6 +37,11 @@ import numpy as np
 
 from saengine.codes import context as code_context
 
+try:
+    from scipy.linalg import solve_banded
+except ImportError:  # pragma: no cover - SciPy ships with the engine
+    solve_banded = None
+
 #: Torque below this [N·mm] (1 N·m) is numerical noise of the analysis, not torsion.
 NOISE = 1e3
 
@@ -187,7 +192,14 @@ class WarpingSolution:
 
 
 def _tridiagonal(lower: np.ndarray, diag: np.ndarray, upper: np.ndarray, rhs: np.ndarray):
-    """Thomas algorithm (lower[0] and upper[-1] unused)."""
+    """Solves the tridiagonal system (lower[0] and upper[-1] unused): banded LAPACK when SciPy
+    is there, else the Thomas algorithm."""
+    if solve_banded is not None:
+        bands = np.zeros((3, len(diag)))
+        bands[0, 1:] = upper[:-1]
+        bands[1] = diag
+        bands[2, :-1] = lower[1:]
+        return solve_banded((1, 1), bands, rhs)
     n = len(diag)
     c = np.zeros(n)
     d = np.zeros(n)
