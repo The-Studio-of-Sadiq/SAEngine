@@ -1489,6 +1489,36 @@ def bracing_requirements(
     return out
 
 
+def torsional_bracing(
+    mr: float,
+    span: float,
+    braces: int,
+    cb: float,
+    iy: float,
+    ho: float,
+    tw: float,
+    e: float = 200_000.0,
+    ts: float = 0.0,
+    bs: float = 0.0,
+    lb: float | None = None,
+) -> dict[str, float] | None:
+    """Nodal torsional bracing of a beam (Sec 10.19.3.2(a)): the brace moment Mbr = 0.024 Mr L
+    / (n Cb Lb) (Eq 6.10.293) and the cross-frame or diaphragm stiffness βTb = βT / (1 - βT /
+    βsec) (Eq 6.10.294), βT = 2.4 L Mr² / (φ n E Iy Cb²) (Eq 6.10.295), βsec = 3.3 E / ho
+    (1.5 ho tw³ / 12 + ts bs³ / 12) (Eq 6.10.296); [N·mm, mm, N·mm/rad]. ``lb``: the unbraced
+    length (default L / (n + 1)). ``betaTb`` is None when βsec <= βT: torsional bracing is not
+    effective (inadequate web distortional stiffness). None when the pack has no bracing data."""
+    table = _bracing_table()
+    if table is None:
+        return None
+    lb = lb or span / (braces + 1)
+    mbr = table.torsionalMoment * mr * span / (braces * cb * lb)
+    beta_t = table.torsionalStiffness * span * mr**2 / (table.phi * braces * e * iy * cb**2)
+    beta_sec = table.distortional * e / ho * (1.5 * ho * tw**3 / 12 + ts * bs**3 / 12)
+    beta_tb = beta_t / (1 - beta_t / beta_sec) if beta_sec > beta_t else None
+    return {"Mbr": mbr, "betaT": beta_t, "betaSec": beta_sec, "betaTb": beta_tb}
+
+
 def brace_slenderness_check(
     shape: ShapeProperties, lengths: MemberLengths
 ) -> dict[str, Any] | None:

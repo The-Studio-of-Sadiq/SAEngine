@@ -374,6 +374,22 @@ def test_beam_lateral_nodal_bracing():
     )  # Eq 6.10.292
 
 
+def test_torsional_bracing_eqs_6_10_293_296():
+    from saengine.design.steel.members import torsional_bracing
+
+    # unstiffened web: βsec < βT, torsional bracing not effective (Sec 10.19.3.2)
+    r = torsional_bracing(200e6, 9000, 2, 1.0, 1.3e7, 386, 8.6)
+    lb = 9000 / 3
+    assert r["Mbr"] == pytest.approx(0.024 * 200e6 * 9000 / (2 * 1.0 * lb))
+    bt = 2.4 * 9000 * 200e6**2 / (0.75 * 2 * 200_000 * 1.3e7)
+    assert r["betaT"] == pytest.approx(bt) and r["betaTb"] is None
+    # with a 180 × 10 mm stiffener pair (bs taken as twice the width)
+    s = torsional_bracing(200e6, 9000, 2, 1.0, 1.3e7, 386, 8.6, ts=10, bs=360)
+    bsec = 3.3 * 200_000 / 386 * (1.5 * 386 * 8.6**3 / 12 + 10 * 360**3 / 12)
+    assert s["betaSec"] == pytest.approx(bsec)
+    assert s["betaTb"] == pytest.approx(bt / (1 - bt / bsec))
+
+
 def test_bracing_pack_values():
     b = STEEL.bracing
     assert (b.phi, b.slenderness) == (0.75, 180.0)  # Sec 10.19.4

@@ -551,7 +551,7 @@ def check_fin_plate(
             fillet_capacity_per_mm(c.weldSize, c.electrode),
             "N/mm",
             comb,
-            "Eq 6.10.162-163, θ = 0 (conservative), elastic line method",
+            "Eq 6.10.162-163, θ = 0 (conservative), elastic line method (SAEngine practice)",
         )
     )
     checks += slip_checks(c, "bolt (most loaded)", r_max, comb)
@@ -560,7 +560,7 @@ def check_fin_plate(
     assumptions = [
         "one vertical line of bolts, single shear, "
         + ("bearing-type" if c.slipCritical == "none" else f"slip-critical ({c.slipCritical})"),
-        f"bolt group eccentricity a = {a:g} mm by the elastic method (conservative)",
+        f"bolt group eccentricity a = {a:g} mm by the elastic method (SAEngine practice, conservative)",
         "beam web uncoped; the support strong enough for the welds",
         "plate edges rolled or thermally cut" if not c.shearedEdges else "sheared edges",
     ]
@@ -941,12 +941,16 @@ def check_brace_gusset(
         "gusset",
         checks,
         [
-            "bolts in standard holes, bearing-type",
+            "bolts in standard holes, "
+            + ("bearing-type" if c.slipCritical == "none" else f"slip-critical ({c.slipCritical})"),
             "hollow and I braces: a slotted-in tab plate welded to the brace"
             if tab
             else "angle/channel bolted through its connected leg/web",
             "gusset-to-frame welds carry the whole brace force (no uniform force method)",
-            "Whitmore spread at 30°; gusset buckling as a column of the Whitmore width",
+            (
+                "Whitmore spread at 30°; gusset buckling as a column of the Whitmore width "
+                "(SAEngine practice: the code gives no method)"
+            ),
             "the brace's own net section with shear lag is a member check, not here",
         ],
     )
