@@ -2395,18 +2395,7 @@
     ],
     "weatherBarFrom": 19,
     "againstEarth": 75,
-    "wallMinVertical": [
-      0.0012,
-      0.0015
-    ],
-    "wallMinHorizontal": [
-      0.002,
-      0.0025
-    ],
-    "wallMinBarUpTo": 16,
-    "wallMinFyFrom": 420,
     "maxSpacingFactor": 3,
-    "maxSpacing": 450,
     "maxWaterCement": 0.5,
     "combinations": [
       {
@@ -2594,8 +2583,7 @@
     "tanks.cover": "BNBC 2020 Part 6 Table 6.8.3 (p1069-1070): nominal cover by exposure and f'c, null below the least strength the table gives; Sec 8.1.7.4: the larger of it and Sec 8.1.7.2",
     "tanks.weatherCover": "BNBC 2020 Part 6 Sec 8.1.7.2(b) (p1069): exposed to earth or weather, 50 mm for 19-57 mm bars, 40 mm for 16 mm and smaller",
     "tanks.againstEarth": "BNBC 2020 Part 6 Sec 8.1.7.2(a) (p1069): cast against and permanently exposed to earth, 75 mm",
-    "tanks.wallMin": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.3 (p969): walls, vertical 0.0012 (bars up to 16 mm, fy at least 420 MPa) or 0.0015, horizontal 0.0020 or 0.0025 of the gross section",
-    "tanks.maxSpacing": "BNBC 2020 Part 6 Sec 6.6.3.5 (p969): wall bars at most 3h or 450 mm apart (SAEngine applies it to the slabs too, as ACI 318-19 7.7.2.3)",
+    "tanks.maxSpacing": "BNBC 2020 Part 6 Sec 6.6.3.5 (p969): wall bars at most 3h apart (450 mm: concrete.walls.spacingMax); SAEngine applies it to the slabs too, as ACI 318-19 7.7.2.3",
     "tanks.maxWaterCement": "BNBC 2020 Part 6 Sec 5.5.1.1 (p844): w/c at most 0.50 for concrete of low permeability",
     "tanks.combinations": "BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and 2.7.2.1 (service) (p684-685), the cases a tank has: (2) also with H = 0 (tested full before backfilling) and F = 0 (empty, backfilled), as the effects of loads not acting shall be investigated; W = 0",
     "tanks.uplift": "BNBC 2020 Part 6 Sec 2.6.5.2 (p680): uplift, the full hydrostatic pressure on the underside of the base"

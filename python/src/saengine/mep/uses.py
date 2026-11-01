@@ -1,7 +1,7 @@
 """The use of each storey, entered once for all the services (07 MEP ``storyUses``).
 
 The plumbing, the HVAC and the electrical services each read a storey's use from their own
-BNBC 2020 Part 8 table: the water consumption of Table 8.5.1 (occupancy), the ventilation and
+code pack table (Part 8 in the default pack): the water consumption of Table 8.5.1 (occupancy), the ventilation and
 occupant density of Table 8.2.3, and the load densities of Table 8.1.17. 07 MEP's storey-use
 table gives a storey one use and, optionally, its population; :func:`with_story_uses` maps
 them to the row of each table (:data:`STORY_USES`) for the storeys the table lists:
@@ -25,7 +25,7 @@ from typing import Any, NamedTuple
 
 class StoryUse(NamedTuple):
     label: str
-    #: BNBC 2020 Part 8 Table 8.5.1 row (plumbing occupancy).
+    #: The pack's water consumption row (Table 8.5.1 in the default pack; plumbing occupancy).
     plumbing: str | None
     #: Table 8.2.3 row (HVAC use).
     hvac: str | None

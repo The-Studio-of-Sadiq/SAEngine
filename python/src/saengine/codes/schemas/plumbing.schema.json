@@ -378,6 +378,56 @@
       "title": "LeaderRow",
       "type": "object"
     },
+    "PipeFittings": {
+      "additionalProperties": false,
+      "description": "Equivalent pipe lengths of fittings [m] by nominal size (D5: the hydraulics' constants).",
+      "properties": {
+        "sizes": {
+          "description": "Nominal sizes [mm], ascending.",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Sizes",
+          "type": "array"
+        },
+        "lengths": {
+          "additionalProperties": {
+            "items": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "description": "Fitting -> length [m] at each size.",
+          "title": "Lengths",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sizes",
+        "lengths"
+      ],
+      "title": "PipeFittings",
+      "type": "object"
+    },
     "Reduction": {
       "additionalProperties": false,
       "properties": {
@@ -937,6 +987,220 @@
         "minimum"
       ],
       "title": "SupplyUnitsRow",
+      "type": "object"
+    },
+    "TankCombination": {
+      "additionalProperties": false,
+      "description": "A load combination of the water tanks' design: ``factors`` by load case (D, F, H, Lr);\na row ``eachFluid`` repeats for each fluid case (F, and F1, F2, ... one compartment full),\nits F standing for that case; a row is used only when the tank has the ``requires`` cases;\na case the tank does not have is left out of the factors.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "kind": {
+          "enum": [
+            "strength",
+            "service"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "clause": {
+          "description": "The combination's number in the code, as reported.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "eachFluid": {
+          "default": false,
+          "title": "Eachfluid",
+          "type": "boolean"
+        },
+        "requires": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "clause",
+        "factors"
+      ],
+      "title": "TankCombination",
+      "type": "object"
+    },
+    "TankRules": {
+      "additionalProperties": false,
+      "description": "The code values of the RC water tanks' design (D5: ``plumbing/tanks.py``'s constants);\nthe minimum wall steel and the largest spacing are the ``concrete`` table's ``walls``.",
+      "properties": {
+        "coverStrengths": {
+          "description": "f'c columns [N/mm²].",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Coverstrengths",
+          "type": "array"
+        },
+        "cover": {
+          "additionalProperties": {
+            "items": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "description": "Exposure -> nominal cover [mm] at each strength; null: not allowed.",
+          "title": "Cover",
+          "type": "object"
+        },
+        "weatherCover": {
+          "description": "Exposed to earth or weather [mm]: bars from weatherBarFrom, smaller bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Weathercover",
+          "type": "array"
+        },
+        "weatherBarFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "[mm]",
+          "title": "Weatherbarfrom"
+        },
+        "againstEarth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Cast against and exposed to earth [mm].",
+          "title": "Againstearth"
+        },
+        "maxSpacingFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Bars at most this x the thickness apart (and concrete.walls.spacingMax).",
+          "title": "Maxspacingfactor"
+        },
+        "maxWaterCement": {
+          "description": "w/c for concrete of low permeability.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maxwatercement",
+          "type": "number"
+        },
+        "combinations": {
+          "items": {
+            "$ref": "#/$defs/TankCombination"
+          },
+          "minItems": 1,
+          "title": "Combinations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coverStrengths",
+        "cover",
+        "weatherCover",
+        "weatherBarFrom",
+        "againstEarth",
+        "maxSpacingFactor",
+        "maxWaterCement",
+        "combinations"
+      ],
+      "title": "TankRules",
       "type": "object"
     },
     "TrapUnits": {
@@ -1807,6 +2071,96 @@
       },
       "title": "Roomfixtures",
       "type": "object"
+    },
+    "fixtureFlow": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Required flow of a single fixture [l/min], flush tanks.",
+      "title": "Fixtureflow"
+    },
+    "fixtureFlowValve": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Fixtures whose flow differs with flush valves [l/min].",
+      "title": "Fixtureflowvalve"
+    },
+    "outletAboveBottom": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A storage tank's outlet above its bottom [mm].",
+      "title": "Outletabovebottom"
+    },
+    "fittings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PipeFittings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tanks": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TankRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

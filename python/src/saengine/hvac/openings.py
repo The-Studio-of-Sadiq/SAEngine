@@ -7,8 +7,8 @@ path crosses a beam of 06 BIM at the level above and its vertical extent overlap
 depth, it needs a web opening. The proposed opening is a 07 MEP opening (host: the beam;
 position: the crossing's distance from the beam's start and the duct centre's elevation above
 the beam's bottom) of the duct's outside size (with insulation, :data:`saengine.hvac.air.
-INSULATION`) plus 50 mm each side (75 mm for kitchen exhaust, BNBC 2020 Part 8 Sec 2.11.5.1(f),
-p. 912), rounded up to 50 mm; its length along the beam is the duct's width over the sine of
+INSULATION`) plus 50 mm each side (the pack's kitchen exhaust clearance: 75 mm, Part 8 Sec 2.11.5.1(f),
+p. 912, in the default pack), rounded up to 50 mm; its length along the beam is the duct's width over the sine of
 the crossing angle plus the web width times the cotangent (the duct shifts along the beam as it
 passes through the web). A round duct crossing near square (its oblique length at most 50 mm
 over its diameter) takes a circular opening.
@@ -19,8 +19,8 @@ support faces by h, concrete above and below; the forces at it once the analysis
 When it fails, the duct is reported with the ways round it:
 
 - route below the beam: the duct's insulated top 50 mm under the beam soffit; the clear
-  height left under it (above a 50 mm floor finish, SAEngine default) against the 2.44 m BNBC
-  2020 Part 3 Sec 1.14.2.1(b) requires under a duct in an air-conditioned room (Part 1 volume
+  height left under it (above a 50 mm floor finish, SAEngine default) against the pack's least
+  headroom (2.44 m, Part 3 Sec 1.14.2.1(b), in the default pack) required under a duct in an air-conditioned room (Part 1 volume
   p. 66; Table 3.1.9's ceiling heights for educational, health care, assembly, 2.6 m, and
   storage, 3.0 m, air-conditioned);
 - increase the floor height by what the clear height lacks (the floor-to-floor it needs);
@@ -51,9 +51,9 @@ from typing import Any
 import numpy as np
 from shapely.geometry import LineString, Point
 
+from saengine.hvac import tables as T
 from saengine.hvac.air import (
     ASPECT_MAX,
-    HEADROOM_UNDER_DUCT,
     INSULATION,
     Project,
     ceiling_height,
@@ -64,7 +64,6 @@ from saengine.hvac.air import (
 from saengine.mep.geometry import bounded_id
 
 CLEARANCE = 50.0  # mm each side of a duct through a beam or slab (SAEngine practice)
-KITCHEN_CLEARANCE = 75.0  # mm, BNBC 2020 Part 8 Sec 2.11.5.1(f)
 HANGER_GAP = 25.0  # mm, insulated top of a duct below the soffit by default
 BELOW_GAP = 50.0  # mm, a duct routed below a beam
 FLOOR_FINISH = 50.0  # mm
@@ -77,16 +76,25 @@ def _up(value: float) -> float:
     return math.ceil(value / STEP - 1e-9) * STEP
 
 
+def __getattr__(name: str) -> Any:
+    if name == "KITCHEN_CLEARANCE":  # the former constant [mm]
+        return T.air().kitchenClearance
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def clearance_of(system: str) -> float:
-    return KITCHEN_CLEARANCE if system == "kitchenExhaust" else CLEARANCE
+    """Clear space each side of a duct through a beam or slab [mm]: the pack's kitchen exhaust
+    clearance, SAEngine's :data:`CLEARANCE` for the others."""
+    return T.air().kitchenClearance if system == "kitchenExhaust" else CLEARANCE
 
 
 def required_headroom(use: str | None) -> tuple[float, str]:
     """Clear height needed under a duct [mm] and its source."""
     table = ceiling_height(use)
-    if table and table > HEADROOM_UNDER_DUCT:
-        return table, "BNBC 2020 Part 3 Table 3.1.9 (air-conditioned), Part 1 volume p. 66"
-    return HEADROOM_UNDER_DUCT, "BNBC 2020 Part 3 Sec 1.14.2.1(b), Part 1 volume p. 66"
+    least = T.air().headroomUnderDuct
+    if table and table > least:
+        return table, T.source("air.ceilingHeights")
+    return least, T.source("air.headroomUnderDuct")
 
 
 def beam_opening_for(
@@ -286,8 +294,9 @@ def duct_openings(project: Project, sizes: dict[str, dict[str, Any]] | None = No
             "move the riser into a shaft)",
         })  # fmt: skip
     notes.append(
-        f"openings: duct outside size + {CLEARANCE:g} mm each side ({KITCHEN_CLEARANCE:g} mm "
-        "for kitchen exhaust, BNBC Sec 2.11.5.1(f)), rounded up to 50 mm (SAEngine practice)"
+        f"openings: duct outside size + {CLEARANCE:g} mm each side "
+        f"({T.air().kitchenClearance:g} mm for kitchen exhaust, "
+        f"{T.source('air.kitchenClearance')}), rounded up to 50 mm (SAEngine practice)"
     )
     return {"openings": openings, "conflicts": conflicts, "crossings": crossings,
             "stale": stale, "checks": checks, "notes": notes}  # fmt: skip

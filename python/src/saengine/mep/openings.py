@@ -2,11 +2,13 @@
 
 Each check is reported in the format of :mod:`saengine.design.check` (``{name, demand,
 capacity, unit, utilisation, combination, ok, note, flag}``; ``flag`` checks are reported but do
-not make the opening fail). What is checked, and on what authority:
+not make the opening fail). What is checked, and on what authority (the code pack's
+``mepOpenings``, ``slabMethods.openings`` and ``concrete.walls``; the clauses below are those of
+the default pack, BNBC 2020 Part 6):
 
 Beams (reinforced-concrete rectangles):
 
-- Sleeves: BNBC 2020 Part 6 Sec 5.16.3.3 requires only that conduits, pipes and sleeves
+- Sleeves: Sec 5.16.3.3 requires only that conduits, pipes and sleeves
   passing through a slab, wall or beam "not impair significantly the strength of the
   construction"; it gives no number. The one-third and three-diameter limits of 5.16.3.5 (a)
   and (b) are written for conduits and pipes embedded in the member and exclude those merely
@@ -15,7 +17,7 @@ Beams (reinforced-concrete rectangles):
 - Openings: SAEngine checks openings small enough to keep beam action (depth or diameter at most
   h/3, length along the beam at most d) by the net-section method: the ACI 318-19 shear strength
   (Table 22.5.5.1, Vs = Av fyt d / s, the section limit 0.66 √f'c b d) with the effective
-  depth reduced by the opening's depth, d - a0, as BNBC 6.4.1.1.1 requires "the effect of any
+  depth reduced by the opening's depth, d - a0, as 6.4.1.1.1 requires "the effect of any
   openings in members shall be considered in determining Vn". Larger openings act as Vierendeel
   panels with top and bottom chords (Mansur and Tan, Concrete Beams with Openings, 1999); they
   are reported as needing a detailed design, which SAEngine does not do.
@@ -31,19 +33,19 @@ Beams (reinforced-concrete rectangles):
 
 Slabs:
 
-- Openings in slab systems without beams (flat slabs and plates): BNBC 6.5.4.2.1 to 6.5.4.2.3
+- Openings in slab systems without beams (flat slabs and plates): 6.5.4.2.1 to 6.5.4.2.3
   (ACI 318-19 8.5.4.2): in the area common to two column strips at most one eighth of the
   column strip width interrupted, in the area common to a column strip and a middle strip at
   most one quarter of the bars of either strip, any size where two middle strips cross; the
   bars interrupted are added on the sides (reported). Column strips are 0.25 l1 or 0.25 l2 each
-  side of the column line, whichever is less (BNBC 6.5.2.1; the spans of the bay of the
+  side of the column line, whichever is less (6.5.2.1; the spans of the bay of the
   opening's centre), clipped at the slab edge. Each rule is applied to the part of the opening
   in its region, so a large opening centred between middle strips but running into the column
   strips is checked there (the governing strip of each rule). For slabs with beams the same limits
   are reported as a guide (flag): 6.5.4.1 accepts openings of any size shown adequate by
   analysis, so cut them into the analysis model (MEP adds its openings to it).
 - Punching: an opening closer than ten slab thicknesses to a column, or in a flat slab within
-  a column strip through the column (within a span of it) (BNBC 6.4.10.6; ACI 318-19
+  a column strip through the column (within a span of it) (6.4.10.6; ACI 318-19
   22.6.4.3), makes the part of the critical perimeter between straight lines from the column's
   centroid tangent to the opening ineffective (6.4.10.6.1). SAEngine reports the reduced b0 and,
   with analysis results, checks the direct shear Vu on it against φ vc b0 d (ACI 22.6.5.2 as in
@@ -51,9 +53,9 @@ Slabs:
   beams framing in at the slab are not checked for punching.
 
 Walls: the opening within the wall; the share of the wall length it removes at its level
-(reported: the in-plane shear strength of BNBC 6.4.8 goes with the length); trim bars around
+(reported: the in-plane shear strength of 6.4.8 goes with the length); trim bars around
 window, door and similar openings, two 16 mm bars in walls with two layers and one in walls
-with a single layer (BNBC 6.6.3.7), as a note.
+with a single layer (6.6.3.7), as a note.
 """
 
 from __future__ import annotations
@@ -85,15 +87,87 @@ FYT_MAX = 420.0
 #: Demands at a point of a beam: (combination, Vu [N], Mu [N·mm], positive hogging).
 Demands = list[tuple[str, float, float]]
 
-BEAM_SOURCE = "BNBC 2020 6.4.1.1.1 (openings in Vn); net section"
-SLEEVE_SIZE_NOTE = (
-    "at most one third of the member depth: BNBC 5.16.3.3 gives no number for sleeves passing "
-    "through; SAEngine adopts the limit 5.16.3.5 (a) sets for embedded conduits and pipes"
-)
-SLEEVE_SPACING_NOTE = (
-    "centre to centre: BNBC 5.16.3.3 gives no number for sleeves passing through; SAEngine "
-    "adopts the spacing 5.16.3.5 (b) sets for embedded conduits and pipes"
-)
+
+def rules() -> Any:
+    """The pack's ``mepOpenings`` table; ``ValueError`` (not covered) when the pack has none."""
+    from saengine.mep import code_pack
+
+    table = code_pack.table("mepOpenings")
+    if table is None:
+        raise ValueError(code_pack.not_covered("The checks of MEP openings"))
+    return table
+
+
+def clause(key: str) -> str:
+    """The pack's clause of check ``key`` (``mepOpenings.clauses``; "" when it names none)."""
+    return rules().clauses.get(key, "")
+
+
+def strip_shares() -> tuple[float, float]:
+    """(where column strips cross, where a column strip and a middle strip meet): the shares of
+    the strip width an opening may interrupt (the pack's ``slabMethods.openings``)."""
+    from saengine.mep import code_pack
+
+    table = code_pack.table("slabMethods")
+    shares = None if table is None else table.openings
+    if shares is None:
+        raise ValueError(code_pack.not_covered("The slab opening limits"))
+    return shares.columnColumnShare, shares.columnMiddleShare
+
+
+def two_layer_thickness() -> float:
+    """Walls thicker than this have two layers of bars [mm] (the pack's ``concrete.walls``)."""
+    from saengine.mep import code_pack
+
+    table = code_pack.table("concrete")
+    if table is None:
+        raise ValueError(code_pack.not_covered("The wall layers"))
+    return table.walls.twoLayerThickness
+
+
+def beam_source() -> str:
+    return f"{clause('beam')} (openings in Vn); net section"
+
+
+def sleeve_size_note() -> str:
+    return (
+        f"at most one third of the member depth: {clause('sleeves')} gives no number for "
+        f"sleeves passing through; SAEngine adopts the limit {clause('embedded')} (a) sets for "
+        "embedded conduits and pipes"
+    )
+
+
+def sleeve_spacing_note() -> str:
+    return (
+        f"centre to centre: {clause('sleeves')} gives no number for sleeves passing through; "
+        f"SAEngine adopts the spacing {clause('embedded')} (b) sets for embedded conduits and "
+        "pipes"
+    )
+
+
+def __getattr__(name: str) -> Any:
+    # the former constants, read from the pack in force
+    former = {
+        "BEAM_SOURCE": beam_source,
+        "SLEEVE_SIZE_NOTE": sleeve_size_note,
+        "SLEEVE_SPACING_NOTE": sleeve_spacing_note,
+    }
+    if name in former:
+        return former[name]()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _fraction(share: float) -> str:
+    from fractions import Fraction
+
+    return str(Fraction(share).limit_denominator(64))
+
+
+_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+
+
+def _count(n: int) -> str:
+    return _WORDS[n] if 0 <= n < len(_WORDS) else str(n)
 
 
 # ─────────────────────────────────────── beams ───────────────────────────────────────
@@ -170,7 +244,7 @@ def beam_opening_checks(
                 h / 3,
                 "mm",
                 None,
-                SLEEVE_SIZE_NOTE,
+                sleeve_size_note(),
             )
         )
     else:
@@ -240,7 +314,7 @@ def beam_opening_checks(
                 spacing,
                 "mm",
                 None,
-                SLEEVE_SPACING_NOTE,
+                sleeve_spacing_note(),
             )
         )
     if demands is None:
@@ -293,7 +367,7 @@ def beam_opening_checks(
                 "kN",
                 shear_demand[0],
                 f"d - a0 = {shear['dn']:.0f} mm, Vc = {shear['vc'] / 1e3:.1f} kN, Vs = "
-                f"{shear['vs'] / 1e3:.1f} kN ({BEAM_SOURCE}); full-depth stirrups on each side",
+                f"{shear['vs'] / 1e3:.1f} kN ({beam_source()}); full-depth stirrups on each side",
             )
         )
     else:
@@ -453,7 +527,7 @@ class SlabInfo:
     h: float
     d: float
     fc: float
-    flat: bool  # without beams: the strip rules of BNBC 6.5.4.2 apply
+    flat: bool  # without beams: the pack's strip rules (6.5.4.2) apply
     bars_x: float = 0.0  # mm²/mm, X bars (top and bottom)
     bars_y: float = 0.0
 
@@ -480,7 +554,7 @@ def opening_polygon(opening: Opening, cx: float, cy: float) -> Polygon:
 
 def ineffective_perimeter(column: ColumnAt, d: float, boundary: Any, hole: Polygon) -> tuple:
     """(b0, the length of it made ineffective by ``hole``) of the punching critical section of
-    ``column`` (BNBC 6.4.10.6.1): the part between the straight lines from the column's centroid
+    ``column`` (the default pack's 6.4.10.6.1): the part between the straight lines from the column's centroid
     tangent to the hole, and the critical section."""
     from saengine.design.slab import critical_section
 
@@ -537,7 +611,7 @@ class _Band:
 
 @dataclass
 class _Strips:
-    """The column and middle strips of a slab on a column grid (BNBC 6.5.2.1): the strips of the
+    """The column and middle strips of a slab on a column grid (the pack's column strip width, 6.5.2.1): the strips of the
     X bars (bands in y), of the Y bars (bands in x), and the union of the column strips of each
     direction. Strip widths are those of the bay of the opening's centre."""
 
@@ -550,7 +624,7 @@ class _Strips:
 
     def in_column_strip_of(self, column: ColumnAt, hole: Polygon) -> bool:
         """Whether ``hole`` lies (partly) in a column strip through ``column`` within a span of
-        it (BNBC 6.4.10.6: openings in flat slabs within column strips)."""
+        it (the default pack's 6.4.10.6: openings in flat slabs within column strips)."""
         cx, cy = column.centre
         half = self.cs_width / 2
         reach = Point(cx, cy).buffer(self.span)
@@ -592,7 +666,7 @@ def _strips(columns: Sequence[ColumnAt], outline: Polygon, px: float, py: float)
     x_left, x_right = bay(xs, px, sx0, sx1)
     y_low, y_high = bay(ys, py, sy0, sy1)
     l1, l2 = x_right - x_left, y_high - y_low
-    half = 0.25 * min(l1, l2)  # column strip each side of a column line
+    half = rules().columnStripShare * min(l1, l2)  # column strip each side of a column line
     pad = 1.0
     bands_x = [
         _Band(kind, box(sx0 - pad, a, sx1 + pad, b), b - a)
@@ -612,11 +686,13 @@ def _strips(columns: Sequence[ColumnAt], outline: Polygon, px: float, py: float)
 
 
 def _strip_checks(hole: Polygon, strips: _Strips, flag: bool, guide: str) -> list[dict[str, Any]]:
-    """The BNBC 6.5.4.2.2 and 6.5.4.2.3 limits on the bars ``hole`` interrupts, by the parts of
-    it in each region (not only where its centre is): in the area common to two column strips
-    at most 1/8 of the column strip width, in the area common to a column strip and a middle
-    strip at most 1/4 of either strip; the governing band of each rule."""
+    """The pack's limits on the bars ``hole`` interrupts (the default pack's 6.5.4.2.2 and
+    6.5.4.2.3), by the parts of it in each region (not only where its centre is): in the area
+    common to two column strips at most a share (1/8) of the column strip width, in the area
+    common to a column strip and a middle strip at most a share (1/4) of either strip; the
+    governing band of each rule."""
     minimum = 1e-6 * max(hole.area, 1.0)
+    cross, column = strip_shares()
     found: dict[tuple[str, str], tuple[float, float, float]] = {}
 
     def record(bars: str, rule: str, part: Any, axis: int, limit: float, width: float) -> None:
@@ -639,14 +715,17 @@ def _strip_checks(hole: Polygon, strips: _Strips, flag: bool, guide: str) -> lis
             crossing = inside_band.intersection(other)
             beside = inside_band.difference(other)
             if band.kind == "column":
-                record(bars, "cross", crossing, axis, band.width / 8, band.width)
-                record(bars, "column", beside, axis, band.width / 4, band.width)
+                record(bars, "cross", crossing, axis, band.width * cross, band.width)
+                record(bars, "column", beside, axis, band.width * column, band.width)
             else:
-                record(bars, "middle", crossing, axis, band.width / 4, band.width)
+                record(bars, "middle", crossing, axis, band.width * column, band.width)
     names = {
-        "cross": "{} bars cut where column strips cross (BNBC 6.5.4.2.2: 1/8)",
-        "column": "{} bars cut in the column strip (BNBC 6.5.4.2.3: 1/4)",
-        "middle": "{} bars cut in the middle strip (BNBC 6.5.4.2.3: 1/4)",
+        "cross": "{} bars cut where column strips cross "
+        f"({clause('crossStrips')}: {_fraction(cross)})",
+        "column": f"{{}} bars cut in the column strip ({clause('columnMiddle')}: "
+        f"{_fraction(column)})",
+        "middle": f"{{}} bars cut in the middle strip ({clause('columnMiddle')}: "
+        f"{_fraction(column)})",
     }
     checks = []
     for bars in ("X", "Y"):
@@ -706,15 +785,15 @@ def slab_opening_checks(
     minx, miny, maxx, maxy = hole.bounds
     width_x, width_y = maxx - minx, maxy - miny
 
-    # ── strips (BNBC 6.5.2.1, 6.5.4.2) ──
+    # ── strips (6.5.2.1, 6.5.4.2) ──
     strips = _strips(columns, outline, px, py) if columns else None
     if strips is not None:
         flag = not slab.flat
         guide = (
             ""
             if slab.flat
-            else "slab with beams: a guide only (BNBC 6.5.4.1 accepts any opening shown "
-            "adequate by analysis)"
+            else f"slab with beams: a guide only ({clause('byAnalysis')} accepts any opening "
+            "shown adequate by analysis)"
         )
         checks += _strip_checks(hole, strips, flag, guide)
         middle_only = hole.difference(strips.column_x.union(strips.column_y))
@@ -723,7 +802,7 @@ def slab_opening_checks(
             notes.append(
                 f"{opening.id}: {'' if whole else 'the part '}where two middle strips cross: "
                 "any size is permitted there with the panel's total reinforcement kept "
-                "(BNBC 6.5.4.2.1)"
+                f"({clause('middleStrips')})"
             )
     if slab.bars_x or slab.bars_y:
         notes.append(
@@ -732,7 +811,7 @@ def slab_opening_checks(
             "bars (top and bottom together)"
         )
 
-    # ── punching (BNBC 6.4.10.6) ──
+    # ── punching (6.4.10.6) ──
     for column in columns:
         t = math.radians(column.angle)
         corners = [
@@ -747,7 +826,8 @@ def slab_opening_checks(
             for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))
         ]
         distance = Polygon(corners).distance(hole)
-        near = distance < 10 * slab.h
+        reach = rules().punchingDistance
+        near = distance < reach * slab.h
         in_strip = slab.flat and strips is not None and strips.in_column_strip_of(column, hole)
         if not near and not in_strip:
             continue
@@ -760,7 +840,7 @@ def slab_opening_checks(
         b0, lost = ineffective_perimeter(column, slab.d, slab.boundary, hole)
         effective = max(b0 - lost, 0.0)
         where = (
-            f"{distance:.0f} mm from {column.id} (< 10 h = {10 * slab.h:.0f} mm)"
+            f"{distance:.0f} mm from {column.id} (< {reach:g} h = {reach * slab.h:.0f} mm)"
             if near
             else f"in a column strip of {column.id} of the flat slab, {distance:.0f} mm from it"
         )
@@ -769,7 +849,7 @@ def slab_opening_checks(
         if not shears:
             checks.append(
                 _check(
-                    f"Critical perimeter at {column.id} (BNBC 6.4.10.6.1)",
+                    f"Critical perimeter at {column.id} ({clause('punchingPerimeter')})",
                     lost,
                     b0,
                     "mm",
@@ -796,7 +876,7 @@ def slab_opening_checks(
             )
         checks.append(
             _check(
-                f"Punching at {column.id} with the opening (BNBC 6.4.10.6.1)",
+                f"Punching at {column.id} with the opening ({clause('punchingPerimeter')})",
                 vu / 1e3,
                 capacity / 1e3,
                 "kN",
@@ -819,7 +899,7 @@ def slab_opening_checks(
                 spacing,
                 "mm",
                 None,
-                SLEEVE_SPACING_NOTE,
+                sleeve_spacing_note(),
                 flag=True,
             )
         )
@@ -919,20 +999,26 @@ def wall_opening_checks(
             length,
             "mm",
             None,
-            f"{width / length:.0%} of the wall's length; its in-plane shear strength (BNBC 6.4.8) "
-            "goes with the length left: MEP adds the opening to the analysis model",
+            f"{width / length:.0%} of the wall's length; its in-plane shear strength "
+            f"({clause('wallShear')}) goes with the length left: MEP adds the opening to the "
+            "analysis model",
             flag=True,
         )
     )
     if opening.kind == "opening":
+        r = rules()
+        two, one = (_count(n) for n in r.trimBars)
+        limit = two_layer_thickness()
         layers = (
-            "more than 250 mm thick, so it has two layers (BNBC 6.6.3.4): two bars"
-            if thickness > 250
-            else "250 mm thick or less: two bars if it has two layers, one if a single layer"
+            f"more than {limit:g} mm thick, so it has two layers ({clause('wallLayers')}): "
+            f"{two} bars"
+            if thickness > limit
+            else f"{limit:g} mm thick or less: {two} bars if it has two layers, {one} if a single "
+            "layer"
         )
         notes.append(
-            f"{opening.id}: provide 16 mm trim bars around it, anchored to develop fy at the "
-            f"corners (BNBC 6.6.3.7); the wall is {thickness:g} mm thick, {layers}"
+            f"{opening.id}: provide {r.trimBar:g} mm trim bars around it, anchored to develop fy "
+            f"at the corners ({clause('trimBars')}); the wall is {thickness:g} mm thick, {layers}"
         )
     for other in others:
         if other.id == opening.id or other.host != opening.host:
@@ -948,7 +1034,7 @@ def wall_opening_checks(
                 spacing,
                 "mm",
                 None,
-                SLEEVE_SPACING_NOTE,
+                sleeve_spacing_note(),
                 flag=True,
             )
         )

@@ -1,4 +1,5 @@
-"""The cooling loads of a project (BNBC 2020 Part 8 Chapter 2), for the structural coordination.
+"""The cooling loads of a project (the code pack's air-conditioning: BNBC 2020 Part 8 Chapter 2
+in the default pack), for the structural coordination.
 
 :func:`hvac_loads` reads ``07 MEP/mep.json`` (its ``hvac``), ``06 BIM/bim.json`` (stories and
 slabs) and ``02 Project Settings`` (site location, ground level), builds one thermal zone per
@@ -42,37 +43,50 @@ CACHE_VERSION = 2
 #: kW per ton of refrigeration (12 000 Btu/h).
 KW_PER_TON = 3.51685
 
-METHOD = [
-    (
-        "Zones: one thermal zone per story of 06 BIM (its slabs' outline), walls on the outline, "
-        "windows a centred strip of each facade's window-to-wall ratio (when not given, the least "
-        "window area for a room as deep as the plan behind the facade: 20 % below 8 m, 30 % to "
-        f"14 m, 35 % beyond, BNBC 2020 {T.PAGES['4.5.1']})."
-    ),
-    (
-        f"Outside design conditions: Table 8.2.2's 2 % dry bulb and mean coincident wet bulb "
-        f"({T.PAGES['2.12.2']}), its daily range; design days on the 21st of May to September; "
-        "ASHRAE clear sky."
-    ),
-    (
-        f"Inside: 24 °C (Sec 2.12.2.2) within the use's Table 8.2.1 range, the range's upper "
-        f"humidity ({T.PAGES['8.2.1']})."
-    ),
-    (
-        f"Outdoor air: Table 8.2.3 per person and per floor area, summed (the breathing-zone "
-        f"method of ASHRAE 62.1, whose rates the table gives) ({T.PAGES['8.2.3']}); occupants "
-        "from its default density unless entered."
-    ),
-    (
-        f"Lighting: Part 3 Table 3.4.5's maximum lighting power density ({T.PAGES['3.4.5']}) unless "
-        "entered."
-    ),
-    (
-        "Loads: EnergyPlus version 26.2.0 ideal loads air systems on the design days (the peak of "
-        "each zone's supply air cooling, outdoor air included); design airflow from Sizing:Zone at "
-        "13 °C supply; components from the Zone Component Load Summary at the zone's sensible peak."
-    ),
-]
+
+def method() -> list[str]:
+    """How the loads are found, with the values and clauses of the code pack in force (the
+    clause numbers are those of the default pack)."""
+    share = T.LEAST_WINDOW_SHARE
+    return [
+        (
+            "Zones: one thermal zone per story of 06 BIM (its slabs' outline), walls on the "
+            "outline, windows a centred strip of each facade's window-to-wall ratio (when not "
+            "given, the least window area for a room as deep as the plan behind the facade: "
+            f"{share.shallow * 100:g} % below {share.shallowDepth:g} m, {share.medium * 100:g} % "
+            f"to {share.deepDepth:g} m, {share.deep * 100:g} % beyond, {T.PAGES['4.5.1']})."
+        ),
+        (
+            f"Outside design conditions: Table 8.2.2's 2 % dry bulb and mean coincident wet bulb "
+            f"({T.PAGES['2.12.2']}), its daily range; design days on the 21st of May to "
+            "September; ASHRAE clear sky."
+        ),
+        (
+            f"Inside: {T.INDOOR_DB:g} °C (Sec 2.12.2.2) within the use's Table 8.2.1 range, the "
+            f"range's upper humidity ({T.PAGES['8.2.1']})."
+        ),
+        (
+            f"Outdoor air: Table 8.2.3 per person and per floor area, summed (the breathing-zone "
+            f"method of ASHRAE 62.1, whose rates the table gives) ({T.PAGES['8.2.3']}); "
+            "occupants from its default density unless entered."
+        ),
+        (
+            f"Lighting: Part 3 Table 3.4.5's maximum lighting power density ({T.PAGES['3.4.5']}) "
+            "unless entered."
+        ),
+        (
+            "Loads: EnergyPlus version 26.2.0 ideal loads air systems on the design days (the "
+            "peak of each zone's supply air cooling, outdoor air included); design airflow from "
+            "Sizing:Zone at 13 °C supply; components from the Zone Component Load Summary at the "
+            "zone's sensible peak."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":  # the former constant: the method of the pack in force
+        return method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 #: The method's last line when the loads are the estimate (EnergyPlus not installed, failed, or
@@ -88,8 +102,10 @@ ESTIMATE_METHOD = (
 
 
 def _method(estimate: bool) -> list[str]:
-    """:data:`METHOD`, its EnergyPlus line replaced by :data:`ESTIMATE_METHOD` for the estimate."""
-    return [*METHOD[:-1], ESTIMATE_METHOD] if estimate else list(METHOD)
+    """:func:`method`, its EnergyPlus line replaced by :data:`ESTIMATE_METHOD` for the
+    estimate."""
+    lines = method()
+    return [*lines[:-1], ESTIMATE_METHOD] if estimate else lines
 
 
 def _stamp(data: Any) -> str:
@@ -196,7 +212,7 @@ def hvac_results(
                 f"ante-room is needed ({T.PAGES['2.7.2.1b']})"
             )
     base = {
-        "method": METHOD,
+        "method": method(),
         "design": {
             "station": design.station.key, "outdoorDB": design.db, "outdoorWB": design.wb,
             "dailyRange": design.range, "latitude": design.latitude,
@@ -420,8 +436,8 @@ def hvac_loads(
 
 # ─────────────────────────────────────── plant weights ───────────────────────────────────────
 
-#: hvac plant kinds -> 07 MEP equipment kinds; the rotating ones vibrate (BNBC 2020 Part 6
-#: Sec 2.3.12, the impact allowance of Table 6.2.6).
+#: hvac plant kinds -> 07 MEP equipment kinds; the rotating ones vibrate (the code pack's
+#: impact allowance, BNBC 2020 Part 6 Sec 2.3.12 and Table 6.2.6 in the default pack).
 PLANT_EQUIPMENT = {
     "chiller": ("chiller", True),
     "coolingTower": ("other", True),

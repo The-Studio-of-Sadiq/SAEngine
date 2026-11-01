@@ -122,6 +122,7 @@ def __getattr__(name: str) -> Any:
         return method()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
 #: Project Settings building use -> Table 8.1.17 row (for the lightning risk without stories).
 SETTINGS_USE = {
     "residential": "residenceMulti", "office": "office", "educational": "school",

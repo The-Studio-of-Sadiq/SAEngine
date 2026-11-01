@@ -661,15 +661,30 @@ def min_area(h: float, fc: float, fy: float, days: float) -> float:
 
 
 def code_min_area(panel: str, direction: str, h: float, fy: float, dia: float) -> float:
-    """The pack's minimum wall steel (BNBC Part 6 Sec 6.6.3.2 / 6.6.3.3 in the default pack)
-    or ACI 318-19 7.6.1.1 (slabs), half per face [mm²/m]."""
+    """The pack's minimum wall steel (``concrete.walls``: BNBC Part 6 Sec 6.6.3.2 / 6.6.3.3 in
+    the default pack) or ACI 318-19 7.6.1.1 (slabs), half per face [mm²/m]."""
     if panel in ("Base", "Roof"):
         ratio = min_steel_ratio(fy)
     else:
-        r = rules()
-        pair = r.wallMinVertical if direction == "vertical" else r.wallMinHorizontal
-        ratio = pair[0] if dia <= r.wallMinBarUpTo and fy >= r.wallMinFyFrom else pair[1]
+        w = wall_steel()
+        pair = w.rhoSmallBars if dia <= w.smallBarMax and fy >= w.smallBarFy else w.rhoOtherBars
+        ratio = pair[0] if direction == "vertical" else pair[1]
     return ratio * 1000 * h / 2
+
+
+def wall_steel() -> Any:
+    """The pack's minimum steel and spacing of walls (``concrete.walls``)."""
+    table = code_pack.table("concrete")
+    if table is None:
+        raise NotCovered(code_pack.not_covered("The minimum steel of a tank's walls"))
+    return table.walls
+
+
+def max_spacing(h: float) -> float:
+    """The largest bar spacing [mm] in a shell ``h`` thick: the pack's ``maxSpacingFactor`` x h,
+    at most ``concrete.walls.spacingMax`` (3h or 450 mm, BNBC Part 6 Sec 6.6.3.5, in the
+    default pack)."""
+    return float(min(rules().maxSpacingFactor * h, wall_steel().spacingMax))
 
 
 def table_cover(exposure: str, fc: float) -> tuple[float, str | None]:
@@ -1230,7 +1245,7 @@ def design_panels(
                             ec,
                         )
                         record.update({"cover": cover})
-                        limit = float(min(rules().maxSpacingFactor * h, rules().maxSpacing))
+                        limit = max_spacing(h)
                         if record["ok_strength"] and record["ok_crack"] and bars.spacing <= limit:
                             pick = bars
                             break

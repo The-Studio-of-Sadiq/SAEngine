@@ -16,7 +16,8 @@
     "4.4.3": "BNBC 2020 Part 3 Sec 4.4.3.1 and Figure 3.4.2 (p188-189)",
     "4.5.1": "BNBC 2020 Part 3 Sec 4.5.1.2 (p191)",
     "3.4.5": "BNBC 2020 Part 3 Table 3.4.5 (Sec 4.5.2) (p192)",
-    "2.7.2.1b": "BNBC 2020 Part 8 Sec 2.7.2.1(b) (p860)"
+    "2.7.2.1b": "BNBC 2020 Part 8 Sec 2.7.2.1(b) (p860)",
+    "table8.2.3": "BNBC 2020 Part 8 Table 8.2.3"
   },
   "stations": {
     "barisal": {
@@ -2210,6 +2211,183 @@
     "Design-day wind speed 2 m/s and site elevation 10 m (BNBC gives none): SAEngine values.",
     "Cooling supply air 13 °C at 0.008 kg/kg for the design airflow: SAEngine practice, to be checked."
   ],
+  "air": {
+    "minPerPerson": 2.5,
+    "kitchenExhaustVelocity": [
+      7.62,
+      12.7
+    ],
+    "toiletPublic": [
+      25.0,
+      30.0
+    ],
+    "toiletPrivate": [
+      10.0,
+      25.0
+    ],
+    "toiletHotel": [
+      12.5,
+      25.0
+    ],
+    "kitchenPrivate": [
+      12.5,
+      50.0
+    ],
+    "kitchenEquipment": {
+      "cookingPot": [
+        8.0,
+        12.0
+      ],
+      "pressureCookerCabinet": [
+        5.0,
+        null
+      ],
+      "convectionOven": [
+        10.0,
+        null
+      ],
+      "roastingOven": [
+        33.0,
+        33.0
+      ],
+      "griddle": [
+        32.0,
+        35.0
+      ],
+      "fryingPan": [
+        32.0,
+        35.0
+      ],
+      "deepFatFryer": [
+        28.0,
+        null
+      ],
+      "cookerStove": [
+        32.0,
+        35.0
+      ],
+      "grill": [
+        50.0,
+        61.0
+      ],
+      "heatedTable": [
+        30.0,
+        null
+      ],
+      "coffeemaker": [
+        3.0,
+        null
+      ],
+      "dishWasher": [
+        17.0,
+        null
+      ],
+      "refrigeration": [
+        60.0,
+        null
+      ],
+      "ceramicCookerStove": [
+        25.0,
+        null
+      ],
+      "microwaveOven": [
+        3.0,
+        null
+      ],
+      "pizzaOven": [
+        15.0,
+        null
+      ],
+      "inductionCookerStove": [
+        20.0,
+        null
+      ]
+    },
+    "kitchenDefault": "cookerStove",
+    "ventilationPages": {
+      "correctional": 863,
+      "laundry": 864,
+      "education": 864,
+      "food": 865,
+      "hospital": 865,
+      "hotel": 865,
+      "office": 866,
+      "dwelling": 866,
+      "public": 866,
+      "retail": 867,
+      "specialty": 867,
+      "sports": 868,
+      "storage": 868,
+      "theater": 868,
+      "transport": 868,
+      "workroom": 869
+    },
+    "ceilingHeights": {
+      "education": 2600.0,
+      "hospital": 2600.0,
+      "correctional": 2600.0,
+      "theater": 2600.0,
+      "storage": 3000.0
+    },
+    "assemblyUses": [
+      "worship",
+      "courtroom",
+      "legislative",
+      "spectator",
+      "hotelAssembly"
+    ],
+    "assemblyCeiling": 2600.0,
+    "headroomUnderDuct": 2440.0,
+    "kitchenClearance": 75.0
+  },
+  "plant": {
+    "cop": {
+      "airCooled": [
+        {
+          "upTo": 530.0,
+          "cop": 2.9
+        },
+        {
+          "upTo": null,
+          "cop": 3.05
+        }
+      ],
+      "centrifugal": [
+        {
+          "upTo": 530.0,
+          "cop": 5.8
+        },
+        {
+          "upTo": 1050.0,
+          "cop": 5.8
+        },
+        {
+          "upTo": null,
+          "cop": 6.3
+        }
+      ],
+      "screw": [
+        {
+          "upTo": 530.0,
+          "cop": 4.7
+        },
+        {
+          "upTo": 1050.0,
+          "cop": 5.4
+        },
+        {
+          "upTo": null,
+          "cop": 5.75
+        }
+      ]
+    },
+    "waterCooledFrom": 1050.0,
+    "headroomFrom": 1758.0,
+    "headroom": {
+      "centrifugal": 4500.0,
+      "other": 3600.0
+    }
+  },
   "sources": {
     "stations": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863; columns (2)-(14) as printed (Dhaka's 0.4 % DB is printed 35.55); latitude and longitude: SAEngine, from memory, to be checked (BNBC gives none)",
     "defaultStation": "SAEngine: Dhaka when the project gives no site location",
@@ -2232,6 +2410,20 @@
     "supplyAirHumidity": "SAEngine practice, to be checked",
     "designWindSpeed": "SAEngine, from memory, to be checked (BNBC gives none)",
     "siteElevation": "SAEngine, from memory, to be checked (BNBC gives none)",
-    "timeZone": "Bangladesh Standard Time, UTC+6"
+    "timeZone": "Bangladesh Standard Time, UTC+6",
+    "air.minPerPerson": "BNBC 2020 Part 8 Sec 2.11.3.4, p. 905: outdoor air at least 2.5 l/s per person",
+    "air.kitchenExhaustVelocity": "BNBC 2020 Part 8 Sec 2.11.5.1(d), p. 912",
+    "air.toiletPublic": "BNBC 2020 Part 8 Table 8.2.3, public toilets, p. 867: per water closet or urinal, normal and heavy use (note e)",
+    "air.toiletPrivate": "BNBC 2020 Part 8 Table 8.2.3, private dwellings, p. 866: per bathroom, continuous and intermittent (note f); kitchenPrivate: per kitchen",
+    "air.toiletHotel": "BNBC 2020 Part 8 Table 8.2.3, hotels, p. 865: per bathroom",
+    "air.kitchenEquipment": "BNBC 2020 Part 8 Sec 2.11.5.1(g) and Table 8.2.8 (pp. 912, 914): design exhaust air flow per kW of the kitchen equipment, electricity based and gas based",
+    "air.kitchenDefault": "SAEngine choice for a kitchen given only as a total: cooker/stove, gas",
+    "air.ventilationPages": "BNBC 2020 Part 8 Table 8.2.3 (p863-869): the page of each group of rows",
+    "air.ceilingHeights": "BNBC 2020 Part 3 Table 3.1.9 (air-conditioned), Part 1 volume p. 66: educational, institutional, health care and assembly 2.6 m, storage 3.0 m",
+    "air.headroomUnderDuct": "BNBC 2020 Part 3 Sec 1.14.2.1(b), Part 1 volume p. 66: 2.44 m under a duct",
+    "air.kitchenClearance": "BNBC 2020 Part 8 Sec 2.11.5.1(f), p. 912: a kitchen exhaust duct 75 mm clear of its enclosure, one exhaust duct an enclosure",
+    "plant.cop": "BNBC 2020 Part 8 Table 8.2.11, p. 919: minimum COP by chiller class and size",
+    "plant.waterCooledFrom": "SAEngine: water-cooled chillers from the largest size category of BNBC 2020 Part 8 Table 8.2.11 (p. 919)",
+    "plant.headroom": "BNBC 2020 Part 8 Sec 2.6.2.4(b) (p. 853), water-cooled chiller installations of 500 TR and above: 4.5 m centrifugal, 3.6 m screw/reciprocating"
   }
 }

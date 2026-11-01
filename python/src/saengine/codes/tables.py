@@ -3271,7 +3271,8 @@ class TankCombination(_Row):
 
 
 class TankRules(_Group):
-    """The code values of the RC water tanks' design (D5: ``plumbing/tanks.py``'s constants)."""
+    """The code values of the RC water tanks' design (D5: ``plumbing/tanks.py``'s constants);
+    the minimum wall steel and the largest spacing are the ``concrete`` table's ``walls``."""
 
     coverStrengths: list[PosNum] = Field(min_length=1, description="f'c columns [N/mm²].")
     cover: dict[str, list[PosNum | None]] = Field(
@@ -3282,16 +3283,9 @@ class TankRules(_Group):
     )
     weatherBarFrom: PosNum = Field(description="[mm]")
     againstEarth: PosNum = Field(description="Cast against and exposed to earth [mm].")
-    wallMinVertical: tuple[Share, Share] = Field(
-        description="Wall vertical steel ratio: small bars of high fy, others."
+    maxSpacingFactor: PosNum = Field(
+        description="Bars at most this x the thickness apart (and concrete.walls.spacingMax)."
     )
-    wallMinHorizontal: tuple[Share, Share] = Field(
-        description="Wall horizontal steel ratio: small bars of high fy, others."
-    )
-    wallMinBarUpTo: PosNum = Field(description="'Small bars': up to this diameter [mm].")
-    wallMinFyFrom: PosNum = Field(description="'High fy': from this yield strength [MPa].")
-    maxSpacingFactor: PosNum = Field(description="Bars at most this x the thickness apart.")
-    maxSpacing: PosNum = Field(description="...and at most this [mm].")
     maxWaterCement: Share = Field(description="w/c for concrete of low permeability.")
     combinations: list[TankCombination] = Field(min_length=1)
 
@@ -7981,6 +7975,28 @@ class FerrocementTable(TableModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+# ───────────────────────────── MEP openings through the structure (D5) ─────────────────────────────
+
+
+class MepOpeningsTable(TableModel):
+    """The code rules the checks of the openings and sleeves MEP cuts through beams, slabs and
+    walls read (``saengine.mep.openings``) besides the ``slabMethods.openings`` shares and the
+    ``concrete.walls`` layers: the column strip width, the punching zone, the trim bars, and the
+    clause of each check. A pack without it does not cover these checks."""
+
+    columnStripShare: Share = Field(
+        description="Column strip each side of a column line: this x the shorter span."
+    )
+    punchingDistance: PosNum = Field(
+        description="An opening nearer a column than this x the slab thickness cuts b0."
+    )
+    trimBar: PosNum = Field(description="Trim bars around a wall opening [mm].")
+    trimBars: tuple[Annotated[int, Field(ge=1)], Annotated[int, Field(ge=1)]] = Field(
+        description="Trim bars a side: walls with two layers, walls with one."
+    )
+    clauses: dict[str, str] = Field(default_factory=dict, description="Check -> clause.")
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -8031,6 +8047,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "nonlinearHistory": NonlinearHistoryTable,
     "bamboo": BambooTable,
     "ferrocement": FerrocementTable,
+    "mepOpenings": MepOpeningsTable,
 }
 
 

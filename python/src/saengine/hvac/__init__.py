@@ -1,13 +1,14 @@
-"""Cooling loads to BNBC 2020 Part 8 Chapter 2 for the structural coordination (Part 7).
+"""Cooling loads to the code pack's air-conditioning (BNBC 2020 Part 8 Chapter 2 in the default
+pack) for the structural coordination (Part 7).
 
 The structural engineer coordinates the air-conditioning with the structure: the plant (its
 weight and where it stands), the shafts and the openings its ducts need. The plant's size
 follows from the building's cooling load, which this package works out from ``07 MEP/mep.json``
 (``hvac``) and the building model ``06 BIM``: one thermal zone per story, the design days of
-BNBC Table 8.2.2 and the ventilation of Table 8.2.3, simulated by EnergyPlus version 26.2.0 (run
+the pack's Table 8.2.2 and the ventilation of Table 8.2.3, simulated by EnergyPlus version 26.2.0 (run
 as a separate program, never linked) or, without it, estimated by a documented hand method.
 
-- :mod:`saengine.hvac.tables` the BNBC tables as data, each with its page
+- :mod:`saengine.hvac.tables` the code pack's tables as data, each with its page
 - :mod:`saengine.hvac.constructions` typical Bangladeshi walls, roofs and glazing
 - :mod:`saengine.hvac.geometry` thermal zones and surfaces from the building model
 - :mod:`saengine.hvac.energyplus` the epJSON input, the run and its results

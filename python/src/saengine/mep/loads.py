@@ -1,12 +1,12 @@
 """Equipment loads of the MEP model on the analysis model, and the holes MEP cuts in it.
 
-Load cases (BNBC 2020, Part 6 Chapter 2):
+Load cases (the code pack's; Part 6 Chapter 2 of the default pack, BNBC 2020):
 
 - The weight of fixed service equipment and permanent machinery (HVAC, lifts, plumbing risers
   and the like) supported by structural members is dead load (Sec 2.2.6). It goes into the
   superimposed dead load case **SD**, factored as D by every combination.
 - The contents (operating minus empty weight: the water of a tank, a chiller's refrigerant) are
-  loads of fluids of known density and controlled height, F. BNBC 2.7.3.1 has F only in
+  loads of fluids of known density and controlled height, F. Sec 2.7.3.1 has F only in
   combinations 1 and 2, 1.4(D + F) and 1.2(D + F + T) + 1.6(L + H) + ..., not in
   0.9D + 1.6W + 1.6H or 0.9D + 1.0E + 1.6H, and requires the effects of loads not acting to be
   investigated: a tank may be empty, so its water must not help resist uplift, overturning or
@@ -74,6 +74,7 @@ from saengine.library.bim import (
     WallOpening,
 )
 from saengine.library.mep import Equipment, MepModel
+from saengine.mep import code_pack
 from saengine.mep.geometry import (
     bounded_id,
     footprint_points,
@@ -91,17 +92,19 @@ PLINTH_UNIT_WEIGHT = 24.0
 #: A beam frames a slab panel when its top is within this of the slab's [mm].
 SLAB_LEVEL_TOLERANCE = 300.0
 
-#: BNBC 2020 Table 6.2.6, vertical impact as a percentage of the static load including
-#: self-weight, by equipment kind (lifts always; the others when marked vibrating).
-IMPACT_PERCENT = {
-    "lift": (100.0, "lifts, hoists and related operating machinery"),
-    "generator": (50.0, "reciprocating machinery or power driven units"),
-    "pump": (20.0, "light machinery (shaft or motor driven)"),
-    "chiller": (20.0, "light machinery (shaft or motor driven)"),
-    "ahu": (20.0, "light machinery (shaft or motor driven)"),
-    "other": (20.0, "light machinery (shaft or motor driven)"),
-    "tank": (20.0, "light machinery (shaft or motor driven)"),
-    "transformer": (20.0, "light machinery (shaft or motor driven)"),
+#: Equipment kind -> its row of the code pack's impact allowances (``areaLoads.impact``, the
+#: vertical impact as a share of the static load including self-weight; Table 6.2.6 in the
+#: default pack): lifts row 1, reciprocating machinery row 3, the rest light machinery row 2
+#: (SAEngine's classification of the kinds; lifts always, the others when marked vibrating).
+IMPACT_ROW = {
+    "lift": "1",
+    "generator": "3",
+    "pump": "2",
+    "chiller": "2",
+    "ahu": "2",
+    "other": "2",
+    "tank": "2",
+    "transformer": "2",
 }
 
 
@@ -164,8 +167,13 @@ def impact_percent(item: Equipment) -> tuple[float, str]:
     if item.impact is not None:
         return item.impact, "manufacturer's value"
     if item.kind == "lift" or item.vibrating:
-        percent, row = IMPACT_PERCENT[item.kind]
-        return percent, f"BNBC 2020 Table 6.2.6, {row}"
+        table = code_pack.table("areaLoads")
+        rows = {r.id: r for r in table.impact} if table is not None else {}
+        row = rows.get(IMPACT_ROW.get(item.kind, "2"))
+        if row is None:
+            return 0.0, code_pack.not_covered("Impact allowance")
+        clause = code_pack.clause(code_pack.source("areaLoads", "impact"))
+        return round(row.vertical * 100.0, 9), f"{clause}, {row.name[:1].lower()}{row.name[1:]}"
     return 0.0, ""
 
 
@@ -302,8 +310,9 @@ def equipment_loads(
     if full and mep.contentsAs == "dead":
         result.notes.append(
             f"MEP: the contents of {', '.join(full)} are taken as dead load (SD), so the 0.9D "
-            "combinations count them as resisting uplift and overturning; BNBC 2.7.3.1 has the "
-            "fluid load F only in 1.4(D + F) and 1.2(D + F + T) + ...: use this only for "
+            "combinations count them as resisting uplift and overturning; the code's "
+            "combinations have the fluid load F only in 1.4(D + F) and 1.2(D + F + T) + ...: use "
+            "this only for "
             "contents that are always there"
         )
     elif full and mep.contentsAs == "fluid" and contents_case("fluid", cases) == "L":
@@ -446,7 +455,7 @@ def slabs_under(item: Equipment, building: BuildingModel) -> list[str]:
 
 
 #: Equipment pressing more than this on a slab panel, away from its beams, is flagged [kPa]
-#: (SAEngine practice: several times the floor live loads of BNBC 2020 Part 6 Table 6.2.3 that
+#: (SAEngine practice: several times the floor live loads of the pack's area uses that
 #: a slab panel is designed for).
 HEAVY_PRESSURE = 5.0
 #: A tank covering at least this share of its slab panel stands on the panel's edge beams.
@@ -808,7 +817,7 @@ def _stands_under(mep: MepModel, story: str, x: float, y: float) -> Equipment | 
 def hvac_plant_equipment(
     mep: MepModel, taken: set[str], origin: dict[str, str] | None = None
 ) -> tuple[list[Equipment], list[str]]:
-    """The HVAC plant of ``mep.hvac`` as equipment for the analysis loads (BNBC 2020 Part 6 Sec
+    """The HVAC plant of ``mep.hvac`` as equipment for the analysis loads (the default pack's Part 6 Sec
     2.2.6: HVAC systems supported by structural members are dead load; the rotating plant
     vibrates, Sec 2.3.12 and Table 6.2.6), and notes. A unit without its footprint or weight
     takes the typical one of its kind for its capacity (:func:`saengine.hvac.plant.own_size`,
