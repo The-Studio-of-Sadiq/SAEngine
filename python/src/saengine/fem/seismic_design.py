@@ -1862,6 +1862,21 @@ def seismic_design(
             f"Seismic Design Category {category} with non-parallel systems: 100 % + 30 % "
             f"({CLAUSES['orthogonal']})"
         )
+    # ── B37: an isolated building (saengine.fem.isolation): Cd = RI, I = 1 and the isolation
+    # drift limit; the isolators' displacements from RX, RY ──
+    from saengine.fem.isolation import seismic_design_block
+
+    isolated = seismic_design_block(project_path.parent, spectra, notes)
+    if isolated is not None:
+        by_axis_amplification = isolated["amplification"]
+        amplification = max(by_axis_amplification.values())
+        allowable = isolated["allowable"]
+        limit_row = {**limit_row, "ratio": allowable, "isolated": True}
+        if irregular is not None and irregular.get("types"):
+            notes.append(
+                "isolated building with irregularities: the equivalent static analysis is not "
+                "permitted, the response spectrum (or a time history) governs"
+            )
     drift = storey_drifts(project, spectra, storeys, by_axis_amplification, allowable, forces, ax)
     tower_summary = None
     if towers is not None:
@@ -1957,6 +1972,7 @@ def seismic_design(
         "signs": options.signs,
         "drift": drift,
         "towers": tower_summary,
+        "isolation": isolated["summary"] if isolated is not None else None,
         "notes": notes,
         "clauses": clauses(),
     }

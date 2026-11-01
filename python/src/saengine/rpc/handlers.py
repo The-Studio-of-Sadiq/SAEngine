@@ -748,6 +748,9 @@ def derive_fem(
         result["ssiText"] = json.dumps(derivation.ssi, indent="\t", ensure_ascii=False) + "\n"
     if derivation.faces is not None:
         result["facesText"] = json.dumps(derivation.faces, ensure_ascii=False)
+    # B37: the isolation design for ``08 FEM/isolation.json`` (saengine.fem.isolation).
+    if derivation.isolation is not None:
+        result["isolationText"] = json.dumps(derivation.isolation, indent=1, ensure_ascii=False)
     return result
 
 

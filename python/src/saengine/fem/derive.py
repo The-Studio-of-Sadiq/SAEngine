@@ -529,6 +529,9 @@ class Derivation:
     #: The member end offsets (``08 FEM/faces.json``, :mod:`saengine.fem.end_zones`), when the
     #: settings model end offsets.
     faces: dict[str, Any] | None = None
+    #: B37: the isolation design (``08 FEM/isolation.json``, :mod:`saengine.fem.isolation`),
+    #: when a column type has a seismic isolator.
+    isolation: dict[str, Any] | None = None
 
 
 class _Builder:
@@ -2878,6 +2881,31 @@ def _derive_fem(
         _wind_gust(
             project, summary, b.notes, settings.wind, values["windSpeed"], settings.wind.exposure
         )
+    # ── B37: seismic isolators under the columns (saengine.fem.isolation), after the fixed-base
+    # period and every case exist ──
+    isolation_json = None
+    if heights and values["Z"] and not special:
+        from saengine.fem.isolation import apply_isolation
+
+        fixed = summary.get("seismic") or {}
+        iso = apply_isolation(
+            project,
+            building,
+            types,
+            settings,
+            values,
+            {a: float((fixed.get(f"E{a}") or {}).get("period_s") or 0.0) for a in ("X", "Y")},
+        )
+        if iso is not None:
+            project = iso.project
+            b.notes.extend(iso.notes)
+            isolation_json = iso.summary
+            if iso.summary is not None:
+                summary["isolation"] = {
+                    k: iso.summary[k] for k in ("design", "maximum", "total", "staticAnalysis")
+                }
+                summary["nodes"] = len(project["nodes"])
+                summary["elements"] = len(project["elements"])
     return Derivation(
         project=project,
         notes=b.notes,
@@ -2886,6 +2914,7 @@ def _derive_fem(
         thermal=thermal_corrections,
         ssi=ssi_json,
         faces=faces if faces and faces["elements"] else None,
+        isolation=isolation_json,
     )
 
 

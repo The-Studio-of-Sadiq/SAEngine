@@ -473,31 +473,7 @@ registerPlannedFeature({
 	],
 });
 
-// T36: base isolators and dampers.
-registerPlannedFeature({
-	id: FemPlanned.baseIsolation,
-	part: 'fem',
-	title: localize('planned.isolation.title', "Base Isolation"),
-	summary: localize('planned.isolation.summary', "Places lead-rubber or friction-pendulum isolators below the columns and walls, from the solver's bundled isolator catalog, and designs the isolated building for the displacements and forces of the isolation system."),
-	steps: [
-		localize('planned.isolation.step1', "Place an isolation plane, and pick the isolator type and size at each support."),
-		localize('planned.isolation.step2', "Work out the effective stiffness, damping and design displacement."),
-		localize('planned.isolation.step3', "Analyse with the upper- and lower-bound isolator properties."),
-		localize('planned.isolation.step4', "Check the isolators, and design the superstructure for the reduced forces."),
-	],
-	inputs: [
-		{ label: localize('planned.isolation.type', "Isolator type"), example: localize('planned.isolation.typeExample', "Lead-rubber or friction pendulum") },
-		{ label: localize('planned.isolation.period', "Target isolated period"), unit: localize('planned.unit.s', "s") },
-	],
-	outputs: [
-		localize('planned.isolation.out1', "An isolator schedule and its checks"),
-		localize('planned.isolation.out2', "Design displacements and the isolated base shear"),
-	],
-	references: [
-		localize('planned.isolation.ref1', "BNBC 2020 Part 6 Sec 2.5 (earthquake loads, pp. 609-648)"),
-		localize('planned.isolation.ref2', "ASCE/SEI 7-16 Ch 17 (seismically isolated structures)"),
-	],
-});
+// T36: dampers (seismic isolators: B37, saengine.fem.isolation, an option of the column types).
 registerPlannedFeature({
 	id: FemPlanned.dampers,
 	part: 'fem',

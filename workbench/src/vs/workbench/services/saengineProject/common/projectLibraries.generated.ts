@@ -2160,6 +2160,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
 				},
+				isolator: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SeismicIsolator',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'An isolator under the base of each column of this type that stands on a support: the analysis puts the column on it and designs the isolated building (08 FEM); none: a fixed base.',
+					title: 'Seismic isolator',
+				},
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Column',
@@ -4671,6 +4684,120 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['xDim', 'yDim'],
 			title: 'RectangleProfile',
+			type: 'object',
+		},
+		SeismicIsolator: {
+			additionalProperties: false,
+			description: 'A seismic isolator under a column\'s base, by its bilinear force-displacement curve from\nthe prototype tests: the effective stiffness (secant) and the effective damping (from the\nloop area) at any displacement follow from it. The values here are only a starting point:\nenter the tested values of the units used.',
+			properties: {
+				kind: {
+					default: 'leadRubber',
+					description: 'The isolator type (a label: the curve below is what the analysis uses).',
+					enum: ['leadRubber', 'elastomeric', 'slidingPendulum', 'other'],
+					title: 'Kind',
+					type: 'string',
+				},
+				characteristicStrength: {
+					default: 60,
+					description: 'Qd: the force at zero displacement of the bilinear loop [kN] (lead core yield, or the friction force of a sliding unit).',
+					minimum: 0,
+					title: 'Characteristic strength',
+					type: 'number',
+				},
+				postYieldStiffness: {
+					default: 800,
+					description: 'Kd: the stiffness after yield [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Post yield stiffness',
+					type: 'number',
+				},
+				yieldDisplacement: {
+					default: 15,
+					description: 'Dy: the displacement at yield [mm].',
+					exclusiveMinimum: 0,
+					title: 'Yield displacement',
+					type: 'number',
+				},
+				verticalStiffness: {
+					default: 1000000.0,
+					description: 'Kv: the axial stiffness of the unit [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Vertical stiffness',
+					type: 'number',
+				},
+				lowerBoundFactor: {
+					default: 1.0,
+					description: 'Factor on Qd and Kd for the lower-bound properties over the building\'s life (displacements); 1: no variation entered.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Lower bound factor',
+					type: 'number',
+				},
+				upperBoundFactor: {
+					default: 1.0,
+					description: 'Factor on Qd and Kd for the upper-bound properties over the building\'s life (forces); 1: no variation entered.',
+					minimum: 1,
+					title: 'Upper bound factor',
+					type: 'number',
+				},
+				displacementCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The largest displacement the unit takes (or a restraint allows) [mm]; none: not checked against the total maximum displacement.',
+					title: 'Displacement capacity',
+				},
+				verticalCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The tested vertical load the unit is stable under at the total maximum displacement [kN]; none: not entered.',
+					title: 'Vertical capacity',
+				},
+				activationForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The force that fully activates the unit (yield, break-away friction or a sacrificial wind restraint) [kN]; none: Qd + Kd·Dy.',
+					title: 'Activation force',
+				},
+				testVerticalLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Vertical load of the prototype tests (average dead load plus half the live load on the units of this type) [kN]; none: the seismic weight per unit.',
+					title: 'Test vertical load',
+				},
+			},
+			title: 'SeismicIsolator',
 			type: 'object',
 		},
 		ShearConnectors: {
