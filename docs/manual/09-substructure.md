@@ -69,8 +69,7 @@ rerun in 10 load steps) or *Linear*.
 **Slabs on grade:** the *Slabs on grade* table (Add Slab on Grade) gives each ground-bearing slab
 its thickness, concrete, floor load, largest post or wheel load and its contact side, the
 sub-base modulus k (empty: the design's subgrade modulus) and an optional crack-control mesh as
-`8@200`. A new slab covers the columns' extent, 150 mm, 5 kPa. Generator and machine foundations
-are planned (chip under the table).
+`8@200`. A new slab covers the columns' extent, 150 mm, 5 kPa.
 
 **Excavations:** the *Excavations* table (Add Excavation) gives each excavation its bottom level,
 how its sides are kept (sloped, stepped, shoring, sheet piles, retaining wall, rock cut or
@@ -93,6 +92,27 @@ founded in a fill layer of the soil report and the waterproofing of basements ar
 report, and the drawings' general notes carry the excavation, fill, waterproofing and formwork
 rules. The design of the walls themselves (contiguous and secant pile walls, sheet pile walls,
 struts, walers and anchors) stays planned: each chip opens its planned-feature page.
+
+**Machine foundations:** the *Machine foundations* table (Add Machine Foundation) gives each
+block under a generator, compressor, turbine or hammer its kind, base L × B, depth and founding
+level, the machine's mass and operating speed, its unbalanced force (or rotating unbalance m·e,
+or a hammer's impulse per blow), the maker's permissible amplitude if given, and where the
+soil's spring comes from: E of the soil (Barkan; empty E or G uses the mean E of 1 Soil Report's
+layers within B under the base, a G from a torsional test gives E = 2G(1 + μ)), the subgrade
+modulus ks (empty: 1 Soil Report's at the nearest borehole), a plate load or resonance test, or
+a given k; and the damping D (empty: from a test's decrement or hysteresis loop, else the low end
+of the soils' range). The checks are the active code pack's machine foundation rules (BNBC 2020
+Part 6 Sec 3.20 by default) by its lumped single-degree-of-freedom method: the impact rule, the
+frequency ratio kept below 0.5 (low speed) or at least 2 (high speed), the amplitude at the
+operating speed (and at resonance while a soft foundation starts) against the maker's value or
+the code's, a hammer's 10 mm, the static pressure at most 80% of qa, the eccentricity at most 5%
+and the ground water at least B/4 below the base. The participating soil mass (0 to the mass of
+machine and block) and the printed forms of Barkan's relation are enveloped. The horizontal mode
+is checked when its spring is entered. The plate load and resonance test data, the decrement or
+hysteresis loop, the horizontal spring and force, the machine's offset from the centre, the
+impact live load and the adjacent foundations' level are set in `substructure.json` (the table
+shows the main inputs). Natural frequencies, frequency ratios and what else each
+foundation needs are listed under the table.
 
 ## Sizing footings
 

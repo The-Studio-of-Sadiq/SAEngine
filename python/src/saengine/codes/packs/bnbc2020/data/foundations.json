@@ -130,7 +130,27 @@
     "piles.loadTests.uplift": "BNBC 2020 Part 6 Sec 3.11.3 (pp. 796-797): ultimate from a test / FS 2.0 (1.5 by test, 2.0 by analysis where the uplift is due to wind or earthquake); safe load the lesser of 2/3 of the load at 12 mm and 1/2 of the load at the clear break; initial test to 2 x the design load, routine tests to 1.5 x or 12 mm",
     "piles.loadTests.lateral": "BNBC 2020 Part 6 Sec 3.10.1.21 (p. 752) and Sec 3.11.4 (p. 797): tests to at least 2 x the design load; allowable lateral load the lesser of 1/2 of the load at 12 mm head movement and the load at 5 mm total displacement. Sec 3.11.4 cites 'Sec 3.10.1.20', an evident misprint for Sec 3.10.1.21",
     "piles.downdrag": "BNBC 2020 Part 6 Secs 3.10.1.22-3.10.1.23 (pp. 752-753) and 3.10.6.17-3.10.6.19 (p. 780): downdrag of piles in compressible fill or soft soil by a load-transfer analysis to the neutral point, the full ground movement assumed, as part of the design load; swelling uplift resisted below the zone of moisture change. Soft clay by Sec 3.5.8 (pp. 713-714)",
-    "piles.downdrag.dragloadFactor": "SAEngine practice, not BNBC: BNBC gives no load factor on the dragload; 1.25 (the downdrag factor of the α method in AASHTO LRFD Table 3.4.1-2) is used in the strength check of the section"
+    "piles.downdrag.dragloadFactor": "SAEngine practice, not BNBC: BNBC gives no load factor on the dragload; 1.25 (the downdrag factor of the α method in AASHTO LRFD Table 3.4.1-2) is used in the strength check of the section",
+    "machine": "BNBC 2020 Part 6 Sec 3.20 (pp. 807-814)",
+    "machine.impactRatio": "BNBC 2020 Part 6 Sec 3.20.1 (p. 807): impact neglected except on loose granular soil, cranes, heavy machinery, moving equipment, or live load causing impact over 50% of the dead load",
+    "machine.speedClasses": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 809): low speed under 300 rpm, medium 300-1000 rpm, high over 1000 rpm",
+    "machine.frequencyRatioBelow": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 809): low speed machines, natural frequency at least twice the operating frequency, ratio less than 0.5",
+    "machine.frequencyRatioAbove": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 809): high speed machines, natural frequency at most half the operating value, ratio at least 2; amplitude at resonance while starting and stopping",
+    "machine.amplitudes": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 810), when the manufacturer gives none: under 500 rpm 0.25 mm; 500-1500 rpm 0.4-0.6 mm horizontal, 0.7-0.9 mm vertical; up to 3000 rpm 0.2 mm horizontal, 0.5 mm vertical",
+    "machine.hammerAmplitude": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 810): hammer foundations 10 mm",
+    "machine.staticPressure": "BNBC 2020 Part 6 Sec 3.20.2.3(ii) (p. 810): 80% of the allowable pressure for static loading",
+    "machine.eccentricity": "BNBC 2020 Part 6 Sec 3.20.2.2 (p. 810) and 3.20.2.3(v) (p. 811): eccentricity at most 5%",
+    "machine.waterDepth": "BNBC 2020 Part 6 Sec 3.20.2.3(ix) (p. 811): ground water at least one fourth of the foundation width below the base",
+    "machine.method": "BNBC 2020 Part 6 Sec 3.20.2.3-3.20.2.4 (pp. 810-811): lumped parameter method, single degree of freedom",
+    "machine.participatingMass": "BNBC 2020 Part 6 Sec 3.20.2.5 Eq 6.3.51 (p. 812): m = mf + ms, ms between zero and mf",
+    "machine.barkanCoefficient": "BNBC 2020 Part 6 Sec 3.20.2.5 Eq 6.3.53 (p. 813)",
+    "machine.barkanPoisson": "BNBC 2020 Part 6 Eq 6.3.53 (p. 813) prints 1 - μ; Barkan's relation has 1 - μ²: both enveloped (owner decision 1)",
+    "machine.plateOffset": "BNBC 2020 Part 6 Sec 3.20.2.5 Eqs 6.3.54-6.3.55 (p. 813)",
+    "machine.decrement": "BNBC 2020 Part 6 Sec 3.20.2.5 Eq 6.3.58 (p. 814): the exact inverse of δ = 2πD/√(1 - D²), smaller than δ/2π (owner decision 1)",
+    "machine.hysteresisDivisor": "BNBC 2020 Part 6 Sec 3.20.2.5 Eq 6.3.59 (p. 814) prints D = ΔW/W; the loss per cycle of a viscous system gives ΔW/(4π W), the smaller and conservative D (owner decision 1)",
+    "machine.damping": "BNBC 2020 Part 6 Sec 3.20.2.5 (p. 814): D of most soils 0.01-0.1",
+    "machine.separation": "BNBC 2020 Part 6 Sec 3.20.2.3(vi) (p. 811): taken lower than the foundations of adjacent buildings and properly separated",
+    "machine.vibration": "BNBC 2020 Part 6 Sec 3.20.2.3(vii)-(viii) (p. 811): vibrations neither annoying nor detrimental to other structures; the limit charts of Fig 6.3.5 as a guide"
   },
   "retainingWall": {
     "sliding": 1.5,
@@ -1434,5 +1454,98 @@
       "softClay": true,
       "dragloadFactor": 1.25
     }
+  },
+  "machine": {
+    "method": "lumpedSdof",
+    "impactRatio": 0.5,
+    "speedClasses": [
+      {
+        "id": "low",
+        "name": "Low speed",
+        "upTo": 300,
+        "inclusive": false,
+        "allowed": [
+          "below"
+        ]
+      },
+      {
+        "id": "medium",
+        "name": "Medium speed",
+        "upTo": 1000,
+        "inclusive": true,
+        "allowed": [
+          "below",
+          "above"
+        ]
+      },
+      {
+        "id": "high",
+        "name": "High speed",
+        "allowed": [
+          "above"
+        ]
+      }
+    ],
+    "frequencyRatioBelow": 0.5,
+    "frequencyRatioAbove": 2.0,
+    "amplitudes": [
+      {
+        "upTo": 500,
+        "inclusive": false,
+        "horizontal": [
+          0.25,
+          0.25
+        ],
+        "vertical": [
+          0.25,
+          0.25
+        ]
+      },
+      {
+        "upTo": 1500,
+        "inclusive": true,
+        "horizontal": [
+          0.4,
+          0.6
+        ],
+        "vertical": [
+          0.7,
+          0.9
+        ]
+      },
+      {
+        "upTo": 3000,
+        "inclusive": true,
+        "horizontal": [
+          0.2,
+          0.2
+        ],
+        "vertical": [
+          0.5,
+          0.5
+        ]
+      }
+    ],
+    "hammerAmplitude": 10,
+    "staticPressure": 0.8,
+    "eccentricity": 0.05,
+    "waterDepth": 0.25,
+    "participatingMass": [
+      0,
+      1
+    ],
+    "damping": [
+      0.01,
+      0.1
+    ],
+    "barkanCoefficient": 1.13,
+    "barkanPoisson": [
+      "linear",
+      "square"
+    ],
+    "plateOffset": 0.3,
+    "decrement": "exact",
+    "hysteresisDivisor": 12.566371,
+    "note": "Printed misprints resolved conservatively (owner decision 1): Eq 6.3.53 prints 1 - μ where Barkan's relation has 1 - μ², so both are enveloped; Eq 6.3.57 prints 4π² fn m, dimensionally k = 4π² fn² m; Eq 6.3.58 gives D ≈ δ/2π, the exact inverse δ/√(4π² + δ²) is smaller; Eq 6.3.59 prints D = ΔW/W, the loss per cycle gives D = ΔW/(4π W), smaller. Amplitude ranges at 500-1500 rpm are taken at their low end. The speed classes for resonance (300 and 1000 rpm, Sec 3.20.2.2) and the amplitude rows (500, 1500, 3000 rpm) are printed with different breaks and kept as printed."
   }
 }

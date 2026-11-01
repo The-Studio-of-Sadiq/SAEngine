@@ -43,6 +43,7 @@ import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
+	IMachineFoundation, MACHINE_KINDS, MACHINE_SPRINGS, MachineKind, machineKindLabel, MachineSpring, machineSpringLabel, newMachineFoundation,
 	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
@@ -1916,6 +1917,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderGroundSlabTable(document);
 		this.renderRetainingWallTable(document);
 		this.renderExcavationSupport(document);
+		this.renderMachineFoundations(document);
 	}
 
 	private renderRetainingWallTable(document: ISubstructure): void {
@@ -2849,8 +2851,125 @@ export class SubstructureEditor extends EditorPane {
 		if (!document.groundSlabs.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noGroundSlabs', "None yet. A slab on grade is checked for its largest post or wheel load (Westergaard) and punching.")));
 		}
-		const planned = append(section, $('.sub-planned'));
-		this.viewDisposables.add(appendPlannedFeatureChip(planned, 'substructure.machineFoundation', this.commandService));
+	}
+
+	/** The block foundations of machines and generators, checked by the code pack's machine foundation rules. */
+	private renderMachineFoundations(document: ISubstructure): void {
+		const machines = document.machineFoundations ?? [];
+		const section = this.section(localize('sub.machines', "Machine foundations"), machines.length, {
+			label: localize('sub.addMachine', "Add Machine Foundation"),
+			run: () => {
+				document.machineFoundations = [...machines, newMachineFoundation(document, this.context)];
+				this.changed(true);
+			},
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const fields: IFieldSpec[] = [
+			{ key: 'length', label: localize('sub.f.mfLength', "L"), unit: M, kind: 'length', min: 0 },
+			{ key: 'width', label: localize('sub.f.mfWidth', "B"), unit: M, kind: 'length', min: 0 },
+			{ key: 'height', label: localize('sub.f.mfHeight', "Depth"), unit: M, kind: 'length', min: 0 },
+			{ key: 'foundingLevel', label: localize('sub.f.mfLevel', "Founding level"), unit: M, kind: 'length' },
+			{ key: 'machineMass', label: localize('sub.f.mfMass', "Machine mass"), unit: 't', kind: 'number', min: 0 },
+			{ key: 'speed', label: localize('sub.f.mfSpeed', "Speed"), unit: 'rpm', kind: 'number', min: 0 },
+			{ key: 'force', label: localize('sub.f.mfForce', "Unbalanced force"), unit: 'kN', kind: 'number', min: 0 },
+			{ key: 'unbalance', label: localize('sub.f.mfUnbalance', "Unbalance m·e"), unit: 'kg·m', kind: 'number', min: 0 },
+			{ key: 'impulse', label: localize('sub.f.mfImpulse', "Impulse per blow"), unit: 'kN·s', kind: 'number', min: 0 },
+			{ key: 'allowableAmplitude', label: localize('sub.f.mfAmplitude', "Maker's amplitude"), unit: MM, kind: 'number', min: 0 },
+		];
+		const soilFields: IFieldSpec[] = [
+			{ key: 'E', label: localize('sub.f.mfE', "E"), unit: 'MPa', kind: 'number', min: 0 },
+			{ key: 'G', label: localize('sub.f.mfG', "G"), unit: 'MPa', kind: 'number', min: 0 },
+			{ key: 'ks', label: localize('sub.f.mfKs', "ks"), unit: 'kN/m³', kind: 'number', min: 0 },
+			{ key: 'stiffness', label: localize('sub.f.mfK', "k"), unit: 'kN/m', kind: 'number', min: 0 },
+			{ key: 'damping', label: localize('sub.f.mfD', "Damping D"), kind: 'number', min: 0 },
+		];
+		const required = new Set(['length', 'width', 'height', 'foundingLevel', 'machineMass', 'speed']);
+		const columns = [
+			{ label: localize('sub.f.id', "ID"), width: 64 }, { label: localize('sub.f.mfName', "Machine"), width: 140 }, { label: localize('sub.f.mfKind', "Kind"), width: 170 },
+			...fields.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 76 })),
+			{ label: localize('sub.f.mfSpring', "Spring from"), width: 150 },
+			...soilFields.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 72 })),
+			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const kinds = MACHINE_KINDS.map(k => ({ value: k, label: machineKindLabel(k) }));
+		const springs = MACHINE_SPRINGS.map(k => ({ value: k, label: machineSpringLabel(k) }));
+		machines.forEach((machine: IMachineFoundation, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `machineFoundations.${index}.${field}`;
+			append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, machine.id, value => {
+				machine.id = String(value ?? '');
+				this.changed(false);
+			}, path('id')));
+			append(append(row, $('td')), this.textInput({ key: 'name', label: localize('sub.f.mfName', "Machine"), kind: 'text' }, machine.name ?? '', value => {
+				if (value) {
+					machine.name = String(value);
+				} else {
+					delete machine.name;
+				}
+				this.changed(false);
+			}, path('name')));
+			append(append(row, $('td')), this.selectInput(kinds, machine.kind ?? 'rotary', value => {
+				machine.kind = value as MachineKind;
+				this.changed(false);
+			}, path('kind'), localize('sub.f.mfKind', "Kind")));
+			const store = (field: IFieldSpec) => (value: number | string | undefined) => {
+				if (typeof value === 'number') {
+					machine[field.key] = value;
+				} else if (!required.has(field.key)) {
+					delete machine[field.key];
+				} else {
+					return;
+				}
+				this.changed(false);
+			};
+			for (const field of fields) {
+				append(append(row, $('td')), this.textInput(field, machine[field.key], store(field), path(field.key)));
+			}
+			append(append(row, $('td')), this.selectInput(springs, machine.stiffnessMethod ?? 'barkan', value => {
+				machine.stiffnessMethod = value as MachineSpring;
+				this.changed(false);
+			}, path('stiffnessMethod'), localize('sub.f.mfSpring', "Spring from")));
+			for (const field of soilFields) {
+				const placeholder = field.key === 'E' || field.key === 'ks' ? localize('sub.mfFromSoil', "soil report") : undefined;
+				append(append(row, $('td')), this.textInput(field, machine[field.key], store(field), path(field.key), placeholder));
+			}
+			const result = this.report?.machineFoundations?.find(r => r.id === machine.id);
+			this.utilisationCell(row, result?.utilisation);
+			this.removeButton(row, () => {
+				document.machineFoundations = machines.filter((_, i) => i !== index);
+				this.changed(true);
+			});
+		});
+		if (!machines.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noMachines', "None yet. A machine foundation is checked by the code pack's machine foundation rules: resonance against the operating speed, the vibration amplitude, the static soil pressure, the eccentricity and the ground water below the base. The soil's spring comes from 1 Soil Report's E or subgrade modulus unless a test value is entered.")));
+		}
+		for (const machine of machines) {
+			const result = this.report?.machineFoundations?.find(r => r.id === machine.id);
+			const dynamics = result?.dynamics;
+			const range = (key: string): string | undefined => {
+				const value = dynamics?.[key];
+				return Array.isArray(value) && value.length === 2 && value.every(v => typeof v === 'number') ? `${formatNumber(value[0], 2)}–${formatNumber(value[1], 2)}` : undefined;
+			};
+			const fn = range('naturalFrequency');
+			const ratio = range('frequencyRatio');
+			if (fn && ratio) {
+				append(section, $('p.sub-muted', undefined, localize('sub.machineDynamics', "{0}: natural frequency {1} Hz, frequency ratio {2}, damping {3}.", machine.id, fn, ratio, formatNumber(Number(dynamics?.damping ?? 0), 3))));
+			}
+			const needs = result?.requirements ?? [];
+			if (needs.length) {
+				append(section, $('p.sub-muted', undefined, localize('sub.machineNeeds', "{0} also needs:", machine.id)));
+				const list = append(section, $('ul.sub-muted'));
+				for (const need of needs) {
+					append(list, $('li', undefined, need));
+				}
+			}
+		}
+		const skipped = (this.report?.skipped ?? []).filter(s => s.type === 'machineFoundation');
+		for (const s of skipped) {
+			append(section, $('p.sub-muted', undefined, localize('sub.machineSkipped', "{0} not checked: {1}", s.id, s.reason)));
+		}
 	}
 
 	private tieSpan(tie: ITieBeam): string {

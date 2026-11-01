@@ -2546,6 +2546,83 @@ class PileRules(_Group):
     )
 
 
+class MachineSpeedClass(_Row):
+    """A class of machines by operating speed, with the side of resonance its foundation must
+    keep to."""
+
+    id: str
+    name: str
+    upTo: Positive | None = Field(
+        default=None, description="Operating speeds up to this [rpm]; empty: all above."
+    )
+    inclusive: bool = Field(default=False, description="``upTo`` itself is in the class.")
+    allowed: list[Literal["below", "above"]] = Field(
+        min_length=1,
+        description="``below``: frequency ratio under ``frequencyRatioBelow`` (a stiff "
+        "foundation); ``above``: at least ``frequencyRatioAbove`` (a soft one); both: either.",
+    )
+
+
+class MachineAmplitude(_Row):
+    """Permissible amplitudes [mm] for a range of operating speeds, as (low, high) ranges; the
+    engine takes the low end."""
+
+    upTo: Positive = Field(description="Operating speeds up to this [rpm].")
+    inclusive: bool = Field(default=False, description="``upTo`` itself is in the row.")
+    horizontal: tuple[Positive, Positive]
+    vertical: tuple[Positive, Positive]
+
+
+class MachineFoundationRules(_Group):
+    """Foundations of machines under dynamic forces: the impact rule, resonance, permissible
+    amplitudes, static pressure, eccentricity, ground water and the lumped-parameter
+    single-degree-of-freedom method with its stiffness and damping relations."""
+
+    method: Literal["lumpedSdof"] = Field(
+        description="Engine method (``lumpedSdof``: one mass on one spring and dashpot)."
+    )
+    impactRatio: Positive = Field(
+        description="Impact forces are designed for when the live load causing the impact "
+        "exceeds this share of the dead load (or on loose granular soil, cranes, heavy "
+        "machinery, moving equipment)."
+    )
+    speedClasses: list[MachineSpeedClass] = Field(min_length=1)
+    frequencyRatioBelow: Positive = Field(description="f/fn below this: a stiff foundation.")
+    frequencyRatioAbove: Positive = Field(description="f/fn at least this: a soft foundation.")
+    amplitudes: list[MachineAmplitude] = Field(
+        description="Permissible amplitudes by operating speed, when the maker gives none."
+    )
+    hammerAmplitude: Positive = Field(description="Permissible amplitude of hammers [mm].")
+    staticPressure: Share = Field(description="Static soil pressure at most this × qa.")
+    eccentricity: Share = Field(
+        description="Centre of gravity of machine and block off the base's centroid by at most "
+        "this × the base dimension."
+    )
+    waterDepth: Positive = Field(
+        description="Ground water at least this × the base width below the base."
+    )
+    participatingMass: tuple[float, float] = Field(
+        description="Range of the participating soil mass ms / mf (the method envelopes it)."
+    )
+    damping: tuple[Positive, Positive] = Field(
+        description="Usual range of the damping factor D of soils (warned outside)."
+    )
+    barkanCoefficient: Positive = Field(description="k = this × E √A / (1 - μ...).")
+    barkanPoisson: list[Literal["linear", "square"]] = Field(
+        min_length=1,
+        description="Forms of Barkan's denominator enveloped: ``linear`` 1 - μ, ``square`` 1 - μ².",
+    )
+    plateOffset: Positive = Field(
+        description="Cohesionless soil: k = kp ((B + this) / (Bp + this))² [m]."
+    )
+    decrement: Literal["exact", "approximate"] = Field(
+        description="D from the logarithmic decrement: ``exact`` δ / √(4π² + δ²), "
+        "``approximate`` δ / 2π."
+    )
+    hysteresisDivisor: Positive = Field(description="D = ΔW / (this × W).")
+    note: str | None = None
+
+
 class FoundationsTable(TableModel):
     pileSafety: dict[str, tuple[float, float, float, float]]
     pileControls: list[str]
@@ -2568,6 +2645,10 @@ class FoundationsTable(TableModel):
         default=None,
         description="Deep foundation rules; empty: the pack does not cover the static method, "
         "the SPT relations and the pile settlement.",
+    )
+    machine: MachineFoundationRules | None = Field(
+        default=None,
+        description="Machine foundations under dynamic forces; empty: not covered by the pack.",
     )
 
 

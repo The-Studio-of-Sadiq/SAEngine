@@ -1146,6 +1146,320 @@
       "title": "LateralTestRules",
       "type": "object"
     },
+    "MachineAmplitude": {
+      "additionalProperties": false,
+      "description": "Permissible amplitudes [mm] for a range of operating speeds, as (low, high) ranges; the\nengine takes the low end.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "description": "Operating speeds up to this [rpm].",
+          "exclusiveMinimum": 0,
+          "title": "Upto",
+          "type": "number"
+        },
+        "inclusive": {
+          "default": false,
+          "description": "``upTo`` itself is in the row.",
+          "title": "Inclusive",
+          "type": "boolean"
+        },
+        "horizontal": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Horizontal",
+          "type": "array"
+        },
+        "vertical": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Vertical",
+          "type": "array"
+        }
+      },
+      "required": [
+        "upTo",
+        "horizontal",
+        "vertical"
+      ],
+      "title": "MachineAmplitude",
+      "type": "object"
+    },
+    "MachineFoundationRules": {
+      "additionalProperties": false,
+      "description": "Foundations of machines under dynamic forces: the impact rule, resonance, permissible\namplitudes, static pressure, eccentricity, ground water and the lumped-parameter\nsingle-degree-of-freedom method with its stiffness and damping relations.",
+      "properties": {
+        "method": {
+          "const": "lumpedSdof",
+          "description": "Engine method (``lumpedSdof``: one mass on one spring and dashpot).",
+          "title": "Method",
+          "type": "string"
+        },
+        "impactRatio": {
+          "description": "Impact forces are designed for when the live load causing the impact exceeds this share of the dead load (or on loose granular soil, cranes, heavy machinery, moving equipment).",
+          "exclusiveMinimum": 0,
+          "title": "Impactratio",
+          "type": "number"
+        },
+        "speedClasses": {
+          "items": {
+            "$ref": "#/$defs/MachineSpeedClass"
+          },
+          "minItems": 1,
+          "title": "Speedclasses",
+          "type": "array"
+        },
+        "frequencyRatioBelow": {
+          "description": "f/fn below this: a stiff foundation.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencyratiobelow",
+          "type": "number"
+        },
+        "frequencyRatioAbove": {
+          "description": "f/fn at least this: a soft foundation.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencyratioabove",
+          "type": "number"
+        },
+        "amplitudes": {
+          "description": "Permissible amplitudes by operating speed, when the maker gives none.",
+          "items": {
+            "$ref": "#/$defs/MachineAmplitude"
+          },
+          "title": "Amplitudes",
+          "type": "array"
+        },
+        "hammerAmplitude": {
+          "description": "Permissible amplitude of hammers [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hammeramplitude",
+          "type": "number"
+        },
+        "staticPressure": {
+          "description": "Static soil pressure at most this × qa.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Staticpressure",
+          "type": "number"
+        },
+        "eccentricity": {
+          "description": "Centre of gravity of machine and block off the base's centroid by at most this × the base dimension.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eccentricity",
+          "type": "number"
+        },
+        "waterDepth": {
+          "description": "Ground water at least this × the base width below the base.",
+          "exclusiveMinimum": 0,
+          "title": "Waterdepth",
+          "type": "number"
+        },
+        "participatingMass": {
+          "description": "Range of the participating soil mass ms / mf (the method envelopes it).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Participatingmass",
+          "type": "array"
+        },
+        "damping": {
+          "description": "Usual range of the damping factor D of soils (warned outside).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Damping",
+          "type": "array"
+        },
+        "barkanCoefficient": {
+          "description": "k = this × E √A / (1 - μ...).",
+          "exclusiveMinimum": 0,
+          "title": "Barkancoefficient",
+          "type": "number"
+        },
+        "barkanPoisson": {
+          "description": "Forms of Barkan's denominator enveloped: ``linear`` 1 - μ, ``square`` 1 - μ².",
+          "items": {
+            "enum": [
+              "linear",
+              "square"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Barkanpoisson",
+          "type": "array"
+        },
+        "plateOffset": {
+          "description": "Cohesionless soil: k = kp ((B + this) / (Bp + this))² [m].",
+          "exclusiveMinimum": 0,
+          "title": "Plateoffset",
+          "type": "number"
+        },
+        "decrement": {
+          "description": "D from the logarithmic decrement: ``exact`` δ / √(4π² + δ²), ``approximate`` δ / 2π.",
+          "enum": [
+            "exact",
+            "approximate"
+          ],
+          "title": "Decrement",
+          "type": "string"
+        },
+        "hysteresisDivisor": {
+          "description": "D = ΔW / (this × W).",
+          "exclusiveMinimum": 0,
+          "title": "Hysteresisdivisor",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "method",
+        "impactRatio",
+        "speedClasses",
+        "frequencyRatioBelow",
+        "frequencyRatioAbove",
+        "amplitudes",
+        "hammerAmplitude",
+        "staticPressure",
+        "eccentricity",
+        "waterDepth",
+        "participatingMass",
+        "damping",
+        "barkanCoefficient",
+        "barkanPoisson",
+        "plateOffset",
+        "decrement",
+        "hysteresisDivisor"
+      ],
+      "title": "MachineFoundationRules",
+      "type": "object"
+    },
+    "MachineSpeedClass": {
+      "additionalProperties": false,
+      "description": "A class of machines by operating speed, with the side of resonance its foundation must\nkeep to.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Operating speeds up to this [rpm]; empty: all above.",
+          "title": "Upto"
+        },
+        "inclusive": {
+          "default": false,
+          "description": "``upTo`` itself is in the class.",
+          "title": "Inclusive",
+          "type": "boolean"
+        },
+        "allowed": {
+          "description": "``below``: frequency ratio under ``frequencyRatioBelow`` (a stiff foundation); ``above``: at least ``frequencyRatioAbove`` (a soft one); both: either.",
+          "items": {
+            "enum": [
+              "below",
+              "above"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "allowed"
+      ],
+      "title": "MachineSpeedClass",
+      "type": "object"
+    },
     "PileDetailing": {
       "additionalProperties": false,
       "description": "Structural detailing of piles by kind, and the foundation concrete.",
@@ -2680,6 +2994,18 @@
       ],
       "default": null,
       "description": "Deep foundation rules; empty: the pack does not cover the static method, the SPT relations and the pile settlement."
+    },
+    "machine": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MachineFoundationRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Machine foundations under dynamic forces; empty: not covered by the pack."
     }
   },
   "required": [

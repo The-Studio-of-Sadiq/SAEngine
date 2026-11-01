@@ -20763,6 +20763,520 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'LinearReinforcement',
 			type: 'object',
 		},
+		MachineFoundation: {
+			additionalProperties: false,
+			description: 'A block foundation under a machine or generator: the soil under it as one spring and\ndashpot, checked by the code pack\'s machine foundation rules (resonance, amplitudes, static\npressure, eccentricity, ground water). Masses in t, forces in kN, stiffness in kN/m.',
+			properties: {
+				id: {
+					description: 'Its mark, e.g. MF1.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The machine, e.g. \'Generator 500 kVA\'.',
+					title: 'Name',
+				},
+				kind: {
+					default: 'rotary',
+					description: 'What the machine produces.',
+					enum: ['periodic', 'impact', 'rotary'],
+					enumDescriptions: ['Reciprocating engine or compressor (periodic force)', 'Forge hammer or punch press (impact)', 'Turbine, generator or rotary compressor (high speed)'],
+					title: 'Kind',
+					type: 'string',
+				},
+				form: {
+					default: 'block',
+					description: 'Block, box (hollow block), wall or framed foundation; the method takes it as a rigid block on the soil.',
+					enum: ['block', 'box', 'wall', 'frame'],
+					enumDescriptions: ['Block', 'Box', 'Wall', 'Framed'],
+					title: 'Form',
+					type: 'string',
+				},
+				center: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan centre of the base [x, y] mm (the nearest borehole).',
+					title: 'Center',
+				},
+				length: {
+					description: 'Base length L [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				width: {
+					description: 'Base width B [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					description: 'Depth of the block [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				foundingLevel: {
+					description: 'Underside of the block [mm, project datum].',
+					title: 'Founding level',
+					type: 'number',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete material id (03 Materials) for the block\'s weight; empty: the project\'s concrete.',
+					title: 'Material',
+				},
+				blockMass: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mass of the block [t]; empty: from its size (a box or frame: enter it).',
+					title: 'Block mass',
+				},
+				machineMass: {
+					description: '[t]',
+					exclusiveMinimum: 0,
+					title: 'Machine mass',
+					type: 'number',
+				},
+				speed: {
+					description: '[rpm]; a hammer: blows per minute.',
+					exclusiveMinimum: 0,
+					title: 'Operating speed',
+					type: 'number',
+				},
+				machineOffset: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre of gravity of the machine from the centre of the base, along L and B [mm].',
+					title: 'Machine offset',
+				},
+				force: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Vertical amplitude of the unbalanced force at the operating speed [kN].',
+					title: 'Unbalanced force',
+				},
+				unbalance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rotating unbalance m·e [kg·m]: the force m·e·ω² at any speed (instead of the force).',
+					title: 'Unbalance',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN] at the operating speed.',
+					title: 'Horizontal force',
+				},
+				horizontalStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m]: the horizontal mode is checked only with it (the code\'s methods give the vertical spring).',
+					title: 'Horizontal stiffness',
+				},
+				impulse: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Impulse of one blow [kN·s] (hammers: the amplitude I / (m ωn)).',
+					title: 'Impulse',
+				},
+				impactLoad: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load causing the impact [kN] (for the impact rule).',
+					title: 'Impact live load',
+				},
+				movingEquipment: {
+					default: false,
+					description: 'It carries cranes, heavy machinery or moving equipment (impact designed for).',
+					title: 'Crane or moving equipment',
+					type: 'boolean',
+				},
+				looseGranular: {
+					default: false,
+					description: 'It bears on loose granular soil (impact designed for).',
+					title: 'Loose granular soil',
+					type: 'boolean',
+				},
+				allowableAmplitude: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Permissible amplitude given by the manufacturer [mm]; empty: the code\'s.',
+					title: 'Maker\'s amplitude',
+				},
+				stiffnessMethod: {
+					default: 'barkan',
+					enum: ['barkan', 'subgrade', 'plateLoad', 'resonance', 'given'],
+					enumDescriptions: ['From E of the soil (Barkan)', 'From the subgrade modulus ks', 'From a repeated plate load test', 'From a resonance test', 'Given'],
+					title: 'Spring from',
+					type: 'string',
+				},
+				E: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the soil from a laboratory test [MPa]; empty: G below, else 1 Soil Report\'s layers under the base.',
+					title: 'Young\'s modulus E',
+				},
+				G: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the soil from a torsional test [MPa]: E = 2G(1 + μ).',
+					title: 'Shear modulus G',
+				},
+				poisson: {
+					default: 0.35,
+					description: 'Of the soil.',
+					exclusiveMaximum: 0.5,
+					exclusiveMinimum: 0,
+					title: 'Poisson\'s ratio μ',
+					type: 'number',
+				},
+				ks: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]; empty: 1 Soil Report\'s at the nearest borehole.',
+					title: 'Subgrade modulus ks',
+				},
+				plateStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m]',
+					title: 'Plate stiffness kp',
+				},
+				plateWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Plate width Bp',
+				},
+				cohesive: {
+					anyOf: [
+						{
+							type: 'boolean',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plate load test in cohesive soil; empty: from the soil report\'s layer.',
+					title: 'Cohesive',
+				},
+				testFrequency: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the test [Hz].',
+					title: 'Resonance frequency',
+				},
+				testMass: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the test [t].',
+					title: 'Vibrator mass',
+				},
+				stiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Given vertical spring k [kN/m].',
+					title: 'Stiffness',
+				},
+				damping: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: from below.',
+					title: 'Damping factor D',
+				},
+				decrement: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of a test.',
+					title: 'Logarithmic decrement δ',
+				},
+				workLost: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hysteresis loop of a test.',
+					title: 'Work lost ΔW',
+				},
+				workDone: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the same loop.',
+					title: 'Work done W',
+				},
+				participatingMass: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the code\'s range is enveloped.',
+					title: 'Participating soil ms / mf',
+				},
+				designWaterTable: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Depth below the ground [m]; empty: the substructure\'s, else the borehole\'s.',
+					title: 'Design water table',
+				},
+				adjacentFoundingLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Founding level of the adjacent building\'s foundations [mm, project datum].',
+					title: 'Adjacent foundations',
+				},
+				separated: {
+					default: true,
+					description: 'Separated from the building\'s foundations and floors by a gap or joint.',
+					title: 'Separated',
+					type: 'boolean',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id', 'length', 'width', 'height', 'foundingLevel', 'machineMass', 'speed'],
+			title: 'MachineFoundation',
+			type: 'object',
+		},
 		Pile: {
 			additionalProperties: false,
 			description: 'One pile, placed in plan: its mark, pile type and position.',
@@ -21981,6 +22495,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			description: 'The slab formwork, checked against the code pack\'s construction loads.',
 			title: 'Formwork',
 		},
+		machineFoundations: {
+			description: 'Block foundations of machines and generators under their dynamic forces.',
+			items: {
+				$ref: '#/$defs/MachineFoundation',
+			},
+			title: 'Machine foundations',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine substructure',
 	type: 'object',
@@ -22018,6 +22540,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 		downdrag: true,
 	},
 	excavations: [],
+	machineFoundations: [],
 };
 
 export const MEP_SCHEMA: IJSONSchema = {

@@ -46,8 +46,10 @@ def substructure_report(
     analysis results in ``out_dir`` (default ``08 FEM/model.results``), ready for JSON.
 
     Returns ``{"foundations", "tieBeams", "retainingWalls", "excavations", "temporaryWorks",
-    "skipped", "summary", "notes", "method", "combinations"}`` (excavations and formwork by
-    :mod:`saengine.substructure.excavation`, with their ``requirements``): per designed foundation ``{"id", "type", "columns", "checks",
+    "machineFoundations", "skipped", "summary", "notes", "method", "combinations"}``
+    (excavations and formwork by :mod:`saengine.substructure.excavation`, machine foundations
+    by :mod:`saengine.substructure.machine`, with their ``requirements``): per designed
+    foundation ``{"id", "type", "columns", "checks",
     "utilisation", "ok", "sizes", "pressure"}`` (pile caps and rafts add their ``piles`` and
     ``raft``), per tie beam ``{"id", "type": "tieBeam", "columns": [from, to], "checks",
     "utilisation", "ok", "force"}``, per skipped foundation or tie beam ``{"id", "type",
@@ -188,6 +190,15 @@ def report(ctx: Context) -> dict[str, Any]:
     if excavations or temporary:
         method += [m for m in excavation_rules.method_lines() if m not in method]
 
+    # Machine and generator foundations (the pack's machine foundation rules).
+    from saengine.substructure import machine as machine_rules
+
+    machines, machines_skipped, found = machine_rules.design_machine_foundations(ctx)
+    skipped += machines_skipped
+    notes += found
+    if machines:
+        method += [m for m in machine_rules.method_lines() if m not in method]
+
     # The piles placed in plan: under no cap, outside their cap, too close together.
     layout = pile_layout_warnings(substructure)
     notes += [f"Pile layout: {w}" for w in layout]
@@ -212,7 +223,7 @@ def report(ctx: Context) -> dict[str, Any]:
 
     if building is not None:
         walls.append(building)
-    designed = foundations + ties + slabs + walls + excavations + temporary
+    designed = foundations + ties + slabs + walls + excavations + temporary + machines
     return {
         "foundations": foundations,
         "tieBeams": ties,
@@ -220,6 +231,7 @@ def report(ctx: Context) -> dict[str, Any]:
         "retainingWalls": walls,
         "excavations": excavations,
         "temporaryWorks": temporary,
+        "machineFoundations": machines,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": notes,
