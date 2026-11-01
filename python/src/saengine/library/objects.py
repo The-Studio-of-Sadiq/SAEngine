@@ -1233,6 +1233,24 @@ class Slab(_ObjectBase):
     )
 
 
+class GradeBeamWall(_Model):
+    """A wall designed as a grade beam spanning between its supports (footings, pile caps)."""
+
+    span: float | None = Field(
+        default=None,
+        gt=0,
+        description="Clear span between the supports [mm]; none: the wall's length.",
+    )
+    continuous: bool = Field(
+        default=False,
+        description="Continuous over its supports (top bars over them); else simply supported.",
+    )
+    bottomBars: int = Field(default=2, ge=0, title="Bottom bars")
+    bottomDia: float = Field(default=16, gt=0, title="Bottom bar size", description="[mm]")
+    topBars: int = Field(default=2, ge=0, title="Top bars")
+    topDia: float = Field(default=16, gt=0, title="Top bar size", description="[mm]")
+
+
 class Wall(_ObjectBase):
     kind: Literal["wall"] = "wall"
     thickness: Length
@@ -1258,6 +1276,13 @@ class Wall(_ObjectBase):
         title="Stiffness modifiers",
         description="Factors on the analysis shell stiffness, mass and weight (empty: the "
         "code's cracked factors for concrete and masonry, else 1).",
+    )
+    gradeBeam: GradeBeamWall | None = Field(
+        default=None,
+        title="Grade beam",
+        description="The wall also spans as a grade beam between its supports: top and bottom "
+        "bars for the moment and its vertical bars for the shear (the code pack's walls as "
+        "grade beams); none: not a grade beam.",
     )
 
 
