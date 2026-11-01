@@ -50,7 +50,8 @@
     "wallMethods",
     "stairMethods",
     "compositeConcrete",
-    "steelSeismic"
+    "steelSeismic",
+    "isolation"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -258,6 +259,9 @@
       "BNBC 2020 Part 6 Sec 10.1.1.2, 10.20.1-10.20.12, Tables 6.10.17-6.10.18, Eqs 6.10.298-6.10.302 (part 2 pp. 227-258): seismic provisions for structural steel, general requirements and moment frames",
       "BNBC 2020 Part 6 Appendix N (part 2 pp. 579-582): prequalified beam-column connections",
       "BNBC 2020 Part 6 Sec 2.5.9.1(b) (p. 634): panel zone deformations in the drift of steel moment frames"
+    ],
+    "isolation": [
+      "BNBC 2020 Part 6 Sec 2.5.16-2.5.16.5, Eqs 6.2.62-6.2.68, Table 6.2.24 (pp. 652-666): seismically isolated buildings"
     ]
   },
   "basis": {
