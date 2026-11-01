@@ -152,6 +152,14 @@ B2_TABLE_6_2_19 = {
     "rcDualOrdinary": ("F (p. 624)", 4.5, 2.5, 4.0, (None, 0.0, 0.0), "ordinary", False, True),
     "steelNotDetailed": ("G (p. 624)", 3.0, 3.0, 3.0, (None, None, 0.0), None, False, False),
 }  # fmt: skip
+# B38: Appendix P Table 6.P.1 (part 2 p. 590): BRBF and SPSW, which Table 6.2.19 lacks.
+B38_APPENDIX_P = {
+    "steelBrbf": ("P.3 Table 6.P.1 (part 2 p. 590)", 7.0, 2.0, 5.5, (None, None, 48.0), None, False, False),
+    "steelSpsw": ("P.3 Table 6.P.1 (part 2 p. 590)", 7.0, 2.0, 6.0, (None, None, 48.0), None, False, False),
+    "steelBrbfMoment": ("P.3 Table 6.P.1 (part 2 p. 590)", 8.0, 2.5, 5.0, (None, None, 48.0), None, False, False),
+    "steelDualSmfBrbf": ("P.3 Table 6.P.1 (part 2 p. 590)", 8.0, 2.5, 5.0, (None, None, None), None, False, False),
+    "steelDualSmfSpsw": ("P.3 Table 6.P.1 (part 2 p. 590)", 8.0, 2.5, 6.5, (None, None, None), None, False, False),
+}  # fmt: skip
 OLD_SITE_CLASSES = {
     "SA": "Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)",
     "SB": "Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)",
@@ -201,6 +209,7 @@ OLD_PERIOD = {
     "steelMomentFrame": (0.0724, 0.8),
     "eccentricallyBracedSteelFrame": (0.0731, 0.75),  # B2: Table 6.2.20 (p. 628)
     "other": (0.0488, 0.75),
+    "bucklingRestrainedBracedFrame": (0.0731, 0.75),  # B38: Appendix P Table 6.P.2
 }
 OLD_PERIOD_FAMILY = {
     "rcSmf": "concreteMomentFrame",
@@ -212,6 +221,8 @@ OLD_PERIOD_FAMILY = {
     "steelEbfMoment": "eccentricallyBracedSteelFrame",
     "steelEbf": "eccentricallyBracedSteelFrame",
     "steelImf": "steelMomentFrame",
+    "steelBrbf": "bucklingRestrainedBracedFrame",  # B38
+    "steelBrbfMoment": "bucklingRestrainedBracedFrame",
 }
 OLD_EXPOSURE_PROFILES = {"A": (7.0, 365.76), "B": (9.5, 274.32), "C": (11.5, 213.36)}
 OLD_SCALARS = {
@@ -694,7 +705,10 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
     # B1 adds the other rows of Table 6.2.3 after the old ones.
     assert {k: tuple(bnbc.AREA_USES[k]) for k in OLD_AREA_USES} == OLD_AREA_USES
     assert list(bnbc.AREA_USES)[: len(OLD_AREA_USES)] == list(OLD_AREA_USES)
-    b2 = {k: (bnbc.STRUCTURAL_SYSTEMS[k].name, *v[1:4]) for k, v in B2_TABLE_6_2_19.items()}
+    b2 = {
+        k: (bnbc.STRUCTURAL_SYSTEMS[k].name, *v[1:4])
+        for k, v in {**B2_TABLE_6_2_19, **B38_APPENDIX_P}.items()
+    }
     systems = {**OLD_SYSTEMS, **NEW_MASONRY_SYSTEMS, **b2}
     assert {k: tuple(v) for k, v in bnbc.STRUCTURAL_SYSTEMS.items()} == systems
     assert list(bnbc.STRUCTURAL_SYSTEMS) == list(systems)
@@ -729,8 +743,8 @@ def test_seismic_table_matches_the_old_system_rows_and_spectrum():
     from saengine.design.seismic_rules import system_row
 
     s = t("seismic")
-    assert set(s.systems) == set(OLD_TABLE_6_2_19) | set(B2_TABLE_6_2_19)
-    for key, row in {**OLD_TABLE_6_2_19, **B2_TABLE_6_2_19}.items():
+    assert set(s.systems) == set(OLD_TABLE_6_2_19) | set(B2_TABLE_6_2_19) | set(B38_APPENDIX_P)
+    for key, row in {**OLD_TABLE_6_2_19, **B2_TABLE_6_2_19, **B38_APPENDIX_P}.items():
         current = system_row(key)
         assert current is not None
         assert tuple(current) == row

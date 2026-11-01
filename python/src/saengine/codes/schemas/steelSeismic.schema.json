@@ -54,6 +54,396 @@
       "title": "SteelSeismicColumns",
       "type": "object"
     },
+    "SteelSeismicComposite": {
+      "additionalProperties": false,
+      "description": "Composite members of the seismic load resisting system.",
+      "properties": {
+        "concreteMin": {
+          "description": "f'c at least [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemin",
+          "type": "number"
+        },
+        "concreteMaxNormal": {
+          "description": "f'c for strength at most, normal [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemaxnormal",
+          "type": "number"
+        },
+        "concreteMaxLight": {
+          "description": "... lightweight [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Concretemaxlight",
+          "type": "number"
+        },
+        "steelShareMin": {
+          "description": "Steel at least this share of the section.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelsharemin",
+          "type": "number"
+        },
+        "shearPhi": {
+          "description": "φ of the encased column's shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearphi",
+          "type": "number"
+        },
+        "connectorSpacingMax": {
+          "description": "Shear connectors at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Connectorspacingmax",
+          "type": "number"
+        },
+        "levels": {
+          "additionalProperties": {
+            "enum": [
+              "ordinary",
+              "intermediate",
+              "special"
+            ],
+            "type": "string"
+          },
+          "description": "Frame or braced kind -> the seismic system level of its composite members.",
+          "title": "Levels",
+          "type": "object"
+        },
+        "ordinary": {
+          "$ref": "#/$defs/SteelSeismicTies"
+        },
+        "intermediate": {
+          "$ref": "#/$defs/SteelSeismicTies"
+        },
+        "special": {
+          "$ref": "#/$defs/SteelSeismicTies"
+        },
+        "beamStrain": {
+          "description": "Eq 6.13.26: (Ycon + db) / (1 + this Fy / Es).",
+          "exclusiveMinimum": 0,
+          "title": "Beamstrain",
+          "type": "number"
+        },
+        "filledWall": {
+          "description": "Filled rectangular HSS in SMF: t ≥ b √(Fy/(this Es)).",
+          "exclusiveMinimum": 0,
+          "title": "Filledwall",
+          "type": "number"
+        },
+        "plateWall": {
+          "$ref": "#/$defs/SteelSeismicCompositeWall"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "concreteMin",
+        "concreteMaxNormal",
+        "concreteMaxLight",
+        "steelShareMin",
+        "shearPhi",
+        "connectorSpacingMax",
+        "levels",
+        "ordinary",
+        "intermediate",
+        "special",
+        "beamStrain",
+        "filledWall",
+        "plateWall"
+      ],
+      "title": "SteelSeismicComposite",
+      "type": "object"
+    },
+    "SteelSeismicCompositeWall": {
+      "additionalProperties": false,
+      "description": "Composite steel plate shear walls.",
+      "properties": {
+        "shearCoefficient": {
+          "description": "Vns = this × As Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Shearcoefficient",
+          "type": "number"
+        },
+        "phi": {
+          "description": "φ of the plate's shear (the clause gives none).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "concreteBothSides": {
+          "description": "Concrete each side at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Concretebothsides",
+          "type": "number"
+        },
+        "concreteOneSide": {
+          "description": "Concrete on one side at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Concreteoneside",
+          "type": "number"
+        },
+        "ratioMin": {
+          "description": "Bars each way at least this ratio.",
+          "exclusiveMinimum": 0,
+          "title": "Ratiomin",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Bars at most this apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "shearCoefficient",
+        "phi",
+        "concreteBothSides",
+        "concreteOneSide",
+        "ratioMin",
+        "spacingMax"
+      ],
+      "title": "SteelSeismicCompositeWall",
+      "type": "object"
+    },
+    "SteelSeismicConcentric": {
+      "additionalProperties": false,
+      "description": "A concentrically braced frame kind (special or ordinary); a missing rule is not\nrequired of it.",
+      "properties": {
+        "slenderness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Braces: KL/r ≤ this × √(E/Fy).",
+          "title": "Slenderness"
+        },
+        "slendernessChevronOnly": {
+          "default": false,
+          "description": "The KL/r limit only for braces in K, V or inverted-V.",
+          "title": "Slendernesschevrononly",
+          "type": "boolean"
+        },
+        "slendernessMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "KL/r up to this when the columns take Ry Pn.",
+          "title": "Slendernessmax"
+        },
+        "compactMembers": {
+          "description": "Members that must be seismically compact.",
+          "items": {
+            "enum": [
+              "brace",
+              "column",
+              "beam"
+            ],
+            "type": "string"
+          },
+          "title": "Compactmembers",
+          "type": "array"
+        },
+        "filledHssExempt": {
+          "default": false,
+          "description": "Concrete-filled HSS braces need not be compact.",
+          "title": "Filledhssexempt",
+          "type": "boolean"
+        },
+        "tensionShareMin": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Braces in tension resist at least this share.",
+          "title": "Tensionsharemin"
+        },
+        "tensionShareMax": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... and at most this share of a line's force.",
+          "title": "Tensionsharemax"
+        },
+        "lineOffset": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parallel lines within this × the building dimension.",
+          "title": "Lineoffset"
+        },
+        "stitchRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Built-up braces: a/ri ≤ this × the member's KL/r.",
+          "title": "Stitchratio"
+        },
+        "stitchRatioNoShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... when buckling causes no shear in the stitches.",
+          "title": "Stitchrationoshear"
+        },
+        "stitchesMin": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stitches at least.",
+          "title": "Stitchesmin"
+        },
+        "connectionFlexure": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brace connections: M = this × Ry Mp of the brace.",
+          "title": "Connectionflexure"
+        },
+        "connectionCompression": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brace connections: P = this × Ry Pn of the brace.",
+          "title": "Connectioncompression"
+        },
+        "slipWithoutOmega": {
+          "default": false,
+          "description": "Bolt slip under the combinations without Ω0 only.",
+          "title": "Slipwithoutomega",
+          "type": "boolean"
+        },
+        "postBuckling": {
+          "description": "Compression braces at this × Pn for the beams.",
+          "exclusiveMinimum": 0,
+          "title": "Postbuckling",
+          "type": "number"
+        },
+        "kBracing": {
+          "description": "K-type bracing permitted.",
+          "title": "Kbracing",
+          "type": "boolean"
+        },
+        "spliceFlexureShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Column splices develop this × the lesser φMn.",
+          "title": "Spliceflexureshare"
+        },
+        "protectedMiddle": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Protected zone: the middle this × the brace length.",
+          "title": "Protectedmiddle"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "postBuckling",
+        "kBracing"
+      ],
+      "title": "SteelSeismicConcentric",
+      "type": "object"
+    },
     "SteelSeismicConnections": {
       "additionalProperties": false,
       "properties": {
@@ -99,6 +489,229 @@
         "clipRadius"
       ],
       "title": "SteelSeismicConnections",
+      "type": "object"
+    },
+    "SteelSeismicEccentric": {
+      "additionalProperties": false,
+      "description": "Eccentrically braced frames: the links and the members outside them.",
+      "properties": {
+        "phi": {
+          "description": "φv of the link shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "shearYield": {
+          "description": "Vp = this × Fy Aw.",
+          "exclusiveMinimum": 0,
+          "title": "Shearyield",
+          "type": "number"
+        },
+        "flexureShear": {
+          "description": "Vn ≤ this × Mp / e.",
+          "exclusiveMinimum": 0,
+          "title": "Flexureshear",
+          "type": "number"
+        },
+        "axialLimit": {
+          "description": "Pu above this × Py: the reduced strengths.",
+          "exclusiveMinimum": 0,
+          "title": "Axiallimit",
+          "type": "number"
+        },
+        "mpaFactor": {
+          "description": "Mpa = this × Mp (1 - Pr/Pc).",
+          "exclusiveMinimum": 0,
+          "title": "Mpafactor",
+          "type": "number"
+        },
+        "lengthRatio": {
+          "description": "ρ' Aw/Ag at or above this: Eq 6.10.305.",
+          "exclusiveMinimum": 0,
+          "title": "Lengthratio",
+          "type": "number"
+        },
+        "lengthA": {
+          "exclusiveMinimum": 0,
+          "title": "Lengtha",
+          "type": "number"
+        },
+        "lengthB": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthb",
+          "type": "number"
+        },
+        "shortLink": {
+          "description": "e ≤ this × Mp/Vp: a shear link.",
+          "exclusiveMinimum": 0,
+          "title": "Shortlink",
+          "type": "number"
+        },
+        "longLink": {
+          "description": "e ≥ this × Mp/Vp: a flexural link.",
+          "exclusiveMinimum": 0,
+          "title": "Longlink",
+          "type": "number"
+        },
+        "flexuralLink": {
+          "description": "No intermediate stiffeners above × Mp/Vp.",
+          "exclusiveMinimum": 0,
+          "title": "Flexurallink",
+          "type": "number"
+        },
+        "rotationShort": {
+          "description": "Link rotation of short links [rad].",
+          "exclusiveMinimum": 0,
+          "title": "Rotationshort",
+          "type": "number"
+        },
+        "rotationLong": {
+          "description": "Link rotation of long links [rad].",
+          "exclusiveMinimum": 0,
+          "title": "Rotationlong",
+          "type": "number"
+        },
+        "endStiffenerWidth": {
+          "description": "End stiffeners: width ≥ bf - this × tw.",
+          "exclusiveMinimum": 0,
+          "title": "Endstiffenerwidth",
+          "type": "number"
+        },
+        "endStiffenerThickness": {
+          "description": "End stiffeners: t ≥ this × tw.",
+          "exclusiveMinimum": 0,
+          "title": "Endstiffenerthickness",
+          "type": "number"
+        },
+        "stiffenerThicknessMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Stiffenerthicknessmin",
+          "type": "number"
+        },
+        "spacingShort": {
+          "description": "Spacing ≤ (this × tw - d/divisor) at γ short.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingshort",
+          "type": "number"
+        },
+        "spacingLong": {
+          "description": "... (this × tw - d/divisor) at γ long.",
+          "exclusiveMinimum": 0,
+          "title": "Spacinglong",
+          "type": "number"
+        },
+        "spacingDepthDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Spacingdepthdivisor",
+          "type": "number"
+        },
+        "flangeDistance": {
+          "description": "Long links: stiffeners this × bf from ends.",
+          "exclusiveMinimum": 0,
+          "title": "Flangedistance",
+          "type": "number"
+        },
+        "twoSidedDepth": {
+          "description": "Links this deep need two-sided stiffeners.",
+          "exclusiveMinimum": 0,
+          "title": "Twosideddepth",
+          "type": "number"
+        },
+        "oneSidedThickness": {
+          "description": "One-sided stiffeners: t ≥ this × tw.",
+          "exclusiveMinimum": 0,
+          "title": "Onesidedthickness",
+          "type": "number"
+        },
+        "oneSidedWidth": {
+          "description": "One-sided stiffeners: width ≥ this × bf.",
+          "exclusiveMinimum": 0,
+          "title": "Onesidedwidth",
+          "type": "number"
+        },
+        "weldWebShare": {
+          "description": "Stiffener-to-web welds: this × Ast Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Weldwebshare",
+          "type": "number"
+        },
+        "weldFlangeShare": {
+          "description": "Stiffener-to-flange welds: this × Ast Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Weldflangeshare",
+          "type": "number"
+        },
+        "braceStrength": {
+          "description": "Link end braces: this × Ry Z Fy / ho.",
+          "exclusiveMinimum": 0,
+          "title": "Bracestrength",
+          "type": "number"
+        },
+        "braceFactor": {
+          "description": "Diagonal braces: this × Ry Vn of the link.",
+          "exclusiveMinimum": 0,
+          "title": "Bracefactor",
+          "type": "number"
+        },
+        "beamFactor": {
+          "description": "Beam outside the link: this × Ry Vn.",
+          "exclusiveMinimum": 0,
+          "title": "Beamfactor",
+          "type": "number"
+        },
+        "columnFactor": {
+          "description": "Columns: this × Ry Vn of the links above.",
+          "exclusiveMinimum": 0,
+          "title": "Columnfactor",
+          "type": "number"
+        },
+        "upperStoreysAbove": {
+          "description": "Above this many storeys the top storey may be a CBF.",
+          "minimum": 1,
+          "title": "Upperstoreysabove",
+          "type": "integer"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phi",
+        "shearYield",
+        "flexureShear",
+        "axialLimit",
+        "mpaFactor",
+        "lengthRatio",
+        "lengthA",
+        "lengthB",
+        "shortLink",
+        "longLink",
+        "flexuralLink",
+        "rotationShort",
+        "rotationLong",
+        "endStiffenerWidth",
+        "endStiffenerThickness",
+        "stiffenerThicknessMin",
+        "spacingShort",
+        "spacingLong",
+        "spacingDepthDivisor",
+        "flangeDistance",
+        "twoSidedDepth",
+        "oneSidedThickness",
+        "oneSidedWidth",
+        "weldWebShare",
+        "weldFlangeShare",
+        "braceStrength",
+        "braceFactor",
+        "beamFactor",
+        "columnFactor",
+        "upperStoreysAbove"
+      ],
+      "title": "SteelSeismicEccentric",
       "type": "object"
     },
     "SteelSeismicExpected": {
@@ -554,6 +1167,85 @@
       "title": "SteelSeismicFrame",
       "type": "object"
     },
+    "SteelSeismicPlateWalls": {
+      "additionalProperties": false,
+      "description": "Special plate shear walls (steel webs between boundary elements).",
+      "properties": {
+        "phi": {
+          "description": "φ of the web shear yielding.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "shearCoefficient": {
+          "description": "Vn = this × Fy tw Lcf sin 2α.",
+          "exclusiveMinimum": 0,
+          "title": "Shearcoefficient",
+          "type": "number"
+        },
+        "angleCoefficient": {
+          "description": "Eq 6.10.308: h³ / (this × Ic L).",
+          "exclusiveMinimum": 0,
+          "title": "Anglecoefficient",
+          "type": "number"
+        },
+        "aspectMin": {
+          "description": "L/h above this.",
+          "exclusiveMinimum": 0,
+          "title": "Aspectmin",
+          "type": "number"
+        },
+        "aspectMax": {
+          "description": "L/h at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Aspectmax",
+          "type": "number"
+        },
+        "inertiaCoefficient": {
+          "description": "Ic ≥ this × tw h⁴ / L.",
+          "exclusiveMinimum": 0,
+          "title": "Inertiacoefficient",
+          "type": "number"
+        },
+        "hbeBracing": {
+          "description": "HBE braced at most this × ry E / Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Hbebracing",
+          "type": "number"
+        },
+        "hbeBraceShare": {
+          "description": "HBE brace strength: this × Fy bf tf.",
+          "exclusiveMinimum": 0,
+          "title": "Hbebraceshare",
+          "type": "number"
+        },
+        "connectionFactor": {
+          "description": "HBE-to-VBE shear: moments this × Ry Mp.",
+          "exclusiveMinimum": 0,
+          "title": "Connectionfactor",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phi",
+        "shearCoefficient",
+        "angleCoefficient",
+        "aspectMin",
+        "aspectMax",
+        "inertiaCoefficient",
+        "hbeBracing",
+        "hbeBraceShare",
+        "connectionFactor"
+      ],
+      "title": "SteelSeismicPlateWalls",
+      "type": "object"
+    },
     "SteelSeismicPractice": {
       "additionalProperties": false,
       "description": "SAEngine practice where the code defers to tested or prequalified connections.",
@@ -589,6 +1281,70 @@
         "rigidZoneMax"
       ],
       "title": "SteelSeismicPractice",
+      "type": "object"
+    },
+    "SteelSeismicRestrained": {
+      "additionalProperties": false,
+      "description": "Buckling-restrained braced frames.",
+      "properties": {
+        "phi": {
+          "description": "φ of the steel core's yielding.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "connectionFactor": {
+          "description": "Connections: × the adjusted compression.",
+          "exclusiveMinimum": 0,
+          "title": "Connectionfactor",
+          "type": "number"
+        },
+        "betaMin": {
+          "description": "β (compression adjustment) at least.",
+          "exclusiveMinimum": 0,
+          "title": "Betamin",
+          "type": "number"
+        },
+        "testDrift": {
+          "description": "Restraint and tests to this × the design drift.",
+          "exclusiveMinimum": 0,
+          "title": "Testdrift",
+          "type": "number"
+        },
+        "coreToughness": {
+          "description": "Core plates this thick need the CVN [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Coretoughness",
+          "type": "number"
+        },
+        "spliceFlexureShare": {
+          "description": "Column splices: × the lesser φMn.",
+          "exclusiveMinimum": 0,
+          "title": "Spliceflexureshare",
+          "type": "number"
+        },
+        "kBracing": {
+          "description": "K-type bracing permitted.",
+          "title": "Kbracing",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phi",
+        "connectionFactor",
+        "betaMin",
+        "testDrift",
+        "coreToughness",
+        "spliceFlexureShare",
+        "kBracing"
+      ],
+      "title": "SteelSeismicRestrained",
       "type": "object"
     },
     "SteelSeismicSplices": {
@@ -647,6 +1403,257 @@
         "smfShear"
       ],
       "title": "SteelSeismicSplices",
+      "type": "object"
+    },
+    "SteelSeismicTies": {
+      "additionalProperties": false,
+      "description": "Transverse ties of concrete-encased composite columns of one seismic system level.",
+      "properties": {
+        "spacingLeastShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× least side.",
+          "title": "Spacingleastshare"
+        },
+        "spacingBarDiameters": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× bar db.",
+          "title": "Spacingbardiameters"
+        },
+        "spacingTieDiameters": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× tie db.",
+          "title": "Spacingtiediameters"
+        },
+        "spacingMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Spacingmax"
+        },
+        "tieGreatestShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tie db ≥ × side.",
+          "title": "Tiegreatestshare"
+        },
+        "tieMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tie db at least [mm].",
+          "title": "Tiemin"
+        },
+        "tieMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tie db need not exceed [mm].",
+          "title": "Tiemax"
+        },
+        "zoneHeightShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone × clear H.",
+          "title": "Zoneheightshare"
+        },
+        "zoneMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone at least [mm].",
+          "title": "Zonemin"
+        },
+        "remainderFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Elsewhere × that.",
+          "title": "Remainderfactor"
+        },
+        "ashCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Eq 6.13.27.",
+          "title": "Ashcoefficient"
+        },
+        "confinedLeastShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "C-SMF ends.",
+          "title": "Confinedleastshare"
+        },
+        "confinedMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "C-SMF ends [mm].",
+          "title": "Confinedmax"
+        },
+        "crossTieSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Across [mm].",
+          "title": "Crosstiespacing"
+        },
+        "bracedAxialShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× Po: full length.",
+          "title": "Bracedaxialshare"
+        },
+        "discontinuityShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "× Po.",
+          "title": "Discontinuityshare"
+        },
+        "footingExtension": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Footingextension"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "SteelSeismicTies",
       "type": "object"
     },
     "SteelSeismicToughness": {
@@ -1094,6 +2101,74 @@
     },
     "practice": {
       "$ref": "#/$defs/SteelSeismicPractice"
+    },
+    "bracedSystems": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Structural system id -> the braced frame or wall kind (scbf, ocbf, ebf, brbf, spsw) its braces, links and walls follow.",
+      "title": "Bracedsystems",
+      "type": "object"
+    },
+    "concentric": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelSeismicConcentric"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Concentrically braced frames by kind (scbf, ocbf).",
+      "title": "Concentric"
+    },
+    "eccentric": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicEccentric"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "restrained": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicRestrained"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "plateWalls": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicPlateWalls"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "compositeSeismic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicComposite"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

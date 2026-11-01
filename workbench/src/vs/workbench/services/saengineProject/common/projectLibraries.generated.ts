@@ -1445,6 +1445,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Tension only',
 					type: 'boolean',
 				},
+				restrained: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BucklingRestrainedBrace',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel braces of buckling-restrained braced frames: the core and the test results; none: a conventional brace.',
+					title: 'Buckling-restrained',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -1704,6 +1717,45 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'BraceGussetConnection',
+			type: 'object',
+		},
+		BucklingRestrainedBrace: {
+			additionalProperties: false,
+			description: 'The steel core of a buckling-restrained brace and its qualifying test results.',
+			properties: {
+				type: {
+					const: 'bucklingRestrained',
+					default: 'bucklingRestrained',
+					title: 'Type',
+					type: 'string',
+				},
+				coreArea: {
+					description: 'Net area of the steel core Asc [mm²].',
+					exclusiveMinimum: 0,
+					title: 'Core area',
+					type: 'number',
+				},
+				beta: {
+					description: 'Largest compression / tension force of the qualifying tests at twice the design storey drift (at least the code pack\'s least β).',
+					exclusiveMinimum: 0,
+					title: 'β (compression adjustment)',
+					type: 'number',
+				},
+				omega: {
+					description: 'Largest tension force of the qualifying tests / Fysc Asc of the specimen.',
+					exclusiveMinimum: 0,
+					title: 'ω (strain hardening)',
+					type: 'number',
+				},
+				couponFy: {
+					default: false,
+					description: 'The core\'s yield stress is a coupon test\'s: Ry is not applied.',
+					title: 'Fysc from a coupon test',
+					type: 'boolean',
+				},
+			},
+			required: ['coreArea', 'beta', 'omega'],
+			title: 'BucklingRestrainedBrace',
 			type: 'object',
 		},
 		BuiltUpMember: {
@@ -5555,6 +5607,70 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'Staircase',
 			type: 'object',
 		},
+		SteelPlateWall: {
+			additionalProperties: false,
+			description: 'Concrete encasing the steel plate of a composite plate shear wall.',
+			properties: {
+				type: {
+					const: 'steelPlateWall',
+					default: 'steelPlateWall',
+					title: 'Type',
+					type: 'string',
+				},
+				concrete: {
+					default: 'none',
+					enum: ['none', 'oneSide', 'bothSides'],
+					enumDescriptions: ['No concrete', 'One side', 'Both sides'],
+					title: 'Concrete',
+					type: 'string',
+				},
+				concreteMaterial: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '03 Materials id of the concrete; none: no concrete.',
+					title: 'Concrete material',
+				},
+				concreteThickness: {
+					default: 100,
+					description: 'Concrete on each encased side [mm].',
+					exclusiveMinimum: 0,
+					title: 'Concrete thickness',
+					type: 'number',
+				},
+				barRatio: {
+					default: 0.0025,
+					description: 'Bars in the concrete each way, As / Ac [-].',
+					minimum: 0,
+					title: 'Bar ratio',
+					type: 'number',
+				},
+				barSpacing: {
+					default: 300,
+					description: 'Between the bars [mm].',
+					exclusiveMinimum: 0,
+					title: 'Bar spacing',
+					type: 'number',
+				},
+				connectors: {
+					default: true,
+					description: 'Headed studs or other connectors tie the plate to the concrete.',
+					title: 'Connectors',
+					type: 'boolean',
+				},
+			},
+			title: 'SteelPlateWall',
+			type: 'object',
+		},
 		SteelSplice: {
 			additionalProperties: false,
 			description: 'Bolted cover-plate splice of an I-section beam or column: a plate on the outside of each\nflange (``rows`` bolts in each of ``lines`` lines on each side of the joint) and a plate on\neach side of the web (``webRows`` bolts on each side). Checked for the member\'s forces at\nthe splice. ``plateThickness`` is the flange plates\'; ``edgeDistance`` sets their width.',
@@ -6568,6 +6684,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Masonry walls: the bolts anchoring the wall to each floor or roof.',
 					title: 'Anchor bolts',
+				},
+				plateWall: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SteelPlateWall',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel walls (a steel material; the thickness is the web plate\'s): the concrete encasing the plate of a composite plate shear wall; none: a steel plate shear wall without concrete.',
+					title: 'Steel plate wall',
 				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
@@ -9272,8 +9401,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				system: {
 					default: 'rcSmf',
 					description: 'Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and the seismic detailing of the members; it must be permitted in the Seismic Design Category of the site (Table 6.2.18).',
-					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed'],
-					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls', 'Bearing walls: RC special shear walls', 'Bearing walls: RC ordinary shear walls', 'Steel eccentrically braced frame, moment-resisting connections at columns away from links', 'Steel eccentrically braced frame, non-moment-resisting connections at columns away from links', 'Steel ordinary concentrically braced frame', 'Building frame with ordinary reinforced masonry shear walls', 'Building frame with ordinary plain (unreinforced) masonry shear walls', 'Steel intermediate moment frame', 'Dual: steel special moment frame and eccentrically braced frames', 'Dual: steel special moment frame and special concentrically braced frames', 'Dual: RC special moment frame and ordinary shear walls', 'Dual: steel intermediate moment frame and special concentrically braced frames', 'Dual: RC intermediate moment frame and special shear walls', 'Dual: intermediate moment frame and ordinary reinforced masonry shear walls', 'Dual: RC intermediate moment frame and ordinary shear walls', 'Dual: RC ordinary moment frame and ordinary shear walls', 'Steel system not specifically detailed for seismic resistance'],
+					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed', 'steelBrbf', 'steelSpsw', 'steelBrbfMoment', 'steelDualSmfBrbf', 'steelDualSmfSpsw'],
+					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls', 'Bearing walls: RC special shear walls', 'Bearing walls: RC ordinary shear walls', 'Steel eccentrically braced frame, moment-resisting connections at columns away from links', 'Steel eccentrically braced frame, non-moment-resisting connections at columns away from links', 'Steel ordinary concentrically braced frame', 'Building frame with ordinary reinforced masonry shear walls', 'Building frame with ordinary plain (unreinforced) masonry shear walls', 'Steel intermediate moment frame', 'Dual: steel special moment frame and eccentrically braced frames', 'Dual: steel special moment frame and special concentrically braced frames', 'Dual: RC special moment frame and ordinary shear walls', 'Dual: steel intermediate moment frame and special concentrically braced frames', 'Dual: RC intermediate moment frame and special shear walls', 'Dual: intermediate moment frame and ordinary reinforced masonry shear walls', 'Dual: RC intermediate moment frame and ordinary shear walls', 'Dual: RC ordinary moment frame and ordinary shear walls', 'Steel system not specifically detailed for seismic resistance', 'Steel buckling-restrained braced frame, non-moment-resisting beam-column connections', 'Steel special plate shear walls', 'Steel buckling-restrained braced frame, moment-resisting beam-column connections', 'Dual: steel special moment frame and buckling-restrained braced frames', 'Dual: steel special moment frame and special plate shear walls'],
 					title: 'Structural system',
 					type: 'string',
 				},
@@ -9322,7 +9451,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				systemY: {
 					anyOf: [
 						{
-							enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed'],
+							enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed', 'steelBrbf', 'steelSpsw', 'steelBrbfMoment', 'steelDualSmfBrbf', 'steelDualSmfSpsw'],
 							type: 'string',
 						},
 						{
@@ -9331,13 +9460,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					description: 'A different seismic force-resisting system along Y: its own R, Ω0 and Cd apply in Y, with its limitations. Empty: the structural system above in both directions.',
-					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls', 'Bearing walls: RC special shear walls', 'Bearing walls: RC ordinary shear walls', 'Steel eccentrically braced frame, moment-resisting connections at columns away from links', 'Steel eccentrically braced frame, non-moment-resisting connections at columns away from links', 'Steel ordinary concentrically braced frame', 'Building frame with ordinary reinforced masonry shear walls', 'Building frame with ordinary plain (unreinforced) masonry shear walls', 'Steel intermediate moment frame', 'Dual: steel special moment frame and eccentrically braced frames', 'Dual: steel special moment frame and special concentrically braced frames', 'Dual: RC special moment frame and ordinary shear walls', 'Dual: steel intermediate moment frame and special concentrically braced frames', 'Dual: RC intermediate moment frame and special shear walls', 'Dual: intermediate moment frame and ordinary reinforced masonry shear walls', 'Dual: RC intermediate moment frame and ordinary shear walls', 'Dual: RC ordinary moment frame and ordinary shear walls', 'Steel system not specifically detailed for seismic resistance'],
+					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls', 'Bearing walls: RC special shear walls', 'Bearing walls: RC ordinary shear walls', 'Steel eccentrically braced frame, moment-resisting connections at columns away from links', 'Steel eccentrically braced frame, non-moment-resisting connections at columns away from links', 'Steel ordinary concentrically braced frame', 'Building frame with ordinary reinforced masonry shear walls', 'Building frame with ordinary plain (unreinforced) masonry shear walls', 'Steel intermediate moment frame', 'Dual: steel special moment frame and eccentrically braced frames', 'Dual: steel special moment frame and special concentrically braced frames', 'Dual: RC special moment frame and ordinary shear walls', 'Dual: steel intermediate moment frame and special concentrically braced frames', 'Dual: RC intermediate moment frame and special shear walls', 'Dual: intermediate moment frame and ordinary reinforced masonry shear walls', 'Dual: RC intermediate moment frame and ordinary shear walls', 'Dual: RC ordinary moment frame and ordinary shear walls', 'Steel system not specifically detailed for seismic resistance', 'Steel buckling-restrained braced frame, non-moment-resisting beam-column connections', 'Steel special plate shear walls', 'Steel buckling-restrained braced frame, moment-resisting beam-column connections', 'Dual: steel special moment frame and buckling-restrained braced frames', 'Dual: steel special moment frame and special plate shear walls'],
 					title: 'Structural system in Y',
 				},
 				otherSystems: {
 					description: 'Other seismic force-resisting systems that resist the forces along X together with the structural system (beside it or in other storeys), other than a dual system: R is the least of them, Cd and Ω0 the largest, and the most stringent height limit applies. Without a system in Y they apply in Y too.',
 					items: {
-						enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed'],
+						enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed', 'steelBrbf', 'steelSpsw', 'steelBrbfMoment', 'steelDualSmfBrbf', 'steelDualSmfSpsw'],
 						type: 'string',
 					},
 					title: 'Other systems in X',
@@ -9346,7 +9475,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				otherSystemsY: {
 					description: 'The same along Y, with a structural system in Y.',
 					items: {
-						enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed'],
+						enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed', 'steelBrbf', 'steelSpsw', 'steelBrbfMoment', 'steelDualSmfBrbf', 'steelDualSmfSpsw'],
 						type: 'string',
 					},
 					title: 'Other systems in Y',
@@ -12214,6 +12343,71 @@ export const BNBC: IBnbcTables = {
 				B: null,
 				C: null,
 				D: 0.0,
+			},
+			frame: null,
+		},
+		steelBrbf: {
+			name: 'Steel buckling-restrained braced frame, non-moment-resisting beam-column connections',
+			r: 7.0,
+			omega: 2.0,
+			cd: 5.5,
+			row: 'P.3 Table 6.P.1 (part 2 p. 590)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 48.0,
+			},
+			frame: null,
+		},
+		steelSpsw: {
+			name: 'Steel special plate shear walls',
+			r: 7.0,
+			omega: 2.0,
+			cd: 6.0,
+			row: 'P.3 Table 6.P.1 (part 2 p. 590)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 48.0,
+			},
+			frame: null,
+		},
+		steelBrbfMoment: {
+			name: 'Steel buckling-restrained braced frame, moment-resisting beam-column connections',
+			r: 8.0,
+			omega: 2.5,
+			cd: 5.0,
+			row: 'P.3 Table 6.P.1 (part 2 p. 590)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: 48.0,
+			},
+			frame: null,
+		},
+		steelDualSmfBrbf: {
+			name: 'Dual: steel special moment frame and buckling-restrained braced frames',
+			r: 8.0,
+			omega: 2.5,
+			cd: 5.0,
+			row: 'P.3 Table 6.P.1 (part 2 p. 590)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: null,
+			},
+			frame: null,
+		},
+		steelDualSmfSpsw: {
+			name: 'Dual: steel special moment frame and special plate shear walls',
+			r: 8.0,
+			omega: 2.5,
+			cd: 6.5,
+			row: 'P.3 Table 6.P.1 (part 2 p. 590)',
+			heightLimits: {
+				B: null,
+				C: null,
+				D: null,
 			},
 			frame: null,
 		},
@@ -16506,6 +16700,15 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		concrete: 'C20.7',
 	},
 	CompositeDeck: {},
+	BucklingRestrainedBrace: {
+		type: 'bucklingRestrained',
+		coreArea: 3000,
+		beta: 1.1,
+		omega: 1.3,
+	},
+	SteelPlateWall: {
+		type: 'steelPlateWall',
+	},
 	SlabShrinkage: {
 		freeStrain: 0.0004,
 		coefficient: 1.0,

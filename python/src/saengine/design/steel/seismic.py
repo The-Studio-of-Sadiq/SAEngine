@@ -213,7 +213,10 @@ def _material_text(material: Any) -> tuple[str, float]:
 
 
 def application_of(family: str) -> str:
-    """The table application of a shape family: hollow sections or shapes."""
+    """The table application of a shape family: hollow sections, plates (B38: plate shear
+    wall webs, buckling-restrained cores) or shapes."""
+    if family == "plate":
+        return "plates"
     return "hss" if family in ("rhs", "chs") else "shapes"
 
 
