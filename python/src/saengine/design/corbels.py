@@ -29,11 +29,26 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design.clauses import clause
 from saengine.design.rc import bar_area
 
-__all__ = ["CLAUSE", "CorbelDemand", "corbel_checks", "member_checks"]
+__all__ = [
+    "CLAUSE",  # noqa: F822 - module __getattr__ (read from the code pack)
+    "CorbelDemand",
+    "corbel_checks",
+    "member_checks",
+]
 
-CLAUSE = "BNBC 2020 Part 6 Sec 6.4.7"
+
+def _clause() -> str:
+    """The corbel clause of the code pack in force (``CLAUSE``; its subsections follow it)."""
+    return clause("corbels", "corbels")
+
+
+def __getattr__(name: str) -> str:
+    if name == "CLAUSE":
+        return _clause()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @dataclass
@@ -74,7 +89,7 @@ def corbel_checks(
             table.spanRatio,
             "",
             None,
-            f"av = {av:.0f} mm, d = {d:.0f} mm; at most {table.spanRatio:g} ({CLAUSE}.1)",
+            f"av = {av:.0f} mm, d = {d:.0f} mm; at most {table.spanRatio:g} ({_clause()}.1)",
         )
     )
     checks.append(
@@ -84,7 +99,7 @@ def corbel_checks(
             float(corbel.edgeDepth),
             "mm",
             None,
-            f"at least {table.edgeDepth:g} d ({CLAUSE}.2)",
+            f"at least {table.edgeDepth:g} d ({_clause()}.2)",
         )
     )
     if given is not None:
@@ -95,7 +110,7 @@ def corbel_checks(
                 table.tensionMaxShare * vu / 1e3,
                 "kN",
                 combination,
-                f"Nuc at most Vu ({CLAUSE}.1); at least {table.tensionShare:g} Vu ({CLAUSE}.3.4)",
+                f"Nuc at most Vu ({_clause()}.1); at least {table.tensionShare:g} Vu ({_clause()}.3.4)",
             )
         )
     limit = (
@@ -116,7 +131,7 @@ def corbel_checks(
             combination,
             f"φ Vn,max = φ min({table.shearCoefficient:g} f'c, {table.shearIntercept:g} + "
             f"{table.shearSlope:g} f'c, {table.shearStressMax:g}) bw d, φ = {phi:g} "
-            f"({CLAUSE}.3.1, .3.2)",
+            f"({_clause()}.3.1, .3.2)",
         )
     )
     mu = vu * av + nuc * (h - d)
@@ -140,7 +155,7 @@ def corbel_checks(
             f"As at least Af + An = {af + an:.0f}, (2/3) Avf + An = {2 / 3 * avf + an:.0f}, "
             f"{table.minSteel:g} (f'c/fy) bw d = {least:.0f} mm²; Mu = Vu av + Nuc (h - d) = "
             f"{mu / 1e6:.1f} kN·m, Avf = Vu / (φ fy μ), μ = {table.friction:g} λ, Nuc = "
-            f"{nuc / 1e3:.1f} kN ({CLAUSE}.3.3-.3.5, .5; Sec 6.4.5); {main.count} Ø{main.dia:g}",
+            f"{nuc / 1e3:.1f} kN ({_clause()}.3.3-.3.5, .5; Sec 6.4.5); {main.count} Ø{main.dia:g}",
         )
     )
     ties = corbel.ties
@@ -153,7 +168,7 @@ def corbel_checks(
             "mm²",
             combination,
             f"Ah at least {table.tiesShare:g} (As - An), within {table.tiesDepth:.2f} d = "
-            f"{table.tiesDepth * d:.0f} mm below As ({CLAUSE}.4)"
+            f"{table.tiesDepth * d:.0f} mm below As ({_clause()}.4)"
             + (f"; {ties.count} closed Ø{ties.dia:g}" if ties else "; no ties given"),
         )
     )
@@ -168,7 +183,7 @@ def corbel_checks(
                 "kN",
                 combination,
                 f"φ 0.85 f'c A1, φ = {phi_b:g}, A1 = {corbel.bearing:g} × {b:.0f} mm "
-                "(BNBC 2020 Part 6 Sec 6.2.3.2, 6.3.13)",
+                f"({clause('corbels', 'bearing')})",
             )
         )
     return checks

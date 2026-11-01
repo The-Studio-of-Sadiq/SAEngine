@@ -90,7 +90,8 @@ from typing import Any
 from saengine.codes import context as code_context
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
-from saengine.design.rc import PHI_SHEAR, bar_area
+from saengine.design.rc import bar_area
+from saengine.design.rc import value as rc_value
 
 G = 9.80665  # m/s², as saengine.fem.derive
 DENSITY = 2400.0  # kg/m³ when the material gives none
@@ -972,7 +973,7 @@ def thickness_rule(demand: Demand, fy: float) -> tuple[float, str]:
 
 def phi_vc(d: float, fc: float) -> float:
     """φVc per metre [kN/m]: 0.75 x 0.17 √f'c b d (Sec 6.4.2.1.1, Eq. 6.6.49), λ = 1."""
-    return PHI_SHEAR * 0.17 * math.sqrt(fc) * 1000 * d / 1000
+    return rc_value("PHI_SHEAR") * 0.17 * math.sqrt(fc) * 1000 * d / 1000
 
 
 def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> list[dict[str, Any]]:

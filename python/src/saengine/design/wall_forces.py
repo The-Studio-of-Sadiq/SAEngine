@@ -77,6 +77,8 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.clauses import clause
+
 #: Lengths in the building model are mm, the analysis model m.
 MM = 1e-3
 #: Tolerance on positions [m].
@@ -96,7 +98,6 @@ SIGN_KIND = "frame"
 #: Pier cuts (horizontal) and spandrel cuts (vertical).
 PIER_CUTS = ("bottom", "middle", "top")
 SPANDREL_CUTS = ("left", "middle", "right")
-CLAUSE_RS = "BNBC 2020 Part 6 Sec 2.5.9.4 (p. 635)"
 
 _UP = np.array([0.0, 0.0, 1.0])
 
@@ -835,7 +836,7 @@ def wall_forces(
     if seismic is not None and any(c.has_envelope for c in combinations):
         notes.append(
             "response spectrum wall forces: each mode's pier resultant combined over the modes "
-            f"(CQC/SRSS) and scaled ({CLAUSE_RS}), ± with the static part"
+            f"(CQC/SRSS) and scaled ({clause('wallForces', 'responseScale')}), ± with the static part"
         )
     notes.extend(sorted(missing))
     return {"piers": piers, "spandrels": spandrels, "sections": sections, "notes": notes}

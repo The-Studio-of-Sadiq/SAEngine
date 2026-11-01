@@ -53,15 +53,15 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design.clauses import clause, short_clause, short_name
 from saengine.design.rc import (
-    FYT_SHEAR_MAX,
-    PHI_SHEAR,
     DesignError,
     RcSection,
     bar_area,
     flexure,
     shear,
 )
+from saengine.design.rc import value as rc_value
 from saengine.library.objects import CircleProfile, RectangleProfile
 
 # The plain numbers of special moment frame joints are the pack's ``detailing.joints`` group
@@ -91,7 +91,9 @@ def _phi_joint() -> float:
     return float(code_context.table("factors").phi["joint"])
 
 
-SECTION = "BNBC 2020 Part 6"
+def _section() -> str:
+    """The code and part the joint rules cite ("<code> Part 6"), from the pack in force."""
+    return clause("ductileJoints", "part")
 
 
 def _check(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -487,7 +489,7 @@ def strong_column_checks(
         mnb = max(_sum_beams(d, s, probable=False) for s in (1, -1))
         note = (
             f"ΣMnc = {mnc / 1e6:.1f} ≥ 1.2 ΣMnb = 1.2 × {mnb / 1e6:.1f} kN·m "
-            f"({SECTION} Sec 8.3.5.2(b), Eq. 6.8.5); " + "; ".join(parts)
+            f"({_section()} Sec 8.3.5.2(b), Eq. 6.8.5); " + "; ".join(parts)
         )
         if above is None:
             note += "; column ends at this joint"
@@ -625,9 +627,9 @@ def joint_checks(
                 "kN",
                 None,
                 f"Vj = ΣT - Vcol = {tension / 1e3:.0f} - {vcol / 1e3:.0f} kN, T = 1.25 fy As "
-                f"({SECTION} Sec 8.3.7.1(a)); φ γ √f'c Aj, φ = {phi:g} (Sec 6.2.3.3(c)), "
+                f"({_section()} Sec 8.3.7.1(a)); φ γ √f'c Aj, φ = {phi:g} (Sec 6.2.3.3(c)), "
                 f"γ = {gamma:g} (confined: {kind}, {faces} face(s), Sec 8.3.7.3), Aj = "
-                f"{h:.0f} × {bj:.0f} mm (bj by ACI 318-19 18.8.4.3: BNBC does not define it); "
+                f"{h:.0f} × {bj:.0f} mm (bj by ACI 318-19 18.8.4.3: {short_name()} does not define it); "
                 f"Vcol = ΣMpr / {lever:.0f} mm",
             )
         )
@@ -658,7 +660,7 @@ def joint_checks(
                     f"- tie = {core:.0f} mm"
                 )
                 if not 10 <= db <= 36:
-                    note += "; BNBC gives ldh for 10-36 mm bars only"
+                    note += f"; {short_name()} gives ldh for 10-36 mm bars only"
                 rows.append(
                     _check(
                         f"Beam bar anchorage, {joint.id} {beam.id}", need, core, "mm", None, note
@@ -666,7 +668,8 @@ def joint_checks(
                 )
     if above is None:
         notes.append(
-            f"{joint.id}: the column ends at this joint; BNBC Sec 8.3.7.3 gives no lower joint "
+            f"{joint.id}: the column ends at this joint; "
+            f"{short_clause('ductileJoints', 'jointShear')} gives no lower joint "
             "shear coefficients for it (ACI 318-19 Table 18.8.4.3 does)"
         )
     return rows, notes
@@ -705,12 +708,12 @@ def _shear_rows(
     required transverse steel Av/s against the provided."""
     zero = special and v_sway >= 0.5 * ve and axial < _joints("vcZeroAxial") * gross_area * fc
     vc = 0.0 if zero else vc_full
-    fyt = min(fyt, FYT_SHEAR_MAX)
+    fyt = min(fyt, rc_value("FYT_SHEAR_MAX"))
     vs_max = 0.66 * math.sqrt(fc) * bw * d
     av_s = stirrups.av_s if stirrups else 0.0
     vs = min(av_s * fyt * d, vs_max)
-    capacity = PHI_SHEAR * (vc + vs)
-    need = max(ve / PHI_SHEAR - vc, 0.0) / (fyt * d)
+    capacity = rc_value("PHI_SHEAR") * (vc + vs)
+    need = max(ve / rc_value("PHI_SHEAR") - vc, 0.0) / (fyt * d)
     parts = [
         note,
         f"Vc = {vc / 1e3:.1f} kN"
@@ -719,8 +722,8 @@ def _shear_rows(
             if zero
             else ""
         ),
-        f"Vs = {vs / 1e3:.1f} kN, fyt ≤ {FYT_SHEAR_MAX:g} MPa (Sec 8.3.3.4(d), 6.4.3.2), "
-        + f"φ = {PHI_SHEAR:g}",
+        f"Vs = {vs / 1e3:.1f} kN, fyt ≤ {rc_value('FYT_SHEAR_MAX'):g} MPa (Sec 8.3.3.4(d), 6.4.3.2), "
+        + f"φ = {rc_value('PHI_SHEAR'):g}",
     ]
     if need * fyt * d > vs_max:
         parts.append("Ve needs Vs above 0.66 √f'c bw d: enlarge the section")
@@ -798,7 +801,7 @@ def beam_capacity_shear(
         note = (
             f"Ve = (Mpr- + Mpr+) / ln + Vg = ({m.mpr_hog / 1e6:.1f} + {m.mpr_sag / 1e6:.1f}) "
             f"kN·m / {clear_span:.0f} mm + {abs(gravity_shear) / 1e3:.1f} kN, Mpr at 1.25 fy, "
-            f"φ = 1 ({SECTION} Sec 8.3.8.1(a))"
+            f"φ = 1 ({_section()} Sec 8.3.8.1(a))"
         )
         label = "Capacity shear Ve (SMF)"
     else:
@@ -811,7 +814,7 @@ def beam_capacity_shear(
         if doubled_e_shear is not None and doubled_e_shear < ve:
             ve = abs(doubled_e_shear)
             note += f"; the combinations with 2E give less: {ve / 1e3:.1f} kN governs"
-        note += f" ({SECTION} Sec 8.3.10.3)"
+        note += f" ({_section()} Sec 8.3.10.3)"
         label = "Capacity shear (IMF)"
     return _shear_rows(
         label,
@@ -886,7 +889,7 @@ def column_capacity_shear(
         ve = v_moment
         note = (
             f"Ve = 2 Mpr / lu = 2 × {m / 1e6:.1f} kN·m / {clear_height:.0f} mm, Mpr at "
-            f"P = {p / 1e3:.0f} kN ({SECTION} Sec 8.3.8.1(b))"
+            f"P = {p / 1e3:.0f} kN ({_section()} Sec 8.3.8.1(b))"
         )
         if beam_limit is not None and beam_limit < ve:
             ve = beam_limit
@@ -908,7 +911,7 @@ def column_capacity_shear(
         if doubled_e_shear is not None and abs(doubled_e_shear) < ve:
             ve = abs(doubled_e_shear)
             note += f"; the combinations with 2E give less: {ve / 1e3:.1f} kN governs"
-        note += f" ({SECTION} Sec 8.3.10.3)"
+        note += f" ({_section()} Sec 8.3.10.3)"
         v_sway = ve
         label = f"Capacity shear (IMF column, {frame.axis})"
     vc = 0.17 * lam * min(math.sqrt(section.fc), 8.3) * bw * d
@@ -1066,7 +1069,7 @@ def column_dowel_checks(
             "mm",
             None,
             f"ldh = max(0.24 fy db / (λ √f'c), 8 db, 150) = {need:.0f} mm for db = {db:g} mm "
-            f"({SECTION} Sec 8.2.6.1, 8.2.6.2); available t - cover - 2 mesh bars = "
+            f"({_section()} Sec 8.2.6.1, 8.2.6.2); available t - cover - 2 mesh bars = "
             f"{available:.0f} mm; 90° hooks at the bottom, turned towards the column's centre "
             "(Sec 8.3.11.2(a), (b))",
         )
@@ -1119,7 +1122,7 @@ def grade_beam_tie_check(
         "mm",
         None,
         f"closed ties at ≤ min(smallest dimension / 2, 300 mm) = {limit:.0f} mm "
-        f"({SECTION} Sec 8.3.11.3(b)); grade beams bent by the columns of the seismic system "
+        f"({_section()} Sec 8.3.11.3(b)); grade beams bent by the columns of the seismic system "
         "also follow Sec 8.3.4 (8.3.11.3(c))",
     )
 
@@ -1203,7 +1206,7 @@ def non_sfrs_checks(
                 phi_mn / 1e6,
                 "kN·m",
                 None,
-                f"under the design displacement δu with the gravity forces ({SECTION} "
+                f"under the design displacement δu with the gravity forces ({_section()} "
                 "Sec 8.3.12.2); beyond φMn the detailing of Sec 8.3.12.3 applies",
                 flag=True,
             )
@@ -1253,7 +1256,7 @@ def non_sfrs_checks(
                 phi_mn / 1e6,
                 "kN·m",
                 None,
-                f"under twice the lateral displacement of the factored lateral forces ({SECTION}"
+                f"under twice the lateral displacement of the factored lateral forces ({_section()}"
                 " Sec 8.3.9.1); beyond φMn the detailing of 8.3.9.1(a) applies",
                 flag=True,
             )
@@ -1291,6 +1294,6 @@ def _full_length(
         limit,
         "mm",
         None,
-        f"≤ {rule} = {limit:.0f} mm over the full length ({SECTION} Sec {clause})"
+        f"≤ {rule} = {limit:.0f} mm over the full length ({_section()} Sec {clause})"
         + ("" if stirrups else "; no transverse bars"),
     )

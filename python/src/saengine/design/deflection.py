@@ -42,7 +42,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from saengine.design.rc import STEEL_E, DesignError, RcSection
+from saengine.design.rc import DesignError, RcSection
+from saengine.design.rc import value as rc_value
 from saengine.library.objects import RectangleProfile
 
 
@@ -183,7 +184,7 @@ def section_stiffness(
     yt = h - ybar
     # Bar depth from the compression face: y is up from mid-depth.
     bars = [((h / 2 + bar.y) if hogging else (h / 2 - bar.y), bar.area) for bar in section.bars]
-    n = section.es / ec if section.es else STEEL_E / ec
+    n = section.es / ec if section.es else rc_value("STEEL_E") / ec
     c, icr = cracked_section(strips, bars, n)
     tension = [(y, a) for y, a in bars if y > h / 2]
     compression = [(y, a) for y, a in bars if y < h / 2]

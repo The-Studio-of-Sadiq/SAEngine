@@ -46,11 +46,13 @@ from typing import Any
 from shapely.geometry import LineString, MultiPoint, Polygon, box
 from shapely.geometry.base import BaseGeometry
 
-from saengine.design.rc import PHI_SHEAR, bar_area
+from saengine.design.clauses import clause
+from saengine.design.rc import bar_area
+from saengine.design.rc import value as rc_value
 from saengine.design.slab import critical_section, punching_capacity
 
 __all__ = [
-    "PUNCHING_METHOD",
+    "PUNCHING_METHOD",  # noqa: F822 - module __getattr__ (read from the code pack)
     "STIRRUP_DIAMETERS",
     "STUD_DIAMETERS",
     "STUD_FY",
@@ -70,20 +72,25 @@ __all__ = [
     "unit_relief",
 ]
 
-PUNCHING_METHOD = [
-    (
-        "Punching (BNBC 2020 Part 6 Sec 6.4.10, pp. 937-943): critical section at d/2 from the "
-        "column faces, cut by free edges and by the shadow of openings within 10 h "
-        "(6.4.10.6.1); vc the least of Eq. 6.6.72-6.6.74 (times λs of ACI 318-19 22.5.5.1.3); "
-        "v = Vu/(b0 d) + γv Mu c/Jc about the section's centroid (6.4.10.7). Where v > φ vc: "
-        "headed shear studs (6.4.10.5: vc <= 0.25 √f'c, vn <= 0.66 √f'c, Av fyt/(b0 s) >= "
-        "0.17 √f'c, s <= 0.75 d or 0.5 d) or stirrups (6.4.10.3: d >= 150 mm and 16 db, "
-        "vc <= 0.17 √f'c, vn <= 0.5 √f'c, s <= d/2), the first line within d/2 of the face, "
-        "elements along it at most 2d apart; enough lines for v <= 0.17 φ √f'c on the section "
-        "d/2 outside the last line (6.4.10.5.4, 6.4.10.7.2); beyond vn,max: a thicker slab, "
-        "a drop panel or a larger column."
-    )
-]
+
+def _punching_method() -> list[str]:
+    """``PUNCHING_METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            f"Punching ({clause('punching', 'punching')}): critical section at d/2 from the "
+            "column faces, cut by free edges and by the shadow of openings within 10 h "
+            "(6.4.10.6.1); vc the least of Eq. 6.6.72-6.6.74 (times λs of ACI 318-19 22.5.5.1.3); "
+            "v = Vu/(b0 d) + γv Mu c/Jc about the section's centroid (6.4.10.7). Where v > φ vc: "
+            "headed shear studs (6.4.10.5: vc <= 0.25 √f'c, vn <= 0.66 √f'c, Av fyt/(b0 s) >= "
+            "0.17 √f'c, s <= 0.75 d or 0.5 d) or stirrups (6.4.10.3: d >= 150 mm and 16 db, "
+            "vc <= 0.17 √f'c, vn <= 0.5 √f'c, s <= d/2), the first line within d/2 of the face, "
+            "elements along it at most 2d apart; enough lines for v <= 0.17 φ √f'c on the section "
+            "d/2 outside the last line (6.4.10.5.4, 6.4.10.7.2); beyond vn,max: a thicker slab, "
+            "a drop panel or a larger column."
+        )
+    ]
+
 
 #: Headed stud shank diameters offered [mm] and their yield strength [MPa] (ASTM A1044 studs
 #: have fy >= 51 ksi, 350 MPa).
@@ -390,7 +397,7 @@ def _vn_max(kind: str, fc: float, lam: float) -> float:
 def _spacing_limit(kind: str, vu: float, fc: float, d: float) -> float:
     if kind == "stirrups":
         return d / 2
-    return 0.75 * d if vu <= 0.5 * PHI_SHEAR * math.sqrt(fc) else 0.5 * d
+    return 0.75 * d if vu <= 0.5 * rc_value("PHI_SHEAR") * math.sqrt(fc) else 0.5 * d
 
 
 def _rails(faces: tuple[bool, ...], c1: float, c2: float, d: float) -> int:
@@ -435,7 +442,7 @@ def design_reinforcement(
         kind = provided.kind
     if kind not in ("studs", "stirrups"):
         raise ValueError(f"unknown shear reinforcement '{kind}'")
-    phi = PHI_SHEAR
+    phi = rc_value("PHI_SHEAR")
     root = math.sqrt(fc)
     vn_max = _vn_max(kind, fc, lam)
     vc = _vc_with(kind, fc, d, b0, beta, alpha_s, lam)
@@ -655,7 +662,7 @@ class PunchingResult:
             if r.kind != "thicken":
                 # Reinforcement given or proposed: φ(vc + vs) (its detailing faults and the
                 # outer section are in r.utilisation and r.ok).
-                capacity = PHI_SHEAR * min(r.vc + r.vs, r.vn_max)
+                capacity = rc_value("PHI_SHEAR") * min(r.vc + r.vs, r.vn_max)
                 utilisation = r.utilisation
             else:
                 # No layout works: the plain concrete check, failing.
@@ -708,7 +715,7 @@ def _result(
 ) -> PunchingResult:
     vu, direct, g_u, g_v, combination = worst
     capacity = punching_capacity(fc, section.d, section.b0, beta, section.alpha_s, lam)
-    phi_vc = PHI_SHEAR * capacity.vc
+    phi_vc = rc_value("PHI_SHEAR") * capacity.vc
     return PunchingResult(
         section.location,
         section.b0,
@@ -977,3 +984,10 @@ def recheckable(
 
     out.recheck = recheck
     return out
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "PUNCHING_METHOD":
+        return _punching_method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

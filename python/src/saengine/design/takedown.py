@@ -17,14 +17,22 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["CASES", "NOTE", "takedown"]
+from saengine.design.clauses import clause
 
-NOTE = (
-    "Column axial loads from the analysis's gravity cases at each column's foot (cumulative: "
-    "the floors above; storey: what the storey adds), compression positive; total D + SD + L + "
-    "Lr and factored 1.2(D + SD) + 1.6L + 0.5Lr (BNBC 2020 Part 6 Sec 2.7.3.1); live load "
-    "unreduced"
-)
+__all__ = ["CASES", "NOTE", "takedown"]  # noqa: F822 - NOTE: module __getattr__
+
+
+def __getattr__(name: str) -> str:
+    # ``NOTE``: the method note of the takedown, with the pack's combination clause.
+    if name == "NOTE":
+        return (
+            "Column axial loads from the analysis's gravity cases at each column's foot "
+            "(cumulative: the floors above; storey: what the storey adds), compression positive; "
+            "total D + SD + L + Lr and factored 1.2(D + SD) + 1.6L + 0.5Lr "
+            f"({clause('takedown', 'combinations')}); live load unreduced"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 #: The gravity cases of the table, in order.
 CASES = ("D", "SD", "L", "Lr")

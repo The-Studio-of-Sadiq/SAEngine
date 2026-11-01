@@ -35,6 +35,7 @@ from typing import Any
 from shapely.geometry import LineString, Point, Polygon
 
 from saengine.design import seismic_rules as sr
+from saengine.design.clauses import Clauses
 
 __all__ = [
     "CLAUSES",
@@ -44,13 +45,8 @@ __all__ = [
     "supporting_elements",
 ]
 
-CLAUSES = {
-    "supporting": "BNBC 2020 Part 6 Sec 2.5.5.6.1 (p. 625)",
-    "em": "BNBC 2020 Part 6 Sec 2.5.13.4 (p. 646)",
-    "ev": "BNBC 2020 Part 6 Sec 2.5.13.2 (eq. 6.2.56, pp. 645-646)",
-    "omega": "BNBC 2020 Part 6 Table 6.2.19 (pp. 621-624)",
-    "collectors": sr.CLAUSES.get("collectors", "BNBC 2020 Part 6 Sec 2.5.5.6.3"),
-}
+#: The clause of each rule, from the code pack in force (``designClauses.overstrength``).
+CLAUSES: Clauses = Clauses("overstrength")
 
 
 def em_factors(settings: Any, omega: float | None = None) -> dict[str, Any]:

@@ -99,6 +99,7 @@ from typing import Any, Literal
 
 from saengine.codes import context as code_context
 from saengine.design.bars import round_down, spacing_step
+from saengine.design.clauses import short_clause
 from saengine.design.rc import (
     ROW_CLEAR,
     Bar,
@@ -474,7 +475,8 @@ def beam_checks(
     ag_fc = b * h * section.fc
     if frame == "ordinary" and lateral:
         out.notes.append(
-            "BNBC 8.3.9 sets no rule for the beams of an ordinary moment frame that resist the "
+            f"{short_clause('ductileMembers', 'ordinary')} sets no rule for the beams of an "
+            "ordinary moment frame that resist the "
             "earthquake: Chapter 6 governs them"
         )
         return out

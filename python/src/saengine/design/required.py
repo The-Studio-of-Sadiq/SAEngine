@@ -31,6 +31,8 @@ import numpy as np
 
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
+from saengine.design.clauses import clause as clause_of
+from saengine.design.clauses import short_clause
 from saengine.design.rc import (
     DesignError,
     InteractionSurface,
@@ -842,7 +844,7 @@ def column_rows(
                     f"min(16 db, 48 dt, least dimension) = min({16 * largest:.0f}, "
                     f"{48 * tie_dia:.0f}, {min(search.b, search.h):.0f}) (ACI 25.7.2.1)"
                 ),
-                "seismic hoop zones: see the rows of BNBC Sec 8.3 below",
+                f"seismic hoop zones: see the rows of {short_clause('required', 'seismic')} below",
             ],
             at_most=True,
         )
@@ -861,7 +863,7 @@ def detailing_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]
     transverse = member["object"].reinforcement.transverse
     zone = getattr(transverse, "zone", None) if transverse else None
     kind, element, type_id = member["kind"], member["id"], member["type"]
-    clause = info.get("clause") or "BNBC 2020 Part 6 Sec 8.3"
+    clause = info.get("clause") or clause_of("required", "detailing")
     rows = []
     if zones.get("so") is not None:
         provided = None
@@ -1065,7 +1067,7 @@ def slab_rows(collected: dict[str, Any], combinations: list[str], assumed: bool)
     rows = []
     design = collected.get("coefficients")
     if design is not None:
-        method = "BNBC 6.5.8" if design.method == "twoWay" else "BNBC 6.1.4.3"
+        method = short_clause("slab", "twoWay" if design.method == "twoWay" else "oneWay")
         for name, peak in envelope.items():
             in_span = design.span is None or name[-1] == design.span
             required, minimum, notes, small = slab_layer_need(

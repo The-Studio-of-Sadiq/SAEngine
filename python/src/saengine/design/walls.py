@@ -108,14 +108,9 @@ from saengine.design.bars import (
     spacing_step,
     strip_capacity,
 )
+from saengine.design.clauses import Clauses
 from saengine.design.ductile_members import _row, so_special
 from saengine.design.rc import (
-    EPS_CU,
-    FYT_SHEAR_MAX,
-    PHI_SHEAR,
-    PHI_TENSION,
-    PHI_TIED,
-    STEEL_E,
     Bar,
     ColumnCheck,
     DesignError,
@@ -125,22 +120,11 @@ from saengine.design.rc import (
     beta1,
     phi_axial_flexure,
 )
+from saengine.design.rc import value as rc_value
 from saengine.library.objects import RectangleProfile
 
-CLAUSES = {
-    "minimum": "BNBC 2020 Part 6 Sec 6.6.3.2, 6.6.3.3 (p. 969)",
-    "layers": "BNBC 2020 Part 6 Sec 6.6.3.4 (p. 969)",
-    "spacing": "BNBC 2020 Part 6 Sec 6.6.3.5 (p. 969)",
-    "compression": "BNBC 2020 Part 6 Sec 6.6.4 (p. 970)",
-    "empirical": "BNBC 2020 Part 6 Sec 6.6.5, Eq. 6.6.89 (p. 970)",
-    "thickness": "BNBC 2020 Part 6 Sec 6.6.5.3, 6.6.6.1 (p. 970)",
-    "shear": "BNBC 2020 Part 6 Sec 6.4.8 (pp. 935-937)",
-    "phi": "BNBC 2020 Part 6 Sec 6.2.3.2, 6.2.3.3 (pp. 897-898)",
-    "special": "BNBC 2020 Part 6 Sec 8.3.6 (pp. 1100-1107)",
-    "boundary": "BNBC 2020 Part 6 Sec 8.3.6.6 (pp. 1102-1105)",
-    "coupling": "BNBC 2020 Part 6 Sec 8.3.6.7 (pp. 1105-1106)",
-    "confinement": "BNBC 2020 Part 6 Sec 8.3.5.4 (pp. 1097-1098)",
-}
+#: The clause of each check, from the code pack in force (``designClauses.walls``).
+CLAUSES: Clauses = Clauses("walls")
 
 
 def steel_limit(name: str) -> float:
@@ -392,9 +376,11 @@ def _positions(start: float, end: float, spacing: float) -> list[float]:
 
 
 def pier_section(
-    geometry: WallGeometry, bars: WallBars, fc: float, fy: float, es: float = STEEL_E
+    geometry: WallGeometry, bars: WallBars, fc: float, fy: float, es: float | None = None
 ) -> RcSection:
     """The pier's :class:`RcSection` (see the module notes on the layout)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     t, lw = geometry.thickness, geometry.length
     dv, dh = bars.vertical_dia, bars.horizontal_dia
     face = t / 2 - bars.cover - dh - dv / 2
@@ -489,14 +475,14 @@ class PierInteraction:
         depth, width, dist, area = self._geometry(axis, sense)
         c = np.atleast_1d(np.asarray(c, dtype=float))[:, None]
         a = np.minimum(beta1(s.fc) * c, depth)
-        strain = EPS_CU * (c - dist[None, :]) / c
+        strain = rc_value("EPS_CU") * (c - dist[None, :]) / c
         stress = np.clip(s.es * strain, -s.fy, s.fy)
         stress = stress - np.where(dist[None, :] < a, 0.85 * s.fc, 0.0)
         force = stress * area[None, :]
         conc = 0.85 * s.fc * width * a[:, 0]
         pn = conc + force.sum(axis=1)
         mn = conc * (depth / 2 - a[:, 0] / 2) + (force * (depth / 2 - dist[None, :])).sum(axis=1)
-        eps_t = EPS_CU * (dist.max() - c[:, 0]) / c[:, 0]
+        eps_t = rc_value("EPS_CU") * (dist.max() - c[:, 0]) / c[:, 0]
         return pn, mn, eps_t
 
     def _diagram(self, axis: str, sense: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -505,7 +491,9 @@ class PierInteraction:
         _, _, dist, _ = self._geometry(axis, sense)
         eps_ty = s.fy / s.es
         dt = float(dist.max())
-        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, 13))
+        transition = rc_value("EPS_CU") / (
+            rc_value("EPS_CU") + eps_ty + rc_value("EPS_CU") * np.linspace(0, 1, 13)
+        )
         c = dt * np.unique(np.concatenate([_DEPTHS, transition]))
         pn, mn, eps_t = self.actions(axis, sense, c)
         phi = np.array([phi_axial_flexure(e, s.fy, s.es, s.spiral) for e in eps_t])
@@ -522,7 +510,7 @@ class PierInteraction:
                 ppn = np.concatenate([ppn[:k], [cap]])
                 pmn = np.concatenate([pmn[:k], [m_cut]])
                 c = np.concatenate([c[:k], [c_cut]])
-        tension = -PHI_TENSION * s.fy * s.steel_area
+        tension = -rc_value("PHI_TENSION") * s.fy * s.steel_area
         return (
             np.concatenate([[tension], ppn]),
             np.concatenate([[0.0], pmn]),
@@ -665,7 +653,7 @@ def wall_vn(
     h, d = geometry.thickness, 0.8 * geometry.length
     vc, how = wall_vc(geometry, f, fc, lam)
     av = bars.layers * bar_area(bars.horizontal_dia)
-    vs = av * min(fy, FYT_SHEAR_MAX) * d / bars.horizontal_spacing
+    vs = av * min(fy, rc_value("FYT_SHEAR_MAX")) * d / bars.horizontal_spacing
     vmax = 0.83 * math.sqrt(fc) * h * d
     return {"vc": vc, "vs": vs, "vn": min(vc + vs, vmax), "vmax": vmax, "how": how}
 
@@ -676,7 +664,7 @@ def special_vn(
     """Vn of a special structural wall (Eq. 6.8.9) and its limit 0.83 Acw √f'c (8.3.6.4(d))."""
     acv = geometry.gross_area
     a = alpha_c(geometry.aspect)
-    vn = acv * (a * lam * math.sqrt(fc) + rho_t * min(fy, FYT_SHEAR_MAX))
+    vn = acv * (a * lam * math.sqrt(fc) + rho_t * min(fy, rc_value("FYT_SHEAR_MAX")))
     vmax = 0.83 * acv * math.sqrt(fc)
     return {"alpha": a, "vn": min(vn, vmax), "raw": vn, "vmax": vmax}
 
@@ -780,7 +768,7 @@ def wall_checks(
     forces: list[PierForces],
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
     *,
     lam: float = 1.0,
     special: bool = False,
@@ -800,6 +788,8 @@ def wall_checks(
     2.5.9 Cd δe / I) for the displacement-based boundary elements; None: the stress-based method
     (8.3.6.6(c)). ``surface``: the pier section's interaction surface when the caller caches it
     per type and length. ``fyt``: the hoops' yield strength (default ``fy``)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     out = WallDesign()
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
@@ -912,7 +902,7 @@ def wall_checks(
         )
 
     # In-plane shear.
-    phi_v = PHI_SHEAR
+    phi_v = rc_value("PHI_SHEAR")
     if vu_case is not None:
         if special:
             sv = special_vn(geometry, rho_t, fc, fy, lam)
@@ -939,7 +929,7 @@ def wall_checks(
                 f"Vn = Acv (αc λ √f'c + ρt fy), αc = {sv['alpha']:.3f} (hw/lw = "
                 f"{geometry.aspect:.2f}), <= 0.83 Acw √f'c = {_kn(sv['vmax']):.1f} kN; φ = "
                 f"{phi_v:.2f} for the wall (6.2.3.3(a): Vn "
-                f"{'<' if phi_v < PHI_SHEAR else '>='} the largest Vu Mn/Mu = {shown}"
+                f"{'<' if phi_v < rc_value('PHI_SHEAR') else '>='} the largest Vu Mn/Mu = {shown}"
                 + (f", {phi_case.combination})" if phi_case is not None else ")")
             )
             name = "In-plane shear (8.3.6.4, Eq. 6.8.9)"
@@ -957,7 +947,7 @@ def wall_checks(
         if not special:
             for f in forces:
                 v = float(wall_vn(geometry, bars, f, fc, fy, lam)["vn"])
-                u = abs(f.V2) / (PHI_SHEAR * v) if v > 0 else math.inf
+                u = abs(f.V2) / (rc_value("PHI_SHEAR") * v) if v > 0 else math.inf
                 if u > best[0]:
                     best = (u, f, v)
         u, f, vn = best
@@ -994,7 +984,7 @@ def wall_checks(
             if bars.layers == 2
             else t / 2
         )
-        cap = PHI_SHEAR * 0.17 * lam * _root(fc) * 1000 * d
+        cap = rc_value("PHI_SHEAR") * 0.17 * lam * _root(fc) * 1000 * d
         q = abs(v3_case.V3) / lw * 1000
         out.checks.append(
             _row(
@@ -1090,7 +1080,9 @@ def _shear_reinforced(
 ) -> bool:
     """Some combination has Vu > 0.5 φ Vc (6.4.8.8): the shear reinforcement rules of 6.4.8.9
     then apply instead of the minimums of 6.6.3."""
-    return any(abs(f.V2) > 0.5 * PHI_SHEAR * wall_vc(geometry, f, fc, lam)[0] for f in forces)
+    return any(
+        abs(f.V2) > 0.5 * rc_value("PHI_SHEAR") * wall_vc(geometry, f, fc, lam)[0] for f in forces
+    )
 
 
 def rho_l_eq71(geometry: WallGeometry, rho_t: float, rho_t_required: float) -> float:
@@ -1112,7 +1104,7 @@ def empirical_capacity(geometry: WallGeometry, fc: float) -> float:
     """φPn [N] of Eq. 6.6.89, φ = 0.65 (compression-controlled, 6.2.3.2.2)."""
     k = _k_factor(geometry)
     ratio = k * geometry.clear_height / (32 * geometry.thickness)
-    return 0.55 * PHI_TIED * fc * geometry.gross_area * max(0.0, 1 - ratio**2)
+    return 0.55 * rc_value("PHI_TIED") * fc * geometry.gross_area * max(0.0, 1 - ratio**2)
 
 
 def _rho_t_shear(
@@ -1123,8 +1115,8 @@ def _rho_t_shear(
     need = 0.0
     for f in forces:
         vc, _ = wall_vc(geometry, f, fc, lam)
-        vs = max(abs(f.V2) / PHI_SHEAR - vc, 0.0)
-        need = max(need, vs / (min(fy, FYT_SHEAR_MAX) * d * h))
+        vs = max(abs(f.V2) / rc_value("PHI_SHEAR") - vc, 0.0)
+        need = max(need, vs / (min(fy, rc_value("FYT_SHEAR_MAX")) * d * h))
     return need
 
 
@@ -1400,7 +1392,7 @@ def wall_need(
     forces: list[PierForces],
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
     *,
     lam: float = 1.0,
     special: bool = False,
@@ -1414,6 +1406,8 @@ def wall_need(
     """The reinforcement a wall needs: ρl, ρt, the largest spacings, the layers, a mesh per face
     (:func:`saengine.design.bars.mesh_for`, Ø10-Ø20, >= 100 mm apart) and, for special walls,
     the boundary elements. ``search``: also look for the end bars the P-M checks need."""
+    if es is None:
+        es = rc_value("STEEL_E")
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
     root = math.sqrt(fc)
@@ -1436,11 +1430,11 @@ def wall_need(
         # Vu <= φ Acv (αc λ √f'c + ρt fy) with φ = 0.60 (6.2.3.3(a)): the check takes 0.75
         # where Vn reaches the shear at Mn; the proposal does not rely on it.
         sv_need = vu / wall_phi("shearSeismic") / acv - alpha_c(geometry.aspect) * lam * root
-        sv_need = max(sv_need, 0.0) / min(fy, FYT_SHEAR_MAX)
+        sv_need = max(sv_need, 0.0) / min(fy, rc_value("FYT_SHEAR_MAX"))
         notes.append("ρt for shear with φ = 0.60 (6.2.3.3(a)), on the safe side")
     else:
         sv_need = _rho_t_shear(geometry, forces, fc, fy, lam)
-        vmax = PHI_SHEAR * 0.83 * root * t * 0.8 * lw
+        vmax = rc_value("PHI_SHEAR") * 0.83 * root * t * 0.8 * lw
         if vu > vmax:
             notes.append(
                 f"Vu = {_kn(vu):.0f} kN above φ 0.83 √f'c h d = {_kn(vmax):.0f} kN (6.4.8.3): "
@@ -1754,7 +1748,7 @@ def slender_section(
     n = max(es / ec, float(rules.minModularRatio))
     icr = n * ase * (d - c) ** 2 + length * c**3 / 3
     mn = ase * fy * (d - a / 2)
-    eps_t = EPS_CU * (d - c) / c if c > 0 else math.inf
+    eps_t = rc_value("EPS_CU") * (d - c) / c if c > 0 else math.inf
     return SlenderSection(ase, a, c, icr, mn, eps_t)
 
 
@@ -1846,7 +1840,7 @@ def slender_wall_checks(
     for f in forces:
         section = slender_section(lw, t, d, as_, f.P, fc, fy, es, ec, rules)
         mu, delta = second_order_moment(abs(f.M2), max(f.P, 0.0), lc, ec, section.icr, rules)
-        ratio = mu / (PHI_TENSION * section.mn) if section.mn > 0 else math.inf
+        ratio = mu / (rc_value("PHI_TENSION") * section.mn) if section.mn > 0 else math.inf
         if worst is None or ratio > worst[0]:
             worst = (ratio, f, mu, delta, section)
     assert worst is not None
@@ -1855,7 +1849,7 @@ def slender_wall_checks(
         _row(
             f"Slender wall: φMn >= Mu with P-Δ ({method_clause('slenderStrength')})",
             mu / 1e6,
-            PHI_TENSION * section.mn / 1e6,
+            rc_value("PHI_TENSION") * section.mn / 1e6,
             "kN·m",
             f.combination,
             f"Mua = {abs(f.M2) / 1e6:.1f} kN·m, Pu = {max(f.P, 0) / 1e3:.0f} kN, Δu = "
@@ -1868,7 +1862,7 @@ def slender_wall_checks(
         _row(
             f"Slender wall: φMn >= Mcr ({method_clause('slenderCracking')})",
             mcr / 1e6,
-            PHI_TENSION * section.mn / 1e6,
+            rc_value("PHI_TENSION") * section.mn / 1e6,
             "kN·m",
             f.combination,
             f"Mcr = fr Ig / (t/2), fr = {rules.ruptureCoefficient:g} λ √f'c = {fr:.2f} MPa",
@@ -1877,7 +1871,7 @@ def slender_wall_checks(
     rows.append(
         _row(
             f"Slender wall: tension-controlled ({method_clause('slenderTension')})",
-            fy / es + EPS_CU,
+            fy / es + rc_value("EPS_CU"),
             section.eps_t,
             "",
             f.combination,
@@ -1950,7 +1944,7 @@ def grade_beam_checks(
         d = hw - bars.cover - bars.horizontal_dia - dia / 2
         area = count * bar_area(dia)
         a = area * fy / (0.85 * fc * t)
-        phi_mn = PHI_TENSION * area * fy * (d - a / 2) if area > 0 else 0.0
+        phi_mn = rc_value("PHI_TENSION") * area * fy * (d - a / 2) if area > 0 else 0.0
         rows.append(
             _row(
                 f"Grade beam wall: flexure, {label} bars ({where})",
@@ -1966,12 +1960,12 @@ def grade_beam_checks(
     d = hw - bars.cover - bars.horizontal_dia - grade.bottomDia / 2
     vc = 0.17 * lam * _root(fc) * t * d
     av = bars.layers * bar_area(bars.vertical_dia)
-    vs = av * min(fy, FYT_SHEAR_MAX) * d / bars.vertical_spacing
+    vs = av * min(fy, rc_value("FYT_SHEAR_MAX")) * d / bars.vertical_spacing
     rows.append(
         _row(
             f"Grade beam wall: shear ({where})",
             vu / 1e3,
-            PHI_SHEAR * (vc + vs) / 1e3,
+            rc_value("PHI_SHEAR") * (vc + vs) / 1e3,
             "kN",
             worst.combination,
             f"Vc = 0.17 λ √f'c t d, Vs = Av fy d / s of the vertical bars ({bars.layers} x "

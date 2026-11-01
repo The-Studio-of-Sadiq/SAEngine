@@ -50,6 +50,7 @@ from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
+from saengine.design.clauses import Clauses, clause
 from saengine.design.rc import (
     DesignError,
     InteractionSurface,
@@ -103,7 +104,7 @@ METHOD = [
         "depth axis that points up."
     ),
     (
-        "Beam torsion (BNBC 2020 Part 6 Sec 6.4.4): neglected below the threshold φTth; above "
+        "Beam torsion ({c[torsion]}): neglected below the threshold φTth; above "
         "it the section limit (Eq. 6.6.59), closed stirrups At/s with the shear's Av/s per "
         "outer leg, the longitudinal steel Al on top of the flexural steel the simultaneous "
         "moment needs, and the detailing of Sec 6.4.4.6. A beam whose end is free or which "
@@ -113,7 +114,7 @@ METHOD = [
         "by SAEngine."
     ),
     (
-        "Beam deflection (BNBC 2020 Part 6 Sec 6.2.5): each span between its supports, from the "
+        "Beam deflection ({c[deflection]}): each span between its supports, from the "
         "analysis's unfactored D + SD and L (Lr on the roof) deflections relative to the chord, "
         "scaled by the analysis E I over Ec Ie (Eq. 6.6.1, Ie at midspan, at the support of a "
         "cantilever; the rectangle without the slab flange, on the safe side), the long-term "
@@ -125,8 +126,8 @@ METHOD = [
         "Columns: axial force with biaxial bending, the capacity read from the φ-factored "
         "interaction surface at the demand's axial force in the direction of its moment vector; "
         "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear from the analysis "
-        "along each profile axis, Vc with the simultaneous axial force (BNBC 2020 Part 6 Eqs. "
-        "6.6.50, 6.6.54), the tie spacing limits of Sec 6.4.3.4 (the capacity-design shear of "
+        "along each profile axis, Vc with the simultaneous axial force ({c[columnShear]}), "
+        "the tie spacing limits of Sec 6.4.3.4 (the capacity-design shear of "
         "special and intermediate frames is checked with the seismic detailing)."
     ),
 ]
@@ -493,7 +494,7 @@ def _design_run(
     if by_wind is not None and len(by_wind) > len(formed):
         pre_notes.append(
             "wind: each one-direction wind combination is checked for the design wind load "
-            "cases of BNBC 2020 Part 6 Figure 6.2.9 (Sec 2.4.11.3): Case 1, "
+            f"cases of {clause('check', 'windCases')}: Case 1, "
             + ("Case 2 (0.75 with the torsion e = ±0.15 B), " if {"WTX", "WTY"} <= present else "")
             + "Case 3 (0.75 in both directions)"
             + (", Case 4 (0.563 in both with both torsions)" if {"WTX", "WTY"} <= present else "")
@@ -504,7 +505,7 @@ def _design_run(
         count = len([c for c in present if c.startswith("LP") and c[2:].isdigit()])
         pre_notes.append(
             f"live load arrangements: each gravity combination with live load is also checked "
-            f"with L on the {count} arrangements LP1-LP{count} (BNBC 2020 Part 6 Sec 6.1.12.2)"
+            f"with L on the {count} arrangements LP1-LP{count} ({clause('check', 'patternLive')})"
         )
         formed = by_pattern
     # The moving crane load cases (saengine.fem.cranes), by the code pack's crane rule.
@@ -623,7 +624,7 @@ def _design_run(
                 notes.append(
                     "accidental torsion: each earthquake combination is checked with the eccentric "
                     "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
-                    "(BNBC 2020 Part 6 Sec 2.5.7.6.2)"
+                    f"({clause('check', 'accidentalTorsion')})"
                 )
         if share is not None:
             share[key] = _shared_copy(
@@ -645,7 +646,7 @@ def _design_run(
             keep_shells=_shells_of(project, omega_elements),
         )
         notes.append(
-            "Ω0 combinations (BNBC 2020 Part 6 Sec 2.5.13.4) applied to "
+            f"Ω0 combinations ({clause('check', 'omega')}) applied to "
             + ", ".join(sorted(omega_elements))
             + " only"
         )
@@ -1347,7 +1348,7 @@ def _design_run(
         if add_fire_checks(into[0], types, settings):
             into[2].append(
                 "fire resistance: the members' least sizes and covers checked for the ratings of "
-                f"Project Settings (BNBC 2020 Part 4) by {FIRE_CLAUSE}"
+                f"Project Settings ({clause('check', 'fireRatings')}) by {FIRE_CLAUSE}"
             )
     # Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown).
     from saengine.design.takedown import takedown
@@ -1616,7 +1617,7 @@ def _assemble(
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     code = code_basis(settings).concrete
-    method = [line.format(code=code) for line in METHOD]
+    method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
     if columns_seen:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if faced_any:

@@ -75,26 +75,18 @@ from saengine.design.bars import (
     round_down,
     with_minimum,
 )
+from saengine.design.clauses import Clauses, clause
 from saengine.design.ductile_members import _row
 from saengine.design.rc import (
-    EPS_CU,
-    FYT_SHEAR_MAX,
-    PHI_SHEAR,
-    STEEL_E,
     Flexure,
     bar_area,
     beta1,
     phi_axial_flexure,
 )
+from saengine.design.rc import value as rc_value
 
-CLAUSES = {
-    "support": "BNBC 2020 Part 6 Sec 7.4.3.2 (p. 1015)",
-    "wind": "BNBC 2020 Part 6 Sec 7.9.6.3 (p. 1045)",
-    "deflection": "BNBC 2020 Part 6 Sec 6.2.5.2.3, Eq. 6.6.1-6.6.3, Table 6.6.1 (p. 900)",
-    "combinations": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685)",
-    "coupling": "BNBC 2020 Part 6 Sec 8.3.6.7 (p. 1105)",
-    "capacity": "BNBC 2020 Part 6 Sec 8.3.8.1(a) (p. 1111), 8.3.8.2(a) (p. 1112)",
-}
+#: The clause of each check, from the code pack in force (``designClauses.lintels``).
+CLAUSES: Clauses = Clauses("lintels")
 
 #: Lintel span limit and bar extension beyond the opening (7.9.6.3, high wind regions) [mm].
 WIND_SPAN_MAX = 3500.0
@@ -132,19 +124,22 @@ def lintel_diameters() -> tuple[float, ...]:
     return tuple(float(d) for d in code_context.table("concrete").barDiameters["lintel"])
 
 
-METHOD = [
-    (
-        "Lintels (masonry and partition walls): simply supported RC beams over each opening, "
-        "span = clear width + bearing (>= 100 mm each end, BNBC 2020 Part 6 Sec 7.4.3.2); the "
-        "masonry above as a triangle at 45° where the wall above is high enough to arch, else "
-        "all of it with the floor's line load; flexure, shear (Chapter 6 beam design), the "
-        "deflection under service loads with Ie (Eq. 6.6.1) within clear span / 600 "
-        "(7.4.3.2). Spandrels of RC walls not designed with diagonal bars: as beams, special "
-        "walls' flexural coupling beams (ln/h > 4, 8.3.6.7(a)) to the special moment frame "
-        "beam rules with the capacity-design shear (8.3.8.1(a)); their width rules (8.3.4.1(c), "
-        "(d)) count, since no lateral stability analysis is made (8.3.6.7(a))."
-    ),
-]
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            "Lintels (masonry and partition walls): simply supported RC beams over each opening, "
+            f"span = clear width + bearing (>= 100 mm each end, {clause('lintelsText', 'bearing')}); the "
+            "masonry above as a triangle at 45° where the wall above is high enough to arch, else "
+            "all of it with the floor's line load; flexure, shear (Chapter 6 beam design), the "
+            "deflection under service loads with Ie (Eq. 6.6.1) within clear span / 600 "
+            "(7.4.3.2). Spandrels of RC walls not designed with diagonal bars: as beams, special "
+            "walls' flexural coupling beams (ln/h > 4, 8.3.6.7(a)) to the special moment frame "
+            "beam rules with the capacity-design shear (8.3.8.1(a)); their width rules (8.3.4.1(c), "
+            "(d)) count, since no lateral stability analysis is made (8.3.6.7(a))."
+        ),
+    ]
 
 
 # ─────────────────────────────────────── loads ───────────────────────────────────────
@@ -222,13 +217,15 @@ def lintel_loads(
 # ─────────────────────────────────────── beam sections ───────────────────────────────────────
 
 
-def flexure_of(area: float, b: float, d: float, fc: float, fy: float, es: float = STEEL_E):
+def flexure_of(area: float, b: float, d: float, fc: float, fy: float, es: float | None = None):
     """(φMn, Mn [N·mm], φ, εt) of a singly reinforced rectangle (the stress block)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     if area <= 0:
         return 0.0, 0.0, 0.9, math.inf
     a = area * fy / (0.85 * fc * b)
     c = a / beta1(fc)
-    eps_t = EPS_CU * (d - c) / c
+    eps_t = rc_value("EPS_CU") * (d - c) / c
     phi = phi_axial_flexure(eps_t, fy, es)
     mn = area * fy * (d - a / 2)
     return phi * mn, mn, phi, eps_t
@@ -317,13 +314,15 @@ def design_beam(
     symmetric: bool = False,
     stirrup_s_max: float | None = None,
     vc_zero: bool = False,
-    es: float = STEEL_E,
+    es: float | None = None,
     max_count: int | None = None,
 ) -> BeamDesign:
     """Bars for ``mu`` [N·mm] and stirrups for ``vu`` [N] of a ``b`` x ``h`` beam: bottom bars
     (and the same on top when ``symmetric``, else Ø10 hangers), with their rows. ``vc_zero``:
     Vc = 0 (8.3.8.2(a)); ``stirrup_s_max``: a closer spacing limit (the hoop zones);
     ``max_count``: bars per face preferred at most. ``cover``: default the pack's lintel cover."""
+    if es is None:
+        es = rc_value("STEEL_E")
     fyt = fy if fyt is None else fyt
     cover = lintel_cover() if cover is None else cover
     stirrup = diameters("stirrup")[0]
@@ -383,19 +382,19 @@ def design_beam(
         out.notes.append(need.note)
     shear = beam_shear_need(vu, b, d, fc, fyt)
     if vc_zero:
-        vs = vu / PHI_SHEAR
+        vs = vu / rc_value("PHI_SHEAR")
         shear = replace(
             shear,
             vc=0.0,
             vs=vs,
-            av_s=max(vs / (min(fyt, FYT_SHEAR_MAX) * d), shear.av_s_min),
+            av_s=max(vs / (min(fyt, rc_value("FYT_SHEAR_MAX")) * d), shear.av_s_min),
             too_small=vs > 0.66 * math.sqrt(fc) * b * d,
             note="Vc = 0 (8.3.8.2(a))",
         )
     if stirrup_s_max is not None:
         shear = replace(shear, s_max=min(shear.s_max, stirrup_s_max))
     chosen = choose_stirrups(shear, b)
-    phi_vc = PHI_SHEAR * 0.17 * min(math.sqrt(fc), 8.3) * b * d
+    phi_vc = rc_value("PHI_SHEAR") * 0.17 * min(math.sqrt(fc), 8.3) * b * d
     if chosen is None and not vc_zero and h <= SHALLOW and vu <= phi_vc:
         # A shallow member (h <= 250 mm) needs no shear reinforcement where Vu <= φVc (ACI
         # Table 9.6.3.1): nominal links hold the bars.
@@ -426,13 +425,13 @@ def design_beam(
         )
         return out
     out.stirrups = (chosen.legs, chosen.dia, chosen.spacing)
-    vs = min(chosen.av_s * min(fyt, FYT_SHEAR_MAX) * d, 0.66 * math.sqrt(fc) * b * d)
+    vs = min(chosen.av_s * min(fyt, rc_value("FYT_SHEAR_MAX")) * d, 0.66 * math.sqrt(fc) * b * d)
     vc = 0.0 if vc_zero else 0.17 * min(math.sqrt(fc), 8.3) * b * d
     out.checks.append(
         _row(
             "Shear φ(Vc + Vs)",
             vu / 1e3,
-            PHI_SHEAR * (vc + vs) / 1e3,
+            rc_value("PHI_SHEAR") * (vc + vs) / 1e3,
             "kN",
             shear_combination or combination,
             f"{chosen.legs}-leg Ø{chosen.dia:g} @ {chosen.spacing:g}; Vc = {vc / 1e3:.1f} kN, "
@@ -465,12 +464,14 @@ def design_lintel(
     ),
     bearing: float | None = None,
     cover: float | None = None,
-    es: float = STEEL_E,
+    es: float | None = None,
     high_wind: bool = False,
 ) -> dict[str, Any]:
     """A lintel's design: ``{"span", "clear", "b", "h", "loads", "bars", "label", "checks",
     "utilisation", "ok", "notes"}`` (bars ``{"bottom": [count, dia], "top": ..., "stirrups":
     [legs, dia, spacing]}``). ``bearing``, ``cover``: default the pack's."""
+    if es is None:
+        es = rc_value("STEEL_E")
     bearing = lintel_limit("bearing") if bearing is None else bearing
     cover = lintel_cover() if cover is None else cover
     combos = list(combinations)
@@ -665,7 +666,7 @@ def lintels_of(
         notes.append("lintels: no concrete or reinforcing steel among the materials")
         return {"elements": [], "skipped": [], "notes": notes}
     fc, fy = float(conc.concrete.fc), float(bar.steel.fy)
-    es = float(getattr(bar.mechanical, "E", None) or STEEL_E)
+    es = float(getattr(bar.mechanical, "E", None) or rc_value("STEEL_E"))
     combos = loads_from_settings(settings).combinations
     for o in openings:
         wall = walls.get(o.host)
@@ -780,7 +781,7 @@ def spandrel_design(
     special: bool,
     earthquake: Iterable[str] | None = None,
     cover: float | None = None,
-    es: float = STEEL_E,
+    es: float | None = None,
     lateral_stability: bool = False,
 ) -> dict[str, Any]:
     """A spandrel of :func:`saengine.design.wall_forces.wall_forces` (``length``, ``depth``,
@@ -789,6 +790,8 @@ def spandrel_design(
     "checks", "utilisation", "ok", "notes"}``. ``lateral_stability``: the engineer has shown
     by analysis that the beam is laterally stable, so the width rules of 8.3.7.1(c), (d) are
     waived (8.3.6.7(a)); otherwise they count. ``cover``: default the pack's lintel cover."""
+    if es is None:
+        es = rc_value("STEEL_E")
     from saengine.design import ductile_members as D
     from saengine.design.rc import section_of
     from saengine.library.objects import (
@@ -964,3 +967,10 @@ def spandrel_design(
         "ok": all(c["ok"] for c in strength) and not beam.too_small,
         "notes": notes + beam.notes,
     }
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

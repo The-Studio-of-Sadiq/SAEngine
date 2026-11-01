@@ -86,14 +86,14 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design import slab_systems
+from saengine.design.clauses import clause as pack_clause
+from saengine.design.clauses import short_clause, short_name
 from saengine.design.rc import (
-    EPS_CU,
-    PHI_SHEAR,
-    STEEL_E,
     bar_area,
     beta1,
     phi_axial_flexure,
 )
+from saengine.design.rc import value as rc_value
 from saengine.library.objects import BarMesh, PlanarReinforcement
 
 METHOD = [
@@ -395,18 +395,20 @@ class LayerCapacity:
 
 
 def layer_capacity(
-    area: float, d: float, fc: float, fy: float, es: float = STEEL_E, width: float = 1000.0
+    area: float, d: float, fc: float, fy: float, es: float | None = None, width: float = 1000.0
 ) -> LayerCapacity:
     """φMn of a strip ``width`` wide with ``area`` of bars at depth ``d`` (ACI 22.2, the
     rectangular stress block; φ by ACI 21.2.2)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     if d <= 0:
         raise ValueError("the cover leaves no room for the bars")
     a = area * fy / (0.85 * fc * width)
     c = a / beta1(fc)
-    eps_t = EPS_CU * (d - c) / c if c > 0 else math.inf
+    eps_t = rc_value("EPS_CU") * (d - c) / c if c > 0 else math.inf
     phi = phi_axial_flexure(eps_t, fy, es)
     mn = area * fy * (d - a / 2)
-    limit = EPS_CU / (EPS_CU + _eps_t_min())
+    limit = rc_value("EPS_CU") / (rc_value("EPS_CU") + _eps_t_min())
     return LayerCapacity(area, d, a, c, eps_t, phi, mn, phi * mn, limit)
 
 
@@ -418,7 +420,7 @@ def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[fl
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     vc = 0.66 * lambda_s * lam * max(rho, 0.0) ** (1 / 3) * root * 1000 * d
     vc = min(vc, 0.42 * lam * root * 1000 * d)
-    return PHI_SHEAR * vc, lambda_s
+    return rc_value("PHI_SHEAR") * vc, lambda_s
 
 
 def min_steel_ratio(fy: float, aggregate: str | None = None) -> float:
@@ -443,7 +445,7 @@ def required_area(moment: float, d: float, fc: float, fy: float, width: float = 
     the steel at that limit: the contour then shows the section is too thin there."""
     if moment <= 0 or d <= 0:
         return 0.0
-    rn = moment / (PHI_TENSION * width * d**2)
+    rn = moment / (rc_value("PHI_TENSION") * width * d**2)
     k = 0.85 * fc
     root = max(0.0, 1 - 2 * rn / k)
     return k / fy * (1 - math.sqrt(root)) * width * d
@@ -2181,29 +2183,34 @@ def _punching_with_reinforcement(
 # The numbers are the code pack's ``slabCoefficients`` table.
 
 #: The report's method text of the coefficient design (with :data:`METHOD`).
-COEFFICIENT_METHOD = (
-    "Slabs on beams (analysis slabs 'loadsToBeams', not in the analysis model): designed from "
-    "their own loads. Two-way panels by the coefficient method of BNBC 2020 Part 6 Sec 6.5.8 "
-    "(Tables 6.6.8-6.6.11): Ma,neg = Ca,neg w la², Ma,pos = Ca,dl wD la² + Ca,ll wL la² (and b "
-    "with lb), la and lb the clear spans (short, long: centre lines less half the supports' "
-    "widths), the case by which edges have a slab beyond them, coefficients interpolated in "
-    "m = la/lb; scope checked: rectangular, on beams (total depth >= 3h) or walls on all four "
-    "edges, centre-to-centre spans <= 2 : 1, αf l2/l1 >= 1 (beam's own section). Top bars at a "
-    "discontinuous edge for 1/3 of the positive moment (SAEngine practice, not a BNBC clause). "
-    "One-way slabs (and two-way types longer than 2 : 1) by BNBC Sec 6.1.4.3: w ln²/14 (end "
-    "span) or /16 (interior span) positive, /9 or /10 at the exterior face of the first "
-    "interior support (two, more spans), /11 at other interior faces, /12 for spans <= 3.048 m, "
-    "/24 (beam) or /16 (wall) at a discontinuous end, the negative ln the mean of the adjacent "
-    "clear spans; outside its limits (a single span, adjacent spans differing by more than "
-    "20 %, L > 3D) the bounds w ln²/8 (positive) and w ln,max²/8 (interior support) instead. "
-    "Every gravity combination of the project (its dead and live factors) is enveloped. Shear "
-    "per metre: Wa w la / 2 at the long edges, Wb w lb / 2 at the short edges (Table 6.6.11), "
-    "1.15 w ln / 2 at the first interior support of an end span (Sec 6.1.4.3), against φVc of "
-    "the bars in tension there. As,min (Sec 8.1.11.2: 0.0020 below fy 420, 0.0018 x 420/fy, "
-    ">= 0.0014; x 1.5 with brick aggregate) in both bottom layers and in a top layer that "
-    "resists a negative moment; spacing <= 2h and 450 mm two-way (Sec 6.5.8.6.2, 8.1.6.6), 3h "
-    "and 450 mm along a one-way span (8.1.6.5), 5h and 450 mm across it (8.1.6.7)."
-)
+
+
+def _coefficient_method() -> str:
+    """``COEFFICIENT_METHOD``: the report's method text of the coefficient design, with the
+    clauses of the code pack in force."""
+    return (
+        "Slabs on beams (analysis slabs 'loadsToBeams', not in the analysis model): designed from "
+        f"their own loads. Two-way panels by the coefficient method of {pack_clause('slab', 'twoWayMethod')} "
+        "(Tables 6.6.8-6.6.11): Ma,neg = Ca,neg w la², Ma,pos = Ca,dl wD la² + Ca,ll wL la² (and b "
+        "with lb), la and lb the clear spans (short, long: centre lines less half the supports' "
+        "widths), the case by which edges have a slab beyond them, coefficients interpolated in "
+        "m = la/lb; scope checked: rectangular, on beams (total depth >= 3h) or walls on all four "
+        "edges, centre-to-centre spans <= 2 : 1, αf l2/l1 >= 1 (beam's own section). Top bars at a "
+        f"discontinuous edge for 1/3 of the positive moment (SAEngine practice, not a {short_name()} clause). "
+        f"One-way slabs (and two-way types longer than 2 : 1) by {short_clause('slab', 'oneWaySec')}: w ln²/14 (end "
+        "span) or /16 (interior span) positive, /9 or /10 at the exterior face of the first "
+        "interior support (two, more spans), /11 at other interior faces, /12 for spans <= 3.048 m, "
+        "/24 (beam) or /16 (wall) at a discontinuous end, the negative ln the mean of the adjacent "
+        "clear spans; outside its limits (a single span, adjacent spans differing by more than "
+        "20 %, L > 3D) the bounds w ln²/8 (positive) and w ln,max²/8 (interior support) instead. "
+        "Every gravity combination of the project (its dead and live factors) is enveloped. Shear "
+        "per metre: Wa w la / 2 at the long edges, Wb w lb / 2 at the short edges (Table 6.6.11), "
+        "1.15 w ln / 2 at the first interior support of an end span (Sec 6.1.4.3), against φVc of "
+        "the bars in tension there. As,min (Sec 8.1.11.2: 0.0020 below fy 420, 0.0018 x 420/fy, "
+        ">= 0.0014; x 1.5 with brick aggregate) in both bottom layers and in a top layer that "
+        "resists a negative moment; spacing <= 2h and 450 mm two-way (Sec 6.5.8.6.2, 8.1.6.6), 3h "
+        "and 450 mm along a one-way span (8.1.6.5), 5h and 450 mm across it (8.1.6.7)."
+    )
 
 
 def coefficient_table() -> dict[str, Any]:
@@ -2407,7 +2414,7 @@ def coefficient_panel(
     )
     if box <= 0 or not on_box or abs(_polygon_area(local) - box) > 0.01 * box:
         raise ValueError(
-            "not a rectangular panel in the slab's axes (BNBC 6.5.8.2.2 and 6.1.4.3 cover "
+            f"not a rectangular panel in the slab's axes ({short_clause('slab', 'rectangular')} cover "
             "rectangular panels): analyse the slabs as shells to design it"
         )
     ends = _box_sides(s0, s1, t0, t1)
@@ -2427,7 +2434,8 @@ def coefficient_panel(
         if _union_length(covered) < 0.95 * length:
             raise ValueError(
                 f"side {name} is not supported by beams or walls along its length (the "
-                "coefficient methods need supports on all edges, BNBC 6.5.8.2.1): analyse the "
+                f"coefficient methods need supports on all edges, {short_clause('slab', 'supports')}): "
+                "analyse the "
                 "slabs as shells to design it"
             )
         support = max(found, key=lambda item: item[0])[1]
@@ -2443,8 +2451,8 @@ def coefficient_panel(
         if _union_length(known) < 0.95 * length:
             raise ValueError(
                 f"side {name} is supported by a beam whose stiffness and depth are not known "
-                "(or a support not stated to be a wall): the coefficient methods' scope (BNBC "
-                "6.5.8.2) cannot be checked; analyse the slabs as shells to design it"
+                "(or a support not stated to be a wall): the coefficient methods' scope "
+                f"({short_clause('slab', 'scope')}) cannot be checked; analyse the slabs as shells to design it"
             )
         beam = min(on, key=lambda item: item.ei) if on else None
         middle = (lo + hi) / 2
@@ -2579,10 +2587,12 @@ def one_way_span(
     limits = True
     if not any(continuous):
         limits = False
-        notes.append("a single span: BNBC 6.1.4.3 (a) needs two or more spans")
+        notes.append(f"a single span: {short_clause('slab', 'oneWay')} (a) needs two or more spans")
     if dead > 0 and live > float(table["liveToDeadMax"]) * dead:
         limits = False
-        notes.append(f"live load {live:g} > 3 x dead load {dead:g} (BNBC 6.1.4.3 (d))")
+        notes.append(
+            f"live load {live:g} > 3 x dead load {dead:g} ({short_clause('slab', 'oneWay')} (d))"
+        )
     others: dict[str, float] = {}
     cantilevers: dict[str, float] = {}
     for side in sides:
@@ -2596,7 +2606,7 @@ def one_way_span(
             other_ln = other.extent(direction)
             notes.append(
                 f"the slab beyond {side.name} is not a coefficient panel ({other.reason}): "
-                f"BNBC 6.1.4.3 taken as not met, its span taken as its extent {other_ln:.0f} mm"
+                f"{short_clause('slab', 'oneWay')} taken as not met, its span taken as its extent {other_ln:.0f} mm"
             )
             if other.cantilevers(side.name):
                 cantilevers[side.name] = other_ln
@@ -2607,7 +2617,7 @@ def one_way_span(
             limits = False
             notes.append(
                 f"spans {ln:.0f} and {other_ln:.0f} mm at {side.name} differ by more than 20 % "
-                "(BNBC 6.1.4.3 (b))"
+                f"({short_clause('slab', 'oneWay')} (b))"
             )
     end_span = sum(continuous) == 1
     ends: list[OneWayEnd] = []
@@ -2648,7 +2658,10 @@ def one_way_span(
         ends.append(OneWayEnd(side.name, divisor, mean, shear, what))
     if not limits:
         positive = 8.0
-        notes.append("outside BNBC 6.1.4.3: bounds w ln²/8 used (analyse as shells for economy)")
+        notes.append(
+            f"outside {short_clause('slab', 'oneWay')}: bounds w ln²/8 used (analyse as shells "
+            "for economy)"
+        )
     else:
         positive = float(positive_of["interior" if all(continuous) else "endIntegral"])
     return OneWaySpan(direction, ln, positive, (ends[0], ends[1]), limits, tuple(notes))
@@ -2747,7 +2760,7 @@ def coefficient_design(
         method = "oneWay"
         notes.append(
             f"centre-to-centre spans {max(panel.lx, panel.ly):.0f} x "
-            f"{min(panel.lx, panel.ly):.0f} mm, more than 2 : 1 (BNBC 6.5.8.2.2): designed as "
+            f"{min(panel.lx, panel.ly):.0f} mm, more than 2 : 1 ({short_clause('slab', 'aspect')}): designed as "
             "a one-way slab"
         )
     if method == "twoWay":
@@ -2836,7 +2849,7 @@ def coefficient_design(
                     f"top{direction}",
                     [share * p for p in positive],
                     f"discontinuous edge {edges}: {share:.2f} x M{label},pos (SAEngine practice, "
-                    f"not a BNBC clause); {geometry}",
+                    f"not a {short_name()} clause); {geometry}",
                 )
             for s in sides_of:
                 other = unknown.get(s.name)
@@ -2874,7 +2887,7 @@ def coefficient_design(
         take(
             f"bottom{direction}",
             [x * length**2 / result.positive for x in w],
-            f"w ln²/{result.positive:g} (BNBC 6.1.4.3); {geometry}",
+            f"w ln²/{result.positive:g} ({short_clause('slab', 'oneWay')}); {geometry}",
         )
         for end in result.ends:
             take(
@@ -2962,7 +2975,7 @@ def _two_way_scope(
                 continue
             raise ValueError(
                 f"a beam at {side.name} ({side.support}) is {beam.depth:.0f} mm deep, less "
-                f"than 3 x {h:g} mm (BNBC 6.5.8.2.1): analyse the slabs as shells to design it"
+                f"than 3 x {h:g} mm ({short_clause('slab', 'supports')}): analyse the slabs as shells to design it"
             )
     if not ec:
         return
@@ -2982,7 +2995,7 @@ def _two_way_scope(
         if alpha * l2 / l1 < float(limits["alphaRatioMin"]):
             raise ValueError(
                 f"αf l2/l1 = {alpha * l2 / l1:.2f} < 1 for the beams along {direction.upper()} "
-                "(BNBC 6.5.8.2.3): analyse the slabs as shells to design it"
+                f"({short_clause('slab', 'stiffness')}): analyse the slabs as shells to design it"
             )
 
 
@@ -3012,7 +3025,7 @@ def _coefficient_checks(
     }
     checks: list[dict[str, Any]] = []
     method_name = source
-    source = "BNBC 6.5.8" if method == "twoWay" else "BNBC 6.1.4.3"
+    source = short_clause("slab", "twoWay" if method == "twoWay" else "oneWay")
     for name in LAYERS:
         face, direction = name[:-1], name[-1]
         demand, combination, where = envelope[name]
@@ -3130,7 +3143,7 @@ def _coefficient_min_steel(
     if span is not None:
         note += f"; one-way slab spanning {span}" + _integrity_note()
     return _check(
-        "Min. reinforcement (BNBC 8.1.11.2)",
+        f"Min. reinforcement ({short_clause('slab', 'minimum')})",
         required,
         provided,
         "mm²/m",
@@ -3161,7 +3174,7 @@ def _coefficient_spacing(
         limit = min(times * h, most)
         ratio = layer.spacing / limit
         if worst is None or ratio > worst[0]:
-            worst = (ratio, layer, limit, f"BNBC {clause}: min({times:g}h, {most:g} mm)")
+            worst = (ratio, layer, limit, f"{short_name()} {clause}: min({times:g}h, {most:g} mm)")
     assert worst is not None
     _, layer, limit, clause = worst
     return _check(
@@ -3182,3 +3195,10 @@ def _integrity_note() -> str:
 
     where = clause("detailing", "integritySlab")
     return f"; the bottom bars run the whole slab, continuous ({where})" if where else ""
+
+
+def __getattr__(name: str) -> str:
+    # The coefficient method text names the clauses of the pack in force: built when read.
+    if name == "COEFFICIENT_METHOD":
+        return _coefficient_method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

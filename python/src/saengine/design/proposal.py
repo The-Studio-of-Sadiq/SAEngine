@@ -59,6 +59,7 @@ from typing import Any
 
 from saengine.design import bars as B
 from saengine.design import slab as slab_design
+from saengine.design.clauses import clause
 from saengine.design.rc import (
     DesignError,
     bar_area,
@@ -2151,7 +2152,7 @@ def _with_punching(entry: dict[str, Any], checks: Any) -> None:
                 "all: the larger bar and elements per line, the shorter first line and "
                 "spacing, lines reaching as far as the farthest column's own layout"
                 + ("; checked again at every column" if rechecked else "")
-                + "; BNBC 2020 Part 6 Sec 6.4.10)"
+                + f"; {clause('punching', 'section')})"
             ),
         ]
     if uncovered:

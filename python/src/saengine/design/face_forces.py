@@ -64,39 +64,61 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.clauses import clause
+
 #: Columns of a station row (N, Vy, Vz, T, My, Mz): taken at the face, and the shears, taken at
 #: d from the face when allowed.
 _AT_FACE = (0, 3, 4, 5)
 _SHEARS = (1, 2)
 _TOL = 1e-9
 
-JOINT_NOTE = (
-    "forces at the joints: the analysis model has no support face offsets (run the analysis "
-    "again to design at the faces of the supports, BNBC 2020 Part 6 Sec 6.1.6.3)"
-)
-FACE_CLAUSE = "BNBC 2020 Part 6 Sec 6.1.6.3"
-SHEAR_CLAUSE = "BNBC 2020 Part 6 Sec 6.4.1.3.1"
-#: Columns at the beam soffit: SAEngine's practice, not a BNBC clause (6.1.6.3 covers beams).
-COLUMN_PRACTICE = (
-    "SAEngine's practice for columns; BNBC 2020 Part 6 Sec 6.1.6.3 permits face design for "
-    "beams only"
-)
 
-METHOD = [
-    (
-        "Design at the faces of the supports (BNBC 2020 Part 6 Sec 6.1.6.3): the analysis "
-        "spans centre to centre of the supports (6.1.6.2); beams are designed for the moments "
-        "at the column and wall faces (the positive moments in the span unchanged) and for the "
-        "shear at d from the face (6.4.1.3.1: the support compresses the end of the beam, the "
-        "loads act at its top; with a point load within d of a face the shear at the face "
-        "should be taken)."
-    ),
-    (
-        "Columns are designed for the forces at the beam soffit and the top of the slab: "
-        "SAEngine's practice, as a commercial analysis program designs them (6.1.6.3 covers "
-        "beams only); their slenderness end moments M1 and M2 stay the joints'."
-    ),
-]
+def _texts() -> dict[str, Any]:
+    """The module's texts that name the code pack's clauses, from the pack in force:
+    ``JOINT_NOTE``, ``FACE_CLAUSE``, ``SHEAR_CLAUSE``, ``COLUMN_PRACTICE`` (columns at the beam
+    soffit: SAEngine's practice, not a clause of the pack, whose face clause covers beams) and
+    ``METHOD``; read as module attributes."""
+    face = clause("faceForces", "face")
+    return {
+        "JOINT_NOTE": (
+            "forces at the joints: the analysis model has no support face offsets (run the "
+            f"analysis again to design at the faces of the supports, {face})"
+        ),
+        "FACE_CLAUSE": face,
+        "SHEAR_CLAUSE": clause("faceForces", "shear"),
+        "COLUMN_PRACTICE": f"SAEngine's practice for columns; {face} permits face design for "
+        "beams only",
+        "METHOD": _method(face),
+    }
+
+
+def _text(name: str) -> Any:
+    return _texts()[name]
+
+
+def __getattr__(name: str) -> Any:
+    texts = _texts()
+    if name in texts:
+        return texts[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _method(face: str) -> list[str]:
+    return [
+        (
+            f"Design at the faces of the supports ({face}): the analysis "
+            "spans centre to centre of the supports (6.1.6.2); beams are designed for the moments "
+            "at the column and wall faces (the positive moments in the span unchanged) and for the "
+            "shear at d from the face (6.4.1.3.1: the support compresses the end of the beam, the "
+            "loads act at its top; with a point load within d of a face the shear at the face "
+            "should be taken)."
+        ),
+        (
+            "Columns are designed for the forces at the beam soffit and the top of the slab: "
+            "SAEngine's practice, as a commercial analysis program designs them (6.1.6.3 covers "
+            "beams only); their slenderness end moments M1 and M2 stay the joints'."
+        ),
+    ]
 
 
 @dataclass
@@ -128,20 +150,20 @@ class Faced:
         """The note the checks carry: where their forces were taken (``column``: a column's,
         at the beam soffit and the top of the slab)."""
         if not self.at_faces:
-            return JOINT_NOTE
+            return _text("JOINT_NOTE")
         if column:
             return (
-                f"forces at the beam soffit and the top of the slab ({COLUMN_PRACTICE}"
+                f"forces at the beam soffit and the top of the slab ({_text('COLUMN_PRACTICE')}"
                 f"{self._distance()})"
             )
-        return f"forces at the support faces ({FACE_CLAUSE}{self._distance()})"
+        return f"forces at the support faces ({_text('FACE_CLAUSE')}{self._distance()})"
 
     def shear_note(self) -> str:
         if not self.at_faces:
-            return JOINT_NOTE
+            return _text("JOINT_NOTE")
         if self.shear_depth is None:
-            return f"shear at the support faces ({FACE_CLAUSE})"
-        return f"shear at d = {self.shear_depth:.3f} m from the support faces ({SHEAR_CLAUSE})"
+            return f"shear at the support faces ({_text('FACE_CLAUSE')})"
+        return f"shear at d = {self.shear_depth:.3f} m from the support faces ({_text('SHEAR_CLAUSE')})"
 
 
 # ─────────────────────────────────── offsets ───────────────────────────────────
@@ -603,7 +625,7 @@ def at_faces(
     ``saengine.design.check._where`` reports."""
     offsets = offsets_of(project, pieces, face_offsets)
     if offsets is None or not any(i > 0 or j > 0 for i, j in offsets.values()):
-        return Faced(list(pieces), "joints", notes=[JOINT_NOTE])
+        return Faced(list(pieces), "joints", notes=[_text("JOINT_NOTE")])
     notes: list[str] = []
     order = _chain(pieces)
     chain = [pieces[k] for k in order]
@@ -762,11 +784,11 @@ def annotate(checks: list[dict[str, Any]], faced: Faced) -> list[dict[str, Any]]
 
 
 __all__ = [
-    "COLUMN_PRACTICE",
-    "FACE_CLAUSE",
-    "JOINT_NOTE",
-    "METHOD",
-    "SHEAR_CLAUSE",
+    "COLUMN_PRACTICE",  # noqa: F822 - module __getattr__ (read from the code pack)
+    "FACE_CLAUSE",  # noqa: F822 - module __getattr__ (read from the code pack)
+    "JOINT_NOTE",  # noqa: F822 - module __getattr__ (read from the code pack)
+    "METHOD",  # noqa: F822 - module __getattr__ (read from the code pack)
+    "SHEAR_CLAUSE",  # noqa: F822 - module __getattr__ (read from the code pack)
     "Faced",
     "annotate",
     "at_faces",

@@ -33,6 +33,7 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design.clauses import short_clause
 from saengine.design.rc import DesignError, RcSection, bar_area
 from saengine.library.objects import CircleProfile, RectangleProfile
 
@@ -301,8 +302,8 @@ def column_shear_checks(
                     "mm²",
                     combination_m,
                     "Vu above 0.5 φVc with Av below 0.062 √f'c bw s/fyt (≥ 0.35 bw s/fyt); "
-                    "BNBC 6.4.3.5.1 names flexural members, ACI 318-19 10.6.2.1 columns too"
-                    + (f"; {where_m}" if where_m else ""),
+                    f"{short_clause('columnShear', 'minimum')} names flexural members, ACI 318-19 "
+                    "10.6.2.1 columns too" + (f"; {where_m}" if where_m else ""),
                     flag=True,
                 )
             )
