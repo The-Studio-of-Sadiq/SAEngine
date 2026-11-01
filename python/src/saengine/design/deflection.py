@@ -1,4 +1,4 @@
-"""Deflection of reinforced-concrete beams and slabs under service loads: BNBC 2020 Part 6
+"""Deflection of reinforced-concrete beams and slabs under service loads: the default pack's BNBC 2020 Part 6
 Sec 6.2.5 (pp. 899-903). Units: N, mm, MPa, N·mm.
 
 - Immediate deflection with Ec (Sec 6.1.7.1: 4700 √f'c for normal weight concrete, or the
@@ -42,7 +42,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from saengine.design.rc import STEEL_E, DesignError, RcSection
+from saengine.design.rc import DesignError, RcSection
+from saengine.design.rc import value as rc_value
 from saengine.library.objects import RectangleProfile
 
 
@@ -183,7 +184,7 @@ def section_stiffness(
     yt = h - ybar
     # Bar depth from the compression face: y is up from mid-depth.
     bars = [((h / 2 + bar.y) if hogging else (h / 2 - bar.y), bar.area) for bar in section.bars]
-    n = section.es / ec if section.es else STEEL_E / ec
+    n = section.es / ec if section.es else rc_value("STEEL_E") / ec
     c, icr = cracked_section(strips, bars, n)
     tension = [(y, a) for y, a in bars if y > h / 2]
     compression = [(y, a) for y, a in bars if y < h / 2]

@@ -10,7 +10,7 @@ import math
 
 import pytest
 
-from saengine.library import bnbc
+from saengine.library import code_data
 from saengine.library.export import json_schema
 from saengine.library.settings import default_project_settings
 from saengine.library.soil import SoilReport
@@ -40,7 +40,9 @@ def test_design_options_default_and_schema() -> None:
     assert r.design.liquefactionMethod == "idrissBoulanger2014"
     schema = json_schema(SoilReport, "SAEngine soil report")["$defs"]["Design"]["properties"]
     assert schema["practice"]["enum"] == ["textbook", "bdConsultant"]
-    assert schema["liquefactionMethod"]["enumDescriptions"][1] == "The code pack's procedure"  # D1: no code name
+    assert (
+        schema["liquefactionMethod"]["enumDescriptions"][1] == "The code pack's procedure"
+    )  # D1: no code name
     with pytest.raises(ValueError):
         SoilReport.model_validate({"design": {"practice": "other"}})
 
@@ -477,8 +479,8 @@ def test_lpi_stops_at_the_bottom_of_the_log() -> None:
 
 
 def test_site_class_descriptions_follow_table_6_2_13() -> None:
-    assert bnbc.SITE_CLASSES["SD"].startswith("Loose-to-medium cohesionless soil")
-    assert "Vs 360-800 m/s" in bnbc.SITE_CLASSES["SB"]
-    assert "Vs 180-360 m/s" in bnbc.SITE_CLASSES["SC"]
-    assert "stiff soil" not in bnbc.SITE_CLASSES["SD"].lower()
-    assert set(bnbc.SITE_CLASSES) == {"SA", "SB", "SC", "SD", "SE"}
+    assert code_data.SITE_CLASSES["SD"].startswith("Loose-to-medium cohesionless soil")
+    assert "Vs 360-800 m/s" in code_data.SITE_CLASSES["SB"]
+    assert "Vs 180-360 m/s" in code_data.SITE_CLASSES["SC"]
+    assert "stiff soil" not in code_data.SITE_CLASSES["SD"].lower()
+    assert set(code_data.SITE_CLASSES) == {"SA", "SB", "SC", "SD", "SE"}

@@ -2,7 +2,7 @@
 building blocks of the design mode (:mod:`saengine.design.required`,
 :mod:`saengine.design.proposal`).
 
-Code basis ACI 318-19 (adopted by BNBC 2020 Part 6 Chapter 6), the same factors as
+Code basis ACI 318-19 (adopted by the default pack's BNBC 2020 Part 6 Chapter 6), the same factors as
 :mod:`saengine.design.rc`:
 
 - Flexure, rectangular stress block (22.2): a singly reinforced section needs
@@ -37,7 +37,8 @@ import math
 from dataclasses import dataclass, field
 
 from saengine.codes import context as code_context
-from saengine.design.rc import EPS_CU, PHI_SHEAR, PHI_TENSION, STEEL_E, bar_area, beta1
+from saengine.design.rc import bar_area, beta1
+from saengine.design.rc import value as rc_value
 
 EPS_T_SLAB = 0.004
 
@@ -46,11 +47,11 @@ EPS_T_SLAB = 0.004
 
 
 def diameters(kind: str) -> tuple[float, ...]:
-    """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. BNBC 2020
+    """Bar diameters [mm] of use ``kind``, the pack's ``concrete.barDiameters[kind]``. The default pack's BNBC 2020
     (BDS ISO 6935-2 sizes in common Bangladeshi practice): "all" 10, 12, 16, 20, 25, 32; "main"
     (beam and column main bars, the practical subset) 12 to 32; "column" 16 to 32; "slab" 10,
     12, 16; "stirrup" 8, 10, 12; "tank" (water and septic tanks) 10 to 25; "foundation" (9
-    Substructure's minimum mesh and sizing) 12 to 25. A pack without the set reads BNBC 2020's."""
+    Substructure's minimum mesh and sizing) 12 to 25. A pack without the set reads the default pack's (BNBC 2020)."""
     sets = code_context.table("concrete").barDiameters
     if kind not in sets:
         from saengine.codes.tables import builtin_table
@@ -65,25 +66,25 @@ diameters_of = diameters
 
 def spacing_step() -> float:
     """Bar spacings of slabs and footings, and stirrup spacings, are multiples of this [mm]
-    (the pack's ``concrete.spacingStep``; BNBC 2020: 25 mm)."""
+    (the pack's ``concrete.spacingStep``; the default pack's BNBC 2020: 25 mm)."""
     return float(code_context.table("concrete").spacingStep)
 
 
 def min_slab_spacing() -> float:
     """Least practical spacing of slab and footing bars [mm] (site practice, not a code limit;
-    the pack's ``concrete.minSlabSpacing``; BNBC 2020: 100 mm)."""
+    the pack's ``concrete.minSlabSpacing``; the default pack's BNBC 2020: 100 mm)."""
     return float(code_context.table("concrete").minSlabSpacing)
 
 
 def min_stirrup_spacing() -> float:
     """Least practical spacing of stirrups [mm] (site practice, not a code limit; the pack's
-    ``concrete.minStirrupSpacing``; BNBC 2020: 75 mm)."""
+    ``concrete.minStirrupSpacing``; the default pack's BNBC 2020: 75 mm)."""
     return float(code_context.table("concrete").minStirrupSpacing)
 
 
 def column_rho() -> tuple[float, float]:
     """(least, largest) column steel ratio (ACI 10.6.1.1; the pack's ``concrete.columnRho``;
-    BNBC 2020: 0.01, 0.08)."""
+    the default pack's BNBC 2020: 0.01, 0.08)."""
     low, high = code_context.table("concrete").columnRho
     return float(low), float(high)
 
@@ -91,7 +92,7 @@ def column_rho() -> tuple[float, float]:
 def beam_ratio_max() -> float:
     """Largest tension steel of a beam, as a share of b h, before the section is called too
     small: a practical limit (congestion), not an ACI clause (the pack's
-    ``concrete.beamRatioMax``; BNBC 2020: 0.04)."""
+    ``concrete.beamRatioMax``; the default pack's BNBC 2020: 0.04)."""
     return float(code_context.table("concrete").beamRatioMax)
 
 
@@ -103,9 +104,11 @@ def round_down(value: float, step: float | None = None) -> float:
     return math.floor(value / step + 1e-9) * step
 
 
-def tension_controlled_depth(d: float, fy: float, es: float = STEEL_E) -> float:
+def tension_controlled_depth(d: float, fy: float, es: float | None = None) -> float:
     """Neutral-axis depth [mm] at which εt = εty + 0.003 (ACI 21.2.2): φ = 0.90 above it."""
-    return EPS_CU * d / (2 * EPS_CU + fy / es)
+    if es is None:
+        es = rc_value("STEEL_E")
+    return rc_value("EPS_CU") * d / (2 * rc_value("EPS_CU") + fy / es)
 
 
 # ─────────────────────────────────────── flexure ───────────────────────────────────────
@@ -122,9 +125,11 @@ class FlexureNeed:
     note: str = ""
 
 
-def singly_area(mu: float, b: float, d: float, fc: float, fy: float, phi: float = PHI_TENSION):
+def singly_area(mu: float, b: float, d: float, fc: float, fy: float, phi: float | None = None):
     """As [mm²] of a singly reinforced section for ``mu`` [N·mm] at φ (the stress block), or
     None when the concrete cannot carry it at all (the root goes negative)."""
+    if phi is None:
+        phi = rc_value("PHI_TENSION")
     if mu <= 0:
         return 0.0
     k = 1 - 2 * mu / (phi * 0.85 * fc * b * d**2)
@@ -140,13 +145,15 @@ def beam_flexure_need(
     d_comp: float,
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
     ratio_max: float | None = None,
     h: float | None = None,
 ) -> FlexureNeed:
     """The tension and compression bars of a rectangular beam section for ``mu`` (see the
     module notes). ``d_comp``: depth of the compression bars from the compression face;
     ``ratio_max`` default :func:`beam_ratio_max`."""
+    if es is None:
+        es = rc_value("STEEL_E")
     if mu <= 0:
         return FlexureNeed(0.0, 0.0)
     if ratio_max is None:
@@ -157,14 +164,14 @@ def beam_flexure_need(
     as_tc = 0.85 * fc * b * a_tc / fy
     mn_tc = as_tc * fy * (d - a_tc / 2)
     limit = ratio_max * b * (h if h else d)
-    if mu <= PHI_TENSION * mn_tc:
+    if mu <= rc_value("PHI_TENSION") * mn_tc:
         area = singly_area(mu, b, d, fc, fy) or as_tc
         if area > limit:
             return FlexureNeed(mu, area, 0.0, True, "tension steel above the practical limit")
         return FlexureNeed(mu, area)
     # Compression bars, the tension bars at the tension-controlled limit.
-    mn2 = mu / PHI_TENSION - mn_tc
-    strain = EPS_CU * (c_tc - d_comp) / c_tc
+    mn2 = mu / rc_value("PHI_TENSION") - mn_tc
+    strain = rc_value("EPS_CU") * (c_tc - d_comp) / c_tc
     fs = min(es * strain, fy)
     if fs <= 0.85 * fc or d <= d_comp:
         return FlexureNeed(
@@ -199,9 +206,11 @@ def with_minimum(required: float, minimum: float) -> float:
     return max(required, min(minimum, 4 / 3 * required))
 
 
-def strip_capacity(area: float, d: float, fc: float, fy: float, es: float = STEEL_E) -> float:
+def strip_capacity(area: float, d: float, fc: float, fy: float, es: float | None = None) -> float:
     """φMn [N·mm per metre] of ``area`` [mm²/m] at ``d`` in a 1 m strip (as
     :func:`saengine.design.slab.layer_capacity`)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     from saengine.design.slab import layer_capacity
 
     return layer_capacity(area, d, fc, fy, es).phi_mn
@@ -210,15 +219,17 @@ def strip_capacity(area: float, d: float, fc: float, fy: float, es: float = STEE
 def slab_max_area(d: float, fc: float, fy: float, eps_t: float = EPS_T_SLAB) -> float:
     """The most bars per metre [mm²/m] a slab may have at ``d``: those that put the neutral
     axis at εt = 0.004 (ACI 7.3.3.1, 8.3.3.1)."""
-    c = EPS_CU * d / (EPS_CU + eps_t)
+    c = rc_value("EPS_CU") * d / (rc_value("EPS_CU") + eps_t)
     return 0.85 * fc * 1000 * beta1(fc) * c / fy
 
 
 def slab_flexure_need(
-    mu: float, d: float, fc: float, fy: float, es: float = STEEL_E
+    mu: float, d: float, fc: float, fy: float, es: float | None = None
 ) -> FlexureNeed:
     """As [mm²/m] of a slab strip for ``mu`` [N·mm/m]: the stress block at φ = 0.90, raised
     by bisection while the strip is in the transition zone (φ from εt), up to εt = 0.004."""
+    if es is None:
+        es = rc_value("STEEL_E")
     if mu <= 0:
         return FlexureNeed(0.0, 0.0)
     top = slab_max_area(d, fc, fy)
@@ -258,7 +269,7 @@ def beam_shear_need(vu: float, b: float, d: float, fc: float, fyt: float, lam: f
     root = min(math.sqrt(fc), 8.3)
     fyt = min(fyt, 420.0)
     vc = 0.17 * lam * root * b * d
-    vs = max(vu / PHI_SHEAR - vc, 0.0)
+    vs = max(vu / rc_value("PHI_SHEAR") - vc, 0.0)
     vs_max = 0.66 * math.sqrt(fc) * b * d
     av_s_min = max(0.062 * root, 0.35) * b / fyt
     av_s = max(vs / (fyt * d), av_s_min)
@@ -282,9 +293,9 @@ def slab_shear_rho(q: float, d: float, fc: float, lam: float = 1.0) -> float | N
     φ 0.42 λ √f'c b d does not carry it (the slab is too thin)."""
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
-    if q > PHI_SHEAR * 0.42 * lam * root * 1000 * d:
+    if q > rc_value("PHI_SHEAR") * 0.42 * lam * root * 1000 * d:
         return None
-    return (q / (PHI_SHEAR * 0.66 * lambda_s * lam * root * 1000 * d)) ** 3
+    return (q / (rc_value("PHI_SHEAR") * 0.66 * lambda_s * lam * root * 1000 * d)) ** 3
 
 
 # ─────────────────────────────────────── arrangements ───────────────────────────────────────

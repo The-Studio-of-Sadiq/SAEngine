@@ -1,6 +1,6 @@
 """Slenderness of reinforced-concrete columns, designed for by moment magnification.
 
-BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisions, its
+The default pack's BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisions, its
 6.2.5 and 6.6.4) is followed clause by clause:
 
 - Unsupported length lu (6.3.10.1.1): per bending direction, the column is cut at every joint
@@ -60,8 +60,8 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   load cases of the combination; δs = 1 / (1 - Q) >= 1 (Eq. 6.6.27; above 1.5 the column needs
   a second-order analysis or Eq. 6.6.28, which is the option "sumPc":
   δs = 1 / (1 - ΣPu / (0.75 ΣPc)) over the storey's sway columns, each Pc with k from the
-  sway chart and EI of 6.3.10.6.1 (the EI option over 1 + βdns of the combination), as BNBC
-  6.3.10.7.4 (p 915) says; ACI 318-19 6.6.4.6.2 takes βds there instead, which BNBC does not).
+  sway chart and EI of 6.3.10.6.1 (the EI option over 1 + βdns of the combination), as the default pack's BNBC
+  6.3.10.7.4 (p 915) says; ACI 318-19 6.6.4.6.2 takes βds there instead, which the default pack's BNBC does not).
   Along the length the nonsway procedure applies to the magnified end moments (6.3.10.2.2).
 - Response spectrum combinations (saengine.fem.seismic_design, E = ± the envelope): the modal
   moments have no sign, so a column cannot be told to be in single or double curvature from
@@ -74,7 +74,7 @@ BNBC 2020 Part 6 Sec 6.3.10 (part 1 of the code, pp. 910-915; ACI 318's provisio
   magnified by δns (6.3.10.2.2).
 - Limits: total moment with second-order effects <= 1.4 times the first-order moment
   (6.3.10.2.1, the first-order moment taken as max(M2, M2,min)); k lu / r <= 100 (ACI 318-19
-  6.2.6: above it a nonlinear second-order analysis is required; BNBC has no such clause).
+  6.2.6: above it a nonlinear second-order analysis is required; the default pack's BNBC has no such clause).
 - Design overwrites (:mod:`saengine.design.overwrites`, per member or object type): k and lu
   per axis replace the values above, ``framing`` "braced" designs the column as nonsway and
   "sway" as sway whatever Q says (with the alignment chart's sway k, or k = 2, the
@@ -97,10 +97,8 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design.clauses import clause, short_clause
 
-NONSWAY_Q = 0.05
-"""Stability index up to which a storey is nonsway (BNBC 6.3.10.5.2, Eq. 6.6.17)."""
-SWAY_LIMIT = 22.0
 #: k of a column designed as sway by an overwrite where an end is not framed by beams in the
 #: direction (no alignment chart value): the cantilever's, the least k a sway column with a
 #: free end can have (SAEngine's rule, conservative; give k as an overwrite to replace it).
@@ -110,21 +108,44 @@ FREE_END_NOTE = (
     " (a free end: nothing frames into it in this direction, a cantilever; check the model, "
     "a missing beam is likely; give k or framing to replace it)"
 )
-"""k lu / r up to which slenderness is neglected in sway storeys (BNBC Eq. 6.6.13)."""
-NONSWAY_CAP = 40.0
-"""Cap of 34 - 12 M1/M2 for nonsway storeys (BNBC Eq. 6.6.14)."""
 ROUNDOFF_MOMENT = 1e-6
 """End moments up to this share of M2,min (at least of 1 N·mm) are the solver's round-off (a
 column without first-order moment, e.g. one with a free top under gravity): taken as zero, so
 that M1/M2 is not a ratio of noise; without end moments M1/M2 = 1 (single curvature)."""
-KLU_R_MAX = 100.0
-"""k lu / r above which ACI 318-19 6.2.6 requires a nonlinear second-order analysis."""
-DELTA_S_MAX = 1.5
-"""δs = 1/(1 - Q) above which a second-order analysis (or Eq. 6.6.28) is required (6.3.10.7.3)."""
-MOMENT_RATIO_MAX = 1.4
-"""Second-order over first-order moment, at most (BNBC 6.3.10.2.1)."""
-PHI_K = 0.75
-"""The stiffness reduction factor of Eqs. 6.6.19 and 6.6.28."""
+#: The slenderness limits are the pack's ``concrete.slender`` (read when used, as module
+#: attributes too): NONSWAY_Q, the stability index up to which a storey is nonsway; SWAY_LIMIT,
+#: k lu / r up to which slenderness is neglected in sway storeys; NONSWAY_CAP, the cap of
+#: 34 - 12 M1/M2 in nonsway storeys; KLU_R_MAX, k lu / r above which a nonlinear second-order
+#: analysis is required (ACI 318-19 6.2.6); DELTA_S_MAX, δs = 1/(1 - Q) above which a
+#: second-order analysis (or δs from ΣPc) is required; MOMENT_RATIO_MAX, the second-order over
+#: first-order moment at most. PHI_K, the stiffness reduction factor of Pc, is the pack's
+#: ``factors.phi.stiffnessReduction``. (The default pack: BNBC 2020 Sec 6.3.10, Eqs. 6.6.13,
+#: 6.6.14, 6.6.17, 6.6.19, 6.6.28.)
+_SLENDER_LIMITS = {
+    "NONSWAY_Q": "nonswayQ",
+    "SWAY_LIMIT": "swayLimit",
+    "NONSWAY_CAP": "nonswayCap",
+    "KLU_R_MAX": "kluRMax",
+    "DELTA_S_MAX": "deltaSMax",
+    "MOMENT_RATIO_MAX": "momentRatioMax",
+}
+
+
+def _limit(name: str) -> float:
+    """Slenderness limit ``name`` (see above) of the code pack in force."""
+    if name == "PHI_K":
+        return float(code_context.table("factors").phi["stiffnessReduction"])
+    return float(code_context.table("concrete").slender[_SLENDER_LIMITS[name]])
+
+
+def __getattr__(name: str) -> Any:
+    if name == "PHI_K" or name in _SLENDER_LIMITS:
+        return _limit(name)
+    if name == "METHOD":
+        return _method_template()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 PSI_INFINITE = 1000.0
 """ψ taken for a pinned end or a joint without beams in the plane (∞ on the chart)."""
 MIN_SHEAR_SHARE = 0.10
@@ -134,7 +155,7 @@ ORTHOGONAL_SHARE = 0.25
 """... and at least this share of the same combination's storey shear in the other direction
 (a combination loading the other direction defines no Q here with its by-product shear and
 drift; 100 % + 30 % orthogonal combinations still do)."""
-# The cracked-section factors (BNBC 6.3.10.4.1: columns, beams, flat plates and cracked walls,
+# The cracked-section factors (default pack BNBC 6.3.10.4.1: columns, beams, flat plates and cracked walls,
 # the walls' share of a storey's drift) are the pack's: code_context.cracked_factors().
 PLATE_CONE = 0.3
 """A slab's span from a column runs to the nearest column (or wall node) within this offset
@@ -153,7 +174,7 @@ def is_lateral(code: str) -> bool:
 class SlenderOptions:
     """How slenderness is designed for (the project's settings; see the module notes)."""
 
-    #: Nonsway k: "unity" (k = 1, BNBC 6.3.10.6.3) or "chart" (the alignment chart).
+    #: Nonsway k: "unity" (k = 1, the default pack's BNBC 6.3.10.6.3) or "chart" (the alignment chart).
     effective_length: str = "unity"
     #: Sway magnifier: "Q" (δs = 1/(1 - Q), Eq. 6.6.27) or "sumPc" (Eq. 6.6.28).
     sway_magnifier: str = "Q"
@@ -232,7 +253,7 @@ def _psi(psi: float) -> float:
 
 def k_nonsway(psi_a: float, psi_b: float) -> float:
     """k of a braced column from the end restraints ψA, ψB: the nonsway alignment chart
-    (BNBC Figure 6.6.5 (a)), the root in 0.5 <= k <= 1 of
+    (default pack BNBC Figure 6.6.5 (a)), the root in 0.5 <= k <= 1 of
 
     ψA ψB / 4 (π/k)² + (ψA + ψB)/2 (1 - (π/k) / tan(π/k)) + 2 tan(π/2k) / (π/k) - 1 = 0.
     """
@@ -248,7 +269,7 @@ def k_nonsway(psi_a: float, psi_b: float) -> float:
 
 
 def k_sway(psi_a: float, psi_b: float) -> float:
-    """k of an unbraced column: the sway alignment chart (BNBC Figure 6.6.5 (b)), the root
+    """k of an unbraced column: the sway alignment chart (default pack BNBC Figure 6.6.5 (b)), the root
     k >= 1 of (ψA ψB (π/k)² - 36) / (6 (ψA + ψB)) - (π/k) / tan(π/k) = 0."""
     from scipy.optimize import brentq
 
@@ -267,7 +288,7 @@ def k_sway(psi_a: float, psi_b: float) -> float:
 def nonsway_limit(m1_over_m2: float) -> float:
     """k lu / r up to which slenderness is neglected in a nonsway storey: 34 - 12 M1/M2, at
     most 40 (Eq. 6.6.14; M1/M2 positive in single curvature)."""
-    return min(34 - 12 * m1_over_m2, NONSWAY_CAP)
+    return min(34 - 12 * m1_over_m2, _limit("NONSWAY_CAP"))
 
 
 def cm_factor(m1_over_m2: float, transverse: bool = False) -> float:
@@ -296,9 +317,9 @@ def delta_ns(cm: float, pu: float, pc: float) -> float:
     """δns = Cm / (1 - Pu / (0.75 Pc)) >= 1 (Eq. 6.6.19); infinite when Pu >= 0.75 Pc."""
     if pu <= 0:
         return 1.0
-    if pu >= PHI_K * pc:
+    if pu >= _limit("PHI_K") * pc:
         return math.inf
-    return max(cm / (1 - pu / (PHI_K * pc)), 1.0)
+    return max(cm / (1 - pu / (_limit("PHI_K") * pc)), 1.0)
 
 
 def delta_s_q(q: float) -> float:
@@ -310,9 +331,9 @@ def delta_s_sum(sum_pu: float, sum_pc: float) -> float:
     """δs = 1 / (1 - ΣPu / (0.75 ΣPc)) >= 1 (Eq. 6.6.28); infinite when unstable."""
     if sum_pu <= 0:
         return 1.0
-    if sum_pc <= 0 or sum_pu >= PHI_K * sum_pc:
+    if sum_pc <= 0 or sum_pu >= _limit("PHI_K") * sum_pc:
         return math.inf
-    return max(1 / (1 - sum_pu / (PHI_K * sum_pc)), 1.0)
+    return max(1 / (1 - sum_pu / (_limit("PHI_K") * sum_pc)), 1.0)
 
 
 def stability_index(sum_pu: float, delta_o: float, vus: float, lc: float) -> float:
@@ -362,7 +383,7 @@ class Storey:
     @property
     def sway(self) -> bool | None:
         q, _ = self.q_max
-        return None if q is None else q > NONSWAY_Q
+        return None if q is None else q > _limit("NONSWAY_Q")
 
     def delta_s(self, c: int, method: str) -> float:
         q = self.q[c]
@@ -1284,7 +1305,7 @@ class SlenderContext:
 
     def _sum_pc(self, building: Any) -> None:
         """ΣPc of each storey's sway columns per combination (Eq. 6.6.28): Pc from Eq. 6.6.20
-        with k of 6.3.10.7.2 (the sway chart) and EI of 6.3.10.6.1 as BNBC 6.3.10.7.4 says
+        with k of 6.3.10.7.2 (the sway chart) and EI of 6.3.10.6.1 as the default pack's BNBC 6.3.10.7.4 says
         (p 915): the project's EI option (Eq. 6.6.22, or Eq. 6.6.21 with the column's bars)
         over (1 + βdns), βdns that combination's sustained over total axial force of the
         column. A column cut by an intermediate beam counts once, with its smallest segment
@@ -1546,7 +1567,9 @@ class SlenderContext:
                 first = max(abs(m_bot), abs(m_top))
                 # Sway magnification of the end moments (6.3.10.7).
                 ds = 1.0
-                sway_applies = sway_storey and slender > SWAY_LIMIT and opts.second_order == "none"
+                sway_applies = (
+                    sway_storey and slender > _limit("SWAY_LIMIT") and opts.second_order == "none"
+                )
                 if sway_applies and pu > 0 and (ds_given is not None or seg.storey is not None):
                     ds = (
                         float(ds_given)
@@ -1576,7 +1599,9 @@ class SlenderContext:
                 if not math.isfinite(ds):
                     magnified[c] = True
                     mc[c] = mc_no_min[c] = math.inf
-                    info.update(neglected=False, dns=math.inf, mc=math.inf, limit=SWAY_LIMIT)
+                    info.update(
+                        neglected=False, dns=math.inf, mc=math.inf, limit=_limit("SWAY_LIMIT")
+                    )
                     best = _governs(best, info)
                     continue
                 m2 = max(abs(end_b), abs(end_t))
@@ -1591,8 +1616,8 @@ class SlenderContext:
                     free or spectral or not consistent or _curved(m_all + (ds - 1) * ms_all)
                 )
                 if sway_storey or free:
-                    limit = SWAY_LIMIT
-                    neglected = slender <= SWAY_LIMIT
+                    limit = _limit("SWAY_LIMIT")
+                    neglected = slender <= _limit("SWAY_LIMIT")
                 else:
                     limit = nonsway_limit(ratio)
                     neglected = slender <= limit
@@ -1652,7 +1677,9 @@ class SlenderContext:
 
         opts = self.options
         if best is None:
-            return _check(f"Slenderness about {axis}", 0.0, KLU_R_MAX, "", None, "", flag=True)
+            return _check(
+                f"Slenderness about {axis}", 0.0, _limit("KLU_R_MAX"), "", None, "", flag=True
+            )
         seg: Segment = best["segment"]
         c = best["c"]
         storey = seg.storey
@@ -1666,21 +1693,21 @@ class SlenderContext:
         designed = not best.get("neglected", False)
         failures: list[str] = []
         second_order_required = False
-        utils = [slender / KLU_R_MAX]
-        if slender > KLU_R_MAX:
+        utils = [slender / _limit("KLU_R_MAX")]
+        if slender > _limit("KLU_R_MAX"):
             failures.append(
-                f"k lu / r = {slender:.1f} > {KLU_R_MAX:g}: a nonlinear second-order analysis "
+                f"k lu / r = {slender:.1f} > {_limit('KLU_R_MAX'):g}: a nonlinear second-order analysis "
                 "is required (ACI 318-19 6.2.6)"
             )
             second_order_required = True
         ds, ds_c = worst["ds"]
         combos = self.combinations
         if sway and opts.second_order == "none" and opts.sway_magnifier == "Q" and designed:
-            utils.append(ds / DELTA_S_MAX if math.isfinite(ds) else math.inf)
-            if ds > DELTA_S_MAX:
+            utils.append(ds / _limit("DELTA_S_MAX") if math.isfinite(ds) else math.inf)
+            if ds > _limit("DELTA_S_MAX"):
                 failures.append(
-                    f"δs = 1/(1 - Q) = {_fmt(ds)} > {DELTA_S_MAX:g} ({combos[ds_c]}): "
-                    "second-order analysis required (BNBC 6.3.10.7.3; or δs from ΣPc, "
+                    f"δs = 1/(1 - Q) = {_fmt(ds)} > {_limit('DELTA_S_MAX'):g} ({combos[ds_c]}): "
+                    f"second-order analysis required ({short_clause('slender', 'deltaS')}; or δs from ΣPc, "
                     "Eq. 6.6.28)"
                 )
                 second_order_required = True
@@ -1698,11 +1725,11 @@ class SlenderContext:
             )
         ratio, ratio_c = worst["ratio"]
         if designed and ratio_c is not None and math.isfinite(ratio):
-            utils.append(ratio / MOMENT_RATIO_MAX)
-            if ratio > MOMENT_RATIO_MAX:
+            utils.append(ratio / _limit("MOMENT_RATIO_MAX"))
+            if ratio > _limit("MOMENT_RATIO_MAX"):
                 failures.append(
                     f"second-order moment {_fmt(ratio)} times the first-order one "
-                    f"({combos[ratio_c]}), above {MOMENT_RATIO_MAX:g} (BNBC 6.3.10.2.1)"
+                    f"({combos[ratio_c]}), above {_limit('MOMENT_RATIO_MAX'):g} ({short_clause('slender', 'momentRatio')})"
                 )
         utilisation = max(utils)
         kind = (
@@ -1765,7 +1792,7 @@ class SlenderContext:
         result = _check(
             f"Slenderness about {axis} ({label})",
             slender,
-            KLU_R_MAX,
+            _limit("KLU_R_MAX"),
             "",
             self.combinations[c],
             "; ".join(parts),
@@ -1907,9 +1934,9 @@ def _axis_frame(
     return unit, direction, h, ig, ise
 
 
-METHOD = [
+_METHOD = [
     (
-        "Column slenderness to BNBC 2020 Part 6 Sec 6.3.10 (ACI 318-19 6.2.5, 6.6.4): per "
+        "Column slenderness to {chapter} (ACI 318-19 6.2.5, 6.6.4): per "
         "bending direction lu = the clear height between lateral supports (the beam depth "
         "below a floor taken off), r = 0.30 h or 0.25 D; storeys sway when Q = ΣPu Δo / "
         "(Vus lc) > 0.05 (ΣPu and Vus of the frames and walls, Δo × {drift} for cracked "
@@ -1940,7 +1967,8 @@ def method(options: SlenderOptions, lateral_cracked: bool = False) -> list[str]:
         else (
             "δs = 1 / (1 - Q)"
             if options.sway_magnifier == "Q"
-            else "δs = 1 / (1 - ΣPu / (0.75 ΣPc)), Pc with EI / (1 + βdns) (BNBC 6.3.10.7.4)"
+            else "δs = 1 / (1 - ΣPu / (0.75 ΣPc)), Pc with EI / (1 + βdns) "
+            f"({short_clause('slender', 'sumPc')})"
         )
     )
     return [
@@ -1956,6 +1984,12 @@ def method(options: SlenderOptions, lateral_cracked: bool = False) -> list[str]:
             k="1.0" if options.effective_length == "unity" else "from the nonsway chart",
             ei="0.4 Ec Ig" if options.stiffness == "0.4EcIg" else "(0.2 Ec Ig + Es Ise)",
             sway=sway,
+            chapter=clause("slender", "chapter"),
         )
-        for line in METHOD
+        for line in _METHOD
     ]
+
+
+def _method_template() -> list[str]:
+    """``METHOD``: the method lines with the pack's chapter filled in (see :func:`method`)."""
+    return [line.replace("{chapter}", clause("slender", "chapter")) for line in _METHOD]

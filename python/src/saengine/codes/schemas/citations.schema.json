@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "The clause references the documents print: the calculation report, its worksheets, the\ndrawings and the bill of quantities (``clauses``, without the code's name; read by\n:mod:`saengine.report.clauses`). A key the pack does not give is not cited.",
+  "description": "The clause references the documents print: the calculation report, its worksheets, the\ndrawings and the bill of quantities (``clauses``, without the code's name; read by\n:mod:`saengine.codes.citations`). A key the pack does not give is not cited.",
   "properties": {
     "source": {
       "default": "",

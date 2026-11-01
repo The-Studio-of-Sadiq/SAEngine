@@ -1,6 +1,6 @@
 """Fatigue of steel members and connections under repeated loading, by stress range.
 
-The method of the code pack's ``fatigue`` table (BNBC 2020 Part 6 Sec 10.17 with its pack):
+The method of the code pack's ``fatigue`` table (default pack BNBC 2020 Part 6 Sec 10.17 with its pack):
 
 - the stress range is the change in service stress when the live load is applied or removed;
   under stress reversal, the sum of the two extremes;

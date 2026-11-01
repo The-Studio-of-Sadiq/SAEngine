@@ -1,7 +1,7 @@
 """Capacity design of steel seismic load resisting systems: the general requirements and the
 moment frames (special, intermediate, ordinary and special truss moment frames).
 
-Every number is the code pack's ``steelSeismic`` table (BNBC 2020: Part 6 Sec 10.20.1-10.20.12,
+Every number is the code pack's ``steelSeismic`` table (default pack BNBC 2020: Part 6 Sec 10.20.1-10.20.12,
 Tables 6.10.17-6.10.18, Appendix N); every clause reference comes from the table's
 ``sources``. The table's ``systems`` maps the structural systems of Project Settings to the
 frame kind (``frames``) their members follow; B38 adds the braced frames, plate walls and
@@ -30,7 +30,7 @@ What is built:
 - **Splices and bases** (:func:`splice_checks`, :func:`base_demands`): the splice location,
   the capacity-design splice and base forces.
 - **Special truss moment frames** (:func:`truss_checks`): the special segment geometry and
-  members, Eq 6.10.302 (no structural system of the BNBC pack selects them: Table 6.2.19 has no
+  members, Eq 6.10.302 (no structural system of the default pack's BNBC pack selects them: Table 6.2.19 has no
   row for them).
 - **Panel zone deformations in the drift** (:func:`panel_zone_model_check`): a steel moment
   frame analysed with rigid zones at its joints leaves them out.

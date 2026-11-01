@@ -1,4 +1,4 @@
-"""Integrator glue: the earthquake-resistant detailing of BNBC 2020 Part 6 Sec 8.3 (pp.
+"""Integrator glue: the earthquake-resistant detailing of the default pack's BNBC 2020 Part 6 Sec 8.3 (pp.
 1088-1123) in the design report of :mod:`saengine.design.check`.
 
 This module only wires the three rule modules into the design: it decides nothing of its own
@@ -13,7 +13,7 @@ beyond what each needs from the analysis and the building model.
   8.3.5.2, joints Sec 8.3.7, capacity shear Sec 8.3.8 and 8.3.10.3, members outside the
   seismic force-resisting system Sec 8.3.9.1, 8.3.12).
 
-What this glue derives from the model, where BNBC gives no rule for it (SAEngine choices):
+What this glue derives from the model, where the default pack's BNBC gives no rule for it (SAEngine choices):
 
 - the clear span ln of a beam: the smallest distance between the faces of consecutive
   supporting columns (frame joints along it), else its length less half of the end columns;
@@ -40,10 +40,15 @@ import numpy as np
 from saengine.design import ductile_joints as dj
 from saengine.design import ductile_members as dm
 from saengine.design import seismic_rules
+from saengine.design.clauses import clause, short_name
 from saengine.design.rc import DesignError, RcSection
 
 PREFIX = "Detailing: "
-CODE = "BNBC 2020 Part 6"
+
+
+def _code() -> str:
+    """The code and part the detailing rows cite ("<code> Part 6"), from the pack in force."""
+    return clause("seismicDetailing", "part")
 
 
 def rate(entry: dict[str, Any]) -> None:
@@ -84,32 +89,38 @@ def rate(entry: dict[str, Any]) -> None:
 #: Combinations with earthquake: these cases (static) or a response spectrum envelope.
 EARTHQUAKE_CASES = ("EX", "EY")
 
-METHOD = [
-    (
-        "Seismic detailing to BNBC 2020 Part 6 Sec 8.3: the detailing level from the Seismic "
-        "Design Category (Sec 8.3.2: D special, C intermediate, B ordinary) and the structural "
-        "system (Table 6.2.19); materials of Sec 8.3.3.3, 8.3.3.4."
-    ),
-    (
-        "Members: special moment frame beams Sec 8.3.4 (b ≥ 250 mm and 0.3 h, ln ≥ 4d, ρ limits, "
-        "Mn+ ≥ Mn-/2, hoops over 2h at min(d/4, 8 db, 24 dh, 300 mm), d/2 elsewhere), columns "
-        "Sec 8.3.5 (least dimension ≥ 300 mm, ρg 1-6 %, Ash by Eq. 6.8.7 and 6.8.8 over lo = "
-        "max(h, ln/6, 450 mm) at so = min(b/4, 6 db, 100 + (350 - hx)/3)); intermediate frames "
-        "Sec 8.3.10.4, 8.3.10.5 (columns with Pu ≤ 0.1 Ag f'c by 8.3.10.4, Sec 8.3.10.2; "
-        "special frame columns with Pu ≤ 0.1 Ag f'c take the stricter of 8.3.5.4 and 8.3.4.3, "
-        "an SAEngine choice); ordinary frames Sec 8.3.9; gravity members Sec 8.3.12 (Sec "
-        "8.3.12.3 with the capacity shear of 8.3.8 where the induced forces exceed φMn, φVn or "
-        "are not computed, as for columns), 8.3.9.1. The hoop spacing in lo reported is the "
-        "least of the dimensional limit, Ash and the capacity shear's Av/s with the type's ties."
-    ),
-    (
-        "Capacity design: strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2, Eq. 6.8.5), "
-        "joint shear Vj = 1.25 fy As - Vcol ≤ 0.85 γ √f'c Aj (Sec 8.3.7.3; bj by ACI 318-19 "
-        "18.8.4.3, BNBC does not define it), capacity shear Ve from Mpr at 1.25 fy (Sec 8.3.8, "
-        "Vc = 0 by 8.3.8.2(a)) or 2E (Sec 8.3.10.3); Ω0 combinations for transfer members and "
-        "collectors (Sec 2.5.5.6, 2.5.13.4). Foundations (Sec 8.3.11) are Part 9's."
-    ),
-]
+
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            f"Seismic detailing to {clause('seismicDetailing', 'chapter')}: the detailing level "
+            "from the Seismic "
+            "Design Category (Sec 8.3.2: D special, C intermediate, B ordinary) and the structural "
+            "system (Table 6.2.19); materials of Sec 8.3.3.3, 8.3.3.4."
+        ),
+        (
+            "Members: special moment frame beams Sec 8.3.4 (b ≥ 250 mm and 0.3 h, ln ≥ 4d, ρ limits, "
+            "Mn+ ≥ Mn-/2, hoops over 2h at min(d/4, 8 db, 24 dh, 300 mm), d/2 elsewhere), columns "
+            "Sec 8.3.5 (least dimension ≥ 300 mm, ρg 1-6 %, Ash by Eq. 6.8.7 and 6.8.8 over lo = "
+            "max(h, ln/6, 450 mm) at so = min(b/4, 6 db, 100 + (350 - hx)/3)); intermediate frames "
+            "Sec 8.3.10.4, 8.3.10.5 (columns with Pu ≤ 0.1 Ag f'c by 8.3.10.4, Sec 8.3.10.2; "
+            "special frame columns with Pu ≤ 0.1 Ag f'c take the stricter of 8.3.5.4 and 8.3.4.3, "
+            "an SAEngine choice); ordinary frames Sec 8.3.9; gravity members Sec 8.3.12 (Sec "
+            "8.3.12.3 with the capacity shear of 8.3.8 where the induced forces exceed φMn, φVn or "
+            "are not computed, as for columns), 8.3.9.1. The hoop spacing in lo reported is the "
+            "least of the dimensional limit, Ash and the capacity shear's Av/s with the type's ties."
+        ),
+        (
+            "Capacity design: strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2, Eq. 6.8.5), "
+            "joint shear Vj = 1.25 fy As - Vcol ≤ 0.85 γ √f'c Aj (Sec 8.3.7.3; bj by ACI 318-19 "
+            f"18.8.4.3, {short_name()} does not define it), capacity shear Ve from Mpr at 1.25 fy "
+            "(Sec 8.3.8, "
+            "Vc = 0 by 8.3.8.2(a)) or 2E (Sec 8.3.10.3); Ω0 combinations for transfer members and "
+            "collectors (Sec 2.5.5.6, 2.5.13.4). Foundations (Sec 8.3.11) are Part 9's."
+        ),
+    ]
 
 
 @dataclass
@@ -165,7 +176,7 @@ def _clause(name: str) -> str | None:
             if depth == 0:
                 inner = name[k + 1 : -1]
                 if re.match(r"\d|Figure|Eq", inner):
-                    return f"{CODE} Sec {inner}" if inner[0].isdigit() else f"{CODE} {inner}"
+                    return f"{_code()} Sec {inner}" if inner[0].isdigit() else f"{_code()} {inner}"
                 return None
     return None
 
@@ -195,11 +206,11 @@ def _clause_of(row: dict[str, Any], clause: str | None = None) -> str | None:
         return found
     for start, sec in NAME_CLAUSES:
         if row["name"].startswith(start):
-            return f"{CODE} Sec {sec}"
+            return f"{_code()} Sec {sec}"
     if clause:
         return clause
     match = _NOTE_CLAUSE.search(row.get("note") or "")
-    return f"{CODE} Sec {match.group(1)}" if match else None
+    return f"{_code()} Sec {match.group(1)}" if match else None
 
 
 def _tagged(rows: list[dict[str, Any]], clause: str | None = None) -> list[dict[str, Any]]:
@@ -214,7 +225,7 @@ def _tagged(rows: list[dict[str, Any]], clause: str | None = None) -> list[dict[
 
 def _with_clause(rows: list[dict[str, Any]], clause: str) -> list[dict[str, Any]]:
     """The rows with ``clause`` (a section list such as "8.3.12.3(b), 8.3.8.1(a)") set."""
-    return [{**r, "clause": f"{CODE} Sec {clause}"} for r in rows]
+    return [{**r, "clause": f"{_code()} Sec {clause}"} for r in rows]
 
 
 # ─────────────────────────────────────── geometry ───────────────────────────────────────
@@ -557,7 +568,7 @@ def apply(
             "zones": None,
             "Ve": None,
             "phiVn": None,
-            "clause": f"{CODE} Sec " + ", ".join(row["provisions"]),
+            "clause": f"{_code()} Sec " + ", ".join(row["provisions"]),
             "notes": member_notes,
         }
         context: dict[str, Any] = {
@@ -902,7 +913,7 @@ def _non_sfrs_beam(
             sway = profile_forces(
                 piece, d.turned, piece.sway[c] if piece.sway else np.zeros_like(piece.forces[c])
             )
-            # The elastic lateral part: the factored E of the combination (1.0 E in BNBC's).
+            # The elastic lateral part: the factored E of the combination (1.0 E in the default pack, BNBC).
             moment = max(moment, dj.induced_forces(total["Mx"] - sway["Mx"], sway["Mx"], factor))
             shear_force = max(
                 shear_force, dj.induced_forces(total["Vy"] - sway["Vy"], sway["Vy"], factor)
@@ -976,3 +987,10 @@ def capacity_av_s(section: RcSection, kind: str, context: dict[str, Any]) -> dic
         if len(rows) > 1:
             out[axis] = rows[1]["demand"]
     return out
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

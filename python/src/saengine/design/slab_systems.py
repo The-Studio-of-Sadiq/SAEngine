@@ -1,9 +1,9 @@
 """Ribbed and waffle slabs, drop panels and column capitals: the geometry the analysis and the
 slab design (:mod:`saengine.design.slab`) take from a slab type's ``ribs``, ``dropPanel`` and
-``capital`` (BNBC 2020 Part 6 Chapter 6, which adopts the ACI 318 strength design; clauses below
-by ACI 318-19 number where BNBC's own section was not checked).
+``capital`` (default pack BNBC 2020 Part 6 Chapter 6, which adopts the ACI 318 strength design; clauses below
+by ACI 318-19 number where the default pack's (BNBC) own section was not checked).
 
-Ribs (joist construction; ACI 318-19 9.8.1, BNBC 2020 Part 6 joist construction, section and
+Ribs (joist construction; ACI 318-19 9.8.1, the default pack's BNBC 2020 Part 6 joist construction, section and
 page not checked). The slab's thickness is the topping; the ribs hang under it, ``width`` wide
 and ``depth`` deep, at ``spacing`` centre to centre, along local x, local y, or both ways (a
 waffle). Dimensional limits (ACI 318-19 9.8.1.1-9.8.1.4; ACI 318-11 8.13.2-8.13.3, 8.13.6.1):
@@ -27,11 +27,11 @@ solid slab with the same I per metre as the T-section of one rib with its share 
 area), and the weight of the mean thickness. A plate is isotropic, so a ribbed (one-way) slab's
 plate is as stiff across the ribs as along them; the analysis notes it.
 
-Drop panels (ACI 318-19 8.2.4; BNBC 2020 Part 6 Sec 6.5, page not checked). A rectangle
+Drop panels (ACI 318-19 8.2.4; the default pack's BNBC 2020 Part 6 Sec 6.5, page not checked). A rectangle
 ``length`` x ``width`` in the column's axes under each column, ``depth`` below the soffit. It
 counts as a drop panel when it projects at least h/4 below the slab and extends at least l/6 of
 the centre-to-centre span each way from the column's centre line (8.2.4 (a), (b)); a slab with
-drop panels then takes the minimum thickness of BNBC Table 6.6.3 with drop panels (ACI Table
+drop panels then takes the minimum thickness of the default pack's BNBC Table 6.6.3 with drop panels (ACI Table
 8.3.1.1), at least 100 mm (8.3.1.1 (b)). Over the panel the top bars work at the panel's depth,
 taking no more of the projection than a quarter of the distance from the panel's edge to the
 column's (or capital's) face (8.5.2.2). In the analysis the shells over the panel are thicker by

@@ -1,8 +1,8 @@
 """Flanged structural walls: walls that meet in plan (L, T, C, box and X shapes) designed as one
-composite section, to BNBC 2020 Part 6 (bnbc-2020-part1.pdf).
+composite section, to the default pack's BNBC 2020 Part 6 (the code PDF).
 
 :mod:`saengine.design.walls` checks each pier of a wall as a rectangle. Where walls of 06 BIM
-meet at a corner or a T in a storey, BNBC asks for the section they make together:
+meet at a corner or a T in a storey, the default pack's BNBC asks for the section they make together:
 
 - Sec 8.3.6.5(a) (p. 1102): walls under flexure and axial load by 6.3.2 and 6.3.3; "concrete and
   developed longitudinal reinforcement within effective flange widths, boundary elements, and
@@ -17,7 +17,7 @@ meet at a corner or a T in a storey, BNBC asks for the section they make togethe
   extreme compression fibre; (d)(ii) (p. 1103) in flanged sections it includes the effective
   flange width in compression and extends at least 300 mm into the web.
 
-BNBC's Chapter 6 (ordinary walls) gives no flange rule: the same effective widths are used for
+the default pack's (BNBC) Chapter 6 (ordinary walls) gives no flange rule: the same effective widths are used for
 ordinary walls (stated in the method).
 
 **Groups.** Walls whose centre lines meet (an end on the other wall's line within half its
@@ -63,16 +63,12 @@ from typing import Any
 import numpy as np
 
 from saengine.design import walls as W
+from saengine.design.clauses import Clauses, clause
 from saengine.design.ductile_members import _row
 from saengine.design.rc import (
     _DEPTHS,
     _SUBDIVISIONS,
     _TRANSITION_POINTS,
-    EPS_CU,
-    PHI_SHEAR,
-    PHI_TENSION,
-    PHI_TIED,
-    STEEL_E,
     Bar,
     ColumnCheck,
     DesignError,
@@ -82,14 +78,10 @@ from saengine.design.rc import (
     beta1,
     phi_axial_flexure,
 )
+from saengine.design.rc import value as rc_value
 
-CLAUSES = {
-    "flexure": "BNBC 2020 Part 6 Sec 8.3.6.5(a) (p. 1102)",
-    "flange": "BNBC 2020 Part 6 Sec 8.3.6.5(b) (p. 1102)",
-    "shear": "BNBC 2020 Part 6 Sec 8.3.6.4(d) (p. 1102)",
-    "stress": "BNBC 2020 Part 6 Sec 8.3.6.6(c) (p. 1103)",
-    "boundary": "BNBC 2020 Part 6 Sec 8.3.6.6(d)(i), (ii) (p. 1103)",
-}
+#: The clause of each check, from the code pack in force (``designClauses.wallFlanges``).
+CLAUSES: Clauses = Clauses("wallFlanges")
 
 #: Effective flange: at most this share of the total wall height from the web face (8.3.6.5(b)).
 FLANGE_HEIGHT_SHARE = 0.25
@@ -107,19 +99,23 @@ TOL = 1.0
 #: Neutral-axis angles of the computed meridians, this far apart.
 _STEP = math.radians(7.5)
 
-METHOD = [
-    (
-        "Flanged walls (BNBC 2020 Part 6 Sec 8.3.6.5): walls meeting at an L, T or C in a "
-        "storey are checked as one section, per direction with the walls along it as webs and "
-        "the others as flanges of effective width min(half the distance to the adjacent web, "
-        "25 % of the wall height) beyond the web face (8.3.6.5(b), also used for ordinary "
-        "walls); axial force and biaxial bending by strain compatibility on the composite "
-        "polygon (the forces the sum of the piers' cuts); the webs' shear together within "
-        "0.66 Acv √f'c (8.3.6.4(d)); boundary elements at the web ends and flanges "
-        "(8.3.6.6(b)-(d), with the flange in compression and 300 mm into the web). The "
-        "rectangular piers' P-M and boundary rows of those walls are then informative."
-    ),
-]
+
+def _method() -> list[str]:
+    """``METHOD``: the method text of the design report, with the clauses of the code pack in
+    force (read as a module attribute)."""
+    return [
+        (
+            f"Flanged walls ({clause('wallFlangesText', 'section')}): walls meeting at an L, T or C in a "
+            "storey are checked as one section, per direction with the walls along it as webs and "
+            "the others as flanges of effective width min(half the distance to the adjacent web, "
+            "25 % of the wall height) beyond the web face (8.3.6.5(b), also used for ordinary "
+            "walls); axial force and biaxial bending by strain compatibility on the composite "
+            "polygon (the forces the sum of the piers' cuts); the webs' shear together within "
+            "0.66 Acv √f'c (8.3.6.4(d)); boundary elements at the web ends and flanges "
+            "(8.3.6.6(b)-(d), with the flange in compression and 300 mm into the web). The "
+            "rectangular piers' P-M and boundary rows of those walls are then informative."
+        ),
+    ]
 
 
 # ─────────────────────────────────────── plan geometry ───────────────────────────────────────
@@ -349,11 +345,11 @@ class FlangedSection:
 
     @property
     def phi_pn_max(self) -> float:
-        return 0.80 * PHI_TIED * self.p0
+        return 0.80 * rc_value("PHI_TIED") * self.p0
 
     @property
     def phi_tension(self) -> float:
-        return PHI_TENSION * self.fy * self.steel_area
+        return rc_value("PHI_TENSION") * self.fy * self.steel_area
 
     def extent(self, u: Iterable[float]) -> tuple[float, float]:
         """(least, largest) projection of the polygon on ``u`` [mm]."""
@@ -497,10 +493,12 @@ def effective_section(
     height: float,
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
 ) -> FlangedSection:
     """The composite section with the walls along ``direction`` as webs (see the module notes).
     ``height``: the total wall height for 8.3.6.5(b)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
 
@@ -613,7 +611,9 @@ class FlangedInteraction(InteractionSurface):
         angles = [a for k, a in enumerate(angles) if k == 0 or a - angles[k - 1] > 1e-4]
         eps_ty = section.fy / section.es
         points = 5 if coarse else _TRANSITION_POINTS
-        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, points))
+        transition = rc_value("EPS_CU") / (
+            rc_value("EPS_CU") + eps_ty + rc_value("EPS_CU") * np.linspace(0, 1, points)
+        )
         depths = _DEPTHS[::2] if coarse else _DEPTHS
         ratios = np.unique(np.concatenate([depths, transition]))
         base = np.array([self._meridian(a, ratios) for a in angles])
@@ -658,13 +658,13 @@ class FlangedInteraction(InteractionSurface):
         if math.isfinite(c):
             a = min(beta1(s.fc) * c, y1 - y0)
             block = clip_by_rect(rotated, x0 - 1, top - a, x1 + 1, top + 1)
-            strain = EPS_CU * (c - dist) / c
-            eps_t = EPS_CU * (d_bar - c) / c
+            strain = rc_value("EPS_CU") * (c - dist) / c
+            eps_t = rc_value("EPS_CU") * (d_bar - c) / c
         else:
             a = y1 - y0
             block = rotated
-            strain = np.full(len(dist), EPS_CU)
-            eps_t = -EPS_CU
+            strain = np.full(len(dist), rc_value("EPS_CU"))
+            eps_t = -rc_value("EPS_CU")
         stress = np.clip(s.es * strain, -s.fy, s.fy) - np.where(dist < a, 0.85 * s.fc, 0.0)
         force = stress * area
         conc = 0.85 * s.fc * float(block.area) if not block.is_empty else 0.0
@@ -891,7 +891,7 @@ def flanged_checks(
     forces: list[GroupForces],
     fc: float,
     fy: float,
-    es: float = STEEL_E,
+    es: float | None = None,
     *,
     height: float,
     special: bool = False,
@@ -903,6 +903,8 @@ def flanged_checks(
     combination and cut on the section of the web direction nearest the moment's, the webs'
     shear per direction, and (``special``) the boundary elements at each extreme fibre.
     ``height``: total wall height hw [mm]; ``drift``: δu/hw (None: the stress method)."""
+    if es is None:
+        es = rc_value("STEEL_E")
     out = FlangedDesign()
     dirs = families(group.legs)
     surfaces: list[tuple[np.ndarray, FlangedSection, FlangedInteraction]] = []
@@ -988,7 +990,7 @@ def flanged_checks(
             note_limit = ""
             if special and vn > limit:
                 vn, note_limit = limit, f"; 0.66 Acv √f'c = {_kn(limit):.1f} kN governs"
-            phi = PHI_SHEAR
+            phi = rc_value("PHI_SHEAR")
             if special:
                 sx, sy = f.moved(section.origin)
                 mu = abs(sx * u[0] + sy * u[1])
@@ -1163,3 +1165,10 @@ def section_json(section: FlangedSection) -> dict[str, Any]:
         "bars": len(section.bars),
         "steel": round(section.steel_area, 0),
     }
+
+
+def __getattr__(name: str) -> list[str]:
+    # The method text names the clauses of the pack in force: built when it is read.
+    if name == "METHOD":
+        return _method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
