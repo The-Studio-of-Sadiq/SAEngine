@@ -6,15 +6,16 @@ size (:mod:`saengine.hvac.plant`). This module works the airflows and duct sizes
 
 - Supply air of a zone from its sensible load: Q = qs / (rho cp dT) with standard air
   (rho = 1.2 kg/m³, cp = 1.005 kJ/kg K) and a supply temperature difference ``dT`` of 10 K
-  unless given (SAEngine practice: a room at 24-25 °C supplied at 14-15 °C; BNBC 2020 Part 8
-  Ch 2 gives no supply temperature). The airflow of the load calculation is used when it
+  unless given (SAEngine practice: a room at 24-25 °C supplied at 14-15 °C; the default pack's
+  Part 8 Ch 2 gives no supply temperature). The airflow of the load calculation is used when it
   gives one.
-- Outdoor air: BNBC 2020 Part 8 Table 8.2.3 (Minimum Ventilation Rates for Air Conditioned
+- Outdoor air: the code pack's ventilation rates (Part 8 Table 8.2.3, Minimum Ventilation Rates for Air Conditioned
   Spaces, pp. 863-869 of the Part 2 volume, as :mod:`saengine.hvac.tables` transcribes it;
   ``hvac.stories[].use`` is its row key): the breathing-zone rates per person Rp and per
   m² Ra and the default occupant density. The two rates are added, Vbz = Rp Pz + Ra Az (the
-  ASHRAE 62.1 ventilation rate procedure the table comes from; BNBC gives the columns, not
-  the sum), and never less than 2.5 l/s per person (BNBC 2020 Part 8 Sec 2.11.3.4, p. 905).
+  ASHRAE 62.1 ventilation rate procedure the table comes from; the code gives the columns,
+  not the sum), and never less than the pack's least per person (2.5 l/s, Part 8 Sec
+  2.11.3.4, p. 905, in the default pack).
   Dwellings: 0.35 air changes per hour but not less than 7.5 l/s per person (Table 8.2.3,
   "Living areas", p. 866).
 - Exhaust: Table 8.2.3's exhaust rates: public toilets 25 l/s per water closet or urinal
@@ -27,7 +28,7 @@ size (:mod:`saengine.hvac.plant`). This module works the airflows and duct sizes
 - Ducts: galvanised steel, Darcy-Weisbach with the Colebrook friction factor (``fluids``,
   MIT, Clamond's solution), absolute roughness 0.09 mm (ASHRAE Handbook Fundamentals Ch 21,
   galvanised steel: from memory, to be checked). Sized by the equal-friction method at
-  1.0 Pa/m unless given, and by a maximum velocity: BNBC 2020 Part 8 Ch 2 gives no duct
+  1.0 Pa/m unless given, and by a maximum velocity: the default pack's Part 8 Ch 2 gives no duct
   velocity table; it sets 7.62 to 12.7 m/s in kitchen exhaust ducts (Sec 2.11.5.1(d),
   p. 912) and requires linings exposed to more than 10 m/s to be fastened mechanically
   (Sec 2.8.1.5(b), p. 873). The other limits are SAEngine defaults for low-velocity
@@ -38,7 +39,7 @@ size (:mod:`saengine.hvac.plant`). This module works the airflows and duct sizes
   most 4:1 (SAEngine practice); the shallowest rectangle that works is chosen, as the depth
   is what the structure has to make room for.
 - Shafts: each duct in a shaft takes its outside size (with its insulation) plus 75 mm all
-  round (SAEngine practice, BNBC Sec 2.11.5.1(f)'s least clearance of a kitchen exhaust
+  round (SAEngine practice, the default pack's Sec 2.11.5.1(f) least clearance of a kitchen exhaust
   duct to its enclosure, p. 912, applied to all ducts); the pipes of 07 MEP's plumbing risers
   with a given diameter take (OD + 100 mm)² as the plumbing shaft check counts them.
 
@@ -56,6 +57,7 @@ from typing import Any
 
 from shapely.geometry import Point, Polygon
 
+from saengine.hvac import tables as T
 from saengine.library.mep import MEP_FILE, MepModel, parse
 from saengine.plumbing.building import Building
 
@@ -70,9 +72,8 @@ FRICTION_RATE = 1.0  # Pa/m, equal friction
 ASPECT_MAX = 4.0
 STEP = 50.0  # mm
 MIN_SIDE = 100.0  # mm
-MIN_PER_PERSON = 2.5  # l/s, BNBC 2020 Part 8 Sec 2.11.3.4
-#: Insulation thickness [mm] by duct system: BNBC 2020 Part 8 Sec 2.8.1.5(a) requires supply
-#: and return ducts of a cooling system to be insulated; 25 mm is SAEngine's default.
+#: Insulation thickness [mm] by duct system: the default pack's Part 8 Sec 2.8.1.5(a) requires
+#: supply and return ducts of a cooling system to be insulated; 25 mm is SAEngine's default.
 INSULATION = {"supply": 25.0, "return": 25.0, "freshAir": 25.0}
 SHAFT_CLEARANCE = 75.0  # mm all round a duct in a shaft (SAEngine practice)
 
@@ -99,61 +100,67 @@ VELOCITY = {
         5.0,
         "SAEngine default (typical low-velocity duct practice, ASHRAE Handbook Fundamentals Ch 21; set the project's limit)",
     ),
-    "kitchenExhaust": (7.62, 12.7, "BNBC 2020 Part 8 Sec 2.11.5.1(d), p. 912"),
     "smoke": (None, 10.0, "SAEngine default (set the smoke control design's limit)"),
 }
-TABLE_823 = "BNBC 2020 Part 8 Table 8.2.3"
-
-
-#: Exhaust per fixture or room [l/s] of Table 8.2.3: (continuous/normal, intermittent/heavy).
-TOILET_PUBLIC = (25.0, 30.0)  # per water closet or urinal, note e (p. 867)
-TOILET_PRIVATE = (10.0, 25.0)  # per room, dwellings, note f (p. 866)
-TOILET_HOTEL = (12.5, 25.0)  # per room, hotels (p. 865)
-KITCHEN_PRIVATE = (12.5, 50.0)  # per kitchen, dwellings (p. 866)
-#: BNBC 2020 Part 8 Table 8.2.8 (Part 2 volume p. 914): design exhaust air flow [l/s per kW of
-#: the kitchen equipment], (electricity based, gas based; None: not given). Sec 2.11.5.1(g)
-#: (p. 912): commercial kitchen exhaust is calculated from it.
-TABLE_828 = {
-    "cookingPot": (8.0, 12.0),
-    "pressureCookerCabinet": (5.0, None),
-    "convectionOven": (10.0, None),
-    "roastingOven": (33.0, 33.0),
-    "griddle": (32.0, 35.0),
-    "fryingPan": (32.0, 35.0),
-    "deepFatFryer": (28.0, None),
-    "cookerStove": (32.0, 35.0),
-    "grill": (50.0, 61.0),
-    "heatedTable": (30.0, None),
-    "coffeemaker": (3.0, None),
-    "dishWasher": (17.0, None),
-    "refrigeration": (60.0, None),
-    "ceramicCookerStove": (25.0, None),
-    "microwaveOven": (3.0, None),
-    "pizzaOven": (15.0, None),
-    "inductionCookerStove": (20.0, None),
-}
-#: Rate [l/s per kW] for a kitchen whose equipment is given only as a total (the story's
-#: ``equipment`` W/m²): Table 8.2.8's cooker/stove, gas (SAEngine choice for an unknown mix).
-KITCHEN_RATE_DEFAULT = TABLE_828["cookerStove"][1]
-TABLE_828_SOURCE = "BNBC 2020 Part 8 Sec 2.11.5.1(g) and Table 8.2.8 (pp. 912, 914)"
 DEFAULT_USE = "officeSpace"
-#: Table 8.2.3's page of each group of rows (Part 2 volume).
-GROUP_PAGE = {
-    "correctional": 863, "laundry": 864, "education": 864, "food": 865, "hospital": 865,
-    "hotel": 865, "office": 866, "dwelling": 866, "public": 866, "retail": 867,
-    "specialty": 867, "sports": 868, "storage": 868, "theater": 868, "transport": 868,
-    "workroom": 869,
-}  # fmt: skip
 
-#: BNBC 2020 Part 3 Table 3.1.9 (Part 1 volume p. 66), air-conditioned buildings [mm], by the
-#: Table 8.2.3 group (educational, institutional, health care, assembly; storage); the others
-#: take Sec 1.14.2.1(b)'s 2.44 m under a duct.
-CEILING_TABLE_319 = {
-    **dict.fromkeys(("education", "hospital", "correctional", "theater"), 2600.0),
-    "storage": 3000.0,
-}
-ASSEMBLY_USES = ("worship", "courtroom", "legislative", "spectator", "hotelAssembly")
-HEADROOM_UNDER_DUCT = 2440.0  # mm, BNBC 2020 Part 3 Sec 1.14.2.1(b)
+# The code values of the air distribution are the code pack's ``hvac.air`` (:func:`T.air`): the
+# least outdoor air per person, the kitchen exhaust duct velocities, the toilet and kitchen
+# exhaust rates, the commercial kitchen equipment's exhaust, the pages of the ventilation
+# rows, the air-conditioned ceiling heights and the headroom under a duct (in the default pack:
+# BNBC 2020 Part 8 Sec 2.11.3.4, 2.11.5.1, Tables 8.2.3 and 8.2.8; Part 3 Table 3.1.9 and Sec
+# 1.14.2.1(b)).
+
+
+def __getattr__(name: str) -> Any:
+    """The former constants, read from the pack in force."""
+    if name not in _FORMER:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    a = T.air()
+    found = {
+        "MIN_PER_PERSON": lambda: a.minPerPerson,
+        "TOILET_PUBLIC": lambda: tuple(a.toiletPublic),
+        "TOILET_PRIVATE": lambda: tuple(a.toiletPrivate),
+        "TOILET_HOTEL": lambda: tuple(a.toiletHotel),
+        "KITCHEN_PRIVATE": lambda: tuple(a.kitchenPrivate),
+        "TABLE_828": lambda: {k: tuple(v) for k, v in a.kitchenEquipment.items()},
+        "KITCHEN_RATE_DEFAULT": kitchen_rate_default,
+        "TABLE_828_SOURCE": lambda: T.source("air.kitchenEquipment"),
+        "TABLE_823": lambda: T.PAGES.get("table8.2.3", ""),
+        "GROUP_PAGE": lambda: dict(a.ventilationPages),
+        "CEILING_TABLE_319": lambda: dict(a.ceilingHeights),
+        "ASSEMBLY_USES": lambda: tuple(a.assemblyUses),
+        "HEADROOM_UNDER_DUCT": lambda: a.headroomUnderDuct,
+    }[name]
+    return found()
+
+
+_FORMER = (
+    "MIN_PER_PERSON", "TOILET_PUBLIC", "TOILET_PRIVATE", "TOILET_HOTEL", "KITCHEN_PRIVATE",
+    "TABLE_828", "KITCHEN_RATE_DEFAULT", "TABLE_828_SOURCE", "TABLE_823", "GROUP_PAGE",
+    "CEILING_TABLE_319", "ASSEMBLY_USES", "HEADROOM_UNDER_DUCT",
+)  # fmt: skip
+
+
+def kitchen_rate_default() -> float:
+    """Rate [l/s per kW] for a kitchen whose equipment is given only as a total (the story's
+    ``equipment`` W/m²): the pack's ``kitchenDefault`` row, gas (the default pack's Table 8.2.8
+    cooker/stove: SAEngine choice for an unknown mix)."""
+    a = T.air()
+    return a.kitchenEquipment[a.kitchenDefault][1]
+
+
+def velocity_limits(system: str) -> tuple[float | None, float, str]:
+    """(minimum, maximum) velocity [m/s] of a duct system and where it comes from: the pack's
+    kitchen exhaust range, SAEngine's defaults for the others."""
+    if system == "kitchenExhaust":
+        low, high = T.air().kitchenExhaustVelocity
+        return low, high, T.source("air.kitchenExhaustVelocity")
+    return VELOCITY.get(system, VELOCITY["supply"])
+
+
+def _table_823() -> str:
+    return T.PAGES.get("table8.2.3", "")
 
 
 def ventilation_row(use: str | None) -> tuple[Any, str]:
@@ -169,12 +176,13 @@ def ventilation_row(use: str | None) -> tuple[Any, str]:
 
 def ceiling_height(use: str | None) -> float | None:
     """Table 3.1.9's air-conditioned ceiling height of a use [mm] (None: Sec 1.14.2.1)."""
-    if use in ASSEMBLY_USES:
-        return 2600.0
+    a = T.air()
+    if use in a.assemblyUses:
+        return a.assemblyCeiling
     from saengine.hvac.tables import VENTILATION
 
     row = VENTILATION.get(use or "")
-    return CEILING_TABLE_319.get(row.group) if row else None
+    return a.ceilingHeights.get(row.group) if row else None
 
 
 # ─────────────────────────────────────── airflows ───────────────────────────────────────
@@ -196,7 +204,9 @@ def outdoor_air(
     """Outdoor air [m³/s] of a zone of ``area`` m² (Table 8.2.3): ``{"flow", "occupants",
     "perPerson", "perArea", "source", "note"}``. ``height``: room height [m] (dwellings)."""
     row, note = ventilation_row(use)
-    source = f"{TABLE_823}, {row.label} (p. {GROUP_PAGE.get(row.group, 863)})"
+    pages = T.air().ventilationPages
+    page = pages.get(row.group, next(iter(pages.values()), ""))
+    source = f"{_table_823()}, {row.label} (p. {page})"
     if row.ach:
         volume = area * (height or 3.0)
         by_ach = row.ach * volume / 3600.0
@@ -215,23 +225,26 @@ def outdoor_air(
     rp = row.perPerson or 0.0
     ra = row.perArea or 0.0
     flow = rp * occupants + ra * area
-    flow = max(flow, MIN_PER_PERSON * occupants)
+    least = T.air().minPerPerson
+    flow = max(flow, least * occupants)
     return {
         "flow": flow / 1000.0,
         "occupants": occupants,
         "perPerson": row.perPerson,
         "perArea": row.perArea,
-        "source": source + "; at least 2.5 l/s per person (Sec 2.11.3.4)",
+        "source": source + f"; at least {least:g} l/s per person ({T.source('air.minPerPerson')})",
         "note": note,
     }
 
 
 def kitchen_exhaust_flow(items: list[tuple[str, float, str]]) -> float:
-    """Commercial kitchen exhaust [m³/s] of its equipment (BNBC Table 8.2.8): ``items`` are
-    (Table 8.2.8 key of :data:`TABLE_828`, rating kW, ``"electric"`` or ``"gas"``)."""
+    """Commercial kitchen exhaust [m³/s] of its equipment (the pack's kitchen equipment
+    exhaust, Table 8.2.8 in the default pack): ``items`` are (its key, rating kW,
+    ``"electric"`` or ``"gas"``)."""
     total = 0.0
+    table = T.air().kitchenEquipment
     for key, kw, fuel in items:
-        electric, gas = TABLE_828[key]
+        electric, gas = table[key]
         rate = gas if fuel == "gas" else electric
         if rate is None:
             raise ValueError(f"Table 8.2.8 gives no {fuel} rate for {key}")
@@ -252,9 +265,10 @@ def story_exhaust(
     kitchen sink); hotels: 12.5 l/s per bathroom; others: 25 l/s per water closet or urinal
     (the continuous or normal rates; ``heavy``: the intermittent or heavy-use ones).
     Commercial kitchens (``kitchenCooking``): Table 8.2.8 (Sec 2.11.5.1(g)) at
-    :data:`KITCHEN_RATE_DEFAULT` l/s per kW of ``kitchen_kw``, the kitchen's equipment rating;
+    :func:`kitchen_rate_default` l/s per kW of ``kitchen_kw``, the kitchen's equipment rating;
     without it Table 8.2.3's 3.5 l/s per m² stands in and ``kitchenBasis`` says so."""
     row, _ = ventilation_row(use)
+    a = T.air()
     k = 1 if heavy else 0
     wc = int(getattr(fixtures, "wc", 0) or 0)
     urinal = int(getattr(fixtures, "urinal", 0) or 0)
@@ -262,38 +276,41 @@ def story_exhaust(
     notes = []
     kitchen = 0.0
     if row.group == "dwelling":
-        toilet = TOILET_PRIVATE[k] * wc
-        kitchen = KITCHEN_PRIVATE[k] * sinks
+        toilet = a.toiletPrivate[k] * wc
+        kitchen = a.kitchenPrivate[k] * sinks
         notes.append(
-            f"{wc} bathrooms x {TOILET_PRIVATE[k]:g} l/s and {sinks} kitchens x "
-            f"{KITCHEN_PRIVATE[k]:g} l/s ({TABLE_823}, private dwellings, p. 866)"
+            f"{wc} bathrooms x {a.toiletPrivate[k]:g} l/s and {sinks} kitchens x "
+            f"{a.kitchenPrivate[k]:g} l/s ({T.source('air.toiletPrivate')})"
         )
     elif row.group == "hotel":
-        toilet = TOILET_HOTEL[k] * wc
-        notes.append(f"{wc} bathrooms x {TOILET_HOTEL[k]:g} l/s ({TABLE_823}, hotels, p. 865)")
+        toilet = a.toiletHotel[k] * wc
+        notes.append(f"{wc} bathrooms x {a.toiletHotel[k]:g} l/s ({T.source('air.toiletHotel')})")
     else:
-        toilet = TOILET_PUBLIC[k] * (wc + urinal)
+        toilet = a.toiletPublic[k] * (wc + urinal)
         notes.append(
-            f"{wc + urinal} water closets and urinals x {TOILET_PUBLIC[k]:g} l/s "
-            f"({TABLE_823}, public toilets, p. 867)"
+            f"{wc + urinal} water closets and urinals x {a.toiletPublic[k]:g} l/s "
+            f"({T.source('air.toiletPublic')})"
         )
     general = (row.exhaust or 0.0) * area if row.exhaust and not row.exhaustNote else 0.0
     basis = None
     if row.key == "kitchenCooking":
         if kitchen_kw:
-            kitchen += KITCHEN_RATE_DEFAULT * kitchen_kw
+            rate = kitchen_rate_default()
+            kitchen += rate * kitchen_kw
             basis = "table828"
             notes.append(
-                f"kitchen exhaust {kitchen_kw:g} kW of equipment x {KITCHEN_RATE_DEFAULT:g} l/s "
+                f"kitchen exhaust {kitchen_kw:g} kW of equipment x {rate:g} l/s "
                 f"per kW (cooker/stove, gas: SAEngine choice for an unknown mix; "
-                f"{TABLE_828_SOURCE})"
+                f"{T.source('air.kitchenEquipment')})"
             )
         else:
             kitchen += general
             basis = "table823"
             notes.append(
-                f"kitchen exhaust {row.exhaust:g} l/s per m² ({TABLE_823}, p. 865) in place of "
-                f"{TABLE_828_SOURCE}: give the kitchen's equipment [W/m²] on its hvac story, or "
+                f"kitchen exhaust {row.exhaust:g} l/s per m² ({_table_823()}, p. "
+                f"{a.ventilationPages.get(row.group, '')}) in place of "
+                f"{T.source('air.kitchenEquipment')}: give the kitchen's equipment [W/m²] on its "
+                "hvac story, or "
                 "the duct's flow"
             )
         general = 0.0
@@ -346,10 +363,10 @@ def size_duct(
     "note", "frictionDiameter", "velocityDiameter"}``."""
     if flow <= 0:
         raise ValueError("a duct needs a positive airflow")
-    vmin, vmax, vsource = VELOCITY.get(system, VELOCITY["supply"])
+    vmin, vmax, vsource = velocity_limits(system)
     area_v = flow / vmax * 1e6  # mm²
     d_v = math.sqrt(4 * area_v / math.pi)
-    by_velocity = system == "kitchenExhaust"  # BNBC's velocity range governs, not friction
+    by_velocity = system == "kitchenExhaust"  # the code's velocity range governs, not friction
     d_f = 0.0 if by_velocity else round_for_friction(flow, rate)
     governs = "velocity" if d_v >= d_f else "friction"
     need_d = max(d_f, d_v)
@@ -403,7 +420,7 @@ def _rectangle(
 
 def check_duct(flow: float, size: dict[str, Any], system: str = "supply") -> dict[str, Any]:
     """Velocity [m/s] and friction [Pa/m] of ``flow`` in a given duct, against the limits."""
-    vmin, vmax, vsource = VELOCITY.get(system, VELOCITY["supply"])
+    vmin, vmax, vsource = velocity_limits(system)
     if size.get("shape") == "round" or size.get("diameter"):
         d = float(size["diameter"])
         area, de = math.pi * d * d / 4, d
@@ -850,8 +867,8 @@ def shaft_needs(
             count = len(inside) + n_pipes
             others = count - 1
             note = (
-                "each kitchen exhaust duct enclosure contains only one exhaust duct, BNBC 2020 "
-                "Part 8 Sec 2.11.5.1(f), p. 912"
+                "each kitchen exhaust duct enclosure contains only one exhaust duct, "
+                f"{T.source('air.kitchenClearance')}"
             )
             if others:
                 note += (
@@ -966,7 +983,7 @@ def hvac_air(
     for d in ducts:
         if d["velocity"] is None:
             continue
-        _, vmax, source = VELOCITY.get(d["system"], VELOCITY["supply"])
+        _, vmax, source = velocity_limits(d["system"])
         checks.append(_check(f"Duct {d['id']} velocity", d["velocity"], vmax, "m/s", d["ok"],
                              d["note"] or source))  # fmt: skip
     result: dict[str, Any] = {
@@ -974,7 +991,7 @@ def hvac_air(
         "openings": [], "conflicts": [], "checks": checks, "notes": notes,
         "problems": list(project.problems),
         "method": {"supplyDeltaT": dt, "frictionRate": rate, "aspectMax": ASPECT_MAX,
-                   "roughness": ROUGHNESS, "velocity": {k: v[1] for k, v in VELOCITY.items()}},
+                   "roughness": ROUGHNESS, "velocity": {k: velocity_limits(k)[1] for k in SYSTEMS}},
     }  # fmt: skip
     if with_plant:
         from saengine.hvac.plant import coincident_peak, propose_plant

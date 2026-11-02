@@ -13,7 +13,7 @@ corridors, shafts and wet rooms first. The riser whose run costs least is the ro
   room's own floor, so the beams it crosses are those of the room's floor.
 
 A run that crosses a beam passes below it or through a sleeve in its web (an opening in 07 MEP,
-checked there). This is SAEngine's coordination layout, not a pipe design: BNBC 2020 Part 8
+checked there). This is SAEngine's coordination layout, not a pipe design: the code pack's Part 8
 sizes the risers and stacks (Appendix O, Sec 6.10), not where their branches go.
 """
 

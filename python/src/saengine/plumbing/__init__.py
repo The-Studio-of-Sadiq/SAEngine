@@ -1,12 +1,13 @@
-"""Plumbing sizing to BNBC 2020 Part 8 for the structural coordination of the services (Part 7).
+"""Plumbing sizing to the code pack's plumbing (BNBC 2020 Part 8 in the default pack) for the
+structural coordination of the services (Part 7).
 
 The structural engineer coordinates the plumbing with the structure: the water tanks (their
 volume, weight and RC design), the sleeves and shafts the risers and stacks need through the
 slabs, the roof drains, and the buried septic tank, soak well and reservoir. This package sizes
-these to BNBC 2020 Part 8 (Chapter 5 Water Supply, Chapter 6 Sanitary Drainage, Chapter 7
+these to the code pack (the default pack's Part 8: Chapter 5 Water Supply, Chapter 6 Sanitary Drainage, Chapter 7
 Rainwater Management) from what ``07 MEP/mep.json`` records under ``plumbing``.
 
-- :mod:`saengine.plumbing.tables` the BNBC tables as data, each with its page
+- :mod:`saengine.plumbing.tables` the code pack's tables as data, each with its page
 - :mod:`saengine.plumbing.demand` population, daily demand and fixture-unit peak flow
 - :mod:`saengine.plumbing.storage` reservoir and overhead tank volumes, pipes and dimensions
 - :mod:`saengine.plumbing.supply` water risers, pump main and pump, residual heads

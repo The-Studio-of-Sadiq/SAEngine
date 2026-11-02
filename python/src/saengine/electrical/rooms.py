@@ -1,4 +1,5 @@
-"""The substation, generator and electrical shaft requirements of BNBC 2020 Part 8 Chapter 1
+"""The substation, generator and electrical shaft requirements of the code pack (BNBC 2020 Part 8
+Chapter 1 in the default pack)
 checked against where 07 MEP places the equipment.
 
 - Substation (Sec 1.3.18.2, 1.3.18.7, p796-800): an 11 kV/0.4 kV one not in a basement (one of

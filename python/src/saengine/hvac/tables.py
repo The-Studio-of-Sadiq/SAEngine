@@ -1,11 +1,10 @@
-"""BNBC 2020 Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy): the names the
-HVAC modules read, served from the code pack's ``hvac`` table
-(``saengine/codes/packs/bnbc2020/data/hvac.json``).
+"""The code pack's air-conditioning and energy values (BNBC 2020 Part 8 Chapter 2 and Part 3
+Chapter 4 in the default pack): the names the HVAC modules read, served from the code pack's
+``hvac`` table (the default pack's ``data/hvac.json``).
 
-Every BNBC value is transcribed from the rendered page of the Bangladesh Gazette edition of
-11 February 2021 (``bnbc-2020-part2.pdf`` for Part 8, ``bnbc-2020-part1.pdf`` for Part 3);
-``PAGES`` gives the PDF page of each table or clause, the table's ``sources`` the clause of each
-entry. Entries the table marks "SAEngine" or "from memory" are not BNBC's: they are documented
+``PAGES`` gives the clause and page of each table or clause, the table's ``sources`` the clause
+of each entry (:func:`source`); the modules cite them from there. Entries the table marks
+"SAEngine" or "from memory" are not the code's: they are documented
 assumptions where the code is silent, and the report lists them (``ASSUMPTIONS``) so that the
 engineer checks them.
 
@@ -37,8 +36,8 @@ class Station:
     cooling: dict[str, tuple[float, float]]
     evaporation: dict[str, tuple[float, float]]
     range: float
-    #: Site latitude [°N] and longitude [°E] for the sun: from memory, to be checked (BNBC gives
-    #: none). Dhaka's 23.7 N 90.4 E is SAEngine's default.
+    #: Site latitude [°N] and longitude [°E] for the sun: from memory, to be checked (the default
+    #: pack gives none). Dhaka's 23.7 N 90.4 E is SAEngine's default.
     latitude: float
     longitude: float
 
@@ -132,7 +131,7 @@ def _build(t: Any) -> dict[str, Any]:
         "OVERHANG_FACTOR": t.overhangFactor,
         "LEAST_WINDOW_SHARE": t.leastWindowShare,
         "DEFAULT_WWR": t.leastWindowShare.shallow,
-        # where BNBC is silent (to be checked)
+        # where the code is silent (to be checked)
         "EQUIPMENT": dict(t.equipment),
         "EQUIPMENT_DEFAULT": t.equipmentDefault,
         "ACTIVITY": dict(t.activity),
@@ -143,6 +142,10 @@ def _build(t: Any) -> dict[str, Any]:
         "SITE_ELEVATION": t.siteElevation,
         "TIME_ZONE": t.timeZone,
         "ASSUMPTIONS": list(t.assumptions),
+        # D5: the air distribution's and the plant's code values (None: not covered)
+        "AIR": t.air,
+        "PLANT": t.plant,
+        "SOURCES": dict(t.sources),
     }
 
 
@@ -155,6 +158,32 @@ def __getattr__(name: str) -> Any:
 
 def __dir__() -> list[str]:
     return sorted(set(globals()) | set(_names()))
+
+
+def source(key: str) -> str:
+    """The pack's ``sources`` entry ``key`` up to its first ': ' ("" when it gives none)."""
+    return _names()["SOURCES"].get(key, "").split(": ", 1)[0]
+
+
+def air() -> Any:
+    """The pack's air distribution values (``hvac.air``); raises ``ValueError`` saying the pack
+    does not cover them when it has none."""
+    found = _names()["AIR"]
+    if found is None:
+        from saengine.mep import code_pack
+
+        raise ValueError(code_pack.not_covered("The HVAC air distribution"))
+    return found
+
+
+def plant() -> Any:
+    """The pack's plant values (``hvac.plant``); raises ``ValueError`` when it has none."""
+    found = _names()["PLANT"]
+    if found is None:
+        from saengine.mep import code_pack
+
+        raise ValueError(code_pack.not_covered("The HVAC plant proposal"))
+    return found
 
 
 def default_wwr(depth: float) -> float:

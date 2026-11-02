@@ -1,5 +1,5 @@
 """Rising mains and cable trays: their sizes and the openings they need in the structure
-(BNBC 2020 Part 8 Sec 1.3.13).
+(the code pack's Sec 1.3.13: BNBC 2020 Part 8 in the default pack).
 
 - Rising main current: the maximum demand of the stories it feeds (``serves``, else every
   story it passes), as :mod:`saengine.electrical.demand` gives them, I = S / (sqrt(3) x 400 V);

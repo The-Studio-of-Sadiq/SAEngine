@@ -1,4 +1,4 @@
-"""Water supply pipes (BNBC 2020 Part 8 Sec 5.10): risers, pump main, pump flow, heads.
+"""Water supply pipes (the code pack's; Part 8 Sec 5.10 in the default pack): risers, pump main, pump flow, heads.
 
 - Flow in a riser: the water supply fixture units it carries (Appendix O Sec O.3, Table 8.O.1,
   Table 8.5.4 for the fixtures 8.O.1 lacks) turned into the probable simultaneous demand of
@@ -7,7 +7,7 @@
   when the building has a hot water riser, the total units otherwise (Table 8.O.1).
 - Down-feed (an overhead tank, Sec 5.8.2-5.8.4): through the slab of a story a riser carries
   the stories it serves below that story; up-feed (no overhead tank): those at and above it.
-- Diameter (Sec 5.10.1(c)(ii)): the smallest of BNBC's sizes whose velocity is within the
+- Diameter (Sec 5.10.1(c)(ii)): the smallest of the pack's sizes whose velocity is within the
   "probable maximum velocity" for its diameter (read as 13 mm 0.30, 50 mm 0.60, 75 mm 0.75,
   100 mm 0.90, 150 mm 1.15, 200 mm 1.30 m/s, interpolated) and whose Hazen-Williams friction
   loss is at most 1.6 m per 100 m (the Hazen-Williams formula is the one Sec 5.10.3 names; C
@@ -60,7 +60,7 @@ def velocity(flow: float, diameter: float) -> float:
 
 
 def size_pipe(flow: float, material: str | None = None, minimum: float = 0) -> dict[str, Any]:
-    """The smallest BNBC size carrying ``flow`` l/min within the velocity and friction limits."""
+    """The smallest of the pack's sizes carrying ``flow`` l/min within the velocity and friction limits."""
     c = T.HAZEN_C.get(material or "uPVC", 150)
     for d in T.SUPPLY_DIAMETERS:
         if d < minimum:

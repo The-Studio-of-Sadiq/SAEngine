@@ -6,7 +6,7 @@ The rooms are those of ``05 Floor Plan/architecture.json``; their outlines are
 use, never worked out again) and their uses the code pack's area uses (the same keys as their
 live loads).
 
-- **Fixtures** (plumbing, BNBC 2020 Part 8 Appendix O and Sec 6.10): every room with the wet flag
+- **Fixtures** (plumbing, the default pack's Part 8 Appendix O and Sec 6.10): every room with the wet flag
   is a kind of wet room (toilet, kitchen, ...), found from its name or given in 07 MEP
   ``plumbing.wetRooms``; each kind holds the fixtures of ``plumbing.roomFixtures``, else
   SAEngine's defaults (:data:`saengine.plumbing.tables.DEFAULT_ROOM_FIXTURES`). A story's
@@ -41,7 +41,7 @@ from saengine.plumbing import tables as T
 #: m² per mm².
 MM2 = 1e-6
 
-#: The code pack's area uses (BNBC Table 6.2.3 rows of ``areaLoads``) as rows of Part 8 Table
+#: The code pack's area uses (the rows of ``areaLoads``) as rows of Part 8 Table
 #: 8.5.1 (water consumption). Uses with no water of their own (corridors, stairs, roofs) are
 #: left out: they never decide a story's occupancy.
 AREA_USE_OCCUPANCY: dict[str, str] = {

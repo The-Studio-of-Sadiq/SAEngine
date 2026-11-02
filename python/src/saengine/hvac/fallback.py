@@ -11,7 +11,7 @@ as the EnergyPlus model (:mod:`saengine.hvac.gains`, :mod:`saengine.hvac.constru
 - glazing: U A (To - Ti) + A SHGC I, I the peak irradiance of the facade (N 120, E 500, S 300,
   W 500 W/m²) with only the larger of east and west (they peak at different times); an
   overhang of Sec 4.4.3.1 scales the SHGC by SHGC / (SHGC + A), A of Table 3.4.3 at its
-  projection factor 0.234 (BNBC's own equivalence of a shaded window); interior blinds by 0.6;
+  projection factor 0.234 (the default pack's own equivalence of a shaded window); interior blinds by 0.6;
 - exposed floors: U A (To - Ti); floors on the ground and between stories: none;
 - people: 75 W sensible and 55 W latent a person at 130 W of activity, in proportion for others;
   lights and equipment: their W/m², all sensible;

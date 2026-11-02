@@ -1,0 +1,89 @@
+{
+  "additionalProperties": false,
+  "description": "The code rules the checks of the openings and sleeves MEP cuts through beams, slabs and\nwalls read (``saengine.mep.openings``) besides the ``slabMethods.openings`` shares and the\n``concrete.walls`` layers: the column strip width, the punching zone, the trim bars, and the\nclause of each check. A pack without it does not cover these checks.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Check -> clause.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "columnStripShare": {
+      "description": "Column strip each side of a column line: this x the shorter span.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Columnstripshare",
+      "type": "number"
+    },
+    "punchingDistance": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "An opening nearer a column than this x the slab thickness cuts b0.",
+      "title": "Punchingdistance"
+    },
+    "trimBar": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "description": "Trim bars around a wall opening [mm].",
+      "title": "Trimbar"
+    },
+    "trimBars": {
+      "description": "Trim bars a side: walls with two layers, walls with one.",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "minimum": 1,
+          "type": "integer"
+        }
+      ],
+      "title": "Trimbars",
+      "type": "array"
+    }
+  },
+  "required": [
+    "columnStripShare",
+    "punchingDistance",
+    "trimBar",
+    "trimBars"
+  ],
+  "title": "MepOpeningsTable",
+  "type": "object",
+  "$id": "saengine.codePack.mepOpenings/1"
+}

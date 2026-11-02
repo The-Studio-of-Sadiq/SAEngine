@@ -1,6 +1,6 @@
 """Water demand of the building: population, daily demand, peak flows and fixture units.
 
-- Daily demand (BNBC 2020 Part 8 Sec 5.5.2, 5.6): each story's population times the per-capita
+- Daily demand (the code pack's; Part 8 Sec 5.5.2, 5.6 in the default pack): each story's population times the per-capita
   requirement of its occupancy in Tables 8.5.1(a)-(d) (full or restricted facility).
 - Population (Sec 5.6.3, 5.6.4): as entered; else 5 persons per dwelling (one dwelling per
   kitchen sink, SAEngine's count of the dwellings) for residential occupancies, 7.4 m² of floor
@@ -61,7 +61,7 @@ def lpcd(occupancy: str, facility: str = "full") -> tuple[float, str, list[str]]
             f"Table {row.table} gives no {facility}-facility value for {row.label}: the "
             f"{'restricted' if facility == 'full' else 'full'} facility's is used"
         )
-    reference = f"BNBC 2020 {T.PAGES[row.table]}, row {row.row} ({row.label}): {value:g} lpcd"
+    reference = f"{T.PAGES[row.table]}, row {row.row} ({row.label}): {value:g} lpcd"
     return float(value or 0.0), reference, notes
 
 
@@ -114,7 +114,7 @@ def daily_demand(plumbing: Any, building: Building | None = None) -> dict[str, A
         "peakHourlyLpm": peak_hourly(total) / 60.0,
         "notes": [n for s in stories for n in s.notes],
         "method": (
-            f"Population x lpcd of Tables 8.5.1(a)-(d) (BNBC 2020 Part 8 Sec 5.5.2, 5.6); peak "
+            f"Population x lpcd of Tables 8.5.1(a)-(d) ({T.cite('5.5.2-5.6')}); peak "
             f"hourly demand = daily / {T.CONSUMPTION_HOURS:g} h x {T.PEAK_FACTOR} "
             f"({T.PAGES['8.5.1']})."
         ),

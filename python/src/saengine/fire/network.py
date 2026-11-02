@@ -1,7 +1,9 @@
-"""The hydraulic calculation of the fire mains (BNBC 2020 Part 4 Sec 4.2.1, 4.2.3.4, 4.2.3.5).
+"""The hydraulic calculation of the fire mains (the code pack's fire protection; BNBC 2020 Part 4
+Sec 4.2.1, 4.2.3.4, 4.2.3.5 in the default pack).
 
-BNBC sizes the fire pipes "as per provisions of this Code or on the basis of the hydraulic design
-of the system to maintain flow rate and duration of water discharge" (Sec 4.2.1). The network is
+The default pack sizes the fire pipes "as per provisions of this Code or on the basis of the
+hydraulic design of the system to maintain flow rate and duration of water discharge" (Sec
+4.2.1). The network is
 solved with WNTR running EPANET 2.2, as the plumbing's water supply
 (:mod:`saengine.plumbing.hydraulics`, whose solver and fitting lengths are reused):
 
@@ -20,8 +22,8 @@ solved with WNTR running EPANET 2.2, as the plumbing's water supply
   hydraulic calculation does. The source head is found (secant iterations) at which the least
   head gives its design flow. A combined riser adds the standpipe flow at its top outlet at the
   same time (Sec 4.2.3.5);
-* Hazen-Williams friction (C 120 steel, 150 copper), fittings as equivalent lengths from BNBC
-  Tables 8.O.2(a)-(c).
+* Hazen-Williams friction (C 120 steel, 150 copper), fittings as equivalent lengths from the
+  plumbing table's fitting lengths (Tables 8.O.2(a)-(c) in the default pack).
 
 Units: inside m, m³/s; the results l/min, m, kPa, m/s.
 """
@@ -35,7 +37,7 @@ from typing import Any
 from saengine.fire import tables as T
 from saengine.plumbing.hydraulics import KPA_PER_M, _new_network, _solve, fitting_length
 
-#: Fittings SAEngine allows on each fire pipe (its own allowance, not BNBC's).
+#: Fittings SAEngine allows on each fire pipe (its own allowance, not the code's).
 PUMP_FITTINGS = {"check": 1, "gate": 2, "elbow": 4}
 RISER_FITTINGS = {"teeRun": 1}
 OUTLET_FITTINGS = {"teeBranch": 1, "gate": 1, "elbow": 1}  # take-off and landing valve

@@ -1,4 +1,4 @@
-"""Rainwater (BNBC 2020 Part 8 Chapter 7): catchments, leaders, gutters, storm drain, harvesting.
+"""Rainwater (the code pack's; Part 8 Chapter 7 in the default pack): catchments, leaders, gutters, storm drain, harvesting.
 
 - Intensity: the one-hour rainfall of Appendix R (Figure 8.R.1, 25-year return period) for the
   site, as entered; else Dhaka's, about 88 mm (between the 85 and 90 mm isohyets).

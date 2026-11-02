@@ -38,7 +38,7 @@ def design_conditions(hvac: Any, location: str | None = None) -> Design:
     sources = [
         (
             f"{station.name}: 2 % dry bulb {db:g} °C, mean coincident wet bulb {mwb:g} °C, daily "
-            f"range {station.range:g} °C (BNBC 2020 {T.PAGES['8.2.2']}; 2 % columns per "
+            f"range {station.range:g} °C ({T.PAGES['8.2.2']}; 2 % columns per "
             f"{T.PAGES['2.12.2']})"
         ),
         *notes,
@@ -241,7 +241,7 @@ def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGai
     else:
         equipment = T.EQUIPMENT.get(row.group, T.EQUIPMENT_DEFAULT)
         sources.append(
-            f"equipment {equipment:g} W/m² (SAEngine default, BNBC gives none: enter the "
+            f"equipment {equipment:g} W/m² (SAEngine default, the code gives none: enter the "
             "project's equipment load)"
         )
     activity = T.ACTIVITY.get(row.group, T.ACTIVITY_DEFAULT)

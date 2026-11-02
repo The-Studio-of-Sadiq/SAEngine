@@ -15,7 +15,7 @@ from typing import Any
 #: The measurement of the fire protection of 7 MEP, added when there is any.
 FIRE_CONVENTIONS = [
     (
-        "Fire protection of 7 MEP (BNBC 2020 Part 4): fire tanks measured as the plumbing tanks "
+        "Fire protection of 7 MEP: fire tanks measured as the plumbing tanks "
         "(concrete, formwork, ground tanks' excavation, bars from their last design); fire "
         "pipes by nominal size: risers vertically from the story they start at to their top "
         "outlet, mains along their path, each sprinklered floor's branch lines and cross main "

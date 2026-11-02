@@ -1,4 +1,5 @@
-"""The fire protection chapter of the project report (Part 7, BNBC 2020 Part 4).
+"""The fire protection chapter of the project report (Part 7; the code pack's fire protection,
+BNBC 2020 Part 4 in the default pack).
 
 :func:`fire_chapter` turns :func:`saengine.fire.report.fire_report` into the rows the report's
 template prints: what Part 4 requires and why, the floors, the water and the reservoir, the

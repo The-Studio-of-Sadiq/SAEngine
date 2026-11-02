@@ -1,4 +1,5 @@
-"""The electrical coordination report of a project (BNBC 2020 Part 8 Chapter 1).
+"""The electrical coordination report of a project (the code pack's electrical services: BNBC
+2020 Part 8 Chapter 1 in the default pack).
 
 :func:`electrical_report` reads ``07 MEP/mep.json`` (its ``electrical``, and ``hvac`` for the
 cooling plant's load), ``06 BIM/bim.json`` (stories, slabs, beams, columns, footings),
@@ -57,43 +58,70 @@ from saengine.electrical.supply import (
     ups,
 )
 from saengine.library.mep import MEP_FILE, Lightning, MepModel, parse
+from saengine.mep import code_pack
 from saengine.plumbing.building import Building
 
-METHOD = [
-    (
-        "Demand (BNBC 2020 Part 8 Sec 1.3.2, Table 8.1.17): floor area x the minimum load "
-        "density of the story's use (A/C or non-A/C), or the lighting + power entered where more, "
-        "+ other loads, lifts, pumps, fans and the hvac plant (capacity / COP); maximum demand = "
-        "load factor (at least 0.8, Sec 1.3.18.1) x connected load; kVA at the power factor."
-    ),
-    (
-        "Supply (Sec 1.3.18-1.3.20, Tables 8.1.23, 8.1.24): an 11 kV substation from 50 kW; "
-        "transformers in standard sizes for the maximum demand; the standby generator for the "
-        "essential load at 0.8 power factor, its fuel for the hours entered (8, SAEngine "
-        "practice); lifts on standby above ten storeys or 32 m and in hospitals (Sec 4.2.1.3)."
-    ),
-    (
-        "Rooms (Sec 1.3.18.2-1.3.18.7, 1.3.19.2-1.3.19.3): substation not in a basement, "
-        "preferably on the ground floor; height 3.0-3.6 m; clearances 0.75-1.25 m to the walls, "
-        "1.5 m between transformers; soak pit above 2000 l of oil; generator on the ground floor "
-        "or first basement, 1.0 m to the walls, 1.25 m between sets."
-    ),
-    (
-        "Shafts and risers (Sec 1.3.13): one 200 x 400 mm electrical shaft per 1500 m² above six "
-        "storeys or 20 m; busbar above nine storeys; riser cables 37 mm apart; openings through "
-        "the slabs and beams: size + 100 mm (risers) or 50 mm (trays) each side (SAEngine)."
-    ),
-    (
-        "Lightning (Sec 1.3.33, Tables 8.1.27-8.1.29): risk index against 40, always above 53 m; "
-        "air spikes one per 80 m², roof conductors within 9 m, down conductors by the base area "
-        "or one per 30 m of perimeter, on continuous perimeter columns; earth 10 ohm (2 ohm high "
-        "rise); clearance Eq 8.1.1."
-    ),
-    (
-        "Typical dimensions and weights of the proposed equipment are catalogue values to be "
-        "replaced with the selected unit's data."
-    ),
-]
+_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+
+
+def _count(n: float) -> str:
+    """A small count in words, as the method text prints it."""
+    return _WORDS[int(n)] if float(n).is_integer() and 0 <= n < len(_WORDS) else f"{n:g}"
+
+
+def method() -> list[str]:
+    """How the report works, with the values and clauses of the code pack in force (the clause
+    numbers are those of the default pack's Part 8)."""
+    shaft = T.SHAFT_SIZE
+    return [
+        (
+            f"Demand ({T.PAGES.get('1.3.2-8.1.17', code_pack.code_name())}): floor area x the "
+            "minimum load density of the story's use (A/C or non-A/C), or the lighting + power "
+            "entered where more, + other loads, lifts, pumps, fans and the hvac plant (capacity "
+            f"/ COP); maximum demand = load factor (at least {T.LOAD_FACTOR:g}, Sec 1.3.18.1) x "
+            "connected load; kVA at the power factor."
+        ),
+        (
+            "Supply (Sec 1.3.18-1.3.20, Tables 8.1.23, 8.1.24): an 11 kV substation from "
+            f"{T.SUBSTATION_KW:g} kW; transformers in standard sizes for the maximum demand; the "
+            f"standby generator for the essential load at {T.GENERATOR_PF:g} power factor, its "
+            f"fuel for the hours entered ({T.FUEL_HOURS:g}, SAEngine practice); lifts on standby "
+            f"above {_count(T.LIFT_STANDBY_STOREYS)} storeys or {T.LIFT_STANDBY_HEIGHT:g} m and "
+            "in hospitals (Sec 4.2.1.3)."
+        ),
+        (
+            "Rooms (Sec 1.3.18.2-1.3.18.7, 1.3.19.2-1.3.19.3): substation not in a basement, "
+            "preferably on the ground floor; height 3.0-3.6 m; clearances 0.75-1.25 m to the "
+            "walls, 1.5 m between transformers; soak pit above 2000 l of oil; generator on the "
+            "ground floor or first basement, 1.0 m to the walls, 1.25 m between sets."
+        ),
+        (
+            f"Shafts and risers (Sec 1.3.13): one {shaft[0]:g} x {shaft[1]:g} mm electrical "
+            f"shaft per {T.SHAFT_AREA:g} m² above {_count(T.SHAFT_STOREYS)} storeys or "
+            f"{T.SHAFT_HEIGHT:g} m; busbar above {_count(T.BUSBAR_STOREYS)} storeys; riser cables "
+            f"{T.CABLE_SPACING:g} mm apart; openings through the slabs and beams: size + 100 mm "
+            "(risers) or 50 mm (trays) each side (SAEngine)."
+        ),
+        (
+            "Lightning (Sec 1.3.33, Tables 8.1.27-8.1.29): risk index against "
+            f"{T.MARGINAL_RISK:g}, always above {T.ALWAYS_HEIGHT:g} m; air spikes one per "
+            f"{T.SPIKE_AREA:g} m², roof conductors within {T.ROOF_CONDUCTOR_REACH / 1000:g} m, "
+            "down conductors by the base area or one per "
+            f"{T.DOWN_PERIMETER / 1000:g} m of perimeter, on continuous perimeter columns; earth "
+            "10 ohm (2 ohm high rise); clearance Eq 8.1.1."
+        ),
+        (
+            "Typical dimensions and weights of the proposed equipment are catalogue values to be "
+            "replaced with the selected unit's data."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":  # the former constant: the method of the pack in force
+        return method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 #: Project Settings building use -> Table 8.1.17 row (for the lightning risk without stories).
 SETTINGS_USE = {
@@ -386,12 +414,17 @@ def electrical_results(
     building = Building.of(bim, ground)
     problems = references(mep, building)
     electrical = mep.electrical
-    if electrical is None:
+    covered = code_pack.covers("electrical")
+    if electrical is None or not covered:
+        note = (
+            "07 MEP has no electrical section"
+            if electrical is None
+            else code_pack.not_covered("Electrical services")
+        )
         return {
             "demand": None, "supply": None, "rooms": [], "risers": [], "trays": [],
             "lightning": None, "equipment": [], "openings": [], "checks": [], "summary": [],
-            "notes": ["07 MEP has no electrical section"], "problems": problems,
-            "method": METHOD,
+            "notes": [note], "problems": problems, "method": method() if covered else [],
         }  # fmt: skip
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
@@ -546,7 +579,7 @@ def electrical_results(
         "summary": summary,
         "notes": notes,
         "problems": problems,
-        "method": METHOD,
+        "method": method(),
         "storeys": storeys,
         "height": height,
     }
@@ -610,7 +643,7 @@ def service_loads(
     project_root: str | Path, mep_text: str | None, loaded: dict[str, Any]
 ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]], list[str]]:
     """What the other services draw that 07 MEP electrical does not list, so that the demand
-    includes them (BNBC 2020 Part 8 Sec 1.3.2: lifts, pumps and the air conditioning):
+    includes them (the default pack's Part 8 Sec 1.3.2: lifts, pumps and the air conditioning):
 
     - the HVAC plant: entered plant is read by the demand itself (None here); without any, the
       plant the HVAC Results propose (:func:`saengine.hvac.plant.hvac_propose_plant`), marked
@@ -702,7 +735,7 @@ _PAGE = re.compile(r"\s*\(pp?\.? ?\d+(?:[-–]\d+)?\)|,\s*pp?\.? ?\d+(?:[-–]\d
 
 def clause_only(value: Any) -> Any:
     """``value`` with the page numbers taken out of its texts: citations by part, section and
-    clause only (the pages differ between printings of BNBC 2020; N-E9)."""
+    clause only (the pages differ between printings of a code; N-E9)."""
     if isinstance(value, str):
         return _PAGE.sub("", value)
     if isinstance(value, list):
@@ -768,12 +801,12 @@ def electrical_equipment(mep: MepModel) -> tuple[list[dict[str, Any]], list[str]
             entry["height"] = full["height"]
         empty = full.get("emptyWeight")
         if item["kind"] == "transformer":
-            # A transformer's oil is always there, part of the equipment: dead load (BNBC 2020
-            # Part 6 Sec 2.1.4 D "weight of permanent equipment", Sec 2.2.6), whole weight SD.
+            # A transformer's oil is always there, part of the equipment: dead load (the default
+            # pack's Part 6 Sec 2.1.4 D "weight of permanent equipment", Sec 2.2.6), whole weight SD.
             empty = None
         if empty is not None and 0 < empty < full["operatingWeight"]:
             # the fuel is the contents: a fluid of well-defined density and controllable
-            # maximum height, F (BNBC 2020 Part 6 Sec 2.1.4); it loads as 07 MEP contentsAs
+            # maximum height, F (the default pack's Part 6 Sec 2.1.4); it loads as 07 MEP contentsAs
             # (fluid F by default), not as permanent dead load
             entry["emptyWeight"] = empty
         elif empty is not None and empty > full["operatingWeight"]:

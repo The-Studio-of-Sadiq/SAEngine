@@ -3249,6 +3249,62 @@ class SlopedPipeRow(_Row):
     )
 
 
+class PipeFittings(_Group):
+    """Equivalent pipe lengths of fittings [m] by nominal size (D5: the hydraulics' constants)."""
+
+    sizes: list[PosNum] = Field(min_length=1, description="Nominal sizes [mm], ascending.")
+    lengths: dict[str, list[PosNum]] = Field(description="Fitting -> length [m] at each size.")
+
+    @model_validator(mode="after")
+    def _lengths(self) -> PipeFittings:
+        for name, row in self.lengths.items():
+            if len(row) != len(self.sizes):
+                raise ValueError(f"lengths.{name}: {len(row)} values for {len(self.sizes)} sizes")
+        return self
+
+
+class TankCombination(_Row):
+    """A load combination of the water tanks' design: ``factors`` by load case (D, F, H, Lr);
+    a row ``eachFluid`` repeats for each fluid case (F, and F1, F2, ... one compartment full),
+    its F standing for that case; a row is used only when the tank has the ``requires`` cases;
+    a case the tank does not have is left out of the factors."""
+
+    kind: Literal["strength", "service"]
+    clause: str = Field(description="The combination's number in the code, as reported.")
+    factors: dict[str, Num]
+    eachFluid: bool = False
+    requires: list[str] = Field(default_factory=list)
+
+
+class TankRules(_Group):
+    """The code values of the RC water tanks' design (D5: ``plumbing/tanks.py``'s constants);
+    the minimum wall steel and the largest spacing are the ``concrete`` table's ``walls``."""
+
+    coverStrengths: list[PosNum] = Field(min_length=1, description="f'c columns [N/mm²].")
+    cover: dict[str, list[PosNum | None]] = Field(
+        description="Exposure -> nominal cover [mm] at each strength; null: not allowed."
+    )
+    weatherCover: tuple[PosNum, PosNum] = Field(
+        description="Exposed to earth or weather [mm]: bars from weatherBarFrom, smaller bars."
+    )
+    weatherBarFrom: PosNum = Field(description="[mm]")
+    againstEarth: PosNum = Field(description="Cast against and exposed to earth [mm].")
+    maxSpacingFactor: PosNum = Field(
+        description="Bars at most this x the thickness apart (and concrete.walls.spacingMax)."
+    )
+    maxWaterCement: Share = Field(description="w/c for concrete of low permeability.")
+    combinations: list[TankCombination] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _cover(self) -> TankRules:
+        for exposure, row in self.cover.items():
+            if len(row) != len(self.coverStrengths):
+                raise ValueError(f"cover.{exposure}: one value per strength expected")
+            if all(c is None for c in row):
+                raise ValueError(f"cover.{exposure}: no strength allowed")
+        return self
+
+
 class PlumbingTable(_Services):
     """The default pack's Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
     data where the code is silent (marked in ``sources``)."""
@@ -3305,6 +3361,18 @@ class PlumbingTable(_Services):
     shaftClearance: NonNegNum
     wetRoomKinds: dict[str, str]
     roomFixtures: dict[str, dict[str, Annotated[int, Field(ge=0)]]]
+    # D5: the hydraulics' and the tanks' code values (None: not covered by the pack)
+    fixtureFlow: dict[str, PosNum] | None = Field(
+        default=None, description="Required flow of a single fixture [l/min], flush tanks."
+    )
+    fixtureFlowValve: dict[str, PosNum] | None = Field(
+        default=None, description="Fixtures whose flow differs with flush valves [l/min]."
+    )
+    outletAboveBottom: PosNum | None = Field(
+        default=None, description="A storage tank's outlet above its bottom [mm]."
+    )
+    fittings: PipeFittings | None = None
+    tanks: TankRules | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> PlumbingTable:
@@ -3369,6 +3437,60 @@ class LeastWindowShare(_Group):
     deep: Share
 
 
+class HvacAir(_Group):
+    """The code values of the air distribution (D5: ``hvac/air.py``'s and ``hvac/openings.py``'s
+    constants): outdoor air, exhaust rates, kitchen exhaust, headroom under ducts."""
+
+    minPerPerson: PosNum = Field(description="Outdoor air at least [l/s per person].")
+    kitchenExhaustVelocity: tuple[PosNum, PosNum] = Field(description="Least, most [m/s].")
+    toiletPublic: tuple[PosNum, PosNum] = Field(
+        description="Per water closet or urinal [l/s]: normal, heavy use."
+    )
+    toiletPrivate: tuple[PosNum, PosNum] = Field(
+        description="Per bathroom of a dwelling [l/s]: continuous, intermittent."
+    )
+    toiletHotel: tuple[PosNum, PosNum] = Field(description="Per hotel bathroom [l/s].")
+    kitchenPrivate: tuple[PosNum, PosNum] = Field(
+        description="Per dwelling kitchen [l/s]: continuous, intermittent."
+    )
+    kitchenEquipment: dict[str, tuple[PosNum | None, PosNum | None]] = Field(
+        description="Kitchen equipment -> exhaust [l/s per kW]: electric, gas; null: none."
+    )
+    kitchenDefault: str = Field(description="kitchenEquipment row of an unknown mix (gas).")
+    ventilationPages: dict[str, int] = Field(
+        default_factory=dict, description="Ventilation group -> page of its rows."
+    )
+    ceilingHeights: dict[str, PosNum] = Field(
+        description="Ventilation group -> air-conditioned ceiling height [mm]."
+    )
+    assemblyUses: list[str] = Field(default_factory=list)
+    assemblyCeiling: PosNum = Field(description="Ceiling height of the assembly uses [mm].")
+    headroomUnderDuct: PosNum = Field(description="Least headroom under a duct [mm].")
+    kitchenClearance: PosNum = Field(description="Kitchen exhaust duct to enclosure [mm].")
+
+    @model_validator(mode="after")
+    def _kitchen(self) -> HvacAir:
+        if self.kitchenDefault not in self.kitchenEquipment:
+            raise ValueError(f"kitchenDefault: no kitchenEquipment row '{self.kitchenDefault}'")
+        return self
+
+
+class CopStep(_Row):
+    upTo: PosNum | None = Field(description="Unit size below this [kW]; null: above the last.")
+    cop: PosNum
+
+
+class HvacPlant(_Group):
+    """The code values of the plant proposal (D5: ``hvac/plant.py``'s constants)."""
+
+    cop: dict[str, list[CopStep]] = Field(description="Chiller class -> minimum COP by size.")
+    waterCooledFrom: PosNum = Field(description="Water-cooled chillers from this plant [kW].")
+    headroomFrom: PosNum = Field(description="Plant room headroom rule from this [kW].")
+    headroom: dict[str, PosNum] = Field(
+        description="Chiller class -> clear headroom below the beam soffits [mm]; 'other'."
+    )
+
+
 class HvacTable(_Services):
     """The default pack's Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
     stated assumptions where the code is silent (marked in ``sources``, listed in
@@ -3401,6 +3523,9 @@ class HvacTable(_Services):
     siteElevation: Num
     timeZone: Num = Field(description="Hours from UTC.")
     assumptions: list[str]
+    # D5: the air distribution's and the plant's code values (None: not covered by the pack)
+    air: HvacAir | None = None
+    plant: HvacPlant | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> HvacTable:
@@ -7862,6 +7987,28 @@ class CitationsTable(TableModel):
     :mod:`saengine.codes.citations`). A key the pack does not give is not cited."""
 
 
+# ───────────────────────────── MEP openings through the structure (D5) ─────────────────────────────
+
+
+class MepOpeningsTable(TableModel):
+    """The code rules the checks of the openings and sleeves MEP cuts through beams, slabs and
+    walls read (``saengine.mep.openings``) besides the ``slabMethods.openings`` shares and the
+    ``concrete.walls`` layers: the column strip width, the punching zone, the trim bars, and the
+    clause of each check. A pack without it does not cover these checks."""
+
+    columnStripShare: Share = Field(
+        description="Column strip each side of a column line: this x the shorter span."
+    )
+    punchingDistance: PosNum = Field(
+        description="An opening nearer a column than this x the slab thickness cuts b0."
+    )
+    trimBar: PosNum = Field(description="Trim bars around a wall opening [mm].")
+    trimBars: tuple[Annotated[int, Field(ge=1)], Annotated[int, Field(ge=1)]] = Field(
+        description="Trim bars a side: walls with two layers, walls with one."
+    )
+    clauses: dict[str, str] = Field(default_factory=dict, description="Check -> clause.")
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -7913,6 +8060,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "bamboo": BambooTable,
     "ferrocement": FerrocementTable,
     "citations": CitationsTable,
+    "mepOpenings": MepOpeningsTable,
 }
 
 

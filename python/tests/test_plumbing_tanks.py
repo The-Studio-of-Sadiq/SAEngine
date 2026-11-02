@@ -195,16 +195,16 @@ def test_earth_pressure_at_rest_with_water_table() -> None:
     assert soil.lateral(-0.2) == 0.0
 
 
-def test_bnbc_combinations_with_the_fluid_and_earth() -> None:
+def test_tank_combinations_with_the_fluid_and_earth() -> None:
     patterns = {"D": {}, "F": {}, "F1": {}, "F2": {}, "H": {}, "Lr": {}}
     combos = {c["name"]: c for c in combinations(None, patterns)}  # type: ignore[arg-type]
     assert combos["1.4D + 1.4F"]["factors"] == {"D": 1.4, "F": 1.4}
     assert combos["1.4D + 1.4F1"]["kind"] == "strength"
-    assert combos["1.2D + 1.2F + 1.6H + 0.5Lr"]["bnbc"] == "2.7.3.1 (2)"
-    assert combos["1.2D + 1.2F + 0.5Lr"]["bnbc"] == "2.7.3.1 (2), H = 0"
-    assert combos["1.2D + 1.6H + 0.5Lr"]["bnbc"] == "2.7.3.1 (2), F = 0"
+    assert combos["1.2D + 1.2F + 1.6H + 0.5Lr"]["clause"] == "2.7.3.1 (2)"
+    assert combos["1.2D + 1.2F + 0.5Lr"]["clause"] == "2.7.3.1 (2), H = 0"
+    assert combos["1.2D + 1.6H + 0.5Lr"]["clause"] == "2.7.3.1 (2), F = 0"
     assert combos["0.9D + 1.6H"]["factors"] == {"D": 0.9, "H": 1.6}
-    assert combos["1.2D + 1.6Lr"]["bnbc"] == "2.7.3.1 (3)"
+    assert combos["1.2D + 1.6Lr"]["clause"] == "2.7.3.1 (3)"
     assert combos["D + F"]["kind"] == "service"
     assert combos["D + H"]["kind"] == "service"
     # BNBC Sec 2.7.2.1 (7) 0.6D + W + H with W = 0: the reduced dead load against the uplift.

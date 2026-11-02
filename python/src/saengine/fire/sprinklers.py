@@ -1,4 +1,5 @@
-"""Sprinklers of a floor: heads, the design area and the pipe schedule (BNBC 2020 Part 4).
+"""Sprinklers of a floor: heads, the design area and the pipe schedule (the code pack's fire
+protection: BNBC 2020 Part 4 in the default pack).
 
 Each sprinkler covers at most the ceiling area of Table 4.4.7 (p333) at no more than its spacing;
 the heads of a floor are the more of its area over that coverage and a square grid at the
@@ -6,7 +7,7 @@ spacing over the floor's plan extent (a layout estimate: the drawings place the 
 sizes of the schedule method are those of Tables 4.4.5 (steel) and 4.4.6 (copper) by the heads a
 pipe supplies; one riser serves at most 4850 m² of floor (light and ordinary) or 2325 m²
 (extra). The design area and density for the hydraulic calculation are NFPA 13's (from memory,
-to be checked): BNBC 2020 Part 4 asks for "the hydraulically calculated sprinkler demand"
+to be checked): the default pack (BNBC 2020 Part 4) asks for "the hydraulically calculated sprinkler demand"
 (Sec 4.2.3.5) but gives no curve.
 """
 

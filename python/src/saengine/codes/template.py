@@ -151,6 +151,10 @@ TABLE_HELP: dict[str, str] = {
     "designLimits": "Code values of the member design no other table holds: the cap of √f'c in "
     "shear and torsion, the ERW wall thickness factor, the stair geometry rules and widths. A "
     "pack without it does not cover those checks.",
+    "mepOpenings": "The checks of the openings and sleeves MEP cuts through the structure: the "
+    "column strip width, the punching zone near columns, the trim bars of wall openings and "
+    "the clause of each check (with slabMethods.openings and concrete.walls). A pack without "
+    "it does not cover these checks.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the
