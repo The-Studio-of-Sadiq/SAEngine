@@ -234,7 +234,7 @@ def report(ctx: Context) -> dict[str, Any]:
         "machineFoundations": machines,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
-        "notes": notes,
+        "notes": merge_notes(notes, [f["id"] for f in designed]),
         "method": method,
         "pileLayout": {
             "piles": len(substructure.piles),
@@ -427,8 +427,14 @@ def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) ->
                 value.total,
                 "mm",
                 s["combination"],
-                f"computed at {s['borehole']} under the net {s['q']:.0f} kPa; {name} on "
-                f"{_soil_name(s['soil'])}: {value.total:g} mm, a guide ({clause})",
+                f"computed at {s['borehole']} under the net {s['q']:.0f} kPa"
+                + (
+                    " (its clay's consolidation estimated by the code pack's modulus numbers, "
+                    "no consolidation test)"
+                    if s.get("estimated")
+                    else ""
+                )
+                + f"; {name} on {_soil_name(s['soil'])}: {value.total:g} mm, a guide ({clause})",
             ),
         )
     centres = [np.array(r["sizes"]["center"], dtype=float) for r in rows]
@@ -453,6 +459,21 @@ def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) ->
             value, name = found
             delta = abs(row["settlement"]["value"] - other["settlement"]["value"])
             pair = f"{row['id']}-{other['id']}, L = {span:.0f} mm"
+            holes = (row["settlement"]["borehole"], other["settlement"]["borehole"])
+            if holes[0] != holes[1]:
+                # Each footing settles on its nearest borehole's log: a difference between the
+                # logs (or between a tested clay and an estimated one) shows as a differential.
+                pair += f", settlements at {holes[0]} and {holes[1]}"
+                estimated = [
+                    r["settlement"]["borehole"]
+                    for r in (row, other)
+                    if r["settlement"].get("estimated")
+                ]
+                if estimated:
+                    pair += (
+                        f" (consolidation at {', '.join(sorted(set(estimated)))} estimated "
+                        "without consolidation tests)"
+                    )
             diff = _check(
                 "Differential settlement",
                 delta,
@@ -477,6 +498,30 @@ def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) ->
             if check_row is not None:
                 _add(row, check_row)
     return notes
+
+
+def merge_notes(notes: list[str], ids: list[str]) -> list[str]:
+    """The notes with the same text for several foundations said once, for all of them: "F-A1,
+    F-A2: text" for "F-A1: text" and "F-A2: text" (walkthrough 3, SM-12: 11 notes repeated for
+    16 pile caps); the other notes as they are, in their first place, duplicates dropped."""
+    known = sorted(set(ids), key=len, reverse=True)
+    out: list[str | list[str]] = []
+    groups: dict[str, list[str]] = {}
+    for note in notes:
+        owner = next((i for i in known if note.startswith((f"{i}: ", f"{i}, "))), None)
+        if owner is None:
+            if note not in out:
+                out.append(note)
+            continue
+        body = note[len(owner) :]
+        if body not in groups:
+            groups[body] = []
+            out.append([body])
+        if owner not in groups[body]:
+            groups[body].append(owner)
+    return [
+        f"{', '.join(groups[item[0]])}{item[0]}" if isinstance(item, list) else item for item in out
+    ]
 
 
 def _soil_name(soil: str) -> str:

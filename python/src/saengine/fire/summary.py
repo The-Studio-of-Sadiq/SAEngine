@@ -13,9 +13,18 @@ def _records(value: Any) -> list[dict[str, Any]]:
 def has_fire(document: dict[str, Any]) -> bool:
     """Whether 07 MEP has a fire section with anything to check (``hasFire``)."""
     fire = document.get("fire")
-    if not isinstance(fire, dict):
-        return False
-    return any(_records(fire.get(k)) for k in ("stories", "risers", "tanks", "pumps", "mains"))
+    if isinstance(fire, dict) and any(
+        _records(fire.get(k)) for k in ("stories", "risers", "tanks", "pumps", "mains")
+    ):
+        return True
+    # The storeys' uses given in Storey use or the plumbing: what the code requires follows
+    # from them without a fire section (walkthrough 3, SM-20).
+    uses = _records(document.get("storyUses"))
+    if any(u.get("use") not in (None, "roof", "services") for u in uses):
+        return True
+    plumbing = document.get("plumbing")
+    stories = _records(plumbing.get("stories")) if isinstance(plumbing, dict) else []
+    return any(s.get("occupancy") for s in stories)
 
 
 def fire_failures(raw: dict[str, Any]) -> int:

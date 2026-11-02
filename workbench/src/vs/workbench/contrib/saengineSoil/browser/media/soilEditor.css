@@ -1277,6 +1277,17 @@
 	background: var(--vscode-list-inactiveSelectionBackground);
 }
 
+/* The depth columns stay in view when the sheet scrolls sideways (SO-9). */
+.saengine-soil-editor td.soil-grid-sticky {
+	position: sticky;
+	z-index: 1;
+	background: var(--vscode-editor-background);
+	border-right: 1px solid var(--sa-border);
+}
+.saengine-soil-editor th.soil-grid-sticky {
+	z-index: 3 !important;
+}
+
 .saengine-soil-editor .soil-grid-cell {
 	height: 24px;
 	padding: 0 6px;

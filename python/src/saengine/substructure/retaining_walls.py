@@ -1014,7 +1014,12 @@ def design_retaining_wall(
                     if _clause("retainingWall.uplift")
                     else ""
                 )
-                + "; the flotation of the basement is checked with the raft"
+                + (
+                    "; the flotation of the basement is checked with the raft"
+                    if any(f.type == "raft" and f.outline for f in ctx.substructure.foundations)
+                    else "; no raft under the basement, so its flotation is not checked "
+                    "(walkthrough 3, SM-3): see the notes"
+                )
             )
     governing = max((c["utilisation"] for c in checks if not c["flag"]), default=0.0)
     ok = all(c["ok"] for c in checks if not c["flag"])
@@ -1204,18 +1209,31 @@ def _rounded(value: Any) -> Any:
 # ───────────────────────────────────── flotation ─────────────────────────────────────
 
 
-def flotation(ctx: Context, profiles: list[Any]) -> dict[str, Any] | None:
+def flotation(ctx: Context, profiles: list[Any], uplifted: bool = True) -> dict[str, Any] | None:
     """The flotation of the basement (the pack's ``retainingWall.uplift`` clause): the uplift
     ``U = γw hw A`` on each raft under the design water table against the dead load that holds
     it down: the D and SD base reactions of the analysis and the rafts' own weight,
     ``FS = k W / U ≥ flotation`` with k the pack's factor on the dead load (0.9 W ≥ U in the
     default pack). None when the substructure has no basement wall and no raft below the water
-    table."""
+    table; without a raft, a note that the flotation is not checked when a basement wall has
+    uplift under it (``uplifted``)."""
     from saengine.library.substructure import polygon_area
 
     rafts = [r for r in ctx.substructure.foundations if r.type == "raft" and r.outline]
-    if not rafts or not any(w.kind == "basement" for w in ctx.substructure.retainingWalls):
+    if not any(w.kind == "basement" for w in ctx.substructure.retainingWalls):
         return None
+    if not rafts:
+        if not uplifted:
+            return None
+        # A basement on pile caps or footings: the uplift acts on the basement slab, which the
+        # engine does not model; said, not passed silently (walkthrough 3, SM-3).
+        return {
+            "check": None,
+            "note": "Flotation of the basement not checked: there is no raft, and the uplift "
+            "on a basement slab between pile caps or footings is not modelled. Check that the "
+            "dead load (and the piles' tension capacity) holds the basement down against the "
+            "water pressure under it, or design the basement floor as a raft.",
+        }
     options = ctx.substructure.earthPressure
     uplift = weight = 0.0
     parts = []
@@ -1275,7 +1293,11 @@ def design_retaining_walls(ctx: Context) -> tuple[list[dict], list[dict], list[s
             continue
         results.append(result)
         notes += found
-    floats = flotation(ctx, profiles)
+    uplifted = any(
+        r.get("kind") == "basement" and (r.get("stability") or {}).get("uplift", 0) > 0
+        for r in results
+    )
+    floats = flotation(ctx, profiles, uplifted)
     if floats is not None:
         if floats["check"] is not None:
             results.append(

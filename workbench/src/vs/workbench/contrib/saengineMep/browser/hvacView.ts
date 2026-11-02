@@ -130,6 +130,7 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	// Stories.
 	const rows = hvac?.stories ?? [];
 	const stories = host.section(localize('hvacView.stories', "Storeys"), rows.length);
+	host.storyUsesPrompt(stories);
 	const table = append(append(stories, $('.mep-table-scroll')), $('table.mep-table'));
 	const columns = [
 		{ label: localize('hvacView.f.story', "Storey"), width: 110 }, { label: localize('hvacView.f.conditioned', "Air-conditioned"), width: 70 }, { label: localize('hvacView.f.use', "Use"), width: 250 },

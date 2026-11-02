@@ -24,6 +24,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from saengine.electrical.demand import story_area
 from saengine.fire import network as N
 from saengine.fire import supply as S
 from saengine.fire import tables as T
@@ -244,10 +245,18 @@ def fire_results(
     building = Building.of(bim, ground)
     problems = references(mep, building)
     fire = mep.fire
-    if fire is None:
+    occupied = mep.plumbing is not None and any(s.occupancy for s in mep.plumbing.stories)
+    if fire is None and not occupied:
         return _empty(problems, "07 MEP has no fire section")
     if not code_pack.covers("fire"):
         return _empty(problems, code_pack.not_covered("Fire protection"))
+    if fire is None:
+        # No fire section yet, but the storeys' uses are given (Storey use or Plumbing): what
+        # Part 4 requires follows from them already (walkthrough 3, SM-20: Results were empty).
+        from saengine.library.mep import Fire
+
+        fire = Fire()
+        mep = mep.model_copy(update={"fire": fire})
     entries, notes = fire_stories(mep)
     checks: list[dict[str, Any]] = []
     order = building.ordered([s.story for s in entries]) if building.known else [
@@ -259,7 +268,10 @@ def fire_results(
     for entry in entries:
         if building.known and entry.story not in building.stories:
             continue
-        area = entry.area or building.floor_area(entry.story)
+        # A floor on grade without a slab in 06 BIM takes the slabs of the storey above, as the
+        # electrical demand does (SM-19: "BASE has no area" next to 270 m² there).
+        order_all = building.ordered() if building.known else []
+        area = entry.area or story_area(entry.story, building, order_all)[0]
         if not area:
             problems.append(f"fire: story {entry.story} has no area (enter it, or add its slabs)")
         group = plumbing_tables.OCCUPANCIES[entry.occupancy].group

@@ -91,6 +91,14 @@ def test_vrf_outdoor_units_and_given_plant(tmp_path: Path) -> None:
     odus = [p for p in result["plant"] if p["kind"] == "vrfOutdoor"]
     assert len(odus) == 2 and all(u["capacity"] == pytest.approx(49.5) for u in odus)
     assert all(u["story"] == "L2" for u in odus)
+    # They serve the stories they were sized for, so that the electrical demand counts their
+    # power once, not also each story's A/C load density (walkthrough 3, SM-16).
+    stories = sorted({z["story"] for z in zones})
+    assert all(u["serves"] == stories for u in odus)
+    from saengine.electrical.demand import cooled_stories, hvac_loads
+
+    covered, notes = cooled_stories(hvac_loads({"hvac": {"plant": result["plant"]}}))
+    assert covered == set(stories) and notes == []
     assert {p["kind"] for p in result["plant"]} == {"vrfOutdoor", "freshAirUnit"}
     # The engineer's own outdoor unit (not sized) is kept with SAEngine's weight filled in.
     own = {"id": "MY1", "kind": "vrfOutdoor", "story": "L2", "x": 100, "y": 100, "sized": False}

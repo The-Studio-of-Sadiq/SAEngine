@@ -2220,6 +2220,28 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.viewDisposables.add(addDisposableListener(link, EventType.CLICK, () => this.openStoryUses()));
 	}
 
+	/**
+	 * While the storey-use table is empty, each service's storey table says that the uses are
+	 * entered once for all of them, and sets them up from 06 BIM in one click (the top storey
+	 * the roof, not occupied): walkthrough 3, SM-17/SM-18 typed the uses three times and were
+	 * offered the roof as an occupied storey.
+	 */
+	private storyUsesPrompt(section: HTMLElement): void {
+		const document = this.document;
+		const stories = this.context.stories;
+		if (!document || !stories.length || storyUsesOf(document).length) {
+			return;
+		}
+		const note = append(section, $('p.mep-note.warning'));
+		append(note, $('span', undefined, localize('mep.storyUsesPrompt', "Each storey's use is entered once for the plumbing, HVAC, electrical and fire services, in Coordination › Storey use: the top storey is the roof (not occupied, left out by every service) and Fill down copies a use to the storeys below. ")));
+		const button = append(note, $<HTMLButtonElement>('button.mep-link', { type: 'button' }, localize('mep.storyUsesPromptButton', "Set the Storey Uses Once")));
+		this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+			fillStoryUses(document, stories, 'residential');
+			this.changed(true);
+			this.openStoryUses();
+		}));
+	}
+
 	/** Shows the storey-use table (the services' storey tables link to it). */
 	private openStoryUses(): void {
 		this.showDiscipline('coordination');
@@ -3732,6 +3754,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const known = new Set(this.context.stories.map(s => s.id));
 		const storyIds = [...this.context.stories.map(s => s.id).reverse(), ...rows.map(r => r.story).filter(id => !known.has(id))];
 		const fixtures = this.section(localize('plb.fixtures', "Fixtures by storey"), rows.length);
+		this.storyUsesPrompt(fixtures);
 		if (!this.occupanciesFromBackend) {
 			append(fixtures, $('p.mep-note.plb-static-note', undefined, localize('plb.loadingOccupancies', "Loading the occupancies of {0} Table 8.5.1 from the backend...", defaultCodeName())));
 		}
@@ -4414,6 +4437,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			storyName: id => this.storyName(id),
 			pathInput: (path, store, key, label, minPoints) => this.pathInput(path, store, key, label, minPoints),
 			storyUseLink: (cell, use) => this.storyUseLink(cell, use),
+			storyUsesPrompt: section => this.storyUsesPrompt(section),
 		};
 	}
 

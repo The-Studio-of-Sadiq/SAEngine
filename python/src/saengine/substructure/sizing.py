@@ -637,17 +637,28 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
         )
         trials = [t for t in trials if t is not a and t is not b] + [merged]
 
-    # Footings that would overlap a foundation that stays (not being sized again).
+    # Footings that would overlap a foundation that stays (not being sized again). A foundation
+    # whose columns were asked for but got no footing (see their notes) stays too, but is not
+    # "not being sized" (walkthrough 3, SM-8: said with every column selected).
     sized = {c for t in trials for c in t.columns}
+    asked = {c.id for c in chosen}
     kept = [f for f in ctx.substructure.foundations if not sized & set(f.columns)]
     for trial in trials:
         for other in kept:
             corners = foundation_corners(other)
             if corners is not None and penetration(trial.corners(), corners) > 0.5:
-                sizer.notes.append(
-                    f"{', '.join(trial.columns)}: the footing would overlap {other.id}, which is "
-                    f"not being sized: select {other.id}'s columns too and Size Footings again"
-                )
+                if asked & set(other.columns):
+                    sizer.notes.append(
+                        f"{', '.join(trial.columns)}: the footing would overlap {other.id}, "
+                        f"whose column(s) {', '.join(sorted(asked & set(other.columns)))} got "
+                        "no footing (see the note above)"
+                    )
+                else:
+                    sizer.notes.append(
+                        f"{', '.join(trial.columns)}: the footing would overlap {other.id}, "
+                        f"which is not being sized: select {other.id}'s columns too and Size "
+                        "Footings again"
+                    )
                 unresolved = True
 
     # A raft when the footings would cover most of the plan, or cannot be kept apart.
@@ -683,7 +694,14 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
                     ],
                     "notes": [
                         (
-                            f"One raft proposed instead of {len(trials)} footings: {why}. Its "
+                            f"One raft proposed instead of footings under the {len(chosen)} "
+                            "columns"
+                            + (
+                                f" ({len(trials)} footings once the overlapping ones are combined)"
+                                if len(trials) != len(chosen)
+                                else ""
+                            )
+                            + f": {why}. Its "
                             "thickness is a first estimate (even soil pressure): the raft check, "
                             "once it is applied, gives its shear in the column strips, flexure, "
                             "contact pressure and settlement, and may ask for it thicker."

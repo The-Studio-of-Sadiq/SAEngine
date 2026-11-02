@@ -41,7 +41,7 @@ import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedF
 import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
-	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
+	ISizingProposal, ISubstructure, ISubstructureCheck, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
 	IMachineFoundation, MACHINE_KINDS, MACHINE_SPRINGS, MachineKind, machineKindLabel, MachineSpring, machineSpringLabel, newMachineFoundation,
 	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, pileShapeLabel, PILE_SHAPES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
@@ -1185,9 +1185,25 @@ export class SubstructureEditor extends EditorPane {
 		if (!pile) {
 			return;
 		}
+		// Each group with its cap, carrying its column (walkthrough 3, SM-6: 16 columns left 64
+		// piles and 64 problems, each group to be box-selected and made a cap by hand). A column
+		// already on a foundation gets the piles only, as before.
 		const added: IPile[] = [];
+		const caps: IFoundation[] = [];
 		for (const column of columns) {
-			added.push(...placePileGroup(document, [column], pile, this.groupCount, this.spacingFactor));
+			const piles = placePileGroup(document, [column], pile, this.groupCount, this.spacingFactor);
+			added.push(...piles);
+			if (piles.length && !carriedAlready(document, [column.id]).length) {
+				const { cap } = makePileCap(document, this.context, piles.map(p => p.id), [column]);
+				if (cap) {
+					document.foundations.push(cap);
+					caps.push(cap);
+				}
+			}
+		}
+		if (caps.length) {
+			this.added(caps);
+			return;
 		}
 		this.selectedPiles = new Set(added.map(p => p.id));
 		this.changed(true);
@@ -1797,7 +1813,7 @@ export class SubstructureEditor extends EditorPane {
 		}
 
 		if (this.proposal) {
-			const banner = append(view, $('.sub-banner', { role: 'status' }));
+			const banner = append(view, $('.sub-banner.sub-proposal-banner', { role: 'status' }));
 			append(banner, $(`span.sub-banner-icon${ThemeIcon.asCSSSelector(Codicon.wand)}`));
 			const text = append(banner, $('.sub-banner-text'));
 			const count = this.proposal.foundations.length;
@@ -1979,7 +1995,7 @@ export class SubstructureEditor extends EditorPane {
 				const parsed = String(value ?? '').split(';').map(t => t.split(',').map(v => Number(v.trim())));
 				if (parsed.length >= 2 && parsed.every(p => p.length === 2 && p.every(v => Number.isFinite(v)))) {
 					wall.path = parsed.map(p => [Math.round(p[0] * 1000), Math.round(p[1] * 1000)] as [number, number]);
-					this.changed(true);
+					this.changed(false);
 				}
 			}, path('path')));
 			for (const field of [top, founding]) {
@@ -2004,7 +2020,8 @@ export class SubstructureEditor extends EditorPane {
 				const levels = parseList(String(value ?? ''));
 				if (levels) {
 					wall.supports = levels;
-					this.changed(true);
+					// Not structural: drawn again on each keystroke, "-3; 0" lost its "; 0" (SM-4).
+					this.changed(false);
 				}
 			}, path('supports')));
 			append(append(row, $('td')), this.selectInput(wallOptions, wall.wall ?? '', value => {
@@ -2196,6 +2213,8 @@ export class SubstructureEditor extends EditorPane {
 		if (!document.pileTypes.length) {
 			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noPileTypes', "None yet. A pile cap adds a 500 mm bored pile type to start with.")));
 		}
+		// What is checked for lateral load now, next to what is planned (walkthrough 3, SM-7).
+		append(section, $('p.sub-muted', undefined, localize('sub.lateralChecked', "Lateral load on piles is checked by the code pack's rules: the head deflection with the pile a long beam on the soil springs (Hetényi, the line modulus from the soil report), the group ratio of in-line piles, the pile section under the head moment and the axial load, unbraced piles as columns and lateral load tests. Not checked yet (planned): the lateral soil failure (Broms) and a p-y spring analysis, with piled rafts and the group settlement by interaction factors:")));
 		const planned = append(section, $('.sub-planned'));
 		for (const id of PLANNED_PILE_FEATURES) {
 			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
@@ -3195,7 +3214,13 @@ export class SubstructureEditor extends EditorPane {
 			const element = append(select, $<HTMLOptionElement>('option', { value: option.value }, option.label));
 			element.selected = option.value === current;
 		}
-		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => store(select.value)));
+		// A narrow column cuts the choice ("Bored (cast i"): its full text on hover (SM-13).
+		const titled = () => select.title = select.selectedOptions[0]?.textContent ?? label;
+		titled();
+		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => {
+			titled();
+			store(select.value);
+		}));
 		this.inputMap.set(key, select);
 		return select;
 	}
@@ -3362,6 +3387,7 @@ export class SubstructureEditor extends EditorPane {
 
 		this.renderTiles(view, document, state);
 		this.renderResultTable(view, document, report);
+		this.renderRetainingWallResults(view, document, report);
 		const selected = this.foundation ?? document.foundations.find(f => f.id === report.summary.governing);
 		const result = selected && this.resultOf(selected);
 		if (selected && result) {
@@ -3497,14 +3523,44 @@ export class SubstructureEditor extends EditorPane {
 		this.markSelectedRows();
 	}
 
+	/**
+	 * The retaining walls' checks (stability, stem and base, flotation) in Results, not only their
+	 * utilisation in Data (walkthrough 3, SM-2: a failing stem shear showed only as a red number).
+	 */
+	private renderRetainingWallResults(view: HTMLElement, document: ISubstructure, report: ISubstructureReport): void {
+		const walls = document.retainingWalls ?? [];
+		if (!walls.length) {
+			return;
+		}
+		const results = walls.map(w => report.retainingWalls?.find(r => r.id === w.id));
+		const failed = results.filter(r => r && !r.ok).length;
+		const section = this.resultSection(view, localize('sub.rwResults', "Retaining walls"), failed
+			? localize('sub.rwResultsFail', "{0} of {1} fail", failed, walls.length)
+			: localize('sub.rwResultsDetail', "{0} checked of {1}", results.filter(Boolean).length, walls.length));
+		walls.forEach((wall, i) => {
+			const result = results[i];
+			const governing = governingCheck(result);
+			const heading = append(section, $(`p.sub-note${result && !result.ok ? '.error' : ''}`));
+			heading.textContent = result
+				? localize('sub.rwGoverning', "{0} ({1}): {2}, utilisation {3}", wall.id, wall.kind === 'basement' ? localize('sub.rw.basement', "Basement (propped)") : localize('sub.rw.cantilever', "Cantilever"), governing?.name ?? '—', formatUtilisation(result.utilisation ?? 0))
+				: this.notCheckedText(wall.id);
+			if (result) {
+				this.appendCheckTable(section, result.checks, () => '');
+				for (const note of result.notes ?? []) {
+					append(section, $('p.sub-note', undefined, note));
+				}
+			}
+		});
+	}
+
 	/** "not checked: <the backend's reason>" for a foundation or tie beam the design skipped. */
 	private notCheckedText(id: string): string {
 		const reason = this.report?.skipped.find(s => s.id === id)?.reason;
 		return reason ? localize('sub.notCheckedWhy', "not checked: {0}", reason) : localize('sub.notChecked', "not checked");
 	}
 
-	private renderFoundationDetail(view: HTMLElement, foundation: IFoundation, result: IFoundationResult): void {
-		const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", foundation.id), `${foundationTypeLabel(foundation.type)} · ${foundationSize(foundation)}`);
+	/** The checks of a foundation, tie beam or retaining wall, the counting ones first by utilisation, each note on its own line. */
+	private appendCheckTable(section: HTMLElement, checks: readonly ISubstructureCheck[], suggest: (check: ISubstructureCheck) => string): void {
 		// The note (and for a failing check, the suggested fix) on its own full-width line under each
 		// check, so that the table fits a 1366 px window instead of running off to the right.
 		const table = append(section, $('table.sub-table.sub-result-table.sub-check-table'));
@@ -3516,7 +3572,7 @@ export class SubstructureEditor extends EditorPane {
 		const body = append(table, $('tbody'));
 		const value = (v: number | null) => v === null ? '—' : Math.abs(v) >= 100 ? formatNumber(v, 0) : Math.abs(v) >= 1 || v === 0 ? formatNumber(v, 2) : String(Number(v.toPrecision(3)));
 		// The checks that count first, by utilisation; the ones only reported after them.
-		for (const check of [...result.checks].sort((a, b) => Number(a.flag) - Number(b.flag) || (b.utilisation ?? -1) - (a.utilisation ?? -1))) {
+		for (const check of [...checks].sort((a, b) => Number(a.flag) - Number(b.flag) || (b.utilisation ?? -1) - (a.utilisation ?? -1))) {
 			const row = append(body, $(check.flag ? 'tr.flag' : 'tr'));
 			append(row, $('td', undefined, check.flag ? localize('sub.flagged', "{0} (reported only)", check.name) : check.name));
 			append(row, $('td.number', undefined, value(check.demand)));
@@ -3533,7 +3589,7 @@ export class SubstructureEditor extends EditorPane {
 				this.utilisationCell(row, check.utilisation);
 			}
 			append(row, $('td.sub-muted-cell.sub-combination-cell', undefined, check.combination || '—'));
-			const suggestion = check.ok || check.flag ? '' : this.suggestion(foundation, check);
+			const suggestion = check.ok || check.flag ? '' : suggest(check);
 			if (suggestion || check.note) {
 				row.classList.add('has-note');
 				const line = append(append(body, $(check.flag ? 'tr.sub-note-row.flag' : 'tr.sub-note-row')), $('td.sub-wrap.sub-note-cell', { colspan: String(columns.length) }));
@@ -3543,6 +3599,11 @@ export class SubstructureEditor extends EditorPane {
 				append(line, $('span', undefined, check.note));
 			}
 		}
+	}
+
+	private renderFoundationDetail(view: HTMLElement, foundation: IFoundation, result: IFoundationResult): void {
+		const section = this.resultSection(view, localize('sub.detailTitle', "{0}: all checks", foundation.id), `${foundationTypeLabel(foundation.type)} · ${foundationSize(foundation)}`);
+		this.appendCheckTable(section, result.checks, check => this.suggestion(foundation, check));
 		for (const note of result.notes ?? []) {
 			append(section, $('p.sub-note', undefined, note));
 		}
@@ -4023,7 +4084,7 @@ export class SubstructureEditor extends EditorPane {
 		place.label = columns.length > 1 ? localize('sub.placeGroups', "Place a Group under Each") : localize('sub.placeGroup', "Place Pile Group");
 		place.element.classList.add('sub-prop-button');
 		this.propertiesDisposables.add(place.onDidClick(() => this.placeGroups()));
-		appendPropertyNote(panel, localize('sub.groupNote', "Standard groups of 2 to 6 piles at k · D centre to centre ({0} Part 6: at least 2.5 D and 750 mm), centred under the column and turned with the pile grid. Then select the piles and the column and Make Pile Cap; the cap need not be centred on the column.", defaultCodeName()));
+		appendPropertyNote(panel, localize('sub.groupNote', "Standard groups of 2 to 6 piles at k · D centre to centre ({0} Part 6: at least 2.5 D and 750 mm), centred under the column and turned with the pile grid, each with its pile cap carrying the column (a column already on a foundation gets the piles only). Make Pile Cap forms a cap over other piles you select; a cap need not be centred on its column.", defaultCodeName()));
 	}
 
 	/** The pile tools' settings: the pile type placed, the group's pile count and the spacing factor k. */

@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { formatNumber, ILatLon, ISoilLocationResult, ISoilReport, PLANNING_DEFAULT_USE, PlanningNumberKey } from './soilDocument.js';
 import { ensureMapLibreStyles, IMapLibreMap, IMapLibreMarker, IMapLibreModule, loadMapLibre } from './mapLibreModule.js';
-import { codeSiteSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, ICodeSiteSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
+import { codeSiteSuggestion, boreholePoints, boundsOf, spreadLabels, compassPoint, envelopeProject, formatBtm, formatDms, formatLatLon, formatPlotArea, formatProjectPoint, gridExtent, GRID_SIDES, GridSide, gridSideLabel, ICodeSiteSuggestion, IMapPoint, inBangladesh, IPlotEdit, isGeoreferenced, ITileSource, LengthUnit, mapState, MapState, OSM_COPYRIGHT_URL, OSM_MAX_ZOOM, offlineNote, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, plotOriginAround, rectanglePlot, roadAfterDelete, sitePosition } from './soilMap.js';
 import { niceStep, svg } from './soilLog.js';
 import { activeCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
@@ -437,10 +437,13 @@ export class SoilMapView extends Disposable {
 			this.state.plotDraft = undefined;
 			this.state.plotCorner = undefined;
 			this.state.framePlot = true;
-			const placed = rectanglePlot(f, d, form.road, { x: report.site?.x ?? 0, y: report.site?.y ?? 0 });
+			// Round the building (centred, between the front and rear setbacks), not with its
+			// corner at the project point, which put the building on the boundary (SO-5).
+			const origin = plotOriginAround(f, d, form.road, outlineProject(this.host.location), report.site?.plot ?? {}, { x: report.site?.x ?? 0, y: report.site?.y ?? 0 });
+			const placed = rectanglePlot(f, d, form.road, origin);
 			this.host.editPlot({ points: placed.points, road: placed.road });
 			this.updateMap(); // frames the plot, also when it is the one already there
-		}, localize('soil.plot.setRectangleTitle', "A rectangle with its lower-left corner at the project point, along the project grid"));
+		}, localize('soil.plot.setRectangleTitle', "A rectangle along the project grid round the building: centred along the frontage and between the front and rear setbacks (at the project point without a building)"));
 		for (const problem of plot?.problems ?? []) {
 			append(this.panel, $('p.soil-note.warning', undefined, problem));
 		}

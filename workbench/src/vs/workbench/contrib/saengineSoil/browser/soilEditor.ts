@@ -1983,7 +1983,7 @@ export class SoilEditor extends EditorPane {
 		const dash = (value: number | undefined, decimals: number) => typeof value === 'number' ? formatNumber(value, decimals) : '—';
 		const table = this.simpleTable(section, headers, rows.map(b => {
 			const s = b.settlement!;
-			const cells = [b.id, dash(s.B === undefined ? undefined : s.B / 1000, 2), dash(s.Df === undefined ? undefined : s.Df / 1000, 2), dash(s.q, 0), dash(s.immediate, 1), dash(s.consolidation, 1), dash(s.total, 1)];
+			const cells = [b.id, dash(s.B === undefined ? undefined : s.B / 1000, 2), dash(s.Df === undefined ? undefined : s.Df / 1000, 2), dash(s.q, 0), dash(s.immediate, 1), s.estimated ? localize('soil.consolidationEstimated', "{0} (estimated)", dash(s.consolidation, 1)) : dash(s.consolidation, 1), dash(s.total, 1)];
 			if (anyPermissible) {
 				cells.push(dash(permissibleOf(b), 0));
 			}
@@ -1996,6 +1996,11 @@ export class SoilEditor extends EditorPane {
 		const source = results.permissibleSettlementSource ?? rows.map(b => b.settlement?.permissibleSource).find(Boolean);
 		if (source) {
 			append(section, $('p.soil-note', undefined, source));
+		}
+		const estimated = rows.filter(b => b.settlement!.estimated).map(b => b.id);
+		if (estimated.length) {
+			// SO-1: a clay without consolidation tests no longer settles 0 mm; say that its value is an estimate.
+			append(section, $('p.soil-note.warning', undefined, localize('soil.consolidationEstimatedNote', "{0}: no consolidation test (Cc, e0) or LL and moisture for the clay, so its consolidation, and the qa it governs, are estimated by the code pack's modulus numbers. Give consolidation tests to compute them.", estimated.join(', '))));
 		}
 		if (without.length) {
 			append(section, $('p.soil-note.warning', undefined, localize('soil.settlementWithout', "No settlement for {0}: no allowable pressure at the reference footing (see the bearing table and the borehole's notes).", without.join(', '))));
@@ -2278,7 +2283,8 @@ export class SoilEditor extends EditorPane {
 		} finally {
 			this.renderingProperties = false;
 		}
-		const shown = this.problems.filter(p => this.selected === undefined || p.index === this.selected);
+		// The selected borehole's problems and the report's own (which belong to no borehole).
+		const shown = this.problems.filter(p => this.selected === undefined || p.index === this.selected || p.index === undefined);
 		if (shown.length) {
 			appendPropertyHeading(panel, localize('soil.problems', "Problems ({0})", shown.length));
 			for (const problem of shown) {
@@ -2384,9 +2390,11 @@ export class SoilEditor extends EditorPane {
 			}
 			if (result.settlement) {
 				const permissible = result.settlement.permissible ?? this.results?.permissibleSettlement;
+				// The design limit qa is worked out to first; the code pack's permissible value is a guide (SO-8).
+				const limit = report.design.allowableSettlement ?? DESIGN_DEFAULTS.allowableSettlement;
 				computed(appendPropertyRow(panel, localize('soil.settlement', "Settlement"), typeof permissible === 'number'
-					? localize('soil.settlementPermissible', "{0} mm (permissible {1} mm)", formatNumber(result.settlement.total, 1), formatNumber(permissible, 0))
-					: localize('soil.settlementValue', "{0} mm", formatNumber(result.settlement.total, 1))));
+					? localize('soil.settlementLimits', "{0} mm (design limit {1} mm; the code permits {2} mm)", formatNumber(result.settlement.total, 1), formatNumber(limit), formatNumber(permissible, 0))
+					: localize('soil.settlementLimit', "{0} mm (design limit {1} mm)", formatNumber(result.settlement.total, 1), formatNumber(limit))));
 			}
 			if (typeof result.ks === 'number') {
 				computed(appendPropertyRow(panel, 'ks', localize('soil.ksValue', "{0} kN/m³", formatNumber(result.ks, 0))));
@@ -3076,8 +3084,15 @@ export class SoilEditor extends EditorPane {
 			input?.focus();
 			return;
 		}
+		// A problem of the report as a whole (e.g. no borehole reaches 30 m): the report's
+		// properties, which list it, not those of a selected borehole, which leave it out.
+		this.flush();
+		this.leaveEntry();
+		this.selected = undefined;
+		this.reportSelectedOnPurpose = true;
 		this.frame.setPropertiesVisible(true);
 		this.render();
+		this.notificationService.info(problem.message);
 		const key = problem.path ? this.problemKey(problem.index, problem.path) : undefined;
 		this.propertyInputs.get(key ?? '')?.focus();
 	}

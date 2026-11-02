@@ -563,6 +563,29 @@ def _check(
     }
 
 
+def actual_setbacks(ring: list[Any], road: int | None, footprint: Any) -> dict[str, float] | None:
+    """The setbacks [m] the building leaves: per kind of side (front, rear, side; every side
+    is a side without a road side) the least distance from the ``footprint`` (shapely, mm) to
+    those sides of the plot ``ring`` [mm]; 0 for a kind whose side the footprint reaches or
+    crosses, and 0 for every kind when it lies wholly outside the plot. None without a
+    footprint."""
+    from shapely.geometry import LineString
+
+    from saengine.gis import plot as plot_geometry
+
+    if footprint is None or footprint.is_empty:
+        return None
+    polygon = plot_geometry._polygon(ring).buffer(0)
+    outside = not footprint.intersects(polygon)
+    found: dict[str, float] = {}
+    for i, kind in enumerate(plot_geometry.side_kinds(ring, road)):
+        key = kind or "side"
+        side = LineString([ring[i], ring[(i + 1) % len(ring)]])
+        distance = 0.0 if outside else footprint.distance(side) / 1000
+        found[key] = min(found.get(key, math.inf), round(distance, 3))
+    return found
+
+
 def check(
     site: Site | None, bim_text: str | None = None, settings_text: str | None = None
 ) -> dict[str, Any] | None:
@@ -641,7 +664,14 @@ def check(
         }
         out["permitted"]["farText"] = _far_text(allowed["far"])
     own = site.plot
-    provided = {"front": own.front / 1000, "rear": own.rear / 1000, "side": own.side / 1000}
+    typed = {"front": own.front / 1000, "rear": own.rear / 1000, "side": own.side / 1000}
+    # The setbacks the building actually leaves (walkthrough 3, SO-5): with a building model,
+    # the least distance from its footprint to the plot's sides of each kind, 0 where it
+    # reaches or crosses one; without it, the setbacks typed for the plot.
+    actual = (
+        actual_setbacks(ring, own.road, measured["footprint"]) if measured is not None else None
+    )
+    provided = {k: actual[k] if actual and k in actual else v for k, v in typed.items()}
     if by_code:
         fallback = code_setbacks(plan.use, area, height, storeys, road, plan.typology)
         notes += fallback["notes"]
@@ -662,6 +692,8 @@ def check(
     out["setbacks"] = {
         "required": {k: required[k] for k in ("front", "rear", "side")},
         "provided": provided,
+        "typed": typed,
+        "measured": actual is not None,
         "rule": required["rule"],
     }
     coverage = (
@@ -732,16 +764,13 @@ def check(
     for key, label in labels.items():
         if required[key] is None:
             continue
-        out["checks"].append(
-            _check(
-                label,
-                provided[key],
-                required[key],
-                "m",
-                required["frontRule"] if key == "front" else required["rule"],
-                at_least=True,
+        rule = required["frontRule"] if key == "front" else required["rule"]
+        if actual is not None and key in actual:
+            rule += (
+                f"; the building model's least distance to the plot's {key} side(s), "
+                f"{typed[key]:g} m typed for the plot"
             )
-        )
+        out["checks"].append(_check(label, provided[key], required[key], "m", rule, at_least=True))
     if measured and own.road is None:
         notes.append("Choose the plot's road side: the setbacks are measured from it.")
     if measured is not None:

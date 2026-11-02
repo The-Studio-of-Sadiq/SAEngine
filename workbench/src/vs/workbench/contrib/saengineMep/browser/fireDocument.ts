@@ -191,7 +191,19 @@ export function fireOf(document: IMep): IFire | undefined {
 
 export function hasFire(document: IMep): boolean {
 	const f = fireOf(document);
-	return !!f && f.stories.length + f.risers.length + f.mains.length + f.tanks.length + f.pumps.length > 0;
+	return !!f && f.stories.length + f.risers.length + f.mains.length + f.tanks.length + f.pumps.length > 0 || fireUsesGiven(document);
+}
+
+/**
+ * The storeys' uses are given elsewhere (Storey use, or the plumbing's occupancies), so what
+ * Part 4 requires is worked out without a fire section (walkthrough 3, SM-20: Fire Results
+ * asked for the uses already given).
+ */
+function fireUsesGiven(document: IMep): boolean {
+	const uses: unknown[] = Array.isArray(document.storyUses) ? document.storyUses : [];
+	const occupied = uses.some(u => isRecord(u) && typeof u.use === 'string' && u.use !== 'roof' && u.use !== 'services');
+	const plumbing: unknown[] = isRecord(document.plumbing) && Array.isArray(document.plumbing.stories) ? document.plumbing.stories : [];
+	return occupied || plumbing.some(s => isRecord(s) && typeof s.occupancy === 'string' && !!s.occupancy);
 }
 
 // ───────────────────────────── labels ─────────────────────────────
@@ -624,13 +636,15 @@ export function fireWorst(report: IFireReport): CheckStatus {
 /** The status line: "Required: hydrant, sprinklers · 2 risers · 5550 l/min, 416 m³ · 3 checks fail". */
 export function fireSummary(document: IMep, report: IFireReport | undefined): string {
 	const fire = fireOf(document);
-	if (!fire) {
+	if (!fire && !report) {
 		return localize('fire.sum.none', "No fire protection yet");
 	}
 	const parts: string[] = [];
 	const n = (count: number, one: string, many: string) => parts.push(count === 1 ? one : many);
-	n(fire.stories.length, localize('fire.sum.storyOne', "1 story"), localize('fire.sum.stories', "{0} stories", fire.stories.length));
-	if (fire.risers.length) {
+	// The storeys the report checked (their uses may come from Storey use or the plumbing: SM-19).
+	const stories = report?.stories.length ?? fire?.stories.length ?? 0;
+	n(stories, localize('fire.sum.storyOne', "1 story"), localize('fire.sum.stories', "{0} stories", stories));
+	if (fire?.risers.length) {
 		n(fire.risers.length, localize('fire.sum.riserOne', "1 riser"), localize('fire.sum.risers', "{0} risers", fire.risers.length));
 	}
 	if (report) {

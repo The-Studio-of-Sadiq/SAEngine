@@ -301,6 +301,15 @@ def test_story_use_comes_from_plumbing() -> None:
     fire["stories"] = fire["stories"][:3]
     mep = MepModel.model_validate({"fire": fire, "plumbing": plumbing})
     assert len(fire_results(mep, bim, objects, hydraulics=False)["stories"]) == len(b["stories"])
+    # No fire section at all (walkthrough 3, SM-20: Results asked for the uses already given):
+    # the requirements follow from the plumbing's uses, and the part counts it as set up.
+    bare = MepModel.model_validate({"plumbing": plumbing})
+    c = fire_results(bare, bim, objects, hydraulics=False)
+    assert c["requirements"] is not None
+    assert [r["story"] for r in c["stories"]] == [r["story"] for r in b["stories"]]
+    assert has_fire({"plumbing": plumbing}) and not has_fire({"plumbing": {"stories": []}})
+    assert has_fire({"storyUses": [{"story": "L1", "use": "office"}]})
+    assert not has_fire({"storyUses": [{"story": "R", "use": "roof"}]})
 
 
 def test_report_from_files_summary_and_bill(tmp_path: Path) -> None:

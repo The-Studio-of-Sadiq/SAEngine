@@ -814,7 +814,11 @@ export function readSiteContext(texts: ISiteTexts): ISiteContext {
 	const rebar = materialRecords.filter(m => m.kind === 'rebar' || m.type === 'rebar' || m.category === 'rebar').map(m => String(m.id));
 	const used =[...new Set(objects.map(o => o.material).filter((m): m is string => typeof m === 'string'))];
 	const footingType = objects.find(o => o.kind === 'footing' || o.kind === 'pileCap');
-	const defaultMaterial = typeof footingType?.material === 'string' ? footingType.material : concrete[0] ?? used[0];
+	// The footing type's concrete, else the columns' (the project's structural concrete, as Size
+	// Footings takes it), not the library's first grade: C20.7 failed the pack's least pile
+	// grade on a C27.6 project (walkthrough 3, SM-5).
+	const columnConcrete = mostCommon(objects.filter(o => o.kind === 'column').map(o => o.material).filter((m): m is string => typeof m === 'string' && (!concrete.length || concrete.includes(m))));
+	const defaultMaterial = typeof footingType?.material === 'string' ? footingType.material : columnConcrete ?? concrete[0] ?? used[0];
 	const barSource = [footingType, ...objects].map(o => o?.reinforcement).find(r => isRecord(r) && typeof r.material === 'string') as Record<string, unknown> | undefined;
 	return {
 		columns, walls,
@@ -2866,12 +2870,22 @@ export function substructureSummary(document: ISubstructure, report: ISubstructu
 	const count = document.foundations.length;
 	const parts = [count === 1 ? localize('sub.oneFoundation', "1 foundation") : localize('sub.foundations', "{0} foundations", count)];
 	if (report) {
-		parts.push(checkStateText(state ?? substructureCheckState(document, report)));
-		const pressure = maxPressure(report);
+		const current = state ?? substructureCheckState(document, report);
+		parts.push(checkStateText(current));
+		// The pressure of the foundations there are now, and only while no result is stale: the
+		// deleted footings' 226 kPa (qa 16) stayed in the footer through a raft's check (SM-10).
+		const ids = new Set(document.foundations.map(f => f.id));
+		const pressure = current.stale ? undefined : maxPressure({ foundations: report.foundations.filter(f => ids.has(f.id)) });
 		if (pressure) {
 			parts.push(typeof pressure.allowable === 'number'
 				? localize('sub.maxPressureQa', "max pressure {0} kPa (qa {1})", formatNumber(pressure.pressure, 0), formatNumber(pressure.allowable, 0))
 				: localize('sub.maxPressure', "max pressure {0} kPa", formatNumber(pressure.pressure, 0)));
+		}
+		// The retaining walls are counted too, not only the foundations (SM-2).
+		const walls = new Set((document.retainingWalls ?? []).map(w => w.id));
+		const wallsFailing = (report.retainingWalls ?? []).filter(r => walls.has(r.id) && !r.ok).length;
+		if (wallsFailing) {
+			parts.push(wallsFailing === 1 ? localize('sub.wallFails', "1 retaining wall fails") : localize('sub.wallsFail', "{0} retaining walls fail", wallsFailing));
 		}
 	}
 	return parts.join(' · ');

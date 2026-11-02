@@ -27,6 +27,16 @@ A footing B × L [m] founded Df [m] below the borehole's ground, under a net pre
   - overconsolidated, ``σ'v0 + Δσ ≤ σ'p``: ``s = Cr H/(1 + e0) log10((σ'v0 + Δσ)/σ'v0)``,
   - overconsolidated, beyond σ'p: ``s = Cr H/(1 + e0) log10(σ'p/σ'v0) + Cc H/(1 + e0)
     log10((σ'v0 + Δσ)/σ'p)``.
+- Soft and medium stiff cohesive layers (cu below the code pack's ``piles.soilClasses.stiffCu``)
+  without Cc and e0 (no consolidation test, no LL and moisture), by an estimate (a stiff clay
+  takes its elastic settlement only, as its consolidation is small): the modulus number method (Janbu) with the code pack's lower M of the layer's row
+  (``foundations.piles.settlement.modulus``; the default pack's Table 6.3.14, the same method
+  the long-term settlement of a pile group uses), the same 0.25 m slices and 2:1 spread:
+  ``j = 0``: ``ε = ln(σ1'/σ0')/M``; ``j > 0``: ``ε = [(σ1'/σr)^j - (σ0'/σr)^j]/(M j)``, for a
+  clay the larger of both. The result names the estimated layers (``estimated``) and a note
+  says so. Without a modulus number in the pack the consolidation is not computed
+  (``unknownConsolidation``) and :mod:`saengine.soil.bearing` gives no settlement-controlled
+  qa, rather than a qa that leaves the clay's consolidation out.
 
 Below the base the consolidation and the elastic settlement of clay are summed down to the
 depth where the 2:1 stress increase drops to 10 % of σ'v0 (the usual limit of the significant
@@ -230,6 +240,9 @@ def settlement(
             "total": 0.0,
             "layers": [],
             "notes": [],
+            "consolidated": [],
+            "estimated": [],
+            "unknownConsolidation": [],
             "permissible": permissible(foundation, soil_column(profile, df, b)),
         }
     s0 = max(profile.sigma_v_eff(df), 0.0)
@@ -274,6 +287,11 @@ def settlement(
     years_secondary = getattr(profile.design, "secondaryYears", 0.0)
     half = b / 2
     m = l_ / b
+    #: Cohesive layers whose consolidation is computed (with Cc and e0, or estimated), the
+    #: estimated ones, and those whose consolidation cannot be computed.
+    consolidated: list[int] = []
+    estimated: list[int] = []
+    unknown: list[int] = []
     for layer in profile.layers:
         last = layer is profile.layers[-1]
         top = max(layer.top, df)
@@ -306,11 +324,28 @@ def settlement(
             row["secondary"] = row.get("secondary", 0.0) + ds
             row["method"].append(f"secondary, Cα log(t/tp), t = {years_secondary:g} years")
         if layer.cc is None or layer.e0 is None:
-            notes.append(
-                f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 (or LL and moisture), "
-                "consolidation not computed"
-            )
+            if is_stiff(layer) and layer.E:
+                # A stiff clay: its consolidation is small next to its elastic settlement.
+                notes.append(
+                    f"layer {layer.index + 1} ({layer.soil_type}): stiff clay without Cc and e0 "
+                    "(or LL and moisture): its elastic settlement only, consolidation not "
+                    "computed"
+                )
+                continue
+            ds = _estimated_consolidation(profile, layer, top, bottom, df, q, b, l_, row, notes)
+            if ds is None:
+                notes.append(
+                    f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 (or LL and "
+                    "moisture) and no modulus number in the code pack: consolidation not "
+                    "computed"
+                )
+                unknown.append(layer.index)
+            else:
+                consolidation += ds
+                estimated.append(layer.index)
+                consolidated.append(layer.index)
             continue
+        consolidated.append(layer.index)
         n = max(1, math.ceil((bottom - top) / CONSOLIDATION_SLICE))
         h = (bottom - top) / n
         for k in range(n):
@@ -351,9 +386,119 @@ def settlement(
         "depth": round(depth * 1e3),
         "layers": layers,
         "notes": notes,
+        "consolidated": consolidated,
+        "estimated": estimated,
+        "unknownConsolidation": unknown,
         "allowable": profile.design.allowableSettlement,
         "permissible": permissible(foundation, soil_column(profile, df, depth)),
     }
+
+
+def modulus_rules() -> Any | None:
+    """The code pack's modulus numbers (``foundations.piles.settlement``: ``modulus``,
+    ``referenceStress``), or None when the pack has none."""
+    from saengine.soil import piles as soil_piles
+
+    found = soil_piles.pile_rules()
+    rules = found.settlement if found is not None else None
+    return rules if rules is not None and getattr(rules, "modulus", None) else None
+
+
+def modulus_row(layer: SoilLayer, found: Any) -> Any | None:
+    """The code pack's modulus number row of a layer: by soil type and its class (sand and
+    silt by density, clay by consistency, loose / soft when unknown)."""
+    from saengine.soil import piles as soil_piles
+
+    cls = soil_piles.density_class(layer) or "loose"
+    soil = layer.soil_type
+    if soil == "silt" and layer.behaviour == "cohesive":
+        soil = "clay"
+    if soil == "fill":
+        soil = "clay" if layer.behaviour == "cohesive" else "sand"
+    for row in found.modulus:
+        if soil in row.soilTypes and (not row.density or cls in row.density):
+            return row
+    return None
+
+
+def janbu_strain(layer: SoilLayer, s0: float, s1: float, found: Any) -> tuple[float, Any]:
+    """Strain of a slice from σ0' to σ1' [kPa] by the modulus number method (Janbu), with the
+    code pack's lower M of the layer's row: ``j = 0``: ``ln(σ1'/σ0')/M``; ``j > 0``:
+    ``[(σ1'/σr)^j - (σ0'/σr)^j]/(M j)``, for a clay with j > 0 the larger of both."""
+    row = modulus_row(layer, found)
+    if row is None or s1 <= s0:
+        return 0.0, row
+    m, j, sr = row.M[1], row.j, found.referenceStress
+    log_form = math.log(s1 / s0) / m
+    if j <= 0:
+        return log_form, row
+    power = ((s1 / sr) ** j - (s0 / sr) ** j) / (m * j)
+    if layer.behaviour == "cohesive":
+        return max(power, log_form), row
+    return power, row
+
+
+def can_consolidate(layer: SoilLayer) -> bool:
+    """Whether the consolidation of a cohesive layer can be worked out: with Cc and e0, else
+    estimated by the code pack's modulus numbers."""
+    if layer.cc is not None and layer.e0 is not None:
+        return True
+    if is_stiff(layer) and layer.E:
+        return True
+    found = modulus_rules()
+    return found is not None and modulus_row(layer, found) is not None
+
+
+def is_stiff(layer: SoilLayer) -> bool:
+    """A stiff clay by the code pack's soil classes (cu at least its ``stiffCu``)."""
+    from saengine.soil import piles as soil_piles
+
+    return soil_piles.density_class(layer) == "dense"
+
+
+def _estimated_consolidation(
+    profile: Profile,
+    layer: SoilLayer,
+    top: float,
+    bottom: float,
+    df: float,
+    q: float,
+    b: float,
+    l_: float,
+    row: dict[str, Any],
+    notes: list[str],
+) -> float | None:
+    """Consolidation [mm] of a clay without Cc and e0, estimated by the code pack's modulus
+    number method (the same as the long-term settlement of a pile group), 0.25 m slices under
+    the 2:1 spread; None when the pack gives no modulus number for it."""
+    found = modulus_rules()
+    pack_row = modulus_row(layer, found) if found is not None else None
+    if found is None or pack_row is None:
+        return None
+    n = max(1, math.ceil((bottom - top) / CONSOLIDATION_SLICE))
+    h = (bottom - top) / n
+    total = 0.0
+    for k in range(n):
+        z = top + (k + 0.5) * h
+        s_0 = max(profile.sigma_v_eff(z), 1e-6)
+        strain, _ = janbu_strain(layer, s_0, s_0 + stress_increase(q, b, l_, z - df), found)
+        total += strain * h * 1e3
+    row["consolidation"] += total
+    from saengine.soil import piles as soil_piles
+
+    clause = soil_piles.pile_clause("settlement.modulus").split(";")[0]
+    row["method"].append(
+        f"consolidation estimated: modulus number M = {pack_row.M[1]:g}, j = {pack_row.j:g} "
+        f"({pack_row.name})"
+    )
+    notes.append(
+        f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 from tests, so its "
+        f"consolidation ({total:.1f} mm) is an estimate by the modulus number method of the "
+        f"code pack: {pack_row.name}, the lower M = {pack_row.M[1]:g}, j = {pack_row.j:g}"
+        + (f" ({clause})" if clause else "")
+        + "; give consolidation tests (or LL and moisture) to compute it"
+    )
+    return total
 
 
 def rounded(result: dict[str, Any]) -> dict[str, Any]:

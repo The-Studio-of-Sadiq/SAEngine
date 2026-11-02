@@ -336,6 +336,12 @@ def _import_substructure() -> None:
     import saengine.substructure.run  # noqa: F401
 
 
+def _import_soil() -> None:
+    """The soil results' modules, imported on the server's thread before a worker runs them."""
+    import saengine.soil.report
+    import saengine.soil.stratigraphy  # noqa: F401
+
+
 def create_server() -> JsonRPCServer:
     server = JsonRPCServer(protocol_cls=JsonRPCProtocol, converter_factory=_converter)
     feature = server.feature
@@ -775,13 +781,22 @@ def create_server() -> JsonRPCServer:
     def _drawings_progress(params: Any) -> dict[str, Any]:
         return handlers.drawings_progress(_plain(params)["projectRoot"])
 
-    @server.feature("soil/report")
-    def _soil_report(params: Any) -> dict[str, Any]:
+    # The soil results take seconds for a few boreholes (the bearing table's settlement
+    # bisections): in a worker, so the map's location (soil/location) and the other quick
+    # requests do not wait behind them (walkthrough 3, SO-4). The modules are imported on the
+    # server's thread first, as for the substructure.
+    @_in_worker
+    def _soil_report_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.soil_report(args["soilText"], args.get("settingsText"))
 
-    @server.feature("soil/allowableBearing")
-    def _soil_allowable_bearing(params: Any) -> dict[str, Any]:
+    @server.feature("soil/report")
+    async def _soil_report(params: Any) -> dict[str, Any]:
+        _import_soil()
+        return await _soil_report_worker(params)
+
+    @_in_worker
+    def _soil_allowable_bearing_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.allowable_bearing(
             args["soilText"],
@@ -792,6 +807,11 @@ def create_server() -> JsonRPCServer:
             args["b"],
             args["l"],
         )
+
+    @server.feature("soil/allowableBearing")
+    async def _soil_allowable_bearing(params: Any) -> dict[str, Any]:
+        _import_soil()
+        return await _soil_allowable_bearing_worker(params)
 
     @server.feature("soil/import")
     def _soil_import(params: Any) -> dict[str, Any]:

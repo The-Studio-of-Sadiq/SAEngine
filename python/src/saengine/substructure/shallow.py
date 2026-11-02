@@ -1710,10 +1710,11 @@ class SoilBearing:
 
 def footing_settlement_at(
     soil: SoilBearing, x: float, y: float, founding_level: float, b: float, l_: float, q: float
-) -> tuple[float, str, str] | None:
+) -> tuple[float, str, str, bool] | None:
     """The computed settlement [mm] of a footing B × L [mm] founded at ``founding_level`` under
     a net pressure ``q`` [kPa], at the nearest borehole of the soil report, with its soil
-    column ("sand" or "plasticClay") and the borehole; None without a soil report."""
+    column ("sand" or "plasticClay"), the borehole and whether the consolidation is an estimate
+    (a clay without Cc and e0); None without a soil report."""
     from saengine.soil.profile import Profile
     from saengine.soil.settlement import settlement, soil_column
 
@@ -1726,7 +1727,7 @@ def footing_settlement_at(
     bm, lm = min(b, l_) / 1e3, max(b, l_) / 1e3
     found = settlement(profile, bm, lm, df, max(q, 0.0))
     column = soil_column(profile, df, 2 * bm)
-    return float(found["total"]), column, nearest.id
+    return float(found["total"]), column, nearest.id, bool(found.get("estimated"))
 
 
 def _float(value: Any) -> float | None:
@@ -2288,13 +2289,15 @@ def footing_settlement(
     )
     if found is None:
         return None
-    value, column, borehole = found
+    value, column, borehole, estimated = found
     return {
         "value": round(value, 1),
         "soil": column,
         "q": round(q, 1),
         "combination": combination[0],
         "borehole": borehole,
+        # the consolidation of a clay without Cc and e0 at the borehole is an estimate
+        "estimated": estimated,
     }
 
 

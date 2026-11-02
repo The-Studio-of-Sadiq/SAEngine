@@ -58,6 +58,9 @@ interface IEditing {
 	readonly disposables: DisposableStore;
 }
 
+/** How many of the first group's columns (the depths, From and To) stay in view when the sheet scrolls sideways. */
+const STICKY_COLUMNS = 2;
+
 export class SoilGrid extends Disposable {
 
 	readonly element: HTMLElement;
@@ -157,6 +160,23 @@ export class SoilGrid extends Disposable {
 		const table = append(this.scroller, $<HTMLTableElement>('table.soil-grid-table'));
 		const colgroup = append(table, $('colgroup'));
 		append(colgroup, $('col', { style: 'width: 34px' }));
+		// The first columns stay in view when the sheet scrolls sideways (walkthrough 3, SO-9):
+		// sticky, after the row header's 34 px and the widths before them.
+		const sticky = new Map<number, number>();
+		let stickyLeft = 34;
+		sheet.columns.forEach((column, i) => {
+			if (column.group === sheet.groups[0]?.id && sticky.size < STICKY_COLUMNS) {
+				sticky.set(i, stickyLeft);
+				stickyLeft += column.width;
+			}
+		});
+		const stick = (cell: HTMLElement, index: number) => {
+			const left = sticky.get(index);
+			if (left !== undefined) {
+				cell.classList.add('soil-grid-sticky');
+				cell.style.left = `${left}px`;
+			}
+		};
 		const groupRow = append(append(table, $('thead')), $('tr.soil-grid-groups'));
 		const headRow = append(table.tHead!, $('tr.soil-grid-head'));
 		append(groupRow, $('th.soil-grid-corner', { rowspan: '2' }));
@@ -194,6 +214,7 @@ export class SoilGrid extends Disposable {
 				append(colgroup, $('col', { style: `width: ${column.width}px` }));
 				width += column.width;
 				const head = append(headRow, $('th.soil-grid-column', { title: column.title ?? '' }));
+				stick(head, sheet.columns.indexOf(column));
 				head.classList.toggle('number', column.numeric);
 				head.classList.toggle('computed', !!column.computed);
 				append(head, $('span', undefined, column.label));
@@ -233,6 +254,7 @@ export class SoilGrid extends Disposable {
 						continue;
 					}
 					const td = append(tr, $<HTMLTableCellElement>('td.soil-grid-cell', { role: 'gridcell' }));
+					stick(td, i);
 					this.cells.set(`${row}|${i}`, td);
 					this.renderCell(td, row, column);
 					this.renderDisposables.add(addDisposableListener(td, EventType.MOUSE_DOWN, e => this.onCellMouseDown(e, row, i)));

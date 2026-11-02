@@ -75,6 +75,7 @@ export function renderElectricalData(view: HTMLElement, host: IMepFormHost, uses
 	// Stories.
 	const rows = electrical?.stories ?? [];
 	const stories = host.section(localize('elecView.stories', "Loads by storey"), rows.length);
+	host.storyUsesPrompt(stories);
 	if (!usesFromBackend) {
 		append(stories, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('elecView.usesWhat', "the occupancies of {0} Table 8.1.17", defaultCodeName()))));
 	}
