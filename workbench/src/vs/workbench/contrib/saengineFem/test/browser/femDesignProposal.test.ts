@@ -292,7 +292,7 @@ suite('SAEngine - FEM design proposal', () => {
 			describeBeforeAfter(undefined, before),
 			describeChange('B1: 3 Ø16 top → 4 Ø20 top'),
 			describeChange({ message: 'B4: type B1 → B1-2 (06 BIM)' }),
-		], ['13 pass, 2 fail → 15 pass, 0 fail, 1 not checked', '13 pass, 2 fail', 'B1: 3 Ø16 top → 4 Ø20 top', 'B4: type B1 → B1-2 (06 BIM)']);
+		], ['13 members pass, 2 fail → 15 members pass, 0 fail; 1 member not checked', '13 members pass, 2 fail', 'B1: 3 Ø16 top → 4 Ø20 top', 'B4: type B1 → B1-2 (06 BIM)']);
 	});
 
 	test('required steel: the governing zone of each quantity, next to the steel provided', () => {

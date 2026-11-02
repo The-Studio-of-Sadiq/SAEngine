@@ -261,6 +261,9 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
     failed = int(design.get("failed", 0) or 0) if design.get("available") else 0
     f_checked = int(fdn.get("checked", 0) or 0) if fdn.get("available") else 0
     f_failed = int(fdn.get("failed", 0) or 0) if fdn.get("available") else 0
+    # Of all of them: a foundation whose bearing is not checked can fail its other checks, so
+    # "checked" (in full) can be fewer than the failures (B10-34: "6 of 1 foundations").
+    f_total = max(int(fdn.get("total", 0) or 0), f_checked, f_failed) if fdn.get("available") else 0
     # The members, beam-column joints and seismic requirements apart ("counts"), as the design
     # summary counts them; a design without that breakdown counts members only.
     counts = (design.get("counts") or [["members", checked, failed]]) if checked else []
@@ -269,7 +272,7 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         failing = [f"{n} of {of} {what}" for what, of, n in counts if n]
         parts.append(_and(failing) + " fail their design checks")
     if f_failed:
-        parts.append(f"{f_failed} of {f_checked} foundations or tie beams fail")
+        parts.append(f"{f_failed} of {f_total} foundations or tie beams fail")
     # The members left without reinforcement: never "pass" while there are any.
     not_designed = (design.get("notDesigned") or {}) if design.get("available") else {}
     missing = f"{counted(not_designed)} are not designed (no reinforcement)"
@@ -558,7 +561,9 @@ class _Parts:
         text = self.text(relative)
         return source_stamp(text) if text is not None else None
 
-    def fem_source_changed(self, key: str, relative: str, recorded: str) -> bool:
+    def fem_source_changed(
+        self, key: str, relative: str, recorded: str, code_tables: frozenset[str] | None = None
+    ) -> bool:
         """Whether source ``key`` of the analysis model changed since the model recorded the
         stamp ``recorded``, on the derivation's own definition of the stamp: the settings
         without the project's details and title block (``settings_stamp``, or the whole file's
@@ -570,7 +575,7 @@ class _Parts:
         text = self.text(relative)
         if key == "mep":
             return text is None or recorded != mep_stamp(text)
-        return fem_source_changed({key: text}, key, recorded)
+        return fem_source_changed({key: text}, key, recorded, code_tables)
 
     def boq_stamp(
         self, key: str, relative: str, material_ids: list[str] | None = None
@@ -1055,11 +1060,14 @@ def _model_summary(
     summary: dict[str, Any] = {"rows": rows, "notes": [], "derived": []}
 
     # Is the model current, and are the results the model's?
+    from saengine.fem.derive import code_tables_of
+
     recorded = _recorded_sources(model)
     changed = [
         relative
         for key, relative in {**MODEL_SOURCES, **MODEL_OPTIONAL_SOURCES}.items()
-        if key in recorded and parts.fem_source_changed(key, relative, recorded[key])
+        if key in recorded
+        and parts.fem_source_changed(key, relative, recorded[key], code_tables_of(recorded))
     ]
     site = parts.site()
     if (
@@ -2873,7 +2881,7 @@ def _design(
             ["Passed", str(summary.get("passed", 0))],
             ["Failed", str(failed)],
             ["Not designed", str(len(skipped))],
-            ["Largest utilisation", fmt(max_util, 3) if max_util is not None else "–"],
+            ["Largest utilisation", _utilisation_text(max_util)],
             ["Governing element", str(governing) if governing else "–"],
         ],
         "failed": failed,
@@ -3287,6 +3295,20 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: The utilisation a check reports without any capacity (no bars, a zero section).
+NO_CAPACITY_UTILISATION = 99.0
+
+
+def _utilisation_text(value: Any) -> str:
+    """A largest utilisation as printed: the no-capacity sentinel is never shown as a number
+    (FD-17, SL-15 of usability walk 3: "largest utilisation 99.00")."""
+    if value is None:
+        return "–"
+    if isinstance(value, int | float) and value >= NO_CAPACITY_UTILISATION:
+        return "no capacity"
+    return fmt(value, 3)
+
+
 def _counts(summary: dict[str, Any]) -> list[list[Any]]:
     """``[what, checked, failed]`` of the members, beam-column joints and project-level seismic
     requirements of the design ``summary`` (those it has), for the cover's headline."""
@@ -3296,12 +3318,19 @@ def _counts(summary: dict[str, Any]) -> list[list[Any]]:
             ["members", int(summary.get("checked", 0) or 0), int(summary.get("failed", 0) or 0)]
         ]
     joints = summary.get("joints") if isinstance(summary.get("joints"), dict) else {}
+    found = (summary.get("counts") or {}).get("diaphragms")
+    diaphragms = found if isinstance(found, dict) else {}
     rows = [
         ["members", int(elements.get("checked", 0) or 0), int(elements.get("failed", 0) or 0)],
         [
             "beam-column joints",
             int(joints.get("checked", 0) or 0),
             int(joints.get("failed", 0) or 0),
+        ],
+        [
+            "diaphragms",
+            int(diaphragms.get("checked", 0) or 0),
+            int(diaphragms.get("failed", 0) or 0),
         ],
         [
             "seismic requirements",
@@ -3945,11 +3974,12 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             ["Passed", str(summary.get("passed", 0))],
             ["Failed", str(failed)],
             ["Not designed", str(summary.get("skipped", 0))],
-            ["Largest utilisation", fmt(max_util, 3) if max_util is not None else "–"],
+            ["Largest utilisation", _utilisation_text(max_util)],
             ["Governing", str(governing) if governing else "–"],
         ],
         "failed": failed,
         "checked": int(summary.get("checked", 0) or 0),
+        "total": int(summary.get("total", 0) or 0),
         "rows": rows,
         "fails": fails,
         "pressures": pressures,

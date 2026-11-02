@@ -79,6 +79,25 @@ def of(settings: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def table_of(path: str) -> str | None:
+    """The table an override's path names ("factors.phi.shear" -> "factors"); None when it is
+    not a path."""
+    try:
+        return split(path)[0]
+    except OverrideError:
+        return None
+
+
+def restricted(overrides: dict[str, Any], tables: Any) -> dict[str, Any]:
+    """The overrides of the tables ``tables`` (in their order); one whose path is not a path is
+    kept (it counts wherever it may apply)."""
+    return {
+        path: value
+        for path, value in overrides.items()
+        if (table := table_of(path)) is None or table in tables
+    }
+
+
 def digest(overrides: dict[str, Any]) -> str:
     """A hash of the overrides (keyed caches)."""
     text = json.dumps(overrides, sort_keys=True, ensure_ascii=False, default=str)

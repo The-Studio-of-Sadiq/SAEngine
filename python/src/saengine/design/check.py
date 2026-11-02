@@ -1652,6 +1652,10 @@ def _assemble(
     notes.append(DESIGNED_IN_PART_9)
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
+    # The members' own counts leave the diaphragms out (B10-22 of usability walk 3: "640 of 630
+    # members", the chords counted as members); design_counts tallies them apart.
+    members_checked = [e for e in checked if e.get("kind") != DIAPHRAGM_KIND]
+    members_failed = [e for e in members_checked if not e["ok"]]
     code = code_basis(settings).concrete
     method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
     if columns_seen:
@@ -1754,9 +1758,9 @@ def _assemble(
             - len(failed_seismic),
             "failed": len(failed) + len(failed_joints) + len(failed_seismic),
             "elements": {
-                "checked": len(checked),
-                "passed": len(checked) - len(failed),
-                "failed": len(failed),
+                "checked": len(members_checked),
+                "passed": len(members_checked) - len(members_failed),
+                "failed": len(members_failed),
             },
             "skipped": len(skipped),
             # The object types not checked for want of bars (an imported model's): Design
@@ -1791,6 +1795,7 @@ def design_counts(
         {"members": {"total", "checked", "passed", "failed", "notChecked",
                      "byKind": {kind: {"total", "checked", "passed", "failed", "notChecked"}}},
          "joints": {"checked", "passed", "failed"},
+         "diaphragms": {"checked", "passed", "failed"},
          "building": {"checked", "passed", "failed"},
          "notChecked": {"noBars", "other"}}
 
@@ -1803,6 +1808,9 @@ def design_counts(
         failed = sum(1 for i in items if not i["ok"])
         return {"checked": len(items), "passed": len(items) - failed, "failed": failed}
 
+    # The diaphragms (their chords and collectors) are counted apart from the members.
+    diaphragms = [e for e in checked if e.get("kind") == DIAPHRAGM_KIND]
+    checked = [e for e in checked if e.get("kind") != DIAPHRAGM_KIND]
     by_kind: dict[str, dict[str, int]] = {}
     for element in checked:
         row = by_kind.setdefault(
@@ -1827,6 +1835,7 @@ def design_counts(
             "byKind": by_kind,
         },
         "joints": tally(joints),
+        "diaphragms": tally(diaphragms),
         "building": tally(building),
         "notChecked": {"noBars": no_bars, "other": len(skipped) - no_bars},
     }
@@ -1900,6 +1909,8 @@ def _default_rebar_id(
 
 #: Why a slab of a type without bars is not checked (also the members': ``summary.noBars``).
 NO_REINFORCEMENT = "no reinforcement"
+#: The kind of a floor diaphragm's entry (its chords and collectors): checked, not a member.
+DIAPHRAGM_KIND = "diaphragm"
 #: The note of a slab without bars that is not analysed as shells.
 SLAB_NOT_DESIGNED = "{}: slab not designed (no reinforcement, not analysed as shells)"
 

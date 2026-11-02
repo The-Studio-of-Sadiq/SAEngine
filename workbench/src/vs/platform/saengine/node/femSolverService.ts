@@ -18,7 +18,7 @@ import { authenticodeProblem, authenticodeSignature } from './authenticode.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IEngineBusy, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IEngineBusy, IEngineJob, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -406,6 +406,26 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	engine(python: string, method: EngineMethod, params: object): Promise<unknown> {
 		return this.request(python, method, params);
+	}
+
+	async engineJobs(python: string, timeoutMs: number): Promise<readonly IEngineJob[] | undefined> {
+		const started = this.backends.get(python);
+		if (!started) {
+			return undefined;
+		}
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const backend = await started;
+			const timeout = new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), timeoutMs); });
+			const answer = await Promise.race([backend.connection.sendRequest<{ jobs?: IEngineJob[] }>('saengine/jobs', {}), timeout]);
+			return answer && Array.isArray(answer.jobs) ? answer.jobs : undefined;
+		} catch {
+			return undefined;
+		} finally {
+			if (timer) {
+				clearTimeout(timer);
+			}
+		}
 	}
 
 	async openInQgis(python: string, request: IQgisOpenRequest): Promise<IQgisOpenResult> {

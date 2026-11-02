@@ -412,6 +412,15 @@ export interface ILibraryProblem {
 	readonly message: string;
 }
 
+/** One request the backend is working on, as it reports it (`saengine/jobs`). */
+export interface IEngineJob {
+	readonly method: string;
+	/** How long it has run [s]. */
+	readonly seconds: number;
+	/** What it is doing ("Design checks", "Waiting for the design checks another request is making"). */
+	readonly note?: string | null;
+}
+
 /** What the backend is working on: its open requests and the oldest one. */
 export interface IEngineBusy {
 	/** Requests sent and not answered yet. */
@@ -535,6 +544,13 @@ export interface IFemSolverService {
 	 * a new one. Run All's Stop and Restart Engine use it to end a design check that takes too long.
 	 */
 	restartBackend(python: string): Promise<void>;
+
+	/**
+	 * The requests the running backend of `python` is working on, answered from its own thread
+	 * while workers compute; undefined when it is not started or does not answer within
+	 * `timeoutMs` (it no longer responds). Not counted as a request of its own (B10-21).
+	 */
+	engineJobs(python: string, timeoutMs: number): Promise<readonly IEngineJob[] | undefined>;
 
 	/**
 	 * Fixed base against soil springs (`saengine.fem.ssi_compare.compare`): derives and runs the

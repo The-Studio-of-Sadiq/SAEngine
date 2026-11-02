@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { IFemDesignReport } from './femDesign.js';
+import { describeDesignCounts, describeNotChecked, IFemDesignReport } from './femDesign.js';
 import { jointGoverning, jointOk, jointsOf } from './femSeismicDetailing.js';
 
 /*
@@ -413,10 +413,10 @@ export function describeWaitStep(step: IDesignWaitStep, elapsedMs: number): stri
 
 /** "13 pass, 2 fail" (and the members not checked). */
 export function describeCheckCounts(report: Pick<IFemDesignReport, 'summary'>): string {
-	const { passed, failed, skipped } = report.summary;
-	return skipped
-		? localize('femProposal.countsSkipped', "{0} pass, {1} fail, {2} not checked", passed, failed, skipped)
-		: localize('femProposal.counts', "{0} pass, {1} fail", passed, failed);
+	// The run's one count (describeDesignCounts), as Run All, the FEM view and the report say it.
+	const summary = report.summary;
+	const notChecked = describeNotChecked(summary);
+	return notChecked ? `${describeDesignCounts(summary)}; ${notChecked}` : describeDesignCounts(summary);
 }
 
 /** "13 pass, 2 fail → 15 pass, 0 fail". */
@@ -606,6 +606,16 @@ export class DesignProposalModel {
 	/** Whether the design checks checked no member of type `type` (false while not known). */
 	private unchecked(type: string): boolean {
 		return !!this.checkedTypes && !this.checkedTypes.has(type);
+	}
+
+	/** Forgets the proposals of the other modes (made from bars that changed since). */
+	keepOnly(mode: DesignProposalMode): void {
+		for (const other of [...this.proposals.keys()]) {
+			if (other !== mode) {
+				this.proposals.delete(other);
+				this.toggled.delete(other);
+			}
+		}
 	}
 
 	/** Forgets every proposal (the inputs changed). */
