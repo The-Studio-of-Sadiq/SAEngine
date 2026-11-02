@@ -989,7 +989,8 @@ def changed_boq_sources(document: dict[str, Any] | None, texts: dict[str, str | 
         if text is None:
             if required or recorded is not None:
                 changed.append(part)
-        elif recorded != boq_source_stamp(part, text):
+        # The bill passed along: its materials stamp covers only the ids it records.
+        elif recorded != boq_source_stamp(part, text, document):
             changed.append(part)
     from saengine.pipeline.status import architecture_has_content
 
