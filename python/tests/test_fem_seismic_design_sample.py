@@ -56,11 +56,16 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # the partition allowance is live load (owner decision 2026-11-02) and the sample's is the
     # code minimum 1.2 kN/m² (Sec 2.3.6, #160): live + partitions 3.2 kN/m² is above 3, so both
     # count with 50 % (1.6 kN/m² in W instead of 1.0 + 0.25 x 2.0 = 1.5) over about 53 m² of
-    # Level 1: 5.3 kN more, W = 718.5 kN, V = 0.05625 x 718.5 = 40.42 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(40.42, rel=1e-3)
+    # Level 1: 5.3 kN more, W = 718.5 kN, V = 0.05625 x 718.5 = 40.42 kN. Since walkthrough 3
+    # (OI-2) the stair ST1's reactions load the model (saengine.fem.stair_loads): the top of its
+    # upper flight on beam B1 of Level 1, D 12.81 + SD 2.98 + 0.25 x L 11.93 = 18.77 kN more in W
+    # (the rest of the stair stands on the ground): W = 737.3 kN, V = 0.05625 x 737.3 = 41.47 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(41.47, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
-        assert 1.6 < scale[axis] < 2.4
+        # The stair's weight on B1 (the plan's edge y = 0) raises the dynamic base shear in Y
+        # (22.2 kN, scale 1.58; X 19.1 kN, 1.84) since walkthrough 3.
+        assert 1.5 < scale[axis] < 2.4
         assert summary["massParticipation"][axis] >= 0.90
     # Ev = 0.5 (2/3) Z S D = 0.5 x (2/3) x 0.20 x 1.35 = 0.09 D.
     assert summary["verticalCoefficient"] == pytest.approx(0.09)

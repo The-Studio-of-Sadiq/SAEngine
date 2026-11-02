@@ -1931,13 +1931,13 @@
 			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
-			"quantity": 5185.682,
+			"quantity": 8932.018,
 			"unit": "l",
 			"kind": "water",
 			"byStory": {
 				"L1": 4057.124,
 				"L2": 139.346,
-				"BASE": 693.103
+				"BASE": 733.224
 			},
 			"breakdown": [
 				{
@@ -2044,6 +2044,12 @@
 				{
 					"element": "F1",
 					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 40.121
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
 					"detail": "Concrete C24.1 in footings",
 					"quantity": 272.16
 				},
@@ -2052,6 +2058,16 @@
 					"story": "L1",
 					"detail": "Concrete C24.1 in water and septic tanks",
 					"quantity": 703.035
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 2322.432
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 1383.782
 				}
 			]
 		}
@@ -2070,7 +2086,7 @@
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
-		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa); the blinding (lean concrete) 1:3:6 assumed, a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace it).",
+		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa); the blinding (lean concrete) 1:3:6 assumed, a nominal mix of IS 456:2000 Table 9 by strength with that table's water (enter the mix in 03 Materials to replace it).",
 		"Reinforcement of the elements the drawings detail: measured from their detailed bars, the bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar mark, with the code's laps at their places, the hooks and bends, cut-off bars and the stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), so that this bill and the schedule agree per bar size.",
 		"Measured from the detailed bars: 1 footing, 7 columns, 1 wall, 3 beam lines, 2 slabs, 1 stair (F1, C1, C2, C3, C4, C5, C6, C7, W1, B1+B2, B3+B4, B5, S1, S2, ST1).",
 		"Measured by the estimating rules above (not detailed in the drawings): M1."
