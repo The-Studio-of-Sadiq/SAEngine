@@ -321,15 +321,21 @@ def design_walls(
     # The pier forces, with the combinations of check.py (the Ω0 ones for the response spectrum
     # appended as check.py appends them to its summary).
     from saengine.fem import seismic_design
-    from saengine.fem.combinations import DesignCombination
+    from saengine.fem.combinations import DesignCombination, model_cases
 
     omega_elements = set((scope or {}).get("omega", {}).get("elements", []))
+    # FD-3: the optional cases (H, F, ...) the model has no results for are left out of the
+    # combinations, as for the frames; otherwise every combination naming them gave no wall
+    # forces at all and no wall was checked.
+    present = model_cases(project)
     try:
-        found_combos, seismic, signs = wall_forces.design_combination_list(with_omega, out_dir)
+        found_combos, seismic, signs = wall_forces.design_combination_list(
+            with_omega, out_dir, present
+        )
         if seismic is not None and omega_elements:
             summary = seismic_design.load_summary(out_dir) or {}
             found_combos += [
-                DesignCombination.from_json(c)
+                DesignCombination.from_json(c, present)
                 for c in seismic_rules.omega_rs_combinations(
                     summary.get("combinations", []), resolved
                 )

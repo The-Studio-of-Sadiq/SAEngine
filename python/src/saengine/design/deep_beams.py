@@ -456,6 +456,17 @@ def member_checks(
         )
         deep, why = is_deep(span)
         if not deep:
+            if loads:
+                # FD-6 of walk 3: say what the transfer girder was taken as.
+                table = _table()
+                ratio, reach = table.spanRatio, table.loadDistance
+                notes.append(
+                    f"{element.id}: span {s0 / 1e3:.2f}-{s1 / 1e3:.2f} m: a transfer girder "
+                    f"under {len(loads)} landing column(s), not deep ({CLAUSES['deep']}: clear "
+                    f"span {clear:.0f} mm > {ratio:g} h = {ratio * section.depth:.0f} mm and "
+                    f"no landing column within {reach:g} h = {reach * section.depth:.0f} mm of "
+                    "a support face): the sectional checks apply"
+                )
             continue
         inside = [r for r in stations if left - 1.0 <= r[0] <= right + 1.0]
         if not inside:

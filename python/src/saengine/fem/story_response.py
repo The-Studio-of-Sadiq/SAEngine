@@ -457,14 +457,40 @@ def _drift_limit(project_path: str | Path) -> dict[str, Any] | None:
     }
 
 
-def _base_reactions(parts: list[tuple[float, Any]], restrained: set[int]) -> list[float]:
+def _base_reactions(
+    parts: list[tuple[float, Any]],
+    restrained: set[int],
+    coords: dict[int, np.ndarray] | None = None,
+    centre: np.ndarray | None = None,
+) -> list[float]:
+    """[Fx, Fy, Fz, Mx, My, Mz] of the support reactions [N, N·m]: the forces summed and the
+    moments about ``centre`` (B10-23 of walk 3: the support moments alone hid the overturning
+    and the torsion), r × F of each support's force plus its own moment; about the origin of
+    the moments' own sum without ``coords``."""
     from saengine.fem.display import _last
 
     total = np.zeros(6)
     for factor, results in parts:
         for node in restrained:
-            total += factor * _last(results.node_reaction, node, 6)
+            row = factor * _last(results.node_reaction, node, 6)
+            total += row
+            if coords is not None and centre is not None and node in coords:
+                total[3:] += np.cross(coords[node] - centre, row[:3])
     return [float(v) for v in total]
+
+
+def base_centre(project: dict[str, Any], restrained: set[int]) -> np.ndarray | None:
+    """The point the base reactions' moments are taken about: the centroid of the supports in
+    plan at their lowest level [m]; None without supports."""
+    points = [
+        np.asarray(n["coords"], dtype=float)
+        for n in project.get("nodes", [])
+        if n["id"] in restrained
+    ]
+    if not points:
+        return None
+    stack = np.vstack(points)
+    return np.array([stack[:, 0].mean(), stack[:, 1].mean(), stack[:, 2].min()])
 
 
 _responses: dict[str, tuple[tuple[Any, ...], dict[str, Any]]] = {}
@@ -542,6 +568,8 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
         if any(n.get("restraint") or []) and n["id"] not in diaphragm_nodes
     }
     notes: list[str] = []
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    centre = base_centre(project, restrained)
 
     loaded: list[tuple[dict[str, Any], Any]] = []
     for entry in manifest["cases"]:
@@ -591,7 +619,7 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                     "label": entry["case_name"],
                     "kind": "static",
                     "storeys": storeys,
-                    "baseReaction": _base_reactions([(1.0, r)], restrained),
+                    "baseReaction": _base_reactions([(1.0, r)], restrained, coords, centre),
                 }
             )
         elif isinstance(r, ResponseSpectrumResults):
@@ -699,7 +727,7 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                         _shears(fy),
                     ),
                     "baseReaction": _base_reactions(
-                        [(f, static[c][1]) for c, f in factors.items()], restrained
+                        [(f, static[c][1]) for c, f in factors.items()], restrained, coords, centre
                     ),
                 }
             )
@@ -759,6 +787,8 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
         {
             "levels": level_rows,
             "results": results,
+            # B10-23 of walk 3: the point the base reactions' moments are about [m].
+            "baseCentre": [float(v) for v in centre] if centre is not None else None,
             "serviceability": serviceability,
             "irregularity": irregular,
             "modal": _modal(project_path, loaded, notes),

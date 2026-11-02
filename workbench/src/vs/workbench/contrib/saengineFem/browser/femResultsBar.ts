@@ -1777,7 +1777,10 @@ export class FemResultsBar extends Disposable {
 		for (const line of lines) {
 			const foot = line.rows[line.rows.length - 1];
 			const details = append(container, $('details.fem-stair'));
-			append(details, $('summary', undefined, localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, foot ? foot.factored.toFixed(0) : '0')));
+			// FD-24 of walk 3: a line may start above the base (a column on a transfer beam).
+			append(details, $('summary', undefined, foot
+				? localize('femResults.takedownLineFoot', "{0}: {1} kN factored at its foot ({2}, {3})", line.line, foot.factored.toFixed(0), foot.column, foot.story)
+				: localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, '0')));
 			for (const row of line.rows) {
 				const added = Object.values(row.storey).reduce((sum, v) => sum + v, 0);
 				appendPropertyRow(details, localize('femResults.takedownStorey', "{0} ({1})", row.story, row.column),

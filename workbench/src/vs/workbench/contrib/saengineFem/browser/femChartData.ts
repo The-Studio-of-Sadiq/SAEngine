@@ -226,6 +226,8 @@ export interface IFemNonlinearHistory {
 export interface IFemStoryResponse {
 	readonly levels: readonly { readonly z: number; readonly name: string }[];
 	readonly results: readonly IFemStoryResult[];
+	/** B10-23 of walk 3: the point [m] the base reactions' moments are taken about (the supports' centroid at the base). */
+	readonly baseCentre?: readonly number[] | null;
 	readonly modal: { readonly case: string; readonly modes: readonly IFemModeRow[]; readonly required: number } | null;
 	readonly spectrum: { readonly name: string; readonly periods: readonly number[]; readonly accelerations: readonly number[]; readonly damping: number | null } | null;
 	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
@@ -745,6 +747,9 @@ export function baseReactionTable(response: IFemStoryResponse, format: { force(v
 			...r.baseReaction!.slice(0, 3).map(format.force),
 			...r.baseReaction!.slice(3, 6).map(format.moment),
 		]),
+		notes: response.baseCentre
+			? [localize('femTable.baseCentre', "Forces summed over the supports; moments about the supports' centroid at the base (x = {0} m, y = {1} m, z = {2} m): the overturning about X and Y and the torsion about Z, with each support's own moment.", ...response.baseCentre.map(v => v.toFixed(2)))]
+			: [localize('femTable.baseSum', "Forces and moments summed over the supports (each support's own moment, not about a point).")],
 	};
 }
 

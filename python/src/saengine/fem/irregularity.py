@@ -358,6 +358,7 @@ def offsets(building: Any, objects: Any, materials: Any) -> list[dict[str, Any]]
             "type": "outOfPlaneOffset",
             "offset": None,
             "length": None,
+            "supportedBy": list(item.get("supportedBy", [])),
         }
         if item["kind"] == "wall" and element is not None:
             length = math.dist(
@@ -927,7 +928,13 @@ def assess(
                     )
                     limit = f"offset ≤ {found.inPlaneOffset:g} × length"
                 else:
-                    value = f"{item['kind']} stops at {item['elevation']:g} m"
+                    # FD-24 of walk 3: the element starts there (on a beam), it does not stop.
+                    on = item.get("supportedBy") or []
+                    value = f"{item['kind']} starts at {item['elevation']:g} m, " + (
+                        f"on beam{'s' if len(on) > 1 else ''} {', '.join(on)}"
+                        if on
+                        else "on no column, wall or beam below"
+                    )
                     limit = "continuous to the base"
                 findings.append(
                     _finding(

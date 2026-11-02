@@ -222,6 +222,22 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
         "transverse": {"type": "tie", "dia": 10, "spacing": 150, "legs": 2},
     },
+    # SL-14 of walk 3: a column of a special moment frame starts with closer ties, a leg on
+    # each bar of a face (the editor sets the legs from the bars) and end zones: typical
+    # starting values within the usual confinement limits for Ø16 bars, not a design.
+    "LinearReinforcement:column:special": {
+        "material": _REBAR,
+        "cover": 40,
+        "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
+        "transverse": {
+            "type": "tie",
+            "dia": 10,
+            "spacing": 95,
+            "legs": 3,
+            "legsX": 3,
+            "zone": {"spacing": 75},
+        },
+    },
     "BarMesh": {"dia": 10, "spacing": 150},
     "ChordBars": {"count": 2, "dia": 12},
     "PunchingReinforcement": {

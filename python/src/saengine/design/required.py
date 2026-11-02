@@ -981,14 +981,20 @@ def slab_depths(h: float, cover: float, dias: dict[str, float]) -> dict[str, flo
     return result
 
 
+def _spacing_text(kind: str) -> str:
+    """:func:`saengine.design.slab.spacing_clause` as the rows show it (ACI's with its name)."""
+    text = slab_design.spacing_clause(kind)
+    return text if text.startswith("min(") else f"ACI {text}"
+
+
 def slab_layer_rules(system: str, h: float, span: str | None) -> dict[str, tuple[float, str]]:
     """Largest spacing of each layer (as :func:`slab._max_spacing_check`)."""
     rules = {}
     for name in slab_design.LAYERS:
         if system != "oneWay":
-            rules[name] = (min(2 * h, 450.0), "ACI 8.7.2.2: min(2h, 450 mm)")
+            rules[name] = (min(2 * h, 450.0), _spacing_text("twoWay"))
         elif name[-1] == span:
-            rules[name] = (min(3 * h, 450.0), "ACI 7.7.2.3: min(3h, 450 mm)")
+            rules[name] = (min(3 * h, 450.0), _spacing_text("oneWay"))
         else:
             rules[name] = (min(5 * h, 450.0), "ACI 7.7.6.2.1: min(5h, 450 mm)")
     return rules

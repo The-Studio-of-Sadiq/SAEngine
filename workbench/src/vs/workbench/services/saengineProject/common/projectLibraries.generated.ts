@@ -17612,6 +17612,27 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			legs: 2,
 		},
 	},
+	'LinearReinforcement:column:special': {
+		material: 'B420DWR',
+		cover: 40,
+		longitudinal: [
+			{
+				position: 'perimeter',
+				count: 8,
+				dia: 16,
+			},
+		],
+		transverse: {
+			type: 'tie',
+			dia: 10,
+			spacing: 95,
+			legs: 3,
+			legsX: 3,
+			zone: {
+				spacing: 75,
+			},
+		},
+	},
 	BarMesh: {
 		dia: 10,
 		spacing: 150,

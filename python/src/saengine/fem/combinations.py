@@ -358,10 +358,11 @@ def combination_factors(
     return factors
 
 
-#: A combination's name that is just its factors (``1.2D + 1.0EX + 1.0L``).
-_FACTOR_NAME = re.compile(
-    r"^\s*[-+]?\s*\d*\.?\d*\s*[A-Za-z]+(\s*[-+]\s*\d*\.?\d*\s*[A-Za-z]+)*\s*$"
-)
+#: A combination's name that is just its factors (``1.2D + 1.0EX + 1.0L``), a reversed
+#: lateral case written ``1.0(-EX)`` as :func:`expand_rows` names it (FD-9 of walk 3: those
+#: names kept their text and showed no SD).
+_TERM = r"\d*\.?\d*\s*(?:[A-Za-z]+|\(\s*-\s*[A-Za-z]+\s*\))"
+_FACTOR_NAME = re.compile(rf"^\s*[-+]?\s*{_TERM}(\s*[-+]\s*{_TERM})*\s*$")
 
 
 def combination_label(
@@ -376,10 +377,15 @@ def combination_label(
     factors = combination_factors(combination, present)
     if not factors:
         return name
+    reversed_form = "(-" in name.replace(" ", "")
     terms = []
     for case, value in factors.items():
         magnitude = f"{abs(value):.2f}".rstrip("0")
         magnitude = magnitude + "0" if magnitude.endswith(".") else magnitude
+        if value < 0 and reversed_form and case[:1] in ("W", "E", "F"):
+            # The name's own form for the reversed direction: "+ 1.0(-EX)".
+            terms.append(("+", f"{magnitude}(-{case})"))
+            continue
         sign = "−" if value < 0 else "+"
         terms.append((sign, f"{magnitude}{case}"))
     text = ("−" if terms[0][0] == "−" else "") + terms[0][1]

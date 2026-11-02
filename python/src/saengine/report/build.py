@@ -2633,14 +2633,20 @@ def _appendix(
         return [(e, "") for e in elements]
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for e in elements:
-        key = (str(e.get("kind")), str(e.get("type", "")), storeys.get(str(e.get("id")), ""))
+        key = (str(e.get("kind")), str(e.get("type") or ""), storeys.get(str(e.get("id")), ""))
         groups.setdefault(key, []).append(e)
     chosen: dict[int, str] = {}
     for (_, type_id, storey), members in groups.items():
         top = max(members, key=lambda e: float(e.get("utilisation") or 0.0))
         where = f" on {storey}" if storey else ""
         chosen[id(top)] = (
-            f"governs the {len(members)} of type {type_id}{where}" if len(members) > 1 else ""
+            (
+                f"governs the {len(members)} of type {type_id}{where}"
+                if type_id
+                else f"governs the {len(members)} of its kind{where}"
+            )
+            if len(members) > 1
+            else ""
         )
         for e in members:
             # A failing element's title already ends in FAIL: no reason to add.
@@ -2761,8 +2767,10 @@ def _design(
                 "kind": kind,
                 "storey": storey_of.get(str(element.get("id")), ""),
                 "title": (
-                    f"{element.get('id')} ({_kind_title(kind)[:-1].lower()}, type "
-                    f"{element.get('type', '–')}): utilisation "
+                    f"{element.get('id')} ({_kind_title(kind)[:-1].lower()}"
+                    # B10-35 of walk 3: no "type None" for an element without a type.
+                    + (f", type {element['type']}" if element.get("type") else "")
+                    + f"): utilisation "
                     f"{fmt(element.get('utilisation'), 3)}, "
                     f"{'OK' if element.get('ok') else 'FAIL'}"
                     + (f"; {stands_for}" if stands_for else "")
