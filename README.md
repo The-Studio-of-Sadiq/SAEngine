@@ -8,6 +8,10 @@ open-source engines are reused wherever they exist.
 **User manual:** [docs/manual](docs/manual/README.md) — every part, four step-by-step tutorials
 and a glossary, also as one PDF ([SAEngine-User-Manual.pdf](docs/manual/SAEngine-User-Manual.pdf)).
 
+**Engineering decisions:** [docs/engineering-decisions.md](docs/engineering-decisions.md) — the
+choices behind SAEngine's results where the code is silent, misprinted or open to more than one
+reading, and the defaults SAEngine picks.
+
 ## Modules
 
 1. Soil report importer and form generator
