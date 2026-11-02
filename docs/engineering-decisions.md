@@ -60,6 +60,13 @@ here, newest first, with the date, the question, the decision, the reason and wh
 
 Each item gives the pack value, the project override, and the fallback when the pack is silent.
 
+Since D7, every pack value can also be overridden in the project, by the general mechanism:
+Project Settings > Code Values (the setting `codeOverrides`, see
+[code-packs.md](code-packs.md#how-to-override-a-code-value)). The items' own settings below
+stay, and win over an override of the same value. A value the pack lacks comes from the generic
+defaults (`codes/generic/data`), named "generic default (SAEngine practice), not given by
+<pack>"; the fallbacks of items 1, 3 and 10 are those generic defaults.
+
 1. **Partitions.**
    - Pack: `areaLoads.partitions.loadCase` (`"L"` or `"SD"`).
    - Project: a setting with the same choice.

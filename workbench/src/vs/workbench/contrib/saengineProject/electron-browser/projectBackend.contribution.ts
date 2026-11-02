@@ -259,6 +259,12 @@ CommandsRegistry.registerCommand('saengine.codes.choices', async (accessor, raw:
 	return orThrow(await call(accessor, 'codes/choices', { id: args.id, root: str(args.root) }));
 });
 
+// Project Settings > Code Values: the pack the settings choose with their overrides, and the values of one table.
+CommandsRegistry.registerCommand('saengine.codes.values', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/values', { settingsText: str(args.settingsText), root: str(args.root), table: str(args.table) }));
+});
+
 CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unknown) => {
 	const args = bag(raw);
 	return orThrow(await call(accessor, 'codes/new', { id: args.id, name: str(args.name), extends: str(args.extends), scope: args.scope === 'project' ? 'project' : 'user', dest: str(args.dest), root: str(args.root) }));
