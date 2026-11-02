@@ -1038,14 +1038,23 @@ def lateral_column_sizes(
         d = bh - 60.0
         minimum = beam_min_area(bw, d, fc, fy)
 
-        def mn(mu: float) -> float:
+        def steel(mu: float) -> float:
             area = with_minimum(beam_flexure_need(mu * 1e6, bw, d, 60.0, fc, fy, es).area, minimum)
-            area = max(area, minimum)
+            return max(area, minimum)
+
+        def mn(area: float) -> float:
             a = area * fy / (0.85 * fc * bw)
             return area * fy * (d - a / 2) / 1e6 * BEAM_BARS_ALLOWANCE
 
-        mn_hog = mn(hog)
-        return mn_hog, max(mn(sag), mn_hog / 2)
+        top, bottom = steel(hog), steel(sag)
+        mn_hog, mn_sag = mn(top), max(mn(bottom), mn(top) / 2)
+        # The bars' areas (rounded up as the strengths are), for the joint shear: the bottom
+        # at least half the top for Mn+ >= Mn- / 2 (Sec 8.3.4.2(a)).
+        bottom = max(bottom, top / 2)
+        beam_steel[(edge, k)] = (top * BEAM_BARS_ALLOWANCE, bottom * BEAM_BARS_ALLOWANCE)
+        return mn_hog, mn_sag
+
+    beam_steel: dict[tuple[Any, int], tuple[float, float]] = {}
 
     joint_beams: dict[tuple[int, int, bool], list[tuple[tuple[int, int], tuple[int, int]]]] = {}
     for edge in beams:
@@ -1067,6 +1076,46 @@ def lateral_column_sizes(
                 total = max((h for h, _ in strengths), default=0.0)
             mnb_cache[key] = total
         return mnb_cache[key]
+
+    probable = dj._joints("probableStress")
+    phi_joint = dj._phi_joint()
+
+    def joint_shear_failing(
+        members: list[tuple[int, int, int]], side: float
+    ) -> tuple[int, int, int] | None:
+        """The first joint of ``members`` (columns (i, j, k), square of ``side``) whose shear
+        the beams' estimated bars exceed (:func:`saengine.design.ductile_joints.joint_checks`
+        as the design checks it: T at 1.25 fy, Vcol = 1.25 ΣMnb over the mean storey height,
+        γ by the faces the beams cover three quarters of, Aj = side x side), else None."""
+        for i, j, k in members:
+            faces: set[tuple[bool, int]] = set()
+            for along_x in (True, False):
+                for edge in joint_beams.get((i, j, along_x), []):
+                    other = edge[1] if edge[0] == (i, j) else edge[0]
+                    sign = (other[0] - i) if along_x else (other[1] - j)
+                    if beams[edge][0] >= 0.75 * side:
+                        faces.add((along_x, 1 if sign > 0 else -1))
+            count = len(faces)
+            opposite = any({(a, 1), (a, -1)} <= faces for a in (True, False))
+            gamma = dj._gamma(4 if count == 4 else 3 if count == 3 or opposite else "other")
+            capacity = phi_joint * gamma * math.sqrt(fc) * side * side
+            lever = (heights[k] + heights[k + 1]) / 2 if k < n else heights[k] / 2
+            for along_x in (True, False):
+                framing = joint_beams.get((i, j, along_x), [])
+                if not framing:
+                    continue
+                for edge in framing:
+                    beam_mn(edge, k)
+                steels = [beam_steel[(edge, k)] for edge in framing]
+                if len(steels) == 2:
+                    (t1, b1), (t2, b2) = steels
+                    area = max(t1 + b2, b1 + t2)
+                else:
+                    area = max(t for t, _ in steels)
+                vcol = probable * sum_mnb(i, j, k, along_x) * 1e6 / lever
+                if probable * fy * area - vcol > capacity:
+                    return i, j, k
+        return None
 
     # ── size every (group, position) from the top group down ──
     kinds = ("interior", "edge", "corner")
@@ -1158,6 +1207,15 @@ def lateral_column_sizes(
                     mnc_of[(g, kind)] = mnc
                     break
                 why = f"strong column / weak beam at {letters(weak[0])}{weak[1] + 1} L{weak[2]}"
+                side += 50.0
+            # B10-14 of walk 3: the joint shear of a special frame (Sec 8.3.7, ductile_joints.
+            # joint_checks) with the beams' estimated bars: Vj = 1.25 fy (As top + As bottom
+            # either side) - Vcol against φ γ √f'c Aj; the wizard's columns failed it at once.
+            while special and side < MAX_SIDE:
+                failing = joint_shear_failing(members, side)
+                if failing is None:
+                    break
+                why = f"joint shear at {letters(failing[0])}{failing[1] + 1} L{failing[2]}"
                 side += 50.0
             out.sides[(g, kind)] = side
             out.governing[(g, kind)] = why
@@ -2476,12 +2534,14 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             + (
                 ", and strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2) with the beams' "
                 "Mn from the bars their portal and gravity moments need (+15 % for rounding) "
-                "and the column type's least layout"
+                "and the column type's least layout, and the joint shear with those bars "
+                "(Sec 8.3.7.3: Vj = 1.25 fy As - Vcol against φ γ √f'c Aj)"
                 if special
                 else ""
             )
-            + ". Not included: P-delta beyond δs, joint shear (Sec 8.3.7), the beams' "
-            "capacity shear, irregularities, the response spectrum's own distribution. "
+            + ". Not included: P-delta beyond δs, the beams' bars the design proposes (its "
+            "joint shear and ρ may still ask for larger columns), the beams' capacity shear, "
+            "irregularities, the response spectrum's own distribution. "
             + (
                 "Enlarged: " + "; ".join(enlarged) + "."
                 if enlarged

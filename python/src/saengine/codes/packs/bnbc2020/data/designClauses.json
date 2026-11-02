@@ -112,7 +112,8 @@
     },
     "required": {
       "seismic": "Sec 8.3",
-      "detailing": "Part 6 Sec 8.3"
+      "detailing": "Part 6 Sec 8.3",
+      "barRows": "Part 6 Sec 8.1.6.2"
     },
     "slab": {
       "twoWay": "6.5.8",
@@ -124,7 +125,9 @@
       "scope": "6.5.8.2",
       "aspect": "6.5.8.2.2",
       "stiffness": "6.5.8.2.3",
-      "minimum": "8.1.11.2"
+      "minimum": "8.1.11.2",
+      "spacingTwoWay": "Part 6 Sec 6.5.3.2",
+      "spacingOneWay": "Part 6 Sec 6.3.5.4"
     },
     "columnShear": {
       "minimum": "6.4.3.5.1"

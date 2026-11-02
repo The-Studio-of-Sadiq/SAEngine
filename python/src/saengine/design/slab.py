@@ -1883,6 +1883,20 @@ def _min_reinforcement_check(
     )
 
 
+def spacing_clause(kind: str) -> str:
+    """The clause text of a slab's largest bar spacing: ``kind`` "twoWay" min(2h, 450 mm),
+    "oneWay" min(3h, 450 mm) along the span; the code pack's (``designClauses.slab.spacingTwoWay``,
+    ``spacingOneWay``) where it gives one (B10-18 of walk 3: ACI clauses in a BNBC project's
+    notes), else ACI 318-19's."""
+    from saengine.design import clauses
+
+    key = "spacingTwoWay" if kind == "twoWay" else "spacingOneWay"
+    rule = "min(2h, 450 mm)" if kind == "twoWay" else "min(3h, 450 mm)"
+    if clauses.text("slab", key):
+        return f"{rule} ({clauses.clause('slab', key)})"
+    return f"{'8.7.2.2' if kind == 'twoWay' else '7.7.2.3'}: {rule}"
+
+
 def _max_spacing_check(
     system: str, h: float, layers: dict[str, Layer | None], span: str | None
 ) -> dict[str, Any]:
@@ -1897,9 +1911,9 @@ def _max_spacing_check(
         if layer is None:
             continue
         if system != "oneWay":
-            limit, clause = min(2 * h, 450.0), "8.7.2.2: min(2h, 450 mm)"
+            limit, clause = min(2 * h, 450.0), spacing_clause("twoWay")
         elif layer.name[-1] == span:
-            limit, clause = min(3 * h, 450.0), "7.7.2.3: min(3h, 450 mm)"
+            limit, clause = min(3 * h, 450.0), spacing_clause("oneWay")
         else:
             from saengine.design.rc_detailing import shrinkage_spacing
 
@@ -1916,7 +1930,7 @@ def _max_spacing_check(
         "mm",
         None,
         f"{layer.name} at {layer.spacing:.0f} mm; "
-        + (clause if clause[:1].isupper() else f"ACI {clause}"),
+        + (clause if clause[:1].isupper() or clause.startswith("min(") else f"ACI {clause}"),
     )
 
 

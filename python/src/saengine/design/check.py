@@ -1059,7 +1059,7 @@ def _design_run(
                                 row["flag"] = True
                                 row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
                         checks += deep_rows
-                        notes.extend(deep_notes)
+                    notes.extend(deep_notes)
             else:
                 if type_id not in column_sections:
                     section = section_of(
@@ -1346,6 +1346,27 @@ def _design_run(
         into[0].extend(diaphragms_found["elements"])
         into[1].extend(diaphragms_found["skipped"])
         into[2].extend(diaphragms_found["notes"])
+    # FD-6 of walk 3: each element supporting a discontinuous column or wall says so, and that
+    # it took the Ω0 combinations (a transfer girder read as an ordinary beam otherwise).
+    supporting = {
+        e["id"]: e["reason"] for e in omega_extra.get("elements", []) if e["id"] in omega_elements
+    }
+    for into in sinks:
+        for element in into[0]:
+            reason = supporting.get(element.get("id"))
+            if reason is None:
+                continue
+            note = (
+                f"{reason} ({overstrength.CLAUSES['supporting']}): checked with the Ω0 "
+                "combinations too, whichever governs"
+            )
+            target = (
+                element.get("detailing") if isinstance(element.get("detailing"), dict) else None
+            )
+            holder = target if target is not None else element
+            holder.setdefault("notes", [])
+            if note not in holder["notes"]:
+                holder["notes"].insert(0, note)
 
     def assemble(
         checked: list[dict[str, Any]],
@@ -3682,8 +3703,20 @@ class _BeamFraming:
         length = float(np.linalg.norm(c - a))
         z = float(element.elevation)
         found: list[tuple[float, float]] = []  # (t, half-size [mm])
-        for position, bottom, top, reach in self.columns:
+        # A column or wall that starts at the beam's level stands on it (a transfer beam's
+        # landing column): a load, not a support (FD of walk 3: the 12 m transfer beam's
+        # deflection was checked over the 6 m halves either side of its landing column).
+        bottoms = [b for _, b, _, _ in self.columns] + [b for _, _, b, _, _ in self.walls]
+        base = min(bottoms, default=0.0)
+
+        def holds(bottom: float, top: float) -> bool:
             if not bottom - 1.0 <= z <= top + 1.0:
+                return False
+            # At the base (a tie beam) the column standing there is on its footing: a support.
+            return not (abs(bottom - z) <= 1.0 and z > base + 1.0)
+
+        for position, bottom, top, reach in self.columns:
+            if not holds(bottom, top):
                 continue
             t, off = self._station(position, a, c)
             margin = (reach + _ON_LINE) / length
@@ -3694,7 +3727,7 @@ class _BeamFraming:
                     t = 1.0
                 found.append((t, reach))
         for w0, w1, bottom, top, half in self.walls:
-            if not bottom - 1.0 <= z <= top + 1.0:
+            if not holds(bottom, top):
                 continue
             for end in (a, c):
                 t_wall, off = self._station(end, w0, w1)

@@ -181,7 +181,64 @@ class BeamDesigner:
         self.fc, self.fy, self.es, self.aggregate = fc, fy, es, aggregate
         self.options = options
         self.top_drop = top_drop
+        #: OI-1 of walk 3: where the type's bars must fit (:class:`BarRoom`), or None.
+        self.anchorage: BarRoom | None = None
         self._cache: dict[str, tuple[Any, Any, Any, Any]] = {}
+
+    def hooked_need(self, db: float, special: bool) -> float:
+        """ldh [mm] of a 90° hooked bar of ``db``: in a special moment frame's joint
+        (:func:`saengine.design.ductile_joints.hooked_anchorage_seismic`), else a standard
+        hook in tension (:func:`saengine.design.ductile_joints.hooked_development`)."""
+        from saengine.design import ductile_joints as dj
+
+        if special:
+            return dj.hooked_anchorage_seismic(db, self.fy, self.fc)
+        return dj.hooked_development(db, self.fy, self.fc)
+
+    def diameters(self) -> tuple[tuple[float, ...], str | None]:
+        """The bar sizes the top and bottom bars may take: those whose hooks fit the room in
+        the columns the type's members end in (OI-1 of walk 3: Ø25 bars hooking into 400 mm
+        columns, 396 mm needed, 348 mm there), and a note when that leaves some out."""
+        from saengine.design import ductile_joints as dj
+
+        sizes = tuple(self.options.diameters)
+        room = self.anchorage
+        if room is None:
+            return sizes, None
+        ratio = dj.through_bar_ratio()
+
+        def hooks(d: float) -> bool:
+            return self.hooked_need(d, room.special) <= room.end + 1e-6
+
+        def passes(d: float) -> bool:
+            return ratio * d <= room.through + 1e-6
+
+        fit = tuple(d for d in sizes if hooks(d) and passes(d))
+        if fit == sizes:
+            return sizes, None
+        if not fit:
+            smallest = min(sizes, default=0.0)
+            if not hooks(smallest):
+                why = (
+                    f"Ø{smallest:g} needs ldh = {self.hooked_need(smallest, room.special):.0f} "
+                    f"mm, {room.end:.0f} mm in {room.end_at}"
+                )
+            else:
+                why = f"Ø{smallest:g} needs {ratio} db through {room.through_at}"
+            return sizes, f"no bar size fits: {why}; use headed bars or a larger column"
+        parts = []
+        if any(not hooks(d) for d in sizes):
+            first = min(d for d in sizes if not hooks(d))
+            parts.append(
+                f"their 90° hooks fit the {room.end:.0f} mm in {room.end_at} (ldh of "
+                f"Ø{first:g} = {self.hooked_need(first, room.special):.0f} mm)"
+            )
+        if any(not passes(d) for d in sizes):
+            parts.append(
+                f"the column depth {room.through:.0f} mm they pass through in {room.through_at} "
+                f"is at least {ratio} db (Sec 8.3.7.1(d))"
+            )
+        return fit, f"bars at most Ø{max(fit):g}: " + "; ".join(parts)
 
     def geometry(self, h: float, stirrup: float) -> BeamGeometry:
         d = h - self.cover - stirrup - 10.0  # one row of Ø20 assumed
@@ -327,12 +384,13 @@ class BeamDesigner:
         # bars of Sec 6.4.4.6.2 are added by reinforcement().
         al_face = loads.al / 2
         scale = 1.0
+        sizes, anchorage_note = self.diameters()
         for _ in range(8):
             bottoms = B.face_options(
-                (need.bottom + al_face) * scale, self.b, inset, opts.diameters, self.aggregate
+                (need.bottom + al_face) * scale, self.b, inset, sizes, self.aggregate
             )[:5]
             tops = B.face_options(
-                (need.top + al_face) * scale, self.b, inset, opts.diameters, self.aggregate
+                (need.top + al_face) * scale, self.b, inset, sizes, self.aggregate
             )[:5]
             combos = [
                 (top, bottom)
@@ -355,9 +413,16 @@ class BeamDesigner:
                     reinforcement = self.reinforcement(top, bottom, option, loads)
                     utilisation = self.verify(reinforcement, loads)
                     if utilisation is not None:
-                        notes = []
+                        notes = [anchorage_note] if anchorage_note else []
                         if bottom.rows > 1 or top.rows > 1:
-                            notes.append("bars in 2 rows, 25 mm clear between them (ACI 25.2.2)")
+                            from saengine.design.clauses import text as clause_text
+
+                            rows_at = (
+                                clause("required", "barRows")
+                                if clause_text("required", "barRows")
+                                else "ACI 25.2.2"
+                            )
+                            notes.append(f"bars in 2 rows, 25 mm clear between them ({rows_at})")
                         return Pick(
                             reinforcement,
                             _beam_label(reinforcement),
@@ -423,6 +488,12 @@ class BeamDesigner:
             dia = next((d for d in sorted(self.options.diameters) if d >= least), 12.0)
             if per_face:
                 sides = [{"position": "sides", "count": 2 * per_face, "dia": dia}]
+        skin = None if self.sides else self._skin_bars(top, bottom, stirrups)
+        if skin is not None and (not sides or self._per_face(sides) < skin["count"] // 2):
+            # FD-7 of walk 3: a beam deeper than the pack's limit gets the side (skin) bars
+            # its skin check asks for (rc_detailing.skin_check), not only torsion's.
+            dia = max([skin["dia"], *(g["dia"] for g in sides)])
+            sides = [{**skin, "dia": dia}]
         return {
             "material": self.material,
             "cover": self.cover,
@@ -438,6 +509,33 @@ class BeamDesigner:
                 "legs": stirrups.legs,
             },
         }
+
+    @staticmethod
+    def _per_face(sides: list[dict[str, Any]]) -> int:
+        return sum(int(g["count"]) for g in sides) // 2
+
+    def _skin_bars(
+        self, top: B.FaceBars, bottom: B.FaceBars, stirrups: B.Stirrups
+    ) -> dict[str, Any] | None:
+        """The side bars of a beam deeper than the pack's skin limit
+        (:func:`saengine.design.rc_detailing.skin_check`): on each side face between the top and
+        bottom rows, evenly spaced at most the crack control spacing with cc the cover and
+        stirrup to the side face; None for a shallower beam or a pack without the rule."""
+        from saengine.design import rc_detailing as RD
+
+        rule = getattr(RD._detailing(), "skin", None)
+        if rule is None or self.h <= rule.depthOver:
+            return None
+        cc = self.cover + stirrups.dia
+        limit = RD.crack_spacing_limit(RD.service_stress(self.fy), cc)
+        if not limit or limit <= 0:
+            return None
+        gap = self.h - 2 * cc - (top.dia + bottom.dia) / 2
+        per_face = max(0, math.ceil(gap / limit - 1e-9) - 1)
+        if not per_face:
+            return None
+        dia = next((d for d in sorted(self.options.diameters) if d >= 10.0), 12.0)
+        return {"position": "sides", "count": 2 * per_face, "dia": dia}
 
 
 def _beam_loads(member: dict[str, Any], combinations: list[str]) -> BeamLoads:
@@ -644,6 +742,97 @@ class _JointCase:
     above_type: str | None = None
     #: The checks' strong column / weak beam row is required there (not flagged, 8.3.5.2(a)).
     strong_required: bool = False
+
+
+def _anchorage_rooms(gathered: Any) -> dict[str, tuple[float, str]]:
+    """Per beam that ends in a column (no beam beyond it on the column's axis): the least room
+    [mm] for its hooked bars there, the column's dimension along the beam less its cover and
+    tie (to the far face of the confined core, as the joint checks and the drawings take it),
+    and the column. OI-1 of walk 3."""
+    import numpy as np
+
+    from saengine.design import ductile_joints as dj
+
+    types = {o.id: o for o in getattr(getattr(gathered, "objects", None), "objects", [])}
+    try:
+        joints = dj.frame_joints(gathered.building, types)
+    except (DesignError, ValueError, AttributeError, TypeError):
+        return {}
+    by_id = {e.id: e for e in gathered.building.elements}
+    out: dict[str, tuple[float, str]] = {}
+    for joint in joints:
+        column = by_id.get(joint.below)
+        obj = types.get(getattr(column, "type", None))
+        profile = getattr(obj, "profile", None)
+        if column is None or profile is None:
+            continue
+        reinforcement = getattr(obj, "reinforcement", None)
+        cover = float(getattr(reinforcement, "cover", 40.0) or 40.0)
+        tie = getattr(reinforcement, "transverse", None)
+        tie_dia = float(getattr(tie, "dia", 10.0) or 10.0)
+        rotation = float(getattr(column, "rotation", 0.0) or 0.0)
+        ex, ey = dj.column_axes(rotation)
+        sides: dict[tuple[int, int], list[Any]] = {}
+        for beam in joint.beams:
+            u = np.asarray(beam.direction, dtype=float)
+            ux, uy = float(u @ ex), float(u @ ey)
+            axis = 0 if abs(ux) >= abs(uy) else 1
+            sign = 1 if (ux if axis == 0 else uy) > 0 else -1
+            sides.setdefault((axis, sign), []).append(beam)
+        for (axis, sign), framing in sides.items():
+            try:
+                frame = dj.column_frame(profile, rotation, ex if axis == 0 else ey)
+            except DesignError:
+                continue
+            if (axis, -sign) in sides:
+                # The bars run through the joint: a special frame's column depth >= 20 db
+                # (ductile_joints.joint_checks, Sec 8.3.7.1(d)), kept as "through:<id>".
+                for beam in framing:
+                    key = f"through:{beam.id}"
+                    if key not in out or frame.along < out[key][0]:
+                        out[key] = (frame.along, column.id)
+                continue
+            room = frame.along - cover - tie_dia
+            for beam in framing:
+                if beam.id not in out or room < out[beam.id][0]:
+                    out[beam.id] = (room, column.id)
+    return out
+
+
+def _type_anchorage(
+    members: list[dict[str, Any]], rooms: dict[str, tuple[float, str]]
+) -> tuple[float, bool, str] | None:
+    """The least anchorage room of a beam type's members (:func:`_anchorage_rooms`), whether
+    a special moment frame's hooked anchorage applies there, and the column."""
+    special = any(
+        c.get("level") == "special" and c.get("lateral") for c in _seismic_members(members)
+    )
+    found = [(rooms[m["id"]], m) for m in members if m["id"] in rooms]
+    through = [(rooms[f"through:{m['id']}"], m) for m in members if f"through:{m['id']}" in rooms]
+    end = min(found, key=lambda f: f[0][0]) if found else None
+    passing = min(through, key=lambda f: f[0][0]) if through and special else None
+    if end is None and passing is None:
+        return None
+    return BarRoom(
+        end[0][0] if end else math.inf,
+        special,
+        f"column {end[0][1]} (at {end[1]['id']})" if end else "",
+        passing[0][0] if passing else math.inf,
+        f"column {passing[0][1]} (at {passing[1]['id']})" if passing else "",
+    )
+
+
+@dataclass(frozen=True)
+class BarRoom:
+    """Where a beam type's bars must fit (OI-1 of walk 3): the least room [mm] for a hooked
+    bar where a member ends in a column, and the least column depth the bars pass through in a
+    special frame's joint (``inf``: none), with the columns."""
+
+    end: float
+    special: bool
+    end_at: str
+    through: float = math.inf
+    through_at: str = ""
 
 
 def _joint_cases(gathered: Gathered) -> list[_JointCase]:
@@ -1171,7 +1360,9 @@ def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) 
             *entry["notes"],
             (
                 f"bars for its axial forces and moments: {bars['text']}; not proposed, the joints "
-                "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend on bars)"
+                "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend on "
+                "the column's bars; the beams' bars give Vj = 1.25 fy As - Vcol, judged on each "
+                "beam type's shared bars)"
             ),
         ]
     if "byType" in entry:
@@ -1429,6 +1620,19 @@ def propose(
                 found.reassign.append(
                     {"member": m.id, "from": type_id, "to": new_id, "source": sources.get(m.id)}
                 )
+        if accepted and kind == "beam" and type_id in beam_designers:
+            # B10 of walk 3: the members that stay get Mn+ >= Mn-/2 too (their bars were
+            # proposed afresh from their own envelope, without it).
+            leaving = {m.id for group, _ in accepted for m in group}
+            staying = [m for m in members if m.id not in leaving]
+            own = [collected_by_id[m.id] for m in staying if m.id in collected_by_id]
+            if staying and own:
+                loads = staying[0].loads
+                for m in staying[1:]:
+                    loads = loads.envelope(m.loads)
+                remaining = _beam_positive_moment(
+                    beam_designers[type_id], remaining, loads, own, lightest
+                )
         return remaining
 
     # Beams.
@@ -1510,6 +1714,7 @@ def propose(
 
     results: list[_TypeResult] = []
     beam_results: dict[str, _TypeResult] = {}
+    rooms = _anchorage_rooms(gathered)
     for type_id, members in beams.items():
         first = members[0]
         try:
@@ -1520,6 +1725,7 @@ def propose(
         except DesignError as error:
             results.append(_TypeResult(warnings=[f"{type_id}: {error}"]))
             continue
+        designer.anchorage = _type_anchorage(members, rooms)
         beam_designers[type_id] = designer
         beam_results[type_id] = beam_type(type_id)
         results.append(beam_results[type_id])
@@ -2161,7 +2367,7 @@ def _beam_positive_moment(
         a = area * designer.fy / (0.85 * designer.fc * designer.b)
         return 0.9 * area * designer.fy * (d - a / 2) * 1.02
 
-    for _ in range(3):
+    for _ in range(6):
         section, sag, hog, _ = designer._analyse(pick.reinforcement)
         new_sag, new_hog, why = loads.sag, loads.hog, []
         for top in (True, False):
@@ -2185,6 +2391,10 @@ def _beam_positive_moment(
             return pick
         again.notes = [*again.notes, *why]
         pick = again
+    _, sag, hog, _ = designer._analyse(pick.reinforcement)
+    if sag.mn < 0.5 * hog.mn - 1e-6:
+        note = "Mn+ ≥ Mn-/2 at the faces not reached (Sec 8.3.4.2(a))"
+        pick = dataclasses.replace(pick, notes=[*pick.notes, note])
     return pick
 
 

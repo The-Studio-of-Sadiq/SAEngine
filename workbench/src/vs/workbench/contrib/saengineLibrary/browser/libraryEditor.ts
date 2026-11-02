@@ -162,6 +162,11 @@ export function columnBars(area: number, circular: boolean): { readonly count: n
 	return { count: best.count, dia: best.dia };
 }
 
+/** The ties' legs each way of a square column with `count` perimeter bars: one on every bar of a face. */
+export function specialColumnLegs(count: number): number {
+	return Math.max(2, Math.round((count - 4) / 4) + 2);
+}
+
 /** The id prefix of a new material of each category. */
 const NEW_MATERIAL_ID: { readonly [category: string]: string } = { concrete: 'C', rebar: 'R', steel: 'S', masonry: 'MAS', mortar: 'M', other: 'MAT' };
 
@@ -199,6 +204,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 	private steelRatioForm: HTMLElement | undefined;
 	/** The materials document, for which object types take the code's cracked factors (stiffness modifiers). */
 	private materialsDoc: JsonObject | undefined;
+	/** The seismic detailing of the project's frames ("special" for a special moment frame), for the bars of a new column type. */
+	private frameDetailing: string | null | undefined;
 
 	private readonly form: SchemaForm;
 	private readonly listDisposables = this._register(new DisposableStore());
@@ -265,6 +272,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 	protected override onWillLoadInput(): void {
 		void this.refreshSections();
+		void this.refreshFrameDetailing();
 		const kind = this.kind;
 		this.config = kind === 'materials' || kind === 'objects' ? libraryConfig(kind) : undefined;
 		// A file shown again (back from the Section Designer) keeps its selected entry.
@@ -494,6 +502,22 @@ export class LibraryEditor extends JsonDocumentEditor {
 		return undefined;
 	}
 
+	/** Reads the project's structural system for the seismic detailing of its frames. */
+	private async refreshFrameDetailing(): Promise<void> {
+		const root = this.projectService.project?.root;
+		if (!root) {
+			return;
+		}
+		try {
+			const content = await this.fileService.readFile(joinPath(root, '02 Project Settings', 'project-settings.json'));
+			const settings = JSON.parse(content.value.toString()) as JsonObject;
+			const seismic = isObject(settings.seismic) ? settings.seismic : {};
+			this.frameDetailing = DEFAULT_CODE_TABLES.systems[String(seismic.system)]?.frame ?? null;
+		} catch {
+			this.frameDetailing = undefined; // no settings yet: the ordinary template
+		}
+	}
+
 	/** Lists the designed sections (`04 Objects/sections/<id>.json`) for designed profiles. */
 	private async refreshSections(): Promise<void> {
 		const root = this.projectService.project?.root;
@@ -523,7 +547,10 @@ export class LibraryEditor extends JsonDocumentEditor {
 	private template(key: string): JsonObject {
 		const item = this.config?.listKey === 'objects' ? this.formItem ?? this.selected : undefined;
 		const kind = item?.kind;
-		const value = clone((TEMPLATES[`${key}:${String(kind)}`] ?? TEMPLATES[key] ?? {}) as JsonObject);
+		// SL-14 of walk 3: a column's bars in a special moment frame start from its own template.
+		const special = key === 'LinearReinforcement' && kind === 'column' && this.frameDetailing === 'special'
+			&& !(isObject(item?.profile) && item.profile.shape === 'circle');
+		const value = clone(((special ? TEMPLATES[`${key}:column:special`] : undefined) ?? TEMPLATES[`${key}:${String(kind)}`] ?? TEMPLATES[key] ?? {}) as JsonObject);
 		this.fixReferences(value, /Reinforcement$/.test(key) ? 'reinforcement' : '');
 		if (key === 'DesignedProfile') {
 			// No made-up section id (it would be a problem at once): the first designed section, or
@@ -535,6 +562,11 @@ export class LibraryEditor extends JsonDocumentEditor {
 			// The column's bars give it at least 1 % steel (the template's 8 Ø16 is 0.8 % of 450 × 450).
 			const bars = columnBars(area, isObject(item?.profile) && item.profile.shape === 'circle');
 			value.longitudinal = [{ position: 'perimeter', count: bars.count, dia: bars.dia }];
+			if (special && isObject(value.transverse)) {
+				// A leg on every bar of a face (each corner and alternate bar held, and more).
+				const legs = specialColumnLegs(bars.count);
+				value.transverse = { ...value.transverse, legs, legsX: legs };
+			}
 		}
 		return value;
 	}

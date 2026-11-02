@@ -725,7 +725,7 @@ export class FemResultsEditor extends EditorPane {
 		}
 		const reactions = baseReactionTable(response, { force: v => v * this.units.force.scale, moment: v => v * this.units.moment.scale });
 		if (reactions.rows.length) {
-			const section = this.section(localize('femResults.baseHeading', "Base Reactions"), localize('femResults.baseHelp', "The sum of the support reactions of each static case and combination (the supports push on the structure)."));
+			const section = this.section(localize('femResults.baseHeading', "Base Reactions"), localize('femResults.baseHelp', "The support reactions of each static case and combination (the supports push on the structure): forces summed, moments about the supports' centroid at the base."));
 			renderSheet(section, reactions);
 		}
 		for (const curve of response.pushover) {
@@ -1182,7 +1182,7 @@ export class FemResultsEditor extends EditorPane {
 
 		const forces = this.section(localize('femResults.forcesHeading', "Forces Along the Member"), detail.kind === 'column'
 			? localize('femResults.columnAxes', "From the bottom of the column (0 m) up. Member axes: 1 along it; tension positive; V2 and M3 act in the local 1-2 plane, V3 and M2 in the 1-3 plane; values signed as computed.")
-			: localize('femResults.beamAxes', "From the member's start (0 m). Member axes: 1 along it; tension positive; sagging M2 negative (tension at the bottom), hogging positive."));
+			: localize('femResults.beamAxes', "From the member's start (0 m). Member axes: 1 along it; tension positive; the gravity bending is M3 (the 1-2 plane), sagging positive (tension at the bottom), hogging negative; M2 is the bending across."));
 		const grid = this.grid(forces);
 		const components: readonly { readonly c: MemberComponent | 'u2' | 'u3'; readonly title: string; readonly unit: IUnit }[] = [
 			{ c: 'N', title: localize('femResults.axial', "Axial Force N"), unit: this.units.force },
@@ -1247,7 +1247,7 @@ export class FemResultsEditor extends EditorPane {
 	}
 
 	private renderInteraction(member: string): void {
-		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks, ACI 318-19 as {0} Part 6 adopts) with the demand of every load combination: the largest axial force and the largest moments of each.", defaultCodeName()));
+		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks: the strength design of {0} Part 6 Chapter 6) with the demand of every load combination: the largest axial force and the largest moments of each.", defaultCodeName()));
 		const diagram = this.interaction;
 		if (!diagram) {
 			const note = this.interactionState === 'loading'

@@ -680,11 +680,25 @@ def punching_checks(
     rows = []
     frame_axes = slab.PlanFrame(context.axes)
     angle = math.degrees(math.atan2(frame_axes.ux[1], frame_axes.ux[0]))
+
+    def on_beams(frame: SlabFrame, j: int) -> bool:
+        """Whether beams run along the frame's spans either side of support ``j``."""
+        near = [frame.alpha[k] for k in (j - 1, j) if 0 <= k < len(frame.alpha)]
+        return bool(near) and all(a > 0 for a in near)
+
     for column_id, info in _tributary(frames).items():
         if "X" not in info["frames"] or "Y" not in info["frames"]:
             continue
         fx, jx = info["frames"]["X"]
         fy_, jy = info["frames"]["Y"]
+        if on_beams(fx, jx) and on_beams(fy_, jy):
+            # FD-10 of walk 3: beams frame into the column along both directions: they take
+            # the slab's shear to it (no two-way shear section round the column forms).
+            context.notes.append(
+                f"punching at {column_id} not checked: beams frame into it in both directions "
+                "and carry the slab's shear to it (checked with the beams)"
+            )
+            continue
         sx, sy = fx.supports[jx], fy_.supports[jy]
         centre = frame_axes.plan(sx.at, sy.at)
         section = slab.critical_section(centre, sx.c1, sy.c1, angle, d, context.boundary)

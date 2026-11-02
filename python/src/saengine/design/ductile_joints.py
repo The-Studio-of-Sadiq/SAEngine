@@ -569,6 +569,12 @@ def hooked_anchorage_seismic(db: float, fy: float, fc: float, lam: float = 1.0) 
     return max(8 * db, 150.0, basic)
 
 
+def through_bar_ratio(lam: float = 1.0) -> int:
+    """The column dimension parallel to beam bars passing through a special frame's joint, in
+    bar diameters (Sec 8.3.7.1(d)): 20, 26 in lightweight concrete."""
+    return 26 if lam < 1 else 20
+
+
 def joint_checks(
     joint: FrameJoint,
     beams: dict[str, RcSection],
@@ -640,7 +646,7 @@ def joint_checks(
         through = d.plus and d.minus
         if through:
             db = max(m.db_max for side in (d.plus, d.minus) for _, _, m in side)
-            factor = 26 if lam < 1 else 20
+            factor = through_bar_ratio(lam)
             rows.append(
                 _check(
                     f"Beam bars through joint, {joint.id} {d.name}",

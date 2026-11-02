@@ -661,12 +661,18 @@ export class FemDesignProposalEditor extends EditorPane {
 			// proposed none).
 			const noBars = this.before.summary.noBars ?? [];
 			const withoutBars = noBars.filter(type => rows.some(r => r.type === type && r.tooSmall && !r.included));
-			const proposed = noBars.filter(type => !withoutBars.includes(type));
+			// FD-3 of walk 3: a type with no row at all (a wall whose cuts had no forces) is
+			// not "proposed below" either.
+			const noRow = noBars.filter(type => !rows.some(r => r.type === type));
+			const proposed = noBars.filter(type => !withoutBars.includes(type) && !noRow.includes(type));
 			if (proposed.length) {
 				append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.noBarsYet', "Not checked for want of bars: {0}. Bars are proposed for them below.", proposed.join(', '))));
 			}
 			if (withoutBars.length) {
 				append(text, $('.fem-proposal-header-detail.warn', undefined, localize('femProposal.noBarsNone', "Not checked for want of bars, and no bars proposed: {0}. See their rows for the section to try.", withoutBars.join(', '))));
+			}
+			if (noRow.length) {
+				append(text, $('.fem-proposal-header-detail.warn', undefined, localize('femProposal.noBarsNoRow', "Not checked for want of bars, and the proposal found no forces to design them for: {0}. See the notes of the design checks.", noRow.join(', '))));
 			}
 		}
 		const button = this.renderStore.add(new Button(header, { ...defaultButtonStyles, supportIcons: true }));
