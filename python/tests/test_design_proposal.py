@@ -745,11 +745,13 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     # 160, tread 327: 2R + T = 647 mm, BNBC Part 3 Sec 1.14.5.2, and Part 4 Table 4.3.5's 327 mm).
     assert failures == []
     # The totals count the 18 members (5 beams, 8 columns with the steel M1, the brace M2, 2
-    # slabs, the stair and the wall), the 6 beam-column joints and the building's 3 seismic
-    # checks (f'c, bar grade, fyt of the ties): 27 (X4 of the usability walk).
+    # slabs, the stair and the wall), the Level 1 diaphragm (its chords and collectors, an
+    # element of its own since T3, b8098594: this pin predates it and was hidden behind the
+    # chord failure), the 6 beam-column joints and the building's 3 seismic checks (f'c, bar
+    # grade, fyt of the ties): 28 (X4 of the usability walk).
     summary = after["summary"]
-    assert summary["failed"] == 0 and summary["checked"] == 27
-    assert summary["elements"]["checked"] == 18
+    assert summary["failed"] == 0 and summary["checked"] == 28
+    assert summary["elements"]["checked"] == 19
     assert summary["joints"]["checked"] == 6 and summary["seismicChecks"] == 3
 
     # Splitting: the lighter beams get their own types, and the design still passes.
