@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from saengine.boq.costing import CarbonFactors, RateSchedule
 from saengine.codes.tables import builtin_table
 from saengine.library import code_data
 from saengine.library.architecture import Architecture, default_architecture
@@ -272,6 +273,12 @@ def generate_typescript() -> str:
             json_schema(ReportTemplate, "SAEngine report template"),
         ),
         ("DEFAULT_REPORT_TEMPLATE", "object", library_json(default_report_template())),
+        ("RATES_SCHEMA", "IJSONSchema", json_schema(RateSchedule, "SAEngine schedule of rates")),
+        (
+            "CARBON_SCHEMA",
+            "IJSONSchema",
+            json_schema(CarbonFactors, "SAEngine embodied carbon factors"),
+        ),
     ]
     body = "\n".join(
         f"export const {name}: {type_} = {_ts(value)};\n" for name, type_, value in exports

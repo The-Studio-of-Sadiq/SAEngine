@@ -117,17 +117,21 @@ CFT = 35.3147  # cubic feet per m³
 
 #: The nominal mix assumed for a concrete with no mix in 03 Materials (cement : sand : stone by
 #: volume), by f'c [MPa]: the nominal mixes of IS 456:2000 Table 9 (M10 1:3:6, M15 1:2:4, M20
-#: 1:1.5:3), the richest one above M20, where a design mix is the practice. Estimating practice,
-#: not code values: enter the mix in 03 Materials to replace it.
-ASSUMED_MIXES: tuple[tuple[float, tuple[float, float, float]], ...] = (
-    (12.0, (1.0, 3.0, 6.0)),
-    (17.0, (1.0, 2.0, 4.0)),
-    (math.inf, (1.0, 1.5, 3.0)),
+#: 1:1.5:3), the richest one above M20, where a design mix is the practice, with the table's
+#: water: its "quantity of water per 50 kg of cement, max" (M10 34 l, M15 32 l, M20 30 l: w/c
+#: 0.68, 0.64, 0.60 by mass). Estimating practice, not code values: enter the mix in 03
+#: Materials to replace it.
+ASSUMED_MIXES: tuple[tuple[float, tuple[float, float, float], float], ...] = (
+    (12.0, (1.0, 3.0, 6.0), 34.0 / 50.0),
+    (17.0, (1.0, 2.0, 4.0), 32.0 / 50.0),
+    (math.inf, (1.0, 1.5, 3.0), 30.0 / 50.0),
 )
 
 #: The mix of the blinding (lean concrete, which has no material in 03 Materials): 1:3:6, the
-#: M10 nominal mix of IS 456:2000 Table 9, as for a lean concrete of the table above.
+#: M10 nominal mix of IS 456:2000 Table 9, as for a lean concrete of the table above, with its
+#: water (34 l per 50 kg of cement).
 LEAN_MIX = (1.0, 3.0, 6.0)
+LEAN_WATER_CEMENT = 34.0 / 50.0
 
 #: Earthwork and blinding of the foundations of 9 Substructure [mm].
 WORKING_SPACE = 300.0  # around a foundation or tie beam, each side, to the excavation's face
@@ -2070,6 +2074,9 @@ class _Measure:
         ]
         missing: dict[str, str] = {}
         assumed: dict[str, str] = {}
+        #: Mixes taken off without water (a nominal mix with no water/cement ratio): named in a
+        #: note, so the water line is not read as the whole of it (walkthrough 3).
+        dry: dict[str, str] = {}
         # An assumed mix uses the cement of the project's own mixes (the most common type), so
         # its cement joins theirs on one line instead of a second, untyped one.
         mixes = [getattr(m, "composition", None) for m in self.materials.values()]
@@ -2081,7 +2088,9 @@ class _Measure:
                 # Lean concrete has no material of its own in 03 Materials: the lean mix.
                 from saengine.library.materials import NominalMix
 
-                mix = NominalMix(ratio=list(LEAN_MIX), cementType=project_cement)
+                mix = NominalMix(
+                    ratio=list(LEAN_MIX), waterCement=LEAN_WATER_CEMENT, cementType=project_cement
+                )
                 share, factor, cement_type = 1.0, DRY_VOLUME_CONCRETE, project_cement
                 ratio = ":".join(f"{r:g}" for r in LEAN_MIX)
                 assumed["~blinding"] = f"the blinding (lean concrete) {ratio} assumed"
@@ -2097,6 +2106,8 @@ class _Measure:
                     continue
                 mix, share, factor = mortar.composition, BRICKWORK_WET_MORTAR, DRY_VOLUME_MORTAR
                 cement_type = mix.cementType
+                if _no_water(mix):
+                    dry[mortar.id] = f"mortar {mortar.id}"
             else:
                 mix = material.composition
                 if mix is None:
@@ -2108,6 +2119,8 @@ class _Measure:
                     )
                 share, factor = 1.0, DRY_VOLUME_CONCRETE
                 cement_type = mix.cementType
+                if _no_water(mix):
+                    dry[material.id] = f"concrete {material.id}"
             cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
             items = {
                 "cement": ((1, cement_type or ""), f"{cement}", "kg", 1.0),
@@ -2138,6 +2151,8 @@ class _Measure:
                 missing[mortar_id] = f"plaster: its mortar {mortar_id} has no mix"
                 continue
             cement_type = mortar.composition.cementType
+            if _no_water(mortar.composition):
+                dry[mortar_id] = f"mortar {mortar_id}"
             cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
             amounts = self.mix_quantities(mortar.composition, volume, DRY_VOLUME_MORTAR)
             amounts["bags"] = amounts["cement"]
@@ -2165,8 +2180,15 @@ class _Measure:
             self.notes.append(
                 "Materials: "
                 + "; ".join(assumed[k] for k in sorted(assumed))
-                + ", a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix "
-                "in 03 Materials to replace it)."
+                + ", a nominal mix of IS 456:2000 Table 9 by strength with that table's water "
+                "(enter the mix in 03 Materials to replace it)."
+            )
+        if dry:
+            self.notes.append(
+                "Materials: no water is taken off for "
+                + ", ".join(dry[k] for k in sorted(dry))
+                + ": their mixes give no water/cement ratio (enter it in 03 Materials), so the "
+                "water line is short of their water."
             )
         if missing:
             self.missing_mixes = [missing[k] for k in sorted(missing)]
@@ -2245,12 +2267,18 @@ def _fc(material: Material) -> float:
 
 
 def assumed_mix(material: Material) -> Any:
-    """The nominal mix taken off a concrete with no mix in 03 Materials (:data:`ASSUMED_MIXES`)."""
+    """The nominal mix taken off a concrete with no mix in 03 Materials (:data:`ASSUMED_MIXES`),
+    with its water."""
     from saengine.library.materials import NominalMix
 
     fc = _fc(material)
-    ratio = next(r for limit, r in ASSUMED_MIXES if fc <= limit + 1e-9)
-    return NominalMix(ratio=list(ratio))
+    ratio, water = next((r, w) for limit, r, w in ASSUMED_MIXES if fc <= limit + 1e-9)
+    return NominalMix(ratio=list(ratio), waterCement=water)
+
+
+def _no_water(mix: Any) -> bool:
+    """A nominal mix with no water/cement ratio (a design mix always gives its water)."""
+    return getattr(mix, "method", "nominal") == "nominal" and not getattr(mix, "waterCement", None)
 
 
 def bill_of_quantities(

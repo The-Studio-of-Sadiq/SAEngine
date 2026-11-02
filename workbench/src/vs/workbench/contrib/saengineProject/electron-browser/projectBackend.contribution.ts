@@ -18,7 +18,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
+import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
 import { SHARE_CONNECT_COMMAND, SHARE_DISCONNECT_COMMAND, SHARE_HEARTBEAT_COMMAND, SHARE_JOIN_COMMAND, SHARE_LOCK_COMMAND, SHARE_STATUS_COMMAND, SHARE_SYNC_COMMAND, SHARE_UNLOCK_COMMAND } from '../browser/shareModel.js';
@@ -322,10 +322,16 @@ CommandsRegistry.registerCommand(DWG_TO_DXF_COMMAND, async (accessor, raw: unkno
 	return call(accessor, 'cad/convertDwg', { path: str(bag(typeof raw === 'string' ? { path: raw } : raw).path) ?? '' });
 });
 
-/** `{path, page?}` -> one page of a PDF drawing as DXF, with its lines for object snaps. */
+/** `{paths}` -> `{ok, files}`: DXF files repaired in place by ezdxf's auditor. */
+CommandsRegistry.registerCommand(CLEAN_DXF_COMMAND, async (accessor, raw: unknown) => {
+	const paths = bag(raw).paths;
+	return call(accessor, 'cad/cleanDxf', { paths: Array.isArray(paths) ? paths.filter(p => typeof p === 'string') : [] });
+});
+
+/** `{path, page?, pagesOnly?}` -> one page of a PDF drawing as DXF, with its lines for object snaps (`pagesOnly`: its page count). */
 CommandsRegistry.registerCommand(PDF_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
-	return call(accessor, 'cad/convertPdf', { path: str(args.path) ?? '', page: typeof args.page === 'number' ? args.page : 1 });
+	return call(accessor, 'cad/convertPdf', { path: str(args.path) ?? '', page: typeof args.page === 'number' ? args.page : 1, pagesOnly: args.pagesOnly === true });
 });
 
 // --- The model workbook (Excel round trip) ----------------------------------------------------

@@ -70,6 +70,8 @@ const EDITOR_LABELS: { readonly [kind in LibraryKind]: string } = {
 	structure: localize('structureEditorLabel', "Structural Model Editor"),
 	reportTemplate: localize('reportTemplateEditorLabel', "Report Template Editor"),
 	worksheet: localize('worksheetEditorLabel', "Calculation Worksheet Editor"),
+	rates: localize('ratesEditorLabel', "Schedule of Rates Editor"),
+	carbon: localize('carbonEditorLabel', "Carbon Factors Editor"),
 };
 
 const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
@@ -81,6 +83,8 @@ const EDITOR_IDS: { readonly [kind in LibraryKind]: string } = {
 	structure: LibraryEditorInput.STRUCTURE_EDITOR_ID,
 	reportTemplate: LibraryEditorInput.REPORT_TEMPLATE_EDITOR_ID,
 	worksheet: LibraryEditorInput.WORKSHEET_EDITOR_ID,
+	rates: LibraryEditorInput.RATES_EDITOR_ID,
+	carbon: LibraryEditorInput.RATES_EDITOR_ID,
 };
 
 /**

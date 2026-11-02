@@ -49,7 +49,7 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
+import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
@@ -57,7 +57,7 @@ import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_A
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
-import { alignAngle, calibrated, diffLines, diffSummary, isPdf, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
+import { alignAngle, calibrated, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
@@ -225,6 +225,8 @@ export class FloorPlanEditor extends EditorPane {
 	private underlaySegments: ISnapSegment[] = [];
 	/** A PDF underlay's page count, as its last conversion said. */
 	private underlayPages = 0;
+	/** A PDF underlay was just attached: zoom to it once it shows. */
+	private zoomToUnderlay = false;
 	/** Calibrate, Move, Rotate or Align Underlay under way: the points clicked so far. */
 	private underlayPick: { readonly kind: UnderlayPick; readonly points: CadPoint[] } | undefined;
 
@@ -2765,22 +2767,51 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const selected = this.selected;
 		let page = 1;
+		let placement: object = {};
+		let stated: number | undefined;
 		if (isPdf(file)) {
-			// A PDF of several sheets: which page is this story's plan.
-			const answer = await this.commandService.executeCommand<{ ok?: boolean; pages?: number }>(PDF_TO_DXF_COMMAND, { path: joinPath(folder, file).fsPath, page: 1 });
-			const pages = answer?.ok && typeof answer.pages === 'number' ? answer.pages : 1;
+			const path = joinPath(folder, file).fsPath;
+			// A PDF of several sheets: which page is this story's plan (its page count only, read
+			// without converting a page: a dense set took a minute before the picker showed).
+			this.setNotice(localize('floorPlan.pdfReading', "Reading {0}...", file));
+			this.frame.showProgress();
+			let pages = 1;
+			try {
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; pages?: number }>(PDF_TO_DXF_COMMAND, { path, pagesOnly: true });
+				pages = answer?.ok && typeof answer.pages === 'number' ? answer.pages : 1;
+			} finally {
+				this.frame.hideProgress();
+			}
 			this.underlayPages = pages;
 			if (pages > 1) {
 				page = await this.askUnderlayPage(pages, 1) ?? 1;
 			}
+			// The page's linework (converted once and cached), placed at the scale its text states
+			// (else 1:100) with its centre on the grid's: near its size before calibrating.
+			this.setNotice(localize('floorPlan.pdfConverting', "Reading the linework of page {0} of {1} (a dense drawing takes up to a minute)...", page, file));
+			this.frame.showProgress();
+			try {
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; size?: unknown; scale?: unknown }>(PDF_TO_DXF_COMMAND, { path, page });
+				if (answer?.ok) {
+					stated = typeof answer.scale === 'number' ? answer.scale : undefined;
+					placement = placementFields(firstPdfPlacement(answer.size, stated, gridCentre(parse(this.planModel))));
+				}
+			} catch {
+				// Shown at paper size; the underlay's own problem is reported when it loads.
+			} finally {
+				this.frame.hideProgress();
+			}
+			this.zoomToUnderlay = true;
 		}
-		this.changeUnderlay(story, () => ({ story, file, ...(page > 1 ? { page } : {}) }));
+		this.changeUnderlay(story, () => ({ story, file, ...(page > 1 ? { page } : {}), ...placement }));
 		// The dialog's Enter must not reach the plan: keep the selection, focus back on the plan.
 		this.select(prune(selected, this.plan?.members ?? []));
 		this.frame.element.focus();
 		const name = storiesOf(parse(this.planModel)).find(s => s.id === story)?.name ?? story;
 		this.setNotice(isPdf(file)
-			? localize('floorPlan.pdfAttached', "Attached {0} as the underlay of {1}, in paper mm: Calibrate Underlay Scale in More Actions sets its scale from two points and a known length; Move, Rotate, Align and Lock Underlay are there too.", file, name)
+			? (stated
+				? localize('floorPlan.pdfAttachedStated', "Attached {0} as the underlay of {1} at 1:{2}, the scale its text states, centred on the grid: Calibrate Underlay Scale in More Actions sets its scale from two points and a known length; Move, Rotate, Align and Lock Underlay are there too.", file, name, stated)
+				: localize('floorPlan.pdfAttachedAssumed', "Attached {0} as the underlay of {1} at an assumed 1:100 (its text states no scale), centred on the grid: Calibrate Underlay Scale in More Actions sets its scale from two points and a known length; Move, Rotate, Align and Lock Underlay are there too.", file, name))
 			: localize('floorPlan.underlayAttached', "Attached {0} as the underlay of {1}; Hide Underlay in the toolbar hides it, Remove Underlay in More Actions removes it.", file, name));
 	}
 
@@ -2864,6 +2895,10 @@ export class FloorPlanEditor extends EditorPane {
 		try {
 			await editor.setUnderlay({ name: basename(URI.file(file)), dxf: withoutLayers(dxf, PLAN_ANNOTATION_LAYERS), offset: [num(shown.dx, 0), num(shown.dy, 0)], scale: num(shown.scale, 1), rotation: num(shown.rotation, 0) });
 			this.underlaySegments = planSegments(placementOf(shown), segments);
+			if (this.zoomToUnderlay) {
+				this.zoomToUnderlay = false;
+				editor.zoomExtents();
+			}
 			this.updateToolbar();
 		} catch (error) {
 			this.underlayProblem = localize('floorPlan.underlayFailed', "The underlay {0} could not be shown: {1}", file, String(error));
@@ -3164,6 +3199,13 @@ export class FloorPlanEditor extends EditorPane {
 				const file = joinPath(folder, `${name}.dxf`);
 				await this.fileService.writeFile(file, VSBuffer.fromString(editor.toDxf()));
 				files.push(file);
+			}
+			// The CAD editor's DXF writer leaves values CAD programs repair on open (invalid
+			// transparency, text styles, owner handles): the backend's ezdxf auditor repairs them.
+			try {
+				await this.commandService.executeCommand(CLEAN_DXF_COMMAND, { paths: files.map(f => f.fsPath) });
+			} catch {
+				// No backend: the files stay as written (they open, with repairs).
 			}
 			const text = localize('floorPlan.exported', "Exported the plans of {0} stories to {1}/Floor Plan.", stories.length, exports.folder);
 			this.setNotice(text);

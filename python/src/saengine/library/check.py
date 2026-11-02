@@ -31,6 +31,8 @@ Kind = Literal[
     "bim",
     "reportTemplate",
     "worksheet",
+    "rates",
+    "carbon",
 ]
 
 
@@ -81,6 +83,8 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
         return _check_report_template(data)
     if kind == "worksheet":
         return _check_worksheet(data)
+    if kind in ("rates", "carbon"):
+        return _check_schedule(kind, data)
     if kind == "floorPlan":
         return _check_layout(FloorPlan, data, materials_text)
     if kind == "bim":
@@ -201,6 +205,40 @@ def _check_report_template(data: Any) -> list[dict[str, Any]]:
                 _problem(None, f"sections.{index}.id", f"Section {section.id} is listed twice.")
             )
         seen.add(section.id)
+    return problems
+
+
+def _check_schedule(kind: str, data: Any) -> list[dict[str, Any]]:
+    """Problems of the schedule of rates (``10 BOQ/rates.json``) or the carbon factors
+    (``carbon-factors.json``) of :mod:`saengine.boq.costing`: each with its item's index."""
+    from saengine.boq.costing import UNITS, CarbonFactors, RateSchedule
+
+    model = RateSchedule if kind == "rates" else CarbonFactors
+    entries = "items" if kind == "rates" else "factors"
+    try:
+        schedule = model.model_validate(data)
+    except ValidationError as exc:
+        problems = []
+        for error in exc.errors():
+            loc = list(error["loc"])
+            index = (
+                loc[1] if len(loc) > 1 and loc[0] == entries and isinstance(loc[1], int) else None
+            )
+            path = ".".join(str(p) for p in (loc[2:] if index is not None else loc))
+            problems.append(_problem(index, path, _clean(error["msg"])))
+        return problems
+    problems = []
+    if isinstance(schedule, RateSchedule):
+        seen: set[str] = set()
+        for index, item in enumerate(schedule.items):
+            if item.unit not in UNITS:
+                known = ", ".join(UNITS)
+                problems.append(_problem(index, "unit", f"unknown unit '{item.unit}' ({known})"))
+            if item.code in seen:
+                problems.append(_problem(index, "code", f"item number {item.code} is repeated"))
+            seen.add(item.code)
+            if item.rate is not None and item.rate < 0:
+                problems.append(_problem(index, "rate", "a rate is not negative"))
     return problems
 
 

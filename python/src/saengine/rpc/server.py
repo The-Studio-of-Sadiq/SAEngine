@@ -29,9 +29,11 @@ Methods:
 - ``cad/convertDwg`` ``{path, cache?}`` -> ``{ok, dxf, warnings, cached}``: a DWG drawing
   converted to DXF by GNU LibreDWG's dwg2dxf (``saengine.library.dwg``; a separate program, in a
   worker thread), or ``{ok: false, code, message}`` (``no-converter``, ``failed``)
-- ``cad/convertPdf`` ``{path, page?, cache?}`` -> ``{ok, dxf, page, pages, vector, size,
-  segments, warnings, cached}``: one page of an architect's PDF as DXF, with its lines for object
+- ``cad/convertPdf`` ``{path, page?, cache?, pagesOnly?}`` -> ``{ok, dxf, page, pages, vector,
+  size, segments, warnings, cached, scale}`` (``pagesOnly``: ``{ok, pages}``): one page of an architect's PDF as DXF, with its lines for object
   snaps (``saengine.library.pdf_underlay``; in a worker thread), or ``{ok: false, code, message}``
+- ``cad/cleanDxf`` ``{paths}`` -> ``{ok, files: [{path, fixed, errors}]}``: DXF files the app
+  wrote repaired in place by ezdxf's auditor (``saengine.library.dxf_audit``)
 - ``workbook/export`` ``{outPath, floorPlanText, objectsText?, loadsText?}`` -> ``{ok, path,
   sheets}``: grids, stories, members, sections and member loads as an Excel workbook;
   ``workbook/import`` ``{path, floorPlanText, objectsText?, loadsText?}`` -> ``{ok, problems,
@@ -514,11 +516,20 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.convert_dwg(args["path"], args.get("cache"))
 
+    @server.feature("cad/cleanDxf")
+    @_in_worker
+    def _clean_dxf(params: Any) -> dict[str, Any]:
+        from saengine.library.dxf_audit import rpc_clean_dxf
+
+        return rpc_clean_dxf(_plain(params))
+
     @server.feature("cad/convertPdf")
     @_in_worker  # a dense plan has tens of thousands of paths
     def _convert_pdf(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.convert_pdf(args["path"], args.get("page"), args.get("cache"))
+        return handlers.convert_pdf(
+            args["path"], args.get("page"), args.get("cache"), bool(args.get("pagesOnly"))
+        )
 
     @server.feature("workbook/export")
     @_in_worker

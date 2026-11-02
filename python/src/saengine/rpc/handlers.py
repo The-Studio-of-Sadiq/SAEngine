@@ -224,6 +224,8 @@ def check_library(kind: str, text: str, materials_text: str | None = None) -> di
         "bim",
         "reportTemplate",
         "worksheet",
+        "rates",
+        "carbon",
     ):
         raise ValueError(f"unknown library kind: {kind}")
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
@@ -848,13 +850,18 @@ def convert_dwg(path: str, cache: str | None = None) -> dict[str, Any]:
         return {"ok": False, "code": "failed", "message": str(exc)}
 
 
-def convert_pdf(path: str, page: int | None = None, cache: str | None = None) -> dict[str, Any]:
+def convert_pdf(
+    path: str, page: int | None = None, cache: str | None = None, pages_only: bool = False
+) -> dict[str, Any]:
     """One page of an architect's PDF as DXF (``saengine.library.pdf_underlay``): ``{"ok",
-    "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached"}``, or ``{"ok":
-    False, "code": "failed", "message"}``."""
-    from saengine.library.pdf_underlay import PdfError, convert
+    "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached", "scale"}``, or
+    ``{"ok": False, "code": "failed", "message"}``; with ``pages_only`` only ``{"ok", "pages"}``
+    (read without converting a page: the page picker asks it first)."""
+    from saengine.library.pdf_underlay import PdfError, convert, page_count
 
     try:
+        if pages_only:
+            return {"ok": True, "pages": page_count(path)}
         return {"ok": True, **convert(path, int(page or 1), cache).to_json()}
     except PdfError as exc:
         return {"ok": False, "code": "failed", "message": str(exc)}
