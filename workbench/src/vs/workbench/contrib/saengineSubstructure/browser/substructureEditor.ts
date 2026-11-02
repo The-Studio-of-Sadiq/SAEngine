@@ -3214,7 +3214,13 @@ export class SubstructureEditor extends EditorPane {
 			const element = append(select, $<HTMLOptionElement>('option', { value: option.value }, option.label));
 			element.selected = option.value === current;
 		}
-		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => store(select.value)));
+		// A narrow column cuts the choice ("Bored (cast i"): its full text on hover (SM-13).
+		const titled = () => select.title = select.selectedOptions[0]?.textContent ?? label;
+		titled();
+		this.inputStore.add(addDisposableListener(select, EventType.CHANGE, () => {
+			titled();
+			store(select.value);
+		}));
 		this.inputMap.set(key, select);
 		return select;
 	}

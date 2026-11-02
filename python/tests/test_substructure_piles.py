@@ -492,3 +492,23 @@ def test_a_cap_without_top_bars_hogs_against_plain_concrete() -> None:
     assert hog["capacity"] == pytest.approx(plain / 1e6, rel=1e-3)
     assert hog["utilisation"] < 99
     assert "plain concrete" in hog["note"] and "8.3.11.2" in hog["note"]
+
+
+def test_the_same_note_of_several_caps_is_said_once() -> None:
+    # Walkthrough 3, SM-12: 11 notes repeated for each of 16 pile caps in the report's notes.
+    from saengine.substructure.report import merge_notes
+
+    notes = [
+        "Pile layout: ok",
+        "F-A1: the cap is rigid",
+        "F-A1, pile P1: no load test",
+        "F-A2: the cap is rigid",
+        "F-A2, pile P1: no load test",
+        "F-A10: the cap is rigid",
+        "Pile layout: ok",
+    ]
+    assert merge_notes(notes, ["F-A1", "F-A2", "F-A10"]) == [
+        "Pile layout: ok",
+        "F-A1, F-A2, F-A10: the cap is rigid",
+        "F-A1, F-A2, pile P1: no load test",
+    ]
