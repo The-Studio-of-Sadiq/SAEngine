@@ -399,6 +399,12 @@ class CombinationsTable(TableModel):
         description="Combinations formed in a flood or tidal surge zone, by kind of zone "
         "(coastal, inland); the project's flood zone chooses one.",
     )
+    pDeltaPreload: dict[str, Annotated[float, Field(ge=0)]] | None = Field(
+        default=None,
+        description="D6: load case -> factor of the gravity preload of a P-Delta analysis (the "
+        "gravity part of the seismic strength combination); empty: not covered by the pack "
+        "(the project settings must give the factors).",
+    )
 
 
 # ─────────────────────────────────────────── seismic ───────────────────────────────────────────
@@ -745,6 +751,11 @@ class SeismicTable(TableModel):
     torsionAmplificationMax: float
     pgaFactor: float = Field(description="a_h = pgaFactor · Z · S.")
     verticalFactor: float = Field(description="Ev = verticalFactor · a_h · D.")
+    stabilityGravity: dict[str, Annotated[float, Field(ge=0)]] | None = Field(
+        default=None,
+        description="D6: load case -> factor of the gravity load Px of the stability "
+        "coefficient θ; empty: not covered by the pack (θ is not computed).",
+    )
 
 
 # ───────────────────────────────────────────── wind ─────────────────────────────────────────────
