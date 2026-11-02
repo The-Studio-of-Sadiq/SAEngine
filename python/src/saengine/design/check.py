@@ -1332,20 +1332,35 @@ def _design_run(
     # The default pack's BNBC 2020 Part 6 Sec 2.5.5.6), from the equivalent static storey forces.
     from saengine.design import diaphragms as diaphragm_design
 
-    try:
-        diaphragms_found = diaphragm_design.diaphragms_of(
-            project, building, types, mats, settings, irregular=irregular
+    def floor_diaphragms(of_types: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return diaphragm_design.diaphragms_of(
+                project, building, of_types, mats, settings, irregular=irregular
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            return {
+                "elements": [],
+                "skipped": [],
+                "notes": [f"diaphragm chords and collectors not designed: {error}"],
+            }
+
+    diaphragms_found = floor_diaphragms(types)
+    # The chords count the slabs' edge bars, so the plain report's take the assumed slab types
+    # without them.
+    plain_diaphragms = (
+        floor_diaphragms(
+            {
+                t: v.model_copy(update={"reinforcement": None}) if t in plain.assumed else v
+                for t, v in types.items()
+            }
         )
-    except (ValueError, KeyError, AttributeError, TypeError) as error:
-        diaphragms_found = {
-            "elements": [],
-            "skipped": [],
-            "notes": [f"diaphragm chords and collectors not designed: {error}"],
-        }
-    for into in sinks:
-        into[0].extend(diaphragms_found["elements"])
-        into[1].extend(diaphragms_found["skipped"])
-        into[2].extend(diaphragms_found["notes"])
+        if plain is not None
+        else diaphragms_found
+    )
+    for into, found in zip(sinks, (diaphragms_found, plain_diaphragms)):
+        into[0].extend(found["elements"])
+        into[1].extend(found["skipped"])
+        into[2].extend(found["notes"])
     # FD-6 of walk 3: each element supporting a discontinuous column or wall says so, and that
     # it took the Ω0 combinations (a transfer girder read as an ordinary beam otherwise).
     supporting = {

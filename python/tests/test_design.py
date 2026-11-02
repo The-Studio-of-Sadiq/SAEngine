@@ -503,8 +503,8 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
         assert s["lu"] < 3200 and check["demand"] == pytest.approx(s["lu"] / s["r"], rel=1e-3)
     summary = report["summary"]
     members = summary["elements"]
-    # 4 beams, 4 columns and the diaphragm (T3).
-    assert members["checked"] == 9 and members["passed"] + members["failed"] == 9
+    # 4 beams and 4 columns; the diaphragm (T3) is counted apart (B10-22 of usability walk 3).
+    assert members["checked"] == 8 and members["passed"] + members["failed"] == 8
     # The totals count the joints and the building's seismic checks too (X4).
     building = [c for c in (report["seismic"] or {}).get("checks", []) if not c["flag"]]
     assert summary["checked"] == 9 + summary["joints"]["checked"] + len(building)

@@ -618,7 +618,8 @@ def test_one_way_slab_sags_along_its_span(one_way: dict) -> None:
     assert thickness["flag"] and thickness["demand"] == pytest.approx(2500 / 20)
     # 4 beams, 4 columns, the slab and the roof's diaphragm (T3, b8098594); the summary's own
     # totals also count the joints and the building's seismic checks (PR #30, X4).
-    assert one_way["summary"]["elements"]["checked"] == 10
+    # The diaphragm is counted apart from the members (B10-22 of usability walk 3).
+    assert one_way["summary"]["elements"]["checked"] == 9
     assert any(e["kind"] == "diaphragm" for e in one_way["elements"])
 
 
