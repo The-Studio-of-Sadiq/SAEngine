@@ -249,8 +249,45 @@ def _borehole(profile: Profile, site: dict[str, Any], screening: dict[str, Any])
             f"{soft['consistency']} clay ({', '.join(soft['by'])}; {soft['clause']}): large and "
             "time-dependent settlement of shallow foundations, stability to check"
             for soft in problem["softClay"]
-        ],
+        ]
+        + estimated_consolidation_notes(profile),
     }
+
+
+def estimated_consolidation_notes(profile: Profile) -> list[str]:
+    """A note per clay layer without Cc and e0 (from tests, or LL and moisture): its
+    consolidation settlement, and a qa it governs, are estimated by the code pack's modulus
+    numbers (:mod:`saengine.soil.settlement`), or cannot be computed at all."""
+    from saengine.soil.settlement import is_stiff, modulus_row, modulus_rules
+
+    found = modulus_rules()
+    estimated, unknown = [], []
+    for layer in profile.layers:
+        if layer.behaviour != "cohesive" or (layer.cc is not None and layer.e0 is not None):
+            continue
+        if is_stiff(layer) and layer.E:
+            continue  # a stiff clay: its elastic settlement only (soil.settlement)
+        name = f"layer {layer.index + 1} ({layer.soil_type}, {layer.top:g}-{layer.bottom:g} m)"
+        row = modulus_row(layer, found) if found is not None else None
+        if row is None:
+            unknown.append(name)
+        else:
+            estimated.append(f"{name}: {row.name}, M = {row.M[1]:g}, j = {row.j:g}")
+    notes = []
+    if estimated:
+        notes.append(
+            "No Cc and e0 (consolidation tests) or LL and moisture for "
+            + "; ".join(estimated)
+            + ": the consolidation settlement, and a qa it governs, are estimated by the code "
+            "pack's modulus numbers; give consolidation tests to compute them"
+        )
+    if unknown:
+        notes.append(
+            "No Cc and e0 (consolidation tests) or LL and moisture, and no modulus number in "
+            f"the code pack, for {'; '.join(unknown)}: the consolidation settlement cannot be "
+            "computed, so a qa it would govern is withheld"
+        )
+    return notes
 
 
 def problem_soils(profile: Profile) -> dict[str, Any]:
@@ -440,6 +477,13 @@ def _soil_report(
             )
             + " Shallow foundations on liquefiable layers need ground improvement or piles "
             "through them."
+        )
+    estimated = [p.id for p in profiles if estimated_consolidation_notes(p)]
+    if estimated:
+        notes.append(
+            f"{', '.join(estimated)}: clay without consolidation tests (Cc, e0) or LL and "
+            "moisture: its consolidation settlement and the qa it governs are estimates (see "
+            "the borehole's notes); a borehole with tests and one without can differ widely"
         )
     adequacy = investigation.check(report)
     notes += adequacy.get("notes", [])

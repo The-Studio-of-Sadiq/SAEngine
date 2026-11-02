@@ -41,6 +41,9 @@ from typing import Any
 from saengine.soil import piles as soil_piles
 from saengine.soil.profile import Profile, SoilLayer
 
+# The modulus number method lives with the settlement of the soil (one place).
+from saengine.soil.settlement import janbu_strain
+
 
 def rules() -> Any | None:
     found = soil_piles.pile_rules()
@@ -129,34 +132,6 @@ def _cohesive(profile: Profile, index: int) -> bool:
     return layer is not None and layer.behaviour == "cohesive"
 
 
-def _modulus_row(layer: SoilLayer, found: Any) -> Any | None:
-    cls = soil_piles.density_class(layer) or "loose"
-    soil = layer.soil_type
-    if soil == "silt" and layer.behaviour == "cohesive":
-        soil = "clay"
-    if soil == "fill":
-        soil = "clay" if layer.behaviour == "cohesive" else "sand"
-    for row in found.modulus:
-        if soil in row.soilTypes and (not row.density or cls in row.density):
-            return row
-    return None
-
-
-def janbu_strain(layer: SoilLayer, s0: float, s1: float, found: Any) -> tuple[float, Any]:
-    """Strain of a slice from σ0' to σ1' [kPa] by the modulus number method, and its row."""
-    row = _modulus_row(layer, found)
-    if row is None or s1 <= s0:
-        return 0.0, row
-    m, j, sr = row.M[1], row.j, found.referenceStress
-    log_form = math.log(s1 / s0) / m
-    if j <= 0:
-        return log_form, row
-    power = ((s1 / sr) ** j - (s0 / sr) ** j) / (m * j)
-    if layer.behaviour == "cohesive":
-        return max(power, log_form), row
-    return power, row
-
-
 def janbu(
     profile: Profile,
     df: float,
@@ -231,12 +206,9 @@ def group_settlement(
     by_count = st * count**found.groupCountExponent if count > 1 else st
     short = max(by_width, by_count)
     immediate = block["immediate"]
-    # the layers the block's consolidation covered (clay with Cc and e0)
-    covered = {
-        layer.index
-        for layer in profile.layers
-        if layer.behaviour == "cohesive" and layer.cc is not None and layer.e0 is not None
-    }
+    # the layers the block's consolidation covered (clay with Cc and e0, or estimated there by
+    # the same modulus numbers)
+    covered = set(block.get("consolidated", []))
     depth = influence_depth(profile, bg, lg, df, q)
     janbu_total, janbu_rows = janbu(profile, df, bg, lg, q, depth, covered)
     long_term = block["consolidation"] + block.get("secondary", 0.0) + janbu_total * 1e3

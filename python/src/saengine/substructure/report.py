@@ -427,8 +427,14 @@ def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) ->
                 value.total,
                 "mm",
                 s["combination"],
-                f"computed at {s['borehole']} under the net {s['q']:.0f} kPa; {name} on "
-                f"{_soil_name(s['soil'])}: {value.total:g} mm, a guide ({clause})",
+                f"computed at {s['borehole']} under the net {s['q']:.0f} kPa"
+                + (
+                    " (its clay's consolidation estimated by the code pack's modulus numbers, "
+                    "no consolidation test)"
+                    if s.get("estimated")
+                    else ""
+                )
+                + f"; {name} on {_soil_name(s['soil'])}: {value.total:g} mm, a guide ({clause})",
             ),
         )
     centres = [np.array(r["sizes"]["center"], dtype=float) for r in rows]
@@ -453,6 +459,21 @@ def differential_settlements(ctx: Context, foundations: list[dict[str, Any]]) ->
             value, name = found
             delta = abs(row["settlement"]["value"] - other["settlement"]["value"])
             pair = f"{row['id']}-{other['id']}, L = {span:.0f} mm"
+            holes = (row["settlement"]["borehole"], other["settlement"]["borehole"])
+            if holes[0] != holes[1]:
+                # Each footing settles on its nearest borehole's log: a difference between the
+                # logs (or between a tested clay and an estimated one) shows as a differential.
+                pair += f", settlements at {holes[0]} and {holes[1]}"
+                estimated = [
+                    r["settlement"]["borehole"]
+                    for r in (row, other)
+                    if r["settlement"].get("estimated")
+                ]
+                if estimated:
+                    pair += (
+                        f" (consolidation at {', '.join(sorted(set(estimated)))} estimated "
+                        "without consolidation tests)"
+                    )
             diff = _check(
                 "Differential settlement",
                 delta,

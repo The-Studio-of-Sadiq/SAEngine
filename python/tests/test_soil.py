@@ -210,7 +210,10 @@ def test_silt_without_pi_or_cu_is_granular_with_a_note() -> None:
     notes = result["boreholes"][0]["notes"]
     assert notes[0] == note
     # The cu 30 kPa clay is a soft clay (BNBC 2020 Sec 3.5.8): its note follows.
-    assert len(notes) == 2 and "soft clay (cu 30 kPa" in notes[1]
+    assert "soft clay (cu 30 kPa" in notes[1]
+    # The clays have no Cc and e0: their consolidation is the pack's modulus number estimate,
+    # said in one note (walkthrough 3, SO-1).
+    assert len(notes) == 3 and "estimated by the code pack's modulus numbers" in notes[2]
 
 
 # ─────────────────────────────── site class ───────────────────────────────
@@ -552,13 +555,18 @@ def test_reduced_pressure_rechecks_the_zone_and_names_only_what_settles() -> Non
     # The clay is 4.7 m below the base: the zone at the adopted pressure stops above it.
     assert influence_depth(p, 2.0, 2.0, 1.5, r["qa"]) <= 4.7 + 1e-9
     assert settlement(p, 2.0, 2.0, 1.5, r["qa"])["consolidation"] == 0
-    # A clay with a modulus but no Cc, e0: only the immediate settlement, and the text says so.
+    # A soft clay with a modulus but no Cc, e0: its consolidation is the code pack's modulus
+    # number estimate (walkthrough 3, SO-1: it was left out), and the text says so.
     r = bearing.allowable(soft_sand_over_clay(6000, E=2), 2.0, 2.0, 1.5)
+    assert r["settlement"].startswith(
+        "computed settlement (immediate + consolidation, consolidation estimated) = 25 mm"
+    )
+    # A stiff clay (cu 100 kPa) with a modulus but no Cc, e0: only the immediate settlement.
+    r = bearing.allowable(soft_sand_over_clay(6000, E=2, cu=100), 2.0, 2.0, 1.5)
     assert r["settlement"].startswith("computed settlement (immediate) = 25 mm")
-    assert "consolidation" not in r["settlement"]
     # A stiff clay in the zone that settles less than 25 mm at the adopted pressure does not
     # govern: the pressure where it would settle 25 mm lies above the adopted one.
-    stiff = soft_sand_over_clay(6000, E=50)
+    stiff = soft_sand_over_clay(6000, E=50, cu=100)  # stiff: no consolidation estimate
     r = bearing.allowable(stiff, 2.0, 2.0, 1.5)
     assert r["settlement"].startswith("Meyerhof-Bowles") and r["qa"] == pytest.approx(127.0, 0.1)
     t = bearing.settlement_controlled(stiff, 2.0, 2.0, 1.5, 25, r["qa_shear"])
@@ -897,10 +905,80 @@ def test_no_qa_without_the_strength_or_the_compressibility() -> None:
     no_strength = profile({"id": "BH", "layers": [{"top": 0, "bottom": 9000, "soilType": "clay"}]})
     r = bearing.allowable(no_strength, 2.0, 2.0, 1.0)
     assert r["qa"] is None and r["qa_shear"] is None
-    assert any("no modulus, Cc or e0" in n for n in r["notes"])
-    # A strength but nothing to compute the clay's settlement from: no qa either.
+    assert any("no strength" in n for n in r["notes"])
+    # A strength but no modulus, Cc or e0: the default pack's modulus numbers estimate the
+    # consolidation (walkthrough 3, SO-1), which the notes say.
     hole = {"id": "BH", "layers": [{"top": 0, "bottom": 9000, "soilType": "clay", "cu": 60}]}
     p = profile(hole)
     p.layers[0].E = None
     r = bearing.allowable(p, 2.0, 2.0, 1.0)
+    assert r["qa"] is not None and r["governs"] == "settlement"
+    assert "consolidation estimated" in r["settlement"]
+    assert any("estimated by the code pack's modulus number method" in n for n in r["notes"])
+
+
+def test_meyerhof_bowles_takes_the_sand_test_not_the_clay_above() -> None:
+    # Walkthrough 3, SO-2: soft clay to 6.5 m over sand, tests every 1.5 m. At B = 3 m, Df 1 m
+    # the zone (1-7 m) reaches the sand but holds no test in it; the method took the first test
+    # below the base, in the clay (N60 1.5), and qa fell to 24 kPa between 33 (B = 2) and 31
+    # (B = 4). It now takes the first test in the sand (7.5 m).
+    hole = {
+        "id": "BH",
+        "waterTable": 2000,
+        "layers": [
+            # a stiff, rigid clay so that only the sand's Meyerhof-Bowles value is in play
+            {"top": 0, "bottom": 6500, "soilType": "clay", "cu": 100, "E": 500},
+            {"top": 6500, "bottom": 30000, "soilType": "sand"},
+        ],
+        "spt": [{"depth": 1500 * k, "N": 2 if k < 5 else 15} for k in range(1, 12)],
+    }
+    p = profile(hole)
+    t = bearing.settlement_controlled(p, 3.0, 3.0, 1.0, 25, 1000.0)
+    # The sand's first test is at 7.5 m: N60 = 15 x 0.95 (rod 6-10 m) = 14.25.
+    assert t["method"] == (
+        "Meyerhof-Bowles, N60 = 14.2 (mean of 1 test(s) from Df to Df + 2B)"
+    ) or t["method"].startswith("Meyerhof-Bowles, N60 = 14.2")
+    assert t["qa"] == pytest.approx(bearing.meyerhof_bowles(14.25, 3.0, 1.0, 25), rel=1e-3)
+
+
+def test_no_qa_when_the_clay_consolidation_cannot_be_estimated(monkeypatch) -> None:
+    # A pack without modulus numbers: a soft clay without Cc and e0 would settle by an unknown
+    # amount, so there is no qa rather than one that leaves its consolidation out (SO-1).
+    from saengine.soil import settlement as soil_settlement
+
+    monkeypatch.setattr(soil_settlement, "modulus_rules", lambda: None)
+    hole = {"id": "BH", "layers": [{"top": 0, "bottom": 9000, "soilType": "clay", "cu": 20}]}
+    r = bearing.allowable(profile(hole), 2.0, 2.0, 1.0)
     assert r["qa_shear"] is not None and r["qa"] is None
+    assert any("cannot be computed" in n for n in r["notes"])
+    # A stiff clay keeps its elastic settlement only, as before.
+    stiff = {"id": "BH", "layers": [{"top": 0, "bottom": 9000, "soilType": "clay", "cu": 100}]}
+    assert bearing.allowable(profile(stiff), 2.0, 2.0, 1.0)["qa"] is not None
+
+
+def test_very_soft_clay_without_lab_data_is_estimated_not_zero() -> None:
+    # Walkthrough 3, SO-1: very soft clay (N 1-3) to 5.5 m over sand, no lab data. The
+    # consolidation was 0 mm (only the Eu = 500 cu elastic settlement), so qa came out at 36 kPa
+    # (shear) against 16 kPa at a borehole of the same clay with LL and moisture. Now the
+    # default pack's modulus numbers (Table 6.3.14, soft silty clay: lower M = 5, j = 0.5, the
+    # larger of the power and log forms) estimate it, and settlement governs.
+    hole = {
+        "id": "BH",
+        "waterTable": 2000,
+        "layers": [
+            {"top": 0, "bottom": 5500, "soilType": "clay"},
+            {"top": 5500, "bottom": 20000, "soilType": "sand"},
+        ],
+        "spt": [{"depth": d, "N": n} for d, n in ((1500, 3), (3000, 4), (4500, 5), (6000, 12))],
+    }
+    p = profile(hole)
+    s = settlement(p, 2.0, 2.0, 1.5, 36.0)
+    assert s["estimated"] == [0] and s["consolidation"] > 25
+    # by hand, the first 0.25 m slice below the base: σ0' = 18 x 1.5 + (19 - 9.81) x 0.125
+    s0 = 18 * 1.5 + (19 - 9.81) * 0.125
+    s1 = s0 + 36 * 4 / (2 + 0.125) ** 2
+    strain = max(math.log(s1 / s0) / 5, 2 / 5 * (math.sqrt(s1 / 100) - math.sqrt(s0 / 100)))
+    assert s["layers"][0]["consolidation"] > strain * 250  # the slices below add to it
+    r = bearing.allowable(p, 2.0, 2.0, 1.5)
+    assert r["governs"] == "settlement" and r["qa"] < 10
+    assert "consolidation estimated" in r["settlement"]

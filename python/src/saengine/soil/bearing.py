@@ -83,7 +83,8 @@ loads (gross pressure minus the total overburden at the founding level, as
     from the lower of the shear and the Meyerhof-Bowles values (q0). When a cohesive layer lies
     within the zone the footing stresses under that pressure (down to where the 2:1 stress
     increase falls below 10 % of σ'v0), its settlement is computed
-    (:mod:`saengine.soil.settlement`: immediate, plus consolidation where Cc and e0 are known);
+    (:mod:`saengine.soil.settlement`: immediate, plus consolidation with Cc and e0, else
+    estimated by the code pack's modulus numbers, which the method text then says);
     if it exceeds the allowable settlement, the highest lower pressure whose settlement is
     within it is found by bisection, and the zone at that pressure is checked again. The
     settlement grows with the pressure and jumps up where the zone first reaches a clay, so the
@@ -96,8 +97,13 @@ loads (gross pressure minus the total overburden at the founding level, as
     pressure higher than the adopted one is not checked.
 
 (c) ``qa = min(qa_shear, qa_settlement)``. There is no qa when a layer within 2B below the
-    base has no strength (cu, or φ' or SPT), or when a cohesive layer in the stressed zone has
-    neither a modulus nor Cc and e0 (its settlement would be unknown).
+    base has no strength (cu, or φ' or SPT), or when the consolidation of a cohesive layer in
+    the stressed zone can be neither computed (Cc and e0) nor estimated (the code pack's
+    modulus numbers): its settlement would be unknown.
+
+    With the textbook practice, when no SPT lies in the sand from Df to Df + 2B (the sand
+    starting between two tests), the Meyerhof-Bowles N60 is the first test in that sand below
+    the base, not a test in a clay above it.
 
 Units: m and kPa inside; the results give B, L, Df in mm and pressures in kPa.
 """
@@ -110,7 +116,7 @@ from typing import Any
 
 from saengine.library.soil import Design
 from saengine.soil.profile import GAMMA_W, Profile, SoilLayer
-from saengine.soil.settlement import influence_depth, settlement
+from saengine.soil.settlement import can_consolidate, influence_depth, settlement
 
 
 @dataclass
@@ -386,7 +392,14 @@ def settlement_controlled(
             if p.layer is not None and p.layer.behaviour == "granular"
         ]
         if not tests:
-            below = [p for p in profile.spt if p.depth >= df]
+            # No test in the sand within Df to Df + 2B (the sand starts between two tests): the
+            # first test in that sand below, not a test in the clay above it, which would give
+            # the sand the clay's N (and a qa that drops as B grows into the sand).
+            below = [
+                p
+                for p in profile.spt
+                if p.depth >= df and p.layer is not None and p.layer.behaviour == "granular"
+            ]
             tests = below[:1]
         if tests:
             n60 = sum(p.n60 for p in tests) / len(tests)
@@ -433,13 +446,15 @@ def settlement_controlled(
     q = adopted
     for _ in range(MAX_ITERATIONS):
         cohesive = clays(q)
-        unknown = [
-            layer for layer in cohesive if not layer.E and (layer.cc is None or layer.e0 is None)
-        ]
+        # A clay whose consolidation can be neither computed (Cc and e0) nor estimated (the code
+        # pack's modulus numbers) would settle by an unknown amount: no qa rather than an
+        # unconservative one.
+        unknown = [layer for layer in cohesive if not can_consolidate(layer)]
         for layer in unknown:
             notes.append(
-                f"layer {layer.index + 1} ({layer.soil_type}): no modulus, Cc or e0, so its "
-                "settlement cannot be computed: no settlement-controlled pressure"
+                f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 and no modulus "
+                "number in the code pack, so its consolidation settlement cannot be computed: "
+                "no settlement-controlled pressure"
             )
         if unknown:
             return {
@@ -462,6 +477,16 @@ def settlement_controlled(
         result = settlement(profile, b, l_, df, q)
         names = ", ".join(f"layer {layer.index + 1} ({layer.soil_type})" for layer in checked)
         kinds = "immediate + consolidation" if result["consolidation"] > 0.05 else "immediate"
+        if result.get("estimated"):
+            # A clay without Cc and e0: its consolidation is the code pack's modulus number
+            # estimate (soil.settlement), said with the pressure.
+            kinds += ", consolidation estimated"
+            layers = ", ".join(f"layer {i + 1}" for i in result["estimated"])
+            notes.append(
+                f"{layers}: no consolidation test, so the consolidation settlement behind this "
+                "qa is estimated by the code pack's modulus number method; give Cc and e0 "
+                "(consolidation tests) or LL and moisture to compute it"
+            )
         still = clays(q)
         if not reduced:
             # Within se at the adopted pressure: the settlement does not govern. Its own limit
