@@ -7,7 +7,9 @@ DXF or DWG one. Text on the page becomes DXF text, so room names stay readable.
 
 Coordinates are paper millimetres from the page's lower left corner (the page's /Rotate applied),
 so a plan printed at 1:100 has a scale of 100 to the model's mm. The floor plan calibrates the
-scale from two points and a known length (``Underlay.scale``); nothing here guesses it.
+scale from two points and a known length (``Underlay.scale``); as a first placement it takes the
+scale the page states (:func:`stated_scale`: the most frequent "1:N" of its text, a title
+block's "SCALE 1:100"), so the attached plan is near its size before calibrating.
 
 A scanned page (only images, no paths) has no linework to show or snap to: :func:`convert`
 reports it (``vector`` false) instead of an empty drawing.
@@ -37,7 +39,9 @@ MAX_DEPTH = 12
 #: At most this many segments go to the floor plan for object snaps (the DXF keeps all).
 MAX_SNAP_SEGMENTS = 50_000
 #: Bumped when the output changes, so older cached copies convert again.
-VERSION = 1
+VERSION = 2
+#: Drawing scales a page may state ("1:N"): N from these only (a ratio in a note is not one).
+DRAWING_SCALES = (1, 2, 5, 10, 20, 25, 50, 75, 100, 125, 150, 200, 250, 300, 500, 1000)
 
 Matrix = tuple[float, float, float, float, float, float]
 Point = tuple[float, float]
@@ -258,6 +262,23 @@ def page_count(path: str | Path) -> int:
     return len(_open(Path(path)).pages)
 
 
+def stated_scale(texts: list[tuple[str, Point, float, float]]) -> int | None:
+    """The drawing scale the page's text states: the most frequent "1:N" (N a drawing scale,
+    :data:`DRAWING_SCALES`; the larger N on a tie, the plan's rather than a detail's), or None."""
+    import re
+    from collections import Counter
+
+    found: Counter[int] = Counter()
+    for content, *_ in texts:
+        for match in re.finditer(r"(?<![\d.])1\s*:\s*(\d{1,4})(?![\d.])", content):
+            n = int(match.group(1))
+            if n in DRAWING_SCALES and n > 1:
+                found[n] += 1
+    if not found:
+        return None
+    return max(found.items(), key=lambda item: (item[1], item[0]))[0]
+
+
 def read_page(path: str | Path, page: int = 1) -> PageGeometry:
     """Page ``page`` (from 1) of the PDF as linework in paper mm."""
     reader = _open(Path(path))
@@ -325,6 +346,8 @@ class Conversion:
     segments: list[list[float]]
     warnings: list[str] = field(default_factory=list)
     cached: bool = False
+    #: The drawing scale the page states (:func:`stated_scale`), None when it states none.
+    scale: int | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -336,6 +359,7 @@ class Conversion:
             "segments": self.segments,
             "warnings": self.warnings,
             "cached": self.cached,
+            "scale": self.scale,
         }
 
 
@@ -366,6 +390,7 @@ def convert(pdf: str | Path, page: int = 1, cache: str | Path | None = None) -> 
                 list(known["segments"]),
                 list(known.get("warnings", [])),
                 cached=True,
+                scale=known.get("scale"),
             )
     pages = page_count(pdf)
     geometry = read_page(pdf, page)
@@ -385,6 +410,7 @@ def convert(pdf: str | Path, page: int = 1, cache: str | Path | None = None) -> 
     folder.mkdir(parents=True, exist_ok=True)
     dxf.write_text(to_dxf(geometry), encoding="utf-8")
     size = (round(geometry.width, 2), round(geometry.height, 2))
+    scale = stated_scale(geometry.texts)
     with contextlib.suppress(OSError):
         meta.write_text(
             json.dumps(
@@ -395,8 +421,9 @@ def convert(pdf: str | Path, page: int = 1, cache: str | Path | None = None) -> 
                     "size": size,
                     "segments": segments,
                     "warnings": warnings,
+                    "scale": scale,
                 }
             ),
             encoding="utf-8",
         )
-    return Conversion(dxf, page, pages, geometry.vector, size, segments, warnings)
+    return Conversion(dxf, page, pages, geometry.vector, size, segments, warnings, scale=scale)

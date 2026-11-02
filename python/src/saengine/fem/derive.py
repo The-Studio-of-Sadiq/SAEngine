@@ -46,8 +46,8 @@ Options of the settings (``analysis``; absent: the behaviour before version 0.0.
   model).
 
 Columns turned by other than a multiple of 90° are analysed at their angle (their elements'
-``vecxz``). Known simplifications are reported as notes: stairs are not in the stiffness model,
-and inclined members rotated by other than a multiple of 90° use the nearest one.
+``vecxz``). Known simplifications are reported as notes: stairs are not in the stiffness model
+(their loads are, at their supports: :mod:`saengine.fem.stair_loads`), and inclined members rotated by other than a multiple of 90° use the nearest one.
 """
 
 from __future__ import annotations
@@ -682,6 +682,12 @@ def to_member_axes(forces: np.ndarray, axes: np.ndarray) -> np.ndarray:
     return np.concatenate([forces[..., :3] @ turn.T, forces[..., 3:6] @ turn.T], axis=-1)
 
 
+def _plan_area(points: Any) -> float:
+    """The area of a plan polygon [mm²] (shoelace)."""
+    pts = [(float(x), float(y)) for x, y in points]
+    return abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))) / 2
+
+
 def derive_fem(
     building: BuildingModel,
     objects: ObjectLibrary,
@@ -1029,6 +1035,15 @@ def _derive_fem(
     )
     if arch_set is not None:
         for member, points in arch_set.cuts.items():
+            found = cuts.setdefault(member, [])
+            found += [p for p in points if p not in found]
+    # The stairs' support reactions (saengine.fem.stair_loads, from their design): beams are
+    # split where a support line on them starts or stops.
+    from saengine.fem import stair_loads as stl
+
+    stair_set = stl.stair_loads(building, objects, materials, settings)
+    if stair_set is not None:
+        for member, points in stair_set.placed.cuts.items():
             found = cuts.setdefault(member, [])
             found += [p for p in points if p not in found]
     # The crane brackets on vertical added members (their rail level node).
@@ -1389,10 +1404,11 @@ def _derive_fem(
         pinned = support.fixity == "pinned"
         b.restraints[b.nodes[key]] = [True, True, True, not pinned, not pinned, not pinned]
 
-    for stair in building.additions.stairs:
-        b.notes.append(
-            f"{stair.id}: stairs are not in the analysis model yet; their loads are not applied"
-        )
+    if stair_set is not None:
+        b.notes += [
+            *(f"{s.id}: stairs are not in the stiffness model" for s in building.additions.stairs),
+            *stair_set.notes,
+        ]
 
     # ── loads ──
     patterns: dict[str, dict[str, Any]] = {case: {"nodal": {}, "element": {}} for case in CASES}
@@ -1869,6 +1885,12 @@ def _derive_fem(
                     shell_line_load(
                         wall.source, shells_of[element.id], wall.start, wall.end, wall.load
                     )
+            for line in stair_set.placed.slabs if stair_set is not None else []:
+                if line.slab == element.id:
+                    shell_line_load(
+                        line.source, shells_of[element.id], line.start, line.end, line.load,
+                        line.case,
+                    )  # fmt: skip
             continue
         if rooms_here:
             # Slabs as loads to beams: the panel takes the area-weighted mean of its rooms' loads
@@ -1878,6 +1900,20 @@ def _derive_fem(
                 pressures[case] = pressures[case] * (1 - covered) + sum(
                     room_pressures(room)[case] * share for room, share in rooms_here
                 )
+        # The stairs' support lines on the panel: their total as a uniform load over it.
+        stair_lines = [
+            line
+            for line in (stair_set.placed.slabs if stair_set is not None else [])
+            if line.slab == element.id
+        ]
+        panel_area = _plan_area(element.boundary) * 1e-6 if stair_lines else 0.0
+        for line in stair_lines if panel_area > 0 else []:
+            extra = line.load * math.dist(line.start, line.end) / panel_area
+            pressures[line.case] = pressures.get(line.case, 0.0) + extra
+            b.notes.append(
+                f"{element.id}: stair {line.source.rsplit('-', 1)[0]} on the slab as a uniform "
+                f"{extra / 1e3:.2f} kN/m² {line.case} over the panel (slabs as loads to beams)"
+            )
         if arch_set is not None:
             extra, walls_on = al.panel_pressures(arch_set, element)
             if extra:
@@ -2004,6 +2040,20 @@ def _derive_fem(
             for node_id, part in shares:
                 add_nodal(point.case, node_id, down * point.force * part, stage_of(point.at[2]))
                 add_weight(node_id, point.force * part * seismic_share(point.case), "SD")
+
+    # ── the stairs' support reactions on beams (saengine.fem.stair_loads) ──
+    if stair_set is not None:
+        for line in stair_set.placed.lines:
+            line_load(line.source, line.case, np.array(line.start), np.array(line.end), line.load)
+        for point in stair_set.placed.points:
+            shares, _ = ml.point_shares(point, b.coords)
+            if not shares:
+                b.notes.append(f"{point.source}: no node on {point.member} to take it; not applied")
+            for node_id, part in shares:
+                add_nodal(point.case, node_id, down * point.force * part, stage_of(point.at[2]))
+                add_weight(
+                    node_id, point.force * part * seismic_share(point.case), part_of(point.case)
+                )
 
     # ── the arrangements of the live load (the default pack's Part 6 Sec 6.1.12.2) ──
     live_cases = _live_arrangements(
@@ -2235,6 +2285,12 @@ def _derive_fem(
         summary["memberLoads"] = member_set.summary()
     if arch_set is not None:
         summary["architectureLoads"] = arch_set.summary(partition_mode)
+    if stair_set is not None:
+        summary["stairLoads"] = {
+            "supports": stair_set.summary(),
+            "appliedKN": {k: round(v, 3) for k, v in stair_set.applied.items()},
+            "groundKN": {k: round(v, 3) for k, v in stair_set.left_out.items()},
+        }
     if summary_live["cases"]:
         summary["patternLive"] = summary_live
     eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)

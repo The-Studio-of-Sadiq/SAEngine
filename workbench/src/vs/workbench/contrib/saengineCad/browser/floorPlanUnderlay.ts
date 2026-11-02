@@ -37,6 +37,32 @@ export function placementOf(underlay: Json): IUnderlayPlacement {
 	return { offset: [num(underlay.dx, 0), num(underlay.dy, 0)], scale: scale > 0 ? scale : 1, rotation: num(underlay.rotation, 0) };
 }
 
+/** The scale a PDF page starts at when its text states none: 1:100, the usual plan scale. */
+export const DEFAULT_PDF_SCALE = 100;
+
+/**
+ * Where a newly attached PDF page goes before it is calibrated: at the drawing scale its text
+ * states (`stated`, the backend's "1:N"), else {@link DEFAULT_PDF_SCALE}, with the page's centre
+ * (`size`: paper mm) on `centre` (the middle of the plan's grid), so it shows near its size and
+ * place instead of as a speck in paper mm.
+ */
+export function firstPdfPlacement(size: unknown, stated: unknown, centre: CadPoint): IUnderlayPlacement {
+	const scale = num(stated, 0) > 0 ? num(stated, 0) : DEFAULT_PDF_SCALE;
+	const [w, h] = Array.isArray(size) ? [num(size[0], 0), num(size[1], 0)] : [0, 0];
+	return { offset: [centre[0] - scale * w / 2, centre[1] - scale * h / 2], scale, rotation: 0 };
+}
+
+/** The middle of the plan's grid lines (`grids.x`, `grids.y` positions), [0, 0] without any. */
+export function gridCentre(layout: unknown): CadPoint {
+	const grids = typeof layout === 'object' && layout ? (layout as Json).grids : undefined;
+	const middle = (axis: string) => {
+		const lines = typeof grids === 'object' && grids ? (grids as Json)[axis] : undefined;
+		const at = Array.isArray(lines) ? lines.map(g => num(typeof g === 'object' && g ? (g as Json).position : undefined, NaN)).filter(Number.isFinite) : [];
+		return at.length ? (Math.min(...at) + Math.max(...at)) / 2 : 0;
+	};
+	return [middle('x'), middle('y')];
+}
+
 /** The placement as the underlay's fields, rounded as the floor plan stores them. */
 export function placementFields(placement: IUnderlayPlacement): { dx: number; dy: number; scale: number; rotation: number } {
 	const round = (v: number, digits: number) => Math.round(v * 10 ** digits) / 10 ** digits || 0;

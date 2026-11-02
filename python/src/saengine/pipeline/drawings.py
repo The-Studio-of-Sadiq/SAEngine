@@ -385,6 +385,10 @@ def _reconciliation(schedule: Any, root: Path) -> list[dict[str, Any]]:
             "boq": round(r.boq, 1),
             "difference": round(r.difference, 1),
             "percent": None if r.percent is None else round(r.percent, 1),
+            # The elements on one side only (the bill's tanks, stairs and lintels the drawings
+            # do not detail): named, so a difference says where it is (OI-14).
+            "onlyBoq": {e or "?": round(m, 1) for e, m in sorted(r.only_boq.items())},
+            "onlyBbs": {e or "?": round(m, 1) for e, m in sorted(r.only_bbs.items())},
         }
         for r in rec.rows
     ]
@@ -395,9 +399,15 @@ def reconciliation_notes(rows: Sequence[dict[str, Any]]) -> list[str]:
     lines = []
     for r in rows:
         pct = "" if r.get("percent") is None else f", {r['percent']:+.1f} %"
+        where = []
+        for key, label in (("onlyBoq", "in the BOQ only"), ("onlyBbs", "in the schedule only")):
+            found = r.get(key) or {}
+            if found:
+                listed = ", ".join(f"{e} {m:g} kg" for e, m in found.items())
+                where.append(f"{label}: {listed}")
         lines.append(
             f"Ø{r['dia']:g}: bar bending schedule {r['bbs']:.1f} kg, BOQ {r['boq']:.1f} kg "
-            f"({r['difference']:+.1f} kg{pct})"
+            f"({r['difference']:+.1f} kg{pct}" + (f"; {'; '.join(where)}" if where else "") + ")"
         )
     return lines
 
@@ -453,6 +463,7 @@ def _generate(
     from saengine.drawings.detailing import detailing_model
     from saengine.drawings.sheets import DrawingSettings, build_sheets, drawing_set, write_drawings
     from saengine.drawings.sheets import revisions as rv
+    from saengine.drawings.sheets.project import NOT_FOR_CONSTRUCTION
 
     def step(name: str) -> None:
         index = [s for s, _ in STEPS].index(name) + 1
@@ -518,18 +529,28 @@ def _generate(
     made: rv.Issue | None = None
     if issuing is not None:
         only = None  # an issue draws every sheet
+        # The revision entered in Project Settings (Add Drawing Revision) for this code gives
+        # the issue's description and initials when the issue does not (OI-11).
+        code = str(issuing.get("code") or "").strip() or register.pending_code(data.title.revision)
+        row = next((r for r in data.title.revisions if r.rev == code), None)
         try:
             made = rv.new_issue(
                 register,
-                issuing.get("code"),
+                code,
                 issuing.get("date"),
-                str(issuing.get("description") or ""),
-                str(issuing.get("by") or data.title.drawn or ""),
+                str(issuing.get("description") or (row.description if row else "") or ""),
+                str(issuing.get("by") or (row.by if row else "") or data.title.drawn or ""),
                 str(issuing.get("purpose") or ""),
                 fallback=data.title.revision,
             )
         except rv.IssueError as error:
             raise DrawingsError(str(error)) from error
+    # The title block's status follows the purpose of the issue (made now, else the last one):
+    # issued "For approval", the sheets read FOR APPROVAL (OI-11), unless members are still
+    # without reinforcement (NOT FOR CONSTRUCTION stays).
+    latest = made or (register.issues[-1] if register.issues else None)
+    if latest is not None and latest.purpose and data.title.status != NOT_FOR_CONSTRUCTION:
+        data.title.status = latest.purpose.upper()
     reviser = rv.Reviser(
         folder,
         data.title,
@@ -625,6 +646,7 @@ def _generate(
     if made is not None:
         by_number = {r["number"]: Path(r["dxf"]) for r in written["sheets"]}
         dwgs: dict[str, Path] = {}
+        dwg_problems: list[str] = []
         if (issuing or {}).get("dwg"):
             dwgs, dwg_problems = _write_dwgs(folder, by_number, set(by_number))
             notes.extend(dwg_problems)
@@ -736,7 +758,8 @@ def _generate(
     )
     answer = _answer(root, record)
     if issued is not None:
-        answer["issued"] = issued.to_json()
+        # What "Also write DWG" could not write is said with the issue (OI-10: it read as done).
+        answer["issued"] = {**issued.to_json(), "dwgProblems": dwg_problems}
     return answer
 
 
@@ -988,8 +1011,8 @@ def _write_dwgs(
     if dwg.find_writer() is None:
         return out, [
             (
-                "No DWG was written: GNU LibreDWG's dxf2dwg (the setup's DWG component) is not "
-                f"installed; add it with Help > Installer Components... or set {dwg.ENV_VAR}."
+                "GNU LibreDWG's dxf2dwg (the setup's DWG component) is not installed; add it "
+                f"with Help > Installer Components... or set {dwg.ENV_VAR}."
             )
         ]
     for number, dxf in dxfs.items():

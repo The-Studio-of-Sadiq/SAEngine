@@ -31444,3 +31444,399 @@ export const DEFAULT_REPORT_TEMPLATE: object = {
 		appendix: 'settings',
 	},
 };
+
+export const RATES_SCHEMA: IJSONSchema = {
+	$defs: {
+		Chapter: {
+			additionalProperties: false,
+			properties: {
+				code: {
+					title: 'Code',
+					type: 'string',
+				},
+				title: {
+					title: 'Title',
+					type: 'string',
+				},
+			},
+			required: ['code', 'title'],
+			title: 'Chapter',
+			type: 'object',
+		},
+		Match: {
+			additionalProperties: false,
+			description: 'Which bill items a rate or a factor applies to: all that is given must hold.',
+			properties: {
+				group: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Group of the bill (concrete, ...).',
+					title: 'Group',
+				},
+				kind: {
+					anyOf: [
+						{
+							items: {
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Element or material kinds.',
+					title: 'Kind',
+				},
+				material: {
+					anyOf: [
+						{
+							items: {
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Material ids of 03 Materials.',
+					title: 'Material',
+				},
+				diameter: {
+					anyOf: [
+						{
+							maxItems: 2,
+							minItems: 2,
+							prefixItems: [
+								{
+									type: 'number',
+								},
+								{
+									type: 'number',
+								},
+							],
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bar diameters [mm], from and to, both included.',
+					title: 'Diameter',
+				},
+				unit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The bill item\'s unit.',
+					title: 'Unit',
+				},
+				description: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A pattern the item\'s description contains (case ignored).',
+					title: 'Description',
+				},
+			},
+			title: 'Match',
+			type: 'object',
+		},
+		RateItem: {
+			additionalProperties: false,
+			description: 'An item of the schedule of rates.',
+			properties: {
+				code: {
+					description: 'Item number of the schedule.',
+					title: 'Code',
+					type: 'string',
+				},
+				description: {
+					title: 'Description',
+					type: 'string',
+				},
+				unit: {
+					description: 'Unit of the rate (see UNITS).',
+					title: 'Unit',
+					type: 'string',
+				},
+				rate: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rate per unit; empty: not rated.',
+					title: 'Rate',
+				},
+				match: {
+					$ref: '#/$defs/Match',
+				},
+			},
+			required: ['code', 'description', 'unit'],
+			title: 'RateItem',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.rates/1',
+			default: 'saengine.rates/1',
+			title: 'Schema',
+			type: 'string',
+		},
+		name: {
+			default: '',
+			title: 'Name',
+			type: 'string',
+		},
+		currency: {
+			default: 'BDT',
+			title: 'Currency',
+			type: 'string',
+		},
+		edition: {
+			default: '',
+			title: 'Edition',
+			type: 'string',
+		},
+		notes: {
+			items: {
+				type: 'string',
+			},
+			title: 'Notes',
+			type: 'array',
+		},
+		chapters: {
+			items: {
+				$ref: '#/$defs/Chapter',
+			},
+			title: 'Chapters',
+			type: 'array',
+		},
+		items: {
+			items: {
+				$ref: '#/$defs/RateItem',
+			},
+			title: 'Items',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine schedule of rates',
+	type: 'object',
+};
+
+export const CARBON_SCHEMA: IJSONSchema = {
+	$defs: {
+		CarbonFactor: {
+			additionalProperties: false,
+			properties: {
+				id: {
+					title: 'Id',
+					type: 'string',
+				},
+				material: {
+					title: 'Material',
+					type: 'string',
+				},
+				factor: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'kg CO2e per kg; empty: not counted.',
+					title: 'Factor',
+				},
+				density: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'kg/m³, to turn items in m³ or cft into kg.',
+					title: 'Density',
+				},
+				match: {
+					$ref: '#/$defs/Match',
+				},
+				source: {
+					default: '',
+					title: 'Source',
+					type: 'string',
+				},
+			},
+			required: ['id', 'material'],
+			title: 'CarbonFactor',
+			type: 'object',
+		},
+		Match: {
+			additionalProperties: false,
+			description: 'Which bill items a rate or a factor applies to: all that is given must hold.',
+			properties: {
+				group: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Group of the bill (concrete, ...).',
+					title: 'Group',
+				},
+				kind: {
+					anyOf: [
+						{
+							items: {
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Element or material kinds.',
+					title: 'Kind',
+				},
+				material: {
+					anyOf: [
+						{
+							items: {
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Material ids of 03 Materials.',
+					title: 'Material',
+				},
+				diameter: {
+					anyOf: [
+						{
+							maxItems: 2,
+							minItems: 2,
+							prefixItems: [
+								{
+									type: 'number',
+								},
+								{
+									type: 'number',
+								},
+							],
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bar diameters [mm], from and to, both included.',
+					title: 'Diameter',
+				},
+				unit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The bill item\'s unit.',
+					title: 'Unit',
+				},
+				description: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A pattern the item\'s description contains (case ignored).',
+					title: 'Description',
+				},
+			},
+			title: 'Match',
+			type: 'object',
+		},
+	},
+	additionalProperties: false,
+	properties: {
+		schema: {
+			const: 'saengine.carbon/1',
+			default: 'saengine.carbon/1',
+			title: 'Schema',
+			type: 'string',
+		},
+		name: {
+			default: '',
+			title: 'Name',
+			type: 'string',
+		},
+		notes: {
+			items: {
+				type: 'string',
+			},
+			title: 'Notes',
+			type: 'array',
+		},
+		factors: {
+			items: {
+				$ref: '#/$defs/CarbonFactor',
+			},
+			title: 'Factors',
+			type: 'array',
+		},
+	},
+	title: 'SAEngine embodied carbon factors',
+	type: 'object',
+};

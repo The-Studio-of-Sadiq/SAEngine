@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DEFAULT_SETTINGS } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
-import { codeCombinations, codeValues, designCategory, zoneOf } from '../../browser/settingsEditor.js';
+import { codeCombinations, codeValues, designCategory, nextRevision, zoneOf } from '../../browser/settingsEditor.js';
 import { JsonObject } from '../../browser/schemaForm.js';
 
 suite('SAEngine - Project settings editor', () => {
@@ -76,6 +76,14 @@ suite('SAEngine - Project settings editor', () => {
 		assert.ok(codeValues(omrf).find(v => v.label === 'Seismic detailing')?.problem?.includes('not permitted in Seismic Design Category D'));
 		// Rajshahi (zone 1) on SC with an IMF: Category B, permitted, nothing to switch.
 		assert.deepStrictEqual(designCategory({ ...defaults, site: { location: 'rajshahi' }, seismic: { system: 'rcImf' } }, 'SC')?.alternative, undefined);
+	});
+
+	test('a new drawing revision takes the next code, as the register numbers them', () => {
+		// As saengine.drawings.sheets.revisions.next_revision (test_drawing_revisions.py).
+		const cases: [string, string][] = [['', '0'], ['0', '1'], ['9', '10'], ['A', 'B'], ['Z', 'AA'], ['AZ', 'BA'], ['P1', 'P2'], ['C09', 'C10'], ['b', 'c']];
+		for (const [code, after] of cases) {
+			assert.strictEqual(nextRevision(code), after, code);
+		}
 	});
 
 	test('a custom Z takes the zone whose coefficient is nearest', () => {

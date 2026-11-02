@@ -30,6 +30,8 @@ import { BoqEditorInput, BoqEditorInputSerializer } from './boqEditorInput.js';
 import { BOQ_EXPORT_CSV_COMMAND, BOQ_EXPORT_XLSX_COMMAND, exportBoqCsv, exportBoqXlsx, readProjectBoq } from './boqExport.js';
 import { BOQ_RATES_FILE, BOQ_CARBON_FILE, ensureBoqFile } from './boqCosting.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
+import { RatesEditor } from './ratesEditor.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(BoqEditor, BoqEditor.ID, localize('boqEditorPane', "SAEngine Bill of Quantities")),
@@ -85,6 +87,57 @@ class BoqEditorResolverContribution extends Disposable implements IWorkbenchCont
 }
 
 registerWorkbenchContribution2(BoqEditorResolverContribution.ID, BoqEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(RatesEditor, RatesEditor.ID, localize('ratesEditorPane', "SAEngine Schedule of Rates Editor")),
+	[new SyncDescriptor(LibraryEditorInput)]
+);
+
+/**
+ * Opens the project's `10 BOQ/rates.json` and `10 BOQ/carbon-factors.json` in their form (OI-8 of
+ * walkthrough 3: Edit Schedule of Rates opened the raw JSON); "Reopen Editor With..." keeps the text.
+ */
+class RatesEditorResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.ratesEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const part = partById('boq');
+		if (!part) {
+			return;
+		}
+		for (const [file, kind, label] of [
+			[BOQ_RATES_FILE, 'rates', localize('ratesEditor.label', "Schedule of Rates")],
+			[BOQ_CARBON_FILE, 'carbon', localize('carbonEditor.label', "Embodied Carbon Factors")],
+		] as const) {
+			this._register(editorResolverService.registerEditor(
+				`**/${part.folder}/${file}`,
+				{ id: RatesEditor.ID, label, detail: localize('ratesEditor.detail', "SAEngine"), priority: RegisteredEditorPriority.default },
+				{ singlePerResource: true, canSupportResource: resource => this.isBoqFile(resource, file) },
+				{
+					createEditorInput: ({ resource, options }) => ({
+						editor: instantiationService.createInstance(LibraryEditorInput, resource, kind, undefined),
+						options,
+					}),
+				}
+			));
+		}
+	}
+
+	private isBoqFile(resource: URI, file: string): boolean {
+		const part = partById('boq');
+		const root = this.projectService.project?.root ?? this.contextService.getWorkspaceFolder(resource)?.uri;
+		return !!root && !!part && isEqual(resource, joinPath(root, part.folder, file));
+	}
+}
+
+registerWorkbenchContribution2(RatesEditorResolverContribution.ID, RatesEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
 registerAction2(class extends Action2 {
 	constructor() {

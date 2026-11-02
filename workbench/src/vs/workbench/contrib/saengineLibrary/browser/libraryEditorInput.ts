@@ -16,7 +16,7 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorDescriptor, IEditorPan
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
-export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate' | 'worksheet';
+export type LibraryKind = 'materials' | 'objects' | 'settings' | 'floorPlan' | 'structure' | 'bim' | 'reportTemplate' | 'worksheet' | 'rates' | 'carbon';
 
 const materialsIcon = registerIcon('saengine-materials-editor-icon', Codicon.symbolColor, localize('materialsEditorIcon', "Icon of the materials editor."));
 const objectsIcon = registerIcon('saengine-objects-editor-icon', Codicon.symbolStructure, localize('objectsEditorIcon', "Icon of the object types editor."));
@@ -25,6 +25,7 @@ const gridsIcon = registerIcon('saengine-grids-editor-icon', Codicon.table, loca
 const structureIcon = registerIcon('saengine-structure-editor-icon', Codicon.symbolStructure, localize('structureEditorIcon', "Icon of the structural model editor."));
 const reportTemplateIcon = registerIcon('saengine-report-template-editor-icon', Codicon.book, localize('reportTemplateEditorIcon', "Icon of the report template editor."));
 const worksheetIcon = registerIcon('saengine-worksheet-editor-icon', Codicon.symbolNumeric, localize('worksheetEditorIcon', "Icon of the calculation worksheet editor."));
+const ratesIcon = registerIcon('saengine-rates-editor-icon', Codicon.symbolNumeric, localize('ratesEditorIcon', "Icon of the schedule of rates and carbon factors editor."));
 const buildingIcon = registerIcon('saengine-building-editor-icon', Codicon.layers, localize('buildingEditorIcon', "Icon of the building model editor."));
 
 /**
@@ -44,6 +45,8 @@ export class LibraryEditorInput extends EditorInput {
 	static readonly REPORT_TEMPLATE_EDITOR_ID = 'workbench.editor.saengine.reportTemplate';
 	/** A calculation worksheet of `11 Exports/worksheets` (contrib/saengineReport). */
 	static readonly WORKSHEET_EDITOR_ID = 'workbench.editor.saengine.worksheet';
+	/** The schedule of rates and the carbon factors of `10 BOQ` (contrib/saengineBoq). */
+	static readonly RATES_EDITOR_ID = 'workbench.editor.saengine.rates';
 	/** The 3D modeller of the structural model (contrib/saengineStructure). */
 	static readonly STRUCTURE_MODELER_ID = 'workbench.editor.saengine.structureModeler';
 
@@ -80,6 +83,8 @@ export class LibraryEditorInput extends EditorInput {
 			case 'structure': return LibraryEditorInput.STRUCTURE_EDITOR_ID;
 			case 'reportTemplate': return LibraryEditorInput.REPORT_TEMPLATE_EDITOR_ID;
 			case 'worksheet': return LibraryEditorInput.WORKSHEET_EDITOR_ID;
+			case 'rates':
+			case 'carbon': return LibraryEditorInput.RATES_EDITOR_ID;
 			default: return LibraryEditorInput.EDITOR_ID;
 		}
 	}
@@ -98,6 +103,8 @@ export class LibraryEditorInput extends EditorInput {
 			case 'structure': return this.editorOverride ? localize('structureModeler', "Structural Model 3D") : localize('structureEditor', "Structural Model");
 			case 'reportTemplate': return localize('reportTemplateEditor', "Report Template: {0}", basename(this.resource).replace(/\.json$/i, ''));
 			case 'worksheet': return localize('worksheetEditor', "Worksheet: {0}", basename(this.resource).replace(/\.json$/i, ''));
+			case 'rates': return localize('ratesEditor', "Schedule of Rates");
+			case 'carbon': return localize('carbonEditor', "Embodied Carbon Factors");
 		}
 	}
 
@@ -111,6 +118,8 @@ export class LibraryEditorInput extends EditorInput {
 			case 'structure': return structureIcon;
 			case 'reportTemplate': return reportTemplateIcon;
 			case 'worksheet': return worksheetIcon;
+			case 'rates':
+			case 'carbon': return ratesIcon;
 		}
 	}
 

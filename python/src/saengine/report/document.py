@@ -2611,6 +2611,9 @@ def _limitations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     if lim["foundations"]:
         out.append(bullets(lim["foundations"]))
     out += [h(2, "Member design"), *notes(lim["design"])]
+    # A service's notes with its section: a section the template leaves out (unticked) has
+    # none here either (OI-17).
+    printed = {s.id for s in ctx.template.sections if s.include}
     for key, title in (
         ("mep", "MEP coordination"),
         ("plumbing", "Plumbing"),
@@ -2618,7 +2621,7 @@ def _limitations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         ("electrical", "Electrical coordination"),
         ("fire", "Fire protection"),
     ):
-        if (data.get(key) or {}).get("available"):
+        if (data.get(key) or {}).get("available") and key in printed:
             out += [h(2, title), *notes(lim.get(key, []))]
     out += [h(2, "Bill of quantities"), *notes(lim["boq"])]
     out += [h(2, "Analysis model"), *notes(lim["model"])]

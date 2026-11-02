@@ -94,6 +94,10 @@ def test_masonry_takes_its_mortar_and_a_concrete_without_a_mix_gets_an_assumed_o
             f"Cement in {CEMENT_BAG:g} kg bags": cement / CEMENT_BAG,
             "Sand (fine aggregate)": (mortar * 4 / 5 + dry * 1.5 / 5.5) * CFT,
             "Stone chips (coarse aggregate)": dry * 3 / 5.5 * CFT,
+            # Walkthrough 3 (the BOQ's w/c of 0.29): the assumed M20 mix takes IS 456:2000
+            # Table 9's water, at most 30 l per 50 kg of cement (w/c 0.60); the mortar M14 has
+            # no water/cement ratio, so none is taken off for it, and a note says so.
+            "Water": dry / 5.5 * CEMENT_DENSITY * 30 / 50,
             "Masonry BRICK in walls": 10.0,
             "Masonry BRICK2 in walls": 1.0,
             "Concrete C30 in slabs": 5.0,
@@ -103,8 +107,12 @@ def test_masonry_takes_its_mortar_and_a_concrete_without_a_mix_gets_an_assumed_o
     assert m.notes == [
         (
             "Materials: concrete C30 has no mix: 1:1.5:3 assumed (f'c 30 MPa), a nominal mix of "
-            "IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace "
-            "it)."
+            "IS 456:2000 Table 9 by strength with that table's water (enter the mix in 03 "
+            "Materials to replace it)."
+        ),
+        (
+            "Materials: no water is taken off for mortar M14: their mixes give no water/cement "
+            "ratio (enter it in 03 Materials), so the water line is short of their water."
         ),
         (
             "Materials: masonry BRICK2: its mortar is not named, so no cement, sand or stone is "

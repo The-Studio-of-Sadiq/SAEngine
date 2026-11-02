@@ -37,7 +37,8 @@ types and materials and the project settings become the ``$`` blocks of an e2k f
 - the mass source (elements, SD and the code's share of L, not lumped at the stories) and the
   load combinations of 02 Project Settings (D on both dead patterns).
 
-The :class:`ExportReport` lists what could not be represented: stairs, footings, solid blocks,
+The stairs are their support reactions (:mod:`saengine.fem.stair_loads`, as the analysis
+applies them). The :class:`ExportReport` lists what could not be represented: footings, solid blocks,
 07 MEP equipment loads, temperature, P-Delta, response spectrum, time-history and pushover
 definitions, soil springs, and the cracked-for-lateral-only stiffness (ETABS's modifiers act in
 every case). SAEngine's own wind and earthquake definitions (BNBC 2020) stay SAEngine's: ETABS
@@ -413,6 +414,7 @@ class _Writer:
         library_shapes: bool,
     ) -> None:
         self.b, self.settings, self.u, self.report = building, settings, units, report
+        self.objects, self.materials = objects, materials
         self.types = {o.id: o for o in objects.objects}
         self.mats = {m.id: m for m in materials.materials}
         self.lateral = lateral
@@ -841,25 +843,8 @@ class _Writer:
 
         found = member_loads(self.b, self.member_loads, self.types)
         for line in found.lines:
-            a = (line.start[0] * 1000, line.start[1] * 1000)
-            c = (line.end[0] * 1000, line.end[1] * 1000)
-            z = line.start[2] * 1000
-            written = False
-            for label, story, s, f, bz in self.beams:
-                if abs(bz - z) > TOLERANCE:
-                    continue
-                span = _overlap(s, f, a, c)
-                if span is None:
-                    continue
-                value = _n(self.u.line(line.load))
-                self.line_loads.append(
-                    f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "TRAPF"  DIR "GRAV"  '
-                    f"LC {_q(line.case)}  FSTART {value}  FEND {value}  "
-                    f"RDSTART {_n(span[0])}  RDEND {_n(span[1])}  "
-                )
-                written = True
-            length = math.dist(a, c) / 1000
-            if written:
+            length = math.dist(line.start, line.end)
+            if self._beam_line(line):
                 self.report.carried[line.case] += line.load * length / 1000
                 self.report.count("memberLineLoads")
             else:
@@ -869,19 +854,7 @@ class _Writer:
             x, y, z = (v * 1000 for v in point.at)
             written = False
             if point.along is not None:
-                for label, story, s, f, bz in self.beams:
-                    if abs(bz - z) > TOLERANCE:
-                        continue
-                    rd = _on_beam(s, f, (x, y))
-                    if rd is None:
-                        continue
-                    self.line_loads.append(
-                        f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "POINTF"  DIR "GRAV"  '
-                        f"LC {_q(point.case)}  FVAL {_n(self.u.to_force(point.force))}  "
-                        f"RDIST {_n(rd)}  "
-                    )
-                    written = True
-                    break
+                written = self._beam_point(point)
             else:
                 at = self._point(x, y, z)
                 if at is not None:
@@ -896,6 +869,118 @@ class _Writer:
             else:
                 self.report.skip("point loads on no exported beam or point", point.source)
                 self.report.not_carried[point.case] += point.force / 1000
+
+    def _beam_line(self, line: Any) -> bool:
+        """A uniform line load (``MemberLineLoad``: m, N/m) on the exported beams along it."""
+        a = (line.start[0] * 1000, line.start[1] * 1000)
+        c = (line.end[0] * 1000, line.end[1] * 1000)
+        z = line.start[2] * 1000
+        written = False
+        for label, story, s, f, bz in self.beams:
+            if abs(bz - z) > TOLERANCE:
+                continue
+            span = _overlap(s, f, a, c)
+            if span is None:
+                continue
+            value = _n(self.u.line(line.load))
+            self.line_loads.append(
+                f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "TRAPF"  DIR "GRAV"  '
+                f"LC {_q(line.case)}  FSTART {value}  FEND {value}  "
+                f"RDSTART {_n(span[0])}  RDEND {_n(span[1])}  "
+            )
+            written = True
+        return written
+
+    def _beam_point(self, point: Any) -> bool:
+        """A point load (``MemberPointLoad``: m, N) on the exported beam it is on."""
+        x, y, z = (v * 1000 for v in point.at)
+        for label, story, s, f, bz in self.beams:
+            if abs(bz - z) > TOLERANCE:
+                continue
+            rd = _on_beam(s, f, (x, y))
+            if rd is None:
+                continue
+            self.line_loads.append(
+                f'  LINELOAD  {_q(label)}  {_q(story)}  TYPE "POINTF"  DIR "GRAV"  '
+                f"LC {_q(point.case)}  FVAL {_n(self.u.to_force(point.force))}  "
+                f"RDIST {_n(rd)}  "
+            )
+            return True
+        return False
+
+    def _stair_loads(self) -> None:
+        """The stairs' support reactions (:mod:`saengine.fem.stair_loads`, as SAEngine's
+        analysis applies them): on the beams as line or point loads, on the slabs as point
+        loads at most 500 mm apart along the support line."""
+        if not self.b.additions.stairs:
+            return
+        from saengine.fem import stair_loads as stl
+
+        found = stl.stair_loads(self.b, self.objects, self.materials, self.settings)
+        if found is None:
+            return
+
+        def stair_of(source: str) -> str:
+            return source.rsplit("-", 1)[0]
+
+        lost: set[str] = set()
+        for line in found.placed.lines:
+            total = line.load * math.dist(line.start, line.end) / 1000
+            if self._beam_line(line):
+                self.report.carried[line.case] += total
+            else:
+                lost.add(stair_of(line.source))
+                self.report.not_carried[line.case] += total
+        for point in found.placed.points:
+            if self._beam_point(point):
+                self.report.carried[point.case] += point.force / 1000
+            else:
+                lost.add(stair_of(point.source))
+                self.report.not_carried[point.case] += point.force / 1000
+        on_slabs: set[str] = set()
+        for line in found.placed.slabs:
+            a = [v * 1000 for v in line.start]
+            c = [v * 1000 for v in line.end]
+            n = max(2, math.ceil(math.dist(a, c) / 500))
+            share = line.load * math.dist(line.start, line.end) / n
+            for i in range(n):
+                t = (i + 0.5) / n
+                at = self._point(a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2])
+                if at is None:
+                    continue
+                self.point_loads.append(
+                    f'  POINTLOAD  {_q(at[0])}  {_q(self._story(at[1]))}  TYPE "FORCE"  '
+                    f"LC {_q(line.case)}    FZ {_n(self.u.to_force(-share))}"
+                )
+            self.report.carried[line.case] += share * n / 1000
+            on_slabs.add(stair_of(line.source))
+        for stair in sorted(lost):
+            self.report.skip("stair loads on no exported beam", stair)
+        if on_slabs:
+            self.report.approximate(
+                "stair support lines on slabs as point loads at most 500 mm apart (SAEngine "
+                "spreads them over the slab's elements)",
+                ", ".join(sorted(on_slabs)),
+            )
+        if found.left_out:
+            self.report.skip(
+                "stair supports at the base (on the ground, as in SAEngine's analysis)",
+                ", ".join(
+                    sorted(
+                        {
+                            s.stair
+                            for s in found.supports
+                            if s.elevation <= self.levels[0][1] + TOLERANCE
+                        }
+                    )
+                ),
+            )
+        self.report.count("stairs", len(self.b.additions.stairs))
+        self.report.approximate(
+            "stairs as their support reactions (not in the stiffness model, as in SAEngine's "
+            "analysis)",
+            ", ".join(sorted(s.id for s in self.b.additions.stairs)),
+        )
 
     def _line(
         self,
@@ -1084,9 +1169,6 @@ class _Writer:
                 self.report.count("slabOpenings")
         for o in self.b.additions.wallOpenings:
             self._wall_opening(o)
-        for stair in self.b.additions.stairs:
-            self.report.skip("stairs (not in SAEngine's analysis either: their loads are not "
-                             "applied)", stair.id)  # fmt: skip
 
     def _wall(self, e: WallElement, levels: list[float], base: float) -> None:
         t = self.types.get(e.type)
@@ -1389,8 +1471,8 @@ class _Writer:
         period = self.summary.get("period_s")
         if not coefficient or period is None:
             self.report.warn(
-                "No BNBC base shear coefficient (site values missing or the analysis model "
-                "could not be derived): EX and EY have no loads."
+                "No base shear coefficient of the code pack (site values missing or the "
+                "analysis model could not be derived): EX and EY have no loads."
             )
             return []
         k = 1.0 if period <= 0.5 else 2.0 if period >= 2.5 else 1 + (period - 0.5) / 2
@@ -1418,6 +1500,7 @@ class _Writer:
         self._geometry()
         self._partition_loads()
         self._member_loads()
+        self._stair_loads()
         self._equipment_loads()
         # supports
         for label in sorted(self.base_points, key=int):
@@ -1458,7 +1541,7 @@ class _Writer:
         if a.secondOrder != "none":
             self.report.skip("P-Delta (Analysis model → Second order) not exported")
         if a.seismicDesign == "responseSpectrum" or a.responseSpectrum:
-            self.report.skip("the response spectrum (SAEngine's BNBC spectrum) not exported")
+            self.report.skip("the response spectrum (the code pack's design spectrum) not exported")
         if a.seismicAccidentalTorsion:
             self.report.skip("accidental torsion of the earthquake cases not exported")
         if a.thermal.enabled:

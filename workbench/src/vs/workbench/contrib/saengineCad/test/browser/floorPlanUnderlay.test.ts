@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { alignAngle, calibrated, diffLines, diffSummary, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, toPlan } from '../../browser/floorPlanUnderlay.js';
+import { alignAngle, calibrated, DEFAULT_PDF_SCALE, diffLines, firstPdfPlacement, gridCentre, diffSummary, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, toPlan } from '../../browser/floorPlanUnderlay.js';
 
 suite('SAEngine - Floor plan underlay', () => {
 
@@ -14,6 +14,18 @@ suite('SAEngine - Floor plan underlay', () => {
 
 	const round = ([x, y]: CadPoint) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000];
 	const placement: IUnderlayPlacement = { offset: [1000, 500], scale: 2, rotation: 90 };
+
+	test('a new PDF page starts at its stated scale, centred on the grid', () => {
+		// An A3 page (420 x 297 mm) stating 1:100, on a plan whose grid spans 0-13000 x 0-5000.
+		const centre = gridCentre({ grids: { x: [{ position: 0 }, { position: 13000 }], y: [{ position: 0 }, { position: 5000 }] } });
+		assert.deepStrictEqual(centre, [6500, 2500]);
+		const first = firstPdfPlacement([420, 297], 100, centre);
+		assert.deepStrictEqual(first, { offset: [6500 - 21000, 2500 - 14850], scale: 100, rotation: 0 });
+		assert.deepStrictEqual(toPlan(first, [210, 148.5]), [6500, 2500]);
+		// No stated scale: 1:100; no grid: the origin.
+		assert.strictEqual(firstPdfPlacement([420, 297], null, [0, 0]).scale, DEFAULT_PDF_SCALE);
+		assert.deepStrictEqual(gridCentre({}), [0, 0]);
+	});
 
 	test('a drawing point is scaled, turned and moved onto the plan', () => {
 		assert.deepStrictEqual(round(toPlan(placement, [10, 0])), [1000, 520]);

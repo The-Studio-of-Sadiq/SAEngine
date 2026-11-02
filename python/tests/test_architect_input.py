@@ -87,6 +87,29 @@ def test_a_page_without_paths_is_reported(tmp_path: Path) -> None:
     assert "no vector linework" in result.warnings[0]
 
 
+def test_the_stated_scale_places_the_page_first() -> None:
+    # OI-6 (walkthrough 3): the attached PDF starts at the scale its title block states.
+    def texts(*contents: str) -> list:
+        return [(c, (0.0, 0.0), 2.5, 0.0) for c in contents]
+
+    assert pdf_underlay.stated_scale(texts("GROUND FLOOR PLAN", "SCALE 1:100")) == 100
+    assert pdf_underlay.stated_scale(texts("1 : 50", "Detail 1:20", "Section 1:50")) == 50
+    # A tie goes to the larger scale (the plan's, not a detail's); ratios that are no drawing
+    # scale (a slope 1:3, a version 1:1.5) are not taken.
+    assert pdf_underlay.stated_scale(texts("Plan 1:100", "Detail 1:10")) == 100
+    assert pdf_underlay.stated_scale(texts("slope 1:3", "mix 1:1.5:3", "nothing")) is None
+
+
+def test_pages_only_does_not_convert(tmp_path: Path) -> None:
+    from saengine.rpc.handlers import convert_pdf
+
+    pdf = write_pdf(tmp_path / "plan.pdf", b"0 0 m 100 0 l S")
+    assert convert_pdf(str(pdf), pages_only=True) == {"ok": True, "pages": 1}
+    assert not (tmp_path / pdf_underlay.CACHE_FOLDER).exists()
+    answer = convert_pdf(str(pdf))
+    assert answer["ok"] and answer["scale"] is None
+
+
 def test_a_missing_page_is_refused(tmp_path: Path) -> None:
     pdf = write_pdf(tmp_path / "plan.pdf", b"0 0 m 1 1 l S")
     with pytest.raises(pdf_underlay.PdfError, match="page 3"):

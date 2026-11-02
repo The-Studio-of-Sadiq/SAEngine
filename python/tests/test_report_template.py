@@ -130,6 +130,25 @@ def test_template_chooses_order_titles_and_sections() -> None:
     ]
 
 
+def test_an_unticked_service_has_no_limitations_either() -> None:
+    # OI-17 (walkthrough 3): HVAC, Electrical and Fire unticked still printed their notes as
+    # Limitations 11.7-11.9.
+    data = _data()
+    for key in ("hvac", "electrical", "fire"):
+        data[key] = {"available": True}
+        data["limitations"][key] = [f"{key} note"]
+    template = ReportTemplate(
+        sections=[
+            ReportSection(id="limitations"),
+            *(ReportSection(id=k, include=False) for k in ("hvac", "electrical", "fire")),
+        ]
+    )
+    blocks = _blocks(report_document(data, template), "limitations")
+    headings = [b.get("text") for b in blocks if b["t"] == "h"]
+    assert not {"HVAC coordination", "Electrical coordination", "Fire protection"} & set(headings)
+    assert "Member design" in headings
+
+
 def test_summary_detail_keeps_failing_and_governing_members_only() -> None:
     data = _data()
     full = _blocks(report_document(data), "design")

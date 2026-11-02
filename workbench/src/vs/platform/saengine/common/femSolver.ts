@@ -748,8 +748,12 @@ export type ProjectPlatformMethod =
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'
 	// One page of an architect's PDF as DXF with its lines for object snaps (`saengine.library.pdf_underlay`):
-	// `cad/convertPdf` `{path, page?, cache?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings, cached}`.
+	// `cad/convertPdf` `{path, page?, cache?, pagesOnly?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings, cached, scale}`
+	// (`pagesOnly`: `{ok, pages}`, without converting a page).
 	| 'cad/convertPdf'
+	// DXF files the app wrote, repaired in place by ezdxf's auditor (`saengine.library.dxf_audit`):
+	// `cad/cleanDxf` `{paths}` -> `{ok, files: [{path, fixed, errors}]}`.
+	| 'cad/cleanDxf'
 	// The model workbook (`saengine.library.workbook`): `workbook/export` `{outPath, floorPlanText, objectsText?,
 	// loadsText?}` -> `{ok, path, sheets}`; `workbook/import` `{path, floorPlanText, objectsText?, loadsText?}` ->
 	// `{ok, problems, diff, texts, changed}`.

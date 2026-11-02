@@ -37,6 +37,11 @@ export const DWG_TO_DXF_COMMAND = 'saengine.cad.dwgToDxf';
  * with its straight lines `[x1, y1, x2, y2]` in paper mm for object snaps.
  */
 export const PDF_TO_DXF_COMMAND = 'saengine.cad.pdfToDxf';
+/**
+ * `{paths}` -> `{ok, files: [{path, fixed, errors}]}`: DXF files the app wrote, repaired in place
+ * by ezdxf's auditor so CAD programs open them without repairs (`saengine.library.dxf_audit`).
+ */
+export const CLEAN_DXF_COMMAND = 'saengine.cad.cleanDxf';
 /** `{outPath, floorPlanText, objectsText?, loadsText?}` -> `{ok, path, sheets}`: the model as an Excel workbook. */
 export const WORKBOOK_EXPORT_COMMAND = 'saengine.workbook.export';
 /** `{path, floorPlanText, objectsText?, loadsText?}` -> `{ok, problems, diff, texts, changed}`: an edited workbook read back. */

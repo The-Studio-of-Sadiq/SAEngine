@@ -93,8 +93,8 @@ async function writeReport(accessor: ServicesAccessor, format: ReportFormat, tem
 	}
 
 	const file = URI.file(result.path);
-	// Open in the operating system's PDF viewer or word processor.
-	await openerService.open(file, { openExternal: true });
+	// What was written is said first (OI-16: with no PDF viewer set, Windows's "pick an
+	// application" stood in for it), then the system's PDF viewer or word processor opens it.
 	notificationService.prompt(
 		result.warnings?.length ? Severity.Warning : Severity.Info,
 		reportWrittenMessage(result),
@@ -109,6 +109,7 @@ async function writeReport(accessor: ServicesAccessor, format: ReportFormat, tem
 			},
 		],
 	);
+	await openerService.open(file, { openExternal: true });
 }
 
 registerAction2(class extends Action2 {

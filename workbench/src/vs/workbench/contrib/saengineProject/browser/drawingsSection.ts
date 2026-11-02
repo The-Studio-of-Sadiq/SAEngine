@@ -699,7 +699,7 @@ export class DrawingsSection extends Disposable {
 		}
 		const pending = set.register?.pending ?? '0';
 		const code = await this.quickInputService.input({
-			title: localize('drawings.issueStep1', "Issue Drawings (1 of 3): revision"),
+			title: localize('drawings.issueStep1of4', "Issue Drawings (1 of 4): revision"),
 			value: pending,
 			prompt: localize('drawings.issueCodePrompt', "The revision for the sheets new or changed since their last issue (0, A, P1, ...)."),
 			validateInput: async value => value.trim() ? undefined : localize('drawings.issueCodeEmpty', "Give the revision."),
@@ -709,16 +709,17 @@ export class DrawingsSection extends Disposable {
 		}
 		const purposes = issuePurposes().map((label): IQuickPickItem => ({ label }));
 		const purpose = await this.quickInputService.pick(purposes, {
-			title: localize('drawings.issueStep2', "Issue Drawings (2 of 3): purpose"),
+			title: localize('drawings.issueStep2of4', "Issue Drawings (2 of 4): purpose"),
 			placeHolder: localize('drawings.issuePurpose', "What the drawings are issued for"),
 		});
 		if (!purpose) {
 			return;
 		}
 		const description = await this.quickInputService.input({
-			title: localize('drawings.issueStep3', "Issue Drawings (3 of 3): description"),
-			value: purpose.label,
-			prompt: localize('drawings.issueDescriptionPrompt', "What changed, as the revision table of the title block shows it."),
+			title: localize('drawings.issueStep3of4', "Issue Drawings (3 of 4): description"),
+			value: '',
+			placeHolder: purpose.label,
+			prompt: localize('drawings.issueDescriptionPrompt2', "What changed, as the revision table of the title block shows it; empty: the description of revision {0} in Project Settings (Add Drawing Revision), else the purpose.", code.trim()),
 		});
 		if (description === undefined) {
 			return;
@@ -729,7 +730,7 @@ export class DrawingsSection extends Disposable {
 		];
 		const picked = await this.quickInputService.pick(options, {
 			canPickMany: true,
-			title: localize('drawings.issueOptions', "Issue Drawings: options (Enter to issue)"),
+			title: localize('drawings.issueStep4of4', "Issue Drawings (4 of 4): options (Enter to issue)"),
 		});
 		if (!picked) {
 			return;
@@ -767,8 +768,15 @@ export class DrawingsSection extends Disposable {
 			if (issued?.sheets.length) {
 				this.setDrawings(issued);
 				this.selection.clear();
-				const raw = (result ?? {}) as { readonly issued?: { readonly code?: string; readonly sheets?: readonly unknown[] } };
-				this.notificationService.info(localize('drawings.issued', "Issued revision {0}: {1} sheet(s), copied into 11 Exports/Drawings/Issued.", raw.issued?.code ?? args.code, raw.issued?.sheets?.length ?? 0));
+				const raw = (result ?? {}) as { readonly issued?: { readonly code?: string; readonly sheets?: readonly unknown[]; readonly dwgProblems?: readonly string[] } };
+				const text = localize('drawings.issued', "Issued revision {0}: {1} sheet(s), copied into 11 Exports/Drawings/Issued.", raw.issued?.code ?? args.code, raw.issued?.sheets?.length ?? 0);
+				const dwgProblems = args.dwg ? raw.issued?.dwgProblems ?? [] : [];
+				if (dwgProblems.length) {
+					// "Also write DWG" could not: said with the issue, not as a success (OI-10).
+					this.notificationService.warn(`${text} ${localize('drawings.issuedNoDwg', "No DWG was written: {0}", dwgProblems.join(' '))}`);
+				} else {
+					this.notificationService.info(text);
+				}
 			} else {
 				this.notificationService.warn(localize('drawings.issueFailed', "The drawings were not issued: {0}", issued?.problems.join(' ') ?? ''));
 			}
@@ -914,6 +922,12 @@ export class DrawingsSection extends Disposable {
 
 	private async openExternal(resource: URI): Promise<void> {
 		try {
+			if (/\.csv$/i.test(resource.path)) {
+				// A schedule in the app (a PC without a spreadsheet program asked Windows to pick
+				// one and showed nothing: OI-9); Excel opens it from the editor's Reveal.
+				await this.editorService.openEditor({ resource, options: { pinned: true } });
+				return;
+			}
 			await this.openerService.open(resource, { openExternal: true });
 		} catch (error) {
 			this.notificationService.error(toErrorMessage(error));

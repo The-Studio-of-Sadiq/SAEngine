@@ -197,3 +197,29 @@ def test_workbook(tmp_path: Path) -> None:
     assert costing["K2"].value == "=IF(ISNUMBER(J2),D2*I2*J2,0)"
     bill = book["Bill of Quantities"]
     assert bill.row_dimensions[3].outlineLevel == 1  # E.01's breakdown under it
+
+
+def test_rates_editor_checks_and_units() -> None:
+    """OI-8 (walkthrough 3): the schedule of rates opens in a form (workbench ratesEditor.ts);
+    the Python models check it, and the form's unit list is the costing's."""
+    import json
+    import re
+
+    from saengine.boq.costing import UNITS, sample_rates_text
+    from saengine.library.check import check_library
+
+    assert check_library("rates", sample_rates_text()) == []
+    data = json.loads(sample_rates_text())
+    data["items"][0]["unit"] = "bucket"
+    data["items"][1]["code"] = data["items"][0]["code"]
+    problems = check_library("rates", json.dumps(data))
+    assert {(p["index"], p["path"]) for p in problems} == {(0, "unit"), (1, "code")}
+    data["items"][2]["rate"] = "cheap"
+    assert check_library("rates", json.dumps(data))[0]["index"] == 2
+    editor = (
+        Path(__file__).parents[2]
+        / "workbench/src/vs/workbench/contrib/saengineBoq/browser/ratesEditor.ts"
+    ).read_text(encoding="utf-8")
+    listed = re.search(r"RATE_UNITS: readonly string\[\] = \[([^\]]*)\]", editor)
+    assert listed is not None
+    assert re.findall(r"'([^']+)'", listed.group(1)) == list(UNITS)
