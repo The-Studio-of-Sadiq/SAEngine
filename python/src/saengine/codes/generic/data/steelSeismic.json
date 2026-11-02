@@ -1,0 +1,8 @@
+{
+  "$notes": {
+    "practice.rigidZoneMax": "SAEngine practice: steel moment frames analysed on centrelines (rigid zone factor 0), the panel zones checked apart"
+  },
+  "practice": {
+    "rigidZoneMax": 0.0
+  }
+}

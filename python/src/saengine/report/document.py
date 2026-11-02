@@ -282,6 +282,29 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out: list[Block] = []
     if "codes" in basis:
         out += [h(2, "Codes and method"), pairs(basis["codes"])]
+    if basis.get("codeOverrides"):
+        out += [
+            h(2, "Code values overridden in this project"),
+            p(
+                "The project's own values (Project Settings > Code values) used instead of the "
+                "code pack's; every other value follows the code pack."
+            ),
+            table(
+                ["Value", "Code pack", "This project"],
+                basis["codeOverrides"],
+                ["1fr", "auto", "auto"],
+                "lrr",
+            ),
+        ]
+    if basis.get("genericDefaults"):
+        out += [
+            h(2, "Generic defaults"),
+            p(
+                "Values the code pack does not give, taken as generic defaults (SAEngine "
+                "practice, not part of the code pack), with where each comes from."
+            ),
+            table(["Value", "Used", "Source"], basis["genericDefaults"], ["auto", "auto", "1fr"]),
+        ]
     if "site" in basis:
         out += [h(2, "Building and site"), pairs(basis["site"])]
     if "seismic" in basis:

@@ -138,10 +138,16 @@ def wave_combination(flood: Any, data: Any | None = None) -> tuple[str, str]:
     method = getattr(data, "waveCombination", None)
     if method in ("sum", "larger"):
         # The pack's note on the entry (e.g. that it is practice, not the code's own rule).
+        pack = code_context.current()
+        source = pack.value_source("flood", "waveCombination")
+        if not source.startswith("code pack"):
+            return method, source  # a project override, or the generic default (codes/generic)
         note = str((getattr(data, "notes", None) or {}).get("waveCombination") or "")
         note = note.split(":", 1)[0].strip()
         return method, f"code pack {code_context.code_name()}" + (f", {note}" if note else "")
-    return WAVE_COMBINATION_DEFAULT, "generic default (the code pack gives none)"
+    from saengine.codes import generic
+
+    return WAVE_COMBINATION_DEFAULT, generic.label(code_context.code_name())
 
 
 def wave_amplitude(hs: float, data: Any | None = None) -> float:

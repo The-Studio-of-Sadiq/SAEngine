@@ -2494,6 +2494,48 @@ def codes_choices(pack_id: str, root: str | None = None) -> dict[str, Any]:
     return {"id": pack.id, "name": pack.edition or pack.name, "choices": pack_choices(pack)}
 
 
+def codes_values(
+    settings_text: str | None = None, root: str | None = None, table: str | None = None
+) -> dict[str, Any]:
+    """The Project Settings "Code values" page: the code pack the settings choose (unsaved
+    edits included, ``settings_text``) with the project's overrides (``codeOverrides``):
+    ``{id, name, missing, tables: [{name, overridden, generic}], overrides: [{path, packValue,
+    value}], problems: [{path, message}], fallbacks: [{path, value, note}], rows}``, ``rows``
+    the values of ``table`` (:func:`saengine.codes.overrides.browse`; none without a table)."""
+    import json
+
+    from saengine.codes import CodePackError
+    from saengine.codes import context as code_context
+    from saengine.codes.overrides import browse
+
+    try:
+        settings = json.loads(settings_text) if settings_text else {}
+    except ValueError as error:
+        return _refusal(error)
+    if not isinstance(settings, dict):
+        settings = {}
+    try:
+        pack = code_context.pack_for(settings, _pack_root(root))
+    except CodePackError as error:
+        return _refusal(error)
+    overridden = {o.table for o in pack.overrides}
+    generic = {f.table for f in pack.fallbacks}
+    return {
+        "id": pack.id,
+        "name": pack.edition or pack.name,
+        "missing": pack.missing,
+        "tables": [
+            {"name": t, "overridden": t in overridden, "generic": t in generic}
+            for t in pack.tables()
+            if t not in pack.broken
+        ],
+        "overrides": [o.as_dict() for o in pack.overrides],
+        "problems": [{"path": p, "message": m} for p, m in pack.override_problems],
+        "fallbacks": [f.as_dict() for f in pack.fallbacks],
+        "rows": browse(pack, [table]) if table else [],
+    }
+
+
 def codes_new(
     pack_id: str,
     name: str,

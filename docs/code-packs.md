@@ -16,6 +16,7 @@ only what differs in their region: a few towns, a wind speed, a combination fact
 - [Data or formula? Hooks and trust](#data-or-formula-hooks-and-trust)
 - [Check a pack](#check-a-pack)
 - [Use and share a pack](#use-and-share-a-pack)
+- [How to override a code value](#how-to-override-a-code-value)
 - [The pack in the report](#the-pack-in-the-report)
 - [Limits of this version](#limits-of-this-version)
 - [Command reference](#command-reference)
@@ -339,6 +340,86 @@ To share a pack, zip its folder and send it; the receiver installs it with **≡
 Install Code Pack…** (the zip or the folder, into the user folder or into the project), or
 copies the folder into one of the places above. A project that uses a pack of its own carries it
 along: send the project or its `.civil` archive and the pack goes with it.
+
+## How to override a code value
+
+You don't need a pack of your own to change one value for one project. Any value of the pack in
+force can be overridden in the project:
+
+1. Open **02 Project Settings → Code Values**.
+2. Pick the table (`factors`, `seismic`, `combinations`, ...) and find the value. The filter
+   matches words of its name.
+3. Type the project's value in **This project**. Leave the field empty and the pack's value
+   applies.
+
+Overridden values are marked and listed first, each with a **Reset** button. The setting behind
+the page is `codeOverrides` in `project-settings.json`, a map from a value's path to the
+project's value:
+
+```json
+"codeOverrides": {
+  "factors.phi.shear": 0.7,
+  "seismic.systems.rcSmf.R": 7,
+  "combinations.pDeltaPreload": { "D": 1.4, "SD": 1.4, "F": 1.4, "L": 0.5 },
+  "combinations.strength[1.2D + 1.6L + 0.5Lr].factors.L": 1.7
+}
+```
+
+- A path is the table, then the keys inside it, separated by dots. A key with dots or brackets
+  in it goes in brackets. An item of a list is named by its `name` (or `id`, or its index).
+- A value replaces the pack's value. A group of values (`{...}`) replaces the whole group.
+- Every run uses the overrides: the analysis, the design, the drawings and the report read the
+  pack with the overrides merged in, by the same merge as `extends`.
+- Each override is checked against its table. An override of a value the pack does not have, of
+  another kind (text for a number), or out of range (a φ above 1) is not used. It is listed with
+  its path among the settings' problems and the report's warnings, and the pack's value applies.
+- The overrides belong to the project, not to the pack. After switching packs they apply to the
+  new pack; one the new pack has no value for is reported, not used.
+- The design report lists them in **Code values overridden in this project**: the path, the
+  pack's value and the project's value.
+
+Values that belong to a member or a material (a material's E, a member's cover) are still set
+on the member or material.
+
+A few owner decisions also have their own setting, because the choice is a common one:
+`analysis.partitionAllowanceCase`, `analysis.steelRigidZoneFactor` and
+`site.flood.waveCombination` (see [engineering-decisions.md](engineering-decisions.md)). They
+win over the pack's value and over an override of it.
+
+### Switching packs and missing packs
+
+Changing the pack, a setting or an override takes effect on the next run. Nothing needs to be
+migrated. The kept results of a run (the design checks, the response spectrum design, the
+irregularity checks) are stamped with a fingerprint of the pack's values and the overrides, so a
+change never leaves an older answer in use.
+
+A project whose pack is not installed on this computer (a project sent without its pack, say)
+still opens and runs. The default pack is used instead, with a warning in Project Settings, on
+the Code Values page and in the report.
+
+### Generic defaults
+
+A pack that lacks one value still works. The value comes from SAEngine's **generic defaults**,
+`python/src/saengine/codes/generic/data/<table>.json`. These are editable data, not part of any
+code. Results and the report name each one as "generic default (SAEngine practice), not given by
+<pack>", and the report lists them under **Generic defaults** with their sources:
+
+| Value | Generic default | Source |
+| --- | --- | --- |
+| `factors.phi.plain` | 0.60 | ACI 318-19 Table 21.2.1(g) |
+| `detailing.bars` | hooks, bends, development, laps, splice zones, extents | ACI 318-19 Ch. 25, 18.6-18.10, 9.7.3, 8.7.4; ACI 318-14 25.4.3.2 (hook factors); no lap splices above 36 mm (25.5.1.1) |
+| `combinations.pDeltaPreload` | 1.2 D, SD, F; 1.0 L | ASCE 7-22 Sec 2.3.6, combination 6 |
+| `seismic.stabilityGravity` | 1.0 each | ASCE 7-22 Sec 12.8.7 |
+| `areaLoads.partitions.loadCase` | L | ASCE 7-22 Sec 4.3.2 |
+| `flood.waveCombination` | sum | SAEngine practice (conservative) |
+| `steelSeismic.practice.rigidZoneMax` | 0 | SAEngine practice (centreline model) |
+| `concrete.modulus` | 4700 √f'c; 0.043 wc^1.5 √f'c | ACI 318-19 19.2.2.1 (brick aggregate: no generic rule, the normal-weight value) |
+| `concrete.shrinkage` | 0.0020 below fy 420; 0.0018 × 420/fy, at least 0.0014 | ACI 318-14 Table 24.4.3.2 |
+
+Generic defaults fill single values only, in tables the pack has. A whole table the pack lacks
+is a feature it does not cover: that feature shows as "not covered by the code pack", and never
+falls back to another code. A value the pack gives always wins, and a project override wins over
+both.
 
 ## The pack in the report
 

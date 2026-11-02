@@ -1649,6 +1649,7 @@ def seismic_design(
             str(out_dir.resolve()),
             stamp_before,
             settings.model_dump_json(),
+            code_context.current().fingerprint,  # the pack's values (D7)
             repr(options),
             repr(levels),
         )

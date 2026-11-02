@@ -7,6 +7,7 @@ import { $, addDisposableListener, append, clearNode, EventType } from '../../..
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -28,7 +29,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ISoilSources } from '../../../../platform/saengine/common/femSolver.js';
@@ -43,6 +44,7 @@ import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '.
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import './media/codePacks.css';
 import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
+import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
@@ -281,6 +283,9 @@ const SECTION_OF: { readonly [key: string]: string } = {
 	roofLoad: 'areaLoads',
 };
 
+/** The Code Values page lists at most this many values of a table at once (the filter finds the rest). */
+const MAX_CODE_VALUE_ROWS = 300;
+
 /** Settings edited in the toolbar rather than in a section: the design code (code pack). */
 const TOOLBAR_KEYS: ReadonlySet<string> = new Set(['codePack']);
 
@@ -358,6 +363,14 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The Code Values panel was closed for a narrow editor (and opens again when it is wide). */
 	private autoCollapsed = false;
 
+	/** The Code Values page: the backend's answer for the settings as they are (`saengine.codes.values`), the table and the filter shown. */
+	private codeValues: ICodeValues | undefined;
+	private codeValuesFor: string | undefined;
+	private codeValuesVersion = 0;
+	private codeValuesTable: string | undefined;
+	private codeValuesFilter = '';
+	private readonly codeValueRows = this._register(new DisposableStore());
+
 	private readonly navDisposables = this._register(new DisposableStore());
 	private readonly pageDisposables = this._register(new DisposableStore());
 	private readonly valuesDisposables = this._register(new DisposableStore());
@@ -430,6 +443,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			if (id === CODES_CHOICES_COMMAND) {
 				void this.refreshPackLists();
 			}
+			if (id === CODES_VALUES_COMMAND && this.section?.id === CODE_OVERRIDES_KEY) {
+				this.renderPage();
+			}
 		}));
 	}
 
@@ -468,6 +484,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.sources = undefined;
 		this.packLists = undefined; // another project may have other packs
 		this.packListsFor = undefined;
+		this.codeValues = undefined;
+		this.codeValuesFor = undefined;
 		void this.trackSoil();
 		void this.refreshPacks();
 	}
@@ -1225,6 +1243,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	private renderPage(): void {
 		this.pageDisposables.clear();
+		this.codeValueRows.clear();
 		this.seismicCell = undefined;
 		clearNode(this.page);
 		const section = this.section;
@@ -1242,6 +1261,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();
+		if (section.id === CODE_OVERRIDES_KEY) {
+			this.renderCodeValues();
+			return;
+		}
 		const skip = Object.keys(SETTINGS_SCHEMA.properties ?? {}).filter(key => !section.keys.includes(key));
 		const form = append(this.page, $('.library-form'));
 		this.form.render(form, SETTINGS_SCHEMA, this.document, skip, { flat: true });
@@ -1295,6 +1318,182 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('settings.showProject', "Show Project");
 		this.pageDisposables.add(button.onDidClick(() => this.selectSection('project')));
+	}
+
+	// ───────────────────────────── code values (overrides of the pack's values) ─────────────────────────────
+
+	/** What the Code Values answer depends on: the pack, the overrides and the table shown. */
+	private codeValuesKey(): string {
+		return JSON.stringify([chosenPackId(this.document), codeOverrides(this.document), this.codeValuesTable ?? '']);
+	}
+
+	/** Asks the backend for the pack's values with the overrides as they are (unsaved edits included); the page follows. */
+	private async refreshCodeValues(): Promise<void> {
+		const document = this.document;
+		if (!document || !CommandsRegistry.getCommand(CODES_VALUES_COMMAND)) {
+			return;
+		}
+		const key = this.codeValuesKey();
+		if (key === this.codeValuesFor) {
+			return;
+		}
+		this.codeValuesFor = key;
+		const version = ++this.codeValuesVersion;
+		let answer: ICodeValues | undefined;
+		try {
+			answer = readCodeValues(await this.commands.executeCommand<unknown>(CODES_VALUES_COMMAND, {
+				settingsText: JSON.stringify(document),
+				root: this.project.project?.root.fsPath,
+				table: this.codeValuesTable ?? '',
+			}));
+		} catch {
+			answer = undefined;
+		}
+		if (version !== this.codeValuesVersion || this.document !== document) {
+			return;
+		}
+		this.codeValues = answer;
+		const tables = answer?.tables ?? [];
+		if (tables.length && !tables.some(t => t.name === this.codeValuesTable)) {
+			// First, or after a switch to a pack without the table: one with an override, else the first.
+			this.codeValuesTable = (tables.find(t => t.overridden) ?? tables[0]).name;
+			void this.refreshCodeValues();
+			return;
+		}
+		if (this.section?.id === CODE_OVERRIDES_KEY) {
+			this.renderPage();
+		}
+	}
+
+	/**
+	 * The Code Values page: the overrides of this project first (each with its reset), then the
+	 * values of one table of the pack, read-only, each with a field for the project's value. An
+	 * override the pack does not accept is marked with why, and is not used.
+	 */
+	private renderCodeValues(): void {
+		void this.refreshCodeValues();
+		const page = this.page;
+		const values = this.codeValues;
+		append(page, $('.sa-props-note.settings-section-note', undefined, localize('settings.codeValuesNote', "The values of the design code {0}. Type a project value to override one; leave the field empty and the code pack's value applies. Every run uses the overrides, and the design report lists them. Values marked generic default are not given by the code pack (SAEngine practice; hover one for its source).", values?.name ?? this.codeName)));
+		if (!CommandsRegistry.getCommand(CODES_VALUES_COMMAND)) {
+			append(page, $('.sa-props-note', undefined, localize('settings.codeValuesNoBackend', "The code values are listed when SAEngine's engine runs.")));
+			return;
+		}
+		if (!values) {
+			append(page, $('.sa-props-note', undefined, localize('settings.codeValuesLoading', "Reading the code pack...")));
+			return;
+		}
+		if (values.missing) {
+			const warning = append(page, $('.settings-source-warning'));
+			append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			append(warning, $('span', undefined, localize('settings.codeValuesMissing', "The project's code pack {0} is not installed here: {1} is used until it is.", values.missing, values.name)));
+		}
+		const own = codeOverrides(this.document);
+		const paths = Object.keys(own).sort();
+		if (paths.length) {
+			append(page, $('.settings-code-values-heading', undefined, localize('settings.codeValuesOverridden', "Overridden in this project")));
+			const grid = append(page, $('.settings-code-values', { role: 'table', 'aria-label': localize('settings.codeValuesOverridden', "Overridden in this project") }));
+			this.codeValuesHeader(grid);
+			for (const path of paths) {
+				const applied = values.overrides.find(o => o.path === path);
+				const problem = values.problems.find(p => p.path === path)?.message;
+				const row: ICodeValueRow = { path, table: path.split(/[.[]/)[0], value: own[path], packValue: applied?.packValue ?? null, overridden: true, generic: false, note: '' };
+				this.codeValueRow(grid, row, problem, true, this.pageDisposables);
+			}
+		}
+		const bar = append(page, $('.settings-code-values-bar'));
+		append(bar, $('span.sa-frame-label', undefined, localize('settings.codeValuesTable', "Table")));
+		const tables = values.tables;
+		const select = this.pageDisposables.add(new SelectBox(
+			tables.map(t => ({ text: t.overridden ? `${t.name} •` : t.name, description: t.overridden ? localize('settings.codeValuesTableOverridden', "Has values overridden in this project.") : undefined })),
+			Math.max(0, tables.findIndex(t => t.name === this.codeValuesTable)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('settings.codeValuesTable', "Table") }));
+		select.render(append(bar, $('.settings-code-values-table')));
+		this.pageDisposables.add(select.onDidSelect(e => {
+			this.codeValuesTable = tables[e.index]?.name;
+			this.codeValuesFilter = '';
+			void this.refreshCodeValues();
+		}));
+		const filter = this.pageDisposables.add(new InputBox(append(bar, $('.settings-code-values-filter')), this.contextViewService, {
+			inputBoxStyles: defaultInputBoxStyles,
+			placeholder: localize('settings.codeValuesFilter', "Filter by name"),
+			ariaLabel: localize('settings.codeValuesFilter', "Filter by name"),
+		}));
+		filter.value = this.codeValuesFilter;
+		const grid = append(page, $('.settings-code-values', { role: 'table', 'aria-label': this.codeValuesTable ?? '' }));
+		const fill = () => {
+			this.codeValueRows.clear();
+			clearNode(grid);
+			this.codeValuesHeader(grid);
+			const rows = filterCodeValues(values.rows.filter(r => r.table === this.codeValuesTable), this.codeValuesFilter);
+			const shown = rows.slice(0, MAX_CODE_VALUE_ROWS);
+			for (const row of shown) {
+				this.codeValueRow(grid, row, values.problems.find(p => p.path === row.path)?.message, false, this.codeValueRows);
+			}
+			if (rows.length > shown.length) {
+				append(grid, $('.sa-props-note', undefined, localize('settings.codeValuesMore', "{0} more values: type in the filter to find one.", rows.length - shown.length)));
+			} else if (!rows.length) {
+				append(grid, $('.sa-props-note', undefined, localize('settings.codeValuesNone', "No values.")));
+			}
+		};
+		this.pageDisposables.add(filter.onDidChange(text => {
+			this.codeValuesFilter = text;
+			fill();
+		}));
+		fill();
+	}
+
+	private codeValuesHeader(grid: HTMLElement): void {
+		const head = append(grid, $('.settings-code-values-row.header', { role: 'row' }));
+		append(head, $('span', { role: 'columnheader' }, localize('settings.codeValuesValue', "Value")));
+		append(head, $('span', { role: 'columnheader' }, localize('settings.codeValuesPack', "Code pack")));
+		append(head, $('span', { role: 'columnheader' }, localize('settings.codeValuesProject', "This project")));
+		append(head, $('span', { role: 'columnheader' }));
+	}
+
+	/** One value: its path, the pack's value, a field for the project's (empty: the pack's) and, when overridden, Reset. */
+	private codeValueRow(grid: HTMLElement, row: ICodeValueRow, problem: string | undefined, fullPath: boolean, store: DisposableStore): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const own = codeOverrides(document)[row.path];
+		const line = append(grid, $('.settings-code-values-row', { role: 'row' }));
+		line.classList.toggle('overridden', own !== undefined);
+		line.classList.toggle('invalid', !!problem);
+		const name = append(line, $('span.settings-code-values-path', { role: 'cell' }, fullPath ? row.path : row.path.slice(row.table.length + 1)));
+		if (row.generic && own === undefined) {
+			const tag = append(name, $('span.settings-code-values-tag', undefined, localize('settings.codeValuesGeneric', "generic default")));
+			store.add(this.hoverService.setupDelayedHover(tag, { content: localize('settings.codeValuesGenericHover', "Not given by {0}: a generic default (SAEngine practice). {1}", this.codeValues?.name ?? this.codeName, row.note) }));
+		}
+		append(line, $('span.settings-code-values-pack', { role: 'cell' }, formatCodeValue(row.packValue)));
+		const like: JsonValue = row.packValue ?? own ?? null;
+		const cell = append(line, $('.settings-code-values-input', { role: 'cell' }));
+		const box = store.add(new InputBox(cell, this.contextViewService, {
+			inputBoxStyles: defaultInputBoxStyles,
+			ariaLabel: localize('settings.codeValuesInput', "Project value of {0}", row.path),
+			placeholder: formatCodeValue(row.packValue),
+			validationOptions: { validation: text => { const error = parseCodeValue(text, like).error; return error ? { content: error, type: MessageType.ERROR } : null; } },
+		}));
+		box.value = own === undefined ? '' : formatCodeValue(own);
+		store.add(addDisposableListener(box.inputElement, EventType.CHANGE, () => {
+			const parsed = parseCodeValue(box.value, like);
+			if (!parsed.error && this.document === document && setCodeOverride(document, row.path, parsed.value)) {
+				this.changed(true);
+			}
+		}));
+		const actions = append(line, $('span.settings-code-values-actions', { role: 'cell' }));
+		if (own !== undefined) {
+			const reset = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: localize('settings.codeValuesResetHover', "Use the code pack's value again") }));
+			reset.label = localize('settings.codeValuesReset', "Reset");
+			store.add(reset.onDidClick(() => {
+				if (this.document === document && setCodeOverride(document, row.path, undefined)) {
+					this.changed(true);
+				}
+			}));
+		}
+		if (problem) {
+			append(line, $('.settings-code-values-problem', { role: 'alert' }, localize('settings.codeValuesNotUsed', "{0} Not used: the code pack's value applies.", problem)));
+		}
 	}
 
 	/**

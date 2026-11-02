@@ -7,7 +7,8 @@ the bar bending schedules (:mod:`saengine.drawings.bbs`) and the drawing sheets
 Code basis: the numbers of the bar detailing rules (hook tails, bend diameters, development and
 lap factors and minima, splice zones, bar extents) are read when used from the code pack in force
 (its ``detailing`` table's ``bars``, :func:`bar_rules`); the clause each rule prints comes from its
-``citations``. A pack without them does not cover the detailing (:class:`NotCovered`). The rules
+``citations``. A pack without them reads the generic defaults (``codes/generic``: ACI 318-19
+values, named in the report as generic defaults). The rules
 below are given as the default pack states them (BNBC 2020 Part 6 Chapter 8 "Detailing of
 Reinforcement in Concrete Structures"; the page is the PDF page of its part 1):
 
@@ -180,14 +181,15 @@ DEFAULT_OPTIONS: dict[str, Any] = {
 
 
 class NotCovered(ValueError):
-    """The code pack in force gives no bar detailing rules (its ``detailing`` table has no
-    ``bars``): the detailing is not covered by that pack (never another code's numbers)."""
+    """No bar detailing rules at all: neither the code pack in force nor the generic defaults
+    give ``detailing.bars`` (never another code's numbers)."""
 
 
 def bar_rules() -> Any:
     """The bar detailing rules of the code pack in force (its ``detailing`` table's ``bars``:
     ``hooks``, ``bends``, ``development``, ``laps``, ``splices``, ``extents``, ``notes``), read
-    when used. :class:`NotCovered` when the pack gives none."""
+    when used; the generic defaults (``codes/generic``) when the pack gives none.
+    :class:`NotCovered` when neither gives them."""
     from saengine.codes import context as code_context
 
     bars = code_context.pack_table("detailing").bars

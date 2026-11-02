@@ -10964,6 +10964,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			description: 'The printed design report (11 Exports).',
 			title: 'Design report',
 		},
+		codeOverrides: {
+			additionalProperties: true,
+			description: 'The project\'s own values of code pack values: the value\'s path in the pack (table.key.key, e.g. factors.phi.shear) -> the project\'s value. Merged over the code pack for every run; a value not overridden follows the pack. An override the pack has no value for, or that its table does not accept, is reported and not used.',
+			title: 'Code values',
+			type: 'object',
+		},
 	},
 	required: ['project', 'floorLoad', 'roofLoad'],
 	title: 'SAEngine project settings',

@@ -408,8 +408,8 @@ class CombinationsTable(TableModel):
     pDeltaPreload: dict[str, Annotated[float, Field(ge=0)]] | None = Field(
         default=None,
         description="D6: load case -> factor of the gravity preload of a P-Delta analysis (the "
-        "gravity part of the seismic strength combination); empty: not covered by the pack "
-        "(the project settings must give the factors).",
+        "gravity part of the seismic strength combination); empty: the generic default "
+        "(codes/generic), named in the report.",
     )
 
 
@@ -760,7 +760,7 @@ class SeismicTable(TableModel):
     stabilityGravity: dict[str, Annotated[float, Field(ge=0)]] | None = Field(
         default=None,
         description="D6: load case -> factor of the gravity load Px of the stability "
-        "coefficient θ; empty: not covered by the pack (θ is not computed).",
+        "coefficient θ; empty: the generic default (codes/generic), named in the report.",
     )
 
 
@@ -1515,6 +1515,11 @@ class ConcretePhi(_Group):
     joint: Phi = Field(description="Beam-column joints of special moment frames.")
     strutAndTie: Phi = Field(description="Strut-and-tie models.")
     stiffnessReduction: Phi = Field(description="φK of the slender column moment magnifier.")
+    #: D7; a pack without it reads the generic default (codes/generic).
+    plain: Phi | None = Field(
+        default=None,
+        description="Flexure, compression, shear and bearing of structural plain concrete.",
+    )
 
 
 class FactorsTable(TableModel):
@@ -2184,7 +2189,7 @@ class DetailingTable(TableModel):
         default_factory=dict,
         description="B21: clause references of the results, by key (after the pack's edition).",
     )
-    #: D6; None in a pack without bar detailing rules: the drawings' detailing is not covered.
+    #: D6; a pack without bar detailing rules reads the generic defaults (codes/generic, D7).
     bars: BarDetailing | None = None
 
 

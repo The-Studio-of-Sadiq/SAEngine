@@ -1,0 +1,20 @@
+{
+  "$notes": {
+    "modulus": "ACI 318-19 19.2.2.1 (Ec = 4700 √f'c normal weight; 0.043 wc^1.5 √f'c for wc 1440 to 2560 kg/m³), used as a generic default",
+    "modulus.brick": "no generic rule for brick aggregate: the normal-weight ACI 318-19 19.2.2.1(b) value is used; give the code pack's own",
+    "shrinkage": "ACI 318-14 Table 24.4.3.2 (0.0020 below fy 420 MPa, else 0.0018 × 420 / fy but at least 0.0014), used as a generic default; ACI 318-19 permits 0.0018 for every grade"
+  },
+  "modulus": {
+    "normal": 4700.0,
+    "brick": 4700.0,
+    "densityCoefficient": 0.043,
+    "densityExponent": 1.5,
+    "densityRange": [1440.0, 2560.0]
+  },
+  "shrinkage": {
+    "ratioLow": 0.002,
+    "referenceFy": 420.0,
+    "ratioReference": 0.0018,
+    "ratioMin": 0.0014
+  }
+}

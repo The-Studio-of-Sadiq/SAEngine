@@ -728,7 +728,23 @@ def code_pack_text(settings: Any) -> str:
             text += f", extends {facts['extends']}"
     if facts["replacesBuiltin"]:
         text += f" - a {facts['scope']} copy at {facts['path']}, modified from the built-in code"
+    if pack.missing:
+        text += f" (in place of the project's code pack '{pack.missing}', not installed here)"
+    if pack.overrides:
+        count = len(pack.overrides)
+        text += f"; {count} value{'s' if count != 1 else ''} overridden in this project"
     return text
+
+
+def _code_value(value: Any) -> str:
+    """A code value as the report prints it (a number as given, a list or group as JSON)."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return "–" if value is None else str(value)
 
 
 def _construction_basis(settings: Any, parts: _Parts, pack: Any) -> list[list[str]]:
@@ -775,6 +791,11 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         parts.warnings.extend(f"Code pack {pack.id}: {w.message}" for w in pack.warnings)
         values = derived(settings)
         basis["codes"] = code_basis(settings).rows()
+        # D7: the project's own code values, and the values the pack does not give.
+        basis["codeOverrides"] = [
+            [o.path, _code_value(o.packValue), _code_value(o.value)] for o in pack.overrides
+        ]
+        basis["genericDefaults"] = [[f.path, _code_value(f.value), f.note] for f in pack.fallbacks]
         location = pack.table("locations").locations.get(settings.site.location)
         category = pack.table("occupancyCategories").categories.get(settings.occupancy.category)
         system = pack.table("seismic").systems.get(settings.seismic.system)

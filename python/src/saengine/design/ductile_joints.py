@@ -113,14 +113,18 @@ _MEMO_SIZE = 4096
 
 
 def _memo(section: Any, key: tuple[Any, ...], compute: Any) -> Any:
-    full = (id(section), *key)
+    # Keyed by the pack in force too: its φ and strains enter the strengths (D7).
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    full = (id(section), id(pack), *key)
     found = _MEMO.get(full)
-    if found is not None and found[0] is section:
-        return found[1]
+    if found is not None and found[0] is section and found[1] is pack:
+        return found[2]
     if len(_MEMO) > _MEMO_SIZE:
         _MEMO.clear()
     value = compute()
-    _MEMO[full] = (section, value)
+    _MEMO[full] = (section, pack, value)
     return value
 
 

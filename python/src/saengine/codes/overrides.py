@@ -1,0 +1,298 @@
+"""Project overrides of code pack values.
+
+A project may replace any value of its code pack (Project Settings > Code values, the setting
+``codeOverrides``): a map from a value's path to the project's value::
+
+    "codeOverrides": {
+      "factors.phi.shear": 0.7,
+      "seismic.systems.rcSmf.R": 7,
+      "combinations.pDeltaPreload": {"D": 1.4, "L": 0.5},
+      "combinations.strength[1.2D + 1.6L + 0.5Lr].factors.L": 1.7
+    }
+
+A path is the table's name, then the keys inside it, separated by dots. A key with dots or
+brackets in it is written in brackets (``zones[2]`` or ``strength[1.2D + 1.6L]``); an item of a
+list is named by its index or by its ``name`` / ``id`` (or the list's merge key).
+
+The overrides are merged over the pack in force where the pack is resolved for a project
+(:func:`saengine.codes.context.pack_for`, :meth:`saengine.codes.registry.Registry.active`), with
+the inheritance merge of :mod:`saengine.codes.merge` (a value or a group replaces the pack's):
+every reader of the pack sees them, with no change at the call. Each override is checked against
+the table's model: an override of a value the pack does not have, of another JSON type, or that
+the model refuses (a φ above 1, say) is not applied, and is reported with its path
+(:attr:`CodePack.override_problems`, the settings' problems), never raised. Without an override
+the pack's value applies; the overrides hold for whichever pack the project uses, so after
+switching packs an override of a value the new pack lacks is reported, not applied.
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import re
+from dataclasses import dataclass
+from typing import Any
+
+from pydantic import RootModel, ValidationError
+
+from saengine.codes.merge import merge
+
+#: The settings key of the overrides.
+SETTING = "codeOverrides"
+
+_TOKEN = re.compile(r"\[([^\]]*)\]|([^.\[\]]+)")
+
+
+class OverrideError(ValueError):
+    """An override that cannot be applied (its path and why)."""
+
+    def __init__(self, path: str, message: str) -> None:
+        super().__init__(f"{path}: {message}")
+        self.path = path
+        self.reason = message
+
+
+@dataclass(frozen=True)
+class Override:
+    """An override applied: the pack's value it replaced and the project's value."""
+
+    path: str
+    table: str
+    #: The path within the table ("phi.shear").
+    key: str
+    packValue: Any
+    value: Any
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"path": self.path, "packValue": self.packValue, "value": self.value}
+
+
+def of(settings: Any) -> dict[str, Any]:
+    """The overrides a project's settings give (``codeOverrides``; a dict or a ProjectSettings);
+    {} without any. Not a map: none."""
+    if settings is None:
+        return {}
+    value = (
+        settings.get(SETTING) if isinstance(settings, dict) else getattr(settings, SETTING, None)
+    )
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def digest(overrides: dict[str, Any]) -> str:
+    """A hash of the overrides (keyed caches)."""
+    text = json.dumps(overrides, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def split(path: str) -> list[str]:
+    """The keys of ``path`` ("a.b[c.d].0" -> ["a", "b", "c.d", "0"]); OverrideError when it is
+    not a path."""
+    if not isinstance(path, str) or not path.strip():
+        raise OverrideError(str(path), "not a path")
+    keys: list[str] = []
+    at = 0
+    text = path.strip()
+    while at < len(text):
+        if keys and text[at] == ".":
+            at += 1
+        m = _TOKEN.match(text, at)
+        if m is None or m.end() == at:
+            raise OverrideError(path, "not a path (table.key.key, a key with dots in [brackets])")
+        keys.append(m.group(1) if m.group(1) is not None else m.group(2))
+        at = m.end()
+    if any(not k for k in keys):
+        raise OverrideError(path, "an empty key")
+    return keys
+
+
+def join(keys: list[str]) -> str:
+    """The path of ``keys`` (inverse of :func:`split`)."""
+    out = ""
+    for key in keys:
+        if re.fullmatch(r"[^.\[\]]+", key) and key.strip() == key:
+            out += f".{key}" if out else key
+        else:
+            out += f"[{key}]"
+    return out
+
+
+def _json_type(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true or false"
+    if isinstance(value, (int, float)):
+        return "a number"
+    if isinstance(value, str):
+        return "text"
+    if isinstance(value, list):
+        return "a list"
+    if isinstance(value, dict):
+        return "a group of values"
+    return type(value).__name__
+
+
+def _item(items: list[Any], key: str, merge_key: str | None) -> int:
+    """The index of list item ``key``: its index, else the item whose merge key (``name``,
+    ``id``) is ``key``; -1 when none."""
+    for field in (merge_key, "name", "id"):
+        if not field:
+            continue
+        for i, item in enumerate(items):
+            if isinstance(item, dict) and str(item.get(field)) == key:
+                return i
+    if re.fullmatch(r"-?\d+", key):
+        i = int(key)
+        if -len(items) <= i < len(items):
+            return i % len(items)
+    return -1
+
+
+def _nest(
+    base: Any, keys: list[str], value: Any, merge_keys: dict[str, str], path: str, at: str = ""
+) -> tuple[Any, Any]:
+    """(the override document to merge over ``base``, the pack's value at ``keys``). A list on
+    the way is given whole with the item changed (merge then replaces it, or merges it item by
+    item by its merge key); a group's value replaces the pack's group."""
+    if not keys:
+        doc = {"$replace": True, **value} if isinstance(value, dict) else copy.deepcopy(value)
+        return doc, copy.deepcopy(base)
+    key, rest = keys[0], keys[1:]
+    if isinstance(base, dict):
+        if key not in base:
+            raise OverrideError(path, f"the code pack has no value '{key}' here")
+        doc, old = _nest(base[key], rest, value, merge_keys, path, f"{at}.{key}" if at else key)
+        return {key: doc}, old
+    if isinstance(base, list):
+        i = _item(base, key, merge_keys.get(at))
+        if i < 0:
+            raise OverrideError(path, f"the code pack's list has no item '{key}'")
+        doc, old = _nest(base[i], rest, value, merge_keys, path, f"{at}[]")
+        items = copy.deepcopy(base)
+        items[i] = merge(items[i], doc, merge_keys, f"{at}[]")
+        return items, old
+    raise OverrideError(path, f"the code pack's value here is {_json_type(base)}, not a group")
+
+
+def _same_type(old: Any, new: Any) -> bool:
+    if old is None:
+        return True
+    return _json_type(old) == _json_type(new)
+
+
+def _message(error: ValidationError, table: str) -> str:
+    err = error.errors()[0]
+    loc = ".".join(str(x) for x in err["loc"])
+    msg = str(err["msg"]).removeprefix("Value error, ")
+    return f"{msg} ({table}.{loc})" if loc else msg
+
+
+def apply(pack: Any, overrides: dict[str, Any]) -> Any:
+    """``pack`` (a :class:`saengine.codes.registry.CodePack`) with ``overrides`` merged over its
+    tables: a copy with :attr:`overrides` (applied) and :attr:`override_problems` (refused, with
+    their path); the refused ones are also among its warnings."""
+    from saengine.codes.manifest import Problem
+    from saengine.codes.registry import DEFAULT_MERGE_KEYS, _validators
+
+    out = pack._copy()
+    out._requested = dict(overrides)
+    validators = _validators()
+    applied: list[Override] = []
+    refused: list[tuple[str, str]] = []
+    for path in sorted(overrides):
+        value = overrides[path]
+        try:
+            keys = split(path)
+            table, inner = keys[0], keys[1:]
+            if not inner:
+                raise OverrideError(path, "name a value inside the table, not the whole table")
+            if table not in out._tables:
+                raise OverrideError(
+                    path, f"the code pack {pack.edition or pack.name} has no table '{table}'"
+                )
+            v = validators.get(table)
+            merge_keys = (v.merge_keys if v else DEFAULT_MERGE_KEYS.get(table)) or {}
+            base = out._tables[table]
+            doc, old = _nest(base, inner, value, merge_keys, path)
+            if not _same_type(old, value):
+                raise OverrideError(
+                    path, f"must be {_json_type(old)} like the code pack's value {old!r}"
+                )
+            data = merge(base, doc, merge_keys)
+            validated = None
+            if v is not None:
+                try:
+                    validated = v.adapter.validate_python(data)
+                except ValidationError as e:
+                    raise OverrideError(path, _message(e, table)) from e
+                if isinstance(validated, RootModel):
+                    validated = validated.root
+        except OverrideError as e:
+            refused.append((e.path, e.reason))
+            continue
+        out._tables[table] = data
+        if validated is not None:
+            out._validated[table] = validated
+        applied.append(Override(join(keys), table, join(inner), old, copy.deepcopy(value)))
+    out._overrides = applied
+    out._override_problems = refused
+    out._warnings = [
+        *out._warnings,
+        *(
+            Problem(severity="warning", message=f"code value override {p}: {m}: not applied")
+            for p, m in refused
+        ),
+    ]
+    return out
+
+
+#: Keys that hold clause references, not values (not listed for overriding).
+_NOT_VALUES = frozenset({"source", "sources", "clauses"})
+#: Keys whose text is a label of an entry, not a value.
+_LABELS = frozenset({"name", "description", "label", "note", "title", "row"})
+
+
+def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:
+    """The values of the pack's tables (``tables``; default all) as the Code values page lists
+    them: ``{path, table, value, packValue, type, overridden, generic, note}`` for each value
+    (a number, text, true or false, or a list), in table order. Groups are walked; lists of
+    groups (named items) by their names; clause references and labels are left out."""
+    rows: list[dict[str, Any]] = []
+    base = pack.base
+
+    def walk(table: str, data: Any, keys: list[str], pack_data: Any) -> None:
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k in _NOT_VALUES or (k in _LABELS and isinstance(v, str)):
+                    continue  # clause references and labels: not code values
+                other = pack_data.get(k) if isinstance(pack_data, dict) else None
+                walk(table, v, [*keys, str(k)], other)
+            return
+        if isinstance(data, list) and data and all(isinstance(x, dict) for x in data):
+            for i, item in enumerate(data):
+                name = item.get("name", item.get("id", i))
+                other = pack_data[i] if isinstance(pack_data, list) and i < len(pack_data) else None
+                walk(table, item, [*keys, str(name)], other)
+            return
+        key = join(keys)
+        fb = pack.fallback(table, key)
+        ov = pack.override(table, key)
+        rows.append(
+            {
+                "path": join([table, *keys]),
+                "table": table,
+                "value": data,
+                "packValue": pack_data,
+                "type": _json_type(data),
+                "overridden": ov is not None,
+                "generic": fb is not None,
+                "note": fb.note if fb is not None else "",
+            }
+        )
+
+    for table in pack.tables():
+        if table in pack.broken or (tables is not None and table not in tables):
+            continue
+        walk(table, pack._tables.get(table), [], base._tables.get(table))
+    return rows

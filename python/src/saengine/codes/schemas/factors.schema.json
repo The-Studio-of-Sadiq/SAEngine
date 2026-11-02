@@ -77,6 +77,21 @@
           "maximum": 1,
           "title": "Stiffnessreduction",
           "type": "number"
+        },
+        "plain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Flexure, compression, shear and bearing of structural plain concrete.",
+          "title": "Plain"
         }
       },
       "required": [

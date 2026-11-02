@@ -36,7 +36,13 @@ def _stub_pack(folder: Path) -> Path:
         "covers": ["seismic"],
     }
     (pack / "pack.json").write_text(json.dumps(manifest), encoding="utf-8")
-    seismic = {"liveShare": 0.5, "clauses": {"weight": "Chapter 9 Rule 9.9"}}
+    # D7: the default floor's live load (with partitions, 3.2 kN/m²) is above heavyLiveLimit,
+    # so the stub changes the heavy share too (the default pack's 0.5) to change the weight.
+    seismic = {
+        "liveShare": 0.5,
+        "heavyLiveShare": 0.75,
+        "clauses": {"weight": "Chapter 9 Rule 9.9"},
+    }
     (pack / "data/seismic.json").write_text(json.dumps(seismic), encoding="utf-8")
     return pack
 
@@ -73,8 +79,12 @@ def test_default_pack_results_are_pinned(default_model) -> None:
     d = default_model
     s = d.summary
     # The values of the derived model before the decoupling (v0.0.45 base, 2026-11-02).
-    assert s["weight_kN"] == pytest.approx(1357.2034382399995, rel=1e-12)
-    assert s["base_shear_kN"] == pytest.approx(76.34269340099998, rel=1e-12)
+    # Re-pinned by D7: the owner's partitions decision (635b7040, decision 1) makes the
+    # partition allowance a live load, so the default floor's live load is 2.0 + 1.2 kN/m²,
+    # above 3 kN/m², and enters the seismic weight at 50 % instead of being dead load in full:
+    # W 1357.2 -> 1349.7 kN and V with it. Changed on purpose; the same on the base f288ebba.
+    assert s["weight_kN"] == pytest.approx(1349.7034382400013, rel=1e-12)
+    assert s["base_shear_kN"] == pytest.approx(75.92081840100009, rel=1e-12)
     assert s["period_s"] == pytest.approx(0.24771248339517093, rel=1e-12)
     assert s["wind_X_kN"] == pytest.approx(29.06010093994609, rel=1e-12)
     assert s["wind_Y_kN"] == pytest.approx(108.95203529021688, rel=1e-12)

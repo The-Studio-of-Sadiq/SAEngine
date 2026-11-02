@@ -1,0 +1,11 @@
+{
+  "$notes": {
+    "pDeltaPreload": "ASCE 7-22 Sec 2.3.6 combination 6 (1.2D + Ev + Eh + L + 0.2S): its gravity part, D's factor also on SD and F, used as a generic default"
+  },
+  "pDeltaPreload": {
+    "D": 1.2,
+    "SD": 1.2,
+    "F": 1.2,
+    "L": 1.0
+  }
+}

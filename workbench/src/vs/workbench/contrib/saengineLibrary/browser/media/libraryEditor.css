@@ -995,3 +995,84 @@
 .saengine-library-editor .library-steel-ratio .library-problem {
 	grid-column: 1 / -1;
 }
+
+/* Project Settings > Code Values: the pack's values and the project's overrides */
+.saengine-library-editor .settings-code-values-heading {
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-1, 4px);
+	font-weight: 600;
+}
+
+.saengine-library-editor .settings-code-values-bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px);
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-code-values-table {
+	width: 200px;
+}
+
+.saengine-library-editor .settings-code-values-filter {
+	flex: 1 1 160px;
+	max-width: 320px;
+}
+
+.saengine-library-editor .settings-code-values {
+	display: grid;
+	grid-template-columns: minmax(160px, 2fr) minmax(70px, 1fr) minmax(90px, 1fr) auto;
+	column-gap: var(--sa-space-2, 8px);
+	row-gap: 2px;
+	align-items: center;
+}
+
+.saengine-library-editor .settings-code-values-row {
+	display: contents;
+}
+
+.saengine-library-editor .settings-code-values-row.header > span {
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-path {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+}
+
+.saengine-library-editor .settings-code-values-row.overridden .settings-code-values-path {
+	font-weight: 600;
+}
+
+.saengine-library-editor .settings-code-values-row.overridden .settings-code-values-path::before {
+	content: '• ';
+	color: var(--vscode-textLink-foreground);
+}
+
+.saengine-library-editor .settings-code-values-pack {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-tag {
+	margin-left: var(--sa-space-1, 4px);
+	padding: 0 4px;
+	border-radius: 3px;
+	font-family: var(--vscode-font-family);
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.saengine-library-editor .settings-code-values-problem {
+	grid-column: 1 / -1;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-code-values > .sa-props-note {
+	grid-column: 1 / -1;
+}

@@ -50,6 +50,7 @@ from typing import Any
 
 from pydantic import RootModel, TypeAdapter, ValidationError
 
+from saengine.codes import generic
 from saengine.codes.manifest import (
     DATA_DIR,
     DEFAULT_KIND,
@@ -379,6 +380,7 @@ class CodePack:
         provided_by: dict[str, str],
         registry: Registry,
         broken: dict[str, list[Problem]] | None = None,
+        fallbacks: dict[str, list[generic.Fallback]] | None = None,
     ) -> None:
         assert found.manifest is not None
         self._found = found
@@ -391,6 +393,14 @@ class CodePack:
         self._broken = broken or {}
         self._warnings: list[Problem] = []
         self._replaces_builtin = False
+        self._fallbacks = fallbacks or {}
+        # A project's overrides (saengine.codes.overrides): the values they replaced and the
+        # ones refused; empty for the pack as resolved.
+        self._overrides: list[Any] = []
+        self._override_problems: list[tuple[str, str]] = []
+        self._overridden: dict[str, CodePack] = {}  # overrides hash -> the overridden pack
+        self._base: CodePack | None = None  # the pack as resolved, for an overridden one
+        self._fallback_from: str | None = None  # the pack id asked for, when it was missing
 
     @property
     def id(self) -> str:
@@ -525,8 +535,132 @@ class CodePack:
                 return fn
         return None
 
+    # generic defaults, project overrides (D7)
+
+    @property
+    def fallbacks(self) -> list[generic.Fallback]:
+        """The values this pack does not give that come from the generic defaults
+        (:mod:`saengine.codes.generic`), table by table."""
+        return [f for name in sorted(self._fallbacks) for f in self._fallbacks[name]]
+
+    def fallback(self, table: str, key: str) -> generic.Fallback | None:
+        """The generic default that gives value ``key`` of ``table`` (or a group holding it);
+        None when the pack gives it (or a project override replaced it)."""
+        if any(o.table == table and _within(key, o.key) for o in self._overrides):
+            return None
+        for f in self._fallbacks.get(table, []):
+            if _within(key, f.key):
+                return f
+        return None
+
+    @property
+    def overrides(self) -> list[Any]:
+        """The project's overrides applied to this pack
+        (:class:`saengine.codes.overrides.Override`); empty for the pack as resolved."""
+        return list(self._overrides)
+
+    def override(self, table: str, key: str) -> Any | None:
+        """The project override of value ``key`` of ``table`` (or of a group holding it)."""
+        for o in self._overrides:
+            if o.table == table and _within(key, o.key):
+                return o
+        return None
+
+    @property
+    def override_problems(self) -> list[tuple[str, str]]:
+        """(path, message) of each override refused (not applied) for this pack."""
+        return list(self._override_problems)
+
+    @property
+    def base(self) -> CodePack:
+        """The pack as resolved, without the project's overrides."""
+        return self._base or self
+
+    @property
+    def missing(self) -> str | None:
+        """The id of the pack the project asked for, when it could not be found and this
+        (the default pack) is used instead."""
+        return self._fallback_from
+
+    def value_source(self, table: str, key: str) -> str:
+        """How results name where value ``key`` of ``table`` comes from: "project override
+        (<pack> gives v)", "generic default (SAEngine practice), not given by <pack>", or
+        "code pack <name>"."""
+        name = self.edition or self.name
+        found = self.override(table, key)
+        if found is not None:
+            return f"project override ({name} gives {_text(found.packValue)})"
+        if self.fallback(table, key) is not None:
+            return generic.label(name)
+        return f"code pack {name}"
+
+    def with_overrides(self, overrides: dict[str, Any] | None) -> CodePack:
+        """This pack with a project's overrides of its values (``{"factors.phi.shear": 0.7}``,
+        :mod:`saengine.codes.overrides`); itself without any. Kept per overrides: the same
+        overrides give the same pack object, so the caches keyed on the pack stay valid."""
+        if not overrides:
+            return self
+        from saengine.codes import overrides as overrides_mod
+
+        key = overrides_mod.digest(overrides)
+        found = self._overridden.get(key)
+        if found is None:
+            found = overrides_mod.apply(self, overrides)
+            if len(self._overridden) >= 8:
+                self._overridden.clear()
+            self._overridden[key] = found
+        return found
+
+    @property
+    def fingerprint(self) -> str:
+        """A hash of what the pack's values come from: the packs of its chain (id, version,
+        scope and the files' times and sizes) and the project's overrides. Changes whenever a
+        value read from this pack can change (for stamps of kept results)."""
+        found = self.__dict__.get("_fingerprint")
+        if found is not None:
+            return found
+        h = hashlib.sha1()
+        for f in self._chain:
+            version = f.manifest.version if f.manifest else None
+            h.update(repr((f.id, version, f.scope, f.signature)).encode())
+        h.update(repr(self._fallback_from).encode())
+        if self._overrides or self._override_problems:
+            from saengine.codes import overrides as overrides_mod
+
+            h.update(overrides_mod.digest(self._requested).encode())
+        self._fingerprint = h.hexdigest()
+        return self._fingerprint
+
+    _requested: dict[str, Any] = {}  # noqa: RUF012 - set per overridden copy
+
+    def _copy(self) -> CodePack:
+        """A shallow copy with its own lists (for an overridden or substituted pack)."""
+        other = copy.copy(self)
+        other._tables = dict(self._tables)
+        other._validated = dict(self._validated)
+        other._warnings = list(self._warnings)
+        other._overrides = list(self._overrides)
+        other._override_problems = list(self._override_problems)
+        other._overridden = {}
+        other._base = self._base or self
+        other.__dict__.pop("_fingerprint", None)
+        return other
+
     def __repr__(self) -> str:
         return f"CodePack({self.id!r}, scope={self.scope!r}, chain={self.chain!r})"
+
+
+def _within(key: str, group: str) -> bool:
+    """Whether path ``key`` is ``group`` or lies inside it (or holds it)."""
+    return key == group or key.startswith(group + ".") or group.startswith(key + ".")
+
+
+def _text(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
 
 
 @dataclass
@@ -753,6 +887,7 @@ class Registry:
         sources: dict[str, list[Any]] = {}
         provided_by: dict[str, str] = {}
         broken: dict[str, list[Problem]] = {}
+        fallbacks: dict[str, list[generic.Fallback]] = {}
         for name in names:
             files = [f.tables[name] for f in reversed(chain) if name in f.tables]
             v = validators.get(name)
@@ -768,7 +903,6 @@ class Registry:
                 ]
                 problems.extend(broken[name])
                 continue
-            tables[name] = data
             provided_by[name] = next(f.id for f in chain if name in f.tables)
             for f in chain:
                 own = f.tables.get(name)
@@ -781,29 +915,42 @@ class Registry:
                     sources[name] = list(refs)
                     break
             if v is None:
+                tables[name] = data
                 continue
-            try:
-                value = v.adapter.validate_python(data)
-            except ValidationError as e:
-                for err in e.errors()[:20]:
-                    loc = ".".join(str(x) for x in err["loc"]) or name
-                    broken.setdefault(name, []).append(
-                        Problem(
-                            message=f"{name}: {loc}: {err['msg']}",
-                            file=f"{DATA_DIR}/{name}.json" if name in found.tables else None,
-                            table=name,
+            # The single values the pack lacks come from the generic defaults (named in the
+            # results and the report); the first fill that validates is kept, else the error of
+            # the pack's own table is reported.
+            tries = generic.attempts(name, data)
+            for attempt, (candidate, filled) in enumerate(tries):
+                try:
+                    value = v.adapter.validate_python(candidate)
+                except ValidationError as e:
+                    if attempt < len(tries) - 1:
+                        continue
+                    for err in e.errors()[:20]:
+                        loc = ".".join(str(x) for x in err["loc"]) or name
+                        broken.setdefault(name, []).append(
+                            Problem(
+                                message=f"{name}: {loc}: {err['msg']}",
+                                file=f"{DATA_DIR}/{name}.json" if name in found.tables else None,
+                                table=name,
+                            )
                         )
-                    )
-                problems.extend(broken[name])
-                del tables[name]
-                continue
-            if isinstance(value, RootModel):
-                value = value.root
-            validated[name] = value
+                    problems.extend(broken[name])
+                    break
+                if isinstance(value, RootModel):
+                    value = value.root
+                tables[name] = candidate
+                validated[name] = value
+                if filled:
+                    fallbacks[name] = filled
+                break
         table_errors = {id(p) for ps in broken.values() for p in ps}
         if any(p.severity == "error" and id(p) not in table_errors for p in problems):
             return _Resolved(found, chain, problems, None)
-        pack = CodePack(found, chain, tables, validated, sources, provided_by, self, broken)
+        pack = CodePack(
+            found, chain, tables, validated, sources, provided_by, self, broken, fallbacks
+        )
         return _Resolved(found, chain, problems, pack)
 
     def _resolved(self, found: _Found, candidates: list[_Found]) -> _Resolved:
@@ -1032,8 +1179,12 @@ class Registry:
 
     def active(self, settings: Any = None, project_root: Path | None = None) -> CodePack:
         """The project's pack: ``settings.codePack`` (a dict or a ProjectSettings), else
-        :data:`DEFAULT_PACK`."""
-        return self.load(active_id(settings), project_root)
+        :data:`DEFAULT_PACK`, with the project's overrides of its values (``codeOverrides``,
+        :mod:`saengine.codes.overrides`). Raises :class:`CodePackError` when it cannot be
+        loaded (:func:`saengine.codes.context.pack_for` gives the default pack instead)."""
+        from saengine.codes import overrides
+
+        return self.load(active_id(settings), project_root).with_overrides(overrides.of(settings))
 
     def set_trusted(
         self,

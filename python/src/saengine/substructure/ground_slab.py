@@ -38,8 +38,14 @@ from __future__ import annotations
 import math
 from typing import Any
 
-#: Strength reduction factor of plain concrete (ACI 318-19 Table 21.2.1).
-PHI_PLAIN = 0.60
+
+def phi_plain() -> float:
+    """Strength reduction factor φ of structural plain concrete of the code pack in force
+    (``factors.phi.plain``: 0.60 in the default pack, BNBC 2020 Part 6 Sec 6.2.3.4; the generic
+    default when the pack gives none)."""
+    from saengine.codes import context as code_context
+
+    return float(code_context.pack_table("factors").phi.plain)
 
 
 def live_factor() -> tuple[float | None, str]:
@@ -58,6 +64,8 @@ def live_factor() -> tuple[float | None, str]:
 def __getattr__(name: str) -> Any:
     if name == "LIVE_FACTOR":  # the former constant, with the pack in force
         return live_factor()[0]
+    if name == "PHI_PLAIN":  # the former constant, with the pack in force
+        return phi_plain()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -129,7 +137,7 @@ def plain_punching(side: float, h: float, fc: float, lam: float = 1.0) -> tuple[
     b0 = 4 * (side + h)
     beta = 1.0
     vn = min(0.11 * (1 + 2 / beta), 0.22) * lam * math.sqrt(fc) * b0 * h
-    return PHI_PLAIN * vn, b0
+    return phi_plain() * vn, b0
 
 
 def ground_slab_checks(

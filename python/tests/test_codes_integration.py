@@ -139,7 +139,7 @@ def test_report_states_the_pack(tmp_path):
         ProjectSettings.model_validate(
             {**settings.model_dump(by_alias=True), "codePack": "bnbc2020"}
         )
-    ) == ("BNBC 2020 (bnbc2020), pack version 1.2.0")
+    ) == ("BNBC 2020 (bnbc2020), pack version 1.3.0")
 
 
 def test_civil_archive_carries_the_project_packs(tmp_path):
@@ -217,9 +217,14 @@ def test_soil_and_generator_requests_find_the_project_pack(tmp_path):
         {"soilText": soil_text, "settingsText": settings_text, "projectRoot": str(root)}
     )
     assert not sources.get("problems"), sources.get("problems")
-    # Without the project the project-local pack cannot be found (and is not replaced silently).
+    # Without the project the project-local pack cannot be found, and is not replaced silently.
+    # Re-pinned by D7 (owner update 2026-11-02: older projects open without errors): the
+    # default pack stands in, with a warning that names the missing pack; strict raises.
     with pytest.raises(registry.CodePackError):
-        code_context.pack_for(json.loads(settings_text))
+        code_context.pack_for(json.loads(settings_text), strict=True)
+    standing_in = code_context.pack_for(json.loads(settings_text))
+    assert standing_in.id == registry.DEFAULT_PACK and standing_in.missing == "example-region"
+    assert "example-region" in standing_in.warnings[0].message
 
 
 def test_default_pack_follows_installs(tmp_path):
