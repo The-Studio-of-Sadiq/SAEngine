@@ -367,6 +367,9 @@ def carbon_of(
                 source=factor.source,
             ),
         )  # fmt: skip
+        if per_unit is None and factor.factor is None:
+            line.items.append(str(item.get("code")))  # listed as not counted below
+            continue
         if per_unit is None:
             notes.append(
                 f"Carbon: {item.get('code')} {item.get('description')} is in "
@@ -382,7 +385,7 @@ def carbon_of(
     for line in lines.values():
         if line.factor is not None:
             line.carbon = line.mass * line.factor
-    left = [li.material for li in lines.values() if li.factor is None and li.mass > 0]
+    left = [li.material for li in lines.values() if li.factor is None and li.items]
     if left:
         notes.append(
             f"Carbon: no factor for {', '.join(left)}, so it is not counted (enter one in "

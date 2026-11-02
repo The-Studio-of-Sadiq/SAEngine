@@ -545,7 +545,9 @@ def mep_plan(
         # the services, then their tags clear of them
         for item in shown:
             _draw(view, item)
-        for item in shown:
+        # The tags of points (risers, outlets) last: they take a leader and can move away, so a
+        # riser inside a shaft does not crowd the shaft's tag out of every place.
+        for item in sorted(shown, key=lambda i: i.shape == "point"):
             _tag(view, item)
 
     return ViewSpec(

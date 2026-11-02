@@ -182,10 +182,11 @@ def test_the_converter_is_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 def test_underlays_may_be_dwg() -> None:
     from test_floorplan import model
 
-    for name in ("Underlays/architect L1.dwg", "plan.DWG", "a.dxf"):
+    # PDF pages are underlays too since the architect input backend (651de124).
+    for name in ("Underlays/architect L1.dwg", "plan.DWG", "a.dxf", "plan.pdf"):
         plan = FloorPlan.model_validate(model(underlays=[{"story": "L1", "file": name}]))
         assert plan.underlays[0].file == name
-    for name in ("plan.dwgx", "plan.dw", "plan.pdf"):
+    for name in ("plan.dwgx", "plan.dw", "plan.png"):
         with pytest.raises(ValueError, match="pattern"):
             FloorPlan.model_validate(model(underlays=[{"story": "L1", "file": name}]))
 

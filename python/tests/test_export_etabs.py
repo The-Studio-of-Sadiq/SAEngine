@@ -566,8 +566,10 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     assert report["exported"]["columns"] == 7
     assert not (project / "08 FEM" / "model.osmodel").exists()  # the project is not touched
     # The live load on the slabs less their openings (as ETABS loads them; residential floors
-    # at 2.0 kN/m²), and the overhead tank's water as F.
-    assert math.isclose(report["loads"]["exportedKN"]["L"], 107.012, rel_tol=1e-4)
+    # at 2.0 kN/m²), and the overhead tank's water as F. Since the owner decision of 2026-11-02
+    # (635b7040) the partition allowance is live load too: the sample's floors add 1.2 kN/m²
+    # (the code minimum, BNBC 2020 Part 6 Sec 2.3.6) on their 53.346 m², 107.012 + 64.015.
+    assert math.isclose(report["loads"]["exportedKN"]["L"], 171.027, rel_tol=1e-4)
     assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
 
 

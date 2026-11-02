@@ -64,8 +64,11 @@ def test_elongations_meet_where_the_forces_do():
                                  profile=[p.model_dump() for p in tendon.profile]),
                          item.forces.area)  # fmt: skip
     a, b = item.elongation
-    # each end stresses part of it: together less than one end stressing it all
-    assert 0 < a < one[0] and 0 < b < one[0] and a + b < one[0]
+    # each end stresses part of it; together more than one end stressing it all (the force
+    # along the tendon is the larger of the two ends' friction curves, so it loses less) and
+    # less than the frictionless P L / A E
+    assert 0 < a < one[0] and 0 < b < one[0]
+    assert one[0] < a + b < 0.80 * FPU * 20000 / EP
 
 
 def test_tendon_lines_banded_and_distributed():
