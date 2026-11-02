@@ -7972,9 +7972,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				partitionLoads: {
 					default: 'architecture',
-					description: 'From the architecture: the walls drawn in Architecture load the beams and slabs under them as line loads in their positions (the default pack\'s Part 6 Sec 2.2.5), and the area load\'s partition allowance is dropped on the stories where they stand; stories without walls keep the allowance. Allowance: the walls are not applied and the area load\'s flat partition allowance holds everywhere (Sec 2.3.6).',
+					description: 'From the architecture: the walls drawn in Architecture load the beams and slabs under them as line loads in their positions (the default pack\'s Part 6 Sec 2.2.5); the area load\'s partition allowance is dropped only on the stories where interior partitions are drawn (a façade or perimeter wall does not replace it, and the analysis notes say where it was dropped). With no architecture drawn the allowance holds everywhere. Allowance: the walls are not applied and the area load\'s flat partition allowance holds everywhere (Sec 2.3.6).',
 					enum: ['architecture', 'allowance'],
-					enumDescriptions: ['From the architecture (where walls are drawn)', 'Flat allowance (area load)'],
+					enumDescriptions: ['From the architecture (the allowance stays until interior partitions are drawn)', 'Flat allowance (area load)'],
 					title: 'Partition walls',
 					type: 'string',
 				},
@@ -8405,7 +8405,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				partitions: {
 					default: 0,
-					description: 'Partition allowance [kN/m²] for light partitions not on the plans, a live or superimposed dead load as Analysis → Partition allowance as says.',
+					description: 'Partition allowance [kN/m²] for light partitions not on the plans; a live load or a superimposed dead load, as set in Analysis Model › Partition allowance as.',
 					minimum: 0,
 					title: 'Partitions',
 					type: 'number',

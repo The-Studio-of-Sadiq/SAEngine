@@ -652,6 +652,17 @@ def derive_fem(
                     f"{label}: {e['msg'].removeprefix('Value error, ')}" for e in exc.errors()
                 ]
             }
+    if not parsed["bim"].elements:
+        # FD-4: an empty building model (not built yet) is a failure, not "0 nodes, up to date".
+        return {
+            "problems": [
+                (
+                    "the building model (6 BIM) has no members yet: open 6 BIM and use Build "
+                    "from Floor Plan (or Build from Structural Model) first, then derive again"
+                )
+            ],
+            "emptyBuilding": True,
+        }
     stamps = {key: stamp(text) for key, (_, text, _) in inputs.items()}
     # The settings without the project's details and title block (X28): typing a name there
     # leaves the model current.
@@ -2530,19 +2541,32 @@ def codes_values(
         pack = code_context.pack_for(settings, _pack_root(root))
     except CodePackError as error:
         return _refusal(error)
+    from saengine.codes.overrides import humanize, ordered_tables, pack_value
+
     overridden = {o.table for o in pack.overrides}
     generic = {f.table for f in pack.fallbacks}
+    # SL-1: by section, the structural tables first, each with its words.
+    shown = ordered_tables([t for t in pack.tables() if t not in pack.broken])
     return {
         "id": pack.id,
         "name": pack.edition or pack.name,
         "missing": pack.missing,
         "tables": [
-            {"name": t, "overridden": t in overridden, "generic": t in generic}
-            for t in pack.tables()
-            if t not in pack.broken
+            {
+                "name": t,
+                "title": humanize(t),
+                "section": section,
+                "overridden": t in overridden,
+                "generic": t in generic,
+            }
+            for t, section in shown
         ],
         "overrides": [o.as_dict() for o in pack.overrides],
-        "problems": [{"path": p, "message": m} for p, m in pack.override_problems],
+        # SL-3: a refused override with the pack's value that applies instead.
+        "problems": [
+            {"path": p, "message": m, "packValue": pack_value(pack, p)}
+            for p, m in pack.override_problems
+        ],
         "fallbacks": [f.as_dict() for f in pack.fallbacks],
         "rows": browse(pack, [table]) if table else [],
     }

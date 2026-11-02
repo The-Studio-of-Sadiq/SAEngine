@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { PACKAGE_KINDS, PackageKind } from '../common/packageIndex.js';
-import { activeCodeName, DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
+import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * Code packs: a design code (BNBC 2020, or a region's own) as a folder of data tables with a
@@ -450,7 +450,7 @@ export function packDescription(pack: ICodePackInfo, packs: readonly ICodePackIn
 export function changePackWarning(from: string, to: ICodePackOption): { readonly message: string; readonly detail: string } {
 	return {
 		message: localize('codePacks.changeMessage', "Use {0} as the design code of this project?", to.label),
-		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, so loads and design results will change (the project keeps its own load combinations; resistance factors and detailing limits are still {1}'s in this version). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from, activeCodeName()),
+		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, together with its resistance factors and detailing limits, so loads and design results will change (the project keeps its own load combinations and its code value overrides). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from),
 	};
 }
 

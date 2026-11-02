@@ -369,6 +369,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private codeValuesVersion = 0;
 	private codeValuesTable: string | undefined;
 	private codeValuesFilter = '';
+	/** The override typed last, until the backend has checked it (SL-3). */
+	private pendingOverride: { readonly path: string; readonly value: JsonValue; readonly label: string } | undefined;
+	/** Why a value typed on the Code Values page was not kept (SL-2, SL-3). */
+	private codeValuesNotice: string | undefined;
 	private readonly codeValueRows = this._register(new DisposableStore());
 
 	private readonly navDisposables = this._register(new DisposableStore());
@@ -887,6 +891,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (path === 'site.siteClass' && this.siteClassFromSoil) {
 			return 'hidden';
 		}
+		if (path === 'project.language' && !this.languageShown()) {
+			return 'hidden';
+		}
 		const [group, field] = path.split('.');
 		if (group !== 'drawings' || field === undefined || path.split('.').length !== 2) {
 			return undefined;
@@ -896,6 +903,15 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const own = PROJECT_FIELDS.find(([drawing]) => drawing === field);
 		return own && this.titleBlockOverride(own[0], own[1]) === undefined ? 'hidden' : undefined;
+	}
+
+	/**
+	 * SL-22: Bangla reports and screens come after the features are complete (owner decision), so
+	 * the language choice is offered only where a project already chose Bangla (to switch back).
+	 */
+	private languageShown(): boolean {
+		const project = isObject(this.document?.project) ? this.document.project : {};
+		return project.language === 'bn';
 	}
 
 	/** A drawings field (`projectNumber`) that holds a value other than Project's (`number`). */
@@ -1257,7 +1273,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
 			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", DEFAULT_CODE_TABLES.edition)}`;
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
-			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (finish; the partition allowance goes to L or SD as Analysis › Partition allowance as says). T applies to the temperature case (Analysis model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. Hover a column heading for its meaning.")));
+			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (the finishes). The partition allowance is in L or in SD, as set in Analysis Model › Partition allowance as. T applies to the temperature case (Analysis Model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. These are the base combinations: the analysis expands those with earthquake or wind into more (both signs of each direction, the 100 % + 30 % orthogonal pairs, the accidental eccentricities, and the vertical earthquake on D, so 1.2D shows as 1.29D, say), so the analysis lists more combinations than this table. Hover a column heading for its meaning.")));
 		}
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();
@@ -1279,7 +1295,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.seismicCell = section.keys.includes('seismic')
 			? this.sourceRow(form, undefined, localize('settings.designCategoryRow', "Design category"))
 			: undefined;
-		if (section.id === 'project') {
+		if (section.id === 'project' && this.languageShown()) {
 			this.renderDisplayLanguage(this.sourceRow(form, fieldTitle('ProjectInfo', 'language'), localize('settings.displayLanguageRow', "SAEngine screens")));
 		}
 		if (section.id === 'drawings') {
@@ -1353,6 +1369,16 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			return;
 		}
 		this.codeValues = answer;
+		// SL-3: a value just typed that the pack refuses (out of range) is not kept: taken out
+		// again, and the page says why and which value applies.
+		const pending = this.pendingOverride;
+		this.pendingOverride = undefined;
+		const refused = pending && answer?.problems.find(p => p.path === pending.path);
+		if (refused && this.document === document && setCodeOverride(document, pending.path, undefined)) {
+			this.codeValuesNotice = localize('settings.codeValuesRefused', "{0} for {1} was not kept: {2}. The code pack's value {3} applies.", formatCodeValue(pending.value), pending.label, refused.message, formatCodeValue(refused.packValue));
+			this.changed(true);
+			return;
+		}
 		const tables = answer?.tables ?? [];
 		if (tables.length && !tables.some(t => t.name === this.codeValuesTable)) {
 			// First, or after a switch to a pack without the table: one with an override, else the first.
@@ -1374,7 +1400,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		void this.refreshCodeValues();
 		const page = this.page;
 		const values = this.codeValues;
-		append(page, $('.sa-props-note.settings-section-note', undefined, localize('settings.codeValuesNote', "The values of the design code {0}. Type a project value to override one; leave the field empty and the code pack's value applies. Every run uses the overrides, and the design report lists them. Values marked generic default are not given by the code pack (SAEngine practice; hover one for its source).", values?.name ?? this.codeName)));
+		append(page, $('.sa-props-note.settings-section-note', undefined, localize('settings.codeValuesNote', "The values of the design code {0}. Type a project value to override one; leave the field empty and the code pack's value applies. Every run uses the overrides, and the design report lists them. Each value shows its clause where the pack gives one; values marked generic default are not given by the code pack (SAEngine practice; hover the mark for its source). Grey text in a field is the code pack's value, not an entry.", values?.name ?? this.codeName)));
 		if (!CommandsRegistry.getCommand(CODES_VALUES_COMMAND)) {
 			append(page, $('.sa-props-note', undefined, localize('settings.codeValuesNoBackend', "The code values are listed when SAEngine's engine runs.")));
 			return;
@@ -1388,28 +1414,38 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			append(warning, $('span', undefined, localize('settings.codeValuesMissing', "The project's code pack {0} is not installed here: {1} is used until it is.", values.missing, values.name)));
 		}
+		if (this.codeValuesNotice) {
+			const warning = append(page, $('.settings-source-warning', { role: 'alert' }));
+			append(warning, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+			append(warning, $('span', undefined, this.codeValuesNotice));
+		}
 		const own = codeOverrides(this.document);
 		const paths = Object.keys(own).sort();
-		if (paths.length) {
-			append(page, $('.settings-code-values-heading', undefined, localize('settings.codeValuesOverridden', "Overridden in this project")));
-			const grid = append(page, $('.settings-code-values', { role: 'table', 'aria-label': localize('settings.codeValuesOverridden', "Overridden in this project") }));
-			this.codeValuesHeader(grid);
-			for (const path of paths) {
-				const applied = values.overrides.find(o => o.path === path);
-				const problem = values.problems.find(p => p.path === path)?.message;
-				const row: ICodeValueRow = { path, table: path.split(/[.[]/)[0], value: own[path], packValue: applied?.packValue ?? null, overridden: true, generic: false, note: '' };
-				this.codeValueRow(grid, row, problem, true, this.pageDisposables);
-			}
-		}
 		const bar = append(page, $('.settings-code-values-bar'));
 		append(bar, $('span.sa-frame-label', undefined, localize('settings.codeValuesTable', "Table")));
+		// SL-1: the tables by section (structural first), each section's name a heading in the list.
 		const tables = values.tables;
+		const options: { text: string; description?: string; isDisabled?: boolean }[] = [];
+		const optionTable: (string | undefined)[] = [];
+		let section: string | undefined;
+		for (const t of tables) {
+			if (t.section && t.section !== section) {
+				section = t.section;
+				options.push({ text: `— ${t.section} —`, isDisabled: true });
+				optionTable.push(undefined);
+			}
+			options.push({ text: t.overridden ? `${t.title} •` : t.title, description: t.overridden ? localize('settings.codeValuesTableOverridden', "Has values overridden in this project.") : t.name });
+			optionTable.push(t.name);
+		}
 		const select = this.pageDisposables.add(new SelectBox(
-			tables.map(t => ({ text: t.overridden ? `${t.name} •` : t.name, description: t.overridden ? localize('settings.codeValuesTableOverridden', "Has values overridden in this project.") : undefined })),
-			Math.max(0, tables.findIndex(t => t.name === this.codeValuesTable)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('settings.codeValuesTable', "Table") }));
+			options, Math.max(0, optionTable.indexOf(this.codeValuesTable)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('settings.codeValuesTable', "Table") }));
 		select.render(append(bar, $('.settings-code-values-table')));
 		this.pageDisposables.add(select.onDidSelect(e => {
-			this.codeValuesTable = tables[e.index]?.name;
+			const name = optionTable[e.index];
+			if (!name) {
+				return;
+			}
+			this.codeValuesTable = name;
 			this.codeValuesFilter = '';
 			void this.refreshCodeValues();
 		}));
@@ -1426,7 +1462,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.codeValuesHeader(grid);
 			const rows = filterCodeValues(values.rows.filter(r => r.table === this.codeValuesTable), this.codeValuesFilter);
 			const shown = rows.slice(0, MAX_CODE_VALUE_ROWS);
+			let group: string | undefined;
 			for (const row of shown) {
+				if (row.group && row.group !== group) {
+					append(grid, $('.settings-code-values-group', { role: 'row' }, row.group));
+				}
+				group = row.group;
 				this.codeValueRow(grid, row, values.problems.find(p => p.path === row.path)?.message, false, this.codeValueRows);
 			}
 			if (rows.length > shown.length) {
@@ -1440,6 +1481,25 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			fill();
 		}));
 		fill();
+		// B10-10: the project's overrides below the table, so adding one does not move the row
+		// being typed in.
+		if (paths.length) {
+			append(page, $('.settings-code-values-heading', undefined, localize('settings.codeValuesOverridden', "Overridden in this project")));
+			const overridden = append(page, $('.settings-code-values', { role: 'table', 'aria-label': localize('settings.codeValuesOverridden', "Overridden in this project") }));
+			this.codeValuesHeader(overridden);
+			for (const path of paths) {
+				const applied = values.overrides.find(o => o.path === path);
+				const problem = values.problems.find(p => p.path === path);
+				const listed = values.rows.find(r => r.path === path);
+				// SL-3: the pack's value even when the override was refused.
+				const packValue = applied?.packValue ?? problem?.packValue ?? listed?.packValue ?? null;
+				const row: ICodeValueRow = {
+					path, table: path.split(/[.[]/)[0], value: own[path], packValue, overridden: true, generic: false, note: '',
+					label: listed?.label ?? '', description: listed?.description ?? '', unit: listed?.unit ?? '', clause: listed?.clause ?? '', group: '',
+				};
+				this.codeValueRow(overridden, row, problem?.message, true, this.pageDisposables);
+			}
+		}
 	}
 
 	private codeValuesHeader(grid: HTMLElement): void {
@@ -1460,7 +1520,20 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const line = append(grid, $('.settings-code-values-row', { role: 'row' }));
 		line.classList.toggle('overridden', own !== undefined);
 		line.classList.toggle('invalid', !!problem);
-		const name = append(line, $('span.settings-code-values-path', { role: 'cell' }, fullPath ? row.path : row.path.slice(row.table.length + 1)));
+		// SL-1: the value's name in words with its unit, the description and the clause under it,
+		// the path small (it is what the report and the settings file name).
+		const name = append(line, $('span.settings-code-values-path', { role: 'cell' }));
+		const path = fullPath ? row.path : row.path.slice(row.table.length + 1);
+		if (row.label) {
+			append(name, $('span.settings-code-values-label', undefined, row.unit ? `${row.label} (${row.unit})` : row.label));
+			append(name, $('span.settings-code-values-key', undefined, path));
+		} else {
+			name.textContent = path;
+		}
+		if (row.description || row.clause) {
+			const words = [row.description, row.clause ? localize('settings.codeValuesClause', "Clause: {0}", row.clause) : ''].filter(Boolean).join(' ');
+			append(name, $('span.settings-code-values-desc', undefined, words));
+		}
 		if (row.generic && own === undefined) {
 			const tag = append(name, $('span.settings-code-values-tag', undefined, localize('settings.codeValuesGeneric', "generic default")));
 			store.add(this.hoverService.setupDelayedHover(tag, { content: localize('settings.codeValuesGenericHover', "Not given by {0}: a generic default (SAEngine practice). {1}", this.codeValues?.name ?? this.codeName, row.note) }));
@@ -1477,7 +1550,16 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		box.value = own === undefined ? '' : formatCodeValue(own);
 		store.add(addDisposableListener(box.inputElement, EventType.CHANGE, () => {
 			const parsed = parseCodeValue(box.value, like);
-			if (!parsed.error && this.document === document && setCodeOverride(document, row.path, parsed.value)) {
+			const label = row.label ? `${row.label} (${row.path})` : row.path;
+			if (parsed.error) {
+				// SL-2: not saved, and said so (not only a red box).
+				this.codeValuesNotice = localize('settings.codeValuesNotTyped', "\"{0}\" for {1} was not kept: {2} The code pack's value {3} applies.", box.value.trim(), label, parsed.error, formatCodeValue(row.packValue));
+				this.renderPage();
+				return;
+			}
+			this.codeValuesNotice = undefined;
+			if (this.document === document && setCodeOverride(document, row.path, parsed.value)) {
+				this.pendingOverride = parsed.value === undefined ? undefined : { path: row.path, value: parsed.value, label };
 				this.changed(true);
 			}
 		}));

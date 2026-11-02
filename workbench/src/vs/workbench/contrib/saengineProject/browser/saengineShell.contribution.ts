@@ -36,6 +36,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ActiveViewletContext } from '../../../common/contextkeys.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { PROJECT_PARTS, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
@@ -165,6 +166,9 @@ const SIMPLE_MENU_ITEMS: ReadonlyMap<MenuId, ReadonlySet<string>> = new Map([
 		'editor.action.clipboardPasteAction', 'actions.find', 'editor.action.startFindReplaceAction',
 	])],
 	[MenuId.MenubarHelpMenu, new Set(['workbench.action.showAboutDialog', 'workbench.action.showCommands'])],
+	// FL-2: the View menu keeps its Appearance (zoom, full screen, panels) and Editor Layout
+	// submenus; Chat, Browser, Problems, Output, Word Wrap and the Command Palette are code tools.
+	[MenuId.MenubarViewMenu, new Set([MenuId.MenubarAppearanceMenu.id, MenuId.MenubarLayoutMenu.id])],
 	// Settings: SAEngine's own (saengine.openSettings) in their place (N-G4).
 	[MenuId.MenubarPreferencesMenu, new Set([
 		'workbench.action.openGlobalKeybindings', 'ThemesSubMenu',
@@ -272,6 +276,7 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
 		this.context = DeveloperModeContext.bindTo(contextKeyService);
@@ -284,6 +289,8 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 
 		this.apply();
 		void lifecycleService.when(LifecyclePhase.Restored).then(() => this.applyToParts());
+		// FD-22: status items of extensions (the API tests' "Hello" in a dev build) come later.
+		void extensionService.whenInstalledExtensionsRegistered().then(() => this.applyToParts());
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
 				this.apply();
@@ -388,14 +395,23 @@ async function openManual(accessor: ServicesAccessor, chapter?: string): Promise
 	const openerService = accessor.get(IOpenerService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
+	const extensionService = accessor.get(IExtensionService);
 	const name = chapter && /^[\w/-]+$/.test(chapter) ? `${chapter}.md` : 'SAEngine-User-Manual.pdf';
 	for (const folder of manualFolders()) {
 		const file = joinPath(folder, name);
 		if (await fileService.exists(file)) {
 			if (name.endsWith('.md')) {
-				// The Markdown preview comes from a built-in extension; without it the chapter opens as text.
-				await commandService.executeCommand('markdown.showPreview', file)
-					.catch(() => editorService.openEditor({ resource: file, options: { pinned: true } }));
+				// The Markdown preview comes from a built-in extension, which may still be loading
+				// (FL-1): ask again once the extensions are registered. Without it the chapter opens
+				// as text, read-only (it is the manual, not a file of the project).
+				const preview = () => commandService.executeCommand('markdown.showPreview', file).then(() => true, () => false);
+				if (!await preview()) {
+					await extensionService.whenInstalledExtensionsRegistered();
+					if (!await preview()) {
+						await editorService.openEditor({ resource: file, options: { pinned: true } });
+						await commandService.executeCommand('workbench.action.files.setActiveEditorReadonlyInSession').catch(() => undefined);
+					}
+				}
 			} else {
 				await openerService.open(file, { openExternal: true });
 			}

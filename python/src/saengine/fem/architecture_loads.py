@@ -127,6 +127,11 @@ PARALLEL = 0.9
 SHORT = 1.0
 #: Levels closer than this are the same [mm].
 LEVEL = 1.0
+#: How far inside the slab outline (beyond half the wall's thickness) a wall must run to be an
+#: interior partition [mm]: a façade wall on the perimeter beam, drawn on its face, is not.
+PERIMETER_REACH = 300.0
+#: The interior length that makes a storey's drawn partitions replace the allowance [mm].
+INTERIOR_MIN = 1000.0
 
 
 @dataclass(frozen=True)
@@ -161,8 +166,12 @@ class ArchitectureLoads:
     rooms: list[RoomLoad] = field(default_factory=list)
     #: Beam id -> points (mm) where pieces start or stop inside it (the beam is split there).
     cuts: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
-    #: Story ids where architecture walls stand: the flat partition allowance is dropped there.
+    #: Story ids where interior partitions are drawn: the flat partition allowance is dropped
+    #: there (a storey with perimeter walls only keeps it, FD-2).
     walled: set[str] = field(default_factory=set)
+    #: Story id -> the drawn partitions there: interior and perimeter length [mm], the interior
+    #: ones' weight [kN, openings not deducted].
+    partitions: dict[str, dict[str, float]] = field(default_factory=dict)
     wall_rows: list[dict[str, Any]] = field(default_factory=list)
     room_rows: list[dict[str, Any]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -492,9 +501,22 @@ def _wall(
         return
     bottom, top = levels
     floor = elevations[wall.base]
-    if partition:
-        out.walled.add(wall.base)
     height = top - bottom
+    if partition:
+        # FD-2: only interior partitions replace the flat allowance (a façade wall on the
+        # perimeter beam does not): the length of the wall inside the floor's slabs, clear of
+        # their outline.
+        _, slabs_on_floor = at_level(floor)
+        inside = unary_union([area for _, area in slabs_on_floor]).buffer(
+            -(wall_type.thickness / 2 + PERIMETER_REACH)
+        )
+        interior = LineString(centre).intersection(inside).length if len(centre) > 1 else 0.0
+        story = out.partitions.setdefault(wall.base, {"interior": 0.0, "perimeter": 0.0, "kN": 0.0})
+        story["interior"] += interior
+        story["perimeter"] += max(total_length - interior, 0.0)
+        story["kN"] += (wall_type.weight or 0.0) * height * interior * 1e-6
+        if interior >= INTERIOR_MIN:
+            out.walled.add(wall.base)
     rises_to_level = any(abs(top - z) < LEVEL for z in elevations.values())
     beams_here, slabs_here = at_level(floor)
     beams_above, slabs_above = at_level(top) if rises_to_level else ([], [])

@@ -227,9 +227,10 @@ def _polygons(geometry: Any) -> list[Any]:
 def reentrant_corners(floor: Any, share: float) -> list[dict[str, Any]]:
     """The re-entrant corners of a floor outline [mm]: per reflex corner of its exterior ring
     ``{"x", "y", "projectionX", "projectionY", "shareX", "shareY", "irregular"}``, the
-    projections from the corner to the floor's extent on the side the outline leaves open,
+    projections from the corner across the part of the floor's extent the outline leaves open
+    there (the void beyond the corner: an L's missing quadrant, a notch's own width and depth),
     irregular when both are more than ``share`` of the floor's dimension in their direction."""
-    from shapely.geometry import Point, Polygon
+    from shapely.geometry import Point, Polygon, box
     from shapely.geometry.polygon import orient
 
     out = []
@@ -242,6 +243,7 @@ def reentrant_corners(floor: Any, share: float) -> list[dict[str, Any]]:
         ring = list(shape.exterior.coords)[:-1]
         n = len(ring)
         probe = max(1.0, 1e-3 * min(lx, ly))
+        open_parts = box(x0, y0, x1, y1).difference(shape)
         for i, (vx, vy) in enumerate(ring):
             px, py = ring[i - 1]
             nx, ny = ring[(i + 1) % n]
@@ -257,8 +259,21 @@ def reentrant_corners(floor: Any, share: float) -> list[dict[str, Any]]:
             if len(missing) != 1:
                 continue
             sx, sy = missing[0]
-            proj_x = (x1 - vx) if sx > 0 else (vx - x0)
-            proj_y = (y1 - vy) if sy > 0 else (vy - y0)
+            # FD-14: the projections are the size of the void beyond the corner (its part of
+            # the plan's extent left open by the outline), not the distance to the far edge:
+            # a notch in the middle of an edge projects by its own width and depth.
+            probe_point = Point(vx + sx * probe, vy + sy * probe)
+            void = next(
+                (g for g in _polygons(open_parts) if g.covers(probe_point)),
+                None,
+            )
+            if void is not None:
+                v0, w0, v1, w1 = void.bounds
+                proj_x = (v1 - vx) if sx > 0 else (vx - v0)
+                proj_y = (w1 - vy) if sy > 0 else (vy - w0)
+            else:
+                proj_x = (x1 - vx) if sx > 0 else (vx - x0)
+                proj_y = (y1 - vy) if sy > 0 else (vy - y0)
             out.append(
                 {
                     "x": vx,

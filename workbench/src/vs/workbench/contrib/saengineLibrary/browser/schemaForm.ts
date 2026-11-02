@@ -29,7 +29,7 @@ export interface ISchemaFormContext {
 	/** A valid starting value for a definition, used when adding or switching. */
 	template(defName: string): JsonObject;
 	/** Allowed ids for a reference field, by dotted path from the item (`reinforcement.material`). */
-	references(path: string): readonly string[] | undefined;
+	references(path: string, owner?: JsonObject): readonly string[] | undefined;
 	/** Extra rules for a field (its text as typed), checked before the schema's: an error message, or undefined. */
 	validate(path: string, value: string): string | undefined;
 	/** The item changed in place. `structural` changes (added/removed groups) need a re-render. */
@@ -86,6 +86,10 @@ interface IBranch {
 }
 
 const UNIT = /\[([^\]]+)\]/;
+/** A table of this many columns or more scrolls sideways instead of stacking its rows (SL-8). */
+const WIDE_TABLE_COLUMNS = 8;
+/** Below this width [px] even a wide table stacks its rows. */
+const WIDE_TABLE_MIN_WIDTH = 420;
 
 /** A table column's heading: the field's title with the unit from its description, "Elevation (mm)". */
 function columnHeading(title: string, description: string | undefined): string {
@@ -129,6 +133,8 @@ export class SchemaForm {
 	private readonly disposables = new DisposableStore();
 	/** While rendering a table row, fields render as bare cells (no label, no unit). */
 	private inlineCells = false;
+	/** Per object, the value each branch of its unions held before a switch away (SL-12). */
+	private readonly unionMemory = new WeakMap<JsonObject, Map<string, JsonObject>>();
 	/** Top-level groups and lists render without their heading (see {@link ISchemaFormRenderOptions}). */
 	private flat = false;
 	/** The text fields of the rendered form by path, so a value derived elsewhere can be shown in place. */
@@ -332,8 +338,19 @@ export class SchemaForm {
 		select.render(append(header, $('.form-group-select')));
 		this.disposables.add(select.onDidSelect(e => {
 			const branch = union.branches[e.index - (optional ? 1 : 0)];
+			// SL-12: switching back to a branch brings back what it held (Rectangle → Designed →
+			// Rectangle keeps 450 × 450), not the template's values.
+			let memory = this.unionMemory.get(owner);
+			if (!memory) {
+				memory = new Map();
+				this.unionMemory.set(owner, memory);
+			}
+			const held = owner[key];
+			if (held && typeof held === 'object' && !Array.isArray(held) && typeof held[union.key] === 'string') {
+				memory.set(`${key}|${held[union.key]}`, held);
+			}
 			if (branch) {
-				owner[key] = this.ctx.template(branch.defName);
+				owner[key] = memory.get(`${key}|${branch.value}`) ?? this.ctx.template(branch.defName);
 			} else {
 				delete owner[key];
 			}
@@ -420,7 +437,7 @@ export class SchemaForm {
 				}
 				remove(append(table, $('.form-table-actions')), i);
 			});
-			this.stackWhenNarrow(group, table);
+			this.stackWhenNarrow(group, table, columns.length);
 		} else {
 			list.forEach((entry, i) => {
 				if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -448,15 +465,25 @@ export class SchemaForm {
 	 * the width) shows each row as label/field pairs instead of scrolling sideways; it goes back to
 	 * columns once the group is as wide as the columns need again.
 	 */
-	private stackWhenNarrow(group: HTMLElement, table: HTMLElement): void {
+	private stackWhenNarrow(group: HTMLElement, table: HTMLElement, columns = 0): void {
 		const targetWindow = getWindow(group);
 		let needed = 0;
 		let frame: number | undefined;
+		// SL-8: a wide table (the load combinations' 14 columns) stays a compact table that
+		// scrolls sideways rather than a card of 14 fields per row, unless the group is very narrow.
+		const wide = columns >= WIDE_TABLE_COLUMNS;
+		if (wide) {
+			table.classList.add('wide');
+		}
 		const update = () => {
 			frame = undefined;
 			const available = group.clientWidth;
 			if (!table.isConnected || available === 0) {
 				return; // hidden: measured again once it is shown
+			}
+			if (wide && available >= WIDE_TABLE_MIN_WIDTH) {
+				table.classList.remove('stacked');
+				return;
 			}
 			if (!table.classList.contains('stacked')) {
 				if (table.scrollWidth > available + 1) {
@@ -536,7 +563,7 @@ export class SchemaForm {
 		}
 		const value = owner[key];
 
-		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''));
+		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''), owner);
 		const enumValues = references ?? this.enumValues(schema);
 		// Readable names for enum values ("RC special moment frame" for "rcSmf"), when the schema has them.
 		const labels = references ? undefined : schema.enumDescriptions ?? this.resolve(schema).schema.enumDescriptions;
@@ -666,6 +693,12 @@ export class SchemaForm {
 			validationOptions: { validation: text => { const error = check(text); return error ? { content: error, type: MessageType.ERROR } : null; } },
 		}));
 		box.value = initial;
+		if (this.inlineCells) {
+			// SL-8: a table cell cuts long text ("1.2D + 1.0SD + 1.0(-EX) + 1.0L"): the whole of it on hover.
+			const tip = () => box.inputElement.title = box.value;
+			tip();
+			this.disposables.add(box.onDidChange(tip));
+		}
 		const placeholder = () => {
 			// An empty field means the schema's default (an underlay's offset 0, scale 1) or, for an
 			// override, the value it overrides: show it greyed in the field. Set on the element, not

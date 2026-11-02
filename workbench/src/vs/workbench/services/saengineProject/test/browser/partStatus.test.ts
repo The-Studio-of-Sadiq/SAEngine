@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
-import { applyPartChecks, computePartStatuses, exportKind, IPartStatusInputs, nextStep, partChecksFile, reportAnalysisStale } from '../../common/partStatus.js';
+import { applyPartChecks, computePartStatuses, exportKind, IPartStatus, IPartStatusInputs, nextStep, partChecksFile, reportAnalysisStale } from '../../common/partStatus.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_SETTINGS } from '../../common/projectLibraries.generated.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -427,6 +427,18 @@ suite('SAEngine - PartStatus', () => {
 		const next = nextStep(statuses);
 		assert.deepStrictEqual({ index: next?.index, part: next?.status.part, hint: next?.status.hint }, { index: 7, part: 'fem', hint: 'run the analysis' });
 		assert.strictEqual(nextStep(statuses.map(s => ({ ...s, state: 'done' }))), undefined);
+	});
+
+	test('SM-22: after an analysis, a failing design or a stale analysis comes before settings at their defaults', () => {
+		const status = (part: string, state: IPartStatus['state'], hint?: string): IPartStatus => ({ part, state, text: '', hint });
+		const rest = ['floorPlan', 'bim', 'substructure', 'boq', 'exports'].map(p => status(p, 'done'));
+		const at = (fem: IPartStatus) => nextStep([status('settings', 'defaults', 'review the defaults'), status('materials', 'defaults', 'review the defaults'), ...rest, fem])?.status.part;
+		assert.deepStrictEqual([
+			at(status('fem', 'notStarted', 'derive the analysis model')),
+			at(status('fem', 'failed', 'fix the failing members')),
+			at(status('fem', 'stale', 'run the analysis again')),
+			at(status('fem', 'done')),
+		], ['settings', 'fem', 'fem', 'settings']);
 	});
 
 	/** The main files a new project starts with, as the new-project flow writes them (see `PROJECT_PARTS`). */

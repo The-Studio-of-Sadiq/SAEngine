@@ -405,8 +405,7 @@ def sources_description(sources: dict[str, str] | None) -> str:
     from (read back by ``saengine.pipeline.status.recorded_sources``)."""
     stamps = "; ".join(f"{k}={v}" for k, v in sorted((sources or {}).items()))
     return (
-        "Derived by SAEngine from the building model and the project settings. "
-        f"Sources: {stamps}"
+        f"Derived by SAEngine from the building model and the project settings. Sources: {stamps}"
     )
 
 
@@ -1567,6 +1566,31 @@ def _derive_fem(
         _, ids, xyz = node_table
         return [ids[k] for k in np.flatnonzero(_on_segment_mask(xyz, p0, p1))]
 
+    def line_stations(p0: np.ndarray, p1: np.ndarray) -> list[tuple[float, int]]:
+        """(t, node) of the nodes on ``p0``-``p1``, t from 0 at p0 to 1 at p1, in order."""
+        axis = p1 - p0
+        length2 = float(axis @ axis)
+        if length2 <= 0:
+            return []
+        return sorted(
+            (float((b.coords[node_id] - p0) @ axis) / length2, node_id)
+            for node_id in nodes_on(p0, p1)
+        )
+
+    #: A line's end this close to a node [m] still reaches it: within one beam mesh member
+    #: (a slab corner part-way along a beam is not a node of the beam's mesh).
+    end_reach = float(options.meshSize) * float(option(options, "meshScale", 1.0)) * MM * 1.001
+
+    def covers(on_line: list[tuple[float, int]], length: float) -> bool:
+        """Whether the nodes on a line reach both its ends (within :data:`end_reach`)."""
+        if not on_line or length <= 0:
+            return False
+        return on_line[0][0] * length <= end_reach and (1 - on_line[-1][0]) * length <= end_reach
+
+    def edge_supported(p0: np.ndarray, p1: np.ndarray) -> bool:
+        """Whether a slab edge has a beam, wall or column (nodes) to carry its load."""
+        return covers(line_stations(p0, p1), float(np.linalg.norm(p1 - p0)))
+
     def line_load(
         source: str,
         case: str,
@@ -1589,12 +1613,31 @@ def _derive_fem(
         part = part or part_of(case)
         axis = p1 - p0
         length = float(np.linalg.norm(axis))
-        on_line = sorted(
-            (float((b.coords[node_id] - p0) @ axis) / length**2, node_id)
-            for node_id in nodes_on(p0, p1)
-        )
-        complete = bool(on_line) and on_line[0][0] < 1e-6 and on_line[-1][0] > 1 - 1e-6
+        on_line = line_stations(p0, p1)
         stage = stage_of(float(p0[2]))
+        # FD-1: the part of the line before its first node or after its last one, when that is
+        # within a beam mesh member (a slab corner part-way along a beam is not a node), goes to
+        # that node (its total; its moment about the node is a fraction of a member's).
+        complete = bool(on_line) and on_line[0][0] < 1e-6 and on_line[-1][0] > 1 - 1e-6
+        if on_line and not complete and covers(on_line, length):
+            for (_, node_id), lo, hi, end in (
+                (on_line[0], 0.0, on_line[0][0], 0),
+                (on_line[-1], on_line[-1][0], 1.0, 1),
+            ):
+                gap = max(hi - lo, 0.0) * length
+                if profile is None:
+                    force = load * gap
+                else:
+                    force = profile.end_loads[end]
+                    if gap > 0:
+                        force += profile.resultant(lo * length, hi * length)[0]
+                if force:
+                    add_nodal(case, node_id, down * force, stage)
+                    add_weight(node_id, force * w, part)
+            complete = True
+            ends_given = True
+        else:
+            ends_given = False
         for (t0, n0), (t1, n1) in pairwise(on_line):
             span = (t1 - t0) * length
             index = by_pair.get(frozenset((n0, n1)))
@@ -1616,7 +1659,7 @@ def _derive_fem(
                 for node_id, force in zip((n0, n1), reactions, strict=True):
                     add_nodal(case, node_id, down * force, stage)
                     add_weight(node_id, force * w, part)
-        if profile is not None:
+        if profile is not None and not ends_given:
             for (t, node_id), force, at in zip(
                 (on_line[0], on_line[-1]) if on_line else (), profile.end_loads, (0.0, 1.0)
             ):
@@ -1733,6 +1776,8 @@ def _derive_fem(
     walled = arch_set.walled if arch_set is not None and partition_mode != "allowance" else set()
     if arch_set is not None:
         b.notes += [f"Architecture: {note}" for note in arch_set.notes]
+        if partition_mode != "allowance":
+            b.notes += _partition_notes(arch_set, area_loads.get(settings.floorLoad), walled)
     shells_of: dict[str, list[_Shell]] = {}
     for shell in b.shells:
         shells_of.setdefault(shell.source, []).append(shell)
@@ -1855,10 +1900,25 @@ def _derive_fem(
         panel = centroid(element.boundary)
         live_at[0] = (panel[0], panel[1], float(element.elevation))
         noted = False
+        # FD-1: edges with no beam, wall or column under them (a panel drawn round a stair
+        # opening) hand their share to the supported edges, never dropped.
+        free = [
+            k
+            for k in range(len(corners))
+            if not edge_supported(
+                np.array([*corners[k], z]), np.array([*corners[(k + 1) % len(corners)], z])
+            )
+        ]
+        if len(free) == len(corners):
+            b.notes.append(
+                f"{element.id}: no edge has a beam, wall or column under it; "
+                "its loads are not applied"
+            )
+            free = []
         for case, pressure in pressures.items():
             if not pressure:
                 continue
-            shape = sls.slab_load_shapes(corners, pressure, object_type.system)
+            shape = sls.slab_load_shapes(corners, pressure, object_type.system, free=free)
             if not noted:
                 b.notes += [f"{element.id}: {note}" for note in shape.notes]
                 noted = True
@@ -4762,6 +4822,31 @@ def _on_segment(point: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: floa
     length2 = float(axis @ axis)
     t = float((point - a) @ axis / length2) if length2 else 0.0
     return -1e-6 <= t <= 1 + 1e-6 and float(np.linalg.norm(a + t * axis - point)) <= tolerance
+
+
+def _partition_notes(arch_set: Any, floor_load: Any, walled: set[str]) -> list[str]:
+    """FD-2: per storey with drawn partitions, whether they replace the flat partition
+    allowance (interior partitions drawn: dropped, a warning) or not (perimeter walls only:
+    kept)."""
+    allowance = float(getattr(floor_load, "partitions", 0.0) or 0.0)
+    if not allowance:
+        return []
+    notes = []
+    for story, drawn in sorted(arch_set.partitions.items()):
+        interior_m = drawn["interior"] / 1000
+        if story in walled:
+            notes.append(
+                f"Warning: {story}: the partition allowance ({allowance:g} kN/m²) is not applied: "
+                f"the {interior_m:.1f} m of interior partitions drawn in Architecture "
+                f"(about {drawn['kN']:.0f} kN) take its place. Draw all the partitions of the "
+                "storey, or set Analysis Model › Partition walls to the allowance"
+            )
+        else:
+            notes.append(
+                f"{story}: the partition allowance ({allowance:g} kN/m²) is kept: the walls drawn "
+                "in Architecture there are on the perimeter, not interior partitions"
+            )
+    return notes
 
 
 def _on_segment_mask(

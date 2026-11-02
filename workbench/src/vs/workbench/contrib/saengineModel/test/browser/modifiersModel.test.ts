@@ -49,8 +49,8 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 		const beam = objectTypeTarget(OBJECTS.objects[1], MATERIALS);
 		assert.deepStrictEqual(lines(modifiersView('type', [beam], CODE)), {
 			modifiers: [
-				'A |1|gross', 'As2 |1|gross', 'As3 |1|gross', 'J 0.1|1|this type', 'I22 |0.35|BNBC 2020 cracked (lateral)',
-				'I33 |0.35|BNBC 2020 cracked (lateral)', 'mass |1|own mass', 'weight |1|own weight',
+				'A |1|gross', 'As2 |1|gross', 'As3 |1|gross', 'J 0.1|1|this type', 'I22 |0.35|cracked section, lateral cases (BNBC 2020)',
+				'I33 |0.35|cracked section, lateral cases (BNBC 2020)', 'mass |1|own mass', 'weight |1|own weight',
 			],
 			overwrites: ['k3 1.2|auto|this type', 'k2 |auto|1.0 braced, chart if sway', 'Lu3 |auto|clear length', 'Lu2 |auto|clear length', 'Lb |auto|member length'],
 			reset: [true, true],
@@ -77,11 +77,11 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 		}, {
 			gross: 'I33 |1|gross (settings)',
 			steel: 'I33 |1|gross (not concrete)',
-			masonryWall: ['membrane |0.35|code pack cracked', 'bending |0.35|code pack cracked'],
+			masonryWall: ['membrane |0.35|cracked section (code pack)', 'bending |0.35|cracked section (code pack)'],
 			missingMaterial: 'I33 |1|gross (not concrete)',
-			packNotRead: 'I33 |code|code pack cracked (lateral)',
-			wallUncracked: ['membrane |0.7|code pack cracked', 'bending |0.7|code pack cracked', 'mass |1|own mass', 'weight |1|own weight'],
-			wallCracked: ['membrane |0.35|code pack cracked', 'bending |0.35|code pack cracked', 'mass |1|own mass', 'weight |1|own weight'],
+			packNotRead: 'I33 |code|cracked section, lateral cases (code pack)',
+			wallUncracked: ['membrane |0.7|cracked section (code pack)', 'bending |0.7|cracked section (code pack)', 'mass |1|own mass', 'weight |1|own weight'],
+			wallCracked: ['membrane |0.35|cracked section (code pack)', 'bending |0.35|cracked section (code pack)', 'mass |1|own mass', 'weight |1|own weight'],
 		});
 	});
 
@@ -98,7 +98,7 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			count: view(mixed).count,
 		}, {
 			beam: ['J |0.1|type BM', 'k3 |1.2|type BM'],
-			columns: ['I22 |0.7|BNBC 2020 cracked (lateral)', 'I33 |(various)|various|various'],
+			columns: ['I22 |0.7|cracked section, lateral cases (BNBC 2020)', 'I33 |(various)|various|various'],
 			columnFraming: 'framing |Auto|from the stability index Q',
 			// A beam and a slab share only mass and weight; the footing has none and is left out.
 			mixed: { modifiers: ['mass |(various)|various|various', 'weight |1|own weight'], overwrites: [], reset: [true, false] },
@@ -216,7 +216,7 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 				given: line(given.modifiers.find(r => r.key === 'I33')!),
 				note: column.note,
 			}, {
-				project: 'I33 |0.7|BNBC 2020 cracked',
+				project: 'I33 |0.7|cracked section (BNBC 2020)',
 				given: 'I33 |1|gross (settings)',
 				note: 'Empty: the BNBC 2020 cracked factors in every case. A value replaces the factor in every case, gravity and lateral.',
 			});

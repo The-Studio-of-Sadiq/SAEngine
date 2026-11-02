@@ -212,7 +212,8 @@ def test_bad_overrides_are_refused_with_their_path_never_raised(default_model) -
     pack = code_context.pack_for(settings)
     refused = dict(pack.override_problems)
     assert set(refused) == set(bad) - {"seismic.liveShare"}
-    assert "less than or equal to 1" in refused["factors.phi.tension"]
+    # SL-3: the value and its allowed range, not the validator's words.
+    assert refused["factors.phi.tension"] == "1.5 is out of range: it must be at most 1"
     assert "number" in refused["factors.phi.joint"]
     assert [o.path for o in pack.overrides] == ["seismic.liveShare"]
     assert pack.table("factors").phi.tension == 0.9  # the pack's value is kept
@@ -252,7 +253,8 @@ def test_the_code_values_page_lists_and_marks_values() -> None:
     text = json.dumps({"codeOverrides": {"factors.phi.shear": 0.7, "factors.phi.joint": 2}})
     answer = codes_values(text, None, "factors")
     assert answer["id"] == registry.DEFAULT_PACK and answer["missing"] is None
-    assert {"name": "factors", "overridden": True, "generic": False} in answer["tables"]
+    tables = [{k: t[k] for k in ("name", "overridden", "generic")} for t in answer["tables"]]
+    assert {"name": "factors", "overridden": True, "generic": False} in tables
     assert answer["overrides"] == [{"path": "factors.phi.shear", "packValue": 0.75, "value": 0.7}]
     assert [p["path"] for p in answer["problems"]] == ["factors.phi.joint"]
     rows = {r["path"]: r for r in answer["rows"]}
@@ -388,3 +390,33 @@ def test_a_project_whose_pack_is_missing_opens_on_the_default_pack(default_model
     assert model.summary == default_model.summary
     with pytest.raises(registry.CodePackError):
         code_context.pack_for(settings, strict=True)
+
+
+def test_code_values_page_reads_like_a_code() -> None:
+    """SL-1 / SL-3 (walkthrough 3): the Code Values page's answer lists the structural tables
+    first by section, each value with words, unit and clause; a refused override names the
+    value's range and carries the pack's value that applies; prose notes are not values."""
+    from saengine.rpc import handlers
+
+    text = json.dumps({"codeOverrides": {"factors.phi.tension": 1.2}})
+    answer = handlers.codes_values(text, None, "factors")
+    assert answer["tables"][0]["name"] == "factors"
+    assert answer["tables"][0]["section"] == "Concrete and steel design"
+    sections = [t["section"] for t in answer["tables"]]
+    assert sections.index("Fire, services and planning") > sections.index(
+        "Loads, combinations and analysis"
+    )
+    [refused] = answer["problems"]
+    assert refused["message"] == "1.2 is out of range: it must be at most 1"
+    assert refused["packValue"] == 0.9
+    row = next(r for r in answer["rows"] if r["path"] == "factors.phi.compressionTied")
+    assert (row["label"], row["description"], row["group"]) == (
+        "Compression tied",
+        "Compression-controlled, tied.",
+        "Phi",
+    )
+    assert row["clause"]  # the pack's reference of the table
+    detailing = handlers.codes_values(text, None, "detailing")["rows"]
+    assert any(r["unit"] == "mm" for r in detailing)
+    access = handlers.codes_values(text, None, "accessibility")["rows"]
+    assert not [r for r in access if ".notes" in r["path"] or r["path"].endswith(".text")]

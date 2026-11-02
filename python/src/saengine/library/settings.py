@@ -1427,12 +1427,17 @@ class Analysis(_Model):
         default="architecture",
         title="Partition walls",
         description="From the architecture: the walls drawn in Architecture load the beams and "
-        "slabs under them as line loads in their positions (the default pack's Part 6 Sec 2.2.5), and the "
-        "area load's partition allowance is dropped on the stories where they stand; stories "
-        "without walls keep the allowance. Allowance: the walls are not applied and the area "
-        "load's flat partition allowance holds everywhere (Sec 2.3.6).",
+        "slabs under them as line loads in their positions (the default pack's Part 6 Sec "
+        "2.2.5); the area load's partition allowance is dropped only on the stories where "
+        "interior partitions are drawn (a façade or perimeter wall does not replace it, and the "
+        "analysis notes say where it was dropped). With no architecture drawn the allowance "
+        "holds everywhere. Allowance: the walls are not applied and the area load's flat "
+        "partition allowance holds everywhere (Sec 2.3.6).",
         json_schema_extra=_labels(
-            ["From the architecture (where walls are drawn)", "Flat allowance (area load)"]
+            [
+                "From the architecture (the allowance stays until interior partitions are drawn)",
+                "Flat allowance (area load)",
+            ]
         ),
     )
     partitionAllowanceCase: Literal["pack", "L", "SD"] = Field(
@@ -1908,8 +1913,8 @@ class AreaLoad(_Model):
     finish: Pressure = Field(default=0, title="Floor finish", description="[kN/m²]")
     partitions: Pressure = Field(
         default=0,
-        description="Partition allowance [kN/m²] for light partitions not on the plans, a live "
-        "or superimposed dead load as Analysis → Partition allowance as says.",
+        description="Partition allowance [kN/m²] for light partitions not on the plans; a live "
+        "load or a superimposed dead load, as set in Analysis Model › Partition allowance as.",
     )
 
     def superimposed(self, case: str) -> float:

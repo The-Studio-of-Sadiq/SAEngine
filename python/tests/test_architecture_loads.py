@@ -107,20 +107,20 @@ def test_wall_on_a_6_m_beam_with_a_door_by_hand() -> None:
     [row] = loads.wall_rows
     assert row["on"] == "beam" and row["openings_m2"] == pytest.approx(2.1)
     assert row["total_kN"] == pytest.approx(85.065, abs=1e-3)
-    # In the model: + 85.065 kN of SD, and the L1 slab's partition allowance (1.2 kN/m², the
-    # least of BNBC 2020 Part 6 Sec 2.3.6, a live load, over 6 × 5 = 30 m² = 36 kN of L) is
-    # dropped where walls are drawn (never both). The seismic weight takes SD in full and the
-    # live load's share: 50 % of 3.2 kN/m² with the allowance, 25 % of 2.0 without (Sec
-    # 2.5.7.3): + 85.065 - (1.6 - 0.5) × 30 = + 52.065 kN.
+    # In the model: + 85.065 kN of SD. The wall is on the perimeter beam (a façade, not an
+    # interior partition), so the L1 slab keeps its partition allowance (FD-2, walkthrough 3:
+    # one façade wall used to drop the whole storey's allowance, 36 kN of L here); the seismic
+    # weight takes the wall's SD in full.
     with_walls = derived(arch)
     allowance = derived(arch, mode="allowance")
     assert sd(with_walls) - sd(allowance) == pytest.approx(85.065, rel=1e-6)
-    assert live(with_walls) - live(allowance) == pytest.approx(-36.0, rel=1e-6)
+    assert live(with_walls) - live(allowance) == pytest.approx(0.0, abs=1e-6)
     assert with_walls.summary["weight_kN"] - allowance.summary["weight_kN"] == pytest.approx(
-        85.065 - (0.5 * 3.2 - 0.25 * 2.0) * 30, rel=1e-3
+        85.065, rel=1e-3
     )
     rows = with_walls.summary["architectureLoads"]
-    assert rows["walledStories"] == ["L1"] and rows["walls"][0]["member"] == "B11"
+    assert rows["walledStories"] == [] and rows["walls"][0]["member"] == "B11"
+    assert any("L1: the partition allowance" in n and "is kept" in n for n in with_walls.notes)
     assert "architectureLoads" not in derived(None).summary
 
 
@@ -165,6 +165,8 @@ def test_wall_across_the_slab() -> None:
     beams = derived(arch)
     assert sd(beams) - sd(base) == pytest.approx(0.33 * 8.8875 * 30 + 0.35 * 8.8875, rel=1e-6)
     assert live(beams) - live(base) == pytest.approx(-36, rel=1e-6)
+    # An interior partition replaces the allowance, with a warning that says so (FD-2).
+    assert any(n.startswith("Warning: L1: the partition allowance") for n in beams.notes)
     # Shells: the wall is a line load on the shells, its weight exact: 44.4375 kN.
     shells = derived(arch, "shells")
     assert sd(shells) - sd(derived(None, "shells")) == pytest.approx(44.4375, rel=1e-6)

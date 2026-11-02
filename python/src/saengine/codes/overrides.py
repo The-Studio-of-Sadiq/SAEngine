@@ -28,6 +28,7 @@ switching packs an override of a value the new pack lacks is reported, not appli
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import json
 import re
@@ -200,9 +201,26 @@ def _same_type(old: Any, new: Any) -> bool:
     return _json_type(old) == _json_type(new)
 
 
-def _message(error: ValidationError, table: str) -> str:
+#: Pydantic's range errors: (its context key, how the page says it).
+_RANGES = {
+    "less_than_equal": ("le", "at most {}"),
+    "less_than": ("lt", "less than {}"),
+    "greater_than_equal": ("ge", "at least {}"),
+    "greater_than": ("gt", "more than {}"),
+}
+
+
+def _message(error: ValidationError, table: str, value: Any = None) -> str:
+    """Why the model refused an override: the value and its allowed range when that is why
+    (SL-3: "1.2 is out of range: it must be at most 1"), else the model's words."""
     err = error.errors()[0]
     loc = ".".join(str(x) for x in err["loc"])
+    kind = _RANGES.get(str(err.get("type")))
+    limit = (err.get("ctx") or {}).get(kind[0]) if kind else None
+    if kind and limit is not None:
+        shown = err.get("input", value)
+        bound = f"{limit:g}" if isinstance(limit, (int, float)) else str(limit)
+        return f"{shown!r} is out of range: it must be {kind[1].format(bound)}"
     msg = str(err["msg"]).removeprefix("Value error, ")
     return f"{msg} ({table}.{loc})" if loc else msg
 
@@ -244,7 +262,7 @@ def apply(pack: Any, overrides: dict[str, Any]) -> Any:
                 try:
                     validated = v.adapter.validate_python(data)
                 except ValidationError as e:
-                    raise OverrideError(path, _message(e, table)) from e
+                    raise OverrideError(path, _message(e, table, value)) from e
                 if isinstance(validated, RootModel):
                     validated = validated.root
         except OverrideError as e:
@@ -269,7 +287,176 @@ def apply(pack: Any, overrides: dict[str, Any]) -> Any:
 #: Keys that hold clause references, not values (not listed for overriding).
 _NOT_VALUES = frozenset({"source", "sources", "clauses"})
 #: Keys whose text is a label of an entry, not a value.
-_LABELS = frozenset({"name", "description", "label", "note", "title", "row"})
+_LABELS = frozenset({"name", "description", "label", "note", "title", "row", "text"})
+#: Keys of prose (lists of notes): not code values.
+_PROSE = frozenset({"notes", "remarks", "comments"})
+
+#: The page's sections and their tables, structural first (SL-1); tables not named here come
+#: last ("Other"), in the pack's order.
+SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Concrete and steel design",
+        (
+            "factors",
+            "concrete",
+            "detailing",
+            "designLimits",
+            "serviceability",
+            "slabCoefficients",
+            "slabMethods",
+            "wallMethods",
+            "stairMethods",
+            "transfer",
+            "anchors",
+            "concreteTime",
+            "steel",
+            "steelSeismic",
+            "steelStability",
+            "steelSections",
+            "composite",
+            "compositeConcrete",
+            "masonry",
+            "timber",
+            "bamboo",
+            "ferrocement",
+            "fatigue",
+            "designClauses",
+        ),
+    ),
+    (
+        "Loads, combinations and analysis",
+        (
+            "combinations",
+            "areaLoads",
+            "deadLoads",
+            "liveReduction",
+            "seismic",
+            "zoneCoefficients",
+            "locations",
+            "wind",
+            "flood",
+            "cranes",
+            "isolation",
+            "pushover",
+            "nonlinearHistory",
+            "nonstructural",
+            "occupancyCategories",
+        ),
+    ),
+    ("Foundations and site", ("foundations", "siteInvestigation", "construction", "materials")),
+    (
+        "Fire, services and planning",
+        (
+            "fire",
+            "fireResistance",
+            "plumbing",
+            "hvac",
+            "electrical",
+            "mepOpenings",
+            "planning",
+            "accessibility",
+        ),
+    ),
+)
+OTHER_SECTION = "Other"
+
+
+def ordered_tables(tables: list[str]) -> list[tuple[str, str]]:
+    """(table, section) of ``tables`` in the page's order: by :data:`SECTIONS`, the rest last."""
+    rank = {t: (i, j) for i, (_, names) in enumerate(SECTIONS) for j, t in enumerate(names)}
+    section = {t: name for name, names in SECTIONS for t in names}
+    known = sorted((t for t in tables if t in rank), key=lambda t: rank[t])
+    return [(t, section[t]) for t in known] + [(t, OTHER_SECTION) for t in tables if t not in rank]
+
+
+def humanize(key: str) -> str:
+    """A key as words: "compressionTied" -> "Compression tied", "R" stays "R"."""
+    if not key or not re.search(r"[a-z]", key):
+        return key
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", key.replace("_", " ")).split()
+    if not words:
+        return key
+    out = [words[0][:1].upper() + words[0][1:]]
+    out += [w if (len(w) > 1 and w.isupper()) else w.lower() for w in words[1:]]
+    return " ".join(out)
+
+
+_UNIT = re.compile(r"\[([^\]]{1,24})\]")
+
+
+def _schema_node(schema: dict[str, Any], node: Any, key: str) -> Any:
+    """The schema of ``key`` inside ``node`` (``$ref``, ``anyOf`` and list items followed)."""
+    defs = schema.get("$defs", {})
+
+    def resolve(n: Any) -> Any:
+        for _ in range(8):
+            if not isinstance(n, dict):
+                return None
+            if "$ref" in n:
+                n = defs.get(str(n["$ref"]).rsplit("/", 1)[-1])
+                continue
+            options = [o for o in n.get("anyOf", []) if o.get("type") != "null"]
+            if options and "properties" not in n:
+                n = options[0]
+                continue
+            return n
+        return n
+
+    node = resolve(node)
+    if not isinstance(node, dict):
+        return None
+    if node.get("type") == "array" and "items" in node:
+        return resolve(node["items"])  # a named item of a list
+    props = node.get("properties", {})
+    if key in props:
+        return resolve(props[key])
+    extra = node.get("additionalProperties")
+    return resolve(extra) if isinstance(extra, dict) else None
+
+
+@functools.cache
+def _table_schema(table: str) -> dict[str, Any]:
+    """The JSON Schema of a table's model ({} for a table without one)."""
+    from saengine.codes.tables import TABLE_MODELS, table_schema
+
+    if table not in TABLE_MODELS:
+        return {}
+    try:
+        return table_schema(table)
+    except Exception:  # noqa: BLE001 - a model whose schema cannot be generated: no words
+        return {}
+
+
+def describe(table: str, keys: list[str], data: Any) -> dict[str, str]:
+    """What the page shows of a value (SL-1): ``label`` (the field's words), ``description``
+    (the table model's), ``unit`` (from the description's "[mm]"), ``clause`` (the pack's
+    reference of the value or its group, else the table's source)."""
+    description = ""
+    schema = _table_schema(table)
+    if schema:
+        node: Any = schema
+        for key in keys:
+            node = _schema_node(schema, node, key)
+            if node is None:
+                break
+        if isinstance(node, dict):
+            description = str(node.get("description") or "")
+    unit_match = _UNIT.search(description)
+    clause = ""
+    if isinstance(data, dict):
+        sources = data.get("sources") if isinstance(data.get("sources"), dict) else {}
+        for k in (join(keys), *reversed(keys)):
+            if isinstance(sources.get(k), str):
+                clause = sources[k]
+                break
+        clause = clause or str(data.get("source") or "")
+    label = humanize(keys[-1]) if keys else table
+    return {
+        "label": label,
+        "description": description,
+        "unit": unit_match.group(1) if unit_match else "",
+        "clause": clause,
+    }
 
 
 def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:
@@ -285,6 +472,8 @@ def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:
             for k, v in data.items():
                 if k in _NOT_VALUES or (k in _LABELS and isinstance(v, str)):
                     continue  # clause references and labels: not code values
+                if k in _PROSE and isinstance(v, list):
+                    continue  # notes: prose, not values (SL-1)
                 other = pack_data.get(k) if isinstance(pack_data, dict) else None
                 walk(table, v, [*keys, str(k)], other)
             return
@@ -307,6 +496,8 @@ def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:
                 "overridden": ov is not None,
                 "generic": fb is not None,
                 "note": fb.note if fb is not None else "",
+                **describe(table, keys, pack._tables.get(table)),
+                "group": humanize(keys[0]) if len(keys) > 1 else "",
             }
         )
 
@@ -315,3 +506,22 @@ def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:
             continue
         walk(table, pack._tables.get(table), [], base._tables.get(table))
     return rows
+
+
+def pack_value(pack: Any, path: str) -> Any:
+    """The pack's value at ``path`` (overrides that were refused are not in it); None when the
+    pack has none there."""
+    try:
+        keys = split(path)
+    except OverrideError:
+        return None
+    node: Any = pack._tables.get(keys[0])
+    for key in keys[1:]:
+        if isinstance(node, dict):
+            node = node.get(key)
+        elif isinstance(node, list):
+            i = _item(node, key, None)
+            node = node[i] if i >= 0 else None
+        else:
+            return None
+    return copy.deepcopy(node)

@@ -989,9 +989,14 @@ const OPTIONAL_NEEDS_WORK: ReadonlySet<PartState> = new Set(['failed', 'error', 
  * itself and the foundations to check; failing members and foundations; the outputs after the
  * analysis; then the services.
  */
-function urgency(s: IPartStatus, before: boolean): number | undefined {
+function urgency(s: IPartStatus, before: boolean, analysed = false): number | undefined {
 	if (s.state === 'done') {
 		return undefined;
+	}
+	// SM-22: once the analysis exists, settings still at their defaults are a review, not the
+	// next step: a failing design, a stale analysis or a failing foundation comes first.
+	if (s.state === 'defaults' && analysed) {
+		return 4.5;
 	}
 	switch (s.part) {
 		case 'fem': return s.state === 'failed' ? 4 : 2;
@@ -1015,9 +1020,10 @@ function urgency(s: IPartStatus, before: boolean): number | undefined {
  */
 export function nextStep(statuses: readonly IPartStatus[]): { readonly index: number; readonly status: IPartStatus } | undefined {
 	const fem = statuses.findIndex(s => s.part === 'fem');
+	const analysed = fem >= 0 && statuses[fem].state !== 'notStarted';
 	let best: { index: number; status: IPartStatus; rank: number } | undefined;
 	statuses.forEach((s, index) => {
-		const rank = urgency(s, fem < 0 || index < fem);
+		const rank = urgency(s, fem < 0 || index < fem, analysed);
 		if (rank !== undefined && (!best || rank < best.rank)) {
 			best = { index, status: s, rank };
 		}
