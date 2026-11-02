@@ -23,6 +23,17 @@ here, newest first, with the date, the question, the decision, the reason and wh
   engine. Every code value, table, combination, method choice and clause reference comes from
   the active pack, and no engine or UI code asks which code is active (2026-11-01). See
   [code-packs.md](code-packs.md).
+- **Any code, changed at any time, without friction (2026-11-02).**
+  - Any design code and its parameters can be adopted as a pack.
+  - Every pack value an engineer may disagree with can be overridden in the project (in
+    settings, or on the member or material). When it is not overridden, it follows the pack.
+  - Changing a setting, or switching the whole pack in the middle of a project, takes effect on
+    the next run. There is no migration step, no stale cached value and no error in older
+    projects.
+  - A pack that doesn't define a value still works. SAEngine falls back to a generic default and
+    names it in the report.
+  - Defaults SAEngine picks itself (a template's depth or jacking stress, say) are ordinary
+    editable defaults, never code values.
 - **One home per feature.** A feature lives in one part only, and other parts link to it.
 - **Run All never writes member bars.** If a beam or column type has no bars, the design step
   fails honestly and offers *Design Reinforcement*. Footings are the exception: they get minimum
