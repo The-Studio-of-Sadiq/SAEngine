@@ -2,19 +2,22 @@
 
 Part 2 is upstream of the floor plan, the building model and the analysis: they read these
 settings and never write them. The code pack chosen here (``codePack``) is the governing code;
-its tables give the defaults (the lists of the editors are the default pack's,
-:mod:`saengine.library.code_data`), and every derived value can be overridden. Clause numbers in
-the descriptions below are the default pack's (BNBC 2020).
+its tables give the defaults and the lists the settings choose from (towns, area uses, structural
+systems, site classes: checked against the chosen pack when the settings are read,
+:func:`pack_choices`; the schema's lists are the default pack's, :mod:`saengine.library.code_data`,
+the editors' fallback), and every derived value can be overridden. Clause numbers left in the
+descriptions below are the default pack's (BNBC 2020).
 
 Units: kN/m² for area loads, m/s for wind speed.
 """
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
 
 from saengine.codes import context as code_context
 from saengine.codes.manifest import PACK_ID_PATTERN
@@ -27,9 +30,22 @@ SCHEMA_ID = "saengine.projectSettings/1"
 
 Pressure = Annotated[float, Field(ge=0, description="[kN/m²]")]
 
-LocationId = Literal[tuple(code_data.LOCATIONS) + ("custom",)]  # type: ignore[valid-type]
-AreaUseId = Literal[tuple(code_data.AREA_USES) + ("custom",)]  # type: ignore[valid-type]
-SystemId = Literal[tuple(code_data.STRUCTURAL_SYSTEMS)]  # type: ignore[valid-type]
+
+def _choice(ids: list[str]) -> Any:
+    """A string id of one of the code pack's lists. Which ids are allowed is the pack's the
+    settings choose (:meth:`ProjectSettings._pack_lists`); the schema lists the default pack's,
+    the editors' fallback when the backend cannot say."""
+    return Annotated[str, WithJsonSchema({"type": "string", "enum": ids})]
+
+
+#: The code pack's towns (``locations``), and "custom".
+LocationId = _choice([*code_data.LOCATIONS, "custom"])
+#: The code pack's area uses (``areaLoads.uses``), and "custom".
+AreaUseId = _choice([*code_data.AREA_USES, "custom"])
+#: The code pack's seismic force-resisting systems (``seismic.systems``).
+SystemId = _choice(list(code_data.STRUCTURAL_SYSTEMS))
+#: The code pack's site classes (``seismic.siteClasses``).
+SiteClassId = _choice(list(code_data.SITE_CLASSES))
 
 
 def _labels(names: list[str]) -> dict[str, Any]:
@@ -292,7 +308,7 @@ class AirRaidShelter(_Model):
 class Site(_Model):
     location: LocationId = Field(  # type: ignore[valid-type]
         default="dhaka",
-        description="District town (the default pack's Tables 6.2.8 and 6.2.15); sets the seismic zone "
+        description="District town of the code pack's hazard tables; sets the seismic zone "
         "and the basic wind speed. Open the list and type the first letters to find a town; "
         "elsewhere choose Custom and enter Z and V.",
         json_schema_extra=_labels(
@@ -311,11 +327,11 @@ class Site(_Model):
         "of 1 Soil Report; the entered class is used while the report gives none.",
         json_schema_extra=_labels(["From the soil report", "Entered"]),
     )
-    siteClass: Literal["SA", "SB", "SC", "SD", "SE"] = Field(
+    siteClass: SiteClassId = Field(  # type: ignore[valid-type]
         default="SD",
         title="Site class",
-        description="The default pack's Table 6.2.13. Used when the source is Entered, or while the soil "
-        "report has no boreholes that give a class.",
+        description="One of the code pack's site classes. Used when the source is Entered, or "
+        "while the soil report has no boreholes that give a class.",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.SITE_CLASSES.items()]),
     )
     zoneCoefficient: float | None = Field(
@@ -323,14 +339,14 @@ class Site(_Model):
         gt=0,
         lt=1,
         title="Seismic zone coefficient Z",
-        description="Overrides the location's value (the default pack's Table 6.2.14: 0.12, 0.20, "
-        "0.28 or 0.36 by zone).",
+        description="Overrides the location's value (the code pack's coefficient of the "
+        "location's seismic zone).",
     )
     windSpeed: float | None = Field(
         default=None,
         gt=0,
         title="Basic wind speed",
-        description="Overrides the location's value [m/s] (the default pack's Table 6.2.8).",
+        description="Overrides the location's value [m/s] (the code pack's basic wind speed).",
     )
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
@@ -371,9 +387,9 @@ class Seismic(_Model):
     system: SystemId = Field(  # type: ignore[valid-type]
         default="rcSmf",
         title="Structural system",
-        description="Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and "
-        "the seismic detailing of the members; it must be permitted in the Seismic Design "
-        "Category of the site (Table 6.2.18).",
+        description="Seismic force-resisting system of the code pack. It gives R, Ω0 and Cd "
+        "and the seismic detailing of the members; it must be permitted in the Seismic Design "
+        "Category of the site.",
         json_schema_extra=_labels([v.name for v in code_data.STRUCTURAL_SYSTEMS.values()]),
     )
     r: float | None = Field(
@@ -1227,12 +1243,26 @@ class TimeDependent(_Model):
 
 
 class PDeltaFactors(_Model):
-    """Load factors of the gravity preload of the P-Delta analysis."""
+    """Load factors of the gravity preload of the P-Delta analysis; each one not given is the
+    code pack's preload factor (1.0 when the pack gives none)."""
 
-    D: float = Field(default=1.2, ge=0, description="Dead load.")
-    SD: float = Field(default=1.2, ge=0, description="Superimposed dead load.")
-    F: float = Field(default=1.2, ge=0, description="Fluid loads (07 MEP equipment contents).")
-    L: float = Field(default=1.0, ge=0, description="Live load.")
+    D: float = Field(default_factory=lambda: _preload("D"), ge=0, description="Dead load.")
+    SD: float = Field(
+        default_factory=lambda: _preload("SD"), ge=0, description="Superimposed dead load."
+    )
+    F: float = Field(
+        default_factory=lambda: _preload("F"),
+        ge=0,
+        description="Fluid loads (07 MEP equipment contents).",
+    )
+    L: float = Field(default_factory=lambda: _preload("L"), ge=0, description="Live load.")
+
+
+def _preload(case: str) -> float:
+    """The P-Delta preload factor of ``case`` of the code pack in force; 1.0 when it gives none."""
+    from saengine.fem.second_order import pdelta_factors
+
+    return float(pdelta_factors().get(case, 1.0))
 
 
 class Slenderness(_Model):
@@ -1241,9 +1271,9 @@ class Slenderness(_Model):
     effectiveLength: Literal["unity", "chart"] = Field(
         default="unity",
         title="Effective length factor k (nonsway)",
-        description="1.0: conservative, allowed by the default pack's Part 6 Sec 6.3.10.6.3. Chart: the "
-        "nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat "
-        "plates. Sway storeys always use the sway chart.",
+        description="1.0: conservative, as the code pack allows. Chart: the nonsway alignment "
+        "chart with ψ from the code pack's cracked moments of inertia of columns, beams and "
+        "flat plates. Sway storeys always use the sway chart.",
         json_schema_extra=_labels(["k = 1.0", "Alignment chart"]),
     )
     swayMagnifier: Literal["Q", "sumPc"] = Field(
@@ -1274,9 +1304,8 @@ class Slenderness(_Model):
         description="Empty (automatic): 1.0 when the analysed model ran its lateral cases on "
         "cracked sections (read from the model, not from these settings); with gross sections "
         "each storey's "
-        "first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns "
-        "0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; the default pack's Part 6 Sec "
-        "6.3.10.4.1). A number is used as given.",
+        "first-order drift Δo is multiplied by its cracked-over-gross drift ratio (the code "
+        "pack's cracked moments of inertia, walls cracked). A number is used as given.",
     )
 
 
@@ -1392,16 +1421,17 @@ class Analysis(_Model):
         default=True,
         title="Eccentric static earthquake cases",
         description="Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses "
-        "shifted ±5 % of the building's width across the force (the default pack's Part 6 Sec 2.5.7.6.2, "
-        "Eq. 6.2.43). With equivalent static design, every E combination is checked with both.",
+        "shifted across the force by the code pack's accidental eccentricity (a share of the "
+        "building's width). With equivalent static design, every E combination is checked "
+        "with both.",
     )
     windTorsionCases: bool = Field(
         default=True,
         title="Wind torsional cases",
         description="Add the torsional wind cases WTX, WTY and design every one-direction wind "
-        "combination for the four design wind load cases of the default pack's Part 6 Figure 6.2.9 "
-        "(Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % "
-        "in both with both torsions. Off: Cases 1 and 3 only.",
+        "combination for the four design wind load cases of the code pack: full, partial "
+        "with torsion, both directions together, and both with both torsions (the shares and "
+        "eccentricities are the pack's). Off: Cases 1 and 3 only.",
     )
     patternLive: Literal["adjacent", "adjacentAlternateFloors", "alternate", "off"] = Field(
         default="adjacent",
@@ -1517,12 +1547,11 @@ class Analysis(_Model):
     stiffness: Literal["gross", "aci"] = Field(
         default="aci",
         title="Section stiffness",
-        description="Cracked (default): concrete and masonry members with the moments of "
-        "inertia of the default pack's Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig "
-        "when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). The default pack's "
-        "Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects "
-        "of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral "
-        "deflections. Gross: the uncracked sections (the model is then too stiff: periods come "
+        description="Cracked (default): concrete and masonry members with the code pack's "
+        "cracked moments of inertia of columns, walls (uncracked or cracked), beams, flat "
+        "plates and slabs (area: the gross area). The code asks the response spectrum model "
+        "to consider the effects of cracked sections, and uses these properties for the "
+        "lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come "
         "out shorter and drifts smaller than the code intends).",
         json_schema_extra=_labels(["Gross sections", "Cracked (the code pack's factors)"]),
     )
@@ -1537,8 +1566,8 @@ class Analysis(_Model):
     wallsCracked: bool = Field(
         default=False,
         title="Walls cracked",
-        description="Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), the default pack's Part "
-        "6 Sec 6.3.10.4.1.",
+        description="Walls at the code pack's cracked moment of inertia instead of the "
+        "uncracked one.",
     )
     secondOrder: Literal["none", "pDelta"] = Field(
         default="none",
@@ -1550,11 +1579,11 @@ class Analysis(_Model):
         "is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).",
         json_schema_extra=_labels(["None (moment magnification)", "P-Delta analysis"]),
     )
-    pDeltaFactors: PDeltaFactors = Field(
-        default_factory=PDeltaFactors,
+    pDeltaFactors: PDeltaFactors | None = Field(
+        default=None,
         title="P-Delta preload factors",
-        description="The gravity loads the P-Delta stiffness is taken under: by default the "
-        "gravity part of 1.2D + 1.0E + 1.0L (the default pack's Part 6 Sec 2.7.3.1).",
+        description="The gravity loads the P-Delta stiffness is taken under. Empty: the code "
+        "pack's preload factors (the gravity part of its seismic strength combination).",
     )
     firstOrderReference: bool = Field(
         default=True,
@@ -1569,19 +1598,19 @@ class Analysis(_Model):
         description="How steel frames are designed for stability (the code pack's steel "
         "stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD "
         "(from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each "
-        "combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the "
-        "gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= "
-        "0.0042 Yi in every combination (with the lateral load's direction; gravity-only ones "
-        "in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the "
-        "reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every "
-        "combination, and every steel member checked with K = 1; required by the code where "
-        "the second-order drift exceeds 1.5 times the first-order drift. The coefficients are "
-        "the active code pack's (the values above are the default pack's).",
+        "combination by its own factors. Second-order analysis: Ni a share of Yi in the "
+        "gravity-only combinations, in ±X and ±Y. First-order analysis: Ni from the drift "
+        "ratio Δ/L, at least a share of Yi, in every combination (with the lateral load's "
+        "direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis "
+        "method: a P-Delta analysis on the reduced axial and flexural stiffness of the steel "
+        "members, Ni a share of Yi in every combination, and every steel member checked with "
+        "K = 1; required by the code where the second-order drift exceeds the first-order "
+        "drift by more than its limit. The shares, factors and limit are the code pack's.",
         json_schema_extra=_labels(
             [
                 "None",
-                "Second-order analysis (0.002 Yi)",
-                "First-order analysis (2.1 Δ/L Yi)",
+                "Second-order analysis",
+                "First-order analysis (Δ/L)",
                 "Direct analysis method (reduced stiffness, K = 1)",
             ]
         ),
@@ -1655,42 +1684,43 @@ class Analysis(_Model):
     )
     seismicOrthogonal: Literal["auto", "always", "never"] = Field(
         default="auto",
-        title="Orthogonal effects (100 % + 30 %)",
-        description="Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D "
-        "(the default pack's Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also "
-        "for a Category C building with non-parallel systems (irregularity type V).",
+        title="Orthogonal effects",
+        description="Automatic: each direction's earthquake with the code pack's share of the "
+        "other direction's (E = EX + a EY and a EX + EY) in Seismic Design Category D; one "
+        "direction at a time in B and C. Always: also for a Category C building with "
+        "non-parallel systems (irregularity type V).",
         json_schema_extra=_labels(["By the Seismic Design Category", "Always", "Never"]),
     )
     seismicAccidentalTorsion: bool = Field(
         default=True,
         title="Accidental torsion",
-        description="Add the static torsional moments ±0.05 L F at each floor (the default pack's Part 6 "
-        "Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the "
-        "building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec "
-        "2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger "
-        "effect governing (Sec 2.5.7.6.3).",
+        description="Add the static torsional moments of the code pack's accidental "
+        "eccentricity (± a share of the building's width L times the floor force F) at each "
+        "floor to the response spectrum; amplified by Ax where the building is torsionally "
+        "irregular in Seismic Design Category C or D; with orthogonal effects the shift in one "
+        "direction at a time, the larger effect governing.",
     )
     seismicVerticalComponent: bool = Field(
         default=True,
         title="Vertical earthquake component",
-        description="E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (the default pack's Part 6 Sec "
-        "2.5.13.2).",
+        description="E = Eh ± Ev with Ev from the code pack's vertical factor on a_h D (a_h "
+        "the pack's share of Z S).",
     )
     seismicLiveFactor: float | None = Field(
         default=None,
         ge=0,
         title="Live load factor with E",
-        description="Factor on L in 1.2D + 1.0E + L. Empty: the project's own static earthquake "
-        "combination's (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, the default pack's "
-        "Part 6 Sec 2.7.3.1 exception 1).",
+        description="Factor on L in the strength combination with E. Empty: the project's own "
+        "static earthquake combination's (the code pack may permit a lower factor for light "
+        "live loads, see its combination notes).",
     )
     seismicRedundancy: float = Field(
         default=1.0,
         ge=1.0,
         le=1.3,
         title="Redundancy factor ρ (drift)",
-        description="The allowable storey drift of moment frames in Category D is Δa/ρ (the default pack's "
-        "Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.",
+        description="The allowable storey drift of moment frames in Category D is Δa/ρ (the "
+        "code pack's redundancy factor): 1.0, or more for low redundancy.",
     )
     seismicSigns: Literal["corners", "plusMinus"] = Field(
         default="corners",
@@ -1812,7 +1842,7 @@ class AreaLoad(_Model):
     name: str = Field(min_length=1)
     use: AreaUseId = Field(  # type: ignore[valid-type]
         default="residential",
-        description="Use of the area (Table 6.2.3).",
+        description="Use of the area (the code pack's area uses and their live loads).",
         json_schema_extra=_labels(
             [f"{v.name} ({v.live} kN/m²)" for v in code_data.AREA_USES.values()] + ["Custom"]
         ),
@@ -1840,15 +1870,15 @@ class LoadCombination(_Model):
     T: float = Field(
         default=0,
         title="T",
-        description="Factor on the temperature case T (Analysis model → Temperature). The default pack's "
-        "Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
+        description="Factor on the temperature case T (Analysis model → Temperature), as the "
+        "code pack's combinations with T give it.",
     )
     ST: float = Field(
         default=0,
         title="ST",
         description="Factor on the support settlement case ST (Analysis model → Support "
-        "settlement): differential settlement is a self-straining effect T of the default pack's Part 6 "
-        "Sec 2.7, so it takes T's factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).",
+        "settlement): differential settlement is a self-straining effect T, so it takes T's "
+        "factor of the code pack's combination.",
     )
     F: float | None = Field(
         default=None,
@@ -2129,6 +2159,86 @@ class ProjectSettings(_Model):
         title="Design report",
         description="The printed design report (11 Exports).",
     )
+
+    @model_validator(mode="after")
+    def _pack_lists(self) -> ProjectSettings:
+        """The town, area uses, structural systems and site class are ids of the lists of the
+        code pack the settings choose (with the project's own packs of
+        :func:`saengine.codes.context.project`). The default pack without a project: its
+        built-in lists (no pack is loaded to read a file). A pack that cannot be found here (a
+        project's pack read without its project) is not checked: :func:`check` reports it."""
+        in_force = code_context.in_force()
+        if self.codePack == DEFAULT_PACK and code_context.project_root() is None:
+            if in_force is not None and in_force.id == DEFAULT_PACK:
+                lists = pack_choices(in_force)
+            else:
+                lists = _builtin_choices()
+        else:
+            try:
+                lists = pack_choices(code_context.pack_for(self))
+            except CodePackError:
+                return self
+        choices = {key: {c["id"] for c in rows} for key, rows in lists.items()}
+        pack_name = code_data.EDITION if self.codePack == DEFAULT_PACK else self.codePack
+        wrong: list[str] = []
+
+        def need(where: str, key: str, value: str | None) -> None:
+            if value is not None and key in choices and value not in choices[key]:
+                wrong.append(f"{where} '{value}'")
+
+        need("site.location", "locations", self.site.location)
+        need("site.siteClass", "siteClasses", self.site.siteClass)
+        seismic = self.seismic
+        need("seismic.system", "systems", seismic.system)
+        need("seismic.systemY", "systems", seismic.systemY)
+        for system in [*seismic.otherSystems, *seismic.otherSystemsY]:
+            need("seismic.otherSystems", "systems", system)
+        for load in self.areaLoads:
+            need(f"areaLoads {load.id} use", "areaUses", load.use)
+        if wrong:
+            raise ValueError(f"not in the lists of the code pack {pack_name}: {', '.join(wrong)}")
+        return self
+
+
+def pack_choices(pack: CodePack) -> dict[str, list[dict[str, str]]]:
+    """The entries the settings' lists offer under ``pack``, in the pack's order, as ``{"id",
+    "label"}``: ``locations`` (and "custom"), ``areaUses`` (and "custom"), ``systems``,
+    ``siteClasses``. A list the pack has no table for is left out (any id is then taken)."""
+    return _choices(lambda name: pack.table(name) if pack.has(name) else None)
+
+
+@functools.cache
+def _builtin_choices() -> dict[str, list[dict[str, str]]]:
+    """:func:`pack_choices` of the built-in default pack (read once, without the registry)."""
+    from saengine.codes.tables import builtin_table
+
+    return _choices(lambda name: builtin_table(name, DEFAULT_PACK))
+
+
+def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
+    """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
+    out: dict[str, list[dict[str, str]]] = {}
+    locations, zone_table = table("locations"), table("zoneCoefficients")
+    area, seismic = table("areaLoads"), table("seismic")
+    if locations is not None:
+        zones = dict(zone_table.zones) if zone_table is not None else {}
+        rows = []
+        for key, v in locations.locations.items():
+            z = zones.get(v.zone)
+            hazard = f"zone {v.zone}, Z {z:.2f}, " if z is not None else f"zone {v.zone}, "
+            rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
+        out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
+    if area is not None:
+        out["areaUses"] = [
+            *({"id": k, "label": f"{v.name} ({v.live} kN/m²)"} for k, v in area.uses.items()),
+            {"id": "custom", "label": "Custom"},
+        ]
+    if seismic is not None:
+        out["systems"] = [{"id": k, "label": v.name} for k, v in seismic.systems.items()]
+        out["siteClasses"] = [
+            {"id": k, "label": f"{k}: {v.description}"} for k, v in seismic.siteClasses.items()
+        ]
+    return out
 
 
 def strength_combinations(

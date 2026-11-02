@@ -42,12 +42,20 @@ import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/sa
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import './media/codePacks.css';
-import { changePackWarning, chosenPackId, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks } from './codePacksModel.js';
+import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
 
 const SETTINGS_SCHEMA_ID = 'saengine.projectSettings/1';
+/** The fields that choose from a list of the code pack (field path → the list of `saengine.codes.choices`). */
+const PACK_LIST_FIELDS: { readonly [path: string]: string } = {
+	'site.location': 'locations',
+	'site.siteClass': 'siteClasses',
+	'seismic.system': 'systems',
+	'seismic.systemY': 'systems',
+	'areaLoads.use': 'areaUses',
+};
 
 /** Desktop command telling where the site class and qa come from (`saengine.soil.sources`). */
 const SOIL_SOURCES_COMMAND = 'saengine.soil.sources';
@@ -337,6 +345,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private packs: ICodePackInfo[] | undefined;
 	private packChoices: ICodePackOption[] = [];
 	private packsVersion = 0;
+	/** The chosen pack's entries of the lists (towns, area uses, systems, site classes) from `saengine.codes.choices`; undefined: the schema's (the default pack's). */
+	private packLists: { readonly packId: string; readonly lists: { readonly [list: string]: readonly { readonly id: string; readonly label: string }[] } } | undefined;
+	private packListsVersion = 0;
+	/** The pack whose lists were last asked for (asked once per pack and input). */
+	private packListsFor: string | undefined;
 	private sectionId = SECTIONS[0]?.id;
 	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
 	readonly onDidChangePartSection = this._onDidChangePartSection.event;
@@ -414,6 +427,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			if (id === CODES_LIST_COMMAND) {
 				void this.refreshPacks();
 			}
+			if (id === CODES_CHOICES_COMMAND) {
+				void this.refreshPackLists();
+			}
 		}));
 	}
 
@@ -450,6 +466,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	protected override onWillLoadInput(): void {
 		this.sources = undefined;
+		this.packLists = undefined; // another project may have other packs
+		this.packListsFor = undefined;
 		void this.trackSoil();
 		void this.refreshPacks();
 	}
@@ -473,6 +491,30 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.renderCodePack();
 			this.renderValues();
 			this.renderStatus();
+		}
+		void this.refreshPackLists();
+	}
+
+	/** Asks the backend for the chosen pack's entries of the towns, area uses, structural systems and site classes lists; without an answer the lists are the schema's (the default pack's). */
+	private async refreshPackLists(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_CHOICES_COMMAND) || !this.document) {
+			return;
+		}
+		const packId = chosenPackId(this.document);
+		if (this.packListsFor === packId) {
+			return;
+		}
+		this.packListsFor = packId;
+		const version = ++this.packListsVersion;
+		let lists: { [list: string]: { id: string; label: string }[] } | undefined;
+		try {
+			lists = readPackLists(await this.commands.executeCommand<unknown>(CODES_CHOICES_COMMAND, { id: packId, root: this.project.project?.root.fsPath }));
+		} catch {
+			lists = undefined;
+		}
+		if (version === this.packListsVersion && this.document && chosenPackId(this.document) === packId) {
+			this.packLists = lists ? { packId, lists } : undefined;
+			this.renderPage();
 		}
 	}
 
@@ -554,6 +596,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (confirmed && this.document === document) {
 			document.codePack = option.id;
 			this.changed(true);
+			void this.refreshPackLists();
 		} else {
 			this.renderCodePack();
 		}
@@ -781,13 +824,22 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	/** The floor and roof loads are picked from the area loads. */
 	private references(path: string): readonly string[] | undefined {
-		return path === 'floorLoad' || path === 'roofLoad' ? this.areaLoads.map(a => String(a.id)) : undefined;
+		if (path === 'floorLoad' || path === 'roofLoad') {
+			return this.areaLoads.map(a => String(a.id));
+		}
+		return this.packList(path)?.map(entry => entry.id);
+	}
+
+	/** The chosen pack's entries of the list a field chooses from (towns, area uses, systems, site classes); undefined: the schema's. */
+	private packList(path: string): readonly { readonly id: string; readonly label: string }[] | undefined {
+		const list = PACK_LIST_FIELDS[path];
+		return list && this.packLists?.packId === chosenPackId(this.document) ? this.packLists.lists[list] : undefined;
 	}
 
 	/** The floor and roof selectors name each area load with its loads: "FL: Floors (L 2, finish 1.2, partitions 1 kN/m²)". */
 	private referenceLabel(path: string, id: string): string | undefined {
 		if (path !== 'floorLoad' && path !== 'roofLoad') {
-			return undefined;
+			return this.packList(path)?.find(entry => entry.id === id)?.label;
 		}
 		const load = this.areaLoads.find(a => a.id === id);
 		if (!load) {
@@ -1179,6 +1231,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (!this.document || !section) {
 			return;
 		}
+		void this.refreshPackLists(); // once per pack: the chosen pack's lists
 		const title = append(this.page, $('.sa-form-page-title', undefined, section.title));
 		if (section.id === 'combinations') {
 			// The code's combinations, one click from the section (also in the ... menu).

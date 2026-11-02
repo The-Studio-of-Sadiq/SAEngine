@@ -28,6 +28,8 @@ export const CODES_INSTALL_COMMAND = 'saengine.codes.install';
 export const CODES_VALIDATE_COMMAND = 'saengine.codes.validate';
 /** `{ id, trusted, root? }`: allows (or no longer allows) a pack's hooks to run. */
 export const CODES_TRUST_COMMAND = 'saengine.codes.trust';
+/** `{ id, root? }` → `{ id, name, choices: { list: [{ id, label }] } }`: the Project Settings lists (towns, area uses, systems, site classes) under the pack. */
+export const CODES_CHOICES_COMMAND = 'saengine.codes.choices';
 
 /** The pack a project uses when its settings name none (and every project before code packs). */
 export const DEFAULT_CODE_PACK = DEFAULT_CODE_PACK_ID;
@@ -244,6 +246,21 @@ export function readCodePacks(value: unknown): ICodePackInfo[] {
 		}
 	}
 	return packs;
+}
+
+/** The lists in `saengine.codes.choices`'s answer (`choices`: list → `[{ id, label }]`); undefined when it gives none (a refusal, no backend). */
+export function readPackLists(value: unknown): { [list: string]: { id: string; label: string }[] } | undefined {
+	const choices = isRaw(value) && value.ok !== false ? value.choices : undefined;
+	if (!isRaw(choices)) {
+		return undefined;
+	}
+	const lists: { [list: string]: { id: string; label: string }[] } = {};
+	for (const [list, rows] of Object.entries(choices)) {
+		if (Array.isArray(rows)) {
+			lists[list] = rows.filter(isRaw).filter(row => typeof row.id === 'string').map(row => ({ id: String(row.id), label: text(row.label, String(row.id)) }));
+		}
+	}
+	return Object.keys(lists).length ? lists : undefined;
 }
 
 /** The problems in `saengine.codes.validate`'s answer (a list, or `{ problems }`). */

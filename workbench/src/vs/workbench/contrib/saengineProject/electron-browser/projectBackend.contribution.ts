@@ -254,6 +254,11 @@ CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: un
 	return orThrow(await call(accessor, 'codes/show', { id: args.id, root: str(args.root) }));
 });
 
+CommandsRegistry.registerCommand('saengine.codes.choices', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/choices', { id: args.id, root: str(args.root) }));
+});
+
 CommandsRegistry.registerCommand('saengine.codes.new', async (accessor, raw: unknown) => {
 	const args = bag(raw);
 	return orThrow(await call(accessor, 'codes/new', { id: args.id, name: str(args.name), extends: str(args.extends), scope: args.scope === 'project' ? 'project' : 'user', dest: str(args.dest), root: str(args.root) }));

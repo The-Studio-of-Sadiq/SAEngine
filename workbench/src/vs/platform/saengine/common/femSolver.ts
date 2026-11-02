@@ -724,8 +724,9 @@ export type ProjectPlatformMethod =
 	| 'share/status' | 'share/connect' | 'share/disconnect' | 'share/join' | 'share/sync' | 'share/lock' | 'share/unlock' | 'share/heartbeat'
 	// Code packs (`saengine.codes`): `codes/list` `{root?}`, `codes/show` `{id, root?}`, `codes/new`
 	// `{id, name, extends, scope?, dest?, root?}`, `codes/install` `{path, scope, root?}`,
-	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`.
-	| 'codes/list' | 'codes/show' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
+	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`, `codes/choices`
+	// `{id, root?}` (the Project Settings lists under the pack).
+	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'

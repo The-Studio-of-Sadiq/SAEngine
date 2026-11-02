@@ -2479,6 +2479,21 @@ def codes_show(pack_id: str, root: str | None = None) -> dict[str, Any]:
         return _refusal(error)
 
 
+def codes_choices(pack_id: str, root: str | None = None) -> dict[str, Any]:
+    """The entries of the Project Settings lists (towns, area uses, structural systems, site
+    classes) under the pack ``pack_id`` (:func:`saengine.library.settings.pack_choices`):
+    ``{id, name, choices: {list: [{id, label}]}}``."""
+    from saengine.codes import CodePackError
+    from saengine.codes import context as code_context
+    from saengine.library.settings import pack_choices
+
+    try:
+        pack = code_context.pack_for({"codePack": pack_id}, _pack_root(root))
+    except CodePackError as error:
+        return _refusal(error)
+    return {"id": pack.id, "name": pack.edition or pack.name, "choices": pack_choices(pack)}
+
+
 def codes_new(
     pack_id: str,
     name: str,
