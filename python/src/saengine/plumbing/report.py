@@ -148,7 +148,7 @@ def _bay(dims: dict[str, Any], building: Building, story: str) -> tuple[float, f
     wall = dims.get("partitionWall") or default_wall(height)
     outer_l, outer_w = dims["length"] + 2 * wall, dims["width"] + 2 * wall
     level, middle = building.stories[story], roof.centroid
-    best: tuple[tuple[bool, float], tuple[float, float]] | None = None
+    best: tuple[tuple[bool, float], tuple[float, float], Polygon] | None = None
     for slab in model.elements:
         if not isinstance(slab, SlabElement) or abs(slab.elevation - level) >= 1.0:
             continue
@@ -161,8 +161,46 @@ def _bay(dims: dict[str, Any], building: Building, story: str) -> tuple[float, f
             continue
         score = (tank.area / panel.area < BAY_SHARE, c.distance(middle))
         if best is None or score < best[0]:
-            best = (score, (round(c.x), round(c.y)))
-    return best[1] if best else None
+            best = (score, (round(c.x), round(c.y)), panel)
+    if best is None:
+        return None
+    if best[0][0]:
+        # The tank covers less than BAY_SHARE of every bay it fits, so it pressed on the middle
+        # of the panel and failed its support check (walkthrough 3, SM-15): it is stretched to
+        # span the bay's short way, its end walls on two opposite beams
+        # (saengine.mep.loads.spanned_edges), and centred on the bay.
+        _span_bay(dims, best[2], wall)
+    return best[1]
+
+
+#: The least width of a tank stretched across a bay [mm] (SAEngine practice: room for the
+#: compartments' manholes and cleaning).
+SPAN_MIN_WIDTH = 1000.0
+
+
+def _span_bay(dims: dict[str, Any], panel: Polygon, wall: float) -> None:
+    """Reshapes the proposed tank ``dims`` (in place) to span ``panel``: its length (along X,
+    the compartments side by side along it) the panel's X side less the walls, so that its end
+    walls stand on the two beams there, unless that side is over twice the Y side (then its
+    width spans Y); the other dimension narrowed to keep the water depth, at least
+    :data:`SPAN_MIN_WIDTH` (per compartment along the length), the depth then less; the volume
+    kept (50 mm steps: rounded up)."""
+    minx, miny, maxx, maxy = panel.bounds
+    across_x = maxx - minx <= 2 * (maxy - miny)
+    span = (maxx - minx) if across_x else (maxy - miny)
+    inner = math.floor((span - 2 * wall) / 50) * 50
+    if inner <= 0:
+        return
+    volume = dims["length"] * dims["width"] * dims["waterDepth"]
+    depth = dims["waterDepth"]
+    least = SPAN_MIN_WIDTH if across_x else SPAN_MIN_WIDTH * (dims.get("compartments") or 2)
+    other = max(least, math.ceil(volume / (inner * depth) / 50) * 50)
+    depth = math.ceil(volume / (inner * other) / 50) * 50
+    if across_x:
+        dims["length"], dims["width"] = float(inner), float(other)
+    else:
+        dims["length"], dims["width"] = float(other), float(inner)
+    dims["waterDepth"] = float(depth)
 
 
 def _place(kind: str, dims: dict[str, Any], building: Building, story: str | None):
@@ -558,7 +596,7 @@ def _support_checks(proposals: list[dict[str, Any]], bim: Any) -> list[dict[str,
     """Whether each overhead tank stands where the frame can carry it: a check per tank, failing
     when it presses on the middle of a slab panel (:func:`saengine.mep.loads.heavy_on_slab`)."""
     from saengine.library.mep import Equipment
-    from saengine.mep.loads import bay_of, heavy_on_slab
+    from saengine.mep.loads import BAY_SHARE, bay_of, heavy_on_slab
     from saengine.plumbing.tanks import tank_equipment
 
     out = []
@@ -574,9 +612,18 @@ def _support_checks(proposals: list[dict[str, Any]], bim: Any) -> list[dict[str,
         heavy = heavy_on_slab(item, bim)
         if heavy is not None:
             out.append(_check(f"{tank['id']} support", 1, None, "", False, heavy))
-        elif bay_of(item, bim) is not None:
-            out.append(_check(f"{tank['id']} support", 0, None, "", True,
-                              "covers a column-supported bay and stands on its beams"))  # fmt: skip
+        elif (bay := bay_of(item, bim)) is not None:
+            share = (
+                item.length
+                * item.width
+                / max(Polygon([(p[0], p[1]) for p in bay.boundary]).area, 1e-9)
+            )
+            note = (
+                f"spans between two opposite beams of bay {bay.id} (its walls carry it to them)"
+                if share < BAY_SHARE
+                else "covers a column-supported bay and stands on its beams"
+            )
+            out.append(_check(f"{tank['id']} support", 0, None, "", True, note))
     return out
 
 

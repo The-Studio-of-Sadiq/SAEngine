@@ -186,3 +186,31 @@ def test_ground_defaults_to_zero_with_a_basement() -> None:
     # L1 (+3 m) to L5 (+15 m) above the ground at 0, not above the basement floor.
     assert heads["highestFixtureLevel"] == pytest.approx(15.0)
     assert heads["lowestFixtureLevel"] == pytest.approx(3.0)
+
+
+def test_a_small_roof_tank_is_stretched_to_span_its_bay() -> None:
+    # Walkthrough 3, SM-15: a 4.5 m³ tank proposed mid-bay on a 6 x 5 m roof panel covered less
+    # than half of it and failed its own support check. It now spans the bay along X, its end
+    # walls on the two beams there: inside 6000 - 2 x 200 = 5600 mm, at least 1 m wide, the same
+    # water 0.9 m deep (4.97 / (5.6 x 1.0) = 0.89 m, rounded up to 50 mm).
+    from shapely.geometry import box
+
+    from saengine.library.bim import SlabElement
+    from saengine.mep.loads import spanned_edges, spanned_shares
+    from saengine.plumbing.report import _span_bay
+
+    dims = {"length": 2650.0, "width": 1250.0, "waterDepth": 1500.0, "compartments": 2}
+    _span_bay(dims, box(0, 0, 6000, 5000), 200.0)
+    assert (dims["length"], dims["width"]) == (5600.0, 1000.0)
+    assert dims["waterDepth"] == 900.0
+    assert dims["length"] * dims["width"] * dims["waterDepth"] >= 2650 * 1250 * 1500
+    # The stretched tank reaches the panel's two X edges: it spans between edges 1 and 3 and
+    # hands its weight to them by the lever rule.
+    slab = SlabElement.model_validate(
+        {"id": "S1", "type": "S150", "elevation": 18000,
+         "boundary": [[0, 0], [6000, 0], [6000, 5000], [0, 5000]]}
+    )  # fmt: skip
+    edges = spanned_edges(slab, box(0, 2000, 6000, 3000))
+    assert edges == (1, 3)
+    assert spanned_shares(slab.boundary, (3000, 2500), edges) == [(1, 0.5), (3, 0.5)]
+    assert spanned_edges(slab, box(2000, 2000, 4000, 3000)) is None

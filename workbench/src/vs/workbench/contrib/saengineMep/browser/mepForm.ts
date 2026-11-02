@@ -46,6 +46,8 @@ export interface IMepFormHost {
 	storyName(id: string | undefined): string;
 	/** A storey's use from 07 MEP's Storey use, as a link that opens that table (the one place it is edited). */
 	storyUseLink(cell: HTMLElement, use: string): void;
+	/** While no storey use is set: a note and a button that sets them once for every service (in Coordination › Storey use). */
+	storyUsesPrompt(section: HTMLElement): void;
 	/** The plan's path editor: a polyline as "x y; x y" in m. */
 	pathInput(path: readonly Point[], store: (path: Point[]) => void, key: string, label: string, minPoints: number): HTMLInputElement;
 }

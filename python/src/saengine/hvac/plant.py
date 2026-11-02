@@ -455,10 +455,15 @@ def propose_plant(
         length, width, height, weight = _box(kind, unit)
         plant_kind = "ahu" if kind == "packaged" else kind
         prefix = {"vrfOutdoor": "ODU", "splitOutdoor": "SODU", "packaged": "PAC"}[kind]
+        # The units are sized for every conditioned story's cooling: they serve those stories,
+        # so the electrical demand takes their power for that cooling and not also the code
+        # pack's A/C load density of each story (walkthrough 3, SM-16: 74 + 50.5 kW counted).
+        served = sorted({str(z["story"]) for z in zones if z.get("story") is not None})
         units = [
-            _entry(f"{prefix}{i + 1}", plant_kind, top, length, width, height, unit, weight)
+            _entry(f"{prefix}{i + 1}", plant_kind, top, length, width, height, unit, weight,
+                   **({"serves": served} if served else {}))
             for i in range(n)
-        ]
+        ]  # fmt: skip
         add(plant_kind, top, units)
         notes.append(f"{n} {kind} units of {unit:g} kW on {top}; {TYPICAL_NOTE}")
         if kind == "packaged":

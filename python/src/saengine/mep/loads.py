@@ -380,13 +380,25 @@ def equipment_loads(
         parts = equipment_parts(item, mep.contentsAs, densities, cases)
         frame_points: dict[str, list[tuple[float, float]]] = {}
         bay = bay_of(item, building)
+        spans: tuple[int, int] | None = None
         if bay is not None:
-            # A tank covering its bay stands on the bay's beams: its weight goes to them.
+            # A tank covering its bay stands on the bay's beams: its weight goes to them. One
+            # spanning between two opposite beams (less than BAY_SHARE of the bay) goes to
+            # those two only.
+            footprint = Polygon(
+                rotated_rectangle(item.x, item.y, item.length, item.width, item.rotation)
+            )
+            panel = Polygon([(p[0], p[1]) for p in bay.boundary])
+            if footprint.area / max(panel.area, 1e-9) < BAY_SHARE:
+                spans = spanned_edges(bay, footprint)
             frame_points[bay.id] = [point for point, _ in placed]
             placed = []
             result.notes.append(
-                f"{item.id}: covers bay {bay.id} and stands on its beams: its weight goes to "
-                "the bay's edge beams as uniform loads of the same total"
+                f"{item.id}: spans between two opposite beams of bay {bay.id}: its weight goes "
+                "to those beams as uniform loads of the same total"
+                if spans
+                else f"{item.id}: covers bay {bay.id} and stands on its beams: its weight goes "
+                "to the bay's edge beams as uniform loads of the same total"
             )
         for point, slab in placed:
             if slab.id not in shells_of:
@@ -413,7 +425,12 @@ def equipment_loads(
             fraction = len(on_slab) * share
             centre = np.mean(np.array(on_slab), axis=0)
             system = (slab_systems or {}).get(slab.id, "twoWay")
-            for index, edge_share in edge_shares(slab.boundary, centre, system):
+            shares = (
+                spanned_shares(slab.boundary, centre, spans)
+                if spans is not None and bay is not None
+                else edge_shares(slab.boundary, centre, system)
+            )
+            for index, edge_share in shares:
                 a = slab.boundary[index]
                 b = slab.boundary[(index + 1) % len(slab.boundary)]
                 length = math.dist(a, b) * MM
@@ -497,7 +514,9 @@ def bay_of(item: Equipment, building: BuildingModel) -> SlabElement | None:
     """The slab panel whose edge beams carry a tank: a tank (``kind`` "tank", loaded over its
     area) whose footprint is on one framed panel (:func:`framed_panel`) and covers at least
     :data:`BAY_SHARE` of it stands on that bay's beams (its walls on them, or its base spanning
-    to them), so its weight goes to the beams, not to the middle of the panel."""
+    to them), so its weight goes to the beams, not to the middle of the panel; so does one that
+    spans between two opposite beams of the bay (:func:`spanned_edges`, its walls deep beams
+    between them), whatever share of the bay it covers."""
     if item.kind != "tank" or item.loadAs != "area":
         return None
     levels = {s.id: s.elevation for s in building.stories}
@@ -511,9 +530,46 @@ def bay_of(item: Equipment, building: BuildingModel) -> SlabElement | None:
         panel = Polygon([(p[0], p[1]) for p in slab.boundary])
         if not panel.buffer(BEAM_TOLERANCE).covers(footprint) or panel.area <= 0:
             continue
-        if footprint.area / panel.area >= BAY_SHARE and framed_panel(slab, building):
+        if not framed_panel(slab, building):
+            continue
+        if footprint.area / panel.area >= BAY_SHARE or spanned_edges(slab, footprint):
             return slab
     return None
+
+
+def spanned_edges(slab: SlabElement, footprint: Polygon) -> tuple[int, int] | None:
+    """The two opposite edges (indexes) of a rectangular slab panel that a tank's footprint
+    reaches, each within :data:`BEAM_TOLERANCE`: the tank spans between those edges' beams (its
+    walls, deep beams, carry its weight to them), whatever share of the panel it covers. None
+    for a panel that is not a rectangle or a tank that does not reach two opposite edges."""
+    from shapely.geometry import LineString
+
+    corners = [np.asarray(c[:2], dtype=float) for c in slab.boundary]
+    if len(corners) != 4 or not is_rectangle(corners):
+        return None
+    edges = [LineString([corners[i], corners[(i + 1) % 4]]) for i in range(4)]
+    near = [footprint.distance(e) <= BEAM_TOLERANCE + 1e-6 for e in edges]
+    for a, b in ((0, 2), (1, 3)):
+        if near[a] and near[b]:
+            return a, b
+    return None
+
+
+def spanned_shares(
+    boundary: Sequence[Sequence[float]], point: Sequence[float], edges: tuple[int, int]
+) -> list[tuple[int, float]]:
+    """A tank spanning between two opposite edges hands its weight to those two only, by the
+    lever rule on its centre ``point``: ``(edge index, fraction)``."""
+    from shapely.geometry import LineString
+    from shapely.geometry import Point as ShapelyPoint
+
+    p = ShapelyPoint(point[0], point[1])
+    n = len(boundary)
+    da, db = (p.distance(LineString([boundary[i][:2], boundary[(i + 1) % n][:2]])) for i in edges)
+    total = da + db
+    if total <= 0:
+        return [(edges[0], 0.5), (edges[1], 0.5)]
+    return [(edges[0], db / total), (edges[1], da / total)]
 
 
 def heavy_on_slab(item: Equipment, building: BuildingModel) -> str | None:
