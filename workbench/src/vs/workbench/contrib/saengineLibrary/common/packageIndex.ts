@@ -54,11 +54,16 @@ export const TEST_INDEX_KEY: IPackageIndexKey = {
 };
 
 /**
- * The owner's index keys (decision D3): release builds accept only these. Empty until the owner
- * creates the key pair offline and commits its public half here and in the index repository
- * (keys/index-public.pem); until then a release build shows Browse as "not signed yet".
+ * The owner's index keys (decision D3): release builds accept only these. The private half stays
+ * offline with the owner; the public half is also keys/index-public.pem of the index repository.
+ * Rotating the key means a new entry here and an app release.
  */
-export const OWNER_INDEX_KEYS: readonly IPackageIndexKey[] = [];
+export const OWNER_INDEX_KEYS: readonly IPackageIndexKey[] = [
+	{
+		keyId: '79cc259c3d2aa2c7',
+		publicKey: '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAJ/rod3/rCn7F5fwkdPR6FwvXsYmniFfX6uXFEeABvBg=\n-----END PUBLIC KEY-----\n',
+	},
+];
 
 /** The keys this build accepts: the owner's, plus the TEST key in a development build. */
 export function acceptedIndexKeys(isBuilt: boolean): IPackageIndexKey[] {
