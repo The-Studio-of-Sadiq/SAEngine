@@ -76,7 +76,7 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
      `AreaLoad.superimposed()` and `AreaLoad.floor_live()`.
    - Seismic weight: the allowance counts with the live-load share. The 25 % / 50 % threshold is
      judged on live load plus partitions, so the default floor (2.0 + 1.2 kN/m²) takes 50 %.
-     *Reading to confirm.*
+     Confirmed by the owner on 2026-11-02. It follows from the partitions being live load.
 2. **Literal reading:** no change.
 3. **Steel rigid zone.**
    - Pack: `steelSeismic.practice.rigidZoneMax`.
