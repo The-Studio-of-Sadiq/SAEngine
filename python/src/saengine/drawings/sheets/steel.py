@@ -226,7 +226,7 @@ def boq_steel(
     the mass per member (its breakdown), where it came from and problems. ``10 BOQ/boq.json``
     when it was measured from the current building model, object types and materials; else
     measured again in memory by :mod:`saengine.boq.quantities` (nothing is written)."""
-    from saengine.library.bim import source_stamp
+    from saengine.pipeline.status import boq_source_stamp
 
     problems: list[str] = []
     doc = None
@@ -245,9 +245,10 @@ def boq_steel(
             problems.append("Steel: 10 BOQ/boq.json cannot be read; the masses are measured again.")
         else:
             recorded = doc.get("source") or {}
+            # The materials stamp of a bill that records its materialIds covers those entries only.
             stale = [
                 k for k in ("bim", "objects", "materials")
-                if texts.get(k) and recorded.get(k) != source_stamp(texts[k] or "")
+                if texts.get(k) and recorded.get(k) != boq_source_stamp(k, texts[k] or "", doc)
             ]  # fmt: skip
             if stale:
                 problems.append(
