@@ -1109,8 +1109,9 @@ class _Importer:
                 expected = 1.0 if case == "D" else SEISMIC_LIVE_SHARE if case == "L" else 0.0
                 if abs(factor - expected) > 1e-6:
                     differences.append(f"{case} × {factor:g} (SAEngine {expected:g})")
-        if yes("LUMPATSTORIES"):
-            differences.append("lumped at the stories (SAEngine keeps it at the nodes)")
+        # SAEngine lumps the mass at the story levels by default (analysis.massLumping, 0.0.44).
+        if "LUMPATSTORIES" in source and not yes("LUMPATSTORIES"):
+            differences.append("kept at the nodes (SAEngine lumps it at the story levels)")
         if differences:
             self.report.approximate(
                 f"mass source differs from SAEngine's seismic weight (D + SD + "

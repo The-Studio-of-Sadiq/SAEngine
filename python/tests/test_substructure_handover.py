@@ -281,7 +281,12 @@ def test_bill_measures_the_substructure_with_its_earthwork() -> None:
     # The sources: the substructure always, the settings when foundations were measured.
     # materialIds: the materials stamp covers only the ids the bill uses (fd915982).
     assert set(bill["source"]) == {
-        "bim", "objects", "materials", "materialIds", "substructure", "settings"
+        "bim",
+        "objects",
+        "materials",
+        "materialIds",
+        "substructure",
+        "settings",
     }
     # Of the settings only the ground level is recorded: another qa leaves the stamp alone.
     assert bill["source"]["settings"] == ground_level_stamp(0.0)
