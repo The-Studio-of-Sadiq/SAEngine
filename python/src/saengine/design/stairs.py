@@ -1,8 +1,8 @@
 """Design of reinforced-concrete waist-slab stairs (default pack BNBC 2020 Part 6 Sec 6.7, with the stair
 geometry rules of Part 3 Sec 1.14.5 and Part 4 Sec 3.10).
 
-Stairs are not in the analysis model (``saengine.fem.derive`` reports them as not modelled), so
-they are designed by hand methods, as a structural office does: each flight is a one-way slab
+Stairs are not in the analysis model's stiffness (their support reactions of this module load
+it: :mod:`saengine.fem.stair_loads`), so they are designed by hand methods, as a structural office does: each flight is a one-way slab
 spanning horizontally (default pack BNBC Sec 6.7.1.1: "the effective span of stairs without stringer beams
 shall be taken as the following horizontal distances"), loaded per plan area.
 
@@ -162,7 +162,7 @@ def _method() -> list[str]:
     """``METHOD``: the method text, with the clauses of the pack in force."""
     return [
         (
-            "Stairs (not in the analysis model): each flight a one-way slab spanning horizontally, "
+            "Stairs (not in the analysis model's stiffness; their reactions load it): each flight a one-way slab spanning horizontally, "
             f"per metre width, with the effective spans of {clause('stairs', 'spans')} (a)-(d) "
             "(between beams: centre to centre; at landing edges: going + min(landing/2, 1.0 m) "
             "each end; landings spanning with the flight: centre to centre of their supports; "

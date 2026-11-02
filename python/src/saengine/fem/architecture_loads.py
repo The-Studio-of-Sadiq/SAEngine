@@ -138,6 +138,7 @@ class SlabWallLoad:
     start: tuple[float, float, float]
     end: tuple[float, float, float]
     load: float
+    case: str = "SD"
 
 
 @dataclass(frozen=True)
@@ -209,33 +210,7 @@ def architecture_loads(
     """The loads of ``arch`` on ``building`` (object types ``objects``, an ObjectLibrary).
     ``mode``: ``analysis.partitionLoads`` (with "allowance" the walls are not applied)."""
     out = ArchitectureLoads()
-    elevations = {s.id: s.elevation for s in building.stories}
-    story_at = {round(z): sid for sid, z in elevations.items()}
-    levels = sorted(set(elevations.values()))
-    base = levels[0] if levels else 0.0
-    types = {t.id: t for t in objects.objects}
-
-    beams = [e for e in building.elements if isinstance(e, BeamElement)]
-    slabs = [e for e in building.elements if isinstance(e, SlabElement)]
-    fp_walls = [e for e in building.elements if isinstance(e, WallElement)]
-    fp_wall_ids = {e.id for e in fp_walls} | {e.source for e in fp_walls if e.source}
-
-    def beam_size(beam: BeamElement) -> tuple[float, float]:
-        extent = profile_extent(getattr(types.get(beam.type), "profile", None))
-        return extent if extent else (0.0, 0.0)
-
-    def strip(beam: BeamElement, reach: float) -> Any:
-        return LineString([beam.start, beam.end]).buffer(reach, cap_style="flat")
-
-    def at_level(z: float) -> tuple[list[tuple[BeamElement, Any]], list[tuple[SlabElement, Any]]]:
-        on = [(bm, strip(bm, beam_size(bm)[0] / 2 + ON_BEAM)) for bm in beams]
-        return (
-            [(bm, s) for bm, s in on if abs(bm.elevation - z) < LEVEL],
-            [(sl, Polygon(sl.boundary)) for sl in slabs if abs(sl.elevation - z) < LEVEL],
-        )
-
-    def thickness_of(type_id: str) -> float:
-        return float(getattr(types.get(type_id), "thickness", 0.0) or 0.0)
+    context = level_context(building, objects)
 
     wall_types = {t.id: t for t in arch.wallTypes}
     openings: dict[str, list[tuple[float, float, float, float]]] = {}
@@ -248,36 +223,9 @@ def architecture_loads(
     apply_walls = mode != "allowance"
     if apply_walls:
         for wall in arch.walls:
-            _wall(
-                wall,
-                wall_types[wall.type],
-                openings.get(wall.id, []),
-                _Context(
-                    elevations,
-                    base,
-                    story_at,
-                    at_level,
-                    beam_size,
-                    thickness_of,
-                    fp_walls,
-                    fp_wall_ids,
-                    {bm.id: bm for bm in beams},
-                ),
-                out,
-            )
+            _wall(wall, wall_types[wall.type], openings.get(wall.id, []), context, out)
 
     if apply_walls:
-        context = _Context(
-            elevations,
-            base,
-            story_at,
-            at_level,
-            beam_size,
-            thickness_of,
-            fp_walls,
-            fp_wall_ids,
-            {bm.id: bm for bm in beams},
-        )
         curtain_types = {t.id: t for t in arch.curtainWallTypes}
         for curtain in arch.curtainWalls:
             _wall(curtain, curtain_types[curtain.type], [], context, out, partition=False)
@@ -295,6 +243,7 @@ def architecture_loads(
             )
 
     uses = _uses()
+    elevations = context.elevations
     finishes = {t.id: t for t in arch.finishTypes}
     for room in arch.rooms:
         if room.story not in elevations:
@@ -451,6 +400,50 @@ class _Context:
     beam_of: dict[str, BeamElement]
 
 
+def level_context(building: BuildingModel, objects: Any) -> _Context:
+    """The beams, slabs and floor-plan walls of ``building`` by level, as the walls' pieces
+    look them up (also :mod:`saengine.fem.stair_loads`)."""
+    elevations = {s.id: s.elevation for s in building.stories}
+    story_at = {round(z): sid for sid, z in elevations.items()}
+    levels = sorted(set(elevations.values()))
+    base = levels[0] if levels else 0.0
+    types = {t.id: t for t in objects.objects}
+
+    beams = [e for e in building.elements if isinstance(e, BeamElement)]
+    slabs = [e for e in building.elements if isinstance(e, SlabElement)]
+    fp_walls = [e for e in building.elements if isinstance(e, WallElement)]
+    fp_wall_ids = {e.id for e in fp_walls} | {e.source for e in fp_walls if e.source}
+
+    def beam_size(beam: BeamElement) -> tuple[float, float]:
+        extent = profile_extent(getattr(types.get(beam.type), "profile", None))
+        return extent if extent else (0.0, 0.0)
+
+    def strip(beam: BeamElement, reach: float) -> Any:
+        return LineString([beam.start, beam.end]).buffer(reach, cap_style="flat")
+
+    def at_level(z: float) -> tuple[list[tuple[BeamElement, Any]], list[tuple[SlabElement, Any]]]:
+        on = [(bm, strip(bm, beam_size(bm)[0] / 2 + ON_BEAM)) for bm in beams]
+        return (
+            [(bm, s) for bm, s in on if abs(bm.elevation - z) < LEVEL],
+            [(sl, Polygon(sl.boundary)) for sl in slabs if abs(sl.elevation - z) < LEVEL],
+        )
+
+    def thickness_of(type_id: str) -> float:
+        return float(getattr(types.get(type_id), "thickness", 0.0) or 0.0)
+
+    return _Context(
+        elevations,
+        base,
+        story_at,
+        at_level,
+        beam_size,
+        thickness_of,
+        fp_walls,
+        fp_wall_ids,
+        {bm.id: bm for bm in beams},
+    )
+
+
 def _wall(
     wall: arch_lib.ArchWall,
     wall_type: Any,
@@ -459,12 +452,15 @@ def _wall(
     out: ArchitectureLoads,
     partition: bool = True,
     line_weight: float | None = None,
+    case: str = "SD",
+    heavy_note: bool = True,
 ) -> None:
     """The pieces of ``wall`` and their loads into ``out``. ``wall_type``: a wall type, or a
     curtain wall or railing type (its ``id``, ``thickness``, ``locationLine`` and ``weight``).
     ``partition``: a partition (its story drops the flat partition allowance); ``line_weight``:
     a load per metre run [kN/m] instead of the type's weight per m² times the clear height
-    (a railing's)."""
+    (a railing's); ``case``: the load case of its loads (SD; the stairs' D, SD and L);
+    ``heavy_note``: note a load on a slab above a light partition's."""
     elevations, base, story_at = ctx.elevations, ctx.base, ctx.story_at
     at_level, beam_size, thickness_of = ctx.at_level, ctx.beam_size, ctx.thickness_of
     fp_walls, fp_wall_ids, beam_of = ctx.fp_walls, ctx.fp_wall_ids, ctx.beam_of
@@ -636,7 +632,7 @@ def _wall(
                             wall.id,
                             beam.id,
                             story,
-                            "SD",
+                            case,
                             (a0 * MM, b0 * MM, floor * MM),
                             (a1 * MM, b1 * MM, floor * MM),
                             load * KN,
@@ -652,7 +648,7 @@ def _wall(
                             wall.id,
                             beam.id,
                             story,
-                            "SD",
+                            case,
                             (x * MM, y * MM, floor * MM),
                             total * KN,
                             ends,
@@ -662,14 +658,14 @@ def _wall(
                     out.wall_rows[-1]["point"] = True
             else:
                 _share, light, where = partition_rule()
-                if load > light:
+                if heavy_note and load > light:
                     out.notes.append(
                         f"{wall.id}: {load:.2f} kN/m on slab {member} is more than the "
                         f"{light:g} kN/m of a light partition ({where}): with slabs as loads to "
                         "beams it is spread over the panel; model the slabs as shells or put a "
                         "beam under it"
                     )
-                out.slabs.append(SlabWallLoad(wall.id, member, p0, p1, load * KN))  # type: ignore[arg-type]
+                out.slabs.append(SlabWallLoad(wall.id, member, p0, p1, load * KN, case))  # type: ignore[arg-type]
         along += length
 
 

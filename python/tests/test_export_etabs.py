@@ -23,7 +23,6 @@ from saengine.exporters.etabs import (
     library_shape,
     write_e2k,
 )
-from saengine.importers.common import file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
@@ -465,10 +464,13 @@ def check_round_trip(
     def factors(c: Any) -> tuple:
         return tuple(round(getattr(c, k), 6) for k in ("D", "L", "Lr", "WX", "WY", "EX", "EY"))
 
-    imported_combinations = file_combinations(imported.settings.combinations).values()
-    assert sorted(factors(c) for c in imported_combinations) == sorted(
-        {factors(c) for c in settings.combinations}
-    )
+    # The file's combinations that are the code pack's are kept once, as the pack's (OI-4):
+    # every combination of the project is there, none twice.
+    imported_combinations = imported.settings.combinations
+    assert {factors(c) for c in imported_combinations} >= {
+        factors(c) for c in settings.combinations
+    }
+    assert len({factors(c) for c in imported_combinations}) == len(imported_combinations)
 
 
 def test_tiny_model_round_trip(tmp_path: Path) -> None:
@@ -512,6 +514,23 @@ def test_sample_round_trip(tmp_path: Path) -> None:
     rotations = sorted(c.rotation for c in plan.columns)
     original = sorted(e.rotation for e in building.elements if e.kind == "column")
     assert rotations == pytest.approx(original)
+    # OI-3/OI-4 (walkthrough 3): what SAEngine wrote comes back. The MEP equipment's point
+    # loads on the slab come back as 07 MEP equipment (nothing left out), the mass source the
+    # file has (F x 1: SAEngine's W takes the contents in full) is not reported as different,
+    # the wall openings come back in their wall, the opening reaching past the slab's corner
+    # (O2) in its slab, and the slab live load is that of the net slab, as exported.
+    report = imported.report
+    assert not any(v for v in report.not_carried.values())
+    assert not any("mass source" in a["what"] for a in report.to_dict()["approximated"])
+    assert {o.host for o in imported.bim.additions.wallOpenings} == {"W1-Level-1"}
+    assert sorted(o.width for o in imported.bim.additions.wallOpenings) == [900.0, 1000.0]
+    assert "O2-Level-1" in {o.id for o in imported.bim.additions.slabOpenings}
+    assert report.carried["L"] == pytest.approx(result.report.carried["L"], rel=1e-6)
+    assert report.imported["equipment"] >= 4
+    assert "07 MEP/mep.json" in imported.texts
+    # The stair's reactions are in the file (OI-2): the top of its upper flight on beam B1.
+    assert 'LINELOAD  "B1"' in result.text
+    assert result.report.carried["D"] > 0
 
 
 def test_generated_building_round_trip(tmp_path: Path) -> None:
@@ -569,7 +588,10 @@ def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, cap
     # at 2.0 kN/m²), and the overhead tank's water as F. Since the owner decision of 2026-11-02
     # (635b7040) the partition allowance is live load too: the sample's floors add 1.2 kN/m²
     # (the code minimum, BNBC 2020 Part 6 Sec 2.3.6) on their 53.346 m², 107.012 + 64.015.
-    assert math.isclose(report["loads"]["exportedKN"]["L"], 171.027, rel_tol=1e-4)
+    # Since walkthrough 3 (OI-2) the stair's reactions are exported too: the top of ST1's upper
+    # flight on beam B1, its live load 4.8 kN/m² giving 9.943 kN/m over the 1.2 m flight width
+    # (11.932 kN; the rest of the stair stands on the ground at the base).
+    assert math.isclose(report["loads"]["exportedKN"]["L"], 171.027 + 11.932, rel_tol=1e-4)
     assert math.isclose(report["loads"]["exportedKN"]["F"], 47.9, rel_tol=1e-4)
 
 

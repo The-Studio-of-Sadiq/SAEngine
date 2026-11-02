@@ -1106,7 +1106,9 @@ class _Importer:
                 case = self.pattern_cases.get(pattern) or pattern
                 factors[case] = max(factors[case], factor)
             for case, factor in sorted(factors.items()):
-                expected = 1.0 if case == "D" else SEISMIC_LIVE_SHARE if case == "L" else 0.0
+                # SAEngine's W takes the dead loads and the equipment's contents (F, retained
+                # liquid: saengine.mep.loads) in full and the code pack's share of L.
+                expected = 1.0 if case in ("D", "F") else SEISMIC_LIVE_SHARE if case == "L" else 0.0
                 if abs(factor - expected) > 1e-6:
                     differences.append(f"{case} × {factor:g} (SAEngine {expected:g})")
         # SAEngine lumps the mass at the story levels by default (analysis.massLumping, 0.0.44).

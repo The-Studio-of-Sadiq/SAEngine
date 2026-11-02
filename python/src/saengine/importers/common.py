@@ -458,6 +458,12 @@ def _factor_key(combination: LoadCombination) -> tuple[tuple[str, float], ...]:
     return tuple(sorted((k, round(float(v), 6)) for k, v in factors.items() if v))
 
 
+def _full_key(combination: LoadCombination) -> tuple[tuple[str, float], ...]:
+    """All the factors of ``combination``, F included."""
+    factors = combination.model_dump(exclude={"name"})
+    return tuple(sorted((k, round(float(v), 6)) for k, v in factors.items() if v))
+
+
 # ─────────────────────────────────────────── ids ───────────────────────────────────────────
 
 
@@ -650,6 +656,7 @@ PATHS = {
     "floorPlan": "05 Floor Plan/floor-plan.json",
     "bim": "06 BIM/bim.json",
     "memberLoads": ll.LOADS_FILE,
+    "mep": "07 MEP/mep.json",
     "report": "import-report.json",
 }
 
@@ -1072,7 +1079,8 @@ class ProjectBuilder:
         wall_openings = self._build_walls(
             panels, [z for _, z in levels], story_at, types, at, ids, plan["walls"]
         )
-        openings = self._build_openings(slab_polygons, ids)
+        openings = self._build_openings(slab_polygons, ids, wall_openings)
+        self._net_areas(slab_ids, slab_polygons)
 
         supports = self._build_supports(base_z, column_bases)
 
@@ -1097,9 +1105,11 @@ class ProjectBuilder:
             ),
         )
         bim.supports = supports
+        self._slab_outlines = slab_polygons
         member_loads = self._build_member_loads(
             beam_of, column_of, placed, story_at, base_z, floor_plan
         )
+        equipment = self._build_equipment(story_at)
         lost = {k: v for k, v in report.not_carried.items() if abs(v) >= 0.0005}
         if lost:
             totals = ", ".join(f"{k} {v:.3g} kN" for k, v in sorted(lost.items()))
@@ -1134,6 +1144,10 @@ class ProjectBuilder:
         }
         if member_loads is not None:
             texts[PATHS["memberLoads"]] = json_text(member_loads)
+        if equipment:
+            from saengine.library.mep import MepModel
+
+            texts[PATHS["mep"]] = json_text(MepModel(equipment=equipment))
         texts[PATHS["report"]] = json_text(report.to_dict())
         return ImportedProject(
             self.name,
@@ -1181,6 +1195,7 @@ class ProjectBuilder:
         members, at supports or of cases SAEngine has no case for are reported as not carried.
         """
         report = self.report
+        self._slab_points: dict[Point3, list[tuple[str, float, _JointLoad]]] = {}
         if not self._member_loads and not self._joint_loads:
             return None
         frames = {f.name: f for f in self._frames}
@@ -1207,7 +1222,7 @@ class ProjectBuilder:
                 return None
             if math.hypot(fx, fy) > 1e-6 * abs(down):
                 report.note("loads.horizontal", example)
-            if case == "F":
+            if case == "F" and kind != "joint":
                 report.note("loads.fluid", example)
             return ("SD" if case in ("D", "F") else case), down
 
@@ -1271,6 +1286,8 @@ class ProjectBuilder:
                 ),
                 None,
             )
+            if j.case == "F" and (column is not None or not self._on_slab(x, y, z)):
+                report.note("loads.fluid", j.example)
             if column is not None and story is not None:
                 add(ll.PointLoad(**common, story=story, member=column, value=round(down, 6)), down)
                 continue
@@ -1292,15 +1309,88 @@ class ProjectBuilder:
                 )
                 add(load, down)
                 continue
+            if abs(z - base_z) > TOLERANCE and story is not None and self._on_slab(x, y, z):
+                # On a slab, away from the members: a point of 07 MEP equipment (built below).
+                self._slab_points.setdefault((x, y, z), []).append((case, down, j))
+                continue
             key = "loads.joint.support" if abs(z - base_z) <= TOLERANCE else "loads.joint.noMember"
             self.not_carried_item(key, j.case, down, j.example)
 
+        # Carried by the equipment built from the slab points (counted there).
+        for found in self._slab_points.values():
+            for _, down, j in found:
+                report.carried["D" if j.case in ("D", "F") else j.case or "other"] += down
         if not loads:
             return None
         # The code pack's wall types, as a new loads file has them (none without the table).
         result = ll.MemberLoads(wallTypes=ll.default_wall_types(), loads=loads)
         for problem in ll.check(result, plan):
             report.warn(f"Imported member loads: {problem}")
+        return result
+
+    def _on_slab(self, x: float, y: float, z: float) -> bool:
+        from shapely.geometry import Point, Polygon
+
+        return any(
+            abs(sz - z) <= TOLERANCE and Polygon(outline).buffer(TOLERANCE).contains(Point(x, y))
+            for _, outline, sz in getattr(self, "_slab_outlines", [])
+        )
+
+    def _build_equipment(self, story_at: Callable[[float], str | None]) -> list[Any]:
+        """The file's joint loads at points of a slab with no member (equipment loads an e2k
+        writes at its supports): one 07 MEP equipment item per point, standing on it
+        (``loadAs`` points, one support at its centre): the dead and fluid loads its empty
+        weight and contents, a live load its impact allowance (no share in the seismic
+        weight). A point with live load only is not carried (equipment has a weight)."""
+        from saengine.library.mep import Equipment
+
+        report = self.report
+        result = []
+        taken: set[str] = set()
+        for (x, y, z), found in getattr(self, "_slab_points", {}).items():
+            story = story_at(z)
+            by_case: dict[str, float] = defaultdict(float)
+            for case, down, j in found:
+                by_case["F" if j.case == "F" else case] += down
+            empty = by_case.get("SD", 0.0)
+            contents = by_case.get("F", 0.0)
+            live = by_case.get("L", 0.0) + by_case.get("Lr", 0.0)
+            weight = empty + contents
+            examples = ", ".join(j.example for _, _, j in found)
+            if story is None or weight <= 1e-9:
+                for case, down, j in found:
+                    report.carried["D" if j.case in ("D", "F") else j.case or "other"] -= down
+                    self.not_carried_item("loads.joint.noMember", j.case, down, j.example)
+                continue
+            impact = live / weight * 100 if live > 0 else None
+            item = Equipment(
+                id=_id(f"EQ-P{len(result) + 1}", taken),
+                name=f"Imported point load at ({x:.0f}, {y:.0f})",
+                story=story,
+                x=round(x, 3),
+                y=round(y, 3),
+                length=100.0,
+                width=100.0,
+                operatingWeight=round(weight, 6),
+                emptyWeight=round(empty, 6) if contents > 0 and empty > 0 else None,
+                impact=round(min(impact, 200.0), 6) if impact else None,
+                loadAs="points",
+                supports=[(0.0, 0.0)],
+            )
+            if contents > 0 and empty <= 0:
+                report.approximate(
+                    "point loads of fluid only as equipment whose weight is its contents' "
+                    "(SAEngine's equipment has an empty weight)",
+                    examples,
+                )
+            result.append(item)
+            report.count("equipment")
+        if result:
+            report.approximate(
+                "joint loads on slabs away from the members as 07 MEP equipment points (dead "
+                "load its weight, fluid its contents, live load its impact allowance)",
+                f"{len(result)} points",
+            )
         return result
 
     def _levels(self) -> list[tuple[str, float]]:
@@ -1392,6 +1482,8 @@ class ProjectBuilder:
 
         report = self.report
         result: list[WallOpening] = []
+        self._wall_lines: list[tuple[str, tuple[float, float], tuple[float, float], float, float]]
+        self._wall_lines = []
 
         def add_wall(
             name: str,
@@ -1417,6 +1509,7 @@ class ProjectBuilder:
                 }
             )
             report.count("walls")
+            self._wall_lines.append((wall_id, start, end, z0, z1))
             if abs(z0 - levels[0]) <= TOLERANCE:
                 self._wall_bases.append((start, end))
             return wall_id
@@ -1613,28 +1706,45 @@ class ProjectBuilder:
         return result
 
     def _build_openings(
-        self, slabs: list[tuple[str, list[tuple[float, float]], float]], ids: set[str]
+        self,
+        slabs: list[tuple[str, list[tuple[float, float]], float]],
+        ids: set[str],
+        wall_openings: list[WallOpening] | None = None,
     ) -> list[SlabOpening]:
-        from shapely.geometry import Point, Polygon
+        """The file's openings: plan rectangles as slab openings of the slab they cut most
+        (an opening reaching past the slab's edge is kept, as SAEngine cuts only the part in
+        the slab); vertical rectangles in an imported wall as its wall openings (appended to
+        ``wall_openings``)."""
+        from shapely.geometry import Polygon
 
         result = []
         for name, points in self._openings:
             xs, ys, zs = zip(*points, strict=True)
             plan = _distinct([(p[0], p[1]) for p in points])
             box = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            if max(zs) - min(zs) > TOLERANCE:
+                opening = self._wall_opening(name, points, ids)
+                if opening is not None and wall_openings is not None:
+                    wall_openings.append(opening)
+                    self.report.count("wallOpenings")
+                else:
+                    self.report.skip(
+                        "openings that are neither plan rectangles nor in a wall", name
+                    )
+                continue
             rectangle = len(plan) == 4 and math.isclose(abs(Polygon(plan).area), box, rel_tol=1e-3)
-            if max(zs) - min(zs) > TOLERANCE or not rectangle or box <= 0:
+            if not rectangle or box <= 0:
                 self.report.skip("openings that are not plan rectangles", name)
                 continue
             cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-            host = next(
-                (
-                    slab_id
-                    for slab_id, outline, z in slabs
-                    if abs(z - zs[0]) <= TOLERANCE and Polygon(outline).contains(Point(cx, cy))
-                ),
-                None,
-            )
+            hole = Polygon(plan)
+            cut = [
+                (Polygon(outline).intersection(hole).area, slab_id)
+                for slab_id, outline, z in slabs
+                if abs(z - zs[0]) <= TOLERANCE
+            ]
+            cut = [c for c in cut if c[0] > 1e-6 * box]
+            host = max(cut)[1] if cut else None
             if host is None:
                 self.report.skip("openings in no imported slab", name)
                 continue
@@ -1650,6 +1760,62 @@ class ProjectBuilder:
             )
             self.report.count("slabOpenings")
         return result
+
+    def _wall_opening(self, name: str, points: list[Point3], ids: set[str]) -> WallOpening | None:
+        """A vertical opening area as an opening of the imported wall whose plane it lies in
+        (None when it is not a rectangle in one)."""
+        plan = _distinct([(p[0], p[1]) for p in points])
+        zs = [p[2] for p in points]
+        for wall_id, start, end, z0, z1 in getattr(self, "_wall_lines", []):
+            length = math.dist(start, end)
+            if length <= TOLERANCE:
+                continue
+            ux, uy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
+            if any(abs((x - start[0]) * uy - (y - start[1]) * ux) > TOLERANCE for x, y in plan):
+                continue
+            along = [(x - start[0]) * ux + (y - start[1]) * uy for x, y in plan]
+            lo, hi, bottom, top = min(along), max(along), min(zs), max(zs)
+            if lo < -TOLERANCE or hi > length + TOLERANCE or bottom < z0 - TOLERANCE:
+                continue
+            if top > z1 + TOLERANCE or hi - lo <= TOLERANCE or top - bottom <= TOLERANCE:
+                continue
+            return WallOpening(
+                id=_id(name, ids),
+                host=wall_id,
+                offset=round(max(lo, 0.0), 3),
+                sill=round(max(bottom - z0, 0.0), 3),
+                width=round(hi - lo, 3),
+                height=round(top - bottom, 3),
+            )
+        return None
+
+    def _net_areas(
+        self,
+        slab_ids: dict[str, str],
+        slabs: list[tuple[str, list[tuple[float, float]], float]],
+    ) -> None:
+        """The slabs' areas [m²] less their openings (as SAEngine loads them), for the loads
+        carried over."""
+        from shapely.geometry import Polygon
+
+        outline = {slab_id: (Polygon(points), z) for slab_id, points, z in slabs}
+        holes = [
+            (Polygon(_distinct([(p[0], p[1]) for p in points])), points[0][2])
+            for _, points in self._openings
+            if max(p[2] for p in points) - min(p[2] for p in points) <= TOLERANCE
+            and len(_distinct([(p[0], p[1]) for p in points])) >= 3
+        ]
+        for name, slab_id in slab_ids.items():
+            polygon, z = outline.get(slab_id, (None, 0.0))
+            if polygon is None or not polygon.is_valid:
+                continue
+            cut = [h for h, hz in holes if abs(hz - z) <= TOLERANCE and h.is_valid]
+            if not cut:
+                continue
+            net = polygon
+            for hole in cut:
+                net = net.difference(hole)
+            self._area_m2[name] = net.area * 1e-6
 
     def _build_settings(self, slab_ids: dict[str, str], roof_slabs: set[str]) -> ProjectSettings:
         report = self.report
@@ -1749,16 +1915,35 @@ class ProjectBuilder:
         # follow, named "(from the file)", so their results can be compared with the file's.
         coded = strength_combinations()
         combinations: list[LoadCombination] = list(coded)
+        # A file whose combinations are the code pack's set (all the factors, F included: an
+        # e2k SAEngine wrote) does not repeat them "(from the file)"; a file with a set of its
+        # own keeps them all, to compare its results.
+        # (Without fluid loads in the file F is empty, and its factor does not matter.)
+        key_of = _full_key if fluid else _factor_key
+        pack_keys = {key_of(c) for c in coded}
+        adjusted = [
+            (name, self._live_factors(name, factors, roof_cases, floor_cases))
+            for name, factors in self._combinations
+        ]
+        file_keys = {key_of(LoadCombination(name=n, **{"F": 0.0, **f})) for n, f in adjusted}
+        all_pack = bool(adjusted) and file_keys == pack_keys
         seen: set[tuple[tuple[str, float], ...]] = set()
         names: set[str] = {c.name for c in coded}
         from_file = 0
-        for name, factors in self._combinations:
-            factors = self._live_factors(name, factors, roof_cases, floor_cases)
+        as_pack = 0
+        for name, factors in adjusted:
             no_fluid = "F" not in factors and not fluid and factors.get("D", 0.0) > 1.0
             if "F" not in factors:
                 factors = {**factors, "F": 0.0}
             combination = LoadCombination(name=name, **factors)
             key = _factor_key(combination)
+            if all_pack:
+                report.approximate(
+                    "combinations of the file that are the code pack's (kept once, as the pack's)",
+                    name,
+                )
+                as_pack += 1
+                continue
             if key in seen:
                 report.approximate(
                     "combinations with the same factors as another one dropped", name
@@ -1787,6 +1972,8 @@ class ProjectBuilder:
             + (
                 f", then the file's {from_file} named '(from the file)'"
                 if from_file
+                else f" (the file's {as_pack} are the same)"
+                if as_pack
                 else " (the file has none SAEngine can use)"
             )
             + " (02 Project Settings)."
