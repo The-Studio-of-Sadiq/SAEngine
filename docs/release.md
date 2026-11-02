@@ -85,6 +85,13 @@ setup is code-signed, that check should also verify the Authenticode signature (
 The smoke test runs the setup again as Compact and with `/COMPONENTS=` and checks that the
 components' folders go and come back.
 
+Each component is also a release asset of its own, `SAEngine-<version>-component-<name>.zip`, with
+the manifest `SAEngine-<version>-components.json` (`scripts/installer/component_zips.py`; the
+release workflow runs it after collecting the release files). For a setup built on a PC, run it
+after `build-installer.ps1` and upload its output with the setup:
+`python -I scripts/installer/component_zips.py --app VSCode-win32-x64 --version <version> --out dist`.
+The app offers them only once the setup is signed (D7).
+
 ## In-app update check
 
 Help, **Check for SAEngine Updates...** (also in the Command Palette), and once at start-up
