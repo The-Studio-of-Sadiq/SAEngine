@@ -56,6 +56,8 @@ CLOUD_LAYER = "S-REV"
 OWN_LAYERS = frozenset(name for name, *_ in LAYERS)
 #: Layers whose entities are never carried from the earlier sheet: SAEngine redraws them.
 NEVER_CARRIED = frozenset({CLOUD_LAYER, "S-VIEWPORT"})
+#: The sheet frame's layer: its rectangles are centred on the drawing area but are not content.
+FRAME_LAYERS = frozenset({"S-SHEET"})
 #: More than this share of the earlier sheet's entities on SAEngine's layers unknown to its
 #: index: the file was saved by a program that rewrote them (only other layers are kept then).
 RESAVED_SHARE = 0.25
@@ -197,7 +199,8 @@ def _in_area(sheet: Sheet, extent: tuple[float, float, float, float] | None) -> 
 def content_index(sheet: Sheet) -> list[tuple[str, tuple[float, float, float, float] | None]]:
     """The fingerprints of what is drawn in the sheet's drawing area (its views; not the frame,
     the title block, its notes or the revision clouds)."""
-    entities = [e for e in sheet.msp if str(e.dxf.get("layer", "0")) not in NEVER_CARRIED]
+    left_out = NEVER_CARRIED | FRAME_LAYERS
+    entities = [e for e in sheet.msp if str(e.dxf.get("layer", "0")) not in left_out]
     found = fingerprints(entities, sheet.scale)
     return [(k, e) for k, e in found if _in_area(sheet, e)]
 

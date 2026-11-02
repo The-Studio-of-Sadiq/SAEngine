@@ -61,7 +61,9 @@ def test_services_by_story():
     b = _building()
     items = mp.items_by_level(mp.MepDrawing(_mep()), b)
     # the riser on every story it rises through, the shaft from Base to Level 1
-    assert [i.mark for i in items["L2"] if i.discipline == "plumbing"] == ["R1 CW Ø50"]
+    # (the overhead tank, below, is the other plumbing item of L2)
+    plumbing = [i.mark for i in items["L2"] if i.discipline == "plumbing"]
+    assert [m for m in plumbing if not m.startswith("T1 ")] == ["R1 CW Ø50"]
     assert any(i.discipline == "shaft" for i in items["L1"])
     assert not any(i.discipline == "shaft" for i in items["L2"])
     # an overhead tank without a story on the top story, a soak well on the lowest

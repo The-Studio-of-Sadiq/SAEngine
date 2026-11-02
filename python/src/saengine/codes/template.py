@@ -155,6 +155,42 @@ TABLE_HELP: dict[str, str] = {
     "column strip width, the punching zone near columns, the trim bars of wall openings and "
     "the clause of each check (with slabMethods.openings and concrete.walls). A pack without "
     "it does not cover these checks.",
+    "accessibility": "Accessibility: the slope beyond which a walkway is a ramp, and the ramp "
+    "rules by kind (walkway, accessible, exit, vehicle, parking): slopes by rise, landings, "
+    "widths and handrails. A pack without it does not check ramps.",
+    "anchors": "Anchoring to concrete: the phi factors, the anchor steel limits, the concrete "
+    "breakout, pullout, side-face blowout and pryout constants, the tension-shear interaction, "
+    "the applicability, spacing and edge limits and the seismic factors. A pack without it does "
+    "not cover anchors.",
+    "citations": "Clause references the calculation report, its worksheets, the drawings and "
+    "the bill of quantities print, by key (short references, without the code's name).",
+    "composite": "Composite steel-concrete members: the design method, material limits, "
+    "modulus and stress block, phi and Omega factors, and the rules of composite columns, "
+    "beams and their shear connectors. A pack without it does not cover composite members.",
+    "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
+    "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
+    "cover cranes.",
+    "fatigue": "Fatigue of structural steel: the least number of cycles that needs a check, the "
+    "service stress limit, the stress range equations and the detail categories with their "
+    "constants and thresholds.",
+    "flood": "Flood, surge, rain and other loads: return periods, water levels and surge "
+    "regions, hydrostatic, hydrodynamic, breaking wave and impact loads, breakaway walls, "
+    "stability and flotation factors, rain on roofs (ponding to the secondary drainage), "
+    "helipads, explosions and shelters. A pack without it does not cover these loads.",
+    "isolation": "Seismically isolated buildings: damping coefficients, the isolation system's "
+    "spectrum, the static procedure's limits, restoring force, forces and their distribution, "
+    "drift, the spectrum and history analyses, overturning, torsion, prototype testing and the "
+    "design review. A pack without it does not cover isolation.",
+    "nonlinearHistory": "Nonlinear time history analysis: the procedure (the target, how the "
+    "records' results combine, scaling to the static base shear, P-delta, design review), the "
+    "drift limits and the member acceptance criteria.",
+    "steelSeismic": "Seismic design of steel structures: when the seismic provisions apply, the "
+    "systems with their expected strengths, toughness, width-to-thickness limits, columns, "
+    "splices and bases, moment frames, trusses, braced frames (concentric, eccentric, "
+    "buckling-restrained), plate shear walls and composite seismic systems.",
+    "steelStability": "Stability design of steel structures: the alpha factor, notional loads, "
+    "the limits of the analysis methods and the stiffness reductions of the direct analysis "
+    "method.",
 }
 
 #: Keys of pack.json, in the order the template writes them, with their help (written into the

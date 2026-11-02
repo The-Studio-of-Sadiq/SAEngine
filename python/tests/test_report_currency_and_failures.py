@@ -96,6 +96,13 @@ def test_the_other_sources_of_a_fresh_model_are_current_until_they_change(
         path.write_bytes(original.replace("\n", "\r\n").encode())  # line endings only
         assert _warnings(generated, model) == [], relative
         path.write_text(original + " ", encoding="utf-8")
+        if relative == "04 Objects/objects.json":
+            # The object types are stamped as parsed JSON without their bars (objects_stamp,
+            # N-X9, aca2f6ef): white space leaves the model current, a changed type does not.
+            assert _warnings(generated, model) == [], relative
+            document = json.loads(original)
+            document["objects"][0]["name"] = "renamed"
+            path.write_text(json.dumps(document), encoding="utf-8")
         assert _warnings(generated, model), relative
         path.write_text(original, encoding="utf-8")
     assert _warnings(generated, model) == []

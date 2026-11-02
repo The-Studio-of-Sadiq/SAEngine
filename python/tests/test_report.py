@@ -154,7 +154,8 @@ def test_member_design_marks_the_overloaded_beams(data: dict) -> None:
     design = data["design"]
     assert design["available"] and design["failed"] > 0
     tables = {t["kind"]: t for t in design["tables"]}
-    assert ["column", "beam"] == [t["kind"] for t in design["tables"]]  # columns first
+    # columns first; the diaphragm chords and collectors since T3 (b8098594)
+    assert ["column", "beam", "diaphragm"] == [t["kind"] for t in design["tables"]]
     beams = tables["beam"]
     assert beams["title"] == "Beams" and beams["count"] == 4
     for row, failing in zip(beams["rows"], beams["fails"], strict=True):
@@ -162,7 +163,9 @@ def test_member_design_marks_the_overloaded_beams(data: dict) -> None:
     assert any(row[-1] == "FAIL" and row[7] == OVERLOAD.name for row in beams["rows"])
     assert any("element(s) fail" in w for w in data["warnings"])
     assert design["method"] and any("ACI" in line for line in design["method"])
-    assert len(design["details"]) == 8
+    # the eight members and (T3) the diaphragm
+    assert [e["kind"] for e in design["details"]].count("diaphragm") == 1
+    assert len(design["details"]) == 9
     assert all(len(row) == 8 for e in design["details"] for row in e["rows"])
     # Verbatim in the limitations.
     assert data["limitations"]["design"] == design["notes"]

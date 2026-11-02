@@ -17378,6 +17378,41 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	SteelPlateWall: {
 		type: 'steelPlateWall',
 	},
+	SteelSplice: {
+		type: 'coverPlate',
+	},
+	ColumnBasePlate: {},
+	HssCapPlate: {},
+	SeismicIsolator: {},
+	GradeBeamWall: {},
+	MasonryAnchorBolts: {},
+	WallConfinement: {
+		concrete: 'C20.7',
+		rebar: 'B420DWR',
+	},
+	CompositeTopping: {
+		toppingThickness: 100,
+	},
+	CorbelBars: {
+		count: 3,
+		dia: 16,
+	},
+	Corbel: {
+		width: 300,
+		depth: 450,
+		edgeDepth: 300,
+		projection: 300,
+		mainBars: {
+			count: 3,
+			dia: 16,
+		},
+	},
+	BeamCorbels: {},
+	Helipad: {},
+	AirRaidShelter: {
+		storeysAbove: 1,
+	},
+	PDeltaFactors: {},
 	SlabShrinkage: {
 		freeStrain: 0.0004,
 		coefficient: 1.0,
