@@ -66,7 +66,12 @@ def test_new_pack_skeleton_changes_nothing(tmp_path: Path):
     assert {p.stem for p in (folder / "data").glob("*.json")} == set(parent)
     locations = json.loads((folder / "data" / "locations.json").read_text(encoding="utf-8"))
     assert set(locations) == {"$help", "$example"}
-    assert locations["$example"]["locations"]["dhaka"]["windSpeed"] == 65.7
+    # The example is the parent's first towns; since N-P4 (D1) the list is alphabetical, so
+    # Dhaka is no longer among them.
+    example = locations["$example"]["locations"]
+    first = next(iter(parent["locations"]["locations"]))
+    assert next(iter(example)) == first and len(example) == 2
+    assert example[first]["windSpeed"] == parent["locations"]["locations"][first]["windSpeed"]
 
     result = validate_pack(folder)
     assert result.ok and result.id == "my-region", result.problems
@@ -157,7 +162,8 @@ def test_named_list_help_is_followable(tmp_path: Path):
     help_ = json.loads((folder / "data" / "combinations.json").read_text(encoding="utf-8"))
     text = " ".join(help_["$help"])
     assert '{"name": "...", "$remove": true}' in text and "strength" in text
-    assert "no service combinations" in text and "overstrength" in text
+    # B9 (147471bf) added the service combinations to this table.
+    assert "service combinations" in text and "overstrength" in text
     strength = _bnbc()["combinations"]["strength"]
     dropped = strength[0]["name"]
     manifest = json.loads((folder / "pack.json").read_text(encoding="utf-8"))

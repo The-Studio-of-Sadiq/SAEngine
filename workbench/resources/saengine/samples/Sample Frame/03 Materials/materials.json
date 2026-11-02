@@ -246,7 +246,12 @@
 			},
 			"masonry": {
 				"unit": "first-class burnt clay brick",
-				"mortar": "M1-4"
+				"mortar": "M1-4",
+				"unitKind": "clay",
+				"specialInspection": false,
+				"units": "solid",
+				"grouting": "none",
+				"bond": "running"
 			},
 			"source": {
 				"note": "Typical unit weight ~18.85 kN/m³. Enter unit and prism strengths from tests."

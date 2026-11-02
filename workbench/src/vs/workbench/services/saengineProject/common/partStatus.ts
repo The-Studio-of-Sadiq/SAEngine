@@ -872,7 +872,8 @@ export function holdsDefaults(document: JsonObject, part: string): boolean {
 	const { codes: _codes, ...current } = document;
 	const expected = {
 		...defaults,
-		project: { name: object(document.project).name },
+		// The project's name and report language are the user's choices, not values to review.
+		project: { ...object(defaults.project), name: object(document.project).name, language: object(document.project).language },
 		codePack: document.codePack ?? defaults.codePack,
 		// The new-project form also picks the site and the building's use; the rest still needs review.
 		site: { ...object(defaults.site), location: object(document.site).location },

@@ -179,7 +179,8 @@ def test_boq_of_the_extras_by_hand() -> None:
     assert quantity("Roof covering: Cement screed") == pytest.approx(30 / math.cos(math.pi / 6))
     # Ramp: fill 3.0 m² × 0.2 m = 0.6 m³; finish 3.0 × 2.0396 / 2.0 = 3.0594 m² along the slope.
     assert quantity("Filling under ramps") == pytest.approx(0.6)
-    assert quantity("Ramp finish") == pytest.approx(3.0 * math.hypot(2.0, 0.4) / 2.0)
+    # The bill gives quantities to 3 decimals.
+    assert quantity("Ramp finish") == pytest.approx(3.0 * math.hypot(2.0, 0.4) / 2.0, abs=5e-4)
     assert quantity("Railing RL1") == pytest.approx(6.0)
 
 

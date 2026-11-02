@@ -52,9 +52,13 @@ def test_rankine_active_coefficient() -> None:
 
 
 def test_development_length_simplified() -> None:
-    # BNBC 2020 Part 6 Sec 8.2.3.2: ld = fy ψt ψe / (2.1 λ √f'c) db = 420 / (2.1 × 5) × 20
+    # BNBC 2020 Part 6 Sec 8.2.3.2: "20 mm diameter and larger bars" take 1.7 (2.1 is for 19 mm
+    # and smaller; the pack's development.smallBarMax 19):
+    # ld = fy ψt ψe / (1.7 λ √f'c) db = 420 / (1.7 × 5) × 20
     result = calculate("development-length", {"db": 20, "fy": 420, "fc": 25})
-    assert _step(result, "ld (tension)") == pytest.approx(800.0)
+    assert _step(result, "ld (tension)") == pytest.approx(420 / (1.7 * 5) * 20)
+    assert _step(calculate("development-length", {"db": 16, "fy": 420, "fc": 25}),
+                 "ld (tension)") == pytest.approx(420 / (2.1 * 5) * 16)  # fmt: skip
     # 8.2.4: ldc = max(0.24 fy db / √f'c, 0.043 fy db) = max(403.2, 361.2)
     assert _step(result, "ldc (compression)") == pytest.approx(403.2)
 

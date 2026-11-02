@@ -717,9 +717,11 @@ def test_library_bnbc_keeps_every_public_value_type_and_order():
         OLD_SITE_CLASSES
     )
     assert code_data.EXPOSURES == OLD_EXPOSURES
-    assert code_data.LOAD_CASES == OLD_LOAD_CASES and list(code_data.LOAD_CASES) == list(
-        OLD_LOAD_CASES
-    )
+    # The old cases keep their names and order; T2 (6bba9263) added H for basement walls and the
+    # flood table (51b39d5e) added R and Fa.
+    old_cases = {k: v for k, v in code_data.LOAD_CASES.items() if k in OLD_LOAD_CASES}
+    assert old_cases == OLD_LOAD_CASES and list(old_cases) == list(OLD_LOAD_CASES)
+    assert set(code_data.LOAD_CASES) - set(OLD_LOAD_CASES) == {"H", "R", "Fa"}
     assert code_data.STRENGTH_COMBINATIONS == OLD_STRENGTH
     assert [list(f) for _, f in code_data.STRENGTH_COMBINATIONS] == [
         list(f) for _, f in OLD_STRENGTH

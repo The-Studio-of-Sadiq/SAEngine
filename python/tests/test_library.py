@@ -257,6 +257,7 @@ def test_editor_templates_are_valid() -> None:
     from saengine.library import bim as b
     from saengine.library import floorplan as f
     from saengine.library import materials as m
+    from saengine.library import modifiers as md
     from saengine.library import settings as st
     from saengine.library import shapes as sh
     from saengine.library import structure as sm
@@ -274,7 +275,7 @@ def test_editor_templates_are_valid() -> None:
     for key, value in TEMPLATES.items():
         name = key.split(":")[0]
         assert name in schemas, f"{key} is not a schema definition"
-        module = next(x for x in (m, o, st, f, b, sm, sh) if hasattr(x, name))
+        module = next(x for x in (m, o, st, f, b, sm, sh, md) if hasattr(x, name))
         model = getattr(module, name)
         model.model_validate(value)
         if key.startswith("Material:"):

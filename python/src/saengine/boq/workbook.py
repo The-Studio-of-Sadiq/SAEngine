@@ -55,7 +55,8 @@ def _heading(sheet: Any, columns: list[str]) -> None:
     for cell in sheet[sheet.max_row]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="DDE4EE")
-    sheet.freeze_panes = sheet.cell(sheet.max_row + 1, 1)
+    # By its name: sheet.cell() would create the next row, and append() would then skip it.
+    sheet.freeze_panes = f"A{sheet.max_row + 1}"
 
 
 def write_boq_xlsx(
