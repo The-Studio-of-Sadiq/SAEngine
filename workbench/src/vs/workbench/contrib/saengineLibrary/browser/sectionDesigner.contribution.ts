@@ -116,6 +116,7 @@ registerAction2(class extends Action2 {
 		const project = accessor.get(ISaengineProjectService).project;
 		const fileService = accessor.get(IFileService);
 		const editorService = accessor.get(IEditorService);
+		const textModelService = accessor.get(ITextModelService);
 		if (!project) {
 			return;
 		}
@@ -138,7 +139,7 @@ registerAction2(class extends Action2 {
 		if (!await fileService.exists(resource)) {
 			const { concrete, rebar } = await defaultMaterials(fileService, project.root);
 			// The concrete of the object type the section is made for, else the project's.
-			const own = await objectTypeMaterial(accessor.get(ITextModelService), project.root, sectionId);
+			const own = await objectTypeMaterial(textModelService, project.root, sectionId);
 			await fileService.writeFile(resource, VSBuffer.fromString(serializeSection(newSection(sectionId, own ?? concrete, rebar))));
 		}
 		await editorService.openEditor({ resource, options: { pinned: true } });

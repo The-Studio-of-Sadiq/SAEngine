@@ -868,7 +868,7 @@ export class FemResultsEditor extends EditorPane {
 				...(inputs ? [localize('femResults.shorteningInputs', "Relative humidity {0} % ({1}), floor cycle {2} days, finishes and {3} % of the live load {4} days after completion, column steel ratio {5} %, service life {6} years{7}.",
 					inputs.humidity, inputs.exposure, inputs.cycle, Math.round(inputs.sustainedLive * 100), inputs.superimposedAfter, (inputs.steelRatio * 100).toFixed(2), inputs.serviceLife,
 					inputs.staged ? localize('femResults.shorteningStaged', ", dead load by the construction sequence") : localize('femResults.shorteningAtOnce', ", dead load at completion"))] : []),
-				...[clauses['creep'], clauses['creepFigure'], clauses['creepDevelopment'], clauses['shrinkageFigure'], clauses['reinforced'], clauses['phased'], clauses['effects']].filter((c): c is string => !!c),
+				...[clauses.creep, clauses.creepFigure, clauses.creepDevelopment, clauses.shrinkageFigure, clauses.reinforced, clauses.phased, clauses.effects].filter((c): c is string => !!c),
 				...(found.notes ?? []),
 			],
 		});
@@ -889,7 +889,7 @@ export class FemResultsEditor extends EditorPane {
 
 	/** The linear time-history design (B19): each suite's spectrum against the code's criterion, the suites' base shears and factors, the drifts. */
 	private renderTimeHistoryDesign(design: IFemTimeHistoryDesign): void {
-		const clauses = [design.clauses['records'], design.clauses['response']].filter(c => !!c).join('; ');
+		const clauses = [design.clauses.records, design.clauses.response].filter(c => !!c).join('; ');
 		const section = this.section(
 			localize('femResults.thDesignHeading', "Time History Design"),
 			design.use
@@ -954,7 +954,7 @@ export class FemResultsEditor extends EditorPane {
 					localize('femResults.okCol', "OK"),
 				],
 				rows: design.drift.map(d => [d.suite, d.direction, `${d.bottom} to ${d.top} m`, 100 * d.ratio, 100 * d.allowableRatio, d.ok ? yes : no]),
-				notes: design.clauses['drift'] ? [design.clauses['drift']] : undefined,
+				notes: design.clauses.drift ? [design.clauses.drift] : undefined,
 			});
 		}
 	}
@@ -1085,7 +1085,7 @@ export class FemResultsEditor extends EditorPane {
 			const last = modal.modes[modal.modes.length - 1];
 			captions.push(reached !== undefined
 				? localize('femResults.reached', "{0} reaches {1} % at mode {2}", axis, required, reached)
-				: localize('femResults.notReached', "{0} reaches only {1} % with {2} modes", axis, last && sum(last) !== null ? (100 * sum(last)!).toFixed(1) : '–', modal.modes.length));
+				: localize('femResults.massNotReached', "{0} reaches only {1} % with {2} modes", axis, last && sum(last) !== null ? (100 * sum(last)!).toFixed(1) : '–', modal.modes.length));
 		}
 		renderChart(grid, {
 			title: localize('femResults.participation', "Mass Participation"),
@@ -1122,7 +1122,7 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(this.grid(section), {
 			title: localize('femResults.spectrumTitle', "Sa(T) with the Modal Periods"),
 			xLabel: localize('femResults.periodAxis', "Period T [s]"),
-			yLabel: withUnit(localize('femResults.sa', "Sa"), unit),
+			yLabel: withUnit(localize('femResults.saAxis', "Sa"), unit),
 			series: [
 				{ name: localize('femResults.spectrumSeries', "Design spectrum"), color: 'blue', points: spectrum.periods.map((t, k) => [t, spectrum.accelerations[k] * unit.scale]) },
 				{

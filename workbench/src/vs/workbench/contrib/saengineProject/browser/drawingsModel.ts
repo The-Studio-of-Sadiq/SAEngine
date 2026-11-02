@@ -464,7 +464,7 @@ export function drawingSettingsRows(settings: IDrawingSettings): { readonly name
 		{ name: localize('drawings.approvedBy', "Approved by"), value: settings.approvedBy },
 		{ name: localize('drawings.projectNumber', "Project number"), value: settings.projectNumber },
 		{
-			name: localize('drawings.revision', "Revision"),
+			name: localize('drawings.revisionColumn', "Revision"),
 			value: revision ? [revision.code, revision.date, revision.description].filter(Boolean).join(' · ') : undefined,
 		},
 		{ name: localize('drawings.sheetSize', "Sheet size"), value: settings.sheetSize },
