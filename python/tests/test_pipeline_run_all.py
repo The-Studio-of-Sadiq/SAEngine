@@ -82,13 +82,15 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
     root, _, _, _ = ran
     design = (root / "08 FEM/model.results/design-summary.json").read_text(encoding="utf-8")
     assert design.startswith('{\n\t"checked": ') and design.endswith("}\n")
+    # counts: the run's one count for the part list (N-X8), as femDesign.ts designSummaryFile.
     assert list(json.loads(design)) == [
-        "checked", "passed", "failed", "maxUtilisation", "governing", "computed"]  # fmt: skip
+        "checked", "passed", "failed", "maxUtilisation", "governing", "computed", "counts"]  # fmt: skip
     foundations = json.loads(
         (root / "09 Substructure/substructure.results/summary.json").read_text(encoding="utf-8")
     )
-    assert list(foundations) == ["foundations", "checked", "total", "passed", "failed", "unsupported",
-                                 "status", "maxUtilisation", "governing", "computed", "source"]  # fmt: skip
+    assert list(foundations) == ["foundations", "checked", "total", "passed", "failed",
+                                 "bearingUnchecked", "unsupported", "status", "maxUtilisation",
+                                 "governing", "computed", "source"]  # fmt: skip
     project = open_project(root)
     for part, stamp in foundations["source"].items():
         text = project.text(part)

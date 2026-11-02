@@ -14,7 +14,7 @@ from saengine.fem.derive import derive_fem
 from saengine.fem.end_zones import element_offsets
 from saengine.library import FloorPlan, ObjectLibrary, default_floor_plan, default_material_library
 from saengine.library.bim import Additions, WallOpening, generate
-from saengine.library.settings import default_project_settings
+from saengine.library.settings import default_project_settings, partition_case
 
 G = 9.80665
 RHO = 2400.0  # kg/m³, concrete C24.1
@@ -204,9 +204,13 @@ def test_shell_slabs_carry_the_area_loads(tmp_path: Path) -> None:
     assert names == {"W1", "S1", "S2"}
     loads = {a.id: a for a in s.areaLoads}
     floor, roof = loads[s.floorLoad], loads[s.roofLoad]
-    sd = 30 * (floor.finish + floor.partitions + roof.finish + roof.partitions) * 1e3
+    # The partition allowance is live load by default (owner decision 2026-11-02, 635b7040),
+    # on the roof too (in L; the roof's own live load is Lr).
+    case = partition_case(s)
+    sd = 30 * (floor.superimposed(case) + roof.superimposed(case)) * 1e3
     assert total(d.project, "SD")[2] == pytest.approx(-sd, rel=1e-6)
-    assert total(d.project, "L")[2] == pytest.approx(-30 * floor.live * 1e3, rel=1e-6)
+    live = floor.floor_live(case) + roof.floor_live(case) - roof.live
+    assert total(d.project, "L")[2] == pytest.approx(-30 * live * 1e3, rel=1e-6)
 
     modal = next(a["id"] for a in d.project["analyses"] if a["type"] == "Modal")
     results = run(d.project, tmp_path, [1, 2, 7, modal])

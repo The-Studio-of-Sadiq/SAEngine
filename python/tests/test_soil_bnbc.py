@@ -409,7 +409,8 @@ def test_s2_flag_makes_the_site_sd_and_raises_amax() -> None:
     site = result["siteClass"]
     assert site["class"] == "SD" and site["flags"][0]["class"] == "S2"
     assert site["flags"][0]["boreholes"] == ["BH-1"]
-    assert site["flags"][0]["note"].startswith("S2 — liquefiable layers found: BNBC Table 6.2.13")
+    # The note cites the code pack's clauses (D3, 33855786), not "BNBC" by name.
+    assert site["flags"][0]["note"].startswith("S2 — liquefiable layers found: Table 6.2.13")
     assert result["boreholes"][0]["siteClass"]["fromSpt"] == "SC"
     assert result["amax"] == pytest.approx(2 / 3 * 0.20 * 1.35)  # S of SD, not 1.15 of SC
     assert any(n.startswith("S2 — liquefiable layers found") for n in result["notes"])

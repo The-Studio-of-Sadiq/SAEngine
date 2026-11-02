@@ -55,8 +55,16 @@ def test_default_is_empty_and_unbuilt() -> None:
         "schema": "saengine.bim/2",
         "stories": [],
         "elements": [],
-        "additions": {"slabOpenings": [], "wallOpenings": [], "stairs": [], "members": []},
+        # slabTendons: post-tensioned slabs (B30); towers: podium and towers (T11).
+        "additions": {
+            "slabOpenings": [],
+            "wallOpenings": [],
+            "stairs": [],
+            "members": [],
+            "slabTendons": [],
+        },
         "supports": [],
+        "towers": [],
     }
 
 

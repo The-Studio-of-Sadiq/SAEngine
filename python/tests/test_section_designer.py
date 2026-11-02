@@ -200,7 +200,9 @@ def test_analyse_reports_problems_and_results() -> None:
         steel.model_dump_json(by_alias=True), MATERIALS.model_dump_json(by_alias=True)
     )
     assert result["problems"] == [] and result["properties"]["area"] == pytest.approx(2000)
-    assert "concrete" in result["capacityNote"]
+    # A section without concrete gets the plastic (yield) diagrams since T20 (f4ffcef1).
+    assert result["capacityKind"] == "plastic" and "capacityNote" not in result
+    assert set(result["uniaxial"]) == {"x", "y"}
 
 
 # ─────────────────────────────────────── RC capacity ───────────────────────────────────────

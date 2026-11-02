@@ -468,7 +468,11 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
     assert report["code"] == "BNBC 2020 Part 6 Chapter 6"
     assert report["combinations"] == [GRAVITY.name]
     elements = {e["id"]: e for e in report["elements"]}
-    assert sorted(elements) == ["B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4"]
+    # The floor's diaphragm chords and collectors are an element of their own (T3, b8098594).
+    assert sorted(elements) == [
+        "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "Diaphragm Level 1"
+    ]  # fmt: skip
+    assert elements["Diaphragm Level 1"]["kind"] == "diaphragm"
     for beam in ("B1", "B2", "B3", "B4"):
         checks = {c["name"]: c for c in elements[beam]["checks"]}
         sagging = checks["Flexure, sagging (bottom bars)"]
@@ -499,10 +503,11 @@ def test_frame_beams_sag_at_midspan_and_hog_at_the_supports(frame: Path) -> None
         assert s["lu"] < 3200 and check["demand"] == pytest.approx(s["lu"] / s["r"], rel=1e-3)
     summary = report["summary"]
     members = summary["elements"]
-    assert members["checked"] == 8 and members["passed"] + members["failed"] == 8
+    # 4 beams, 4 columns and the diaphragm (T3).
+    assert members["checked"] == 9 and members["passed"] + members["failed"] == 9
     # The totals count the joints and the building's seismic checks too (X4).
     building = [c for c in (report["seismic"] or {}).get("checks", []) if not c["flag"]]
-    assert summary["checked"] == 8 + summary["joints"]["checked"] + len(building)
+    assert summary["checked"] == 9 + summary["joints"]["checked"] + len(building)
     assert summary["passed"] + summary["failed"] == summary["checked"]
     assert summary["failed"] == (
         members["failed"] + summary["joints"]["failed"] + sum(1 for c in building if not c["ok"])
@@ -524,7 +529,10 @@ def test_frame_members_without_reinforcement_are_skipped(frame: Path) -> None:
         MaterialLibrary.model_validate_json(read("03 Materials/materials.json")),
         ProjectSettings.model_validate_json(read("02 Project Settings/project-settings.json")),
     )
-    assert sorted(e["id"] for e in report["elements"]) == ["B1", "B2", "B3", "B4"]
+    # The floor's diaphragm (T3, b8098594) is checked on the beams' bars.
+    assert sorted(e["id"] for e in report["elements"]) == [
+        "B1", "B2", "B3", "B4", "Diaphragm Level 1"
+    ]  # fmt: skip
     skipped = {s["id"]: s["reason"] for s in report["skipped"]}
     assert skipped == {c: "no reinforcement" for c in ("C1", "C2", "C3", "C4")}
     assert report["summary"]["skipped"] == 4

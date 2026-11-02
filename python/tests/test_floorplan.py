@@ -137,7 +137,8 @@ def test_underlays() -> None:
         ([{"story": "L1", "file": "a.dxf"}, {"story": "L1", "file": "b.dxf"}], "one underlay"),
         ([{"story": "L1", "file": "../outside.dxf"}], "inside the 05 Floor Plan folder"),
         ([{"story": "L1", "file": "C:/plans/a.dxf"}], "inside the 05 Floor Plan folder"),
-        ([{"story": "L1", "file": "plan.pdf"}], "should match pattern"),
+        # DXF, DWG and PDF (651de124, architect input) are read; an image is not.
+        ([{"story": "L1", "file": "plan.png"}], "should match pattern"),
     ]:
         with pytest.raises(ValidationError, match=message):
             FloorPlan.model_validate(model(underlays=underlays))

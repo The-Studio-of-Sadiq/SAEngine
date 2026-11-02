@@ -151,15 +151,23 @@ def test_part_8_no_longer_designs_footings_and_part_9_designs_them_alike(
     assert all(e["kind"] != "footing" for e in report["elements"])
     assert DESIGNED_IN_PART_9 in report["notes"]
 
-    # The same footings in Part 9, moved there by the hand-over, check as Part 8 checked them
-    # (pinned: Part 8's footing_checks, removed in 0.0.46, gave these).
+    # The same footings in Part 9, moved there by the hand-over, check alike. Part 8's
+    # footing_checks (removed in 0.0.46) gave 106.86 kPa and 0.712. Since B5 (d72109de) the
+    # bearing takes the code pack's bearing combinations (qa raised under wind or earthquake):
+    # D + L governs, gross 122 kPa less γ Df = 27 kPa: 94.92 kPa net, 0.633 of qa. And the
+    # exterior footing depth governs the footing: the drawn footings found at 1.5 m, and with
+    # the soil at the base not known the code pack's 2 m of cohesionless soil applies (1.333).
     root = _analysed(_project(tmp_path, building), frame)
     ensure_migrated(root)
     new = {f["id"]: f for f in substructure_report(root)["foundations"]}
     assert sorted(new) == ["F1", "F2", "F3", "F4"]
     for foundation in new.values():
-        bearing = next(c for c in foundation["checks"] if c["name"].startswith("Bearing"))
-        assert (bearing["demand"], foundation["utilisation"]) == (106.86, 0.712)
+        checks = {c["name"]: c for c in foundation["checks"]}
+        bearing = checks["Bearing (service)"]
+        assert (bearing["demand"], bearing["utilisation"]) == (94.92, 0.633)
+        depth = checks["Exterior footing depth"]
+        assert (depth["demand"], depth["capacity"]) == (2000.0, 1500.0)
+        assert foundation["utilisation"] == depth["utilisation"] == 1.333
 
 
 # ─────────────────────────────── bill of quantities ───────────────────────────────
@@ -271,7 +279,10 @@ def test_bill_measures_the_substructure_with_its_earthwork() -> None:
     assert backfill["quantity"] == pytest.approx(excavation["quantity"] - solids, abs=3e-3)
     assert bill["items"][0]["code"] == "E.01"
     # The sources: the substructure always, the settings when foundations were measured.
-    assert set(bill["source"]) == {"bim", "objects", "materials", "substructure", "settings"}
+    # materialIds: the materials stamp covers only the ids the bill uses (fd915982).
+    assert set(bill["source"]) == {
+        "bim", "objects", "materials", "materialIds", "substructure", "settings"
+    }
     # Of the settings only the ground level is recorded: another qa leaves the stamp alone.
     assert bill["source"]["settings"] == ground_level_stamp(0.0)
     other_qa = SETTINGS_150.model_copy(
@@ -344,7 +355,7 @@ def test_a_placeholder_substructure_keeps_the_drawn_footings_in_the_bill() -> No
     assert bill["source"]["substructure"] == source_stamp(PLACEHOLDER)
     assert "settings" not in bill["source"]
     legacy = _bill(_drawn(), None, None)
-    assert set(legacy["source"]) == {"bim", "objects", "materials"}
+    assert set(legacy["source"]) == {"bim", "objects", "materials", "materialIds"}
 
 
 def test_boq_handler_reports_an_invalid_substructure() -> None:

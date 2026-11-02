@@ -173,7 +173,7 @@ def test_derived_model_has_the_live_load_arrangements() -> None:
     from saengine.fem.derive import derive_fem
     from saengine.fem.end_zones import element_offsets
     from saengine.library import default_material_library
-    from saengine.library.settings import default_project_settings
+    from saengine.library.settings import default_project_settings, partition_case
 
     building, objects = _three_bays_two_storeys()
     settings = default_project_settings("Arrangements")
@@ -201,7 +201,9 @@ def test_derived_model_has_the_live_load_arrangements() -> None:
         return out
 
     full = total("L")
-    live = next(a for a in settings.areaLoads if a.id == settings.floorLoad).live
+    # The partition allowance is live load by default (owner decision 2026-11-02, 635b7040).
+    floor = next(a for a in settings.areaLoads if a.id == settings.floorLoad)
+    live = floor.floor_live(partition_case(settings))
     assert full == pytest.approx(-live * 1e3 * 75.0, rel=1e-6)  # 3 bays of 5 x 5 m
     # Alternate bays 1 and 3, then 2; adjacent 1-2 and 2-3: their share of the floor.
     assert total("LP1") == pytest.approx(full * 2 / 3, rel=1e-6)

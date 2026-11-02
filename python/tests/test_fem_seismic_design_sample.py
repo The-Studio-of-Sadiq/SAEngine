@@ -52,8 +52,11 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # to the base, BNBC 2020 Part 6 Sec 2.5.7.3 counts what participates) and live loads above
     # 3 kN/m² count with 50 %: W = 718.2 kN, V = 0.05625 x 718.2 = 40.40 kN. Since 0.0.45 the
     # sample's floors are residential (live 2.0 kN/m² instead of the office's 2.4; x 0.25 in W:
-    # 26.7 kN instead of 32.0): W = 713.2 kN, V = 0.05625 x 713.2 = 40.12 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(40.12, rel=1e-3)
+    # 26.7 kN instead of 32.0): W = 713.2 kN, V = 0.05625 x 713.2 = 40.12 kN. Since 635b7040
+    # the partition allowance is live load (owner decision 2026-11-02): Level 1's 1.0 kN/m²
+    # counts with the live share, 25 % (live + partitions 3.0 kN/m², not above 3), instead of
+    # in full: 0.75 x 1.0 kN/m² over about 53 m² of floor, 40.0 kN less, W = 673.2 kN, V = 0.05625 x 673.2 = 37.87 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(37.87, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         assert 1.6 < scale[axis] < 2.4

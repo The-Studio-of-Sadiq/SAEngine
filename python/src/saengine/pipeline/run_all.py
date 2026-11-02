@@ -513,6 +513,14 @@ def run_analysis(
         "PYTHONIOENCODING": "utf-8",
         "PYTHONSAFEPATH": "1",
     }
+    # ``-P`` leaves PYTHONPATH alone: a relative entry (".", say) would name the project's
+    # folder in the child, so each entry is made absolute against this process's folder.
+    if os.environ.get("PYTHONPATH"):
+        env["PYTHONPATH"] = os.pathsep.join(
+            str(Path(entry).resolve())
+            for entry in os.environ["PYTHONPATH"].split(os.pathsep)
+            if entry
+        )
     last_error: str | None = None
     names: dict[int, str] = {}
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
