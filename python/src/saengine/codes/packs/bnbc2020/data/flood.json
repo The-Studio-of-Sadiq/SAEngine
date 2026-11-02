@@ -64,6 +64,7 @@
     "forceStatic": 2.4,
     "forceStaticWet": 1.9
   },
+  "waveCombination": "sum",
   "impact": {
     "debrisWeight": 4448.0,
     "duration": 0.03,
@@ -103,6 +104,7 @@
   },
   "notes": {
     "waterLevelReturnPeriod": "Table 6.2.26 notes (p. 672) give the 50-year column for category IV and the 100-year one for I-III, the reverse of Sec 2.6.3 (p. 667) and of the notes of Table 6.2.25 (p. 671); the larger 100-year level is taken for every category (the more conservative reading)",
+    "waveCombination": "SAEngine practice, not BNBC: the code gives no rule for taking the hydrodynamic load of moving water and the breaking wave load together; they are added (on the safe side). A project may take the larger of the two instead",
     "flotationFactor": "SAEngine practice, not BNBC: Sec 1.6.4 asks the building to resist flotation but gives no factor; the factor of safety of 1.5 of Sec 1.6.4 against overturning and sliding is used for flotation too",
     "shelter": "Table 6.2.28 rows read '< 2' and '3 - 4' storeys; 2 storeys falls in neither, so it takes the larger 34 kN/m² (the more conservative reading); the text of Sec 2.6.7.1 cites the table as 6.2.27",
     "explosion": "Figure 6.2.33(a) digitised at the axis ticks 1/30 ... 1/5 (its scale is not linear); 70 kN/m² below 1/30, the figure ends at 1/5 (held beyond, with a note); a guide only (Sec 2.6.6.1 (b))",

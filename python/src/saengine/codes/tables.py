@@ -188,6 +188,12 @@ class PartitionAllowance(_Row):
     lightMax: Positive = Field(
         description="Heaviest partition [kN/m] the uniform allowance stands in for."
     )
+    loadCase: Literal["L", "SD"] | None = Field(
+        default=None,
+        description="Load case the allowance belongs to: L (a live load: factored, reduced and "
+        "in the seismic weight as the floor live load) or SD (superimposed dead). Empty: L. A "
+        "project setting may choose either.",
+    )
 
 
 class VehicleLoads(_Row):
@@ -5929,6 +5935,12 @@ class FloodTable(TableModel):
     )
     hydrodynamic: FloodHydrodynamic
     breakingWave: BreakingWave | None = None
+    waveCombination: Literal["sum", "larger"] | None = Field(
+        default=None,
+        description="How the moving water's (hydrodynamic) and the breaking wave loads are "
+        "taken together: sum (added) or larger (the larger of the two, by its total per axis). "
+        "Empty: sum, on the safe side. A project setting may choose either.",
+    )
     impact: FloodImpact | None = None
     breakaway: BreakawayWalls | None = None
     stabilityFactor: Positive = Field(

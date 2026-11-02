@@ -1185,7 +1185,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
 			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", DEFAULT_CODE_TABLES.edition)}`;
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
-			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (finish, partitions). T applies to the temperature case (Analysis model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. Hover a column heading for its meaning.")));
+			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (finish; the partition allowance goes to L or SD as Analysis › Partition allowance as says). T applies to the temperature case (Analysis model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. Hover a column heading for its meaning.")));
 		}
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();

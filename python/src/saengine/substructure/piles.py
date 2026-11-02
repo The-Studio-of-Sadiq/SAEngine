@@ -59,10 +59,11 @@ driven
 cast-in-place pile (``drivenCastInPlace``) takes the unit values of a driven pile
 (:func:`capacity_kind`) on the round section of a bored one.
 
-Section: a bored pile is a circle of diameter D; a driven pile is a square precast pile of side
-B (``PileType.diameter``, as the BOQ measures it): shaft perimeter 4B and base area B², and its
-structural checks on the square section (:mod:`saengine.substructure.precast`, which also
-checks its handling and its least bars).
+Section: a bored pile is a circle of diameter D; a driven precast pile is square of side B
+(``PileType.diameter``, as the BOQ measures it: shaft perimeter 4B and base area B²) or, with
+``PileType.shape`` round, a circle of diameter B (πB and πB²/4); its structural checks are on
+that section (:mod:`saengine.substructure.precast`, which also checks its handling and its least
+bars).
 
 Units: m, kPa and kN inside; reported in mm, kPa and kN.
 """
@@ -75,6 +76,7 @@ from statistics import fmean
 from typing import Any
 
 from saengine.codes import context as code_context
+from saengine.library.substructure import is_square_pile as is_square
 from saengine.soil import piles as soil_piles
 from saengine.soil.profile import Profile, SoilLayer
 from saengine.substructure import pile_static
@@ -253,10 +255,11 @@ def capacity_kind(kind: str) -> str:
     return "driven" if kind == "drivenCastInPlace" else kind
 
 
-def section_shape(kind: str, size: float) -> tuple[float, float]:
-    """Shaft perimeter and section area of a pile of ``size`` (any unit): a bored pile a circle
-    of diameter ``size``, a driven precast pile a square of side ``size``."""
-    if kind == "driven":
+def section_shape(kind: str, size: float, shape: str | None = None) -> tuple[float, float]:
+    """Shaft perimeter and section area of a pile of ``size`` (any unit): a square of side
+    ``size`` (a square driven precast pile, :func:`is_square`), else a circle of diameter
+    ``size``."""
+    if is_square(kind, shape):
         return 4 * size, size * size
     return math.pi * size, math.pi * size**2 / 4
 
@@ -347,10 +350,12 @@ def single_pile(
     factors: FactorsOfSafety | None = None,
     unit_weight: float = CONCRETE_UNIT_WEIGHT,
     construction: tuple[str, str] | None = None,
+    shape: str | None = None,
 ) -> dict[str, Any]:
-    """Ultimate and allowable axial capacity [kN] of a circular pile D × L [m] whose head is
-    ``head`` m below the borehole's ground (see the module notes). ``construction``: the
-    drilled shaft's (K/K0, δ/φ) construction ids of the pack, for its β in sand."""
+    """Ultimate and allowable axial capacity [kN] of a pile D × L [m] whose head is ``head`` m
+    below the borehole's ground (see the module notes). ``construction``: the drilled shaft's
+    (K/K0, δ/φ) construction ids of the pack, for its β in sand. ``shape``: a driven precast
+    pile's, square (default) or round (:func:`section_shape`)."""
     if kind not in KINDS:
         raise ValueError(f"pile kind {kind!r}: {', '.join(KINDS)}")
     shape_kind, kind = kind, capacity_kind(kind)
@@ -368,7 +373,7 @@ def single_pile(
     given = factors or FactorsOfSafety()
     factors = given.for_method(method)
     tip = head + length
-    perimeter, area = section_shape(shape_kind, diameter)
+    perimeter, area = section_shape(shape_kind, diameter, shape)
     notes: list[str] = []
     raised = given.raised(method)
     if raised:
@@ -449,6 +454,7 @@ def single_pile(
     return {
         "borehole": profile.id,
         "kind": shape_kind,
+        "shape": "square" if is_square(shape_kind, shape) else "round",
         "method": method,
         "diameter": round(diameter * 1e3),
         "length": round(length * 1e3),
@@ -603,10 +609,12 @@ def capacity_table(
     method: str = "soilReport",
     factors: FactorsOfSafety | None = None,
     construction: tuple[str, str] | None = None,
+    shape: str | None = None,
 ) -> dict[str, Any]:
     """Allowable compression and uplift [kN] for each diameter × length [mm], as the soil
     reports tabulate them: ``{"diameters", "lengths", "rows", "borehole", "head", "method"}``,
-    each row ``{"D", "L", "Qs", "Qb", "W", "Qult", "Qa", "Ta"}``."""
+    each row ``{"D", "L", "Qs", "Qb", "W", "Qult", "Qa", "Ta"}``. ``shape``: a driven precast
+    pile's (:func:`section_shape`)."""
     method = method_id(method)
     rows = []
     for d in diameters:
@@ -620,6 +628,7 @@ def capacity_table(
                 method,
                 factors,
                 construction=construction,
+                shape=shape,
             )
             rows.append(
                 {
@@ -654,16 +663,18 @@ def structural_checks(
     service: float,
     combination: str | None = None,
     tension_combination: str | None = None,
+    shape: str | None = None,
 ) -> list[dict[str, Any]]:
     """Checks of the pile section [kN]: ``pu`` the largest factored compression, ``tu`` the
     largest factored tension (positive), ``service`` the largest service compression;
-    ``diameter`` in mm, f'c and fy in MPa, ``reinforcement`` a LinearReinforcement or None."""
+    ``diameter`` in mm, f'c and fy in MPa, ``reinforcement`` a LinearReinforcement or None;
+    ``shape`` a driven precast pile's (:func:`section_shape`)."""
     from saengine.design.check import _check
     from saengine.design.rc import DesignError, section_of
     from saengine.library.objects import CircleProfile, RectangleProfile
 
-    square = kind == "driven"
-    area = section_shape(kind, diameter)[1]  # mm²
+    square = is_square(kind, shape)
+    area = section_shape(kind, diameter, shape)[1]  # mm²
     shape = f"{diameter:.0f} mm square" if square else f"Ø{diameter:.0f}"
     checks: list[dict[str, Any]] = []
     section = None
@@ -839,6 +850,7 @@ def capacity_tables(
                 method,
                 factors,
                 shaft_construction(pile_type),
+                getattr(pile_type, "shape", None),
             )
             tables.append({"pileType": pile_type.id, **table})
     return {"tables": tables, "notes": notes}

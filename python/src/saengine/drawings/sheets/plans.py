@@ -375,7 +375,7 @@ def foundation_plan(building: Building, scale: float = 100) -> ViewSpec | None:
         for f in building.footings:
             view.polyline(f.outline, "S-FNDN", close=True)
             for centre, dia in f.piles:
-                view.circle(centre, dia / 2, "S-FNDN")
+                view.pile(centre, dia, f.pile_square, "S-FNDN")
         z = base.elevation + EPS * 2
         for c in building.columns:
             if c.bottom < z and c.top > z:
@@ -523,7 +523,7 @@ def pile_layout_plan(building: Building, scale: float = 100) -> ViewSpec | None:
             if c.bottom < z and c.top > z:
                 view.polyline(c.outline(), "S-COLS", close=True)
         for p in building.piles:
-            view.circle(p.centre, p.diameter / 2, "S-PILE")
+            view.pile(p.centre, p.diameter, p.square, "S-PILE")
             arm = p.diameter / 2 + view.real(1.0)
             view.line((p.centre[0] - arm, p.centre[1]), (p.centre[0] + arm, p.centre[1]), "S-PILE")
             view.line((p.centre[0], p.centre[1] - arm), (p.centre[0], p.centre[1] + arm), "S-PILE")

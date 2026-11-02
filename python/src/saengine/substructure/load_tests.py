@@ -202,7 +202,7 @@ def compression(test: Any, pile_type: Any, ep: float) -> dict[str, Any]:
     if test.test == "initial" and not test.group:
         from saengine.substructure.piles import section_shape
 
-        area = section_shape(pile_type.kind, d)[1]
+        area = section_shape(pile_type.kind, d, getattr(pile_type, "shape", None))[1]
         candidates = []
         if pile_type.kind == "driven":
             candidates.append(("Davisson offset limit", davisson(points, d, pile_type.length,

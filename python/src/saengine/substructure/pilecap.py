@@ -92,8 +92,8 @@ import numpy as np
 from saengine.codes import context as code_context
 from saengine.design import stm
 from saengine.design.rc import PHI_SHEAR, STEEL_E
+from saengine.design.rc_detailing import concrete_modulus, material_modulus
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
-from saengine.library.materials import concrete_modulus
 from saengine.library.objects import BarMesh
 from saengine.substructure import (
     downdrag,
@@ -749,14 +749,16 @@ def pile_cap_design(
     force ``[Hu, Hv]`` [N] per strength combination (:func:`saengine.substructure.pilehead.
     cap_shears`), the piles' head fixity and depth to fixity [mm]: the pile heads' shear and
     moment (:mod:`saengine.substructure.pilehead`). ``pile_modulus``: Ep of the pile [MPa] for
-    the settlement of the piles (default from the pile's f'c, or 4700 √25).
+    the settlement of the piles (default: the aggregate's Ec of the pile's f'c, or of 25 MPa).
 
     Returns ``{"checks", "piles", "group", "cap", "notes"}``: ``piles`` per pile its offsets
     [mm] and the largest and least service and factored loads [kN]."""
     from saengine.design.check import _check
-    from saengine.substructure.piles import structural_checks
+    from saengine.substructure.piles import is_square, structural_checks
 
     notes = list(spec.notes)
+    shape = pile.get("shape")
+    square = is_square(kind, shape)
     checks: list[dict[str, Any]] = []
     piles = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
     n = len(piles)
@@ -873,7 +875,7 @@ def pile_cap_design(
             )
     settlement = None
     if profile is not None and gravity_max[1] is not None:
-        modulus = pile_modulus or concrete_modulus((pile_section or {}).get("fc", 25.0))
+        modulus = pile_modulus or concrete_modulus((pile_section or {}).get("fc", 25.0))[0]
         settlement = pile_settlement.group_settlement(
             profile, pile, n, bg / 1e3, lg / 1e3, gravity_max[0] / 1e3, modulus
         )
@@ -1004,6 +1006,7 @@ def pile_cap_design(
             max(float(service_max.max()), 0.0) / 1e3 if service else 0.0,
             pu[1],
             tu[1],
+            shape,
         )
     if kind == "driven" and pile_section is not None:
         from saengine.substructure.precast import handling_checks
@@ -1015,6 +1018,7 @@ def pile_cap_design(
             pile_section["fy"],
             pile_section.get("reinforcement"),
             pile_section.get("unitWeight", 2400 * G * 1e-9),
+            square,
         )
     head_detail = None
     head_moments = None
@@ -1032,7 +1036,7 @@ def pile_cap_design(
             n,
             lateral["fixity"],
             lateral.get("depth"),
-            kind == "driven",
+            square,
         )
         checks += section_list
         if head_detail.get("note"):
@@ -1280,6 +1284,7 @@ def _pile_rules_checks(
     :mod:`load_tests`, :mod:`downdrag`). Sets ``out["pileRules"]``."""
     from saengine.design.check import _check
     from saengine.substructure.pilehead import head_actions
+    from saengine.substructure.piles import is_square
 
     checks: list[dict[str, Any]] = []
     notes: list[str] = []
@@ -1330,7 +1335,7 @@ def _pile_rules_checks(
         }
         checks += pile_lateral.unbraced_checks(
             spec.pile_diameter,
-            kind == "driven",
+            is_square(kind, getattr(pile_type, "shape", None)),
             section["fc"],
             section["fy"],
             section["ec"],
@@ -1447,7 +1452,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         head = 0.0
     design = ctx.substructure.design
     fos = design.factorOfSafety
-    pile_ep = pile_concrete.mechanical.E or concrete_modulus(pile_concrete.concrete.fc)
+    pile_ep = material_modulus(pile_concrete)[0]
     tests = load_tests.pile_type_tests(
         getattr(ctx.substructure, "loadTests", []), pile_type, pile_ep
     )
@@ -1472,6 +1477,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
             factors,
             (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
             construction,
+            getattr(pile_type, "shape", None),
         )
     except ValueError as error:
         raise Skip(str(error)) from error
@@ -1521,6 +1527,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         pile_ep,
         fixity,
         pile_lateral.soil_ratio(ctx.settings),
+        getattr(pile_type, "shape", None),
     )
     depth = getattr(pile_type, "fixityDepth", None)
     if not depth and stiffness is not None:
@@ -1546,7 +1553,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
         loads.dead,
         kind,
         {"shears": strength_shears, "fixity": fixity, "depth": depth},
-        pile_concrete.mechanical.E or concrete_modulus(pile_concrete.concrete.fc),
+        material_modulus(pile_concrete)[0],
     )
     extra, extra_notes = _pile_rules_checks(
         ctx,
@@ -1579,7 +1586,15 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
     table = capacity_table(
-        profile, kind, diameters, lengths, head, design.pileCapacity, factors, construction
+        profile,
+        kind,
+        diameters,
+        lengths,
+        head,
+        design.pileCapacity,
+        factors,
+        construction,
+        getattr(pile_type, "shape", None),
     )
     members = list(dict.fromkeys(c.id for c in spec.columns))
     # The piles need not be centred on the columns (the cap is formed over piles on their own

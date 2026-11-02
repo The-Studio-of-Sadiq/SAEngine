@@ -63,7 +63,12 @@ from saengine.library.defaults import default_material_library
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import Category, MaterialDefaults
 from saengine.library.objects import ObjectLibrary
-from saengine.library.settings import LocationId, ProjectSettings, default_project_settings
+from saengine.library.settings import (
+    LocationId,
+    ProjectSettings,
+    default_project_settings,
+    partition_case,
+)
 from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure
 from saengine.library.templates import TEMPLATES
 
@@ -1283,8 +1288,13 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     special = sdc == "D" or system_id in ("rcSmf", "rcDualSpecial")
     floor_load = next(a for a in final.areaLoads if a.id == final.floorLoad)
     roof_load = next(a for a in final.areaLoads if a.id == final.roofLoad)
-    q_floor_sd = floor_load.finish + floor_load.partitions
-    q_roof_sd = roof_load.finish + roof_load.partitions
+    part_case = partition_case(final)
+    q_floor_sd = floor_load.superimposed(part_case)
+    q_roof_sd = roof_load.superimposed(part_case)
+    # The floor live load with the partition allowance where the code pack makes it live; on
+    # the roof that allowance is floor live load L too, not roof live load.
+    q_floor_live = floor_load.floor_live(part_case)
+    q_roof_partitions = roof_load.floor_live(part_case) - roof_load.live
     notes.append(
         f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
         f"{final.site.siteClass}"
@@ -1482,7 +1492,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                 for k in range(n, 0, -1):
                     before = pd
                     sd = q_roof_sd if k == n else q_floor_sd
-                    q_live = roof_load.live if k == n else floor_load.live
+                    q_live = roof_load.live if k == n else q_floor_live
                     for a, b in adjacent_panels(i, j):
                         area = (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
                         t = slab_of[(a, b)][0]
@@ -1490,6 +1500,8 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                         pd += area * (t / 1000 * gamma + sd)
                         if k == n:
                             pr += area * q_live
+                            p += area * q_roof_partitions
+                            pl += area * q_roof_partitions
                         else:
                             pl += area * q_live
                     if not flat:
@@ -1514,7 +1526,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                                 (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
                                 for a, b in adjacent_panels(i, j)
                             )
-                            * floor_load.live
+                            * q_floor_live
                         )
         # The seismic weight of each level as the analysis model counts it (fem.derive): the
         # dead load, the code's share of the floor live load (no roof live) and the beams at
@@ -1589,7 +1601,9 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     governing: dict[tuple[int, str], str] = {}
     seismic_on = sdc in ("C", "D")
     lateral_on = s.lateralSizing == "auto" and (seismic_on or sdc == "B")
-    ec = concrete.mechanical.E or 4700 * math.sqrt(fc)
+    from saengine.design.rc_detailing import material_modulus
+
+    ec = material_modulus(concrete, fc=fc)[0]
 
     # ── stiffness: storey drifts and period (preliminary), before the P-M sizing ──
     # The frames' estimated drifts and period (stiffness_estimate) against the code's limits;
@@ -1742,7 +1756,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             stem = bw / 1000 * (bh - t_least) / 1000 * gamma
             beam_loads[edge] = (
                 strip * (t_least / 1000 * gamma + q_floor_sd) + stem,
-                strip * floor_load.live,
+                strip * q_floor_live,
             )
         frame_beams = {e: v for e, v in beam_size.items() if e not in core_lines}
         es = rebar.mechanical.E or 200_000.0

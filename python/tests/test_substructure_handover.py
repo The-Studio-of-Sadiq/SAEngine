@@ -328,10 +328,10 @@ def test_piles_and_rafts_and_a_deeper_ground() -> None:
     # PC1 is of an earlier version without a centre: its piles are placed from C1 (PL1, PL2).
     assert any(n.startswith("PL1: pile type 'P1' has no reinforcement") for n in bill["notes"])
     assert _item(bill, "raft", "concrete")["quantity"] == pytest.approx(8 * 2 * 0.6)
-    # Ground at +0.5 m: the caps (no founding level: 1.5 m below it, at -1.0 m) and the raft
-    # (at -1.0 m) are dug 1.575 m deep: 3.1 x 1.6 per cap, 8.6 x 2.6 for the raft.
+    # Ground at +0.5 m: the caps (no founding level: 2.0 m below it, at -1.5 m) are dug 2.075 m
+    # and the raft (at -1.0 m) 1.575 m deep: 3.1 x 1.6 per cap, 8.6 x 2.6 for the raft.
     excavation = _item(bill, "excavation", "earthwork")
-    assert _share(excavation, "PC1") == pytest.approx(3.1 * 1.6 * 1.575, abs=2e-3)
+    assert _share(excavation, "PC1") == pytest.approx(3.1 * 1.6 * 2.075, abs=2e-3)
     assert _share(excavation, "R1") == pytest.approx(8.6 * 2.6 * 1.575, abs=2e-3)
 
 
@@ -394,11 +394,11 @@ def test_ifc_has_the_substructure_foundations_in_place_of_the_drawn_ones() -> No
     piles = [entity(k) for k in ("PL1", "PL2")]
     assert all(p.is_a("IfcPile") and p.PredefinedType == "BORED" for p in piles)
     # Placements: the footing's underside at its founding level, the piles below the cap
-    # (C3's cap founds 1.5 m below the ground: its piles' feet at -11.5 m).
+    # (C3's cap founds 2.0 m below the ground: its piles' feet at -12.0 m).
     z = entity("F1").ObjectPlacement.RelativePlacement.Location.Coordinates[2]
     assert z == pytest.approx(-1500)
     foot = piles[0].ObjectPlacement.RelativePlacement.Location.Coordinates
-    assert foot[2] == pytest.approx(-1500 - 10000)
+    assert foot[2] == pytest.approx(-2000 - 10000)
     # The handler takes the substructure's and the settings' texts.
     result = handlers.building_ifc(
         _drawn().model_dump_json(by_alias=True),
@@ -430,7 +430,7 @@ def test_foundation_solids_place_strips_rafts_and_default_centres() -> None:
     )  # fmt: skip
     solids = foundation_solids(substructure, generate(PLAN, "s"), 0.0)
     combined, strip = solids.foundations
-    assert combined.center == pytest.approx((3000, 0)) and combined.bottom == -1500
+    assert combined.center == pytest.approx((3000, 0)) and combined.bottom == -2000
     assert sorted(combined.outline) == sorted(
         [(-1000, -750), (7000, -750), (7000, 750), (-1000, 750)]
     )

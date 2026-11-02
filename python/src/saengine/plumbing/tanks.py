@@ -381,7 +381,9 @@ def tank_spec(tank: dict[str, Any], context: TankContext) -> TankSpec:
     if rebar is None or getattr(rebar, "steel", None) is None:
         raise ValueError(f"tank {tank.get('id')}: rebar {rebar_id} is not in the materials")
     fc = float(concrete.concrete.fc)
-    E = float(concrete.mechanical.E or 4700 * math.sqrt(fc))
+    from saengine.design.rc_detailing import material_modulus
+
+    E = material_modulus(concrete, fc=fc)[0]
     return TankSpec(
         id=str(tank.get("id") or "T"),
         kind=kind,

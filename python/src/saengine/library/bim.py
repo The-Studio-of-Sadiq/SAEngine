@@ -39,6 +39,7 @@ from saengine.library.modifiers import (
 )
 from saengine.library.objects import ObjectLibrary
 from saengine.library.structure import StructuralModel
+from saengine.library.substructure import DEFAULT_FOUNDING_DEPTH
 
 SCHEMA_ID = "saengine.bim/2"
 
@@ -348,8 +349,9 @@ class SlabTendon(_Model):
     jacking: float = Field(
         default=0.80,
         gt=0,
-        le=0.94,
-        description="Jacking stress / fpu (at most 0.80 fpu and 0.94 fpy).",
+        lt=1,
+        description="Jacking stress / fpu, checked against the code pack's jacking limits (on "
+        "fpu and fpy) and its tendon stress limits after transfer.",
     )
     bonded: bool = Field(default=False, description="Grouted (bonded) tendons; else unbonded.")
     stressedAt: Literal["start", "end", "both"] = Field(
@@ -849,7 +851,7 @@ class PileSolid:
     id: str
     cap: str
     pile_type: str
-    kind: str  # bored | driven
+    kind: str  # bored | driven | drivenCastInPlace
     x: float
     y: float
     head: float
@@ -857,6 +859,7 @@ class PileSolid:
     diameter: float
     material: str
     reinforcement: Any
+    square: bool = False  # a square driven precast pile (side ``diameter``); else round
 
 
 @dataclass(frozen=True)
@@ -901,7 +904,7 @@ def foundation_solids(
 ) -> FoundationSolids:
     """The foundations, piles and tie beams of ``substructure`` (a
     :class:`~saengine.library.substructure.Substructure`) as solids. A foundation without a
-    founding level founds 1.5 m below ``ground_level``
+    founding level founds 2.0 m below ``ground_level``
     (:meth:`~saengine.library.substructure.Foundation.founding_level`); one without a centre sits
     at the centroid of its columns."""
     from shapely.geometry import LineString, Polygon
@@ -995,7 +998,7 @@ def foundation_solids(
         plans[f.id] = polygon
     # Every pile placed in plan: under its cap (head at the cap's underside), or, not yet under
     # one, with its head at the default founding level (it is still built and measured).
-    default_head = ground_level - 1500.0
+    default_head = ground_level - DEFAULT_FOUNDING_DEPTH
     for placed in substructure.piles:
         pile = pile_types.get(placed.type)
         if pile is None:
@@ -1016,6 +1019,7 @@ def foundation_solids(
                 diameter=pile.diameter,
                 material=pile.material,
                 reinforcement=pile.reinforcement,
+                square=pile.square,
             )
         )
     tops = {s.id: s.top for s in solids.foundations}

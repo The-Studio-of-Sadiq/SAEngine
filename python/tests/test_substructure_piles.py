@@ -251,6 +251,31 @@ def test_structural_checks_of_the_pile_section() -> None:
     assert stress["capacity"] == pytest.approx(0.33 * 30) and stress["demand"] == pytest.approx(
         300e3 / 400**2, abs=0.01
     )
+    # A round driven precast pile (the engineer's choice): area π B² / 4.
+    round_ = {
+        c["name"]: c
+        for c in piles.structural_checks("driven", 400, 30, 420, None, 500, 0, 300, shape="round")
+    }
+    assert round_["Pile axial compression (plain section)"]["capacity"] == pytest.approx(
+        0.36 * 30 * math.pi * 400**2 / 4 / 1e3, abs=0.01
+    )
+
+
+def test_driven_pile_shape_sets_perimeter_and_area() -> None:
+    """Square (the default, also for piles saved without a shape) 4B and B²; round πB and
+    πB²/4; the shape does not change bored or driven cast-in-place piles."""
+    assert piles.section_shape("driven", 0.4) == pytest.approx((1.6, 0.16))
+    assert piles.section_shape("driven", 0.4, "round") == pytest.approx(
+        (math.pi * 0.4, math.pi * 0.04)
+    )
+    assert piles.section_shape("bored", 0.4, "square") == pytest.approx(
+        (math.pi * 0.4, math.pi * 0.04)
+    )
+    p = profile(CLAY_ON_SAND)
+    square = piles.single_pile(p, "driven", 0.4, 12.0, 1.5)
+    round_ = piles.single_pile(p, "driven", 0.4, 12.0, 1.5, shape="round")
+    assert (square["shape"], round_["shape"]) == ("square", "round")
+    assert round_["Qs"] == pytest.approx(square["Qs"] * math.pi / 4, rel=1e-3)
 
 
 # ─────────────────────────────── pile groups ───────────────────────────────

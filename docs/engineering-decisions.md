@@ -56,6 +56,63 @@ here, newest first, with the date, the question, the decision, the reason and wh
 | 9 | T19 driven piles (#79) | Driven piles had become squares (perimeter 4B, area B²), which changed existing results. | **The engineer chooses square or round. Square is the default.** Old projects read as square. | Precast RC driven piles in Bangladesh are usually square, but round ones exist. |
 | 10 | B16 flood loads (#130) | Should the moving-water (hydrodynamic) load and the breaking-wave load be summed, or should the larger one be taken? | **Both methods are offered. Sum is the default** (SAEngine practice, conservative). The report names the method used. | The wave acts on the front face while the current loads the whole element. Some engineers read them as alternatives. |
 
+### Where they live, and how to change them
+
+Each item gives the pack value, the project override, and the fallback when the pack is silent.
+
+1. **Partitions.**
+   - Pack: `areaLoads.partitions.loadCase` (`"L"` or `"SD"`).
+   - Project: a setting with the same choice.
+   - Fallback: `"L"`, named in the report.
+   - Engine: one helper, `partition_case_basis` in `library/settings.py`. Every load, mass,
+     live-load-reduction, design, generator and ETABS-export path goes through
+     `AreaLoad.superimposed()` and `AreaLoad.floor_live()`.
+   - Seismic weight: the allowance counts with the live-load share. The 25 % / 50 % threshold is
+     judged on live load plus partitions, so the default floor (2.0 + 1.2 kN/m²) takes 50 %.
+     *Reading to confirm.*
+2. **Literal reading:** no change.
+3. **Steel rigid zone.**
+   - Pack: `steelSeismic.practice.rigidZoneMax`.
+   - Project: `analysis.steelRigidZoneFactor`. Concrete keeps `analysis.rigidZoneFactor`.
+   - Fallback: 0.
+   - Engine: `design/steel/seismic.py` (`steel_rigid_zone_factor`) and `fem/derive.py`. The
+     source is written into `faces.json`.
+4. **Pile settlement:** no change. The pack switch is `skinDenominator`.
+5. **PT template:** `library/templates.py`, `SlabTendon` template, `jacking: 0.75`. The
+   after-transfer ratio becomes 0.948 and the anchorage ratio 0.988. The stress limits come from
+   the pack, and a user's tendons keep their own jacking.
+6. **Brick E.**
+   - Pack: `concrete.modulus` and `concrete.aggregates`.
+   - Project: the aggregate setting, or a typed E on the material.
+   - Engine: one helper, `material_modulus` in `design/rc_detailing.py`, used by analysis,
+     design, nonlinear, SSI, substructure, tanks, lintels, worksheets, the report and the ETABS
+     export. Nothing is written back to the material file.
+   - Limit: a typed E that equals the stone default can't be told apart from the default yet.
+     That needs an "E follows f'c" flag on the material.
+7. **Founding depth.**
+   - App default: `DEFAULT_FOUNDING_DEPTH` in `library/substructure.py` and the substructure
+     editor.
+   - Project: each foundation's founding level overrides it.
+   - Code minimum: stays in the pack (`foundations.json`).
+   - Note: any foundation saved without a founding level now founds at 2.0 m.
+8. **Joint top bars.**
+   - Project: `construction.jointTopBars` (`auto`, `x`, `y` or `sameLayer`).
+   - Auto rule: the deeper beam stays outer. On a tie, the direction with the longer mean span
+     stays outer.
+   - Engine: `design/rc_detailing.py`, `design/check.py`, `design/proposal.py`,
+     `drawings/detailing.py` and `drawings/cages.py`.
+   - Not changed: the bottom-bar crossing flag.
+9. **Driven pile shape.**
+   - Member: the pile type's `shape` (`square` or `round`). Old files read as square.
+   - Engine: one rule, `is_square_pile` in `library/substructure.py`, used by capacity,
+     settlement, downdrag, pile-cap design, precast handling, detailing, SSI, BOQ, IFC and the
+     drawings.
+10. **Flood.**
+    - Pack: `flood.waveCombination` (`"sum"` or `"larger"`).
+    - Project: `site.flood.waveCombination` (`pack`, `sum` or `larger`).
+    - Fallback: `"sum"`.
+    - Engine: `fem/flood.py`. The report names the method and, with `larger`, which load governs.
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of

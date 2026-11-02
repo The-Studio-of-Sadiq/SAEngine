@@ -816,7 +816,9 @@ def _peak_acceleration(ctx: Context) -> float | None:
 def _materials(ctx: Context, wall: Any) -> tuple[float, float, float, str]:
     concrete = ctx.concrete(wall.material, wall.id)
     fc = float(concrete.concrete.fc)  # type: ignore[union-attr]
-    ec = 4700 * math.sqrt(fc)  # ACI 318-19 19.2.2.1 (b)
+    from saengine.design.rc_detailing import material_modulus
+
+    ec = material_modulus(concrete, fc=fc)[0]  # the code pack's Ec of the aggregate
     if wall.reinforcement is None:
         fy, rebar = 420.0, ""  # proposed bars: Grade 420
     else:

@@ -41,7 +41,9 @@ Options of the settings (``analysis``; absent: the behaviour before version 0.0.
   1.4 Ta, Sec 2.5.7.2 (a));
 - ``meshBySpan``: shell slabs no coarser than their shorter span / 8;
 - ``endOffsets`` and ``rigidZoneFactor``: rigid end zones of beams and columns, forces at the
-  support faces (:mod:`saengine.fem.end_zones`).
+  support faces (:mod:`saengine.fem.end_zones`); steel beams and columns take
+  ``steelRigidZoneFactor``, else the pack's (its steel seismic practice), else 0 (a centreline
+  model).
 
 Columns turned by other than a multiple of 90° are analysed at their angle (their elements'
 ``vecxz``). Known simplifications are reported as notes: stairs are not in the stiffness model,
@@ -82,7 +84,12 @@ from saengine.library.bim import (
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
 from saengine.library.sections import prefetch_section_properties, section_properties
-from saengine.library.settings import ProjectSettings, derived
+from saengine.library.settings import (
+    ProjectSettings,
+    derived,
+    partition_case,
+    partition_case_basis,
+)
 from saengine.library.structure import plane_of
 
 if TYPE_CHECKING:
@@ -736,6 +743,13 @@ def _derive_fem(
     b = _Builder()
     options = settings.analysis
     types = {o.id: o for o in objects.objects}
+    # The default E of each concrete follows the project's aggregate (B21: brick aggregate
+    # its own Ec, from the pack); a typed E is kept.
+    from saengine.design import rc_detailing
+
+    with rc_detailing.using_aggregate(settings):
+        materials, modulus_notes = rc_detailing.aggregate_moduli(materials)
+    b.notes += modulus_notes
     mats = {m.id: m for m in materials.materials}
     # The distinct profiles the members use, solved in parallel where not kept from before.
     prefetch_section_properties(
@@ -991,15 +1005,28 @@ def _derive_fem(
     # (saengine.fem.slab_load_shapes.division_points). The end members keep the joint zone
     # whole (slab_load_shapes.joint_clearance), so the rigid end zones of the end offsets are
     # not capped at a share of a short piece (_rigid_end_zones).
+    from saengine.design.steel.seismic import steel_rigid_zone_factor
+
+    steel_zone, steel_zone_from = steel_rigid_zone_factor(options)
+
+    def steel_type(type_id: str) -> bool:
+        object_type = types.get(type_id)
+        material = mats.get(object_type.material) if object_type else None
+        return material is not None and material.category.value == "steel"
+
+    def rigid_zone_factor(part: Any, type_id: str) -> float:
+        """The rigid zone factor of a beam or column of type ``type_id``: the steel one for a
+        steel section (the project's, else the pack's, else 0: a centreline model, the panel
+        zones checked on their own), else ``rigidZoneFactor``."""
+        if steel_type(type_id):
+            return steel_zone
+        return float(option(part, "rigidZoneFactor", 0.5))
+
     if options.slabs != "shells":
         from saengine.fem.end_zones import support_reach
 
         beam_size = float(options.meshSize) * float(option(options, "meshScale", 1.0))
-        zone_factor = (
-            float(option(options, "rigidZoneFactor", 0.5))
-            if option(options, "endOffsets", False) and not special
-            else 0.0
-        )
+        offsets_on = option(options, "endOffsets", False) and not special
         column_faces = [
             (
                 np.array(e.position, dtype=float),
@@ -1012,7 +1039,9 @@ def _derive_fem(
             if isinstance(e, ColumnElement) and hasattr(types.get(e.type), "profile")
         ]
 
-        def joint_clear(at: np.ndarray, toward: np.ndarray, elevation: float) -> float:
+        def joint_clear(
+            at: np.ndarray, toward: np.ndarray, elevation: float, zone_factor: float
+        ) -> float:
             if not zone_factor:
                 return 0.0
             direction = (float(toward[0] - at[0]), float(toward[1] - at[1]))
@@ -1032,7 +1061,8 @@ def _derive_fem(
                 s0 = np.array(element.start, dtype=float)
                 s1 = np.array(element.end, dtype=float)
                 z = float(element.elevation)
-                clear = (joint_clear(s0, s1, z), joint_clear(s1, s0, z))
+                zone = rigid_zone_factor(options, element.type) if offsets_on else 0.0
+                clear = (joint_clear(s0, s1, z, zone), joint_clear(s1, s0, z, zone))
                 cuts.setdefault(element.id, []).extend(
                     sls.division_points((*s0, z), (*s1, z), beam_size, clear)
                 )
@@ -1396,8 +1426,9 @@ def _derive_fem(
             pattern["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
 
     # The mass source: the seismic weight W (the default pack's Part 6 Sec 2.5.7.3, p. 628) is the dead
-    # load (D: self-weight and partition walls; SD: finishes and partitions), a share of the
-    # live load and the permanent equipment and retained liquid; the user's mass source may
+    # load (D: self-weight and partition walls; SD: finishes, and the partition allowance where
+    # the pack makes it dead), a share of the live load (with the partition allowance where the
+    # pack makes it live) and the permanent equipment and retained liquid; the user's mass source may
     # factor each and add masses (``analysis.massSource``).
     mass_source = option(options, "massSource", None)
     part_factor = {
@@ -1624,8 +1655,8 @@ def _derive_fem(
         if area_load is None:
             continue
         for shell in shells_of_source(source):
-            shell_pressure(shell, "SD", (area_load.finish + area_load.partitions) * 1e3)
-            shell_pressure(shell, "L", area_load.live * 1e3)
+            shell_pressure(shell, "SD", area_load.superimposed(partition_case(settings)) * 1e3)
+            shell_pressure(shell, "L", area_load.floor_live(partition_case(settings)) * 1e3)
     top = levels[-1] if levels else 0.0
     # B16: the rain load R on the roof and a helicopter landing area (saengine.fem.special_loads).
     from saengine.fem import special_loads as spl
@@ -1650,6 +1681,14 @@ def _derive_fem(
             "square anywhere on it for the slab's local design (reported)"
         )
     story_of_level = {round(st.elevation): st.id for st in building.stories}
+    # The partition allowance's load case (the code pack's): the floor live load L (on the roof
+    # too, it is not roof live load) or superimposed dead SD.
+    part_case, part_from = partition_case_basis(settings)
+    if any(a.partitions for a in settings.areaLoads):
+        b.notes.append(
+            f"partition allowance: in {part_case} "
+            f"({'live load' if part_case == 'L' else 'superimposed dead load'}; {part_from})"
+        )
     walled = arch_set.walled if arch_set is not None and partition_mode != "allowance" else set()
     if arch_set is not None:
         b.notes += [f"Architecture: {note}" for note in arch_set.notes]
@@ -1694,11 +1733,8 @@ def _derive_fem(
         # B16: a helicopter landing area's distributed live load L3 where it is larger.
         if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
             live = max(live, helipad["L3_kPa"])
-        pressures = {
-            "D": self_weight,
-            "SD": (finish + partitions) * 1e3,
-            live_case: live * 1e3,
-        }
+        pressures = {"D": self_weight, "SD": finish * 1e3, live_case: live * 1e3}
+        pressures[part_case] = pressures.get(part_case, 0.0) + partitions * 1e3
         if roof and rain_kpa:
             pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
 
@@ -1709,10 +1745,13 @@ def _derive_fem(
             partitions: float = partitions,
             live_case: str = live_case,
         ) -> dict[str, float]:
-            """SD and live [N/m²] of a room (the floor's where it gives none)."""
+            """SD and live [N/m²] of a room (the floor's where it gives none), the partition
+            allowance in its case."""
             room_finish = finish if room is None or room.finish is None else room.finish
             room_live = live if room is None or room.live is None else room.live
-            return {"SD": (room_finish + partitions) * 1e3, live_case: room_live * 1e3}
+            out = {"SD": room_finish * 1e3, live_case: room_live * 1e3}
+            out[part_case] = out.get(part_case, 0.0) + partitions * 1e3
+            return out
 
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
@@ -1749,7 +1788,7 @@ def _derive_fem(
             # Slabs as loads to beams: the panel takes the area-weighted mean of its rooms' loads
             # and the floor's over the rest (its total exact).
             covered = min(1.0, sum(share for _, share in rooms_here))
-            for case in ("SD", live_case):
+            for case in room_pressures(None):
                 pressures[case] = pressures[case] * (1 - covered) + sum(
                     room_pressures(room)[case] * share for room, share in rooms_here
                 )
@@ -2345,7 +2384,21 @@ def _derive_fem(
             set(simple_ends),
             [patterns, stage_patterns],
             exact_angles,
+            {
+                e.id: rigid_zone_factor(options, e.type)
+                for e in building.elements
+                if isinstance(e, (BeamElement, ColumnElement))
+            },
         )
+        faces["steelRigidZoneFactor"] = steel_zone
+        if any(
+            isinstance(e, (BeamElement, ColumnElement)) and steel_type(e.type)
+            for e in building.elements
+        ):
+            b.notes.append(
+                f"end offsets: steel beams and columns at rigid zone factor {steel_zone:g} "
+                f"({steel_zone_from})"
+            )
 
     # ── project ──
     nodes = []
@@ -2442,6 +2495,8 @@ def _derive_fem(
     # The moving crane load cases (saengine.fem.cranes) after them.
     cases += [code for code, _ in crane_cases]
     extra_labels.update(dict(crane_cases))
+    # The case that holds the area loads' partition allowance says so.
+    extra_labels.setdefault(part_case, f"{case_label(part_case)}, with the partition allowance")
     # B16: the rain case R and the flood cases FaX, FaY when they have loads.
     cases += [
         c
@@ -3095,12 +3150,15 @@ def _rigid_end_zones(
     skip: set[str],
     pattern_groups: list[dict[str, dict[str, Any]]],
     exact_angles: bool = True,
+    factors: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """End offsets of the beams at the columns they frame into and of the columns at the
     floors on them (:mod:`saengine.fem.end_zones`): sets each end member's rigid zones
-    (``factor`` × the offset), moves the uniform loads of ``pattern_groups`` (case -> {"nodal",
+    (``factor`` × the offset, or its source's own factor in ``factors``: steel members take the
+    steel factor), moves the uniform loads of ``pattern_groups`` (case -> {"nodal",
     "element"}) on the rigid zones to the joints, and returns the faces record
     (``08 FEM/faces.json``). ``skip``: members left without offsets (pinned steel ends)."""
+    factors = factors or {}
     from saengine.fem.end_zones import (
         FACES_SCHEMA,
         RIGID_SHARE_LIMIT,
@@ -3181,7 +3239,7 @@ def _rigid_end_zones(
     capped: list[str] = []
     for index, end, offset, walk in ends:
         member = b.members[index]
-        rigid = factor * offset
+        rigid = factors.get(member.source, factor) * offset
         limit = RIGID_SHARE_LIMIT * length(index)
         if rigid > limit:
             rigid = limit
@@ -4717,8 +4775,9 @@ def _live_arrangements(
         material = mats.get(slab_type.material)
         density = (material.mechanical.density or 0.0) if material else 0.0
         weight = slab_systems.weight_thickness(slab_type)
-        dead = load.finish + load.partitions + density * G * weight * MM / 1e3
-        ok, why = pattern_live.patterns_required(slab_type.system, dead, load.live)
+        case = partition_case(settings)
+        dead = load.superimposed(case) + density * G * weight * MM / 1e3
+        ok, why = pattern_live.patterns_required(slab_type.system, dead, load.floor_live(case))
         needed.append(ok)
         reasons.append(why)
     if needed and not any(needed):

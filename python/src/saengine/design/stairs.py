@@ -393,7 +393,10 @@ def loads_from_settings(settings: Any | None) -> StairLoads:
                 seen.add(key)
                 combos.append((c.name, float(c.D), float(c.L)))
     if area is not None:
-        live, finish = float(area.live), float(area.finish) + float(area.partitions)
+        from saengine.library.settings import partition_case
+
+        case = partition_case(settings)
+        live, finish = float(area.floor_live(case)), float(area.superimposed(case))
         source = f"area load {area.id} ({area.name})"
         stairs_live, dwelling_live = _stair_live(), _stair_live(True)
         if live < stairs_live:

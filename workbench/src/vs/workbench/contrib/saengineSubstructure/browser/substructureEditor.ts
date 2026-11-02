@@ -44,7 +44,7 @@ import {
 	ISizingProposal, ISubstructure, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
 	IMachineFoundation, MACHINE_KINDS, MACHINE_SPRINGS, MachineKind, machineKindLabel, MachineSpring, machineSpringLabel, newMachineFoundation,
-	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
+	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, pileShapeLabel, PILE_SHAPES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
 import { SubstructureEditorInput } from './substructureEditorInput.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
@@ -105,10 +105,10 @@ const F = {
 	length: { key: 'length', label: localize('sub.f.length', "Length"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.lengthTitle', "Plan dimension along the local x axis"), width: 72 },
 	width: { key: 'width', label: localize('sub.f.width', "Width"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.widthTitle', "Plan dimension along the local y axis"), width: 72 },
 	thickness: { key: 'thickness', label: localize('sub.f.thickness', "Thickness"), unit: MM, kind: 'number', min: 1, width: 72 },
-	foundingLevel: { key: 'foundingLevel', label: localize('sub.f.foundingLevel', "Founding level"), unit: M, kind: 'length', title: localize('sub.f.foundingTitle', "Underside of the foundation on the project datum; ground level − 1.5 m when empty"), width: 84 },
+	foundingLevel: { key: 'foundingLevel', label: localize('sub.f.foundingLevel', "Founding level"), unit: M, kind: 'length', title: localize('sub.f.foundingTitle', "Underside of the foundation on the project datum; ground level − 2.0 m when empty"), width: 84 },
 	cover: { key: 'cover', label: localize('sub.f.cover', "Cover"), unit: MM, kind: 'number', min: 20, max: 200 },
 	note: { key: 'note', label: localize('sub.f.note', "Note"), kind: 'text' },
-	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80, title: localize('sub.f.diameterTitle', "Bored piles: the diameter; driven precast piles: the side of the square") },
+	diameter: { key: 'diameter', label: localize('sub.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 80, title: localize('sub.f.diameterTitle', "The diameter; square driven precast piles: the side of the square") },
 	pileLength: { key: 'length', label: localize('sub.f.pileLength', "Length"), unit: M, kind: 'length', min: 0.001, required: true, width: 72 },
 	fixityDepth: { key: 'fixityDepth', label: localize('sub.f.fixityDepth', "Depth to fixity"), unit: M, kind: 'length', min: 0.001, title: localize('sub.f.fixityDepthTitle', "Below the pile head, where the pile acts as fixed against the lateral load, from the geotechnical report. Empty: 1.4 R of the Winkler springs at the nearest borehole (without a soil report: axial force only)."), width: 80 },
 	tipDiameter: { key: 'tipDiameter', label: localize('sub.f.tipDiameter', "Tip Ø"), unit: MM, kind: 'number', min: 1, title: localize('sub.f.tipDiameterTitle', "Driven cast-in-place piles tapered to the tip: the tip's diameter. Empty: uniform."), width: 72 },
@@ -2130,7 +2130,8 @@ export class SubstructureEditor extends EditorPane {
 		const section = this.section(localize('sub.pileTypes', "Pile types"), document.pileTypes.length, { label: localize('sub.addPileType', "Add Pile Type"), run: () => this.addPileType() });
 		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
 		const columns = [
-			{ label: F.id.label, width: 64 }, { label: localize('sub.f.kind', "Kind"), width: 170 }, { label: F.diameter.label, unit: MM, numeric: true, width: 80 },
+			{ label: F.id.label, width: 64 }, { label: localize('sub.f.kind', "Kind"), width: 170 }, { label: localize('sub.f.pileShape', "Shape"), width: 90 },
+			{ label: F.diameter.label, unit: MM, numeric: true, width: 80 },
 			{ label: F.pileLength.label, unit: M, numeric: true }, { label: localize('sub.f.material', "Concrete"), width: 96 },
 			{ label: localize('sub.f.pileBars', "Bars"), width: 84 }, { label: localize('sub.f.pileTies', "Ties"), width: 110 },
 			{ label: localize('sub.f.headFixity', "Head"), width: 120 }, { label: F.fixityDepth.label, unit: M, numeric: true, width: 80 },
@@ -2146,6 +2147,18 @@ export class SubstructureEditor extends EditorPane {
 				pile.kind = value as IPileType['kind'];
 				this.changed(true);
 			}, path('kind'), localize('sub.f.kind', "Kind")));
+			// Driven precast piles: square (side = the diameter column) or round; the others are round.
+			const shape = append(row, $('td'));
+			if (pile.kind === 'driven') {
+				append(shape, this.selectInput(PILE_SHAPES.map(k => ({ value: k, label: pileShapeLabel(k) })), pile.shape ?? 'square', value => {
+					if (value === 'square') {
+						delete pile.shape;
+					} else {
+						pile.shape = value as IPileType['shape'];
+					}
+					this.changed(true);
+				}, path('shape'), localize('sub.f.pileShape', "Shape")));
+			}
 			append(append(row, $('td')), this.textInput(F.diameter, pile.diameter, value => {
 				pile.diameter = typeof value === 'number' ? value : 0;
 				this.changed(false);

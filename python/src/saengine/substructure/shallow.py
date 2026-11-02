@@ -2458,7 +2458,9 @@ def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
         )
 
     if tie.settlement:
-        e = concrete.mechanical.E or 4700 * math.sqrt(concrete.concrete.fc)
+        from saengine.design.rc_detailing import material_modulus
+
+        e = material_modulus(concrete)[0]
         inertia = 0.35 * profile.xDim * profile.yDim**3 / 12
         length = float(np.linalg.norm(centres[1] - centres[0]))
         if length <= 0:

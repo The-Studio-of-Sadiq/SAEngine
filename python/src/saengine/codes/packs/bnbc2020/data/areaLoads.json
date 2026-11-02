@@ -412,7 +412,8 @@
   "partitions": {
     "share": 0.33,
     "minimum": 1.2,
-    "lightMax": 5.5
+    "lightMax": 5.5,
+    "loadCase": "L"
   },
   "vehicles": {
     "vehicleShare": 0.4,

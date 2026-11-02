@@ -15,12 +15,17 @@ from saengine.library.steel_sections import find
 T = builtin_table("steelSeismic")
 
 
-def _settings(system="steelSmf", r=None, rsa=True, offsets=True, factor=0.5):
+def _settings(system="steelSmf", r=None, rsa=True, offsets=True, factor=0.5, steel=None):
     return SimpleNamespace(
         seismic=SimpleNamespace(
             system=system, r=r, systemY=None, otherSystems=[], otherSystemsY=[]
         ),
-        analysis=SimpleNamespace(responseSpectrum=rsa, endOffsets=offsets, rigidZoneFactor=factor),
+        analysis=SimpleNamespace(
+            responseSpectrum=rsa,
+            endOffsets=offsets,
+            rigidZoneFactor=factor,
+            steelRigidZoneFactor=steel,
+        ),
     )
 
 
@@ -227,8 +232,12 @@ def test_truss_vne_eq_302():
 
 
 def test_panel_zone_drift_model():
-    assert not ss.panel_zone_model_check(_settings(), "smf", T)["ok"]
-    assert ss.panel_zone_model_check(_settings(factor=0.0), "smf", T)["ok"]
+    # Steel members take the steel factor: the pack's (0) unless the project sets one; the
+    # concrete factor (0.5) does not reach them.
+    assert ss.panel_zone_model_check(_settings(), "smf", T)["ok"]
+    assert ss.steel_rigid_zone_factor(_settings().analysis, T)[0] == 0.0
+    assert not ss.panel_zone_model_check(_settings(steel=0.5), "smf", T)["ok"]
+    assert ss.panel_zone_model_check(_settings(steel=0.0), "smf", T)["ok"]
     assert ss.panel_zone_model_check(_settings(rsa=False), "smf", T) is None
 
 
@@ -310,5 +319,6 @@ def test_moment_portal_gets_the_seismic_checks(tmp_path):
     assert any(n.startswith("Seismic: flange width-thickness") for n in names)
     column = next(m.entry for m in members if m.id == "C1")
     assert any(c["name"].startswith("Seismic: ") for c in column["checks"])
-    # The default rigid zone factor 0.5 leaves the panel zones out of the drift.
-    assert not found["checks"][0]["ok"]
+    # Steel members take the steel rigid zone factor, the pack's 0 by default: the panel
+    # zones deform in the drift (centreline model).
+    assert found["checks"][0]["ok"]

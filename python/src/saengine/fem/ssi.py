@@ -538,14 +538,15 @@ class _Editor:
 
 
 def _concrete_e(materials: Any, material_id: str | None) -> tuple[float, float]:
-    """E [Pa] and ν of a concrete material (E = 4700 √f'c MPa when not given; 25 GPa and 0.2
-    without the material)."""
+    """E [Pa] and ν of a concrete material (its E, or the aggregate's Ec of its f'c:
+    :func:`saengine.design.rc_detailing.material_modulus`; 25 GPa and 0.2 without the
+    material)."""
+    from saengine.design.rc_detailing import material_modulus
+
     material = materials.get(material_id) if (materials is not None and material_id) else None
     if material is None:
         return 25e9, 0.2
-    e = material.mechanical.E
-    if e is None and material.concrete is not None:
-        e = 4700 * math.sqrt(material.concrete.fc)
+    e = material_modulus(material)[0]
     nu = material.mechanical.nu if material.mechanical.nu is not None else 0.2
     return float(e or 25e3) * 1e6, float(nu)
 
@@ -794,7 +795,7 @@ def _pile_cap(
         raise _Fixed("its piles have no pile type")
     d = float(pile.diameter) / 1e3
     length = float(pile.length) / 1e3
-    if pile.kind == "driven":  # square
+    if pile.square:
         area, inertia, r0 = d * d, d**4 / 12, d / math.sqrt(math.pi)
     else:
         area, inertia, r0 = math.pi * d * d / 4, math.pi * d**4 / 64, d / 2

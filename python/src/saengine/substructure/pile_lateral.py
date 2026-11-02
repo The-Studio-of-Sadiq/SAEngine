@@ -138,14 +138,16 @@ def head_stiffness(
     ep: float,
     fixity: str,
     ratio: float,
+    shape: str | None = None,
 ) -> dict[str, Any] | None:
     """The Winkler head stiffness of a pile (``head`` m below the borehole's ground,
-    ``diameter`` and ``length`` mm, ``ep`` MPa): ``{"K" N/mm, "kB" N/mm², "beta" 1/mm,
-    "R" mm, "basis"}``; None without SPT."""
+    ``diameter`` and ``length`` mm, ``ep`` MPa, ``shape`` a driven precast pile's):
+    ``{"K" N/mm, "kB" N/mm², "beta" 1/mm, "R" mm, "basis"}``; None without SPT."""
     from saengine.fem import ssi
+    from saengine.substructure.piles import is_square
 
     d = diameter / 1e3
-    inertia = d**4 / 12 if kind == "driven" else math.pi * d**4 / 64
+    inertia = d**4 / 12 if is_square(kind, shape) else math.pi * d**4 / 64
     top = ssi.soil_average(profile, head, head + min(length / 1e3, ssi.PILE_LATERAL_DIAMETERS * d))
     if top is None:
         return None

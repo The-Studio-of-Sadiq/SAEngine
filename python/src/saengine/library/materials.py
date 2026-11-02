@@ -49,8 +49,10 @@ class Mechanical(_Model):
     E: float | None = Field(
         default=None,
         gt=0,
-        description="Young's modulus [MPa]. Concrete: follows f'c (Ec = 4700 √f'c, the default pack's "
-        "Part 6 Sec 6.1.7.1) until another value is entered.",
+        description="Young's modulus [MPa]. Concrete: follows f'c (the code pack's normal-weight "
+        "Ec; the default pack's Part 6 Sec 6.1.7.1) until another value is entered; while it "
+        "does, the analysis and design take the Ec of the project's concrete aggregate (e.g. "
+        "brick chips).",
     )
     nu: float | None = Field(default=None, ge=0, lt=0.5, description="Poisson's ratio [-].")
     density: float | None = Field(default=None, gt=0, description="Mass density [kg/m³].")

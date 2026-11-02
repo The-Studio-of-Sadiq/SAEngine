@@ -83,7 +83,7 @@ def single_settlement(
         return {"total": 0.0, "Sax": 0.0, "Spt": 0.0, "Ssf": 0.0, "note": "no load or capacity"}
     qp = load * qb_ult / total_ult
     qs = load - qp
-    area = section_shape(kind, d)[1]
+    area = section_shape(kind, d, pile.get("shape"))[1]
     # a: weighted by the skin friction carried in cohesive and in granular layers
     cohesive = sum(r["Qs"] for r in pile["layers"] if _cohesive(profile, r["layer"]))
     share = cohesive / qs_ult if qs_ult > 0 else 1.0

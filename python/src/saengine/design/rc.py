@@ -36,7 +36,7 @@ its depth (``yDim``), origin at the centroid, +y the "top" face.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cached_property
 from typing import Any
 
@@ -269,6 +269,17 @@ def section_of(
         transverse_dia=tdia,
         notes=tuple(notes),
     )
+
+
+def with_top_drop(section: RcSection, drop: float) -> RcSection:
+    """``section`` with its top bars (above the centre) ``drop`` [mm] lower: a beam whose top
+    bars pass a joint under the crossing beam's (the second layer, T33,
+    :func:`saengine.design.rc_detailing.joint_top_layers`), so its hogging d is that much less.
+    The section itself when ``drop`` is 0."""
+    if drop <= 0:
+        return section
+    bars = tuple(Bar(b.x, b.y - drop, b.area, b.dia) if b.y > 0 else b for b in section.bars)
+    return replace(section, bars=bars)
 
 
 def _arrange(dias: list[float]) -> list[float]:

@@ -186,7 +186,17 @@ class LiveScope:
         loads = [
             a for a in settings.areaLoads if not is_roof(a.use) and a.use not in ("stairs",)
         ] or list(settings.areaLoads)
-        live = max((float(a.live) for a in loads), default=0.0)
+        # L0 with the partition allowance when it is a live load (it is in the case L).
+        from saengine.library.settings import partition_case
+
+        case = partition_case(settings)
+        live = max(
+            (
+                float(a.floor_live(case)) if hasattr(a, "floor_live") else float(a.live)
+                for a in loads
+            ),
+            default=0.0,
+        )
         assembly_max = table.assemblyMax
         occupancy = getattr(settings, "occupancy", None)
         building = next(

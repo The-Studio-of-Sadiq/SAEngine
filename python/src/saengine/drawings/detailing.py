@@ -823,6 +823,9 @@ class _Ctx:
     notes: list[str] = field(default_factory=list)
     joints: list[Any] = field(default_factory=list)
     lintels: list[dict[str, Any]] | None = None  # designed here when no report was given
+    # T33: {joint id: {beam id: drop mm}} of the top bars in the second layer at the joints
+    # (saengine.design.rc_detailing.joint_top_layers)
+    top_layers: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def fc(self, material_id: str) -> float:
         m = self.materials.get(material_id) if self.materials is not None else None
@@ -1184,6 +1187,17 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
     origin, u, elev = line["origin"], line["u"], line["elevation"]
     length = line["length"]
     step = ctx.step
+    # T33: the line's top bars in the second layer, under the crossing beams' at its joints
+    # (the design took the same drop for its hogging d: saengine.design.rc_detailing)
+    members_set = set(line["members"])
+    second = {
+        joint.below: drop
+        for joint in ctx.joints
+        if abs(joint.level - elev) <= TOL
+        for beam_id, drop in ctx.top_layers.get(joint.id, {}).items()
+        if beam_id in members_set
+    }
+    top_drop = max(second.values(), default=0.0)
     level, lateral = None, False
     for mid in line["members"]:
         lv, lat = _frame_of(ctx, mid)
@@ -1227,13 +1241,21 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         "depth": h,
         "cover": float(r.cover),
         "supports": [
-            {"s": round(x.s, 1), "width": x.width, "kind": x.kind, "ref": x.ref} for x in supports
+            {"s": round(x.s, 1), "width": x.width, "kind": x.kind, "ref": x.ref}
+            | ({"topLayer": 2} if x.ref in second else {})
+            for x in supports
         ],
+        "topDrop": top_drop,
         "spans": [{"from": round(a, 1), "to": round(c, 1)} for a, c in spans],
     }
+    if top_drop:
+        element["notes"].append(
+            f"top bars in the second layer, {top_drop:g} mm under the crossing beams' at "
+            f"{', '.join(sorted(second))} (SAEngine practice; the design's hogging d allows it)"
+        )
 
     def z_of(face: str, db: float) -> float:
-        return elev - inset - db / 2 if face == "top" else elev - h + inset + db / 2
+        return elev - inset - db / 2 - top_drop if face == "top" else elev - h + inset + db / 2
 
     tops = _groups(r, "top")
     bottoms = _groups(r, "bottom")
@@ -1398,7 +1420,7 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                     "from": round(p0, 1),
                     "to": round(p1, 1),
                     "face": face,
-                    "layer": 1,
+                    "layer": 2 if face == "top" and top_drop else 1,
                     "members": covered,
                     "start": _point(origin, u, p0, z),
                     "end": _point(origin, u, p1, z),
@@ -1539,7 +1561,7 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                         "from": round(p0, 1),
                         "to": round(p1, 1),
                         "face": "top",
-                        "layer": 1,
+                        "layer": 2 if top_drop else 1,
                         "support": sup_ref,
                         "supports": refs,
                         "members": covered,
@@ -3510,6 +3532,12 @@ def detailing_model(
         ctx.joints = dj.frame_joints(building, types)
     except (ValueError, AttributeError) as error:
         ctx.notes.append(f"the beam-column joints could not be found: {error}")
+    from saengine.design.rc_detailing import joint_top_layers
+
+    construction = getattr(settings, "construction", None)
+    ctx.top_layers = joint_top_layers(
+        ctx.joints, types, str(getattr(construction, "jointTopBars", None) or "auto")
+    )
     elements: list[dict[str, Any]] = []
     stacks = _stacks(ctx)
     # a member that cannot be detailed is left out with a note (10 BOQ measures it by its own

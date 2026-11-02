@@ -152,8 +152,8 @@ def test_temperature_case_through_combinations_views_and_design(tmp_path: Path) 
     # The other cases keep their numbers: D .. EY, then F (the sample's tank); T comes after.
     assert names[:9] == [
         "D: Dead (self-weight)",
-        "SD: Superimposed dead (finishes, partitions)",
-        "L: Live",
+        "SD: Superimposed dead (finishes)",
+        "L: Live, with the partition allowance",
         "Lr: Roof live",
         "WX: Wind in X",
         "WY: Wind in Y",

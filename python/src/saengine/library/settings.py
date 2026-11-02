@@ -213,6 +213,21 @@ class FloodSite(_Model):
         "floodproofing): reduced uplift and lateral loads; columns, not walls, take the waves. "
         "Off: a dry floodproofed building, with buoyancy and the full hydrostatic pressure.",
     )
+    waveCombination: Literal["pack", "sum", "larger"] = Field(
+        default="pack",
+        title="Moving water and breaking waves",
+        description="How the hydrodynamic load of moving water and the breaking wave load are "
+        "taken together in Fa: their sum (on the safe side; SAEngine practice where the code "
+        "gives no rule) or the larger of the two (per direction, by its total). Code pack: the "
+        "active pack's choice (the sum when it gives none).",
+        json_schema_extra=_labels(
+            [
+                "As the code pack says",
+                "Sum of the two (SAEngine practice, conservative)",
+                "Larger of the two",
+            ]
+        ),
+    )
     groundElevation: float | None = Field(
         default=None,
         title="Ground in the model",
@@ -1108,9 +1123,28 @@ class Construction(_Model):
         description="Type of the concrete's coarse aggregate: it sets the least concrete sizes "
         "for a fire rating (siliceous is the least favourable) and, by the code pack, the "
         "concrete's modulus Ec, its λ and the slabs' shrinkage and temperature steel (brick "
-        "chips: a lower Ec and more shrinkage steel).",
+        "chips: a lower Ec and more shrinkage steel). A concrete material's E that is still "
+        "the default follows it; an E you type is kept.",
         json_schema_extra=_labels(
             ["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight", "Brick chips"]
+        ),
+    )
+    jointTopBars: Literal["auto", "x", "y", "sameLayer"] = Field(
+        default="auto",
+        title="Crossing top bars at beam-column joints",
+        description="Where the top bars of beams from two directions cross at a joint, one "
+        "direction's go in the second layer, under the other's, and its hogging d is that "
+        "bar diameter less (SAEngine practice; the code gives no rule). Auto: the deeper beam "
+        "is the main (outer layer) one; beams of equal depth: the plan direction with the "
+        "longer mean span. X or Y: that direction is the main one everywhere. Same layer: both "
+        "in the outer layer (flagged as a clash in the drawings).",
+        json_schema_extra=_labels(
+            [
+                "Auto (deeper beam, then longer spans)",
+                "X beams outer",
+                "Y beams outer",
+                "Same layer (flagged)",
+            ]
         ),
     )
     fireSeparation: float | None = Field(
@@ -1296,8 +1330,9 @@ class ExtraMass(_Model):
 
 class MassSource(_Model):
     """What forms the seismic weight W and the masses (the default pack's Part 6 Sec 2.5.7.3: the dead
-    load including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent
-    equipment and retained liquid in full)."""
+    load including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent
+    equipment and retained liquid in full; a partition allowance the pack makes a live load
+    counts with the live load)."""
 
     dead: float = Field(default=1.0, ge=0, title="Dead load factor", description="On D.")
     superimposed: float = Field(
@@ -1369,6 +1404,17 @@ class Analysis(_Model):
         "load's flat partition allowance holds everywhere (Sec 2.3.6).",
         json_schema_extra=_labels(
             ["From the architecture (where walls are drawn)", "Flat allowance (area load)"]
+        ),
+    )
+    partitionAllowanceCase: Literal["pack", "L", "SD"] = Field(
+        default="pack",
+        title="Partition allowance as",
+        description="Load case of the area loads' partition allowance (partitions not on the "
+        "plans): a live load L (factored, reduced and in the seismic weight as the floor live "
+        "load) or superimposed dead SD. Code pack: the active pack's choice (live load when it "
+        "gives none).",
+        json_schema_extra=_labels(
+            ["As the code pack says", "Live load (L)", "Superimposed dead load (SD)"]
         ),
     )
     massLumping: Literal["storyLevels", "levelAbove"] = Field(
@@ -1500,7 +1546,18 @@ class Analysis(_Model):
         le=1,
         title="Rigid zone factor",
         description="Share of an end offset that is rigid (0: the whole length flexible, the "
-        "forces still read at the faces; 1: fully rigid).",
+        "forces still read at the faces; 1: fully rigid). Concrete and other non-steel beams "
+        "and columns; steel ones take the steel factor below.",
+    )
+    steelRigidZoneFactor: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Rigid zone factor (steel)",
+        description="Rigid zone factor of the beams and columns with a steel section. Empty: "
+        "the code pack's (its steel seismic practice; 0 in the default pack, SAEngine practice), "
+        "else 0: a centreline model, so the panel zones of steel moment frames deform in the "
+        "drift and are checked on their own.",
     )
     exactColumnRotation: bool = Field(
         default=True,
@@ -1819,7 +1876,48 @@ class AreaLoad(_Model):
     )
     live: Pressure = Field(description="Live load [kN/m²]; at least the code minimum for the use.")
     finish: Pressure = Field(default=0, title="Floor finish", description="[kN/m²]")
-    partitions: Pressure = Field(default=0, description="Partition allowance [kN/m²].")
+    partitions: Pressure = Field(
+        default=0,
+        description="Partition allowance [kN/m²] for light partitions not on the plans, a live "
+        "or superimposed dead load as Analysis → Partition allowance as says.",
+    )
+
+    def superimposed(self, case: str) -> float:
+        """Its superimposed dead load SD [kN/m²]: the finish, and the partition allowance when
+        ``case`` (the allowance's load case, :func:`partition_case`) is SD."""
+        return self.finish + (self.partitions if case == "SD" else 0.0)
+
+    def floor_live(self, case: str) -> float:
+        """Its live load [kN/m²]: the live load, and the partition allowance when ``case`` (the
+        allowance's load case, :func:`partition_case`) is L."""
+        return self.live + (self.partitions if case == "L" else 0.0)
+
+
+#: The partition allowance's load case when neither the project nor the code pack gives one:
+#: L, a live load (an allowance for movable partitions not on the plans is an imposed load).
+PARTITION_CASE_DEFAULT = "L"
+
+
+def partition_case_basis(settings: Any = None, pack: CodePack | None = None) -> tuple[str, str]:
+    """(load case, where it comes from) of the partition allowance: the project's setting
+    (``analysis.partitionAllowanceCase``) when it names one, else the code pack's
+    (``areaLoads.partitions.loadCase`` of ``pack``, default the pack in force), else
+    :data:`PARTITION_CASE_DEFAULT`. "L": a live load in the floor live load case (on the roof
+    too); "SD": superimposed dead. Read at every run: nothing is stored."""
+    chosen = getattr(getattr(settings, "analysis", None), "partitionAllowanceCase", "pack")
+    if chosen in ("L", "SD"):
+        return chosen, "project setting"
+    pack = pack or code_context.current()
+    rule = pack.table("areaLoads").partitions if pack.has("areaLoads") else None
+    case = getattr(rule, "loadCase", None) if rule is not None else None
+    if case in ("L", "SD"):
+        return case, f"code pack {code_context.code_name(pack)}"
+    return PARTITION_CASE_DEFAULT, "generic default (the code pack gives none)"
+
+
+def partition_case(settings: Any = None, pack: CodePack | None = None) -> str:
+    """The partition allowance's load case, "L" or "SD" (:func:`partition_case_basis`)."""
+    return partition_case_basis(settings, pack)[0]
 
 
 class LoadCombination(_Model):
@@ -1829,7 +1927,7 @@ class LoadCombination(_Model):
     D: float = Field(
         default=0,
         description="Factor on the dead load D, which includes the superimposed dead load SD "
-        "(floor finish, partitions).",
+        "(floor finish; partitions where the code pack makes them dead).",
     )
     L: float = Field(default=0, description="Factor on the live load L.")
     Lr: float = Field(default=0, description="Factor on the roof live load Lr.")

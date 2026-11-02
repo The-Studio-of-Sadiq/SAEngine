@@ -221,3 +221,17 @@ def test_partition_allowance_minimum() -> None:
     assert default.areaLoads[0].partitions == 1.2
     default.areaLoads[0].partitions = 1.0
     assert any(p[0] == "areaLoads.0.partitions" for p in problems(default))
+
+
+def test_partition_allowance_load_case() -> None:
+    from saengine.library.settings import partition_case_basis
+
+    # The default pack makes the allowance a live load (Sec 2.3.6); the project may override it.
+    default = default_project_settings("Tower")
+    floor = default.areaLoads[0]
+    assert partition_case_basis(default)[0] == "L"
+    assert floor.floor_live("L") == pytest.approx(floor.live + floor.partitions)
+    assert floor.superimposed("L") == pytest.approx(floor.finish)
+    default.analysis.partitionAllowanceCase = "SD"
+    assert partition_case_basis(default) == ("SD", "project setting")
+    assert floor.superimposed("SD") == pytest.approx(floor.finish + floor.partitions)

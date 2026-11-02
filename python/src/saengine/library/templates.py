@@ -443,6 +443,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "width": 4000,
         "count": 8,
         "strands": 1,
+        # 0.75 fpu (SAEngine default) leaves the stress after transfer within the usual
+        # 0.74 fpu limit; the code pack's jacking and transfer limits are checked.
+        "jacking": 0.75,
         "profile": [
             {"at": 0, "height": 125},
             {"at": 3600, "height": 40},

@@ -100,7 +100,7 @@ def footing_detail(f: FootingDetail, scale: float = 25) -> ViewSpec:
         p = view.inset(15 + L / S / 2, height - top_gap - B / S / 2, S)
         p.rect(-L / 2, -B / 2, L / 2, B / 2, "S-CONC")
         for x, y in f.piles:
-            p.circle((x, y), pile / 2, "S-FNDN")
+            p.pile((x, y), pile, f.pile_square, "S-FNDN")
         x_lines: list[float] = []
         y_lines: list[float] = []
         if f.bottom_x:  # bars along x, spread across y

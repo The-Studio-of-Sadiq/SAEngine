@@ -162,7 +162,7 @@ def _slices(profile: Any, single: dict[str, Any], moving_to: float, construction
     from saengine.substructure import piles
 
     pile = _pile(single, construction)
-    perimeter, _ = piles.section_shape(single["kind"], pile.diameter)
+    perimeter, _ = piles.section_shape(single["kind"], pile.diameter, single.get("shape"))
     steps = max(1, math.ceil(pile.length / piles.SLICE - 1e-9))
     dz = pile.length / steps
     rows = []
@@ -234,21 +234,25 @@ def swelling(
     }
 
 
-def _axial_capacity(kind: str, d: float, fc: float, fy: float, reinforcement: Any) -> float:
+def _axial_capacity(
+    kind: str, d: float, fc: float, fy: float, reinforcement: Any, shape: str | None = None
+) -> float:
     """φPn,max [kN] of the pile section (the plain section's φ 0.6 × 0.6 f'c Ag without bars)."""
     from saengine.design.rc import DesignError, section_of
     from saengine.library.objects import CircleProfile, RectangleProfile
-    from saengine.substructure.piles import section_shape
+    from saengine.substructure.piles import is_square, section_shape
 
     if reinforcement is not None and reinforcement.longitudinal:
         profile = (
-            RectangleProfile(xDim=d, yDim=d) if kind == "driven" else CircleProfile(radius=d / 2)
+            RectangleProfile(xDim=d, yDim=d)
+            if is_square(kind, shape)
+            else CircleProfile(radius=d / 2)
         )
         try:
             return section_of(profile, reinforcement, fc, fy).phi_pn_max / 1e3
         except DesignError:
             pass
-    return 0.60 * 0.60 * fc * section_shape(kind, d)[1] / 1e3
+    return 0.60 * 0.60 * fc * section_shape(kind, d, shape)[1] / 1e3
 
 
 def _tension_capacity(kind: str, d: float, fc: float, fy: float, reinforcement: Any) -> float:
@@ -307,7 +311,12 @@ def checks(
             if section is not None:
                 factor = found.dragloadFactor
                 capacity = _axial_capacity(
-                    kind, d, section["fc"], section["fy"], section.get("reinforcement")
+                    kind,
+                    d,
+                    section["fc"],
+                    section["fy"],
+                    section.get("reinforcement"),
+                    single.get("shape"),
                 )
                 out.append(
                     _check(

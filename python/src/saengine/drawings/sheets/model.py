@@ -141,6 +141,7 @@ class PlanFooting:
     outline: list[Point]
     top: float
     piles: list[tuple[Point, float]] = field(default_factory=list)  # centre, diameter
+    pile_square: bool = False  # square driven precast piles, side ``diameter``
 
 
 @dataclass
@@ -151,6 +152,7 @@ class PlanPile:
     centre: Point
     diameter: float
     cap: str = ""
+    square: bool = False  # a square driven precast pile, side ``diameter``
 
 
 @dataclass
@@ -401,6 +403,7 @@ class FootingDetail:
     founding_level: float | None = None
     piles: list[Point] = field(default_factory=list)  # local coordinates from the centre
     pile_dia: float = 0.0
+    pile_square: bool = False  # square driven precast piles, side ``pile_dia``
     kind: str = "footing"  # footing | pile cap
 
 

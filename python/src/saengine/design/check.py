@@ -58,6 +58,7 @@ from saengine.design.rc import (
     flexure,
     section_of,
     shear,
+    with_top_drop,
 )
 from saengine.design.steel import SteelDesignError
 from saengine.fem import irregularity
@@ -80,7 +81,12 @@ from saengine.library.objects import (
     Slab,
     Wall,
 )
-from saengine.library.settings import LoadCombination, ProjectSettings, code_basis
+from saengine.library.settings import (
+    LoadCombination,
+    ProjectSettings,
+    code_basis,
+    partition_case,
+)
 
 #: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
 DESIGNED_IN_PART_9 = (
@@ -365,11 +371,14 @@ def design(
     the run (:func:`saengine.design.rc_detailing.using_aggregate`: Ec, shrinkage steel, λ),
     and the notes say which concrete materials have an E that does not follow it."""
     with rc_detailing.using_aggregate(settings):
+        # The default E of each concrete follows the aggregate (brick: its own Ec); a typed
+        # E is kept and flagged when it does not fit the aggregate.
+        materials, extra_notes = rc_detailing.aggregate_moduli(materials)
         result = _design_run(
             project, out_dir, building, objects, materials, settings, collect, slenderness,
             assumed,
         )  # fmt: skip
-        extra_notes = rc_detailing.material_notes(materials)
+        extra_notes += rc_detailing.material_notes(materials)
     for report in (result, (collect or {}).get("plain")):
         if extra_notes and isinstance(report, dict) and isinstance(report.get("notes"), list):
             report["notes"].extend(extra_notes)
@@ -760,6 +769,11 @@ def _design_run(
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
     b39_todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]] = {}  # B39
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
+    # T33: beams whose top bars pass their joints in the second layer, under the crossing
+    # beams' (saengine.design.rc_detailing.joint_top_layers): their hogging d is less.
+    top_drops = rc_detailing.building_top_drops(building, types, settings)
+    dropped_sections: dict[tuple[str, float], tuple[RcSection, dict[bool, Any]]] = {}
+    second_layer: list[str] = []
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
@@ -953,6 +967,16 @@ def _design_run(
                         {hog: flexure(section, hog) for hog in (False, True)},
                     )
                 section, capacities = beam_sections[type_id]
+                drop = top_drops.get(element.id, 0.0) if isinstance(element, BeamElement) else 0.0
+                if drop > 0:
+                    if (type_id, drop) not in dropped_sections:
+                        lower = with_top_drop(section, drop)
+                        dropped_sections[(type_id, drop)] = (
+                            lower,
+                            {hog: flexure(lower, hog) for hog in (False, True)},
+                        )
+                    section, capacities = dropped_sections[(type_id, drop)]
+                    second_layer.append(member_id)
                 faced = face_forces.at_faces(
                     own,
                     project,
@@ -1106,6 +1130,10 @@ def _design_run(
                     "fy": bars.steel.fy,
                     "es": es,
                     "aggregate": concrete.concrete.maxAggregate,
+                    # T33: the top bars' drop to the second layer at the joints [mm].
+                    "topDrop": top_drops.get(element.id, 0.0)
+                    if isinstance(element, BeamElement)
+                    else 0.0,
                     "checks": checks,
                     "points": column_points,
                     # The torsion design at the governing station (saengine.design.torsion), for
@@ -1211,6 +1239,13 @@ def _design_run(
         _design_b39(b39_todo, combinations, service, checked, skipped, notes)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
         notes += [f"{type_id}: {note}" for note in section.notes]
+    if second_layer:
+        notes.append(
+            f"T33: {len(second_layer)} beam(s) take their top bars in the second layer at their "
+            "joints, under the crossing beams' (hogging d less by those bars' diameter; "
+            f"e.g. {', '.join(second_layer[:3])}; Project Settings > Construction > Crossing "
+            "top bars, SAEngine practice)"
+        )
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
     default_rebar = _default_rebar_id(objects, materials)
     plain = (
@@ -2269,8 +2304,8 @@ def _coefficient_slab(
     """A slab on beams by the coefficient methods (:func:`saengine.design.slab.
     coefficient_design`): (its checked entry, what it was checked from) or the reason it is
     not designed. Its loads as the analysis model's (saengine.fem.derive): self-weight (times
-    the weight modifier), finishes and partitions of its area load, its live load (the roof's
-    live load on the top level)."""
+    the weight modifier), finishes of its area load, its live load (the roof's live load on the
+    top level), the partition allowance in the dead or live load as the code pack says."""
     from saengine.library.modifiers import resolve_modifiers
 
     if axes is None:
@@ -2289,8 +2324,9 @@ def _coefficient_slab(
     density = concrete.mechanical.density or 0.0
     weight = resolve_modifiers(element, object_type).get("weight", (1.0, ""))[0]
     self_weight = density * 9.80665 * object_type.thickness * 1e-3 / 1e3 * weight  # kN/m²
-    dead = self_weight + ((area_load.finish + area_load.partitions) if area_load else 0.0)
-    live = area_load.live if area_load else 0.0
+    case = partition_case(settings)
+    dead = self_weight + (area_load.superimposed(case) if area_load else 0.0)
+    live = area_load.floor_live(case) if area_load else 0.0
     context = slab.SlabContext(boundary=outline, axes=axes, supports=supports)
     ec = slenderness_design.concrete_modulus(concrete)
     try:
@@ -2423,12 +2459,13 @@ def _tendon_designs(
         settings.roofLoad if roof else settings.floorLoad
     )
     area_load = area_loads.get(load_id) if load_id else None
+    case = partition_case(settings)
     h = float(object_type.thickness)
     density = concrete.mechanical.density or 0.0
     loads = prestress.StripLoads(
         density * 9.80665 * slab_systems.weight_thickness(object_type) * 1e-9,
-        ((area_load.finish + area_load.partitions) * 1e-3) if area_load else 0.0,
-        (area_load.live * 1e-3) if area_load else 0.0,
+        (area_load.superimposed(case) * 1e-3) if area_load else 0.0,
+        (area_load.floor_live(case) * 1e-3) if area_load else 0.0,
     )
     layers = slab.layers_of(object_type.reinforcement, h)
     ux = np.asarray(axes.x[:2], dtype=float)

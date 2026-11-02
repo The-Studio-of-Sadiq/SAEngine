@@ -28,7 +28,10 @@ p. 1068, in the default pack):
   (a bar through a bar is a clash; less than the 8.1.6.1 clear spacing between them is tight,
   practice where the code gives no figure for crossing bars: the concrete must pass), and the top or
   bottom bars of beams from two directions at the same level (they cannot both be in the outer
-  layer: one direction goes a bar diameter lower, which the design's effective depth must allow).
+  layer). The top bars of the secondary direction already pass in the second layer, a main bar
+  diameter lower (the detailing model's ``at.topDrop``, T33:
+  :func:`saengine.design.rc_detailing.joint_top_layers`; the design's hogging d allows it), so
+  only crossings the layering does not resolve are flagged.
 
 How it is called::
 
@@ -234,6 +237,7 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
     nx, ny = -uy, ux  # the section's x: to the left of the beam line
     elev, h = float(at["elevation"]), float(at["depth"])
     b, cover = float(at["width"]), float(at["cover"])
+    top_drop = float(at.get("topDrop") or 0.0)  # T33: top bars in the second layer
     sides = sum(g.count for g in type_.reinforcement.longitudinal if g.position == "sides")
     section = _section(type_, materials)
     slots = beam_slots(section, sides)
@@ -262,7 +266,7 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
             if slot is None:
                 missing += 1
                 continue
-            z = elev - h / 2 + slot.y
+            z = elev - h / 2 + slot.y - (top_drop if face == "top" else 0.0)
             line = [point(a, slot.x, z), point(c, slot.x, z)]
             sign = -1.0 if face == "top" else 1.0
             if hooks[0]:
@@ -290,7 +294,7 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
             corners = [(-hx, -hz), (hx, -hz), (hx, hz), (-hx, hz), (-hx, -hz)]
             cage.lines.append([point(s, x, zc + z) for x, z in corners])
         out["bars"].append(cage)
-    out["slots"][element["id"]] = (slots, (ox, oy), (ux, uy), elev, h, b)
+    out["slots"][element["id"]] = (slots, (ox, oy), (ux, uy), elev, h, b, top_drop)
 
 
 def _column_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], out: dict) -> None:
@@ -504,7 +508,7 @@ def _joint_checks(
         )
         if support is None:
             continue
-        slots_b, (ox, oy), (ux, uy), elev, h, _ = geometry
+        slots_b, (ox, oy), (ux, uy), elev, h, _, top_drop = geometry
         s0 = float(support["s"])
         half = float(support.get("width") or 0.0) / 2
         nx, ny = -uy, ux
@@ -515,7 +519,7 @@ def _joint_checks(
                 continue  # no bar at this position passes the joint
             x0 = ox + ux * s0 + nx * slot.x
             y0 = oy + uy * s0 + ny * slot.x
-            z = elev - h / 2 + slot.y
+            z = elev - h / 2 + slot.y - (top_drop if slot.face == "top" else 0.0)
             passing.append((beam["id"], (ux, uy), slot.face, slot.dia, x0, y0, z))
     if not passing:
         return []
@@ -563,12 +567,19 @@ def _joint_checks(
                 checks.append(
                     _check(
                         where,
-                        f"{face} bars of {a} and {b} cross: one set a bar diameter "
-                        f"{'lower' if face == 'top' else 'higher'} (Ø{max(da, dbb):g})",
+                        f"{face} bars of {a} and {b} cross at one level"
+                        + (" (they clash)" if gap < 0 else "")
+                        + f" (Ø{max(da, dbb):g})",
                         0.0,
                         gap,
-                        "practice: crossing bars cannot share a level; the design's effective "
-                        "depth of one direction must allow the second layer",
+                        "practice: crossing bars cannot share a level"
+                        + (
+                            "; Project Settings > Construction > Crossing top bars puts one "
+                            "direction in the second layer"
+                            if face == "top"
+                            else "; one direction goes a bar diameter higher, which the design's "
+                            "effective depth must allow"
+                        ),
                     )
                 )
     return checks
