@@ -7967,13 +7967,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				accidentalEccentricity: {
 					default: true,
-					description: 'Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses shifted ±5 % of the building\'s width across the force (the default pack\'s Part 6 Sec 2.5.7.6.2, Eq. 6.2.43). With equivalent static design, every E combination is checked with both.',
+					description: 'Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses shifted across the force by the code pack\'s accidental eccentricity (a share of the building\'s width). With equivalent static design, every E combination is checked with both.',
 					title: 'Eccentric static earthquake cases',
 					type: 'boolean',
 				},
 				windTorsionCases: {
 					default: true,
-					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of the default pack\'s Part 6 Figure 6.2.9 (Sec 2.4.11.3): full, 75 % with torsion e = ±0.15 B, 75 % in both directions, 56.3 % in both with both torsions. Off: Cases 1 and 3 only.',
+					description: 'Add the torsional wind cases WTX, WTY and design every one-direction wind combination for the four design wind load cases of the code pack: full, partial with torsion, both directions together, and both with both torsions (the shares and eccentricities are the pack\'s). Off: Cases 1 and 3 only.',
 					title: 'Wind torsional cases',
 					type: 'boolean',
 				},
@@ -8071,7 +8071,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				stiffness: {
 					default: 'aci',
-					description: 'Cracked (default): concrete and masonry members with the moments of inertia of the default pack\'s Part 6 Sec 6.3.10.4.1 (columns 0.70 Ig, walls 0.70 Ig or 0.35 Ig when cracked, beams 0.35 Ig, flat plates and slabs 0.25 Ig; area 1.0 Ag). The default pack\'s Part 6 Sec 2.5.9.1 (a) requires the response spectrum model to consider the effects of cracked sections, and Sec 6.1.10.2 uses these properties for the lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than the code intends).',
+					description: 'Cracked (default): concrete and masonry members with the code pack\'s cracked moments of inertia of columns, walls (uncracked or cracked), beams, flat plates and slabs (area: the gross area). The code asks the response spectrum model to consider the effects of cracked sections, and uses these properties for the lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come out shorter and drifts smaller than the code intends).',
 					enum: ['gross', 'aci'],
 					enumDescriptions: ['Gross sections', 'Cracked (the code pack\'s factors)'],
 					title: 'Section stiffness',
@@ -8087,7 +8087,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				wallsCracked: {
 					default: false,
-					description: 'Walls at 0.35 Ig (cracked) instead of 0.70 Ig (uncracked), the default pack\'s Part 6 Sec 6.3.10.4.1.',
+					description: 'Walls at the code pack\'s cracked moment of inertia instead of the uncracked one.',
 					title: 'Walls cracked',
 					type: 'boolean',
 				},
@@ -8100,8 +8100,16 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				pDeltaFactors: {
-					$ref: '#/$defs/PDeltaFactors',
-					description: 'The gravity loads the P-Delta stiffness is taken under: by default the gravity part of 1.2D + 1.0E + 1.0L (the default pack\'s Part 6 Sec 2.7.3.1).',
+					anyOf: [
+						{
+							$ref: '#/$defs/PDeltaFactors',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The gravity loads the P-Delta stiffness is taken under. Empty: the code pack\'s preload factors (the gravity part of its seismic strength combination).',
 					title: 'P-Delta preload factors',
 				},
 				firstOrderReference: {
@@ -8112,9 +8120,9 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				notionalLoads: {
 					default: 'none',
-					description: 'How steel frames are designed for stability (the code pack\'s steel stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni = 0.002 Yi in the gravity-only combinations, in ±X and ±Y. First-order analysis: Ni = 2.1 (Δ/L) Yi >= 0.0042 Yi in every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the reduced stiffness 0.8 EA and 0.8 τb EI of the steel members, Ni = 0.002 Yi in every combination, and every steel member checked with K = 1; required by the code where the second-order drift exceeds 1.5 times the first-order drift. The coefficients are the active code pack\'s (the values above are the default pack\'s).',
+					description: 'How steel frames are designed for stability (the code pack\'s steel stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD (from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each combination by its own factors. Second-order analysis: Ni a share of Yi in the gravity-only combinations, in ±X and ±Y. First-order analysis: Ni from the drift ratio Δ/L, at least a share of Yi, in every combination (with the lateral load\'s direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis method: a P-Delta analysis on the reduced axial and flexural stiffness of the steel members, Ni a share of Yi in every combination, and every steel member checked with K = 1; required by the code where the second-order drift exceeds the first-order drift by more than its limit. The shares, factors and limit are the code pack\'s.',
 					enum: ['none', 'secondOrder', 'firstOrder', 'directAnalysis'],
-					enumDescriptions: ['None', 'Second-order analysis (0.002 Yi)', 'First-order analysis (2.1 Δ/L Yi)', 'Direct analysis method (reduced stiffness, K = 1)'],
+					enumDescriptions: ['None', 'Second-order analysis', 'First-order analysis (Δ/L)', 'Direct analysis method (reduced stiffness, K = 1)'],
 					title: 'Steel stability design method',
 					type: 'string',
 				},
@@ -8178,21 +8186,21 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				seismicOrthogonal: {
 					default: 'auto',
-					description: 'Automatic: E = EX + 0.3EY and 0.3EX + EY in Seismic Design Category D (the default pack\'s Part 6 Sec 2.5.13.1 (b)); one direction at a time in B and C. Always: also for a Category C building with non-parallel systems (irregularity type V).',
+					description: 'Automatic: each direction\'s earthquake with the code pack\'s share of the other direction\'s (E = EX + a EY and a EX + EY) in Seismic Design Category D; one direction at a time in B and C. Always: also for a Category C building with non-parallel systems (irregularity type V).',
 					enum: ['auto', 'always', 'never'],
 					enumDescriptions: ['By the Seismic Design Category', 'Always', 'Never'],
-					title: 'Orthogonal effects (100 % + 30 %)',
+					title: 'Orthogonal effects',
 					type: 'string',
 				},
 				seismicAccidentalTorsion: {
 					default: true,
-					description: 'Add the static torsional moments ±0.05 L F at each floor (the default pack\'s Part 6 Sec 2.5.7.6.2, Eq. 6.2.43) to the response spectrum; amplified by Ax where the building is torsionally irregular in Seismic Design Category C or D (Eq. 6.2.44, Sec 2.5.5.3.1); with 100 % + 30 % the 5 % shift in one direction at a time, the larger effect governing (Sec 2.5.7.6.3).',
+					description: 'Add the static torsional moments of the code pack\'s accidental eccentricity (± a share of the building\'s width L times the floor force F) at each floor to the response spectrum; amplified by Ax where the building is torsionally irregular in Seismic Design Category C or D; with orthogonal effects the shift in one direction at a time, the larger effect governing.',
 					title: 'Accidental torsion',
 					type: 'boolean',
 				},
 				seismicVerticalComponent: {
 					default: true,
-					description: 'E = Eh ± Ev with Ev = 0.50 a_h D, a_h = (2/3) Z S (the default pack\'s Part 6 Sec 2.5.13.2).',
+					description: 'E = Eh ± Ev with Ev from the code pack\'s vertical factor on a_h D (a_h the pack\'s share of Z S).',
 					title: 'Vertical earthquake component',
 					type: 'boolean',
 				},
@@ -8207,12 +8215,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Factor on L in 1.2D + 1.0E + L. Empty: the project\'s own static earthquake combination\'s (0.5 is permitted for L ≤ 5.0 kN/m² except garages and assembly, the default pack\'s Part 6 Sec 2.7.3.1 exception 1).',
+					description: 'Factor on L in the strength combination with E. Empty: the project\'s own static earthquake combination\'s (the code pack may permit a lower factor for light live loads, see its combination notes).',
 					title: 'Live load factor with E',
 				},
 				seismicRedundancy: {
 					default: 1.0,
-					description: 'The allowable storey drift of moment frames in Category D is Δa/ρ (the default pack\'s Part 6 Sec 2.5.14.1): 1.0, or up to 1.3 for low redundancy.',
+					description: 'The allowable storey drift of moment frames in Category D is Δa/ρ (the code pack\'s redundancy factor): 1.0, or more for low redundancy.',
 					maximum: 1.3,
 					minimum: 1.0,
 					title: 'Redundancy factor ρ (drift)',
@@ -8342,7 +8350,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				use: {
 					default: 'residential',
-					description: 'Use of the area (Table 6.2.3).',
+					description: 'Use of the area (the code pack\'s area uses and their live loads).',
 					enum: ['residential', 'residentialPublic', 'office', 'officeLobby', 'corridorAbove', 'classroom', 'hospitalWard', 'operatingRoom', 'assemblyFixed', 'assemblyMovable', 'retailGround', 'retailUpper', 'storageLight', 'storageHeavy', 'parking', 'stairs', 'roof', 'roofGarden', 'accessFloorOffice', 'accessFloorComputer', 'armories', 'assemblyPlatform', 'stageFloor', 'balcony', 'balconySmallDwelling', 'recreation', 'catwalk', 'corridorFirst', 'danceHall', 'dining', 'fireEscape', 'fireEscapeDwelling', 'gymnasium', 'hospitalCorridor', 'libraryReading', 'libraryStacks', 'libraryCorridor', 'manufacturingLight', 'manufacturingMedium', 'manufacturingHeavy', 'garmentsFloor', 'garmentsStorage', 'marquee', 'officeCorridor', 'cellBlock', 'penalCorridor', 'atticNoStorage', 'atticStorage', 'atticHabitable', 'dwelling', 'grandstand', 'roofPromenade', 'awningFabric', 'awning', 'schoolCorridorAbove', 'schoolCorridorFirst', 'driveway', 'stadiumBleachers', 'stadiumFixed', 'stairsDwelling', 'storageAboveCeiling', 'wholesale', 'walkway', 'terrace', 'custom'],
 					enumDescriptions: ['Residential: rooms and private corridors (2.0 kN/m²)', 'Residential: public rooms and corridors (4.8 kN/m²)', 'Office (2.4 kN/m²)', 'Office: lobbies and first-floor corridors (4.8 kN/m²)', 'Corridors above the first floor (3.8 kN/m²)', 'School: classrooms (2.0 kN/m²)', 'Hospital: patient rooms (2.0 kN/m²)', 'Hospital: operating rooms, laboratories (2.9 kN/m²)', 'Assembly: fixed seats (2.9 kN/m²)', 'Assembly: movable seats, lobbies (4.8 kN/m²)', 'Retail: first floor (4.8 kN/m²)', 'Retail: upper floors (3.6 kN/m²)', 'Storage: light (6.0 kN/m²)', 'Storage: heavy (12.0 kN/m²)', 'Parking: passenger vehicles (2.0 kN/m²)', 'Stairs and exits (4.8 kN/m²)', 'Roof: ordinary flat, pitched or curved (1.0 kN/m²)', 'Roof: gardens and assembly use (4.8 kN/m²)', 'Access floors: office use (2.4 kN/m²)', 'Access floors: computer use (4.8 kN/m²)', 'Armories and drill rooms (7.2 kN/m²)', 'Assembly: platforms (4.8 kN/m²)', 'Assembly: stage floors (7.2 kN/m²)', 'Balconies (exterior) (4.8 kN/m²)', 'Balconies: one- and two-family residences, up to 19.3 m² (2.9 kN/m²)', 'Bowling alleys, poolrooms and similar (3.6 kN/m²)', 'Catwalks for maintenance access (2.0 kN/m²)', 'Corridors: first floor (4.8 kN/m²)', 'Dance halls and ballrooms (4.8 kN/m²)', 'Dining rooms and restaurants (4.8 kN/m²)', 'Fire escapes (4.8 kN/m²)', 'Fire escapes: single-family dwellings only (2.0 kN/m²)', 'Gymnasiums: main floors and balconies (4.8 kN/m²)', 'Hospital: corridors above the first floor (3.8 kN/m²)', 'Library: reading rooms (2.9 kN/m²)', 'Library: stack rooms (7.2 kN/m²)', 'Library: corridors above the first floor (3.8 kN/m²)', 'Manufacturing: light (4.0 kN/m²)', 'Manufacturing: medium (6.0 kN/m²)', 'Manufacturing: heavy (12.0 kN/m²)', 'Garments manufacturing floor (not stacking or storage) (4.0 kN/m²)', 'Garments manufacturing: stacking or storage (6.0 kN/m²)', 'Marquees (3.6 kN/m²)', 'Office: corridors above the first floor (3.8 kN/m²)', 'Penal institutions: cell blocks (2.0 kN/m²)', 'Penal institutions: corridors (4.8 kN/m²)', 'Dwellings: uninhabitable attics without storage (0.5 kN/m²)', 'Dwellings: uninhabitable attics with storage (1.0 kN/m²)', 'Dwellings: habitable attics and sleeping areas (1.5 kN/m²)', 'Dwellings (one- and two-family): all other areas (2.0 kN/m²)', 'Reviewing stands, grandstands and bleachers (4.8 kN/m²)', 'Roof: promenade (2.9 kN/m²)', 'Awnings and canopies: fabric on a light rigid frame (0.24 kN/m²)', 'Awnings and canopies: all other construction (1.0 kN/m²)', 'School: corridors above the first floor (3.8 kN/m²)', 'School: first-floor corridors (4.8 kN/m²)', 'Sidewalks, vehicular driveways and yards subject to trucking (12.0 kN/m²)', 'Stadiums and arenas: bleachers (4.8 kN/m²)', 'Stadiums and arenas: fixed seats (2.9 kN/m²)', 'Stairs: one- and two-family residences only (2.0 kN/m²)', 'Storage areas above ceilings (1.0 kN/m²)', 'Stores: wholesale, all floors (6.0 kN/m²)', 'Walkways and elevated platforms (not exit ways) (2.9 kN/m²)', 'Yards and terraces, pedestrian (4.8 kN/m²)', 'Custom'],
 					title: 'Use',
@@ -9516,13 +9524,13 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				T: {
 					default: 0,
-					description: 'Factor on the temperature case T (Analysis model → Temperature). The default pack\'s Part 6 Sec 2.7.3.1 has T only in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					description: 'Factor on the temperature case T (Analysis model → Temperature), as the code pack\'s combinations with T give it.',
 					title: 'T',
 					type: 'number',
 				},
 				ST: {
 					default: 0,
-					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T of the default pack\'s Part 6 Sec 2.7, so it takes T\'s factor, 1.2 in 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or R).',
+					description: 'Factor on the support settlement case ST (Analysis model → Support settlement): differential settlement is a self-straining effect T, so it takes T\'s factor of the code pack\'s combination.',
 					title: 'ST',
 					type: 'number',
 				},
@@ -9750,31 +9758,27 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		PDeltaFactors: {
 			additionalProperties: false,
-			description: 'Load factors of the gravity preload of the P-Delta analysis.',
+			description: 'Load factors of the gravity preload of the P-Delta analysis; each one not given is the\ncode pack\'s preload factor (1.0 when the pack gives none).',
 			properties: {
 				D: {
-					default: 1.2,
 					description: 'Dead load.',
 					minimum: 0,
 					title: 'D',
 					type: 'number',
 				},
 				SD: {
-					default: 1.2,
 					description: 'Superimposed dead load.',
 					minimum: 0,
 					title: 'SD',
 					type: 'number',
 				},
 				F: {
-					default: 1.2,
 					description: 'Fluid loads (07 MEP equipment contents).',
 					minimum: 0,
 					title: 'F',
 					type: 'number',
 				},
 				L: {
-					default: 1.0,
 					description: 'Live load.',
 					minimum: 0,
 					title: 'L',
@@ -10011,7 +10015,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				system: {
 					default: 'rcSmf',
-					description: 'Seismic force-resisting system (Table 6.2.19). It gives R, Ω0 and Cd and the seismic detailing of the members; it must be permitted in the Seismic Design Category of the site (Table 6.2.18).',
+					description: 'Seismic force-resisting system of the code pack. It gives R, Ω0 and Cd and the seismic detailing of the members; it must be permitted in the Seismic Design Category of the site.',
 					enum: ['rcSmf', 'rcImf', 'rcOmf', 'rcSpecialWallFrame', 'rcOrdinaryWallFrame', 'rcDualSpecial', 'steelSmf', 'steelOmf', 'steelScbf', 'masonryOrdinaryReinforced', 'masonryOrdinaryPlain', 'rcSpecialBearingWall', 'rcOrdinaryBearingWall', 'steelEbfMoment', 'steelEbf', 'steelOcbf', 'masonryOrdinaryReinforcedFrame', 'masonryOrdinaryPlainFrame', 'steelImf', 'steelDualSmfEbf', 'steelDualSmfScbf', 'rcDualSpecialOrdinaryWalls', 'steelDualImfScbf', 'rcDualIntermediateSpecialWalls', 'masonryDualIntermediateFrame', 'rcDualIntermediateOrdinaryWalls', 'rcDualOrdinary', 'steelNotDetailed', 'steelBrbf', 'steelSpsw', 'steelBrbfMoment', 'steelDualSmfBrbf', 'steelDualSmfSpsw'],
 					enumDescriptions: ['RC special moment frame', 'RC intermediate moment frame', 'RC ordinary moment frame', 'Building frame with RC special shear walls', 'Building frame with RC ordinary shear walls', 'Dual: RC special moment frame and special shear walls', 'Steel special moment frame', 'Steel ordinary moment frame', 'Steel special concentrically braced frame', 'Bearing walls: ordinary reinforced masonry shear walls', 'Bearing walls: ordinary plain (unreinforced) masonry shear walls', 'Bearing walls: RC special shear walls', 'Bearing walls: RC ordinary shear walls', 'Steel eccentrically braced frame, moment-resisting connections at columns away from links', 'Steel eccentrically braced frame, non-moment-resisting connections at columns away from links', 'Steel ordinary concentrically braced frame', 'Building frame with ordinary reinforced masonry shear walls', 'Building frame with ordinary plain (unreinforced) masonry shear walls', 'Steel intermediate moment frame', 'Dual: steel special moment frame and eccentrically braced frames', 'Dual: steel special moment frame and special concentrically braced frames', 'Dual: RC special moment frame and ordinary shear walls', 'Dual: steel intermediate moment frame and special concentrically braced frames', 'Dual: RC intermediate moment frame and special shear walls', 'Dual: intermediate moment frame and ordinary reinforced masonry shear walls', 'Dual: RC intermediate moment frame and ordinary shear walls', 'Dual: RC ordinary moment frame and ordinary shear walls', 'Steel system not specifically detailed for seismic resistance', 'Steel buckling-restrained braced frame, non-moment-resisting beam-column connections', 'Steel special plate shear walls', 'Steel buckling-restrained braced frame, moment-resisting beam-column connections', 'Dual: steel special moment frame and buckling-restrained braced frames', 'Dual: steel special moment frame and special plate shear walls'],
 					title: 'Structural system',
@@ -10226,7 +10230,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				location: {
 					default: 'dhaka',
-					description: 'District town (the default pack\'s Tables 6.2.8 and 6.2.15); sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
+					description: 'District town of the code pack\'s hazard tables; sets the seismic zone and the basic wind speed. Open the list and type the first letters to find a town; elsewhere choose Custom and enter Z and V.',
 					enum: ['bagerhat', 'bandarban', 'barguna', 'barishal', 'bhola', 'bogura', 'brahmanbaria', 'chandpur', 'chapainawabganj', 'chattogram', 'chuadanga', 'coxsbazar', 'cumilla', 'dhaka', 'dinajpur', 'faridpur', 'feni', 'gaibandha', 'gazipur', 'gopalganj', 'habiganj', 'jamalpur', 'jashore', 'jhalokati', 'jhenaidah', 'joypurhat', 'khagrachhari', 'khulna', 'kishoreganj', 'kurigram', 'kushtia', 'lakshmipur', 'lalmonirhat', 'madaripur', 'magura', 'manikganj', 'meherpur', 'moulvibazar', 'munshiganj', 'mymensingh', 'naogaon', 'narail', 'narayanganj', 'narsingdi', 'natore', 'netrokona', 'nilphamari', 'noakhali', 'pabna', 'panchagarh', 'patuakhali', 'pirojpur', 'rajbari', 'rajshahi', 'rangamati', 'rangpur', 'satkhira', 'shariatpur', 'sherpur', 'sirajganj', 'srimangal', 'sunamganj', 'sylhet', 'tangail', 'thakurgaon', 'custom'],
 					enumDescriptions: ['Bagerhat (zone 1, Z 0.12, V 77.5 m/s)', 'Bandarban (zone 3, Z 0.28, V 62.5 m/s)', 'Barguna (zone 1, Z 0.12, V 80 m/s)', 'Barishal (zone 1, Z 0.12, V 78.7 m/s)', 'Bhola (zone 1, Z 0.12, V 69.5 m/s)', 'Bogura (zone 3, Z 0.28, V 61.9 m/s)', 'Brahmanbaria (zone 3, Z 0.28, V 56.7 m/s)', 'Chandpur (zone 2, Z 0.20, V 50.6 m/s)', 'Chapai Nawabganj (zone 1, Z 0.12, V 41.4 m/s)', 'Chattogram (zone 3, Z 0.28, V 80 m/s)', 'Chuadanga (zone 1, Z 0.12, V 61.9 m/s)', 'Cox\'s Bazar (zone 3, Z 0.28, V 80 m/s)', 'Cumilla (zone 2, Z 0.20, V 61.4 m/s)', 'Dhaka (zone 2, Z 0.20, V 65.7 m/s)', 'Dinajpur (zone 2, Z 0.20, V 41.4 m/s)', 'Faridpur (zone 2, Z 0.20, V 63.1 m/s)', 'Feni (zone 2, Z 0.20, V 64.1 m/s)', 'Gaibandha (zone 3, Z 0.28, V 65.6 m/s)', 'Gazipur (zone 2, Z 0.20, V 66.5 m/s)', 'Gopalganj (zone 1, Z 0.12, V 74.5 m/s)', 'Habiganj (zone 4, Z 0.36, V 54.2 m/s)', 'Jamalpur (zone 4, Z 0.36, V 56.7 m/s)', 'Jashore (zone 1, Z 0.12, V 64.1 m/s)', 'Jhalokati (zone 1, Z 0.12, V 80 m/s)', 'Jhenaidah (zone 1, Z 0.12, V 65 m/s)', 'Joypurhat (zone 2, Z 0.20, V 56.7 m/s)', 'Khagrachhari (zone 3, Z 0.28, V 56.7 m/s)', 'Khulna (zone 1, Z 0.12, V 73.3 m/s)', 'Kishoreganj (zone 4, Z 0.36, V 64.7 m/s)', 'Kurigram (zone 4, Z 0.36, V 65.6 m/s)', 'Kushtia (zone 2, Z 0.20, V 66.9 m/s)', 'Lakshmipur (zone 2, Z 0.20, V 51.9 m/s)', 'Lalmonirhat (zone 3, Z 0.28, V 63.7 m/s)', 'Madaripur (zone 2, Z 0.20, V 68.1 m/s)', 'Magura (zone 1, Z 0.12, V 65 m/s)', 'Manikganj (zone 2, Z 0.20, V 58.2 m/s)', 'Meherpur (zone 1, Z 0.12, V 58.2 m/s)', 'Moulvibazar (zone 4, Z 0.36, V 53 m/s)', 'Munshiganj (zone 2, Z 0.20, V 57.1 m/s)', 'Mymensingh (zone 4, Z 0.36, V 67.4 m/s)', 'Naogaon (zone 2, Z 0.20, V 55.2 m/s)', 'Narail (zone 1, Z 0.12, V 68.6 m/s)', 'Narayanganj (zone 2, Z 0.20, V 61.1 m/s)', 'Narsingdi (zone 3, Z 0.28, V 59.7 m/s)', 'Natore (zone 2, Z 0.20, V 61.9 m/s)', 'Netrokona (zone 4, Z 0.36, V 65.6 m/s)', 'Nilphamari (zone 1, Z 0.12, V 44.7 m/s)', 'Noakhali (zone 2, Z 0.20, V 57.1 m/s)', 'Pabna (zone 2, Z 0.20, V 63.1 m/s)', 'Panchagarh (zone 2, Z 0.20, V 41.4 m/s)', 'Patuakhali (zone 1, Z 0.12, V 80 m/s)', 'Pirojpur (zone 1, Z 0.12, V 80 m/s)', 'Rajbari (zone 2, Z 0.20, V 59.1 m/s)', 'Rajshahi (zone 1, Z 0.12, V 49.2 m/s)', 'Rangamati (zone 3, Z 0.28, V 56.7 m/s)', 'Rangpur (zone 3, Z 0.28, V 65.3 m/s)', 'Satkhira (zone 1, Z 0.12, V 57.6 m/s)', 'Shariatpur (zone 2, Z 0.20, V 61.9 m/s)', 'Sherpur (zone 4, Z 0.36, V 62.5 m/s)', 'Sirajganj (zone 3, Z 0.28, V 50.6 m/s)', 'Srimangal (zone 4, Z 0.36, V 50.6 m/s)', 'Sunamganj (zone 4, Z 0.36, V 61.1 m/s)', 'Sylhet (zone 4, Z 0.36, V 61.1 m/s)', 'Tangail (zone 3, Z 0.28, V 50.6 m/s)', 'Thakurgaon (zone 2, Z 0.20, V 41.4 m/s)', 'Custom (enter Z and V)'],
 					title: 'Location',
@@ -10242,7 +10246,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				siteClass: {
 					default: 'SD',
-					description: 'The default pack\'s Table 6.2.13. Used when the source is Entered, or while the soil report has no boreholes that give a class.',
+					description: 'One of the code pack\'s site classes. Used when the source is Entered, or while the soil report has no boreholes that give a class.',
 					enum: ['SA', 'SB', 'SC', 'SD', 'SE'],
 					enumDescriptions: ['SA: Rock or rock-like formation, at most 5 m of weaker material on top (Vs > 800 m/s)', 'SB: Very dense sand, gravel or very stiff clay (Vs 360-800 m/s, N > 50, su > 250 kPa)', 'SC: Dense or medium dense sand, gravel or stiff clay (Vs 180-360 m/s, N 15-50, su 70-250 kPa)', 'SD: Loose-to-medium cohesionless soil or soft-to-firm cohesive soil (Vs < 180 m/s, N < 15, su < 70 kPa)', 'SE: Surface alluvium of SC or SD, 5-20 m thick, on material with Vs > 800 m/s'],
 					title: 'Site class',
@@ -10260,7 +10264,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value (the default pack\'s Table 6.2.14: 0.12, 0.20, 0.28 or 0.36 by zone).',
+					description: 'Overrides the location\'s value (the code pack\'s coefficient of the location\'s seismic zone).',
 					title: 'Seismic zone coefficient Z',
 				},
 				windSpeed: {
@@ -10274,7 +10278,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Overrides the location\'s value [m/s] (the default pack\'s Table 6.2.8).',
+					description: 'Overrides the location\'s value [m/s] (the code pack\'s basic wind speed).',
 					title: 'Basic wind speed',
 				},
 				flood: {
@@ -10327,7 +10331,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				effectiveLength: {
 					default: 'unity',
-					description: '1.0: conservative, allowed by the default pack\'s Part 6 Sec 6.3.10.6.3. Chart: the nonsway alignment chart with ψ from 0.70 Ig columns, 0.35 Ig beams and 0.25 Ig flat plates. Sway storeys always use the sway chart.',
+					description: '1.0: conservative, as the code pack allows. Chart: the nonsway alignment chart with ψ from the code pack\'s cracked moments of inertia of columns, beams and flat plates. Sway storeys always use the sway chart.',
 					enum: ['unity', 'chart'],
 					enumDescriptions: ['k = 1.0', 'Alignment chart'],
 					title: 'Effective length factor k (nonsway)',
@@ -10367,7 +10371,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Empty (automatic): 1.0 when the analysed model ran its lateral cases on cracked sections (read from the model, not from these settings); with gross sections each storey\'s first-order drift Δo is multiplied by its cracked-over-gross drift ratio (columns 0.70 Ig, beams 0.35 Ig, flat plates 0.25 Ig, walls 0.35 Ig; the default pack\'s Part 6 Sec 6.3.10.4.1). A number is used as given.',
+					description: 'Empty (automatic): 1.0 when the analysed model ran its lateral cases on cracked sections (read from the model, not from these settings); with gross sections each storey\'s first-order drift Δo is multiplied by its cracked-over-gross drift ratio (the code pack\'s cracked moments of inertia, walls cracked). A number is used as given.',
 					title: 'Storey drift factor for Q',
 				},
 			},
@@ -11459,12 +11463,6 @@ export const DEFAULT_SETTINGS: object = {
 		crackedFor: 'lateral',
 		wallsCracked: false,
 		secondOrder: 'none',
-		pDeltaFactors: {
-			D: 1.2,
-			SD: 1.2,
-			F: 1.2,
-			L: 1.0,
-		},
 		firstOrderReference: true,
 		notionalLoads: 'none',
 		notionalDrift: 0.0,
@@ -17878,12 +17876,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		crackedFor: 'lateral',
 		wallsCracked: false,
 		secondOrder: 'none',
-		pDeltaFactors: {
-			D: 1.2,
-			SD: 1.2,
-			F: 1.2,
-			L: 1.0,
-		},
+		pDeltaFactors: null,
 		firstOrderReference: true,
 		notionalLoads: 'none',
 		notionalDrift: 0.0,

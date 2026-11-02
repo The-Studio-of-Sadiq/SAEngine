@@ -4,9 +4,12 @@ foundations (09 Substructure) and, when given, the design report. The detailing 
 the bar bending schedules (:mod:`saengine.drawings.bbs`) and the drawing sheets
 (:mod:`saengine.drawings.sheets`) draw from.
 
-Code basis: the bar detailing rules below are those of the default code pack (BNBC 2020 Part 6
-Chapter 8 "Detailing of Reinforcement in Concrete Structures"; the page is the PDF page of its
-part 1). The clause each rule prints comes from the code pack in force (its ``citations``):
+Code basis: the numbers of the bar detailing rules (hook tails, bend diameters, development and
+lap factors and minima, splice zones, bar extents) are read when used from the code pack in force
+(its ``detailing`` table's ``bars``, :func:`bar_rules`); the clause each rule prints comes from its
+``citations``. A pack without them does not cover the detailing (:class:`NotCovered`). The rules
+below are given as the default pack states them (BNBC 2020 Part 6 Chapter 8 "Detailing of
+Reinforcement in Concrete Structures"; the page is the PDF page of its part 1):
 
 - Standard hooks (8.1.2.1, pp 1065-1066): 180° + max(4 db, 65 mm); 90° + 12 db; stirrups and
   ties: 90° + 6 db (db <= 16), 90° + 12 db (19-25 mm), 135° + 6 db (db <= 25); closed ties
@@ -158,33 +161,55 @@ SCHEMA_ID = "saengine.detailing/1"
 ROUND = 25.0
 #: The longest bar delivered [mm] (as the bill of quantities, saengine.boq.quantities).
 STOCK_LENGTH = 12_000.0
-#: √f'c in Sec 8.2 at most this [MPa] (8.2.2, p 1076).
-SQRT_FC_MAX = 8.3
-LD_MIN = 300.0  # 8.2.3.1
-LDC_MIN = 200.0  # 8.2.4.1
-LAP_MIN = 300.0  # 8.2.13.1, 8.2.14.1, 8.2.15.2(d), (e)
-#: Bottom bars of beams and slabs into the support at least this [mm] (8.2.8.1, Figure 6.6.20).
-INTO_SUPPORT = 150.0
-#: Top bars of slabs at supports, from the face, as a share of ln (Figure 6.6.20, p 948).
-SLAB_TOP_EXTENT = 0.30
 #: Extra top bars of beams over supports, from the face, as a share of ln (practice, see notes).
 BEAM_TOP_EXTENT = 0.30
 #: Hoop spacings over laps worked out here are rounded down to this [mm] (as the design's).
 SPLICE_STEP = 25.0
-#: First stirrup from the face [mm] (8.3.4.3(b), 8.3.10.4(b)).
-FIRST_STIRRUP = 50.0
 TOL = 50.0  # mm: geometric tolerance when matching members
 
 DEFAULT_OPTIONS: dict[str, Any] = {
     "curtail": True,  # beams: cut the extra top bars; False: all bars full length (as the BOQ)
     "beamTopExtent": BEAM_TOP_EXTENT,
-    "slabTopExtent": SLAB_TOP_EXTENT,
+    "slabTopExtent": None,  # None: the code pack's (bar_rules().extents.slabTopExtent)
     "slabTop": "supports",  # "supports": top bars over supports; "full": the mesh all over
     "stockLength": STOCK_LENGTH,
     "round": ROUND,
     "columnLaps": "tension",  # "tension" (class B) or "compression" (8.2.14.1)
     "method": "simplified",  # development length form: "simplified" (8.2.3.2) or "general"
 }
+
+
+class NotCovered(ValueError):
+    """The code pack in force gives no bar detailing rules (its ``detailing`` table has no
+    ``bars``): the detailing is not covered by that pack (never another code's numbers)."""
+
+
+def bar_rules() -> Any:
+    """The bar detailing rules of the code pack in force (its ``detailing`` table's ``bars``:
+    ``hooks``, ``bends``, ``development``, ``laps``, ``splices``, ``extents``, ``notes``), read
+    when used. :class:`NotCovered` when the pack gives none."""
+    from saengine.codes import context as code_context
+
+    bars = code_context.pack_table("detailing").bars
+    if bars is None:
+        raise NotCovered(
+            f"bar detailing is not covered by the code pack {code_context.code_name()} "
+            "(its detailing table gives no 'bars' rules)"
+        )
+    return bars
+
+
+def no_lap(db: float) -> bool:
+    """True when bars of size ``db`` are not lapped (the code pack's ``laps.noLapDb``: 36 mm and
+    larger in the default pack, 8.2.12.2(a))."""
+    return db >= bar_rules().laps.noLapDb
+
+
+def _note(key: str, before: str = " (", after: str = ")") -> str:
+    """The pack's formula note ``key`` (``bars.notes``) between ``before`` and ``after``; ''
+    when the pack gives none."""
+    text = bar_rules().notes.get(key, "")
+    return f"{before}{text}{after}" if text else ""
 
 
 def _cite(key: str) -> str:
@@ -227,10 +252,11 @@ def bend_diameter(db: float, transverse: bool = False) -> Rule:
     """Least inside bend diameter [mm] (8.1.2.2, Table 6.8.1, p 1066): 6 db (10-25 mm), 8 db
     (over 25 to 40 mm), 10 db (over 40 to 57 mm); stirrups and ties of 16 mm and smaller 4 db
     (8.1.2.2(b)). Bars below 10 mm: 6 db (4 db as ties)."""
-    if transverse and db <= 16:
-        return Rule(4 * db, "4 db", _cite("barBendStirrup"))
-    factor = 6 if db <= 25 else 8 if db <= 40 else 10
-    return Rule(factor * db, f"{factor} db", _cite("barBend"))
+    bends = bar_rules().bends
+    if transverse and db <= bends.transverseMax:
+        return Rule(bends.transverse * db, f"{bends.transverse:g} db", _cite("barBendStirrup"))
+    factor = next((f for size, f in bends.steps if db <= size), bends.steps[-1][1])
+    return Rule(factor * db, f"{factor:g} db", _cite("barBend"))
 
 
 @dataclass(frozen=True)
@@ -263,15 +289,16 @@ def standard_hook(
     for 19-25 mm, 135° + 6 db for db <= 25 mm; ``closed`` ties, and seismic hooks (d), 135° +
     max(6 db, 75 mm)."""
     bend = bend_diameter(db, transverse).value
+    h = bar_rules().hooks
     if not transverse:
         if angle >= 180:
-            return Hook(180, max(4 * db, 65.0), bend, db, _cite("barHook180"))
-        return Hook(90, 12 * db, bend, db, _cite("barHook90"))
+            return Hook(180, max(h.main180Db * db, h.main180Min), bend, db, _cite("barHook180"))
+        return Hook(90, h.main90Db * db, bend, db, _cite("barHook90"))
     if angle >= 135:
-        tail = max(6 * db, 75.0) if closed else 6 * db
+        tail = max(h.tie135Db * db, h.closedMin) if closed else h.tie135Db * db
         clause = _cite("barTieHook135Closed" if closed else "barTieHook135")
         return Hook(135, tail, bend, db, clause)
-    tail = 6 * db if db <= 16 else 12 * db
+    tail = h.tie90SmallDb * db if db <= h.tieSmallMax else h.tie90LargeDb * db
     return Hook(90, tail, bend, db, _cite("barTieHook90"))
 
 
@@ -286,22 +313,23 @@ def seismic_hook(db: float) -> Hook:
 
 def sqrt_fc(fc: float) -> float:
     """√f'c for Sec 8.2, at most 8.3 MPa (8.2.2, p 1076)."""
-    return min(math.sqrt(fc), SQRT_FC_MAX)
+    return min(math.sqrt(fc), bar_rules().development.sqrtFcMax)
 
 
 def psi_s(db: float) -> float:
     """Bar size factor (8.2.3.4(c), p 1078): 0.8 for 19 mm and smaller, 1.0 above."""
-    return 0.8 if db <= 19 else 1.0
+    dev = bar_rules().development
+    return dev.psiSSmall if db <= dev.smallBarMax else 1.0
 
 
 def psi_t(top: bool) -> float:
     """Casting position (8.2.3.4(a), p 1077): 1.3 with more than 300 mm of fresh concrete below."""
-    return 1.3 if top else 1.0
+    return bar_rules().development.psiTop if top else 1.0
 
 
 def ktr(atr: float, s: float, n: int) -> float:
     """Transverse reinforcement index Ktr = 40 Atr / (s n) [mm] (Eq. 6.8.2, p 1077)."""
-    return 40 * atr / (s * n)
+    return bar_rules().development.ktr * atr / (s * n)
 
 
 def development_tension(
@@ -326,38 +354,38 @@ def development_tension(
     "general" (8.2.3.3, Eq. 6.8.1): ``cb`` the smaller of the cover to the bar's centre and half
     the bars' centre spacing [mm], ``k_tr`` (Eq. 6.8.2, 0 permitted). ``excess`` As,req/As,prov
     (8.2.3.5); ``minimum`` False leaves out the 300 mm of 8.2.3.1 (for laps, 8.2.13.1)."""
+    dev = bar_rules().development
     pt = psi_t(top)
-    te = min(pt * psi_e, 1.7)  # 8.2.3.4(b): ψt ψe need not exceed 1.7
+    te = min(pt * psi_e, dev.psiTEMax)  # 8.2.3.4(b): ψt ψe need not exceed 1.7
     root = sqrt_fc(fc)
     if method == "general":
         if cb is None:
             raise ValueError("the general form needs cb")
-        confinement = min((cb + k_tr) / db, 2.5)
+        confinement = min((cb + k_tr) / db, dev.confinementMax)
         ps = psi_s(db)
-        raw = fy * te * ps / (1.1 * lam * root * confinement) * db
+        g = dev.general
+        raw = fy * te * ps / (g * lam * root * confinement) * db
         formula = (
-            f"fy ψt ψe ψs / (1.1 λ √f'c (cb + Ktr)/db) db = {fy:g}·{te:g}·{ps:g} / (1.1·{lam:g}·"
-            f"{root:.2f}·{confinement:.2f})·{db:g}"
+            f"fy ψt ψe ψs / ({g:g} λ √f'c (cb + Ktr)/db) db = {fy:g}·{te:g}·{ps:g} / ({g:g}·"
+            f"{lam:g}·{root:.2f}·{confinement:.2f})·{db:g}"
         )
         clause = _cite("barDevelopmentGeneral")
     else:
-        if spacing_ok:
-            k = 2.1 if db <= 19 else 1.7
-        else:
-            k = 1.4 if db <= 19 else 1.1
+        small, large = dev.simplifiedGood if spacing_ok else dev.simplifiedOther
+        k = small if db <= dev.smallBarMax else large
         raw = fy * te / (k * lam * root) * db
         formula = (
             f"fy ψt ψe / ({k:g} λ √f'c) db = {fy:g}·{te:g} / ({k:g}·{lam:g}·{root:.2f})·{db:g}"
         )
         clause = _cite("barDevelopmentSimplified")
-        if not spacing_ok and db <= 19:
-            clause += " (the table's cell is blank: 1.4 of ACI 318 25.4.2.3 taken)"
+        if not spacing_ok and db <= dev.smallBarMax:
+            clause += _note("simplifiedOther")
     value = raw * excess
     if excess != 1.0:
-        formula += f" × As,req/As,prov {excess:.2f} (8.2.3.5)"
-    if minimum and value < LD_MIN:
-        value = LD_MIN
-        formula += ", at least 300 mm (8.2.3.1)"
+        formula += f" × As,req/As,prov {excess:.2f}{_note('excess')}"
+    if minimum and value < dev.ldMin:
+        value = dev.ldMin
+        formula += f", at least {dev.ldMin:g} mm{_note('ldMin')}"
     return Rule(value, formula, clause)
 
 
@@ -372,14 +400,16 @@ def development_compression(
 ) -> Rule:
     """ldc [mm] (8.2.4, p 1078): max(0.24 fy db / (λ √f'c), 0.043 fy db) × As,req/As,prov × 0.75
     inside spirals or 12 mm ties at 100 mm (``confined``), at least 200 mm."""
-    basic = max(0.24 * fy * db / (lam * sqrt_fc(fc)), 0.043 * fy * db)
-    value = basic * excess * (0.75 if confined else 1.0)
+    dev = bar_rules().development
+    a, b = dev.compression
+    basic = max(a * fy * db / (lam * sqrt_fc(fc)), b * fy * db)
+    value = basic * excess * (dev.compressionConfined if confined else 1.0)
     return Rule(
-        max(value, LDC_MIN),
-        "max(0.24 fy db / (λ √f'c), 0.043 fy db)"
-        + (" × 0.75" if confined else "")
+        max(value, dev.ldcMin),
+        f"max({a:g} fy db / (λ √f'c), {b:g} fy db)"
+        + (f" × {dev.compressionConfined:g}" if confined else "")
         + (f" × {excess:.2f}" if excess != 1.0 else "")
-        + ", at least 200 mm",
+        + f", at least {dev.ldcMin:g} mm",
         _cite("barDevelopmentCompression"),
     )
 
@@ -401,8 +431,9 @@ def hook_development(
     value is :func:`saengine.design.ductile_joints.hooked_development` (√f'c capped, 8.2.2)."""
     from saengine.design.ductile_joints import hooked_development
 
-    factor = (0.7 if cover else 1.0) * (0.8 if confined else 1.0) * excess
-    fc_used = min(fc, SQRT_FC_MAX**2)
+    dev = bar_rules().development
+    factor = (dev.hookCover if cover else 1.0) * (dev.hookConfined if confined else 1.0) * excess
+    fc_used = min(fc, dev.sqrtFcMax**2)
     value = hooked_development(db, fy, fc_used, lam, psi_e, factor)
     return Rule(
         value,
@@ -429,7 +460,9 @@ def hook_development_seismic(db: float, fy: float, fc: float, lam: float = 1.0) 
 def splice_class(provided_over_required: float, spliced_share: float) -> str:
     """Class of a tension lap (8.2.13.2, p 1084): "A" when As,prov >= 2 As,req over the lap and
     at most half the bars are spliced within the lap length, else "B"."""
-    return "A" if provided_over_required >= 2 and spliced_share <= 0.5 else "B"
+    laps = bar_rules().laps
+    a = provided_over_required >= laps.classAProvided and spliced_share <= laps.classAShare
+    return "A" if a else "B"
 
 
 def lap_tension(
@@ -447,14 +480,19 @@ def lap_tension(
     lapped with, when of another size (8.2.13.5, p 1084: the larger of ld of the larger bar and
     the lap of the smaller). ``factor`` multiplies ld (1.25 for special walls, 8.3.6.2(c));
     ``development``: the arguments of :func:`development_tension` (top, psi_e, method, ...)."""
-    if db >= 36:
-        raise ValueError("lap splices are not used for 36 mm bars and larger (8.2.12.2(a))")
+    laps = bar_rules().laps
+    if db >= laps.noLapDb:
+        raise ValueError(
+            f"lap splices are not used for {laps.noLapDb:g} mm bars and larger"
+            + _cite_after("barNoLap", " (")
+            + (")" if _cite("barNoLap") else "")
+        )
     development.pop("excess", None)
     development.pop("minimum", None)
     small, large = (db, other_db) if other_db and other_db > db else (other_db or db, db)
     ld = development_tension(small, fy, fc, minimum=False, **development).value * factor
-    k = 1.0 if cls == "A" else 1.3
-    value = max(k * ld, LAP_MIN)
+    k = laps.classA if cls == "A" else laps.classB
+    value = max(k * ld, laps.min)
     formula = f"{k:g} ld = {k:g} × {ld:.0f}"
     if other_db and other_db != db:
         ld_large = development_tension(large, fy, fc, minimum=True, **development).value
@@ -462,23 +500,38 @@ def lap_tension(
             value, formula = ld_large, f"ld of the larger bar Ø{large:g} = {ld_large:.0f}"
     if factor != 1.0:
         formula += f" (ld × {factor:g})"
-    return Rule(value, formula + ", at least 300 mm", _cite(f"barLapClass{cls}"))
+    return Rule(value, formula + f", at least {laps.min:g} mm", _cite(f"barLapClass{cls}"))
 
 
 def lap_compression(db: float, fy: float, fc: float, *, factor: float = 1.0) -> Rule:
     """Compression lap [mm] (8.2.14.1, p 1084): 0.071 fy db for fy <= 420 MPa, (0.13 fy - 24) db
     above, + 1/3 when f'c < 21 MPa; ``factor`` 0.83 for tied columns with ties of 0.0015 h s
     (8.2.15.2(d)) or 0.75 inside spirals (8.2.15.2(e)); at least 300 mm."""
-    basic = 0.071 * fy * db if fy <= 420 else (0.13 * fy - 24) * db
-    formula = "0.071 fy db" if fy <= 420 else "(0.13 fy - 24) db"
-    if fc < 21:
-        basic *= 4 / 3
-        formula += " × 4/3 (f'c < 21 MPa)"
+    laps = bar_rules().laps
+    a, b = laps.compressionHigh
+    low = fy <= laps.compressionFyLimit
+    basic = laps.compression * fy * db if low else (a * fy - b) * db
+    formula = f"{laps.compression:g} fy db" if low else f"({a:g} fy - {b:g}) db"
+    if fc < laps.lowFc:
+        basic *= laps.lowFcFactor
+        formula += f" × {_fraction(laps.lowFcFactor)} (f'c < {laps.lowFc:g} MPa)"
     if factor != 1.0:
         formula += f" × {factor:g}"
     return Rule(
-        max(basic * factor, LAP_MIN), formula + ", at least 300 mm", _cite("barLapCompression")
+        max(basic * factor, laps.min),
+        formula + f", at least {laps.min:g} mm",
+        _cite("barLapCompression"),
     )
+
+
+def _fraction(value: float) -> str:
+    """``value`` as a short fraction when it is one (4/3), else as a number."""
+    from fractions import Fraction
+
+    f = Fraction(value).limit_denominator(12)
+    if f.denominator != 1 and abs(float(f) - value) < 1e-12:
+        return f"{f.numerator}/{f.denominator}"
+    return f"{value:g}"
 
 
 def column_lap(
@@ -511,8 +564,9 @@ def column_lap(
 def spiral_lap(db: float, plain: bool = False) -> Rule:
     """Lap of a spiral (8.1.9.3(e), p 1073): 48 db for deformed uncoated bars, 72 db for others,
     at least 300 mm."""
-    k = 72 if plain else 48
-    return Rule(max(k * db, LAP_MIN), f"{k} db, at least 300 mm", _cite("barSpiralLap"))
+    laps = bar_rules().laps
+    k = laps.spiralOther if plain else laps.spiralDeformed
+    return Rule(max(k * db, laps.min), f"{k:g} db, at least {laps.min:g} mm", _cite("barSpiralLap"))
 
 
 # ────────────────────────────────────────── curtailment ──────────────────────────────────────────
@@ -521,19 +575,26 @@ def spiral_lap(db: float, plain: bool = False) -> Rule:
 def extension_beyond_cutoff(d: float, db: float) -> Rule:
     """Bars extend beyond the point where they are no longer needed by max(d, 12 db), except at
     the supports of simple spans and the free ends of cantilevers (8.2.7.3, p 1080)."""
-    return Rule(max(d, 12 * db), "max(d, 12 db)", _cite("barExtensionBeyondCutoff"))
+    k = bar_rules().extents.cutoffDb
+    return Rule(max(d, k * db), f"max(d, {k:g} db)", _cite("barExtensionBeyondCutoff"))
 
 
 def negative_extension(d: float, db: float, ln: float) -> Rule:
     """At least 1/3 of the negative steel at a support extends beyond the point of inflection by
     max(d, ln/16, 12 db) (8.2.9.3, p 1081)."""
-    return Rule(max(d, ln / 16, 12 * db), "max(d, ln/16, 12 db)", _cite("barNegativeExtension"))
+    ext = bar_rules().extents
+    k, n = ext.cutoffDb, ext.negativeSpan
+    return Rule(
+        max(d, ln / n, k * db), f"max(d, ln/{n:g}, {k:g} db)", _cite("barNegativeExtension")
+    )
 
 
 def positive_into_support(count: int, continuous: bool) -> int:
     """Bars of the positive steel that extend along the same face into the support, at least
     150 mm in beams: 1/3 in simple members, 1/4 in continuous ones (8.2.8.1, p 1080)."""
-    return max(1, math.ceil(count / (4 if continuous else 3) - 1e-9))
+    ext = bar_rules().extents
+    share = ext.positiveContinuous if continuous else ext.positiveSimple
+    return max(1, math.ceil(count / share - 1e-9))
 
 
 def continuous_top_bars(count: int, required_share: float = 0.0) -> int:
@@ -630,22 +691,27 @@ def standard_top_extent(ln: float, ld: float, fraction: float = BEAM_TOP_EXTENT)
     )
 
 
-def slab_top_extent(ln: float, fraction: float = SLAB_TOP_EXTENT) -> Rule:
-    """Top bars of a slab at a support, from the face: 0.30 ln (Figure 6.6.20, p 948; ln the
-    longer clear span at a support between unequal spans, 6.5.3.8.2)."""
+def slab_top_extent(ln: float, fraction: float | None = None) -> Rule:
+    """Top bars of a slab at a support, from the face: the code pack's share of ln (0.30 ln in
+    the default pack, Figure 6.6.20, p 948; ln the longer clear span at a support between unequal
+    spans, 6.5.3.8.2) unless ``fraction`` is given."""
+    if fraction is None:
+        fraction = bar_rules().extents.slabTopExtent
     return Rule(fraction * ln, f"{fraction:g} ln", _cite("barSlabTopExtent"))
 
 
 def seismic_splice_exclusion(h: float) -> Rule:
     """No laps in beams of special moment frames within the joint or within 2 h of its faces
     (8.3.4.2(b), p 1091)."""
-    return Rule(2 * h, "2 h", _cite("barSpliceExclusion"))
+    k = bar_rules().splices.beamExclusionDepths
+    return Rule(k * h, f"{k:g} h", _cite("barSpliceExclusion"))
 
 
 def column_splice_region(clear_height: float) -> tuple[float, float]:
     """Laps of special-frame columns only within the centre half of the clear height: (from,
     to) above the floor [mm] (8.3.5.3(b), p 1096; Figure 6.8.7, p 1097)."""
-    return clear_height / 4, 3 * clear_height / 4
+    lo, hi = bar_rules().splices.columnRegion
+    return clear_height * lo, clear_height * hi
 
 
 # ──────────────────────────────────────────── shapes ────────────────────────────────────────────
@@ -1372,21 +1438,21 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         spliced within the lap length: class B (8.2.13.2). Bars of 36 mm and larger are not
         lapped (8.2.12.2(a), p 1083): a run longer than stock is noted for couplers."""
         bend = bend_diameter(db).value
-        if db >= 36:
+        if no_lap(db):
             lap = 0.0
             pieces, laps = [(a, c)], []
             ok = c - a + hooks[0] + hooks[1] <= ctx.stock + 1e-6
             if not ok:
                 element["notes"].append(
                     f"{role} bars Ø{db:g}: {c - a + hooks[0] + hooks[1]:.0f} mm, longer than a "
-                    f"stock length ({ctx.stock:g} mm), and bars of 36 mm and larger are not "
-                    f"lapped ({_cite('barNoLap')}): splice them with mechanical "
+                    f"stock length ({ctx.stock:g} mm), and bars of "
+                    f"{bar_rules().laps.noLapDb:g} mm and larger are not lapped ({_cite('barNoLap')}): splice them with mechanical "
                     "couplers or order longer bars"
                 )
         else:
             lap = ctx.lap(db, fy, fc, top=top, cb=cb_of(face, db))
             pieces, laps, ok = split_run(a, c, lap, windows(lap), ctx.stock, hooks)
-        if not ok and db < 36:
+        if not ok and not no_lap(db):
             element["notes"].append(
                 f"{role} bars Ø{db:g}: no lap location within a stock length "
                 f"({ctx.stock:g} mm) in the permitted zones: one bar longer than stock (use a "
@@ -1618,8 +1684,9 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                 f"the type has no end zone: stirrups at {tr.spacing:g} mm all along (the code "
                 f"asks a zone of {zone_len:.0f} mm from each face; see the design checks)"
             )
+        first_stirrup = bar_rules().extents.firstStirrup
         first = zones.zone_first or (
-            FIRST_STIRRUP if zone_len else min(FIRST_STIRRUP, tr.spacing / 2)
+            first_stirrup if zone_len else min(first_stirrup, tr.spacing / 2)
         )
         hook = seismic_hook(tdia)
         sa, sb = b - 2 * r.cover, h - 2 * r.cover
@@ -1653,10 +1720,13 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                 remarks="cross tie: 135° hook one end, 90° the other, alternated (8.1.1.1)",
             )
         # hoops over the laps of special-frame beams at <= min(d/4, 100 mm) (8.3.4.2(b),
-        # p 1091): the type's splice spacing, else that rule's
+        # p 1091; the code pack's splices.hoopDepthShare, hoopMax): the type's splice spacing,
+        # else that rule's
         splice_s = zones.splice_spacing
+        sp = bar_rules().splices
+        hoop_rule = min(d_eff * sp.hoopDepthShare, sp.hoopMax)
         if special and not splice_s:
-            rule = max(math.floor(min(d_eff / 4, 100.0) / SPLICE_STEP) * SPLICE_STEP, SPLICE_STEP)
+            rule = max(math.floor(hoop_rule / SPLICE_STEP) * SPLICE_STEP, SPLICE_STEP)
             splice_s = rule if rule < tr.spacing else None  # else as close already
         total = 0
         for (f1, f2), ln in zip(spans, clear, strict=False):
@@ -1691,8 +1761,8 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
             element["bars"].append(tie)
         if special and element["laps"] and not zones.splice_spacing and splice_s:
             element["notes"].append(
-                f"hoops over the laps at {splice_s:g} mm: min(d/4, 100 mm) = "
-                f"{min(d_eff / 4, 100):.0f} mm rounded down to {SPLICE_STEP:g} mm "
+                f"hoops over the laps at {splice_s:g} mm: min(d/{1 / sp.hoopDepthShare:g}, "
+                f"{sp.hoopMax:g} mm) = {hoop_rule:.0f} mm rounded down to {SPLICE_STEP:g} mm "
                 f"({_cite('barSpliceExclusion')}; the type gives no splice spacing)"
             )
     sizes = sorted({d for _, d in tops + bottoms})
@@ -1700,7 +1770,9 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         f"Ø{d:g} {up(ctx.ld(d, fy, fc, cb=cb_of('bottom', d)), step):g} mm" for d in sizes
     )
     laps = ", ".join(
-        f"Ø{d:g} {ctx.lap(d, fy, fc, cb=cb_of('bottom', d)):g} mm" if d < 36 else f"Ø{d:g} none"
+        f"Ø{d:g} {ctx.lap(d, fy, fc, cb=cb_of('bottom', d)):g} mm"
+        if not no_lap(d)
+        else f"Ø{d:g} none"
         for d in sizes
     )
     element["notes"].append(
@@ -1804,7 +1876,7 @@ def _beam_depth_at(ctx: _Ctx, column: Any, level: float) -> float:
 
 
 def _column_lap_rule(ctx: _Ctx, db: float, fy: float, fc: float, special: bool) -> Rule:
-    if db >= 36:  # no laps of 36 mm bars and larger: a mechanical splice where they meet
+    if no_lap(db):  # no laps of the largest bars (36 mm and up): a mechanical splice
         return Rule(0.0, "no lap: mechanical coupler", _cite("barNoLap"))
     if ctx.options["columnLaps"] == "compression" and not special:
         return column_lap(db, fy, fc, stress="compression")
@@ -1880,7 +1952,7 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
     n_bars = sum(n for n, _ in groups)
     db_max = max(d for _, d in groups)
     lap_here = up(_column_lap_rule(ctx, db_max, fy, fc, special).value, step)
-    if db_max >= 36:
+    if no_lap(db_max):
         element["notes"].append(
             f"bars Ø{db_max:g}: not lapped ({_cite('barNoLap')}); spliced with "
             "mechanical couplers where the lap would be"
@@ -2437,7 +2509,7 @@ def _detail_slabs(ctx: _Ctx) -> list[dict[str, Any]]:
                     edge = lo if side == 0 else hi
                     sign = 1 if side == 0 else -1
                     if n is not None:
-                        ext = max(INTO_SUPPORT, w / 2)
+                        ext = max(bar_rules().extents.intoSupport, w / 2)
                         ends.append(edge + sign * (w / 2 - ext))
                         hooks.append(0.0)
                     else:
@@ -2705,9 +2777,12 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
             None,
         )
         special = ctx.wall_level == "special" and bool(t.structural)
-        factor = 1.25 if special and below is None else 1.0
+        factor = bar_rules().laps.wallYield if special and below is None else 1.0
         if factor != 1.0:
-            element["notes"].append(f"laps at the base for 1.25 ld ({_cite('barWallBaseLap')})")
+            element["notes"].append(
+                f"laps at the base for {factor:g} ld{_cite_after('barWallBaseLap', ' (')}"
+                + (")" if _cite("barWallBaseLap") else "")
+            )
         found = _foundation_under(ctx, wall) if below is None else None
         boundary = r.boundary
         web_from = boundary.length if boundary else cover
@@ -2848,7 +2923,8 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
     return out
 
 
-#: Lintels: the first stirrup from each end of the lintel [mm] (practice, as FIRST_STIRRUP).
+#: Lintels: the first stirrup from each end of the lintel [mm] (practice, as the first stirrup
+#: of beams in the default pack).
 LINTEL_FIRST_STIRRUP = 50.0
 
 
@@ -3514,6 +3590,8 @@ def detailing_model(
 
         substructure = authoritative_substructure(data["substructure"], building)
     opts = {**DEFAULT_OPTIONS, **(options or {})}
+    if opts.get("slabTopExtent") is None:
+        opts["slabTopExtent"] = bar_rules().extents.slabTopExtent
     if opts["method"] not in ("simplified", "general"):
         raise ValueError(f"method {opts['method']!r}: 'simplified' or 'general'")
     report = {str(e.get("id")): e for e in (design_report or {}).get("elements", [])}

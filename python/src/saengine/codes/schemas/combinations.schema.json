@@ -418,6 +418,23 @@
       "description": "Combinations formed in a flood or tidal surge zone, by kind of zone (coastal, inland); the project's flood zone chooses one.",
       "title": "Flood",
       "type": "object"
+    },
+    "pDeltaPreload": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "D6: load case -> factor of the gravity preload of a P-Delta analysis (the gravity part of the seismic strength combination); empty: not covered by the pack (the project settings must give the factors).",
+      "title": "Pdeltapreload"
     }
   },
   "required": [

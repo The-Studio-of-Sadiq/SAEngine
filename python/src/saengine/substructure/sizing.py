@@ -47,8 +47,8 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design import rc
 from saengine.design.bars import diameters, mesh_for, slab_flexure_need
-from saengine.design.rc import PHI_SHEAR
 from saengine.library.bim import ColumnElement
 from saengine.library.materials import Category
 from saengine.library.objects import BarMesh, Column
@@ -800,7 +800,7 @@ def punching_depth(vu: float, c: float, fc: float) -> float:
     d = 5.0
     while d < 5000.0:
         b0 = 4 * (c + d)
-        if PHI_SHEAR * punching_stress(c, c, d, b0, 40.0, fc) * b0 * d >= vu:
+        if rc.value("PHI_SHEAR") * punching_stress(c, c, d, b0, 40.0, fc) * b0 * d >= vu:
             break
         d += 5.0
     return d

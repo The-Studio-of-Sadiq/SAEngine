@@ -90,8 +90,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design import stm
-from saengine.design.rc import PHI_SHEAR, STEEL_E
+from saengine.design import rc, stm
 from saengine.design.rc_detailing import concrete_modulus, material_modulus
 from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
 from saengine.library.objects import BarMesh
@@ -159,7 +158,7 @@ class CapSpec:
     bottom_y: BarMesh | None = None
     top_x: BarMesh | None = None
     top_y: BarMesh | None = None
-    es: float = STEEL_E
+    es: float = field(default_factory=lambda: rc.value("STEEL_E"))
     unit_weight: float = 2400 * G * 1e-9  # N/mm³
     soil_above: float = 0.0  # N/mm², soil and floor over the cap
     notes: list[str] = field(default_factory=list)
@@ -668,7 +667,7 @@ def _punching(
             if vu > worst[0]:
                 worst = (vu, vu / (section.b0 * d), combination)
         vu, stress, combination = worst
-        phi_vc = PHI_SHEAR * capacity.vc
+        phi_vc = rc.value("PHI_SHEAR") * capacity.vc
         checks.append(
             _check(
                 f"Punching at {column.id}",
@@ -690,7 +689,7 @@ def _punching(
         if not section.sides:
             continue
         capacity = punching_capacity(spec.fc, d, section.b0, 1.0, section.alpha_s)
-        phi_v = PHI_SHEAR * capacity.vc * section.b0 * d
+        phi_v = rc.value("PHI_SHEAR") * capacity.vc * section.b0 * d
         for combination in strength:
             r = float(reactions_of[combination][i])
             ratio = r / phi_v if phi_v > 0 else math.inf

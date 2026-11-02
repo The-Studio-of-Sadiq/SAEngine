@@ -36,8 +36,9 @@ histories) carry the cracked sections as ``section_overrides``.
 Second order (the default pack's Part 6 Sec 2.5.7.9, p 632-633, and Sec 6.3.10.4, p 912): with
 ``secondOrder = "pDelta"`` the vertical members get the ``PDelta`` geometric transformation
 (the beams stay ``Linear``) and the model gets a preload case "PDelta", the gravity loads
-``pDeltaFactors`` (by default 1.2D + 1.2SD + 1.2F + 1.0L, the gravity part of the default pack (BNBC) seismic
-combination 1.2D + 1.0E + 1.0L) applied in one Newton step and locked. Every other static case,
+``pDeltaFactors`` (by default the code pack's ``combinations.pDeltaPreload``: 1.2D + 1.2SD + 1.2F
++ 1.0L in the default pack, the gravity part of its seismic combination 1.2D + 1.0E + 1.0L)
+applied in one Newton step and locked. Every other static case,
 and the modal case (so the response spectrum), is then solved on the tangent stiffness of that
 preloaded structure, the geometric stiffness of its axial forces included, and reports the
 increment from it. This is the "P-Delta from a load combination" of ETABS: one geometric
@@ -97,9 +98,34 @@ from saengine.codes import context as code_context
 
 # The moment of inertia factors (the default pack's Part 6 Sec 6.3.10.4.1, ACI 318-19 Table
 # 6.6.3.1.1(a)) are the code pack's: code_context.cracked_factors().
-#: The gravity loads of the P-Delta preload: the gravity part of 1.2D + 1.0E + 1.0L (the default pack (BNBC 2020)
-#: Part 6 Sec 2.7.3.1); D's factor also applies to SD and F (as in the combinations).
-DEFAULT_PDELTA_FACTORS = {"D": 1.2, "SD": 1.2, "F": 1.2, "L": 1.0}
+
+
+def pdelta_factors() -> dict[str, float]:
+    """The load factors of the P-Delta preload of the code pack in force
+    (``combinations.pDeltaPreload``: the gravity part of 1.2D + 1.0E + 1.0L, D's factor on SD
+    and F too, in the default pack, Part 6 Sec 2.7.3.1); {} when the pack gives none (the
+    settings must then give them, see :func:`options_from_settings`)."""
+    table = code_context.pack_table("combinations")
+    return dict(getattr(table, "pDeltaPreload", None) or {})
+
+
+def stability_gravity_factors() -> dict[str, float]:
+    """The load factors of Px in the stability coefficient θ of the code pack in force
+    (``seismic.stabilityGravity``: 1.0 each in the default pack, Part 6 Eq 6.2.48, "no
+    individual load factor need exceed 1.0"); {} when the pack gives none."""
+    table = code_context.pack_table("seismic")
+    return dict(getattr(table, "stabilityGravity", None) or {})
+
+
+def __getattr__(name: str) -> Any:
+    # The former constants, read from the code pack in force when used.
+    if name == "DEFAULT_PDELTA_FACTORS":
+        return pdelta_factors()
+    if name == "STABILITY_GRAVITY_FACTORS":
+        return stability_gravity_factors()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 #: The lateral cases (their first-order references are ``<code>-1``).
 LATERAL_CASES = ("WX", "WY", "EX", "EY")
 #: Every static lateral case that takes the cracked "lateral" sections: the four above plus the
@@ -131,7 +157,7 @@ class SecondOrderOptions:
     stiffness: Literal["gross", "aci"] = "gross"
     crackedFor: Literal["all", "lateral"] = "all"
     wallsCracked: bool = False
-    pDeltaFactors: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_PDELTA_FACTORS))
+    pDeltaFactors: dict[str, float] = field(default_factory=pdelta_factors)
     firstOrderReference: bool = True
     #: The direct analysis method (``notionalLoads = "directAnalysis"``): the steel members'
     #: reduced stiffness, with P-Delta and the first-order reference cases.
@@ -173,7 +199,7 @@ def options_from_settings(settings: Any) -> SecondOrderOptions:
         stiffness=getattr(analysis, "stiffness", "gross") or "gross",
         crackedFor=getattr(analysis, "crackedFor", "all") or "all",
         wallsCracked=bool(getattr(analysis, "wallsCracked", False)),
-        pDeltaFactors=dict(factors) if factors else dict(DEFAULT_PDELTA_FACTORS),
+        pDeltaFactors=dict(factors) if factors else pdelta_factors(),
         firstOrderReference=direct or bool(getattr(analysis, "firstOrderReference", True)),
         directAnalysis=direct,
     )
@@ -432,7 +458,13 @@ def apply_second_order(
         pattern, used = _merged_pattern(
             p, options.pDeltaFactors, max((q["id"] for q in patterns), default=0) + 1
         )
-        if not used:
+        if not options.pDeltaFactors:
+            notes.append(
+                "P-Delta: the preload is not covered by the code pack "
+                f"{code_context.code_name()} (it gives no P-Delta preload factors): enter them "
+                "in the settings (Analysis model › P-Delta preload factors); no case is preloaded"
+            )
+        elif not used:
             notes.append(
                 "P-Delta: none of the gravity cases of the preload "
                 f"({', '.join(options.pDeltaFactors)}) has loads; the columns use PDelta "
@@ -853,11 +885,6 @@ def level_displacement(
     return sum(float(displacement[n["id"]][axis]) for n, _ in rows) / len(rows)
 
 
-#: Load factors of Px in the default pack's Part 6 Eq 6.2.48 (p 632: "no individual load factor need
-#: exceed 1.0").
-STABILITY_GRAVITY_FACTORS = {"D": 1.0, "SD": 1.0, "F": 1.0, "L": 1.0}
-
-
 def drift_amplification(
     project: dict[str, Any],
     out_dir: str | Path,
@@ -889,7 +916,8 @@ def drift_amplification(
     ``levels`` [m]: the storey elevations (the building's stories / 1000), see
     :func:`storey_drifts`.
     """
-    gravity = dict(gravity_factors or STABILITY_GRAVITY_FACTORS)
+    # Px with the code pack's factors (1.0 each in the default pack); none: θ not covered
+    gravity = dict(gravity_factors or stability_gravity_factors())
     theta_max = min(0.5 / cd, 0.25) if cd else None
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
@@ -919,7 +947,9 @@ def drift_amplification(
         u1 = last(first)
         d2 = {(r["from"], r["to"]): r for r in storey_drifts(project, last(second), axis, levels)}
         d1 = {(r["from"], r["to"]): r for r in storey_drifts(project, u1, axis, levels)}
-        seismic = code.startswith("E") and importance is not None and importance > 0
+        seismic = (
+            code.startswith("E") and importance is not None and importance > 0 and bool(gravity)
+        )
         storeys = []
         for key, r1 in d1.items():
             r2 = d2.get(key)
@@ -964,6 +994,11 @@ def drift_amplification(
         out["notes"].append(
             "no lateral case has both its P-Delta and its first-order results (EX and EX-1)"
         )
+    elif not gravity:
+        out["notes"].append(
+            "the stability coefficient θ is not covered by the code pack "
+            f"{code_context.code_name()} (it gives no load factors of Px)"
+        )
     elif importance is None:
         out["notes"].append(
             "the stability coefficient θ"
@@ -974,9 +1009,7 @@ def drift_amplification(
 
 
 __all__ = [
-    "DEFAULT_PDELTA_FACTORS",
     "DIRECT_ANALYSIS_TAG",
-    "STABILITY_GRAVITY_FACTORS",
     "SecondOrderModel",
     "SecondOrderOptions",
     "apply_second_order",
@@ -987,5 +1020,7 @@ __all__ = [
     "loads_above",
     "match_modal_stiffness",
     "options_from_settings",
+    "pdelta_factors",
+    "stability_gravity_factors",
     "storey_drifts",
 ]

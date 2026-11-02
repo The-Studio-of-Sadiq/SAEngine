@@ -1,5 +1,497 @@
 {
   "$defs": {
+    "BarBends": {
+      "additionalProperties": false,
+      "description": "Least inside bend diameters, as a multiple of db.",
+      "properties": {
+        "steps": {
+          "description": "(db up to [mm], factor) in ascending db; bars above the last: its factor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "transverseMax": {
+          "description": "Stirrups and ties up to this db [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Transversemax",
+          "type": "number"
+        },
+        "transverse": {
+          "description": "... bend at this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Transverse",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steps",
+        "transverseMax",
+        "transverse"
+      ],
+      "title": "BarBends",
+      "type": "object"
+    },
+    "BarDetailing": {
+      "additionalProperties": false,
+      "description": "The bar detailing rules of the drawings: hooks, bends, development, laps, splice zones and\nbar extents.",
+      "properties": {
+        "hooks": {
+          "$ref": "#/$defs/BarHooks"
+        },
+        "bends": {
+          "$ref": "#/$defs/BarBends"
+        },
+        "development": {
+          "$ref": "#/$defs/BarDevelopment"
+        },
+        "laps": {
+          "$ref": "#/$defs/BarLaps"
+        },
+        "splices": {
+          "$ref": "#/$defs/BarSplices"
+        },
+        "extents": {
+          "$ref": "#/$defs/BarExtents"
+        },
+        "notes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Short notes the formulas print, by key: 'ldMin', 'excess' (the sub-clause after the term), 'simplifiedOther' (said of small bars in other cases); none: nothing.",
+          "title": "Notes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "hooks",
+        "bends",
+        "development",
+        "laps",
+        "splices",
+        "extents"
+      ],
+      "title": "BarDetailing",
+      "type": "object"
+    },
+    "BarDevelopment": {
+      "additionalProperties": false,
+      "description": "Development lengths of deformed bars (straight in tension and compression, hooked).",
+      "properties": {
+        "sqrtFcMax": {
+          "description": "√f'c used at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Sqrtfcmax",
+          "type": "number"
+        },
+        "ldMin": {
+          "description": "ld in tension at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ldmin",
+          "type": "number"
+        },
+        "ldcMin": {
+          "description": "ldc in compression at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ldcmin",
+          "type": "number"
+        },
+        "smallBarMax": {
+          "description": "'Small' bars up to this db [mm] (k, ψs).",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarmax",
+          "type": "number"
+        },
+        "simplifiedGood": {
+          "description": "Simplified form, spacing and cover met: k of (small, larger) bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Simplifiedgood",
+          "type": "array"
+        },
+        "simplifiedOther": {
+          "description": "Simplified form, other cases: k of (small, larger) bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Simplifiedother",
+          "type": "array"
+        },
+        "general": {
+          "description": "General form: the k of the denominator.",
+          "exclusiveMinimum": 0,
+          "title": "General",
+          "type": "number"
+        },
+        "confinementMax": {
+          "description": "(cb + Ktr)/db at most.",
+          "exclusiveMinimum": 0,
+          "title": "Confinementmax",
+          "type": "number"
+        },
+        "ktr": {
+          "description": "Ktr = this × Atr / (s n).",
+          "exclusiveMinimum": 0,
+          "title": "Ktr",
+          "type": "number"
+        },
+        "psiTop": {
+          "description": "ψt of top bars.",
+          "minimum": 1,
+          "title": "Psitop",
+          "type": "number"
+        },
+        "psiTEMax": {
+          "description": "ψt ψe at most.",
+          "exclusiveMinimum": 0,
+          "title": "Psitemax",
+          "type": "number"
+        },
+        "psiSSmall": {
+          "description": "ψs of small bars (1.0 for larger).",
+          "exclusiveMinimum": 0,
+          "title": "Psissmall",
+          "type": "number"
+        },
+        "compression": {
+          "description": "ldc = max(a fy db / (λ √f'c), b fy db).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compression",
+          "type": "array"
+        },
+        "compressionConfined": {
+          "description": "ldc × this inside spirals or close ties.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressionconfined",
+          "type": "number"
+        },
+        "hookCover": {
+          "description": "ldh × this with the side and tail cover.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookcover",
+          "type": "number"
+        },
+        "hookConfined": {
+          "description": "ldh × this inside close ties.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookconfined",
+          "type": "number"
+        }
+      },
+      "required": [
+        "sqrtFcMax",
+        "ldMin",
+        "ldcMin",
+        "smallBarMax",
+        "simplifiedGood",
+        "simplifiedOther",
+        "general",
+        "confinementMax",
+        "ktr",
+        "psiTop",
+        "psiTEMax",
+        "psiSSmall",
+        "compression",
+        "compressionConfined",
+        "hookCover",
+        "hookConfined"
+      ],
+      "title": "BarDevelopment",
+      "type": "object"
+    },
+    "BarExtents": {
+      "additionalProperties": false,
+      "description": "Bar extents at supports and the first stirrup.",
+      "properties": {
+        "intoSupport": {
+          "description": "Bottom bars into the support at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Intosupport",
+          "type": "number"
+        },
+        "slabTopExtent": {
+          "description": "Slab top bars from the support face: this × ln.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Slabtopextent",
+          "type": "number"
+        },
+        "firstStirrup": {
+          "description": "First stirrup from the face [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Firststirrup",
+          "type": "number"
+        },
+        "cutoffDb": {
+          "description": "Bars beyond the cut-off point: max(d, this × db).",
+          "exclusiveMinimum": 0,
+          "title": "Cutoffdb",
+          "type": "number"
+        },
+        "negativeSpan": {
+          "description": "Negative steel past inflection: ... ln / this.",
+          "exclusiveMinimum": 0,
+          "title": "Negativespan",
+          "type": "number"
+        },
+        "positiveSimple": {
+          "description": "1/this of the positive steel into supports (simple).",
+          "exclusiveMinimum": 0,
+          "title": "Positivesimple",
+          "type": "number"
+        },
+        "positiveContinuous": {
+          "description": "... (continuous members).",
+          "exclusiveMinimum": 0,
+          "title": "Positivecontinuous",
+          "type": "number"
+        }
+      },
+      "required": [
+        "intoSupport",
+        "slabTopExtent",
+        "firstStirrup",
+        "cutoffDb",
+        "negativeSpan",
+        "positiveSimple",
+        "positiveContinuous"
+      ],
+      "title": "BarExtents",
+      "type": "object"
+    },
+    "BarHooks": {
+      "additionalProperties": false,
+      "description": "Standard hooks: the straight tail beyond the bend, in bar diameters (db) and [mm].",
+      "properties": {
+        "main180Db": {
+          "description": "Main bars, 180° hooks: tail this × db ...",
+          "exclusiveMinimum": 0,
+          "title": "Main180Db",
+          "type": "number"
+        },
+        "main180Min": {
+          "description": "... and at least this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Main180Min",
+          "type": "number"
+        },
+        "main90Db": {
+          "description": "Main bars, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Main90Db",
+          "type": "number"
+        },
+        "tieSmallMax": {
+          "description": "Stirrups and ties up to this db are 'small' [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Tiesmallmax",
+          "type": "number"
+        },
+        "tie90SmallDb": {
+          "description": "Small ties, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Tie90Smalldb",
+          "type": "number"
+        },
+        "tie90LargeDb": {
+          "description": "Larger ties, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Tie90Largedb",
+          "type": "number"
+        },
+        "tie135Db": {
+          "description": "Ties, 135° hooks: tail this × db ...",
+          "exclusiveMinimum": 0,
+          "title": "Tie135Db",
+          "type": "number"
+        },
+        "closedMin": {
+          "description": "... closed ties and seismic hooks: and at least this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Closedmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "main180Db",
+        "main180Min",
+        "main90Db",
+        "tieSmallMax",
+        "tie90SmallDb",
+        "tie90LargeDb",
+        "tie135Db",
+        "closedMin"
+      ],
+      "title": "BarHooks",
+      "type": "object"
+    },
+    "BarLaps": {
+      "additionalProperties": false,
+      "description": "Lap splices of deformed bars.",
+      "properties": {
+        "min": {
+          "description": "Every lap at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "classA": {
+          "description": "Class A tension lap: this × ld.",
+          "exclusiveMinimum": 0,
+          "title": "Classa",
+          "type": "number"
+        },
+        "classB": {
+          "description": "Class B tension lap: this × ld.",
+          "exclusiveMinimum": 0,
+          "title": "Classb",
+          "type": "number"
+        },
+        "classAProvided": {
+          "description": "Class A only when As,prov/As,req >= this ...",
+          "exclusiveMinimum": 0,
+          "title": "Classaprovided",
+          "type": "number"
+        },
+        "classAShare": {
+          "description": "... and at most this share of the bars spliced.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Classashare",
+          "type": "number"
+        },
+        "noLapDb": {
+          "description": "Bars of this db and larger are not lapped [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Nolapdb",
+          "type": "number"
+        },
+        "compression": {
+          "description": "Compression lap: this × fy db (fy up to the limit).",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "compressionFyLimit": {
+          "description": "... fy limit [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Compressionfylimit",
+          "type": "number"
+        },
+        "compressionHigh": {
+          "description": "Above the limit: (a fy - b) db.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compressionhigh",
+          "type": "array"
+        },
+        "lowFc": {
+          "description": "f'c below this [MPa] ...",
+          "exclusiveMinimum": 0,
+          "title": "Lowfc",
+          "type": "number"
+        },
+        "lowFcFactor": {
+          "description": "... compression laps × this.",
+          "minimum": 1,
+          "title": "Lowfcfactor",
+          "type": "number"
+        },
+        "spiralDeformed": {
+          "description": "Spiral laps: this × db (deformed uncoated).",
+          "exclusiveMinimum": 0,
+          "title": "Spiraldeformed",
+          "type": "number"
+        },
+        "spiralOther": {
+          "description": "Spiral laps: this × db (other bars).",
+          "exclusiveMinimum": 0,
+          "title": "Spiralother",
+          "type": "number"
+        },
+        "wallYield": {
+          "description": "Special walls: laps where bars may yield, × ld.",
+          "minimum": 1,
+          "title": "Wallyield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "classA",
+        "classB",
+        "classAProvided",
+        "classAShare",
+        "noLapDb",
+        "compression",
+        "compressionFyLimit",
+        "compressionHigh",
+        "lowFc",
+        "lowFcFactor",
+        "spiralDeformed",
+        "spiralOther",
+        "wallYield"
+      ],
+      "title": "BarLaps",
+      "type": "object"
+    },
     "BarSpacing": {
       "additionalProperties": false,
       "description": "Least clear spacing of parallel bars (the 3D rebar cages' congestion check).",
@@ -43,6 +535,58 @@
         "columnDb"
       ],
       "title": "BarSpacing",
+      "type": "object"
+    },
+    "BarSplices": {
+      "additionalProperties": false,
+      "description": "Where laps may be, and the hoops over them, in members of special moment frames.",
+      "properties": {
+        "beamExclusionDepths": {
+          "description": "No laps in beams within the joint or this × h of its faces.",
+          "exclusiveMinimum": 0,
+          "title": "Beamexclusiondepths",
+          "type": "number"
+        },
+        "hoopDepthShare": {
+          "description": "Hoops over laps at most this × d ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hoopdepthshare",
+          "type": "number"
+        },
+        "hoopMax": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hoopmax",
+          "type": "number"
+        },
+        "columnRegion": {
+          "description": "Column laps only within (from, to) shares of the clear height.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Columnregion",
+          "type": "array"
+        }
+      },
+      "required": [
+        "beamExclusionDepths",
+        "hoopDepthShare",
+        "hoopMax",
+        "columnRegion"
+      ],
+      "title": "BarSplices",
       "type": "object"
     },
     "CrackControl": {
@@ -682,6 +1226,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TendonSpacing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bars": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BarDetailing"
         },
         {
           "type": "null"

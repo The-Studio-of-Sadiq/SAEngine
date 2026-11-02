@@ -1334,6 +1334,23 @@
       "description": "Ev = verticalFactor · a_h · D.",
       "title": "Verticalfactor",
       "type": "number"
+    },
+    "stabilityGravity": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "D6: load case -> factor of the gravity load Px of the stability coefficient θ; empty: not covered by the pack (θ is not computed).",
+      "title": "Stabilitygravity"
     }
   },
   "required": [

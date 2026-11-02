@@ -12,11 +12,12 @@ import math
 
 from saengine.design import bars as B
 from saengine.design import deflection as D
+from saengine.design import rc
 from saengine.design import slab as S
 from saengine.design import slender as SL
 from saengine.design import stairs as ST
 from saengine.design.lintels import design_lintel, lintel_loads
-from saengine.design.rc import PHI_SHEAR, PHI_SPIRAL, PHI_TIED, STEEL_E, bar_area, beta1
+from saengine.design.rc import bar_area, beta1
 from saengine.design.rc_detailing import concrete_modulus
 from saengine.design.torsion import TorsionSection, cracking_torsion, threshold_torsion
 from saengine.drawings import detailing as DT
@@ -184,7 +185,7 @@ def _beam_shear(s: Sheet) -> None:
     vs_max = 0.66 * math.sqrt(fc) * b * d
     vs = min(av_s * min(fyt, 420.0) * d, vs_max)
     s.step("Vs provided", vs / 1e3, "kN", "Av fyt d / s ≤ 0.66 √f'c bw d", _aci("22.5.8.5.3"))
-    phi_vn = PHI_SHEAR * (need.vc + vs)
+    phi_vn = rc.value("PHI_SHEAR") * (need.vc + vs)
     s.step("φVn", phi_vn / 1e3, "kN", "φ (Vc + Vs), φ = 0.75", _aci("21.2.1"))
     s.check("Vu ≤ φVn", s["vu"], phi_vn / 1e3, "kN", _aci("9.5.1.1"))
     s.check("Vs required ≤ 0.66 √f'c bw d", need.vs / 1e3, vs_max / 1e3, "kN", _aci("22.5.1.2"))
@@ -239,7 +240,7 @@ def _beam_deflection(s: Sheet) -> None:
     )
     d = h - s["dc"]
     ec = s.step("Ec", ec_of(fc), "MPa", ec_rule(fc), _code("wsModulus"))
-    n = STEEL_E / ec
+    n = rc.value("STEEL_E") / ec
     ig = b * h**3 / 12
     s.step("Ig", ig / 1e6, "×10⁶ mm⁴", "b h³ / 12")
     mcr = D.cracking_moment(fc, ig, h / 2)
@@ -390,7 +391,7 @@ def _column_axial(s: Sheet) -> None:
     p0 = 0.85 * fc * (ag - ast) + fy * ast
     s.step("P0", p0 / 1e3, "kN", "0.85 f'c (Ag - Ast) + fy Ast", _aci("22.4.2.2"))
     spiral = s["ties"] == "spiral"
-    phi, k = (PHI_SPIRAL, 0.85) if spiral else (PHI_TIED, 0.80)
+    phi, k = (rc.value("PHI_SPIRAL"), 0.85) if spiral else (rc.value("PHI_TIED"), 0.80)
     s.step("φ", phi, "", "compression-controlled", _aci("Table 21.2.2"))
     cap = s.step("φPn,max", k * phi * p0 / 1e3, "kN", f"{k:g} φ P0", _aci("Table 22.4.2.1"))
     s.check("Pu ≤ φPn,max", s["pu"], cap, "kN", _aci("22.4.2.1"))
@@ -739,7 +740,7 @@ def _punching(s: Sheet) -> None:
     s.step("vc (b)", b_, "MPa", "0.17 (1 + 2/β) λs λ √f'c", _aci("Table 22.6.5.2 (b)"))
     s.step("vc (c)", c_, "MPa", "0.083 (2 + αs d / b0) λs λ √f'c", _aci("Table 22.6.5.2 (c)"))
     vu = s.step("vu", s["vu"] * 1e3 / (b0 * d), "MPa", "Vu / (b0 d)", _aci("22.6.1.2"))
-    s.check("vu ≤ φvc", vu, PHI_SHEAR * cap.vc, "MPa", _aci("22.6.1.2"), digits=3)
+    s.check("vu ≤ φvc", vu, rc.value("PHI_SHEAR") * cap.vc, "MPa", _aci("22.6.1.2"), digits=3)
     s.note("Without the unbalanced moment: the design of the model adds γv Mu (ACI 8.4.4.2).")
 
 

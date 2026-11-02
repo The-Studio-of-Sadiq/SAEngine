@@ -333,7 +333,7 @@ def moment_curvature(
     if plane.solve(axial, 0.0) is None:
         raise SectionError("the section cannot carry this axial force")
 
-    from saengine.design.rc import EPS_CU
+    from saengine.design import rc
 
     def state(kappa: float) -> dict[str, float] | None:
         eps0 = plane.solve(axial, kappa)
@@ -359,7 +359,7 @@ def moment_curvature(
         }
 
     def failed(s: dict[str, float]) -> str | None:
-        if has_concrete and s["epsC"] >= EPS_CU:
+        if has_concrete and s["epsC"] >= rc.value("EPS_CU"):
             return "concrete"
         if has_steel and s["epsS"] >= steel_limit:
             return "steel"

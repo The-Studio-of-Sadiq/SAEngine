@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { changePackWarning, chosenPackId, groupPacks, packIdProblem, packLabel, packOptionBlock, packOptions, readCodePack, readCodePacks, readProblems, shadowedLabel } from '../../browser/codePacksModel.js';
+import { changePackWarning, chosenPackId, groupPacks, packIdProblem, packLabel, packOptionBlock, packOptions, readCodePack, readCodePacks, readPackLists, readProblems, shadowedLabel } from '../../browser/codePacksModel.js';
 import { settingsSections } from '../../browser/settingsEditor.js';
 
 /** Stand-in answers of `saengine.codes.list` (the backend's PackInfo), in the shapes it may take. */
@@ -121,5 +121,15 @@ suite('SAEngine - Code packs', () => {
 	test('the settings form leaves the design code to the toolbar selector', () => {
 		const sections = settingsSections({ type: 'object', properties: { codePack: { type: 'string', title: 'Code pack' }, site: { type: 'object', title: 'Site' } } });
 		assert.deepStrictEqual(sections.map(s => s.id), ['site']);
+	});
+
+	test('the settings lists of the chosen pack (saengine.codes.choices) are read tolerantly', () => {
+		assert.deepStrictEqual(readPackLists({
+			id: 'stub', name: 'Stub Code 2030',
+			choices: { locations: [{ id: 'xtown', label: 'X Town (zone 2)' }, { id: 'custom' }, { label: 'no id' }], systems: 'not a list' },
+		}), { locations: [{ id: 'xtown', label: 'X Town (zone 2)' }, { id: 'custom', label: 'custom' }] });
+		assert.strictEqual(readPackLists({ ok: false, message: 'not installed' }), undefined);
+		assert.strictEqual(readPackLists(undefined), undefined);
+		assert.strictEqual(readPackLists({ choices: {} }), undefined);
 	});
 });
