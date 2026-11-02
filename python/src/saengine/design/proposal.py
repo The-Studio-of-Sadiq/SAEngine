@@ -24,7 +24,11 @@ Detailing (see :mod:`saengine.design.bars` for the clauses):
   accepts for every station of every member; ties by ACI 25.7.2.
 - Slabs: per layer the lightest mesh of Ø10/12/16 at 25 mm spacing steps (at least 100 mm,
   at most the largest spacing), for the largest Wood-Armer moment of all the type's strips, As,min
-  and the ρ that one-way shear needs (the slab has no shear bars).
+  and the ρ that one-way shear needs (the slab has no shear bars). At a free floor edge (no
+  edge beam) whose diaphragm chord (:mod:`saengine.design.diaphragms`) the proposed mesh within
+  the edge strip does not carry, the slab type gets ``chordBars`` along its free edges for the
+  shortfall (in its reinforcement, so apply_proposal, the checks and the drawings and BOQ read
+  them from 04 Objects; owner decision 2026-11-02, "Both").
 - Foundations are not proposed here: 9 Substructure designs them (its Size Footings gives their
   size and bars). One feature lives in one part only.
 
@@ -226,11 +230,49 @@ class BeamDesigner:
             result[name] = demand / capacity.phi_mn
         if round(loads.shear / resistance.phi_vn, 3) > 1.0 or not resistance.with_min_stirrups:
             return None
+        if loads.at_s > 0:
+            # Sec 6.4.4.6.1-2 with the proposed stirrups and the top bars where they run: the
+            # spacing within ph / 8 and 300 mm, a longitudinal bar in each corner.
+            t = reinforcement["transverse"]
+            if t["spacing"] > self._torsion_s_max(t["dia"]) + 1e-6:
+                return None
+            if not self._corners_held(reinforcement):
+                return None
         need = B.beam_shear_need(loads.shear, self.b, resistance.d, self.fc, self.fy)
         if reinforcement["transverse"]["spacing"] > need.s_max + 1e-6:
             return None
         result["shear"] = loads.shear / resistance.phi_vn
         return result
+
+    def _torsion_s_max(self, dia: float) -> float:
+        """The largest spacing of closed stirrups of ``dia`` for torsion (the pack's ph / 8
+        and 300 mm, Sec 6.4.4.6.1), ph of this beam's cage with its top drop. The drop is the
+        crossing beams' top bar diameter, which the proposal may enlarge: the largest bar
+        offered is taken, so the spacing still holds once their bars are applied."""
+        from saengine.design import torsion as torsion_design
+
+        rules = torsion_design.TorsionRules.from_pack()
+        drop = self.top_drop
+        if drop > 0:
+            drop = max(drop, max(self.options.diameters, default=drop))
+        cage = torsion_design.TorsionSection(self.b, self.h, self.cover, dia, 0.0, top_drop=drop)
+        try:
+            return min(cage.ph / rules.perimeter_divisor, rules.spacing_max)
+        except ValueError:
+            return 0.0
+
+    def _corners_held(self, reinforcement: dict[str, Any]) -> bool:
+        """Whether a longitudinal bar sits in each corner of the closed stirrups (the torsion
+        detailing, :func:`saengine.design.torsion.perimeter_bars`), the top bars at the level
+        they pass the joints."""
+        from saengine.design import torsion as torsion_design
+
+        section = self.section(reinforcement)
+        try:
+            ts = torsion_design.TorsionSection.of(section, self.cover, top_drop=self.top_drop)
+            return torsion_design.perimeter_bars(section.bars, ts)[1] == 4
+        except (DesignError, ValueError):
+            return False
 
     def bigger(self, loads: BeamLoads) -> str:
         """The next practical depth (50 mm steps) at which the demands have a solution."""
@@ -353,10 +395,11 @@ class BeamDesigner:
         opts = self.options
         if loads.at_s <= 0:
             return B.choose_stirrups(need, self.b, opts.stirrup_diameters, opts.min_stirrup_spacing)
+        largest = max(opts.stirrup_diameters, default=10.0)
         torsion_need = dataclasses.replace(
             need,
             av_s=need.av_s + 2 * loads.at_s,
-            s_max=min(need.s_max, loads.torsion_s_max),
+            s_max=min(need.s_max, loads.torsion_s_max, self._torsion_s_max(largest)),
         )
         # Two legs only: below 300 mm width choose_stirrups tries two legs alone.
         return B.choose_stirrups(
@@ -838,7 +881,85 @@ def _mesh_label(reinforcement: dict[str, Any]) -> str:
         mesh = reinforcement.get(name)
         if mesh:
             parts.append(f"{name[:-1]} {name[-1]} Ø{mesh['dia']:g} @ {mesh['spacing']:g}")
+    chord = reinforcement.get("chordBars")
+    if chord:
+        parts.append(f"chord bars {chord['count']}Ø{chord['dia']:g} along the free edges")
     return ", ".join(parts)
+
+
+def _chord_edges(report: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """The diaphragm chord checks (:func:`saengine.design.diaphragms.diaphragms_of`'s
+    ``chord``) by the slab members along their edge."""
+    found: dict[str, list[dict[str, Any]]] = {}
+    for element in report.get("elements", []):
+        if element.get("kind") != "diaphragm":
+            continue
+        for check in element.get("checks", []):
+            chord = check.get("chord")
+            if not chord:
+                continue
+            for slab in chord["slabs"]:
+                found.setdefault(slab, []).append({**chord, "story": element.get("story")})
+    return found
+
+
+def _with_chord_bars(
+    target: dict[str, Any] | None,
+    members: list[str],
+    chords: dict[str, list[dict[str, Any]]],
+    fy: float,
+    diameters: tuple[float, ...],
+) -> list[str]:
+    """Adds ``chordBars`` to the proposed slab bars ``target`` (:func:`bars_of`) where the
+    proposed mesh within the edge strip leaves a free edge's chord force of ``members`` short
+    (the lightest of 2 to 4 bars of ``diameters``, else the most of the largest); returns the
+    notes."""
+    from saengine.design.diaphragms import strip_area
+
+    if target is None or fy <= 0:
+        return []
+    need = 0.0
+    short: list[str] = []
+    beams_short: list[str] = []
+    for member in members:
+        for chord in chords.get(member, []):
+            where = f"{chord['story']} {chord['edge']} (force along {chord['axis']})"
+            strip = chord["phi"] * fy * strip_area(target, chord["direction"], chord["strip"])
+            missing = chord["force_kN"] * 1e3 - chord["beams_kN"] * 1e3 - strip
+            if missing <= 0:
+                continue
+            if not chord["free"]:
+                beams_short.append(where)
+                continue
+            need = max(need, missing / (chord["phi"] * fy))
+            short.append(where)
+    notes = []
+    if beams_short:
+        notes.append(
+            f"diaphragm chord at {', '.join(sorted(set(beams_short)))}: the edge beams' bars "
+            "and the slab's bars in the edge strip fall short; give the edge beams more bars"
+        )
+    if need <= 0:
+        if target.pop("chordBars", None) is not None:
+            target["text"] = _mesh_label(target)
+        return notes
+    sizes = sorted(diameters) or [12.0]
+    count, dia = next(
+        (
+            (max(2, math.ceil(need / bar_area(d) - 1e-9)), d)
+            for d in sizes
+            if max(2, math.ceil(need / bar_area(d) - 1e-9)) <= 4
+        ),
+        (max(2, math.ceil(need / bar_area(sizes[-1]) - 1e-9)), sizes[-1]),
+    )
+    target["chordBars"] = {"count": count, "dia": dia}
+    target["text"] = _mesh_label(target)
+    notes.append(
+        f"diaphragm chord: the slab's bars in the edge strip fall short at "
+        f"{', '.join(sorted(set(short)))} (no edge beam): chord bars {count}Ø{dia:g} along the "
+        f"free edges, As {need:.0f} mm² for the shortfall"
+    )
+    return notes
 
 
 class SlabDesigner:
@@ -1237,6 +1358,7 @@ def propose(
         return (originals.get(type_id) or {}).get("reinforcement")
 
     collected_by_id = {m["id"]: m for m in gathered.collect.get("members", [])}
+    chords = _chord_edges(getattr(gathered, "report", None) or {})
     beam_designers: dict[str, BeamDesigner] = {}
 
     def split(
@@ -1604,8 +1726,10 @@ def propose(
         governing = max(picks, key=lambda m: m.pick.area if m.pick.reinforcement else math.inf).id
         over = _over_designed(pick, picks, opts.over_design) if pick.reinforcement else []
         by_type_pick = pick
+        slab_new: list[dict[str, Any]] = []
         if mode == "splitTypes" and pick.reinforcement is not None:
             found = _TypeResult()
+            slab_new = found.new_types
             pick = split(
                 type_id,
                 "slab",
@@ -1647,6 +1771,25 @@ def propose(
             ]
         if mode == "splitTypes":
             entry["byType"] = bars_of(by_type_pick.reinforcement, by_type_pick.label)
+            _with_chord_bars(entry["byType"], entry["members"], chords, first["fy"], opts.diameters)
+            for new in slab_new:
+                new["notes"] = _with_chord_bars(
+                    new["proposed"], new["members"], chords, first["fy"], opts.diameters
+                )
+        moved = {m["member"] for m in reassign if m["from"] == type_id}
+        entry["notes"] = [
+            *entry["notes"],
+            *_with_chord_bars(
+                entry["proposed"],
+                [m for m in entry["members"] if m not in moved],
+                chords,
+                first["fy"],
+                opts.diameters,
+            ),
+        ]
+        if entry["status"] in ("ok", "unchanged") and entry["current"] is not None:
+            same = _same(entry["current"], entry["proposed"])
+            entry["status"] = "unchanged" if same else "ok"
         _with_punching(entry, itertools.chain.from_iterable(x["checks"] for x in collected))
         types.append(entry)
 

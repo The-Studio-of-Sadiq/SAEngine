@@ -172,3 +172,142 @@ def test_tributary_width():
     lines = [0.0, 6000.0, 12000.0]
     assert _tributary(lines, 0.0, 0.0, 12000.0) == pytest.approx(3000.0)
     assert _tributary(lines, 6000.0, 0.0, 12000.0) == pytest.approx(6000.0)
+
+
+# ── diaphragm chords: the slab's edge bars and the proposal's chord bars (2026-11-02) ──
+
+
+def test_chord_strip_comes_from_the_pack_and_can_be_overridden():
+    from saengine.codes import context as code_context
+    from saengine.design.diaphragms import chord_strip
+
+    width, source = chord_strip()
+    # The default pack gives the strip and says the code gives no width (SAEngine practice).
+    assert width == 1000.0 and "SAEngine practice" in source
+    pack = code_context.default_pack().with_overrides({"transfer.diaphragm.chordStrip": 600})
+    with code_context.using(pack):
+        width, source = chord_strip()
+    assert width == 600.0 and source.startswith("project override")
+
+
+def test_slab_strip_and_chord_bar_areas():
+    from saengine.design.diaphragms import chord_bars_area, strip_area
+
+    mesh = {
+        "bottomX": {"dia": 10, "spacing": 125},
+        "bottomY": {"dia": 10, "spacing": 200},
+        "topY": {"dia": 12, "spacing": 250},
+        "chordBars": {"count": 2, "dia": 16},
+    }
+    # Bars along Y within a 1 m strip: Ø10 @ 200 bottom, Ø12 @ 250 top.
+    assert strip_area(mesh, "Y", 1000) == pytest.approx(
+        math.pi * 10**2 / 4 * 1000 / 200 + math.pi * 12**2 / 4 * 1000 / 250
+    )
+    assert strip_area(mesh, "X", 1000) == pytest.approx(math.pi * 10**2 / 4 * 1000 / 125)
+    assert chord_bars_area(mesh) == pytest.approx(2 * math.pi * 16**2 / 4)
+    assert chord_bars_area({"bottomX": mesh["bottomX"]}) == 0.0
+
+
+def test_chord_bars_count_at_a_free_edge_only():
+    from types import SimpleNamespace
+
+    from saengine.design.diaphragms import _weakest_slab
+    from saengine.library.objects import PlanarReinforcement
+
+    bars = PlanarReinforcement.model_validate(
+        {
+            "material": "B420",
+            "cover": 20,
+            "bottomY": {"dia": 10, "spacing": 200},
+            "chordBars": {"count": 2, "dia": 16},
+        }
+    )
+    types = {"S150": SimpleNamespace(reinforcement=bars)}
+    mats = {"B420": SimpleNamespace(steel=SimpleNamespace(fy=420.0))}
+    slab = [SimpleNamespace(id="S1", type="S150")]
+    mesh = math.pi * 10**2 / 4 * 1000 / 200
+    chord = 2 * math.pi * 16**2 / 4
+    free = _weakest_slab(slab, types, mats, 0.9, "Y", 1000.0, True)
+    assert free == (pytest.approx(0.9 * 420 * (mesh + chord)), "S1", "2Ø16")
+    beside_beams = _weakest_slab(slab, types, mats, 0.9, "Y", 1000.0, False)
+    assert beside_beams == (pytest.approx(0.9 * 420 * mesh), "S1", "")
+
+
+def test_free_edges_are_the_floor_outline_without_beams_along_it():
+    from saengine.design.diaphragms import free_edges
+    from saengine.library.bim import BuildingModel
+
+    def slab(id_, x0, x1):
+        return {
+            "kind": "slab",
+            "id": id_,
+            "type": "S150",
+            "elevation": 3000,
+            "boundary": [[x0, 0], [x1, 0], [x1, 5000], [x0, 5000]],
+        }
+
+    def beam(id_, start, end):
+        return {
+            "kind": "beam",
+            "id": id_,
+            "type": "B",
+            "start": start,
+            "end": end,
+            "elevation": 3000,
+        }
+
+    building = BuildingModel.model_validate(
+        {
+            "elements": [
+                slab("S1", 0, 6000),
+                slab("S2", 6000, 13000),
+                # Edge beams along y = 0 and 5000 (B1 stops 1 m short), one across at x = 6000
+                # (an inner line) and one at y = 2500, square to the free edges.
+                beam("B1", [0, 0], [12000, 0]),
+                beam("B2", [0, 5000], [13000, 5000]),
+                beam("B3", [6000, 0], [6000, 5000]),
+                beam("B4", [0, 2500], [13000, 2500]),
+            ]
+        }
+    )
+    edges = free_edges(building)
+    # The x = 0 and x = 13 m edges are free; S2 also keeps the last metre along y = 0.
+    assert edges == {"S1": pytest.approx(5000.0), "S2": pytest.approx(6000.0)}
+
+
+def test_proposal_adds_chord_bars_for_a_free_edge_shortfall():
+    from saengine.design.proposal import _with_chord_bars
+
+    chord = {
+        "axis": "X",
+        "edge": "-X edge",
+        "story": "Level 1",
+        "force_kN": 400.0,
+        "beams_kN": 0.0,
+        "free": True,
+        "slabs": ["S1"],
+        "direction": "Y",
+        "strip": 1000.0,
+        "phi": 0.9,
+    }
+    proposed = {
+        "material": "B420",
+        "cover": 20,
+        "bottomY": {"dia": 10, "spacing": 200},
+        "text": "bottom Y Ø10 @ 200",
+    }
+    edges = {"S1": [chord]}
+    notes = _with_chord_bars(proposed, ["S1"], edges, 420.0, (12.0, 16.0, 20.0))
+    # The mesh gives 0.9 × 392.7 mm² × 420 MPa = 148.4 kN; 251.6 kN short: As 665.6 mm², the
+    # fewest of 2 to 4 bars: 4Ø16 (Ø12 would take 6).
+    assert proposed["chordBars"] == {"count": 4, "dia": 16.0}
+    assert proposed["text"].endswith("chord bars 4Ø16 along the free edges")
+    assert "Level 1 -X edge" in notes[0] and "4Ø16" in notes[0]
+    # Enough slab bars: no chord bars (earlier ones are dropped).
+    edges = {"S1": [{**chord, "force_kN": 100.0}]}
+    assert _with_chord_bars(proposed, ["S1"], edges, 420.0, (16.0,)) == []
+    assert "chordBars" not in proposed and proposed["text"] == "bottom Y Ø10 @ 200"
+    # An edge with beams that falls short is for the beams' bars: a note, no chord bars.
+    edges = {"S1": [{**chord, "free": False, "beams_kN": 50.0}]}
+    notes = _with_chord_bars(proposed, ["S1"], edges, 420.0, (16.0,))
+    assert "chordBars" not in proposed and "give the edge beams more bars" in notes[0]

@@ -249,6 +249,30 @@ def test_torsion_corner_bar_missing() -> None:
     assert corner["capacity"] == 2 and not corner["ok"]
 
 
+def test_second_layer_top_bars_sit_in_the_lowered_cage() -> None:
+    """Top bars in the second layer (T33: 20 mm lower, under the crossing beam's Ø20): the
+    closed stirrups are lowered with them, so the cage is 20 mm shallower (y1 = 490, ph =
+    1400 mm, s <= 175 mm) and its centre 10 mm lower; the dropped top bars (y = 242 - 20) and
+    the bottom bars still hold all four corners. On the full-height cage the dropped bars sit
+    28 mm below its inner top face (250 mm), more than their diameter (16 mm): two corners, as
+    the sample's B5 had before."""
+    from dataclasses import replace
+
+    from saengine.design.rc import Bar
+    from saengine.design.torsion import perimeter_bars
+
+    lowered = replace(SPANDREL, top_drop=20.0)
+    assert lowered.core == (X1, Y1 - 20) and lowered.ph == pytest.approx(PH - 40)
+    bars = [
+        Bar(-92, 222, math.pi * 64, 16),
+        Bar(92, 222, math.pi * 64, 16),
+        Bar(-90, -240, math.pi * 100, 20),
+        Bar(90, -240, math.pi * 100, 20),
+    ]
+    assert perimeter_bars(bars, lowered)[1] == 4
+    assert perimeter_bars(bars, SPANDREL)[1] == 2
+
+
 def test_stations_include_the_highest_combined_stress() -> None:
     """A compatibility torsion is capped at φTcr: of two stations above the cap, the one of
     larger Vu has the larger stress of Eq. 6.6.59, though its Tu is the smaller. With room for

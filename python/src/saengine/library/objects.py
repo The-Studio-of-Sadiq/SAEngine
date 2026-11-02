@@ -233,6 +233,15 @@ class BarMesh(_Model):
     spacing: Length
 
 
+class ChordBars(_Model):
+    """Continuous bars along a slab's free edges (the floor's edges without an edge beam), lapped
+    as tension bars, that carry the diaphragm chord force with the slab's own bars parallel to
+    the edge within the edge strip (:mod:`saengine.design.diaphragms`)."""
+
+    count: int = Field(gt=0, description="Bars along each free edge (top and bottom together).")
+    dia: Length
+
+
 class PlanarReinforcement(_Model):
     """Bottom/top layers in the member's local x and y (slabs, footings, pile caps)."""
 
@@ -242,6 +251,12 @@ class PlanarReinforcement(_Model):
     bottomY: BarMesh | None = None
     topX: BarMesh | None = None
     topY: BarMesh | None = None
+    chordBars: ChordBars | None = Field(
+        default=None,
+        title="Chord bars",
+        description="Slabs: extra bars along every free edge of the floor (no edge beam), as "
+        "the diaphragm chord; empty: none (the slab's own bars in the edge strip count).",
+    )
 
 
 class PunchingReinforcement(_Model):

@@ -1,0 +1,8 @@
+{
+  "$notes": {
+    "diaphragm.chordStrip": "SAEngine practice: the slab bars parallel to a floor's edge within 1000 mm of it count as the diaphragm chord, narrower than the quarter of the diaphragm depth within which ACI 318 places the chord bars (on the safe side)"
+  },
+  "diaphragm": {
+    "chordStrip": 1000.0
+  }
+}

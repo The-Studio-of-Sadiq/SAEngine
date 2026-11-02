@@ -1124,6 +1124,7 @@ class _Measure:
                 self.stair(stair, t)
         self.lintels()
         self.slab_studs(slabs)
+        self.slab_chords(slabs)
         if self.substructure is not None:
             self.foundations(self.substructure)
 
@@ -1383,6 +1384,28 @@ class _Measure:
         else:
             each, detail = height + 10 * float(given.dia), "punching stirrup legs"
         self.rebar(element, material_id, float(given.dia), count * each, story, detail)
+
+    def slab_chords(self, slabs: list[tuple[Any, Any]]) -> None:
+        """The diaphragm chord bars of slab types with ``chordBars``, along each slab's free
+        edges (:func:`saengine.design.diaphragms.free_edges`), with their laps."""
+        chorded = [
+            (e, t)
+            for e, t in slabs
+            if t.reinforcement is not None and getattr(t.reinforcement, "chordBars", None)
+        ]
+        if not chorded:
+            return
+        from saengine.design.diaphragms import free_edges
+
+        lengths = free_edges(self.building)
+        for e, t in chorded:
+            length = lengths.get(e.id, 0.0)
+            if length <= 0:
+                continue
+            chord = t.reinforcement.chordBars
+            total = chord.count * bar_length(length, float(chord.dia))
+            story = self.story_at(e.elevation)
+            self.rebar(e.id, t.reinforcement.material, float(chord.dia), total, story, "chord bars")
 
     def slab_studs(self, slabs: list[tuple[Any, Any]]) -> None:
         """The punching studs or stirrups of flat slab types round each column under them."""
