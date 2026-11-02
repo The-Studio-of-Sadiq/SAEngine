@@ -4,7 +4,7 @@
   "name": "BNBC 2020",
   "edition": "BNBC 2020",
   "country": "BD",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "extends": null,
   "covers": [
     "locations",
