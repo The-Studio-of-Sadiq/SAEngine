@@ -718,19 +718,31 @@ def derive_fem(
         stamps["substructure"] = stamp(substructure_text or "")
         if soil_text is not None:
             stamps["soil"] = stamp(soil_text)
-    derivation = derive(
-        parsed["bim"],
-        parsed["objects"],
-        parsed["materials"],
-        settings,
-        stamps,
-        model_folder,
-        mep=mep if _has_content(mep) else None,
-        substructure=substructure,
-        soil_text=soil_text,
-        member_loads=member_loads if member_loads.loads else None,
-        architecture=architecture if has_loads(architecture) else False,
-    )
+    from saengine.codes.registry import recording_tables
+    from saengine.fem.derive import CODE_TABLES_KEY, code_tables_text, sources_description
+
+    with recording_tables() as tables_read:
+        derivation = derive(
+            parsed["bim"],
+            parsed["objects"],
+            parsed["materials"],
+            settings,
+            stamps,
+            model_folder,
+            mep=mep if _has_content(mep) else None,
+            substructure=substructure,
+            soil_text=soil_text,
+            member_loads=member_loads if member_loads.loads else None,
+            architecture=architecture if has_loads(architecture) else False,
+        )
+    # The settings' stamp with the overrides of the code tables the derivation read only, and
+    # those tables: a project override the analysis never reads (a ramp slope, φ) leaves the
+    # model current (B10-32 of usability walk 3).
+    stamps["settings"] = settings_stamp(settings_text, code_tables=tables_read)
+    stamps[CODE_TABLES_KEY] = code_tables_text(tables_read)
+    meta = derivation.project.get("meta")
+    if isinstance(meta, dict):
+        meta["description"] = sources_description(stamps)
     if model_folder:
         from saengine.report.build import keep_derivation
 

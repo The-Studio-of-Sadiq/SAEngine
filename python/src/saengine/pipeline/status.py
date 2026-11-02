@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from saengine.fem.derive import mep_stamp, objects_stamp, settings_stamp
+from saengine.fem.derive import code_tables_of, mep_stamp, objects_stamp, settings_stamp
 from saengine.library.bim import source_stamp
 from saengine.pipeline.project import (
     ALL_PARTS,
@@ -182,17 +182,26 @@ def is_placeholder(document: dict[str, Any], part: str) -> bool:
     return document.get("part") == part and all(k in ("schema", "part") for k in document)
 
 
-def fem_source_changed(texts: dict[str, str | None], part: str, recorded: str | None) -> bool:
+def fem_source_changed(
+    texts: dict[str, str | None],
+    part: str,
+    recorded: str | None,
+    code_tables: frozenset[str] | None = None,
+) -> bool:
     """``femSourceChanged``: whether source ``part`` of the analysis model changed since the
     model recorded ``recorded``. The settings count without the project's details and title
     block (``settings_stamp``); a model derived before that recorded the whole file's stamp,
-    which is still current while the file is unchanged."""
+    which is still current while the file is unchanged. ``code_tables``: the code pack tables
+    the model's derivation read (``saengine.fem.derive.code_tables_of``): the settings' overrides
+    of other tables do not count."""
     text = texts.get(part)
     if text is None:
         return True
     if recorded == source_stamp(text):
         return False
     if part == "settings":
+        if code_tables is not None and recorded == settings_stamp(text, code_tables=code_tables):
+            return False
         return recorded not in (settings_stamp(text), settings_stamp(text, legacy=True))
     if part == "objects":
         return recorded != objects_stamp(text)
@@ -510,7 +519,10 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         or mep_added
         or loads_added
         or architecture_added
-        or any(fem_source_changed(inputs.texts, p, recorded.get(p)) for p in FEM_SOURCES)
+        or any(
+            fem_source_changed(inputs.texts, p, recorded.get(p), code_tables_of(recorded))
+            for p in FEM_SOURCES
+        )
     ):
         return _status("fem", "stale", STALE, "derive the analysis model again")
     if inputs.femResultsTime is None:

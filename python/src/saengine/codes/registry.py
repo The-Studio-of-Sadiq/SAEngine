@@ -32,6 +32,8 @@ Tables are validated through a validator registry (:func:`register`), filled by
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import copy
 import dataclasses
 import hashlib
@@ -43,7 +45,7 @@ import tempfile
 import threading
 import types
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -485,11 +487,13 @@ class CodePack:
         itself for a ``RootModel``); the plain JSON data when no model is registered.
         Raises ``KeyError`` when no pack in the chain provides it, :class:`CodePackError` when
         it is broken (:attr:`broken`)."""
+        _note_read(name)
         self._check_usable(name)
         return self._validated.get(name, self._tables[name])
 
     def data(self, name: str) -> Any:
         """The resolved table as plain JSON (a copy)."""
+        _note_read(name)
         self._check_usable(name)
         return copy.deepcopy(self._tables[name])
 
@@ -561,6 +565,7 @@ class CodePack:
 
     def override(self, table: str, key: str) -> Any | None:
         """The project override of value ``key`` of ``table`` (or of a group holding it)."""
+        _note_read(table)
         for o in self._overrides:
             if o.table == table and _within(key, o.key):
                 return o
@@ -648,6 +653,36 @@ class CodePack:
 
     def __repr__(self) -> str:
         return f"CodePack({self.id!r}, scope={self.scope!r}, chain={self.chain!r})"
+
+
+#: The tables read while :func:`recording_tables` is in force (in this context), else None.
+_READ: contextvars.ContextVar[set[str] | None] = contextvars.ContextVar(
+    "code_tables_read", default=None
+)
+
+
+def _note_read(name: str) -> None:
+    found = _READ.get()
+    if found is not None:
+        found.add(name)
+
+
+@contextlib.contextmanager
+def recording_tables() -> Iterator[set[str]]:
+    """Within it, the names of the tables any code pack is asked for (:meth:`CodePack.table`,
+    :meth:`CodePack.data`, :meth:`CodePack.override`) are added to the set it gives: what a
+    computation reads from the pack, so that a project override of a table it never reads does
+    not make its kept result stale (B10-32 of usability walk 3: a ramp slope made the analysis
+    out of date). Nested, the inner set is also added to the outer one."""
+    outer = _READ.get()
+    read: set[str] = set()
+    token = _READ.set(read)
+    try:
+        yield read
+    finally:
+        _READ.reset(token)
+        if outer is not None:
+            outer.update(read)
 
 
 def _within(key: str, group: str) -> bool:

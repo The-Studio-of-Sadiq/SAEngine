@@ -70,6 +70,9 @@ interface IAppliedState {
 	/** The files edited, with their models' version right after the edit (Undo needs them unchanged). */
 	readonly edited: readonly { readonly resource: URI; readonly version: number }[];
 	undone: boolean;
+	/** The rows of `mode` are still the proposal applied (until Propose Again). */
+	rowsShown: boolean;
+	readonly mode: DesignProposalMode;
 	problem?: string;
 }
 
@@ -101,6 +104,13 @@ export class FemDesignProposalEditor extends EditorPane {
 	/** The engineer stopped waiting: a note, not an error. */
 	private stopped = false;
 	private applied: IAppliedState | undefined;
+	/**
+	 * The input whose page was hidden (another tab shown in the group: the pane's input is
+	 * cleared). Shown again, its proposal, checks and apply stay as they were, and work still
+	 * running finishes into them (FD-5 of usability walk 3: coming back to the tab proposed
+	 * again from scratch).
+	 */
+	private hiddenInput: FemDesignProposalInput | undefined;
 	private request = 0;
 	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
 	private step: IWaitStep | undefined;
@@ -157,26 +167,46 @@ export class FemDesignProposalEditor extends EditorPane {
 	}
 
 	override async setInput(input: FemDesignProposalInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const changed = !this.input || !input.matches(this.input);
+		// The same tab shown again: its page as it was (a proposal is made on request only).
+		const shownAgain = this.hiddenInput === input && !input.isDisposed();
+		const changed = !shownAgain && (!this.input || !input.matches(this.input));
+		this.hiddenInput = undefined;
 		await super.setInput(input, options, context, token);
+		if (shownAgain) {
+			if (this.step) {
+				this.ticker.cancelAndSet(() => this.frame.setStatus(this.status()), 1000);
+			}
+			this.render();
+			return;
+		}
 		if (changed) {
-			this.references.clear();
-			this.modelReferences.clear();
-			this.applied = undefined;
+			this.reset();
 			void this.reload();
 		}
 	}
 
 	override clearInput(): void {
+		// Hidden behind another tab, or closed: the state is kept for the same input shown again
+		// (a closed tab's input is disposed, and opening the page again starts afresh).
+		this.hiddenInput = this.input as FemDesignProposalInput | undefined;
+		this.ticker.cancel();
+		this.renderStore.clear();
+		super.clearInput();
+	}
+
+	/** Forgets the page's proposal, checks and apply (another model, or the page opened afresh). */
+	private reset(): void {
 		this.request++;
 		this.step = undefined;
+		this.loading = this.applying = false;
 		this.ticker.cancel();
 		this.references.clear();
 		this.modelReferences.clear();
 		this.renderStore.clear();
 		this.model.clear();
 		this.applied = undefined;
-		super.clearInput();
+		this.before = undefined;
+		this.problem = undefined;
 	}
 
 	override layout(dimension: Dimension): void {
@@ -208,6 +238,9 @@ export class FemDesignProposalEditor extends EditorPane {
 			return;
 		}
 		this.model.clear();
+		if (this.applied) {
+			this.applied.rowsShown = false;
+		}
 		this.problem = undefined;
 		this.stopped = false;
 		if (!CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND)) {
@@ -367,7 +400,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.applying = true;
 		this.problem = undefined;
 		this.stopped = false;
-		this.setStep({ index: 1, count: 4, text: localize('femProposal.stepWrite', "Writing the bars into the object types") });
+		this.setStep({ index: 1, count: 3, text: localize('femProposal.stepWrite', "Writing the bars into the object types") });
 		try {
 			// The files the backend edits: the object types always; the building model and the
 			// floor plan its members come from (members moved to new types).
@@ -414,10 +447,12 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			const changes = (result.changes ?? []).map(describeChange).filter(c => !!c);
 			const before = this.before;
-			this.setStep({ index: 2, count: 4, text: localize('femProposal.stepSaveApplied', "Saving the edited files") });
+			this.setStep({ index: 2, count: 3, text: localize('femProposal.stepSaveApplied', "Saving the edited files") });
 			const unsaved = await this.save(edited.map(file => file.resource));
 			// Kept even if the engineer stops waiting from here on: the files are edited, Undo stays.
-			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false };
+			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false, rowsShown: true, mode: this.model.mode };
+			// The other way of sharing types was proposed from the bars before: asked for again.
+			this.model.keepOnly(this.model.mode);
 			this.applied = applied;
 			if (request !== this.request) {
 				return;
@@ -428,18 +463,16 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.model.clear();
 				return;
 			}
-			this.setStep({ index: 3, count: 4, text: localize('femProposal.stepCheck', "Checking the members again with the new bars") });
+			this.setStep({ index: 3, count: 3, text: localize('femProposal.stepCheck', "Checking the members again with the new bars") });
 			const after = edited.length ? await runDesign(this.commandService, model).catch(() => undefined) : before;
 			if (request !== this.request) {
 				return;
 			}
 			applied.after = after;
 			this.before = after;
-			this.model.setChecks(after);
-			// The bars changed: propose again from them (the rows now show what was applied).
-			this.model.clear();
-			this.setStep({ index: 4, count: 4, text: localize('femProposal.stepProposeAgain', "Proposing again from the new bars") });
-			await this.fetch(this.model.mode, request);
+			// The rows stay as the proposal that was applied, Apply off until Propose Again: no
+			// proposal is made unless the engineer asks (B10-20 of usability walk 3: an automatic
+			// one held the engine for half an hour beside Run All).
 		} catch (error) {
 			if (request === this.request) {
 				this.problem = localize('femProposal.applyFailed', "The proposal could not be applied: {0}", errorSummary(error));
@@ -450,6 +483,12 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.setStep(undefined);
 			}
 		}
+	}
+
+	/** Whether the rows shown are a proposal already applied (and not undone). */
+	private proposalApplied(): boolean {
+		const applied = this.applied;
+		return !!applied && applied.rowsShown && applied.mode === this.model.mode && !applied.undone && applied.edited.length > 0;
 	}
 
 	/** Whether the files are as the last apply left them (else Undo would revert later edits too). */
@@ -469,7 +508,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		}
 		const request = this.request;
 		this.applying = true;
-		this.setStep({ index: 1, count: 3, text: localize('femProposal.stepUndo', "Undoing the apply and saving the files") });
+		this.setStep({ index: 1, count: 2, text: localize('femProposal.stepUndo', "Undoing the apply and saving the files") });
 		try {
 			// One undo: the group undoes the other file's edit too.
 			await this.undoRedoService.undo(applied.edited[0].resource);
@@ -484,7 +523,7 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.model.clear();
 				return;
 			}
-			this.setStep({ index: 2, count: 3, text: localize('femProposal.stepCheckUndone', "Checking the members again with the bars before") });
+			this.setStep({ index: 2, count: 2, text: localize('femProposal.stepCheckUndone', "Checking the members again with the bars before") });
 			const after = await runDesign(this.commandService, model).catch(() => undefined);
 			if (request !== this.request) {
 				return;
@@ -492,9 +531,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			applied.after = after;
 			this.before = after;
 			this.model.setChecks(after);
-			this.model.clear();
-			this.setStep({ index: 3, count: 3, text: localize('femProposal.stepProposeAgain', "Proposing again from the new bars") });
-			await this.fetch(this.model.mode, request);
+			// The bars are back to those the proposal was made from: its rows can be applied again.
 		} catch (error) {
 			applied.problem = localize('femProposal.undoFailed', "The apply could not be undone: {0}", errorSummary(error));
 		} finally {
@@ -513,8 +550,11 @@ export class FemDesignProposalEditor extends EditorPane {
 		const available = !!CommandsRegistry.getCommand(DESIGN_PROPOSAL_COMMAND);
 		const rows = this.model.rows();
 		const included = rows.filter(r => r.included).length;
-		this.applyAction.enabled = available && !!CommandsRegistry.getCommand(DESIGN_APPLY_COMMAND) && included > 0 && !this.applying && !this.loading;
-		this.applyAction.label = applyLabel(included);
+		// The proposal shown was applied (FD-16, B10-16 of usability walk 3): not again; Propose
+		// Again proposes from the new bars.
+		const appliedShown = this.proposalApplied();
+		this.applyAction.enabled = available && !!CommandsRegistry.getCommand(DESIGN_APPLY_COMMAND) && included > 0 && !this.applying && !this.loading && !appliedShown;
+		this.applyAction.label = appliedShown ? localize('femProposal.appliedLabel', "Applied") : applyLabel(included);
 		this.refreshAction.enabled = available && !this.applying && !this.loading;
 		this.stopAction.enabled = this.applying || this.loading;
 		this.includeAllAction.enabled = this.includeNoneAction.enabled = rows.length > 0 && !this.applying;
@@ -609,6 +649,9 @@ export class FemDesignProposalEditor extends EditorPane {
 	private renderHeader(rows: readonly IDesignProposalRow[], included: number): void {
 		const header = append(this.list, $('.fem-proposal-header'));
 		const text = append(header, $('.fem-proposal-header-text'));
+		if (this.proposalApplied()) {
+			append(text, $('.fem-proposal-header-detail', undefined, localize('femProposal.rowsApplied', "These rows are the proposal applied above, made from the bars before it. Propose Again proposes from the new bars.")));
+		}
 		append(text, $('.fem-proposal-header-title', undefined, this.model.mode === 'splitTypes'
 			? localize('femProposal.headerSplit', "Bars per type, members that need much less moved to new types")
 			: localize('femProposal.headerByType', "Bars per type, for its most demanding member")));
@@ -627,7 +670,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 		}
 		const button = this.renderStore.add(new Button(header, { ...defaultButtonStyles, supportIcons: true }));
-		button.label = `$(${Codicon.check.id}) ${applyLabel(included)}`;
+		button.label = `$(${Codicon.check.id}) ${this.proposalApplied() ? localize('femProposal.appliedLabel', "Applied") : applyLabel(included)}`;
 		button.enabled = this.applyAction.enabled;
 		this.renderStore.add(button.onDidClick(() => void this.apply()));
 		// What the bars proposed leave failing (X4 of the usability walk: "nothing to change"

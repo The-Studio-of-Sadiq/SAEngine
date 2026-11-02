@@ -3,6 +3,9 @@
 Methods:
 
 - ``saengine/info`` -> versions of the backend stack
+- ``saengine/jobs`` ``{}`` -> ``{jobs: [{id, method, seconds, note, noteSeconds}]}``: the requests
+  the server is working on and what each is doing (:mod:`saengine.rpc.jobs`), answered on the
+  server's own thread; the design work runs in threads of its own (``_DESIGN_WORKERS``)
 - ``project/validate`` ``{path}`` -> schema and reference check of an ``.osmodel``
 - ``results/tables`` ``{outDir, projectPath?}`` -> result tables of a finished run
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
@@ -223,7 +226,7 @@ from pygls.protocol import JsonRPCProtocol, JsonRPCRequestMessage, default_conve
 from pygls.server import JsonRPCServer
 
 from saengine.codes import context as code_context
-from saengine.rpc import handlers
+from saengine.rpc import handlers, jobs
 
 
 def _converter() -> Any:
@@ -255,6 +258,12 @@ os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
 # answering. Not pygls's ``server.thread()``: its pool also reads stdin, and a result computed
 # there could wait for the client's next message before it was sent.
 _WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="saengine-rpc")
+#: The design work (the design checks, required steel, proposals, interaction diagrams, the report
+#: and the drawings, which take minutes on a large building) runs in threads of its own: four of
+#: them at once no longer leave a save, a soil report or a table waiting for minutes behind them
+#: (SM-11, B10-29 of usability walk 3: "Saving..." for 7.5 minutes, everything queued behind the
+#: interaction diagrams).
+_DESIGN_WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="saengine-design")
 
 
 #: Parameters that name the project (or a file or folder inside it) a request works on.
@@ -285,13 +294,50 @@ def _scoped(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
     return call
 
 
-def _in_worker(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
-    """``handler`` run in a worker thread; its answer is sent as soon as it is ready."""
+def _in_worker(
+    handler: Callable[[Any], Any], pool: ThreadPoolExecutor | None = None
+) -> Callable[[Any], Any]:
+    """``handler`` run in a worker thread (of ``pool``, default :data:`_WORKERS`); its answer is
+    sent as soon as it is ready."""
     scoped = _scoped(handler)
+    executor = pool or _WORKERS
 
     @functools.wraps(handler)
     async def run(params: Any) -> Any:
-        return await asyncio.get_running_loop().run_in_executor(_WORKERS, scoped, params)
+        # The request's job goes with the work into the worker thread (saengine.rpc.jobs).
+        work = functools.partial(jobs.run_as, jobs.current(), scoped)
+        return await asyncio.get_running_loop().run_in_executor(executor, work, params)
+
+    return run
+
+
+def _in_design_worker(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """``handler`` run in a design thread (:data:`_DESIGN_WORKERS`)."""
+    return _in_worker(handler, _DESIGN_WORKERS)
+
+
+def _as_job(method: str, fn: Callable) -> Callable:
+    """``fn`` (a feature's handler) counted as a job of ``method`` while it runs
+    (:mod:`saengine.rpc.jobs`, the ``saengine/jobs`` answer)."""
+    if asyncio.iscoroutinefunction(fn):
+
+        @functools.wraps(fn)
+        async def run_async(params: Any) -> Any:
+            job, token = jobs.start(method)
+            try:
+                return await fn(params)
+            finally:
+                jobs.finish(job, token)
+
+        return run_async
+
+    @functools.wraps(fn)
+    def run(params: Any) -> Any:
+        job, token = jobs.start(method)
+        try:
+            return fn(params)
+        finally:
+            jobs.finish(job, token)
 
     return run
 
@@ -316,12 +362,17 @@ def _versions_worker(handler: Callable[[dict[str, Any]], Any]) -> Callable[[Any]
 
     def locked(params: Any) -> Any:
         args = _plain(params)
-        with _project_lock(str(args["projectRoot"])), code_context.project(args["projectRoot"]):
+        lock = _project_lock(str(args["projectRoot"]))
+        if lock.locked():
+            jobs.note("Waiting for another version operation on the project")
+        with lock, code_context.project(args["projectRoot"]):
+            jobs.note(None)
             return handler(args)
 
     @functools.wraps(handler)
     async def run(params: Any) -> Any:
-        return await asyncio.get_running_loop().run_in_executor(_VERSIONS_WORKERS, locked, params)
+        work = functools.partial(jobs.run_as, jobs.current(), locked)
+        return await asyncio.get_running_loop().run_in_executor(_VERSIONS_WORKERS, work, params)
 
     return run
 
@@ -350,11 +401,20 @@ def create_server() -> JsonRPCServer:
         register = feature(*args, **kwargs)
 
         def decorate(fn: Callable) -> Callable:
-            return register(fn if asyncio.iscoroutinefunction(fn) else _scoped(fn))
+            handler = fn if asyncio.iscoroutinefunction(fn) else _scoped(fn)
+            name = args[0] if args else kwargs.get("feature_name")
+            return register(_as_job(str(name), handler) if name != "saengine/jobs" else handler)
 
         return decorate
 
     server.feature = scoped_feature  # type: ignore[method-assign]
+
+    # What the engine is working on, answered at once on the server's thread: the app's engine
+    # watchdog tells a busy engine (it answers, with each job's note) from one that no longer
+    # responds (B10-21 of usability walk 3).
+    @server.feature("saengine/jobs")
+    def _jobs(params: Any) -> dict[str, Any]:
+        return {"jobs": jobs.running()}
 
     @server.feature("saengine/info")
     def _info(params: Any) -> dict[str, Any]:
@@ -569,19 +629,19 @@ def create_server() -> JsonRPCServer:
         return handlers.run_script(args["structureText"], args["scriptPath"])
 
     @server.feature("design/report")
-    @_in_worker
+    @_in_design_worker
     def _design_report(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.design_report(args["outDir"], args["projectPath"])
 
     @server.feature("design/required")
-    @_in_worker
+    @_in_design_worker
     def _design_required(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.design_required(args["outDir"], args["projectPath"], args.get("options"))
 
     @server.feature("design/proposal")
-    @_in_worker
+    @_in_design_worker
     def _design_proposal(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.design_proposal(args["outDir"], args["projectPath"], args.get("options"))
@@ -694,7 +754,7 @@ def create_server() -> JsonRPCServer:
             args.get("title") or "",
         )
 
-    @_in_worker
+    @_in_design_worker
     def _build_report_worker(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.build_report(
@@ -749,7 +809,7 @@ def create_server() -> JsonRPCServer:
     # Detailing, the schedule and the sheets take seconds to tens of seconds: in a worker thread,
     # with ``drawings/progress`` answering meanwhile; ``drawings/list`` only reads files.
     @server.feature("drawings/generate")
-    @_in_worker
+    @_in_design_worker
     def _drawings_generate(params: Any) -> dict[str, Any]:
         args = _plain(params)
         # The design report as JSON text: pygls would turn its keys into names (digits, spaces).
@@ -762,7 +822,7 @@ def create_server() -> JsonRPCServer:
         )
 
     @server.feature("drawings/issue")
-    @_in_worker
+    @_in_design_worker
     def _drawings_issue(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.drawings_issue(args["projectRoot"], args)
@@ -881,7 +941,7 @@ def create_server() -> JsonRPCServer:
         _import_substructure()
         return await _substructure_report_worker(params)
 
-    @_in_worker
+    @_in_design_worker
     def _substructure_design_worker(params: Any) -> dict[str, Any]:
         return handlers.substructure_design(_plain(params)["projectRoot"])
 
@@ -911,7 +971,7 @@ def create_server() -> JsonRPCServer:
         return handlers.substructure_ensure(_plain(params)["projectRoot"])
 
     @server.feature("fem/meshCheck")
-    @_in_worker
+    @_in_design_worker
     def _mesh_check(params: Any) -> dict[str, Any]:
         return handlers.mesh_check(_plain(params)["projectRoot"])
 
@@ -920,13 +980,13 @@ def create_server() -> JsonRPCServer:
         return handlers.ssi_compare(_plain(params)["projectRoot"])
 
     @server.feature("fem/seismicDesign")
-    @_in_worker
+    @_in_design_worker
     def _seismic_design(params: Any) -> dict[str, Any] | None:
         args = _plain(params)
         return handlers.seismic_design(args["outDir"], args["projectPath"])
 
     @server.feature("fem/secondOrder")
-    @_in_worker
+    @_in_design_worker
     def _second_order(params: Any) -> dict[str, Any] | None:
         args = _plain(params)
         return handlers.second_order_summary(args["outDir"], args["projectPath"])
@@ -944,7 +1004,7 @@ def create_server() -> JsonRPCServer:
         return handlers.member_forces(args["outDir"], args["projectPath"], args["member"])
 
     @server.feature("fem/columnInteraction")
-    @_in_worker
+    @_in_design_worker
     def _column_interaction(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.column_interaction(args["outDir"], args["projectPath"], args.get("member"))

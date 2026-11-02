@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, femCodeTables, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 import { formatDate as formatUiDate } from './formatting.js';
@@ -366,7 +366,7 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	const architectureAdded = !recorded.has('architecture') && architectureHasContent(inputs.texts.get('architecture'));
 	const sourceChanged = (part: string) => {
 		const sourceText = inputs.texts.get(part);
-		return sourceText === undefined || !femSourceCurrent(part, sourceText, recorded.get(part));
+		return sourceText === undefined || !femSourceCurrent(part, sourceText, recorded.get(part), femCodeTables(recorded));
 	};
 	if (soilChanged || recordedChanged || mepAdded || loadsAdded || architectureAdded || FEM_SOURCES.some(sourceChanged)) {
 		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));

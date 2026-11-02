@@ -751,7 +751,9 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     # grade, fyt of the ties): 28 (X4 of the usability walk).
     summary = after["summary"]
     assert summary["failed"] == 0 and summary["checked"] == 28
-    assert summary["elements"]["checked"] == 19
+    # The diaphragm is counted apart from the members (B10-22 of usability walk 3).
+    assert summary["elements"]["checked"] == 18
+    assert summary["counts"]["diaphragms"]["checked"] == 1
     assert summary["joints"]["checked"] == 6 and summary["seismicChecks"] == 3
 
     # Splitting: the lighter beams get their own types, and the design still passes.

@@ -395,13 +395,46 @@ SETTINGS_FOUNDATION_DESIGN_KEYS = ("allowableBearing",)
 OBJECT_DESIGN_KEYS = ("reinforcement", "punchingReinforcement", "designOverwrites")
 
 
-def settings_stamp(text: str, legacy: bool = False) -> str:
+#: The key of an analysis model's recorded sources that lists the code pack tables its
+#: derivation read (:func:`settings_stamp`'s ``code_tables``); ``-`` for none.
+CODE_TABLES_KEY = "codeTables"
+
+
+def sources_description(sources: dict[str, str] | None) -> str:
+    """An analysis model's ``meta.description``, with the stamps of the sources it was derived
+    from (read back by ``saengine.pipeline.status.recorded_sources``)."""
+    stamps = "; ".join(f"{k}={v}" for k, v in sorted((sources or {}).items()))
+    return (
+        "Derived by SAEngine from the building model and the project settings. "
+        f"Sources: {stamps}"
+    )
+
+
+def code_tables_text(tables: set[str] | frozenset[str]) -> str:
+    """The recorded value of :data:`CODE_TABLES_KEY`."""
+    return ",".join(sorted(tables)) or "-"
+
+
+def code_tables_of(recorded: dict[str, str]) -> frozenset[str] | None:
+    """The code pack tables a model's derivation read, from its recorded sources; None for a
+    model derived before they were recorded (every override then counts)."""
+    value = recorded.get(CODE_TABLES_KEY)
+    if value is None:
+        return None
+    return frozenset(t for t in value.split(",") if t and t != "-")
+
+
+def settings_stamp(
+    text: str, legacy: bool = False, code_tables: frozenset[str] | set[str] | None = None
+) -> str:
     """The stamp an analysis model records for the project settings (key ``settings``): of the
     settings without :data:`SETTINGS_INFO_KEYS` and the foundation's design-only keys
     (:data:`SETTINGS_FOUNDATION_DESIGN_KEYS`), so typing the engineer's name, a revision or the
     qa leaves the model current. ``legacy``: the stamp of models derived before the qa was left
-    out. The workbench computes the same (``femSettingsStamp`` in partSources.ts); a text that
-    is not a JSON object is stamped whole."""
+    out. ``code_tables``: the code pack tables the derivation read; the project's overrides of
+    other tables (``codeOverrides``, a ramp slope, φ) are left out, the analysis does not read
+    them (B10-32 of usability walk 3). The workbench computes the same (``femSettingsStamp`` in
+    partSources.ts); a text that is not a JSON object is stamped whole."""
     import json
 
     try:
@@ -415,6 +448,14 @@ def settings_stamp(text: str, legacy: bool = False) -> str:
         kept["foundation"] = {
             k: v for k, v in kept["foundation"].items() if k not in SETTINGS_FOUNDATION_DESIGN_KEYS
         }
+    if code_tables is not None and isinstance(kept.get("codeOverrides"), dict):
+        from saengine.codes.overrides import restricted
+
+        overrides = restricted(kept["codeOverrides"], code_tables)
+        if overrides:
+            kept["codeOverrides"] = overrides
+        else:
+            del kept["codeOverrides"]
     return stamp(js_json(kept))
 
 
@@ -2763,12 +2804,11 @@ def _derive_fem(
                 }
             )
 
-    stamps = "; ".join(f"{k}={v}" for k, v in sorted((sources or {}).items()))
     project = {
         "schema_version": 2,
         "meta": {
             "name": settings.project.name,
-            "description": f"Derived by SAEngine from the building model and the project settings. Sources: {stamps}",
+            "description": sources_description(sources),
             "author": "SAEngine",
             "units": UNITS,
         },
