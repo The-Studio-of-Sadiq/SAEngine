@@ -223,6 +223,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "transverse": {"type": "tie", "dia": 10, "spacing": 150, "legs": 2},
     },
     "BarMesh": {"dia": 10, "spacing": 150},
+    "ChordBars": {"count": 2, "dia": 12},
     "PunchingReinforcement": {
         "kind": "studs",
         "dia": 12,

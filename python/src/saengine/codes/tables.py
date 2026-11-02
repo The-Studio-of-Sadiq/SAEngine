@@ -3193,6 +3193,11 @@ class Diaphragm(_Group):
     irregularIncrease: Positive = Field(
         description="Factor on the connection forces of irregular buildings."
     )
+    chordStrip: Positive | None = Field(
+        default=None,
+        description="Width of the slab strip along a floor's edge whose bars parallel to the "
+        "edge count as the diaphragm chord [mm]; empty: the generic default.",
+    )
 
 
 class TransferTable(TableModel):

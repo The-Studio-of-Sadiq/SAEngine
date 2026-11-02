@@ -55,6 +55,7 @@ here, newest first, with the date, the question, the decision, the reason and wh
 | 8 | T33 joint check | Both directions' top bars sat in the same outer layer, so most two-way joints were flagged as clashes. | **The secondary direction's top bars go in the second layer.** Its effective depth drops by the main bars' diameter. | This is how joints are detailed on site. The clash flag now means a real clash. |
 | 9 | T19 driven piles (#79) | Driven piles had become squares (perimeter 4B, area B²), which changed existing results. | **The engineer chooses square or round. Square is the default.** Old projects read as square. | Precast RC driven piles in Bangladesh are usually square, but round ones exist. |
 | 10 | B16 flood loads (#130) | Should the moving-water (hydrodynamic) load and the breaking-wave load be summed, or should the larger one be taken? | **Both methods are offered. Sum is the default** (SAEngine practice, conservative). The report names the method used. | The wave acts on the front face while the current loads the whole element. Some engineers read them as alternatives. |
+| 11 | T3 diaphragm chords | Floor edges without an edge beam had no chord capacity, so the sample's chords failed and nothing proposed a remedy. Count the slab's own edge bars as the chord, or propose chord bars? | **Both.** The slab's bars parallel to the edge within an edge strip count first; only for a shortfall does the design proposal add chord bars along the free edges. The strip width is a pack value (SAEngine practice where the code gives none). | The slab's edge bars are there anyway; added bars are needed only where they fall short. |
 
 ### Where they live, and how to change them
 
@@ -109,6 +110,10 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
    - Engine: `design/rc_detailing.py`, `design/check.py`, `design/proposal.py`,
      `drawings/detailing.py` and `drawings/cages.py`.
    - Not changed: the bottom-bar crossing flag.
+   - Torsion (2026-11-02): the second-layer beam's closed stirrups are lowered with its top
+     bars, so the torsion cage is that much shallower (`design/torsion.py`, `top_drop`) and its
+     top bars sit in the cage's corners. The proposal keeps a bar in every corner and the
+     stirrup spacing within ph / 8 of that cage.
 9. **Driven pile shape.**
    - Member: the pile type's `shape` (`square` or `round`). Old files read as square.
    - Engine: one rule, `is_square_pile` in `library/substructure.py`, used by capacity,
@@ -119,6 +124,16 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Project: `site.flood.waveCombination` (`pack`, `sum` or `larger`).
     - Fallback: `"sum"`.
     - Engine: `fem/flood.py`. The report names the method and, with `larger`, which load governs.
+11. **Diaphragm chords.**
+    - Pack: `transfer.diaphragm.chordStrip`, the edge strip width (1000 mm in the default pack:
+      SAEngine practice, the code gives no width).
+    - Project: an override of that value (Code Values). Fallback: the generic default, 1000 mm.
+    - Engine: `design/diaphragms.py` (capacity: the edge beams' bars, the slab's bars along the
+      edge within the strip and, at a free edge, the slab type's `chordBars`) and
+      `design/proposal.py` (adds `chordBars` to the slab type's reinforcement in 04 Objects
+      for a shortfall). The chord check's note names the strip, its source and the chord bars.
+    - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
+      beam within 1 m). The drawings don't detail them yet.
 
 ## Earlier owner decisions
 

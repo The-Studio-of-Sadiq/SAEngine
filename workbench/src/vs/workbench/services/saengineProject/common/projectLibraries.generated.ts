@@ -2167,6 +2167,27 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'BuiltUpMember',
 			type: 'object',
 		},
+		ChordBars: {
+			additionalProperties: false,
+			description: 'Continuous bars along a slab\'s free edges (the floor\'s edges without an edge beam), lapped\nas tension bars, that carry the diaphragm chord force with the slab\'s own bars parallel to\nthe edge within the edge strip (:mod:`saengine.design.diaphragms`).',
+			properties: {
+				count: {
+					description: 'Bars along each free edge (top and bottom together).',
+					exclusiveMinimum: 0,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'ChordBars',
+			type: 'object',
+		},
 		CircleHollowProfile: {
 			additionalProperties: false,
 			description: 'IfcCircleHollowProfileDef (pipe, CHS).',
@@ -5140,6 +5161,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Top layer, Y',
+				},
+				chordBars: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ChordBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slabs: extra bars along every free edge of the floor (no edge beam), as the diaphragm chord; empty: none (the slab\'s own bars in the edge strip count).',
+					title: 'Chord bars',
 				},
 			},
 			required: ['material', 'cover'],
@@ -17582,6 +17616,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		dia: 10,
 		spacing: 150,
 	},
+	ChordBars: {
+		count: 2,
+		dia: 12,
+	},
 	PunchingReinforcement: {
 		kind: 'studs',
 		dia: 12,
@@ -22305,6 +22343,27 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'BarMesh',
 			type: 'object',
 		},
+		ChordBars: {
+			additionalProperties: false,
+			description: 'Continuous bars along a slab\'s free edges (the floor\'s edges without an edge beam), lapped\nas tension bars, that carry the diaphragm chord force with the slab\'s own bars parallel to\nthe edge within the edge strip (:mod:`saengine.design.diaphragms`).',
+			properties: {
+				count: {
+					description: 'Bars along each free edge (top and bottom together).',
+					exclusiveMinimum: 0,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'ChordBars',
+			type: 'object',
+		},
 		Design: {
 			additionalProperties: false,
 			description: 'Design choices of the substructure.',
@@ -24366,6 +24425,19 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Top layer, Y',
+				},
+				chordBars: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ChordBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slabs: extra bars along every free edge of the floor (no edge beam), as the diaphragm chord; empty: none (the slab\'s own bars in the edge strip count).',
+					title: 'Chord bars',
 				},
 			},
 			required: ['material', 'cover'],

@@ -1006,6 +1006,7 @@ def _design_run(
                         _turned(element, exact),
                         framing,
                         bars.steel.fy,
+                        drop,
                     )
                     checks += torsion_rows
                     checks += _beam_deflection_checks(
@@ -3931,6 +3932,7 @@ def _beam_torsion_checks(
     turned: bool,
     framing: _BeamFraming,
     fy: float,
+    top_drop: float = 0.0,
 ) -> tuple[list[dict[str, Any]], Any]:
     """The torsion rows of a beam (default pack BNBC 2020 Part 6 Sec 6.4.4, :mod:`saengine.design.torsion`)
     at its governing station (below the threshold one reported-only row), and the torsion
@@ -3947,7 +3949,9 @@ def _beam_torsion_checks(
     width = section.width
     thickness, sides = framing.slab_beside(element, width)
     try:
-        ts = torsion_design.TorsionSection.of(section, reinforcement.cover, thickness, sides)
+        ts = torsion_design.TorsionSection.of(
+            section, reinforcement.cover, thickness, sides, top_drop
+        )
         ts.core  # noqa: B018 - raises when the cover leaves no room
     except (DesignError, ValueError) as error:
         return [

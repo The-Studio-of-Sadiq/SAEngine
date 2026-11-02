@@ -194,6 +194,20 @@
           "exclusiveMinimum": 0,
           "title": "Irregularincrease",
           "type": "number"
+        },
+        "chordStrip": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Width of the slab strip along a floor's edge whose bars parallel to the edge count as the diaphragm chord [mm]; empty: the generic default.",
+          "title": "Chordstrip"
         }
       },
       "required": [

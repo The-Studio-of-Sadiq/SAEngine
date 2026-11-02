@@ -11,8 +11,11 @@ lines of vertical elements (frames and structural walls). Per level and directio
 - the chords: the floor as a simple beam spanning the outermost lines across the force,
   M = Fpx L / 8, L the floor's extent across the force; the chord force T = M / D, D its
   extent along the force, carried by the edge beams along the span (their top and bottom
-  bars, φ As fy with φ of tension). A simple span is on the safe side for floors with inner
-  frames;
+  bars) and by the slab's own top and bottom bars parallel to the edge within the edge strip
+  (the pack's ``transfer.diaphragm.chordStrip``, a generic default when the pack has none),
+  φ As fy with φ of tension. At a free edge (no edge beam) the slab type's ``chordBars``
+  count too: the design proposal adds them for a shortfall (owner decision 2026-11-02,
+  "Both"). A simple span is on the safe side for floors with inner frames;
 - the collectors: each structural wall along the force gathers its line's share of Fpx (the
   floor's force by tributary width between the lines of beams and walls along the force) over
   the floor's length on that line; beyond the wall's ends the beams on the line carry the part
@@ -32,13 +35,22 @@ Units: mm, N inside; reported in kN. Clause references from the pack (``seismic.
 
 from __future__ import annotations
 
+import itertools
 from typing import Any, ClassVar
 
 import numpy as np
 
 from saengine.codes import context as code_context
 
-__all__ = ["CLAUSES", "diaphragm_forces", "diaphragms_of"]
+__all__ = [
+    "CLAUSES",
+    "chord_bars_area",
+    "chord_strip",
+    "diaphragm_forces",
+    "diaphragms_of",
+    "free_edges",
+    "strip_area",
+]
 
 
 class _PackClauses(dict):
@@ -50,6 +62,7 @@ class _PackClauses(dict):
         "wings": "diaphragmWings",
         "force": "diaphragmForce",
         "phi": "diaphragmPhi",
+        "chordStrip": "diaphragmChordStrip",
     }
 
     def __getitem__(self, key: str) -> str:
@@ -104,6 +117,120 @@ def _fy(object_type: Any, mats: dict[str, Any]) -> float:
     reinforcement = getattr(object_type, "reinforcement", None)
     bars = mats.get(reinforcement.material) if reinforcement else None
     return float(bars.steel.fy) if bars is not None and bars.steel is not None else 0.0
+
+
+def chord_strip() -> tuple[float, str]:
+    """(the width [mm] of the edge strip whose slab bars count as the chord, where it comes
+    from): the pack's ``transfer.diaphragm.chordStrip``, a project override of it, else the
+    generic default."""
+    from saengine.codes import generic
+
+    table = code_context.pack_table("transfer").diaphragm
+    width = table.get("chordStrip")
+    pack = code_context.current()
+    if width is None:
+        width = generic.data("transfer")["diaphragm"]["chordStrip"]
+        source = generic.label(code_context.code_name(pack))
+    else:
+        source = pack.value_source("transfer", "diaphragm.chordStrip")
+    clause = CLAUSES["chordStrip"]
+    if clause and source.startswith("code pack"):
+        return float(width), clause  # the pack's own value: its clause says where from
+    return float(width), source
+
+
+def _field(owner: Any, key: str) -> Any:
+    if owner is None:
+        return None
+    return owner.get(key) if isinstance(owner, dict) else getattr(owner, key, None)
+
+
+def strip_area(reinforcement: Any, direction: str, strip: float) -> float:
+    """Area [mm²] of a slab's top and bottom bars along ``direction`` ("X" or "Y", the edge's)
+    within a strip ``strip`` [mm] wide (``reinforcement``: 04 Objects' planar reinforcement, as
+    a model or its JSON)."""
+    from saengine.design.rc import bar_area
+
+    area = 0.0
+    for layer in (f"bottom{direction}", f"top{direction}"):
+        mesh = _field(reinforcement, layer)
+        dia, spacing = _field(mesh, "dia"), _field(mesh, "spacing")
+        if dia and spacing:
+            area += bar_area(float(dia)) * strip / float(spacing)
+    return area
+
+
+def chord_bars_area(reinforcement: Any) -> float:
+    """Area [mm²] of a slab's ``chordBars`` along each free edge (0 without)."""
+    from saengine.design.rc import bar_area
+
+    bars = _field(reinforcement, "chordBars")
+    count, dia = _field(bars, "count"), _field(bars, "dia")
+    return float(count) * bar_area(float(dia)) if count and dia else 0.0
+
+
+def chord_bars_text(reinforcement: Any) -> str:
+    """ "2Ø16" for a slab's ``chordBars``; '' without."""
+    bars = _field(reinforcement, "chordBars")
+    count, dia = _field(bars, "count"), _field(bars, "dia")
+    return f"{int(count)}Ø{float(dia):g}" if count and dia else ""
+
+
+def free_edges(building: Any) -> dict[str, float]:
+    """The length [mm] of each slab's free edges: the parts of its outline on its floor's
+    outline (the union of the slabs at its level) with no beam along them (a beam parallel to
+    the edge within 1 m of it), where its ``chordBars`` run; for the quantities and drawings.
+    Slabs without a free edge are left out."""
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+
+    from saengine.library.bim import BeamElement, SlabElement
+
+    levels: dict[float, list[tuple[Any, Any]]] = {}
+    beams: dict[float, list[tuple[np.ndarray, np.ndarray]]] = {}
+    for e in building.elements:
+        if isinstance(e, SlabElement):
+            polygon = Polygon([(float(x), float(y)) for x, y in e.boundary])
+            if polygon.is_valid and polygon.area > 0:
+                levels.setdefault(round(float(e.elevation), 0), []).append((e, polygon))
+        elif isinstance(e, BeamElement):
+            beams.setdefault(round(float(e.elevation), 0), []).append(
+                (np.array(e.start[:2], dtype=float), np.array(e.end[:2], dtype=float))
+            )
+    found: dict[str, float] = {}
+    for z, slabs in levels.items():
+        outline = unary_union([p for _, p in slabs]).boundary
+        for e, polygon in slabs:
+            ring = list(polygon.exterior.coords)
+            free = 0.0
+            for a, c in itertools.pairwise(ring):
+                a, c = np.array(a, dtype=float), np.array(c, dtype=float)
+                length = float(np.linalg.norm(c - a))
+                if length <= _ON_LINE or outline.distance(Point(*((a + c) / 2))) > _ON_LINE:
+                    continue
+                unit = (c - a) / length
+                covered: list[tuple[float, float]] = []
+                for b0, b1 in beams.get(z, []):
+                    along = b1 - b0
+                    if np.linalg.norm(along) <= _ON_LINE:
+                        continue
+                    cross = abs(unit[0] * along[1] - unit[1] * along[0]) / np.linalg.norm(along)
+                    offset = abs(unit[0] * (b0 - a)[1] - unit[1] * (b0 - a)[0])
+                    if cross > 1e-3 or offset > 1e3:
+                        continue
+                    t0, t1 = sorted((float(unit @ (b0 - a)), float(unit @ (b1 - a))))
+                    if t1 > 0 and t0 < length:
+                        covered.append((max(t0, 0.0), min(t1, length)))
+                taken, reach = 0.0, 0.0
+                for t0, t1 in sorted(covered):
+                    t0 = max(t0, reach)
+                    if t1 > t0:
+                        taken += t1 - t0
+                    reach = max(reach, t1)
+                free += max(length - taken, 0.0)
+            if free > _ON_LINE:
+                found[e.id] = free
+    return found
 
 
 def diaphragms_of(
@@ -165,6 +292,7 @@ def diaphragms_of(
     stories = {round(float(s.elevation) / 1e3, 3): s for s in building.stories}
 
     slabs: dict[float, list[Any]] = {}
+    slab_elements: dict[float, list[tuple[Any, Any]]] = {}
     beams: dict[float, list[tuple[Any, np.ndarray, np.ndarray]]] = {}
     walls: list[tuple[Any, np.ndarray, np.ndarray, float, float]] = []
     for e in building.elements:
@@ -172,6 +300,9 @@ def diaphragms_of(
             polygon = Polygon([(float(x), float(y)) for x, y in e.boundary])
             if polygon.is_valid and polygon.area > 0:
                 slabs.setdefault(round(float(e.elevation) / 1e3, 3), []).append(polygon)
+                slab_elements.setdefault(round(float(e.elevation) / 1e3, 3), []).append(
+                    (e, polygon)
+                )
         elif isinstance(e, BeamElement):
             beams.setdefault(round(float(e.elevation) / 1e3, 3), []).append(
                 (e, np.array(e.start, dtype=float), np.array(e.end, dtype=float))
@@ -187,6 +318,7 @@ def diaphragms_of(
                 )
             )
 
+    strip, strip_source = chord_strip()
     for axis, case_levels in by_case.items():
         if not case_levels:
             continue
@@ -236,25 +368,56 @@ def diaphragms_of(
                     and abs(c[across] - a[across]) > _ON_LINE
                 ]
                 capacity, weakest = _weakest(on_edge, types, mats, phi)
-                side = f"{'-' if edge == 'low' else '+'}{'XY'[along]} edge"
-                element["checks"].append(
-                    _check(
-                        f"Chord, force along {axis}, {side}",
-                        chord / 1e3,
-                        capacity / 1e3,
-                        "kN",
-                        f"E{axis}",
-                        f"T = M / D, M = Fpx L / 8 = {moment / 1e6:.1f} kN·m, L = "
-                        f"{span / 1e3:.2f} m, D = {depth / 1e3:.2f} m; Fpx = {fpx / 1e3:.1f} kN "
-                        f"({CLAUSES['force']}); φ As fy of "
-                        + (
-                            f"the edge beams' top and bottom bars (weakest {weakest})"
-                            if on_edge
-                            else "no edge beam: provide chord bars along the slab edge"
-                        )
-                        + f", φ = {phi:g} ({CLAUSES['phi']})",
-                    )
+                free = not on_edge
+                k = along if edge == "low" else 2 + along
+                on_slab = [
+                    e
+                    for e, polygon in slab_elements.get(key, [])
+                    if abs(polygon.bounds[k] - at) <= 1e3
+                ]
+                parallel = "XY"[across]  # the slab bars along the edge
+                slab, slab_id, chord_text = _weakest_slab(
+                    on_slab, types, mats, phi, parallel, strip, free
                 )
+                side = f"{'-' if edge == 'low' else '+'}{'XY'[along]} edge"
+                parts = []
+                if on_edge:
+                    parts.append(f"the edge beams' top and bottom bars (weakest {weakest})")
+                if on_slab:
+                    parts.append(
+                        f"the slab's {parallel} bars, top and bottom, within the "
+                        f"{strip:g} mm edge strip ({strip_source})"
+                        + (f" and its chord bars {chord_text}" if chord_text else "")
+                        + f" (weakest {slab_id})"
+                    )
+                if free and not chord_text:
+                    parts.append("no edge beam: chord bars along the slab edge where short")
+                check = _check(
+                    f"Chord, force along {axis}, {side}",
+                    chord / 1e3,
+                    (capacity + slab) / 1e3,
+                    "kN",
+                    f"E{axis}",
+                    f"T = M / D, M = Fpx L / 8 = {moment / 1e6:.1f} kN·m, L = "
+                    f"{span / 1e3:.2f} m, D = {depth / 1e3:.2f} m; Fpx = {fpx / 1e3:.1f} kN "
+                    f"({CLAUSES['force']}); φ As fy of "
+                    + ("; ".join(parts) if parts else "no edge beam or slab")
+                    + f", φ = {phi:g} ({CLAUSES['phi']})",
+                )
+                # What the design proposal's chord bars work from (saengine.design.proposal).
+                check["chord"] = {
+                    "axis": axis,
+                    "edge": side,
+                    "force_kN": round(chord / 1e3, 3),
+                    "beams_kN": round(capacity / 1e3, 3),
+                    "free": free,
+                    "slabs": [e.id for e in on_slab],
+                    "direction": parallel,
+                    "strip": strip,
+                    "phi": phi,
+                    "chordBars": chord_text or None,
+                }
+                element["checks"].append(check)
             # ── collectors ──
             lines = sorted(
                 {
@@ -427,6 +590,33 @@ def _weakest(
         if best is None or value < best[0]:
             best = (value, e.id)
     return best if best is not None else (0.0, "")
+
+
+def _weakest_slab(
+    slabs: list[Any],
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    phi: float,
+    direction: str,
+    strip: float,
+    free: bool,
+) -> tuple[float, str, str]:
+    """(φ As fy [N], slab id, its chord bars' text) of the weakest slab along an edge: its bars
+    along ``direction`` within the strip and, at a free edge, its ``chordBars``; (0, "", "")
+    without a slab."""
+    best: tuple[float, str, str] | None = None
+    for e in slabs:
+        object_type = types.get(e.type)
+        reinforcement = getattr(object_type, "reinforcement", None)
+        area = strip_area(reinforcement, direction, strip)
+        text = ""
+        if free:
+            area += chord_bars_area(reinforcement)
+            text = chord_bars_text(reinforcement)
+        value = phi * area * _fy(object_type, mats)
+        if best is None or value < best[0]:
+            best = (value, e.id, text)
+    return best if best is not None else (0.0, "", "")
 
 
 def _element_for(found: dict[str, Any], name: str) -> dict[str, Any]:

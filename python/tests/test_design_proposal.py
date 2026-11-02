@@ -674,13 +674,6 @@ def test_strength_bars_applied_anyway_on_request(tmp_path: Path, monkeypatch) ->
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(
-    strict=True,
-    reason="Owner decision needed (test pass 2026-11-02): T3's diaphragm check fails the "
-    "sample's Level 1 chords along X (2.9 kN) because the slab edges at x = 0 and 13 m have no "
-    "edge beam (capacity 0, 'provide chord bars'); neither design_required nor the proposal "
-    "covers diaphragms. Count the slab's edge bars as the chord, or propose chord bars?",
-)
 def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     from test_integration_e56 import _derive, _project, _run
 

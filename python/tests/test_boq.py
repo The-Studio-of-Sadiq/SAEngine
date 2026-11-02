@@ -231,6 +231,29 @@ def test_the_bill_takes_the_detailed_bars() -> None:
     assert any(n.startswith("Reinforcement is measured from the detailed bars") for n in boq.notes)
 
 
+def test_chord_bars_along_the_free_edges() -> None:
+    """A slab type's diaphragm chord bars (2026-11-02) run along the slab's free edges: with the
+    beam B2 on the x = 6 m edge left out, 2Ø12 over that 5 m edge. The drawings do not detail
+    them, so the bill keeps them beside the slab's scheduled bars."""
+    objects = json.loads(json.dumps(OBJECTS))
+    slab = next(o for o in objects["objects"] if o["id"] == "SL")
+    slab["reinforcement"]["chordBars"] = {"count": 2, "dia": 12}
+    model = json.loads(dump(generate(PLAN, "s")))
+    model["elements"] = [e for e in model["elements"] if e["id"] != "B2"]
+    bim = json.dumps(model)
+    expected = 2 * bar_length(5000, 12) / 1000 * bar_mass(12)
+    for boq in (estimated(bim, objects), bill(bim, objects)):
+        d12 = item(boq, "reinforcement", diameter=12)
+        assert share(d12, "S1", "chord bars") == pytest.approx(expected, abs=1e-3)
+    # With every edge on a beam there is no free edge: nothing to measure.
+    assert not [
+        e
+        for i in estimated(dump(generate(PLAN, "s")), objects).items
+        for e in i.breakdown
+        if e.detail == "chord bars"
+    ]
+
+
 def test_openings_and_missing_types() -> None:
     model = generate(PLAN, "s")
     data = model.model_dump(mode="json", by_alias=True, exclude_none=True)

@@ -29,8 +29,9 @@ import json
 from collections import OrderedDict
 from typing import Any
 
-#: Details of the bill that the schedule never replaces: designs of their own.
-KEPT_DETAILS = ("tank design",)
+#: Details of the bill that the schedule never replaces: designs of their own, and bars the
+#: drawings do not detail (a slab type's diaphragm chord bars along its free edges).
+KEPT_DETAILS = ("tank design", "chord bars")
 
 #: Schedules kept for the last inputs (texts, detailing options, kept design and bar marks).
 CACHE_SIZE = 4
