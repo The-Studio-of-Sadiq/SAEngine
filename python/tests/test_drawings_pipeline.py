@@ -363,3 +363,26 @@ def test_the_bill_takes_the_marks_of_the_drawings(generated: tuple[Path, dict], 
         if e["element"] == "S2" and "bar bending schedule" in (e.get("detail") or "")
     }
     assert sheets and marks == sheets
+
+
+def test_an_issue_takes_its_revision_row_its_purpose_and_says_no_dwg(
+    generated: tuple[Path, dict], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """OI-10/OI-11 (walkthrough 3): issued "For approval" with revision B's row of Project
+    Settings (by OI, its description), the issue takes the row's initials and description, the
+    title block reads the purpose, and "Also write DWG" without LibreDWG says no DWG was written
+    (once, without the doubled "No DWG was written:")."""
+    from saengine.library import dwg
+
+    root = _copy(generated, tmp_path)
+    data = json.loads((root / SETTINGS).read_text(encoding="utf-8"))
+    data["drawings"]["revisions"].append({"code": "B", "description": "Row text", "by": "OI"})
+    (root / SETTINGS).write_text(json.dumps(data, indent="\t"), encoding="utf-8")
+    monkeypatch.setattr(dwg, "find_writer", lambda: None)
+    answer = d.issue(root, code="B", purpose="For approval", dwg=True, force=True)
+    issued = answer["issued"]
+    assert (issued["by"], issued["description"]) == ("OI", "Row text")
+    [problem] = issued["dwgProblems"]
+    assert "not installed" in problem and "No DWG was written" not in problem
+    record = json.loads((root / d.FOLDER / d.RECORD).read_text(encoding="utf-8"))
+    assert record["status"] in ("FOR APPROVAL", "NOT FOR CONSTRUCTION")

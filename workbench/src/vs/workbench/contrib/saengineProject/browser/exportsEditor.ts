@@ -56,6 +56,8 @@ import { activeCodeName } from '../../../services/saengineProject/common/activeC
 
 /** Prints the design report (saengineReport). */
 export const PRINT_REPORT_COMMAND = 'saengine.report.print';
+/** Chooses the design report's template and sections (saengineReport). */
+export const CONFIGURE_REPORT_COMMAND = 'saengine.report.configure';
 /** Writes the same design report as Word, `11 Exports/report.docx` (saengineReport). */
 export const EXPORT_WORD_REPORT_COMMAND = 'saengine.report.exportWord';
 /** Writes the IFC of the building model to `11 Exports/IFC/<project>.ifc` (building model editor, part 6). */
@@ -196,6 +198,8 @@ export class ExportsEditor extends EditorPane {
 
 	private readonly revealFolderAction = this._register(new Action('saengine.exports.revealFolder', localize('exports.revealFolder', "Open Exports Folder"), ThemeIcon.asClassName(Codicon.folderOpened), true, () => this.revealFolder()));
 	private readonly printAction = this._register(new Action('saengine.exports.print', localize('exports.printReport', "Print Design Report"), undefined, true, () => this.make('report')));
+	/** The report's template and sections, beside printing it (OI-15: only in the Command Palette). */
+	private readonly configureReportAction = this._register(new Action('saengine.exports.configureReport', localize('exports.configureReport', "Configure Design Report..."), undefined, true, () => this.commandService.executeCommand(CONFIGURE_REPORT_COMMAND)));
 	private readonly ifcAction = this._register(new Action('saengine.exports.ifc', localize('exports.exportIfc', "Export IFC"), undefined, true, () => this.make('ifc')));
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
@@ -559,7 +563,7 @@ export class ExportsEditor extends EditorPane {
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
 		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.revitAction, this.revitImportAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
+		const secondary: IAction[] = [this.printAction, ...(CommandsRegistry.getCommand(CONFIGURE_REPORT_COMMAND) ? [this.configureReportAction] : []), this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.revitAction, this.revitImportAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;

@@ -1471,8 +1471,8 @@ class _Writer:
         period = self.summary.get("period_s")
         if not coefficient or period is None:
             self.report.warn(
-                "No BNBC base shear coefficient (site values missing or the analysis model "
-                "could not be derived): EX and EY have no loads."
+                "No base shear coefficient of the code pack (site values missing or the "
+                "analysis model could not be derived): EX and EY have no loads."
             )
             return []
         k = 1.0 if period <= 0.5 else 2.0 if period >= 2.5 else 1 + (period - 0.5) / 2
@@ -1541,7 +1541,7 @@ class _Writer:
         if a.secondOrder != "none":
             self.report.skip("P-Delta (Analysis model → Second order) not exported")
         if a.seismicDesign == "responseSpectrum" or a.responseSpectrum:
-            self.report.skip("the response spectrum (SAEngine's BNBC spectrum) not exported")
+            self.report.skip("the response spectrum (the code pack's design spectrum) not exported")
         if a.seismicAccidentalTorsion:
             self.report.skip("accidental torsion of the earthquake cases not exported")
         if a.thermal.enabled:

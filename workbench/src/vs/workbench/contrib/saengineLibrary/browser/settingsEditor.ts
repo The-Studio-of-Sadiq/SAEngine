@@ -42,6 +42,7 @@ import { IPartSectionPane, sectionOption } from '../../../services/saengineProje
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } from '../../saengineReport/browser/reportBuild.js';
 import './media/codePacks.css';
 import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
 import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
@@ -85,6 +86,36 @@ export function reducedLiveApplies(settings: JsonObject): boolean {
 	const excluded = Array.isArray(rule.excludedUses) ? rule.excludedUses : [];
 	const loads = Array.isArray(settings.areaLoads) ? settings.areaLoads.filter(isObject) : [];
 	return loads.every(a => (typeof a.live !== 'number' || a.live <= liveMax + 1e-9) && !excluded.includes(a.use as JsonValue));
+}
+
+/**
+ * The drawing revision after `code`, as the drawings' register numbers them
+ * (`saengine.drawings.sheets.revisions.next_revision`): 0 -> 1, A -> B, Z -> AA, P1 -> P2,
+ * C09 -> C10; "0" for none.
+ */
+export function nextRevision(code: string): string {
+	code = code.trim();
+	if (!code) {
+		return '0';
+	}
+	const numbered = /^(.*?)(\d+)$/.exec(code);
+	if (numbered) {
+		return `${numbered[1]}${String(Number(numbered[2]) + 1).padStart(numbered[2].length, '0')}`;
+	}
+	if (!/^[A-Za-z]+$/.test(code)) {
+		return `${code}.1`;
+	}
+	const letters = [...code];
+	for (let i = letters.length - 1; i >= 0; i--) {
+		const c = letters[i];
+		if (c === 'z' || c === 'Z') {
+			letters[i] = c === 'z' ? 'a' : 'A';
+			continue;
+		}
+		letters[i] = String.fromCharCode(c.charCodeAt(0) + 1);
+		return letters.join('');
+	}
+	return (code[0] === code[0].toLowerCase() ? 'a' : 'A') + letters.join('');
 }
 
 /**
@@ -351,6 +382,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private packChoices: ICodePackOption[] = [];
 	private packsVersion = 0;
 	/** The chosen pack's entries of the lists (towns, area uses, systems, site classes) from `saengine.codes.choices`; undefined: the schema's (the default pack's). */
+	/** The report templates the project can print (built-in and its own), for Design report → Template. */
+	private reportTemplates: readonly IReportTemplateInfo[] | undefined;
 	private packLists: { readonly packId: string; readonly lists: { readonly [list: string]: readonly { readonly id: string; readonly label: string }[] } } | undefined;
 	private packListsVersion = 0;
 	/** The pack whose lists were last asked for (asked once per pack and input). */
@@ -440,6 +473,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			if (id === CODES_LIST_COMMAND) {
 				void this.refreshPacks();
 			}
+			if (id === REPORT_TEMPLATES_COMMAND_ID) {
+				void this.refreshReportTemplates();
+			}
 			if (id === CODES_CHOICES_COMMAND) {
 				void this.refreshPackLists();
 			}
@@ -486,13 +522,32 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.packListsFor = undefined;
 		this.codeValues = undefined;
 		this.codeValuesFor = undefined;
+		this.reportTemplates = undefined;
 		void this.trackSoil();
 		void this.refreshPacks();
+		void this.refreshReportTemplates();
 	}
 
 	// ───────────────────────────── the design code (code pack) ─────────────────────────────
 
 	/** Asks the backend which code packs are installed (built-in, the user's, the project's). */
+	/** The report templates for Design report → Template (built-in and the project's own). */
+	private async refreshReportTemplates(): Promise<void> {
+		const root = this.project.project?.root;
+		if (!root || !CommandsRegistry.getCommand(REPORT_TEMPLATES_COMMAND_ID)) {
+			return; // without the backend the field stays a text box
+		}
+		try {
+			const listed = await this.commands.executeCommand<IReportTemplates>(REPORT_TEMPLATES_COMMAND_ID, { projectRoot: root.fsPath });
+			this.reportTemplates = listed?.templates ?? undefined;
+		} catch {
+			this.reportTemplates = undefined;
+		}
+		if (this.reportTemplates?.length && this.document && this.section?.keys.includes('report')) {
+			this.render();
+		}
+	}
+
 	private async refreshPacks(): Promise<void> {
 		if (!CommandsRegistry.getCommand(CODES_LIST_COMMAND)) {
 			return; // until the backend offers code packs, the built-in default pack alone is shown
@@ -845,6 +900,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (path === 'floorLoad' || path === 'roofLoad') {
 			return this.areaLoads.map(a => String(a.id));
 		}
+		if (path === 'report.template' && this.reportTemplates?.length) {
+			// The built-in and the project's templates, not a free-text id (OI-15).
+			return this.reportTemplates.map(t => t.id);
+		}
 		return this.packList(path)?.map(entry => entry.id);
 	}
 
@@ -856,6 +915,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	/** The floor and roof selectors name each area load with its loads: "FL: Floors (L 2, finish 1.2, partitions 1 kN/m²)". */
 	private referenceLabel(path: string, id: string): string | undefined {
+		if (path === 'report.template') {
+			const template = this.reportTemplates?.find(t => t.id === id);
+			return template ? localize('settings.templateOption', "{0} ({1})", template.name || id, template.source === 'builtIn' ? localize('settings.templateBuiltIn', "built in") : localize('settings.templateProject', "11 Exports/report-templates")) : undefined;
+		}
 		if (path !== 'floorLoad' && path !== 'roofLoad') {
 			return this.packList(path)?.find(entry => entry.id === id)?.label;
 		}
@@ -1138,6 +1201,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	private newItem(path: string, list: readonly JsonValue[]): JsonObject | undefined {
+		if (path === 'drawings.revisions') {
+			// The next revision after the last row, dated today (OI-12: "Add" gave an empty row).
+			const last = [...list].reverse().find(isObject);
+			return { code: nextRevision(typeof last?.code === 'string' ? last.code : ''), date: new Date().toISOString().slice(0, 10), description: '', by: '' };
+		}
 		if (path !== 'areaLoads') {
 			return undefined;
 		}
