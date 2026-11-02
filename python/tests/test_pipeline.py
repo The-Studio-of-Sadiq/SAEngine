@@ -43,9 +43,11 @@ SOURCES = {
     "objects": '{"objects": [{"id": "C1"}]}',
     "floorPlan": '{"schema": "saengine.floorPlan/1", "columns": [{"id": "C1"}]}',
 }
+# One member: a model built from an empty plan is not started (N-B1, 47170e9f), as in
+# partStatus.test.ts.
 BIM = json.dumps(
     {"schema": "saengine.bim/2", "source": {"floorPlan": source_stamp(SOURCES["floorPlan"])},
-     "elements": []}
+     "elements": [{"id": "C1", "kind": "column"}]}
 )  # fmt: skip
 
 
@@ -275,8 +277,10 @@ def test_summary_writers_have_the_app_keys_in_the_app_order():
         {"foundations": [{"id": "F1"}]},
         {"foundations": [{"id": "F1", "ok": False, "utilisation": 1.784}], "sources": {"soil": ""}},
     )
-    assert list(substructure) == ["foundations", "checked", "total", "passed", "failed", "unsupported",
-                                  "status", "maxUtilisation", "governing", "computed", "source"]  # fmt: skip
+    # bearingUnchecked: footings without a bearing check (no qa, N-U3), as substructureSummaryFile.
+    assert list(substructure) == ["foundations", "checked", "total", "passed", "failed",
+                                  "bearingUnchecked", "unsupported", "status", "maxUtilisation",
+                                  "governing", "computed", "source"]  # fmt: skip
     assert (substructure["failed"], substructure["governing"]) == (1, "F1")
     # Checked of total and the verdict the part list reads (U2).
     verdict = (substructure["checked"], substructure["total"], substructure["status"])

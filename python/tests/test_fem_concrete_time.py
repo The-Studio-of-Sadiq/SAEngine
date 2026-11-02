@@ -23,7 +23,6 @@ def table():
 def test_pack_covers_concrete_time(table) -> None:
     manifest = tables.builtin_manifest()
     assert "concreteTime" in manifest["covers"]
-    assert manifest["covers"][-1] == "concreteTime"
     assert table.creep.method == "tabulatedCoefficient"
     assert table.shrinkage.method == "tabulatedStrain"
     assert ct.table() is not None

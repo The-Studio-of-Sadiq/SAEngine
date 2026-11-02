@@ -513,6 +513,14 @@ def run_analysis(
         "PYTHONIOENCODING": "utf-8",
         "PYTHONSAFEPATH": "1",
     }
+    # ``-P`` leaves PYTHONPATH alone: a relative entry (".", say) would name the project's
+    # folder in the child, so each entry is made absolute against this process's folder.
+    if os.environ.get("PYTHONPATH"):
+        env["PYTHONPATH"] = os.pathsep.join(
+            str(Path(entry).resolve())
+            for entry in os.environ["PYTHONPATH"].split(os.pathsep)
+            if entry
+        )
     last_error: str | None = None
     names: dict[int, str] = {}
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -981,7 +989,8 @@ def changed_boq_sources(document: dict[str, Any] | None, texts: dict[str, str | 
         if text is None:
             if required or recorded is not None:
                 changed.append(part)
-        elif recorded != boq_source_stamp(part, text):
+        # The bill passed along: its materials stamp covers only the ids it records.
+        elif recorded != boq_source_stamp(part, text, document):
             changed.append(part)
     from saengine.pipeline.status import architecture_has_content
 

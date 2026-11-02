@@ -87,8 +87,8 @@ def cantilever(folder: Path) -> Outcome:
     deflection = -results[1].node_disp[tip][-1][2]
     view = result_view(out, path, "case:1")
     (member,) = [e for e in view["elements"] if e["name"] == "M1"]
-    moment = abs(member["forces"][0][4])
-    shear = abs(member["forces"][0][2])
+    moment = abs(member["forces"][0][5])  # M3: gravity bending of a beam (member axes, N-X1)
+    shear = abs(member["forces"][0][1])  # V2
 
     w = RHO_C * G * A_BM
     ei = E_C * I_BM
@@ -144,7 +144,7 @@ def simply_supported(folder: Path) -> Outcome:
     deflection = -results[1].node_disp[mid][-1][2]
     view = result_view(out, path, "case:1")
     (half,) = [e for e in view["elements"] if e["name"] == "M1"]
-    moment = abs(half["forces"][-1][4])
+    moment = abs(half["forces"][-1][5])  # M3 (member axes, N-X1)
 
     w = RHO_C * G * A_BM
     ei = E_C * I_BM

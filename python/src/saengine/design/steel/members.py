@@ -2235,7 +2235,7 @@ def brace_slenderness_check(
         None,
         f"L/r with r = {r:.1f} mm; applies when the member is a stability brace of a column or "
         "beam (unless a second-order analysis justifies more)",
-        "Sec 10.19.4",
+        _s("part") + " Sec 10.19.4",
     )
     return _check("Slenderness L/r (stability bracing)", worst, "", 1.0, flag=True)
 

@@ -431,10 +431,11 @@ def test_piers_mass_source_and_seismic_are_reported(project) -> None:  # type: i
     ] == ["P1"]
     approximated = _approximated(project)
     mass = approximated["mass source differs from SAEngine's seismic weight (D + SD + 0.25 L)"]
-    assert mass["examples"] == [
-        "MsSrc1: L × 0.5 (SAEngine 0.25); lumped at the stories (SAEngine keeps it at the nodes)"
-    ]
+    # Lumped at the stories as SAEngine does by default since 0.0.44 (analysis.massLumping):
+    # no longer a difference.
+    assert mass["examples"] == ["MsSrc1: L × 0.5 (SAEngine 0.25)"]
+    # The code pack's loads, not BNBC's by name (D1, d3771e4f: the code is a setting).
     seismic = approximated[
-        "auto seismic definitions replaced by SAEngine's BNBC 2020 loads (02 Project Settings)"
+        "auto seismic definitions replaced by SAEngine's code pack loads (02 Project Settings)"
     ]
     assert seismic["examples"] == ["EX: User Coefficient, C 0.05625, k 1"]

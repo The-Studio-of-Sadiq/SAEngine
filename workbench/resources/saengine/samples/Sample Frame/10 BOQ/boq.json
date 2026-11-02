@@ -3,7 +3,15 @@
 	"source": {
 		"bim": "ec2a330ee86f3998504ea38c68157368e5976647",
 		"objects": "f91d0e24f431a1860d388e85f0c0988edb0f8fb2",
-		"materials": "795ba5c12b9cf94d7a674b483aaa83be7ac67f7e",
+		"materials": "885c6bd9931f67a9ad64a7012d7924ac01e28489",
+		"materialIds": [
+			"A572-50",
+			"B420DWR",
+			"C24.1",
+			"C27.6",
+			"PPR",
+			"uPVC"
+		],
 		"substructure": "7ef7b3bcff7c43d6c98116a6f6b2e0200e170cbe",
 		"mep": "e5e43a374bbf6169cf6323154ba578fb2bf32096",
 		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
@@ -1347,13 +1355,13 @@
 			"code": "MT.01",
 			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 17700.763,
+			"quantity": 17759.765,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
 				"L1": 9015.83,
 				"L2": 309.658,
-				"BASE": 1540.228
+				"BASE": 1599.23
 			},
 			"breakdown": [
 				{
@@ -1460,6 +1468,12 @@
 				{
 					"element": "F1",
 					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 59.002
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
 					"detail": "Concrete C24.1 in footings",
 					"quantity": 604.8
 				},
@@ -1485,13 +1499,13 @@
 			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 354.015,
+			"quantity": 355.195,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
 				"L1": 180.317,
 				"L2": 6.193,
-				"BASE": 30.805
+				"BASE": 31.985
 			},
 			"breakdown": [
 				{
@@ -1598,6 +1612,12 @@
 				{
 					"element": "F1",
 					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 1.18
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
 					"detail": "Concrete C24.1 in footings",
 					"quantity": 12.096
 				},
@@ -1623,13 +1643,13 @@
 			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 651.143,
+			"quantity": 655.484,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
 				"L1": 331.658,
 				"L2": 11.391,
-				"BASE": 56.659
+				"BASE": 61.0
 			},
 			"breakdown": [
 				{
@@ -1736,6 +1756,12 @@
 				{
 					"element": "F1",
 					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 4.341
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
 					"detail": "Concrete C24.1 in footings",
 					"quantity": 22.248
 				},
@@ -1761,13 +1787,13 @@
 			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 1302.286,
+			"quantity": 1310.968,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
 				"L1": 663.315,
 				"L2": 22.782,
-				"BASE": 113.318
+				"BASE": 122.0
 			},
 			"breakdown": [
 				{
@@ -1870,6 +1896,12 @@
 					"story": "BASE",
 					"detail": "Concrete C24.1 in stairs",
 					"quantity": 68.822
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 8.682
 				},
 				{
 					"element": "F1",
@@ -2026,20 +2058,20 @@
 	],
 	"notes": [
 		"Concrete: slabs are measured over their whole outline and full thickness, less openings. Beams are measured between the faces of the columns they meet and below the slab: the part of a beam, column or wall within a slab's depth is measured with the slab. Columns run their full height and walls their whole length (less wall openings), each less that slab depth. Nothing else is deducted where members meet (beam/beam and wall/column joints); special-structure members are measured node to node and their areas over their whole outline, with no deduction where they meet.",
-		"Reinforcement is measured from the detailed bars of the drawings for every element they detail: the bar bending schedule's number × cutting length per bar mark, with the BNBC 2020 laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so the bill and the schedule agree per bar size. Elements the drawings do not detail (see below) are measured by estimating rules: longitudinal bars over the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths, stirrups and ties at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them, meshes as area / spacing of bar per layer and direction, without bends or anchorages. Chairs and wastage are not included; bar mass is d²/162 kg/m.",
+		"Reinforcement is measured from the detailed bars of the drawings for every element they detail: the bar bending schedule's number × cutting length per bar mark, with the code's laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so the bill and the schedule agree per bar size. Elements the drawings do not detail (see below) are measured by estimating rules: longitudinal bars over the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths, stirrups and ties at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them, meshes as area / spacing of bar per layer and direction, without bends or anchorages. Chairs and wastage are not included; bar mass is d²/162 kg/m.",
 		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
-		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven piles square of the given size), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides.",
+		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven precast piles square or round as the pile type gives), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides. Retaining walls: the base over its plan by its thickness and the stem by its mean thickness and height, formwork to the stem's faces and the base's edges, bars as meshes (vertical bars through the base, no laps at the base or anchorage hooks).",
 		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
 		"Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to their four sides (no reinforcement measured). Sleeves and openings through beams, slabs and walls are counted by host kind and size (number), for the services' coordination; their concrete is not deducted (it is small), and the slab openings cut by shafts are not counted.",
 		"Plumbing of 7 MEP: reinforced concrete tanks (overhead, underground, septic, rainwater) by their walls, partitions, base (with its toe) and roof at the thicknesses entered, else those the tank design proposes; formwork to their inside and outside faces, the base's edges and the roof's soffit; their bars by diameter from the tank's last design (the bars per m² of each panel + 10 % for laps), measured once the plumbing report has designed them. Ground tanks are dug with 300 mm working space each side. Soak wells and masonry or prefabricated tanks are not measured. Risers and stacks are measured vertically from the story they start at to their top story, at their entered or sized base diameter (branches and fittings are not measured); fixtures are counted by kind.",
 		"HVAC and electrical of 7 MEP, for the structure's coordination: ducts by system and size, measured along their plan path (risers vertically from the story they start at to their top story; ducts with no size entered are not measured); cable trays by width and side height along their path; rising mains (busbars, cable risers) vertically by size; plant and electrical equipment counted by kind (their weights are in the analysis, their bases are not measured). Lightning protection with the columns' reinforcement as down conductors: per down-conductor column a bonding terminal at the roof and an earth terminal at the base (welded to the continuous bars) and an earth inspection box recess, counted (number).",
-		"Fire protection of 7 MEP (BNBC 2020 Part 4): fire tanks measured as the plumbing tanks (concrete, formwork, ground tanks' excavation, bars from their last design); fire pipes by nominal size: risers vertically from the story they start at to their top outlet, mains along their path, each sprinklered floor's branch lines and cross main estimated from its heads (a head's spacing of branch pipe each, the cross main the side of the floor's square); sprinkler heads, landing valves with hose cabinets (one a floor a standpipe), floor control valve sets, riser gate and check valves, Siamese connections, pump sets, portable extinguishers, call points and detectors counted (number). Fittings, hangers and supports are not measured (their loads are in the report).",
-		"Materials: cement in kg (and in 50 kg bags), sand and stone chips in cft (1 m³ = 35.3147 cft) and water in litres, taken off the concrete and the masonry's mortar by the mixes in 03 Materials. A nominal mix (cement : sand : stone by volume) is shared out of its dry volume, 1.54 × the wet volume for concrete and 1.3 × for mortar; brickwork takes 0.23 m³ of wet mortar per m³. Cement weighs 1440 kg/m³ loose. A design mix gives kg per m³; its sand and stone are turned into volumes at 1600 and 1450 kg/m³ loose. Water from the water/cement ratio. These are estimating practice values, not BNBC values; no wastage is added, and bags are not rounded up.",
+		"Fire protection of 7 MEP: fire tanks measured as the plumbing tanks (concrete, formwork, ground tanks' excavation, bars from their last design); fire pipes by nominal size: risers vertically from the story they start at to their top outlet, mains along their path, each sprinklered floor's branch lines and cross main estimated from its heads (a head's spacing of branch pipe each, the cross main the side of the floor's square); sprinkler heads, landing valves with hose cabinets (one a floor a standpipe), floor control valve sets, riser gate and check valves, Siamese connections, pump sets, portable extinguishers, call points and detectors counted (number). Fittings, hangers and supports are not measured (their loads are in the report).",
+		"Materials: cement in kg (and in 50 kg bags), sand and stone chips in cft (1 m³ = 35.3147 cft) and water in litres, taken off the concrete and the masonry's mortar by the mixes in 03 Materials. A nominal mix (cement : sand : stone by volume) is shared out of its dry volume, 1.54 × the wet volume for concrete and 1.3 × for mortar; brickwork takes 0.23 m³ of wet mortar per m³. Cement weighs 1440 kg/m³ loose. A design mix gives kg per m³; its sand and stone are turned into volumes at 1600 and 1450 kg/m³ loose. Water from the water/cement ratio. These are estimating practice values, not code values; no wastage is added. The bags are shown rounded up (a part bag is bought whole); the bill keeps the exact number.",
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
-		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa), a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace it).",
-		"Reinforcement of the elements the drawings detail: measured from their detailed bars, the bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar mark, with the BNBC 2020 laps at their places, the hooks and bends, cut-off bars and the stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), so that this bill and the schedule agree per bar size.",
+		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa); the blinding (lean concrete) 1:3:6 assumed, a nominal mix of IS 456:2000 Table 9 by strength, no water (enter the mix in 03 Materials to replace it).",
+		"Reinforcement of the elements the drawings detail: measured from their detailed bars, the bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar mark, with the code's laps at their places, the hooks and bends, cut-off bars and the stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), so that this bill and the schedule agree per bar size.",
 		"Measured from the detailed bars: 1 footing, 7 columns, 1 wall, 3 beam lines, 2 slabs, 1 stair (F1, C1, C2, C3, C4, C5, C6, C7, W1, B1+B2, B3+B4, B5, S1, S2, ST1).",
 		"Measured by the estimating rules above (not detailed in the drawings): M1."
 	],
@@ -2047,5 +2079,6 @@
 		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
 		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)"
-	]
+	],
+	"notMeasured": 3
 }

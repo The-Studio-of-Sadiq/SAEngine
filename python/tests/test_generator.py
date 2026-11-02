@@ -174,14 +174,17 @@ def test_column_size_by_hand(frame: dict) -> None:
     slab = 7.5 * (0.2 + 0.175 + 0.2 + 0.175) * GAMMA
     # Beams below the thinnest slab (175): 2 x 3 m of 250x400 and 2 x 2.5 m of 250x350.
     beams = (2 * 3 * 0.25 * (0.4 - 0.175) + 2 * 2.5 * 0.25 * (0.35 - 0.175)) * GAMMA
-    floor = slab + 30 * (1.2 + 1.0 + 2.0) + beams  # finish, partitions, residential live
-    roof = slab + 30 * (1.5 + 1.0) + beams
-    # Its own weight: 550 (L1-L3), 450 (L4-L6), 400 (L7-L8), 350 (L9-L10). The upper two were
-    # 350 and 300 by the axial rule; N-N4's step cap (each group at least 0.8 x the one below,
-    # rounded up to 50 mm) raises them, which adds 10 kN here (2804 kN before).
-    own = (0.55**2 * 9.5 + 0.45**2 * 9 + 0.4**2 * 6 + 0.35**2 * 6) * GAMMA
+    # Finish, partitions (1.2 kN/m², the code minimum of Sec 2.3.6 since B1, 2520e35e), live.
+    floor = slab + 30 * (1.2 + 1.2 + 2.0) + beams
+    roof = slab + 30 * (1.5 + 1.0) + beams  # finish, roof live
+    # Its own weight: 550 (L1-L3), 500 (L4-L6; 450 with the earlier 1.0 kN/m² partitions), 400
+    # (L7-L8), 350 (L9-L10). The upper two were 350 and 300 by the axial rule; N-N4's step cap
+    # (each group at least 0.8 x the one below, rounded up to 50 mm) raises them.
+    assert column["C-B2-L4"] == "C500x500"
+    own = (0.55**2 * 9.5 + 0.5**2 * 9 + 0.4**2 * 6 + 0.35**2 * 6) * GAMMA
     p = 9 * floor + roof + own
-    assert p == pytest.approx(2814, abs=2)
+    assert p == pytest.approx(2878, abs=2)
+    assert frame["summary"]["baseServiceLoads"]["B2"] == pytest.approx(p, abs=1)
     # Ag = P / (0.4 f'c), interior k = 1.0: sqrt(2814e3 / 9.64) = 540 -> 550.
     side = math.ceil(math.sqrt(p * 1000 / (0.4 * 24.1)) / 50) * 50
     assert side == 550
@@ -197,9 +200,9 @@ def test_isolated_footing_by_hand(frame: dict) -> None:
     footing = {f["id"]: f for f in frame["substructure"]["foundations"]}["F-B2"]
     assert footing["columns"] == ["C-B2-L1"]
     assert footing["center"] == [6000, 5000]
-    # Service load 2814 kN (above), qa 100 kPa: sqrt(1.1 x 2814 / 100) = 5.56 m -> 5600;
-    # thickness 5600 / 4 = 1400.
-    assert (footing["length"], footing["width"], footing["thickness"]) == (5600, 5600, 1400)
+    # Service load 2878 kN (above), qa 100 kPa: sqrt(1.1 x 2878 / 100) = 5.63 m -> 5700;
+    # thickness 5700 / 4 = 1425 -> 1450.
+    assert (footing["length"], footing["width"], footing["thickness"]) == (5700, 5700, 1450)
 
 
 def test_flat_slab_variant() -> None:
@@ -261,7 +264,12 @@ def test_occupancy_category_default_by_use_and_explicit() -> None:
     # Health care without a category: IV assumed (Table 6.1.1), so Rajshahi SD gives
     # Category D: special moment frames and the 300 mm column minimum.
     hospital = generate_building({**small, "occupancy": "healthcare"})
-    assert hospital["settings"]["occupancy"] == {"use": "healthcare", "category": "IV"}
+    # cycloneShelter: no live load reduction for cyclone shelters (B1, 2520e35e).
+    assert hospital["settings"]["occupancy"] == {
+        "use": "healthcare",
+        "cycloneShelter": False,
+        "category": "IV",
+    }
     assert (hospital["summary"]["sdc"], hospital["settings"]["seismic"]["system"]) == (
         "D",
         "rcSmf",
@@ -427,9 +435,11 @@ def test_generated_building_analyses_and_reactions_balance_gravity(tmp_path: Pat
     plan, objects, materials, settings = parts(result)
     settings = settings.model_copy(update={"combinations": [LoadCombination(name="D", D=1.0)]})
     d = derive_fem(generate(plan, "s"), objects, materials, settings)
-    # Superimposed dead load by hand: 2 floors x 55 m² x (1.2 + 1.0) + the roof 55 m² x 1.5.
+    # Superimposed dead load by hand: 2 floors x 55 m² x 1.2 (finish) + the roof 55 m² x 1.5.
+    # The partition allowance is live load (owner decision 2026-11-02, 635b7040), in L.
     sd = applied(d.project, "SD")[2]
-    assert -sd / 1000 == pytest.approx(2 * 55 * 2.2 + 55 * 1.5, rel=1e-6)
+    assert -sd / 1000 == pytest.approx(2 * 55 * 1.2 + 55 * 1.5, rel=1e-6)
+    assert -applied(d.project, "L")[2] / 1000 == pytest.approx(2 * 55 * (2.0 + 1.2), rel=1e-6)
     model = tmp_path / "08 FEM" / "model.osmodel"
     model.parent.mkdir()
     model.write_text(json.dumps(d.project), encoding="utf-8")

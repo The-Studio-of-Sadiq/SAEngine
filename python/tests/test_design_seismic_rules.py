@@ -252,7 +252,8 @@ def test_omf_not_permitted_in_category_c() -> None:
         settings("dhaka", "SC", system="rcOmf"), GOOD, objects(), frame()
     )
     check = by_name(out["checks"], "System permitted")[0]
-    assert not check["ok"] and "C.5" in check["note"] and "intermediate" in check["note"]
+    # RC ordinary moment frames are row C.6 of Table 6.2.19 (B2, 2933d555, fixed the numbering).
+    assert not check["ok"] and "C.6" in check["note"] and "intermediate" in check["note"]
     # Checked to what Category C requires.
     assert out["frameType"] == "intermediate"
 

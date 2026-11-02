@@ -1754,9 +1754,8 @@ class ProjectBuilder:
         from_file = 0
         for name, factors in self._combinations:
             factors = self._live_factors(name, factors, roof_cases, floor_cases)
+            no_fluid = "F" not in factors and not fluid and factors.get("D", 0.0) > 1.0
             if "F" not in factors:
-                if not fluid and factors.get("D", 0.0) > 1.0:
-                    report.note("combinations.noFluid", name)
                 factors = {**factors, "F": 0.0}
             combination = LoadCombination(name=name, **factors)
             key = _factor_key(combination)
@@ -1766,6 +1765,9 @@ class ProjectBuilder:
                 )
                 continue
             seen.add(key)
+            # Only the combinations kept (a dropped duplicate is reported as dropped).
+            if no_fluid:
+                report.note("combinations.noFluid", name)
             base = f"{name}{FROM_FILE}"
             label, k = base, 2
             while label in names:
