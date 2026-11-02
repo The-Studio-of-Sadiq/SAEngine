@@ -433,7 +433,7 @@
         }
       ],
       "default": null,
-      "description": "D6: load case -> factor of the gravity preload of a P-Delta analysis (the gravity part of the seismic strength combination); empty: not covered by the pack (the project settings must give the factors).",
+      "description": "D6: load case -> factor of the gravity preload of a P-Delta analysis (the gravity part of the seismic strength combination); empty: the generic default (codes/generic), named in the report.",
       "title": "Pdeltapreload"
     }
   },

@@ -164,15 +164,25 @@ def _detailing() -> Any:
 
 def _material_group(name: str) -> tuple[Any, bool]:
     """(group ``name`` of the concrete table, whether the pack in force gives it). A material
-    rule every design needs (Ec, the slabs' least steel) falls back to the default pack's,
-    reported as not covered by the pack in force."""
+    rule every design needs (Ec, the slabs' least steel) the pack does not give comes from the
+    generic defaults (``codes/generic``), named as such (:func:`_generic`)."""
     group = getattr(_concrete(), name, None)
     if group is not None:
-        return group, True
+        return group, code_context.current().fallback("concrete", name) is None
+    # Only a pack without a concrete table at all gets here (it reads the default pack's).
     from saengine.codes.registry import DEFAULT_PACK
     from saengine.codes.tables import builtin_table
 
-    return getattr(builtin_table("concrete", DEFAULT_PACK), name), False
+    return getattr(builtin_table("concrete", DEFAULT_PACK), name), True
+
+
+def _generic(name: str) -> str:
+    """How results name the generic default of the concrete table's group ``name``."""
+    from saengine.codes import generic
+
+    pack = code_context.current()
+    note = generic.note("concrete", name).split(" (")[0]
+    return generic.label(pack.edition or pack.name) + (f": {note}" if note else "")
 
 
 def clause(table: str, key: str) -> str:
@@ -199,7 +209,7 @@ def aggregate_rules(aggregate: str | None = None) -> Any:
 
 
 def modulus_rules() -> Any:
-    """The pack's ``concrete.modulus`` (the default pack's when the pack in force has none)."""
+    """The pack's ``concrete.modulus`` (the generic default when the pack in force has none)."""
     return _material_group("modulus")[0]
 
 
@@ -216,14 +226,12 @@ def concrete_modulus(
     fc: float, density: float | None = None, aggregate: str | None = None
 ) -> tuple[float, str]:
     """(Ec [MPa], how) of concrete of ``fc`` [MPa] and ``density`` [kg/m³] with ``aggregate``
-    (default: in force) by the pack's ``concrete.modulus`` (the default pack's when it gives
+    (default: in force) by the pack's ``concrete.modulus`` (the generic default when it gives
     none); normal weight for an aggregate the pack does not list."""
     rules, covered = _material_group("modulus")
     root = math.sqrt(max(fc, 0.0))
     if not covered:
-        return rules.normal * root, _not_covered("Ec by aggregate") + (
-            f"; Ec = {rules.normal:g} √f'c of the default pack"
-        )
+        return rules.normal * root, f"Ec = {rules.normal:g} √f'c ({_generic('modulus')})"
     kind = getattr(aggregate_rules(aggregate), "modulus", "normal")
     if kind == "brick":
         return (
@@ -359,11 +367,7 @@ def shrinkage_ratio(fy: float, aggregate: str | None = None) -> tuple[float, str
             f"max({rules.ratioReference:g} × {rules.referenceFy:g}/fy, {rules.ratioMin:g}) = "
             f"{ratio:.4f}"
         )
-    how += (
-        f" ({clause('concrete', 'shrinkage')})"
-        if covered
-        else f" ({_not_covered('shrinkage steel')}: the default pack's ratios)"
-    )
+    how += f" ({clause('concrete', 'shrinkage')})" if covered else f" ({_generic('shrinkage')})"
     agg = aggregate if aggregate is not None else current_aggregate()
     factor = float(getattr(aggregate_rules(agg), "shrinkageFactor", 1.0) or 1.0)
     if factor != 1.0:

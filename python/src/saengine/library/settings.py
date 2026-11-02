@@ -1941,8 +1941,11 @@ def partition_case_basis(settings: Any = None, pack: CodePack | None = None) -> 
     rule = pack.table("areaLoads").partitions if pack.has("areaLoads") else None
     case = getattr(rule, "loadCase", None) if rule is not None else None
     if case in ("L", "SD"):
-        return case, f"code pack {code_context.code_name(pack)}"
-    return PARTITION_CASE_DEFAULT, "generic default (the code pack gives none)"
+        # The pack's, a project override of it, or the generic default (codes/generic).
+        return case, pack.value_source("areaLoads", "partitions.loadCase")
+    from saengine.codes import generic
+
+    return PARTITION_CASE_DEFAULT, generic.label(code_context.code_name(pack))
 
 
 def partition_case(settings: Any = None, pack: CodePack | None = None) -> str:
@@ -2257,6 +2260,15 @@ class ProjectSettings(_Model):
         title="Design report",
         description="The printed design report (11 Exports).",
     )
+    codeOverrides: dict[str, Any] = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        title="Code values",
+        description="The project's own values of code pack values: the value's path in the "
+        "pack (table.key.key, e.g. factors.phi.shear) -> the project's value. Merged over the "
+        "code pack for every run; a value not overridden follows the pack. An override the "
+        "pack has no value for, or that its table does not accept, is reported and not used.",
+    )
 
     @model_validator(mode="after")
     def _pack_lists(self) -> ProjectSettings:
@@ -2273,7 +2285,7 @@ class ProjectSettings(_Model):
                 lists = _builtin_choices()
         else:
             try:
-                lists = pack_choices(code_context.pack_for(self))
+                lists = pack_choices(code_context.pack_for(self, strict=True))
             except CodePackError:
                 return self
         choices = {key: {c["id"] for c in rows} for key, rows in lists.items()}
@@ -2706,6 +2718,11 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
         pack = None
         out.append(("codePack", str(e)))
     if pack is not None:
+        if pack.missing:
+            # Not an error: the project runs on the default pack until its own is installed.
+            out.append(("codePack", pack.warnings[0].message if pack.warnings else pack.missing))
+        # Overrides of the pack's values that it does not accept: reported, not used.
+        out.extend((f"codeOverrides.{path}", message) for path, message in pack.override_problems)
         out.extend(_pack_problems(settings, pack))
     if settings.site.location == "custom":
         if settings.site.zoneCoefficient is None:

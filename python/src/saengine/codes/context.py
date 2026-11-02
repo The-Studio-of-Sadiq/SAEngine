@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-from saengine.codes import registry
+from saengine.codes import overrides, registry
 from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
 
 #: The folder of the project being worked on (None: no project-local packs).
@@ -113,15 +113,59 @@ def project(root: str | Path | None) -> Iterator[Path | None]:
         _ROOT.reset(token)
 
 
-def pack_for(settings: Any = None, root: str | Path | None = None) -> CodePack:
-    """The pack a project's settings choose (``codePack``, default :data:`DEFAULT_PACK`), with the project's
-    own packs (``root``, else the project of :func:`project`). Raises
-    :class:`saengine.codes.CodePackError` when it is not installed or cannot be used."""
+def pack_for(
+    settings: Any = None, root: str | Path | None = None, strict: bool = False
+) -> CodePack:
+    """The pack a project's settings choose (``codePack``, default :data:`DEFAULT_PACK`), with the
+    project's own packs (``root``, else the project of :func:`project`) and the project's
+    overrides of its values (``codeOverrides``, :mod:`saengine.codes.overrides`).
+
+    A pack that is not installed here or cannot be used: the default pack, with a warning
+    (:attr:`CodePack.missing`, :attr:`CodePack.warnings`), so that an older project or one
+    moved to another computer opens and runs; ``strict``: raise
+    :class:`saengine.codes.CodePackError` instead (to report it)."""
     pack_id = registry.active_id(settings)
     base = find_project_root(root) if root else _ROOT.get()
     if pack_id == DEFAULT_PACK and base is None:
-        return default_pack()
-    return registry.active(settings, base)
+        pack = default_pack()
+    else:
+        try:
+            pack = registry.load(pack_id, base)
+        except CodePackError as error:
+            if strict or pack_id == DEFAULT_PACK:
+                raise
+            pack = substitute(pack_id, error, base)
+    return pack.with_overrides(overrides.of(settings))
+
+
+#: Default packs standing in for a missing pack, by (missing id, message, default pack).
+_substitutes: dict[tuple[str, str, int], CodePack] = {}
+
+
+def substitute(pack_id: str, error: Exception, base: Path | None = None) -> CodePack:
+    """The default pack standing in for ``pack_id``, which cannot be loaded (``error``), with a
+    warning that says so (the same object while nothing changes)."""
+    from saengine.codes.manifest import Problem
+
+    default = default_pack() if base is None else registry.load(DEFAULT_PACK, base)
+    key = (pack_id, str(error), id(default))
+    found = _substitutes.get(key)
+    if found is None:
+        found = default._copy()
+        found._fallback_from = pack_id
+        found._warnings = [
+            Problem(
+                severity="warning",
+                message=f"the project's code pack '{pack_id}' cannot be used here ({error}): "
+                f"the default pack {default.edition or default.name} is used instead until it "
+                "is installed",
+            ),
+            *found._warnings,
+        ]
+        if len(_substitutes) >= 8:
+            _substitutes.clear()
+        _substitutes[key] = found
+    return found
 
 
 @contextmanager
@@ -328,4 +372,8 @@ def front_matter(pack: CodePack) -> dict[str, Any]:
         "chain": chain,
         "replacesBuiltin": pack.replaces_builtin,
         "warnings": [w.message for w in pack.warnings],
+        # D7: the project's overrides, the generic defaults, a missing pack stood in for.
+        "overrides": [o.as_dict() for o in pack.overrides],
+        "genericDefaults": [f.as_dict() for f in pack.fallbacks],
+        "missing": pack.missing,
     }

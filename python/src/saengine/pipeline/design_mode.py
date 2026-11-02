@@ -83,6 +83,20 @@ INPUT_FILES = (
 )
 
 
+def _pack_fingerprint(settings_text: str, root: Path) -> str:
+    """The fingerprint of the code pack the settings choose, with their overrides
+    (:attr:`saengine.codes.registry.CodePack.fingerprint`); '' when it cannot be told."""
+    from saengine.codes import context as code_context
+
+    try:
+        settings = json.loads(settings_text)
+        return code_context.pack_for(
+            settings if isinstance(settings, dict) else {}, root
+        ).fingerprint
+    except Exception:  # noqa: BLE001 - a stamp never fails: the settings' own stamp is kept
+        return ""
+
+
 def inputs_stamp(
     out_dir: str | Path, project_path: str | Path, options: dict[str, Any] | None = None
 ) -> str:
@@ -110,7 +124,11 @@ def inputs_stamp(
         if relative == SETTINGS_FILE:
             from saengine.fem.derive import settings_stamp
 
-            add(relative, settings_stamp(data.decode("utf-8", errors="replace")))
+            text = data.decode("utf-8", errors="replace")
+            add(relative, settings_stamp(text))
+            # The code pack's values (a user or project pack edited on disk, the overrides):
+            # kept checks of another pack's values are not current (D7).
+            add("codePack", _pack_fingerprint(text, root))
         elif relative == model:
             add(relative, model_stamp(data))
         else:

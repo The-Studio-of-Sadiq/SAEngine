@@ -1335,7 +1335,8 @@ def assess_cached(
         dump(settings),
         json.dumps(torsion_rows, sort_keys=True, default=str),
         json.dumps(periods, sort_keys=True, default=str),
-        code_context.current().id,
+        # The pack's values, not only its id: overrides, a switch, an edited pack (D7).
+        code_context.current().fingerprint,
     )
     with _memo_lock:
         found = _memo.get(key)

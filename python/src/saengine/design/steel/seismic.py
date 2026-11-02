@@ -1025,8 +1025,15 @@ def steel_rigid_zone_factor(analysis: Any, table: Any | None = None) -> tuple[fl
     t = table if table is not None else seismic_table()
     practice = getattr(t, "practice", None)
     if practice is not None and getattr(practice, "rigidZoneMax", None) is not None:
+        from saengine.codes import context as code_context
+
+        source = code_context.current().value_source("steelSeismic", "practice.rigidZoneMax")
+        if not source.startswith("code pack"):
+            return float(practice.rigidZoneMax), source  # an override, or the generic default
         return float(practice.rigidZoneMax), f"{pack_name()} steel seismic practice"
-    return STEEL_RIGID_ZONE_DEFAULT, "SAEngine default (centreline model; the pack gives none)"
+    from saengine.codes import generic
+
+    return STEEL_RIGID_ZONE_DEFAULT, generic.label(pack_name()) + " (centreline model)"
 
 
 def panel_zone_model_check(settings: Any, frame: str | None, table: Any | None = None):

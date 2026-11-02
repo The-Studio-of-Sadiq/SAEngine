@@ -103,8 +103,8 @@ from saengine.codes import context as code_context
 def pdelta_factors() -> dict[str, float]:
     """The load factors of the P-Delta preload of the code pack in force
     (``combinations.pDeltaPreload``: the gravity part of 1.2D + 1.0E + 1.0L, D's factor on SD
-    and F too, in the default pack, Part 6 Sec 2.7.3.1); {} when the pack gives none (the
-    settings must then give them, see :func:`options_from_settings`)."""
+    and F too, in the default pack, Part 6 Sec 2.7.3.1); the generic default (codes/generic)
+    when the pack gives none; {} without either."""
     table = code_context.pack_table("combinations")
     return dict(getattr(table, "pDeltaPreload", None) or {})
 

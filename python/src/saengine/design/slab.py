@@ -433,13 +433,10 @@ def min_steel_ratio(fy: float, aggregate: str | None = None) -> float:
     return shrinkage_ratio(fy, aggregate)[0]
 
 
-#: φ of a tension-controlled section (ACI Table 21.2.2), taken for the rebar contours.
-PHI_TENSION = 0.90
-
-
 def required_area(moment: float, d: float, fc: float, fy: float, width: float = 1000.0) -> float:
     """As [mm²/m] a layer at depth ``d`` (mm) needs for ``moment`` [N·mm/m] (the rectangular
-    stress block, ACI 22.2, tension-controlled φ = 0.90; compression ``width`` mm per metre):
+    stress block, ACI 22.2, the code pack's tension-controlled φ, ``factors.phi.tension``;
+    compression ``width`` mm per metre):
     ρ = 0.85 f'c / fy (1 - √(1 - 2 Rn / (0.85 f'c))), Rn = Mu / (φ b d²), As = ρ b d with
     b = ``width``, per metre. A moment beyond the section's (Rn above 0.85 f'c / 2) returns
     the steel at that limit: the contour then shows the section is too thin there."""
@@ -3197,8 +3194,11 @@ def _integrity_note() -> str:
     return f"; the bottom bars run the whole slab, continuous ({where})" if where else ""
 
 
-def __getattr__(name: str) -> str:
+def __getattr__(name: str) -> Any:
     # The coefficient method text names the clauses of the pack in force: built when read.
     if name == "COEFFICIENT_METHOD":
         return _coefficient_method()
+    # The former constant: φ of a tension-controlled section, of the code pack in force.
+    if name == "PHI_TENSION":
+        return rc_value("PHI_TENSION")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

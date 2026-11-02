@@ -1,0 +1,11 @@
+{
+  "$notes": {
+    "stabilityGravity": "ASCE 7-22 Sec 12.8.7 (Px with no individual load factor above 1.0), used as a generic default"
+  },
+  "stabilityGravity": {
+    "D": 1.0,
+    "SD": 1.0,
+    "F": 1.0,
+    "L": 1.0
+  }
+}

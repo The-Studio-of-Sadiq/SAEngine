@@ -145,14 +145,22 @@ def test_stub_pack_changes_only_the_lap_factors(tmp_path: Path) -> None:
     assert after["lapC20formula"].endswith("at least 400 mm")
 
 
-def test_a_pack_without_bar_rules_does_not_cover_the_detailing(tmp_path: Path) -> None:
+def test_a_pack_without_bar_rules_uses_the_generic_defaults(tmp_path: Path) -> None:
+    """Re-pinned by D7 (owner update 2026-11-02): a pack that lacks a value still works with a
+    named generic default; "not covered" stays only for a whole feature without a method. The
+    bar detailing numbers are values, so a pack without ``bars`` now reads the generic defaults
+    (ACI 318-19 values), named as such, instead of raising NotCovered."""
     from saengine.drawings import detailing as dt
 
-    with (
-        stub(tmp_path, {"detailing": {"$remove": ["bars"]}}),
-        pytest.raises(dt.NotCovered, match="not covered by the code pack"),
-    ):
-        dt.development_tension(16.0, 420.0, 25.0)
+    with stub(tmp_path, {"detailing": {"$remove": ["bars"]}}):
+        pack = code_context.current()
+        fallback = pack.fallback("detailing", "bars.laps.classB")
+        ld = dt.development_tension(16.0, 420.0, 25.0).value
+        no_lap_36 = dt.no_lap(36.0)
+    assert fallback is not None and "ACI 318-19" in fallback.note
+    assert "BNBC" not in fallback.note
+    assert ld > 0
+    assert not no_lap_36  # ACI 318-19 25.5.1.1: 36 mm bars may be lap spliced
 
 
 # ─────────────── 2. rc code values outside design/ are read when used, not at import ───────────────

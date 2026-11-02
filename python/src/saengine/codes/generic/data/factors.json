@@ -1,0 +1,8 @@
+{
+  "$notes": {
+    "phi.plain": "ACI 318-19 Table 21.2.1(g), structural plain concrete, used as a generic default"
+  },
+  "phi": {
+    "plain": 0.6
+  }
+}
