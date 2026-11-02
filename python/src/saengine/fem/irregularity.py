@@ -358,8 +358,9 @@ def offsets(building: Any, objects: Any, materials: Any) -> list[dict[str, Any]]
             "type": "outOfPlaneOffset",
             "offset": None,
             "length": None,
-            "supportedBy": list(item.get("supportedBy", [])),
         }
+        if item.get("supportedBy"):
+            entry["supportedBy"] = list(item["supportedBy"])
         if item["kind"] == "wall" and element is not None:
             length = math.dist(
                 [float(v) for v in element.start[:2]], [float(v) for v in element.end[:2]]
