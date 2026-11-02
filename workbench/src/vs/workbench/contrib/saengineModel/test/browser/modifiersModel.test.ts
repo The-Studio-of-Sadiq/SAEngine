@@ -55,6 +55,9 @@ suite('SAEngine - Stiffness modifiers and design overwrites', () => {
 			overwrites: ['k3 1.2|auto|this type', 'k2 |auto|1.0 braced, chart if sway', 'Lu3 |auto|clear length', 'Lu2 |auto|clear length', 'Lb |auto|member length'],
 			reset: [true, true],
 		});
+		// Web stiffeners only on a steel beam.
+		const steel = objectTypeTarget(OBJECTS.objects[2], MATERIALS);
+		assert.deepStrictEqual(lines(modifiersView('type', [steel], CODE)).overwrites.at(-1), 'stiffenerSpacing |none|unstiffened web');
 	});
 
 	test('the code values follow the settings, the material and the pack', () => {

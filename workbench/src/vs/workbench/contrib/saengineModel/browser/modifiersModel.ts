@@ -482,7 +482,8 @@ function commonKeys(group: FieldGroup, targets: readonly IModifierTarget[]): str
 	if (!targets.length) {
 		return [];
 	}
-	const [first, ...rest] = targets.map(t => keysOf(group, t.kind));
+	// Web stiffeners are a steel field: a concrete or masonry beam does not show it unless it has a value.
+	const [first, ...rest] = targets.map(t => keysOf(group, t.kind).filter(key => key !== 'stiffenerSpacing' || !t.concrete || ownValue(t.own, group, key) !== undefined));
 	return first.filter(key => rest.every(keys => keys.includes(key)));
 }
 
