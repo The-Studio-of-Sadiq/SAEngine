@@ -1549,7 +1549,10 @@ class _Writer:
             (
                 '  MASSSOURCE  "MsSrc1"    INCLUDEELEMENTS "Yes"    INCLUDEADDEDMASS "Yes"    '
                 'INCLUDELOADS "Yes"    INCLUDEMOVE "No"    INCLUDELATERALMASS "Yes"    '
-                'INCLUDEVERTICALMASS "No"    LUMPATSTORIES "No"    ISDEFAULT "Yes"  '
+                'INCLUDEVERTICALMASS "No"    '
+                # Lumped at the stories as the analysis lumps it (analysis.massLumping).
+                f'LUMPATSTORIES "{"Yes" if self.analysis.massLumping == "storyLevels" else "No"}"'
+                '    ISDEFAULT "Yes"  '
             ),
             '  MASSSOURCELOAD  "MsSrc1"  "SD"  1 ',
             f'  MASSSOURCELOAD  "MsSrc1"  "L"  {_n(self.live_share)} ',
