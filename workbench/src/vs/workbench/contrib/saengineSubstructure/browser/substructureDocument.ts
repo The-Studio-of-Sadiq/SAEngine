@@ -1997,7 +1997,7 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 		}
 		for (const field of ['tipDiameter', 'reinforcedLength', 'casingDepth', 'unbracedLength', 'lateralDeflection'] as const) {
 			if (p[field] !== undefined && !(num(p[field]) > 0)) {
-				error(at(field), localize('sub.p.positive', "{0}: {1} is positive, or leave it empty.", p.id, field));
+				error(at(field), localize('sub.p.positiveOrEmpty', "{0}: {1} is positive, or leave it empty.", p.id, field));
 			}
 		}
 		if (p.shape !== undefined && !PILE_SHAPES.includes(p.shape)) {

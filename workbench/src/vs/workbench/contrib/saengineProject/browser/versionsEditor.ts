@@ -468,7 +468,7 @@ export class VersionsEditor extends EditorPane {
 			append(text, $('.versions-detail', undefined, localize('versions.sharePeople', "Also open: {0}", others.map(p => p.part ? localize('versions.sharePersonPart', "{0} in {1}", p.user, partLabel(p.part)) : p.user).join(', '))));
 		}
 		const button = this.renderDisposables.add(new Button(append(row, $('.versions-actions')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		button.label = status.shared ? localize('versions.shareSync', "$(sync) Sync") : localize('versions.shareButton', "Share Project...");
+		button.label = status.shared ? `$(sync) ${localize('versions.shareSync', "Sync")}` : localize('versions.shareButton', "Share Project...");
 		this.renderDisposables.add(button.onDidClick(() => void this.commandService.executeCommand(status.shared ? 'saengine.share.syncNow' : 'saengine.share.shareProject')));
 	}
 

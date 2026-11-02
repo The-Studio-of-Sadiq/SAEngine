@@ -156,7 +156,8 @@ suite('SAEngine - Architecture', () => {
 		// A curtain wall closes a room as a wall does: net (6.0 - 0.15) x (5.0 - 0.15) m.
 		const room = findRoom(arch, 'L1', [3000, 2500], elevations);
 		assert.ok(room);
-		assert.strictEqual(Math.round(room.area * 1000) / 1000, Math.round(5.85 * 4.85 * 1000) / 1000);
+		// 5.85 x 4.85 = 28.3725 m2 sits on a rounding half, so compare with a tolerance.
+		assert.ok(Math.abs(room.area - 5.85 * 4.85) < 1e-6, String(room.area));
 		arch = value(addRoof(arch, 'RF2', 'L2', [[0, 0], [6000, 0], [6000, 5000], [0, 5000], [0, 0]]));
 		assert.strictEqual(arch.roofs[0].outline.length, 4);
 		assert.strictEqual(addRoof(arch, 'RF2', 'L2', [[0, 0], [1000, 0], [2000, 0]]).ok, false);

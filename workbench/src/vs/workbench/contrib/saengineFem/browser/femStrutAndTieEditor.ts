@@ -772,7 +772,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 		this.textRow(container, localize('femStm.member', "Analysis member"), model.member, v => model.member = v);
 		this.numberRow(container, localize('femStm.thickness', "Thickness bs"), model.thickness, v => model.thickness = Math.max(1, v), 'mm');
 		this.numberRow(container, localize('femStm.depth', "Member depth h"), model.depth, v => model.depth = Math.max(0, v), 'mm');
-		this.numberRow(container, "f'c", model.fc, v => model.fc = Math.max(1, v), 'MPa');
+		this.numberRow(container, 'f\'c', model.fc, v => model.fc = Math.max(1, v), 'MPa');
 		this.numberRow(container, 'fy', model.fy, v => model.fy = Math.max(1, v), 'MPa');
 		this.numberRow(container, 'λ', model.lam, v => model.lam = Math.min(1, Math.max(0.5, v)));
 

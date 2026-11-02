@@ -2217,7 +2217,7 @@ export class SoilEditor extends EditorPane {
 			const cells = [formatNumber(p.top / 1000, 2), formatNumber(p.bottom / 1000, 2), soilTypeLabel(p.soilType), number(p.fs)];
 			if (liquefiable) {
 				const share = p.liquefiable ?? 0;
-				cells.push(share >= 0.995 ? localize('soil.yes', "yes") : share > 0 ? localize('soil.liquefiableShare', "{0}%", formatNumber(share * 100, 0)) : '', share > 0 ? number(p.fsSeismic) : number(p.fs));
+				cells.push(share >= 0.995 ? localize('soil.yesLower', "yes") : share > 0 ? localize('soil.liquefiableShare', "{0}%", formatNumber(share * 100, 0)) : '', share > 0 ? number(p.fsSeismic) : number(p.fs));
 			}
 			cells.push(number(p.qb), p.method ?? p.note ?? '');
 			return cells;
