@@ -288,8 +288,10 @@ class FemTablesPanel extends Disposable {
 				this.renderBody(); // a heading: the picker shows the result it showed
 				return;
 			}
+			// FD-23: the same table of the newly picked case (member forces stay member forces).
+			const table = this.allEntries[this.caseIndex]?.tables[this.tableIndex];
 			this.caseIndex = row;
-			this.tableIndex = 0;
+			this.tableIndex = Math.max(0, table ? (this.allEntries[row]?.tables ?? []).findIndex(t => t.id === table.id) : 0);
 			this.sort = undefined;
 			this.render();
 			const picked = this.allEntries[row];
@@ -1259,7 +1261,9 @@ export class FemModelEditor extends EditorPane {
 		}
 		if (last?.ok && last.notes.length) {
 			appendPropertyHeading(panel, localize('femEditor.notesHeading', "Derivation Notes"));
-			for (const note of last.notes) {
+			// FD-2: the warnings (a load not applied, the partition allowance dropped) first.
+			const warning = (note: string) => note.startsWith('Warning:');
+			for (const note of [...last.notes.filter(warning), ...last.notes.filter(n => !warning(n))]) {
 				appendPropertyNote(panel, note);
 			}
 		}

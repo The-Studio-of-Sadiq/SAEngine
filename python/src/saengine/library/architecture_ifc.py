@@ -126,7 +126,7 @@ def export_architecture(
         levels = wall_levels(wall, elevations)
         if levels is None:
             skipped.append(
-                f"{wall.id}: its stories are not in the floor plan (or it needs a height)"
+                f"{wall.id}: its stories are not in the building model (build 6 BIM again from the Floor Plan, or give it a height)"
             )
             continue
         bottom, top = levels
@@ -275,7 +275,9 @@ def export_architecture(
     ordered = sorted(elevations.values())
     for room in arch.rooms:
         if room.story not in elevations:
-            skipped.append(f"{room.id}: no story '{room.story}'")
+            skipped.append(
+                f"{room.id}: no story '{room.story}' in the building model (build 6 BIM again)"
+            )
             continue
         boundary = room_boundary(arch, room, elevations)
         if boundary is None:
@@ -375,7 +377,7 @@ def _export_extras(
         levels = wall_levels(item, elevations)
         if levels is None:
             skipped.append(
-                f"{item.id}: its stories are not in the floor plan (or it needs a height)"
+                f"{item.id}: its stories are not in the building model (build 6 BIM again from the Floor Plan, or give it a height)"
             )
             return None
         bottom, top = levels
@@ -420,7 +422,9 @@ def _export_extras(
     roof_types = {t.id: t for t in arch.roofTypes}
     for roof in arch.roofs:
         if roof.story not in elevations:
-            skipped.append(f"{roof.id}: no story '{roof.story}'")
+            skipped.append(
+                f"{roof.id}: no story '{roof.story}' in the building model (build 6 BIM again)"
+            )
             continue
         kind = roof_types[roof.type]
         polygon = roof_polygon(roof)

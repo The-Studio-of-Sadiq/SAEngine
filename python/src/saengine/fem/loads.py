@@ -824,7 +824,12 @@ def cladding_pressures(
             for zone, vs in _curve_values(figure.overhang, area).items():
                 label = labels.get(zone, f"zone {zone}").replace("roof, ", "")
                 roof.append(
-                    (f"{zone} overhang", f"roof overhang, {label}", None, vs.get("negative"))
+                    (
+                        f"{zone} overhang",
+                        f"roof overhang (where the roof overhangs its walls), {label}",
+                        None,
+                        vs.get("negative"),
+                    )
                 )
 
     if form == "dome":
@@ -896,6 +901,12 @@ def cladding_pressures(
             zones.append(("wall", zone, label, vs.get("positive"), vs.get("negative")))
     zones += [("roof", z, label, pos, neg) for z, label, pos, neg in roof]
     q_roof = qh  # the dome's q is at its top: ``height`` is taken as that
+
+    def inside(zone: str) -> float:
+        """GCpi of a zone: none on a roof overhang (FD-25), whose (GCp) already holds the
+        pressures on its upper and lower faces (the roof figures' overhang note)."""
+        return 0.0 if zone.endswith(" overhang") else gcpi
+
     out_zones = [
         {
             "surface": surface,
@@ -903,8 +914,8 @@ def cladding_pressures(
             "label": label,
             "GCpPos": pos,
             "GCpNeg": neg,
-            "pPos_kPa": None if pos is None else q_roof * (pos + gcpi),
-            "pNeg_kPa": None if neg is None else q_roof * (neg - gcpi),
+            "pPos_kPa": None if pos is None else q_roof * (pos + inside(zone)),
+            "pNeg_kPa": None if neg is None else q_roof * (neg - inside(zone)),
         }
         for surface, zone, label, pos, neg in zones
     ]

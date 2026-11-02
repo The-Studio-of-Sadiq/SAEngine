@@ -34,6 +34,22 @@ export interface ICodeValueRow {
 	readonly generic: boolean;
 	/** Where a generic default comes from. */
 	readonly note: string;
+	/** The value's name in words ("Compression tied"), its description, unit and clause (SL-1). */
+	readonly label: string;
+	readonly description: string;
+	readonly unit: string;
+	readonly clause: string;
+	/** The group it is in within the table ("Phi"), '' at the table's top. */
+	readonly group: string;
+}
+
+/** A table of the pack as the page offers it: its name in words and its section (SL-1). */
+export interface ICodeValuesTable {
+	readonly name: string;
+	readonly title: string;
+	readonly section: string;
+	readonly overridden: boolean;
+	readonly generic: boolean;
 }
 
 export interface ICodeValues {
@@ -42,10 +58,10 @@ export interface ICodeValues {
 	readonly name: string;
 	/** The pack the project asked for when it is not installed (the default pack stands in). */
 	readonly missing: string | undefined;
-	readonly tables: readonly { readonly name: string; readonly overridden: boolean; readonly generic: boolean }[];
+	readonly tables: readonly ICodeValuesTable[];
 	readonly overrides: readonly { readonly path: string; readonly packValue: JsonValue; readonly value: JsonValue }[];
-	/** Overrides refused (not applied), with why. */
-	readonly problems: readonly { readonly path: string; readonly message: string }[];
+	/** Overrides refused (not applied), with why and the pack's value that applies instead. */
+	readonly problems: readonly { readonly path: string; readonly message: string; readonly packValue: JsonValue }[];
 	readonly fallbacks: readonly { readonly path: string; readonly value: JsonValue; readonly note: string }[];
 	readonly rows: readonly ICodeValueRow[];
 }
@@ -73,9 +89,9 @@ export function readCodeValues(value: unknown): ICodeValues | undefined {
 		id: value.id,
 		name: str(value.name, value.id),
 		missing: typeof value.missing === 'string' && value.missing ? value.missing : undefined,
-		tables: list(value.tables).filter(t => typeof t.name === 'string').map(t => ({ name: String(t.name), overridden: t.overridden === true, generic: t.generic === true })),
+		tables: list(value.tables).filter(t => typeof t.name === 'string').map(t => ({ name: String(t.name), title: str(t.title, String(t.name)), section: str(t.section), overridden: t.overridden === true, generic: t.generic === true })),
 		overrides: list(value.overrides).filter(o => typeof o.path === 'string').map(o => ({ path: String(o.path), packValue: o.packValue as JsonValue, value: o.value as JsonValue })),
-		problems: list(value.problems).filter(p => typeof p.path === 'string').map(p => ({ path: String(p.path), message: str(p.message) })),
+		problems: list(value.problems).filter(p => typeof p.path === 'string').map(p => ({ path: String(p.path), message: str(p.message), packValue: (p.packValue ?? null) as JsonValue })),
 		fallbacks: list(value.fallbacks).filter(f => typeof f.path === 'string').map(f => ({ path: String(f.path), value: f.value as JsonValue, note: str(f.note) })),
 		rows: list(value.rows).filter(r => typeof r.path === 'string').map(r => ({
 			path: String(r.path),
@@ -85,6 +101,11 @@ export function readCodeValues(value: unknown): ICodeValues | undefined {
 			overridden: r.overridden === true,
 			generic: r.generic === true,
 			note: str(r.note),
+			label: str(r.label),
+			description: str(r.description),
+			unit: str(r.unit),
+			clause: str(r.clause),
+			group: str(r.group),
 		})),
 	};
 }
@@ -163,8 +184,11 @@ export function setCodeOverride(document: JsonObject, path: string, value: JsonV
 	return true;
 }
 
-/** The rows `filter` keeps (words in the path, any order, any case). */
+/** The rows `filter` keeps (words in the path, the name or the description, any order, any case). */
 export function filterCodeValues(rows: readonly ICodeValueRow[], filter: string): ICodeValueRow[] {
 	const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
-	return rows.filter(r => words.every(w => r.path.toLowerCase().includes(w)));
+	return rows.filter(r => {
+		const text = `${r.path} ${r.label} ${r.description}`.toLowerCase();
+		return words.every(w => text.includes(w));
+	});
 }

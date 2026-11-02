@@ -126,6 +126,32 @@ function follows(value: JsonValue | undefined, derived: number): boolean {
 const COLUMN_RHO_MIN = 0.01;
 const COLUMN_RHO_PRACTICAL = 0.04;
 
+/**
+ * SL-13: a schema check's words as an engineer reads them ("String should have at least 1
+ * character" for a designed profile without a section: "choose a section ...").
+ */
+export function plainProblem(path: string | undefined, message: string): string {
+	if (path?.endsWith('profile.section') && /at least 1 character|required/i.test(message)) {
+		return localize('library.chooseSectionProblem', "no section chosen: choose a designed section, or draw one with New Section.");
+	}
+	const rules: [RegExp, (m: RegExpExecArray) => string][] = [
+		[/String should have at least 1 character/i, () => localize('library.problemEmpty', "is empty: enter a value.")],
+		[/Field required/i, () => localize('library.problemRequired', "is required.")],
+		[/Input should be greater than or equal to (\S+)/i, m => localize('library.problemMin', "must be at least {0}.", m[1])],
+		[/Input should be less than or equal to (\S+)/i, m => localize('library.problemMax', "must be at most {0}.", m[1])],
+		[/Input should be greater than (\S+)/i, m => localize('library.problemAbove', "must be more than {0}.", m[1])],
+		[/Input should be less than (\S+)/i, m => localize('library.problemBelow', "must be less than {0}.", m[1])],
+		[/Input should be a valid (number|integer)/i, () => localize('library.problemNumber', "must be a number.")],
+	];
+	for (const [pattern, say] of rules) {
+		const match = pattern.exec(message);
+		if (match) {
+			return say(match);
+		}
+	}
+	return message;
+}
+
 /** Gross area of a solid rectangle or circle profile [mm²]; undefined for other shapes. */
 export function grossArea(profile: JsonValue | undefined): number | undefined {
 	if (!isObject(profile)) {
@@ -383,6 +409,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 		}
 		if (item && path === 'concrete.fc') {
 			this.followFc(item);
+		} else if (item && (path === 'mechanical.E' || path === 'concrete.ft')) {
+			this.markDerived(item);
 		}
 		const renamed = !!item && this.config?.listKey === 'objects' && path !== 'name' && this.followName(item);
 		this.changed(structural);
@@ -455,6 +483,64 @@ export class LibraryEditor extends JsonDocumentEditor {
 			this.form.showValue('concrete.ft', next.fr);
 		}
 		this.form.refreshPlaceholders();
+		this.markDerived(item);
+		this.offerFcRename(item, this.fcAtRender, fc);
+	}
+
+	/** f'c of the material when its form was shown (what its ID and name were written for). */
+	private fcAtRender: number | undefined;
+
+	/** SL-11: E and fr that still follow f'c look derived (muted), not typed. */
+	private markDerived(item: JsonObject): void {
+		const concrete = isObject(item.concrete) ? item.concrete : undefined;
+		const fc = typeof concrete?.fc === 'number' && concrete.fc > 0 ? concrete.fc : undefined;
+		if (this.config?.listKey !== 'materials' || fc === undefined) {
+			return;
+		}
+		const derived = concreteFromFc(fc);
+		const mechanical = isObject(item.mechanical) ? item.mechanical : {};
+		this.form.row('mechanical.E')?.classList.toggle('sa-derived', typeof mechanical.E === 'number' && follows(mechanical.E, derived.E));
+		this.form.row('concrete.ft')?.classList.toggle('sa-derived', typeof concrete!.ft === 'number' && follows(concrete!.ft, derived.fr));
+	}
+
+	private fcOffer: HTMLElement | undefined;
+
+	/**
+	 * SL-11: after f'c changed, a concrete whose ID or name still gives the old strength ("C27.6",
+	 * "... 27.6 MPa (4000 psi)") is pointed out, with its name updated on request. The ID stays:
+	 * object types refer to it.
+	 */
+	private offerFcRename(item: JsonObject, before: number | undefined, fc: number): void {
+		this.fcOffer?.remove();
+		this.fcOffer = undefined;
+		const row = this.form.row('concrete.fc');
+		if (before === undefined || before === fc || !row) {
+			return;
+		}
+		const old = String(before);
+		const id = String(item.id ?? '');
+		const name = String(item.name ?? '');
+		if (!id.includes(old) && !name.includes(old)) {
+			return;
+		}
+		const psi = Math.round(fc * 145.038 / 50) * 50;
+		const nextName = name.split(old).join(String(fc)).replace(/\(\d[\d,]*\s*psi\)/, `(${psi} psi)`);
+		const offer = this.fcOffer = append(row, $('.form-note.library-fc-offer', { role: 'status' }));
+		append(offer, $('span', undefined, id.includes(old)
+			? localize('library.fcStaleId', "The ID {0} and the name still give f'c = {1} MPa. The ID stays (object types refer to it); type a new one in ID to rename it.", id, old)
+			: localize('library.fcStaleName', "The name still gives f'c = {0} MPa.", old)));
+		if (nextName !== name) {
+			const button = this.detailDisposables.add(new Button(offer, { ...defaultButtonStyles, secondary: true }));
+			button.label = localize('library.fcRename', "Rename to \"{0}\"", nextName);
+			this.detailDisposables.add(button.onDidClick(() => {
+				item.name = nextName;
+				this.form.showValue('name', nextName);
+				offer.remove();
+				this.changed(false);
+				this.renderList();
+				this.renderDetailTitle();
+			}));
+		}
 	}
 
 	/** Empty fields that follow another: E and fr of a concrete show the code value of its f'c. */
@@ -902,6 +988,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 			return;
 		}
 		this.formFc = isObject(item.concrete) && typeof item.concrete.fc === 'number' ? item.concrete.fc : undefined;
+		this.fcAtRender = this.formFc;
+		this.fcOffer = undefined;
 		if (config.listKey === 'objects' && this.generatedName !== item.name) {
 			this.generatedName = undefined; // another entry, or a name typed meanwhile
 		}
@@ -925,6 +1013,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const schema = config.schema.$defs?.[variants[current].defName];
 		if (schema) {
 			this.form.render(form, schema, item, [config.discriminator, 'modifiers', 'designOverwrites']);
+			this.markDerived(item);
 		}
 		if (config.listKey === 'objects' && isObject(item.profile) && item.profile.shape === 'designed') {
 			void this.renderDesignedSection(form, item);
@@ -1123,7 +1212,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 			const row = append(box, $('.library-problem'));
 			append(row, $(`span${ThemeIcon.asCSSSelector(Codicon.warning)}`));
 			const field = problem.path ? `${problem.path.split('.').map(humanize).join(' › ')}: ` : '';
-			append(row, $('span', undefined, `${field}${problem.message}`));
+			append(row, $('span', undefined, `${field}${plainProblem(problem.path, problem.message)}`));
 		}
 	}
 

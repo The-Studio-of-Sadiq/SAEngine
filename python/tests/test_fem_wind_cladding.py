@@ -88,6 +88,21 @@ def _zone(result: dict, surface: str, zone: str) -> dict:
     return next(z for z in result["zones"] if (z["surface"], z["zone"]) == (surface, zone))
 
 
+def test_roof_overhang_pressures_take_no_internal_pressure() -> None:
+    """FD-25 (walkthrough 3): a roof overhang's (GCp) holds the pressures on both its faces
+    (the default pack's Part 6 Figure 6.2.11 notes, p. 582): p = qh·(GCp), no GCpi; the other
+    roof zones keep qh·(GCp − GCpi)."""
+    out = cladding_pressures(12.0, 15.0, V, EXPOSURE, I)
+    qh, gcpi = out["qh_kPa"], out["GCpi"]
+    overhangs = [z for z in out["zones"] if z["zone"].endswith(" overhang")]
+    assert overhangs and gcpi > 0
+    for zone in overhangs:
+        assert zone["pNeg_kPa"] == pytest.approx(qh * zone["GCpNeg"])
+        assert "where the roof overhangs" in zone["label"]
+    roof3 = _zone(out, "roof", "3")
+    assert roof3["pNeg_kPa"] == pytest.approx(qh * (roof3["GCpNeg"] - gcpi))
+
+
 def test_low_rise_pressures_by_hand() -> None:
     # h = 12 m ≤ 18.3 m: p = qh·[(GCp) − (±0.18)], walls × 0.9 (θ ≤ 10°, Figure 6-11A note 5).
     out = cladding_pressures(12.0, 15.0, V, EXPOSURE, I)

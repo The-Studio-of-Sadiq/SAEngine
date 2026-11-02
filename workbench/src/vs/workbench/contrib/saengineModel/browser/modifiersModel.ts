@@ -278,8 +278,8 @@ function codeSource(key: ModifierKey, concrete: boolean, code: ICodeStiffness, v
 	}
 	const pack = code.packName ?? localize('modifiers.codePack', "code pack");
 	return code.crackedFor === 'lateral'
-		? localize('modifiers.sourceCrackedLateral', "{0} cracked (lateral)", pack)
-		: localize('modifiers.sourceCracked', "{0} cracked", pack);
+		? localize('modifiers.sourceCrackedLateral', "cracked section, lateral cases ({0})", pack)
+		: localize('modifiers.sourceCracked', "cracked section ({0})", pack);
 }
 
 // ───────────────────────────── values ─────────────────────────────

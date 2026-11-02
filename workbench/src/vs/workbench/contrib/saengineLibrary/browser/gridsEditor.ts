@@ -142,17 +142,21 @@ export class GridsEditor extends JsonDocumentEditor {
 			template: defName => clone((TEMPLATES[defName] ?? {}) as JsonObject),
 			// A typical floor repeats another story's plan (see the floor plan's Typical Floors); the
 			// podium top is a story, a tower's corners are on grid lines.
-			references: path => path === 'stories.similarTo' || path === 'podiumTop' ? this.stories.map(s => s.id)
+			// FD-19: a story is not similar to itself nor to the base (it has no plan of members).
+			references: (path, owner) => path === 'stories.similarTo' ? this.similarCandidates(owner)
+				: path === 'podiumTop' ? this.stories.map(s => s.id)
 				: path === 'towers.boundary.x' ? this.grids.x.map(g => g.label)
 					: path === 'towers.boundary.y' ? this.grids.y.map(g => g.label)
 						: undefined,
 			validate: (path, value) => this.validate(path, value),
-			changed: (_path, structural) => {
+			changed: (path, structural) => {
 				this.changeNote = undefined;
+				this.noteElevationEdit(path);
 				this.changed(structural);
 				if (!structural) {
 					this.renderSummary();
 				}
+				this.renderStatus();
 			},
 			mode: () => undefined,
 			newItem: (path, list) => this.newItem(path, list),
@@ -263,6 +267,7 @@ export class GridsEditor extends JsonDocumentEditor {
 	protected override onWillLoadInput(): void {
 		this.shownLayout = undefined;
 		this.changeNote = undefined;
+		this.elevationEdit = undefined;
 	}
 
 	/** After every reload (undo, redo, an edit in the Floor Plan), says what changed in the grids. */
@@ -331,6 +336,61 @@ export class GridsEditor extends JsonDocumentEditor {
 	private get stories(): IStory[] {
 		const stories = this.document?.stories;
 		return (Array.isArray(stories) ? stories.filter(isObject) : []) as unknown as IStory[];
+	}
+
+	/**
+	 * FD-18: a story's elevation edited: the story it was at (from the last saved layout), so the
+	 * status line can offer to move the stories above by the same amount.
+	 */
+	private elevationEdit: { readonly index: number; readonly from: number } | undefined;
+
+	private noteElevationEdit(path: string): void {
+		const match = /^stories\.(\d+)\.elevation$/.exec(path);
+		if (!match) {
+			this.elevationEdit = undefined;
+			return;
+		}
+		const index = Number(match[1]);
+		if (this.elevationEdit?.index === index) {
+			return; // still typing the same elevation: keep where it started
+		}
+		const saved = this.shownLayout?.stories;
+		const before = Array.isArray(saved) && isObject(saved[index]) ? saved[index].elevation : undefined;
+		this.elevationEdit = typeof before === 'number' ? { index, from: before } : undefined;
+	}
+
+	/** The stories above the edited one and the amount they would move by, when there is any. */
+	private storyShift(): { readonly above: IStory[]; readonly delta: number } | undefined {
+		const edit = this.elevationEdit;
+		const story = edit && this.stories[edit.index];
+		if (!edit || !story || typeof story.elevation !== 'number') {
+			return undefined;
+		}
+		const delta = story.elevation - edit.from;
+		const above = this.stories.filter(s => s !== story && s.elevation > edit.from);
+		return delta && above.length ? { above, delta } : undefined;
+	}
+
+	/** Moves the stories above the edited one by its change of elevation (one undoable edit). */
+	private shiftStoriesAbove(): void {
+		const shift = this.storyShift();
+		if (!shift) {
+			return;
+		}
+		for (const story of shift.above) {
+			(story as unknown as JsonObject).elevation = story.elevation + shift.delta;
+		}
+		this.elevationEdit = undefined;
+		this.changeNote = localize('grids.shifted', "Moved {0} stories above by {1} mm.", shift.above.length, (shift.delta > 0 ? '+' : '') + shift.delta);
+		this.changed(true);
+		this.renderSummary();
+		this.renderStatus();
+	}
+
+	/** The stories a story may be similar to: not itself, nor the lowest (the base, no plan). */
+	private similarCandidates(owner: JsonObject | undefined): string[] {
+		const sorted = [...this.stories].sort((a, b) => a.elevation - b.elevation);
+		return sorted.slice(1).map(s => s.id).filter(id => id !== owner?.id);
 	}
 
 	/** The next grid line or story, continuing the sequence and spacing of the last two. */
@@ -403,6 +463,16 @@ export class GridsEditor extends JsonDocumentEditor {
 	private renderStatus(): void {
 		const count = this.problems.length;
 		const unsaved = !!this.resource && this.textFiles.isDirty(this.resource);
+		const shift = count ? undefined : this.storyShift();
+		if (shift) {
+			const amount = (shift.delta > 0 ? '+' : '') + shift.delta;
+			this.documentFrame?.setStatus({
+				severity: 'info',
+				text: localize('grids.shiftOffer', "{0} moved by {1} mm; the {2} stories above kept their elevations.", this.stories[this.elevationEdit!.index]?.name ?? '', amount, shift.above.length),
+				link: { label: localize('grids.shiftStories', "Move Them by {0} mm", amount), run: () => this.shiftStoriesAbove() },
+			});
+			return;
+		}
 		this.documentFrame?.setStatus(count
 			? { severity: 'warning', text: count === 1 ? localize('grids.oneProblem', "1 problem: {0}", this.problems[0].message) : localize('grids.problems', "{0} problems. {1}", count, this.problems[0].message) }
 			: this.changeNote

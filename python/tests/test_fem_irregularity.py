@@ -139,6 +139,23 @@ def test_reentrant_corners() -> None:
     assert not small[0]["irregular"]
 
 
+def test_reentrant_notch_projects_by_its_own_size() -> None:
+    """FD-14 (walkthrough 3): a 3 x 2.5 m stair void in the 18 x 15 m floor's north edge
+    (x 12-15 m) projects 3 m (17 %) and 2.5 m (17 %) at both its corners, not 15 m (83 %) to
+    the far west edge."""
+    from shapely.geometry import Polygon
+
+    floor = Polygon(
+        [(0, 0), (18000, 0), (18000, 15000), (15000, 15000), (15000, 12500), (12000, 12500),
+         (12000, 15000), (0, 15000)]
+    )  # fmt: skip
+    corners = ir.reentrant_corners(floor, ir.table().reentrantProjection)
+    assert len(corners) == 2
+    for corner in corners:
+        assert corner["shareX"] == pytest.approx(3 / 18)
+        assert corner["shareY"] == pytest.approx(2.5 / 15)
+
+
 def test_openings() -> None:
     from shapely.geometry import Polygon
 

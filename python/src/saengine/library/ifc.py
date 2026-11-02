@@ -434,7 +434,13 @@ def export_ifc(
             _export_plumbing(w, building, mep, ground_level, storey_at, ids, skipped)
         if getattr(mep, "hvac", None) is not None or getattr(mep, "electrical", None) is not None:
             _export_services(w, building, mep, storey_at, ids, skipped)
-    if architecture is not None:
+    if architecture is not None and not building.stories:
+        # FD-13: before the building model is built it has no stories; the architecture is not
+        # wrong, it has nothing to stand on yet.
+        skipped.append(
+            "the architecture: shown once the building model is built (Build from Floor Plan)"
+        )
+    elif architecture is not None:
         from saengine.library.architecture_ifc import export_architecture
 
         arch_ids: dict[str, str] = {}

@@ -714,6 +714,26 @@
 	justify-self: start;
 }
 
+/* SL-11: a value that follows another (E from f'c) is shown muted, not like a typed one. */
+.saengine-library-editor .sa-derived input {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-style: italic;
+}
+
+.saengine-library-editor .library-fc-offer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+/* SL-8: a wide table (load combinations) keeps its rows on one line each, tighter, and scrolls sideways. */
+.saengine-library-editor .form-table.wide {
+	column-gap: var(--sa-space-1, 4px);
+	padding-bottom: var(--sa-space-2, 8px);
+}
+
 /*
  * A table too wide for its column (schemaForm.ts stackWhenNarrow): each row becomes label/field
  * pairs, the remove button closing the row, so nothing scrolls sideways.
@@ -1041,6 +1061,37 @@
 	overflow-wrap: anywhere;
 	font-family: var(--monaco-monospace-font);
 	font-size: 12px;
+}
+
+/* SL-1: the value's name in words, its path small, its description and clause under it. */
+.saengine-library-editor .settings-code-values-label {
+	font-family: var(--vscode-font-family);
+	font-size: 13px;
+	margin-right: var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .settings-code-values-key {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.saengine-library-editor .settings-code-values-desc {
+	display: block;
+	font-family: var(--vscode-font-family);
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-group {
+	grid-column: 1 / -1;
+	margin-top: var(--sa-space-2, 8px);
+	font-weight: 600;
+}
+
+/* SL-1: the code pack's value shown in an empty field is plainly not an entry. */
+.saengine-library-editor .settings-code-values-input input::placeholder {
+	font-style: italic;
+	opacity: 0.55;
 }
 
 .saengine-library-editor .settings-code-values-row.overridden .settings-code-values-path {

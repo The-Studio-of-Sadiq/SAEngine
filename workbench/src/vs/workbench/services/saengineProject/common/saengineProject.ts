@@ -24,12 +24,12 @@ export const PROJECT_TYPES: readonly { readonly type: ProjectType; readonly labe
 	{
 		type: 'building',
 		label: localize('projectType.building', "Building"),
-		description: localize('projectType.buildingDescription', "Floors on grids, story by story: houses, offices, high-rises. Part 5 is a floor plan."),
+		description: localize('projectType.buildingDescription', "Floors on grids, story by story: houses, offices, high-rises, drawn on a floor plan."),
 	},
 	{
 		type: 'structure',
 		label: localize('projectType.structure', "Special Structure"),
-		description: localize('projectType.structureDescription', "Drawn in 3D: airport roofs, stadiums, towers, plants, bridges. Part 5 is a 3D structural model."),
+		description: localize('projectType.structureDescription', "Drawn in 3D as a structural model: airport roofs, stadiums, towers, plants, bridges."),
 	},
 ];
 

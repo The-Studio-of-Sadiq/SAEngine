@@ -58,9 +58,13 @@ export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedStee
  * caller registers the returned disposable with the panel's contents.
  */
 export function appendPlannedChips(parent: HTMLElement, heading: string | undefined, ids: readonly string[], commandService: ICommandService): IDisposable {
+	// B10-28 / FL-6: folded under their heading, so the chips do not push the results down.
+	let host = parent;
 	if (heading) {
-		appendPropertyHeading(parent, heading);
+		host = append(parent, $('details.fem-planned'));
+		const summary = append(host, $('summary'));
+		appendPropertyHeading(summary, `${heading} (${ids.length})`);
 	}
-	const row = append(parent, $('.fem-planned-chips'));
+	const row = append(host, $('.fem-planned-chips'));
 	return combinedDisposable(...ids.map(id => appendPlannedFeatureChip(row, id, commandService)));
 }

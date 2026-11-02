@@ -31,9 +31,9 @@ suite('SAEngine - Code values (project overrides of the code pack)', () => {
 		});
 		assert.ok(values);
 		assert.strictEqual(values.missing, undefined);
-		assert.deepStrictEqual(values.tables, [{ name: 'factors', overridden: true, generic: false }]);
-		assert.deepStrictEqual(values.rows.map(r => [r.path, r.overridden, r.generic]), [['factors.phi.shear', true, false]]);
-		assert.deepStrictEqual(values.problems, [{ path: 'factors.phi.joint', message: 'must be a number' }]);
+		assert.deepStrictEqual(values.tables, [{ name: 'factors', title: 'factors', section: '', overridden: true, generic: false }]);
+		assert.deepStrictEqual(values.rows.map(r => [r.path, r.overridden, r.generic, r.label]), [['factors.phi.shear', true, false, '']]);
+		assert.deepStrictEqual(values.problems, [{ path: 'factors.phi.joint', message: 'must be a number', packValue: null }]);
 		assert.deepStrictEqual(values.fallbacks, []);
 	});
 
@@ -63,10 +63,12 @@ suite('SAEngine - Code values (project overrides of the code pack)', () => {
 	});
 
 	test('the filter matches words of the path', () => {
-		const row = (path: string) => ({ path, table: 'factors', value: 1, packValue: 1, overridden: false, generic: false, note: '' });
-		const rows = [row('factors.phi.shear'), row('factors.phi.tension'), row('factors.phi.shearSeismic')];
+		const row = (path: string, description = '') => ({ path, table: 'factors', value: 1, packValue: 1, overridden: false, generic: false, note: '', label: '', description, unit: '', clause: '', group: '' });
+		const rows = [row('factors.phi.shear'), row('factors.phi.tension', 'Tension-controlled sections.'), row('factors.phi.shearSeismic')];
 		assert.deepStrictEqual(filterCodeValues(rows, 'SHEAR').map(r => r.path), ['factors.phi.shear', 'factors.phi.shearSeismic']);
 		assert.deepStrictEqual(filterCodeValues(rows, 'phi seis').map(r => r.path), ['factors.phi.shearSeismic']);
 		assert.strictEqual(filterCodeValues(rows, '').length, 3);
+		// SL-1: the description's words find a value too.
+		assert.deepStrictEqual(filterCodeValues(rows, 'controlled').map(r => r.path), ['factors.phi.tension']);
 	});
 });

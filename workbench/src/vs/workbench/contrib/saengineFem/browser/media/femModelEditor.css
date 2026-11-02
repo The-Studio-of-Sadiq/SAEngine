@@ -654,7 +654,16 @@
 	outline-offset: 1px;
 }
 
-/* "Planned" chips of analyses and designs not in this MVP (see femPlannedFeatures.ts). */
+/* "Planned" chips of analyses and designs not in this MVP (see femPlannedFeatures.ts), folded. */
+.fem-planned > summary {
+	cursor: pointer;
+	list-style-position: inside;
+}
+
+.fem-planned > summary > .sa-props-heading {
+	display: inline;
+}
+
 .fem-planned-chips {
 	display: flex;
 	flex-wrap: wrap;

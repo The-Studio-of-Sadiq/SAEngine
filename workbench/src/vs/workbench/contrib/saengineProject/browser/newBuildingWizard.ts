@@ -13,7 +13,7 @@ import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -49,7 +49,6 @@ import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.js';
-import { appendPlannedFeatureChip } from './plannedFeatureEditor.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
 import { activeCodeName, DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
@@ -202,6 +201,12 @@ export class NewBuildingWizard extends EditorPane {
 			this.folder = await this.initialFolder();
 		}
 		// The starting values are a building template's (saengine-default-building, built in).
+		// B10-2: the engine may still be starting; say so instead of a blank page meanwhile.
+		if (!this.templates.length) {
+			const page = this.resetPage();
+			append(page, $('h1', undefined, localize('newBuilding.title', "New Building from Grid")));
+			append(page, $('p.hint', { role: 'status' }, localize('newBuilding.loading', "Reading the building templates (the engine starts the first time, a few seconds)...")));
+		}
 		await this.loadTemplates();
 		if (!this.templateApplied) {
 			const start = this.templates.find(t => t.type === 'spec' && t.package === DEFAULT_BUILDING_TEMPLATE) ?? this.templates.find(t => t.type === 'spec');
@@ -300,6 +305,9 @@ export class NewBuildingWizard extends EditorPane {
 		}
 	}
 
+	/** Marks "Start from" as Custom after an edit (set while the form shows a template's values). */
+	private templateEdited: (() => void) | undefined;
+
 	/** "Start from": the specifications fill the form; a full template opens as a new project. */
 	private renderTemplates(form: HTMLElement): void {
 		const control = this.row(form, localize('newBuilding.template', "Start from"));
@@ -317,7 +325,21 @@ export class NewBuildingWizard extends EditorPane {
 		const index = Math.max(0, specs.findIndex(t => t.package === this.templateApplied));
 		const box = this.pageDisposables.add(new SelectBox(options, index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('newBuilding.template', "Start from") }));
 		box.render(control);
+		// B10-3: edited after a template filled it, the form is no longer that template.
+		let custom = false;
+		this.templateEdited = () => {
+			const from = specs[index];
+			if (custom || !from) {
+				return;
+			}
+			custom = true;
+			box.setOptions([...options, { text: localize('newBuilding.templateCustom', "Custom (started from {0})", label(from)), description: undefined }], options.length);
+		};
+		this.pageDisposables.add(toDisposable(() => this.templateEdited = undefined));
 		this.pageDisposables.add(box.onDidSelect(({ index: picked }) => {
+			if (picked >= options.length) {
+				return; // the custom entry: nothing to apply
+			}
 			const spec = specs[picked];
 			if (spec?.spec) {
 				this.form = { ...formFromSpec(spec.spec, this.form) };
@@ -382,7 +404,12 @@ export class NewBuildingWizard extends EditorPane {
 		const inputs = new Map<FormField, InputBox>();
 		const errors = new Map<FormField, HTMLElement>();
 		const plotWarning: { element?: HTMLElement } = {};
+		// B10-3: once the grids, storeys or system are edited, "Start from" says Custom.
+		let ready = false;
 		const updatePreview = () => {
+			if (ready) {
+				this.templateEdited?.();
+			}
 			const x = parseSpacings(this.form.gridX);
 			const y = parseSpacings(this.form.gridY);
 			const heights = storyHeights(this.form);
@@ -519,13 +546,11 @@ export class NewBuildingWizard extends EditorPane {
 		this.select(form, localize('newBuilding.footing', "Footings"), FOOTING_CHOICES, this.form.footing, value => this.form.footing = value);
 
 		// ── site and use ──
-		this.section(form, localize('newBuilding.site', "Site and Use"), localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName()));
-		// Only BNBC 2020 in this MVP; the other code packs show as planned.
+		this.section(form, localize('newBuilding.site', "Site and Use"));
+		// Only the default pack in this MVP; the other code packs show once, as planned options
+		// of the list (B10-4: no second set of chips). The pack's words come after its picker (B10-5).
 		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), DEFAULT_CODE_PACK_ID, () => { /* the default pack is the only choice */ });
-		const plannedCodes = append(form, $('p.hint.indented.planned-codes'));
-		for (const pack of plannedCodePacks()) {
-			this.pageDisposables.add(appendPlannedFeatureChip(plannedCodes, pack.feature, this.commandService));
-		}
+		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
 		this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
 		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
 		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
@@ -594,6 +619,7 @@ export class NewBuildingWizard extends EditorPane {
 		}));
 
 		updatePreview();
+		ready = true;
 		updateTarget();
 		this.focusTarget = name;
 		name.focus();

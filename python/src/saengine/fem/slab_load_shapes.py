@@ -36,6 +36,12 @@ split; the side's load shape is then cut back into the edges.
 A part of a tributary area that lies beyond the end of its edge (beside an obtuse corner) goes
 to that end as a point load (``EdgeProfile.end_loads``).
 
+Free edges (``free``: an edge with no beam, wall or column under it, such as the edges of a
+panel drawn round a stair opening): the panel's load goes to its supported edges only, each
+point to the nearest supported edge (the sampled rule above with the free edges left out), so
+no load is lost; the result says so in its notes. A panel whose free edges carry nothing anyway
+(along a one-way span) keeps its shapes.
+
 The analysis model applies a shape on a beam split into members by its mesh: each member takes
 the mean intensity of the shape over it as a uniform load and a pair of opposite nodal forces at
 its ends (:func:`segment_loads`), together statically equivalent to the shape on it (same
@@ -51,7 +57,7 @@ from __future__ import annotations
 
 import functools
 import math
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
 
@@ -240,13 +246,16 @@ def slab_load_shapes(
     pressure: float,
     system: str = "twoWay",
     aspect_limit: float | None = None,
+    free: Collection[int] = (),
 ) -> SlabLoadShape:
     """The load shapes on the edges of a slab outline carrying ``pressure`` on its area.
 
     ``corners``: the outline (either orientation, not closed); ``system``: the slab type's
     system ("oneWay", "twoWay", "flat"); ``aspect_limit``: the long-to-short ratio above which a
-    convex panel spans one way (by default :func:`two_way_limit`). Edge i goes from corner i to
-    corner i + 1; the totals add up to the area times the pressure.
+    convex panel spans one way (by default :func:`two_way_limit`); ``free``: the indices of the
+    edges with no support (their share goes to the supported edges). Edge i goes from corner i
+    to corner i + 1; the totals add up to the area times the pressure (no load at all when
+    every edge is free).
 
     The shapes are linear in the pressure: those of a unit pressure are kept per outline (the
     load cases and the typical floors of a building repeat them) and scaled.
@@ -255,7 +264,7 @@ def slab_load_shapes(
     limit = two_way_limit() if aspect_limit is None else float(aspect_limit)
     if len(key) < 3 or not pressure:
         return _none(key)
-    unit = _unit_shapes(key, system, limit)
+    unit = _unit_shapes(key, system, limit, frozenset(int(i) for i in free))
     return SlabLoadShape(
         [_scaled(edge, pressure) for edge in unit.edges], unit.method, list(unit.notes)
     )
@@ -279,9 +288,40 @@ def _scaled(edge: EdgeProfile, factor: float) -> EdgeProfile:
 
 @functools.lru_cache(maxsize=4096)
 def _unit_shapes(
-    corners: tuple[tuple[float, float], ...], system: str, limit: float
+    corners: tuple[tuple[float, float], ...],
+    system: str,
+    limit: float,
+    free: frozenset[int] = frozenset(),
 ) -> SlabLoadShape:
     """The load shapes of a unit pressure (see :func:`slab_load_shapes`)."""
+    n = len(corners)
+    free = frozenset(i for i in free if 0 <= i < n)
+    plain = _supported_shapes(corners, system, limit, frozenset())
+    if not free:
+        return plain
+    if len(free) == n:
+        empty = [EdgeProfile(i, math.dist(corners[i], corners[(i + 1) % n])) for i in range(n)]
+        return SlabLoadShape(empty, "none", ["no edge has a beam, wall or column; no load"])
+    if not any(plain.edges[i].total > 1e-9 * max(plain.total, 1e-30) for i in free):
+        return plain  # the free edges carry nothing (along a one-way span)
+    shape = _supported_shapes(corners, system, limit, free)
+    names = ", ".join(str(i + 1) for i in sorted(free))
+    plural = len(free) > 1
+    shape.notes.append(
+        f"edge{'s' if plural else ''} {names} (corner to corner, in order) "
+        f"{'have' if plural else 'has'} no beam, wall or column: "
+        f"{'their' if plural else 'its'} share goes to the nearest supported edges"
+    )
+    return shape
+
+
+def _supported_shapes(
+    corners: tuple[tuple[float, float], ...],
+    system: str,
+    limit: float,
+    free: frozenset[int],
+) -> SlabLoadShape:
+    """The load shapes of a unit pressure, the ``free`` edges carrying nothing."""
     pressure = 1.0
     points = [np.array(c) for c in corners]
     n = len(points)
@@ -293,7 +333,7 @@ def _unit_shapes(
     if not polygon.is_valid or polygon.area <= 0:
         return SlabLoadShape(empty, "none", ["the outline is not a simple polygon; no load"])
     orientation = 1.0 if polygon.exterior.is_ccw else -1.0
-    sides = _sides(points, lengths)
+    sides = _sides(points, lengths, free)
     if len(sides) < 3:
         return SlabLoadShape(empty, "none", ["the outline is degenerate; no load"])
     convex = math.isclose(polygon.convex_hull.area, polygon.area, rel_tol=1e-9)
@@ -303,14 +343,25 @@ def _unit_shapes(
     span = _span_direction(polygon)
     long_side, short_side = span[1], span[2]
     one_way = system == "oneWay" or (convex and spans_one_way(long_side, short_side, limit))
-    if one_way and not convex:
+    if one_way and not convex and not free:
         notes.append(
             "a one-way panel that is not convex: its load is shared by the two-way (45°) rule"
         )
         one_way = False
 
     side_loads: list[tuple[list[Piece], tuple[float, float]]]
-    if one_way:
+    if free:
+        # Each point to the nearest supported side: the sampled rule without the free sides.
+        method = "supportedEdges"
+        side_loads = _sampled(
+            polygon,
+            sides,
+            orientation,
+            pressure,
+            orthogonal,
+            [all(index in free for index, _, _ in s.edges) for s in sides],
+        )
+    elif one_way:
         method = "oneWay"
         d = span[0]
         regions = _one_way_regions(polygon, sides, d, orientation)
@@ -355,8 +406,11 @@ def _unit_shapes(
 # ───────────────────────── geometry ─────────────────────────
 
 
-def _sides(points: list[np.ndarray], lengths: list[float]) -> list[_Side]:
-    """Merge collinear consecutive edges (and drop zero-length ones) into sides."""
+def _sides(
+    points: list[np.ndarray], lengths: list[float], free: frozenset[int] = frozenset()
+) -> list[_Side]:
+    """Merge collinear consecutive edges (and drop zero-length ones) into sides; a free edge
+    and a supported one are never one side."""
     n = len(points)
     scale = max(lengths)
     real = [i for i in range(n) if lengths[i] > _EPS * scale]
@@ -368,6 +422,8 @@ def _sides(points: list[np.ndarray], lengths: list[float]) -> list[_Side]:
 
     def continues(i: int, j: int) -> bool:
         """Edge j goes straight on from edge i."""
+        if (i in free) != (j in free):
+            return False
         ui, uj = direction(i), direction(j)
         return abs(ui[0] * uj[1] - ui[1] * uj[0]) < 1e-9 and float(ui @ uj) > 0
 
@@ -603,10 +659,16 @@ def _merge(pieces: list[Piece]) -> list[Piece]:
 
 
 def _sampled(
-    polygon: Polygon, sides: list[_Side], orientation: float, pressure: float, linf: bool
+    polygon: Polygon,
+    sides: list[_Side],
+    orientation: float,
+    pressure: float,
+    linf: bool,
+    skip: Sequence[bool] = (),
 ) -> list[tuple[list[Piece], tuple[float, float]]]:
     """Non-convex panels: grid cells clipped to the outline (exact areas), each to its nearest
-    side (L-infinity for an orthogonal outline: its straight skeleton; else Euclidean), binned
+    side (L-infinity for an orthogonal outline: its straight skeleton; else Euclidean; the sides
+    flagged in ``skip``, free edges, take nothing), binned
     along the side by the cell centroid's station. A cell whose corners and centre do not all
     go to one side is split in four, down to ``REFINE`` times, so the boundaries between the
     tributary areas are resolved to a fraction of a cell."""
@@ -632,6 +694,8 @@ def _sampled(
             outside = np.maximum(0.0, np.maximum(-along, along - side.length))
             dist[:, k] = np.maximum(perp, outside) if linf else np.hypot(perp, outside)
             line[:, k] = perp
+            if k < len(skip) and skip[k]:
+                dist[:, k] = np.inf
         best = dist.min(axis=1, keepdims=True)
         # A tie (beside a re-entrant corner) goes to the side whose line is farther.
         tied = dist <= best + 1e-9 * h
