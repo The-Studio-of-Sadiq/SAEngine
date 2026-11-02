@@ -26,9 +26,22 @@ from saengine.library.objects import ObjectLibrary
 
 PSI_TO_MPA = 0.00689476
 
-STEEL_E = 200_000.0  # MPa, ACI 318-19 20.2.2.2 / AISC 360-22
 STEEL_DENSITY = 7850.0
 CONCRETE_DENSITY = 2400.0  # reinforced normal-weight concrete, ~23.6 kN/m³ (default pack Part 6)
+
+
+def _steel_e() -> float:
+    """Es of steel [MPa], read when the material set is made: the code pack in force's
+    (``materials.steelE``, 200 000 MPa in the default pack) when one is set
+    (:func:`saengine.codes.context.using`), else the built-in default pack's. No pack is loaded
+    here: the set is also made while packs load (their building templates are checked then)."""
+    from saengine.codes import context as code_context
+    from saengine.codes.tables import builtin_table
+
+    pack = code_context.in_force()
+    if pack is not None and pack.has("materials"):
+        return float(pack.table("materials").steelE)
+    return float(builtin_table("materials").steelE)
 
 
 def _concrete(psi: int, mix: NominalMix | None) -> Material:
@@ -62,7 +75,7 @@ def _rebar(grade: str, fy: float) -> Material:
         id=grade,
         name=f"Rebar {grade}",
         category=Category.REBAR,
-        mechanical=Mechanical(E=STEEL_E, nu=0.3, density=STEEL_DENSITY, alpha=1.2e-5),
+        mechanical=Mechanical(E=_steel_e(), nu=0.3, density=STEEL_DENSITY, alpha=1.2e-5),
         steel=SteelProperties(grade=grade, fy=fy),
         source=Source(
             standard="BDS ISO 6935-2:2016",
@@ -78,7 +91,7 @@ def _structural_steel(
         id=material_id,
         name=f"Structural steel {grade}",
         category=Category.STEEL,
-        mechanical=Mechanical(E=STEEL_E, nu=0.3, density=STEEL_DENSITY, alpha=1.2e-5),
+        mechanical=Mechanical(E=_steel_e(), nu=0.3, density=STEEL_DENSITY, alpha=1.2e-5),
         steel=SteelProperties(grade=grade, fy=fy, fu=fu),
         source=Source(standard=standard, note="Specified minimum yield and tensile strengths."),
     )

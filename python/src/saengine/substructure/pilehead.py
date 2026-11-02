@@ -24,7 +24,8 @@ a long column where cu exceeds the pack's ``piles.lateral.unbracedCu`` (10 kPa; 
 pack's Sec 3.10.1.31): no moment magnification. The shear of the
 section: ACI 318-19 22.5.2.2 for a circle (bw = D, d = 0.8 D), Vc of Table 22.5.5.1 (a) with
 at least Av,min (9.6.3.4) and (c) without (ρw of the bars on the tension half), Vs = Av fyt d / s
-with the two legs of a hoop or spiral, φ = 0.75.
+with the two legs of a hoop or spiral, φ and the largest fyt the code pack's (0.75 and 420 MPa
+in the default pack).
 
 A fixed head puts its moment back into the cap: the cap's face moments take ``Σ H Lf / 2`` of
 the piles beyond each face, added in the sense that increases the moment (the lateral load
@@ -42,10 +43,7 @@ from typing import Any
 
 import numpy as np
 
-#: Strength reduction factor for shear (ACI 318-19 Table 21.2.1).
-PHI_SHEAR = 0.75
-#: fyt in shear at most 420 MPa (ACI 318-19 20.2.2.4).
-FYT_MAX = 420.0
+from saengine.design import rc
 
 FIXITIES = ("fixed", "free")
 
@@ -121,7 +119,7 @@ def shear_capacity(
         bar = max((g.dia for g in reinforcement.longitudinal), default=0.0)
         d = diameter - reinforcement.cover - tie - bar / 2
     root = min(math.sqrt(fc), 8.3)
-    fyt = min(fy, FYT_MAX)
+    fyt = min(fy, rc.value("FYT_SHEAR_MAX"))  # the code pack's (420 MPa in the default pack)
     longitudinal = getattr(reinforcement, "longitudinal", None) or []
     steel = sum(g.count * math.pi * g.dia**2 / 4 for g in longitudinal)
     transverse = getattr(reinforcement, "transverse", None)
@@ -138,7 +136,13 @@ def shear_capacity(
     vc = min(vc, 0.42 * root * bw * d)
     vs = min(av * fyt * d / s, 0.66 * math.sqrt(fc) * bw * d) if av else 0.0
     minimum = bool(av) and av >= av_min
-    return {"phiVn": PHI_SHEAR * (vc + vs), "Vc": vc, "Vs": vs, "d": d, "minimum": minimum}
+    return {
+        "phiVn": rc.value("PHI_SHEAR") * (vc + vs),
+        "Vc": vc,
+        "Vs": vs,
+        "d": d,
+        "minimum": minimum,
+    }
 
 
 def plain_shear_capacity(diameter: float, fc: float) -> float:

@@ -47,8 +47,9 @@ from typing import Any
 
 import numpy as np
 
+from saengine.design import rc
 from saengine.design.check import _check
-from saengine.design.rc import PHI_SHEAR, STEEL_E, beta1, phi_axial_flexure
+from saengine.design.rc import beta1, phi_axial_flexure
 from saengine.library.objects import BarMesh
 from saengine.library.settings import Foundation
 from saengine.substructure.loads import column_action
@@ -398,7 +399,7 @@ def one_way_shear_capacity(b: float, d: float, rho: float, fc: float, lam: float
     0.66 λs λ ρw^(1/3) √f'c b d, at most 0.42 λ √f'c b d (√f'c <= 8.3 MPa)."""
     root = min(math.sqrt(fc), 8.3)
     vc = 0.66 * size_factor(d) * lam * max(rho, 0.0) ** (1 / 3) * root * b * d
-    return PHI_SHEAR * min(vc, 0.42 * lam * root * b * d)
+    return rc.value("PHI_SHEAR") * min(vc, 0.42 * lam * root * b * d)
 
 
 def punching_stress(
@@ -454,10 +455,12 @@ class StripFlexure:
 
 
 def strip_flexure(
-    as_per_m: float, d: float, fc: float, fy: float, es: float = STEEL_E
+    as_per_m: float, d: float, fc: float, fy: float, es: float | None = None
 ) -> StripFlexure:
     """Design moment of a 1 m strip with ``as_per_m`` tension bars at depth ``d`` (rectangular
-    stress block, φ from εt per ACI 21.2.2)."""
+    stress block, φ from εt per ACI 21.2.2); `es` None: the code pack's Es."""
+    if es is None:
+        es = rc.value("STEEL_E")
     if as_per_m <= 0 or d <= 0:
         return StripFlexure(0.0, 0.9, math.inf)
     a = as_per_m * fy / (0.85 * fc * 1000)
@@ -503,7 +506,7 @@ class FootingSpec:
     bottom_y: BarMesh | None = None
     top_x: BarMesh | None = None
     top_y: BarMesh | None = None
-    es: float = STEEL_E
+    es: float = field(default_factory=lambda: rc.value("STEEL_E"))
     unit_weight: float = 2400 * G * 1e-9  # N/mm³
     notes: list[str] = field(default_factory=list)
     #: Integrator glue: the foundation's punching studs or stirrups
@@ -911,7 +914,7 @@ def _step_punching(
     moment_u = gamma_v(b1u, b1v) * abs(cv_moment) * (b1u / 2) / polar_j(b1u, b1v, de)
     moment_v = gamma_v(b1v, b1u) * abs(cu_moment) * (b1v / 2) / polar_j(b1v, b1u, de)
     stress = vu / (b0 * de) + moment_u + moment_v
-    phi_vc = PHI_SHEAR * punching_stress(lt, bt, de, b0, alpha_s, spec.fc)
+    phi_vc = rc.value("PHI_SHEAR") * punching_stress(lt, bt, de, b0, alpha_s, spec.fc)
     keep(
         f"Punching at the step of {column.id}",
         stress / phi_vc,
@@ -1400,7 +1403,7 @@ def design_footing(
             moment_v = gamma_v(b1v, b1u) * abs(cu_moment) * (b1v / 2) / polar_j(b1v, b1u, dp)
             stress = vu / (b0 * dp) + moment_u + moment_v
             vc = punching_stress(column.cu, column.cv, dp, b0, alpha_s, fc)
-            phi_vc = PHI_SHEAR * vc
+            phi_vc = rc.value("PHI_SHEAR") * vc
             keep(
                 check_name,
                 stress / phi_vc,
@@ -1912,7 +1915,7 @@ def place_footing(ctx: Any, foundation: Any) -> Placed:
         cover=reinforcement.cover,
         fc=concrete.concrete.fc,
         fy=bars.steel.fy,
-        es=bars.mechanical.E or STEEL_E,
+        es=bars.mechanical.E or rc.value("STEEL_E"),
         columns=columns,
         bottom_x=reinforcement.bottomX,
         bottom_y=reinforcement.bottomY,
@@ -2374,7 +2377,7 @@ def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
             beam_type.reinforcement,
             concrete.concrete.fc,
             bars.steel.fy,
-            bars.mechanical.E or STEEL_E,
+            bars.mechanical.E or rc.value("STEEL_E"),
         )
     except DesignError as error:
         raise Skip(str(error)) from error
@@ -2497,7 +2500,7 @@ def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
             area = profile.xDim * profile.yDim
             reduction = force / (6 * area) * profile.xDim * capacity.d
             vc = max(capacity.vc - reduction, 0.0)
-            phi_vn = PHI_SHEAR * (vc + capacity.vs)
+            phi_vn = rc.value("PHI_SHEAR") * (vc + capacity.vs)
             checks.append(
                 _check(
                     "Shear from settlement",
@@ -2508,7 +2511,7 @@ def design_tie_beam(ctx: Any, tie: Any) -> tuple[dict[str, Any], list[str]]:
                     f"V = 2M / L, d = {capacity.d:.0f} mm; with the tie force {force / 1e3:.0f} "
                     f"kN in tension: Vc = {capacity.vc / 1e3:.1f} - Nu / (6 Ag) bw d = "
                     f"{vc / 1e3:.1f} kN (ACI 318-19 Table 22.5.5.1), Vs = "
-                    f"{capacity.vs / 1e3:.1f} kN, φ = {PHI_SHEAR:g}",
+                    f"{capacity.vs / 1e3:.1f} kN, φ = {rc.value('PHI_SHEAR'):g}",
                 )
             )
     counted = [c for c in checks if not c["flag"]]

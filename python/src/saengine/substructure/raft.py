@@ -90,9 +90,8 @@ from typing import Any
 
 import numpy as np
 
-from saengine.design import punching
+from saengine.design import punching, rc
 from saengine.design.punching import Demand
-from saengine.design.rc import PHI_SHEAR, STEEL_E
 from saengine.design.slab import (
     ColumnJoint,
     ShellPoint,
@@ -153,7 +152,7 @@ class RaftSpec:
     columns: list[RaftColumn]
     ks: float  # kN/m³
     nu: float = 0.2
-    es: float = STEEL_E
+    es: float = field(default_factory=lambda: rc.value("STEEL_E"))
     mesh_size: float = 500.0  # mm
     unit_weight: float = 24.0  # kN/m³
     surcharge: float = 0.0  # kPa, dead load on the raft besides its weight
@@ -924,7 +923,7 @@ def _punching(
         inside = (pu >= -lo_u) & (pu <= hi_u) & (pv >= -lo_v) & (pv <= hi_v)
         beta = max(column.c1, column.c2) / min(column.c1, column.c2)
         capacity = punching_capacity(spec.fc, d, section.b0, beta, section.alpha_s)
-        phi_vc = PHI_SHEAR * capacity.vc
+        phi_vc = rc.value("PHI_SHEAR") * capacity.vc
         worst = None
         demands = []
         for name, loads in strength.items():
@@ -1200,10 +1199,10 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         arms.append(max(float(element.bottom) - founding - thickness / 2, 0.0))
     concrete = ctx.concrete(foundation.material, foundation.id)
     reinforcement = foundation.reinforcement
-    fy, es = 420.0, STEEL_E
+    fy, es = 420.0, rc.value("STEEL_E")
     if reinforcement is not None:
         bars = ctx.rebar(reinforcement.material)
-        fy, es = bars.steel.fy, bars.mechanical.E or STEEL_E
+        fy, es = bars.steel.fy, bars.mechanical.E or rc.value("STEEL_E")
     fc = concrete.concrete.fc
     young = concrete.mechanical.E or 4700 * math.sqrt(fc)
     nu = concrete.mechanical.nu if concrete.mechanical.nu is not None else 0.2

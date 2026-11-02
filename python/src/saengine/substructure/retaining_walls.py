@@ -88,8 +88,9 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.design import rc
 from saengine.design.check import _check
-from saengine.design.rc import STEEL_E, bar_area
+from saengine.design.rc import bar_area
 from saengine.design.slab import min_steel_ratio, one_way_shear
 from saengine.substructure.context import Context, Skip
 from saengine.substructure.earth_pressure import (
@@ -335,13 +336,15 @@ def _crack(strip: Strip, dia: float, spacing: float, fc: float, ec: float) -> fl
         return 0.0
     area = bar_area(dia) * 1000 / spacing
     d = strip.h - strip.cover - dia / 2
-    cracked = cracked_section(strip.ms * 1e6, 0.0, strip.h, d, area, strip.cover, 0.0, STEEL_E, ec)
+    cracked = cracked_section(
+        strip.ms * 1e6, 0.0, strip.h, d, area, strip.cover, 0.0, rc.value("STEEL_E"), ec
+    )
     if cracked is None:
         return 0.0
     return float(
-        crack_width(cracked, strip.h, d, strip.cover, dia, spacing, area, fctm(fc), STEEL_E, ec)[
-            "wk"
-        ]
+        crack_width(
+            cracked, strip.h, d, strip.cover, dia, spacing, area, fctm(fc), rc.value("STEEL_E"), ec
+        )["wk"]
     )
 
 

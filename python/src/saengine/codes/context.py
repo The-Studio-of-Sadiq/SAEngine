@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from saengine.codes import registry
-from saengine.codes.registry import DEFAULT_PACK, CodePack
+from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
 
 #: The folder of the project being worked on (None: no project-local packs).
 _ROOT: ContextVar[Path | None] = ContextVar("saengine_codepack_root", default=None)
@@ -53,6 +53,8 @@ DEFAULT_PACK_TTL = 1.0
 
 _default_memo: tuple[int, float, CodePack] | None = None
 _default_lock = threading.Lock()
+#: Set while this thread loads the default pack (see default_pack).
+_loading = threading.local()
 
 
 def default_pack() -> CodePack:
@@ -64,8 +66,16 @@ def default_pack() -> CodePack:
     memo = _default_memo
     if memo is not None and memo[0] == generation and now - memo[1] < DEFAULT_PACK_TTL:
         return memo[2]
+    if getattr(_loading, "active", False):
+        # Asked again while this thread loads it (a template check that makes the default
+        # material set, which reads the pack): an error, not a deadlock on the lock.
+        raise CodePackError("the default code pack is used while it is being loaded")
     with _default_lock:
-        pack = registry.load(DEFAULT_PACK)
+        _loading.active = True
+        try:
+            pack = registry.load(DEFAULT_PACK)
+        finally:
+            _loading.active = False
         _default_memo = (generation, now, pack)
     return pack
 
@@ -149,6 +159,12 @@ def in_project_pack(
         return call
 
     return decorate
+
+
+def in_force() -> CodePack | None:
+    """The pack set by :func:`using`; None outside one (nothing is loaded to answer: for code
+    that may run while packs load, such as the default material set at import)."""
+    return _PACK.get()
 
 
 def current() -> CodePack:

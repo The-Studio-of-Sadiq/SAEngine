@@ -465,13 +465,15 @@ class Phi:
 
     def at(self, eps_t: float, eps_ty: float) -> float:
         """φ for the net tensile strain εt of the extreme tension bar."""
-        from saengine.design.rc import EPS_CU
+        from saengine.design import rc
 
         if eps_t <= eps_ty:
             return self.compression
-        if eps_t >= eps_ty + EPS_CU:
+        if eps_t >= eps_ty + rc.value("EPS_CU"):
             return self.tension
-        return self.compression + (self.tension - self.compression) * (eps_t - eps_ty) / EPS_CU
+        return self.compression + (self.tension - self.compression) * (eps_t - eps_ty) / rc.value(
+            "EPS_CU"
+        )
 
 
 #: Strain of the bars and plates' stress-strain profile end. ACI 318 / the default pack (BNBC) put no limit on the
@@ -543,7 +545,8 @@ class DesignedRcSection:
         )
         from sectionproperties.pre.geometry import CompoundGeometry, Geometry
 
-        from saengine.design.rc import EPS_CU, beta1
+        from saengine.design import rc
+        from saengine.design.rc import beta1
 
         geoms = []
         for region, m in zip(self.section.regions, self.region_mats, strict=True):
@@ -557,7 +560,7 @@ class DesignedRcSection:
                         compressive_strength=fc,
                         alpha=0.85,
                         gamma=beta1(fc),
-                        ultimate_strain=EPS_CU,
+                        ultimate_strain=rc.value("EPS_CU"),
                     ),
                     flexural_tensile_strength=0.62 * math.sqrt(fc),
                     colour="lightgrey",
@@ -662,7 +665,7 @@ class DesignedRcSection:
         [mm] (``math.inf``: uniform compression)."""
         from concreteproperties.results import UltimateBendingResults
 
-        from saengine.design.rc import EPS_CU
+        from saengine.design import rc
 
         cp = self.analysis
         result = cp.calculate_ultimate_section_actions(
@@ -670,7 +673,7 @@ class DesignedRcSection:
             ultimate_results=UltimateBendingResults(default_units=cp.default_units, theta=theta),
         )
         k_u = result.k_u if result.k_u else math.inf
-        eps_t = EPS_CU * (1 / k_u - 1) if math.isfinite(d_n) else -EPS_CU
+        eps_t = rc.value("EPS_CU") * (1 / k_u - 1) if math.isfinite(d_n) else -rc.value("EPS_CU")
         phi = self.phi.at(eps_t, self.fy / self.es)
         return {
             "P": float(result.n),
@@ -689,14 +692,15 @@ class DesignedRcSection:
         compression."""
         from concreteproperties.utils import calculate_extreme_fibre, global_to_local
 
-        from saengine.design.rc import EPS_CU
+        from saengine.design import rc
 
         points = self.analysis.compound_geometry.points
         fibre, _ = calculate_extreme_fibre(points=points, theta=theta)
         _, fibre_v = global_to_local(theta=theta, x=fibre[0], y=fibre[1])
         d_bar = max(fibre_v - global_to_local(theta=theta, x=b.x, y=b.y)[1] for b in self.bars)
         eps_ty = self.fy / self.es
-        transition = EPS_CU / (EPS_CU + eps_ty + EPS_CU * np.linspace(0, 1, 5))
+        eps_cu = rc.value("EPS_CU")
+        transition = eps_cu / (eps_cu + eps_ty + eps_cu * np.linspace(0, 1, 5))
         ends = max(3, count // 5)
         ratios = np.unique(
             np.concatenate(

@@ -14,8 +14,9 @@ from typing import Any
 from saengine.codes import context as code_context
 from saengine.codes.context import default_pack
 from saengine.design import bars as B
+from saengine.design import rc
 from saengine.design import slab as S
-from saengine.design.rc import PHI_SHEAR, bar_area
+from saengine.design.rc import bar_area
 from saengine.fem import loads as L
 from saengine.fem import open_wind as OW
 from saengine.report.worksheets.concrete import BAR_GROUP, LOAD_GROUP, SECTION_GROUP, _aci, _code
@@ -138,7 +139,9 @@ def _footing(s: Sheet) -> None:
     s.step("Vu", vu / 1e3, "kN", "Pu - qu (c1 + d)(c2 + d)", _aci("22.6.4"))
     vc = SH.punching_stress(c1, c2, d, b0, 40.0, fc)
     s.step("vc", vc, "MPa", "least of (a), (b), (c) × λs λ √f'c", _aci("Table 22.6.5.2"))
-    s.check("vu ≤ φvc", vu / (b0 * d), PHI_SHEAR * vc, "MPa", _aci("22.6.1.2"), digits=3)
+    s.check(
+        "vu ≤ φvc", vu / (b0 * d), rc.value("PHI_SHEAR") * vc, "MPa", _aci("22.6.1.2"), digits=3
+    )
 
 
 # ─────────────────────────────────────── bearing ───────────────────────────────────────
