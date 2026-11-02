@@ -18,7 +18,8 @@ const SOURCES = {
 	objects: '{"objects": [{"id": "C1"}]}',
 	floorPlan: '{"schema": "saengine.floorPlan/1", "columns": [{"id": "C1"}]}',
 };
-const BIM = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(SOURCES.floorPlan) }, elements: [] });
+/** A building model with a member (one built from an empty plan is not done, N-B1). */
+const BIM = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(SOURCES.floorPlan) }, elements: [{ id: 'C1', kind: 'column' }] });
 
 function femModel(sources: { [part: string]: string }): string {
 	const list = Object.entries(sources).map(([key, text]) => `${key}=${key === 'mep' ? mepModelStamp(text) : sourceStamp(text)}`).join('; ');
@@ -173,8 +174,11 @@ suite('SAEngine - PartStatus', () => {
 
 	test('a special structure builds its model from the structural model', () => {
 		const structure = '{"schema": "saengine.structure/1", "members": [{"id": "M1"}, {"id": "M2"}]}';
-		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { structure: sourceStamp(structure) }, elements: [] });
+		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { structure: sourceStamp(structure) }, elements: [{ id: 'C1', kind: 'column' }] });
 		assert.deepStrictEqual(summary(project({ structure, bim }), projectParts('structure')).slice(4, 6), ['structure: done 2 members', 'bim: done']);
+		// Built from a model with no members (N-B1): not done.
+		const emptyBim = JSON.stringify({ schema: 'saengine.bim/2', source: { structure: sourceStamp(structure) }, elements: [] });
+		assert.deepStrictEqual(summary(project({ structure, bim: emptyBim }), projectParts('structure'))[5], 'bim: notStarted no members');
 		const empty = '{"schema": "saengine.structure/1", "members": [], "areas": []}';
 		assert.deepStrictEqual(summary(project({ structure: empty }), projectParts('structure'))[4], 'structure: notStarted not started');
 	});
@@ -511,7 +515,7 @@ suite('SAEngine - PartStatus', () => {
 		const settings = JSON.stringify({ ...DEFAULT_SETTINGS, project: { name: 'Grid Test' }, occupancy: { use: 'office', category: 'III' } });
 		const objects = JSON.stringify({ schema: 'saengine.objects/1', objects: [{ id: 'C1' }, { id: 'B1' }, { id: 'S1' }] });
 		const floorPlan = JSON.stringify({ ...DEFAULT_FLOOR_PLAN, columns: [{ id: 'C1' }, { id: 'C2' }], beams: [{ id: 'B1' }], slabs: [{ id: 'S1' }] });
-		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(floorPlan) }, elements: [] });
+		const bim = JSON.stringify({ schema: 'saengine.bim/2', source: { floorPlan: sourceStamp(floorPlan) }, elements: [{ id: 'C1', kind: 'column' }] });
 		const generated = { ...newProject('Grid Test'), settings, objects, floorPlan, bim };
 		assert.deepStrictEqual(summary({ texts: new Map(Object.entries(generated)) }).slice(1, 6), [
 			'settings: done',
