@@ -353,6 +353,23 @@
           "exclusiveMinimum": 0,
           "title": "Lightmax",
           "type": "number"
+        },
+        "loadCase": {
+          "anyOf": [
+            {
+              "enum": [
+                "L",
+                "SD"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Load case the allowance belongs to: L (a live load: factored, reduced and in the seismic weight as the floor live load) or SD (superimposed dead). Empty: L. A project setting may choose either.",
+          "title": "Loadcase"
         }
       },
       "required": [

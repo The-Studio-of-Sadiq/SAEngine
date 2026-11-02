@@ -29,8 +29,8 @@ types and materials and the project settings become the ``$`` blocks of an e2k f
   building-model supports are fixed or pinned; a rigid diaphragm ``D1`` on the slabs and on the
   points of every story above the base;
 - load patterns D (self-weight), SD, L, Lr, WX, WY, EX, EY with their linear static cases and a
-  modal case: the floor and roof area loads per slab (finish and partitions in SD, live in L, on
-  the roof in Lr); non-structural walls as SD line loads on the beams under them; wind and
+  modal case: the floor and roof area loads per slab (finish in SD, live in L, on the roof in
+  Lr; the partition allowance in L or SD as the code pack says); non-structural walls as SD line loads on the beams under them; wind and
   earthquake as SAEngine's own story forces (derived as its analysis does, :mod:`saengine.fem.
   derive`) at each story's centre of mass, or the earthquake as an ETABS user coefficient
   (``lateral="coefficient"``: the BNBC base shear coefficient and the height exponent k);
@@ -67,7 +67,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
-from saengine.library.settings import ProjectSettings
+from saengine.library.settings import ProjectSettings, partition_case
 
 G = 9.80665  # m/s²
 
@@ -534,9 +534,12 @@ class _Writer:
                 kind = "NoDesign"
                 self.report.approximate("materials other than concrete and steel as NoDesign", mid)
             E = mech.E
-            if not E:
-                fc = m.concrete.fc if m.concrete else 25.0
-                E = 4700 * math.sqrt(fc) if category == "concrete" else 200_000.0
+            if category == "concrete":  # the E the analysis takes (B21: the aggregate's Ec)
+                from saengine.design.rc_detailing import material_modulus
+
+                E = material_modulus(m, fc=25.0)[0]
+            elif not E:
+                E = 200_000.0
                 self.report.approximate("materials without E: the code value", mid)
             nu = mech.nu if mech.nu is not None else (0.2 if category == "concrete" else 0.3)
             weight = u.unit_weight(mech.density) if mech.density else 0.0
@@ -1167,8 +1170,9 @@ class _Writer:
             load = next((a for a in self.settings.areaLoads if a.id == e.areaLoad), None)
             if load is not None:
                 area = _area3(e.outline)
-                self._pressure(made, "SD", load.finish + load.partitions, area)
-                self._pressure(made, "L", load.live, area)
+                case = partition_case(self.settings)
+                self._pressure(made, "SD", load.superimposed(case), area)
+                self._pressure(made, "L", load.floor_live(case), area)
 
     # ── loads ──
 
@@ -1247,8 +1251,14 @@ class _Writer:
         if load is None:
             self.report.skip("slabs whose area load is not in the settings", f"{slab} ({load_id})")
             return
-        self._pressure(area, "SD", load.finish + load.partitions, m2)
-        self._pressure(area, "Lr" if roof else "L", load.live, m2)
+        case = partition_case(self.settings)
+        self._pressure(area, "SD", load.superimposed(case), m2)
+        if roof:
+            # A partition allowance that is a live load is floor live load L, not Lr.
+            self._pressure(area, "Lr", load.live, m2)
+            self._pressure(area, "L", load.floor_live(case) - load.live, m2)
+        else:
+            self._pressure(area, "L", load.floor_live(case), m2)
 
     def _partition(self, e: WallElement) -> None:
         """A non-structural wall: its weight as SD line loads on the beams under it."""

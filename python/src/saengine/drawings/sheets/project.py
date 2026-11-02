@@ -175,11 +175,18 @@ def building_of(bim: Any, objects: Any, plan: Any = None, substructure: Any = No
             dia = pile_type.diameter if pile_type else 0
             piles = [(tuple(p.position), dia) for p in substructure.cap_piles(f)]
             top = (f.foundingLevel or 0) + (f.thickness or 0)
-            b.footings.append(PlanFooting(f.id, f.id, outline, top, piles))
+            square = pile_type.square if pile_type else False
+            b.footings.append(PlanFooting(f.id, f.id, outline, top, piles, square))
         capped = substructure.capped()
-        diameters = {p.id: p.diameter for p in substructure.pileTypes}
+        types = {p.id: p for p in substructure.pileTypes}
         b.piles = [
-            PlanPile(p.id, tuple(p.position), diameters.get(p.type, 0.0), capped.get(p.id, ""))
+            PlanPile(
+                p.id,
+                tuple(p.position),
+                types[p.type].diameter if p.type in types else 0.0,
+                capped.get(p.id, ""),
+                types[p.type].square if p.type in types else False,
+            )
             for p in substructure.piles
         ]
         g = substructure.pileGrid
@@ -790,10 +797,12 @@ def footing_detail(
     cover = found.reinforcement.cover if found and found.reinforcement else 75.0
     piles = []
     pile_dia = 0.0
+    pile_square = False
     if found is not None and found.piles:
         piles = [tuple(p) for p in substructure.pile_offsets(found)]
         pile_type = substructure.cap_pile_type(found)
         pile_dia = pile_type.diameter if pile_type else 0
+        pile_square = pile_type.square if pile_type else False
     bottom = [b for b in bars if b.get("at", {}).get("face") == "bottom"]
     top = [b for b in bars if b.get("at", {}).get("face") == "top"]
     return FootingDetail(
@@ -819,6 +828,7 @@ def footing_detail(
         founding_level=found.foundingLevel if found is not None else None,
         piles=piles,
         pile_dia=pile_dia,
+        pile_square=pile_square,
         kind="pile cap" if e.get("kind") == "pileCap" else "footing",
     )
 

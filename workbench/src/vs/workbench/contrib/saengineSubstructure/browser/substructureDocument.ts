@@ -57,6 +57,9 @@ export const FOOTING_SECTIONS: readonly FootingSection[] = ['flat', 'sloped', 's
 
 export type PileKind = 'bored' | 'driven' | 'drivenCastInPlace';
 export const PILE_KINDS: readonly PileKind[] = ['bored', 'driven', 'drivenCastInPlace'];
+/** A driven precast pile's section: square of side B (the default) or round of diameter B. */
+export type PileShape = 'square' | 'round';
+export const PILE_SHAPES: readonly PileShape[] = ['square', 'round'];
 
 /** How a bored pile's concrete is placed: in a dry bore, or by tremie under water or slurry. */
 export type PilePlacement = 'dry' | 'submerged';
@@ -181,6 +184,8 @@ export interface IPileType {
 	shaftConstruction?: string;
 	/** Drilled shafts in sand: the code pack's δ/φ construction id. */
 	shaftConcreting?: string;
+	/** Driven precast piles: square (the default; side = diameter) or round. */
+	shape?: PileShape;
 	/** Driven cast-in-place piles tapered to the tip: its diameter [mm]. */
 	tipDiameter?: number;
 	/** Bored piles: concrete placed in a dry bore or by tremie (the default). */
@@ -532,7 +537,7 @@ export function pileFactorsUsed(design: ISubstructureDesign): { readonly compres
 /** Default raft mesh size [mm]. */
 export const RAFT_MESH_SIZE = 500;
 /** Founding level below the ground when neither the foundation nor the settings give one [mm]. */
-export const DEFAULT_DEPTH = 1500;
+export const DEFAULT_DEPTH = 2000;
 
 // ───────────────────────────── reading and writing ─────────────────────────────
 
@@ -1708,9 +1713,17 @@ export function pileFixityLabel(fixity: PileFixity | string): string {
 export function pileKindLabel(kind: PileKind | string): string {
 	switch (kind) {
 		case 'bored': return localize('sub.pile.bored', "Bored (cast in situ)");
-		case 'driven': return localize('sub.pile.driven', "Driven (precast, square)");
+		case 'driven': return localize('sub.pile.driven', "Driven (precast)");
 		case 'drivenCastInPlace': return localize('sub.pile.drivenCastInPlace', "Driven (cast in place)");
 		default: return String(kind);
+	}
+}
+
+export function pileShapeLabel(shape: PileShape | string): string {
+	switch (shape) {
+		case 'square': return localize('sub.pileShape.square', "Square");
+		case 'round': return localize('sub.pileShape.round', "Round");
+		default: return String(shape);
 	}
 }
 
@@ -1986,6 +1999,9 @@ export function checkSubstructure(document: ISubstructure, context: ISiteContext
 			if (p[field] !== undefined && !(num(p[field]) > 0)) {
 				error(at(field), localize('sub.p.positive', "{0}: {1} is positive, or leave it empty.", p.id, field));
 			}
+		}
+		if (p.shape !== undefined && !PILE_SHAPES.includes(p.shape)) {
+			error(at('shape'), localize('sub.p.shape', "{0}: a driven precast pile is square or round.", p.id));
 		}
 		if (p.headFixity !== undefined && !PILE_FIXITIES.includes(p.headFixity)) {
 			error(at('headFixity'), localize('sub.p.fixity', "{0}: the pile head is fixed in the cap or free.", p.id));

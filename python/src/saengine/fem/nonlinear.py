@@ -82,8 +82,10 @@ class FiberMaterials:
         of ties of yield strength ``fyh`` [MPa] (core). ``role`` names an unconfined concrete
         that is not cover ("core" of a member without ties, "web" of a wall): the acceptance
         check (:mod:`saengine.fem.acceptance`) skips only the cover, which may spall."""
+        from saengine.design.rc_detailing import material_modulus
+
         fc = material.concrete.fc if material.concrete else 20.0
-        ec = material.mechanical.E or 4700 * math.sqrt(fc)
+        ec = material_modulus(material, fc=fc)[0]
         ft = (material.concrete.ft if material.concrete and material.concrete.ft else None) or (
             0.62 * math.sqrt(fc)
         )
@@ -244,7 +246,12 @@ def fiber_section(
         yl, zl = local(x, y)
         fibres.append({"y": yl, "z": zl, "area": area, "material_id": mat})
     props = section_properties(profile)
-    e = (material.mechanical.E or 0.0) * MPA
+    if category == "concrete":
+        from saengine.design.rc_detailing import material_modulus
+
+        e = material_modulus(material)[0] * MPA
+    else:
+        e = (material.mechanical.E or 0.0) * MPA
     nu = (
         material.mechanical.nu
         if material.mechanical.nu is not None
@@ -1073,8 +1080,10 @@ def wall_fiber_section(
                 bar(y, z, d)
     if not fibres:
         return None
+    from saengine.design.rc_detailing import material_modulus
+
     fc = material.concrete.fc if material.concrete else 20.0
-    e = (material.mechanical.E or 4700 * math.sqrt(fc)) * MPA
+    e = material_modulus(material, fc=fc)[0] * MPA
     nu = material.mechanical.nu if material.mechanical.nu is not None else 0.2
     shear_g = e / (2 * (1 + nu))
     return {

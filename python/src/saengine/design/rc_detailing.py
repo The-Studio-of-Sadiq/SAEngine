@@ -13,8 +13,11 @@ groups leaves the check out and says that the pack does not cover it.
   root), else the first of the pack's aggregates is taken.
 - **Ec** (:func:`concrete_modulus`): normal weight ``modulus.normal √f'c``; the density form
   ``densityCoefficient wc^densityExponent √f'c`` for lightweight aggregates (wc within
-  ``densityRange``); brick aggregate ``modulus.brick √f'c``. An E entered on the material
-  wins; :func:`material_notes` flags an entered E that differs from the aggregate's rule.
+  ``densityRange``); brick aggregate ``modulus.brick √f'c``. A concrete whose E is still the
+  default (the normal-weight Ec the materials editor fills) takes the aggregate's Ec in the
+  analysis and design (:func:`aggregate_moduli`); an E the engineer typed wins, and
+  :func:`material_notes` flags a typed E that differs from the aggregate's rule (or is the
+  normal-weight value on a brick aggregate concrete).
 - **Shrinkage and temperature steel** (:func:`shrinkage_ratio`): ``ratioLow`` below
   ``referenceFy``, else ``ratioReference × referenceFy / fy`` and at least ``ratioMin``, times
   the aggregate's ``shrinkageFactor``; spaced at most ``slabCoefficients.maxSpacing.
@@ -45,7 +48,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -58,8 +61,11 @@ from saengine.codes import context as code_context
 
 __all__ = [
     "ShearFrictionResult",
+    "aggregate_moduli",
     "aggregate_rules",
     "beam_checks",
+    "beam_top_drops",
+    "building_top_drops",
     "clause",
     "column_joint_check",
     "concrete_modulus",
@@ -67,8 +73,12 @@ __all__ = [
     "current_aggregate",
     "face_spacing",
     "flange_note",
+    "follows_default",
     "integrity_check",
+    "joint_top_layers",
     "lambda_factor",
+    "main_direction",
+    "material_modulus",
     "material_notes",
     "shear_friction",
     "shrinkage_ratio",
@@ -233,24 +243,105 @@ def concrete_modulus(
     return rules.normal * root, note
 
 
+#: An E within this share of the pack's normal-weight Ec of its f'c is the default the
+#: materials editor writes (it rounds to 10 MPa), not a value the engineer typed.
+_FOLLOWS = 0.005
+
+
+def _normal_modulus(fc: float) -> float:
+    """The pack's normal-weight Ec of ``fc`` [MPa]: the value a concrete's E holds by default."""
+    return modulus_rules().normal * math.sqrt(max(fc, 0.0))
+
+
+def follows_default(e: float | None, fc: float) -> bool:
+    """Whether ``e`` [MPa] is the default E of a concrete of ``fc`` (the pack's normal-weight
+    Ec, as the materials editor fills it), not one the engineer typed."""
+    normal = _normal_modulus(fc)
+    return not e or (normal > 0 and abs(e - normal) <= _FOLLOWS * normal)
+
+
+def material_modulus(
+    material: Any, aggregate: str | None = None, fc: float | None = None
+) -> tuple[float, str]:
+    """(E [MPa], how) of a concrete ``material``, the one E every analysis and design takes:
+    the E the engineer typed; else (its E is the default, :func:`follows_default`, or none)
+    :func:`concrete_modulus` of its f'c, density and ``aggregate`` (default: in force), to 10
+    MPa as the editor rounds; the stored default itself where the aggregate's Ec is the same.
+    ``fc``: the f'c [MPa] when the material gives none (or there is no material)."""
+    mechanical = getattr(material, "mechanical", None)
+    e = getattr(mechanical, "E", None)
+    concrete = getattr(material, "concrete", None)
+    strength = float(concrete.fc) if concrete is not None else fc
+    if strength is None:
+        return float(e or 0.0), "the material's E"
+    if e and not follows_default(e, strength):
+        return float(e), "the material's E (typed)"
+    code, how = concrete_modulus(strength, getattr(mechanical, "density", None), aggregate)
+    if e and code > 0 and abs(e - code) <= _FOLLOWS * code:
+        return float(e), how
+    return float(round(code / 10) * 10), how
+
+
+def aggregate_moduli(materials: Any, aggregate: str | None = None) -> tuple[Any, list[str]]:
+    """(``materials`` with the default E of each concrete set by the aggregate's Ec, notes):
+    each concrete takes :func:`material_modulus` (a typed E kept, a default one the
+    aggregate's, e.g. ``modulus.brick √f'c`` for brick aggregate). The library itself is not
+    changed (a copy is returned)."""
+    aggregate = aggregate or current_aggregate()
+    changed, notes = [], []
+    for material in getattr(materials, "materials", []) or []:
+        concrete = getattr(material, "concrete", None)
+        mechanical = getattr(material, "mechanical", None)
+        e = getattr(mechanical, "E", None)
+        if concrete is None or mechanical is None:
+            changed.append(material)
+            continue
+        code, how = material_modulus(material, aggregate)
+        if code > 0 and code != e:
+            material = material.model_copy(
+                update={"mechanical": mechanical.model_copy(update={"E": code})}
+            )
+            notes.append(
+                f"{material.id}: E = {code:g} MPa for {aggregate} aggregate ({how}), in place "
+                f"of the normal-weight default {e or 0:.0f} MPa; type another E in 03 Materials "
+                "to override it"
+            )
+        changed.append(material)
+    if not notes:
+        return materials, []
+    return materials.model_copy(update={"materials": changed}), notes
+
+
 def material_notes(materials: Any, aggregate: str | None = None) -> list[str]:
-    """Notes on concrete materials whose entered E differs by more than 10 % from the
-    aggregate's Ec (the analysis and design use the entered E)."""
+    """Notes on concrete materials whose typed E (not the default, :func:`aggregate_moduli`)
+    differs by more than 10 % from the aggregate's Ec, or, where the aggregate has its own Ec
+    (brick), is within 10 % of the normal-weight Ec (the stone-aggregate value typed by hand).
+    The analysis and design use the typed E."""
     aggregate = aggregate or current_aggregate()
     notes: list[str] = []
     for material in getattr(materials, "materials", []) or []:
         concrete = getattr(material, "concrete", None)
         e = getattr(getattr(material, "mechanical", None), "E", None)
-        if concrete is None or not e:
+        if concrete is None or follows_default(e, concrete.fc):
             continue
         density = getattr(material.mechanical, "density", None)
         code, how = concrete_modulus(concrete.fc, density, aggregate)
-        if code > 0 and abs(e - code) / code > 0.10:
+        normal = _normal_modulus(concrete.fc)
+        own_rule = normal > 0 and abs(code - normal) > _FOLLOWS * normal
+        if own_rule and abs(e - normal) / normal <= 0.10:
             notes.append(
-                f"{material.id}: E = {e:g} MPa differs by {abs(e - code) / code:.0%} from "
-                f"{code:.0f} MPa for {aggregate} aggregate ({how}); the analysis and design use "
-                "the entered E: clear it in 03 Materials to follow the aggregate, or keep it "
-                "if it comes from tests"
+                f"{material.id}: the typed E = {e:g} MPa looks like the normal-weight (stone "
+                f"aggregate) value {normal:.0f} MPa, but the aggregate is {aggregate}: "
+                f"{code:.0f} MPa ({how}); the analysis and design use the typed E: reset it to "
+                "the default in 03 Materials to follow the aggregate, or keep it if it comes "
+                "from tests"
+            )
+        elif code > 0 and abs(e - code) / code > 0.10:
+            notes.append(
+                f"{material.id}: the typed E = {e:g} MPa differs by {abs(e - code) / code:.0%} "
+                f"from {code:.0f} MPa for {aggregate} aggregate ({how}); the analysis and design "
+                "use the typed E: reset it to the default in 03 Materials to follow the "
+                "aggregate, or keep it if it comes from tests"
             )
     return notes
 
@@ -680,3 +771,112 @@ def wall_joint_check(
         f"{vertical.spacing:g} over {length / 1e3:.2f} m, roughened to about "
         f"{rule.roughness:g} mm",
     )
+
+
+# ──────────────────────────────────── crossing top bars ────────────────────────────────────
+
+#: Two beams within this angle of each other are one direction at a joint [degrees].
+_SAME_DIRECTION = 10.0
+
+
+def _top_dia(beam_type: Any) -> float:
+    """The largest top bar of a beam type [mm]; 0 without top bars."""
+    reinforcement = getattr(beam_type, "reinforcement", None)
+    groups = getattr(reinforcement, "longitudinal", None) or []
+    return max((float(g.dia) for g in groups if g.position == "top"), default=0.0)
+
+
+def _depth(beam_type: Any) -> float:
+    return float(getattr(getattr(beam_type, "profile", None), "yDim", 0.0) or 0.0)
+
+
+def _plan_axis(direction: Sequence[float]) -> str:
+    return "x" if abs(direction[0]) >= abs(direction[1]) else "y"
+
+
+def main_direction(joints: Sequence[Any]) -> str:
+    """The plan direction ("x" or "y") whose beams have the longer mean span (centre to centre
+    of the joints, so the larger hogging moments) over ``joints``
+    (:func:`saengine.design.ductile_joints.frame_joints`); "x" on a tie."""
+    spans: dict[str, list[float]] = {"x": [], "y": []}
+    for joint in joints:
+        for beam in joint.beams:
+            spans[_plan_axis(beam.direction)].append(float(beam.length))
+    mean = {k: sum(v) / len(v) if v else 0.0 for k, v in spans.items()}
+    return "y" if mean["y"] > mean["x"] + 1e-6 else "x"
+
+
+def joint_top_layers(
+    joints: Sequence[Any], types: dict[str, Any], mode: str = "auto"
+) -> dict[str, dict[str, float]]:
+    """T33: the top bars of beams from two directions cannot share the outer layer where they
+    cross at a joint. ``{joint id: {beam id: drop [mm]}}`` of the beams whose top bars go in
+    the second layer, under the main direction's: ``drop`` is the main bars' largest diameter
+    (crossing bars touch; their clear spacing is not a parallel-layer rule), summed over the
+    directions above when more than two cross.
+
+    ``mode`` (Project Settings > Construction > Crossing top bars, SAEngine practice):
+    "auto" takes the deeper beam as the main one (its hogging d is the larger and it usually
+    carries the larger hogging moment), beams of equal depth the plan direction of
+    :func:`main_direction` (the longer spans), the same everywhere so a continuous beam stays
+    in one layer; "x" / "y" that plan direction; "sameLayer" none (the drawings flag the
+    clash). ``joints``: :func:`saengine.design.ductile_joints.frame_joints`."""
+    if mode == "sameLayer":
+        return {}
+    preferred = mode if mode in ("x", "y") else main_direction(joints)
+    limit = math.cos(math.radians(_SAME_DIRECTION))
+    out: dict[str, dict[str, float]] = {}
+    for joint in joints:
+        groups: list[tuple[tuple[float, float], list[Any]]] = []
+        for beam in joint.beams:
+            if _top_dia(types.get(beam.type)) <= 0:
+                continue
+            u = beam.direction
+            for axis, members in groups:
+                if abs(axis[0] * u[0] + axis[1] * u[1]) >= limit:
+                    members.append(beam)
+                    break
+            else:
+                groups.append((u, [beam]))
+        if len(groups) < 2:
+            continue
+
+        def rank(group: tuple[tuple[float, float], list[Any]]) -> tuple[int, int]:
+            axis, members = group
+            depth = max(_depth(types.get(b.type)) for b in members)
+            # depths to the mm: equal ones take the preferred direction first
+            first = 0 if _plan_axis(axis) == preferred else 1
+            return (-round(depth) if mode == "auto" else 0, first)
+
+        ordered = sorted(groups, key=rank)
+        drop = 0.0
+        found: dict[str, float] = {}
+        for _axis, members in ordered:
+            if drop > 0:
+                for beam in members:
+                    found[beam.id] = max(found.get(beam.id, 0.0), drop)
+            drop += max(_top_dia(types.get(b.type)) for b in members)
+        if found:
+            out[joint.id] = found
+    return out
+
+
+def beam_top_drops(layers: dict[str, dict[str, float]]) -> dict[str, float]:
+    """``{beam id: drop [mm]}``: the largest drop of each beam's top bars over its joints
+    (:func:`joint_top_layers`); its hogging design takes it all along (the top bars of a beam
+    type run its length)."""
+    out: dict[str, float] = {}
+    for found in layers.values():
+        for beam_id, drop in found.items():
+            out[beam_id] = max(out.get(beam_id, 0.0), drop)
+    return out
+
+
+def building_top_drops(building: Any, types: dict[str, Any], settings: Any) -> dict[str, float]:
+    """:func:`beam_top_drops` of a building model's joints with the project's mode
+    (``construction.jointTopBars``, "auto" when not set)."""
+    from saengine.design.ductile_joints import frame_joints
+
+    construction = getattr(settings, "construction", None)
+    mode = str(getattr(construction, "jointTopBars", None) or "auto")
+    return beam_top_drops(joint_top_layers(frame_joints(building, types), types, mode))

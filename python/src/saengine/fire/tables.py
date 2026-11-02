@@ -1,11 +1,9 @@
-"""BNBC 2020 Part 4 (fire protection), and the few NFPA values the code leaves out: the names the
-fire modules read, served from the code pack's ``fire`` table
-(``saengine/codes/packs/bnbc2020/data/fire.json``).
+"""The code pack's fire protection (BNBC 2020 Part 4 in the default pack), and the few NFPA
+values the code leaves out: the names the fire modules read, served from the code pack's
+``fire`` table (the default pack's ``data/fire.json``).
 
-Every BNBC value is transcribed from the rendered page of the Bangladesh Gazette edition of
-11 February 2021 (``bnbc-2020-part1.pdf`` holds Parts 1 to 6); ``PAGES`` gives the PDF page of
-each table and clause, the table's ``sources`` the clause of each entry. BNBC 2020 Part 4
-Chapter 4 gives the flows, durations, pressures, pump ratings, pipe schedules and sprinkler
+``PAGES`` gives the clause and page of each table and clause, the table's ``sources`` the clause
+of each entry; the modules cite them from there. In the default pack, Part 4 Chapter 4 gives the flows, durations, pressures, pump ratings, pipe schedules and sprinkler
 spacing; Chapter 5 says which systems each occupancy needs. It leaves the sprinkler design
 density, the hose allowance, the jockey pump and the extinguisher ratings to NFPA (NFPA 10, 13,
 20): those values are SAEngine's recollection of NFPA, each marked ``MEMORY`` ("from memory, to

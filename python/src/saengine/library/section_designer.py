@@ -252,6 +252,10 @@ def _mat(materials: MaterialLibrary | Iterable[Material], material_id: str) -> _
     e = m.mechanical.E
     if e is None:  # the material model requires E for these categories
         raise SectionError(f"material '{m.id}' has no E")
+    if m.category == Category.CONCRETE:  # a default E follows the aggregate (B21)
+        from saengine.design.rc_detailing import material_modulus
+
+        e = material_modulus(m)[0]
     nu = (
         m.mechanical.nu
         if m.mechanical.nu is not None

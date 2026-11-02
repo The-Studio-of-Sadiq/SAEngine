@@ -176,7 +176,7 @@ OLD_EXPOSURES = {
 }
 OLD_LOAD_CASES = {
     "D": "Dead (self-weight)",
-    "SD": "Superimposed dead (finishes, partitions)",
+    "SD": "Superimposed dead (finishes)",
     "L": "Live",
     "Lr": "Roof live",
     "WX": "Wind in X",

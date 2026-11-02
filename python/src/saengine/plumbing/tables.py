@@ -1,12 +1,11 @@
-"""BNBC 2020 Part 8 (and the few Part 3 and Part 4 values Part 8 refers to): the names the
-plumbing modules read, served from the code pack's ``plumbing`` table
-(``saengine/codes/packs/bnbc2020/data/plumbing.json``).
+"""The code pack's plumbing (BNBC 2020 Part 8, and the few Part 3, 4 and 6 values it refers
+to, in the default pack): the names the plumbing modules read, served from the code pack's
+``plumbing`` table (the default pack's ``data/plumbing.json``).
 
-The values are transcribed from the rendered page of the Bangladesh Gazette edition of
-11 February 2021 (``bnbc-2020-part2.pdf`` for Parts 7 to 10, ``bnbc-2020-part1.pdf`` for
-Parts 1 to 6); ``PAGES`` gives the PDF page of each table, the table's ``sources`` the clause of
-each entry. Entries the table marks "SAEngine" are not BNBC's: they are documented assumptions
-where the code is silent.
+``PAGES`` gives the clause and page of each table and clause (:func:`cite`), the table's
+``sources`` the clause of each entry (:func:`source`); the modules cite them from there. Entries
+the table marks "SAEngine" are not the code's: they are documented assumptions where the code
+is silent.
 
 Each name is read from the pack in force where it is used (``tables.HUNTER``, see
 :class:`saengine.codes.context.TableNames`); the formulas stay in the plumbing modules.
@@ -33,7 +32,7 @@ class Occupancy:
     row: str  # the row's category as printed, e.g. "y1", "E1"
     full: float | None  # lpcd, full facility; None where the table prints "---"
     restricted: float | None  # lpcd, restricted facility
-    group: str  # BNBC Part 3 occupancy group, e.g. "A3", "E1"
+    group: str  # the code's occupancy group (Part 3), e.g. "A3", "E1"
     unit: str = "person"  # what the population counts: person, bed, seat
 
 
@@ -158,6 +157,16 @@ def _build(t: Any) -> dict[str, Any]:
         # replace them for the project and for one room)
         "WET_ROOM_KINDS": dict(t.wetRoomKinds),
         "DEFAULT_ROOM_FIXTURES": {k: dict(v) for k, v in t.roomFixtures.items()},
+        # D5: the hydraulics' and the tanks' values (None where the pack does not cover them)
+        "FIXTURE_FLOW": None if t.fixtureFlow is None else dict(t.fixtureFlow),
+        "FIXTURE_FLOW_VALVE": dict(t.fixtureFlowValve or {}),
+        "OUTLET_ABOVE_BOTTOM": t.outletAboveBottom,
+        "FITTING_SIZES": None if t.fittings is None else tuple(t.fittings.sizes),
+        "FITTINGS": None
+        if t.fittings is None
+        else {k: tuple(v) for k, v in t.fittings.lengths.items()},
+        "TANKS": t.tanks,
+        "SOURCES": dict(t.sources),
     }
 
 
@@ -179,6 +188,21 @@ def __dir__() -> list[str]:
 # Part 4 Table 4.4.1 (fire protection flows) is the fire table's: these names, which Part 8's
 # storage reads, are served from it (saengine.fire.tables).
 _FIRE_NAMES = ("FIRE_FLOWS", "FIRE_RISER_AREA", "FIRE_HAZARD", "HAZARD_ORDER")
+
+
+def cite(key: str, clause: str = "") -> str:
+    """The citation of clause ``key`` in the pack's ``pages`` ("" when it gives none), with a
+    sub-clause before its page: cite('5.11.1', '(a)') -> '... Sec 5.11.1(a) (p1049)'."""
+    found = _names()["PAGES"].get(key, "")
+    if not clause or not found:
+        return found
+    i = found.rfind(" (p")
+    return found[:i] + clause + found[i:] if i >= 0 else found + clause
+
+
+def source(key: str) -> str:
+    """The pack's ``sources`` entry ``key`` up to its first ': ' ("" when it gives none)."""
+    return _names()["SOURCES"].get(key, "").split(": ", 1)[0]
 
 
 def fire_hazard(group: str) -> str | None:

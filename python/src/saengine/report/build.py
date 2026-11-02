@@ -760,7 +760,12 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
     basis: dict[str, Any] = {}
     if settings is not None:
         from saengine.codes import CodePackError
-        from saengine.library.settings import code_basis, code_pack, derived
+        from saengine.library.settings import (
+            code_basis,
+            code_pack,
+            derived,
+            partition_case_basis,
+        )
 
         try:
             pack = code_pack(settings)
@@ -816,6 +821,9 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ]
             for load in settings.areaLoads
         ]
+        # The partition allowance's load case and where it comes from (the project's setting,
+        # the code pack's, or the generic default).
+        basis["partitionCase"], basis["partitionCaseFrom"] = partition_case_basis(settings, pack)
         cases = ["D", "L", "Lr", "WX", "WY", "EX", "EY", "T"]
         used = [c for c in cases if any(getattr(k, c) for k in settings.combinations)]
         if any(a.get("name", "").startswith("F:") for a in model.get("analyses", [])):
@@ -966,6 +974,10 @@ def _materials(parts: _Parts) -> list[list[str]]:
         else:
             strength = "–"
         modulus = material.mechanical.E
+        if material.concrete is not None:  # the E the analysis and design take (B21)
+            from saengine.design.rc_detailing import material_modulus
+
+            modulus = material_modulus(material)[0]
         rows.append(
             [
                 material.id,
@@ -1266,14 +1278,28 @@ def _flood_rows(flood: dict[str, Any], special: dict[str, Any]) -> list[list[str
                     "on the walls"
                 )
             rows.append(["Breaking waves", f"{text} ({cite.get('breakingWave', '')})"])
+        if flood.get("waveCombination"):
+            rows.append(
+                [
+                    "Moving water and breaking waves",
+                    (
+                        "added (their sum)"
+                        if flood["waveCombination"] == "sum"
+                        else "the larger of the two, by its total per direction"
+                    )
+                    + f" ({flood.get('waveCombinationFrom', '')})",
+                ]
+            )
         for axis in "XY":
             if flood.get(f"total{axis}_kN") is not None:
+                governs = flood.get(f"governs{axis}")
                 rows.append(
                     [
                         f"Flood load Fa{axis}",
                         (
                             f"{fmt(flood[f'total{axis}_kN'], 1)} kN, of which "
                             f"{fmt(flood.get(f'ground{axis}_kN', 0), 1)} kN straight into the ground"
+                            + (f"; the {governs} load governs" if governs else "")
                         ),
                     ]
                 )
@@ -3653,8 +3679,8 @@ FOUNDATION_LIMITS = [
         "Settlement of tie beams is the value entered, not computed."
     ),
     (
-        "Piles: no rock sockets, lateral load capacity or negative skin friction; square (driven) "
-        "piles take the capacity of a round pile of the same size."
+        "Piles: no rock sockets, lateral load capacity or negative skin friction; driven precast "
+        "piles are square or round as their pile type gives (perimeter and area of that shape)."
     ),
     (
         "Pile caps: deep caps are checked by a simplified strut-and-tie model (lever arm 0.9 d, "

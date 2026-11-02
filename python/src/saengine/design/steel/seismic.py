@@ -1006,6 +1006,29 @@ def truss_checks(s: TrussSegment, table: Any | None = None) -> list[dict[str, An
 # ─────────────────────────────────── the drift model ───────────────────────────────────
 
 
+#: Rigid zone factor of steel beams and columns when neither the project nor the pack gives one:
+#: a centreline model (SAEngine default).
+STEEL_RIGID_ZONE_DEFAULT = 0.0
+
+
+def steel_rigid_zone_factor(analysis: Any, table: Any | None = None) -> tuple[float, str]:
+    """The rigid zone factor of steel beams and columns and where it comes from: the project's
+    ``analysis.steelRigidZoneFactor`` when set, else the pack's ``practice.rigidZoneMax`` (the
+    largest that keeps the panel zones in the drift), else :data:`STEEL_RIGID_ZONE_DEFAULT`."""
+    own = (
+        analysis.get("steelRigidZoneFactor")
+        if isinstance(analysis, dict)
+        else getattr(analysis, "steelRigidZoneFactor", None)
+    )
+    if own is not None:
+        return float(own), "project setting"
+    t = table if table is not None else seismic_table()
+    practice = getattr(t, "practice", None)
+    if practice is not None and getattr(practice, "rigidZoneMax", None) is not None:
+        return float(practice.rigidZoneMax), f"{pack_name()} steel seismic practice"
+    return STEEL_RIGID_ZONE_DEFAULT, "SAEngine default (centreline model; the pack gives none)"
+
+
 def panel_zone_model_check(settings: Any, frame: str | None, table: Any | None = None):
     """Sec 2.5.9.1(b): the panel zone deformations of steel moment frames in the drift of the
     response spectrum analysis. SAEngine takes them by a centreline model (rigid zone factor at
@@ -1016,7 +1039,7 @@ def panel_zone_model_check(settings: Any, frame: str | None, table: Any | None =
     analysis = settings.analysis
     if not getattr(analysis, "responseSpectrum", False):
         return None
-    factor = float(analysis.rigidZoneFactor) if analysis.endOffsets else 0.0
+    factor = steel_rigid_zone_factor(analysis, t)[0] if analysis.endOffsets else 0.0
     ok = factor <= t.practice.rigidZoneMax + 1e-9
     return _rule(
         "panel zone deformations in the drift model",
@@ -1026,8 +1049,9 @@ def panel_zone_model_check(settings: Any, frame: str | None, table: Any | None =
         + (
             "the joints of the steel moment frames deform with the members (centreline model)"
             if ok
-            else "set the rigid zone factor to 0 in Project Settings → Analysis so the panel "
-            "zones deform in the drift (SAEngine practice, not the code)"
+            else "set the steel rigid zone factor to 0 (or clear it to take the pack's) in "
+            "Project Settings → Analysis so the panel zones deform in the drift (SAEngine "
+            "practice, not the code)"
         ),
     )
 

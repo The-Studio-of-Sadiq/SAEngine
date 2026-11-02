@@ -122,6 +122,28 @@ def water_level(station: str, period: int, data: Any | None = None) -> float:
     return float(row.level100 if period >= 100 else row.level50)
 
 
+#: How the hydrodynamic and the breaking wave loads are taken together when neither the project
+#: nor the code pack says: added, on the safe side.
+WAVE_COMBINATION_DEFAULT = "sum"
+
+
+def wave_combination(flood: Any, data: Any | None = None) -> tuple[str, str]:
+    """(method, where it comes from) of taking the hydrodynamic and the breaking wave loads
+    together: "sum" or "larger". The project's setting (``site.flood.waveCombination``) when it
+    names one, else the pack's ``waveCombination``, else :data:`WAVE_COMBINATION_DEFAULT`."""
+    chosen = getattr(flood, "waveCombination", "pack")
+    if chosen in ("sum", "larger"):
+        return chosen, "project setting"
+    data = data or table()
+    method = getattr(data, "waveCombination", None)
+    if method in ("sum", "larger"):
+        # The pack's note on the entry (e.g. that it is practice, not the code's own rule).
+        note = str((getattr(data, "notes", None) or {}).get("waveCombination") or "")
+        note = note.split(":", 1)[0].strip()
+        return method, f"code pack {code_context.code_name()}" + (f", {note}" if note else "")
+    return WAVE_COMBINATION_DEFAULT, "generic default (the code pack gives none)"
+
+
 def wave_amplitude(hs: float, data: Any | None = None) -> float:
     """Local wave amplitude hw = waveShare × hs, at least ``minWave`` [m]."""
     hydro = (data or table()).hydrodynamic
@@ -361,7 +383,7 @@ def flood_loads(
     ``widths``: per axis (0: flow along X) the width of each level across the flow [m];
     ``columns``: (bottom, top above the ground [m], width [m], round) of each column, for the
     breaking waves on a wet floodproofed building. The hydrodynamic and the breaking wave
-    loads are added (on the safe side: the code gives no rule for taking them together)."""
+    loads are added or the larger taken, as :func:`wave_combination` says."""
     data = data or table()
     depth = design_depth(flood, category, data)
     if depth is None:
@@ -423,6 +445,15 @@ def flood_loads(
             "load at the most critical place at or below Hm on the members facing the flow "
             "(reported; the largest response ratio of the table is taken)"
         )
+    combine, combine_from = wave_combination(flood, data)
+    if wave is not None:
+        summary["waveCombination"] = combine
+        summary["waveCombinationFrom"] = combine_from
+        notes.append(
+            "flood: the hydrodynamic and the breaking wave loads "
+            + ("added" if combine == "sum" else "not added: the larger of the two (by its total)")
+            + f" ({combine_from})"
+        )
     loads: list[FloodLoads] = []
     bands, below = band_shares(rel, depth.hm)
     wave_shares, wave_ground = point_shares(rel, ds)
@@ -445,9 +476,18 @@ def flood_loads(
             else:
                 wave_total = float(wave["Ft"]) * (width[0] if width else 0.0)
             for i, share in enumerate(wave_shares):
-                forces[i] += wave_total * share
                 rows[i]["wave_kN"] = wave_total * share
-            ground += wave_total * wave_ground
+            dynamic_total = sum(forces) + ground
+            if combine == "sum" or wave_total > dynamic_total:
+                if combine != "sum":  # the larger: the waves alone
+                    forces, ground = [0.0] * len(forces), 0.0
+                for i, share in enumerate(wave_shares):
+                    forces[i] += wave_total * share
+                ground += wave_total * wave_ground
+            if combine != "sum":
+                summary[f"governs{'XY'[axis]}"] = (
+                    "breaking wave" if wave_total > dynamic_total else "hydrodynamic"
+                )
         loads.append(FloodLoads(axis, forces, ground, rows))
         summary[f"total{'XY'[axis]}_kN"] = sum(forces) + ground
         summary[f"ground{'XY'[axis]}_kN"] = ground
@@ -519,5 +559,6 @@ __all__ = [
     "water_level",
     "water_level_period",
     "wave_amplitude",
+    "wave_combination",
     "zone_kind",
 ]

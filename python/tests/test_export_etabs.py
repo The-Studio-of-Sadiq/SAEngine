@@ -27,7 +27,7 @@ from saengine.importers.common import file_combinations
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
-from saengine.library.settings import default_project_settings
+from saengine.library.settings import default_project_settings, partition_case
 
 GOLDEN = Path(__file__).parent / "data" / "export" / "tiny.e2k"
 SAMPLE = (
@@ -279,7 +279,8 @@ def test_tiny_model_writes_each_block_as_etabs_reads_it() -> None:
     assert any('"C2-L1"' in x and "ANG  90" in x and "PROPMODI33 0.7" in x for x in lines)
     # The brace from the base up to Level 1.
     assert any(x.strip().startswith('LINE  "BR1"  BRACE') and x.endswith("1") for x in lines)
-    # Area loads: floor finish and partitions as SD, live as L below the roof, Lr on it.
+    # Area loads: floor finish as SD, live as L below the roof, Lr on it; the partition
+    # allowance in SD or L as the code pack says (L in the default pack).
     floor, roof = settings_loads()
     assert f'LC "SD"  FVAL {floor[0]:g}' in text
     assert f'LC "L"  FVAL {floor[1]:g}' in text
@@ -300,7 +301,11 @@ def settings_loads() -> tuple[tuple[float, float], tuple[float, float]]:
     settings = default_project_settings("Tiny")
     loads = {a.id: a for a in settings.areaLoads}
     floor, roof = loads[settings.floorLoad], loads[settings.roofLoad]
-    return (floor.finish + floor.partitions, floor.live), (roof.finish + roof.partitions, roof.live)
+    case = partition_case(settings)
+    return (
+        (floor.superimposed(case), floor.floor_live(case)),
+        (roof.superimposed(case), roof.live),
+    )
 
 
 def test_n_mm_units() -> None:
@@ -450,8 +455,9 @@ def check_round_trip(
     loads = {a.id: a for a in settings.areaLoads}
     floor = loads[settings.floorLoad]
     imported_loads = {a.id: a for a in imported.settings.areaLoads}
-    assert imported_loads["FL"].finish == pytest.approx(floor.finish + floor.partitions)
-    assert imported_loads["FL"].live == pytest.approx(floor.live)
+    case = partition_case(settings)
+    assert imported_loads["FL"].finish == pytest.approx(floor.superimposed(case))
+    assert imported_loads["FL"].live == pytest.approx(floor.floor_live(case))
     # Every load of the project went into the file.
     assert not any(export_report.not_carried.values())
 

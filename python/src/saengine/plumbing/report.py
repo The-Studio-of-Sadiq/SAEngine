@@ -1,4 +1,5 @@
-"""The plumbing report of a project (BNBC 2020 Part 8), for the structural coordination.
+"""The plumbing report of a project (the code pack's plumbing: BNBC 2020 Part 8 in the default
+pack), for the structural coordination.
 
 :func:`plumbing_report` reads ``07 MEP/mep.json`` (its ``plumbing``), ``06 BIM/bim.json`` (stories,
 slabs, openings), ``01 Soil Report/soil-report.json`` (soak well) and ``02 Project
@@ -14,12 +15,14 @@ from __future__ import annotations
 
 import json
 import math
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from shapely.geometry import Polygon
 
 from saengine.library.mep import MEP_FILE, MepModel, PlumbingTank, check, parse
+from saengine.mep import code_pack
 from saengine.plumbing import tables as T
 from saengine.plumbing.building import Building
 from saengine.plumbing.demand import daily_demand, drainage_units, hunter_flow, supply_units
@@ -45,31 +48,58 @@ from saengine.plumbing.supply import (
     supply_riser,
 )
 
-METHOD = [
-    (
-        "Demand (BNBC 2020 Part 8 Sec 5.5-5.6, Tables 8.5.1(a)-(d)): population x lpcd; peak hourly "
-        "= daily / 16 h x 2.2 (Eq 8.5.1)."
-    ),
-    (
-        "Storage (Sec 5.9.1.2(c)): roof tank 1/2, underground reservoir 1 x the daily demand, each "
-        "+ 1 h fire reserve (Part 4 Table 4.4.1 standpipe flow) for a building above 33 m (Part 3 "
-        "Sec 2.4.4); two compartments (Sec 5.9.2.1); drain and overflow Tables 8.5.2, 8.5.3."
-    ),
-    (
-        "Risers (Appendix O, Tables 8.O.1, 8.5.4, 8.5.5, 8.5.6, Sec 5.10.1(c)(ii)): fixture units, "
-        "Hunter flow, velocity and 1.6 m/100 m friction (Hazen-Williams)."
-    ),
-    "Drainage (Sec 6.10, Tables 8.6.12-8.6.16, 8.6.2): stacks, branches, vents, building drain.",
-    (
-        "Rainwater (Chapter 7, Appendix R, Tables 8.7.2-8.7.4): catchment by nearest drain, leaders, "
-        "gutters, storm drain; harvesting Sec 7.4.1, 7.8.9."
-    ),
-    (
-        "Septic tank (Sec 6.9.12, Appendix S) and soak well (Sec 6.9.15, Table 8.6.10); separations "
-        "Tables 8.6.8, 8.6.9."
-    ),
-    "Sleeves and shafts: SAEngine practice (pipe OD + 50 mm; (OD + 100)² per pipe in a shaft).",
-]
+
+def _fraction(x: float) -> str:
+    """A share as the method prints it: 1/2, 1."""
+    return str(Fraction(x).limit_denominator(12))
+
+
+def method() -> list[str]:
+    """How the report works, with the values and clauses of the code pack in force (the clause
+    numbers are those of the default pack's Part 8)."""
+    return [
+        (
+            f"Demand ({T.PAGES.get('5.5-5.6', code_pack.code_name())}, Tables 8.5.1(a)-(d)): "
+            f"population x lpcd; peak hourly = daily / {T.CONSUMPTION_HOURS:g} h x "
+            f"{T.PEAK_FACTOR:g} (Eq 8.5.1)."
+        ),
+        (
+            f"Storage (Sec 5.9.1.2(c)): roof tank {_fraction(T.ROOF_TANK_FRACTION)}, underground "
+            f"reservoir {_fraction(T.RESERVOIR_FRACTION)} x the daily demand, each "
+            f"+ {T.FIRE_RESERVE_HOURS:g} h fire reserve (Part 4 Table 4.4.1 standpipe flow) for a "
+            f"building above {T.HIGH_RISE / 1000:g} m (Part 3 "
+            "Sec 2.4.4); two compartments (Sec 5.9.2.1); drain and overflow Tables 8.5.2, 8.5.3."
+        ),
+        (
+            "Risers (Appendix O, Tables 8.O.1, 8.5.4, 8.5.5, 8.5.6, Sec 5.10.1(c)(ii)): fixture "
+            f"units, Hunter flow, velocity and {T.MAX_HEAD_LOSS:g} m/100 m friction "
+            "(Hazen-Williams)."
+        ),
+        (
+            "Drainage (Sec 6.10, Tables 8.6.12-8.6.16, 8.6.2): stacks, branches, vents, building "
+            "drain."
+        ),
+        (
+            "Rainwater (Chapter 7, Appendix R, Tables 8.7.2-8.7.4): catchment by nearest drain, "
+            "leaders, gutters, storm drain; harvesting Sec 7.4.1, 7.8.9."
+        ),
+        (
+            "Septic tank (Sec 6.9.12, Appendix S) and soak well (Sec 6.9.15, Table 8.6.10); "
+            "separations Tables 8.6.8, 8.6.9."
+        ),
+        (
+            f"Sleeves and shafts: SAEngine practice (pipe OD + {T.SLEEVE_CLEARANCE:g} mm; (OD + "
+            f"{T.SHAFT_CLEARANCE:g})² per pipe in a shaft)."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":  # the former constant: the method of the pack in force
+        return method()
+    if name == "WELL_CLEAR":  # the former constant [mm]
+        return _well_clear()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _check(name: str, demand: float, cap: float | None, unit: str, ok: bool, note: str):
@@ -185,7 +215,7 @@ def plumbing_results(
             "demand": None, "storage": None, "risers": [], "stacks": [], "rainwater": None,
             "septic": None, "tanks": [], "sleeves": [], "checks": [], "summary": [],
             "notes": ["07 MEP has no plumbing section"], "problems": problems,
-            "method": METHOD,
+            "method": method(),
         }  # fmt: skip
     notes: list[str] = []
     checks: list[dict[str, Any]] = []
@@ -402,17 +432,17 @@ def plumbing_results(
                 if tank is None and i > 0:
                     # Next to the previous well, 6 m clear (Table 8.6.8 seepage pits).
                     prev = next(p for p in reversed(proposals) if p["kind"] == "soakWell")
-                    proposal["x"] = prev["x"] + well["diameter"] + WELL_CLEAR
+                    proposal["x"] = prev["x"] + well["diameter"] + _well_clear()
                     proposal["y"] = prev["y"]
                 proposals.append(proposal)
             if count - min(count, len(wells)) > 1:
                 # The plot is not in the project: say how much ground the wells take (N-E6).
-                run = (count * (well["diameter"] + WELL_CLEAR) - WELL_CLEAR) / 1000.0
+                run = (count * (well["diameter"] + _well_clear()) - _well_clear()) / 1000.0
                 footprint = building.footprint()
                 wide = (footprint.bounds[2] - footprint.bounds[0]) / 1000.0 if footprint else 0.0
                 note = (
                     f"{count} soak wells of Ø{well['diameter'] / 1000:g} m, "
-                    f"{WELL_CLEAR / 1000:g} m clear (Table 8.6.8), take a {run:.0f} m run of open "
+                    f"{_well_clear() / 1000:g} m clear (Table 8.6.8), take a {run:.0f} m run of open "
                     "ground beside the building: SAEngine does not know the plot, so check that "
                     "they fit (move them on the plan), or give fewer, deeper wells"
                 )
@@ -466,7 +496,7 @@ def plumbing_results(
         "summary": summary,
         "notes": notes,
         "problems": problems,
-        "method": METHOD,
+        "method": method(),
         "rooms": room_section,
     }
 
@@ -499,8 +529,10 @@ def _rooms_section(
     }
 
 
-#: Clear distance between soak wells [mm] (BNBC 2020 Part 8 Table 8.6.8, seepage pits).
-WELL_CLEAR = 6000.0
+def _well_clear() -> float:
+    """Clear distance between soak wells [mm]: the pack's seepage pit to seepage pit distance
+    (Table 8.6.8 in the default pack)."""
+    return float(T.DISPOSAL_DISTANCES["seepagePit"]["seepagePit"]) * 1000.0
 
 
 def _hydrant_required(mep: MepModel, bim: Any) -> bool:

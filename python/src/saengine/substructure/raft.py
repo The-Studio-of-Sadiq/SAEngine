@@ -1204,7 +1204,9 @@ def design_raft(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
         bars = ctx.rebar(reinforcement.material)
         fy, es = bars.steel.fy, bars.mechanical.E or rc.value("STEEL_E")
     fc = concrete.concrete.fc
-    young = concrete.mechanical.E or 4700 * math.sqrt(fc)
+    from saengine.design.rc_detailing import material_modulus
+
+    young = material_modulus(concrete, fc=fc)[0]
     nu = concrete.mechanical.nu if concrete.mechanical.nu is not None else 0.2
     density = concrete.mechanical.density or 2400.0
     x_axis, y_axis = np.array([1.0, 0, 0]), np.array([0, 1.0, 0])

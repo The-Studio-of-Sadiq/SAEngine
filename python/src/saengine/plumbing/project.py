@@ -1,6 +1,6 @@
 """The plumbing of a project as the workbench, Run All, the report and the bill use it.
 
-This module joins the sizing (:mod:`saengine.plumbing.report`, BNBC 2020 Part 8), the tank
+This module joins the sizing (:mod:`saengine.plumbing.report`, the code pack's plumbing), the tank
 design (:mod:`saengine.plumbing.tanks`, OpenSees Studio shells) and the water-supply hydraulics
 (:mod:`saengine.plumbing.hydraulics`, WNTR / EPANET) into one answer:
 
@@ -10,7 +10,7 @@ design (:mod:`saengine.plumbing.tanks`, OpenSees Studio shells) and the water-su
   tank-designs.json`` by the tank, its materials, the soil report and the options (an OpenSees
   run takes seconds; an unchanged tank is not run again).
 - :func:`missing_sleeves` the proposed sleeves no opening of 07 MEP already gives.
-- :func:`occupancies` BNBC Table 8.5.1's rows for the editor.
+- :func:`occupancies` the pack's water consumption rows (Table 8.5.1) for the editor.
 - :func:`pipe_runs` the risers' lengths and sizes for the bill of quantities.
 """
 
@@ -67,7 +67,8 @@ def _read(root: Path, relative: str) -> str | None:
 
 
 def occupancies() -> list[dict[str, Any]]:
-    """The occupancies of BNBC 2020 Part 8 Tables 8.5.1(a)-(d) as the editor lists them:
+    """The occupancies of the pack's water consumption tables (Part 8 Tables 8.5.1(a)-(d) in
+    the default pack) as the editor lists them:
     ``[{key, label, lpcd (full facility), restricted, unit, group, table, row, source}]``."""
     from saengine.plumbing import tables as T
 

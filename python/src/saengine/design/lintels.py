@@ -27,8 +27,8 @@ by hand.
   the bars required, the bars in one row where they fit); shear with its stirrups (Vc = 0.17
   λ √f'c bw d, at least Av,min, s <= d/2). Two Ø10 hangers on top.
 - Deflection (7.4.3.2): immediate, with Ie of Eq. 6.6.1 (p. 900; Mcr = fr Ig / yt, fr = 0.62
-  λ √f'c, Eq. 6.6.2-6.6.3), Ec = 4700 √f'c (6.1.7.1), service loads D + L: 5 w L⁴ / 384 Ec Ie
-  for the uniform part and q_t L⁴ / 120 Ec Ie for the triangle; long-term deflection is not
+  λ √f'c, Eq. 6.6.2-6.6.3), Ec of the aggregate (6.1.7.1, 5.13.2), service loads D + L:
+  5 w L⁴ / 384 Ec Ie for the uniform part and q_t L⁴ / 120 Ec Ie for the triangle; long-term deflection is not
   added (a note). The depth of Table 6.6.1 (p. 900: L/16 simply supported, × (0.4 + fy/700))
   is reported for information.
 - Sec 7.9.6.3 (p. 1045, masonry in high wind regions, basic wind speed above 200 km/h): spans
@@ -84,6 +84,7 @@ from saengine.design.rc import (
     phi_axial_flexure,
 )
 from saengine.design.rc import value as rc_value
+from saengine.design.rc_detailing import concrete_modulus
 
 #: The clause of each check, from the code pack in force (``designClauses.lintels``).
 CLAUSES: Clauses = Clauses("lintels")
@@ -254,7 +255,7 @@ def effective_inertia(ma: float, b: float, h: float, area: float, d: float, fc: 
     mcr = 0.62 * math.sqrt(fc) * ig / (h / 2)
     if ma <= mcr:
         return ig, ig, mcr
-    icr = cracked_inertia(area, b, d, es / (4700 * math.sqrt(fc)))
+    icr = cracked_inertia(area, b, d, es / concrete_modulus(fc)[0])
     r = (mcr / ma) ** 3
     return min(ig, r * ig + (1 - r) * icr), ig, mcr
 
@@ -504,7 +505,7 @@ def design_lintel(
         area = beam.bottom[0] * bar_area(beam.bottom[1])
         ma = loads.moment(1.0, 1.0)
         ie, ig, mcr = effective_inertia(ma, width, depth, area, beam.d, fc, es)
-        ec = 4700 * math.sqrt(fc)
+        ec, ec_how = concrete_modulus(fc)
         w = loads.dead + loads.live
         delta = 5 * w * loads.span**4 / (384 * ec * ie) + loads.triangle * loads.span**4 / (
             120 * ec * ie
@@ -517,7 +518,7 @@ def design_lintel(
                 "mm",
                 "D + L",
                 f"immediate, Ie = {ie / 1e6:.1f}e6 mm⁴ (Eq. 6.6.1; Ig = {ig / 1e6:.1f}e6, Mcr = "
-                f"{mcr / 1e6:.2f} kN·m, Ma = {ma / 1e6:.2f} kN·m), Ec = 4700 √f'c",
+                f"{mcr / 1e6:.2f} kN·m, Ma = {ma / 1e6:.2f} kN·m), {ec_how}",
             )
         )
         notes.append(

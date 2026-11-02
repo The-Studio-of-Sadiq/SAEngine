@@ -1,5 +1,6 @@
 """The supply: substation and transformers, the standby generator and its fuel, the UPS
-(BNBC 2020 Part 8 Sec 1.3.18-1.3.20), and their typical sizes and weights for the structure.
+(the code pack's Sec 1.3.18-1.3.20: BNBC 2020 Part 8 in the default pack), and their typical
+sizes and weights for the structure.
 
 - Substation: required when the load is 50 kW or more (Sec 1.3.18.1, 1.3.20.1(e)): an 11 kV
   supply, an HT panel, the transformer(s) and the LT panel. The transformers' total rating is
@@ -10,7 +11,7 @@
   pumps unless marked otherwise), a share of the lighting and power load (0.25, SAEngine
   practice) and any other essential load entered; the set's kVA at 0.8 power factor. Lifts need
   standby power above ten storeys or 32 m and in hospitals (Sec 4.2.1.3).
-- Fuel: BNBC gives no running time. The tank holds the set's full-load consumption (0.27 l/kWh,
+- Fuel: the default pack gives no running time. The tank holds the set's full-load consumption (0.27 l/kWh,
   typical) for 8 hours (SAEngine practice), editable.
 - UPS: the load entered at 0.9 power factor, its batteries for the autonomy (15 minutes).
 

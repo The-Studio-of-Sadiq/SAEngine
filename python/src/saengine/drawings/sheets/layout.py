@@ -949,6 +949,14 @@ class View:
     def rect(self, x0: float, y0: float, x1: float, y1: float, layer: str, **kw: Any):
         return self.polyline([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], layer, close=True, **kw)
 
+    def pile(self, c: Sequence[float], size: float, square: bool, layer: str, **kw: Any):
+        """A pile in plan: a square of side ``size`` (driven precast square) or a circle of
+        that diameter."""
+        if square:
+            h = size / 2
+            return self.rect(c[0] - h, c[1] - h, c[0] + h, c[1] + h, layer, **kw)
+        return self.circle(c, size / 2, layer, **kw)
+
     def circle(self, c: Sequence[float], r: float, layer: str, **kw: Any):
         ring = [
             (c[0] + r * math.cos(math.radians(a)), c[1] + r * math.sin(math.radians(a)))

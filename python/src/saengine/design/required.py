@@ -340,7 +340,8 @@ def beam_geometry(member: dict[str, Any]) -> BeamGeometry:
         try:
             return section.effective_depth(top=top)
         except DesignError:  # no bars on that face: one row of Ø20 assumed
-            return h - inset - 10
+            # (T33: top bars in the second layer at the joints that much lower)
+            return h - inset - 10 - (float(member.get("topDrop") or 0.0) if top else 0.0)
 
     return BeamGeometry(
         b, h, depth(False), depth(True), member["fc"], member["fy"], member["es"], member["fy"]

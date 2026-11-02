@@ -17,34 +17,48 @@ from saengine.library.materials import MaterialLibrary
 from saengine.library.mep import MEP_FILE, MepModel, Opening, check, parse
 from saengine.library.objects import ObjectLibrary, Wall
 from saengine.library.settings import ProjectSettings
-from saengine.mep import clash, loads, openings
+from saengine.mep import clash, code_pack, loads, openings
 
-METHOD = [
-    (
-        "Equipment (BNBC 2020 Part 6): the empty weight and a plinth are dead load, case SD "
-        "(Sec 2.2.6, fixed service equipment); the contents are the fluid load F of Sec 2.7.3.1, "
-        "which is in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D combinations (a "
-        "tank may be empty): their own case F when the analysis has one, else live load L, or "
-        "SD only when 07 MEP says they are always there; vibrating machinery and lifts add "
-        "an impact allowance as live load L (Sec 2.3.12, Table 6.2.6). The equipment and its "
-        "contents count in full in the seismic weight (Sec 2.5.7.3 (c))."
-    ),
-    (
-        "Sleeves and openings: beams by the net-section method for small openings (h/3 deep, d "
-        "long), shear with d - a0 (BNBC 6.4.1.1.1, ACI 318-19 22.5), the compression zone and "
-        "the bars clear of the opening, at least h from the support face, sleeves at most h/3 and "
-        "3 diameters apart (SAEngine practice limits: BNBC 5.16.3.3 gives no number for sleeves "
-        "passing through, the limits are those 5.16.3.5 sets for embedded pipes); larger "
-        "openings need a Vierendeel design (not done). "
-        "Slabs: BNBC 6.5.4 strip limits, 6.4.10.6 punching perimeter near columns. Walls: the "
-        "length removed and trim bars (BNBC 6.6.3.7)."
-    ),
-    (
-        "Clashes: the MEP IFC models against the structure SAEngine exports from the building "
-        "model, with IfcOpenShell's geometry tree; a clash through a beam, slab or wall with a "
-        "sleeve or opening of 07 MEP (or a shaft) where it crosses is coordinated."
-    ),
-]
+
+def method() -> list[str]:
+    """How the report works, with the clauses of the code pack in force (the section numbers
+    of the loads are those of the default pack's Part 6)."""
+    c = openings.clause
+    return [
+        (
+            f"Equipment ({code_pack.code_name()}): the empty weight and a plinth are dead load, "
+            "case SD (Sec 2.2.6, fixed service equipment); the contents are the fluid load F of "
+            "Sec 2.7.3.1, which is in 1.4(D + F) and 1.2(D + F + T) + ... and not in the 0.9D "
+            "combinations (a tank may be empty): their own case F when the analysis has one, "
+            "else live load L, or SD only when 07 MEP says they are always there; vibrating "
+            "machinery and lifts add an impact allowance as live load L (Sec 2.3.12, Table "
+            "6.2.6). The equipment and its contents count in full in the seismic weight (Sec "
+            "2.5.7.3 (c))."
+        ),
+        (
+            "Sleeves and openings: beams by the net-section method for small openings (h/3 "
+            f"deep, d long), shear with d - a0 ({c('beam')}, ACI 318-19 22.5), the compression "
+            "zone and the bars clear of the opening, at least h from the support face, sleeves "
+            "at most h/3 and 3 diameters apart (SAEngine practice limits: "
+            f"{c('sleeves')} gives no number for sleeves passing through, the limits are those "
+            f"{c('embedded')} sets for embedded pipes); larger openings need a Vierendeel design "
+            f"(not done). Slabs: {c('slabOpenings')} strip limits, {c('punching')} punching "
+            "perimeter near columns. Walls: the length removed and trim bars "
+            f"({c('trimBars')})."
+        ),
+        (
+            "Clashes: the MEP IFC models against the structure SAEngine exports from the "
+            "building model, with IfcOpenShell's geometry tree; a clash through a beam, slab or "
+            "wall with a sleeve or opening of 07 MEP (or a shaft) where it crosses is "
+            "coordinated."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "METHOD":  # the former constant: the method of the pack in force
+        return method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class _Project:
@@ -264,7 +278,7 @@ def mep_report(
     failed = [o for o in checked if o["checked"] and not o["ok"]]
     governing = max(checked, key=lambda o: o["utilisation"], default=None)
     return {
-        "method": METHOD,
+        "method": method(),
         "equipment": equipment,
         "stories": list(stories.values()),
         "openings": checked,

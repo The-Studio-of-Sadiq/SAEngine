@@ -217,6 +217,14 @@ def test_flood_loads_coastal_dry_building():
     assert summary["totalX_kN"] == pytest.approx(dynamic + ft * 20.0)
     assert summary["hydrostaticBase_kPa"] == pytest.approx(10.05 * (hm + 0.30))
     assert loads[0].axis == 0 and len(loads[0].level_forces) == 3
+    assert summary["waveCombination"] == "sum"
+    # The project may take the larger of the two instead (here the breaking wave).
+    larger = flood.model_copy(update={"waveCombination": "larger"})
+    _depth, _loads, summary, _notes = ff.flood_loads(
+        larger, "II", [3.0, 6.0, 9.0], {0: [20.0] * 3, 1: [10.0] * 3}, []
+    )
+    assert summary["totalX_kN"] == pytest.approx(max(dynamic, ft * 20.0))
+    assert summary["waveCombinationFrom"] == "project setting"
 
 
 def test_stability_and_flotation():

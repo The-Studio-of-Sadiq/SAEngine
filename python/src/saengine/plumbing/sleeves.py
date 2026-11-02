@@ -1,7 +1,7 @@
 """Sleeves for the risers and stacks through the slabs, and the shaft areas.
 
-BNBC 2020 Part 8 gives no sleeve size for a pipe passing through a floor. SAEngine practice:
-a sleeve's inside diameter is the pipe's outside diameter plus 50 mm (25 mm all round for
+The default pack (BNBC 2020 Part 8) gives no sleeve size for a pipe passing through a floor.
+SAEngine practice: a sleeve's inside diameter is the pipe's outside diameter plus 50 mm (25 mm all round for
 movement and fire stopping), rounded up to a standard size; the outside diameter of the
 nominal size by material (plastics ISO metric, metal ISO 65). A riser needs a sleeve through
 the slab of every story it crosses (the stories above its first, up to its last, as 07 MEP's
@@ -100,7 +100,7 @@ def proposed_openings(
             })  # fmt: skip
     notes.append(
         f"sleeve = pipe outside diameter + {T.SLEEVE_CLEARANCE:g} mm, next standard size "
-        "(SAEngine practice; BNBC 2020 Part 8 gives no sleeve rule)"
+        "(SAEngine practice; the code gives no sleeve rule)"
     )
     return {"openings": openings, "notes": notes}
 

@@ -1,7 +1,7 @@
-"""The connected load and the maximum demand of the building (BNBC 2020 Part 8 Sec 1.3.2,
-1.3.18.1).
+"""The connected load and the maximum demand of the building (the code pack's electrical
+services: BNBC 2020 Part 8 Sec 1.3.2, 1.3.18.1 in the default pack).
 
-BNBC lists the loads room by room, floor by floor, and adds the lifts, the water pumps, the
+The default pack lists the loads room by room, floor by floor, and adds the lifts, the water pumps, the
 basement ventilation and any other equipment (Sec 1.3.2, p763). For the coordination the load of
 a story is its floor area times a unit load: the minimum load density of Table 8.1.17 for its
 use (with or without air conditioning), or the lighting plus power the engineer enters where
@@ -13,7 +13,7 @@ cooling towers are not a cooling source: they never move a story off the A/C col
 
 The maximum demand for the substation is the connected load times a load factor of at least
 80 % (Sec 1.3.18.1, p796); Appendix A's allowances for diversity (Table 8.A.1) are for the final
-circuits, not the building. kVA = kW / power factor (BNBC gives no power factor: 0.85, SAEngine
+circuits, not the building. kVA = kW / power factor (the default pack gives none: 0.85, SAEngine
 practice, editable).
 """
 
@@ -227,7 +227,7 @@ def demand(
         f"maximum demand = {factor:g} x connected load (load factor, {T.PAGES['1.3.18.1']})"
         + (f" + {supply.growth:g} % future expansion" if supply.growth else "")
         + f"; kVA = kW / {pf:g}"
-        + ("" if supply.powerFactor else " (power factor: SAEngine practice, BNBC gives none)")
+        + ("" if supply.powerFactor else " (power factor: SAEngine practice, the code gives none)")
     )
     notes.append(
         f"unit loads: the minimum load densities of {T.PAGES['8.1.17']}; the diversity "

@@ -267,7 +267,8 @@ FOUNDATION_CONVENTIONS = [
         "Foundations are measured from 9 Substructure (the footings of the building model are "
         "not): footings, pile caps and rafts over their plan by their thickness, formwork to "
         "their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the "
-        "full length below the cap (bored piles round, driven piles square of the given size), "
+        "full length below the cap (bored piles round, driven precast piles square or round as "
+        "the pile type gives), "
         "bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie "
         "beams: concrete and stirrups between the faces of the foundations they tie, "
         "longitudinal bars centre to centre of the foundations, formwork to their two sides. "
@@ -1616,12 +1617,14 @@ class _Measure:
             )
             return
         d = pile.diameter
-        square = pile.kind == "driven"
+        square = pile.square
         section = box(-d / 2, -d / 2, d / 2, d / 2) if square else Point(0, 0).buffer(d / 2, 64)
         area = d * d if square else math.pi * d * d / 4
         self.concrete(pile.cap, material, "pile", area * pile.length, story)
-        if square:
-            self.formwork(pile.cap, "pile", 3 * d * pile.length, story, "precast moulds")
+        if pile.kind == "driven":
+            # Cast lying down: three faces of a square pile, the whole round of a round one.
+            mould = 3 * d if square else math.pi * d
+            self.formwork(pile.cap, "pile", mould * pile.length, story, "precast moulds")
         reinforcement = pile.reinforcement
         if reinforcement is None:
             self.notes.append(f"{pile.id}: pile type '{pile.pile_type}' has no reinforcement.")

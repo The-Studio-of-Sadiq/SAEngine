@@ -1,4 +1,4 @@
-"""Water storage (BNBC 2020 Part 8 Sec 5.9): reservoir and overhead tank volumes and sizes.
+"""Water storage (the code pack's; Part 8 Sec 5.9 in the default pack): reservoir and overhead tank volumes and sizes.
 
 - Volumes (Sec 5.9.1.2(c)): roof (overhead) tank = 1/2 the daily demand, underground reservoir
   = 1 x the daily demand, each plus a 1 hour reserve for fire fighting in a tall building. A

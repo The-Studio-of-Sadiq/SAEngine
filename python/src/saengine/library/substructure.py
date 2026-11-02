@@ -33,8 +33,10 @@ from saengine.library.objects import (
 SCHEMA_ID = "saengine.substructure/1"
 SUBSTRUCTURE_FILE = "09 Substructure/substructure.json"
 
-#: Founding depth below the finished ground when a foundation gives no founding level [mm].
-DEFAULT_FOUNDING_DEPTH = 1500.0
+#: Founding depth below the finished ground when a foundation gives no founding level [mm]
+#: (SAEngine default: deep enough for the default pack's least depth of exterior footings on
+#: cohesionless soil, which holds without a soil report; the pack's minimums are checked).
+DEFAULT_FOUNDING_DEPTH = 2000.0
 
 Length = Annotated[float, Field(gt=0, description="[mm]")]
 Point2 = Annotated[list[float], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
@@ -129,7 +131,7 @@ class Foundation(_Model):
     foundingLevel: float | None = Field(
         default=None,
         title="Founding level",
-        description="Level of the underside, project datum [mm]; empty: 1.5 m below the "
+        description="Level of the underside, project datum [mm]; empty: 2.0 m below the "
         "finished ground of Project Settings → Foundation.",
     )
     allowableBearing: float | None = Field(
@@ -236,17 +238,30 @@ class Foundation(_Model):
         return ground_level - DEFAULT_FOUNDING_DEPTH
 
 
+def is_square_pile(kind: str, shape: str | None = None) -> bool:
+    """Whether a pile's section is a square: a driven precast pile of ``shape`` square (the
+    default, also for piles saved before the shape was given); every other pile is round."""
+    return kind == "driven" and (shape or "square") == "square"
+
+
 class PileType(_Model):
     """A pile: kind, size and reinforcement."""
 
     id: Id
     kind: Literal["bored", "driven", "drivenCastInPlace"] = Field(
         default="bored",
-        description="Bored cast-in-situ, driven precast (square), or driven cast-in-place (a "
-        "shell or tube driven and filled with concrete: round, the capacity of a driven pile).",
+        description="Bored cast-in-situ, driven precast (square or round, see the shape), or "
+        "driven cast-in-place (a shell or tube driven and filled with concrete: round, the "
+        "capacity of a driven pile).",
         json_schema_extra=_labels(
             ["Bored (cast in situ)", "Driven (precast)", "Driven (cast in place)"]
         ),
+    )
+    shape: Literal["square", "round"] = Field(
+        default="square",
+        description="Driven precast piles: square of side B (perimeter 4B, area B²) or round of "
+        "diameter B (perimeter πB, area πB²/4); the other kinds are round.",
+        json_schema_extra=_labels(["Square", "Round"]),
     )
     diameter: Length = Field(description="Diameter (driven square piles: the side) [mm].")
     length: Length = Field(description="Below the underside of the cap [mm].")
@@ -323,6 +338,11 @@ class PileType(_Model):
         description="The performance requirement on the pile head's lateral movement [mm]; "
         "empty: the code pack's.",
     )
+
+    @property
+    def square(self) -> bool:
+        """A square section of side ``diameter`` (:func:`is_square_pile`); else round."""
+        return is_square_pile(self.kind, self.shape)
 
 
 class PileLoadTest(_Model):

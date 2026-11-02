@@ -119,7 +119,7 @@ def test_report_data_of_the_frame(data: dict) -> None:
     assert {"Linear static", "Modal (eigenvalue)", "Response spectrum"} <= set(basis["analyses"])
     assert basis["cases"][:2] == [
         ["D", "Dead (self-weight)"],
-        ["SD", "Superimposed dead (finishes, partitions)"],
+        ["SD", "Superimposed dead (finishes)"],
     ]
 
     # The model is current: its derivation's values are recomputed.

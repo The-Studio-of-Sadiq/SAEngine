@@ -3,7 +3,9 @@
 The tanks of ``07 MEP/mep.json`` ``plumbing.tanks`` (``overhead``, ``underground``, ``septic``,
 ``rainwater``: rectangular boxes; ``soakWell``: a circular ring) are analysed as a box of shells
 (:mod:`saengine.plumbing.tanks_model`, OpenSees Studio) and designed per metre width of every
-wall, the base and the roof. :func:`design_tank` is the entry point.
+wall, the base and the roof. :func:`design_tank` is the entry point. The code values are the
+code pack's (``plumbing.tanks``, ``foundations``, ``deadLoads``, ``areaLoads``); the clause
+numbers below are those of the default pack (BNBC 2020).
 
 Loads (load cases, superposed: the model is linear; a combination under which the base of a
 ground tank lifts off is run on its own with compression-only springs, and one whose net load is
@@ -17,17 +19,17 @@ upward with the base held along the walls' lines: :func:`saengine.plumbing.tanks
 - H (ground tanks): the lateral earth pressure at rest on the outer walls, ``K0 (σ'v + q) + u``
   with ``K0 = 1 - sin φ'`` (Jaky) of the soil report's layer at each depth, σ'v with the
   submerged unit weight below the design water table, u the full hydrostatic pressure below it
-  (BNBC 2020 Part 6 Sec 2.6.5.1: "the submerged unit weight of soil, plus full hydrostatic
+  (Part 6 Sec 2.6.5.1: "the submerged unit weight of soil, plus full hydrostatic
   pressure" (p680)), q the surcharge (``surcharge``, 10 kPa by default); and the uplift
   on the base, the full hydrostatic pressure from the underside of the base (Sec 2.6.5.2,
   p680). The design water table is ``designWaterTable`` (m below ground; ground level by
   default: the soil report's level is the one measured at drilling, the design one the
-  highest expected; BNBC does not set it).
-- Lr: the roof live load, ``roofLive`` (1.00 kN/m², an ordinary flat roof, BNBC Part 6 Table
+  highest expected; the code does not set it).
+- Lr: the roof live load, ``roofLive`` (1.00 kN/m², an ordinary flat roof, Part 6 Table
   6.2.3 (p536); set it for a roof used otherwise, e.g. a driveway); a septic tank's roof
-  at least 7 kPa (BNBC Part 8 Sec 6.9.12.14 (p1107), :data:`SEPTIC_COVER_LIVE`).
+  at least 7 kPa (Part 8 Sec 6.9.12.14 (p1107), :data:`SEPTIC_COVER_LIVE`).
 
-Combinations (BNBC 2020 Part 6 Sec 2.7 (p684-685))
+Combinations (Part 6 Sec 2.7 (p684-685))
 - strength (Sec 2.7.3.1): (1) 1.4(D + F); (2) 1.2(D + F) + 1.6H + 0.5Lr, also with H = 0
   (the tank tested full before backfilling) and with F = 0 (empty, backfilled), as "effects of
   one or more loads not acting shall be investigated"; (3) 1.2D + 1.6Lr; (6) 0.9D + 1.6H
@@ -36,7 +38,7 @@ Combinations (BNBC 2020 Part 6 Sec 2.7 (p684-685))
   + H (W = 0: the reduced dead load against the uplift). The crack widths, the bearing pressure
   and the settlement use these.
 
-Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts)
+Design per metre width (strength: ACI 318-19, which Part 6 Chapter 6 adopts)
 - the shell moments at every node, turned into Wood-Armer design moments per face and direction
   (:func:`saengine.design.slab.wood_armer`), with the membrane force across the same section
   (the direct tension the adjacent walls' pressure puts into a wall): combined flexure and
@@ -57,7 +59,7 @@ Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts
   (linear between), Act half the section per face, σs = fy, fct,eff the mean tensile strength
   at the age the restraint cracks it (``crackingAge`` 3 days by default: EN 1992-1-1 3.1.2,
   ``fctm(t) = βcc(t) fctm``, ``βcc = exp(0.25 (1 - √(28/t)))`` for cement class N,
-  ``fctm = 0.30 fck^(2/3)``, fck taken as f'c); and not less than BNBC Part 6 Sec 6.6.3.2 /
+  ``fctm = 0.30 fck^(2/3)``, fck taken as f'c); and not less than Part 6 Sec 6.6.3.2 /
   6.6.3.3 (walls: vertical 0.0012 / 0.0015, horizontal 0.0020 / 0.0025 of the gross section (p969)) or ACI 318-19 7.6.1.1 (slabs, :func:`saengine.design.slab.min_steel_ratio`),
   half at each face.
 - crack widths (service): EN 1992-1-1:2004 7.3.4, :func:`crack_width`: ``wk = sr,max (εsm -
@@ -68,7 +70,7 @@ Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts
   (h - x) / 3, h / 2)``; kt 0.4 (long-term), fct,eff = fctm. σs and x from the cracked
   section under the service moment and membrane force (:func:`cracked_section`, elastic, the
   concrete carrying no tension). Limit ``crackLimit`` (0.2 mm by default; see the notes).
-- cover (BNBC 2020 Part 6 Sec 8.1.7 (p1069-1071)): the larger (8.1.7.4) of Table 6.8.3
+- cover (Part 6 Sec 8.1.7 (p1069-1071)): the larger (8.1.7.4) of Table 6.8.3
   ("severe": alternate wetting and drying, on the liquid faces; "severe" also for the faces
   of an overhead tank exposed to the weather, "moderate": in contact with non-aggressive soil,
   for the outer faces of a ground tank) and Sec 8.1.7.2: 75 mm cast against earth (the base's
@@ -77,18 +79,18 @@ Design per metre width (strength: ACI 318-19, which BNBC Part 6 Chapter 6 adopts
   p844) is reported as a note.
 - bars: the tank's ``reinforcement`` where given, else proposed: the lightest of 10-25 mm bars
   at 100-300 mm that gives the strength, the minimum and the crack width, no further apart than
-  3h or 450 mm (BNBC Part 6 Sec 6.6.3.5 for walls; ACI 318-19 7.7.2.3 for slabs).
+  3h or 450 mm (Part 6 Sec 6.6.3.5 for walls; ACI 318-19 7.7.2.3 for slabs).
 
 Stability and soil (ground tanks)
 - flotation, the tank empty under the design water table: ``FS = W / U`` against
   ``flotationFS`` (1.1 by default), U the full hydrostatic pressure on the underside of the
-  base (BNBC Sec 2.6.5.2) times the base's plan area, W the concrete and the soil on the base's
+  base (Sec 2.6.5.2) times the base's plan area, W the concrete and the soil on the base's
   projection beyond the walls (``toe``) and over a buried roof (submerged below the water
-  table). BNBC sets no factor of safety for flotation (see the notes).
+  table). The code sets no factor of safety for flotation (see the notes).
 - bearing: the net pressure under the base full (service), less the overburden removed, against
   qa of the soil report at the founding depth (:func:`saengine.soil.bearing.allowable`) or
   ``allowableBearing``; settlement from the springs (less the rebound of the overburden) against
-  BNBC Part 6 Table 6.3.8, water tank on a raft: 100 mm on sand and hard clay, 125 mm on plastic
+  Part 6 Table 6.3.8, water tank on a raft: 100 mm on sand and hard clay, 125 mm on plastic
   clay (p733, "a guide").
 - ks of the springs: ``ks`` (kN/m³) or the secant ks of the whole base under its net pressure
   (:func:`saengine.substructure.raft.raft_ks`, the soil report's settlement).
@@ -113,6 +115,7 @@ import numpy as np
 from saengine.design.bars import diameters as bar_diameters
 from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1, phi_axial_flexure
 from saengine.design.slab import min_steel_ratio, one_way_shear, wood_armer
+from saengine.mep import code_pack
 from saengine.plumbing import tables as plumbing_tables
 from saengine.plumbing.tanks_model import (
     M11,
@@ -138,20 +141,10 @@ from saengine.plumbing.tanks_model import (
 from saengine.substructure.earth_pressure import Soil, soil_column
 
 GAMMA_W = 9.81  # kN/m³
-#: BNBC 2020 Part 6 Table 6.8.3 nominal cover [mm] by f'c (20 25 30 35 40 45 50 N/mm²), part1
-#: p1069-1070; None: the strength is below the least the table gives for the exposure.
-COVER_TABLE = {
-    "mild": (30, 25, 20, 20, 20, 20, 20),
-    "moderate": (40, 35, 30, 25, 20, 20, 20),
-    "severe": (None, 45, 40, 30, 25, 25, 20),
-    "verySevere": (None, None, 50, 40, 30, 30, 25),
-    "extreme": (None, None, None, 60, 50, 40, 30),
-}
-COVER_STRENGTHS = (20, 25, 30, 35, 40, 45, 50)
-#: BNBC Part 6 Sec 8.1.7.2 (a), cast against and permanently exposed to earth [mm].
-COVER_AGAINST_EARTH = 75.0
-#: BNBC Table 6.3.8, water tank on a raft: maximum settlement [mm] (p733).
-SETTLEMENT_LIMIT = {"sand": 100.0, "plasticClay": 125.0}
+# The code values of the design (cover by exposure and f'c, the minimum wall steel, the bar
+# spacing, the combinations, w/c) are the code pack's ``plumbing.tanks`` (:func:`rules`); the
+# settlement limit its ``foundations`` settlement limits of a water tank on a raft, the brick
+# unit weight its ``deadLoads`` and the default roof live load its ``areaLoads`` roof.
 #: Candidate bars for a proposal: diameters (the code pack's ``concrete.barDiameters["tank"]``,
 #: :func:`saengine.design.bars.diameters`) and spacings [mm].
 BAR_SPACINGS = (300.0, 250.0, 200.0, 175.0, 150.0, 125.0, 100.0)
@@ -161,9 +154,61 @@ LAP_ALLOWANCE = 0.10
 GROUND_KINDS = ("underground", "septic", "rainwater")
 
 
+def rules() -> Any:
+    """The pack's tank rules (``plumbing.tanks``); raises :class:`NotCovered` when the pack in
+    force has none."""
+    found = plumbing_tables.TANKS if code_pack.covers("plumbing") else None
+    if found is None:
+        raise NotCovered(code_pack.not_covered("The design of water tanks"))
+    return found
+
+
+class NotCovered(ValueError):
+    """The code pack in force does not cover the tanks' design."""
+
+
+def __getattr__(name: str) -> Any:
+    # the former constants, read from the pack in force
+    if name == "COVER_TABLE":
+        return {k: tuple(v) for k, v in rules().cover.items()}
+    if name == "COVER_STRENGTHS":
+        return tuple(rules().coverStrengths)
+    if name == "COVER_AGAINST_EARTH":
+        return float(rules().againstEarth)
+    if name == "BRICK_MASONRY":
+        return brick_unit_weight()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def default_roof_live() -> float:
+    """The roof live load of an ordinary flat roof [kPa]: the pack's ``areaLoads`` use
+    ``roof``."""
+    table = code_pack.table("areaLoads")
+    row = None if table is None else table.uses.get("roof")
+    if row is None or row.live is None:
+        raise NotCovered(code_pack.not_covered("The roof live load of a tank (give roofLive)"))
+    return float(row.live)
+
+
+def roof_live_source() -> str:
+    """The clause of the pack's ordinary flat roof live load (its source up to the first ';')."""
+    table = code_pack.table("areaLoads")
+    row = None if table is None else table.uses.get("roof")
+    return code_pack.clause(row.source or "").split(";", 1)[0] if row is not None else ""
+
+
+def brick_unit_weight() -> float:
+    """Burnt clay brick work [kN/m³]: the pack's ``deadLoads.masonry.burntClayBrick``."""
+    table = code_pack.table("deadLoads")
+    value = None if table is None else table.masonry.get("burntClayBrick")
+    if value is None:
+        raise NotCovered(code_pack.not_covered("The weight of a masonry tank"))
+    return float(value)
+
+
 def roof_live(spec: TankSpec, options: TankOptions) -> float:
-    """The roof live load [kPa]: ``roofLive``, at least 7 kPa on a septic tank (BNBC Part 8 Sec
-    6.9.12.14: the manhole cover and the roof designed for at least 7 kPa)."""
+    """The roof live load [kPa]: ``roofLive``, at least the pack's septic tank cover load on a
+    septic tank (7 kPa, BNBC Part 8 Sec 6.9.12.14, in the default pack)."""
     if spec.kind == "septic":
         return max(options.roofLive, plumbing_tables.SEPTIC_COVER_LIVE)
     return options.roofLive
@@ -178,7 +223,7 @@ class TankOptions:
     """The design settings (Project Settings, plumbing → tanks; the integrator maps them)."""
 
     surcharge: float = 10.0  # kPa on the ground around a ground tank
-    roofLive: float = 1.0  # kPa, BNBC Table 6.2.3 ordinary flat roof
+    roofLive: float | None = None  # kPa; None: the pack's ordinary flat roof
     roofFinish: float = 1.0  # kPa superimposed dead load on the roof
     concreteUnitWeight: float = 24.0  # kN/m³
     liquidUnitWeight: float | None = None  # kN/m³; None: water 9.81
@@ -191,10 +236,14 @@ class TankOptions:
     allowableBearing: float | None = None  # kPa, net
     k0Cohesive: float = 0.6  # K0 of a layer without φ' (assumed)
     mesh: float | None = None  # m; None: the wall height / 8
-    cover: float | None = None  # mm, every face; None: BNBC Sec 8.1.7
+    cover: float | None = None  # mm, every face; None: the pack's cover rules
     defaultConcrete: str = "C27.6"
     #: None: the project's rebar (:attr:`TankContext.rebar`), else :data:`FALLBACK_REBAR`.
     defaultRebar: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.roofLive is None:
+            self.roofLive = default_roof_live()
 
     @classmethod
     def of(cls, data: dict[str, Any] | TankOptions | None) -> TankOptions:
@@ -332,7 +381,9 @@ def tank_spec(tank: dict[str, Any], context: TankContext) -> TankSpec:
     if rebar is None or getattr(rebar, "steel", None) is None:
         raise ValueError(f"tank {tank.get('id')}: rebar {rebar_id} is not in the materials")
     fc = float(concrete.concrete.fc)
-    E = float(concrete.mechanical.E or 4700 * math.sqrt(fc))
+    from saengine.design.rc_detailing import material_modulus
+
+    E = material_modulus(concrete, fc=fc)[0]
     return TankSpec(
         id=str(tank.get("id") or "T"),
         kind=kind,
@@ -343,7 +394,7 @@ def tank_spec(tank: dict[str, Any], context: TankContext) -> TankSpec:
         width=width or 0.0,
         water=water,
         freeboard=freeboard,
-        # not given: two (BNBC Sec 5.9.2.1 for water tanks, as the sizing assumes)
+        # not given: two (the default pack's Sec 5.9.2.1 for water tanks, as the sizing assumes)
         compartments=max(1, int(tank.get("compartments") or (1 if kind == "soakWell" else 2))),
         construction=str(tank.get("construction") or "rc"),
         wall=wall,
@@ -612,41 +663,61 @@ def min_area(h: float, fc: float, fy: float, days: float) -> float:
 
 
 def code_min_area(panel: str, direction: str, h: float, fy: float, dia: float) -> float:
-    """BNBC Part 6 Sec 6.6.3.2 / 6.6.3.3 (walls) or ACI 318-19 7.6.1.1 (slabs), half per
-    face [mm²/m]."""
+    """The pack's minimum wall steel (``concrete.walls``: BNBC Part 6 Sec 6.6.3.2 / 6.6.3.3 in
+    the default pack) or ACI 318-19 7.6.1.1 (slabs), half per face [mm²/m]."""
     if panel in ("Base", "Roof"):
         ratio = min_steel_ratio(fy)
-    elif direction == "vertical":
-        ratio = 0.0012 if dia <= 16 and fy >= 420 else 0.0015
     else:
-        ratio = 0.0020 if dia <= 16 and fy >= 420 else 0.0025
+        w = wall_steel()
+        pair = w.rhoSmallBars if dia <= w.smallBarMax and fy >= w.smallBarFy else w.rhoOtherBars
+        ratio = pair[0] if direction == "vertical" else pair[1]
     return ratio * 1000 * h / 2
 
 
+def wall_steel() -> Any:
+    """The pack's minimum steel and spacing of walls (``concrete.walls``)."""
+    table = code_pack.table("concrete")
+    if table is None:
+        raise NotCovered(code_pack.not_covered("The minimum steel of a tank's walls"))
+    return table.walls
+
+
+def max_spacing(h: float) -> float:
+    """The largest bar spacing [mm] in a shell ``h`` thick: the pack's ``maxSpacingFactor`` x h,
+    at most ``concrete.walls.spacingMax`` (3h or 450 mm, BNBC Part 6 Sec 6.6.3.5, in the
+    default pack)."""
+    return float(min(rules().maxSpacingFactor * h, wall_steel().spacingMax))
+
+
 def table_cover(exposure: str, fc: float) -> tuple[float, str | None]:
-    """BNBC Table 6.8.3 nominal cover for the exposure at f'c (the column of the largest
-    tabulated strength not above f'c), and a note when f'c is below the table's least."""
-    row = COVER_TABLE[exposure]
+    """The pack's nominal cover for the exposure at f'c (Table 6.8.3 in the default pack: the
+    column of the largest tabulated strength not above f'c), and a note when f'c is below the
+    table's least."""
+    r = rules()
+    row = list(r.cover[exposure])
+    strengths = list(r.coverStrengths)
     best, note = None, None
-    for strength, cover in zip(COVER_STRENGTHS, row, strict=True):
+    for strength, cover in zip(strengths, row, strict=True):
         if fc + 1e-9 >= strength and cover is not None:
             best = cover
     if best is None:
         first = next(c for c in row if c is not None)
-        least = COVER_STRENGTHS[row.index(first)]
+        least = strengths[row.index(first)]
         note = (
-            f"f'c = {fc:g} MPa is below the {least} N/mm² BNBC Table 6.8.3 asks for "
-            f"{exposure} exposure"
+            f"f'c = {fc:g} MPa is below the {least} N/mm² "
+            f"{plumbing_tables.source('tanks.cover')} asks for {exposure} exposure"
         )
         best = first
     return float(best), note
 
 
 def face_cover(spec: TankSpec, panel: str, face: str, dia: float, options: TankOptions) -> float:
-    """Nominal cover [mm] of a face (BNBC Part 6 Sec 8.1.7; the larger value, 8.1.7.4)."""
+    """Nominal cover [mm] of a face (the pack's cover rules, BNBC Part 6 Sec 8.1.7 in the
+    default pack; the larger value, 8.1.7.4)."""
     if options.cover is not None:
         return options.cover
-    weather = 50.0 if dia >= 19 else 40.0  # Sec 8.1.7.2 (b)
+    r = rules()
+    weather = float(r.weatherCover[0] if dia >= r.weatherBarFrom else r.weatherCover[1])
     liquid = (
         (panel not in ("Base", "Roof") and face == "inner")
         or (panel == "Base" and face == "top")
@@ -657,7 +728,7 @@ def face_cover(spec: TankSpec, panel: str, face: str, dia: float, options: TankO
         return table_cover("severe", spec.fc)[0]
     if spec.ground:
         if panel == "Base" and face == "bottom":
-            return COVER_AGAINST_EARTH
+            return float(r.againstEarth)
         return max(weather, table_cover("moderate", spec.fc)[0])
     return max(weather, table_cover("severe", spec.fc)[0])
 
@@ -924,7 +995,7 @@ def load_patterns(
                     "value": round(uplift / 1e3, 2),
                     "unit": "kPa",
                     "note": f"design water table {soil.water_table:.2f} m below "
-                    "ground (BNBC Sec 2.6.5.2)",
+                    f"ground ({plumbing_tables.source('tanks.uplift')})",
                 }
             )
     if spec.roof:
@@ -938,47 +1009,44 @@ def load_patterns(
                 "name": "Roof live load",
                 "value": roof_live(spec, options),
                 "unit": "kPa",
-                "note": "BNBC Part 8 Sec 6.9.12.14, septic tank roof and cover at least 7 kPa"
+                "note": f"{plumbing_tables.source('septic.coverLive')}, septic tank roof and "
+                f"cover at least {plumbing_tables.SEPTIC_COVER_LIVE:g} kPa"
                 if spec.kind == "septic"
-                else "BNBC Part 6 Table 6.2.3 ordinary flat roof",
+                else roof_live_source(),
             }
         )
     return patterns, loads
 
 
 def combinations(spec: TankSpec, patterns: dict[str, Any]) -> list[dict[str, Any]]:
-    """BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and 2.7.2.1 (service) combinations of the
-    tank's load cases."""
-    has_h = "H" in patterns
-    lr = "Lr" in patterns
+    """The strength and service combinations of the tank's load cases: the pack's
+    ``plumbing.tanks.combinations`` (BNBC 2020 Part 6 Sec 2.7.3.1 and 2.7.2.1 in the default
+    pack). Each combination's ``clause`` is its number in the code."""
     fluids = ["F"] + [k for k in patterns if k.startswith("F") and k != "F"]
     out: list[dict[str, Any]] = []
 
-    def add(kind: str, number: str, factors: dict[str, float]) -> None:
+    def add(row: Any, fluid: str = "F") -> None:
+        if not all(case in patterns for case in row.requires):
+            return
+        factors = {(fluid if k == "F" and row.eachFluid else k): v for k, v in row.factors.items()}
         factors = {k: v for k, v in factors.items() if v and (k in patterns)}
         name = " + ".join((f"{v:g}{k}" if v != 1 else k) for k, v in factors.items())
-        out.append({"name": name, "kind": kind, "bnbc": number, "factors": factors})
+        out.append({"name": name, "kind": row.kind, "clause": row.clause, "factors": factors})
 
-    for f in fluids:
-        add("strength", "2.7.3.1 (1)", {"D": 1.4, f: 1.4})
-        add("strength", "2.7.3.1 (2), H = 0", {"D": 1.2, f: 1.2, "Lr": 0.5 if lr else 0})
-        if has_h:
-            add("strength", "2.7.3.1 (2)", {"D": 1.2, f: 1.2, "H": 1.6, "Lr": 0.5 if lr else 0})
-    if has_h:
-        add("strength", "2.7.3.1 (2), F = 0", {"D": 1.2, "H": 1.6, "Lr": 0.5 if lr else 0})
-        add("strength", "2.7.3.1 (6), W = 0", {"D": 0.9, "H": 1.6})
-    if lr:
-        add("strength", "2.7.3.1 (3)", {"D": 1.2, "Lr": 1.6})
-    for f in fluids:
-        add("service", "2.7.2.1 (1)", {"D": 1.0, f: 1.0})
-        if has_h:
-            add("service", "2.7.2.1 (2)", {"D": 1.0, f: 1.0, "H": 1.0})
-    if has_h:
-        add("service", "2.7.2.1 (2), F = 0", {"D": 1.0, "H": 1.0})
-    if lr:
-        add("service", "2.7.2.1 (3)", {"D": 1.0, "F": 1.0, "H": 1.0 if has_h else 0, "Lr": 1.0})
-    if has_h:
-        add("service", "2.7.2.1 (7), W = 0", {"D": 0.6, "H": 1.0})
+    rows = list(rules().combinations)
+    i = 0
+    while i < len(rows):
+        if not rows[i].eachFluid:
+            add(rows[i])
+            i += 1
+            continue
+        block = []
+        while i < len(rows) and rows[i].eachFluid:
+            block.append(rows[i])
+            i += 1
+        for f in fluids:
+            for row in block:
+                add(row, f)
     return out
 
 
@@ -1179,7 +1247,7 @@ def design_panels(
                             ec,
                         )
                         record.update({"cover": cover})
-                        limit = min(3 * h, 450.0)
+                        limit = max_spacing(h)
                         if record["ok_strength"] and record["ok_crack"] and bars.spacing <= limit:
                             pick = bars
                             break
@@ -1468,14 +1536,12 @@ def water_volume(spec: TankSpec) -> float:
     return plan * spec.water
 
 
-BRICK_MASONRY = 19.1  # kN/m³: burnt clay brick work, 1.910 kN/m² per 100 mm (BNBC Table 6.2.2)
-
-
 def shell_weight(spec: TankSpec, options: TankOptions) -> tuple[float, str]:
     """The tank's own weight empty [kN] and how it was found, by its construction: rc, the
     concrete of the walls, partitions, base and roof at the concrete's unit weight plus the roof
-    finish; masonry, the walls and partitions as burnt clay brick work (BNBC 2020 Part 6 Table
-    6.2.2, 1.910 kN/m² per 100 mm (p530)) on a concrete base under a concrete roof; prefab
+    finish; masonry, the walls and partitions as burnt clay brick work (the pack's
+    ``deadLoads``: BNBC 2020 Part 6 Table 6.2.2, 1.910 kN/m² per 100 mm, in the default pack)
+    on a concrete base under a concrete roof; prefab
     (a moulded or sectional tank), nil: its maker's weight is to be entered (``emptyWeight``)."""
     v = volumes(spec)
     lo, wo = spec.length + 2 * spec.wall, spec.width + 2 * spec.wall
@@ -1484,10 +1550,12 @@ def shell_weight(spec: TankSpec, options: TankOptions) -> tuple[float, str]:
         return 0.0, "prefab tank: its own weight is not known (enter the maker's empty weight)"
     finish = lo * wo * options.roofFinish if spec.roof else 0.0
     if spec.construction == "masonry":
-        brick = (v["walls"] + v["partitions"]) * BRICK_MASONRY
+        unit = brick_unit_weight()
+        brick = (v["walls"] + v["partitions"]) * unit
+        cite = code_pack.clause(code_pack.source("deadLoads", "masonry.burntClayBrick"))
         return (
             brick + (v["base"] + v["roof"]) * gc + finish,
-            "brick walls at 19.1 kN/m³ (BNBC Table 6.2.2), concrete base and roof",
+            f"brick walls at {unit:g} kN/m³ ({cite}), concrete base and roof",
         )
     return v["concrete"] * gc + finish, f"reinforced concrete at {gc:g} kN/m³ and the roof finish"
 
@@ -1801,7 +1869,7 @@ def design_tank(tank: dict[str, Any], context: TankContext | dict[str, Any]) -> 
     combos = combinations(spec, patterns)
     result["loads"] = loads
     result["cases"] = [
-        {"name": c["name"], "kind": c["kind"], "bnbc": c["bnbc"], "factors": c["factors"]}
+        {"name": c["name"], "kind": c["kind"], "clause": c["clause"], "factors": c["factors"]}
         for c in combos
     ]
     if spec.ground:
@@ -1901,12 +1969,12 @@ def design_tank(tank: dict[str, Any], context: TankContext | dict[str, Any]) -> 
         st = result["settlement"]
         result["checks"].append(
             _check(
-                "Settlement (water tank on a raft, BNBC Table 6.3.8)",
+                "Settlement (water tank on a raft)",
                 st["value"],
                 st["limit"],
                 "mm",
                 st["combination"],
-                st["note"],
+                f"{st['note']}; {_settlement_clause()}",
             )
         )
     if not spec.ground:
@@ -1927,7 +1995,10 @@ def design_tank(tank: dict[str, Any], context: TankContext | dict[str, Any]) -> 
                         row[key] = round(row[key] * ratio, 2)
         result["supportLoads"] = support
     result["quantities"] = _quantities(spec, result)
-    notes.append("concrete for low permeability: w/c at most 0.50 (BNBC Part 6 Sec 5.5.1.1)")
+    notes.append(
+        f"concrete for low permeability: w/c at most {rules().maxWaterCement:.2f} "
+        f"({plumbing_tables.source('tanks.maxWaterCement')})"
+    )
     return plain(result)
 
 
@@ -1961,7 +2032,7 @@ def _settlement(
     if soil.profile is not None:
         lo = spec.width + 2 * spec.wall + 2 * spec.toe
         column = soil_column(soil.profile, df, 2 * lo)
-    limit = SETTLEMENT_LIMIT[column]
+    limit = _settlement_limit(column)
     return {
         "value": round(max(worst, 0.0), 1),
         "limit": limit,
@@ -1970,6 +2041,23 @@ def _settlement(
         "note": f"spring settlement less the rebound {rebound:.1f} mm of the overburden; "
         f"{'plastic clay' if column == 'plasticClay' else 'sand and hard clay'}",
     }
+
+
+def _settlement_limit(column: str) -> float:
+    """The largest settlement of a water tank on a raft [mm] on a soil column ("sand" or
+    "plasticClay"): the pack's settlement limits (Table 6.3.8 in the default pack)."""
+    from saengine.substructure.shallow_rules import settlement_limit
+
+    found = settlement_limit("waterTank", "raft", column)
+    if found is None:
+        raise NotCovered(code_pack.not_covered("The settlement limit of a water tank"))
+    return float(found[0].total)
+
+
+def _settlement_clause() -> str:
+    from saengine.substructure.shallow_rules import clause
+
+    return code_pack.clause(clause("settlementLimits"))
 
 
 def _quantities(spec: TankSpec, result: dict[str, Any]) -> dict[str, Any]:

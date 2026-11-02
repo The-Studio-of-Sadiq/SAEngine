@@ -1,4 +1,5 @@
-"""Which fire protection a building needs: BNBC 2020 Part 4 Chapter 5 (p346-p355).
+"""Which fire protection a building needs: the code pack's occupancy rules (BNBC 2020 Part 4
+Chapter 5, p346-p355, in the default pack).
 
 Chapter 5 gives, for each occupancy, the active fire protection of a building of Type I-A
 construction with Class-I finishes (Sec 5.2): portable extinguishers, a manual or an automatic

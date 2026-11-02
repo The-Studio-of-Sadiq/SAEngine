@@ -11,7 +11,8 @@ program (and normal the default pack's Part 6 Chapter 6 / ACI 318 practice), the
   for a column below a floor, the depth of the deepest beam framing into its top (or of the
   slab where no beam does), so its top face is the beam soffit; a column's bottom is the top of
   the floor below, the node itself (no offset);
-- the **rigid zone** is ``rigidZoneFactor · a`` (0.5 by default, a setting): the element is
+- the **rigid zone** is ``rigidZoneFactor · a`` (0.5 by default, a setting; steel members take
+  ``steelRigidZoneFactor``, by default the pack's, 0 in the default pack): the element is
   rigid over it (OpenSees ``geomTransf ... -jntOffset``, OpenSees Studio's ``joint_offsets``)
   and deforms over the rest. The uniform loads on the rigid zones go straight to the joints
   (the element carries its load over its flexible length only);

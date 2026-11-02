@@ -1,8 +1,8 @@
 """Deflection of reinforced-concrete beams and slabs under service loads: the default pack's BNBC 2020 Part 6
 Sec 6.2.5 (pp. 899-903). Units: N, mm, MPa, N·mm.
 
-- Immediate deflection with Ec (Sec 6.1.7.1: 4700 √f'c for normal weight concrete, or the
-  material's E; :func:`saengine.design.slender.concrete_modulus`) and the effective moment of
+- Immediate deflection with Ec (the material's typed E, else the code pack's Ec of f'c and the
+  project's aggregate; :func:`saengine.design.slender.concrete_modulus`) and the effective moment of
   inertia Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³) Icr <= Ig (Eq. 6.6.1, p. 900), Mcr = fr Ig / yt
   (Eq. 6.6.2), fr = 0.62 λ √f'c (Eq. 6.6.3).
 - For prismatic members Ie may be taken at midspan for simple and continuous spans and at the

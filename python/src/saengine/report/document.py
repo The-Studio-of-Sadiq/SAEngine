@@ -308,13 +308,29 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                     "Live [kN/m²]",
                     "Concentrated [kN]",
                     "Finish [kN/m²]",
-                    "Partitions [kN/m²]",
+                    # The partition allowance's load case.
+                    "Partitions, live L [kN/m²]"
+                    if basis.get("partitionCase") == "L"
+                    else "Partitions, dead SD [kN/m²]",
                 ],
                 basis["areaLoads"],
                 ["auto", "1fr", "1fr", "auto", "auto", "auto", "auto"],
                 "lllrrrr",
             ),
         ]
+        if basis.get("partitionCase"):
+            out.append(
+                note(
+                    "The partition allowance (light partitions not on the plans) is taken as "
+                    + (
+                        "a live load in the floor live load case L: factored, reduced and in "
+                        "the seismic weight as the live load"
+                        if basis["partitionCase"] == "L"
+                        else "superimposed dead load SD"
+                    )
+                    + f" ({basis.get('partitionCaseFrom', '')}).",
+                )
+            )
     out.append(h(2, "Load cases"))
     if basis["cases"]:
         out.append(table(["Case", "Description"], basis["cases"], ["auto", "1fr"]))

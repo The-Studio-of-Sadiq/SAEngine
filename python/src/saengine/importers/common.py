@@ -713,7 +713,10 @@ class ProjectBuilder:
         mechanical: dict[str, Any] = {}
         if category in ("concrete", "steel", "rebar") and not E:
             if category == "concrete":
-                E = 4700 * math.sqrt(fc or 25.0)
+                # the materials editor's default (it follows the aggregate in the analysis)
+                from saengine.library.materials import concrete_modulus
+
+                E = concrete_modulus(fc or 25.0)
             else:
                 E = 200000.0
             self.report.approximate(

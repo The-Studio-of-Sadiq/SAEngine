@@ -1,7 +1,7 @@
 """HVAC plant sized for the structure: what stands on the floors and roof, and what it weighs.
 
-The structural engineer coordinates the plant's weight, footprint and vibration (BNBC 2020
-Part 8 Sec 2.6.2.4 and 2.6.2.5, pp. 853-854 of the Part 2 volume: plant rooms, roof chillers
+The structural engineer coordinates the plant's weight, footprint and vibration (the
+default pack's Part 8 Sec 2.6.2.4 and 2.6.2.5, pp. 853-854 of the Part 2 volume: plant rooms, roof chillers
 "structurally strong enough to withstand the dynamic load of the chiller", vibration
 isolators; clear headroom below beam soffits of at least 4.5 m for centrifugal and 3.6 m for
 reciprocating and screw chillers in water-cooled chiller installations of 500 TR (1758 kW)
@@ -14,10 +14,10 @@ as 07 MEP ``hvac.plant`` entries with ``"sized": true``:
   one zone (the zones do not peak together) and a margin of 1.1 (SAEngine practice).
 - Chilled water: chillers air-cooled on the roof below 1050 kW, water-cooled (screw up to
   1050 kW a unit, centrifugal above) in a plant room on the lowest story from 1050 kW (the
-  size categories of BNBC Table 8.2.11, p. 919); at least two duty units from 350 kW and one
+  size categories of the pack's chiller table, Table 8.2.11, p. 919, in the default pack); at least two duty units from 350 kW and one
   more on standby (N + 1, SAEngine practice; the standby unit's weight is on the structure).
   Cooling towers (water-cooled) reject the heat of their chiller, Q (1 + 1/COP), with the
-  minimum COP of BNBC Table 8.2.11 for its class and size; condenser water at 5.6 K range,
+  pack's minimum COP for its class and size; condenser water at 5.6 K range,
   chilled water at 5.6 K (12.2/6.7 °C: SAEngine defaults, from memory). Primary chilled water
   and condenser water pumps, one per chiller.
 - VRF: outdoor units of up to 56 kW modules on the roof (from memory, to be checked), split:
@@ -36,7 +36,7 @@ as 07 MEP ``hvac.plant`` entries with ``"sized": true``:
 
 The plant becomes loads through 07 MEP's equipment path: stream H1's
 :func:`saengine.hvac.report.plant_equipment` turns a plant entry into an equipment item,
-vibrating for the rotating machines (BNBC Table 6.2.6 impact allowance applied by
+vibrating for the rotating machines (the pack's impact allowance applied by
 :mod:`saengine.mep.loads`).
 """
 
@@ -47,6 +47,7 @@ from typing import Any
 
 from shapely.geometry import box
 
+from saengine.hvac import tables as T
 from saengine.mep.geometry import bounded_id
 
 DIVERSITY = 0.9
@@ -55,9 +56,7 @@ WATER_DT = 5.6  # K, chilled and condenser water (SAEngine default)
 CW = 4.186  # kJ/(kg K)
 FACE_VELOCITY = 2.5  # m/s across the AHU coil (SAEngine practice)
 SPACING = 1500.0  # mm clear between units in a row (SAEngine practice, for maintenance)
-WATER_COOLED_FROM = 1050.0  # kW: BNBC Table 8.2.11's largest size category
 TWO_UNITS_FROM = 350.0  # kW
-INSTALLATION_500TR = 1758.0  # kW: 500 TR x 3.517, BNBC Sec 2.6.2.4(b) (the installation)
 #: Largest unit [kW] SAEngine proposes of each kind.
 UNIT_MAX = {
     "airCooled": 1400.0,
@@ -67,12 +66,25 @@ UNIT_MAX = {
     "splitOutdoor": 7.0,
     "packaged": 100.0,
 }
-#: BNBC 2020 Part 8 Table 8.2.11 (p. 919), minimum COP: (upper bound kW, COP).
-COP_TABLE_8211 = {
-    "airCooled": [(530.0, 2.90), (math.inf, 3.05)],
-    "centrifugal": [(530.0, 5.80), (1050.0, 5.80), (math.inf, 6.30)],
-    "screw": [(530.0, 4.70), (1050.0, 5.40), (math.inf, 5.75)],
-}
+# The code values of the plant (the minimum COP of a chiller by class and size, the plant from
+# which chillers are water-cooled, the plant room headroom rule) are the code pack's
+# ``hvac.plant`` (:func:`saengine.hvac.tables.plant`).
+
+
+def __getattr__(name: str) -> Any:
+    """The former constants, read from the pack in force."""
+    if name == "WATER_COOLED_FROM":
+        return T.plant().waterCooledFrom
+    if name == "INSTALLATION_500TR":
+        return T.plant().headroomFrom
+    if name == "COP_TABLE_8211":
+        return {
+            k: [(math.inf if r.upTo is None else r.upTo, r.cop) for r in rows]
+            for k, rows in T.plant().cop.items()
+        }
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 #: TYPICAL operating weight and size of plant (from memory of manufacturers' catalogues, to be
 #: checked; replace with the selected unit's data): kN per kW (cooling, or heat rejected for
 #: towers), plan area m² per kW, a typical width and height [mm].
@@ -142,11 +154,12 @@ def plant_capacity(zones: list[dict[str, Any]], coincident: float | None = None)
 
 
 def chiller_cop(kind: str, unit_kw: float) -> float:
-    """The minimum COP of BNBC Table 8.2.11 of a chiller class and size."""
-    for upper, cop in COP_TABLE_8211[kind]:
-        if unit_kw < upper:
-            return cop
-    return COP_TABLE_8211[kind][-1][1]
+    """The pack's minimum COP of a chiller class and size (Table 8.2.11 in the default pack)."""
+    rows = T.plant().cop[kind]
+    for row in rows:
+        if row.upTo is None or unit_kw < row.upTo:
+            return row.cop
+    return rows[-1].cop
 
 
 def heat_rejection(cooling_kw: float, cop: float) -> float:
@@ -161,7 +174,7 @@ def water_flow(kw: float, dt: float = WATER_DT) -> float:
 
 def chiller_plan(capacity: float, standby: bool = True) -> dict[str, Any]:
     """Chiller class, number and unit size for a plant ``capacity`` [kW]."""
-    if capacity >= WATER_COOLED_FROM:
+    if capacity >= T.plant().waterCooledFrom:
         n = max(2, math.ceil(capacity / UNIT_MAX["centrifugal"]))
         unit = capacity / n
         kind = "screw" if unit <= UNIT_MAX["screw"] else "centrifugal"
@@ -226,11 +239,11 @@ def pipe_size(flow_ls: float) -> dict[str, Any]:
 
 def pipe_sleeve(nominal: float, insulation: float = PIPE_INSULATION) -> float:
     """Sleeve [mm] of an insulated steel pipe: OD + 2 insulation + 50, next standard size."""
-    from saengine.plumbing import tables as T
+    from saengine.plumbing import tables as P
     from saengine.plumbing.sleeves import outside_diameter
 
-    need = outside_diameter(nominal, "GI") + 2 * insulation + T.SLEEVE_CLEARANCE
-    for size in T.SLEEVE_SIZES:
+    need = outside_diameter(nominal, "GI") + 2 * insulation + P.SLEEVE_CLEARANCE
+    for size in P.SLEEVE_SIZES:
         if size >= need - 1e-9:
             return float(size)
     return float(math.ceil(need / 50.0) * 50.0)
@@ -240,10 +253,10 @@ def refrigerant_pair(capacity_kw: float) -> dict[str, Any]:
     for upper, gas, liquid in REFRIGERANT:
         if capacity_kw <= upper:
             break
-    from saengine.plumbing import tables as T
+    from saengine.plumbing import tables as P
 
-    need = gas + liquid + 4 * REFRIGERANT_INSULATION + T.SLEEVE_CLEARANCE
-    sleeve = next((float(s) for s in T.SLEEVE_SIZES if s >= need - 1e-9), math.ceil(need / 50) * 50)
+    need = gas + liquid + 4 * REFRIGERANT_INSULATION + P.SLEEVE_CLEARANCE
+    sleeve = next((float(s) for s in P.SLEEVE_SIZES if s >= need - 1e-9), math.ceil(need / 50) * 50)
     return {"gas": gas, "liquid": liquid, "sleeve": sleeve}
 
 
@@ -379,7 +392,7 @@ def propose_plant(
                  "centrifugal": "water-cooled centrifugal"}[plan["kind"]]  # fmt: skip
         notes.append(
             f"{plan['duty']} duty + {plan['standby']} standby {label} chillers of "
-            f"{plan['unit']:g} kW, COP {plan['cop']:g} (BNBC Table 8.2.11 minimum, p. 919); "
+            f"{plan['unit']:g} kW, COP {plan['cop']:g} ({T.source('plant.cop')} minimum); "
             f"{TYPICAL_NOTE}"
         )
         chw = water_flow(plan["unit"])
@@ -407,8 +420,9 @@ def propose_plant(
             pipes.append({"id": "CW-main", "service": "condenser water main (supply and return)",
                           "flow": cw * plan["duty"], **main, "count": 2,
                           "sleeve": pipe_sleeve(main["nominal"], 0.0)})  # fmt: skip
-            if plan["unit"] * n >= INSTALLATION_500TR:
-                height_need = 4500.0 if plan["kind"] == "centrifugal" else 3600.0
+            rule = T.plant()
+            if plan["unit"] * n >= rule.headroomFrom:
+                height_need = float(rule.headroom.get(plan["kind"], rule.headroom["other"]))
                 checks.append(_headroom(project, bottom, height_need))
         add("pump", bottom, pumps)
         flows = f"chilled water {chw:.1f} l/s"
@@ -590,16 +604,15 @@ def _merge(
 
 
 def _headroom(project: Any, story: str | None, need: float) -> dict[str, Any]:
-    """BNBC Sec 2.6.2.4(b): clear headroom below beam soffits of a chiller plant room."""
+    """The pack's clear headroom below beam soffits of a chiller plant room (Sec 2.6.2.4(b) in
+    the default pack)."""
     height = project.story_height(story) if story else None
     clear = (height or 0.0) - _deepest_beam(project, project.above(story) if story else None)
     return {
         "name": f"Chiller plant room headroom ({story})", "demand": need, "capacity": clear,
         "unit": "mm", "utilisation": need / clear if clear > 0 else math.inf,
         "ok": clear >= need,
-        "note": "below the beam soffit, BNBC 2020 Part 8 Sec 2.6.2.4(b) (p. 853), water-cooled "
-        "chiller installations of 500 TR and above: 4.5 m centrifugal, 3.6 m "
-        "screw/reciprocating",
+        "note": f"below the beam soffit, {T.SOURCES.get('plant.headroom', '')}",
     }  # fmt: skip
 
 

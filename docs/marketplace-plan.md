@@ -461,7 +461,7 @@ Components...*, which opens the M6 list (`saengine.components.show`). The index
 downloaded there to a private temporary folder, checked against the index's size and SHA-256
 (HTTPS on GitHub hosts only), handed to `codes/install` (with `replace` for an update) and
 deleted. Release builds accept only the owner's key (`OWNER_INDEX_KEYS` in
-`saengineLibrary/common/packageIndex.ts`, **empty until the owner adds the public key**); development
+`saengineLibrary/common/packageIndex.ts`, key id `79cc259c3d2aa2c7`, added 2026-11-02); development
 builds also accept the TEST key. The last verified index is kept for offline use; a background
 check runs at most once a day in a packaged build and says when installed packages have updates;
 `saengine.packages.checkOnline` turns both off. Links: Project Settings' design code list ends with

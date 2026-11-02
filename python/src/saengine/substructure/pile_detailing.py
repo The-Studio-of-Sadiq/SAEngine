@@ -178,7 +178,8 @@ def detailing_checks(
         if mix:
             notes.append(mix)
     elif kind == "driven":
-        checks += _driven(found.driven, d, length, reinforcement, steel)
+        square = getattr(pile_type, "shape", None) != "round"
+        checks += _driven(found.driven, d, length, reinforcement, steel, square)
     else:
         checks += _cast_in_place(found.castInPlace, pile_type, d, reinforcement)
     cover = getattr(reinforcement, "cover", None)
@@ -384,17 +385,27 @@ def _mix_checks(rules_: Any, placement: str, composition: Any) -> list[dict[str,
     return checks
 
 
-def tie_volume_ratio(side: float, cover: float, dia: float, spacing: float) -> float:
-    """Volume of square closed ties over the gross volume of a square pile of ``side``: one
-    tie of perimeter 4 (B - 2 cover - dia) per ``spacing``."""
+def tie_volume_ratio(
+    side: float, cover: float, dia: float, spacing: float, square: bool = True
+) -> float:
+    """Volume of closed ties over the gross volume of a pile of ``side``: per ``spacing`` one
+    square tie of perimeter 4 (B - 2 cover - dia) in a square pile, or one hoop of perimeter
+    π (B - 2 cover - dia) in a round pile of diameter ``side``."""
     if spacing <= 0:
         return 0.0
-    perimeter = 4 * max(side - 2 * cover - dia, 0.0)
-    return perimeter * math.pi * dia**2 / 4 / spacing / (side * side)
+    inner = max(side - 2 * cover - dia, 0.0)
+    perimeter = 4 * inner if square else math.pi * inner
+    gross = side * side if square else math.pi * side * side / 4
+    return perimeter * math.pi * dia**2 / 4 / spacing / gross
 
 
 def _driven(
-    rules_: Any, side: float, length: float, reinforcement: Any, steel: float
+    rules_: Any,
+    side: float,
+    length: float,
+    reinforcement: Any,
+    steel: float,
+    square: bool = True,
 ) -> list[dict[str, Any]]:
     from saengine.design.check import _check
 
@@ -412,7 +423,8 @@ def _driven(
         )
     ]
     ratio = band_ratio(rules_.steelByLength, slenderness)
-    gross = side * side
+    gross = side * side if square else math.pi * side * side / 4
+    shape = f"{side:.0f} mm square" if square else f"Ø{side:.0f} section"
     checks.append(
         _check(
             "Precast pile bars",
@@ -420,7 +432,7 @@ def _driven(
             steel,
             "mm²",
             None,
-            f"at least {100 * ratio:.3g} % of the {side:.0f} mm square at L/B = "
+            f"at least {100 * ratio:.3g} % of the {shape} at L/B = "
             f"{slenderness:.1f} ({source}); provided {100 * steel / gross:.2f} %; its handling "
             "is checked separately",
         )
@@ -454,7 +466,7 @@ def _driven(
         ("ends", rules_.tieEnd, end_spacing, f"over {rules_.tieEndLength:g} B at each end"),
         ("body", rules_.tieBody, float(transverse.spacing), "in the body"),
     ):
-        provided = tie_volume_ratio(side, cover, transverse.dia, spacing)
+        provided = tie_volume_ratio(side, cover, transverse.dia, spacing, square)
         checks.append(
             _check(
                 f"Precast pile tie volume, {label}",

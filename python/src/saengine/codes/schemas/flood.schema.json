@@ -657,6 +657,23 @@
       ],
       "default": null
     },
+    "waveCombination": {
+      "anyOf": [
+        {
+          "enum": [
+            "sum",
+            "larger"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the moving water's (hydrodynamic) and the breaking wave loads are taken together: sum (added) or larger (the larger of the two, by its total per axis). Empty: sum, on the safe side. A project setting may choose either.",
+      "title": "Wavecombination"
+    },
     "impact": {
       "anyOf": [
         {

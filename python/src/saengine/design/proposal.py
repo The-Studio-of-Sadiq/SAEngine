@@ -66,6 +66,7 @@ from saengine.design.rc import (
     flexure,
     section_of,
     shear,
+    with_top_drop,
 )
 from saengine.design.required import (
     BeamGeometry,
@@ -150,8 +151,17 @@ class BeamDesigner:
     caching the checks of the arrangements it tries."""
 
     def __init__(
-        self, obj: Beam, fc: float, fy: float, es: float, aggregate: float | None, options: Options
+        self,
+        obj: Beam,
+        fc: float,
+        fy: float,
+        es: float,
+        aggregate: float | None,
+        options: Options,
+        top_drop: float = 0.0,
     ) -> None:
+        """``top_drop``: how much lower its top bars pass the joints where they go in the
+        second layer (T33, :func:`saengine.design.rc_detailing.joint_top_layers`) [mm]."""
         if not isinstance(obj.profile, RectangleProfile):
             raise DesignError("beams are proposed for rectangular profiles only")
         self.obj = obj
@@ -166,22 +176,26 @@ class BeamDesigner:
         self.kind = reinforcement.transverse.type if reinforcement.transverse else "stirrup"
         self.fc, self.fy, self.es, self.aggregate = fc, fy, es, aggregate
         self.options = options
+        self.top_drop = top_drop
         self._cache: dict[str, tuple[Any, Any, Any, Any]] = {}
 
     def geometry(self, h: float, stirrup: float) -> BeamGeometry:
         d = h - self.cover - stirrup - 10.0  # one row of Ø20 assumed
-        return BeamGeometry(self.b, h, d, d, self.fc, self.fy, self.es, self.fy)
+        return BeamGeometry(self.b, h, d, d - self.top_drop, self.fc, self.fy, self.es, self.fy)
 
     def _analyse(self, reinforcement: dict[str, Any]):
         key = json.dumps(reinforcement, sort_keys=True)
         if key not in self._cache:
-            section = section_of(
-                self.obj.profile,
-                LinearReinforcement.model_validate(reinforcement),
-                self.fc,
-                self.fy,
-                self.es,
-                self.aggregate,
+            section = with_top_drop(
+                section_of(
+                    self.obj.profile,
+                    LinearReinforcement.model_validate(reinforcement),
+                    self.fc,
+                    self.fy,
+                    self.es,
+                    self.aggregate,
+                ),
+                self.top_drop,
             )
             t = reinforcement["transverse"]
             self._cache[key] = (
@@ -1356,8 +1370,9 @@ def propose(
         first = members[0]
         try:
             designer = BeamDesigner(
-                first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts
-            )
+                first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts,
+                max(float(m.get("topDrop") or 0.0) for m in members),
+            )  # fmt: skip
         except DesignError as error:
             results.append(_TypeResult(warnings=[f"{type_id}: {error}"]))
             continue

@@ -1,10 +1,10 @@
-"""BNBC 2020 Part 8 Chapter 1 (Electrical and Electronic Engineering Services for Buildings)
-and the typical equipment data the proposals use: the names the electrical modules read, served
-from the code pack's ``electrical`` table (``saengine/codes/packs/bnbc2020/data/electrical.json``).
+"""The code pack's electrical services (BNBC 2020 Part 8 Chapter 1, Electrical and Electronic
+Engineering Services for Buildings, in the default pack) and the typical equipment data the
+proposals use: the names the electrical modules read, served from the code pack's
+``electrical`` table (the default pack's ``data/electrical.json``).
 
-Every BNBC number was transcribed from the page cited (the page of ``bnbc-2020-part2.pdf``; the
-tables were read from the rendered pages); ``PAGES`` gives the page of each clause, the table's
-``sources`` the clause of each entry. Numbers that are not BNBC's are marked there: "SAEngine
+``PAGES`` gives the clause and page of each clause, the table's ``sources`` the clause of each
+entry; the modules cite them from there. Numbers that are not the code's are marked there: "SAEngine
 practice" (a stated assumption the engineer can change in 07 MEP) or "typical" (manufacturers'
 catalogue ranges for the first layout, to be replaced with the selected unit's data).
 
@@ -164,7 +164,7 @@ def __dir__() -> list[str]:
 
 def cite(key: str, clause: str = "") -> str:
     """The source of ``key`` with a sub-clause, e.g. cite('1.3.18.7', '(g)') ->
-    'BNBC 2020 Part 8 Sec 1.3.18.7(g) (p800)'."""
+    'Part 8 Sec 1.3.18.7(g) (p800)' with the default pack's citation."""
     source = _names()["PAGES"][key]
     if not clause:
         return source

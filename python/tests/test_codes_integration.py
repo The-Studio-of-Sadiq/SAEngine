@@ -139,7 +139,7 @@ def test_report_states_the_pack(tmp_path):
         ProjectSettings.model_validate(
             {**settings.model_dump(by_alias=True), "codePack": "bnbc2020"}
         )
-    ) == ("BNBC 2020 (bnbc2020), pack version 1.0.0")
+    ) == ("BNBC 2020 (bnbc2020), pack version 1.2.0")
 
 
 def test_civil_archive_carries_the_project_packs(tmp_path):

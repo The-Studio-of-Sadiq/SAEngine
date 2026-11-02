@@ -269,7 +269,7 @@ def export_ifc(
     With ``substructure`` (the project's ``substructure.json`` once it is no longer the
     placeholder, see :func:`saengine.substructure.handover.authoritative_substructure`) the
     foundations are its footings, pile caps, piles, rafts and tie beams (foundations without a
-    founding level found 1.5 m below ``ground_level``), and the footings of the building model
+    founding level found 2.0 m below ``ground_level``), and the footings of the building model
     are left out; without it the building model's footings are exported. With ``mep`` (the
     :class:`saengine.library.mep.MepModel` of ``07 MEP/mep.json``) its equipment, plinths,
     sleeves, openings and shafts are added (:func:`_export_mep`). With ``architecture`` (the
@@ -1255,7 +1255,7 @@ def _export_foundations(
         product = w.entity("IfcPile", pile.id, f"substructure:{pile.id}", pile.kind.upper())
         product.ObjectType = pile.pile_type
         product.Description = f"Pile {pile.pile_type} under {pile.cap}"
-        if pile.kind == "driven":
+        if pile.square:
             profile = w.rectangle(pile.diameter, pile.diameter)
         else:
             if pile.diameter not in circles:

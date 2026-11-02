@@ -223,7 +223,9 @@ def design_ground_slab(ctx: Any, slab: Any) -> tuple[dict[str, Any], list[str]]:
 
     concrete = ctx.concrete(slab.material, slab.id)
     fc = concrete.concrete.fc
-    e = concrete.mechanical.E or 4700 * math.sqrt(fc)  # ACI 318-19 19.2.2.1 (b)
+    from saengine.design.rc_detailing import material_modulus
+
+    e = material_modulus(concrete, fc=fc)[0]  # the code pack's Ec of the aggregate
     nu = concrete.mechanical.nu or 0.2
     k = slab.subgradeModulus
     notes: list[str] = []

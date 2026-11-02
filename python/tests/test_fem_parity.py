@@ -18,7 +18,7 @@ from saengine.fem.end_zones import face_section_forces, section_at, support_reac
 from saengine.library import FloorPlan, ObjectLibrary, default_floor_plan, default_material_library
 from saengine.library.bim import generate
 from saengine.library.objects import RectangleProfile
-from saengine.library.settings import default_project_settings
+from saengine.library.settings import default_project_settings, partition_case
 
 OBJECTS = ObjectLibrary.model_validate(
     {
@@ -140,22 +140,24 @@ def test_seismic_weight_per_level_by_hand() -> None:
     loads = {a.id: a for a in s.areaLoads}
     floor, roof = loads[s.floorLoad], loads[s.roofLoad]
     weight = DENSITY * G
-    share = 0.5 if floor.live > 3.0 else 0.25
+    # The partition allowance in the pack's case (a live load in the default pack: 2.0 + 1.2
+    # = 3.2 kN/m², above 3 kN/m², so 50 %).
+    case = partition_case(s)
+    live = floor.floor_live(case)
+    share = 0.5 if live > 3.0 else 0.25
     level1 = (
         weight * (0.15 * 30 + 0.15 * 22 + 4 * 0.16 * 3.2)
-        + (floor.finish + floor.partitions) * 30e3
-        + share * floor.live * 30e3
+        + floor.superimposed(case) * 30e3
+        + share * live * 30e3
     )
-    level2 = (
-        weight * (0.15 * 30 + 0.15 * 22 + 4 * 0.16 * 1.6) + (roof.finish + roof.partitions) * 30e3
-    )
+    level2 = weight * (0.15 * 30 + 0.15 * 22 + 4 * 0.16 * 1.6) + roof.superimposed(case) * 30e3
     w = d.summary["seismicWeight"]
     assert [row["weight_kN"] for row in w["levels"]] == pytest.approx(
         [level1 / 1e3, level2 / 1e3], rel=1e-4
     )
     assert w["total_kN"] == pytest.approx((level1 + level2) / 1e3, rel=1e-4)
     assert d.summary["weight_kN"] == pytest.approx((level1 + level2) / 1e3, rel=1e-4)
-    assert w["levels"][0]["parts_kN"]["L"] == pytest.approx(share * floor.live * 30, rel=1e-4)
+    assert w["levels"][0]["parts_kN"]["L"] == pytest.approx(share * live * 30, rel=1e-4)
     assert "seismic weight W" in w["note"]
     # The masses: each level's weight at its nodes and diaphragm node (all on the level).
     masses = sum(n["mass"][0] for n in d.project["nodes"])
@@ -258,7 +260,9 @@ def test_mass_source_factors_and_extra_mass() -> None:
     s = default_project_settings("x")
     floor = {a.id: a for a in s.areaLoads}[s.floorLoad]
     w0, w = base.summary["seismicWeight"], d.summary["seismicWeight"]
-    added_live = (0.5 - 0.25) * floor.live * 30
+    # The partition allowance is live load in the default pack: 3.2 kN/m², already at 50 %.
+    live = floor.floor_live(partition_case(s))
+    added_live = (0.5 - (0.5 if live > 3.0 else 0.25)) * live * 30
     assert w["levels"][0]["weight_kN"] == pytest.approx(
         w0["levels"][0]["weight_kN"] + added_live + 100.0, rel=1e-4
     )
@@ -828,7 +832,10 @@ def test_heavy_live_rule_needs_the_pack(monkeypatch) -> None:
         d = derive_fem(generate(plan(), "s"), OBJECTS, MATERIALS, s, {"bim": "abc"})
         return d.summary["seismicWeight"]["levels"][0]["parts_kN"]["L"]
 
-    assert level1_live() == pytest.approx(0.5 * 5.0 * 30, rel=1e-4)  # the BNBC pack
+    # The floor's live load with the partition allowance (a live load in the default pack).
+    live = {a.id: a for a in s.areaLoads}[s.floorLoad].floor_live(partition_case(s))
+
+    assert level1_live() == pytest.approx(0.5 * live * 30, rel=1e-4)  # the BNBC pack
     real = fem_derive.code_context.table
 
     class Light:
@@ -846,7 +853,7 @@ def test_heavy_live_rule_needs_the_pack(monkeypatch) -> None:
         "table",
         lambda name: Light(real(name)) if name == "seismic" else real(name),
     )
-    assert level1_live() == pytest.approx(0.25 * 5.0 * 30, rel=1e-4)
+    assert level1_live() == pytest.approx(0.25 * live * 30, rel=1e-4)
 
     class Heavy:
         heavyLiveLimit = 3.0
@@ -863,4 +870,4 @@ def test_heavy_live_rule_needs_the_pack(monkeypatch) -> None:
         "table",
         lambda name: Heavy(real(name)) if name == "seismic" else real(name),
     )
-    assert level1_live() == pytest.approx(0.5 * 5.0 * 30, rel=1e-4)
+    assert level1_live() == pytest.approx(0.5 * live * 30, rel=1e-4)

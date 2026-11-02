@@ -6,7 +6,7 @@ The material properties are those of the reference data sets shipped with Energy
 ``WindowBlindMaterials.idf``; the nominal window U and SHGC are the comments of
 ``WindowConstructs.idf``). Each material keeps the data set's name in ``source``. The layer
 thicknesses (12 mm plaster, 250 / 125 mm brick, 100 mm lime terracing, 150 mm slab) are SAEngine's
-choice of the usual Bangladeshi practice, not BNBC's (it gives no constructions).
+choice of the usual Bangladeshi practice, not the code's (the default pack gives none).
 
 Units: m, W/m·K, kg/m³, J/kg·K; U-values W/m²K.
 """

@@ -7,7 +7,7 @@
   "source": "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685); D includes the superimposed dead load SD",
   "loadCases": {
     "D": "Dead (self-weight)",
-    "SD": "Superimposed dead (finishes, partitions)",
+    "SD": "Superimposed dead (finishes)",
     "L": "Live",
     "Lr": "Roof live",
     "WX": "Wind in X",

@@ -1,5 +1,451 @@
 {
   "$defs": {
+    "CopStep": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Unit size below this [kW]; null: above the last.",
+          "title": "Upto"
+        },
+        "cop": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Cop"
+        }
+      },
+      "required": [
+        "upTo",
+        "cop"
+      ],
+      "title": "CopStep",
+      "type": "object"
+    },
+    "HvacAir": {
+      "additionalProperties": false,
+      "description": "The code values of the air distribution (D5: ``hvac/air.py``'s and ``hvac/openings.py``'s\nconstants): outdoor air, exhaust rates, kitchen exhaust, headroom under ducts.",
+      "properties": {
+        "minPerPerson": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Outdoor air at least [l/s per person].",
+          "title": "Minperperson"
+        },
+        "kitchenExhaustVelocity": {
+          "description": "Least, most [m/s].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Kitchenexhaustvelocity",
+          "type": "array"
+        },
+        "toiletPublic": {
+          "description": "Per water closet or urinal [l/s]: normal, heavy use.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Toiletpublic",
+          "type": "array"
+        },
+        "toiletPrivate": {
+          "description": "Per bathroom of a dwelling [l/s]: continuous, intermittent.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Toiletprivate",
+          "type": "array"
+        },
+        "toiletHotel": {
+          "description": "Per hotel bathroom [l/s].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Toilethotel",
+          "type": "array"
+        },
+        "kitchenPrivate": {
+          "description": "Per dwelling kitchen [l/s]: continuous, intermittent.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            }
+          ],
+          "title": "Kitchenprivate",
+          "type": "array"
+        },
+        "kitchenEquipment": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Kitchen equipment -> exhaust [l/s per kW]: electric, gas; null: none.",
+          "title": "Kitchenequipment",
+          "type": "object"
+        },
+        "kitchenDefault": {
+          "description": "kitchenEquipment row of an unknown mix (gas).",
+          "title": "Kitchendefault",
+          "type": "string"
+        },
+        "ventilationPages": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Ventilation group -> page of its rows.",
+          "title": "Ventilationpages",
+          "type": "object"
+        },
+        "ceilingHeights": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Ventilation group -> air-conditioned ceiling height [mm].",
+          "title": "Ceilingheights",
+          "type": "object"
+        },
+        "assemblyUses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assemblyuses",
+          "type": "array"
+        },
+        "assemblyCeiling": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Ceiling height of the assembly uses [mm].",
+          "title": "Assemblyceiling"
+        },
+        "headroomUnderDuct": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Least headroom under a duct [mm].",
+          "title": "Headroomunderduct"
+        },
+        "kitchenClearance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Kitchen exhaust duct to enclosure [mm].",
+          "title": "Kitchenclearance"
+        }
+      },
+      "required": [
+        "minPerPerson",
+        "kitchenExhaustVelocity",
+        "toiletPublic",
+        "toiletPrivate",
+        "toiletHotel",
+        "kitchenPrivate",
+        "kitchenEquipment",
+        "kitchenDefault",
+        "ceilingHeights",
+        "assemblyCeiling",
+        "headroomUnderDuct",
+        "kitchenClearance"
+      ],
+      "title": "HvacAir",
+      "type": "object"
+    },
+    "HvacPlant": {
+      "additionalProperties": false,
+      "description": "The code values of the plant proposal (D5: ``hvac/plant.py``'s constants).",
+      "properties": {
+        "cop": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/CopStep"
+            },
+            "type": "array"
+          },
+          "description": "Chiller class -> minimum COP by size.",
+          "title": "Cop",
+          "type": "object"
+        },
+        "waterCooledFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Water-cooled chillers from this plant [kW].",
+          "title": "Watercooledfrom"
+        },
+        "headroomFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Plant room headroom rule from this [kW].",
+          "title": "Headroomfrom"
+        },
+        "headroom": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Chiller class -> clear headroom below the beam soffits [mm]; 'other'.",
+          "title": "Headroom",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cop",
+        "waterCooledFrom",
+        "headroomFrom",
+        "headroom"
+      ],
+      "title": "HvacPlant",
+      "type": "object"
+    },
     "InsideRow": {
       "additionalProperties": false,
       "description": "A row of Table 8.2.1: acceptable inside design conditions for summer.",
@@ -761,6 +1207,28 @@
       },
       "title": "Assumptions",
       "type": "array"
+    },
+    "air": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacAir"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "plant": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacPlant"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

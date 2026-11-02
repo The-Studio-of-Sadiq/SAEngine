@@ -18,9 +18,9 @@ from saengine.design import slender as SL
 from saengine.design import stairs as ST
 from saengine.design.lintels import design_lintel, lintel_loads
 from saengine.design.rc import bar_area, beta1
+from saengine.design.rc_detailing import concrete_modulus
 from saengine.design.torsion import TorsionSection, cracking_torsion, threshold_torsion
 from saengine.drawings import detailing as DT
-from saengine.library.materials import EC_COEFFICIENT
 from saengine.report import clauses as _clauses
 from saengine.report.worksheets.core import (
     Cite,
@@ -56,9 +56,14 @@ def _code(key: str, suffix: str = "") -> Cite:
 
 
 def ec_of(fc: float) -> float:
-    """Ec [MPa] of normal-weight concrete (the pack's modulus; BNBC 2020 Part 6 Sec 6.1.7.1 in
-    the default pack)."""
-    return EC_COEFFICIENT * math.sqrt(fc)
+    """Ec [MPa] of concrete of ``fc`` with the project's aggregate (the pack's modulus, the one
+    the design takes: :func:`saengine.design.rc_detailing.concrete_modulus`)."""
+    return concrete_modulus(fc)[0]
+
+
+def ec_rule(fc: float) -> str:
+    """How :func:`ec_of` is found (e.g. "Ec = 4700 √f'c (...)" in the default pack)."""
+    return concrete_modulus(fc)[1]
 
 
 def factored(sheet: Sheet, dead: float, live: float, unit: str) -> tuple[float, str]:
@@ -234,7 +239,7 @@ def _beam_deflection(s: Sheet) -> None:
         _code("wsMinThickness"),
     )
     d = h - s["dc"]
-    ec = s.step("Ec", ec_of(fc), "MPa", "4700 √f'c", _code("wsModulus"))
+    ec = s.step("Ec", ec_of(fc), "MPa", ec_rule(fc), _code("wsModulus"))
     n = rc.value("STEEL_E") / ec
     ig = b * h**3 / 12
     s.step("Ig", ig / 1e6, "×10⁶ mm⁴", "b h³ / 12")
@@ -504,9 +509,18 @@ SLAB_INPUTS = [
         "kN/m²",
         minimum=0,
         group=LOAD_GROUP,
-        help="Finishes and partitions; the self weight is added.",
+        help="Finishes (and partitions where the code pack makes them dead); the self weight "
+        "is added.",
     ),
-    number("live", "Live load", 2.0, "kN/m²", minimum=0, group=LOAD_GROUP),
+    number(
+        "live",
+        "Live load",
+        2.0,
+        "kN/m²",
+        minimum=0,
+        group=LOAD_GROUP,
+        help="With the partition allowance where the code pack makes it a live load.",
+    ),
     number("gamma", "Concrete unit weight", 24, "kN/m³", minimum=15, group=LOAD_GROUP),
     *concrete_inputs(),
     number("dia", "Bar diameter", 10, "mm", minimum=6, maximum=25, group=BAR_GROUP),

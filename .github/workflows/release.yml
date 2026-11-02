@@ -302,6 +302,13 @@ jobs:
             --out "$env:RUNNER_TEMP\release\assets" --verification-pdf "$env:RUNNER_TEMP\verification\verification-manual.pdf"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Component zips (scripts/installer/component_zips.py)
+        shell: pwsh
+        run: |
+          python -I scripts/installer/component_zips.py --app VSCode-win32-x64 `
+            --version '${{ steps.release.outputs.version }}' --out "$env:RUNNER_TEMP\release\assets"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Keep the setup, its SHA-256 and the third-party sources
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

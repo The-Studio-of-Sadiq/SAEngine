@@ -131,8 +131,8 @@ def test_substructure_file_round_trips_and_validates() -> None:
     fs = Substructure().design.factorOfSafety
     assert (fs.pileCompression, fs.pileUplift, fs.pileSkin, fs.pileEndBearing) == (2.5, 2.5, 1.5, 3)
     assert model.design.springsFrom == 12000 and Substructure().design.springsFrom == "soilReport"
-    # The founding level defaults to 1.5 m below the finished ground.
-    assert model.foundations[0].founding_level(200.0) == -1300.0
+    # The founding level defaults to 2.0 m below the finished ground.
+    assert model.foundations[0].founding_level(200.0) == -1800.0
     assert (
         Foundation.model_validate(footing("F", ["C"], foundingLevel=-2000)).founding_level(0)
         == -2000
@@ -819,7 +819,7 @@ def test_report_of_synthetic_footings_and_ties() -> None:
     assert data["combinations"] == {"service": ["D"], "strength": ["1.0D"]}
     assert any("Tie beams" in line for line in data["method"])
     f1 = data["foundations"][0]
-    assert f1["sizes"]["center"] == [0.0, 0.0] and f1["sizes"]["foundingLevel"] == -1500
+    assert f1["sizes"]["center"] == [0.0, 0.0] and f1["sizes"]["foundingLevel"] == -2000
     # Without loads every foundation is skipped, with the reason.
     ctx.loads, ctx.no_loads = None, "there are no analysis results; run the analysis first"
     data = report(ctx)
@@ -913,7 +913,8 @@ def test_report_of_the_analysed_frame(frame: Path, monkeypatch: pytest.MonkeyPat
         frame,
         {
             "foundations": [
-                footing("F1", ["C1"], allowableBearing=150),
+                # Founded where Part 8's drawn footing was (the default is 2.0 m down).
+                footing("F1", ["C1"], allowableBearing=150, foundingLevel=-1500),
                 footing("F2", ["C2"]),
                 {
                     **footing("CF", ["C3", "C4"], length=7800, thickness=600, type="combined"),

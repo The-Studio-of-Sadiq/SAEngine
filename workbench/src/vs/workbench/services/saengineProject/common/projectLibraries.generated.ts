@@ -571,7 +571,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Young\'s modulus [MPa]. Concrete: follows f\'c (Ec = 4700 √f\'c, the default pack\'s Part 6 Sec 6.1.7.1) until another value is entered.',
+					description: 'Young\'s modulus [MPa]. Concrete: follows f\'c (the code pack\'s normal-weight Ec; the default pack\'s Part 6 Sec 6.1.7.1) until another value is entered; while it does, the analysis and design take the Ec of the project\'s concrete aggregate (e.g. brick chips).',
 					title: 'Young\'s modulus E',
 				},
 				nu: {
@@ -7944,6 +7944,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Partition walls',
 					type: 'string',
 				},
+				partitionAllowanceCase: {
+					default: 'pack',
+					description: 'Load case of the area loads\' partition allowance (partitions not on the plans): a live load L (factored, reduced and in the seismic weight as the floor live load) or superimposed dead SD. Code pack: the active pack\'s choice (live load when it gives none).',
+					enum: ['pack', 'L', 'SD'],
+					enumDescriptions: ['As the code pack says', 'Live load (L)', 'Superimposed dead load (SD)'],
+					title: 'Partition allowance as',
+					type: 'string',
+				},
 				massLumping: {
 					default: 'storyLevels',
 					description: 'Story levels: every node\'s weight goes to the nearest story level (to its diaphragm), the lower half of the first story to the base, where it does not take part (as the usual analysis programs lump it). Level above: every weight counts for the first level above the base and its mass stays where it is.',
@@ -8028,11 +8036,26 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				rigidZoneFactor: {
 					default: 0.5,
-					description: 'Share of an end offset that is rigid (0: the whole length flexible, the forces still read at the faces; 1: fully rigid).',
+					description: 'Share of an end offset that is rigid (0: the whole length flexible, the forces still read at the faces; 1: fully rigid). Concrete and other non-steel beams and columns; steel ones take the steel factor below.',
 					maximum: 1,
 					minimum: 0,
 					title: 'Rigid zone factor',
 					type: 'number',
+				},
+				steelRigidZoneFactor: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rigid zone factor of the beams and columns with a steel section. Empty: the code pack\'s (its steel seismic practice; 0 in the default pack, SAEngine practice), else 0: a centreline model, so the panel zones of steel moment frames deform in the drift and are checked on their own.',
+					title: 'Rigid zone factor (steel)',
 				},
 				exactColumnRotation: {
 					default: true,
@@ -8348,7 +8371,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				partitions: {
 					default: 0,
-					description: 'Partition allowance [kN/m²].',
+					description: 'Partition allowance [kN/m²] for light partitions not on the plans, a live or superimposed dead load as Analysis → Partition allowance as says.',
 					minimum: 0,
 					title: 'Partitions',
 					type: 'number',
@@ -8465,10 +8488,18 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				aggregate: {
 					default: 'siliceous',
-					description: 'Type of the concrete\'s coarse aggregate: it sets the least concrete sizes for a fire rating (siliceous is the least favourable) and, by the code pack, the concrete\'s modulus Ec, its λ and the slabs\' shrinkage and temperature steel (brick chips: a lower Ec and more shrinkage steel).',
+					description: 'Type of the concrete\'s coarse aggregate: it sets the least concrete sizes for a fire rating (siliceous is the least favourable) and, by the code pack, the concrete\'s modulus Ec, its λ and the slabs\' shrinkage and temperature steel (brick chips: a lower Ec and more shrinkage steel). A concrete material\'s E that is still the default follows it; an E you type is kept.',
 					enum: ['siliceous', 'carbonate', 'sandLightweight', 'lightweight', 'brick'],
 					enumDescriptions: ['Siliceous', 'Carbonate', 'Sand-lightweight', 'Lightweight', 'Brick chips'],
 					title: 'Concrete aggregate',
+					type: 'string',
+				},
+				jointTopBars: {
+					default: 'auto',
+					description: 'Where the top bars of beams from two directions cross at a joint, one direction\'s go in the second layer, under the other\'s, and its hogging d is that bar diameter less (SAEngine practice; the code gives no rule). Auto: the deeper beam is the main (outer layer) one; beams of equal depth: the plan direction with the longer mean span. X or Y: that direction is the main one everywhere. Same layer: both in the outer layer (flagged as a clash in the drawings).',
+					enum: ['auto', 'x', 'y', 'sameLayer'],
+					enumDescriptions: ['Auto (deeper beam, then longer spans)', 'X beams outer', 'Y beams outer', 'Same layer (flagged)'],
+					title: 'Crossing top bars at beam-column joints',
 					type: 'string',
 				},
 				fireSeparation: {
@@ -9329,6 +9360,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Openings for flood water',
 					type: 'boolean',
 				},
+				waveCombination: {
+					default: 'pack',
+					description: 'How the hydrodynamic load of moving water and the breaking wave load are taken together in Fa: their sum (on the safe side; SAEngine practice where the code gives no rule) or the larger of the two (per direction, by its total). Code pack: the active pack\'s choice (the sum when it gives none).',
+					enum: ['pack', 'sum', 'larger'],
+					enumDescriptions: ['As the code pack says', 'Sum of the two (SAEngine practice, conservative)', 'Larger of the two'],
+					title: 'Moving water and breaking waves',
+					type: 'string',
+				},
 				groundElevation: {
 					anyOf: [
 						{
@@ -9443,7 +9482,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				D: {
 					default: 0,
-					description: 'Factor on the dead load D, which includes the superimposed dead load SD (floor finish, partitions).',
+					description: 'Factor on the dead load D, which includes the superimposed dead load SD (floor finish; partitions where the code pack makes them dead).',
 					title: 'D',
 					type: 'number',
 				},
@@ -9540,7 +9579,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		MassSource: {
 			additionalProperties: false,
-			description: 'What forms the seismic weight W and the masses (the default pack\'s Part 6 Sec 2.5.7.3: the dead\nload including partitions, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full).',
+			description: 'What forms the seismic weight W and the masses (the default pack\'s Part 6 Sec 2.5.7.3: the dead\nload including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full; a partition allowance the pack makes a live load\ncounts with the live load).',
 			properties: {
 				dead: {
 					default: 1.0,
@@ -10946,6 +10985,7 @@ export const DEFAULT_SETTINGS: object = {
 	construction: {
 		constructionType: '',
 		aggregate: 'siliceous',
+		jointTopBars: 'auto',
 	},
 	site: {
 		location: 'dhaka',
@@ -10954,6 +10994,7 @@ export const DEFAULT_SETTINGS: object = {
 		flood: {
 			zone: 'none',
 			floodOpenings: false,
+			waveCombination: 'pack',
 		},
 		rain: {
 			controlledDrainage: false,
@@ -11398,6 +11439,7 @@ export const DEFAULT_SETTINGS: object = {
 		meshBySpan: true,
 		meshCheck: true,
 		partitionLoads: 'architecture',
+		partitionAllowanceCase: 'pack',
 		massLumping: 'storyLevels',
 		massSource: {
 			dead: 1.0,
@@ -13045,7 +13087,7 @@ export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 	},
 	loadCases: {
 		D: 'Dead (self-weight)',
-		SD: 'Superimposed dead (finishes, partitions)',
+		SD: 'Superimposed dead (finishes)',
 		L: 'Live',
 		Lr: 'Roof live',
 		WX: 'Wind in X',
@@ -16614,9 +16656,9 @@ export const BIM_SCHEMA: IJSONSchema = {
 				},
 				jacking: {
 					default: 0.8,
-					description: 'Jacking stress / fpu (at most 0.80 fpu and 0.94 fpy).',
+					description: 'Jacking stress / fpu, checked against the code pack\'s jacking limits (on fpu and fpy) and its tendon stress limits after transfer.',
+					exclusiveMaximum: 1,
 					exclusiveMinimum: 0,
-					maximum: 0.94,
 					title: 'Jacking',
 					type: 'number',
 				},
@@ -17808,6 +17850,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		meshBySpan: true,
 		meshCheck: true,
 		partitionLoads: 'architecture',
+		partitionAllowanceCase: 'pack',
 		massLumping: 'storyLevels',
 		massSource: {
 			dead: 1.0,
@@ -17826,6 +17869,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		periodMethod: 'approximate',
 		endOffsets: true,
 		rigidZoneFactor: 0.5,
+		steelRigidZoneFactor: null,
 		exactColumnRotation: true,
 		responseSpectrum: true,
 		stiffness: 'aci',
@@ -18052,6 +18096,7 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		width: 4000,
 		count: 8,
 		strands: 1,
+		jacking: 0.75,
 		profile: [
 			{
 				at: 0,
@@ -23017,7 +23062,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Level of the underside, project datum [mm]; empty: 1.5 m below the finished ground of Project Settings → Foundation.',
+					description: 'Level of the underside, project datum [mm]; empty: 2.0 m below the finished ground of Project Settings → Foundation.',
 					title: 'Founding level',
 				},
 				allowableBearing: {
@@ -24028,10 +24073,18 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 				},
 				kind: {
 					default: 'bored',
-					description: 'Bored cast-in-situ, driven precast (square), or driven cast-in-place (a shell or tube driven and filled with concrete: round, the capacity of a driven pile).',
+					description: 'Bored cast-in-situ, driven precast (square or round, see the shape), or driven cast-in-place (a shell or tube driven and filled with concrete: round, the capacity of a driven pile).',
 					enum: ['bored', 'driven', 'drivenCastInPlace'],
 					enumDescriptions: ['Bored (cast in situ)', 'Driven (precast)', 'Driven (cast in place)'],
 					title: 'Kind',
+					type: 'string',
+				},
+				shape: {
+					default: 'square',
+					description: 'Driven precast piles: square of side B (perimeter 4B, area B²) or round of diameter B (perimeter πB, area πB²/4); the other kinds are round.',
+					enum: ['square', 'round'],
+					enumDescriptions: ['Square', 'Round'],
+					title: 'Shape',
 					type: 'string',
 				},
 				diameter: {
