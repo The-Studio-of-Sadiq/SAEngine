@@ -1333,6 +1333,9 @@ def test_sizing_assistant_proposes_a_raft_when_footings_would_cover_the_plan() -
         [-RAFT_OVERHANG, 4000 + RAFT_OVERHANG],
     )
     assert proposal["raft"]["areaRatio"] > 0.5 and proposal["notes"][0].startswith("One raft")
+    # Counted by the columns asked for, the combined footings in brackets (SM-8: "instead of 9
+    # footings" for 16 columns).
+    assert proposal["notes"][0].startswith("One raft proposed instead of footings under the 4 ")
     # Punching, soil reaction left out, as the footing checks take it: phi vc b0 d >= Vu with
     # vc = 0.33 lambda_s sqrt(f'c) (ACI 318-19 Table 22.6.5.2, as BNBC 2020 Part 6 Ch 6 follows
     # ACI 318) and phi 0.75 (BNBC 2020 Part 6 Sec 6.2.3.2, p. 897). Vu 2500 kN, c 400 mm,

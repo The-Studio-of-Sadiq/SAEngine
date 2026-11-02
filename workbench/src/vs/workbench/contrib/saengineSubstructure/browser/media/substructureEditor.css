@@ -1019,3 +1019,10 @@
 
 /* A retaining wall that fails a check: its utilisation in the fail tier. */
 .saengine-substructure-editor td.sub-rw-fail { color: var(--sa-fail); font-weight: 600; }
+
+/* Size Footings' proposal for many columns scrolls; the plan keeps its height (SM-8). */
+.saengine-substructure-editor .sub-banner.sub-proposal-banner {
+	max-height: 40vh;
+	overflow: auto;
+	align-items: flex-start;
+}

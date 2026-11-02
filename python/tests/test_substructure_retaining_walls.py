@@ -215,3 +215,22 @@ def test_retaining_wall_model() -> None:
         _wall(kind="basement")
     with pytest.raises(ValueError, match="not above its base"):
         _wall(topLevel=-3200)
+
+
+def test_basement_without_a_raft_says_its_flotation_is_not_checked() -> None:
+    # Walkthrough 3, SM-3: a basement wall on pile caps read "the flotation of the basement is
+    # checked with the raft" with no raft: flotation was never checked. It is now said, when a
+    # basement wall has uplift under it; without uplift there is nothing to say.
+    from types import SimpleNamespace
+
+    from saengine.substructure.retaining_walls import flotation
+
+    ctx = SimpleNamespace(
+        substructure=SimpleNamespace(
+            foundations=[], retainingWalls=[_wall(kind="basement", supports=[0])]
+        )
+    )
+    found = flotation(ctx, [], uplifted=True)  # type: ignore[arg-type]
+    assert found is not None and found["check"] is None
+    assert found["note"].startswith("Flotation of the basement not checked: there is no raft")
+    assert flotation(ctx, [], uplifted=False) is None  # type: ignore[arg-type]
