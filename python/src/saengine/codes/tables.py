@@ -2018,6 +2018,137 @@ class TendonSpacing(_Group):
     deltaExempt: Positive = Field(description="Δfps up to this: (a) and (b) do not apply [MPa].")
 
 
+# D6: the bar detailing rules of the drawings (saengine.drawings.detailing).
+class BarHooks(_Group):
+    """Standard hooks: the straight tail beyond the bend, in bar diameters (db) and [mm]."""
+
+    main180Db: Positive = Field(description="Main bars, 180° hooks: tail this × db ...")
+    main180Min: Positive = Field(description="... and at least this [mm].")
+    main90Db: Positive = Field(description="Main bars, 90° hooks: tail this × db.")
+    tieSmallMax: Positive = Field(description="Stirrups and ties up to this db are 'small' [mm].")
+    tie90SmallDb: Positive = Field(description="Small ties, 90° hooks: tail this × db.")
+    tie90LargeDb: Positive = Field(description="Larger ties, 90° hooks: tail this × db.")
+    tie135Db: Positive = Field(description="Ties, 135° hooks: tail this × db ...")
+    closedMin: Positive = Field(
+        description="... closed ties and seismic hooks: and at least this [mm]."
+    )
+
+
+class BarBends(_Group):
+    """Least inside bend diameters, as a multiple of db."""
+
+    steps: list[tuple[Positive, Positive]] = Field(
+        min_length=1,
+        description="(db up to [mm], factor) in ascending db; bars above the last: its factor.",
+    )
+    transverseMax: Positive = Field(description="Stirrups and ties up to this db [mm] ...")
+    transverse: Positive = Field(description="... bend at this × db.")
+
+    @model_validator(mode="after")
+    def _check(self) -> BarBends:
+        sizes = [s for s, _ in self.steps]
+        if sizes != sorted(sizes):
+            raise ValueError("steps: db must ascend")
+        return self
+
+
+class BarDevelopment(_Group):
+    """Development lengths of deformed bars (straight in tension and compression, hooked)."""
+
+    sqrtFcMax: Positive = Field(description="√f'c used at most [MPa].")
+    ldMin: Positive = Field(description="ld in tension at least [mm].")
+    ldcMin: Positive = Field(description="ldc in compression at least [mm].")
+    smallBarMax: Positive = Field(description="'Small' bars up to this db [mm] (k, ψs).")
+    simplifiedGood: tuple[Positive, Positive] = Field(
+        description="Simplified form, spacing and cover met: k of (small, larger) bars."
+    )
+    simplifiedOther: tuple[Positive, Positive] = Field(
+        description="Simplified form, other cases: k of (small, larger) bars."
+    )
+    general: Positive = Field(description="General form: the k of the denominator.")
+    confinementMax: Positive = Field(description="(cb + Ktr)/db at most.")
+    ktr: Positive = Field(description="Ktr = this × Atr / (s n).")
+    psiTop: float = Field(ge=1, description="ψt of top bars.")
+    psiTEMax: Positive = Field(description="ψt ψe at most.")
+    psiSSmall: Positive = Field(description="ψs of small bars (1.0 for larger).")
+    compression: tuple[Positive, Positive] = Field(
+        description="ldc = max(a fy db / (λ √f'c), b fy db)."
+    )
+    compressionConfined: Share = Field(description="ldc × this inside spirals or close ties.")
+    hookCover: Share = Field(description="ldh × this with the side and tail cover.")
+    hookConfined: Share = Field(description="ldh × this inside close ties.")
+
+
+class BarLaps(_Group):
+    """Lap splices of deformed bars."""
+
+    min: Positive = Field(description="Every lap at least [mm].")
+    classA: Positive = Field(description="Class A tension lap: this × ld.")
+    classB: Positive = Field(description="Class B tension lap: this × ld.")
+    classAProvided: Positive = Field(description="Class A only when As,prov/As,req >= this ...")
+    classAShare: Share = Field(description="... and at most this share of the bars spliced.")
+    noLapDb: Positive = Field(description="Bars of this db and larger are not lapped [mm].")
+    compression: Positive = Field(description="Compression lap: this × fy db (fy up to the limit).")
+    compressionFyLimit: Positive = Field(description="... fy limit [MPa].")
+    compressionHigh: tuple[Positive, Positive] = Field(
+        description="Above the limit: (a fy - b) db."
+    )
+    lowFc: Positive = Field(description="f'c below this [MPa] ...")
+    lowFcFactor: float = Field(ge=1, description="... compression laps × this.")
+    spiralDeformed: Positive = Field(description="Spiral laps: this × db (deformed uncoated).")
+    spiralOther: Positive = Field(description="Spiral laps: this × db (other bars).")
+    wallYield: float = Field(ge=1, description="Special walls: laps where bars may yield, × ld.")
+
+
+class BarSplices(_Group):
+    """Where laps may be, and the hoops over them, in members of special moment frames."""
+
+    beamExclusionDepths: Positive = Field(
+        description="No laps in beams within the joint or this × h of its faces."
+    )
+    hoopDepthShare: Share = Field(description="Hoops over laps at most this × d ...")
+    hoopMax: Positive = Field(description="... and at most this [mm].")
+    columnRegion: tuple[Share, Share] = Field(
+        description="Column laps only within (from, to) shares of the clear height."
+    )
+
+    @model_validator(mode="after")
+    def _check(self) -> BarSplices:
+        _ordered_pair(self.columnRegion, "columnRegion")
+        return self
+
+
+class BarExtents(_Group):
+    """Bar extents at supports and the first stirrup."""
+
+    intoSupport: Positive = Field(description="Bottom bars into the support at least [mm].")
+    slabTopExtent: Share = Field(description="Slab top bars from the support face: this × ln.")
+    firstStirrup: Positive = Field(description="First stirrup from the face [mm].")
+    cutoffDb: Positive = Field(description="Bars beyond the cut-off point: max(d, this × db).")
+    negativeSpan: Positive = Field(description="Negative steel past inflection: ... ln / this.")
+    positiveSimple: Positive = Field(
+        description="1/this of the positive steel into supports (simple)."
+    )
+    positiveContinuous: Positive = Field(description="... (continuous members).")
+
+
+class BarDetailing(_Group):
+    """The bar detailing rules of the drawings: hooks, bends, development, laps, splice zones and
+    bar extents."""
+
+    hooks: BarHooks
+    bends: BarBends
+    development: BarDevelopment
+    laps: BarLaps
+    splices: BarSplices
+    extents: BarExtents
+    notes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Short notes the formulas print, by key: 'ldMin', 'excess' (the sub-clause "
+        "after the term), 'simplifiedOther' (said of small bars in other cases); none: nothing.",
+    )
+
+
 class DetailingTable(TableModel):
     special: SpecialFrames
     joints: Joints
@@ -2036,6 +2167,8 @@ class DetailingTable(TableModel):
         default_factory=dict,
         description="B21: clause references of the results, by key (after the pack's edition).",
     )
+    #: D6; None in a pack without bar detailing rules: the drawings' detailing is not covered.
+    bars: BarDetailing | None = None
 
 
 class SteelPhi(_Group):
