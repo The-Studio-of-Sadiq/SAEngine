@@ -1459,6 +1459,9 @@ def _same(a: dict[str, Any], b: dict[str, Any] | None) -> bool:
 _PROPOSED: dict[tuple[str, str, str], dict[str, Any]] = {}
 _PROPOSED_KEPT = 4
 _proposed_lock = threading.Lock()
+#: The proposals being worked out, by the same key: a second request for the same inputs (the
+#: page shown again while the first one runs) waits for it rather than proposing again.
+_PROPOSING: dict[tuple[str, str, str], threading.Event] = {}
 
 
 def design_proposal(
@@ -1477,22 +1480,41 @@ def design_proposal(
 
     stamp = report_stamp(out_dir, project_path)
     key = (str(Path(out_dir).resolve()), stamp, json.dumps(options or {}, sort_keys=True))
-    with _proposed_lock:
-        found = _PROPOSED.get(key)
-    if found is not None:
-        return copy.deepcopy(found)
-    # The checks the design view, Run All and the required steel already made for these
-    # inputs, else made once for all of them (saengine.pipeline.design_mode).
-    result = propose(
-        out_dir,
-        project_path,
-        options,
-        kept_gathering(out_dir, project_path, stamp, substructure=False),
-    )
-    with _proposed_lock:
-        while len(_PROPOSED) >= _PROPOSED_KEPT:
-            _PROPOSED.pop(next(iter(_PROPOSED)))
-        _PROPOSED[key] = copy.deepcopy(result)
+    while True:
+        with _proposed_lock:
+            found = _PROPOSED.get(key)
+            running = _PROPOSING.get(key) if found is None else None
+            if found is None and running is None:
+                running = _PROPOSING[key] = threading.Event()
+                mine = True
+            else:
+                mine = False
+        if found is not None:
+            return copy.deepcopy(found)
+        if mine:
+            break
+        assert running is not None
+        running.wait()  # then kept (or failed: worked out here)
+    try:
+        # The checks the design view, Run All and the required steel already made for these
+        # inputs, else made once for all of them (saengine.pipeline.design_mode).
+        from saengine.pipeline.design_mode import recording
+
+        with recording(out_dir):
+            result = propose(
+                out_dir,
+                project_path,
+                options,
+                kept_gathering(out_dir, project_path, stamp, substructure=False),
+            )
+        with _proposed_lock:
+            while len(_PROPOSED) >= _PROPOSED_KEPT:
+                _PROPOSED.pop(next(iter(_PROPOSED)))
+            _PROPOSED[key] = copy.deepcopy(result)
+    finally:
+        with _proposed_lock:
+            _PROPOSING.pop(key, None)
+        running.set()
     return result
 
 

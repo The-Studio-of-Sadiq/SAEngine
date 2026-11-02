@@ -93,6 +93,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1602,8 +1603,91 @@ def seismic_combinations(
 # ─────────────────────────────────────── the design ───────────────────────────────────────
 
 
-@code_context.in_project_pack(path_params=("project_path", "out_dir"))
+_RUN_LOCKS: dict[str, threading.RLock] = {}
+_RUN_LOCKS_GUARD = threading.Lock()
+
+
+def _run_lock(out_dir: str | Path) -> threading.RLock:
+    """The lock of the response spectrum design of a results folder (:func:`seismic_design`)."""
+    key = os.path.normcase(os.path.abspath(out_dir))
+    with _RUN_LOCKS_GUARD:
+        return _RUN_LOCKS.setdefault(key, threading.RLock())
+
+
+def _modal_force_run(
+    out_dir: Path,
+    project_path: Path,
+    project: dict[str, Any],
+    folder: Path,
+    spectra: dict[str, Any],
+    torsion: bool,
+    stamp_before: str | None,
+) -> dict[str, Any] | str:
+    """The modal-force run of :func:`seismic_design` (kept while its stamp holds, else run
+    again): its ``run`` record, or why it is not available."""
+    # The stamp of the results the spectra were read from (checked unchanged above).
+    stamp = _stamp(out_dir, project_path, torsion)
+    previous = None
+    try:
+        previous = json.loads((folder / SUMMARY_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    old = (previous or {}).get("run") or {}
+    same_parts = sorted(old.get("directions") or []) == sorted(spectra) and {
+        p[1] for p in old.get("parts", {}) if p.startswith("R")
+    } == set(spectra)
+    if old.get("stamp") == stamp and same_parts:
+        return old
+    else:
+        # A stale summary and its results go first: should the run fail, the design finds
+        # nothing (the static cases) rather than the old forces.
+        shutil.rmtree(folder, ignore_errors=True)
+        if (folder / SUMMARY_FILE).exists():
+            (folder / SUMMARY_FILE).unlink()
+        model, cases = modal_force_model(project, spectra, torsion)
+        _run(model, folder, [c["id"] for c in cases])
+        parts: dict[str, Any] = {}
+        for axis, data in spectra.items():
+            ids = [c["id"] for c in cases if c["part"] == f"R{axis}"]
+            modes = [c["mode"] for c in cases if c["part"] == f"R{axis}"]
+            parts[f"R{axis}"] = {
+                "cases": ids,
+                "rule": data["rule"],
+                "damping": data["damping"],
+                "omegas": [data["modes"][k]["angular_frequency"] for k in modes],
+            }
+        for c in cases:
+            if c["part"].startswith("A"):
+                parts[c["part"]] = {"case": c["id"]}
+        if _stamp(out_dir, project_path, False) != stamp_before:
+            return (
+                "the analysis results changed during the response spectrum force run (the "
+                "analysis is still running); the design uses the static cases EX, EY until "
+                "it has finished"
+            )
+        return {"stamp": stamp, "directions": sorted(spectra), "parts": parts}
+
+
 def seismic_design(
+    out_dir: str | Path,
+    project_path: str | Path,
+    settings: Any,
+    options: SeismicOptions | None = None,
+    levels: list[float] | None = None,
+    run: bool = True,
+) -> dict[str, Any]:
+    """:func:`_seismic_design`; with ``run``, one at a time per results folder: two requests at
+    once (Run All's design step and the results bar's) each removed and wrote the modal-force
+    run again, so the results' file times changed under the design checks' stamps and their kept
+    answers went stale (FD-8, B10-26 of usability walk 3)."""
+    if not run:
+        return _seismic_design(out_dir, project_path, settings, options, levels, run)
+    with _run_lock(out_dir):
+        return _seismic_design(out_dir, project_path, settings, options, levels, run)
+
+
+@code_context.in_project_pack(path_params=("project_path", "out_dir"))
+def _seismic_design(
     out_dir: str | Path,
     project_path: str | Path,
     settings: Any,
@@ -1748,47 +1832,12 @@ def seismic_design(
     run_info: dict[str, Any] | None = None
     forces: dict[str, Any] = {}
     if run:
-        # The stamp of the results the spectra were read from (checked unchanged above).
-        stamp = _stamp(out_dir, project_path, torsion)
-        previous = None
-        try:
-            previous = json.loads((folder / SUMMARY_FILE).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            pass
-        old = (previous or {}).get("run") or {}
-        same_parts = sorted(old.get("directions") or []) == sorted(spectra) and {
-            p[1] for p in old.get("parts", {}) if p.startswith("R")
-        } == set(spectra)
-        if old.get("stamp") == stamp and same_parts:
-            run_info = old
-        else:
-            # A stale summary and its results go first: should the run fail, the design finds
-            # nothing (the static cases) rather than the old forces.
-            shutil.rmtree(folder, ignore_errors=True)
-            if (folder / SUMMARY_FILE).exists():
-                (folder / SUMMARY_FILE).unlink()
-            model, cases = modal_force_model(project, spectra, torsion)
-            _run(model, folder, [c["id"] for c in cases])
-            parts: dict[str, Any] = {}
-            for axis, data in spectra.items():
-                ids = [c["id"] for c in cases if c["part"] == f"R{axis}"]
-                modes = [c["mode"] for c in cases if c["part"] == f"R{axis}"]
-                parts[f"R{axis}"] = {
-                    "cases": ids,
-                    "rule": data["rule"],
-                    "damping": data["damping"],
-                    "omegas": [data["modes"][k]["angular_frequency"] for k in modes],
-                }
-            for c in cases:
-                if c["part"].startswith("A"):
-                    parts[c["part"]] = {"case": c["id"]}
-            if _stamp(out_dir, project_path, False) != stamp_before:
-                return unavailable(
-                    "the analysis results changed during the response spectrum force run (the "
-                    "analysis is still running); the design uses the static cases EX, EY until "
-                    "it has finished"
-                )
-            run_info = {"stamp": stamp, "directions": sorted(spectra), "parts": parts}
+        outcome = _modal_force_run(
+            out_dir, project_path, project, folder, spectra, torsion, stamp_before
+        )
+        if isinstance(outcome, str):
+            return unavailable(outcome)
+        run_info = outcome
         if any(p.startswith("A") for p in run_info["parts"]):
             from opensees_studio.services.result_store import load_manifest, load_results
 

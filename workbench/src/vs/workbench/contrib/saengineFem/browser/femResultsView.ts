@@ -207,6 +207,8 @@ export class FemResultsEditor extends EditorPane {
 	private response: IFemStoryResponse | undefined;
 	private member: IFemMemberForces | undefined;
 	private interaction: IFemColumnDiagram | undefined;
+	/** The model and member (`<model>#<member>`) whose diagrams the engine is working out. */
+	private interactionPending: string | undefined;
 	private interactionState: 'idle' | 'loading' | 'none' | 'failed' = 'idle';
 	private interactionProblem: string | undefined;
 	private required: readonly IFemSteelRequirement[] | undefined;
@@ -420,7 +422,10 @@ export class FemResultsEditor extends EditorPane {
 				}
 				this.member = input.state.member = member;
 				this.interaction = undefined;
-				this.interactionState = 'idle';
+				// The diagrams still being worked out for this member stay "loading" (B10-29 of
+				// usability walk 3: the page refreshed during the wait and fell back to the button
+				// with no message while the engine went on).
+				this.interactionState = this.interactionPending === `${input.model.toString()}#${input.page.member}` ? 'loading' : 'idle';
 				this.required = undefined;
 				this.requiredState = 'idle';
 			}
@@ -472,15 +477,22 @@ export class FemResultsEditor extends EditorPane {
 			return !!shown && shown.page.kind === 'member' && shown.page.member === member && shown.model.toString() === model;
 		};
 		this.interactionState = 'loading';
+		const pending = this.interactionPending = `${model}#${member}`;
 		this.render();
 		try {
 			const answer = await this.commandService.executeCommand<IFemColumnInteraction>(FEM_COLUMN_INTERACTION_COMMAND, input.model, member);
+			if (this.interactionPending === pending) {
+				this.interactionPending = undefined;
+			}
 			if (!current()) {
 				return;
 			}
 			this.interaction = answer?.columns[member];
 			this.interactionState = this.interaction ? 'idle' : 'none';
 		} catch (error) {
+			if (this.interactionPending === pending) {
+				this.interactionPending = undefined;
+			}
 			if (!current()) {
 				return;
 			}
@@ -1239,7 +1251,7 @@ export class FemResultsEditor extends EditorPane {
 		const diagram = this.interaction;
 		if (!diagram) {
 			const note = this.interactionState === 'loading'
-				? localize('femResults.pmLoading', "Working out the interaction diagrams of the run's columns with the design checks (a few minutes the first time after a run; then they are kept beside the results)...")
+				? localize('femResults.pmLoadingNote', "Working out the interaction diagrams of the run's columns with the design checks (a few minutes the first time after a run; then they are kept beside the results). The status bar's engine entry says what the engine is doing...")
 				: this.interactionState === 'none'
 					? localize('femResults.pmNone', "{0} is not designed as a concrete column (no bars, steel, or not in the design checks).", member)
 					: this.interactionState === 'failed'

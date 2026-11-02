@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Severity } from '../../../../../platform/notification/common/notification.js';
-import { femSettingsStamp, femSourceCurrent, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
+import { femCodeTables, femSettingsStamp, femSourceCurrent, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
 import { analysisInputsStamp, bimMembers, femModelStamp, formatDuration, IStepOutcome, outcomeLine, RUN_ALL_STEPS, runSeverity } from '../../electron-browser/runAll.js';
 
 function outcome(id: IStepOutcome['id'], status: IStepOutcome['status'], failing?: number): IStepOutcome {
@@ -76,5 +76,20 @@ suite('SAEngine - Run All', () => {
 		assert.ok(!femSourceCurrent('settings', named, sourceStamp(text)));
 		// Other sources are stamped whole.
 		assert.ok(!femSourceCurrent('objects', named, femSettingsStamp(text)));
+	});
+
+	test('B10-32: overrides of code tables the derivation did not read leave the model current', () => {
+		const text = '{"project":{"name":"P"},"analysis":{"x":1},"codeOverrides":{"accessibility.ramps.maxGradient":0.1,"seismic.zone":0.3}}';
+		const tables = new Set(['seismic', 'wind']);
+		// saengine.fem.derive.settings_stamp(text, code_tables={"seismic", "wind"}) of the same text
+		assert.strictEqual(femSettingsStamp(text, false, tables), '513c52ddec117330bff22cbd76824819ed518aac');
+		const recorded = femSettingsStamp(text, false, tables);
+		assert.ok(femSourceCurrent('settings', text.replace('0.1', '0.08'), recorded, tables));
+		assert.ok(!femSourceCurrent('settings', text.replace('0.3', '0.25'), recorded, tables));
+		// A model without the recorded tables: every override counts.
+		assert.ok(!femSourceCurrent('settings', text.replace('0.1', '0.08'), femSettingsStamp(text)));
+		assert.deepStrictEqual([...femCodeTables(new Map([['codeTables', 'seismic,wind']]))!], ['seismic', 'wind']);
+		assert.deepStrictEqual([...femCodeTables(new Map([['codeTables', '-']]))!], []);
+		assert.strictEqual(femCodeTables(new Map()), undefined);
 	});
 });

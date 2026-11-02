@@ -20,7 +20,6 @@ Values in the model's units (m, N, N·m) for the forces; the interaction diagram
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import threading
@@ -302,22 +301,12 @@ def member_forces(out_dir: str | Path, project_path: str | Path, member: str) ->
 
 
 def _stamp(out_dir: Path, project_path: Path) -> str:
-    """What the interaction diagrams depend on: the run (its manifest) and the design inputs."""
-    root = project_path.resolve().parent.parent
-    digest = hashlib.sha256()
-    for path in (
-        out_dir / "manifest.json",
-        project_path,
-        root / "02 Project Settings/project-settings.json",
-        root / "03 Materials/materials.json",
-        root / "04 Objects/objects.json",
-        root / "06 BIM/bim.json",
-    ):
-        try:
-            digest.update(path.read_bytes())
-        except OSError:
-            digest.update(b"-")
-    return digest.hexdigest()
+    """What the interaction diagrams depend on: the run and the design inputs, as the design
+    checks they come from stamp them (:func:`saengine.pipeline.design_mode.inputs_stamp`: a
+    project override of a code table the design does not read leaves them current)."""
+    from saengine.pipeline.design_mode import inputs_stamp
+
+    return inputs_stamp(out_dir, project_path)
 
 
 def _demand_points(points: list[tuple]) -> list[dict[str, Any]]:
@@ -393,10 +382,14 @@ def column_interaction(
     kept beside the results."""
     from saengine.design.rc import InteractionSurface
     from saengine.pipeline import design_mode
+    from saengine.rpc import jobs
 
     out_dir, project_path = Path(out_dir), Path(project_path)
     cache = out_dir / CACHE_FILE
-    with _lock:
+    if not _lock.acquire(blocking=False):
+        jobs.note("Waiting for the interaction diagrams another request is working out")
+        _lock.acquire()
+    try:
         stamp = _stamp(out_dir, project_path)
         try:
             cached = json.loads(cache.read_text(encoding="utf-8"))
@@ -407,17 +400,24 @@ def column_interaction(
             gathered = design_mode.gathered(out_dir, project_path, substructure=False)
             surfaces: dict[str, Any] = {}
             columns: dict[str, Any] = {}
-            for entry in gathered.collect.get("members", []):
-                if entry.get("kind") != "column" or not entry.get("points"):
-                    continue
-                type_id = entry["type"]
-                if type_id not in surfaces:
-                    surfaces[type_id] = InteractionSurface(entry["section"])
-                columns[entry["id"]] = {
-                    "type": type_id,
-                    "assumedBars": type_id in gathered.assumed,
-                    **_diagram(entry["section"], surfaces[type_id], entry["points"]),
-                }
+            entries = [
+                e
+                for e in gathered.collect.get("members", [])
+                if e.get("kind") == "column" and e.get("points")
+            ]
+            # The capacities read the pack's factors: recorded for the stamps (design_mode).
+            with design_mode.recording(out_dir):
+                for k, entry in enumerate(entries):
+                    if k % 20 == 0:
+                        jobs.note(f"Interaction diagrams: column {k + 1} of {len(entries)}")
+                    type_id = entry["type"]
+                    if type_id not in surfaces:
+                        surfaces[type_id] = InteractionSurface(entry["section"])
+                    columns[entry["id"]] = {
+                        "type": type_id,
+                        "assumedBars": type_id in gathered.assumed,
+                        **_diagram(entry["section"], surfaces[type_id], entry["points"]),
+                    }
             cached = _finite(
                 {
                     "schema": CACHE_SCHEMA,
@@ -435,6 +435,8 @@ def column_interaction(
                 cache.write_text(json.dumps(cached), encoding="utf-8")
             except OSError:
                 pass
+    finally:
+        _lock.release()
     columns = cached["columns"]
     if member is not None:
         columns = {member: columns[member]} if member in columns else {}

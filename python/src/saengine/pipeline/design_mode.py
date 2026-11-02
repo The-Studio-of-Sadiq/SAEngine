@@ -20,6 +20,7 @@ view (``saengine.fem.member_detail``) design the members once (:func:`checks`).
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import json
@@ -27,6 +28,7 @@ import math
 import os
 import threading
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -38,6 +40,10 @@ from saengine.fem.derive import model_stamp
 REQUIRED_FILE = "design-required.json"
 #: The kept design checks of the run (:func:`report`).
 REPORT_FILE = "design-report.json"
+#: The code pack tables the design work of the run has read (:func:`recording`): the project's
+#: overrides of other tables do not enter the stamps (B10-33 of usability walk 3: a ramp slope
+#: made Update Report check every member again).
+CODE_TABLES_FILE = "design-code-tables.json"
 
 #: What Run All keeps beside the results: the stamp of the model they were computed from
 #: (``saengine.pipeline.run_all.ANALYSIS_INPUTS_FILE``).
@@ -57,6 +63,7 @@ _DERIVED = frozenset(
         "column-interaction.json",
         "face-forces.json",
         ANALYSIS_INPUTS_FILE,
+        CODE_TABLES_FILE,
     }
 )
 #: The same by path in the results folder: the response spectrum design's summary is written
@@ -83,18 +90,70 @@ INPUT_FILES = (
 )
 
 
-def _pack_fingerprint(settings_text: str, root: Path) -> str:
+def _pack_fingerprint(settings_text: str, root: Path, tables: frozenset[str] | None = None) -> str:
     """The fingerprint of the code pack the settings choose, with their overrides
-    (:attr:`saengine.codes.registry.CodePack.fingerprint`); '' when it cannot be told."""
+    (:attr:`saengine.codes.registry.CodePack.fingerprint`); with ``tables``, with the overrides
+    of those tables only; '' when it cannot be told."""
     from saengine.codes import context as code_context
+    from saengine.codes import overrides as overrides_mod
 
     try:
         settings = json.loads(settings_text)
-        return code_context.pack_for(
-            settings if isinstance(settings, dict) else {}, root
-        ).fingerprint
+        settings = settings if isinstance(settings, dict) else {}
+        pack = code_context.pack_for(settings, root)
+        if tables is None:
+            return pack.fingerprint
+        read = overrides_mod.restricted(overrides_mod.of(settings), tables)
+        return hashlib.sha1(
+            f"{pack.base.fingerprint}|{overrides_mod.digest(read)}".encode()
+        ).hexdigest()
     except Exception:  # noqa: BLE001 - a stamp never fails: the settings' own stamp is kept
         return ""
+
+
+def learned_tables(out_dir: str | Path) -> frozenset[str] | None:
+    """The code pack tables the design work of the run has read so far (:func:`recording`);
+    None before any (every override then counts)."""
+    try:
+        data = json.loads((Path(out_dir) / CODE_TABLES_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    tables = data.get("tables") if isinstance(data, dict) else None
+    if not isinstance(tables, list):
+        return None
+    return frozenset(str(t) for t in tables)
+
+
+_tables_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def recording(out_dir: str | Path) -> Iterator[None]:
+    """Records the code pack tables read within it into :data:`CODE_TABLES_FILE` (added to those
+    read before, never fewer). A stamp taken before a run that reads a table first is then
+    stale once that table has overrides: worked out once more, never wrongly current."""
+    from saengine.codes.registry import recording_tables
+
+    with recording_tables() as read:
+        yield
+    out = Path(out_dir)
+    if not read or not out.is_dir():
+        return
+    with _tables_lock:
+        known = learned_tables(out) or frozenset()
+        if read <= known:
+            return
+        target = out / CODE_TABLES_FILE
+        unique = f"{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}"
+        temporary = out / f".{CODE_TABLES_FILE}.{unique}.tmp"
+        try:
+            temporary.write_text(json.dumps({"tables": sorted(known | read)}), encoding="utf-8")
+            os.replace(temporary, target)
+        except OSError:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def inputs_stamp(
@@ -109,6 +168,7 @@ def inputs_stamp(
             digest.update(b"\0")
 
     add(saengine.__version__, json.dumps(options or {}, sort_keys=True, default=str))
+    tables = learned_tables(out_dir)
     project_path = Path(project_path)
     root = project_path.resolve().parent.parent
     model = project_path.resolve().relative_to(root).as_posix()
@@ -125,10 +185,11 @@ def inputs_stamp(
             from saengine.fem.derive import settings_stamp
 
             text = data.decode("utf-8", errors="replace")
-            add(relative, settings_stamp(text))
+            # Without the overrides of code tables the design does not read (B10-33).
+            add(relative, settings_stamp(text, code_tables=tables))
             # The code pack's values (a user or project pack edited on disk, the overrides):
             # kept checks of another pack's values are not current (D7).
-            add("codePack", _pack_fingerprint(text, root))
+            add("codePack", _pack_fingerprint(text, root, tables))
         elif relative == model:
             add(relative, model_stamp(data))
         else:
@@ -226,7 +287,8 @@ def _ensure_seismic_design(out_dir: str | Path, project_path: str | Path) -> Non
         )
     except (OSError, ValueError):
         return
-    ensure_seismic_design(out_dir, project_path, settings)
+    with recording(out_dir):
+        ensure_seismic_design(out_dir, project_path, settings)
 
 
 def required(
@@ -248,7 +310,8 @@ def required(
         if cached is not None:
             return cached
     gathering = gathered(out_dir, project_path, stamp)
-    result = _plain(design_required(out_dir, project_path, options, gathering))
+    with recording(out_dir):
+        result = _plain(design_required(out_dir, project_path, options, gathering))
     keep(out_dir, stamp, result)
     return result
 
@@ -266,6 +329,24 @@ _memo_lock = threading.Lock()
 #: asks for the checks and the proposal at once, the RPC server serves them in two threads) wait
 #: and take the answer kept, rather than designing every member a second time.
 _work_lock = threading.RLock()
+#: Held while a design report is made on its own (:func:`checks`, types without bars).
+_report_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def _working(what: str) -> Iterator[None]:
+    """Holds :data:`_work_lock`, saying so while it waits for another request's checks
+    (:func:`saengine.rpc.jobs.note`: the app shows what the engine is doing, B10-21)."""
+    from saengine.rpc import jobs
+
+    if not _work_lock.acquire(blocking=False):
+        jobs.note("Waiting for the design checks another request is making")
+        _work_lock.acquire()
+    try:
+        jobs.note(what)
+        yield
+    finally:
+        _work_lock.release()
 
 
 def _folder(out_dir: str | Path) -> str:
@@ -293,6 +374,101 @@ def _has_assumed_bars(project_path: str | Path) -> bool:
         return True
 
 
+#: Element kinds a building model may hold and still have nothing to check without bars: its
+#: beams, columns and slabs (footings are designed in 9 Substructure).
+_BAR_KINDS = frozenset({"beam", "column", "slab"})
+
+
+def unreinforced_report(project_path: str | Path) -> dict[str, Any] | None:
+    """The design report of a building none of whose members has bars yet (a model just made by
+    New Building from Grid or imported), made at once: every beam and column skipped for want of
+    bars, the slabs noted, nothing checked. None when anything could be checked (a type with
+    bars, a wall, a staircase, a steel or timber member, an addition), or the files cannot be
+    read: then the checks run as usual.
+
+    Run All never writes bars (the design step fails and offers Design Reinforcement), so the
+    design checks of such a model check nothing; working out its combined forces took minutes on
+    10 storeys (B10-11 of usability walk 3). The combined forces are worked out by the design
+    that proposes the bars (:func:`gathered`), when the engineer asks for it."""
+    from saengine.design.check import NO_REINFORCEMENT, design_counts
+    from saengine.design.required import with_assumed_bars
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.settings import ProjectSettings, code_basis
+
+    root = Path(project_path).resolve().parent.parent
+    try:
+        materials = MaterialLibrary.model_validate_json(
+            (root / "03 Materials/materials.json").read_text(encoding="utf-8")
+        )
+        objects_text = (root / "04 Objects/objects.json").read_text(encoding="utf-8")
+        building = json.loads((root / "06 BIM/bim.json").read_text(encoding="utf-8"))
+        settings = ProjectSettings.model_validate_json(
+            (root / SETTINGS_FILE).read_text(encoding="utf-8")
+        )
+        _, assumed = with_assumed_bars(objects_text, materials)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(building, dict):
+        return None
+    additions = building.get("additions") or {}
+    if isinstance(additions, dict) and any(additions.values()):
+        return None
+    elements = [e for e in building.get("elements") or [] if isinstance(e, dict)]
+    designed = [e for e in elements if e.get("kind") != "footing"]
+    if not designed or any(
+        e.get("kind") not in _BAR_KINDS or e.get("type") not in assumed for e in designed
+    ):
+        return None
+    skipped = [
+        {
+            "id": e.get("id"),
+            "kind": e.get("kind"),
+            "type": e.get("type"),
+            "reason": NO_REINFORCEMENT,
+        }
+        for e in designed
+        if e.get("kind") != "slab"
+    ]
+    slabs = [e for e in designed if e.get("kind") == "slab"]
+    no_bars = sorted({str(s["type"]) for s in skipped})
+    notes = [
+        (
+            "Nothing was checked: no object type in use has bars yet (Design Reinforcement "
+            "proposes them from the analysis). The combined forces are worked out when bars are "
+            "proposed."
+        )
+    ]
+    notes += [f"{e.get('id')}: slab not designed (no reinforcement)" for e in slabs]
+    counts = design_counts([], skipped, [], [])
+    return {
+        "code": code_basis(settings).concrete,
+        "method": [],
+        "combinations": [],
+        "elements": [],
+        "skipped": skipped,
+        "seismic": None,
+        "joints": [],
+        "summary": {
+            "checked": 0,
+            "passed": 0,
+            "failed": 0,
+            "elements": {"checked": 0, "passed": 0, "failed": 0},
+            "skipped": len(skipped),
+            "noBars": no_bars,
+            "maxUtilisation": None,
+            "governing": None,
+            "governingCheck": None,
+            "joints": {"checked": 0, "failed": 0},
+            "seismicChecks": 0,
+            "seismicChecksFailed": 0,
+            "counts": counts,
+            "unreinforced": True,
+        },
+        "notes": notes,
+        "stability": [],
+    }
+
+
 def gathered(
     out_dir: str | Path,
     project_path: str | Path,
@@ -310,7 +486,7 @@ def gathered(
     global _GATHERED
     stamp = stamp or report_stamp(out_dir, project_path)
     folder = _folder(out_dir)
-    with _work_lock:
+    with _working("Design checks: every member with its bars (or assumed bars)"):
         with _memo_lock:
             memo = _GATHERED
         if memo and memo[:2] == (folder, stamp) and (memo[2] or not substructure):
@@ -322,7 +498,8 @@ def gathered(
             with _memo_lock:
                 _GATHERED = (folder, stamp, True, memo[3], memo[4])
             return memo[3]
-        result = gather(out_dir, project_path, substructure)
+        with recording(out_dir):
+            result = gather(out_dir, project_path, substructure)
         # The design report as design_report makes it, when these checks tell it.
         report_copy = None if result.plain is None else copy.deepcopy(result.plain)
         with _memo_lock:
@@ -374,16 +551,28 @@ def checks(
     found = known()
     if found is not None:
         return found
-    with _work_lock:
-        found = known()
-        if found is not None:
-            return found
-        if not _has_assumed_bars(project_path):
+    if not _has_assumed_bars(project_path):
+        with _working("Design checks"):
+            found = known()
+            if found is not None:
+                return found
             gathered(out_dir, project_path, stamp, substructure=False)
             found = known()
             if found is not None:
                 return found
-        result = design_report(out_dir, project_path)
+    # With types without bars the report is made on its own, not from the checks with assumed
+    # bars: it does not wait for those (the required steel or a proposal another request is
+    # working out, which took 17 minutes before Run All's design step could start, B10-11),
+    # only for the same report another request is making.
+    with _report_lock:
+        found = known()
+        if found is not None:
+            return found
+        from saengine.rpc import jobs
+
+        jobs.note("Design checks")
+        with recording(out_dir):
+            result = unreinforced_report(project_path) or design_report(out_dir, project_path)
         with _memo_lock:
             _REPORT = (folder, stamp, copy.deepcopy(result))
         return result
@@ -429,7 +618,8 @@ def report(
     except Exception:  # noqa: BLE001 - not kept, but the checks are still made
         return _plain(design_report(out_dir, project_path)) or None
     if fresh:
-        result = design_report(out_dir, project_path)
+        with recording(out_dir):
+            result = design_report(out_dir, project_path)
     else:
         cached = kept(out_dir, stamp, REPORT_FILE)
         if cached is not None:

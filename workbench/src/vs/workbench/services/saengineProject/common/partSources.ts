@@ -66,7 +66,7 @@ function without(value: unknown, keys: ReadonlySet<string>): unknown {
  * (`saengine.fem.derive.settings_stamp`) computes the same; a text that is not a JSON object gets
  * the stamp of its text.
  */
-export function femSettingsStamp(text: string, legacy = false): string {
+export function femSettingsStamp(text: string, legacy = false, codeTables?: ReadonlySet<string>): string {
 	const document = jsonObject(text);
 	if (!document) {
 		return sourceStamp(text);
@@ -75,7 +75,40 @@ export function femSettingsStamp(text: string, legacy = false): string {
 	if (!legacy && typeof kept.foundation === 'object' && kept.foundation !== null && !Array.isArray(kept.foundation)) {
 		kept.foundation = without(kept.foundation, SETTINGS_FOUNDATION_DESIGN_KEYS);
 	}
+	const overrides = kept.codeOverrides;
+	if (codeTables && typeof overrides === 'object' && overrides !== null && !Array.isArray(overrides)) {
+		const read = Object.entries(overrides).filter(([path]) => {
+			const table = overrideTable(path);
+			return table === undefined || codeTables.has(table);
+		});
+		if (read.length) {
+			kept.codeOverrides = Object.fromEntries(read);
+		} else {
+			delete kept.codeOverrides;
+		}
+	}
 	return sourceStamp(JSON.stringify(kept));
+}
+
+/** The key of an analysis model's recorded sources listing the code pack tables its derivation read. */
+export const FEM_CODE_TABLES_SOURCE = 'codeTables';
+
+/**
+ * The code pack tables an analysis model's derivation read (its recorded `codeTables`, `-` for
+ * none); undefined for a model derived before they were recorded (every override then counts).
+ * The settings' overrides of other tables leave the model current (B10-32 of usability walk 3).
+ */
+export function femCodeTables(recorded: ReadonlyMap<string, string>): ReadonlySet<string> | undefined {
+	const value = recorded.get(FEM_CODE_TABLES_SOURCE);
+	return value === undefined ? undefined : new Set(value.split(',').filter(t => t && t !== '-'));
+}
+
+/** The table a code override's path names ("factors.phi.shear" -> "factors", "[a.b].c" -> "a.b"), as `saengine.codes.overrides.table_of`. */
+function overrideTable(path: string): string | undefined {
+	const text = path.trim();
+	const match = /^(?:\[([^\]]*)\]|([^.[\]]+))/.exec(text);
+	const table = match ? (match[1] ?? match[2]) : undefined;
+	return table ? table : undefined;
 }
 
 /**
@@ -99,9 +132,9 @@ export function femObjectsStamp(text: string): string {
  * model derived before that recorded the whole file's stamp, which stays current while the file
  * is unchanged.
  */
-export function femSourceCurrent(part: string, text: string, recorded: string | undefined): boolean {
+export function femSourceCurrent(part: string, text: string, recorded: string | undefined, codeTables?: ReadonlySet<string>): boolean {
 	return recorded === sourceStamp(text)
-		|| (part === 'settings' && (recorded === femSettingsStamp(text) || recorded === femSettingsStamp(text, true)))
+		|| (part === 'settings' && ((!!codeTables && recorded === femSettingsStamp(text, false, codeTables)) || recorded === femSettingsStamp(text) || recorded === femSettingsStamp(text, true)))
 		|| (part === 'objects' && recorded === femObjectsStamp(text));
 }
 

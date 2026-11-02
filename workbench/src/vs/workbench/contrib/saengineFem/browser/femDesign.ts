@@ -163,6 +163,8 @@ export interface IFemDesignCounts {
 		readonly byKind: { readonly [kind: string]: IFemDesignKindCounts };
 	};
 	readonly joints: IFemDesignTally;
+	/** The floor diaphragms' chords and collectors: checked, not members (an older backend counted them among the members). */
+	readonly diaphragms?: IFemDesignTally;
 	/** The building's own checks (system permitted in the category, bar grades). */
 	readonly building: IFemDesignTally;
 	/** Members not checked: for want of bars (proposed by Design Reinforcement), or another reason. */
@@ -592,8 +594,27 @@ export function designSummaryFile(report: IFemDesignReport, computed: Date): IFe
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */
 export async function writeDesignSummary(fileService: IFileService, model: URI, report: IFemDesignReport): Promise<void> {
-	const content = JSON.stringify(designSummaryFile(report, new Date()), undefined, '\t') + '\n';
-	await fileService.writeFile(joinPath(resultsFolder(model), DESIGN_SUMMARY_FILE), VSBuffer.fromString(content));
+	const target = joinPath(resultsFolder(model), DESIGN_SUMMARY_FILE);
+	const summary = designSummaryFile(report, new Date());
+	// The same verdict is not written again: its new time made the report look out of date right
+	// after Run All (FD-27 of usability walk 3: the FEM view wrote the summary Run All had written).
+	try {
+		const { computed: _old, ...kept } = JSON.parse((await fileService.readFile(target)).value.toString());
+		const { computed: _new, ...fresh } = summary;
+		if (canonicalJson(kept) === canonicalJson(fresh)) {
+			return;
+		}
+	} catch {
+		// None yet, or unreadable: written.
+	}
+	await fileService.writeFile(target, VSBuffer.fromString(JSON.stringify(summary, undefined, '\t') + '\n'));
+}
+
+/** `value` as JSON with every object's keys sorted (the Python writer orders them its own way). */
+function canonicalJson(value: unknown): string {
+	return JSON.stringify(value, (_key, v) => typeof v === 'object' && v !== null && !Array.isArray(v)
+		? Object.fromEntries(Object.keys(v).sort().map(k => [k, (v as { [key: string]: unknown })[k]]))
+		: v);
 }
 
 export function runDesign(commandService: ICommandService, model: URI): Promise<IFemDesignReport | undefined> {
@@ -630,6 +651,11 @@ export function designInputs(model: URI): URI[] {
 
 /** A utilisation to two decimals, or three where two would hide which colour band it is in. */
 export function formatUtilisation(value: number): string {
+	// A check without any capacity (no bars, a zero section) reports 99: never a utilisation
+	// (FD-17, SL-15 of usability walk 3: "largest utilisation 99.00").
+	if (value >= NO_CAPACITY_UTILISATION) {
+		return localize('femDesign.noCapacity', "no capacity");
+	}
 	const short = value.toFixed(2);
 	return Number(short) !== value && (short === '1.00' || short === '0.90') ? value.toFixed(3) : short;
 }
@@ -672,12 +698,22 @@ export function designElementOf(report: IFemDesignReport, elementId: number): IF
  * then the joints and the building's seismic checks when there are any (the totals hold all
  * three; an older backend's totals are the members').
  */
+/** The utilisation a check reports when it has no capacity at all (the backend's sentinel). */
+export const NO_CAPACITY_UTILISATION = 99;
+
+/**
+ * The one count of a design run every surface shows (B10-22 of usability walk 3: three tallies
+ * of one state): members, then joints, diaphragms and the building's checks apart, never added.
+ */
 export function describeDesignCounts(summary: IFemDesignReport['summary']): string {
 	const counts = summary.counts;
 	if (counts) {
 		const parts = [localize('femDesign.counts', "{0} members pass, {1} fail", counts.members.passed, counts.members.failed)];
 		if (counts.joints.checked) {
 			parts.push(localize('femDesign.jointCounts', "{0} joints, {1} fail", counts.joints.checked, counts.joints.failed));
+		}
+		if (counts.diaphragms?.checked) {
+			parts.push(localize('femDesign.diaphragmCounts', "{0} diaphragms, {1} fail", counts.diaphragms.checked, counts.diaphragms.failed));
 		}
 		if (counts.building.failed) {
 			parts.push(counts.building.failed === 1

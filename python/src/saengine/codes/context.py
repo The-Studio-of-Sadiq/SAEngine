@@ -45,11 +45,12 @@ _SETTINGS_FOLDER = "02 Project Settings"
 
 
 #: How long the default pack is reused without asking the registry again [s]. The registry's
-#: own cache checks the packs' file times on every load (a few ms), too slow for the coefficient
-#: lookups of :mod:`saengine.fem.loads`; within this time a hand edit of a user copy of the
-#: default pack is not seen yet. Installs, trust changes and ``registry.clear_cache()`` are seen
-#: at once (the registry's ``generation``).
-DEFAULT_PACK_TTL = 1.0
+#: own cache checks the packs' file times on every load (about 0.1 s with every file of the
+#: built-in packs to stat), too slow for the coefficient lookups of :mod:`saengine.fem.loads` and
+#: the design checks (once a second, 33 s of an 8-minute proposal on 6 storeys); within this
+#: time a hand edit of a user copy of the default pack is not seen yet. Installs, trust changes
+#: and ``registry.clear_cache()`` are seen at once (the registry's ``generation``).
+DEFAULT_PACK_TTL = 10.0
 
 _default_memo: tuple[int, float, CodePack] | None = None
 _default_lock = threading.Lock()

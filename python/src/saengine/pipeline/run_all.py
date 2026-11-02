@@ -357,13 +357,14 @@ def mep_has_content(text: str | None) -> bool:
 def derivation_state(description: Any, texts: dict[str, str | None]) -> tuple[bool, list[str]]:
     """``derivationState``: whether the model was derived, and the labels of the sources
     changed since."""
-    from saengine.fem.derive import mep_stamp
+    from saengine.fem.derive import code_tables_of, mep_stamp
 
     recorded = recorded_sources(description)
+    tables = code_tables_of(recorded)
     changed = [
         label
         for part, key, label in DERIVATION_SOURCES
-        if fem_source_changed(texts, part, recorded.get(key))
+        if fem_source_changed(texts, part, recorded.get(key), tables)
     ]
     for part, label in (("soil", "Soil Report"), ("substructure", "Substructure")):
         if part in recorded:
@@ -690,10 +691,13 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
         from saengine.design.check import shared_demands
 
         with shared_demands():
-            try:
-                design_mode.gathered(results_folder(model), model, stamp)
-            except Exception:  # noqa: BLE001, S110 - the report is then made on its own
-                pass
+            # Nothing to check without bars (B10-11): the step fails at once, and the checks
+            # with assumed bars are made when Design Reinforcement proposes bars.
+            if design_mode.unreinforced_report(model) is None:
+                try:
+                    design_mode.gathered(results_folder(model), model, stamp)
+                except Exception:  # noqa: BLE001, S110 - the report is then made on its own
+                    pass
             report = design_mode.checks(results_folder(model), model, stamp)
     if not report:
         raise StepFailure("The design checks are not available.")
