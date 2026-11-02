@@ -109,6 +109,27 @@ def test_area_statement_and_checks() -> None:
     assert not planning.check(_site(groundCoverage=250, floorArea=1200))["ok"]
 
 
+def test_setbacks_are_measured_from_the_building() -> None:
+    # Walkthrough 3, SO-5: the setback rows compared the typed setbacks with the rule (1.5 ≥
+    # 1.5) while the building stood on the boundary. With a building footprint they are its
+    # least distance to each kind of side: here 1 m from the road side (front, side 0), 3 m
+    # from the rear and 2 m from each other side of the 15 × 22 m plot.
+    from shapely.geometry import box
+
+    ring = [[0, 0], [15000, 0], [15000, 22000], [0, 22000]]
+    footprint = box(2000, 1000, 13000, 19000)
+    found = planning.actual_setbacks(ring, 0, footprint)
+    assert found == {"front": 1.0, "side": 2.0, "rear": 3.0}
+    # On the boundary: 0; without a road side every side is a side.
+    assert planning.actual_setbacks(ring, None, box(0, 0, 10000, 10000)) == {"side": 0.0}
+    # Wholly outside the plot: 0 everywhere.
+    assert planning.actual_setbacks(ring, 0, box(30000, 0, 40000, 5000)) == {
+        "front": 0.0,
+        "side": 0.0,
+        "rear": 0.0,
+    }
+
+
 def test_without_planning_entry_nothing_is_checked() -> None:
     assert planning.check(Site()) is None
 

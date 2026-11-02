@@ -1006,6 +1006,8 @@ export interface ISettlementResult {
 	readonly immediate?: number;
 	readonly consolidation?: number;
 	readonly total: number;
+	/** The consolidation is an estimate (a clay without Cc and e0, the code pack's modulus numbers). */
+	readonly estimated?: boolean;
 	/** BNBC 2020 Table 6.3.8's permissible total settlement [mm], and which row of it. */
 	readonly permissible?: number;
 	readonly permissibleSource?: string;
@@ -1136,6 +1138,8 @@ export interface IBackendSettlement {
 	readonly total?: Maybe<number>;
 	readonly permissible?: BackendPermissible;
 	readonly permissibleSource?: Maybe<string>;
+	/** Indexes of the clay layers whose consolidation is the code pack's modulus number estimate. */
+	readonly estimated?: Maybe<readonly number[]>;
 }
 
 /** What `soil_report()` (python/src/saengine/soil/report.py) returns. */
@@ -1363,6 +1367,7 @@ function readSettlement(value: Maybe<IBackendSettlement>, permissibleRaw: Backen
 		B: num(raw.B), Df: num(raw.Df), q: num(raw.q), immediate: num(raw.immediate), consolidation: num(raw.consolidation), total,
 		permissible: permissible?.value,
 		permissibleSource: str(raw.permissibleSource) ?? permissible?.source,
+		...(Array.isArray(raw.estimated) && raw.estimated.length ? { estimated: true } : {}),
 	};
 }
 

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILatLon, ISoilLocationResult, ISoilReport, ISoilSite, newSoilReport } from '../../browser/soilDocument.js';
-import { applyPlotEdit, codeSiteSuggestion, boreholePoints, boreholeXY, positionMismatch, syncPlacedXY, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
+import { applyPlotEdit, codeSiteSuggestion, boreholePoints, boreholeXY, positionMismatch, syncPlacedXY, boundsOf, spreadLabels, compassPoint, formatBtm, formatDegrees, formatDistance, formatDms, formatLatLon, formatPlotArea, gridExtent, GRID_SIDES, gridSideLabel, inBangladesh, mapState, OSM_ATTRIBUTION, OSM_TILE_URL, outlineProject, outlineRings, parseLatLon, parsePlotLength, plotLonLat, plotProject, plotSideLabel, plotOriginAround, rectanglePlot, roadAfterDelete, sitePosition, tileSource } from '../../browser/soilMap.js';
 
 function report(extra: Partial<ISoilReport> = {}): ISoilReport {
 	return {
@@ -209,6 +209,26 @@ suite('SAEngine - Soil site map', () => {
 			sides: ['Bottom (−Y), faces SW', 'Right (+X), faces SE', 'Top (+Y), faces NE', 'Left (−X), faces NW'],
 			compass: ['N', 'N', 'NE', 'S', 'N', 'NW'],
 			area: '240 m² (3.59 katha, 5.93 decimal)',
+		});
+	});
+
+	test('a typed rectangle goes round the building, between the front and rear setbacks (SO-5)', () => {
+		// A 9 × 15 m building at (0, 0)-(9000, 15000); a 24 × 22 m plot with the road at the bottom:
+		// centred along X (7.5 m each side), across Y the 22 - 15 - 1.5 - 1 = 4.5 m of slack split
+		// between front (1.5 + 2.25 m) and rear (1 + 2.25 m).
+		const building = [{ x: 0, y: 0 }, { x: 9000, y: 0 }, { x: 9000, y: 15000 }, { x: 0, y: 15000 }];
+		assert.deepStrictEqual({
+			bottom: plotOriginAround(24000, 22000, '-y', building, { front: 1500, rear: 1000 }, { x: 0, y: 0 }),
+			top: plotOriginAround(24000, 22000, '+y', building, { front: 1500, rear: 1000 }, { x: 0, y: 0 }),
+			right: plotOriginAround(22000, 24000, '+x', building, {}, { x: 0, y: 0 }),
+			tooSmall: plotOriginAround(8000, 10000, '-y', building, { front: 1500, rear: 1000 }, { x: 0, y: 0 }),
+			none: plotOriginAround(24000, 22000, '-y', [], {}, { x: 100, y: 200 }),
+		}, {
+			bottom: { x: -7500, y: -3750 },
+			top: { x: -7500, y: -3250 },
+			right: { x: -7500, y: -3500 },
+			tooSmall: { x: 500, y: 2500 },
+			none: { x: 100, y: 200 },
 		});
 	});
 

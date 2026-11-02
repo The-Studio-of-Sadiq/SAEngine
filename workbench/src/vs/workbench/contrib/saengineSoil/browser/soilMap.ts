@@ -515,6 +515,34 @@ export function rectanglePlot(frontage: number, depth: number, road: GridSide, o
 	return { points, road: GRID_SIDES.indexOf(road) };
 }
 
+/**
+ * Where a typed rectangle's lower-left corner goes so that the building (its outline's points,
+ * project mm) stands inside it: centred along the frontage, and across the depth centred
+ * between the front (road side) and rear setbacks when they fit, else centred; at `fallback`
+ * (the project point) without a building.
+ */
+export function plotOriginAround(frontage: number, depth: number, road: GridSide, building: readonly { readonly x: number; readonly y: number }[], setbacks: { readonly front?: number; readonly rear?: number }, fallback: { readonly x: number; readonly y: number }): { x: number; y: number } {
+	if (!building.length) {
+		return { x: fallback.x, y: fallback.y };
+	}
+	const xs = building.map(p => p.x), ys = building.map(p => p.y);
+	const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+	const alongX = road === '-y' || road === '+y';
+	const [w, h] = alongX ? [frontage, depth] : [depth, frontage];
+	const front = setbacks.front ?? 0, rear = setbacks.rear ?? 0;
+	// Across the depth: the front margin, from the road side to the building.
+	const [plotDepth, buildingDepth] = alongX ? [h, y1 - y0] : [w, x1 - x0];
+	const slack = plotDepth - buildingDepth - front - rear;
+	const frontMargin = slack >= 0 ? front + slack / 2 : (plotDepth - buildingDepth) / 2;
+	const centre = (span: number, low: number, high: number) => low - (span - (high - low)) / 2;
+	switch (road) {
+		case '-y': return { x: Math.round(centre(w, x0, x1)), y: Math.round(y0 - frontMargin) };
+		case '+y': return { x: Math.round(centre(w, x0, x1)), y: Math.round(y1 + frontMargin - h) };
+		case '-x': return { x: Math.round(x0 - frontMargin), y: Math.round(centre(h, y0, y1)) };
+		case '+x': return { x: Math.round(x1 + frontMargin - w), y: Math.round(centre(h, y0, y1)) };
+	}
+}
+
 /** The road side after corner `index` is deleted: the two sides at it become one (the earlier). */
 export function roadAfterDelete(road: number | undefined, index: number, corners: number): number | undefined {
 	if (road === undefined || corners - 1 < 3) {
