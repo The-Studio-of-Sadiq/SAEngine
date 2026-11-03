@@ -162,6 +162,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   Speed (Design Reinforcement on the Sample Frame now takes minutes, not seconds) moves to alpha 10.
   Only the BNBC 2020 text is at hand: the other packs list every value with its clause in the pack's
   `VERIFY.md`, to be checked against the printed codes.
+  The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
+  database, whose redistribution terms are not checked (owner).
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
     coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec
