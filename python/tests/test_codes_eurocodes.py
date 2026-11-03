@@ -399,6 +399,30 @@ def test_generated_building_derives_seismic_and_wind(tmp_path):
     assert any("peak velocity pressure" in n for n in notes)
 
 
+def test_wizard_spec_maps_the_design_code():
+    from saengine.project.new_building import spec_from_wizard
+
+    spec, _ = spec_from_wizard(
+        {
+            "schema": "saengine.newBuilding/1",
+            "name": "W",
+            "spacings": {"x": [6000], "y": [5000]},
+            "storyHeights": [3000],
+            "stories": [{"id": "L1", "name": "L1", "elevation": 3000}],
+            "site": {
+                "location": "custom",
+                "siteClass": "SC",
+                "zoneCoefficient": 0.1,
+                "windSpeed": 25,
+            },
+            "wind": {"exposure": "II"},
+            "designCode": "eurocodes",
+        }
+    )
+    assert spec["codePack"] == "eurocodes"
+    assert (spec["zoneCoefficient"], spec["windSpeed"], spec["windExposure"]) == (0.1, 25.0, "II")
+
+
 def settings_q(settings: dict) -> float:
     systems = registry.load("eurocodes").table("seismic").systems
     return systems[settings["seismic"]["system"]].R

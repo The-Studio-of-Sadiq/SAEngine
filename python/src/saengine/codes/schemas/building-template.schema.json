@@ -310,6 +310,61 @@
       "default": null,
       "title": "Location"
     },
+    "codePack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the code pack the project follows; none: the settings'.",
+      "title": "Codepack"
+    },
+    "zoneCoefficient": {
+      "anyOf": [
+        {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Z (the pack's peak ground acceleration) [g].",
+      "title": "Zonecoefficient"
+    },
+    "windSpeed": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Basic wind speed [m/s].",
+      "title": "Windspeed"
+    },
+    "windExposure": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Exposure or terrain category id of the pack's wind table.",
+      "title": "Windexposure"
+    },
     "siteClass": {
       "anyOf": [
         {

@@ -161,6 +161,7 @@ def test_rpc_code_pack_methods(tmp_path):
     packs = handlers.codes_list(str(root))
     assert {(p["id"], p["scope"]) for p in packs} == {
         ("bnbc2020", "builtin"),
+        ("eurocodes", "builtin"),
         ("example-region", "project"),
     }
     shown = handlers.codes_show("example-region", str(root))

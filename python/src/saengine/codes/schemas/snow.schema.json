@@ -36,7 +36,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = μ1·Ce·\nCt·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the\nroof's pitch (``shape``: (angle [°], μ1) points, linear between, the last value beyond), Ce\nby the exposure of the site, Ct the thermal coefficient. The project gives sk (Site >\nSnow). ``loadCase``: the load case the roof snow goes into; with ``withRoofLive``\n\"envelope\" the roof takes the larger of the roof live load and the snow (imposed loads on\nroofs need not act with snow). A pack without it does not cover snow.",
+  "description": "Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = factor·\nμ1·Ce·Ct·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the\nroof's pitch (``shape``: (angle [°], μ1) points, linear between, the last value beyond), Ce\nby the exposure of the site, Ct the thermal coefficient. The project gives sk (Site >\nSnow). ``loadCase``: the load case the roof snow goes into; with ``withRoofLive``\n\"envelope\" the roof takes the larger of the roof live load and the snow (imposed loads on\nroofs need not act with snow). A pack without it does not cover snow.",
   "properties": {
     "source": {
       "default": "",
@@ -76,6 +76,13 @@
       "description": "Ct where the project gives none.",
       "exclusiveMinimum": 0,
       "title": "Thermal",
+      "type": "number"
+    },
+    "factor": {
+      "default": 1.0,
+      "description": "A code's constant factor on the roof snow (1.0 in EN 1991-1-3; 0.7 of the flat roof snow load in codes that give one).",
+      "exclusiveMinimum": 0,
+      "title": "Factor",
       "type": "number"
     },
     "shape": {

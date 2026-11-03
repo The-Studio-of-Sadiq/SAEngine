@@ -673,9 +673,13 @@ def _pack_value(module: str, name: str):
 # ─────────────────────────────────────────────── tests ───────────────────────────────────────────────
 
 
+#: Tables of other codes' packs the default pack does not cover (BNBC 2020 has no snow).
+NOT_IN_DEFAULT = {"snow"}
+
+
 def test_every_table_file_validates_and_is_registered():
     names = sorted(p.stem for p in (PACK / "data").glob("*.json"))
-    assert names == sorted(tables.TABLE_MODELS)
+    assert names == sorted(set(tables.TABLE_MODELS) - NOT_IN_DEFAULT)
     manifest = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
     assert manifest["id"] == "bnbc2020" and manifest["extends"] is None
     assert sorted(manifest["covers"]) == names

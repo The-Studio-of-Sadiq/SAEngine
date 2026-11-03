@@ -879,6 +879,12 @@ export class CodePacksEditor extends EditorPane {
 		for (const pack of plannedCodePacks()) {
 			this.listDisposables.add(appendPlannedFeatureChip(chips, pack.feature, this.commandService));
 		}
+		// A planned code whose loads a built-in pack already covers says so (the Eurocodes).
+		for (const pack of plannedCodePacks()) {
+			if (pack.coveredBy) {
+				append(section, $('.code-packs-empty', undefined, pack.coveredBy.what));
+			}
+		}
 	}
 
 	private renderRow(container: HTMLElement, pack: ICodePackInfo): void {

@@ -61,7 +61,7 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     angle = roof_angle(settings)
     mu1 = shape_coefficient(angle, list(table.shape))
     return {
-        "s_kPa": mu1 * ce * ct * float(ground),
+        "s_kPa": table.factor * mu1 * ce * ct * float(ground),
         "sk_kPa": float(ground),
         "mu1": mu1,
         "Ce": ce,

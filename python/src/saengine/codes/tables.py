@@ -8478,8 +8478,8 @@ class SnowExposure(_Row):
 
 
 class SnowTable(TableModel):
-    """Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = μ1·Ce·
-    Ct·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the
+    """Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = factor·
+    μ1·Ce·Ct·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the
     roof's pitch (``shape``: (angle [°], μ1) points, linear between, the last value beyond), Ce
     by the exposure of the site, Ct the thermal coefficient. The project gives sk (Site >
     Snow). ``loadCase``: the load case the roof snow goes into; with ``withRoofLive``
@@ -8489,6 +8489,11 @@ class SnowTable(TableModel):
     exposures: dict[str, SnowExposure]
     defaultExposure: str
     thermal: Positive = Field(default=1.0, description="Ct where the project gives none.")
+    factor: Positive = Field(
+        default=1.0,
+        description="A code's constant factor on the roof snow (1.0 in EN 1991-1-3; 0.7 of the "
+        "flat roof snow load in codes that give one).",
+    )
     shape: list[tuple[float, float]] = Field(min_length=1, description="(roof angle °, μ1).")
     loadCase: Literal["Lr"] = "Lr"
     withRoofLive: Literal["envelope"] = "envelope"
