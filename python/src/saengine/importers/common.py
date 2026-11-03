@@ -691,6 +691,9 @@ class ProjectBuilder:
         #: not listed); filled when the settings are built.
         self.slab_loads: dict[str, str] = {}
         self.self_weight = True
+        #: The member-load case of the file's dead (D) member and joint loads: SD, unless the
+        #: file tells dead from superimposed dead loads (an ETABS pattern's type), then D.
+        self.dead_case = "SD"
         #: Point springs of the file SAEngine could not take over (see the supports).
         self.springs = 0
         #: Values for the settings' analysis model (``Analysis`` fields) the file fixes; a dict
@@ -843,12 +846,12 @@ class ProjectBuilder:
         """A load SAEngine does not take over, of ``total`` kN in ``case`` (None: no SAEngine
         case)."""
         self.report.skip(what, example)
-        self.report.not_carried[case or "other"] += total
+        self.report.not_carried["D" if case == "SD" else case or "other"] += total
 
     def not_carried_item(self, key: str, case: str | None, total: float, example: str) -> None:
         """:meth:`not_carried` with the shared wording of item ``key`` (:data:`ITEMS`)."""
         self.report.note(key, example)
-        self.report.not_carried[case or "other"] += total
+        self.report.not_carried["D" if case == "SD" else case or "other"] += total
 
     def lateral_load(self, key: str, case: str, size: float, example: str) -> None:
         """A load of a wind or earthquake case ``case``, of ``size`` kN: SAEngine replaces it
@@ -1218,7 +1221,7 @@ class ProjectBuilder:
                 self.lateral_load(f"loads.lateral.{kind}", case, size * amount, example)
                 return None
             down = -fz
-            if case not in ("D", "L", "Lr", "F"):
+            if case not in ("D", "SD", "L", "Lr", "F"):
                 total = down if abs(down) > 1e-12 else size
                 self.not_carried_item(f"loads.noCase.{kind}", case, total * amount, example)
                 return None
@@ -1229,12 +1232,12 @@ class ProjectBuilder:
                 report.note("loads.horizontal", example)
             if case == "F" and kind != "joint":
                 report.note("loads.fluid", example)
-            return ("SD" if case in ("D", "F") else case), down
+            return (self.dead_case if case == "D" else "SD" if case == "F" else case), down
 
         def add(load: ll.LineLoad | ll.PointLoad, total: float) -> None:
             loads.append(load)
             report.count("memberLineLoads" if isinstance(load, ll.LineLoad) else "memberPointLoads")
-            report.carried["D" if load.case == "SD" else load.case] += total
+            report.carried["D" if load.case in ("D", "SD") else load.case] += total
 
         for m in self._member_loads:
             frame = frames.get(m.frame)
@@ -1324,7 +1327,7 @@ class ProjectBuilder:
         # Carried by the equipment built from the slab points (counted there).
         for found in self._slab_points.values():
             for _, down, j in found:
-                report.carried["D" if j.case in ("D", "F") else j.case or "other"] += down
+                report.carried["D" if j.case in ("D", "SD", "F") else j.case or "other"] += down
         if not loads:
             return None
         # The code pack's wall types, as a new loads file has them (none without the table).
@@ -1356,7 +1359,7 @@ class ProjectBuilder:
             story = story_at(z)
             by_case: dict[str, float] = defaultdict(float)
             for case, down, j in found:
-                by_case["F" if j.case == "F" else case] += down
+                by_case["F" if j.case == "F" else "SD" if case == "D" else case] += down
             empty = by_case.get("SD", 0.0)
             contents = by_case.get("F", 0.0)
             live = by_case.get("L", 0.0) + by_case.get("Lr", 0.0)
@@ -1364,7 +1367,7 @@ class ProjectBuilder:
             examples = ", ".join(j.example for _, _, j in found)
             if story is None or weight <= 1e-9:
                 for case, down, j in found:
-                    report.carried["D" if j.case in ("D", "F") else j.case or "other"] -= down
+                    report.carried["D" if j.case in ("D", "SD", "F") else j.case or "other"] -= down
                     self.not_carried_item("loads.joint.noMember", j.case, down, j.example)
                 continue
             impact = live / weight * 100 if live > 0 else None

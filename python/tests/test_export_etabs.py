@@ -660,6 +660,17 @@ def test_sample_whole_project_w_and_v_round_trip(sample_whole_round_trip: Any) -
     assert partitions(d1) == pytest.approx(partitions(d0), rel=1e-9)
     assert partitions(d1) / 1.2 == pytest.approx(65.0 - 2.6 * 4.14 - 0.5**2 - 0.8**2, abs=1e-3)
 
+    # W's dead and superimposed dead parts come back apart: the stairs' self-weight (written as
+    # frame loads of the Dead pattern) stays D. Before, every dead frame load came back SD (D
+    # about 13.9 kN lower, SD 12.8 kN higher).
+    def parts(d: dict, part: str) -> float:
+        return sum(
+            level["parts_kN"].get(part, 0.0) for level in d["summary"]["seismicWeight"]["levels"]
+        )
+
+    for part in ("D", "SD"):
+        assert parts(d1, part) == pytest.approx(parts(d0, part), rel=1e-4, abs=0.05), part
+
 
 def test_slabs_as_loads_to_beams_leave_the_openings_out() -> None:
     """Slabs as loads to the beams carry the area loads of their net area, as shell slabs do:

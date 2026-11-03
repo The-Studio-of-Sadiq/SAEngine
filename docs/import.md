@@ -101,6 +101,10 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
   ETABS "Other" patterns named as fluid loads (F, F1, FL, Fluid, Water, Liquid, Tank) are
   SAEngine's F in the combinations; their area loads are applied as superimposed dead load (F
   holds the contents of 07 MEP equipment only), reported.
+- **Dead and superimposed dead frame loads (ETABS)**: point and frame loads of a Dead pattern
+  stay D on the members (SAEngine's stairs, for instance), those of a Superimposed Dead pattern
+  become SD. The SAP2000 and STAAD.Pro imports, whose cases do not tell the two apart, put
+  dead member loads in SD.
 - **Partition allowance (ETABS)**: the area loads of a partition pattern become the area loads'
   **partitions**, not live load (owner decision 2026-11-03). A partition pattern is `PART` (as
   SAEngine exports it) or any pattern that meets all of these: its name says partitions

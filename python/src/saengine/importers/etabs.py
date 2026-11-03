@@ -489,6 +489,9 @@ class _Importer:
         self.elevation: dict[str, float] = {}
         self.order: list[str] = []  # stories bottom up
         self.pattern_cases: dict[str, str | None] = {}
+        #: The superimposed dead patterns: their frame and point loads are SD, a dead pattern's
+        #: D (the builder's ``dead_case``).
+        self.superdead: set[str] = set()
         #: The partition patterns (:func:`_partition_pattern`) -> their case ("L" or "SD").
         self.partition_patterns: dict[str, str] = {}
         #: Whether any of their area loads came onto the floors.
@@ -1353,6 +1356,11 @@ class _Importer:
         for name, p in patterns.items():
             case = _pattern_case(name, p, self.report)
             self.pattern_cases[name] = case
+            if re.sub(r"[^A-Z]", "", p.get("TYPE", "").upper()) in (
+                "SUPERDEAD",
+                "SUPERIMPOSEDDEAD",
+            ):
+                self.superdead.add(name)
             sw = _num(p, "SELFWEIGHT", "SWMULT") or 0.0
             if sw:
                 self_weight = True
@@ -1369,6 +1377,7 @@ class _Importer:
             elif case[0] in "WE":
                 self.report.note("loads.lateral.cases", name)
         self.b.self_weight = self_weight or not patterns
+        self.b.dead_case = "D"  # the pattern types tell dead from superimposed dead loads
         self._partition_patterns(patterns)
 
     def _partition_patterns(self, patterns: dict[str, dict[str, str]]) -> None:
@@ -1405,12 +1414,18 @@ class _Importer:
             return
         self.partition_patterns = found
 
+    def _frame_case(self, pattern: str) -> str | None:
+        """The case of a point or frame load of ``pattern``: a superimposed dead pattern's SD,
+        a dead pattern's D (kept apart: SAEngine's own export writes D and SD)."""
+        case = self.pattern_cases.get(pattern)
+        return "SD" if case == "D" and pattern in self.superdead else case
+
     def _loads(self) -> None:
         """The point and frame loads go to the builder (onto the floor-plan beams and columns);
         the uniform area loads of gravity patterns onto the floors."""
         u = self.u
         for point, story, pairs in self.e.point_loads:
-            case = self.pattern_cases.get(pairs.get("LC", ""))
+            case = self._frame_case(pairs.get("LC", ""))
             example = f"{point}-{story} {pairs.get('LC', '')}"
             if any(_num(pairs, k) for k in ("MX", "MY", "MZ")):
                 self.report.note("loads.joint.moments", example)
@@ -1422,7 +1437,7 @@ class _Importer:
             self.b.add_joint_load(at, case, force, example)  # type: ignore[arg-type]
         for line, story, pairs in self.e.line_loads:
             instance = self.instances.get((line, story), f"{line}-{story}")
-            case = self.pattern_cases.get(pairs.get("LC", ""))
+            case = self._frame_case(pairs.get("LC", ""))
             example = f"{instance} {pairs.get('LC', '')}"
             length = self.lengths.get(instance, 0.0) * 1000  # mm
             kind = pairs.get("TYPE", "").upper()
