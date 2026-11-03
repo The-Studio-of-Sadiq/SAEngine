@@ -384,6 +384,14 @@ class CouplingDiagonal(_Model):
         lt=90,
         description="Angle to the beam's axis [°]; none: from the depth and span.",
     )
+    hoop: BoundaryHoops | None = Field(
+        default=None,
+        title="Hoops",
+        description="Hoops and crossties over the whole coupling beam section (the default "
+        "pack's Part 6 Sec 8.3.6.7(d)(iv)), the same over every spandrel of the type: legs across counted "
+        "down the beam's depth, legs along (vertical) counted across the thickness; none: not "
+        "entered.",
+    )
 
 
 class WallReinforcement(_Model):

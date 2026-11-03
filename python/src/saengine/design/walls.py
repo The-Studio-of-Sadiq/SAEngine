@@ -75,8 +75,12 @@ Coupling beams (8.3.6.7, p. 1105-1106): ln/h > 4: as flexural members of a speci
 (the text refers to "8.3.7" [sic]: the flexural-member provisions are 8.3.4,
 :func:`saengine.design.ductile_members.beam_checks`); ln/h < 2 with Vu > 0.33 Acw λ √f'c: two
 groups of diagonal bars; between: either. Diagonal bars: Vn = 2 Avd fy sin α <= 0.83 Acw √f'c
-(Eq. 6.8.11), φ = 0.85 (6.2.3.3(c)), at least four bars per group (8.3.6.7(d)(ii)), full-section
-transverse bars at <= min(150 mm, 6 db) (8.3.6.7(d)(iv)).
+(Eq. 6.8.11), φ = 0.85 (6.2.3.3(c)), at least four bars per group (8.3.6.7(d)(ii)), and hoops
+over the whole section (8.3.6.7(d)(iv); the option (iii), hoops around each group, is not
+checked): at most min(150 mm, 6 db) apart along the beam, their legs and crossties at most 200 mm
+apart each way, Ash of 8.3.5.4 (the larger of Eq. 6.8.7 and 6.8.8) across the core's depth and
+across its width (the pack's ``detailing.walls`` couplingHoopSpacingMax, couplingHoopDb and
+couplingLegSpacingMax).
 
 Section and bar layout. The pier section is a :class:`~saengine.library.objects.RectangleProfile`
 with ``xDim`` = t and ``yDim`` = lw: +y towards the wall's end (the pier's local 2 of
@@ -1698,9 +1702,129 @@ class Diagonal:
     dia: float
     edge: float = 0.0  # centroid of the group from the beam face at the wall face [mm]
     angle: float | None = None  # α [rad]; None: from the depth, edge and span
+    hoop: CouplingHoops | None = None  # over the whole section (8.3.6.7(d)(iv)); None: none
 
     def area(self) -> float:
         return self.count * bar_area(self.dia)
+
+
+@dataclass(frozen=True)
+class CouplingHoops:
+    """Hoops and crossties over a diagonally reinforced coupling beam's whole section
+    (8.3.6.7(d)(iv)): ``legs_across`` legs across the thickness, counted down the depth;
+    ``legs_along`` legs along the depth (vertical), counted across the thickness."""
+
+    dia: float
+    spacing: float
+    legs_across: int = 2
+    legs_along: int = 2
+
+
+def coupling_hoop_need(
+    h: float, bw: float, cover: float, fc: float, fyt: float, db: float
+) -> tuple[float, float, float, float]:
+    """(largest spacing along the beam, largest leg spacing, Ash/s down the depth, Ash/s
+    across the width) [mm, mm, mm²/mm] of the hoops over a diagonally reinforced coupling
+    beam's whole section (8.3.6.7(d)(iv) with 8.3.5.4: the larger of Eq. 6.8.7 and 6.8.8, the
+    core to the outside of the hoops)."""
+    from saengine.design.ductile_members import ash_per_spacing
+
+    depth, width = h - 2 * cover, bw - 2 * cover
+    ag, ach = bw * h, max(depth, 1.0) * max(width, 1.0)
+    s_max = min(special_limit("couplingHoopSpacingMax"), special_limit("couplingHoopDb") * db)
+    return (
+        s_max,
+        special_limit("couplingLegSpacingMax"),
+        ash_per_spacing(depth, ag, ach, fc, fyt),
+        ash_per_spacing(width, ag, ach, fc, fyt),
+    )
+
+
+def propose_coupling_hoops(
+    h: float, bw: float, cover: float, fc: float, fyt: float, db: float
+) -> CouplingHoops:
+    """The hoops over a coupling beam ``h`` deep and ``bw`` wide with diagonal bars of
+    ``db``: per hoop diameter the fewest legs each way at most the leg spacing apart, more while
+    Ash allows a spacing below 75 mm, the spacing the least of Ash's and the limit along the
+    beam rounded down to the spacing step; the diameter with the least steel per metre."""
+    s_max, legs_max, need_depth, need_width = coupling_hoop_need(h, bw, cover, fc, fyt, db)
+    depth, width = h - 2 * cover, bw - 2 * cover
+    step = spacing_step()
+    best: tuple[float, CouplingHoops] | None = None
+    for dh in bar_sizes("hoop"):
+        across = max(2, math.ceil(depth / legs_max - 1e-9) + 1)
+        along = max(2, math.ceil(width / legs_max - 1e-9) + 1)
+        while across * bar_area(dh) / need_depth < 75.0:
+            across += 1
+        while along * bar_area(dh) / need_width < 75.0:
+            along += 1
+        s = min(s_max, across * bar_area(dh) / need_depth, along * bar_area(dh) / need_width)
+        s = max(round_down(s, step), 50.0)
+        weight = (across * width + along * depth) * bar_area(dh) / s
+        if best is None or weight < best[0] - 1e-9:
+            best = (weight, CouplingHoops(dh, s, across, along))
+    assert best is not None
+    return best[1]
+
+
+def coupling_hoop_rows(
+    hoop: CouplingHoops | None,
+    h: float,
+    bw: float,
+    cover: float,
+    fc: float,
+    fyt: float,
+    db: float,
+) -> list[dict[str, Any]]:
+    """The rows of the hoops over a diagonally reinforced coupling beam (8.3.6.7(d)(iv))."""
+    s_max, legs_max, need_depth, need_width = coupling_hoop_need(h, bw, cover, fc, fyt, db)
+    if hoop is None:
+        return [
+            _row(
+                "Coupling beam hoops provided (8.3.6.7(d)(iv))",
+                s_max,
+                0.0,
+                "mm",
+                note=f"hoops over the whole section at <= {s_max:.0f} mm needed; the wall type's "
+                "diagonal bars have no hoops entered",
+            )
+        ]
+    depth, width = h - 2 * cover, bw - 2 * cover
+    leg = max(depth / max(hoop.legs_across - 1, 1), width / max(hoop.legs_along - 1, 1))
+    rows = [
+        _row(
+            "Coupling beam hoop spacing (8.3.6.7(d)(iv))",
+            hoop.spacing,
+            s_max,
+            "mm",
+            note=f"Ø{hoop.dia:g} @ {hoop.spacing:g}; min("
+            f"{special_limit('couplingHoopSpacingMax'):g} mm, "
+            f"{special_limit('couplingHoopDb'):g} db) with db = Ø{db:g}",
+        ),
+        _row(
+            "Coupling beam hoop legs and crossties apart (8.3.6.7(d)(iv))",
+            leg,
+            legs_max,
+            "mm",
+            note=f"{hoop.legs_across} legs across down {depth:.0f} mm, {hoop.legs_along} along "
+            f"over {width:.0f} mm",
+        ),
+    ]
+    for what, legs, need in (
+        ("down the depth", hoop.legs_across, need_depth),
+        ("across the width", hoop.legs_along, need_width),
+    ):
+        rows.append(
+            _row(
+                f"Coupling beam Ash, bc {what} (8.3.5.4, Eq. 6.8.7, 6.8.8)",
+                need * hoop.spacing,
+                legs * bar_area(hoop.dia),
+                "mm²",
+                note=f"{legs} legs Ø{hoop.dia:g} @ {hoop.spacing:g}; the larger of 0.3 s bc f'c / "
+                "fyt (Ag/Ach - 1) and 0.09 s bc f'c / fyt",
+            )
+        )
+    return rows
 
 
 @dataclass
@@ -1724,11 +1848,13 @@ def coupling_beam_checks(
     lam: float = 1.0,
     combination: str | None = None,
     cover: float = 40.0,
+    fyt: float | None = None,
 ) -> CouplingBeam:
     """A coupling beam of special structural walls (8.3.6.7): ``ln`` clear span, ``h`` depth,
     ``bw`` width [mm], ``vu`` the largest factored shear [N]. ``mode`` "flexural": check it as
     a special moment frame beam (``ductile_members.beam_checks``); "either": diagonals or the
-    beam rules; "diagonal": diagonal bars required."""
+    beam rules; "diagonal": diagonal bars required. ``fyt``: the hoops' yield strength (``fy``
+    when not given)."""
     acw = bw * h
     root = math.sqrt(fc)
     ratio = ln / h
@@ -1780,9 +1906,10 @@ def coupling_beam_checks(
         out.checks.append(
             _row("Diagonal bars per group (8.3.6.7(d)(ii))", 4, diagonal.count, "bars")
         )
+        out.checks += coupling_hoop_rows(diagonal.hoop, h, bw, cover, fc, fyt or fy, diagonal.dia)
         out.notes.append(
-            f"8.3.6.7(d)(iv): transverse bars over the whole section at <= min(150 mm, 6 db) = "
-            f"{min(150.0, 6 * diagonal.dia):.0f} mm, crossties and legs <= 200 mm apart"
+            "8.3.6.7(d)(iv): each hoop leg and crosstie engages a longitudinal bar of at least its "
+            "diameter (the wall's bars around the beam's perimeter)"
         )
     elif mode == "diagonal":
         out.checks.append(

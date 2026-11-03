@@ -3186,6 +3186,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Angle to the beam\'s axis [°]; none: from the depth and span.',
 					title: 'Angle',
 				},
+				hoop: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BoundaryHoops',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hoops and crossties over the whole coupling beam section (the default pack\'s Part 6 Sec 8.3.6.7(d)(iv)), the same over every spandrel of the type: legs across counted down the beam\'s depth, legs along (vertical) counted across the thickness; none: not entered.',
+					title: 'Hoops',
+				},
 			},
 			required: ['count', 'dia'],
 			title: 'CouplingDiagonal',

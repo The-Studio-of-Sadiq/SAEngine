@@ -350,7 +350,41 @@ def test_coupling_beam_diagonal():
     # Avd required = Vu / (φ 2 fy sin α) = 500e3 / (0.85 x 2 x 420 x 0.371391) = 1885.6 mm².
     assert cb.avd_required == pytest.approx(1885.6, rel=1e-4)
     assert cb.proposal is not None and cb.proposal.area() >= cb.avd_required
+    # No hoops entered with the diagonal bars: 8.3.6.7(d)(iv) fails (owner 2026-11-03).
+    assert [c["name"] for c in cb.checks if not c["ok"]] == [
+        "Coupling beam hoops provided (8.3.6.7(d)(iv))"
+    ]
     assert W.coupling_beam_checks(3000, 600, 300, 500e3, FC, FY).mode == "flexural"
+
+
+def test_coupling_beam_hoops_over_the_whole_section():
+    """8.3.6.7(d)(iv), the sample W1's spandrel over D2 (owner 2026-11-03): h = 1100, bw = 250,
+    cover 25, 4 Ø16 per group: s <= min(150, 6 x 16) = 96 mm; legs <= 200 mm apart; Ash of
+    8.3.5.4: Ag = 275 000, Ach = 1050 x 200 = 210 000, Ag/Ach - 1 = 0.3095; down the depth (bc =
+    1050) max(0.3 x 0.3095, 0.09) x 1050 x 24.1 / 420 = 5.597 mm²/mm, across the width (bc =
+    200) 1.066 mm²/mm."""
+    fc, fy = 24.1, 420.0
+    s_max, legs, depth, width = W.coupling_hoop_need(1100, 250, 25, fc, fy, 16)
+    assert (s_max, legs) == (96.0, 200.0)
+    assert depth == pytest.approx(0.3 * (275_000 / 210_000 - 1) * 1050 * fc / fy, rel=1e-9)
+    assert width == pytest.approx(depth * 200 / 1050, rel=1e-9)
+    hoops = W.propose_coupling_hoops(1100, 250, 25, fc, fy, 16)
+    # Ø10: 7 legs across down 1050 mm (175 mm apart), 2 along over 200 mm; 7 x 78.5 / 5.597 =
+    # 98 mm and the 96 mm limit: 75 mm (the 25 mm step).
+    assert hoops == W.CouplingHoops(10.0, 75.0, 7, 2)
+    rows = W.coupling_hoop_rows(hoops, 1100, 250, 25, fc, fy, 16)
+    assert all(r["ok"] for r in rows) and len(rows) == 4
+    assert rows[2]["demand"] == pytest.approx(depth * 75, abs=0.01)
+    wide = W.coupling_hoop_rows(W.CouplingHoops(10, 100, 5, 2), 1100, 250, 25, fc, fy, 16)
+    assert [r["name"] for r in wide if not r["ok"]] == [
+        "Coupling beam hoop spacing (8.3.6.7(d)(iv))",
+        "Coupling beam hoop legs and crossties apart (8.3.6.7(d)(iv))",
+        "Coupling beam Ash, bc down the depth (8.3.5.4, Eq. 6.8.7, 6.8.8)",
+    ]
+    cb = W.coupling_beam_checks(
+        900, 1100, 250, 30e3, fc, fy, diagonal=W.Diagonal(4, 16, hoop=hoops), cover=25
+    )
+    assert cb.mode == "either" and all(c["ok"] for c in cb.checks)
     assert W.coupling_beam_checks(1800, 600, 300, 500e3, FC, FY).mode == "either"
     assert W.coupling_beam_checks(1000, 600, 300, 200e3, FC, FY).mode == "either"
 

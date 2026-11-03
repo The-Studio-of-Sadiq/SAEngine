@@ -48,7 +48,10 @@
     "stressRequired": 0.2,
     "stressStop": 0.15,
     "fytConfinementMax": 700.0,
-    "hxMax": 350.0
+    "hxMax": 350.0,
+    "couplingHoopSpacingMax": 150.0,
+    "couplingHoopDb": 6.0,
+    "couplingLegSpacingMax": 200.0
   },
   "lintels": {
     "minBearing": 100.0,

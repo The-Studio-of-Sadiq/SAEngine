@@ -186,11 +186,9 @@ def test_sample_proposal_zones_resolve_the_member_detailing(analysed: Path, tmp_
     (root / "04 Objects/objects.json").write_text(out["objectsText"], "utf-8")
     run_all(root, ["derive", "analysis"])
     after = _report(root)
-    # Every element passes, detailing included (the stair ST1 meets BNBC's geometry rules).
-    # R3-2: but the wall W1, a special structural wall in Category D (8.3.2(b)): at 250 mm (owner
-    # 2026-11-03) its wall type defines no boundary elements and its spandrels fail as special
-    # beams (8.3.4.1(c), capacity-design shear): a layout, not bars (an open owner question).
-    assert {e["id"] for e in after["elements"] if not e["ok"]} <= {"W1"}
+    # Every element passes, detailing included (the stair ST1 meets BNBC's geometry rules), the
+    # special wall W1 too (sample W250 boundary elements and spandrel hoops, owner 2026-11-03).
+    assert {e["id"] for e in after["elements"] if not e["ok"]} == set()
     # The project checks (system permitted, f'c ≥ 21 MPa) pass on the sample.
     assert after["summary"]["seismicChecksFailed"] == 0
 

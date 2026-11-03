@@ -44,7 +44,8 @@ whose 8.3.4.1(c), (d) (the width to depth ratio and width) need not be met only 
 shown by analysis that the beam has adequate lateral stability": no such analysis is made, so
 they count unless ``lateral_stability=True`` (the engineer has shown it); ln/h < 2 with Vu > 0.33 Acw √f'c diagonal bars
 (8.3.6.7(b), checked by the walls module); between, either (8.3.6.7(c)): the beam rules when no
-diagonal bars are entered. Designed as a beam: the same top and bottom bars (the moment
+diagonal bars are entered, 8.3.4.2 to 8.3.4.4 only (none of the member limits of 8.3.4.1, the
+width rules included). Designed as a beam: the same top and bottom bars (the moment
 reverses) for the largest |M3|, the special moment frame beam rules of
 :func:`saengine.design.ductile_members.beam_checks` (ρmin, ρmax 0.025, hoops at min(d/4, 8 db,
 24 dh, 300 mm) over 2h), and the capacity-design shear Ve = (Mpr⁺ + Mpr⁻)/ln + the gravity
@@ -934,18 +935,19 @@ def spandrel_design(
             # beam has adequate lateral stability": no such analysis is made here, so they
             # count unless the engineer says it was shown (``lateral_stability``). (c) asks
             # only for the longitudinal, transverse and shear rules ("8.3.7.2 to 8.3.7.4"
-            # [sic]: 8.3.4.2-8.3.4.4), not the member limits of 8.3.4.1.
-            widths = ("Width to depth", "Width ≥ 250")
-            waived = widths if lateral_stability else ()
-            if mode == "either":
-                waived += ("Clear span ≥ 4d", "Axial force of a flexural member")
+            # [sic]: 8.3.4.2-8.3.4.4), not the member limits of 8.3.4.1: none of them, the
+            # width rules (c), (d) included (owner 2026-11-03, the Sample Frame's spandrels).
+            widths = ("Width to depth", "Width ≥ 250", "Width within the supporting column")
+            limits = ("Clear span ≥ 4d", "Axial force of a flexural member", *widths)
+            waived = limits if mode == "either" else widths if lateral_stability else ()
             for c in detailing.checks:
                 if waived and c["name"].startswith(waived):
                     c["flag"] = True
                     c["note"] = (c["note"] + "; " if c["note"] else "") + (
-                        "lateral stability shown by the engineer's analysis: waived (8.3.6.7(a))"
-                        if c["name"].startswith(widths)
-                        else "not required of a coupling beam (8.3.6.7(c))"
+                        "not required of a coupling beam (8.3.6.7(c): the beam rules 8.3.4.2 to "
+                        "8.3.4.4 only)"
+                        if mode == "either"
+                        else "lateral stability shown by the engineer's analysis: waived (8.3.6.7(a))"
                     )
                 elif c["name"].startswith(widths) and not c.get("ok", True):
                     c["note"] = (c["note"] + "; " if c["note"] else "") + (

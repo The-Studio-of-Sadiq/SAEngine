@@ -175,10 +175,52 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   (`_partition_pattern`, `_Importer._partition_patterns`, `_partition_case`,
   `_partition_mass`), `importers/common.py` (case `P` of `add_area_load` → `AreaLoad.partitions`),
   [import.md](import.md).
+- **W250 boundary elements and spandrel hoops (PR #173).**
+  - Question: the Sample Frame's special wall W1 (W250) failed four checks: boundary element
+    provided (8.3.6.6(d)), the spandrels' capacity-design shear Ve (8.3.8.1(a)), spandrel width
+    to depth ≥ 0.3 (8.3.4.1(c)) and hoop spacing at the ends (8.3.4.3(b)). Can bars fix them?
+  - Findings:
+    - The boundary element was needed only in a 100 mm pier between the two doors (D2 ended
+      100 mm short of D1). A 100 × 250 mm sliver cannot hold a confined boundary element. Its
+      hoops would have to be about 33 mm apart (one-third of its least dimension), and two
+      rows of bars do not fit. No bars fix this; only the layout does.
+    - The spandrels over the doors are coupling beams with ln/h of 0.8 and 1.0 and a low shear.
+      BNBC 2020 Part 6 Sec 8.3.6.7(c) (p. 1108) lets these take diagonal bars, or the beam
+      rules "8.3.7.2 to 8.3.7.4" [sic: 8.3.4.2 to 8.3.4.4]. Neither option includes the
+      member limits of 8.3.4.1, so the b/h ≥ 0.3 rule does not apply to them. SAEngine had
+      waived only 8.3.4.1(a) and (b).
+    - With the beam rules, the least flexural steel over a 0.9 to 1.0 m span gives Ve of about
+      1 MN. That is above any stirrup capacity, so these spandrels need diagonal bars
+      (8.3.6.7(d)).
+  - Decision:
+    - The sample's door D2 moves from offset 500 to 3300 mm. The piers are now 1500, 800 and
+      800 mm, none needs a boundary element, and the doors keep their sizes.
+    - W250 gets coupling-beam diagonal bars, 4 Ø16 per group, with hoops Ø10 @ 75 over the
+      whole section: 7 legs down the depth and 2 across (8.3.6.7(d)(iv)). The wall mesh stays
+      Ø10 @ 200 each way.
+    - "Either" coupling beams (8.3.6.7(c)) no longer check any 8.3.4.1 member limit.
+    - Hoops over a diagonally reinforced coupling beam are now checked: provided, spacing
+      ≤ min(150 mm, 6 db), legs and crossties ≤ 200 mm apart, and Ash of 8.3.5.4 each way.
+    - Design Reinforcement proposes diagonal bars and hoops where 8.3.6.7(b) requires them, or
+      where (c) allows them and the beam rules fail.
+  - Why: the code reading above. The 100 mm pier was a layout error, not a reinforcement
+    problem. Boundary elements stay available on the type (`reinforcement.boundary`) wherever a
+    pier needs them.
+  - Where it lives:
+    - Schema: `CouplingDiagonal.hoop` in `library/objects.py`. The object editor gets it from
+      the generated schema.
+    - Limits: the pack's `detailing.walls` values `couplingHoopSpacingMax`, `couplingHoopDb`
+      and `couplingLegSpacingMax`. The generic defaults come from ACI 318-19 18.10.7.4(d).
+    - Checks: `design/walls.py` (`coupling_hoop_rows`). The 8.3.4.1 waiver is in
+      `design/lintels.py`.
+    - Proposal: `design/wall_design.py` (`coupling_proposal`).
+    - Quantities: the bill of quantities and the bar bending schedule measure the diagonals and
+      hoops (marks G, J, Y).
 - **Partitions count in full in the seismic weight W** (Sec 2.5.7.3). See item 1 above.
 - **The Sample Frame's wall W1 is 250 mm** (type W250, was W200). Every structural wall in
   Seismic Design Category D is a special wall, and at 200 mm W1 was too thin for its boundary
-  elements and its spandrels (8.3.4.1(c), (d)).
+  elements and its spandrels (8.3.4.1(c), (d)). At 250 mm it still failed. The layout and
+  coupling-beam change above (PR #173) makes it pass.
 
 ## Earlier owner decisions
 

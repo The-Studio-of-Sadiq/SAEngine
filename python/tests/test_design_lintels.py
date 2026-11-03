@@ -151,6 +151,21 @@ def test_flexural_coupling_beam_width_rules_count_without_a_stability_analysis()
     assert width["flag"] and "waived" in width["note"]
 
 
+def test_either_coupling_beam_has_no_member_limits() -> None:
+    """8.3.6.7(c) (BNBC 2020 Part 6 p. 1108): a coupling beam neither (a) nor (b) governs takes
+    diagonal bars or the beam rules 8.3.4.2 to 8.3.4.4 ("8.3.7.2 to 8.3.7.4" [sic]), so none of
+    the member limits of 8.3.4.1 applies: the width to depth ratio and the width are
+    informative, as the clear span and the axial force were (owner 2026-11-03, the Sample
+    Frame's 250 mm spandrels, b/h 0.23)."""
+    s = _spandrel(900, 1100, 200, 10, 30)
+    found = L.spandrel_design(s, FC, FY, special=True, earthquake={"E"})
+    assert found["mode"] == "either"
+    for start in ("Width to depth", "Width ≥ 250", "Clear span ≥ 4d"):
+        row = next(c for c in found["checks"] if c["name"].startswith(start))
+        assert row["flag"] and "8.3.6.7(c)" in row["note"], start
+    assert not any(c["name"].startswith("Width") and not c["flag"] for c in found["checks"])
+
+
 def test_ordinary_spandrel_uses_the_analysis_shear() -> None:
     found = L.spandrel_design(_spandrel(1000, 800, 250, 60, 300), FC, FY, special=False)
     assert found["mode"] == "deep"

@@ -1024,6 +1024,24 @@
           "exclusiveMinimum": 0,
           "title": "Hxmax",
           "type": "number"
+        },
+        "couplingHoopSpacingMax": {
+          "description": "Largest spacing of the hoops over a diagonally reinforced coupling beam's whole section [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinghoopspacingmax",
+          "type": "number"
+        },
+        "couplingHoopDb": {
+          "description": "... and at most this many diameters of the diagonal bars.",
+          "exclusiveMinimum": 0,
+          "title": "Couplinghoopdb",
+          "type": "number"
+        },
+        "couplingLegSpacingMax": {
+          "description": "Largest spacing of those hoops' legs and crossties, each way [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinglegspacingmax",
+          "type": "number"
         }
       },
       "required": [
@@ -1033,7 +1051,10 @@
         "stressRequired",
         "stressStop",
         "fytConfinementMax",
-        "hxMax"
+        "hxMax",
+        "couplingHoopSpacingMax",
+        "couplingHoopDb",
+        "couplingLegSpacingMax"
       ],
       "title": "SpecialWalls",
       "type": "object"
