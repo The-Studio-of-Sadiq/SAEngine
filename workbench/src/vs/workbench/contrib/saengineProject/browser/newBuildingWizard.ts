@@ -122,7 +122,10 @@ interface IChoice<T extends string> {
 function designCodeChoices(): IChoice<string>[] {
 	return [
 		{ value: DEFAULT_CODE_PACK_ID, label: defaultCodeName() },
-		...plannedCodePacks().map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
+		// A planned pack whose loads are built in (C1: ASCE 7-22) is choosable; its materials fall back.
+		...plannedCodePacks().map(pack => pack.loadsPack
+			? { value: pack.loadsPack, label: pack.loadsName ?? pack.name }
+			: { value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true }),
 	];
 }
 
@@ -547,11 +550,31 @@ export class NewBuildingWizard extends EditorPane {
 
 		// ── site and use ──
 		this.section(form, localize('newBuilding.site', "Site and Use"));
-		// Only the default pack in this MVP; the other code packs show once, as planned options
-		// of the list (B10-4: no second set of chips). The pack's words come after its picker (B10-5).
-		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), DEFAULT_CODE_PACK_ID, () => { /* the default pack is the only choice */ });
-		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
-		this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		// The default pack and the built-in packs of other codes (C1: the ASCE 7-22 loads); the
+		// code packs still planned show once, as planned options of the list (B10-4: no second
+		// set of chips). The pack's words come after its picker (B10-5).
+		const zoneSite = $('.site-zone');
+		const mappedSite = $('.site-mapped');
+		const showSite = () => {
+			const zones = !this.form.designCode || this.form.designCode === DEFAULT_CODE_PACK_ID;
+			zoneSite.style.display = zones ? '' : 'none';
+			mappedSite.style.display = zones ? 'none' : '';
+		};
+		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), this.form.designCode || DEFAULT_CODE_PACK_ID, value => {
+			this.form.designCode = value;
+			showSite();
+		});
+		append(form, zoneSite);
+		append(form, mappedSite);
+		append(zoneSite, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
+		this.select(zoneSite, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		append(mappedSite, $('p.hint.indented', undefined, localize('newBuilding.mappedHint', "The site's values from the code's hazard tool (for ASCE 7-22, the ASCE Hazard Tool): the design spectral accelerations SDS and SD1, S1, the long-period transition TL and the basic wind speed V of the risk category. They can be changed later in Project Settings > Site.")));
+		this.textInput(mappedSite, localize('newBuilding.sds', "SDS [g]"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
+		this.textInput(mappedSite, localize('newBuilding.sd1', "SD1 [g]"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
+		this.textInput(mappedSite, localize('newBuilding.s1', "S1 [g]"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
+		this.textInput(mappedSite, localize('newBuilding.tl', "TL [s]"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
+		this.textInput(mappedSite, localize('newBuilding.windSpeed', "Basic wind speed V [m/s]"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windSpeedPlaceholder', "e.g. 50"));
+		showSite();
 		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
 		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);

@@ -71,10 +71,21 @@ export interface INewBuildingSpec {
 	 * BNBC 2020 location id of the project settings (`site.location`), and the site class: without
 	 * a soil report it is an assumption (`siteClassSource: 'assumed'`), which the report says.
 	 */
-	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed' };
+	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly spectral?: ISpectralValues; readonly windSpeed?: number };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
 	readonly designCode: string;
+}
+
+/**
+ * The site's mapped spectral values (Project Settings `site.spectral`) of a code pack whose
+ * seismic hazard comes from the code's hazard tool (ASCE 7-22): SDS, SD1, S1 [g], TL [s].
+ */
+export interface ISpectralValues {
+	readonly sds?: number;
+	readonly sd1?: number;
+	readonly s1?: number;
+	readonly tl?: number;
 }
 
 /** The wizard's fields as typed. */
@@ -95,6 +106,14 @@ export interface INewBuildingForm {
 	readonly siteClass: SiteClass;
 	readonly use: string;
 	readonly category: OccupancyCategory;
+	/** The code pack id: the default pack, or a pack whose site values are typed below. */
+	readonly designCode: string;
+	/** A pack without towns (ASCE 7-22): the site's SDS, SD1, S1 [g], TL [s] and V [m/s], as typed. */
+	readonly sds: string;
+	readonly sd1: string;
+	readonly s1: string;
+	readonly tl: string;
+	readonly windSpeed: string;
 }
 
 /**
@@ -119,7 +138,41 @@ export const BLANK_FORM: INewBuildingForm = {
 	siteClass: 'SD',
 	use: '',
 	category: 'II',
+	designCode: DEFAULT_CODE_PACK_ID,
+	sds: '',
+	sd1: '',
+	s1: '',
+	tl: '',
+	windSpeed: '',
 };
+
+/** A positive number typed in the form, else undefined. */
+function positive(text: string): number | undefined {
+	const value = Number(text.trim().replace(',', '.'));
+	return text.trim() && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * The site values the spec carries for a code pack other than the default one (the default
+ * pack's towns give them): the mapped spectral values and the basic wind speed.
+ */
+export function siteValues(form: INewBuildingForm): { spectral?: ISpectralValues; windSpeed?: number } {
+	if (!form.designCode || form.designCode === DEFAULT_CODE_PACK_ID) {
+		return {};
+	}
+	const spectral: { [key: string]: number } = {};
+	for (const key of ['sds', 'sd1', 's1', 'tl'] as const) {
+		const value = positive(form[key]);
+		if (value !== undefined) {
+			spectral[key] = value;
+		}
+	}
+	const windSpeed = positive(form.windSpeed);
+	return {
+		...(Object.keys(spectral).length ? { spectral } : {}),
+		...(windSpeed !== undefined ? { windSpeed } : {}),
+	};
+}
 
 type SpecRaw = { readonly [key: string]: unknown };
 
@@ -380,9 +433,9 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			system: form.system,
 			materials: { concrete: form.concrete, rebar: form.rebar },
 			footing: form.footing,
-			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
+			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed', ...siteValues(form) },
 			occupancy: { use: form.use, category: form.category },
-			designCode: DEFAULT_CODE_PACK_ID,
+			designCode: form.designCode || DEFAULT_CODE_PACK_ID,
 		},
 	};
 }

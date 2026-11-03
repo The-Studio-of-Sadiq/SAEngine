@@ -154,6 +154,48 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
 
+## 2026-11-04: the US loads pack (alpha 9, track C1)
+
+The built-in pack `aci318-asce7-22` (ASCE 7-22 loads; values in its `VERIFY.md`, to be checked
+against the printed standard). Its behaviour choices:
+
+- **Seismic hazard from mapped values (method `mappedSpectral`).** ASCE 7 has no zone table:
+  the engineer enters SDS and SD1 (or SMS, SM1, or the multi-period MCER spectrum), S1 and TL
+  from the ASCE Hazard Tool (Project Settings > Site > Mapped spectral values). SAEngine ships
+  no hazard data. Inside the program the site's values travel as the derived "Z" (a number equal
+  to SDS that carries SD1, S1 and TL), so every path that scales by the hazard keeps working;
+  the Seismic Design Category table is read by the band of SDS and SD1 the way the zone packs
+  read it by zone. SAEngine practice (the mechanism), code values (the numbers).
+  Where: `fem/spectral_hazard.py`, `library/settings.derived`.
+- **Peak ground acceleration a_h = 0.4 SDS** (Sa at T = 0 of the two-period spectrum), so the
+  engine's Ev = 0.5 a_h D is ASCE's 0.2 SDS D and the diaphragm bound 2.5 a_h is SDS. SAEngine
+  practice (the mapping).
+- **Storage share of the seismic weight.** ASCE 12.7.2 counts 25 % of the floor live load in
+  storage areas. SAEngine takes live loads above 100 psf (4.79 kN/m²) as storage, 0 % for the
+  others; the mass source's live share overrides it. SAEngine practice.
+- **Wind exposure ids are the pack's.** ASCE's B, C, D are not BNBC's A, B, C (BNBC A is ASCE
+  B). The settings now check the exposure against the pack: switching a project to the US pack
+  asks for its exposure (a settings problem names it); the New Building wizard takes the pack's
+  first exposure (B) and asks to confirm it. SAEngine practice.
+- **Materials fall back to BNBC 2020.** Until the ACI 318 and AISC tracks, the pack extends
+  `bnbc2020`: concrete, steel, foundations and the other material tables are BNBC 2020's and
+  cited as such. Placeholder (not ACI).
+- **Snow (case S).** The uniform roof snow (the larger of ps and the low-slope minimum pm) is
+  applied to the roof slabs as case S, taking the place of Lr in the combinations ("Lr or S or
+  R"). The drift at a roof step is computed and reported for the lower roof's design, not
+  applied to the model; the snow's share of the seismic weight (20 % above 30 psf) is in the
+  pack but not yet added to the masses. SAEngine practice.
+- **Irregularity thresholds the table does not number.** Non-parallel systems: elements more
+  than 5° off the major axes; in-plane discontinuity: an offset above 1 % of the element's
+  length (7-16 and later count any offset that loads the supporting members). SAEngine
+  practice.
+- **F left out of 0.9D combinations; service wind 0.6W.** An empty tank does not resist uplift
+  or overturning; the commentary's serviceability combinations leave the wind's return period
+  open, so the ASD wind factor is used. SAEngine practice.
+- **Not covered in this version:** the analysis procedure selection (Table 12.6-1), the
+  soft-storey factors (BNBC only), linear response history, the C&C roof figures of 7-16/7-22
+  (the 7-05 values stay, flagged in VERIFY.md), nonstructural components (Ch 13), ice (Ch 10).
+
 ## 2026-11-04
 
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**

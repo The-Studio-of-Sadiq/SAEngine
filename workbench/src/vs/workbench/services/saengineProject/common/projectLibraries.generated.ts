@@ -10444,6 +10444,32 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Overrides the location\'s value [m/s] (the code pack\'s basic wind speed).',
 					title: 'Basic wind speed',
 				},
+				spectral: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SpectralSite',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The site\'s design spectral accelerations from the hazard maps or tool of the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A pack with seismic zones ignores them.',
+					title: 'Mapped spectral values',
+				},
+				snow: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SnowSite',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ground snow load and roof conditions: the roof snow load (case S) of code packs that cover snow. Empty: no snow.',
+					title: 'Snow',
+				},
 				flood: {
 					$ref: '#/$defs/FloodSite',
 					title: 'Flood and surge',
@@ -10539,6 +10565,256 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Slenderness',
+			type: 'object',
+		},
+		SnowDrift: {
+			additionalProperties: false,
+			description: 'A roof step: the drift on the lower roof (reported, not applied to the model).',
+			properties: {
+				upperLength: {
+					description: '[m]',
+					exclusiveMinimum: 0,
+					title: 'Upper roof length lu',
+					type: 'number',
+				},
+				lowerLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[m], for the windward drift.',
+					title: 'Lower roof length',
+				},
+				stepHeight: {
+					description: 'Height from the lower roof to the upper [m].',
+					exclusiveMinimum: 0,
+					title: 'Step height',
+					type: 'number',
+				},
+				windParameter: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'From the code\'s map; empty: the code pack\'s default.',
+					title: 'Winter wind parameter W2',
+				},
+			},
+			required: ['upperLength', 'stepHeight'],
+			title: 'SnowDrift',
+			type: 'object',
+		},
+		SnowSite: {
+			additionalProperties: false,
+			description: 'C1: the ground snow load and the roof\'s conditions (:mod:`saengine.fem.snow`).',
+			properties: {
+				groundLoad: {
+					description: '[kN/m²]',
+					exclusiveMinimum: 0,
+					title: 'Ground snow load pg',
+					type: 'number',
+				},
+				terrain: {
+					default: 'C',
+					description: 'A key of the pack\'s snow exposure table (surface roughness).',
+					title: 'Terrain category',
+					type: 'string',
+				},
+				roofExposure: {
+					default: 'partiallyExposed',
+					enum: ['fullyExposed', 'partiallyExposed', 'sheltered'],
+					title: 'Roof exposure',
+					type: 'string',
+				},
+				thermal: {
+					default: 'heated',
+					description: 'A key of the pack\'s thermal factor table.',
+					title: 'Thermal condition',
+					type: 'string',
+				},
+				slope: {
+					default: 0.0,
+					description: '[°]',
+					exclusiveMaximum: 90,
+					minimum: 0,
+					title: 'Roof slope',
+					type: 'number',
+				},
+				slippery: {
+					default: false,
+					description: 'An unobstructed slippery surface.',
+					title: 'Slippery roof',
+					type: 'boolean',
+				},
+				drift: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SnowDrift',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Drift at a roof step',
+				},
+			},
+			required: ['groundLoad'],
+			title: 'SnowSite',
+			type: 'object',
+		},
+		SpectralSite: {
+			additionalProperties: false,
+			description: 'C1: the site\'s mapped spectral values (a pack whose ``seismic.hazard`` method is\nmappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1\n(the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets\nthe lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period\nbranch.',
+			properties: {
+				sds: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design spectral acceleration at short periods [g].',
+					title: 'SDS',
+				},
+				sd1: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design spectral acceleration at 1 s [g].',
+					title: 'SD1',
+				},
+				sms: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'MCER spectral acceleration at short periods [g] (used when SDS is empty).',
+					title: 'SMS',
+				},
+				sm1: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'MCER spectral acceleration at 1 s [g] (used when SD1 is empty).',
+					title: 'SM1',
+				},
+				ss: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mapped MCER acceleration at short periods [g] (for the report).',
+					title: 'SS',
+				},
+				s1: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mapped MCER acceleration at 1 s [g]: the near-fault lower bound of Cs and the categories E and F.',
+					title: 'S1',
+				},
+				tl: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Long-period transition period [s]. Empty: no long-period branch (the spectrum stays SD1/T).',
+					title: 'TL',
+				},
+				designSpectrum: {
+					description: '(T [s], Sa [g]) points of the site\'s multi-period design spectrum (5 % damped): used for the response spectrum analysis instead of the two-period one.',
+					items: {
+						maxItems: 2,
+						minItems: 2,
+						prefixItems: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'number',
+							},
+						],
+						type: 'array',
+					},
+					title: 'Multi-period design spectrum',
+					type: 'array',
+				},
+				mcerSpectrum: {
+					description: '(T [s], Sa [g]) points of the site\'s multi-period MCER spectrum: SDS and SD1 from it by the code pack\'s rule when they are not given.',
+					items: {
+						maxItems: 2,
+						minItems: 2,
+						prefixItems: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'number',
+							},
+						],
+						type: 'array',
+					},
+					title: 'Multi-period MCER spectrum',
+					type: 'array',
+				},
+			},
+			title: 'SpectralSite',
 			type: 'object',
 		},
 		Thermal: {
@@ -10767,7 +11043,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				exposure: {
 					default: 'A',
-					description: 'Exposure category (6.2.9.3).',
+					description: 'Exposure category of the code pack (the default pack\'s 6.2.9.3).',
 					enum: ['A', 'B', 'C'],
 					enumDescriptions: ['A: Urban, suburban, wooded', 'B: Open terrain, scattered obstructions', 'C: Flat open country, coastal'],
 					title: 'Exposure',

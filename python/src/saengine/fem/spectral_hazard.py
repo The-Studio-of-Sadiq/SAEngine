@@ -108,8 +108,7 @@ def from_mcer(spectrum: Any, site_class: str, pack: Any = None) -> tuple[float, 
     pts = sorted((float(t), float(a)) for t, a in spectrum)
     lo, hi = mp.smsPeriods
     in_range = [a for t, a in pts if lo - 1e-9 <= t <= hi + 1e-9]
-    at_lo = _interp(pts, lo)
-    sms = max(mp.smsShare * max(in_range or [at_lo]), at_lo)
+    sms = mp.smsShare * max(in_range or [_interp(pts, lo)])
     lo1, hi1 = (
         mp.sm1PeriodsSoft
         if mp.sm1PeriodsSoft is not None and site_class in mp.softClasses
