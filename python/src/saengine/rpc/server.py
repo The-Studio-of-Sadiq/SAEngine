@@ -688,6 +688,14 @@ def create_server() -> JsonRPCServer:
             args.get("substructureText"),
         )
 
+    @server.feature("design/analysisChanged")
+    @_in_worker  # derives the analysis model (seconds)
+    def _design_analysis_changed(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.design_analysis_changed(
+            args["projectRoot"], args["objectsText"], args.get("bimText")
+        )
+
     @server.feature("import/structural")
     @_in_worker
     def _import_structural(params: Any) -> dict[str, Any]:

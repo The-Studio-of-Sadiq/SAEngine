@@ -1399,8 +1399,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** Drawings: the title block's project number and engineer come from Project (one home). */
 	private renderTitleBlockSource(cell: HTMLElement): void {
 		const project = isObject(this.document?.project) ? this.document.project : {};
-		const text = (value: JsonValue | undefined) => typeof value === 'string' && value ? value : localize('settings.notEntered', "not entered");
-		append(cell, $('span.settings-source-value', undefined, localize('settings.titleBlockFromProject', "from Project: {0}, {1}. Edit them in Project; every sheet prints them.", text(project.number), text(project.engineer))));
+		const drawings = isObject(this.document?.drawings) ? this.document.drawings : {};
+		// R3-6: what the sheets print (`drawing_settings`: this page's own field first, as older
+		// projects kept it here, else Project's), never "not entered" beside a number in its field.
+		const given = (value: JsonValue | undefined) => typeof value === 'string' && value ? value : undefined;
+		const text = (own: JsonValue | undefined, fromProject: JsonValue | undefined) => given(own) ?? given(fromProject) ?? localize('settings.notEntered', "not entered");
+		append(cell, $('span.settings-source-value', undefined, localize('settings.titleBlockFromProject2', "the sheets print project number {0} and engineer {1} (this page's field first, else Project's). Edit them in Project; every sheet prints them.", text(drawings.projectNumber, project.number), text(drawings.engineer, project.engineer))));
 		const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
 		button.label = localize('settings.showProject', "Show Project");
 		this.pageDisposables.add(button.onDidClick(() => this.selectSection('project')));

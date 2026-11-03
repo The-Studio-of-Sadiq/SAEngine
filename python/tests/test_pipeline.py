@@ -124,7 +124,7 @@ def test_status_of_the_analysis_model():
         "fem: stale stale",
         "fem: done 13 pass",
         "fem: failed 3 fail",
-        "fem: inProgress analysed",
+        "fem: stale design stale",  # R3-4: the design state, checks of earlier results
     ]
     nothing = json.dumps({"checked": 0, "passed": 0, "failed": 0})
     assert fem(

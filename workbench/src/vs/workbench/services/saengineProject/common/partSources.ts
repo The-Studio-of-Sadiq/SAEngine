@@ -120,6 +120,43 @@ export function femSettingsStamp(text: string, legacy = false, codeTables?: Read
 export const FEM_CODE_TABLES_SOURCE = 'codeTables';
 
 /**
+ * R3 staleness: the stamp a part downstream of the analysis (9 Substructure, 7 MEP, the
+ * drawings) records for the project settings `text`: of the whole settings, with the project's
+ * code overrides of the tables its checks read (`codeTables`) only, so a ramp slope its checks
+ * never read leaves it current. A text that is not a JSON object, or whose overrides are all of
+ * those tables, gets its whole text's stamp (as such a part recorded before). The Python side
+ * (`saengine.fem.derive.code_settings_stamp`) computes the same.
+ */
+export function codeSettingsStamp(text: string, codeTables: ReadonlySet<string>): string {
+	const document = jsonObject(text);
+	const overrides = document?.codeOverrides;
+	if (!document || typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
+		return sourceStamp(text);
+	}
+	const entries = Object.entries(overrides);
+	const read = entries.filter(([path]) => {
+		const table = overrideTable(path);
+		return table === undefined || codeTables.has(table);
+	});
+	if (read.length === entries.length) {
+		return sourceStamp(text);
+	}
+	const kept: { [key: string]: unknown } = { ...document };
+	if (read.length) {
+		kept.codeOverrides = Object.fromEntries(read);
+	} else {
+		delete kept.codeOverrides;
+	}
+	return sourceStamp(JSON.stringify(kept));
+}
+
+/** The code pack tables a downstream part's recorded `source` lists (`codeTables`, `-` for none); undefined when it lists none. */
+export function sourceCodeTables(source: { readonly [part: string]: unknown }): ReadonlySet<string> | undefined {
+	const value = source[FEM_CODE_TABLES_SOURCE];
+	return typeof value === 'string' ? new Set(value.split(',').filter(t => t && t !== '-')) : undefined;
+}
+
+/**
  * The code pack tables an analysis model's derivation read (its recorded `codeTables`, `-` for
  * none); undefined for a model derived before they were recorded (every override then counts).
  * The settings' overrides of other tables leave the model current (B10-32 of usability walk 3).

@@ -187,7 +187,9 @@ def test_sample_proposal_zones_resolve_the_member_detailing(analysed: Path, tmp_
     run_all(root, ["derive", "analysis"])
     after = _report(root)
     # Every element passes, detailing included (the stair ST1 meets BNBC's geometry rules).
-    assert {e["id"] for e in after["elements"] if not e["ok"]} == set()
+    # R3-2: but the 200 mm wall W1, a special structural wall in Category D (8.3.2(b)) too thin
+    # for its boundary elements and its spandrels as special beams: a section, not bars.
+    assert {e["id"] for e in after["elements"] if not e["ok"]} <= {"W1"}
     # The project checks (system permitted, f'c ≥ 21 MPa) pass on the sample.
     assert after["summary"]["seismicChecksFailed"] == 0
 

@@ -35,9 +35,9 @@ Ordinary walls (Part 6 Chapter 6)
   the shear requires, s <= min(lw/3, 3h, 450 mm) (6.4.8.9.5). √f'c at most 8.3 MPa and fy at
   most 420 MPa in shear, as :func:`saengine.design.rc.shear`.
 - 6.4.8.1 (p. 935): out-of-plane shear as a slab (6.4.10 → one-way 6.4.1: φ 0.17 λ √f'c b d per
-  metre); out-of-plane bending (M2 per metre of length) as a slab strip of the vertical bars of
-  one face (:func:`saengine.design.bars.strip_capacity`, without the axial force, which the P-M
-  surface carries): informative beside the surface check.
+  metre); out-of-plane bending (M2 per metre of length) of a 1 m strip of the web with its
+  axial force per metre (6.6.4, :func:`web_strip_check`): a design check beside the pier's
+  P-M3-M2 row, which counts the end bars too (R3-1).
 - Slenderness (6.6.4 → 6.3.10): k lc / r out of the plane (r = 0.3 t) is reported; the moment
   magnification itself is :mod:`saengine.design.slender`'s.
 
@@ -103,10 +103,10 @@ from saengine.codes import context as code_context
 from saengine.design.bars import (
     Mesh,
     column_min_clear,
+    column_rho,
     mesh_for,
     round_down,
     spacing_step,
-    strip_capacity,
 )
 from saengine.design.clauses import Clauses
 from saengine.design.ductile_members import _row, so_special
@@ -879,6 +879,11 @@ def wall_checks(
             )
         )
 
+    # R3-2: the end bars over their zone no more than a compression member's largest ratio
+    # (walls designed as compression members, 6.6.4 -> 6.3.8.1; the pack's concrete.columnRho).
+    if bars.boundary is not None:
+        out.checks.append(end_ratio_row(bars.boundary, t))
+
     # Axial force and flexure on the P-M3-M2 surface (6.6.4, 8.3.6.5).
     worst = None
     for f in forces:
@@ -955,28 +960,11 @@ def wall_checks(
             _row(name, _kn(abs(f.V2)), _kn(phi_v * vn), "kN", f.combination, note, utilisation=u)
         )
 
-    # Out-of-plane: slab strip and slab shear (6.4.8.1), slenderness.
-    m2_case = _largest(forces, lambda f: abs(f.M2))
-    if m2_case is not None and abs(m2_case.M2) > 0:
-        if bars.layers == 2:
-            d = t - bars.cover - bars.horizontal_dia - bars.vertical_dia / 2
-        else:
-            d = t / 2
-        area = bar_area(bars.vertical_dia) * 1000 / bars.vertical_spacing
-        cap = strip_capacity(area, d, fc, fy, es)
-        mu = abs(m2_case.M2) / lw * 1000
-        out.checks.append(
-            _row(
-                "Out-of-plane bending per metre, as a slab strip (6.4.8.1)",
-                mu / 1e6,
-                cap / 1e6,
-                "kN·m/m",
-                m2_case.combination,
-                f"one face Ø{bars.vertical_dia:g} @ {bars.vertical_spacing:g}, d = {d:.0f} mm, "
-                "axial force not counted (the P-M surface carries it)",
-            )
-        )
-        out.checks[-1]["flag"] = True
+    # Out-of-plane: bending of the web per metre with its axial force (6.6.4), slab shear
+    # (6.4.8.1), slenderness.
+    strip_row = web_strip_check(geometry, bars, forces, fc, fy, es)
+    if strip_row is not None:
+        out.checks.append(strip_row)
     v3_case = _largest(forces, lambda f: abs(f.V3))
     if v3_case is not None and abs(v3_case.V3) > 0:
         d = (
@@ -1070,9 +1058,82 @@ def wall_checks(
         bars=bars,
         boundary=boundary,
     )
+    settle_informative(out.checks)
     strength = [c for c in out.checks if not c["flag"]]
     out.utilisation = max((c["utilisation"] for c in strength), default=0.0)
     return out
+
+
+def settle_informative(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """R3-1: an informative row (``flag``) never says ok=false: the element's ok and
+    utilisation are those of its design checks only, so an informative row that is exceeded
+    keeps its numbers and says so in its note, ok stays true. Returns ``rows``."""
+    for row in rows:
+        if row.get("flag") and row.get("ok") is False:
+            row["ok"] = True
+            text = "informative: exceeded, not a design check of this element"
+            if text not in str(row.get("note", "")):
+                row["note"] = f"{row['note']}; {text}" if row.get("note") else text
+    return rows
+
+
+def web_strip_check(
+    geometry: WallGeometry,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+) -> dict[str, Any] | None:
+    """R3-1: out-of-plane bending of the web per metre with its axial force per metre (a wall
+    designed as a compression member, 6.6.4 by 6.3.2-6.3.3): a 1 m strip of the web, its
+    vertical web bars only (the end bars stand at the pier's ends, not under the web's moment),
+    the worst combination of M2 / lw against φMn2 at Pu / lw. The pier's P-M3-M2 row sums the
+    whole section, end bars included, and so cannot show a web too weak out of its plane.
+    None without out-of-plane moment."""
+    lw, t = geometry.length, geometry.thickness
+    if lw <= 0 or not any(abs(f.M2) > 0 for f in forces):
+        return None
+    face = t / 2 - bars.cover - bars.horizontal_dia - bars.vertical_dia / 2
+    xs = [-face, face] if bars.layers == 2 and face > 0 else [0.0]
+    area = bar_area(bars.vertical_dia) * 1000 / bars.vertical_spacing
+    strip = PierInteraction(
+        RcSection(
+            profile=RectangleProfile(xDim=t, yDim=1000.0),
+            bars=tuple(Bar(x, 0.0, area, bars.vertical_dia) for x in xs),
+            fc=fc,
+            fy=fy,
+            es=es,
+            transverse_dia=bars.horizontal_dia,
+        )
+    )
+    worst = None
+    for f in forces:
+        if abs(f.M2) <= 0:
+            continue
+        pu = f.P / lw * 1000
+        mu = abs(f.M2) / lw * 1000
+        cap = strip.capacity(pu, "M2", 1 if f.M2 >= 0 else -1)
+        u = mu / cap if cap > 0 else math.inf
+        if worst is None or u > worst[0]:
+            worst = (u, f, mu, cap, pu)
+    if worst is None:
+        return None
+    u, f, mu, cap, pu = worst
+    layout = f"{len(xs)} x Ø{bars.vertical_dia:g} @ {bars.vertical_spacing:g}" + (
+        " at the faces" if len(xs) == 2 else " at mid-thickness"
+    )
+    return _row(
+        "Out-of-plane bending per metre of web, with its axial force (6.6.4)",
+        mu / 1e6,
+        cap / 1e6,
+        "kN·m/m",
+        f.combination,
+        f"Mu = M2 / lw, Pu = {pu / 1e3:.1f} kN/m (P / lw), 1 m strip of the web: {layout}"
+        + (f" at {f.where}" if f.where else "")
+        + ("" if cap > 0 else "; the strip cannot carry Pu"),
+        utilisation=u,
+    )
 
 
 def _shear_reinforced(
@@ -1542,6 +1603,31 @@ def wall_need(
     )
 
 
+def end_ratio_row(b: Boundary, t: float) -> dict[str, Any]:
+    """R3-2: the end bars' ratio over the end zone (count x area / (length x t)) against the
+    pack's largest ratio of a compression member (``concrete.columnRho``; the default pack: 0.08,
+    Part 6 Sec 6.3.8.1, walls being designed as compression members by 6.6.4)."""
+    high = column_rho()[1]
+    rho = b.count * bar_area(b.dia) / (b.length * t) if b.length > 0 and t > 0 else math.inf
+    return _row(
+        f"End bars over the end zone, ρ <= {100 * high:g} % (6.6.4 -> 6.3.8.1)",
+        100 * rho,
+        100 * high,
+        "%",
+        note=f"{b.count} Ø{b.dia:g} over {b.length:g} x {t:g} mm",
+    )
+
+
+def end_zone_length(count: int, dia: float, t: float) -> float:
+    """R3-2: the least end-zone length [mm] that keeps ``count`` bars of ``dia`` within the
+    largest ratio of a compression member (:func:`end_ratio_row`), rounded up to 50 mm."""
+    high = column_rho()[1]
+    if high <= 0 or t <= 0:
+        return 0.0
+    length = count * bar_area(dia) / (high * t)
+    return math.ceil(length / LENGTH_STEP - 1e-9) * LENGTH_STEP
+
+
 def end_length(count: int, dia: float, cover: float, hoop: float = 10.0) -> float:
     """Length from the wall end [mm] that ``count`` end bars in two rows need at the least
     clear spacing of column bars (:func:`saengine.design.bars.column_min_clear`), rounded up
@@ -1583,7 +1669,11 @@ def _search_end_bars(
         key=lambda o: (o[0] * bar_area(o[1]), o[1]),
     )
     for n, d in options:
-        length = max(boundary.length if required and boundary else 0.0, end_length(n, d, web.cover))
+        length = max(
+            boundary.length if required and boundary else 0.0,
+            end_length(n, d, web.cover),
+            end_zone_length(n, d, geometry.thickness),
+        )
         if 2 * length >= geometry.length:
             continue
         b = propose_boundary(length, geometry.thickness, web.cover, fc, fyt, d, n)
@@ -2037,10 +2127,13 @@ def _joint_rows(
         fc,
         fy,
         worst.combination,
+        None
+        if bars.boundary is None
+        else (bars.boundary.count, bars.boundary.dia, bars.boundary.length),
     )
     if row is None:
         return []
-    # Reported: the design mode does not size the vertical bars or dowels for it yet.
-    row["flag"] = True
-    row["note"] += "; informative: add dowels across the joint where it is exceeded"
+    # R3-1: a design check (shear friction across the joint, the pack's shear-friction clause):
+    # the design mode answers it with a heavier vertical web, or dowels the engineer adds.
+    row["note"] += "; the vertical web bars crossing the joint (or dowels added across it)"
     return [row]

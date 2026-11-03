@@ -438,17 +438,18 @@ class Register:
         return last.code if last else None
 
     def pending_code(self, fallback: str = "0", planned: Sequence[str] = ()) -> str:
-        """The code the next issue takes by default: the first of ``planned`` (Project
-        Settings' revision rows, in order) after the last one issued that is not issued yet
-        (R2-9: the issue dialog offered 0 with revision 1 entered in Project Settings), else
+        """The code the next issue takes by default: the latest of ``planned`` (Project
+        Settings' revision rows, in order) after the last one issued that is not issued yet, the
+        revision the title blocks show (R2-9: the issue dialog offered 0 with revision 1 entered
+        in Project Settings; R3: also before any issue, with rows 0 and 1 the latest is 1), else
         the one after the last issue, else ``fallback``."""
         issued = {i.code for i in self.issues}
         rows = [c for c in planned if c]
         last = self.issues[-1].code if self.issues else None
         start = rows.index(last) + 1 if last in rows else 0
-        for code in rows[start:]:
-            if code not in issued:
-                return code
+        waiting = [code for code in rows[start:] if code not in issued]
+        if waiting:
+            return waiting[-1]
         return next_revision(self.issues[-1].code) if self.issues else (fallback or "0")
 
 

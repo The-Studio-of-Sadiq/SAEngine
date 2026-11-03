@@ -581,6 +581,19 @@ def _structural_wall(wall: Any, types: dict[str, Any], materials: dict[str, Any]
     return m is None or category in (None, "concrete")
 
 
+def structural_walls(building: Any, objects: Any = None, materials: Any = None) -> list[str]:
+    """Ids of the building's structural concrete walls (:func:`_structural_wall`), sorted."""
+    if building is None:
+        return []
+    types = {o.id: o for o in getattr(objects, "objects", [])} if objects is not None else {}
+    by_material = {m.id: m for m in getattr(materials, "materials", [])} if materials else {}
+    return sorted(
+        str(e.id)
+        for e in getattr(building, "elements", [])
+        if getattr(e, "kind", "") == "wall" and _structural_wall(e, types, by_material)
+    )
+
+
 def discontinuities(
     building: Any, objects: Any = None, materials: Any = None
 ) -> list[dict[str, Any]]:
@@ -988,6 +1001,25 @@ def seismic_detailing_scope(
             )
         )
     members = member_roles(objects, building, row, sdc, overrides, materials)
+    # R3-2: the structural walls are special structural walls (8.3.6) where the system's are,
+    # in the category that asks for it, or where the category asks for special detailing of
+    # every RC structure (the pack's requiredDetailing; the default pack: 8.3.2(b), Category D
+    # needs 8.3.3-8.3.8, 8.3.6 among them) and the building has structural concrete walls: in
+    # the analysis model they resist the lateral forces whatever the system declared says.
+    walls_special = bool(row and row.specialWalls and sdc == "D")
+    found_walls = structural_walls(building, objects, materials)
+    if found_walls and required == "special" and row is not None and row.concrete:
+        if not walls_special:
+            notes.append(
+                f"{system_name(system)} ({row.row}) has no structural walls in its seismic "
+                f"force-resisting system, but the building's structural walls "
+                f"{', '.join(found_walls[:6])}{' ...' if len(found_walls) > 6 else ''} resist "
+                f"lateral forces in the analysis: Category {sdc} requires special detailing of "
+                f"every RC structure ({CLAUSES['provisions']}), so they are designed as special "
+                "structural walls (8.3.6); R, Ω0 and Cd stay the declared system's until it is "
+                "changed (a dual system with special walls, or the walls made non-structural)"
+            )
+        walls_special = True
     gravity = sorted(i for i, m in members.items() if m["role"] == "gravity")
     lateral = sorted(i for i, m in members.items() if m["role"] == "lateral")
     # Special moment frame members: the lateral beams and columns at the special level (with a
@@ -1007,7 +1039,7 @@ def seismic_detailing_scope(
         materials,
         objects,
         "special" if smf else frame_type,
-        bool(row and row.specialWalls and sdc == "D"),
+        walls_special,
         smf_types,
     )
     checks += m_checks
@@ -1031,11 +1063,10 @@ def seismic_detailing_scope(
         }
 
     special = smf
-    walls_special = bool(row and row.specialWalls)
     applies = {
         "8.3.3": entry(
             "8.3.3",
-            level == "special" or (walls_special and sdc == "D"),
+            level == "special" or walls_special,
             "all",
             "8.3.2(b): Category D needs 8.3.3-8.3.8 for all RC structures (8.3.3.1(d): members "
             "not part of the seismic force-resisting system conform to 8.3.9); 8.3.3.3-8.3.3.5 "
@@ -1052,7 +1083,7 @@ def seismic_detailing_scope(
         ),
         "8.3.6": entry(
             "8.3.6",
-            walls_special and sdc == "D",
+            walls_special,
             "walls",
             "special structural walls (designed by saengine.design.walls)",
         ),

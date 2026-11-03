@@ -1359,7 +1359,11 @@ export class SubstructureEditor extends EditorPane {
 		}
 		const columns = this.sizingColumns(document);
 		if (!columns.length) {
-			this.notificationService.info(localize('sub.sizeNone', "Every column already stands on a foundation. Select the foundations or columns to size again."));
+			// R3: the walls are not sized here, but one without a foundation is still said.
+			const walls = this.context.walls.filter(w => !carriedAlready(document, [w.id]).length).map(w => w.id);
+			this.notificationService.info(walls.length
+				? localize('sub.sizeNoneWalls', "Every column already stands on a foundation, but no foundation is under the wall(s) {0}: Size Footings sizes footings under columns; add a strip footing (or a raft) under the walls. Select the foundations or columns to size again.", walls.join(', '))
+				: localize('sub.sizeNone', "Every column already stands on a foundation. Select the foundations or columns to size again."));
 			return;
 		}
 		const request: ISubstructureRequest = { ...base, columns };

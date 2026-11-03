@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
 import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
-import { sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { codeSettingsStamp, FEM_CODE_TABLES_SOURCE, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 
 /*
@@ -1259,6 +1259,8 @@ export interface IMepReport {
 	readonly method: readonly string[];
 	/** The stamps of the part files the report read, by part id. */
 	readonly sources?: { readonly [part: string]: string };
+	/** The code pack tables the checks read (R3: the settings' other overrides leave the summary current). */
+	readonly codeTables?: readonly string[];
 }
 
 function optionalNumber(value: unknown): number | undefined {
@@ -1341,7 +1343,8 @@ export function readMepReport(raw: unknown): IMepReport | undefined {
 		};
 	});
 	const sources = isRecord(raw.sources) ? Object.fromEntries(Object.entries(raw.sources).filter((e): e is [string, string] => typeof e[1] === 'string')) : undefined;
-	return { equipment, stories, openings, clashes, notes: strings(raw.notes), method: strings(raw.method), sources };
+	const codeTables = Array.isArray(raw.codeTables) ? strings(raw.codeTables) : undefined;
+	return { equipment, stories, openings, clashes, notes: strings(raw.notes), method: strings(raw.method), sources, ...(codeTables ? { codeTables } : {}) };
 }
 
 export function equipmentOwnerLabel(owner: string): string {
@@ -1499,10 +1502,15 @@ export interface IMepSummaryFile {
  * building has changed since.
  */
 export function mepSummaryFile(document: IMep, report: IMepReport, mepText: string, computed: Date, sourceTexts: IMepContextTexts): IMepSummaryFile {
-	const stamps = Object.fromEntries(MEP_SOURCE_PARTS.map(part => {
+	// R3: with the code tables the checks read, the settings without the overrides of others.
+	const tables = report.codeTables ? new Set(report.codeTables) : undefined;
+	const stamps: { [part: string]: string } = Object.fromEntries(MEP_SOURCE_PARTS.map(part => {
 		const text = sourceTexts[part];
-		return [part, text === undefined ? '' : sourceStamp(text)];
+		return [part, text === undefined ? '' : part === 'settings' && tables ? codeSettingsStamp(text, tables) : sourceStamp(text)];
 	}));
+	if (tables) {
+		stamps[FEM_CODE_TABLES_SOURCE] = [...tables].sort().join(',') || '-';
+	}
 	return {
 		equipment: document.equipment.length,
 		openings: document.openings.length,

@@ -472,6 +472,10 @@ def test_substructure_handlers(tmp_path: Path) -> None:
         else ""
         for part, relative in handlers.SUBSTRUCTURE_SOURCES.items()
     }
+    # R3: with the code pack tables the design read; the settings stamped with their overrides
+    # only (a project without overrides: its whole text's stamp).
+    tables = report["sources"].pop("codeTables")
+    assert isinstance(tables, str) and "foundations" in tables.split(",")
     assert report["sources"] == expected and set(expected) == {
         "soil", "settings", "materials", "objects", "bim", "substructure"
     }  # fmt: skip

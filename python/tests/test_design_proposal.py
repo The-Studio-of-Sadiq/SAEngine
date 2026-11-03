@@ -705,7 +705,10 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     assert {r["kind"] for r in rows} >= {"beam", "column", "slab", "isolated"}
     short = {r["element"] for r in rows if r["ok"] is False}
     failed = {e["id"] for e in before["elements"] if not e["ok"]}
-    assert failed <= short  # every failing element shows a shortfall
+    # Every failing element shows a shortfall; R3-2: the sample's 200 mm wall W1 is a special
+    # structural wall in Category D (8.3.2(b)) and too thin for its boundary elements and its
+    # spandrels as special beams (8.3.4.1(c), (d)): a section, not bars (owner: the sample).
+    assert failed - {"W1"} <= short
     # No section is too small for bars; the footing F1 fails a plan-size check (bearing or the
     # resultant within its base: a larger footing, not bars, is the remedy).
     small = [r for r in rows if r["tooSmall"]]
@@ -717,7 +720,9 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     # The steel brace BR-SHS (A572-50) gets a lighter SHS of its family; it is left out here so
     # the bars are checked on the analysed sections (a new section would need a new analysis).
     assert set(by_type) == {"B300x500", "C400x600", "S150", "W200", "ST1200", "BR-SHS"}
-    assert all(t["status"] in ("ok", "unchanged") for t in by_type.values())  # none too small
+    # None too small but W200 (R3-2: a special wall in Category D, too thin, see above).
+    assert all(t["status"] in ("ok", "unchanged") for k, t in by_type.items() if k != "W200")
+    assert by_type["W200"]["status"] == "tooSmall"
     assert by_type["B300x500"]["governingMember"] in {"B2", "B4", "B5"}
     assert by_type["BR-SHS"]["family"] == "SHS" and by_type["BR-SHS"]["governingMember"] == "M2"
     by_type["BR-SHS"]["apply"] = False
@@ -743,14 +748,14 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     ]
     # Everything passes with the bars proposed: the wall W1 and the dog-legged stair ST1 (riser
     # 160, tread 327: 2R + T = 647 mm, BNBC Part 3 Sec 1.14.5.2, and Part 4 Table 4.3.5's 327 mm).
-    assert failures == []
+    assert [f for f in failures if f[0] != "W1"] == []  # R3-2: W1 (above)
     # The totals count the 18 members (5 beams, 8 columns with the steel M1, the brace M2, 2
     # slabs, the stair and the wall), the Level 1 diaphragm (its chords and collectors, an
     # element of its own since T3, b8098594: this pin predates it and was hidden behind the
     # chord failure), the 6 beam-column joints and the building's 3 seismic checks (f'c, bar
     # grade, fyt of the ties): 28 (X4 of the usability walk).
     summary = after["summary"]
-    assert summary["failed"] == 0 and summary["checked"] == 28
+    assert summary["failed"] == 1 and summary["checked"] == 28  # W1 (R3-2)
     # The diaphragm is counted apart from the members (B10-22 of usability walk 3).
     assert summary["elements"]["checked"] == 18
     assert summary["counts"]["diaphragms"]["checked"] == 1
@@ -771,7 +776,7 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     (root / "06 BIM/bim.json").write_text(result["bimText"], encoding="utf-8")
     (root / "05 Floor Plan/floor-plan.json").write_text(result["floorPlanText"], encoding="utf-8")
     again = design_report(out, model)
-    assert {e["id"] for e in again["elements"] if not e["ok"]} == set()
+    assert {e["id"] for e in again["elements"] if not e["ok"]} <= {"W1"}  # R3-2 (above)
     moved = {m["member"]: m["to"] for m in split["reassign"]}
     assert {e["id"]: e["type"] for e in again["elements"] if e["id"] in moved} == moved
 
