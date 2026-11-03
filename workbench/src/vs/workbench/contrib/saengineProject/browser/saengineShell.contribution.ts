@@ -179,6 +179,16 @@ const SIMPLE_MENU_ITEMS: ReadonlyMap<MenuId, ReadonlySet<string>> = new Map([
 	])],
 ]);
 
+/**
+ * The code-editor items of View > Appearance, shown in developer mode only (R1-9 of re-walk 1);
+ * the zoom, full screen and panel items stay.
+ */
+const DEVELOPER_APPEARANCE_ITEMS: ReadonlySet<string> = new Set([
+	'editor.action.toggleMinimap', 'breadcrumbs.toggle', 'editor.action.toggleStickyScroll',
+	MenuId.EditorRenderWhitespaceSubmenu.id, 'editor.action.toggleRenderControlCharacter',
+	'workbench.action.toggleZenMode',
+]);
+
 function keptInSimpleMode(menu: MenuId, id: string): boolean {
 	return id.startsWith('saengine.') || !!SIMPLE_MENU_ITEMS.get(menu)?.has(id);
 }
@@ -242,6 +252,9 @@ class AnchorView extends ViewPane { }
 
 /** Status bar items of the text editor and of code tools; hidden unless in developer mode. */
 const DEVELOPER_STATUS_ENTRIES = [
+	// R1-10 of re-walk 1: the "Hello" item of the API tests extension, which only a dev build
+	// loads (build/lib/extensions.ts leaves it out of a real build).
+	'vscode.vscode-api-tests.myStaticItem',
 	'status.editor.selection',
 	'status.editor.indentation',
 	'status.editor.encoding',
@@ -282,6 +295,7 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 		this.context = DeveloperModeContext.bindTo(contextKeyService);
 		this._register(new DeveloperViewsGate());
 		gateSubmenus(MenuId.MenubarMainMenu, DEVELOPER_MENUS, DeveloperModeContext);
+		this._register(gateMenuItems(MenuId.MenubarAppearanceMenu, id => !DEVELOPER_APPEARANCE_ITEMS.has(id), DeveloperModeContext));
 		for (const menu of SIMPLE_MENU_ITEMS.keys()) {
 			this._register(gateMenuItems(menu, id => keptInSimpleMode(menu, id), DeveloperModeContext));
 		}

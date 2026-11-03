@@ -811,6 +811,41 @@ export class DesignProposalModel {
 	}
 }
 
+/** What {@link HiddenPageMemo} needs of an editor input. */
+export interface IHiddenPageInput<T> {
+	isDisposed(): boolean;
+	matches(other: T): boolean;
+}
+
+/**
+ * The input of an editor page hidden behind another tab, so that showing the same input again
+ * restores the page as it was rather than starting it afresh (R1-1 of re-walk 1: coming back to
+ * Design Reinforcement after Apply proposed again, for 11 minutes beside Run All).
+ *
+ * The editor group clears a pane's input twice on the way back: once when another tab is shown
+ * (the pane is hidden) and once more right before it sets the input again, with no input by
+ * then. The second must not forget the first. A closed tab's input is disposed: opening the page
+ * again starts afresh.
+ */
+export class HiddenPageMemo<T extends IHiddenPageInput<T>> {
+
+	private hidden: T | undefined;
+
+	/** The pane's input is cleared (`input`: the one it had; undefined when it had none). */
+	hide(input: T | undefined): void {
+		if (input) {
+			this.hidden = input;
+		}
+	}
+
+	/** Whether `input`, being set, is the page hidden last shown again (its state kept); forgets it. */
+	showAgain(input: T): boolean {
+		const hidden = this.hidden;
+		this.hidden = undefined;
+		return !!hidden && !hidden.isDisposed() && !input.isDisposed() && (hidden === input || hidden.matches(input));
+	}
+}
+
 /** The part files an apply edits, as they are now (undefined: not there, or not sent). */
 export interface IDesignProposalTexts {
 	readonly objectsText: string;

@@ -777,7 +777,11 @@ def _design_run(
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
+    from saengine.rpc import jobs as rpc_jobs
+
     for member_id, type_id, element in members:
+        # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
+        rpc_jobs.check()
         object_type = types.get(type_id)
         kind = object_type.kind if object_type else getattr(element, "kind", "member")
 

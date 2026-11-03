@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, femCodeTables, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, femCodeTables, femSettingsStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 import { formatDate as formatUiDate } from './formatting.js';
@@ -51,6 +51,46 @@ export interface IDesignSummary {
 		readonly building?: { readonly failed?: number };
 		readonly notChecked?: { readonly noBars?: number };
 	};
+	/**
+	 * The stamp of each part file the checks read, by part id ("" for a missing file): the
+	 * settings' as `femSettingsStamp` with {@link codeTables}, the others' `sourceStamp`
+	 * (python `saengine.pipeline.design_mode.design_source`). Summaries written before it are
+	 * compared by time only.
+	 */
+	readonly source?: { readonly [part: string]: unknown };
+	/** The code pack tables the design work read: overrides of other tables leave the design current. */
+	readonly codeTables?: readonly unknown[];
+}
+
+/**
+ * Whether every part file a design summary recorded still has the text it was checked with
+ * (R1-2 of re-walk 1: an override of φ shear left the design and the report current here while
+ * Run All checked every member again). The same stamps as Run All's design step hashes
+ * (`saengine.pipeline.design_mode.inputs_stamp`), so the part list and Run All agree; an
+ * override of a code table the design never read (a ramp slope) leaves the design current.
+ */
+export function designSourcesCurrent(texts: ReadonlyMap<string, string | undefined>, summary: Pick<IDesignSummary, 'source' | 'codeTables'>): boolean {
+	const source = summary.source;
+	if (typeof source !== 'object' || source === null || Array.isArray(source)) {
+		return true;
+	}
+	const tables = Array.isArray(summary.codeTables) ? new Set(summary.codeTables.map(String)) : undefined;
+	return Object.entries(source).every(([part, recorded]) => {
+		const text = texts.get(part);
+		if (recorded === '') {
+			return text === undefined;
+		}
+		if (text === undefined) {
+			return false;
+		}
+		return recorded === (part === 'settings' ? femSettingsStamp(text, false, tables) : sourceStamp(text));
+	});
+}
+
+/** Whether the design checks' summary is stale for its source files (see {@link designSourcesCurrent}). */
+function designStale(inputs: IPartStatusInputs): boolean {
+	const summary = parseDesignSummary(inputs.designSummaryText);
+	return !!summary && !designSourcesCurrent(inputs.texts, summary);
 }
 
 /** What the rules read from a project. Times are modification times [ms since the epoch]. */
@@ -381,6 +421,11 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	// Done only once the design checks ran on these results, checked something and found no failure.
 	if (!summary || (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime)) {
 		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
+	}
+	// The files the checks read changed since (bars, a code override the design reads): Run All
+	// checks the members again, so they are not current here either (R1-2).
+	if (!designSourcesCurrent(inputs.texts, summary)) {
+		return status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again"));
 	}
 	const counts = designCounts(summary);
 	if (summary.failed > 0) {
@@ -757,6 +802,58 @@ interface ISubstructureSummary {
 	readonly source?: { readonly [part: string]: unknown };
 }
 
+/**
+ * The one count of the foundations and tie beams every surface shows (R1-5 of re-walk 1: Run
+ * All said "20 not checked", the part list "20 without a bearing check", the report "checked 1"):
+ * of `total`, those checked in full (`checked`) and of those `passed`; `failed` of all of them;
+ * `bearingUnchecked` those whose bearing was not checked for want of qa (neither checked nor
+ * passed); `notChecked` the others without a result. As `substructureCheckState` counts them
+ * (python `saengine.pipeline.summaries.foundation_counts`).
+ */
+export interface IFoundationCounts {
+	readonly total: number;
+	readonly checked: number;
+	readonly passed: number;
+	readonly failed: number;
+	readonly bearingUnchecked: number;
+	readonly notChecked: number;
+	/** Columns and walls standing on no foundation (not foundations: said apart). */
+	readonly unsupported: number;
+}
+
+/** {@link IFoundationCounts} of a foundation checks' summary (`substructure.results/summary.json`); `foundations` when it gives no total. */
+export function foundationCounts(summary: { readonly checked: number; readonly passed: number; readonly failed: number; readonly total?: number; readonly skipped?: number; readonly bearingUnchecked?: readonly string[]; readonly unsupported?: number | readonly string[] }, foundations = 0): IFoundationCounts {
+	const bearingUnchecked = Array.isArray(summary.bearingUnchecked) ? summary.bearingUnchecked.length : 0;
+	const total = Math.max(positive(summary.total) || foundations, summary.checked + bearingUnchecked);
+	return {
+		total,
+		checked: positive(summary.checked),
+		passed: positive(summary.passed),
+		failed: positive(summary.failed),
+		bearingUnchecked,
+		notChecked: Math.max(positive(summary.skipped), total - positive(summary.checked) - bearingUnchecked),
+		unsupported: Array.isArray(summary.unsupported) ? summary.unsupported.length : positive(summary.unsupported),
+	};
+}
+
+/** The counts in words, "n of N" (python `describe_foundation_counts`): "2 of 20 fail", "20 of 20 without a bearing check", "1 of 20 not checked", else "all 20 pass". */
+export function describeFoundationCounts(counts: IFoundationCounts): string[] {
+	const parts: string[] = [];
+	if (counts.failed) {
+		parts.push(localize('partStatus.foundations.fail', "{0} of {1} fail", counts.failed, counts.total));
+	}
+	if (counts.bearingUnchecked) {
+		parts.push(localize('partStatus.foundations.noQa', "{0} of {1} without a bearing check", counts.bearingUnchecked, counts.total));
+	}
+	if (counts.notChecked) {
+		parts.push(localize('partStatus.foundations.notChecked', "{0} of {1} not checked", counts.notChecked, counts.total));
+	}
+	if (counts.unsupported) {
+		parts.push(counts.unsupported === 1 ? localize('partStatus.foundations.oneUnsupported', "1 column or wall without a foundation") : localize('partStatus.foundations.unsupported', "{0} columns or walls without a foundation", counts.unsupported));
+	}
+	return parts.length ? parts : [localize('partStatus.foundations.allPass', "all {0} pass", counts.total)];
+}
+
 /** True when every part file a summary recorded still has the text it was checked with. */
 function sourcesUnchanged(texts: ReadonlyMap<string, string | undefined>, source: { readonly [part: string]: unknown }): boolean {
 	return Object.entries(source).every(([part, recorded]) => {
@@ -792,20 +889,28 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 	const current = summary && time !== undefined
 		&& (source ? sourcesUnchanged(inputs.texts, source) : inputs.substructureTime === undefined || time >= inputs.substructureTime)
 		&& (inputs.femResultsTime === undefined || time >= inputs.femResultsTime);
+	// R1-5: one count, "n of N", as Run All and the report say it.
+	const counts = summary ? foundationCounts(summary, count) : undefined;
+	const [first] = counts ? describeFoundationCounts(counts) : [];
 	if (!current) {
-		// The fails of the last check stay in view while the edits or new results wait for the next
-		// one, as the editor's status line keeps them (N-U5).
-		const text = summary && summary.failed > 0 ? localize('partStatus.substructure.failedStale', "{0} fail (stale)", summary.failed) : foundations;
-		return status('substructure', 'inProgress', text, localize('partStatus.substructure.check', "check the foundations"));
+		// The last check's words stay in view, marked stale, while the edits or new results wait
+		// for the next one, as the editor's status line keeps them (N-U5; R1-17 of re-walk 1: a
+		// code override turned "20 without a bearing check" into "20 foundations"). Still waiting
+		// for qa while the soil report is unchanged: the soil report stays the next step.
+		if (!counts || !first || (!counts.failed && !counts.bearingUnchecked)) {
+			return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.check', "check the foundations"));
+		}
+		const soilUnchanged = !!source && source.soil !== undefined && sourcesUnchanged(inputs.texts, { soil: source.soil });
+		const needsQa = !counts.failed && counts.bearingUnchecked > 0 && soilUnchanged;
+		return status('substructure', 'inProgress', localize('partStatus.substructure.stale', "{0} (stale)", first), needsQa ? localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings") : localize('partStatus.substructure.check', "check the foundations"), needsQa ? 'soil' : undefined);
 	}
 	// Fails first: a foundation without its bearing check (no qa) can fail its other checks
 	// while none is checked in full (N-U3, N-U5).
 	if (summary.failed > 0) {
-		return status('substructure', 'failed', localize('partStatus.substructure.fail', "{0} fail", summary.failed), localize('partStatus.substructure.review', "review the failing foundations"));
+		return status('substructure', 'failed', first, localize('partStatus.substructure.review', "review the failing foundations"));
 	}
-	const noQa = Array.isArray(summary.bearingUnchecked) ? summary.bearingUnchecked.length : 0;
-	if (noQa > 0) {
-		return status('substructure', 'inProgress', localize('partStatus.substructure.noQa', "{0} without a bearing check", noQa), localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"), 'soil');
+	if (counts!.bearingUnchecked > 0) {
+		return status('substructure', 'inProgress', first, localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"), 'soil');
 	}
 	if (summary.checked === 0) {
 		return status('substructure', 'inProgress', foundations, localize('partStatus.substructure.analyse', "run the analysis to design them"));
@@ -813,12 +918,10 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 	// All pass only when every foundation was checked (U2): skipped or unsupported ones are not.
 	// The editor's and Run All's file (substructureSummaryFile) give `total` and `unsupported` as a
 	// list; a foundation without its bearing check (no qa) is not in `checked` (N-U3).
-	const unsupported = Array.isArray(summary.unsupported) ? summary.unsupported.length : positive(summary.unsupported);
-	const unchecked = Math.max(positive(summary.skipped), positive(summary.total) - summary.checked) + unsupported;
-	if (unchecked > 0) {
-		return status('substructure', 'inProgress', localize('partStatus.substructure.unchecked', "{0} not checked", unchecked), localize('partStatus.substructure.checkRest', "check the foundations that were skipped"));
+	if (counts!.notChecked > 0 || counts!.unsupported > 0) {
+		return status('substructure', 'inProgress', first, localize('partStatus.substructure.checkRest', "check the foundations that were skipped"));
 	}
-	return status('substructure', 'done', foundations);
+	return status('substructure', 'done', first);
 }
 
 function exportsStatus(inputs: IPartStatusInputs, formatDate: (time: number) => string): IPartStatus {
@@ -968,7 +1071,8 @@ function exportsWithDesign(exports: IPartStatus, fem: IPartStatus, inputs: IPart
 		return exports;
 	}
 	const newest = Math.max(inputs.designSummaryTime ?? 0, inputs.femResultsTime ?? 0);
-	if (newest > inputs.reportTime) {
+	// A report of design checks that are themselves stale (R1-2) is stale too.
+	if (newest > inputs.reportTime || designStale(inputs)) {
 		return status('exports', 'stale', STALE(), localize('partStatus.exports.buildAgain', "build the design report again"));
 	}
 	if (fem.state === 'failed') {

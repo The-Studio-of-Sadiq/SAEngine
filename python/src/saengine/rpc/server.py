@@ -6,6 +6,8 @@ Methods:
 - ``saengine/jobs`` ``{}`` -> ``{jobs: [{id, method, seconds, note, noteSeconds}]}``: the requests
   the server is working on and what each is doing (:mod:`saengine.rpc.jobs`), answered on the
   server's own thread; the design work runs in threads of its own (``_DESIGN_WORKERS``)
+- ``saengine/cancelJobs`` ``{methods}`` -> ``{cancelled}``: cancels the running requests of
+  those methods; their work stops at its next check (``saengine.rpc.jobs.check``)
 - ``project/validate`` ``{path}`` -> schema and reference check of an ``.osmodel``
 - ``results/tables`` ``{outDir, projectPath?}`` -> result tables of a finished run
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
@@ -405,7 +407,8 @@ def create_server() -> JsonRPCServer:
         def decorate(fn: Callable) -> Callable:
             handler = fn if asyncio.iscoroutinefunction(fn) else _scoped(fn)
             name = args[0] if args else kwargs.get("feature_name")
-            return register(_as_job(str(name), handler) if name != "saengine/jobs" else handler)
+            quick = name in ("saengine/jobs", "saengine/cancelJobs")
+            return register(handler if quick else _as_job(str(name), handler))
 
         return decorate
 
@@ -417,6 +420,13 @@ def create_server() -> JsonRPCServer:
     @server.feature("saengine/jobs")
     def _jobs(params: Any) -> dict[str, Any]:
         return {"jobs": jobs.running()}
+
+    # Stop Waiting on Design Reinforcement: the engine stops the proposal at its next check
+    # (R1-1 of re-walk 1: it ran 11 minutes on beside Run All after the page stopped waiting).
+    @server.feature("saengine/cancelJobs")
+    def _cancel_jobs(params: Any) -> dict[str, Any]:
+        methods = _plain(params).get("methods") or []
+        return {"cancelled": jobs.cancel([str(m) for m in methods])}
 
     @server.feature("saengine/info")
     def _info(params: Any) -> dict[str, Any]:

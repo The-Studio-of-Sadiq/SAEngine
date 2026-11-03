@@ -232,7 +232,10 @@ def test_the_report_lists_the_overridden_values() -> None:
     settings = _settings(codeOverrides={"factors.phi.shear": 0.7})
     warnings: list[str] = []
     basis = _basis(settings, _Parts(Path("."), warnings), {}, {})
-    assert basis["codeOverrides"] == [["factors.phi.shear", "0.75", "0.7"]]
+    # R1-16 of re-walk 1: by its name in words and clause, the path after it.
+    [[name, pack_value, value]] = basis["codeOverrides"]
+    assert name.startswith("Factors › Phi › Shear") and name.endswith("(factors.phi.shear)")
+    assert (pack_value, value) == ("0.75", "0.7")
     assert basis["genericDefaults"] == []
     assert code_pack_text(settings).endswith("; 1 value overridden in this project")
     built = document._basis(
@@ -244,7 +247,8 @@ def test_the_report_lists_the_overridden_values() -> None:
     rows = next(
         b for b in built["blocks"] if b.get("head") == ["Value", "Code pack", "This project"]
     )
-    assert rows["rows"] == [["factors.phi.shear", "0.75", "0.7"]]
+    [[name, pack_value, value]] = rows["rows"]  # R1-16: the name in words, then the path
+    assert name.endswith("(factors.phi.shear)") and (pack_value, value) == ("0.75", "0.7")
 
 
 def test_the_code_values_page_lists_and_marks_values() -> None:
@@ -255,7 +259,12 @@ def test_the_code_values_page_lists_and_marks_values() -> None:
     assert answer["id"] == registry.DEFAULT_PACK and answer["missing"] is None
     tables = [{k: t[k] for k in ("name", "overridden", "generic")} for t in answer["tables"]]
     assert {"name": "factors", "overridden": True, "generic": False} in tables
-    assert answer["overrides"] == [{"path": "factors.phi.shear", "packValue": 0.75, "value": 0.7}]
+    # With their words whatever table is shown (R1-16 of re-walk 1).
+    [override] = answer["overrides"]
+    assert {k: override[k] for k in ("path", "packValue", "value")} == {
+        "path": "factors.phi.shear", "packValue": 0.75, "value": 0.7,
+    }  # fmt: skip
+    assert override["title"] == "Factors › Phi › Shear" and override["label"] == "Shear"
     assert [p["path"] for p in answer["problems"]] == ["factors.phi.joint"]
     rows = {r["path"]: r for r in answer["rows"]}
     assert rows["factors.phi.shear"]["overridden"] and rows["factors.phi.shear"]["value"] == 0.7

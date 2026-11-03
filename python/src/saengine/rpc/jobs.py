@@ -6,6 +6,10 @@ Each request is a job from its arrival to its answer. Long work tells what it do
 engine that is working (it answers, with the jobs' notes) from one that no longer responds.
 
 :func:`note` outside a request (the headless Run All, tests) does nothing.
+
+A job can be cancelled (``saengine/cancelJobs``: Stop Waiting on Design Reinforcement, R1-1 of
+re-walk 1): its work stops at the next :func:`check` (each :func:`note` checks too) and the
+request answers an error. The check is cooperative, a job that never checks runs to its end.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ class Job:
     since: float = field(default_factory=time.monotonic)
     note: str | None = None
     noted: float | None = None
+    cancelled: bool = False
 
     def to_json(self, now: float) -> dict[str, Any]:
         return {
@@ -44,6 +49,16 @@ _running: dict[int, Job] = {}
 _current: contextvars.ContextVar[Job | None] = contextvars.ContextVar("rpc_job", default=None)
 #: The job a worker thread works for (executors do not carry the context over).
 _local = threading.local()
+
+
+class JobCancelled(BaseException):
+    """Raised by :func:`check` in a cancelled job's work. A BaseException, so the design code's
+    ``except Exception`` fallbacks do not swallow it; :func:`run_as` turns it into
+    :class:`CancelledRequest` at the worker's edge."""
+
+
+class CancelledRequest(RuntimeError):
+    """The answer of a request whose job was cancelled."""
 
 
 def start(method: str) -> tuple[Job, contextvars.Token]:
@@ -72,14 +87,36 @@ def run_as(job: Job | None, call: Callable[[Any], Any], params: Any) -> Any:
     _local.job = job
     try:
         return call(params)
+    except JobCancelled:
+        raise CancelledRequest("Cancelled: the engine stopped this request.") from None
     finally:
         _local.job = previous
+
+
+def check() -> None:
+    """Raises :class:`JobCancelled` when the current request's job was cancelled."""
+    job = current()
+    if job is not None and job.cancelled:
+        raise JobCancelled(job.method)
+
+
+def cancel(methods: list[str] | tuple[str, ...] | set[str]) -> int:
+    """Cancels the running jobs of ``methods``; how many."""
+    wanted = set(methods)
+    count = 0
+    with _lock:
+        for job in _running.values():
+            if job.method in wanted and not job.cancelled:
+                job.cancelled = True
+                count += 1
+    return count
 
 
 def note(text: str | None) -> None:
     """Says what the current request is doing (None: nothing particular)."""
     job = current()
     if job is not None:
+        check()
         job.note = text
         job.noted = time.monotonic()
 

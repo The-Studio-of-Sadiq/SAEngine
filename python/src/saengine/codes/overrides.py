@@ -407,11 +407,31 @@ def _schema_node(schema: dict[str, Any], node: Any, key: str) -> Any:
         return None
     if node.get("type") == "array" and "items" in node:
         return resolve(node["items"])  # a named item of a list
+
+    def described(raw: Any) -> Any:
+        # An optional field ("float | None") keeps its description on the anyOf node, not on
+        # the option it resolves to (R1-18 of re-walk 1: no unit on "Concentrated", "Max").
+        found = resolve(raw)
+        if (
+            isinstance(raw, dict)
+            and raw.get("description")
+            and isinstance(found, dict)
+            and not found.get("description")
+        ):
+            found = {**found, "description": raw["description"]}
+        return found
+
     props = node.get("properties", {})
     if key in props:
-        return resolve(props[key])
+        return described(props[key])
     extra = node.get("additionalProperties")
-    return resolve(extra) if isinstance(extra, dict) else None
+    if not isinstance(extra, dict):
+        return None
+    found = described(extra)
+    # A value of a mapping of plain values ("byLanes": {1: 3600}): the mapping's words.
+    if isinstance(found, dict) and not found.get("description") and "properties" not in found:
+        found = {**found, "description": node.get("description") or ""}
+    return found
 
 
 @functools.cache
@@ -457,6 +477,22 @@ def describe(table: str, keys: list[str], data: Any) -> dict[str, str]:
         "unit": unit_match.group(1) if unit_match else "",
         "clause": clause,
     }
+
+
+def words_of(pack: Any, path: str) -> dict[str, str]:
+    """What the page and the report show of an override's ``path`` (R1-16 of re-walk 1: they
+    listed raw keys such as ``factors.phi.shear``): :func:`describe` of its value, with
+    ``title``, its table, groups and name in words ("Factors › Phi › Shear"). Empty words for a
+    path that is not one."""
+    try:
+        keys = split(path)
+    except OverrideError:
+        return {"title": str(path), "label": "", "description": "", "unit": "", "clause": ""}
+    table, rest = keys[0], keys[1:]
+    tables = getattr(pack, "_tables", {}) or {}
+    found = describe(table, rest, tables.get(table))
+    title = " › ".join([humanize(table), *(humanize(k) for k in rest)])
+    return {"title": title, **found}
 
 
 def browse(pack: Any, tables: list[str] | None = None) -> list[dict[str, Any]]:

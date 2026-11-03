@@ -679,6 +679,7 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
 
     # The stamp is taken before the design reads the files (an edit meanwhile leaves the kept
     # checks stale); the checks are kept for the drawings (design-report.json).
+    texts = design_mode.input_texts(model)
     try:
         stamp: str | None = design_mode.report_stamp(results_folder(model), model)
     except Exception:  # noqa: BLE001 - the checks are made without being kept
@@ -718,7 +719,9 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
     if stamp is not None:
         design_mode.keep_report(results_folder(model), model, report, stamp)
     target = results_folder(model) / S.DESIGN_SUMMARY_FILE
-    file = S.design_summary_file(report)
+    # With the stamps of the files the checks read: the part list calls the design stale when
+    # they change, as the next Run All decides (R1-2 of re-walk 1).
+    file = S.design_summary_file(design_mode.with_source(report, results_folder(model), texts))
     write_text(target, S.summary_text(file))
     step.outputs.append(_relative(project, target))
     if stamp is not None and (results_folder(model) / design_mode.REPORT_FILE).exists():
@@ -817,7 +820,11 @@ def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[st
     step.status = "ok"
     step.counts = {k: file[k] for k in ("foundations", "checked", "passed", "failed",
                                         "maxUtilisation", "governing")}  # fmt: skip
-    step.message = f"foundations {report['passed']} pass, {report['failed']} fail"
+    # R1-5: the one count (foundation_counts), "n of N", as the part list says it.
+    step.message = (
+        f"foundations {file['checked']} of {file['total']} checked in full: "
+        f"{file['passed']} pass, {file['failed']} fail"
+    )
     summary = S.record(raw.get("summary"))
     added = [str(f) for f in summary.get("barsAdded") or []]
     if added:
@@ -837,12 +844,13 @@ def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[st
     not_checked = max(0, total - (file.get("checked") or 0) - len(no_qa))
     if file.get("status") == "incomplete" and (not_checked or file.get("unsupported")):
         step.status = "warning"
-        step.message += f"; {file['checked']} of {file['total']} checked"
+        if not_checked:
+            step.message += f"; {not_checked} of {file['total']} not checked"
         if file.get("unsupported"):
-            step.message += f", no foundation under {_short_list(file['unsupported'])}"
+            step.message += f"; no foundation under {_short_list(file['unsupported'])}"
     # N-G1: failing or unchecked foundations never end as a clean step.
     step.counts["notChecked"] = not_checked + len(no_qa)
-    if report["failed"] or step.counts["notChecked"]:
+    if file["failed"] or report["failed"] or step.counts["notChecked"]:
         step.status = "warning"
     return report
 

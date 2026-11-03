@@ -762,6 +762,14 @@ CommandsRegistry.registerCommand('saengine.design.proposal', async (accessor, ar
 	return accessor.get(IFemSolverService).engine(python, 'design/proposal', { outDir: args.outDir, projectPath: args.projectPath, options });
 });
 
+// Stop Waiting on Design Reinforcement: the engine stops the proposals at their next check
+// (`saengine/cancelJobs`, R1-1 of re-walk 1); nothing to stop when the engine is not running.
+CommandsRegistry.registerCommand('saengine.design.cancelProposal', async accessor => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const answer = await accessor.get(IFemSolverService).engine(python, 'saengine/cancelJobs', { methods: ['design/proposal'] }) as { cancelled?: number } | undefined;
+	return answer?.cancelled ?? 0;
+});
+
 CommandsRegistry.registerCommand('saengine.design.apply', async (accessor, args: { readonly objectsText: string; readonly bimText?: string | null; readonly floorPlanText?: string; readonly substructureText?: string; readonly proposal: object }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'design/applyProposal', {

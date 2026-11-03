@@ -2548,7 +2548,7 @@ def codes_values(
         pack = code_context.pack_for(settings, _pack_root(root))
     except CodePackError as error:
         return _refusal(error)
-    from saengine.codes.overrides import humanize, ordered_tables, pack_value
+    from saengine.codes.overrides import humanize, ordered_tables, pack_value, words_of
 
     overridden = {o.table for o in pack.overrides}
     generic = {f.table for f in pack.fallbacks}
@@ -2568,7 +2568,8 @@ def codes_values(
             }
             for t, section in shown
         ],
-        "overrides": [o.as_dict() for o in pack.overrides],
+        # R1-16: each with its name in words, unit and clause, whatever table is shown.
+        "overrides": [{**o.as_dict(), **words_of(pack, o.path)} for o in pack.overrides],
         # SL-3: a refused override with the pack's value that applies instead.
         "problems": [
             {"path": p, "message": m, "packValue": pack_value(pack, p)}

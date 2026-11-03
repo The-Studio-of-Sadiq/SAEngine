@@ -25,7 +25,7 @@ import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../pla
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -1539,13 +1539,36 @@ export class FemResultsBar extends Disposable {
 		if (selection?.kind !== 'element') {
 			appendPropertyHeading(container, localize('femResults.designHeading', "Design Checks"));
 			appendPropertyRow(container, localize('femResults.designCode', "Code"), report.code);
-			appendPropertyRow(container, localize('femResults.designPassed', "Pass"), String(report.summary.passed));
-			appendPropertyRow(container, localize('femResults.designFailed2', "Fail"), String(report.summary.failed));
+			const counts = report.summary.counts;
+			if (counts) {
+				// R1-5 of re-walk 1: members, joints, diaphragms and the building's checks apart
+				// ("Pass 579" added them together beside "408 members pass").
+				const tally = (t: { readonly passed: number; readonly failed: number }) => localize('femResults.designTally', "{0} pass, {1} fail", t.passed, t.failed);
+				appendPropertyRow(container, localize('femResults.designMembers', "Members"), tally(counts.members));
+				if (counts.joints.checked) {
+					appendPropertyRow(container, localize('femResults.designJoints', "Joints"), tally(counts.joints));
+				}
+				if (counts.diaphragms?.checked) {
+					appendPropertyRow(container, localize('femResults.designDiaphragms', "Diaphragms"), tally(counts.diaphragms));
+				}
+				if (counts.building.checked) {
+					appendPropertyRow(container, localize('femResults.designBuilding', "Building checks"), tally(counts.building));
+				}
+			} else {
+				appendPropertyRow(container, localize('femResults.designPassed', "Pass"), String(report.summary.passed));
+				appendPropertyRow(container, localize('femResults.designFailed2', "Fail"), String(report.summary.failed));
+			}
 			if (report.summary.skipped) {
 				appendPropertyRow(container, localize('femResults.designSkipped', "Not checked"), String(report.summary.skipped));
 			}
 			if (report.summary.maxUtilisation !== null && report.summary.governing) {
-				appendPropertyRow(container, localize('femResults.designLargest', "Largest"), localize('femResults.designLargestValue', "{0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing));
+				const check = report.summary.governingCheck?.name;
+				// R2-16 of re-walk 2: "no capacity in C5" said what has no capacity and why.
+				appendPropertyRow(container, localize('femResults.designLargest', "Largest"), report.summary.maxUtilisation >= NO_CAPACITY_UTILISATION
+					? (check
+						? localize('femResults.designNoCapacityCheck', "{0}: {1} has no capacity (no bars or no section to resist the demand)", report.summary.governing, check)
+						: localize('femResults.designNoCapacity', "{0}: a check has no capacity (no bars or no section to resist the demand)", report.summary.governing))
+					: localize('femResults.designLargestValue', "{0} in {1}", formatUtilisation(report.summary.maxUtilisation), report.summary.governing));
 			}
 			const steel = this.required?.summary;
 			if (steel) {

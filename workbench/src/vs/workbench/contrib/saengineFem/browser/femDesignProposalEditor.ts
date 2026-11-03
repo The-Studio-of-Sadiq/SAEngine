@@ -40,8 +40,9 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
-import { DESIGN_APPLY_COMMAND, DESIGN_PROPOSAL_COMMAND, designArguments, IFemDesignReport, runDesign } from './femDesign.js';
-import { countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, describeWaitStep, DesignProposalMode, IDesignWaitStep, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
+import { femObjectsStamp } from '../../../services/saengineProject/common/partSources.js';
+import { DESIGN_APPLY_COMMAND, DESIGN_CANCEL_PROPOSAL_COMMAND, DESIGN_PROPOSAL_COMMAND,designArguments, IFemDesignReport, runDesign, writeDesignSummary } from './femDesign.js';
+import { HiddenPageMemo, countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, describeWaitStep, DesignProposalMode, IDesignWaitStep, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
 
@@ -73,6 +74,8 @@ interface IAppliedState {
 	/** The rows of `mode` are still the proposal applied (until Propose Again). */
 	rowsShown: boolean;
 	readonly mode: DesignProposalMode;
+	/** The apply changed what the analysis reads (a steel section, members moved to new types), not only bars. */
+	readonly analysisChanged?: boolean;
 	problem?: string;
 }
 
@@ -110,7 +113,7 @@ export class FemDesignProposalEditor extends EditorPane {
 	 * running finishes into them (FD-5 of usability walk 3: coming back to the tab proposed
 	 * again from scratch).
 	 */
-	private hiddenInput: FemDesignProposalInput | undefined;
+	private readonly hidden = new HiddenPageMemo<FemDesignProposalInput>();
 	private request = 0;
 	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
 	private step: IWaitStep | undefined;
@@ -168,9 +171,8 @@ export class FemDesignProposalEditor extends EditorPane {
 
 	override async setInput(input: FemDesignProposalInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		// The same tab shown again: its page as it was (a proposal is made on request only).
-		const shownAgain = this.hiddenInput === input && !input.isDisposed();
+		const shownAgain = this.hidden.showAgain(input);
 		const changed = !shownAgain && (!this.input || !input.matches(this.input));
-		this.hiddenInput = undefined;
 		await super.setInput(input, options, context, token);
 		if (shownAgain) {
 			if (this.step) {
@@ -188,7 +190,8 @@ export class FemDesignProposalEditor extends EditorPane {
 	override clearInput(): void {
 		// Hidden behind another tab, or closed: the state is kept for the same input shown again
 		// (a closed tab's input is disposed, and opening the page again starts afresh).
-		this.hiddenInput = this.input as FemDesignProposalInput | undefined;
+		// The group clears it once more, with no input, right before it sets it back: kept.
+		this.hidden.hide(this.input as FemDesignProposalInput | undefined);
 		this.ticker.cancel();
 		this.renderStore.clear();
 		super.clearInput();
@@ -288,19 +291,26 @@ export class FemDesignProposalEditor extends EditorPane {
 	}
 
 	/**
-	 * Gives the page back while the engine works on: its answer is no longer waited for (an
-	 * apply not yet written leaves the files as they were; one written keeps its Undo). The
-	 * engine keeps the proposal it finishes, so Propose Again shows it at once.
+	 * Gives the page back: its answer is no longer waited for (an apply not yet written leaves
+	 * the files as they were; one written keeps its Undo). A proposal is stopped in the engine
+	 * too (R1-1 of re-walk 1: it ran on for 11 minutes beside Run All); the design checks an
+	 * apply runs again finish in the background, and the page says which.
 	 */
 	private stopWaiting(): void {
 		if (!this.loading && !this.applying) {
 			return;
 		}
+		const proposing = this.loading;
 		this.request++;
 		this.loading = false;
 		this.applying = false;
 		this.stopped = true;
-		this.problem = localize('femProposal.stopped', "Stopped waiting. The engine finishes in the background and keeps the proposal: Propose Again shows it once it is done.");
+		if (proposing && CommandsRegistry.getCommand(DESIGN_CANCEL_PROPOSAL_COMMAND)) {
+			void this.commandService.executeCommand(DESIGN_CANCEL_PROPOSAL_COMMAND).catch(() => undefined);
+			this.problem = localize('femProposal.stoppedProposal', "Stopped. The engine stops proposing bars (the design checks it started finish in the background and are kept). Propose Again starts a new proposal.");
+		} else {
+			this.problem = localize('femProposal.stopped', "Stopped waiting. The engine finishes the design checks in the background and keeps them; nothing is proposed until you choose Propose Again.");
+		}
 		this.setStep(undefined);
 	}
 
@@ -450,7 +460,11 @@ export class FemDesignProposalEditor extends EditorPane {
 			this.setStep({ index: 2, count: 3, text: localize('femProposal.stepSaveApplied', "Saving the edited files") });
 			const unsaved = await this.save(edited.map(file => file.resource));
 			// Kept even if the engineer stops waiting from here on: the files are edited, Undo stays.
-			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false, rowsShown: true, mode: this.model.mode };
+			// OI-5 / R2-10 of the re-walks: bars alone leave the analysis current (femObjectsStamp);
+			// a steel section or a member moved to a new type does not, and the page says so.
+			const analysisChanged = (edits.objects !== undefined && femObjectsStamp(edits.objects) !== femObjectsStamp(current.objectsText))
+				|| edits.bim !== undefined || edits.floorPlan !== undefined;
+			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false, rowsShown: true, mode: this.model.mode, analysisChanged };
 			// The other way of sharing types was proposed from the bars before: asked for again.
 			this.model.keepOnly(this.model.mode);
 			this.applied = applied;
@@ -465,6 +479,8 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			this.setStep({ index: 3, count: 3, text: localize('femProposal.stepCheck', "Checking the members again with the new bars") });
 			const after = edited.length ? await runDesign(this.commandService, model).catch(() => undefined) : before;
+			// The part list follows the checks of the new bars (they read the edited files: R1-2).
+			this.keepSummary(model, edited.length ? after : undefined);
 			if (request !== this.request) {
 				return;
 			}
@@ -482,6 +498,13 @@ export class FemDesignProposalEditor extends EditorPane {
 				this.applying = false;
 				this.setStep(undefined);
 			}
+		}
+	}
+
+	/** Writes the design summary of checks run again after an apply or its undo (none: nothing). */
+	private keepSummary(model: URI, report: IFemDesignReport | undefined): void {
+		if (report?.summary) {
+			void writeDesignSummary(this.fileService, model, report).catch(() => undefined);
 		}
 	}
 
@@ -525,6 +548,7 @@ export class FemDesignProposalEditor extends EditorPane {
 			}
 			this.setStep({ index: 2, count: 2, text: localize('femProposal.stepCheckUndone', "Checking the members again with the bars before") });
 			const after = await runDesign(this.commandService, model).catch(() => undefined);
+			this.keepSummary(model, after);
 			if (request !== this.request) {
 				return;
 			}
@@ -722,6 +746,9 @@ export class FemDesignProposalEditor extends EditorPane {
 		if (!applied.undone) {
 			for (const change of applied.changes) {
 				append(banner, $('.fem-proposal-applied-change', undefined, change));
+			}
+			if (applied.analysisChanged) {
+				append(banner, $('.fem-proposal-applied-change', undefined, localize('femProposal.analysisChanged', "The apply changed more than bars (a section, or members moved to new types): the analysis is out of date until Run All runs it again. The checks above use the last analysis.")));
 			}
 			const failing = failingItems(applied.after);
 			if (failing.length) {

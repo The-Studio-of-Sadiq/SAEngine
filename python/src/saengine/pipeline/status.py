@@ -355,6 +355,40 @@ def _sources_unchanged(texts: dict[str, str | None], source: dict[str, Any]) -> 
     return True
 
 
+def design_sources_current(texts: dict[str, str | None], summary: dict[str, Any]) -> bool:
+    """``designSourcesCurrent`` of partStatus.ts: whether every part file a design summary
+    recorded (``source``, :func:`saengine.pipeline.design_mode.design_source`) still has the text
+    it was checked with: the settings by :func:`settings_stamp` with the summary's
+    ``codeTables``, the others by ``source_stamp``. A summary without ``source`` is current (R1-2
+    of re-walk 1: the part list calls the design stale when Run All checks it again)."""
+    source = summary.get("source")
+    if not isinstance(source, dict):
+        return True
+    tables = summary.get("codeTables")
+    code_tables = frozenset(str(t) for t in tables) if isinstance(tables, list) else None
+    for part, recorded in source.items():
+        text = texts.get(part)
+        if recorded == "":
+            if text is not None:
+                return False
+            continue
+        if text is None:
+            return False
+        now = (
+            settings_stamp(text, code_tables=code_tables)
+            if part == "settings"
+            else source_stamp(text)
+        )
+        if recorded != now:
+            return False
+    return True
+
+
+def _design_stale(inputs: StatusInputs) -> bool:
+    value = _parse(inputs.designSummaryText) if inputs.designSummaryText is not None else None
+    return bool(value) and not design_sources_current(inputs.texts, value)
+
+
 def _plural(count: Any, one: str, many: str) -> str:
     return one if count == 1 else many.format(_js(count))
 
@@ -539,6 +573,8 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         inputs.designSummaryTime is not None and inputs.designSummaryTime < inputs.femResultsTime
     ):
         return _status("fem", "inProgress", "analysed", "run the design checks")
+    if not design_sources_current(inputs.texts, summary):
+        return _status("fem", "stale", "design stale", "run the design checks again")
     counts = _design_counts(summary)
     if summary["failed"] > 0:
         text = (
@@ -730,47 +766,87 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
         )
         and (inputs.femResultsTime is None or time >= inputs.femResultsTime)
     )
-    if not current or summary is None:
-        # The fails of the last check stay in view until the next one (N-U5, as partStatus.ts).
-        text = (
-            f"{_js(summary['failed'])} fail (stale)"
-            if summary is not None and summary["failed"] > 0
-            else foundations
+    # R1-5: one count, "n of N", as Run All and the report say it.
+    counts = _foundation_counts(summary, count) if summary is not None else None
+    first = describe_foundation_counts(counts)[0] if counts is not None else None
+    if not current or summary is None or counts is None:
+        # The last check's words stay in view, marked stale (N-U5, R1-17), as partStatus.ts.
+        if counts is None or first is None or not (counts["failed"] or counts["bearingUnchecked"]):
+            return _status("substructure", "inProgress", foundations, "check the foundations")
+        soil_unchanged = (
+            source is not None
+            and "soil" in source
+            and _sources_unchanged(inputs.texts, {"soil": source["soil"]})
         )
-        return _status("substructure", "inProgress", text, "check the foundations")
-    # Fails first: a footing without its bearing check can fail its other checks (N-U3, N-U5).
-    if summary["failed"] > 0:
+        needs_qa = not counts["failed"] and counts["bearingUnchecked"] > 0 and soil_unchanged
         return _status(
             "substructure",
-            "failed",
-            f"{_js(summary['failed'])} fail",
-            "review the failing foundations",
+            "inProgress",
+            f"{first} (stale)",
+            "enter qa in the soil report or Project Settings"
+            if needs_qa
+            else "check the foundations",
+            "soil" if needs_qa else None,
         )
-    no_qa = _length(summary.get("bearingUnchecked"))
-    if no_qa > 0:
+    # Fails first: a footing without its bearing check can fail its other checks (N-U3, N-U5).
+    if summary["failed"] > 0:
+        return _status("substructure", "failed", first, "review the failing foundations")
+    if counts["bearingUnchecked"] > 0:
         return _status(
-            "substructure", "inProgress", f"{no_qa} without a bearing check",
+            "substructure", "inProgress", first,
             "enter qa in the soil report or Project Settings", "soil",
         )  # fmt: skip
     if summary.get("checked") == 0:
         return _status("substructure", "inProgress", foundations, "run the analysis to design them")
-    unsupported = summary.get("unsupported")
-    unsupported_count = (
-        len(unsupported) if isinstance(unsupported, list) else _positive(unsupported)
-    )
-    unchecked = (
-        max(
-            _positive(summary.get("skipped")),
-            _positive(summary.get("total")) - _positive(summary.get("checked")),
-        )
-        + unsupported_count
-    )
-    if unchecked > 0:
+    if counts["notChecked"] > 0 or counts["unsupported"] > 0:
         return _status(
-            "substructure", "inProgress", f"{_js(unchecked)} not checked",
-            "check the foundations that were skipped",
-        )  # fmt: skip
-    return _status("substructure", "done", foundations)
+            "substructure", "inProgress", first, "check the foundations that were skipped"
+        )
+    return _status("substructure", "done", first)
+
+
+def _foundation_counts(summary: dict[str, Any], foundations: int) -> dict[str, Any]:
+    """``foundationCounts`` of partStatus.ts: the counts of a foundation checks' summary."""
+    bearing = _length(summary.get("bearingUnchecked"))
+    checked = int(_positive(summary.get("checked")))
+    total = max(int(_positive(summary.get("total"))) or foundations, checked + bearing)
+    unsupported = summary.get("unsupported")
+    return {
+        "total": total,
+        "checked": checked,
+        "passed": int(_positive(summary.get("passed"))),
+        "failed": int(_positive(summary.get("failed"))),
+        "bearingUnchecked": bearing,
+        "notChecked": max(int(_positive(summary.get("skipped"))), total - checked - bearing),
+        "unsupported": len(unsupported)
+        if isinstance(unsupported, list)
+        else int(_positive(unsupported)),
+    }
+
+
+def describe_foundation_counts(counts: dict[str, Any]) -> list[str]:
+    """``describeFoundationCounts`` of partStatus.ts: "2 of 20 fail", "20 of 20 without a
+    bearing check", "1 of 20 not checked", "3 columns or walls without a foundation", else
+    "all 20 pass" (``bearingUnchecked`` and ``unsupported`` counts or lists of ids)."""
+    total = counts.get("total") or 0
+    bearing = counts.get("bearingUnchecked") or 0
+    bearing = len(bearing) if isinstance(bearing, list) else int(bearing)
+    unsupported = counts.get("unsupported") or 0
+    unsupported = len(unsupported) if isinstance(unsupported, list) else int(unsupported)
+    parts = []
+    if counts.get("failed"):
+        parts.append(f"{counts['failed']} of {total} fail")
+    if bearing:
+        parts.append(f"{bearing} of {total} without a bearing check")
+    if counts.get("notChecked"):
+        parts.append(f"{counts['notChecked']} of {total} not checked")
+    if unsupported:
+        parts.append(
+            "1 column or wall without a foundation"
+            if unsupported == 1
+            else f"{unsupported} columns or walls without a foundation"
+        )
+    return parts or [f"all {total} pass"]
 
 
 def format_date(time_ms: float) -> str:
@@ -1004,7 +1080,7 @@ def _exports_with_design(exports: PartStatus, fem: PartStatus, inputs: StatusInp
     if exports.state != "done" or inputs.reportTime is None:
         return exports
     newest = max(inputs.designSummaryTime or 0, inputs.femResultsTime or 0)
-    if newest > inputs.reportTime:
+    if newest > inputs.reportTime or _design_stale(inputs):
         return _status("exports", "stale", STALE, "build the design report again")
     if fem.state == "failed":
         return _status(

@@ -496,6 +496,12 @@ def column_base_checks(
     return checks
 
 
+def _fs_text(fs: float) -> str:
+    """A factor of safety for the notes: "over 99" at the cap kept for a resultant on the centre
+    line or close to it (R1-6 of re-walk 1: "99.00 along X" read as a computed FS)."""
+    return "over 99" if fs >= 99.0 else f"{fs:.2f}"
+
+
 def overturning_check(
     combination: str, eu: float, ev: float, length: float, width: float
 ) -> dict[str, Any] | None:
@@ -513,7 +519,8 @@ def overturning_check(
         fs,
         "FS",
         combination,
-        f"FS = B / (2 e): {fs_u:.2f} along X, {fs_v:.2f} along Y (the dead load resisting) "
+        f"FS = B / (2 e): {_fs_text(fs_u)} along X, {_fs_text(fs_v)} along Y (the dead load "
+        "resisting) "
         f"({clause('overturning')})",
         utilisation=found.overturning / max(fs, 1e-6),
     )
