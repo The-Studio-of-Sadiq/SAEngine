@@ -83,8 +83,16 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
     design = (root / "08 FEM/model.results/design-summary.json").read_text(encoding="utf-8")
     assert design.startswith('{\n\t"checked": ') and design.endswith("}\n")
     # counts: the run's one count for the part list (N-X8), as femDesign.ts designSummaryFile.
-    assert list(json.loads(design)) == [
+    # source, codeTables: the stamps of the files the checks read (R1-2 of re-walk 1), current.
+    assert list(json.loads(design))[:7] == [
         "checked", "passed", "failed", "maxUtilisation", "governing", "computed", "counts"]  # fmt: skip
+    assert set(list(json.loads(design))[7:]) <= {"source", "codeTables"}
+    assert "source" in json.loads(design)
+    from saengine.pipeline.status import design_sources_current
+
+    opened = open_project(root)
+    texts = {p: opened.text(p) for p in json.loads(design)["source"]}
+    assert design_sources_current(texts, json.loads(design))
     foundations = json.loads(
         (root / "09 Substructure/substructure.results/summary.json").read_text(encoding="utf-8")
     )

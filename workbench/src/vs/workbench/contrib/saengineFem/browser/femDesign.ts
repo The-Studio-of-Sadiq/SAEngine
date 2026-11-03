@@ -199,6 +199,14 @@ export interface IFemDesignReport {
 		readonly governingCheck?: { readonly name: string; readonly combination?: string | null } | null;
 		/** The one count every surface shows (see {@link IFemDesignCounts}). */
 		readonly counts?: IFemDesignCounts;
+		/**
+		 * The stamps of the part files the checks read, by part id ("" for a missing file), the
+		 * settings' without the overrides of code tables the design does not read
+		 * (`saengine.pipeline.design_mode.design_source`).
+		 */
+		readonly source?: { readonly [part: string]: string };
+		/** The code pack tables the design work has read; absent before any. */
+		readonly codeTables?: readonly string[];
 	};
 	readonly notes: readonly string[];
 	/** The columns' gravity load takedown (BNBC 2020 Part 6 Sec 2.7.3.1 factors), kN. */
@@ -406,6 +414,8 @@ export async function stmTemplate(commandService: ICommandService, template: str
 export const DESIGN_REQUIRED_COMMAND = 'saengine.design.required';
 /** `{outDir, projectPath, mode, diameters?} => IFemDesignProposal`: bars proposed per object type. */
 export const DESIGN_PROPOSAL_COMMAND = 'saengine.design.proposal';
+/** `() => number`: the engine stops the proposals it is working on (Stop Waiting); how many it was asked to stop. */
+export const DESIGN_CANCEL_PROPOSAL_COMMAND = 'saengine.design.cancelProposal';
 /** `{objectsText, bimText, proposal} => IFemDesignApplyResult`: the object types (and building model) with the proposal applied. */
 export const DESIGN_APPLY_COMMAND = 'saengine.design.apply';
 
@@ -461,7 +471,12 @@ export interface IFemDesignRequired {
 
 /** Whether a row is a largest value (a spacing) rather than a least one. */
 function isLargest(row: IFemSteelRequirement): boolean {
-	return row.unit === 'mm';
+	return row.unit === 'mm' && !isLeast(row);
+}
+
+/** Whether a row in mm is a least length (the hoop zone length lo, R1-19 of re-walk 1: "lo at most"). */
+function isLeast(row: IFemSteelRequirement): boolean {
+	return row.unit === 'mm' && /\blength\b/i.test(row.quantity);
 }
 
 /**
@@ -561,6 +576,11 @@ export function describeSteel(row: IFemSteelRequirement): string {
 			? localize('femDesign.atMostOnly', "at most {0}", required)
 			: localize('femDesign.atMostProvided', "at most {0}, provided {1}", required, formatSteel(row.provided, row.unit));
 	}
+	if (isLeast(row)) {
+		return row.provided === null
+			? localize('femDesign.atLeastOnly', "at least {0}", required)
+			: localize('femDesign.atLeastProvided', "at least {0}, provided {1}", required, formatSteel(row.provided, row.unit));
+	}
 	return row.provided === null
 		? localize('femDesign.requiredOnly', "required {0}, none provided", required)
 		: localize('femDesign.requiredProvided', "required {0}, provided {1}", required, formatSteel(row.provided, row.unit));
@@ -585,11 +605,18 @@ export interface IFemDesignSummaryFile {
 	readonly computed: string;
 	/** The run's one count (N-X8), for the part list; absent from an older backend. */
 	readonly counts?: IFemDesignCounts;
+	/** The stamps of the part files the checks read, by part id (see `IFemDesignReport.summary.source`). */
+	readonly source?: { readonly [part: string]: string };
+	readonly codeTables?: readonly string[];
 }
 
 export function designSummaryFile(report: IFemDesignReport, computed: Date): IFemDesignSummaryFile {
-	const { checked, passed, failed, maxUtilisation, governing, counts } = report.summary;
-	return { checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}) };
+	const { checked, passed, failed, maxUtilisation, governing, counts, source, codeTables } = report.summary;
+	return {
+		checked, passed, failed, maxUtilisation, governing, computed: computed.toISOString(), ...(counts ? { counts } : {}),
+		// R1-2 of re-walk 1: the part list calls the design stale when these files change, as Run All decides.
+		...(source ? { source, ...(codeTables ? { codeTables } : {}) } : {}),
+	};
 }
 
 /** Writes the design checks' summary of `model`'s run to `<model>.results/design-summary.json`. */

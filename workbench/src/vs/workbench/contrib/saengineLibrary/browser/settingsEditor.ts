@@ -406,6 +406,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private pendingOverride: { readonly path: string; readonly value: JsonValue; readonly label: string } | undefined;
 	/** Why a value typed on the Code Values page was not kept (SL-2, SL-3). */
 	private codeValuesNotice: string | undefined;
+	/** Text typed in a code value field that was not kept (R1-12: it vanished when the page was drawn again). */
+	private codeValuesDraft: { readonly path: string; readonly text: string } | undefined;
 	private readonly codeValueRows = this._register(new DisposableStore());
 
 	private readonly navDisposables = this._register(new DisposableStore());
@@ -1563,7 +1565,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				const packValue = applied?.packValue ?? problem?.packValue ?? listed?.packValue ?? null;
 				const row: ICodeValueRow = {
 					path, table: path.split(/[.[]/)[0], value: own[path], packValue, overridden: true, generic: false, note: '',
-					label: listed?.label ?? '', description: listed?.description ?? '', unit: listed?.unit ?? '', clause: listed?.clause ?? '', group: '',
+					// R1-16: the name in words whatever table is shown (the backend gives each override's).
+					label: applied?.title ?? listed?.label ?? '', description: listed?.description ?? applied?.description ?? '', unit: listed?.unit ?? applied?.unit ?? '', clause: listed?.clause ?? applied?.clause ?? '', group: '',
 				};
 				this.codeValueRow(overridden, row, problem?.message, true, this.pageDisposables);
 			}
@@ -1615,20 +1618,30 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			placeholder: formatCodeValue(row.packValue),
 			validationOptions: { validation: text => { const error = parseCodeValue(text, like).error; return error ? { content: error, type: MessageType.ERROR } : null; } },
 		}));
-		box.value = own === undefined ? '' : formatCodeValue(own);
+		// R1-12: text that was not kept stays in its field (with the notice) to be corrected.
+		const draft = this.codeValuesDraft?.path === row.path ? this.codeValuesDraft.text : undefined;
+		box.value = draft ?? (own === undefined ? '' : formatCodeValue(own));
+		// No browser autofill list under the field (R1-12).
+		box.inputElement.autocomplete = 'off';
 		store.add(addDisposableListener(box.inputElement, EventType.CHANGE, () => {
 			const parsed = parseCodeValue(box.value, like);
 			const label = row.label ? `${row.label} (${row.path})` : row.path;
 			if (parsed.error) {
 				// SL-2: not saved, and said so (not only a red box).
 				this.codeValuesNotice = localize('settings.codeValuesNotTyped', "\"{0}\" for {1} was not kept: {2} The code pack's value {3} applies.", box.value.trim(), label, parsed.error, formatCodeValue(row.packValue));
+				this.codeValuesDraft = { path: row.path, text: box.value };
 				this.renderPage();
 				return;
 			}
+			const hadNotice = this.codeValuesNotice !== undefined || this.codeValuesDraft !== undefined;
 			this.codeValuesNotice = undefined;
+			this.codeValuesDraft = undefined;
 			if (this.document === document && setCodeOverride(document, row.path, parsed.value)) {
 				this.pendingOverride = parsed.value === undefined ? undefined : { path: row.path, value: parsed.value, label };
 				this.changed(true);
+			} else if (hadNotice) {
+				// Cleared after a refused entry: nothing to save, and the notice goes (R1-12).
+				this.renderPage();
 			}
 		}));
 		const actions = append(line, $('span.settings-code-values-actions', { role: 'cell' }));

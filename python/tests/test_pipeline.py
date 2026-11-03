@@ -192,7 +192,7 @@ def test_status_of_mep_and_substructure_from_their_summaries():
                           "source": {"substructure": source_stamp(foundations)}})  # fmt: skip
     statuses = lines(inputs({"substructure": foundations}, substructureSummaryText=checked,
                             substructureSummaryTime=3))  # fmt: skip
-    assert statuses[8] == "substructure: failed 1 fail"
+    assert statuses[8] == "substructure: failed 1 of 1 fail"  # R1-5: "n of N"
     assert next_step(compute_part_statuses(PROJECT_PARTS, inputs()))[1].part == "fem"
 
 
@@ -577,7 +577,7 @@ def test_report_and_foundations_follow_the_checks():
                           "source": {"substructure": source_stamp(foundations)}})  # fmt: skip
     statuses = lines(inputs({"substructure": foundations}, substructureSummaryText=skipped,
                             substructureSummaryTime=3))  # fmt: skip
-    assert statuses[8] == "substructure: inProgress 1 not checked"
+    assert statuses[8] == "substructure: inProgress 1 of 1 not checked"  # R1-5: "n of N"
 
 
 def test_the_required_steel_reuses_the_checks_of_the_design_report(

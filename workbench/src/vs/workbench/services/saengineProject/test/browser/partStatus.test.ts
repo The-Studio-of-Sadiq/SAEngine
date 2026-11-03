@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
-import { applyPartChecks, computePartStatuses, exportKind, IPartStatus, IPartStatusInputs, nextStep, partChecksFile, reportAnalysisStale } from '../../common/partStatus.js';
+import { femSettingsStamp, groundLevelStamp, mepModelStamp, sourceStamp } from '../../common/partSources.js';
+import { applyPartChecks, computePartStatuses, describeFoundationCounts, designSourcesCurrent, exportKind, foundationCounts, IPartStatus, IPartStatusInputs, nextStep, partChecksFile, reportAnalysisStale } from '../../common/partStatus.js';
 import { DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT_SETTINGS } from '../../common/projectLibraries.generated.js';
 import { PROJECT_PARTS, projectParts } from '../../common/saengineProject.js';
 
@@ -222,19 +222,20 @@ suite('SAEngine - PartStatus', () => {
 			'error invalid file (fix the file)',
 			'error invalid file (fix the file)',
 			'inProgress 1 foundation (check the foundations)',
-			'done 2 foundations ()',
-			'failed 1 fail (review the failing foundations)',
+			// R1-5 of re-walk 1: one count, "n of N".
+			'done all 2 pass ()',
+			'failed 1 of 2 fail (review the failing foundations)',
 			'inProgress 2 foundations (check the foundations)',
 			'inProgress 2 foundations (check the foundations)',
 			'inProgress 2 foundations (run the analysis to design them)',
-			'failed 1 fail (review the failing foundations)',
+			'failed 1 of 2 fail (review the failing foundations)',
 			// Stale: the fails of the last check stay in view, as in the editor's status line (N-U5).
-			'inProgress 1 fail (stale) (check the foundations)',
-			'inProgress 1 fail (stale) (check the foundations)',
-			'inProgress 1 fail (stale) (check the foundations)',
-			'inProgress 1 fail (stale) (check the foundations)',
-			'inProgress 1 fail (stale) (check the foundations)',
-			'failed 1 fail (review the failing foundations)',
+			'inProgress 1 of 2 fail (stale) (check the foundations)',
+			'inProgress 1 of 2 fail (stale) (check the foundations)',
+			'inProgress 1 of 2 fail (stale) (check the foundations)',
+			'inProgress 1 of 2 fail (stale) (check the foundations)',
+			'inProgress 1 of 2 fail (stale) (check the foundations)',
+			'failed 1 of 2 fail (review the failing foundations)',
 		]);
 	});
 
@@ -580,12 +581,68 @@ suite('SAEngine - PartStatus', () => {
 		], ['exports: done report day 4', 'exports: failed report, design fails', 'exports: stale stale']);
 		const foundations = JSON.stringify({ schema: 'saengine.substructure/1', foundations: [{ id: 'F1' }, { id: 'F2' }] });
 		const skipped = JSON.stringify({ foundations: 2, checked: 1, passed: 1, failed: 0, skipped: 1, source: { substructure: sourceStamp(foundations) } });
-		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: skipped, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 not checked');
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: skipped, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 of 2 not checked');
 		// The editor's file: F2 passed all but its bearing check (no qa), so it is not checked (N-U3, N-U5).
 		const noQa = JSON.stringify({ foundations: 2, checked: 1, total: 2, passed: 1, failed: 0, bearingUnchecked: ['F2'], unsupported: [], status: 'incomplete', source: { substructure: sourceStamp(foundations) } });
-		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: noQa, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 without a bearing check');
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: noQa, substructureSummaryTime: 3 }))[8], 'substructure: inProgress 1 of 2 without a bearing check');
 		// A raft without qa failing its shear: none checked in full, yet it fails (the 10-storey walk).
 		const failsNoQa = JSON.stringify({ foundations: 2, checked: 0, total: 2, passed: 0, failed: 1, bearingUnchecked: ['F1', 'F2'], unsupported: [], status: 'fail', source: { substructure: sourceStamp(foundations) } });
-		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: failsNoQa, substructureSummaryTime: 3 }))[8], 'substructure: failed 1 fail');
+		assert.strictEqual(summary(project({ substructure: foundations }, { substructureSummaryText: failsNoQa, substructureSummaryTime: 3 }))[8], 'substructure: failed 1 of 2 fail');
+	});
+
+	test('a code override the design reads makes the design and the report stale, as Run All decides (R1-2)', () => {
+		const settings = (overrides?: object) => JSON.stringify({ schema: 'saengine.projectSettings/1', ...(overrides ? { codeOverrides: overrides } : {}) });
+		// The analysis read the seismic table only: an override of φ or of a ramp leaves it current (B10-32).
+		const fem = (text: string) => JSON.stringify({ schema_version: 2, meta: { description: `Derived by SAEngine. Sources: bim=${sourceStamp(BIM)}; codeTables=seismic; materials=${sourceStamp(SOURCES.materials)}; objects=${sourceStamp(SOURCES.objects)}; settings=${femSettingsStamp(text, false, new Set(['seismic']))}` } });
+		// The design summary as saengine.pipeline.design_mode.design_source records it.
+		const design = (tables: readonly string[]) => JSON.stringify({
+			checked: 10, passed: 10, failed: 0, maxUtilisation: 0.5, governing: 'B1', computed: '2026-11-03T00:00:00Z',
+			counts: { members: { checked: 10, failed: 0, notChecked: 0 } },
+			source: { settings: femSettingsStamp(settings(), false, new Set(tables)), materials: sourceStamp(SOURCES.materials), objects: sourceStamp(SOURCES.objects), bim: sourceStamp(BIM), soil: sourceStamp(placeholder('soil')), substructure: sourceStamp(placeholder('substructure')) },
+			codeTables: tables,
+		});
+		const timing = { femModelTime: 1, femResultsTime: 2, designSummaryTime: 3, reportTime: 4 };
+		const states = (text: string, tables: readonly string[]) => {
+			const all = summary(project({ settings: text, fem: fem(text) }, { ...timing, designSummaryText: design(tables) }));
+			return [all.find(s => s.startsWith('fem:')), all.find(s => s.startsWith('exports:'))];
+		};
+		assert.deepStrictEqual([
+			states(settings(), ['factors', 'seismic']),
+			// φ shear 0.75 -> 0.7: the analysis stays current, the design and the report do not.
+			states(settings({ 'factors.phi.shear': 0.7 }), ['factors', 'seismic']),
+			// A ramp slope: current while the design read no accessibility table...
+			states(settings({ 'accessibility.ramps.walkway.maxSlope.oneIn': 12 }), ['factors', 'seismic']),
+			// ...stale once it did.
+			states(settings({ 'accessibility.ramps.walkway.maxSlope.oneIn': 12 }), ['accessibility', 'factors', 'seismic']),
+		], [
+			['fem: done 10 pass', 'exports: done report day 4'],
+			['fem: stale design stale', 'exports: stale stale'],
+			['fem: done 10 pass', 'exports: done report day 4'],
+			['fem: stale design stale', 'exports: stale stale'],
+		]);
+		// A summary written before the sources were recorded is compared by time only.
+		assert.strictEqual(designSourcesCurrent(new Map(), {}), true);
+	});
+
+	test('one count of the foundations, n of N, footings without a bearing check counted as such (R1-5)', () => {
+		const ids = Array.from({ length: 20 }, (_, i) => `F${i}`);
+		// The 8-storey re-walk: Run All said "20 not checked", the report "checked 1".
+		const counts = foundationCounts({ checked: 0, passed: 0, failed: 0, total: 20, bearingUnchecked: ids, unsupported: [] });
+		assert.deepStrictEqual([
+			describeFoundationCounts(counts),
+			describeFoundationCounts(foundationCounts({ checked: 20, passed: 18, failed: 2, total: 20 })),
+			describeFoundationCounts(foundationCounts({ checked: 19, passed: 19, failed: 0, total: 20 })),
+			describeFoundationCounts(foundationCounts({ checked: 20, passed: 20, failed: 0 }, 20)),
+		], [
+			['20 of 20 without a bearing check'],
+			['2 of 20 fail'],
+			['1 of 20 not checked'],
+			['all 20 pass'],
+		]);
+		// R1-17: made stale (a code override), it keeps its words and still sends the engineer to the soil report.
+		const foundations = JSON.stringify({ schema: 'saengine.substructure/1', foundations: ids.map(id => ({ id, type: 'isolated' })) });
+		const stale = JSON.stringify({ foundations: 20, checked: 0, total: 20, passed: 0, failed: 0, bearingUnchecked: ids, unsupported: [], status: 'incomplete', source: { substructure: sourceStamp(foundations), soil: sourceStamp(placeholder('soil')), settings: 'before the override' } });
+		const found = computePartStatuses(PROJECT_PARTS, project({ substructure: foundations }, { substructureSummaryText: stale, substructureSummaryTime: 3 })).find(s => s.part === 'substructure')!;
+		assert.deepStrictEqual([found.text, found.needs], ['20 of 20 without a bearing check (stale)', 'soil']);
 	});
 });

@@ -680,6 +680,9 @@ export interface IFemSolverService {
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
+	// `saengine/cancelJobs` `{methods}` -> `{cancelled}`: the engine stops its running requests
+	// of those methods at their next check (Stop Waiting on Design Reinforcement).
+	| 'saengine/cancelJobs'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
 	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'

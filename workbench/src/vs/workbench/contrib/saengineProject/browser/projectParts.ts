@@ -97,14 +97,15 @@ const ARCHITECTURE_INPUT = 'workbench.input.saengine.architecture';
 export function partSections(partId: string): readonly IPartSection[] {
 	switch (partId) {
 		case 'settings': return [
-			{ id: 'code', label: localize('partSection.settingsCode', "Code and Site"), sections: ['project', 'occupancy', 'construction', 'site'] },
-			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads"), sections: ['areaLoads', 'cranes'] },
+			{ id: 'code', label: localize('partSection.settingsCode', "Code, Occupancy, Construction, Site"), sections: ['project', 'occupancy', 'construction', 'site'] },
+			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads and Crane Runways"), sections: ['areaLoads', 'cranes'] },
 			{ id: 'seismic', label: localize('partSection.settingsSeismic', "Seismic"), sections: ['seismic'] },
 			{ id: 'wind', label: localize('partSection.settingsWind', "Wind"), sections: ['wind'] },
-			{ id: 'combinations', label: localize('partSection.settingsCombinations', "Combinations and Analysis"), sections: ['combinations', 'analysis'] },
+			{ id: 'combinations', label: localize('partSection.settingsCombinations', "Combinations and Analysis Model"), sections: ['combinations', 'analysis'] },
 			{ id: 'foundation', label: localize('partSection.settingsFoundation', "Foundation"), sections: ['foundation'] },
-			{ id: 'drawings', label: localize('partSection.settingsDrawings', "Drawings"), sections: ['drawings', 'detailing'] },
-			// B10-6 / FL-3: every page of the settings is under one of these, Code Values too.
+			{ id: 'drawings', label: localize('partSection.settingsDrawings', "Drawings and Detailing"), sections: ['drawings', 'detailing'] },
+			// B10-6 / FL-3: every page of the settings is under one of these, Code Values too; R1-8
+			// of re-walk 1: each entry names the pages it holds (Occupancy, Crane Runways, ...).
 			{ id: 'report', label: localize('partSection.settingsReport', "Design Report"), sections: ['report'] },
 			{ id: 'codeValues', label: localize('partSection.settingsCodeValues', "Code Values"), sections: ['codeOverrides'] },
 		];

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { describeDesignCounts, describeEngineError, describeNotChecked, describeSteel, describeSteelRatio, designArguments, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, otherFailureElements, requiredSteelOf, shortElements, tooSmallElements } from '../../browser/femDesign.js';
-import { countFailing, describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, describeWaitStep, DesignProposalModel, failingItems, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
+import { countFailing, describeBars, describeBeforeAfter, describeChange, describeFailing, describeTransverseSpacing, describeWaitStep, DesignProposalModel, failingItems, HiddenPageMemo, IFemDesignProposal, notFixedBy, proposalEdits } from '../../browser/femDesignProposal.js';
 
 const B1_CURRENT = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 3, dia: 16 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 200, legs: 2 } };
 const B1_PROPOSED = { material: 'B500', cover: 40, longitudinal: [{ position: 'top' as const, count: 4, dia: 20 }, { position: 'bottom' as const, count: 3, dia: 16 }], transverse: { type: 'stirrup' as const, dia: 10, spacing: 150, legs: 2 }, text: '4 Ø20 top, 3 Ø16 bottom, Ø10 @ 150' };
@@ -368,6 +368,33 @@ suite('SAEngine - FEM design proposal', () => {
 			['F1'],
 			['F1'],
 		]);
+	});
+
+	test('the page hidden behind another tab is restored when its tab is shown again (R1-1)', () => {
+		class Input {
+			disposed = false;
+			constructor(readonly model: string) { }
+			isDisposed(): boolean { return this.disposed; }
+			matches(other: Input): boolean { return other.model === this.model; }
+		}
+		const memo = new HiddenPageMemo<Input>();
+		const page = new Input('model.osmodel');
+		// Another tab shown: the group clears the pane's input (it had the page)...
+		memo.hide(page);
+		// ...and coming back it clears it once more, with no input, before setting it again.
+		memo.hide(undefined);
+		assert.strictEqual(memo.showAgain(page), true, 'the same tab shown again keeps its state: nothing is proposed');
+		// Only once: a later setInput without a hide in between is a new page.
+		assert.strictEqual(memo.showAgain(page), false);
+		// The input re-resolved (another object for the same model) is the same page.
+		memo.hide(page);
+		assert.strictEqual(memo.showAgain(new Input('model.osmodel')), true);
+		// Another model, or the tab closed (its input disposed) and opened again: afresh.
+		memo.hide(page);
+		assert.strictEqual(memo.showAgain(new Input('other.osmodel')), false);
+		memo.hide(page);
+		page.disposed = true;
+		assert.strictEqual(memo.showAgain(new Input('model.osmodel')), false);
 	});
 });
 

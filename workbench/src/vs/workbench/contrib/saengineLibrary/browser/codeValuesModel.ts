@@ -59,7 +59,8 @@ export interface ICodeValues {
 	/** The pack the project asked for when it is not installed (the default pack stands in). */
 	readonly missing: string | undefined;
 	readonly tables: readonly ICodeValuesTable[];
-	readonly overrides: readonly { readonly path: string; readonly packValue: JsonValue; readonly value: JsonValue }[];
+	/** With their names in words (`saengine.codes.overrides.words_of`, R1-16): `title` "Factors › Phi › Shear". */
+	readonly overrides: readonly { readonly path: string; readonly packValue: JsonValue; readonly value: JsonValue; readonly title?: string; readonly label?: string; readonly description?: string; readonly unit?: string; readonly clause?: string }[];
 	/** Overrides refused (not applied), with why and the pack's value that applies instead. */
 	readonly problems: readonly { readonly path: string; readonly message: string; readonly packValue: JsonValue }[];
 	readonly fallbacks: readonly { readonly path: string; readonly value: JsonValue; readonly note: string }[];
@@ -90,7 +91,7 @@ export function readCodeValues(value: unknown): ICodeValues | undefined {
 		name: str(value.name, value.id),
 		missing: typeof value.missing === 'string' && value.missing ? value.missing : undefined,
 		tables: list(value.tables).filter(t => typeof t.name === 'string').map(t => ({ name: String(t.name), title: str(t.title, String(t.name)), section: str(t.section), overridden: t.overridden === true, generic: t.generic === true })),
-		overrides: list(value.overrides).filter(o => typeof o.path === 'string').map(o => ({ path: String(o.path), packValue: o.packValue as JsonValue, value: o.value as JsonValue })),
+		overrides: list(value.overrides).filter(o => typeof o.path === 'string').map(o => ({ path: String(o.path), packValue: o.packValue as JsonValue, value: o.value as JsonValue, ...wordsOf(o) })),
 		problems: list(value.problems).filter(p => typeof p.path === 'string').map(p => ({ path: String(p.path), message: str(p.message), packValue: (p.packValue ?? null) as JsonValue })),
 		fallbacks: list(value.fallbacks).filter(f => typeof f.path === 'string').map(f => ({ path: String(f.path), value: f.value as JsonValue, note: str(f.note) })),
 		rows: list(value.rows).filter(r => typeof r.path === 'string').map(r => ({
@@ -191,4 +192,15 @@ export function filterCodeValues(rows: readonly ICodeValueRow[], filter: string)
 		const text = `${r.path} ${r.label} ${r.description}`.toLowerCase();
 		return words.every(w => text.includes(w));
 	});
+}
+
+/** The words of an override the backend gives (strings only). */
+function wordsOf(o: { readonly [key: string]: unknown }): { title?: string; label?: string; description?: string; unit?: string; clause?: string } {
+	const words: { [key: string]: string } = {};
+	for (const key of ['title', 'label', 'description', 'unit', 'clause']) {
+		if (typeof o[key] === 'string' && o[key]) {
+			words[key] = o[key] as string;
+		}
+	}
+	return words;
 }

@@ -176,6 +176,11 @@ def design_summary_file(report: dict[str, Any], computed: datetime | None = None
     # N-X8: the run's one count (members, joints, building checks apart) for the part list.
     if isinstance(summary.get("counts"), dict):
         result["counts"] = summary["counts"]
+    # R1-2: the stamps of the files the checks read (saengine.pipeline.design_mode.design_source).
+    if isinstance(summary.get("source"), dict):
+        result["source"] = summary["source"]
+        if isinstance(summary.get("codeTables"), list):
+            result["codeTables"] = summary["codeTables"]
     return result
 
 
@@ -276,36 +281,81 @@ def substructure_report_summary(raw: Any) -> dict[str, Any] | None:
     }
 
 
+def foundation_counts(
+    foundation_ids: list[str], tie_beam_ids: list[str], raw: dict[str, Any]
+) -> dict[str, Any]:
+    """``substructureCheckState`` of substructureDocument.ts, the one count of the foundations
+    every surface shows (R1-5 of re-walk 1: Run All, the part list and the report counted them
+    three ways): of the substructure's foundations and tie beams (``total``), those checked in
+    full (``checked``) and of those ``passed``; ``failed`` of all of them; those whose bearing
+    was not checked for want of qa (``bearingUnchecked``, their ids: neither checked nor
+    passed); ``notChecked`` the others (no result). The building's own checks, excavations and
+    formwork are not foundations. ``status`` as the part list reads it."""
+    results = {("f", js_string(r.get("id"))): r for r in records(raw.get("foundations"))}
+    results.update({("t", js_string(r.get("id"))): r for r in records(raw.get("tieBeams"))})
+    checked = passed = failed = 0
+    bearing_unchecked: list[str] = []
+    for key in [("f", i) for i in foundation_ids] + [("t", i) for i in tie_beam_ids]:
+        result = results.get(key)
+        if result is None:
+            continue
+        # readSubstructureReport's ok: the result's own, else every check passes (or flags).
+        ok = (
+            result["ok"]
+            if isinstance(result.get("ok"), bool)
+            else all(
+                c.get("ok") is not False or c.get("flag") is True
+                for c in records(result.get("checks"))
+            )
+        )
+        if not ok:
+            failed += 1
+        not_checked = result.get("notChecked")
+        if isinstance(not_checked, list) and "bearing" in not_checked:
+            bearing_unchecked.append(key[1])
+        else:
+            checked += 1
+            passed += 1 if ok else 0
+    total = len(foundation_ids) + len(tie_beam_ids)
+    given = record(raw.get("summary"))
+    unsupported = [str(u) for u in given.get("unsupported") or [] if isinstance(u, str)]
+    status = (
+        "fail" if failed else
+        "none" if not checked and not bearing_unchecked else
+        "incomplete" if checked < total or unsupported else "pass"
+    )  # fmt: skip
+    return {
+        "total": total,
+        "checked": checked,
+        "passed": passed,
+        "failed": failed,
+        "bearingUnchecked": bearing_unchecked,
+        "notChecked": max(0, total - checked - len(bearing_unchecked)),
+        "unsupported": unsupported,
+        "status": status,
+    }
+
+
 def substructure_summary_file(
     document: dict[str, Any], raw: dict[str, Any], computed: datetime | None = None
 ) -> dict[str, Any]:
     """``substructureSummaryFile`` of the substructure document and its report."""
     summary = substructure_report_summary(raw) or {}
-    given = record(raw.get("summary"))
-    # Batch 9 (U2): checked of total and the verdict, as the editor's substructureSummaryFile.
-    checked = summary.get("checked") or 0
-    total = optional_number(given.get("total"))
-    total = total if total is not None else checked + len(records(raw.get("skipped")))
-    unsupported = [str(u) for u in given.get("unsupported") or [] if isinstance(u, str)]
-    # N-U3: footings whose bearing was not checked (no qa); the report's summary leaves them
-    # out of `checked` and `passed` already.
-    bearing_unchecked = [str(b) for b in given.get("bearingUnchecked") or [] if isinstance(b, str)]
-    status = given.get("status")
-    if status not in ("pass", "fail", "incomplete", "none"):
-        status = (
-            "fail" if summary.get("failed") else
-            "none" if not checked and not bearing_unchecked else
-            "incomplete" if checked < total or unsupported or bearing_unchecked else "pass"
-        )  # fmt: skip
+    # Batch 9 (U2), R1-5: checked of total and the verdict, as substructureCheckState counts them.
+    counts = foundation_counts(
+        [js_string(f.get("id")) for f in records(document.get("foundations"))],
+        [js_string(t.get("id")) for t in records(document.get("tieBeams"))],
+        raw,
+    )
     result: dict[str, Any] = {
         "foundations": len(document.get("foundations", [])),
-        "checked": summary.get("checked"),
-        "total": total,
-        "passed": summary.get("passed"),
-        "failed": summary.get("failed"),
-        "bearingUnchecked": bearing_unchecked,
-        "unsupported": unsupported,
-        "status": status,
+        "checked": counts["checked"],
+        "total": counts["total"],
+        "passed": counts["passed"],
+        "failed": counts["failed"],
+        "bearingUnchecked": counts["bearingUnchecked"],
+        "unsupported": counts["unsupported"],
+        "status": counts["status"],
         "maxUtilisation": summary.get("maxUtilisation"),
         "governing": summary.get("governing"),
         "computed": iso_time(computed),

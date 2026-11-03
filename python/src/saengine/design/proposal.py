@@ -92,6 +92,7 @@ from saengine.library.objects import (
     RectangleProfile,
     Slab,
 )
+from saengine.rpc import jobs as rpc_jobs
 
 #: The largest increase tried when suggesting a bigger section [mm].
 GROWTH = {"beam": 600.0, "column": 300.0, "slab": 150.0}
@@ -1646,6 +1647,7 @@ def propose(
     def beam_type(type_id: str, lightest: bool = False) -> _TypeResult:
         """The proposal of a beam type; ``lightest``: the least steel that passes (for the
         joint shear) rather than the best ranked bars."""
+        rpc_jobs.check()  # Stop Waiting on Design Reinforcement stops the proposal here
         members = beams[type_id]
         first = members[0]
         designer = beam_designers[type_id]
@@ -1738,6 +1740,7 @@ def propose(
     def column_type(type_id: str, at_least: int | None = None) -> _TypeResult:
         """The proposal of a column type; ``at_least``: the least layout its shared bars take
         (the strong column pass), which proposes for all its members (no split)."""
+        rpc_jobs.check()
         search, members = column_searches[type_id]
         obj = search.obj
         found = _TypeResult()

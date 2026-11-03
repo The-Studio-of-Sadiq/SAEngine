@@ -215,6 +215,69 @@ def inputs_stamp(
     return digest.hexdigest()
 
 
+#: The part id of each of :data:`INPUT_FILES` (the keys of a design summary's ``source``, as the
+#: part list names the parts).
+INPUT_PARTS = {
+    "01 Soil Report/soil-report.json": "soil",
+    SETTINGS_FILE: "settings",
+    "03 Materials/materials.json": "materials",
+    "04 Objects/objects.json": "objects",
+    "06 BIM/bim.json": "bim",
+    "09 Substructure/substructure.json": "substructure",
+}
+
+
+def input_texts(project_path: str | Path) -> dict[str, str | None]:
+    """The texts of the part files the design checks read (:data:`INPUT_FILES`) by part id;
+    None for a missing file. Read before the checks, for :func:`design_source`."""
+    root = Path(project_path).resolve().parent.parent
+    texts: dict[str, str | None] = {}
+    for relative in INPUT_FILES:
+        try:
+            texts[INPUT_PARTS[relative]] = (root / relative).read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            texts[INPUT_PARTS[relative]] = None
+    return texts
+
+
+def design_source(out_dir: str | Path, texts: dict[str, str | None]) -> dict[str, Any]:
+    """What a design summary records of the part files its checks read (R1-2 of re-walk 1: a
+    φ override left the design and the report current in the part list while Run All checked
+    every member again): ``source``, the stamp of each by part id ("" for a missing file), and
+    ``codeTables``, the code pack tables the design work has read (:func:`learned_tables`;
+    left out before any). The settings' stamp is :func:`saengine.fem.derive.settings_stamp`
+    with those tables, the others' ``source_stamp``: the stamps :func:`inputs_stamp` hashes, so
+    the part list (``designSourcesCurrent`` in partStatus.ts, :func:`saengine.pipeline.status.
+    design_sources_current`) calls the design stale exactly when Run All checks it again."""
+    from saengine.fem.derive import settings_stamp
+    from saengine.library.bim import source_stamp
+
+    tables = learned_tables(out_dir)
+    source: dict[str, str] = {}
+    for part, text in texts.items():
+        if text is None:
+            source[part] = ""
+        elif part == "settings":
+            source[part] = settings_stamp(text, code_tables=tables)
+        else:
+            source[part] = source_stamp(text)
+    found: dict[str, Any] = {"source": source}
+    if tables is not None:
+        found["codeTables"] = sorted(tables)
+    return found
+
+
+def with_source(
+    result: dict[str, Any] | None, out_dir: str | Path, texts: dict[str, str | None]
+) -> dict[str, Any] | None:
+    """``result`` (a design report) with :func:`design_source` in its summary (a copy)."""
+    if not isinstance(result, dict) or not isinstance(result.get("summary"), dict):
+        return result
+    found = dict(result)
+    found["summary"] = {**result["summary"], **design_source(out_dir, texts)}
+    return found
+
+
 def kept(out_dir: str | Path, stamp: str, name: str = REQUIRED_FILE) -> dict[str, Any] | None:
     """The kept answer (``name``: :data:`REQUIRED_FILE` or :data:`REPORT_FILE`) when it was
     worked out from inputs with ``stamp``, else None."""
@@ -613,6 +676,8 @@ def report(
     (``fresh``: always work it out again); None when the design checks give nothing."""
     from saengine.design import design_report
 
+    # The files as the checks read them, for the summary's source stamps (with_source).
+    texts = input_texts(project_path)
     try:
         stamp = report_stamp(out_dir, project_path)
     except Exception:  # noqa: BLE001 - not kept, but the checks are still made
@@ -623,13 +688,13 @@ def report(
     else:
         cached = kept(out_dir, stamp, REPORT_FILE)
         if cached is not None:
-            return cached
+            return with_source(cached, out_dir, texts)
         result = checks(out_dir, project_path, stamp)
     if not result:
         return None
     result = _plain(result)
     keep(out_dir, stamp, result, REPORT_FILE)
-    return result
+    return with_source(result, out_dir, texts)
 
 
 # ─────────────────────────────── the report's tables ───────────────────────────────

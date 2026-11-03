@@ -416,7 +416,10 @@ export class SchemaForm {
 		if (columns) {
 			// Rows of simple values (grid lines, stories, bar groups) read best as a table.
 			const table = append(group, $('.form-table'));
-			table.style.gridTemplateColumns = `${columns.map(c => c.width).join(' ')} auto`;
+			// R1-11 of re-walk 1: a wide table's columns give way to fit the page at 1366 px (the
+			// load combinations were 1000 px in an 809 px page) before it scrolls sideways.
+			const narrow = (width: string) => width === '64px' ? 'minmax(44px, 64px)' : width.startsWith('minmax(88px') ? 'minmax(64px, 160px)' : width;
+			table.style.gridTemplateColumns = `${columns.map(c => columns.length >= WIDE_TABLE_COLUMNS ? narrow(c.width) : c.width).join(' ')} auto`;
 			for (const column of columns) {
 				const text = columnHeading(column.title, column.description);
 				const cell = append(table, $('.form-table-header', undefined, text));

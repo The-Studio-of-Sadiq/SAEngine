@@ -250,6 +250,18 @@ def summary_file(pdf: Path) -> Path:
     return pdf.with_name(pdf.stem + ".summary.json")
 
 
+def _override_name(pack: Any, path: str) -> str:
+    """An overridden code value as the report names it (R1-16 of re-walk 1: the raw key):
+    "Factors › Phi › Shear [unit], clause (factors.phi.shear)"."""
+    from saengine.codes.overrides import words_of
+
+    words = words_of(pack, path)
+    name = words["title"] + (f" [{words['unit']}]" if words.get("unit") else "")
+    if words.get("clause"):
+        name += f", {words['clause']}"
+    return f"{name} ({path})" if name != path else path
+
+
 def design_status(report: dict[str, Any]) -> dict[str, Any]:
     """The design result the cover leads with: ``state`` "fail" when an element or foundation
     fails its checks, "incomplete" when none fails but some members have no reinforcement
@@ -264,6 +276,8 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
     # Of all of them: a foundation whose bearing is not checked can fail its other checks, so
     # "checked" (in full) can be fewer than the failures (B10-34: "6 of 1 foundations").
     f_total = max(int(fdn.get("total", 0) or 0), f_checked, f_failed) if fdn.get("available") else 0
+    # R1-5: footings whose bearing was not checked (no qa) are neither checked nor passed.
+    f_no_qa = int(fdn.get("bearingUnchecked", 0) or 0) if fdn.get("available") else 0
     # The members, beam-column joints and seismic requirements apart ("counts"), as the design
     # summary counts them; a design without that breakdown counts members only.
     counts = (design.get("counts") or [["members", checked, failed]]) if checked else []
@@ -276,11 +290,13 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
     # The members left without reinforcement: never "pass" while there are any.
     not_designed = (design.get("notDesigned") or {}) if design.get("available") else {}
     missing = f"{counted(not_designed)} are not designed (no reinforcement)"
+    no_qa = f"{f_no_qa} of {f_total} foundations have no bearing check (no qa)"
+    gaps = ([missing] if not_designed else []) + ([no_qa] if f_no_qa else [])
     if parts:
-        parts += [missing] if not_designed else []
+        parts += gaps
         state, headline = "fail", "DESIGN FAILS: " + "; ".join(parts) + "."
-    elif (checked or f_checked) and not_designed:
-        state, headline = "incomplete", f"DESIGN INCOMPLETE: {missing}; the others pass."
+    elif (checked or f_checked or f_no_qa) and gaps:
+        state, headline = "incomplete", f"DESIGN INCOMPLETE: {'; '.join(gaps)}; the others pass."
     elif checked or f_checked:
         what = ["all " + _and([f"{of} {what}" for what, of, _ in counts if of])] if checked else []
         what += [f"all {f_checked} foundations and tie beams"] if f_checked else []
@@ -306,6 +322,8 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         "failed": failed,
         "foundationsChecked": f_checked,
         "foundationsFailed": f_failed,
+        "foundationsTotal": f_total,
+        "foundationsBearingUnchecked": f_no_qa,
         "notDesigned": dict(not_designed),
     }
 
@@ -798,7 +816,8 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         basis["codes"] = code_basis(settings).rows()
         # D7: the project's own code values, and the values the pack does not give.
         basis["codeOverrides"] = [
-            [o.path, _code_value(o.packValue), _code_value(o.value)] for o in pack.overrides
+            [_override_name(pack, o.path), _code_value(o.packValue), _code_value(o.value)]
+            for o in pack.overrides
         ]
         basis["genericDefaults"] = [[f.path, _code_value(f.value), f.note] for f in pack.fallbacks]
         location = pack.table("locations").locations.get(settings.site.location)
@@ -2739,7 +2758,8 @@ def _design(
             rows.append(
                 [
                     str(element.get("id")),
-                    str(element.get("type", "")),
+                    # A diaphragm has no object type (R1-7 of re-walk 1: "None" was printed).
+                    str(element.get("type") or "–"),
                     str(check.get("name", "")) if check else "–",
                     fmt(check.get("demand"), 1) if check else "–",
                     fmt(check.get("capacity"), 1) if check else "–",
@@ -3968,7 +3988,17 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             }
         )
 
-    failed = int(summary.get("failed", 0) or 0)
+    # R1-5 of re-walk 1: the one count of the foundations and tie beams (as the part list and
+    # Run All count them), "n of N"; those without a bearing check counted as such. The
+    # building's own checks, excavations and formwork are listed but are not foundations.
+    from saengine.pipeline.summaries import foundation_counts
+
+    counts = foundation_counts(
+        [str(f.id) for f in substructure.foundations],
+        [str(t.id) for t in substructure.tieBeams],
+        report,
+    )
+    failed = max(counts["failed"], int(summary.get("failed", 0) or 0))
     if failed:
         parts.warnings.append(f"{failed} foundation(s) or tie beam(s) fail their design checks.")
     if not summary.get("analysed", True):
@@ -3978,16 +4008,21 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
     return {
         "available": True,
         "summary": [
-            ["Foundations and tie beams checked", str(summary.get("checked", 0))],
-            ["Passed", str(summary.get("passed", 0))],
+            [
+                "Foundations and tie beams checked in full",
+                f"{counts['checked']} of {counts['total']}",
+            ],
+            ["Passed", str(counts["passed"])],
             ["Failed", str(failed)],
-            ["Not designed", str(summary.get("skipped", 0))],
+            ["Without a bearing check (no qa)", str(len(counts["bearingUnchecked"]))],
+            ["Not designed", str(counts["notChecked"])],
             ["Largest utilisation", _utilisation_text(max_util)],
             ["Governing", str(governing) if governing else "–"],
         ],
         "failed": failed,
-        "checked": int(summary.get("checked", 0) or 0),
-        "total": int(summary.get("total", 0) or 0),
+        "checked": counts["checked"],
+        "total": counts["total"],
+        "bearingUnchecked": len(counts["bearingUnchecked"]),
         "rows": rows,
         "fails": fails,
         "pressures": pressures,

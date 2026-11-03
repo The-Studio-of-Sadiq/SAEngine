@@ -25,6 +25,7 @@ import { IFemSolverService } from '../../../../platform/saengine/common/femSolve
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { describeFoundationCounts, foundationCounts } from '../../../services/saengineProject/common/partStatus.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { awaitsTankDesigns, BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, notDesignedCount, reportProblems, reportStepMessage } from '../../saengineReport/browser/reportBuild.js';
@@ -126,6 +127,8 @@ export interface IStepOutcome {
 	readonly failing?: number;
 	/** Items the step left unchecked (members without bars, footings without qa). */
 	readonly notChecked?: number;
+	/** The step's counts for the run's one-line summary ("20 of 20 without a bearing check"), when it has its own words. */
+	readonly short?: string;
 }
 
 /** What a step that ran says. */
@@ -134,6 +137,7 @@ interface IStepResult {
 	readonly message: string;
 	readonly failing?: number;
 	readonly notChecked?: number;
+	readonly short?: string;
 }
 
 /** "F-A1, F-A2, F-B1 and 9 more": a list short enough for a status line. */
@@ -833,16 +837,19 @@ export class RunAllService implements IRunAllService {
 		if (noQa.length) {
 			notes.push(localize('runAll.noQa', "bearing not checked for {0} (no qa): their sizes are not confirmed; enter qa in 1 Soil Report or Project Settings, Foundation", shortList(noQa)));
 		}
-		const notChecked = Math.max(0, summary.total - summary.checked - noQa.length);
-		if (summary.status === 'incomplete' && (notChecked || summary.unsupported.length)) {
-			notes.push(summary.unsupported.length
-				? localize('runAll.foundationsIncomplete', "{0} of {1} checked; no foundation under {2}", summary.checked, summary.total, shortList(summary.unsupported))
-				: localize('runAll.foundationsPartly', "{0} of {1} checked", summary.checked, summary.total));
+		// R1-5 of re-walk 1: the one count (foundationCounts), "n of N", as the part list and the report say it.
+		const counts = foundationCounts(summary, parsed.document.foundations.length);
+		const notChecked = counts.notChecked;
+		if (summary.status === 'incomplete' && summary.unsupported.length) {
+			notes.push(localize('runAll.foundationsUnsupported', "no foundation under {0}", shortList(summary.unsupported)));
 		}
-		const message = localize('runAll.foundations', "{0} pass, {1} fail", summary.passed, summary.failed);
+		const message = localize('runAll.foundationsCounts', "{0} of {1} checked in full: {2} pass, {3} fail", counts.checked, counts.total, counts.passed, counts.failed);
 		// N-G1: failing or unchecked foundations never get the ✓ of a clean step.
 		const unchecked = noQa.length + notChecked;
-		return { status: notes.length || summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed, notChecked: unchecked };
+		return {
+			status: notes.length || summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed, notChecked: unchecked,
+			short: describeFoundationCounts(counts).join(', '),
+		};
 	}
 
 	/**
@@ -1130,9 +1137,11 @@ export class RunAllService implements IRunAllService {
 			}
 			const foundations = of('substructure');
 			if (foundations) {
-				counts.push(foundations.notChecked
-					? localize('runAll.short.foundationsUnchecked', "foundations {0} fail, {1} not checked", foundations.failing ?? 0, foundations.notChecked)
-					: localize('runAll.short.foundations', "foundations {0} fail", foundations.failing ?? 0));
+				counts.push(foundations.short
+					? localize('runAll.short.foundationsCounts', "foundations {0}", foundations.short)
+					: foundations.notChecked
+						? localize('runAll.short.foundationsUnchecked', "foundations {0} fail, {1} not checked", foundations.failing ?? 0, foundations.notChecked)
+						: localize('runAll.short.foundations', "foundations {0} fail", foundations.failing ?? 0));
 			}
 			const mep = of('mep');
 			if (mep?.failing) {
@@ -1150,6 +1159,8 @@ export class RunAllService implements IRunAllService {
 		const choices: IPromptChoice[] = [{
 			label: localize('runAll.showSteps', "Show Steps"),
 			run: () => this.showSteps(outcomes, seconds),
+			// R1-13 of re-walk 1: the notification (and its Design Reinforcement) stays.
+			keepOpen: true,
 		}];
 		// Types without bars: the proposal is one click away (the engineer accepts the bars; Run All never writes them).
 		if (context.noBars) {
