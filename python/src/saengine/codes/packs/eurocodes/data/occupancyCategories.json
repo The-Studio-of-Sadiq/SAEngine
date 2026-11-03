@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1 Sec 4.2.5, Table 4.3 (importance classes) and 4.2.5(5) (γI recommended values)",
+    "EN 1991-1-4: no importance factor on the wind (windImportance 1.0)"
+  ],
+  "source": "EN 1998-1 Sec 4.2.5, Table 4.3: importance classes I-IV with γI = 0.8, 1.0, 1.2, 1.4 (recommended, 4.2.5(5)); the wind has no importance factor in EN 1991-1-4 (1.0). The reliability differentiation of EN 1990 Annex B (KFI by consequence class) is not applied.",
+  "categories": {
+    "I": {
+      "description": "Importance class I: buildings of minor importance for public safety (agricultural buildings and the like)",
+      "seismicImportance": 0.8,
+      "windImportance": 1.0
+    },
+    "II": {
+      "description": "Importance class II: ordinary buildings not in the other classes",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Importance class III: buildings whose seismic resistance matters for the consequences of a collapse (schools, assembly halls, cultural institutions)",
+      "seismicImportance": 1.2,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Importance class IV: buildings vital for civil protection during earthquakes (hospitals, fire stations, power plants)",
+      "seismicImportance": 1.4,
+      "windImportance": 1.0
+    }
+  }
+}

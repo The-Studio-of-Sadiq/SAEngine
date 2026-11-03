@@ -223,6 +223,19 @@ def scale_factor(v_static: float, v_dynamic: float, fraction: float | None = Non
     return max(1.0, share * v_static / v_dynamic)
 
 
+def displacement_factor(cd: float | None, importance: float | None) -> float | None:
+    """The factor from the elastic displacements of the design forces to the design
+    displacements: Cd/I (the default pack's), or with the pack's ``seismic.driftAmplification``
+    "displacementFactor" Cd alone (C4: EN 1998-1 4.3.4, ds = qd·de with the importance already in
+    de); None without Cd or I."""
+    if not cd or not importance:
+        return None
+    rule = getattr(_seismic(), "driftAmplification", None)
+    if rule == "displacementFactor":
+        return float(cd)
+    return float(cd) / float(importance)
+
+
 def zone_of(z: float | None) -> int | None:
     """The seismic zone (1-4) of a zone coefficient Z: the zone whose Z is nearest (zones of
     the code pack in force)."""
@@ -1857,18 +1870,13 @@ def _seismic_design(
                     forces[part] = load_results(by_id[int(spec["case"])], folder / "results")
 
     # ── drift (Sec 2.5.7.7, 2.5.9.4, 2.5.14.1) ──
-    amplification = (
-        values["Cd"] / values["seismicImportance"]
-        if values["Cd"] and values["seismicImportance"]
-        else 1.0
-    )
+    amplification = displacement_factor(values["Cd"], values["seismicImportance"]) or 1.0
     # Each direction with the Cd of its own systems (Sec 2.5.5.5.1).
     by_axis_amplification = {
-        axis: (
-            values.get(f"Cd{axis}", values["Cd"]) / values["seismicImportance"]
-            if values["seismicImportance"]
-            else 1.0
+        axis: displacement_factor(
+            values.get(f"Cd{axis}", values["Cd"]), values["seismicImportance"]
         )
+        or 1.0
         for axis in ("X", "Y")
     }
     storeys = _levels(project, levels)

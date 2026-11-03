@@ -905,7 +905,13 @@ def _non_sfrs_beam(
     from saengine.library.settings import derived
 
     values = derived(settings)
-    factor = values["Cd"] / values["seismicImportance"] if scope.get("sdc") == "D" else 2.0
+    from saengine.fem.seismic_design import displacement_factor
+
+    factor = (
+        displacement_factor(values["Cd"], values["seismicImportance"])
+        if scope.get("sdc") == "D"
+        else 2.0
+    )
     moment = shear_force = gravity_axial = 0.0
     for piece in d.pieces:
         for c in e_idx:

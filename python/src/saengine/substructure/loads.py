@@ -435,7 +435,6 @@ def reduce_live_loads(loads: BaseLoads, building: BuildingModel, settings: Proje
         return
     try:
         scope = live_reduction.LiveScope.of(settings)
-        table = live_reduction._table()
     except Exception:  # noqa: BLE001 - a pack without the rule reduces nothing
         return
     if scope.live <= 0:
@@ -451,7 +450,9 @@ def reduce_live_loads(loads: BaseLoads, building: BuildingModel, settings: Proje
         top = float(element.top)
         floors = sum(1 for s in building.stories if float(s.elevation) >= top - 1.0)
         interior = live_reduction._interior(element, building)
-        kll = table.kll.interiorColumn if interior else table.kll.cornerColumnCantilever
+        kll = live_reduction.element_factor(
+            "interiorColumn" if interior else "cornerColumnCantilever"
+        )
         factor, why = live_reduction.reduction(kll, area, max(floors, 1), scope)
         if factor < 1.0:
             loads.live_factors[base_id] = factor

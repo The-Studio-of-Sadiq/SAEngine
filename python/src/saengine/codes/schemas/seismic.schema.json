@@ -98,6 +98,43 @@
       "title": "DesignCategories",
       "type": "object"
     },
+    "DesignSpectrumRule": {
+      "additionalProperties": false,
+      "description": "C4: the design spectrum. ``reducedElastic``: Sa = pgaFactor·Z·I/R·Cs(T) (the default\npack's). ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q -\n2/3)] up to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag\nfrom TC (:mod:`saengine.fem.spectra`); R stands for q.",
+      "properties": {
+        "method": {
+          "default": "reducedElastic",
+          "enum": [
+            "reducedElastic",
+            "behaviourFactor"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "plateau": {
+          "default": 2.5,
+          "description": "Spectral amplification of the plateau.",
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "lowerBound": {
+          "default": 0.0,
+          "description": "β: least Sd / ag.",
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Lowerbound",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "DesignSpectrumRule",
+      "type": "object"
+    },
     "DiaphragmConnections": {
       "additionalProperties": false,
       "description": "The connection force increase of irregular buildings (the factor is the pack's\n``transfer.diaphragm.irregularIncrease``): in the ``categories`` with an irregularity of\n``types``. ``wingTypes``: irregularities whose projecting wings need chords and collectors\nfor independent motion, satisfied by a dynamic 3D analysis when ``wingsDynamicExempt``.",
@@ -510,6 +547,54 @@
       "title": "Irregularities",
       "type": "object"
     },
+    "LateralForceRule": {
+      "additionalProperties": false,
+      "description": "C4: the lateral force method. Base shear × ``correction`` when T ≤ ``periodTcFactor``·TC\nand the building has more than ``minStoreys`` - 1 storeys (EN 1998-1 4.3.3.2.2 λ = 0.85);\n``distribution``: ``heightPower`` (Fx ∝ wx·hx^k, k 1 to 2 with T) or ``linear`` (Fi ∝ zi·mi,\nEN 1998-1 4.3.3.2.3 with the linear mode shape).",
+      "properties": {
+        "correction": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Correction",
+          "type": "number"
+        },
+        "periodTcFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodtcfactor"
+        },
+        "minStoreys": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Minstoreys",
+          "type": "integer"
+        },
+        "distribution": {
+          "default": "heightPower",
+          "enum": [
+            "heightPower",
+            "linear"
+          ],
+          "title": "Distribution",
+          "type": "string"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "LateralForceRule",
+      "type": "object"
+    },
     "PeriodCoefficient": {
       "additionalProperties": false,
       "properties": {
@@ -701,6 +786,56 @@
         "wallFactor"
       ],
       "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "StabilityRule": {
+      "additionalProperties": false,
+      "description": "C4: θ. ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx h), θmax = 0.5/Cd\n≤ ``thetaCap``; ``designDrift`` (EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de\n(Cd standing for qd), θmax = ``thetaCap``. Below ``ignoreBelow`` second order effects need\nnot be taken into account; up to ``amplifyUpTo`` they may be by 1/(1 - θ).",
+      "properties": {
+        "method": {
+          "default": "elasticOverImportance",
+          "enum": [
+            "elasticOverImportance",
+            "designDrift"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ignoreBelow": {
+          "default": 0.1,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ignorebelow",
+          "type": "number"
+        },
+        "amplifyUpTo": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amplifyupto"
+        },
+        "thetaCap": {
+          "default": 0.25,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Thetacap",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "StabilityRule",
       "type": "object"
     },
     "StoreyRatio": {
@@ -1368,6 +1503,83 @@
       "default": null,
       "description": "D6: load case -> factor of the gravity load Px of the stability coefficient θ; empty: the generic default (codes/generic), named in the report.",
       "title": "Stabilitygravity"
+    },
+    "spectrumType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the spectrum of ``spectra`` whose site parameters become ``siteClasses`` (EN 1998-1 Type 1 or Type 2); a project chooses another by overriding this value. Empty: ``siteClasses`` as given.",
+      "title": "Spectrumtype"
+    },
+    "spectra": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/SiteClass"
+        },
+        "type": "object"
+      },
+      "description": "Site parameters (S, TB, TC, TD) by spectrum type id, then site class.",
+      "title": "Spectra",
+      "type": "object"
+    },
+    "designSpectrum": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DesignSpectrumRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the design spectrum follows from the elastic one; empty: reducedElastic, Sa = pgaFactor·Z·I/R·Cs(T)."
+    },
+    "lateralForce": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LateralForceRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The base shear correction and the distribution of the lateral force method; empty: no correction, Fx ∝ wx·hx^k with k from the period."
+    },
+    "driftAmplification": {
+      "anyOf": [
+        {
+          "enum": [
+            "overImportance",
+            "displacementFactor"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Design displacements from the elastic ones: overImportance (Cd·δe/I) or displacementFactor (qd·de, Cd standing for qd, the importance already in de). Empty: overImportance.",
+      "title": "Driftamplification"
+    },
+    "stability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StabilityRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The interstorey drift sensitivity coefficient θ; empty: θ = Px δe/(I Vx h) with θmax = 0.5/Cd ≤ 0.25."
     }
   },
   "required": [

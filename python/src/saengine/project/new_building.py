@@ -143,6 +143,16 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         if source not in ("assumed", "entered"):
             raise NewBuildingError(f"unknown site class source '{source}'")
         out["siteClassSource"] = source
+    # C4: the design code the wizard chose, and the site values of a pack without towns.
+    code = spec.get("designCode")
+    if code:
+        out["codePack"] = str(code)
+    for key in ("zoneCoefficient", "windSpeed"):
+        if site.get(key) not in (None, ""):
+            out[key] = float(site[key])
+    exposure = (spec.get("wind") or {}).get("exposure")
+    if exposure:
+        out["windExposure"] = str(exposure)
     occupancy = spec.get("occupancy") or {}
     if occupancy.get("use"):
         out["occupancy"] = occupancy["use"]

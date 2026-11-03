@@ -46,6 +46,8 @@ AreaUseId = _choice([*code_data.AREA_USES, "custom"])
 SystemId = _choice(list(code_data.STRUCTURAL_SYSTEMS))
 #: The code pack's site classes (``seismic.siteClasses``).
 SiteClassId = _choice(list(code_data.SITE_CLASSES))
+#: C4: the code pack's wind exposures or terrain categories (``wind.exposures``).
+ExposureId = _choice(list(code_data.EXPOSURES))
 
 
 def _labels(names: list[str]) -> dict[str, Any]:
@@ -277,6 +279,30 @@ class RainSite(_Model):
     )
 
 
+class SnowSite(_Model):
+    """C4: the snow load on the ground, for the roof snow of the code pack's ``snow`` table."""
+
+    groundLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Ground snow load sk",
+        description="Characteristic snow load on the ground at the site [kN/m²] (the code's snow "
+        "map or its National Annex). Empty: no snow.",
+    )
+    exposure: str | None = Field(
+        default=None,
+        title="Snow exposure",
+        description="Exposure of the site (an id of the code pack's snow exposures, such as "
+        "windswept, normal or sheltered). Empty: the pack's default.",
+    )
+    thermal: float | None = Field(
+        default=None,
+        gt=0,
+        title="Thermal coefficient Ct",
+        description="Overrides the code pack's thermal coefficient (heated glass roofs).",
+    )
+
+
 class Helipad(_Model):
     """A helicopter landing or touch-down area."""
 
@@ -366,6 +392,7 @@ class Site(_Model):
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
     rain: RainSite = Field(default_factory=RainSite, title="Rain")
+    snow: SnowSite = Field(default_factory=SnowSite, title="Snow")
     helipad: Helipad | None = Field(default=None, title="Helicopter landing area")
     explosionRooms: list[ExplosionRoom] = Field(
         default_factory=list,
@@ -558,9 +585,10 @@ class CladdingRoof(_Model):
 
 
 class Wind(_Model):
-    exposure: Literal["A", "B", "C"] = Field(
+    exposure: ExposureId = Field(  # type: ignore[valid-type]
         default="A",
-        description="Exposure category (6.2.9.3).",
+        description="Exposure category (6.2.9.3), or the terrain category of the code pack's "
+        "wind table.",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.EXPOSURES.items()]),
     )
     directionality: float | None = Field(
@@ -2473,6 +2501,7 @@ class ProjectSettings(_Model):
 
         need("site.location", "locations", self.site.location)
         need("site.siteClass", "siteClasses", self.site.siteClass)
+        need("wind.exposure", "exposures", self.wind.exposure)
         seismic = self.seismic
         need("seismic.system", "systems", seismic.system)
         need("seismic.systemY", "systems", seismic.systemY)
@@ -2505,6 +2534,11 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
     out: dict[str, list[dict[str, str]]] = {}
     locations, zone_table = table("locations"), table("zoneCoefficients")
     area, seismic = table("areaLoads"), table("seismic")
+    wind = table("wind")
+    if wind is not None:
+        out["exposures"] = [
+            {"id": k, "label": f"{k}: {v.description}"} for k, v in wind.exposures.items()
+        ]
     if locations is not None:
         zones = dict(zone_table.zones) if zone_table is not None else {}
         rows = []

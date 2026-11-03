@@ -435,6 +435,38 @@
       "default": null,
       "description": "D6: load case -> factor of the gravity preload of a P-Delta analysis (the gravity part of the seismic strength combination); empty: the generic default (codes/generic), named in the report.",
       "title": "Pdeltapreload"
+    },
+    "strengthSets": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/Combination"
+        },
+        "type": "array"
+      },
+      "description": "Alternative sets of strength combinations by id; ``strengthSet`` chooses the one that becomes ``strength`` (every reader then sees that set).",
+      "title": "Strengthsets",
+      "type": "object"
+    },
+    "strengthSet": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the set of ``strengthSets`` used as ``strength`` (a project may choose another by overriding this value); empty: ``strength`` as given.",
+      "title": "Strengthset"
+    },
+    "strengthSetLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Readable name of each set, for the report.",
+      "title": "Strengthsetlabels",
+      "type": "object"
     }
   },
   "required": [

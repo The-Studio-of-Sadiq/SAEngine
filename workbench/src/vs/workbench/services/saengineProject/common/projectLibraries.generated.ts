@@ -10452,6 +10452,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					$ref: '#/$defs/RainSite',
 					title: 'Rain',
 				},
+				snow: {
+					$ref: '#/$defs/SnowSite',
+					title: 'Snow',
+				},
 				helipad: {
 					anyOf: [
 						{
@@ -10539,6 +10543,55 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Slenderness',
+			type: 'object',
+		},
+		SnowSite: {
+			additionalProperties: false,
+			description: 'C4: the snow load on the ground, for the roof snow of the code pack\'s ``snow`` table.',
+			properties: {
+				groundLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Characteristic snow load on the ground at the site [kN/m²] (the code\'s snow map or its National Annex). Empty: no snow.',
+					title: 'Ground snow load sk',
+				},
+				exposure: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Exposure of the site (an id of the code pack\'s snow exposures, such as windswept, normal or sheltered). Empty: the pack\'s default.',
+					title: 'Snow exposure',
+				},
+				thermal: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code pack\'s thermal coefficient (heated glass roofs).',
+					title: 'Thermal coefficient Ct',
+				},
+			},
+			title: 'SnowSite',
 			type: 'object',
 		},
 		Thermal: {
@@ -10767,7 +10820,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				exposure: {
 					default: 'A',
-					description: 'Exposure category (6.2.9.3).',
+					description: 'Exposure category (6.2.9.3), or the terrain category of the code pack\'s wind table.',
 					enum: ['A', 'B', 'C'],
 					enumDescriptions: ['A: Urban, suburban, wooded', 'B: Open terrain, scattered obstructions', 'C: Flat open country, coastal'],
 					title: 'Exposure',
@@ -11168,6 +11221,7 @@ export const DEFAULT_SETTINGS: object = {
 		rain: {
 			controlledDrainage: false,
 		},
+		snow: {},
 		explosionRooms: [],
 	},
 	seismic: {

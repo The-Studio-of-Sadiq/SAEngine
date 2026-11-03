@@ -918,7 +918,12 @@ def drift_amplification(
     """
     # Px with the code pack's factors (1.0 each in the default pack); none: θ not covered
     gravity = dict(gravity_factors or stability_gravity_factors())
-    theta_max = min(0.5 / cd, 0.25) if cd else None
+    # C4: the pack's θ rule (seismic.stability): designDrift θ = Px·Cd·δe/(Vx·h) (EN 1998-1
+    # 4.4.2.2, dr = qd·de) with its cap; else θ = Px·δe/(I·Vx·h), θmax = 0.5/Cd ≤ 0.25.
+    rule = getattr(code_context.table("seismic"), "stability", None)
+    design_drift = rule is not None and rule.method == "designDrift"
+    cap = rule.thetaCap if rule is not None else 0.25
+    theta_max = (cap if design_drift else min(0.5 / cd, cap)) if cd else None
     from opensees_studio.services.result_store import load_manifest, load_results
     from opensees_studio.services.results import StaticResults
 
@@ -977,7 +982,9 @@ def drift_amplification(
                 px = -float(loads_above(project, gravity, key[0])[2])
                 vx = abs(float(loads_above(project, {code: 1.0}, key[0])[axis]))
                 row["Px"], row["Vx"] = px, vx
-                if vx > 0:  # θ = Px δxe / (I Vx hsx), δxe / hsx the drift ratio
+                if vx > 0 and design_drift and cd:  # θ = Px·qd·de/(Vx·h)
+                    row["theta"] = px * cd * row["centreOfMassDrift"] / vx
+                elif vx > 0:  # θ = Px δxe / (I Vx hsx), δxe / hsx the drift ratio
                     row["theta"] = px * row["centreOfMassDrift"] / (importance * vx)
             storeys.append(row)
         ratios = [s["ratio"] for s in storeys if s["ratio"] is not None]
