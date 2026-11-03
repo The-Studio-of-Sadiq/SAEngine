@@ -186,6 +186,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   (`_partition_pattern`, `_Importer._partition_patterns`, `_partition_case`,
   `_partition_mass`), `importers/common.py` (case `P` of `add_area_load` → `AreaLoad.partitions`),
   [import.md](import.md).
+  Owner, 2026-11-04: the recognition rule stands, and a partition pattern left out of the
+  mass source keeps factor 0 (the file's own choice), not the pack's rule.
 - **W250 boundary elements and spandrel hoops (PR #173).**
   - Question: the Sample Frame's special wall W1 (W250) failed four checks: boundary element
     provided (8.3.6.6(d)), the spandrels' capacity-design shear Ve (8.3.8.1(a)), spandrel width
