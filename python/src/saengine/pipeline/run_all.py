@@ -63,7 +63,7 @@ from typing import Any
 from saengine.codes import context as code_context
 from saengine.fem.derive import model_stamp
 from saengine.fire.summary import fire_failures, fire_summary_file, has_fire
-from saengine.library.bim import source_stamp
+from saengine.library.bim import floor_plan_current, source_stamp
 from saengine.pipeline import summaries as S
 from saengine.pipeline.design_mode import ANALYSIS_INPUTS_FILE
 from saengine.pipeline.project import Project, open_project, read_text, write_text
@@ -288,7 +288,11 @@ def _bim(project: Project, step: StepResult) -> None:
         raise StepFailure(
             f"{'The structural model' if upstream == 'structure' else 'The floor plan'} could not be read."
         )
-    if recorded is not None and recorded == source_stamp(source):
+    if recorded is not None and (
+        recorded == source_stamp(source)
+        if upstream == "structure"
+        else floor_plan_current(recorded, source)
+    ):
         step.status = "skipped"
         step.message = "The building model is up to date."
     else:

@@ -982,3 +982,27 @@ def test_very_soft_clay_without_lab_data_is_estimated_not_zero() -> None:
     r = bearing.allowable(p, 2.0, 2.0, 1.5)
     assert r["governs"] == "settlement" and r["qa"] < 10
     assert "consolidation estimated" in r["settlement"]
+
+
+def test_settlement_controlled_qa_is_rounded_down() -> None:
+    """R2-3 (re-walk 2): the reference footing settled 26.7 mm "under its qa" against 25 mm.
+    The settlement of a soft clay jumps between tenths of a kPa (the stressed zone takes in one
+    more sublayer): qa 7.56 kPa settled 24.7 mm, the 7.6 kPa shown 26.7 mm. A settlement-
+    controlled qa is now rounded down to 0.1 kPa, so it settles within the limit."""
+    assert bearing._down(7.5591796875) == 7.5
+    assert bearing._down(7.6) == 7.6  # exact tenths stay
+    hole = {
+        "id": "BH",
+        "waterTable": 2000,
+        "layers": [
+            {"top": 0, "bottom": 5500, "soilType": "clay"},
+            {"top": 5500, "bottom": 20000, "soilType": "sand"},
+        ],
+        "spt": [{"depth": d, "N": n} for d, n in ((1500, 3), (3000, 4), (4500, 5), (6000, 12))],
+    }
+    p = profile(hole)
+    for b, df in ((2.0, 1.5), (1.5, 1.0), (3.0, 2.0)):
+        r = bearing.allowable(p, b, b, df)
+        assert r["governs"] == "settlement"
+        assert r["qa"] == r["qa_settlement"] == math.floor(r["qa"] * 10 + 1e-9) / 10
+        assert settlement(p, b, b, df, r["qa"])["total"] <= 25 + 1e-6

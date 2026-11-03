@@ -28,7 +28,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
-import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { recordedStamp, upstreamCurrent, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { REPORT_PART_CHECKS_COMMAND } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { storedFieldProblems } from '../../saengineModel/browser/modifiersModel.js';
@@ -500,7 +500,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		const part = this.kind && upstreamPart(this.kind, this.projectService.parts);
 		const text = this.upstreamText;
 		const recorded = this.document && part ? recordedStamp(this.document, part) : undefined;
-		const stale = !!this.document && !!part && text !== undefined && recorded !== sourceStamp(text);
+		const stale = !!this.document && !!part && text !== undefined && !upstreamCurrent(part, recorded, text);
 		const name = part ? UPSTREAM_NAMES[part] ?? part : '';
 		const message = !stale ? undefined : recorded
 			? localize('outdated.changed', "The {0} has changed since this was built from it.", name)

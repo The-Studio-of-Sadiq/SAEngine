@@ -209,8 +209,8 @@ export class ArchitectureEditor extends EditorPane {
 	private showStructure = true;
 
 	private tool: Tool = 'select';
-	/** The type each placing tool places. */
-	private readonly types = new Map<Tool, string>();
+	/** The type each placing tool places, per storey (R2-15: one storey's choice carried to the others). */
+	private readonly types = new Map<string, string>();
 	private typeIds: string[] = [];
 	/** Points of the wall being drawn, or the start of a separator. */
 	private chain: CadPoint[] = [];
@@ -298,7 +298,7 @@ export class ArchitectureEditor extends EditorPane {
 		this.typePicker.render(append(this.typeGroup, $('.floor-plan-select.type')));
 		this._register(this.typePicker.onDidSelect(({ index }) => {
 			if (this.typeIds[index]) {
-				this.types.set(this.tool, this.typeIds[index]);
+				this.types.set(this.typeKey(this.tool), this.typeIds[index]);
 				this.updateStatus();
 			}
 		}));
@@ -469,6 +469,12 @@ export class ArchitectureEditor extends EditorPane {
 		if (e.key === 'Escape' && (this.chain.length || this.tool !== 'select' || this.selected)) {
 			e.preventDefault();
 			e.stopPropagation();
+			if (CHAIN_TOOLS.has(this.tool) && this.chain.length >= (this.tool === 'roof' ? 3 : 2)) {
+				// As in Floor Plan: Escape ends the chain and keeps what is drawn (R2-15: the wall
+				// drawn so far was discarded); a second Escape leaves the tool.
+				this.finishWall(false);
+				return;
+			}
 			this.cancel();
 		} else if (isEditableElement(e.target as HTMLElement)) {
 			return;
@@ -496,6 +502,11 @@ export class ArchitectureEditor extends EditorPane {
 		this.updateToolbar();
 		this.updateStatus();
 		this.renderPreview();
+	}
+
+	/** The key of the type a placing tool places on the storey shown. */
+	private typeKey(tool: Tool): string {
+		return `${this.story ?? ''}/${tool}`;
 	}
 
 	private cancel(): void {
@@ -618,7 +629,7 @@ export class ArchitectureEditor extends EditorPane {
 			}
 			case 'door': case 'window': {
 				const host = this.hostAt(point);
-				const type = this.types.get(this.tool);
+				const type = this.types.get(this.typeKey(this.tool));
 				if (!host) {
 					this.setNotice(localize('arch.noHost', "Click on a wall of this story: doors and windows sit in walls."));
 					return;
@@ -646,7 +657,7 @@ export class ArchitectureEditor extends EditorPane {
 		const path = this.chain;
 		this.chain = [];
 		const tool = this.tool;
-		const type = this.types.get(tool);
+		const type = this.types.get(this.typeKey(tool));
 		if (!story || !arch || path.length < 2) {
 			this.renderPreview();
 			return;
@@ -830,7 +841,7 @@ export class ArchitectureEditor extends EditorPane {
 				}
 			} else if (this.tool === 'door' || this.tool === 'window') {
 				const host = this.hostAt(point);
-				const type = this.types.get(this.tool);
+				const type = this.types.get(this.typeKey(this.tool));
 				const kind = this.tool === 'door' ? 'doors' : 'windows';
 				const size = type && openingSize(this.arch, kind, { id: '', type, wall: '', offset: 0 });
 				if (host && size) {
@@ -919,11 +930,11 @@ export class ArchitectureEditor extends EditorPane {
 			};
 			const types = typesOf[this.tool] ?? [];
 			this.typeIds = types.map(t => t.id);
-			let chosen = this.types.get(this.tool);
+			let chosen = this.types.get(this.typeKey(this.tool));
 			if (!chosen || !this.typeIds.includes(chosen)) {
 				chosen = this.typeIds[0];
 				if (chosen) {
-					this.types.set(this.tool, chosen);
+					this.types.set(this.typeKey(this.tool), chosen);
 				}
 			}
 			const label = (t: { readonly id: string; readonly name: string }) => {

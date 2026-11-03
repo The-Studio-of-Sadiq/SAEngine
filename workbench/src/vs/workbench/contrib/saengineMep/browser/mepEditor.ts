@@ -3556,8 +3556,12 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (!request || !document) {
 			return;
 		}
-		if (!plumbingOf(document)?.stories.length) {
-			this.notificationService.info(localize('plb.sizeNeedsFixtures', "Give the fixtures and population of the storeys first (Data): the tanks are sized from the daily demand."));
+		// The storey uses and populations of the coordination view count too: the backend gives
+		// the plumbing their occupancy and population (saengine.mep.uses; R2-4: a population
+		// typed there was refused here).
+		const fromUses = !!plumbingOf(document) && storyUsesOf(document).some(entry => isOccupied(entry.use));
+		if (!plumbingOf(document)?.stories.length && !fromUses) {
+			this.notificationService.info(localize('plb.sizeNeedsFixtures2', "Give the storeys their use and population first (Coordination > Storey use, or the fixtures in Data): the tanks are sized from the daily demand."));
 			return;
 		}
 		if (!CommandsRegistry.getCommand(PLUMBING_SIZE_TANKS_COMMAND)) {
@@ -3776,6 +3780,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		for (const storyId of storyIds) {
 			const index = rows.findIndex(r => r.story === storyId);
 			const row = rows[index];
+			const use = storyUseOf(document, storyId);
+			if (!row && use && !isOccupied(use.use)) {
+				continue; // the roof and plant storeys are not occupied: no fixtures (R2-5)
+			}
 			const tr = append(body, $(`tr.mep-row${row ? '' : '.plb-empty-row'}`));
 			const path = (field: string) => index >= 0 ? `plumbing.stories.${index}.${field}` : `plumbing.new.${storyId}.${field}`;
 			const target = () => storyRow(p(), storyId);
@@ -3817,6 +3825,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			// Blank: the population the backend used (from the rooms, or the floor area over the area per person of the occupancy, N-E11).
 			const used = this.plumbingReport?.demand.find(d => d.story === storyId)?.population;
 			const populationHint = row?.population !== undefined ? undefined
+				: use?.population !== undefined ? formatNumber(use.population, 0) // Coordination > Storey use (R2-4)
 				: source?.population !== undefined && source.populationSource ? formatNumber(source.population, 1)
 					: used !== undefined && used > 0 ? formatNumber(used, 0) : undefined;
 			const population = append(append(tr, $('td')), this.textInput(P.population, row?.population, this.plumbingStore(target, 'population', () => this.updatePlumbingTotals(document)), path('population'), populationHint));

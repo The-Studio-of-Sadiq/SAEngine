@@ -321,7 +321,14 @@ def test_the_design_checks_are_kept_for_the_drawings(tmp_path: Path, monkeypatch
     assert required is None and d.REQUIRED_MISSING in notes
     design_mode.keep(out, design_mode.inputs_stamp(out, model), {"elements": []})
     assert d._design_inputs(root)[1] == {"elements": []}
-    assert d.kept_detailing_inputs(root)["design_report"] == report
+    # The design's own answer adds the stamps of what it read to its summary (``source``,
+    # ``codeTables``: walk 3, R1-2); the kept checks are the same otherwise.
+    kept = d.kept_detailing_inputs(root)["design_report"]
+    stamps = ("source", "codeTables")
+    assert kept["elements"] == report["elements"]
+    assert {k: v for k, v in kept["summary"].items() if k not in stamps} == {
+        k: v for k, v in report["summary"].items() if k not in stamps
+    }
     assert d.check_problems({"elements": []}, report) == [
         "Design checks: 1 of 2 members fail (B1): the sheets show the bars entered in 04 Objects.",
         "Design checks: 1 beam-column joint(s) fail.",

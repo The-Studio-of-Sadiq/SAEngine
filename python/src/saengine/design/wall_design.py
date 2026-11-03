@@ -1648,6 +1648,11 @@ def _recheck(
     return utilisation, problems
 
 
+#: The heavier vertical webs tried (lightest first) when the proposed bars leave a pier failing
+#: a check the web carries (each try checks every pier of the type again).
+_HEAVIER_WEBS = 12
+
+
 def _heavier_meshes(least: dict[str, Any], s_max: float) -> list[dict[str, float]]:
     """Meshes (Ø10-Ø20, 25 mm steps of spacing, >= 100 mm, <= ``s_max``) heavier than ``least``,
     lightest first."""
@@ -1741,8 +1746,14 @@ def proposal_entries(
                     del trial["boundary"]
                     found, left = _recheck(group, trial)
                     if not left:
+                        # Said as what the end bars gave, not as a failure of the bars proposed
+                        # (R2-1: "still fails slender wall" beside bars that pass).
                         notes += [
-                            p.replace(": not checked with these bars: ", ": with end bars, ")
+                            p.replace(
+                                ": not checked with these bars: ", ": with end bars, "
+                            ).replace(
+                                " still fails: ", ": with end bars and the least web it fails "
+                            )
                             for p in problems
                         ] + [
                             (
@@ -1750,6 +1761,22 @@ def proposal_entries(
                                 "carries the axial force and bending instead, checked on every pier"
                             )
                         ]
+                        reinforcement, utilisation, problems = trial, found, []
+                        break
+            if problems and not any(": not checked with these bars: " in p for p in problems):
+                # Checks the web's vertical bars carry besides the end bars (out-of-plane
+                # bending, the slender-wall method): a heavier vertical web with the same ends.
+                spacing = min(n.vertical_s_max for n in needs)
+                for mesh in _heavier_meshes(picks["vertical"], spacing)[:_HEAVIER_WEBS]:
+                    trial = {**reinforcement, "vertical": mesh}
+                    found, left = _recheck(group, trial)
+                    if not left:
+                        notes.append(
+                            "a heavier vertical web than the least: "
+                            + "; ".join(
+                                p.replace(" still fails: ", " failed with it: ") for p in problems
+                            )
+                        )
                         reinforcement, utilisation, problems = trial, found, []
                         break
             if problems:

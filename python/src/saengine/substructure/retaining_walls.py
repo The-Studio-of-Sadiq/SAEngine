@@ -128,9 +128,9 @@ METHOD = [
         "basement with the pack's factor on the dead load."
     ),
     (
-        "Stem and base: ACI 318-19 flexure and one-way shear (Table 22.5.5.1), the code "
-        "pack's load factor on H and its wall minimum steel, crack width EN 1992-1-1 7.3.4 and "
-        "the ACI 318-19 Table 24.3.2 spacing."
+        "Stem and base: flexure and one-way shear per metre, the code pack's load factor on "
+        "H and its wall minimum steel, the crack width at the soil face and the bar spacing "
+        "for crack control (each check cites its clause)."
     ),
 ]
 
@@ -140,11 +140,11 @@ def _factors() -> Any:
     return code_context.table("foundations").retainingWall
 
 
-def _clause(key: str) -> str:
-    """The reference of the pack's ``foundations`` source ``key`` (empty when none)."""
+def _clause(key: str, default: str = "") -> str:
+    """The reference of the pack's ``foundations`` source ``key`` (``default`` when none)."""
     from saengine.substructure.shallow_rules import cite
 
-    return cite(key)
+    return cite(key, default)
 
 
 def base_cover(wall_cover: float) -> float:
@@ -436,7 +436,12 @@ def design_strip(
                 "kN·m/m",
                 "1.6H",
                 f"φMn of {dia:.0f} mm at {spacing:.0f} ({area:.0f} mm²/m), d = {d:.0f} mm "
-                f"({strip.where})",
+                f"({strip.where})"
+                + (
+                    f"; {flexure_clause}"
+                    if (flexure_clause := _clause("retainingWall.stemFlexure"))
+                    else ""
+                ),
             )
         )
     least = minimum_area(strip, fy, dia)
@@ -449,7 +454,7 @@ def design_strip(
             None,
             (_wall_steel()[1] or "the code pack's wall minimum")
             if strip.wall
-            else "ACI 318-19 7.6.1.1",
+            else _clause("retainingWall.baseMinimum", "shrinkage and temperature steel"),
         )
     )
     wk = _crack(strip, dia, spacing, fc, ec)
@@ -460,7 +465,7 @@ def design_strip(
             crack_limit,
             "mm",
             "service",
-            f"EN 1992-1-1 7.3.4 under Ms = {strip.ms:.1f} kN·m/m",
+            f"{_clause('retainingWall.stemCrack', 'crack width')} under Ms = {strip.ms:.1f} kN·m/m",
         )
     )
     checks.append(
@@ -470,7 +475,7 @@ def design_strip(
             largest,
             "mm",
             None,
-            "ACI 318-19 Table 24.3.2 (fs = 2/3 fy), 3h and 450 mm",
+            _clause("retainingWall.stemSpacing", "crack control spacing (fs = 2/3 fy), 3h, 450 mm"),
         )
     )
     if strip.vu > 0:
@@ -483,7 +488,7 @@ def design_strip(
                 phi_vc / 1e3,
                 "kN/m",
                 "1.6H",
-                f"ACI 318-19 Table 22.5.5.1 (c), no shear reinforcement ({strip.where})",
+                f"{_clause('retainingWall.stemShear', 'no shear reinforcement')} ({strip.where})",
             )
         )
     return {
@@ -1017,8 +1022,7 @@ def design_retaining_wall(
                 + (
                     "; the flotation of the basement is checked with the raft"
                     if any(f.type == "raft" and f.outline for f in ctx.substructure.foundations)
-                    else "; no raft under the basement, so its flotation is not checked "
-                    "(walkthrough 3, SM-3): see the notes"
+                    else "; no raft under the basement, so its flotation is not checked: see the notes"
                 )
             )
     governing = max((c["utilisation"] for c in checks if not c["flag"]), default=0.0)
@@ -1185,7 +1189,8 @@ def _base_design(
             detail["baseDistribution"]["area"],
             "mm²/m",
             None,
-            "ACI 318-19 7.6.1.1 (shrinkage and temperature), half per face",
+            f"{_clause('retainingWall.baseMinimum', 'shrinkage and temperature steel')}, half "
+            "per face",
         )
     )
     return checks

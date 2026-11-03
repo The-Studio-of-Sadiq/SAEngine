@@ -139,10 +139,21 @@ def fire_stories(mep: MepModel) -> tuple[list[Any], list[str]]:
     from_plumbing = [k for k in plumbing if k not in listed]
     out.extend(FireStory(story=k, occupancy=plumbing[k]) for k in from_plumbing)
     taken = [s.story for s in fire.stories if s.occupancy is None and s.story in plumbing]
-    if taken or from_plumbing:
-        notes.append(f"use of {', '.join([*taken, *from_plumbing])} as in Plumbing")
+    # R2-5: a storey's use is entered once, in Coordination > Storey use (07 MEP storyUses,
+    # which gives the plumbing its occupancy); Plumbing's own only for the storeys it skips.
+    coordinated = {e.story for e in (getattr(mep, "storyUses", None) or [])}
+    shared = [*taken, *from_plumbing]
+    by_uses = [k for k in shared if k in coordinated]
+    by_plumbing = [k for k in shared if k not in coordinated]
+    if by_uses:
+        notes.append(f"use of {', '.join(by_uses)} as in Coordination > Storey use")
+    if by_plumbing:
+        notes.append(f"use of {', '.join(by_plumbing)} as in Plumbing")
     if defaulted:
-        notes.append(f"{', '.join(defaulted)}: no use given here or in Plumbing: office taken")
+        notes.append(
+            f"{', '.join(defaulted)}: no use given here or in Coordination > Storey use: "
+            "office taken"
+        )
     return out, notes
 
 
@@ -287,7 +298,10 @@ def fire_results(
         })  # fmt: skip
     rows.sort(key=lambda r: r["level"])
     if not rows:
-        return _empty(problems, "no fire stories: give the stories' use (here or in Plumbing)")
+        return _empty(
+            problems,
+            "no fire stories: give the stories' use (here or in Coordination > Storey use)",
+        )
     levels = [building.height(s) / 1000.0 for s in building.stories] if building.known else [
         r["level"] for r in rows]  # fmt: skip
     height = max(max(levels, default=0.0), max(r["level"] for r in rows))

@@ -40,6 +40,7 @@ to merge; nothing is written.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -49,7 +50,7 @@ import numpy as np
 from saengine.codes import context as code_context
 from saengine.design import rc
 from saengine.design.bars import diameters, mesh_for, slab_flexure_need
-from saengine.library.bim import ColumnElement
+from saengine.library.bim import ColumnElement, WallElement
 from saengine.library.materials import Category
 from saengine.library.objects import BarMesh, Column
 from saengine.library.substructure import DEFAULT_FOUNDING_DEPTH, Foundation
@@ -107,6 +108,67 @@ BEARING_CHECKS = (
 
 def _round_up(value: float, step: float = STEP) -> float:
     return math.ceil(value / step - 1e-9) * step
+
+
+#: A footing may reach this far past the plot boundary before it is said not to fit [mm].
+PLOT_TOLERANCE = 10.0
+
+
+def natural_key(text: str) -> tuple[Any, ...]:
+    """C2 before C10 (:func:`saengine.drawings.sheets.steel.natural_key`)."""
+    from saengine.drawings.sheets.steel import natural_key as key
+
+    return key(text)
+
+
+def plot_polygon(ctx: Context) -> Any:
+    """The plot of 1 Soil Report's site in project mm (a shapely polygon), None without one."""
+    from saengine.gis.plot import plot_ring
+    from saengine.library.soil import SoilReport
+
+    if not ctx.soil_text:
+        return None
+    try:
+        report = SoilReport.model_validate_json(ctx.soil_text)
+        ring, _ = plot_ring(report.site)
+    except (ValueError, AttributeError, TypeError):
+        return None
+    if not ring or len(ring) < 3:
+        return None
+    from shapely.geometry import Polygon
+
+    polygon = Polygon(ring)
+    return polygon if polygon.is_valid and polygon.area > 0 else None
+
+
+def beyond_plot(plot: Any, corners: np.ndarray) -> float:
+    """How far [mm] the farthest corner of a footing lies outside ``plot`` (0 inside)."""
+    from shapely.geometry import Point
+
+    return max((plot.distance(Point(float(x), float(y))) for x, y in corners), default=0.0)
+
+
+def _why_bearing(trial: Trial, failing: list[dict[str, Any]]) -> str:
+    """What still fails at the largest plan, with its combination and values (R2-2: "no footing
+    up to 8 m" for a 123 kN column beside a 242 kN one that got a footing read as inconsistent;
+    the governing combination, e.g. with earthquake, and the soil's qa say why)."""
+    worst = max(failing, key=lambda c: c["utilisation"])
+    size = f"{trial.width / 1e3:g} x {trial.length / 1e3:g} m"
+    if worst["name"] == "Bearing (service)":
+        note = str(worst.get("note") or "")
+        qa = re.search(r"qa = ([0-9.]+ kPa)", note)
+        return (
+            f"at {size}, {worst['combination']} gives a net {worst['demand']:.1f} kPa against "
+            f"{worst['capacity']:.1f} kPa allowed"
+            + (
+                f" (qa {qa.group(1)}"
+                + (", settlement governs)" if "settlement governs" in note else ")")
+                if qa
+                else ""
+            )
+            + f", utilisation {worst['utilisation']:.2f}"
+        )
+    return f"at {size}, {worst['name']} fails under {worst['combination']} (utilisation {worst['utilisation']:.2f})"
 
 
 def min_thickness() -> float:
@@ -280,7 +342,10 @@ class Sizer:
                         trial.width, trial.length = smaller.width, smaller.length
                 return
             if max(trial.length, trial.width) >= MAX_SIZE:
-                raise Skip(f"no footing up to {MAX_SIZE / 1e3:g} m carries the bearing")
+                raise Skip(
+                    f"no footing up to {max(MAX_SIZE, trial.width, trial.length) / 1e3:g} m "
+                    "carries the bearing: " + _why_bearing(trial, failing)
+                )
             # Grow in proportion to the overload (at least one step).
             ratio = math.sqrt(min(max(c["utilisation"] for c in failing), 4.0))
             if trial.square:
@@ -599,12 +664,15 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
             chosen.append(base.element)
 
     trials: list[Trial] = []
+    no_pad: list[str] = []  # the columns no pad footing works for (bearing, or off the plot)
     for column in chosen:
         try:
             trial = sizer.isolated(column)
             sizer.size(trial)
         except Skip as reason:
             sizer.notes.append(f"{column.id}: no footing proposed: {reason}")
+            if str(reason).startswith("no footing up to"):
+                no_pad.append(column.id)
             continue
         trials.append(trial)
 
@@ -636,6 +704,48 @@ def propose(ctx: Context, columns: list[str] | None = None) -> dict[str, Any]:
             "centred on the resultant of the heaviest service gravity combination"
         )
         trials = [t for t in trials if t is not a and t is not b] + [merged]
+
+    # R2-2: a footing that reaches past the plot (1 Soil Report's site) cannot be built there:
+    # it is not proposed, and the note says by how much.
+    plot = plot_polygon(ctx)
+    if plot is not None:
+        inside = []
+        for trial in trials:
+            past = beyond_plot(plot, trial.corners())
+            if past > PLOT_TOLERANCE:
+                sizer.notes.append(
+                    f"{', '.join(trial.columns)}: the {trial.width / 1e3:g} x "
+                    f"{trial.length / 1e3:g} m footing it needs reaches {past / 1e3:.2f} m past the "
+                    "plot boundary: not proposed (an eccentric footing tied back to an inner one, "
+                    "a raft or piles)"
+                )
+                no_pad += trial.columns
+            else:
+                inside.append(trial)
+        trials = inside
+    if no_pad:
+        sizer.notes.append(
+            f"Pad footings do not work for {', '.join(sorted(set(no_pad), key=natural_key))}: "
+            "consider a raft "
+            "(Size Footings with no columns selected proposes one when the footings would cover "
+            "most of the plan, or Add Raft; its contact pressure must be within qa too) or "
+            "piles (Place a Group under Each, with the soil's pile capacity)"
+        )
+    carried_now = carried | {c for t in trials for c in t.columns}
+    rafted = any(f.type == "raft" for f in ctx.substructure.foundations)  # carries its walls
+    bare_walls = sorted(
+        (
+            b
+            for b, base in loads.bases.items()
+            if isinstance(base.element, WallElement) and b not in carried_now and not rafted
+        ),
+        key=natural_key,
+    )
+    if bare_walls:
+        sizer.notes.append(
+            f"Walls {', '.join(bare_walls)} stand on no foundation: Size Footings sizes the "
+            "columns' footings only; give the walls a strip footing, a raft or a pile cap"
+        )
 
     # Footings that would overlap a foundation that stays (not being sized again). A foundation
     # whose columns were asked for but got no footing (see their notes) stays too, but is not

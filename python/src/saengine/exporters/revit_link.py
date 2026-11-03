@@ -313,7 +313,7 @@ def _current(p: Any) -> tuple[Any, Any, Any, dict[str, Any] | None, list[str]]:
     types and materials, the floor plan's JSON, and notes."""
     from pydantic import ValidationError
 
-    from saengine.library.bim import BuildingModel, generate, source_stamp
+    from saengine.library.bim import BuildingModel, floor_plan_current, floor_plan_stamp, generate
     from saengine.library.floorplan import FloorPlan
     from saengine.library.materials import MaterialLibrary
     from saengine.library.objects import ObjectLibrary
@@ -332,8 +332,15 @@ def _current(p: Any) -> tuple[Any, Any, Any, dict[str, Any] | None, list[str]]:
         try:
             plan = FloorPlan.model_validate_json(plan_text)
             plan_json = json.loads(plan_text)
-            stamp = source_stamp(plan_text)
-            if building is not None and building.source and building.source.floorPlan != stamp:
+            stamp = floor_plan_stamp(plan_text)
+            recorded = (
+                building.source.floorPlan if building is not None and building.source else None
+            )
+            if (
+                building is not None
+                and building.source
+                and not floor_plan_current(recorded, plan_text)
+            ):
                 notes.append(
                     "The building model (06 BIM) is older than the floor plan: the exchange "
                     "follows the floor plan as it is now."

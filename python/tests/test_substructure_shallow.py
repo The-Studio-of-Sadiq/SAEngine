@@ -1388,6 +1388,32 @@ def test_sized_footings_never_overlap_and_stay_below_ground() -> None:
             assert penetration(a, b) <= 0.5
 
 
+def test_sizing_says_why_no_pad_works_and_keeps_to_the_plot() -> None:
+    """R2-2 (re-walk 2, soft clay): "no footing up to 8 m carries the bearing" for a light
+    column while a heavier one got a 7.4 m footing past the plot read as inconsistent. The note
+    now gives the combination and the pressures at the largest plan, a footing past the plot
+    boundary (1 Soil Report's site) is not proposed, and a raft or piles are suggested."""
+    # 20000 kN on qa 150 kPa needs 133 m² (11.5 m square): no pad up to 8 m.
+    ctx = four_columns(20000, 20000)
+    proposal = propose(ctx, columns=["C1"])
+    assert not proposal["foundations"]
+    note = next(n for n in proposal["notes"] if n.startswith("C1: no footing proposed"))
+    assert ", D gives a net" in note and "against 150.0 kPa allowed (qa 150 kPa)" in note
+    assert any(n.startswith("Pad footings do not work for C1: consider a raft") for n in
+               proposal["notes"])  # fmt: skip
+    # 1500 kN: a 3.2 m footing, but the plot ends 1 m from C1's centre.
+    ctx = two_columns(p1=1500, p2=1000, x2=20000, foundations=False)
+    ctx.soil_text = json.dumps(
+        {"site": {"plot": {"points": [[-1000, -2000], [30000, -2000], [30000, 9000],
+                                      [-1000, 9000]]}}}
+    )  # fmt: skip
+    proposal = propose(ctx)
+    assert [f["columns"] for f in proposal["foundations"]] == [["C2"]]
+    past = next(n for n in proposal["notes"] if n.startswith("C1: the "))
+    assert "m past the plot boundary: not proposed" in past
+    assert any(n.startswith("Pad footings do not work for C1") for n in proposal["notes"])
+
+
 @pytest.fixture(autouse=True)
 def _general_engine(monkeypatch: pytest.MonkeyPatch) -> None:
     """These tests pin the engine's general footing design (the allowable-stress service

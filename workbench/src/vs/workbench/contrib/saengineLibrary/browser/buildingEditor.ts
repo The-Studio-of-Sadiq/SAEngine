@@ -36,7 +36,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineModelSelectionService, MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
-import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { recordedStamp, upstreamCurrent, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
@@ -523,7 +523,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private get stale(): boolean {
 		const model = this.source.value?.object.textEditorModel;
 		const part = upstreamPart('bim', this.project.parts) ?? (this.special ? 'structure' : 'floorPlan');
-		return !!this.document && !!model && recordedStamp(this.document, part) !== sourceStamp(model.getValue());
+		return !!this.document && !!model && !upstreamCurrent(part, recordedStamp(this.document, part), model.getValue());
 	}
 
 	/** Generates the model from the current Part 5 model, keeping the model's own elements. */

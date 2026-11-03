@@ -137,6 +137,18 @@ def test_merge_boxes_and_cloud_points() -> None:
     assert all(b > 0 for _, _, b in points)  # outward arcs, counter-clockwise
 
 
+def test_pending_revision_follows_project_settings_rows() -> None:
+    """R2-9: the issue dialog offered revision 0 while Project Settings had revision 1: the
+    first row of Project Settings after the last one issued, not issued yet, comes first."""
+    register = rv.Register()
+    assert register.pending_code("0", ["1"]) == "1"
+    assert register.pending_code("0", []) == "0"
+    register.issues.append(rv.Issue("1", "2026-11-03", "", "", "For approval"))
+    assert register.pending_code("1", ["1"]) == "2"  # every row issued: the next one
+    assert register.pending_code("1", ["1", "A"]) == "A"
+    assert register.pending_code("1", ["P1", "1", "A"]) == "A"  # P1 before the last issue
+
+
 def test_register_round_trip_and_rows(tmp_path: Path) -> None:
     register = rv.Register()
     first = rv.new_issue(register, None, "2026-11-01", "First issue", "AB", "For approval")

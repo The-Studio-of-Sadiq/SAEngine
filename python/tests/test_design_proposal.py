@@ -22,7 +22,7 @@ from saengine.design.proposal import (
 )
 from saengine.design.rc import bars_per_row, flexure, section_of, shear
 from saengine.design.required import Options
-from saengine.library.bim import source_stamp
+from saengine.library.bim import floor_plan_stamp, source_stamp
 from saengine.library.objects import Beam, LinearReinforcement, Slab
 
 FC, FY = 28.0, 420.0
@@ -335,7 +335,7 @@ def test_apply_proposal_is_a_pure_edit() -> None:
     assert json.loads(result["floorPlanText"])["beams"][0]["type"] == "B1-2"
     # The BIM model stays current with the floor plan it was built from.
     stamp = json.loads(result["bimText"])["source"]["floorPlan"]
-    assert stamp == source_stamp(result["floorPlanText"])
+    assert stamp == floor_plan_stamp(result["floorPlanText"])
     # Foundations are designed in 9 Substructure: an older caller's foundations and
     # substructure text are ignored (X12, no duplication).
     assert "substructureText" not in result

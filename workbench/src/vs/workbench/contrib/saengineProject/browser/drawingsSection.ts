@@ -19,7 +19,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -31,7 +31,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { DrawingPreviewInput, IDrawingPreviewSheet } from './drawingPreviewInput.js';
 import {
 	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_DWG_COMMAND, DRAWINGS_GENERATE_COMMAND, DRAWINGS_ISSUE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet, officeStandardFile, withOfficeStandard,
-	IDrawingsIssueArgs, issuePurposes, keepSelection, previewSheet, readDrawingSet, readDrawingSettings, registerSummary, selectedSheets, sheetRevisionText,
+	IDrawingsIssueArgs, issueProblemsQuestion, issuePurposes, keepSelection, previewSheet, readDrawingSet, readDrawingSettings, registerSummary, selectedSheets, sheetRevisionText,
 } from './drawingsModel.js';
 import { EditorFrame } from './editorFrame.js';
 import { CAD_OPEN_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
@@ -123,6 +123,7 @@ export class DrawingsSection extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Drawings") });
@@ -376,9 +377,14 @@ export class DrawingsSection extends Disposable {
 	}
 
 	private setDrawings(set: IDrawingSet | undefined): void {
+		const issued = (s: IDrawingSet | undefined) => s?.register?.issues[s.register.issues.length - 1]?.code;
+		const reissued = issued(set) !== issued(this.set);
 		this.set = set;
 		this.selection = keepSelection(set, this.selection);
 		this.updatePreviews();
+		if (reissued) {
+			this.renderSettings(); // its Revision row says the revision last issued
+		}
 	}
 
 	/** Open previews follow the new generation (title, staleness); an unchanged sheet is left alone. */
@@ -482,7 +488,7 @@ export class DrawingsSection extends Disposable {
 			}
 		}));
 		const grid = append(block, $('dl.drawings-settings-grid'));
-		for (const { name, value } of drawingSettingsRows(this.settings)) {
+		for (const { name, value } of drawingSettingsRows(this.settings, this.set?.register)) {
 			append(grid, $('dt', undefined, name));
 			const cell = append(grid, $('dd', undefined, value ?? localize('drawings.notSet', "not set")));
 			cell.classList.toggle('muted', value === undefined);
@@ -714,6 +720,18 @@ export class DrawingsSection extends Disposable {
 		});
 		if (!purpose) {
 			return;
+		}
+		const question = issueProblemsQuestion(set, purpose.label);
+		if (question) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: question.message,
+				detail: question.detail,
+				primaryButton: localize({ key: 'drawings.issueAnyway', comment: ['&& denotes a mnemonic'] }, "&&Issue Anyway"),
+			});
+			if (!confirmed) {
+				return;
+			}
 		}
 		const description = await this.quickInputService.input({
 			title: localize('drawings.issueStep3of4', "Issue Drawings (3 of 4): description"),

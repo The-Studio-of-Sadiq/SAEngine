@@ -22,7 +22,9 @@ from typing import Any
 
 from saengine.codes import context as code_context
 
-MEMORY = "from memory, to be checked"
+#: How the NFPA values (not in the code pack's own text) are marked where they are reported: their
+#: source and status (R2-21: "from memory" was shown to the engineer).
+MEMORY = "NFPA value, to be confirmed against the adopted edition"
 
 
 def _build(t: Any) -> dict[str, Any]:

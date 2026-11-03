@@ -688,6 +688,16 @@ def _run(model: dict[str, Any], folder: Path, ids: list[int] | None = None) -> P
     return out
 
 
+def _six(values: np.ndarray) -> np.ndarray:
+    """``values`` (at most 6) padded with zeros to 6 (np.pad's own overhead was seconds per
+    derivation over thousands of nodes and modes, R2-20)."""
+    if values.size == 6:
+        return values
+    out = np.zeros(6)
+    out[: values.size] = values
+    return out
+
+
 def fundamental_periods(project: dict[str, Any], folder: Path | None = None) -> dict[str, Any]:
     """The fundamental period of the analysis model in X and in Y from its modal case (run on
     its own, on the stiffness the modal case has: cracked sections, P-Delta preload): per
@@ -716,7 +726,7 @@ def fundamental_periods(project: dict[str, Any], folder: Path | None = None) -> 
         int(n["id"]): np.asarray(n.get("mass", [0.0] * 6), dtype=float)[:6]
         for n in project.get("nodes", [])
     }
-    mass = {n: np.pad(m, (0, 6 - m.size)) for n, m in mass.items()}
+    mass = {n: _six(m) for n, m in mass.items()}
     total = np.sum([m[:2] for m in mass.values()], axis=0) if mass else np.zeros(2)
     if not np.any(total[:2]):
         raise ValueError("the model has no masses")
@@ -733,7 +743,7 @@ def fundamental_periods(project: dict[str, Any], folder: Path | None = None) -> 
         for k, period in enumerate(results.periods, start=1):
             shape = results.mode_shapes.get(k, {})
             vectors = {int(n): np.asarray(v, dtype=float)[:6] for n, v in shape.items()}
-            vectors = {n: np.pad(v, (0, 6 - v.size)) for n, v in vectors.items()}
+            vectors = {n: _six(v) for n, v in vectors.items()}
             generalized = sum(float(mass[n] @ (v * v)) for n, v in vectors.items() if n in mass)
             if generalized <= 0:
                 continue

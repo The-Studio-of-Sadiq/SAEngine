@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { formatPoint, IFloorPlanStory, location, onPlanOf, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
-import { recordedStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
+import { recordedStamp, upstreamCurrent } from '../../../services/saengineProject/common/partSources.js';
 
 /*
  * What the Model Explorer and the Properties view show, built from the project files. Both are
@@ -161,7 +161,7 @@ class Model {
 		if (!recorded) {
 			return 'none';
 		}
-		return text !== undefined && recorded === sourceStamp(text) ? 'current' : 'outdated';
+		return text !== undefined && upstreamCurrent(part, recorded, text) ? 'current' : 'outdated';
 	}
 }
 

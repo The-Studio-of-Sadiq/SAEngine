@@ -518,12 +518,27 @@ def settlement_controlled(
     return {"qa": qa, "method": method, "notes": notes, "consultant": consultant}
 
 
+def _down(value: float) -> float:
+    """A settlement-controlled pressure to 0.1 kPa, rounded down: the settlement can jump
+    between two tenths (where the stressed zone takes in one more sublayer of a clay), so a
+    value rounded up may settle more than the limit (R2-3: qa 7.56 kPa settles 24.7 mm, the
+    7.6 kPa shown 26.7 mm against 25 mm)."""
+    return math.floor(value * 10 + 1e-9) / 10
+
+
 def allowable(profile: Profile, b: float, l_: float, df: float) -> dict[str, Any]:
     """qa [kPa] of a footing B × L [m] founded Df [m] below the borehole's ground."""
     design = profile.design
     s = shear(profile, b, l_, df, design.factorOfSafety)
     upper = s["qa"] if s["qa"] is not None else 1000.0
     t = settlement_controlled(profile, b, l_, df, design.allowableSettlement, upper)
+    computed = str(t.get("method") or "").startswith("computed settlement")
+
+    def settled(value: float) -> float:
+        # A computed (clay) settlement may jump just above qa: rounded down; the Meyerhof-Bowles
+        # value is proportional to the settlement: to the nearest tenth as before.
+        return _down(value) if computed else round(value, 1)
+
     values = [v for v in (s["qa"], t["qa"]) if v is not None]
     # Without the strength, or with a clay whose settlement cannot be computed, there is no qa.
     qa = min(values) if values and s["qa"] is not None and not t.get("incomplete") else None
@@ -546,8 +561,8 @@ def allowable(profile: Profile, b: float, l_: float, df: float) -> dict[str, Any
         "L": round(l_ * 1e3),
         "Df": round(df * 1e3),
         "qa_shear": None if s["qa"] is None else round(s["qa"], 1),
-        "qa_settlement": None if t["qa"] is None else round(t["qa"], 1),
-        "qa": None if qa is None else round(qa, 1),
+        "qa_settlement": None if t["qa"] is None else settled(t["qa"]),
+        "qa": None if qa is None else (settled(qa) if governs == "settlement" else round(qa, 1)),
         "governs": governs,
         "shear": shear_text,
         "settlement": t["method"],

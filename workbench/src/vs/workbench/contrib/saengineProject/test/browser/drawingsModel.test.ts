@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DrawingPreviewInput, DrawingPreviewInputSerializer, sameSheet } from '../../browser/drawingPreviewInput.js';
 import {
-	drawingSetKey, drawingSettingsRows, drawingsDescription, findPreviewSheet, fitView, generateArgs, generateLabel, IDrawingSet, keepSelection, readDrawingSet, readDrawingSettings, readScale, readTime,
+	drawingSetKey, drawingSettingsRows, drawingsDescription, findPreviewSheet, fitView, generateArgs, generateLabel, IDrawingRegister, IDrawingSet, issueProblemsQuestion, keepSelection, readDrawingSet, readDrawingSettings, readScale, readTime,
 	resolveProjectPath, selectedSheets, zoomAt, zoomLabel,
 } from '../../browser/drawingsModel.js';
 
@@ -180,6 +180,25 @@ suite('SAEngine - drawings', () => {
 				'Client: Example Developers', 'Firm: Example Consultants', 'Engineer: B. Designer', 'Checked by: C. Checker', 'Approved by: D. Approver', 'Project number: EC-7',
 				'Revision: A · 2026-10-23 · For construction', 'Sheet size: A2', 'Scales: plans 1:100, details 1:50', 'Office standard: -',
 			],
+		]);
+	});
+
+	test('issuing for construction with open problems asks first; the revision row says the issued one', () => {
+		const set: IDrawingSet = { sheets: [], stale: false, notes: [], problems: ['C1: Column bars into foundation not met', 'S2: Top X bars not met'] };
+		const question = issueProblemsQuestion(set, 'For construction');
+		assert.ok(question?.message.includes('2 problem(s)'));
+		assert.ok(question?.detail.includes('- C1: Column bars into foundation not met'));
+		assert.deepStrictEqual([
+			issueProblemsQuestion(set, 'For approval'),
+			issueProblemsQuestion({ ...set, problems: [] }, 'For construction'),
+		], [undefined, undefined]);
+		const settings = readDrawingSettings({ drawings: { revisions: [{ code: '1', date: '2026-11-03' }] } });
+		const row = (register?: IDrawingRegister) => drawingSettingsRows(settings, register).find(r => r.name === 'Revision')?.value;
+		const issue = (code: string) => ({ issues: [{ code, date: '2026-11-03', description: '', purpose: 'For construction', by: '', sheets: [] }], pending: '1' });
+		assert.deepStrictEqual([row(), row(issue('1')), row(issue('0'))], [
+			'1 · 2026-11-03',
+			'1 · 2026-11-03',
+			'1 · 2026-11-03 in Project Settings; the sheets were last issued at Rev 0',
 		]);
 	});
 

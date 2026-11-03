@@ -115,6 +115,7 @@ export class BoqEditor extends EditorPane {
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly sourceDisposables = this._register(new DisposableStore());
 	private readonly bodyDisposables = this._register(new DisposableStore());
+	private readonly propertyDisposables = this._register(new DisposableStore());
 	private readonly pill = this._register(new MutableDisposable());
 
 	private readonly updateAction = this._register(new Action('saengine.boq.editor.update', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
@@ -462,6 +463,7 @@ export class BoqEditor extends EditorPane {
 			return;
 		}
 		clearNode(panel);
+		this.propertyDisposables.clear();
 		if (!document) {
 			appendPropertyNote(panel, localize('boq.propsNotMeasured', "The bill has not been measured yet."));
 			return;
@@ -545,10 +547,20 @@ export class BoqEditor extends EditorPane {
 		}
 		const costing = result.costing;
 		if (result.sampleRates) {
-			appendPropertyNote(panel, localize('boq.sampleRates', "Priced by the sample's made-up example rates, not real ones. Enter your own rates (for example your edition of the PWD schedule of rates) with Edit Schedule of Rates."));
+			appendPropertyNote(panel, localize('boq.sampleRates2', "Priced by the sample's made-up example rates, not real ones. Enter your own rates (for example your edition of the PWD schedule of rates):"));
 		} else {
 			appendPropertyRow(panel, localize('boq.rateSchedule', "Rates"), costing.rateSchedule);
 		}
+		// The schedule's form as a link here too (R2-17: only the palette opened it).
+		const link = append(append(panel, $('.sa-props-note')), $<HTMLAnchorElement>('a.boq-rates-link', { role: 'button', tabindex: '0' }, localize('boq.editRates', "Edit Schedule of Rates")));
+		const open = () => void this.commandService.executeCommand('saengine.boq.editRates');
+		this.propertyDisposables.add(addDisposableListener(link, EventType.CLICK, open));
+		this.propertyDisposables.add(addDisposableListener(link, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				open();
+			}
+		}));
 		for (const [part, amount] of Object.entries(costing.parts)) {
 			appendPropertyRow(panel, partLabel(part as BoqCostPart), `${formatMoney(amount ?? 0)} ${costing.currency}`);
 		}

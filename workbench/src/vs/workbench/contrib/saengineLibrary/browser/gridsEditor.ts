@@ -43,7 +43,7 @@ const MEMBER_LISTS = ['columns', 'beams', 'walls', 'slabs', 'footings'];
 /** Default spacing for the first added grid line or story, before there is one to repeat [mm]. */
 const DEFAULT_SPACING = { x: 6000, y: 5000, story: 3200 };
 
-export interface IStory { readonly id: string; readonly name: string; readonly elevation: number }
+export interface IStory { readonly id: string; readonly name: string; readonly elevation: number; readonly similarTo?: string }
 
 /**
  * The grid line after `lines`: the next label (letters for X, numbers for Y, skipping labels
@@ -390,7 +390,12 @@ export class GridsEditor extends JsonDocumentEditor {
 	/** The stories a story may be similar to: not itself, nor the lowest (the base, no plan). */
 	private similarCandidates(owner: JsonObject | undefined): string[] {
 		const sorted = [...this.stories].sort((a, b) => a.elevation - b.elevation);
-		return sorted.slice(1).map(s => s.id).filter(id => id !== owner?.id);
+		// The base level is no floor: it is similar to none and none to it (R2-22: BASE offered
+		// L1-L4). A master is not itself similar to another (the backend's rule).
+		if (!owner || owner.id === sorted[0]?.id) {
+			return [];
+		}
+		return sorted.slice(1).filter(s => s.id !== owner.id && !s.similarTo).map(s => s.id);
 	}
 
 	/** The next grid line or story, continuing the sequence and spacing of the last two. */

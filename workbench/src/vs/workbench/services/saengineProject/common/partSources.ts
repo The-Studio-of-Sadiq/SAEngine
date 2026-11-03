@@ -38,6 +38,32 @@ export function sourceStamp(text: string): string {
 	return sha.digest();
 }
 
+/** Keys of the floor plan that only set what is shown behind it, not the building (R2-10, OI-24: attaching an underlay made the building model and all after it stale). */
+const FLOOR_PLAN_VIEW_KEYS = new Set(['underlays']);
+
+/**
+ * The stamp the building model records for the floor plan `text` (key `floorPlan`): of its
+ * content without the underlays, as `JSON.stringify` writes it. The Python side
+ * (`saengine.library.bim.floor_plan_stamp`) computes the same; a text that is not a JSON object
+ * is stamped whole.
+ */
+export function floorPlanStamp(text: string): string {
+	const document = jsonObject(text);
+	return document ? sourceStamp(JSON.stringify(without(document, FLOOR_PLAN_VIEW_KEYS))) : sourceStamp(text);
+}
+
+/**
+ * Whether the stamp `recorded` for upstream part `part` is that of its text `text`. For the
+ * floor plan, its `floorPlanStamp`, or the whole text's stamp the building models recorded
+ * before the underlays were left out (current until the plan changes).
+ */
+export function upstreamCurrent(part: string, recorded: string | undefined, text: string): boolean {
+	if (recorded === undefined) {
+		return false;
+	}
+	return recorded === sourceStamp(text) || (part === 'floorPlan' && recorded === floorPlanStamp(text));
+}
+
 /** Keys of the project settings the analysis model does not take: the project's details and the drawings' title block. */
 const SETTINGS_INFO_KEYS = new Set(['project', 'drawings']);
 /** Keys of the settings' foundation section the analysis model does not take (N-X9): the qa sizes the footings only. */

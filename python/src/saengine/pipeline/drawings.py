@@ -59,7 +59,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from saengine.library.bim import source_stamp
+from saengine.library.bim import floor_plan_stamp, source_stamp
 
 SCHEMA_ID = "saengine.drawings/1"
 FOLDER = "11 Exports/Drawings"
@@ -135,10 +135,24 @@ def input_stamps(root: Path) -> dict[str, str | None]:
     stamps: dict[str, str | None] = {}
     for key, relative, _ in SOURCES:
         text = _read(root / relative)
-        stamps[key] = source_stamp(text) if text is not None else None
+        if text is None:
+            stamps[key] = None
+        elif key == "floorPlan":
+            # Without its underlays (R2-10, OI-24: attaching one said "changed since: Floor Plan").
+            stamps[key] = floor_plan_stamp(text)
+            while len(_WHOLE_PLAN) >= 64:
+                _WHOLE_PLAN.pop(next(iter(_WHOLE_PLAN)))
+            _WHOLE_PLAN[stamps[key] or ""] = source_stamp(text)
+        else:
+            stamps[key] = source_stamp(text)
     text = _read(root / RESULTS_MANIFEST)
     stamps["results"] = source_stamp(text) if text is not None else None
     return stamps
+
+
+#: The whole floor plan's stamp by its :func:`floor_plan_stamp`, the sets drawn before the
+#: underlays were left out recorded (still current while the plan does not change).
+_WHOLE_PLAN: dict[str, str] = {}
 
 
 def _labels() -> dict[str, str]:
@@ -149,7 +163,14 @@ def changed_sources(recorded: dict[str, Any] | None, current: dict[str, str | No
     """The labels of the sources whose stamp differs from ``recorded`` (in source order)."""
     recorded = recorded or {}
     labels = _labels()
-    return [labels[k] for k in labels if k in recorded and recorded.get(k) != current.get(k)]
+
+    def differs(key: str) -> bool:
+        now = current.get(key)
+        if recorded.get(key) == now:
+            return False
+        return not (key == "floorPlan" and now and recorded.get(key) == _WHOLE_PLAN.get(now))
+
+    return [labels[k] for k in labels if k in recorded and differs(k)]
 
 
 # ─────────────────────────────────── settings ───────────────────────────────────
@@ -531,7 +552,9 @@ def _generate(
         only = None  # an issue draws every sheet
         # The revision entered in Project Settings (Add Drawing Revision) for this code gives
         # the issue's description and initials when the issue does not (OI-11).
-        code = str(issuing.get("code") or "").strip() or register.pending_code(data.title.revision)
+        code = str(issuing.get("code") or "").strip() or register.pending_code(
+            data.title.revision, [r.rev for r in data.title.revisions]
+        )
         row = next((r for r in data.title.revisions if r.rev == code), None)
         try:
             made = rv.new_issue(
@@ -751,7 +774,9 @@ def _generate(
         # NOT FOR CONSTRUCTION ({kind: {object type: count}}).
         "undesigned": data.undesigned,
         "status": data.title.status,
-        "pendingRevision": register.pending_code(data.title.revision),
+        "pendingRevision": register.pending_code(
+            data.title.revision, [r.rev for r in data.title.revisions]
+        ),
     }
     (folder / RECORD).write_text(
         json.dumps(record, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8"
@@ -861,6 +886,19 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pending(folder: Path, register: Any) -> str | None:
+    """The revision the next issue takes with Project Settings as they are now (R2-9: a
+    revision row added after the sheets were drawn was not offered); None when unreadable."""
+    root = folder.parent.parent
+    try:
+        text = (root / "02 Project Settings" / "project-settings.json").read_text("utf-8")
+    except OSError:
+        text = None
+    _, title = drawing_settings(text)
+    rows = [str(r.get("rev") or "") for r in title.get("revisions") or []]
+    return register.pending_code(str(title.get("revision") or "0"), rows)
+
+
 def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
     """The issues of the set (oldest first) and the revision the next issue takes."""
     from saengine.drawings.sheets import revisions as rv
@@ -883,7 +921,7 @@ def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
             }
             for i in register.issues
         ],
-        "pending": record.get("pendingRevision") or register.pending_code("0"),
+        "pending": _pending(folder, register) or record.get("pendingRevision") or "0",
         "csv": absolute(rv.REGISTER_CSV),
         "pdf": absolute(rv.REGISTER_PDF),
     }

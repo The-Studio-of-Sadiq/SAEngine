@@ -54,6 +54,25 @@ export function issuePurposes(): string[] {
 	];
 }
 
+/** Whether an issue's purpose is for construction (the one issue that must not go out with open problems). */
+export function isConstructionPurpose(purpose: string): boolean {
+	return purpose === issuePurposes()[1] || /construction/i.test(purpose);
+}
+
+/**
+ * What to ask before issuing `purpose` with the set's open problems (R2-9: "For construction"
+ * went out with "2 problems to resolve before issue" and no warning); undefined: nothing to ask.
+ */
+export function issueProblemsQuestion(set: IDrawingSet, purpose: string): { readonly message: string; readonly detail: string } | undefined {
+	if (!set.problems.length || !isConstructionPurpose(purpose)) {
+		return undefined;
+	}
+	return {
+		message: localize('drawings.issueWithProblems', "Issue {0} with {1} problem(s) still open?", purpose, set.problems.length),
+		detail: localize('drawings.issueWithProblemsDetail', "The drawings list problems to resolve before issue:\n{0}\n\nIssued for construction, the sheets would carry them to site. Resolve them and generate again, or issue for another purpose (for approval, for information).", set.problems.map(p => `- ${p}`).join('\n')),
+	};
+}
+
 /** The sheet sizes offered (ISO A series); A1 is the default. */
 export const SHEET_SIZES = ['A1', 'A2', 'A3'] as const;
 export type SheetSize = typeof SHEET_SIZES[number];
@@ -454,8 +473,12 @@ export function readDrawingSettings(settings: unknown): IDrawingSettings {
 }
 
 /** The settings as the page lists them: name and value (undefined when not set). */
-export function drawingSettingsRows(settings: IDrawingSettings): { readonly name: string; readonly value: string | undefined }[] {
+export function drawingSettingsRows(settings: IDrawingSettings, register?: IDrawingRegister): { readonly name: string; readonly value: string | undefined }[] {
 	const revision = settings.revision;
+	// The title blocks carry the revision the sheets were issued at: when it is not the last
+	// row of Project Settings, both are said (R2-9: "Revision 1" here, Rev 0 on the sheets).
+	const issued = register?.issues[register.issues.length - 1]?.code;
+	const revisionText = revision ? [revision.code, revision.date, revision.description].filter(Boolean).join(' · ') : undefined;
 	return [
 		{ name: localize('drawings.client', "Client"), value: settings.client },
 		{ name: localize('drawings.firm', "Firm"), value: settings.firm },
@@ -465,7 +488,11 @@ export function drawingSettingsRows(settings: IDrawingSettings): { readonly name
 		{ name: localize('drawings.projectNumber', "Project number"), value: settings.projectNumber },
 		{
 			name: localize('drawings.revisionColumn', "Revision"),
-			value: revision ? [revision.code, revision.date, revision.description].filter(Boolean).join(' · ') : undefined,
+			value: issued && issued !== revision?.code
+				? (revisionText
+					? localize('drawings.revisionIssuedOther', "{0} in Project Settings; the sheets were last issued at Rev {1}", revisionText, issued)
+					: localize('drawings.revisionIssuedOnly', "the sheets were last issued at Rev {0}", issued))
+				: revisionText,
 		},
 		{ name: localize('drawings.sheetSize', "Sheet size"), value: settings.sheetSize },
 		{ name: localize('drawings.scales', "Scales"), value: localize('drawings.scalesValue', "plans {0}, details {1}", settings.planScale, settings.detailScale) },

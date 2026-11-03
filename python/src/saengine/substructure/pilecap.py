@@ -1408,6 +1408,40 @@ def _pile_rules_checks(
     return checks, notes
 
 
+#: The capacity tables of the pile caps by their inputs (R2-20: every cap of one pile type on
+#: one borehole tabulated the same capacities again, about a seventh of a report of 15 caps).
+_TABLES: dict[tuple[Any, ...], tuple[Any, Any, dict[str, Any]]] = {}
+_TABLES_KEPT = 32
+
+
+def _capacity_table(profile: Any, kind: str, diameters: list[float], lengths: list[float],
+                    head: float, method: Any, factors: Any, construction: Any, shape: Any):  # fmt: skip
+    """:func:`saengine.substructure.piles.capacity_table`, kept for the same profile object
+    (one borehole of the report's context), code pack and inputs (a copy of it each time)."""
+    import copy
+    import json
+
+    from saengine.substructure.piles import capacity_table
+
+    pack = code_context.current()
+    key = (
+        id(profile), kind, tuple(diameters), tuple(lengths), float(head), str(method),
+        json.dumps(factors.model_dump(mode="json") if hasattr(factors, "model_dump") else factors,
+                   sort_keys=True, default=str),
+        json.dumps(construction, default=str), shape,
+    )  # fmt: skip
+    found = _TABLES.get(key)
+    if found is not None and found[0] is profile and found[1] is pack:
+        return copy.deepcopy(found[2])
+    table = capacity_table(
+        profile, kind, diameters, lengths, head, method, factors, construction, shape
+    )
+    while len(_TABLES) >= _TABLES_KEPT:
+        _TABLES.pop(next(iter(_TABLES)))
+    _TABLES[key] = (profile, pack, copy.deepcopy(table))
+    return table
+
+
 def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
     """The checks of a pile cap of the substructure (``ctx``: a
     :class:`saengine.substructure.context.Context`): ``(result, notes)`` in the report's
@@ -1417,7 +1451,6 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     from saengine.substructure.context import Skip
     from saengine.substructure.piles import (
         FactorsOfSafety,
-        capacity_table,
         nearest_profile,
         profiles_of,
         shaft_construction,
@@ -1584,7 +1617,7 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     out["notes"] += extra_notes
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
-    table = capacity_table(
+    table = _capacity_table(
         profile,
         kind,
         diameters,
