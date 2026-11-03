@@ -260,6 +260,10 @@ class _Units:
         return density * G * 1e-9 * self.mm**3 / self.newton
 
 
+#: The comment line carrying the shell mesh size (in the file's length unit).
+MESH_COMMENT = "$ SAEngine mesh size"
+
+
 def _n(value: float) -> str:
     """A number as ETABS writes them: up to 10 significant digits, no trailing zeros."""
     v = round(float(value), 9)
@@ -1607,6 +1611,9 @@ class _Writer:
         u = self.u
         out: list[str] = [
             f"$ File {name}.e2k written by SAEngine",
+            # The shell mesh size (owner decision 2026-11-04) as a comment ETABS skips: the
+            # e2k keyword of an area's maximum mesh size is not verified (importers.etabs).
+            f"{MESH_COMMENT} {_n(u.len(float(self.analysis.meshSize)))}",
             " ",
             "$ PROGRAM INFORMATION",
             f'  PROGRAM  "ETABS"  VERSION {_q(FORMAT_VERSION)}  ',

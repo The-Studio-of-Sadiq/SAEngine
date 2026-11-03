@@ -84,6 +84,13 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
 - **Slab modelling** (ETABS): floors that are all ShellThin or ShellThick make the project's
   slabs shells (02 Project Settings → Analysis model → Slabs); membrane floors keep slabs as
   loads to the beams; a mix keeps loads to the beams, reported.
+- **Mesh size** (ETABS): SAEngine's comment line `$ SAEngine mesh size 0.25` (the file's
+  length unit, as SAEngine's export writes it) becomes the project's mesh size (02 Project
+  Settings → Analysis model → Mesh size). The size travels as a comment because ETABS's own
+  keyword for an area's maximum mesh size is unverified. Without the comment, an area's
+  `MAXSIZE1`/`MAXSIZE2` (or `MAXSIZE`, `MESHSIZE`, ...) are read: one size on every area is
+  taken, mixed sizes the most common (reported); `OBJMESHTYPE "DEFAULT"` or no size keeps
+  the default.
 - **Column bars**: older files' bar sizes and counts, and ETABS 2016+ patterns
   (`PATTERN "R-4-3" LONGBARAREA 314.2`: 10 bars of 20 mm; `"C-8"` round a circle).
 - **Loads**: uniform gravity area loads on floors and roofs become the project's floor and roof
@@ -241,7 +248,9 @@ Settings:
 - **Slab and wall properties**: slabs are membranes when 02 Project Settings hands slab loads to
   the beams (one-way load distribution for one-way slabs), thin shells when slabs are shells;
   walls thin shells. Non-structural walls are not elements: their weight is an SD line load on
-  the beams under them (the part on no beam is reported with its total).
+  the beams under them (the part on no beam is reported with its total). The project's mesh
+  size is a comment after the header (`$ SAEngine mesh size 0.25`), which ETABS skips and the
+  import reads back; ETABS meshes the areas by its own auto mesh.
 - **Objects**: columns (split at each story they pass), beams at their story, braces and other
   inclined members, structural walls story by story, slabs, slab openings (with 07 MEP's
   openings and shafts, as the analysis cuts them) and wall openings. A point off a story level

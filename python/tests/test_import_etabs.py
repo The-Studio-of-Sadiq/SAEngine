@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from saengine.importers.common import Units, bar_diameter, file_combinations
-from saengine.importers.etabs import read_e2k
+from saengine.importers.etabs import MIN_MESH_SIZE, read_e2k
 from saengine.library import (
     BuildingModel,
     FloorPlan,
@@ -22,7 +22,7 @@ from saengine.library import (
     ObjectLibrary,
     ProjectSettings,
 )
-from saengine.library.settings import strength_combinations
+from saengine.library.settings import Analysis, strength_combinations
 
 DATA = Path(__file__).parent / "data" / "import"
 FRAME = DATA / "two_story_frame.e2k"
@@ -385,3 +385,77 @@ $ LOAD COMBINATIONS
     assert [(b.at, b.fixity) for b in project.bim.supports] == [([0, 0, 0], "pinned")]
     assert any(a.startswith("column bases the file leaves free") for a in approximated)
     assert "grid lines made from the column positions" in approximated
+
+
+def _meshed_floors(units: str, *assigns: str, comment: str = "") -> str:
+    """Three one-bay floors on four columns; ``assigns`` are the floors' mesh keywords,
+    ``comment`` a line before the controls."""
+    scale = 0.001 if units == "M" else 1.0
+    points = [(0, 0), (4000, 0), (4000, 3000), (0, 3000)]
+    stories = ["S3", "S2", "S1"]
+    lines = [
+        "$ File mesh.e2k",
+        *([comment] if comment else []),
+        "$ CONTROLS",
+        f'  UNITS  "KN"  "{units}"  "C"',
+        "$ STORIES - IN SEQUENCE FROM TOP",
+        *(f'  STORY "{s}"  HEIGHT {3000 * scale:g}' for s in stories),
+        '  STORY "BASE"  ELEV 0',
+        "$ MATERIAL PROPERTIES",
+        '  MATERIAL  "CONC"  M 2.4E-12  W 2.354E-08  TYPE "ISOTROPIC"  E 25  U 0.2  FC 0.025',
+        "$ FRAME SECTIONS",
+        f'  FRAMESECTION  "COL"  MATERIAL "CONC"  SHAPE "Rectangular"  D {300 * scale:g}  B {300 * scale:g}',
+        "$ SHELL PROPERTIES",
+        f'  SHELLPROP  "SLAB"  PROPTYPE  "Slab"  MATERIAL "CONC"  SLABTHICKNESS {125 * scale:g}',
+        "$ POINT COORDINATES",
+        *(f'  POINT "{k}"  {x * scale:g}  {y * scale:g}' for k, (x, y) in enumerate(points, 1)),
+        "$ LINE CONNECTIVITIES",
+        *(f'  LINE  "C{k}"  COLUMN  "{k}"  "{k}"  1' for k in range(1, 5)),
+        "$ AREA CONNECTIVITIES",
+        '  AREA "F1"  FLOOR  4  "1"  "2"  "3"  "4"  0  0  0  0',
+        "$ POINT ASSIGNS",
+        *(f'  POINTASSIGN  "{k}"  "BASE"  RESTRAINT "UX UY UZ RX RY RZ"' for k in range(1, 5)),
+        "$ LINE ASSIGNS",
+        *(f'  LINEASSIGN  "C{k}"  "{s}"  SECTION "COL"' for s in stories for k in range(1, 5)),
+        "$ AREA ASSIGNS",
+        *(
+            f'  AREAASSIGN  "F1"  "{s}"  SECTION "SLAB"  {a}'
+            for s, a in zip(stories, assigns, strict=True)
+        ),
+        "$ END OF MODEL FILE",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def test_area_auto_mesh_is_the_mesh_size() -> None:
+    """The mesh size comes back (owner decision 2026-11-04) from SAEngine's comment
+    ``$ SAEngine mesh size``, else from the floors' auto mesh keywords of other tools: one size
+    on every floor is the project's, mixed sizes the most common with a note, no size (or
+    AUTOMESH "NO", or ETABS's OBJMESHTYPE "DEFAULT") the default; sizes in the file's units."""
+
+    def read(units: str, *assigns: str, comment: str = "") -> tuple[float, list[str]]:
+        text = _meshed_floors(units, *assigns, comment=comment)
+        project = read_e2k("mesh.e2k", text=text)
+        notes = [a["what"] for a in project.report.to_dict()["approximated"]]
+        skipped = [s["what"] for s in project.report.to_dict()["skipped"]]
+        assert not [s for s in skipped if "SAENGINE" in s.upper()]  # the comment is no block
+        return project.settings.analysis.meshSize, [n for n in notes if "mesh" in n]
+
+    default = Analysis().meshSize
+    assert read("MM", "", "", "") == (default, [])
+    plain = 'OBJMESHTYPE "DEFAULT"  '
+    assert read("MM", plain, plain, plain) == (default, [])
+    assert read("M", plain, plain, plain, comment="$ SAEngine mesh size 0.25") == (250, [])
+    # The comment comes first: the areas' keywords are not read then.
+    keys = "MAXSIZE1 600  MAXSIZE2 600"
+    assert read("MM", keys, keys, "", comment="$ SAEngine mesh size 300") == (300, [])
+    uniform = 'AUTOMESH "YES"  MAXSIZE1 300  MAXSIZE2 300  '
+    assert read("MM", uniform, uniform, uniform) == (300, [])
+    assert read("M", *['AUTOMESH "YES"  MAXSIZE1 0.25  MAXSIZE2 0.25'] * 3) == (250, [])
+    assert read("MM", *["MAXSIZE 400"] * 3)[0] == 400  # one size, no AUTOMESH keyword
+    size, notes = read("MM", uniform, uniform, "MAXSIZE1 600  MAXSIZE2 600")
+    assert size == 300 and any("other sizes than the most common 300 mm" in n for n in notes)
+    # An area that is not auto meshed carries no size; the others' is the project's.
+    assert read("MM", 'AUTOMESH "NO"  MAXSIZE1 900', uniform, uniform) == (300, [])
+    size, notes = read("MM", *["MAXSIZE1 50  MAXSIZE2 50"] * 3)
+    assert size == MIN_MESH_SIZE and any("finer than SAEngine's smallest" in n for n in notes)
