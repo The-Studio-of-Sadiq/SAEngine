@@ -80,6 +80,9 @@ MIN_MESH_SIZE = float(
 #: The AREAASSIGN keywords read as the auto mesh's largest element side (the largest given).
 _MESH_SIZE_KEYS = ("MAXSIZE1", "MAXSIZE2", "MAXSIZE", "MAXMESHSIZE", "AUTOMESHSIZE", "MESHSIZE")
 
+#: The comment SAEngine's export writes the shell mesh size in (exporters.etabs.MESH_COMMENT).
+_MESH_COMMENT = re.compile(r"\$\s*SAEngine\s+mesh\s+size\s+(\S+)", re.IGNORECASE)
+
 _TOKEN = re.compile(r'"([^"]*)"|(\S+)')
 _KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -137,6 +140,8 @@ class E2k:
     units_given: bool = False
     temperature: str = "C"
     title: str | None = None
+    #: SAEngine's shell mesh size comment (``$ SAEngine mesh size 0.25``), in the file's units.
+    mesh_size: float | None = None
     stories: list[dict[str, str]] = field(default_factory=list)  # top first, with "NAME"
     grids: list[dict[str, str]] = field(default_factory=list)
     grid_systems: dict[str, dict[str, str]] = field(default_factory=dict)
@@ -225,6 +230,10 @@ def parse(text: str) -> E2k:
             continue
         if line.startswith("$"):
             block = line[1:].strip().upper()
+            mesh = _MESH_COMMENT.match(line)
+            if mesh:
+                e.mesh_size = _number(mesh.group(1))
+                block = ""
             continue
         tokens = _tokens(line)
         if not tokens:
@@ -1027,21 +1036,28 @@ class _Importer:
 
     def _area_mesh(self, pairs: dict[str, str]) -> float | None:
         """The largest element side [mm] of an area's auto mesh, ``None`` when it has none
-        (no maximum size, or ``AUTOMESH "NO"``). Read: ``MAXSIZE1``/``MAXSIZE2`` (the larger),
-        or a single ``MAXSIZE``, ``MAXMESHSIZE``, ``AUTOMESHSIZE`` or ``MESHSIZE``."""
+        (no maximum size, ``AUTOMESH "NO"``). A fallback for files of other tools, whose
+        keyword is not verified: ``MAXSIZE1``/``MAXSIZE2`` (the larger), or a single
+        ``MAXSIZE``, ``MAXMESHSIZE``, ``AUTOMESHSIZE`` or ``MESHSIZE``. ETABS's own
+        ``OBJMESHTYPE`` ("DEFAULT": the program's mesh) gives no size."""
         if pairs.get("AUTOMESH", "YES").upper() in ("NO", "FALSE"):
             return None
         sizes = [v for key in _MESH_SIZE_KEYS if (v := _num(pairs, key)) is not None and v > 0]
         return round(self.u.to_mm(max(sizes)), 3) if sizes else None
 
     def _mesh_size(self, sizes: dict[str, float]) -> None:
-        """The analysis's mesh size from the areas' auto mesh (owner decision 2026-11-04): one
-        size on every meshed area is the project's; mixed sizes take the most common (the
-        larger on a tie) with a note. Areas with no size keep the default."""
-        if not sizes:
+        """The analysis's mesh size (owner decision 2026-11-04): SAEngine's comment
+        ``$ SAEngine mesh size <size>`` first; else the areas' auto mesh, one size on every
+        meshed area the project's, mixed sizes the most common (the larger on a tie) with a
+        note. Neither keeps the default."""
+        if self.e.mesh_size is not None and self.e.mesh_size > 0:
+            size = round(self.u.to_mm(self.e.mesh_size), 3)
+            counts: Counter[float] = Counter()
+        elif sizes:
+            counts = Counter(sizes.values())
+            size = max(counts, key=lambda v: (counts[v], v))
+        else:
             return
-        counts = Counter(sizes.values())
-        size = max(counts, key=lambda v: (counts[v], v))
         if len(counts) > 1:
             others = sorted(k for k, v in sizes.items() if v != size)
             self.report.approximate(

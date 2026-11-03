@@ -387,12 +387,15 @@ $ LOAD COMBINATIONS
     assert "grid lines made from the column positions" in approximated
 
 
-def _meshed_floors(units: str, *assigns: str) -> str:
-    """Three one-bay floors on four columns; ``assigns`` are the floors' mesh keywords."""
+def _meshed_floors(units: str, *assigns: str, comment: str = "") -> str:
+    """Three one-bay floors on four columns; ``assigns`` are the floors' mesh keywords,
+    ``comment`` a line before the controls."""
     scale = 0.001 if units == "M" else 1.0
     points = [(0, 0), (4000, 0), (4000, 3000), (0, 3000)]
     stories = ["S3", "S2", "S1"]
     lines = [
+        "$ File mesh.e2k",
+        *([comment] if comment else []),
         "$ CONTROLS",
         f'  UNITS  "KN"  "{units}"  "C"',
         "$ STORIES - IN SEQUENCE FROM TOP",
@@ -425,17 +428,27 @@ def _meshed_floors(units: str, *assigns: str) -> str:
 
 
 def test_area_auto_mesh_is_the_mesh_size() -> None:
-    """The floors' auto mesh comes back as the analysis's mesh size (owner decision
-    2026-11-04): one size on every floor is the project's, mixed sizes the most common with a
-    note, no size (or AUTOMESH "NO") the default; sizes in the file's units."""
+    """The mesh size comes back (owner decision 2026-11-04) from SAEngine's comment
+    ``$ SAEngine mesh size``, else from the floors' auto mesh keywords of other tools: one size
+    on every floor is the project's, mixed sizes the most common with a note, no size (or
+    AUTOMESH "NO", or ETABS's OBJMESHTYPE "DEFAULT") the default; sizes in the file's units."""
 
-    def read(units: str, *assigns: str) -> tuple[float, list[str]]:
-        project = read_e2k("mesh.e2k", text=_meshed_floors(units, *assigns))
+    def read(units: str, *assigns: str, comment: str = "") -> tuple[float, list[str]]:
+        text = _meshed_floors(units, *assigns, comment=comment)
+        project = read_e2k("mesh.e2k", text=text)
         notes = [a["what"] for a in project.report.to_dict()["approximated"]]
+        skipped = [s["what"] for s in project.report.to_dict()["skipped"]]
+        assert not [s for s in skipped if "SAENGINE" in s.upper()]  # the comment is no block
         return project.settings.analysis.meshSize, [n for n in notes if "mesh" in n]
 
     default = Analysis().meshSize
     assert read("MM", "", "", "") == (default, [])
+    plain = 'OBJMESHTYPE "DEFAULT"  '
+    assert read("MM", plain, plain, plain) == (default, [])
+    assert read("M", plain, plain, plain, comment="$ SAEngine mesh size 0.25") == (250, [])
+    # The comment comes first: the areas' keywords are not read then.
+    keys = "MAXSIZE1 600  MAXSIZE2 600"
+    assert read("MM", keys, keys, "", comment="$ SAEngine mesh size 300") == (300, [])
     uniform = 'AUTOMESH "YES"  MAXSIZE1 300  MAXSIZE2 300  '
     assert read("MM", uniform, uniform, uniform) == (300, [])
     assert read("M", *['AUTOMESH "YES"  MAXSIZE1 0.25  MAXSIZE2 0.25'] * 3) == (250, [])
