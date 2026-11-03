@@ -217,6 +217,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   - Why: the code reading above. The 100 mm pier was a layout error, not a reinforcement
     problem. Boundary elements stay available on the type (`reinforcement.boundary`) wherever a
     pier needs them.
+  - Owner, 2026-11-04: door D2 at offset 3300 mm is accepted, and W250 carries no boundary
+    elements, since none is required.
   - Where it lives:
     - Schema: `CouplingDiagonal.hoop` in `library/objects.py`. The object editor gets it from
       the generated schema.
