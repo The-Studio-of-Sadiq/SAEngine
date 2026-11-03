@@ -156,7 +156,7 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 
 ## 2026-11-03
 
-- **The ETABS import restores the partition allowance** (PR #PRNUM). Question: the e2k export
+- **The ETABS import restores the partition allowance** (PR #172). Question: the e2k export
   writes the allowance as its own pattern `PART`, in the mass source at its share; should the
   import read it back as plain live load (×0.25 in W, with a note) or restore it? Decision
   (owner): restore it. The area loads of a partition pattern become the area loads'
