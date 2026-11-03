@@ -84,7 +84,7 @@ at least its diameter (the type's coupling-beam longitudinal bars, else the wall
 bars: one per face at each leg down the depth); or, when the type gives no such hoops, (iii)
 hoops around each group: out-to-out at least bw/2 parallel to bw and bw/5 along the other sides,
 Ash of 8.3.5.4 on the group's section with the cover on all four sides, spacing along the bars
-at most min(so, 6 db) (so of 8.3.5.4(b), as ACI 318-19 18.10.7.4(c)), legs at most 350 mm
+at most min(bw/4, so, 6 db) (8.3.5.4(b); owner 2026-11-04: bw/4 too, beyond ACI 18.10.7.4(c)), legs at most 350 mm
 apart, and bars around the beam's perimeter at least 0.002 bw s each way at most 300 mm apart
 (the pack's ``detailing.walls`` coupling* values).
 
@@ -2445,7 +2445,7 @@ def coupling_group_rows(
 ) -> list[dict[str, Any]]:
     """8.3.6.7(d)(iii): hoops around each group of diagonal bars (out-to-out at least bw/2 and
     bw/5, Ash of 8.3.5.4 on the group's section with the cover on all four sides, spacing along
-    the bars at most min(so, 6 db), legs at most 350 mm apart) and the bars around the beam's
+    the bars at most min(bw/4, so, 6 db), legs at most 350 mm apart) and the bars around the beam's
     perimeter (at least 0.002 bw s each way, at most 300 mm apart)."""
     from saengine.design.ductile_members import ash_per_spacing
 
@@ -2469,14 +2469,14 @@ def coupling_group_rows(
         )
     legs = max(width, depth) - 2 * dh
     hx = max(width - 2 * dh - db, depth - 2 * dh - db, 0.0)
-    s_max = min(so_special(hx), special_limit("couplingHoopDb") * db)
+    s_max = min(bw / 4, so_special(hx), special_limit("couplingHoopDb") * db)
     rows.append(
         _row(
             named("Coupling beam group hoop spacing along the bars", "couplingGroup"),
             group.spacing,
             s_max,
             "mm",
-            note=f"Ø{dh:g} @ {group.spacing:g}; min(so, {special_limit('couplingHoopDb'):g} db), "
+            note=f"Ø{dh:g} @ {group.spacing:g}; min(bw/4, so, {special_limit('couplingHoopDb'):g} db), "
             f"so = {so_special(hx):.0f} mm, db = Ø{db:g}",
         )
     )

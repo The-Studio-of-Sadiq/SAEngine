@@ -203,7 +203,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
       bars). `CouplingDiagonal` gets `groupHoop` (option (iii)) and `longitudinal` (the beam's
       own bars along each face, the bars the legs engage; none: the web's horizontal bars).
       (iii) is checked when a type has no hoops over the section. The (iii) spacing limit is
-      min(so, 6 db), as ACI 318-19 18.10.7.4(c).
+      min(bw/4, so, 6 db): owner, 2026-11-04, reads "satisfying 8.3.5.4" as including
+      bw/4 (ACI 318-19 18.10.7.4(c) has only so and 6 db).
     - New pack values: `couplingEmbedment` 1.25, `couplingGroupWidthShare` 0.5,
       `couplingGroupDepthShare` 0.2, `couplingGroupLegSpacingMax` 350, `couplingPerimeterRatio`
       0.002, `couplingPerimeterSpacingMax` 300, `pierLengthRatioMax`, `pierHeightRatioMin`,
@@ -225,6 +226,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - After Design Reinforcement → Apply: W250 status "ok". The web proposal becomes Ø12 @ 350
       V and Ø12 @ 450 H. The diagonals, the coupling hoops and longitudinal bars, and the pier
       hoops stay as they are. W1 passes; every element of the sample passes.
+  - Owner, 2026-11-04: the column rules' Vc = 0 stands, and 8.3.6.8(b) keeps the horizontal
+    bars within lw above and below the clear height.
   - Check-row names come from the pack (owner, 2026-11-04). The wall and coupling-beam rows
     of `design/walls.py` name their clause from the pack's `designClauses.wallsRows` (clause
     numbers only, e.g. "8.3.6.8(a)(iv)"). A pack without an entry names the row without a

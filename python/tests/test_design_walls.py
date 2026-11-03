@@ -728,7 +728,8 @@ def test_coupling_beam_embedment_engagement_and_group_hoops():
         "Diagonal bars embedded into the piers >= 1.25 ld (8.3.6.7(d)(ii))"
     ]
     # (iii): hoops around each group, out to out 250 - 2 (25 + 10 + 10) = 160 >= bw/2 = 125 and
-    # 2 x 10 + 2 x 16 + 25 = 77 >= bw/5 = 50; s <= min(so, 6 x 16 = 96).
+    # 2 x 10 + 2 x 16 + 25 = 77 >= bw/5 = 50; s <= min(bw/4 = 62.5, so, 6 x 16 = 96) (owner
+    # 2026-11-04: bw/4 too): 90 mm fails on bw/4.
     grouped = check(W.Diagonal(4, 16, group_hoop=W.GroupHoops(10, 90)))
     names = [c["name"] for c in grouped.checks]
     assert "Coupling beam group hoops out to out, parallel to bw (8.3.6.7(d)(iii))" in names
@@ -742,7 +743,8 @@ def test_coupling_beam_embedment_engagement_and_group_hoops():
     assert perimeter["capacity"] == pytest.approx(100 * 2 * bar_area(10) / (250 * 200), abs=0.01)
     assert perimeter["ok"]
     spacing = next(c for c in grouped.checks if c["name"].startswith("Coupling beam group hoop sp"))
-    assert spacing["capacity"] <= 96.0
+    assert spacing["capacity"] == pytest.approx(62.5)
+    assert not spacing["ok"]
 
 
 def test_row_names_cite_the_packs_clauses(tmp_path):
