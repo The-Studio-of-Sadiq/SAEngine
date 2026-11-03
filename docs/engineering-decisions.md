@@ -155,7 +155,7 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 
 ## 2026-11-03
 
-- **W250 boundary elements and spandrel hoops (PR #PRNUM).**
+- **W250 boundary elements and spandrel hoops (PR #173).**
   - Question: the Sample Frame's special wall W1 (W250) failed four checks: boundary element
     provided (8.3.6.6(d)), the spandrels' capacity-design shear Ve (8.3.8.1(a)), spandrel width
     to depth ≥ 0.3 (8.3.4.1(c)) and hoop spacing at the ends (8.3.4.3(b)). Can bars fix them?
@@ -200,7 +200,7 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 - **The Sample Frame's wall W1 is 250 mm** (type W250, was W200). Every structural wall in
   Seismic Design Category D is a special wall, and at 200 mm W1 was too thin for its boundary
   elements and its spandrels (8.3.4.1(c), (d)). At 250 mm it still failed. The layout and
-  coupling-beam change above (PR #PRNUM) makes it pass.
+  coupling-beam change above (PR #173) makes it pass.
 
 ## Earlier owner decisions
 
