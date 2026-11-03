@@ -63,7 +63,10 @@ def test_sample_runs_the_response_spectrum_and_its_forces_are_scaled_up(sample) 
     # 2026-11-03, two owner decisions: partitions in full in W (Sec 2.5.7.3; 1.2 + 0.25 x 2.0 =
     # 1.7 kN/m² in W instead of 0.5 x 3.2 = 1.6: 5.3 kN more) and the sample's wall W1 250 mm
     # instead of 200 mm (8.0 kN more at Level 1): W = 750.6 kN, V = 0.05625 x 750.6 = 42.22 kN.
-    assert scale["vStatic"]["x"] == pytest.approx(42.22, rel=1e-3)
+    # Sample W250 boundary elements and spandrel hoops (owner 2026-11-03): W1's door D2 moved
+    # from 500 to 3300 mm, so the wall's mesh, and its weight lumped at Level 1, change (about
+    # 1.1 kN more in W): V = 42.28 kN.
+    assert scale["vStatic"]["x"] == pytest.approx(42.28, rel=1e-3)
     for axis in ("x", "y"):
         assert scale[axis] == pytest.approx(0.85 * scale["vStatic"][axis] / scale["vDynamic"][axis])
         # The stair's weight on B1 (the plan's edge y = 0) raises the dynamic base shear in Y

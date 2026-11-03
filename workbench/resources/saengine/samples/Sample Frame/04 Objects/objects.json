@@ -133,7 +133,17 @@
 					"dia": 10,
 					"spacing": 200
 				},
-				"layers": 2
+				"layers": 2,
+				"diagonal": {
+					"count": 4,
+					"dia": 16,
+					"hoop": {
+						"dia": 10,
+						"spacing": 75,
+						"legsAcross": 7,
+						"legsAlong": 2
+					}
+				}
 			}
 		},
 		{

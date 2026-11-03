@@ -509,8 +509,9 @@ def test_sample_storey_shear_is_the_piers_and_the_columns(tmp_path: Path) -> Non
     lateral = [DesignCombination(c, {c: 1.0}) for c in ("EX", "EY")]
     found = wall_forces(project, model, out, [*lateral, D])
     piers = found["piers"]
-    # W1 (5 m along Y, two doors at 500-1400 and 1500-2500 mm): three piers in its storey.
-    assert [(p["start"], p["end"]) for p in piers] == [(0, 500), (1400, 1500), (2500, 5000)]
+    # W1 (5 m along Y, two doors at 1500-2500 and 3300-4200 mm): three piers in its storey
+    # (sample W250 boundary elements and spandrel hoops, owner 2026-11-03: D2 moved from 500).
+    assert [(p["start"], p["end"]) for p in piers] == [(0, 1500), (2500, 3300), (4200, 5000)]
     assert {s["opening"] for s in found["spandrels"]} == {"D1", "D2"}
     assert all(p["storey"] == "L1" and p["label"] == "Base to Level 1" for p in piers)
 
