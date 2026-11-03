@@ -531,7 +531,9 @@ def _generate(
         only = None  # an issue draws every sheet
         # The revision entered in Project Settings (Add Drawing Revision) for this code gives
         # the issue's description and initials when the issue does not (OI-11).
-        code = str(issuing.get("code") or "").strip() or register.pending_code(data.title.revision)
+        code = str(issuing.get("code") or "").strip() or register.pending_code(
+            data.title.revision, [r.rev for r in data.title.revisions]
+        )
         row = next((r for r in data.title.revisions if r.rev == code), None)
         try:
             made = rv.new_issue(
@@ -751,7 +753,9 @@ def _generate(
         # NOT FOR CONSTRUCTION ({kind: {object type: count}}).
         "undesigned": data.undesigned,
         "status": data.title.status,
-        "pendingRevision": register.pending_code(data.title.revision),
+        "pendingRevision": register.pending_code(
+            data.title.revision, [r.rev for r in data.title.revisions]
+        ),
     }
     (folder / RECORD).write_text(
         json.dumps(record, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8"
@@ -861,6 +865,19 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pending(folder: Path, register: Any) -> str | None:
+    """The revision the next issue takes with Project Settings as they are now (R2-9: a
+    revision row added after the sheets were drawn was not offered); None when unreadable."""
+    root = folder.parent.parent
+    try:
+        text = (root / "02 Project Settings" / "project-settings.json").read_text("utf-8")
+    except OSError:
+        text = None
+    _, title = drawing_settings(text)
+    rows = [str(r.get("rev") or "") for r in title.get("revisions") or []]
+    return register.pending_code(str(title.get("revision") or "0"), rows)
+
+
 def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
     """The issues of the set (oldest first) and the revision the next issue takes."""
     from saengine.drawings.sheets import revisions as rv
@@ -883,7 +900,7 @@ def _register_answer(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
             }
             for i in register.issues
         ],
-        "pending": record.get("pendingRevision") or register.pending_code("0"),
+        "pending": _pending(folder, register) or record.get("pendingRevision") or "0",
         "csv": absolute(rv.REGISTER_CSV),
         "pdf": absolute(rv.REGISTER_PDF),
     }

@@ -1215,6 +1215,13 @@ def _critical_section(forces: list[PierForces]) -> list[PierForces]:
     return base or list(forces)
 
 
+def _midheight(forces: list[PierForces]) -> list[PierForces]:
+    """The rows at the pier's midheight (``where`` ending in "middle"); all rows when none is
+    marked (forces given per combination only)."""
+    middle = [f for f in forces if f.where.split(" ")[-1] == "middle"]
+    return middle or list(forces)
+
+
 def propose_boundary(
     length: float, t: float, cover: float, fc: float, fyt: float, db: float, count: int = 0
 ) -> Boundary:
@@ -1808,11 +1815,21 @@ def slender_wall_checks(
     of each combination (the wall as a simply supported panel lc high, the whole length): the
     axial stress, φMn >= Mcr, tension control and φMn >= Mu with the P-Δ moment; with
     ``service`` forces, the service deflection. ``required``: the rows are checks (the wall is
-    slender), else informative. [] when the pack has no such method or there is no M2."""
+    slender), else informative. [] when the pack has no such method or there is no M2.
+
+    The method works from the midheight section (the default pack's BNBC 2020 Part 6 Sec
+    6.6.8.2.1: the panel simply supported, the largest moment and deflection at midspan; Sec
+    6.6.8.2.6 the axial stress and Sec 6.6.8.3 Mua "at midheight"): the forces of the pier's
+    middle cut (``where`` ending in "middle") when it has one. The moments at the bottom and top
+    cuts are the end moments of the frame the wall is part of (a shear wall's out-of-plane
+    bending in double curvature): taken as the midheight moment they made a 6 m shear wall of R2
+    fail this alternative method with end bars the P-M surface accepted (R2-1)."""
     from saengine.design.rc_detailing import concrete_modulus
 
     table = wall_methods()
     rules = getattr(table, "slender", None) if table is not None else None
+    forces = _midheight(forces)
+    service = _midheight(service) if service else service
     if rules is None or not forces or max(abs(f.M2) for f in forces) <= 0:
         return []
     t, lw, lc = geometry.thickness, geometry.length, geometry.clear_height
@@ -1852,7 +1869,9 @@ def slender_wall_checks(
             rc_value("PHI_TENSION") * section.mn / 1e6,
             "kN·m",
             f.combination,
-            f"Mua = {abs(f.M2) / 1e6:.1f} kN·m, Pu = {max(f.P, 0) / 1e3:.0f} kN, Δu = "
+            f"Mua = {abs(f.M2) / 1e6:.1f} kN·m at midheight"
+            + (f" ({f.where})" if f.where else "")
+            + f", Pu = {max(f.P, 0) / 1e3:.0f} kN, Δu = "
             f"{delta:.1f} mm, Icr = {section.icr / 1e6:.0f}e6 mm⁴, Ase = {section.ase:.0f} mm², "
             f"d = {d:.0f} mm, lc = {lc:.0f} mm",
             utilisation=ratio,

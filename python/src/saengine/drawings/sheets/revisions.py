@@ -437,8 +437,18 @@ class Register:
         last = self.last_issue_of(number)
         return last.code if last else None
 
-    def pending_code(self, fallback: str = "0") -> str:
-        """The code the next issue takes by default."""
+    def pending_code(self, fallback: str = "0", planned: Sequence[str] = ()) -> str:
+        """The code the next issue takes by default: the first of ``planned`` (Project
+        Settings' revision rows, in order) after the last one issued that is not issued yet
+        (R2-9: the issue dialog offered 0 with revision 1 entered in Project Settings), else
+        the one after the last issue, else ``fallback``."""
+        issued = {i.code for i in self.issues}
+        rows = [c for c in planned if c]
+        last = self.issues[-1].code if self.issues else None
+        start = rows.index(last) + 1 if last in rows else 0
+        for code in rows[start:]:
+            if code not in issued:
+                return code
         return next_revision(self.issues[-1].code) if self.issues else (fallback or "0")
 
 
@@ -604,7 +614,11 @@ class Reviser:
         self.chosen = None if chosen is None else {c for c in chosen if c}
         self.force = force
         self.clouds = clouds
-        self.pending = issuing.code if issuing else self.register.pending_code(title.revision)
+        self.pending = (
+            issuing.code
+            if issuing
+            else self.register.pending_code(title.revision, [r.rev for r in title.revisions])
+        )
         self.states: dict[str, SheetState] = {}
         self._indices: dict[str, SheetIndex | None] = {}
 

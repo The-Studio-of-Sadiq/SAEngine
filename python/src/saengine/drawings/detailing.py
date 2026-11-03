@@ -3662,3 +3662,64 @@ def detailing_model(
         "marks": marks,
         "notes": ctx.notes,
     }
+
+
+def anchorage_rooms(
+    building: Any,
+    objects: Any,
+    materials: Any,
+    settings: Any = None,
+    substructure_text: str | None = None,
+) -> dict[str, Any]:
+    """What the drawings' anchorage checks measure, for the design proposal (no duplication:
+    the same supports and foundations as :func:`detailing_model`):
+
+    - ``"columns"``: per column standing on a foundation (the lowest of its stack),
+      ``{"foundation", "fc", "thickness", "cover", "mesh"}`` (:func:`_foundation_under`), the
+      depth its hooked bars have there being ``thickness - cover - 2 mesh``
+      (:func:`saengine.design.ductile_joints.column_dowel_checks`);
+    - ``"slabs"``: per slab, per bar direction ("X", "Y"), the supports at its discontinuous
+      edges (no slab beyond) ``[(width, depth, ref)]`` (:func:`_edge_support`; a wall's depth is
+      unlimited), where :func:`_edge_anchorage` hooks the top bars."""
+    substructure = None
+    if substructure_text:
+        from saengine.substructure.handover import authoritative_substructure
+
+        try:
+            substructure = authoritative_substructure(substructure_text, building)
+        except (ValueError, AttributeError):
+            substructure = None
+    types = {o.id: o for o in objects.objects}
+    ctx = _Ctx(building, types, materials, settings, substructure, {}, {}, {}, None, {})
+    columns: dict[str, dict[str, Any]] = {}
+    for stack in _stacks(ctx):
+        found = _foundation_under(ctx, stack[0])
+        if found is not None:
+            columns[stack[0].id] = {
+                "foundation": found["id"],
+                "fc": found["fc"],
+                "thickness": float(found["thickness"]),
+                "cover": float(found["cover"]),
+                "mesh": max(found["mesh"] or [0.0]),
+            }
+    slabs: dict[str, dict[str, list[tuple[float, float, str | None]]]] = {}
+    boxes = _slab_boxes(ctx)
+    for e, _t, box in boxes:
+        x0, y0, x1, y1 = box
+        edges = {
+            (0, 0): ((x0, y0), (x0, y1)),
+            (0, 1): ((x1, y0), (x1, y1)),
+            (1, 0): ((x0, y0), (x1, y0)),
+            (1, 1): ((x0, y1), (x1, y1)),
+        }
+        found_edges: dict[str, list[tuple[float, float, str | None]]] = {"X": [], "Y": []}
+        for (axis, side), (a, b) in edges.items():
+            if _neighbour(boxes, e, box, axis, side)[0] is not None:
+                continue
+            width, ref = _edge_support(ctx, a, b, e.elevation)
+            if width > 0:
+                found_edges["X" if axis == 0 else "Y"].append(
+                    (float(width), _support_depth(ctx, ref), ref)
+                )
+        slabs[e.id] = found_edges
+    return {"columns": columns, "slabs": slabs}

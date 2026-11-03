@@ -799,6 +799,86 @@ def _anchorage_rooms(gathered: Any) -> dict[str, tuple[float, str]]:
     return out
 
 
+def _bar_rooms(gathered: Any) -> dict[str, Any]:
+    """The rooms the drawings' anchorage checks measure for the columns on foundations and the
+    slabs' edge supports (:func:`saengine.drawings.detailing.anchorage_rooms`, with 9
+    Substructure's foundations when there are); empty when they cannot be found."""
+    from saengine.drawings.detailing import anchorage_rooms
+
+    empty: dict[str, Any] = {"columns": {}, "slabs": {}}
+    root = getattr(gathered, "root", None)
+    text = None
+    if root is not None:
+        path = Path(root) / "09 Substructure" / "substructure.json"
+        try:
+            text = path.read_text(encoding="utf-8") if path.exists() else None
+        except OSError:
+            text = None
+    try:
+        return anchorage_rooms(
+            gathered.building, gathered.objects, gathered.materials, gathered.settings, text
+        )
+    except (DesignError, ValueError, AttributeError, TypeError, ArithmeticError):
+        return empty
+
+
+def _column_anchorage(
+    types: list[dict[str, Any]], rooms: dict[str, Any], gathered: Any, opts: Options
+) -> list[str]:
+    """R2-8: the proposed column bars' hooked development into the foundation (as the drawings
+    check it, :func:`saengine.design.ductile_joints.column_dowel_checks`: ldh <= the foundation's
+    thickness less its cover and two mesh bars). The column's bars carry its forces, so they are
+    not made smaller here: a note on the type says how deep the foundation must be (9
+    Substructure sizes it) and the largest bar that fits. Returns the warnings."""
+    from saengine.design import ductile_joints as dj
+
+    found = rooms.get("columns") or {}
+    if not found:
+        return []
+    fy_of = {
+        m["id"]: float(m["fy"])
+        for m in gathered.collect.get("members", [])
+        if m.get("kind") == "column" and m.get("fy")
+    }
+    warnings: list[str] = []
+    for entry in types:
+        proposed = entry.get("proposed") if entry.get("kind") == "column" else None
+        groups = (proposed or {}).get("longitudinal") or []
+        if not groups:
+            continue
+        db = max(float(g["dia"]) for g in groups)
+        short = []
+        for member in entry.get("members", []):
+            room = found.get(member)
+            if room is None:
+                continue
+            fy = fy_of.get(member, 420.0)
+            need = dj.hooked_development(db, fy, room["fc"])
+            available = room["thickness"] - room["cover"] - 2 * room["mesh"]
+            if need > available + 1e-6:
+                short.append((need - available, member, room, need, available, fy))
+        if not short:
+            continue
+        _, member, room, need, available, fy = max(short, key=lambda s: s[0])
+        depth = math.ceil((need + room["cover"] + 2 * room["mesh"]) / 25.0) * 25.0
+        fitting = [
+            d
+            for d in sorted(opts.diameters)
+            if d < db and dj.hooked_development(d, fy, room["fc"]) <= available + 1e-6
+        ]
+        others = ", ".join(sorted(s[1] for s in short if s[1] != member))
+        note = (
+            f"column bars Ø{db:g} into the foundation: {member} needs ldh {need:.0f} mm in "
+            f"{room['foundation']}, {available:.0f} mm there (thickness less cover and two mesh "
+            f"bars){f'; also short at {others}' if others else ''}: deepen "
+            f"{room['foundation']} to at least {depth:.0f} mm in 9 Substructure"
+            + (f", or use bars of at most Ø{max(fitting):g}" if fitting else "")
+        )
+        entry["notes"] = [*entry.get("notes", []), note]
+        warnings.append(f"{entry['type']}: {note}")
+    return warnings
+
+
 def _type_anchorage(
     members: list[dict[str, Any]], rooms: dict[str, tuple[float, str]]
 ) -> tuple[float, bool, str] | None:
@@ -1161,6 +1241,63 @@ class SlabDesigner:
         self.present = {n for n in slab_design.LAYERS if getattr(reinforcement, n) is not None}
         self.fc, self.fy, self.es = fc, fy, es
         self.options = options
+        #: The bar sizes the top layers may take (R2-8): those whose hooks develop in the
+        #: supports at the slabs' discontinuous edges (:meth:`limit_top_bars`); all by default.
+        self.top_sizes: dict[str, tuple[float, ...]] = {}
+        self.anchorage_notes: list[str] = []
+
+    def limit_top_bars(self, supports: dict[str, list[tuple[float, float, str | None, str]]]):
+        """Limits the top bars to the sizes whose standard hook develops in every edge support
+        (``supports``: per direction "X"/"Y" the ``(width, depth, ref, slab)`` of the type's
+        members, :func:`saengine.drawings.detailing.anchorage_rooms`), as the drawings check
+        them (:func:`saengine.drawings.detailing._edge_anchorage`: ldh <= the support's width
+        less the cover where the hook fits in its depth); a note when no size does."""
+        from saengine.drawings.detailing import hook_development, standard_hook
+
+        h, cover = float(self.obj.thickness), float(self.cover)
+        sizes = tuple(self.options.slab_diameters)
+
+        def short_of(db: float, found: list[tuple[float, float, str | None, str]]):
+            """(ldh, room, support, slab) of the first support the hook of ``db`` does not
+            develop in, else None."""
+            need = hook_development(db, self.fy, self.fc).value
+            for width, depth, ref, slab in found:
+                if standard_hook(db).leg > max(depth, h) - 2 * cover + 1e-6:
+                    continue  # not hooked there: the drawings check a straight length
+                if need > width - cover + 1e-6:
+                    return need, width - cover, ref, slab
+            return None
+
+        for direction, found in supports.items():
+            name = f"top{direction}"
+            if not found:
+                continue
+            fitting = tuple(d for d in sizes if short_of(d, found) is None)
+            if fitting == sizes:
+                continue
+            smallest = min(sizes)
+            miss = short_of(smallest, found)
+            if not fitting:
+                assert miss is not None
+                need, room, ref, slab = miss
+                self.anchorage_notes.append(
+                    f"{name} bars hooked into the edge support {ref} of {slab}: even Ø{smallest:g} "
+                    f"needs ldh {need:.0f} mm, {room:.0f} mm there (its width less the cover): "
+                    f"a wider support (at least {need + cover:.0f} mm), or anchor the bars "
+                    "beyond it"
+                )
+                continue
+            self.top_sizes[name] = fitting
+            left = [d for d in sizes if d not in fitting]
+            self.anchorage_notes.append(
+                f"{name} bars at most Ø{max(fitting):g}: the hooks of Ø"
+                + ", Ø".join(f"{d:g}" for d in left)
+                + " do not develop in the edge supports ("
+                + ", ".join(
+                    sorted({f"{m[2]} of {m[3]}" for d in left if (m := short_of(d, found))})
+                )
+                + ")"
+            )
 
     def propose(self, loads: SlabLoads, h: float | None = None, suggest: bool = True) -> Pick:
         h = h or self.obj.thickness
@@ -1181,7 +1318,8 @@ class SlabDesigner:
                     continue
                 in_span = span is None or direction == span
                 required_of: dict[float, float] = {}
-                for dia in self.options.slab_diameters:
+                sizes = self.top_sizes.get(name) or tuple(self.options.slab_diameters)
+                for dia in sizes:
                     d = h - self.cover - (dia / 2 if direction == "X" else outer + dia / 2)
                     shear = (q, None, "") if q else None
                     required, _, layer_notes, too_small = slab_layer_need(
@@ -1197,7 +1335,7 @@ class SlabDesigner:
                 mesh = B.mesh_for(
                     0.0,
                     s_max,
-                    self.options.slab_diameters,
+                    sizes,
                     self.options.min_slab_spacing,
                     required_of,
                 )
@@ -1939,9 +2077,15 @@ def propose(
     slabs: dict[str, list[dict[str, Any]]] = {}
     for collected in gathered.collect.get("slabs", []):
         slabs.setdefault(collected["type"], []).append(collected)
+    bar_rooms = _bar_rooms(gathered)
     for type_id, collected in slabs.items():
         first = collected[0]
         designer = SlabDesigner(first["object"], first["fc"], first["fy"], first["es"], opts)
+        edge_supports: dict[str, list[tuple[float, float, str | None, str]]] = {"X": [], "Y": []}
+        for c in collected:
+            for direction, found in (bar_rooms["slabs"].get(c["id"]) or {}).items():
+                edge_supports[direction] += [(*f, c["id"]) for f in found]
+        designer.limit_top_bars(edge_supports)
         picks = [
             MemberPick(c["id"], loads, designer.propose(loads))
             for c in collected
@@ -2019,6 +2163,7 @@ def propose(
             same = _same(entry["current"], entry["proposed"])
             entry["status"] = "unchanged" if same else "ok"
         _with_punching(entry, itertools.chain.from_iterable(x["checks"] for x in collected))
+        entry["notes"] = [*entry["notes"], *designer.anchorage_notes]
         types.append(entry)
 
     # Integrator glue: wall types (saengine.design.wall_design) and staircase types (stairs.py).
@@ -2041,6 +2186,7 @@ def propose(
     )
     types += steel_types
     warnings += steel_notes
+    warnings += _column_anchorage(types, bar_rooms, gathered, opts)
 
     notes: list[str] = []
     if (gathered.root / "09 Substructure" / "substructure.json").exists():
