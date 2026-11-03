@@ -259,13 +259,90 @@ def test_the_e2k_mass_source_gives_saengine_w() -> None:
     assert 'MASSSOURCELOAD  "MsSrc1"  "PART"  0.3' in own
 
 
-def test_the_importer_names_a_partition_pattern_in_the_mass_source(tmp_path) -> None:
+def _import(text: str):
     from saengine.importers.etabs import read_e2k
 
+    return read_e2k("w.e2k", text=text)
+
+
+def _w_v(building, objects, materials, settings) -> tuple[float, float]:
+    from saengine.fem.derive import derive_fem
+
+    d = derive_fem(building, objects, materials, settings, {"bim": "x"})
+    return d.summary["seismicWeight"]["total_kN"], d.summary["base_shear_kN"]
+
+
+def _floor(project):
+    return {a.id: a for a in project.settings.areaLoads}["FL"]
+
+
+@pytest.mark.parametrize(
+    ("mode", "share", "restored", "back"),
+    [
+        ("pack", None, True, ("pack", None)),
+        ("full", None, True, ("pack", None)),  # the pack says full: left to the pack
+        ("factor", 0.3, True, ("factor", 0.3)),
+        ("withLiveShare", None, False, ("pack", None)),  # in L, no PART: W is the same
+    ],
+)
+def test_the_e2k_round_trip_restores_the_partition_allowance(mode, share, restored, back) -> None:
+    """Owner decision 2026-11-03: the importer restores the partition allowance. Exported and
+    read back, the area load's partitions, the mass-source setting, W and V are the original's."""
+    from test_correctness_wiring import _three_bays_two_storeys
+
+    from saengine.library import default_material_library
+
+    settings = _settings(mode, share)
+    text, _ = _e2k(settings)
+    project = _import(text)
+    floor = _floor(project)
+    if restored:
+        assert (floor.live, floor.partitions) == (pytest.approx(LIVE), pytest.approx(PARTITIONS))
+    else:
+        assert (floor.live, floor.partitions) == (pytest.approx(LIVE + PARTITIONS), 0.0)
+    source = project.settings.analysis.massSource
+    assert (source.partitions, source.partitionShare) == back
+    approximated = project.report.to_dict()["approximated"]
+    assert not any("imported as live load" in str(a) for a in approximated)
+    # W and V: the original's (the site and seismic settings, not in the e2k, the original's).
+    building, objects = _three_bays_two_storeys()
+    original = _w_v(building, objects, default_material_library(), settings)
+    again = project.settings.model_copy(deep=True)
+    again.site, again.seismic = settings.site, settings.seismic
+    w_v = _w_v(project.bim, project.objects, project.materials, again)
+    assert w_v == pytest.approx(original, rel=1e-9)
+
+
+def test_the_mass_source_factor_sets_the_partition_rule() -> None:
+    """The PART factor of another file: the live share → with the live share; none → 0."""
     text, _ = _e2k(_settings())
-    path = tmp_path / "w.e2k"
-    path.write_text(text, encoding="utf-8")
-    project = read_e2k(path)
-    found = [a for a in project.report.to_dict()["approximated"] if "mass source" in a["what"]]
-    assert found, "the partition pattern's full mass share is reported"
-    assert any("partition pattern PART × 1" in str(a) for a in found)
+    line = 'MASSSOURCELOAD  "MsSrc1"  "PART"  1 '
+    assert line in text
+    live = _import(text.replace(line, 'MASSSOURCELOAD  "MsSrc1"  "PART"  0.25 '))
+    assert live.settings.analysis.massSource.partitions == "withLiveShare"
+    none = _import(text.replace(line, ""))
+    source = none.settings.analysis.massSource
+    assert (source.partitions, source.partitionShare) == ("factor", 0.0)
+    assert _floor(none).partitions == pytest.approx(PARTITIONS)
+
+
+def test_a_partition_pattern_of_another_file() -> None:
+    """A Superimposed Dead pattern named "Partitions" is the allowance in SD (the project names
+    the case, the pack's being L); "PARTIAL" and a Dead pattern are read as their type says."""
+    text, _ = _e2k(_settings())
+    sd = text.replace('"PART"', '"Partitions"').replace(
+        'LOADPATTERN "Partitions"  TYPE  "Live"', 'LOADPATTERN "Partitions"  TYPE  "Super Dead"'
+    )
+    assert 'TYPE  "Super Dead"' in sd
+    project = _import(sd)
+    assert _floor(project).partitions == pytest.approx(PARTITIONS)
+    assert project.settings.analysis.partitionAllowanceCase == "SD"
+    assert project.settings.analysis.massSource.partitions == "pack"  # SD counts in full
+    partial = _import(text.replace('"PART"', '"PARTIAL"'))
+    assert _floor(partial).partitions == 0.0
+    assert _floor(partial).live == pytest.approx(LIVE + PARTITIONS)
+    dead = text.replace('LOADPATTERN "PART"  TYPE  "Live"', 'LOADPATTERN "PART"  TYPE  "Dead"')
+    project = _import(dead)
+    assert _floor(project).partitions == 0.0
+    words = json.dumps(project.report.to_dict()["approximated"])
+    assert "patterns named as partitions read as their type says" in words
