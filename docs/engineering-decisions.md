@@ -93,7 +93,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
      (`fem/derive.py`; the response spectrum scaling and the irregularity and mass checks use
      those), the grid wizard's preliminary W, the report's W rows and note, the ETABS export's
      mass source (the allowance in a pattern `PART`, in the mass source in full and combined as
-     L, when it counts apart from L) and the ETABS import's mass-source comparison. The default
+     L, when it counts apart from L) and the ETABS import (which restores `PART` as the
+     allowance and its mass-source share as the setting, 2026-11-03 below). The default
      floor (2.0 + 1.2 kN/m²) now adds 1.2 + 0.25 × 2.0 = 1.7 kN/m² to W, against 0.5 × 3.2 =
      1.6 kN/m² before.
 2. **Literal reading:** no change.
@@ -155,6 +156,25 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 
 ## 2026-11-03
 
+- **The ETABS import restores the partition allowance** (PR #PRNUM). Question: the e2k export
+  writes the allowance as its own pattern `PART`, in the mass source at its share; should the
+  import read it back as plain live load (×0.25 in W, with a note) or restore it? Decision
+  (owner): restore it. The area loads of a partition pattern become the area loads'
+  `partitions`, in the pattern's case (Live → L, Superimposed Dead → SD; the project's
+  `analysis.partitionAllowanceCase` is set only when it differs from the pack's). The mass
+  source's factor on it sets `analysis.massSource.partitions`: 1 → in full, the file's L
+  factor → `withLiveShare`, else `factor` with `partitionShare` (0 when the pattern is not in
+  the mass source); left at `pack` when the pack's rule gives the same share, and untouched
+  when the file has no mass source. Recognised patterns: `PART`, or a Live or Superimposed
+  Dead pattern without self-weight, named as partitions (`PART`, `PARTS`, `PART 2`,
+  `Partition(s)`, any name containing "partition", `PW`; not `PARTIAL`), with area loads only;
+  others named so are read as their type says, reported. Why: an exported project read back
+  keeps its seismic weight W and base shear V (tested on the Sample Frame's loads, a generated
+  four-storey frame and the three-bay model with each rule), and the allowance is not mixed
+  into the floor live load, whose share in W and heavy-live threshold it would change. Where: `importers/etabs.py`
+  (`_partition_pattern`, `_Importer._partition_patterns`, `_partition_case`,
+  `_partition_mass`), `importers/common.py` (case `P` of `add_area_load` → `AreaLoad.partitions`),
+  [import.md](import.md).
 - **Partitions count in full in the seismic weight W** (Sec 2.5.7.3). See item 1 above.
 - **The Sample Frame's wall W1 is 250 mm** (type W250, was W200). Every structural wall in
   Seismic Design Category D is a special wall, and at 200 mm W1 was too thin for its boundary

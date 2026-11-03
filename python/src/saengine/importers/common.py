@@ -693,8 +693,12 @@ class ProjectBuilder:
         self.self_weight = True
         #: Point springs of the file SAEngine could not take over (see the supports).
         self.springs = 0
-        #: Values for the settings' analysis model (``Analysis`` fields) the file fixes.
+        #: Values for the settings' analysis model (``Analysis`` fields) the file fixes; a dict
+        #: value (``massSource``) is merged into the default's.
         self.analysis: dict[str, Any] = {}
+        #: The load case ("L" or "SD") of the partition allowance the file gives (area loads in
+        #: case "P", :meth:`add_area_load`): what the carried totals count it in.
+        self.partition_case = "L"
 
     # ── materials and sections ──
 
@@ -829,9 +833,10 @@ class ProjectBuilder:
 
     # ── loads ──
 
-    def add_area_load(self, area: str, case: Literal["D", "L", "Lr"], pressure: float) -> None:
+    def add_area_load(self, area: str, case: Literal["D", "L", "Lr", "P"], pressure: float) -> None:
         """A uniform gravity pressure [kN/m², down] on area ``area`` in case ``case`` (D: the
-        superimposed dead load; self-weight comes from the material densities)."""
+        superimposed dead load, self-weight comes from the material densities; P: the
+        partition allowance, the area load's ``partitions``, in :attr:`partition_case`)."""
         self._area_loads[area][case] += pressure
 
     def not_carried(self, what: str, case: str | None, total: float, example: str) -> None:
@@ -1821,9 +1826,18 @@ class ProjectBuilder:
         report = self.report
         settings = default_project_settings(self.name)
         if self.analysis:
+            current = settings.analysis.model_dump()
             settings.analysis = type(settings.analysis).model_validate(
-                {**settings.analysis.model_dump(), **self.analysis}
+                {
+                    **current,
+                    **{
+                        k: {**current.get(k, {}), **v} if isinstance(v, dict) else v
+                        for k, v in self.analysis.items()
+                    },
+                }
             )
+        # The partition allowance's totals count in its load case (L, or SD within D).
+        p_case = "D" if self.partition_case == "SD" else "L"
         loads_by_slab = {name: self._area_loads.get(name, {}) for name in slab_ids}
         # Which of the file's live cases end up in SAEngine's roof (Lr) and floor (L) loads:
         # a Live-pattern load on the roof is applied in SAEngine's Lr case, so the combinations
@@ -1843,7 +1857,10 @@ class ProjectBuilder:
                 area = self._area_m2.get(name, 0.0)
                 for case, value in loads.items():
                     self.not_carried(
-                        "area loads on walls or skipped areas", case, value * area, name
+                        "area loads on walls or skipped areas",
+                        p_case if case == "P" else case,
+                        value * area,
+                        name,
                     )
         if any(loads_by_slab.values()):
             floors = {n: v for n, v in loads_by_slab.items() if n not in roof_slabs}
@@ -1860,26 +1877,33 @@ class ProjectBuilder:
                     report.approximate("roof live load below the roof taken as live load L")
                 # Slabs with the same loads share an area load; the group with the most area
                 # is the floor (roof) load of the settings, the others are the slabs' own.
-                groups: dict[tuple[float, float], list[str]] = defaultdict(list)
+                groups: dict[tuple[float, float, float], list[str]] = defaultdict(list)
                 for name, v in group.items():
-                    key = (round(v.get("D", 0.0), 4), round(v.get("L", 0.0) + v.get("Lr", 0.0), 4))
+                    key = (
+                        round(v.get("D", 0.0), 4),
+                        round(v.get("L", 0.0) + v.get("Lr", 0.0), 4),
+                        round(v.get("P", 0.0), 4),
+                    )
                     groups[key].append(name)
                 ranked = sorted(
                     groups.items(),
                     key=lambda g: -sum(self._area_m2.get(n, 0.0) for n in g[1]),
                 )
-                for k, ((finish, live), names) in enumerate(ranked):
+                for k, ((finish, live, partitions), names) in enumerate(ranked):
                     own = f"{load_id}-{k + 1}" if k else load_id
                     label = "Roof" if roof else "Floors"
+                    words = f"SD {finish:g}, live {live:g}" + (
+                        f", partitions {partitions:g}" if partitions else ""
+                    )
                     area_loads[own] = AreaLoad(
                         id=own,
                         name=f"{label} (imported)"
                         if not k
-                        else f"{label} (imported) {k + 1}: SD {finish:g}, live {live:g} kN/m²",
+                        else f"{label} (imported) {k + 1}: {words} kN/m²",
                         use="custom",
                         live=live,
                         finish=finish,
-                        partitions=0.0,
+                        partitions=partitions,
                     )
                     report.count("areaLoads")
                     for name in names:
@@ -1888,11 +1912,17 @@ class ProjectBuilder:
                         area = self._area_m2.get(name, 0.0)
                         report.carried["D"] += finish * area
                         report.carried["Lr" if roof else "L"] += live * area
+                        report.carried[p_case] += partitions * area
                 if len(ranked) > 1:
                     report.approximate(
                         f"{'roof' if roof else 'floor'} slabs with loads of their own (an area "
                         "load per group of slabs with the same loads, 02 Project Settings)",
-                        ", ".join(f"SD {f:g} / L {v:g} kN/m²: {len(n)}" for (f, v), n in ranked),
+                        ", ".join(
+                            f"SD {f:g} / L {v:g}"
+                            + (f" / P {p:g}" if p else "")
+                            + f" kN/m²: {len(n)}"
+                            for (f, v, p), n in ranked
+                        ),
                     )
             settings.areaLoads = list(area_loads.values())
         else:

@@ -26,7 +26,11 @@ from saengine.exporters.etabs import (
 from saengine.importers.etabs import read_e2k
 from saengine.importers.project import section_lookup_noted
 from saengine.library import BuildingModel, MaterialLibrary, ObjectLibrary, ProjectSettings
-from saengine.library.settings import default_project_settings, partition_case
+from saengine.library.settings import (
+    default_project_settings,
+    partition_case,
+    seismic_weight_rule,
+)
 
 GOLDEN = Path(__file__).parent / "data" / "export" / "tiny.e2k"
 SAMPLE = (
@@ -418,6 +422,28 @@ def profile_dims(profile: Any) -> dict[str, float]:
     }
 
 
+def sample_parts(folder: Path) -> tuple[Any, Any, Any, Any]:
+    """The BIM, objects, materials and settings of the project folder ``folder``."""
+
+    def text(part: str) -> str:
+        return (folder / part).read_text(encoding="utf-8")
+
+    return (
+        BuildingModel.model_validate_json(text("06 BIM/bim.json")),
+        ObjectLibrary.model_validate_json(text("04 Objects/objects.json")),
+        MaterialLibrary.model_validate_json(text("03 Materials/materials.json")),
+        ProjectSettings.model_validate_json(text("02 Project Settings/project-settings.json")),
+    )
+
+
+def seismic_w_v(building: Any, objects: Any, materials: Any, settings: Any) -> tuple[float, float]:
+    """The seismic weight W and the static base shear V [kN] of the derived analysis model."""
+    from saengine.fem.derive import derive_fem
+
+    d = derive_fem(building, objects, materials, settings, {"bim": "x"})
+    return d.summary["seismicWeight"]["total_kN"], d.summary["base_shear_kN"]
+
+
 def check_round_trip(
     building: BuildingModel,
     objects: ObjectLibrary,
@@ -462,8 +488,18 @@ def check_round_trip(
     floor = loads[settings.floorLoad]
     imported_loads = {a.id: a for a in imported.settings.areaLoads}
     case = partition_case(settings)
-    assert imported_loads["FL"].finish == pytest.approx(floor.superimposed(case))
-    assert imported_loads["FL"].live == pytest.approx(floor.floor_live(case))
+    rule = seismic_weight_rule(settings).partitions
+    if rule.separate:
+        # The partition allowance's own pattern (PART) comes back as the area load's
+        # partitions (owner decision 2026-11-03), its mass-source share as the setting.
+        assert imported_loads["FL"].finish == pytest.approx(floor.finish)
+        assert imported_loads["FL"].live == pytest.approx(floor.live)
+        assert imported_loads["FL"].partitions == pytest.approx(floor.partitions)
+        back = seismic_weight_rule(imported.settings).partitions
+        assert (back.mode, back.share(), back.case) == (rule.mode, rule.share(), rule.case)
+    else:
+        assert imported_loads["FL"].finish == pytest.approx(floor.superimposed(case))
+        assert imported_loads["FL"].live == pytest.approx(floor.floor_live(case))
     # Every load of the project went into the file.
     assert not any(export_report.not_carried.values())
 
@@ -528,11 +564,23 @@ def test_sample_round_trip(tmp_path: Path) -> None:
     # (O2) in its slab, and the slab live load is that of the net slab, as exported.
     report = imported.report
     assert not any(v for v in report.not_carried.values())
-    # The one mass-source difference: the partition pattern PART (in full in SAEngine's W,
-    # owner decision 2026-11-03, Sec 2.5.7.3) comes back as live load L, at the live share.
-    mass = [a for a in report.to_dict()["approximated"] if "mass source" in a["what"]]
-    words = json.dumps(mass, ensure_ascii=False)
-    assert len(mass) == 1 and "partition pattern PART × 1" in words and "L ×" not in words
+    # The partition pattern PART (in full in SAEngine's W) comes back as the area loads'
+    # partition allowance, its mass share as the pack's (in full): the mass source no longer
+    # differs (owner decision 2026-11-03: the import restores the partition allowance).
+    approximated = report.to_dict()["approximated"]
+    assert not [a for a in approximated if "mass source differs" in a["what"]]
+    restored = [a for a in approximated if a["what"].startswith("partition patterns restored")]
+    assert restored and restored[0]["examples"] == ["PART"]
+    assert imported.settings.analysis.massSource.partitions == "pack"
+    # W and V of the sample with the area loads and mass source read back are the original's
+    # (on the sample's own geometry: the slabs read back carry their loads on more area).
+    full, objects_full, materials, own = sample_parts(SAMPLE)
+    original = seismic_w_v(full, objects_full, materials, own)
+    back = {a.id: a for a in imported.settings.areaLoads}
+    own.areaLoads = [back.get(a.id, a) for a in own.areaLoads]
+    own.analysis.massSource = imported.settings.analysis.massSource
+    own.analysis.partitionAllowanceCase = imported.settings.analysis.partitionAllowanceCase
+    assert seismic_w_v(full, objects_full, materials, own) == pytest.approx(original, rel=1e-9)
     assert {o.host for o in imported.bim.additions.wallOpenings} == {"W1-Level-1"}
     assert sorted(o.width for o in imported.bim.additions.wallOpenings) == [900.0, 1000.0]
     assert "O2-Level-1" in {o.id for o in imported.bim.additions.slabOpenings}
@@ -575,6 +623,14 @@ def test_generated_building_round_trip(tmp_path: Path) -> None:
     building.elements = [e for e in building.elements if e.kind != "footing"]
     check_round_trip(building, objects, settings, imported, result.report)
     assert imported.problems() == []
+    # The whole project read back has the original's seismic weight W and static base shear V
+    # (the partition allowance restored in full, owner decision 2026-11-03; the site and
+    # seismic settings, which the e2k does not carry, the original's).
+    original = seismic_w_v(*sample_parts(folder))
+    again = imported.settings.model_copy(deep=True)
+    again.site, again.seismic = settings.site, settings.seismic
+    w_v = seismic_w_v(imported.bim, imported.objects, imported.materials, again)
+    assert w_v == pytest.approx(original, rel=1e-6)
 
 
 def test_cli_writes_the_e2k_and_its_report(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:

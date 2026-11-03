@@ -91,6 +91,19 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
   ETABS "Other" patterns named as fluid loads (F, F1, FL, Fluid, Water, Liquid, Tank) are
   SAEngine's F in the combinations; their area loads are applied as superimposed dead load (F
   holds the contents of 07 MEP equipment only), reported.
+- **Partition allowance (ETABS)**: the area loads of a partition pattern become the area loads'
+  **partitions**, not live load (owner decision 2026-11-03). A partition pattern is `PART` (as
+  SAEngine exports it) or any pattern that meets all of these: its name says partitions
+  (`PART`, `PARTS`, `PART 2`, `Partition(s)`, a name containing "partition", or `PW`; not
+  `PARTIAL ...`), its type is Live or Superimposed Dead, it has no self-weight, and it carries
+  area loads only (no frame or point loads). A Live pattern gives the allowance as live load L,
+  a Superimposed Dead one as SD (the project's "Partition allowance as" is set only when it
+  differs from the code pack's). Patterns named so that fail the rule are read as their type
+  says, and reported. The mass source's factor on the pattern sets "Partition allowance in W"
+  (`analysis.massSource.partitions`): 1 is in full, the file's live share is "with the live
+  load share", any other factor is a factor of its own (0 when the pattern is not in the mass
+  source). When the code pack says the same, the setting stays "as the code pack says". A file
+  without a mass source changes nothing. The report lists the patterns restored and the share.
 - **Combinations**: linear combinations on SAEngine's cases (Dead/Superimposed → D/SD, Live → L,
   Roof Live → Lr, wind → WX/WY, seismic → EX/EY by the axis in the name or, for ETABS response
   spectrum cases, their ACCEL directions). Combinations of combinations are expanded;
@@ -241,8 +254,9 @@ Settings:
   every point of the stories above the base (none when the diaphragm is flexible). Soil springs
   are written as fixed bases (reported).
 - **Loads**: patterns D (self-weight from the materials), SD, L, Lr, WX, WY, EX, EY, each with its
-  linear static case, and a modal case. The floor and roof loads per slab (finish and partitions
-  SD, live L, on the roof Lr). Wind and earthquake are SAEngine's own BNBC 2020 story forces,
+  linear static case, and a modal case. The floor and roof loads per slab (finish SD, live L, on
+  the roof Lr; the partition allowance in its load case, or in a pattern `PART` of its own when
+  it counts in the seismic weight apart from that case). Wind and earthquake are SAEngine's own BNBC 2020 story forces,
   derived as Run All derives the analysis model (about half a minute on the sample), as point
   loads at each story's centre of mass, tied to the diaphragm (a flexible diaphragm: at the
   nearest points); with `--lateral coefficient` the earthquake is ETABS's user coefficient with
@@ -252,7 +266,8 @@ Settings:
   equipment, as the analysis loads them): empty weight and plinth SD, contents F (a pattern of
   type Other, in the combinations with their F factor) or as 07 MEP's contentsAs says, impact L;
   point loads at the supports, or at the quarter points of the footprint (reported).
-- **Mass source**: the elements, SD, the code's share of L (0.25) and F, not lumped at the stories.
+- **Mass source**: the elements, SD, the code's share of L (0.25) and F, `PART` at its share in
+  the seismic weight (1 when in full), lumped at the stories as the analysis lumps them.
 - **Combinations**: 02 Project Settings' combinations as linear additions (D on both D and SD).
 
 Not written (each in the report when the project has it): stairs (not in SAEngine's analysis
@@ -260,6 +275,7 @@ either), footings, solid blocks, the temperature case and its combination factor
 torsion, time histories, pushover and construction sequence definitions.
 
 Reading the export back with the importer gives the same stories, members, sections, area loads
-and combinations (the tests check this on the sample, a generated building and a synthetic
-model); the brick-wall line loads come back as frame loads "not carried over" (the importer
+and combinations, the partition allowance and its share in the seismic weight (the tests check
+this on the sample, a generated building and a synthetic model, and that W and the static base
+shear V come back the same); the brick-wall line loads come back as frame loads "not carried over" (the importer
 does not take frame loads), and wall openings drawn as opening panels are not read back.

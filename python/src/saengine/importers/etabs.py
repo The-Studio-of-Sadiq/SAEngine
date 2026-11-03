@@ -33,7 +33,13 @@ reads the blocks a frame-and-shell building needs and hands them to
   (uniform, trapezoidal as its mean, point) and ``$ POINT OBJECT LOADS`` (forces) → the member
   loads of ``05 Floor Plan/loads.json`` on the beams and columns (see
   :mod:`saengine.importers.common`; the rest reported with their totals);
-- ``$ MASS SOURCE`` and the auto seismic definitions: reported where SAEngine differs.
+- a partition pattern (:func:`_partition_pattern`: ``PART`` as SAEngine exports it, or a Live or
+  Superimposed Dead pattern named as partitions with only area loads) → the area loads'
+  partition allowance (``partitions``), not live load;
+- ``$ MASS SOURCE``: the partition pattern's factor → ``analysis.massSource.partitions`` (1: in
+  full, the live share: with the live share, else a factor of its own; left to the code pack
+  when the pack says the same); the rest and the auto seismic definitions: reported where
+  SAEngine differs.
 
 Conventions of the format this follows (from its published structure; checked on the synthetic
 files of the tests): a line's or area's points are at the story of its assign, less the number of
@@ -373,11 +379,37 @@ def _spectrum_terms(name: str, case: dict[str, Any], report: ImportReport) -> di
     return {_SPECTRUM + "E" + axis: 1.0}
 
 
+#: A load pattern of partitions by its name: "PART" (SAEngine's export), "Parts", "PART 2",
+#: "Partition(s)", "SD-Partition", "PW" ("PARTIAL ..." is not).
+_PARTITION_NAME = re.compile(r"^PART(?:ITIONS?|S)?(?:$|[^A-Z])|PARTITION|^PW$", re.IGNORECASE)
+#: The pattern types a partition allowance is given in: live (L) or superimposed dead (SD).
+_PARTITION_TYPES = {
+    "SUPERDEAD": "SD",
+    "SUPERIMPOSEDDEAD": "SD",
+    "LIVE": "L",
+    "REDUCELIVE": "L",
+    "REDUCIBLELIVE": "L",
+    "UNREDUCELIVE": "L",
+    "LIVEREDUCIBLE": "L",
+}
+
+
+def _partition_pattern(name: str, pairs: dict[str, str]) -> str | None:
+    """The partition allowance's load case ("L" or "SD") when pattern ``name`` holds one, else
+    None. The rule (kept narrow, so a pattern of other loads is not taken for partitions): the
+    name says partitions (:data:`_PARTITION_NAME`), the type is Live or Superimposed Dead
+    (:data:`_PARTITION_TYPES`; a Dead pattern may hold modelled walls) and it has no
+    self-weight. Its area loads must be all its loads (checked by the importer)."""
+    if not _PARTITION_NAME.search(name.strip()):
+        return None
+    if _num(pairs, "SELFWEIGHT", "SWMULT"):
+        return None
+    return _PARTITION_TYPES.get(re.sub(r"[^A-Z]", "", pairs.get("TYPE", "").upper()))
+
+
 #: Names of "Other" patterns that hold fluid loads (SAEngine's F case): F, F1, FL, Fluid, Water,
 #: Liquid, Tank, ... The other "Other" patterns (ETABS's template patterns A, B, C, ...) say
 #: nothing SAEngine can place.
-#: A load pattern of partitions by its name ("PART", SAEngine's export; "Partition", "PW").
-_PARTITION_NAME = re.compile(r"^PART|PARTITION|^PW$", re.IGNORECASE)
 _FLUID = re.compile(r"^(?:F|FL)(?:\d*|[\s_.-].*)$|^(?:FLUID|WATER|LIQUID|TANK)", re.IGNORECASE)
 
 
@@ -439,6 +471,10 @@ class _Importer:
         self.elevation: dict[str, float] = {}
         self.order: list[str] = []  # stories bottom up
         self.pattern_cases: dict[str, str | None] = {}
+        #: The partition patterns (:func:`_partition_pattern`) -> their case ("L" or "SD").
+        self.partition_patterns: dict[str, str] = {}
+        #: Whether any of their area loads came onto the floors.
+        self.partitions_loaded = False
         self.instances: dict[tuple[str, str], str] = {}  # (line or area, story) -> name
         self.lengths: dict[str, float] = {}  # line instance -> length m
         #: Property modifiers by kind (column, beam, brace, slab, wall): (instance, values).
@@ -1109,8 +1145,13 @@ class _Importer:
         if yes("INCLUDELOADS"):
             factors: dict[str, float] = defaultdict(float)
             partitions: list[str] = []
+            restored: dict[str, float] = {}
             for pattern, factor in source.get("LOADS", []):
                 case = self.pattern_cases.get(pattern) or pattern
+                if pattern in self.partition_patterns:
+                    # The partition allowance's share in W: the mass-source setting below.
+                    restored[pattern] = factor
+                    continue
                 if case == "L" and _PARTITION_NAME.search(pattern) and factor > live_share:
                     # A live partition pattern with its own (larger) mass share, as SAEngine
                     # exports the partition allowance counted in full: imported as L it counts
@@ -1130,6 +1171,8 @@ class _Importer:
                     f"which counts × {live_share:g} in SAEngine's W: enter a partition allowance "
                     "as the area load's partitions, which count as the code pack says)"
                 )
+            if self.partitions_loaded:
+                differences += self._partition_mass(restored, factors.get("L", live_share))
         # SAEngine lumps the mass at the story levels by default (analysis.massLumping, 0.0.44).
         if "LUMPATSTORIES" in source and not yes("LUMPATSTORIES"):
             differences.append("kept at the nodes (SAEngine lumps it at the story levels)")
@@ -1138,6 +1181,64 @@ class _Importer:
                 f"mass source differs from SAEngine's seismic weight (D + SD + {live_share:g} L)",
                 f"{name}: {'; '.join(differences)}",
             )
+
+    def _partition_mass(self, restored: dict[str, float], live: float) -> list[str]:
+        """``analysis.massSource.partitions`` from the mass-source factor of the restored
+        partition patterns (``restored``; ``live``: the file's factor on L), so that SAEngine's
+        W is the file's: 1 → in full, the live factor → with the live share (a live allowance),
+        else that factor ("factor", ``partitionShare``); not set when the code pack's rule gives
+        the same share. Returns the differences left to report."""
+        from types import SimpleNamespace
+
+        from saengine.library.settings import partition_weight_basis
+
+        case = self.b.partition_case
+        values = {round(f, 6) for f in restored.values()}
+        if len(values) > 1:
+            names = ", ".join(sorted(restored))
+            words = (
+                f"partition patterns with different factors ({names}): SAEngine's partition "
+                "allowance takes one share in W, the pack's kept"
+            )
+            return [words]
+        # No factor in the mass source: the file leaves the allowance out of W.
+        share = values.pop() if values else 0.0
+        if share > 1.0 + 1e-6 or share < 0.0:
+            return [f"partition patterns × {share:g} (SAEngine's share is 0 to 1), the pack's kept"]
+        if abs(share - 1.0) <= 1e-6:
+            mode = "full"
+        elif case == "L" and abs(share - live) <= 1e-6:
+            mode = "withLiveShare"
+        else:
+            mode = "factor"
+        analysis = SimpleNamespace(
+            partitionAllowanceCase=self.b.analysis.get("partitionAllowanceCase", "pack"),
+            massSource=None,
+        )
+        pack = partition_weight_basis(SimpleNamespace(analysis=analysis))
+        # The pack's share of the allowance (its "full" or "withLiveShare"; in SD both are 1).
+        same = (
+            mode == pack.mode
+            if case == "L"
+            else mode == "full" and pack.mode in ("full", "withLiveShare")
+        )
+        words = {
+            "full": "in full",
+            "withLiveShare": "with the live load share",
+            "factor": f"× {share:g}",
+        }[mode]
+        if not same:
+            source: dict[str, Any] = {"partitions": mode}
+            if mode == "factor":
+                source["partitionShare"] = share
+            self.b.analysis["massSource"] = source
+        self.report.approximate(
+            "partition allowance's share in the seismic weight W from the file's mass source ("
+            + ("as the code pack says" if same else "analysis.massSource.partitions")
+            + ")",
+            f"{', '.join(sorted(restored)) or 'not in the mass source'}: {words}",
+        )
+        return []
 
     # ── loads ──
 
@@ -1173,6 +1274,41 @@ class _Importer:
             elif case[0] in "WE":
                 self.report.note("loads.lateral.cases", name)
         self.b.self_weight = self_weight or not patterns
+        self._partition_patterns(patterns)
+
+    def _partition_patterns(self, patterns: dict[str, dict[str, str]]) -> None:
+        """The patterns whose area loads are the partition allowance (owner decision
+        2026-11-03: the import restores what the export wrote as PART): named and typed as
+        :func:`_partition_pattern` says, with no frame or point loads. All of them must be of
+        one case (L or SD); the others are reported and read as their type says."""
+        framed = {pairs.get("LC", "") for _, _, pairs in self.e.point_loads + self.e.line_loads}
+        found: dict[str, str] = {}
+        for name, p in patterns.items():
+            case = _partition_pattern(name, p)
+            if case is None:
+                if _PARTITION_NAME.search(name.strip()):
+                    self.report.approximate(
+                        "patterns named as partitions read as their type says (a partition "
+                        "allowance is a Live or Superimposed Dead pattern without self-weight)",
+                        f"{name} ({p.get('TYPE', '?')})",
+                    )
+                continue
+            if name in framed:
+                self.report.approximate(
+                    "patterns named as partitions with frame or point loads read as their type "
+                    "says (the partition allowance is an area load)",
+                    name,
+                )
+                continue
+            found[name] = case
+        if len(set(found.values())) > 1:
+            self.report.approximate(
+                "partition patterns of both live and superimposed dead type read as their "
+                "type says (SAEngine's partition allowance is in one load case)",
+                ", ".join(sorted(found)),
+            )
+            return
+        self.partition_patterns = found
 
     def _loads(self) -> None:
         """The point and frame loads go to the builder (onto the floor-plan beams and columns);
@@ -1285,7 +1421,28 @@ class _Importer:
                     "fluid area loads applied as superimposed dead load (D factors)", instance
                 )
                 case = "D"
+            if pattern in self.partition_patterns:
+                # The partition allowance: the area load's partitions, in its own case.
+                self.partitions_loaded = True
+                case = "P"
             self.b.add_area_load(instance, case, down)  # type: ignore[arg-type]
+        if self.partitions_loaded:
+            self._partition_case()
+
+    def _partition_case(self) -> None:
+        """The partition allowance's load case is the file's (its pattern's type); the project
+        names it only when the code pack's differs, as the combinations take it so."""
+        from saengine.library.settings import partition_case
+
+        case = next(iter(self.partition_patterns.values()))
+        self.b.partition_case = case
+        if case != partition_case():
+            self.b.analysis["partitionAllowanceCase"] = case
+        self.report.approximate(
+            "partition patterns restored as the area loads' partition allowance (partitions, "
+            f"{'superimposed dead SD' if case == 'SD' else 'live load L'}, 02 Project Settings)",
+            ", ".join(sorted(self.partition_patterns)),
+        )
 
     def _combinations(self) -> None:
         cases = {n: c for n, c in self.e.cases.items() if c["loads"]}
