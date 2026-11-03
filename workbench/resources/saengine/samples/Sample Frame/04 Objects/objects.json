@@ -142,7 +142,17 @@
 						"spacing": 75,
 						"legsAcross": 7,
 						"legsAlong": 2
+					},
+					"longitudinal": {
+						"dia": 10,
+						"spacing": 150
 					}
+				},
+				"pierHoop": {
+					"dia": 10,
+					"spacing": 150,
+					"legsAcross": 2,
+					"legsAlong": 2
 				}
 			}
 		},

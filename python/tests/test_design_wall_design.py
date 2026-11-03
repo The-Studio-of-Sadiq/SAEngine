@@ -705,6 +705,129 @@ def test_boq_and_schedule_measure_the_coupling_beam_diagonals_and_hoops() -> Non
     assert g["count"] == 8 and g["dia"] == 16 and g["mark"].split("-")[1].startswith("G")
 
 
+def _pier_building() -> BuildingModel:
+    """W1 (5000 x 3000) with doors D1 at 1500-2500 (2200 high) and D2 at 3300-4200 (2100): a
+    wall pier P2 (800 between the doors) and P3 (800 at the end), as the sample's W1."""
+    from saengine.library.bim import WallOpening
+
+    building = _building()
+    doors = [
+        WallOpening.model_validate(d)
+        for d in (
+            {"id": "D1", "host": "W1", "offset": 1500, "width": 1000, "sill": 0, "height": 2200},
+            {"id": "D2", "host": "W1", "offset": 3300, "width": 900, "sill": 0, "height": 2100},
+        )
+    ]
+    additions = building.additions.model_copy(update={"wallOpenings": doors})
+    return building.model_copy(update={"additions": additions})
+
+
+def test_wall_piers_designed_proposed_and_measured(monkeypatch) -> None:
+    """Owner 2026-11-04 (8.3.6.8): a special wall's piers beside its openings that are wall
+    piers get the pier rows (P2, P3), the pier that is not (P1, 1500 long) none; Design
+    Reinforcement proposes their hoops (pierHoop), and applied every pier row passes; the bill
+    and the bar bending schedule measure the hoops (Q) over each wall pier's clear height and
+    300 mm above and below."""
+    from saengine.boq.quantities import bill_of_quantities, wall_pier_parts
+    from saengine.design import wall_forces
+    from saengine.drawings.detailing import detailing_model
+
+    found = {
+        **FOUND,
+        "piers": [
+            _pier("W1/L1/P1", 0, 1500, [1]),
+            _pier("W1/L1/P2", 2500, 3300, [2]),
+            _pier("W1/L1/P3", 4200, 5000, [4]),
+        ],
+        "spandrels": [],
+    }
+    for p in found["piers"]:
+        p["spandrels"] = []
+        for cut in p["cuts"].values():
+            cut[EQ] = _cut(300, 60, 40)
+    monkeypatch.setattr(
+        wall_forces, "design_combination_list", lambda *a, **k: (list(COMBOS), None, "corners")
+    )
+    monkeypatch.setattr(wall_forces, "wall_forces", lambda *a, **k: found)
+    mats = {m.id: m for m in default_material_library().materials}
+    settings = _settings()
+
+    def design(wall_type: dict, collect: dict | None = None) -> dict:
+        types = {o.id: o for o in ObjectLibrary.model_validate({"objects": [wall_type]}).objects}
+        return wall_design.design_walls(
+            PROJECT, "unused", _pier_building(), types, mats, settings, settings, settings,
+            SPECIAL, EXTRA, [EQ, GRAVITY], collect,
+        )  # fmt: skip
+
+    collect: dict = {}
+    (wall,) = design(WALL_TYPE, collect)["elements"]
+    kinds = {p["id"]: p["wallPier"] for p in wall["piers"] if not p["whole"]}
+    assert kinds == {"W1/L1/P1": "wall", "W1/L1/P2": "pier", "W1/L1/P3": "pier"}
+    failing = {c["name"] for c in wall["checks"] if not c["ok"] and not c["flag"]}
+    assert "Wall pier hoops provided (8.3.6.8(a)(iii))" in failing
+    edge = [c for c in wall["checks"] if c["name"].startswith("Edge wall pier")]
+    assert [c["note"].split(":")[0] for c in edge] == ["W1/L1/P3"]  # at the wall's end
+    (entry,) = wall_design.proposal_entries(collect["walls"], set(), {"W250": WALL_TYPE})
+    hoop = entry["proposed"]["pierHoop"]
+    assert hoop["spacing"] <= 150 and "wall piers hoops" in entry["proposed"]["text"]
+    assert any(n.startswith("wall piers W1/L1/P2, W1/L1/P3:") for n in entry["notes"])
+    proposed = {k: v for k, v in entry["proposed"].items() if k != "text"}
+    applied = {**WALL_TYPE, "reinforcement": proposed}
+    Wall.model_validate(applied)
+    (again,) = design(applied)["elements"]
+    assert all(c["ok"] for c in again["checks"] if c["name"].startswith(("Wall pier", "Edge")))
+
+    # The bill and the schedule: 2 wall piers x floor((2200 or 2100 + 600) / s) + 1 hoops.
+    assert wall_pier_parts(5000, 3000, 250, _pier_building().additions.wallOpenings) == [
+        (800.0, 2200.0),
+        (800.0, 2100.0),
+    ]
+    objects = ObjectLibrary.model_validate({"objects": [applied]})
+    data = bill_of_quantities(_pier_building(), objects, default_material_library()).model_dump()
+    rows = {r["detail"]: float(r["quantity"]) for r in _rows(data)}
+    s = float(hoop["spacing"])
+    count = sum(math.floor((clear + 600) / s + 1e-9) + 1 for clear in (2200, 2100))
+    one = 2 * (250 - 50 + 20 * hoop["dia"]) + 2 * (800 - 50 + 20 * hoop["dia"])
+    expected = count * one / 1000 * W.bar_area(hoop["dia"]) * 7.85e-3
+    assert rows["pier hoops"] == pytest.approx(expected, rel=0.01)
+    texts = {
+        "bim": _pier_building().model_dump_json(),
+        "objects": objects.model_dump_json(),
+        "materials": default_material_library().model_dump_json(),
+    }
+    (detailed,) = [e for e in detailing_model(texts=texts)["elements"] if e["id"] == "W1"]
+    hoops = [b for b in detailed["bars"] if b["mark"].split("-")[1].startswith("Q")]
+    assert sum(b["count"] for b in hoops) == count
+
+
+def test_coupling_proposal_adds_longitudinal_bars_for_the_hoop_legs() -> None:
+    """8.3.6.7(d)(iv): the hoops' 7 legs down a 1000 mm spandrel need a longitudinal bar of each
+    face at each: the wall's Ø10 @ 200 give 5, so the proposal adds Ø10 @ 150 along each face
+    (the sample W250's); the bill measures them."""
+    web = W.WallBars(25, 10, 200, 10, 200, 2)
+    spandrel = {
+        "id": "W1/L1/S1", "wall": "W1", "type": "W250", "ln": 1000.0, "h": 1000.0, "bw": 250.0,
+        "vu": 30e3, "combination": EQ, "fc": 24.1, "fy": 420.0, "cover": 25.0, "mode": "either",
+        "piers": [1500.0, 800.0], "web": web, "asBeam": True, "ok": False,
+    }  # fmt: skip
+    current = {"count": 4, "dia": 16, "hoop": {"dia": 10, "spacing": 75, "legsAcross": 7,
+                                               "legsAlong": 2}}  # fmt: skip
+    proposed, notes = wall_design.coupling_proposal([spandrel], current, web)
+    # The type's 7 legs fail with the web's bars: the proposal's own hoops (Ø10 @ 75, 6 legs
+    # down 950 mm, 190 mm apart) with a bar of each face at each leg: Ø10 @ 175 (190 rounded
+    # down to the 25 mm step), 6 per face.
+    assert proposed is not None
+    assert proposed["hoop"] == {"dia": 10.0, "spacing": 75.0, "legsAcross": 6, "legsAlong": 2}
+    assert proposed["longitudinal"] == {"dia": 10.0, "spacing": 175.0}
+    assert W.bars_down(950, 175) >= 6
+    assert "along each face" in notes[0] and len(notes) == 1  # nothing left failing
+    # With the sample's Ø10 @ 150 along each face, the type's own hoops are kept.
+    sample = {**current, "longitudinal": {"dia": 10, "spacing": 150}}
+    kept, _ = wall_design.coupling_proposal([spandrel], sample, web)
+    assert kept is not None and kept["hoop"]["legsAcross"] == 7
+    assert kept["longitudinal"] == {"dia": 10.0, "spacing": 150.0}
+
+
 def _rows(data):
     if isinstance(data, dict):
         if "detail" in data and "quantity" in data:

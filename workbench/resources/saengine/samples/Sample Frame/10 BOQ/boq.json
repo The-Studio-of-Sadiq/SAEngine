@@ -2,7 +2,7 @@
 	"schema": "saengine.boq/1",
 	"source": {
 		"bim": "1a25eafca53bb41580583dce394f0cf7fc6c1426",
-		"objects": "1a063b52f88477de9aa7cd75a71e32e4cef6493b",
+		"objects": "d3804ef057d089493e2ae8e936ee66349bb9e36b",
 		"materials": "885c6bd9931f67a9ad64a7012d7924ac01e28489",
 		"materialIds": [
 			"A572-50",
@@ -324,12 +324,12 @@
 			"code": "R.01",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 10 mm bars",
-			"quantity": 1520.704,
+			"quantity": 1602.185,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 10.0,
 			"byStory": {
-				"L1": 1443.333,
+				"L1": 1524.815,
 				"L2": 25.123
 			},
 			"breakdown": [
@@ -395,6 +395,12 @@
 				{
 					"element": "W1",
 					"story": "L1",
+					"detail": "bar mark W1-U1 (bar bending schedule)",
+					"quantity": 15.772
+				},
+				{
+					"element": "W1",
+					"story": "L1",
 					"detail": "bar mark W1-J2 (bar bending schedule)",
 					"quantity": 21.389
 				},
@@ -407,8 +413,20 @@
 				{
 					"element": "W1",
 					"story": "L1",
+					"detail": "bar mark W1-U2 (bar bending schedule)",
+					"quantity": 17.037
+				},
+				{
+					"element": "W1",
+					"story": "L1",
 					"detail": "bar mark W1-J1 (bar bending schedule)",
 					"quantity": 21.466
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-Q1 (bar bending schedule)",
+					"quantity": 48.673
 				},
 				{
 					"element": "B1",

@@ -3199,9 +3199,87 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Hoops and crossties over the whole coupling beam section (the default pack\'s Part 6 Sec 8.3.6.7(d)(iv)), the same over every spandrel of the type: legs across counted down the beam\'s depth, legs along (vertical) counted across the thickness; none: not entered.',
 					title: 'Hoops',
 				},
+				groupHoop: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CouplingGroupHoops',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hoops around each group of diagonal bars (the default pack\'s Part 6 Sec 8.3.6.7(d)(iii)), the alternative to hoops over the whole section; checked when no hoops over the section are entered. None: not entered.',
+					title: 'Hoops around each group',
+				},
+				longitudinal: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BarMesh',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Longitudinal bars along each face of the coupling beams, at this spacing down the depth (the bars the hoop legs engage, 8.3.6.7(d)(iv), or the perimeter bars of (d)(iii)), developed into the piers; none: the wall\'s horizontal web bars.',
+					title: 'Longitudinal bars',
+				},
 			},
 			required: ['count', 'dia'],
 			title: 'CouplingDiagonal',
+			type: 'object',
+		},
+		CouplingGroupHoops: {
+			additionalProperties: false,
+			description: 'Hoops around one group of a coupling beam\'s diagonal bars (the default pack\'s Part 6 Sec\n8.3.6.7(d)(iii)): two legs each way, crossties added where the leg spacing needs them.',
+			properties: {
+				dia: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				spacing: {
+					default: 100,
+					description: 'Spacing along the diagonal bars [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Out-to-out parallel to the wall\'s thickness [mm]; none: the room inside the wall\'s curtains.',
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Out-to-out along the other sides [mm]; none: from the group\'s bars in two layers.',
+					title: 'Depth',
+				},
+			},
+			title: 'CouplingGroupHoops',
 			type: 'object',
 		},
 		DesignOverwrites: {
@@ -7438,6 +7516,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Diagonal bars of the spandrels between piers (special walls).',
 					title: 'Coupling beam diagonals',
+				},
+				pierHoop: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BoundaryHoops',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hoops and crossties of the wall piers (narrow piers beside openings of special walls, the default pack\'s Part 6 Sec 8.3.6.8), the same in every wall pier of the type, over its clear height and beyond it above and below, in addition to the web bars: legs across counted along the pier\'s length, legs along counted across the thickness; none: not entered.',
+					title: 'Wall pier hoops',
 				},
 			},
 			required: ['material', 'cover'],
@@ -17752,6 +17843,10 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	CouplingDiagonal: {
 		count: 4,
 		dia: 20,
+	},
+	CouplingGroupHoops: {
+		dia: 10,
+		spacing: 100,
 	},
 	StairReinforcement: {
 		material: 'B420DWR',

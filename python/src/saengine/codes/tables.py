@@ -1969,6 +1969,44 @@ class SpecialWalls(_Group):
     couplingLegSpacingMax: Positive = Field(
         description="Largest spacing of those hoops' legs and crossties, each way [mm]."
     )
+    couplingEmbedment: Positive = Field(
+        description="Diagonal bars embedded into the wall piers at least this many tension "
+        "development lengths."
+    )
+    couplingGroupWidthShare: Share = Field(
+        description="Hoops around each group of diagonal bars: out-to-out at least · bw parallel "
+        "to the web width."
+    )
+    couplingGroupDepthShare: Share = Field(
+        description="... and at least · bw along the other sides."
+    )
+    couplingGroupLegSpacingMax: Positive = Field(
+        description="Largest spacing of the crossties or hoop legs around each group, "
+        "perpendicular to the diagonal bars [mm]."
+    )
+    couplingPerimeterRatio: Share = Field(
+        description="Bars around a coupling beam's perimeter with hoops around each group: area "
+        "each way at least · bw s."
+    )
+    couplingPerimeterSpacingMax: Positive = Field(description="... at most this far apart [mm].")
+    pierLengthRatioMax: Positive = Field(
+        description="A wall pier: a vertical wall segment beside an opening with lw/bw at most "
+        "this ..."
+    )
+    pierHeightRatioMin: Positive = Field(
+        description="... and its clear height over lw at least this."
+    )
+    pierAlternativeRatio: Positive = Field(
+        description="Wall piers with lw/bw above this may take the alternative to the column "
+        "rules (hoops, capacity-design shear)."
+    )
+    pierHoopSpacingMax: Positive = Field(
+        description="Largest vertical spacing of the wall pier's hoops (the alternative) [mm]."
+    )
+    pierHoopExtension: Positive = Field(
+        description="The wall pier's hoops extend at least this above and below its clear "
+        "height [mm]."
+    )
 
     @model_validator(mode="after")
     def _check(self) -> SpecialWalls:

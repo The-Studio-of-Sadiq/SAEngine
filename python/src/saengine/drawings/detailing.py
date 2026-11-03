@@ -110,7 +110,8 @@ type named after the first of them, and that label (F1, PC2) is the code when fr
 letters are T top, B bottom, F side face, S stirrups, X cross ties (beams); V vertical, D
 dowels (starter bars), H ties or hoops, P spirals (columns); BX, BY, TX, TY bottom and top
 bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops, G coupling beam
-diagonals, J their hoops and Y crossties (walls), LB, LT, LS
+diagonals, J their hoops and Y crossties, W hoops around each group, U coupling beam
+longitudinal bars, Q wall pier hoops and Z their crossties (walls), LB, LT, LS
 the bottom bars, top hangers and stirrups of the lintels over a wall's openings; M main, N
 distribution, T top, L landing, LN landing distribution (stairs). Identical bars of the same type (same diameter, shape and dimensions)
 share a mark across members. Marks are deterministic, and ``previous`` (the ``marks`` of an
@@ -2924,8 +2925,59 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
                 )  # fmt: skip
         if getattr(r, "diagonal", None) is not None:
             _detail_coupling_beams(ctx, wall, element, r, th, fy, fc, grade)
+        if getattr(r, "pierHoop", None) is not None:
+            _detail_pier_hoops(ctx, wall, element, r, th, grade)
         _ = step
     return out
+
+
+def _detail_pier_hoops(
+    ctx: _Ctx, wall: Any, element: dict[str, Any], r: Any, th: float, grade: str | None
+) -> None:
+    """Q, the hoops of the wall type's wall piers (``reinforcement.pierHoop``, 8.3.6.8) round
+    each wall pier beside the openings (:func:`saengine.boq.quantities.wall_pier_parts`), over
+    its clear height and the pack's ``pierHoopExtension`` above and below; Z, their crossties
+    beyond the two outer legs each way."""
+    from saengine.boq.quantities import wall_pier_parts
+    from saengine.design.walls import special_limit
+
+    hp = r.pierHoop
+    cover = float(r.cover)
+    length = math.dist(wall.start, wall.end)
+    own = [o for o in ctx.building.additions.wallOpenings if o.host == wall.id]
+    parts = wall_pier_parts(length, wall.top - wall.bottom, th, own)
+    if not parts:
+        return
+    hdia = float(hp.dia)
+    hook = seismic_hook(hdia)
+    h135, h90 = seismic_hook(hdia), standard_hook(hdia, 90, transverse=True)
+    extension = special_limit("pierHoopExtension")
+    b = th - 2 * cover
+    for lw, clear in parts:
+        a = lw - 2 * cover
+        n = math.floor((clear + 2 * extension) / float(hp.spacing) + 1e-9) + 1
+        element["bars"].append(
+            _bar(
+                "hoop", "Q", hdia, "stirrup", n, {"A": a, "B": b},
+                stirrup_length(a, b, hdia, hook),
+                {"section": [a, b], "clear": round(clear, 1), "extension": extension},
+                bend=hook.bend_dia, grade=grade, zone="wall pier",
+            )
+        )  # fmt: skip
+        extra = ((max(int(hp.legsAcross) - 2, 0), b), (max(int(hp.legsAlong) - 2, 0), a))
+        for count, width in extra:
+            if count:
+                element["bars"].append(
+                    _bar(
+                        "crosstie", "Z", hdia, "special", n * count, {"A": width},
+                        crosstie_length(width, hdia, h135, h90), {"legs": count},
+                        bend=h135.bend_dia, grade=grade, zone="wall pier",
+                    )
+                )  # fmt: skip
+    element["notes"].append(
+        f"wall piers ({len(parts)}): hoops Ø{hdia:g} @ {float(hp.spacing):g} over the clear "
+        f"height and {extension:g} mm above and below"
+    )
 
 
 def _detail_coupling_beams(
@@ -2940,9 +2992,12 @@ def _detail_coupling_beams(
 ) -> None:
     """The wall type's coupling beam bars (``reinforcement.diagonal``) over each opening with a
     pier on each side and the wall above it (:func:`saengine.boq.quantities.wall_spandrels`):
-    G, the two groups of diagonal bars corner to corner, embedded 1.25 ld into the piers
-    (8.3.6.7(d)(ii)); J, the hoops over the whole section along the clear span, and Y, their
-    crossties beyond the two outer legs each way (8.3.6.7(d)(iv))."""
+    G, the two groups of diagonal bars corner to corner, embedded the pack's
+    ``couplingEmbedment`` ld into the piers (1.25 in the default pack, 8.3.6.7(d)(ii)); J, the
+    hoops over the whole section along the clear span, and Y, their crossties beyond the two
+    outer legs each way (8.3.6.7(d)(iv)), or W, hoops around each group along the diagonal
+    ((d)(iii)); U, the beam's longitudinal bars along each face (``diagonal.longitudinal``),
+    developed ld into the piers."""
     from saengine.boq.quantities import wall_spandrels
 
     d = r.diagonal
@@ -2953,9 +3008,15 @@ def _detail_coupling_beams(
     spandrels = wall_spandrels(length, height, own)
     if not spandrels:
         return
+    from saengine.design import walls as W
+    from saengine.design.wall_design import coupling_diagonal
+
     db = float(d.dia)
     bend = bend_diameter(db).value
-    embed = 1.25 * ctx.ld(db, fy, fc)
+    k = W.special_limit("couplingEmbedment")
+    embed = k * ctx.ld(db, fy, fc)
+    long = getattr(d, "longitudinal", None)
+    group = getattr(d, "groupHoop", None)
     for span, depth in spandrels:
         edge = cover + 10.0 + 2 * 20.0  # the group's centroid off the beam's faces, as designed
         run = math.hypot(span, max(depth - 2 * edge, 0.0)) + 2 * embed
@@ -2963,10 +3024,39 @@ def _detail_coupling_beams(
             _bar(
                 "diagonal", "G", db, "straight", 2 * int(d.count), {"A": run}, run,
                 {"span": round(span, 1), "depth": round(depth, 1), "embedment": round(embed, 1)},
-                bend=bend, grade=grade, remarks="two groups, 1.25 ld into the piers",
+                bend=bend, grade=grade, remarks=f"two groups, {k:g} ld into the piers",
             )
         )  # fmt: skip
+        if long is not None:
+            # U: the beam's longitudinal bars along each face, developed ld into the piers.
+            ldia = float(long.dia)
+            lrun = span + 2 * ctx.ld(ldia, fy, fc)
+            count = int(r.layers) * W.bars_down(depth - 2 * cover, float(long.spacing))
+            element["bars"].append(
+                _bar(
+                    "longitudinal", "U", ldia, "straight", count, {"A": lrun}, lrun,
+                    {"span": round(span, 1), "spacing": float(long.spacing)},
+                    bend=bend_diameter(ldia).value, grade=grade, zone="coupling beam",
+                    remarks="each face, ld into the piers",
+                )
+            )  # fmt: skip
         hp = getattr(d, "hoop", None)
+        if hp is None and group is not None:
+            # W: hoops around each of the two groups along the diagonal (8.3.6.7(d)(iii)).
+            found = coupling_diagonal(d)
+            assert found is not None and found.group_hoop is not None
+            gw, gd = W.group_hoop_size(found.group_hoop, found, th, cover, W.wall_bars(r))
+            gdia = float(group.dia)
+            hook = seismic_hook(gdia)
+            along = math.hypot(span, max(depth - 2 * edge, 0.0))
+            n = 2 * (math.floor(along / float(group.spacing) + 1e-9) + 1)
+            element["bars"].append(
+                _bar(
+                    "hoop", "W", gdia, "stirrup", n, {"A": gd, "B": gw},
+                    stirrup_length(gd, gw, gdia, hook), {"section": [gd, gw], "groups": 2},
+                    bend=hook.bend_dia, grade=grade, zone="coupling beam",
+                )
+            )  # fmt: skip
         if hp is None:
             continue
         hdia = float(hp.dia)
@@ -2993,7 +3083,13 @@ def _detail_coupling_beams(
                 )  # fmt: skip
     element["notes"].append(
         f"coupling beams over {len(spandrels)} opening(s): {d.count} Ø{db:g} diagonal bars per "
-        "group and hoops over the whole section"
+        "group and "
+        + (
+            "hoops around each group"
+            if getattr(d, "hoop", None) is None and group is not None
+            else "hoops over the whole section"
+        )
+        + (", longitudinal bars along each face" if long is not None else "")
     )
 
 
@@ -3462,7 +3558,7 @@ _PREFIX = {
     "pileCap": "PC",
 }
 _ROLE_ORDER = ["T", "B", "F", "S", "X", "V", "D", "H", "P", "BX", "BY", "TX", "TY", "E", "K",
-               "G", "J", "Y",
+               "G", "J", "Y", "U", "W", "Q", "Z",
                "M", "N", "L", "LN", "LB", "LT", "LS"]  # fmt: skip
 
 

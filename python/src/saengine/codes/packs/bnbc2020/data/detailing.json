@@ -51,7 +51,18 @@
     "hxMax": 350.0,
     "couplingHoopSpacingMax": 150.0,
     "couplingHoopDb": 6.0,
-    "couplingLegSpacingMax": 200.0
+    "couplingLegSpacingMax": 200.0,
+    "couplingEmbedment": 1.25,
+    "couplingGroupWidthShare": 0.5,
+    "couplingGroupDepthShare": 0.2,
+    "couplingGroupLegSpacingMax": 350.0,
+    "couplingPerimeterRatio": 0.002,
+    "couplingPerimeterSpacingMax": 300.0,
+    "pierLengthRatioMax": 6.0,
+    "pierHeightRatioMin": 2.0,
+    "pierAlternativeRatio": 2.5,
+    "pierHoopSpacingMax": 150.0,
+    "pierHoopExtension": 300.0
   },
   "lintels": {
     "minBearing": 100.0,
@@ -133,7 +144,7 @@
     "tendonSpacing": "BNBC 2020 Part 6 Sec 9.5.3.2 (a)-(c) (p. 1142): bonded tendons at most 2/3, a bar and a tendon at most 5/6 of the Eq 6.9.1 spacing; Δfps in place of fs, at most 250 MPa; up to 140 MPa (a) and (b) do not apply",
     "special": "BNBC 2020 Part 6 Sec 8.3.4, 8.3.5 (pp. 1090-1100), 8.1.9.4(c)",
     "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
-    "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105)",
+    "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105), 8.3.6.7(d) (pp. 1108-1109), 8.3.6.8 (pp. 1109-1110); the code does not define a wall pier's proportions: pierLengthRatioMax and pierHeightRatioMin are ACI 318-19 2.3's",
     "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)",
     "spacing": "BNBC 2020 Part 6 Sec 8.1.6.1 (layer: db and 25 mm), 8.1.6.2 (between layers: 25 mm), 8.1.6.3 (columns: 1.5 db and 40 mm), p. 1068",
     "bars": "BNBC 2020 Part 6 Sec 8.1.2 (hooks and bends, Table 6.8.1, pp. 1065-1066), 8.1.9.3 (spiral laps, p. 1073), 8.2.2-8.2.9 (development and extents, pp. 1076-1081), 8.2.12-8.2.15 (splices, pp. 1083-1085), 8.3.4.2-8.3.4.3, 8.3.5.3, 8.3.6.2 (seismic members, pp. 1091-1101), Figure 6.6.20 (slab bars, p. 948)"

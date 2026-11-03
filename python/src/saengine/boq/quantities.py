@@ -621,6 +621,21 @@ def wall_spandrels(length: float, height: float, openings: list[Any]) -> list[tu
     return out
 
 
+def wall_pier_parts(
+    length: float, height: float, thickness: float, openings: list[Any]
+) -> list[tuple[float, float]]:
+    """(lw, clear height) [mm] of the wall piers of a wall ``length`` by ``height`` and
+    ``thickness`` beside its openings (:func:`saengine.design.walls.pier_segments`, the pack's
+    proportions of :func:`saengine.design.walls.pier_kind`): where a wall type's pier hoops go."""
+    from saengine.design import walls as W
+
+    return [
+        (s["lw"], s["clear"])
+        for s in W.pier_segments(length, height, openings)
+        if s["bounded"] and W.pier_kind(s["lw"], thickness, s["clear"]) != "wall"
+    ]
+
+
 def _rectangle(start: list[float], end: list[float], width: float) -> Polygon:
     """The plan of a straight member of ``width`` from ``start`` to ``end``."""
     return LineString([start, end]).buffer(width / 2, cap_style="flat")
@@ -965,12 +980,14 @@ class _Measure:
         story: str | None,
         piers: int = 1,
         spandrels: list[tuple[float, float]] | None = None,
+        wall_piers_hoops: list[tuple[float, float]] | None = None,
     ) -> None:
         """``runs``: the length of the vertical and of the horizontal bars [mm]; ``piers``: the
         piers the openings split the wall into (end bars at both ends of each, as the design
         lays them out, saengine.design.walls.pier_section); ``spandrels``: (clear span, depth)
         of the coupling beams over its openings (:func:`wall_spandrels`), for the type's
-        diagonal bars and their hoops."""
+        diagonal bars, their hoops and longitudinal bars; ``wall_piers_hoops``: (lw, clear
+        height) of its wall piers (:func:`wall_pier_parts`), for the type's pier hoops."""
         reinforcement = object_type.reinforcement
         if reinforcement is None:
             self.no_bars(object_type, element)
@@ -1023,6 +1040,56 @@ class _Measure:
                 self.rebar(
                     element, reinforcement.material, hoop.dia, total, story, "coupling hoops"
                 )
+            group = getattr(diagonal, "groupHoop", None)
+            if group is not None and hoop is None:
+                # 8.3.6.7(d)(iii): hoops around each of the two groups along the diagonal.
+                from saengine.design import walls as W
+                from saengine.design.wall_design import coupling_diagonal
+
+                d = coupling_diagonal(diagonal)
+                web = W.wall_bars(reinforcement)
+                assert d is not None and d.group_hoop is not None
+                width, deep = W.group_hoop_size(
+                    d.group_hoop, d, float(object_type.thickness), cover, web
+                )
+                one = 2 * (width + deep) + 2 * HOOK * group.dia
+                total = sum(
+                    2
+                    * (math.floor(math.hypot(span, max(depth - 2 * cover, 0.0)) / group.spacing)
+                       + 1)
+                    * one
+                    for span, depth in spandrels
+                )  # fmt: skip
+                self.rebar(element, reinforcement.material, group.dia, total, story, "group hoops")
+            long = getattr(diagonal, "longitudinal", None)
+            if long is not None:
+                # The coupling beams' longitudinal bars along each face, developed into the piers
+                # (ld taken as the lap length, LAP db), besides the web's horizontal bars.
+                from saengine.design.walls import bars_down
+
+                total = sum(
+                    reinforcement.layers
+                    * bars_down(depth - 2 * cover, long.spacing)
+                    * (span + 2 * LAP * long.dia)
+                    for span, depth in spandrels
+                )
+                self.rebar(element, reinforcement.material, long.dia, total, story, "coupling bars")
+        pier_hoop = getattr(reinforcement, "pierHoop", None)
+        if pier_hoop is not None and wall_piers_hoops:
+            # The wall piers' hoops (8.3.6.8): over each wall pier's clear height and the
+            # extension above and below it, in addition to the web bars.
+            from saengine.design.walls import special_limit
+
+            cover = float(reinforcement.cover)
+            extension = special_limit("pierHoopExtension")
+            across = float(object_type.thickness) - 2 * cover + 2 * HOOK * pier_hoop.dia
+            total = 0.0
+            for lw, clear in wall_piers_hoops:
+                along = lw - 2 * cover + 2 * HOOK * pier_hoop.dia
+                one = pier_hoop.legsAcross * across + pier_hoop.legsAlong * along
+                count = math.floor((clear + 2 * extension) / pier_hoop.spacing + 1e-9) + 1
+                total += count * one
+            self.rebar(element, reinforcement.material, pier_hoop.dia, total, story, "pier hoops")
 
     def slab(
         self,
@@ -1058,9 +1125,10 @@ class _Measure:
         less: tuple[float, float] = (0.0, 0.0),
         piers: int = 1,
         spandrels: list[tuple[float, float]] | None = None,
+        wall_piers_hoops: list[tuple[float, float]] | None = None,
     ) -> None:
         """A wall of face ``area`` [mm²]; ``less``: its concrete [mm³] and formwork [mm²] within
-        slabs; ``piers``, ``spandrels``: see :meth:`wall_bars`."""
+        slabs; ``piers``, ``spandrels``, ``wall_piers_hoops``: see :meth:`wall_bars`."""
         material = self.material(element, object_type)
         if material is None:
             return
@@ -1071,7 +1139,9 @@ class _Measure:
         self.concrete(element, material, "wall", volume, story)
         if material.category == Category.CONCRETE:
             self.formwork(element, "wall", max(2 * area - less[1], 0.0), story, "both faces")
-            self.wall_bars(element, object_type, area, runs, story, piers, spandrels)
+            self.wall_bars(
+                element, object_type, area, runs, story, piers, spandrels, wall_piers_hoops
+            )
 
     # ── the building model ──
 
@@ -1138,7 +1208,10 @@ class _Measure:
                         own = wall_openings.get(e.id, [])
                         piers = wall_piers(length, height, own)
                         spandrels = wall_spandrels(length, height, own)
-                        self.wall(e.id, t, area, (height, length), story, less, piers, spandrels)
+                        hooped = wall_pier_parts(length, height, float(t.thickness), own)
+                        self.wall(
+                            e.id, t, area, (height, length), story, less, piers, spandrels, hooped
+                        )
                 case FootingElement() if self.substructure is not None:
                     self.drawn_footings.append(e.id)  # 9 Substructure has the foundations
                 case FootingElement():

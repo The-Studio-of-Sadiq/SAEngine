@@ -372,6 +372,24 @@ class WallBoundary(_Model):
     hoop: BoundaryHoops | None = Field(default=None, title="Hoops")
 
 
+class CouplingGroupHoops(_Model):
+    """Hoops around one group of a coupling beam's diagonal bars (the default pack's Part 6 Sec
+    8.3.6.7(d)(iii)): two legs each way, crossties added where the leg spacing needs them."""
+
+    dia: Length = 10
+    spacing: Length = Field(default=100, description="Spacing along the diagonal bars [mm].")
+    width: Length | None = Field(
+        default=None,
+        description="Out-to-out parallel to the wall's thickness [mm]; none: the room inside "
+        "the wall's curtains.",
+    )
+    depth: Length | None = Field(
+        default=None,
+        description="Out-to-out along the other sides [mm]; none: from the group's bars in two "
+        "layers.",
+    )
+
+
 class CouplingDiagonal(_Model):
     """One of the two groups of diagonal bars of the coupling beams (spandrels over openings) of
     a special structural wall (the default pack's Part 6 Sec 8.3.6.7)."""
@@ -392,6 +410,20 @@ class CouplingDiagonal(_Model):
         "down the beam's depth, legs along (vertical) counted across the thickness; none: not "
         "entered.",
     )
+    groupHoop: CouplingGroupHoops | None = Field(
+        default=None,
+        title="Hoops around each group",
+        description="Hoops around each group of diagonal bars (the default pack's Part 6 Sec "
+        "8.3.6.7(d)(iii)), the alternative to hoops over the whole section; checked when no "
+        "hoops over the section are entered. None: not entered.",
+    )
+    longitudinal: BarMesh | None = Field(
+        default=None,
+        title="Longitudinal bars",
+        description="Longitudinal bars along each face of the coupling beams, at this spacing "
+        "down the depth (the bars the hoop legs engage, 8.3.6.7(d)(iv), or the perimeter bars "
+        "of (d)(iii)), developed into the piers; none: the wall's horizontal web bars.",
+    )
 
 
 class WallReinforcement(_Model):
@@ -410,6 +442,15 @@ class WallReinforcement(_Model):
         default=None,
         title="Coupling beam diagonals",
         description="Diagonal bars of the spandrels between piers (special walls).",
+    )
+    pierHoop: BoundaryHoops | None = Field(
+        default=None,
+        title="Wall pier hoops",
+        description="Hoops and crossties of the wall piers (narrow piers beside openings of "
+        "special walls, the default pack's Part 6 Sec 8.3.6.8), the same in every wall pier of "
+        "the type, over its clear height and beyond it above and below, in addition to the web "
+        "bars: legs across counted along the pier's length, legs along counted across the "
+        "thickness; none: not entered.",
     )
 
 
