@@ -153,6 +153,13 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
 
+## 2026-11-03
+
+- **Partitions count in full in the seismic weight W** (Sec 2.5.7.3). See item 1 above.
+- **The Sample Frame's wall W1 is 250 mm** (type W250, was W200). Every structural wall in
+  Seismic Design Category D is a special wall, and at 200 mm W1 was too thin for its boundary
+  elements and its spandrels (8.3.4.1(c), (d)).
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of

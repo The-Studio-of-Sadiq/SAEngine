@@ -705,9 +705,10 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     assert {r["kind"] for r in rows} >= {"beam", "column", "slab", "isolated"}
     short = {r["element"] for r in rows if r["ok"] is False}
     failed = {e["id"] for e in before["elements"] if not e["ok"]}
-    # Every failing element shows a shortfall; R3-2: the sample's 200 mm wall W1 is a special
-    # structural wall in Category D (8.3.2(b)) and too thin for its boundary elements and its
-    # spandrels as special beams (8.3.4.1(c), (d)): a section, not bars (owner: the sample).
+    # Every failing element shows a shortfall; R3-2: the sample's wall W1 is a special structural
+    # wall in Category D (8.3.2(b)). At 250 mm (sample W1 250 mm, owner 2026-11-03) it still
+    # fails: its wall type defines no boundary elements (8.3.6.6(d)) and its spandrels fail the
+    # capacity-design shear and 8.3.4.1(c) (350 mm does not pass either): a layout, not bars.
     assert failed - {"W1"} <= short
     # No section is too small for bars; the footing F1 fails a plan-size check (bearing or the
     # resultant within its base: a larger footing, not bars, is the remedy).
@@ -719,10 +720,10 @@ def test_sample_byType_proposal_makes_the_design_pass(tmp_path: Path) -> None:
     by_type = {t["type"]: t for t in proposal["types"]}
     # The steel brace BR-SHS (A572-50) gets a lighter SHS of its family; it is left out here so
     # the bars are checked on the analysed sections (a new section would need a new analysis).
-    assert set(by_type) == {"B300x500", "C400x600", "S150", "W200", "ST1200", "BR-SHS"}
-    # None too small but W200 (R3-2: a special wall in Category D, too thin, see above).
-    assert all(t["status"] in ("ok", "unchanged") for k, t in by_type.items() if k != "W200")
-    assert by_type["W200"]["status"] == "tooSmall"
+    assert set(by_type) == {"B300x500", "C400x600", "S150", "W250", "ST1200", "BR-SHS"}
+    # None too small but W250 (R3-2: a special wall in Category D, see above).
+    assert all(t["status"] in ("ok", "unchanged") for k, t in by_type.items() if k != "W250")
+    assert by_type["W250"]["status"] == "tooSmall"
     assert by_type["B300x500"]["governingMember"] in {"B2", "B4", "B5"}
     assert by_type["BR-SHS"]["family"] == "SHS" and by_type["BR-SHS"]["governingMember"] == "M2"
     by_type["BR-SHS"]["apply"] = False

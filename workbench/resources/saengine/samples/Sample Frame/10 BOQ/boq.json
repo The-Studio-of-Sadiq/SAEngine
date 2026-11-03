@@ -1,8 +1,8 @@
 {
 	"schema": "saengine.boq/1",
 	"source": {
-		"bim": "ec2a330ee86f3998504ea38c68157368e5976647",
-		"objects": "f91d0e24f431a1860d388e85f0c0988edb0f8fb2",
+		"bim": "af64f8a5df269232df3fa1e4a58aebab9a8c09f8",
+		"objects": "d7749c2f422fb559359dc4da3570e5c64313cb66",
 		"materials": "885c6bd9931f67a9ad64a7012d7924ac01e28489",
 		"materialIds": [
 			"A572-50",
@@ -176,19 +176,19 @@
 			"code": "C.04",
 			"group": "concrete",
 			"description": "Concrete C24.1 in walls",
-			"quantity": 2.307,
+			"quantity": 2.884,
 			"unit": "m3",
 			"material": "C24.1",
 			"kind": "wall",
 			"byStory": {
-				"L1": 2.307
+				"L1": 2.884
 			},
 			"breakdown": [
 				{
 					"element": "W1",
 					"story": "L1",
-					"detail": "type W200",
-					"quantity": 2.307
+					"detail": "type W250",
+					"quantity": 2.884
 				}
 			]
 		},
@@ -324,12 +324,12 @@
 			"code": "R.01",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 10 mm bars",
-			"quantity": 1448.127,
+			"quantity": 1446.599,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 10.0,
 			"byStory": {
-				"L1": 1370.756,
+				"L1": 1369.228,
 				"L2": 25.123
 			},
 			"breakdown": [
@@ -390,7 +390,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "bar mark W1-H1 (bar bending schedule)",
-					"quantity": 102.716
+					"quantity": 103.21
 				},
 				{
 					"element": "B1",
@@ -450,19 +450,19 @@
 					"element": "S2",
 					"story": "L1",
 					"detail": "bar mark S1-BX1 (bar bending schedule)",
-					"quantity": 140.247
+					"quantity": 140.741
 				},
 				{
 					"element": "S2",
 					"story": "L1",
 					"detail": "bar mark S1-TX2 (bar bending schedule)",
-					"quantity": 34.815
+					"quantity": 35.556
 				},
 				{
 					"element": "S2",
 					"story": "L1",
 					"detail": "bar mark S1-BY1 (bar bending schedule)",
-					"quantity": 149.784
+					"quantity": 146.528
 				},
 				{
 					"element": "S2",
@@ -946,11 +946,11 @@
 			"code": "F.05",
 			"group": "formwork",
 			"description": "Formwork to slabs",
-			"quantity": 50.977,
+			"quantity": 50.867,
 			"unit": "m2",
 			"kind": "slab",
 			"byStory": {
-				"L1": 50.977
+				"L1": 50.867
 			},
 			"breakdown": [
 				{
@@ -969,7 +969,7 @@
 					"element": "S2",
 					"story": "L1",
 					"detail": "soffit",
-					"quantity": 31.68
+					"quantity": 31.57
 				}
 			]
 		},
@@ -1355,11 +1355,11 @@
 			"code": "MT.01",
 			"group": "materials",
 			"description": "Cement (OPC)",
-			"quantity": 17759.765,
+			"quantity": 17992.31,
 			"unit": "kg",
 			"kind": "cement",
 			"byStory": {
-				"L1": 9015.83,
+				"L1": 9248.376,
 				"L2": 309.658,
 				"BASE": 1599.23
 			},
@@ -1445,7 +1445,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in walls",
-					"quantity": 930.182
+					"quantity": 1162.728
 				},
 				{
 					"element": "S1",
@@ -1499,11 +1499,11 @@
 			"code": "MT.02",
 			"group": "materials",
 			"description": "Cement (OPC) in 50 kg bags",
-			"quantity": 355.195,
+			"quantity": 359.846,
 			"unit": "bag",
 			"kind": "bags",
 			"byStory": {
-				"L1": 180.317,
+				"L1": 184.968,
 				"L2": 6.193,
 				"BASE": 31.985
 			},
@@ -1589,7 +1589,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in walls",
-					"quantity": 18.604
+					"quantity": 23.255
 				},
 				{
 					"element": "S1",
@@ -1643,11 +1643,11 @@
 			"code": "MT.03",
 			"group": "materials",
 			"description": "Sand (fine aggregate)",
-			"quantity": 655.484,
+			"quantity": 664.038,
 			"unit": "cft",
 			"kind": "sand",
 			"byStory": {
-				"L1": 331.658,
+				"L1": 340.212,
 				"L2": 11.391,
 				"BASE": 61.0
 			},
@@ -1733,7 +1733,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in walls",
-					"quantity": 34.218
+					"quantity": 42.772
 				},
 				{
 					"element": "S1",
@@ -1787,11 +1787,11 @@
 			"code": "MT.04",
 			"group": "materials",
 			"description": "Stone chips (coarse aggregate)",
-			"quantity": 1310.968,
+			"quantity": 1328.076,
 			"unit": "cft",
 			"kind": "stone",
 			"byStory": {
-				"L1": 663.315,
+				"L1": 680.424,
 				"L2": 22.782,
 				"BASE": 122.0
 			},
@@ -1877,7 +1877,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in walls",
-					"quantity": 68.436
+					"quantity": 85.545
 				},
 				{
 					"element": "S1",
@@ -1931,11 +1931,11 @@
 			"code": "MT.05",
 			"group": "materials",
 			"description": "Water",
-			"quantity": 8932.018,
+			"quantity": 9036.664,
 			"unit": "l",
 			"kind": "water",
 			"byStory": {
-				"L1": 4057.124,
+				"L1": 4161.769,
 				"L2": 139.346,
 				"BASE": 733.224
 			},
@@ -2021,7 +2021,7 @@
 					"element": "W1",
 					"story": "L1",
 					"detail": "Concrete C24.1 in walls",
-					"quantity": 418.582
+					"quantity": 523.228
 				},
 				{
 					"element": "S1",
