@@ -742,6 +742,13 @@ class SeismicTable(TableModel):
     heavyLiveShare: float | None = Field(
         default=None, ge=0, le=1, description="Share of a heavy live load in the seismic weight."
     )
+    partitionWeight: Literal["full", "withLiveShare"] | None = Field(
+        default=None,
+        description="How the area loads' partition allowance counts in the seismic weight: "
+        "full (100 %, like the dead load; the live share and its threshold use the floor live "
+        "load without it) or withLiveShare (as live load, the threshold judged on the live "
+        "load with it). Empty: the generic default (full).",
+    )
     periodUpperFactor: float | None = Field(
         default=None,
         gt=1,

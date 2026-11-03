@@ -376,6 +376,8 @@ def _spectrum_terms(name: str, case: dict[str, Any], report: ImportReport) -> di
 #: Names of "Other" patterns that hold fluid loads (SAEngine's F case): F, F1, FL, Fluid, Water,
 #: Liquid, Tank, ... The other "Other" patterns (ETABS's template patterns A, B, C, ...) say
 #: nothing SAEngine can place.
+#: A load pattern of partitions by its name ("PART", SAEngine's export; "Partition", "PW").
+_PARTITION_NAME = re.compile(r"^PART|PARTITION|^PW$", re.IGNORECASE)
 _FLUID = re.compile(r"^(?:F|FL)(?:\d*|[\s_.-].*)$|^(?:FLUID|WATER|LIQUID|TANK)", re.IGNORECASE)
 
 
@@ -1075,7 +1077,11 @@ class _Importer:
     def _seismic_and_mass(self) -> None:
         """Reports the auto seismic definitions and how the mass source differs from SAEngine's
         seismic weight (dead and superimposed dead loads and a share of the live load)."""
-        from saengine.library.code_data import SEISMIC_LIVE_SHARE
+        from saengine.library.settings import seismic_weight_rule
+
+        # SAEngine's shares in W under the pack in force: an imported live load counts with the
+        # light-load live share (it is not the area loads' partition allowance).
+        live_share = seismic_weight_rule().live()
 
         for name, d in self.e.seismic.items():
             detail = f"{name}: {d.get('TYPE', '')}"
@@ -1102,22 +1108,34 @@ class _Importer:
             differences.append("without the members' own mass")
         if yes("INCLUDELOADS"):
             factors: dict[str, float] = defaultdict(float)
+            partitions: list[str] = []
             for pattern, factor in source.get("LOADS", []):
                 case = self.pattern_cases.get(pattern) or pattern
+                if case == "L" and _PARTITION_NAME.search(pattern) and factor > live_share:
+                    # A live partition pattern with its own (larger) mass share, as SAEngine
+                    # exports the partition allowance counted in full: imported as L it counts
+                    # with the live share.
+                    partitions.append(f"{pattern} × {factor:g}")
+                    continue
                 factors[case] = max(factors[case], factor)
             for case, factor in sorted(factors.items()):
                 # SAEngine's W takes the dead loads and the equipment's contents (F, retained
                 # liquid: saengine.mep.loads) in full and the code pack's share of L.
-                expected = 1.0 if case in ("D", "F") else SEISMIC_LIVE_SHARE if case == "L" else 0.0
+                expected = 1.0 if case in ("D", "F") else live_share if case == "L" else 0.0
                 if abs(factor - expected) > 1e-6:
                     differences.append(f"{case} × {factor:g} (SAEngine {expected:g})")
+            if partitions:
+                differences.append(
+                    f"partition pattern {', '.join(partitions)} (imported as live load L, "
+                    f"which counts × {live_share:g} in SAEngine's W: enter a partition allowance "
+                    "as the area load's partitions, which count as the code pack says)"
+                )
         # SAEngine lumps the mass at the story levels by default (analysis.massLumping, 0.0.44).
         if "LUMPATSTORIES" in source and not yes("LUMPATSTORIES"):
             differences.append("kept at the nodes (SAEngine lumps it at the story levels)")
         if differences:
             self.report.approximate(
-                f"mass source differs from SAEngine's seismic weight (D + SD + "
-                f"{SEISMIC_LIVE_SHARE:g} L)",
+                f"mass source differs from SAEngine's seismic weight (D + SD + {live_share:g} L)",
                 f"{name}: {'; '.join(differences)}",
             )
 

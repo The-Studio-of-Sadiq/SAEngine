@@ -346,12 +346,18 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 note(
                     "The partition allowance (light partitions not on the plans) is taken as "
                     + (
-                        "a live load in the floor live load case L: factored, reduced and in "
-                        "the seismic weight as the live load"
+                        "a live load in the floor live load case L: factored and reduced as "
+                        "the live load"
                         if basis["partitionCase"] == "L"
                         else "superimposed dead load SD"
                     )
-                    + f" ({basis.get('partitionCaseFrom', '')}).",
+                    + f" ({basis.get('partitionCaseFrom', '')})"
+                    + (
+                        f". In the seismic weight W: {basis['partitionWeight']} "
+                        f"({basis.get('partitionWeightFrom', '')})."
+                        if basis.get("partitionWeight")
+                        else "."
+                    ),
                 )
             )
     out.append(h(2, "Load cases"))

@@ -804,6 +804,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             code_pack,
             derived,
             partition_case_basis,
+            partition_weight_basis,
         )
 
         try:
@@ -869,6 +870,9 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         # The partition allowance's load case and where it comes from (the project's setting,
         # the code pack's, or the generic default).
         basis["partitionCase"], basis["partitionCaseFrom"] = partition_case_basis(settings, pack)
+        # How the allowance counts in the seismic weight W (seismic_weight_rule), and why.
+        in_w = partition_weight_basis(settings, pack)
+        basis["partitionWeight"], basis["partitionWeightFrom"] = in_w.words(), in_w.source
         cases = ["D", "L", "Lr", "WX", "WY", "EX", "EY", "T"]
         used = [c for c in cases if any(getattr(k, c) for k in settings.combinations)]
         if any(a.get("name", "").startswith("F:") for a in model.get("analyses", [])):

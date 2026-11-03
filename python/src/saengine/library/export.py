@@ -83,6 +83,8 @@ export interface IDefaultCodeTables {
 	readonly siteClasses: { readonly [id: string]: string };
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
+	/** Sec 2.5.7.3: how the partition allowance counts in the seismic weight W (`full` or `withLiveShare`) and the clause. */
+	readonly seismicWeight: { readonly partitions: string; readonly source: string };
 }
 """
 
@@ -162,6 +164,8 @@ def reduced_live() -> dict[str, Any]:
 
 def default_code_tables() -> dict[str, Any]:
     """The default code pack's tables the settings editor shows derived values from."""
+    from saengine.codes import context as code_context
+
     seismic = builtin_table("seismic", code_data.PACK_ID)
     wind = builtin_table("wind", code_data.PACK_ID)
     return {
@@ -203,6 +207,10 @@ def default_code_tables() -> dict[str, Any]:
         "siteClasses": code_data.SITE_CLASSES,
         "exposures": code_data.EXPOSURES,
         "loadCases": code_data.LOAD_CASES,
+        "seismicWeight": {
+            "partitions": seismic.partitionWeight or "full",
+            "source": code_context.source_ref("seismic", "partitionWeight"),
+        },
     }
 
 

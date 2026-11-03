@@ -68,9 +68,20 @@ from saengine.library.settings import (
     ProjectSettings,
     default_project_settings,
     partition_case,
+    seismic_weight_rule,
 )
 from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure
 from saengine.library.templates import TEMPLATES
+
+
+def _live_in_w(settings: Any) -> str:
+    """The floor live load's share in W and how the partition allowance counts, in words (as
+    the analysis model counts them, :func:`saengine.library.settings.seismic_weight_rule`)."""
+    rule = seismic_weight_rule(settings)
+    floor = next((a for a in settings.areaLoads if a.id == settings.floorLoad), None)
+    live = rule.live(floor.live if floor is not None else None)
+    return f"{live:.0%} of the floor live load, {rule.partitions.words()}"
+
 
 # ─────────────────────────────────────────── the spec ───────────────────────────────────────────
 
@@ -769,8 +780,8 @@ def lateral_column_sizes(
         out.baseShear["E"] = round(v, 1)
         out.notes.append(
             f"Earthquake: T = {period:.2f} s, Sa = {sa:.4f} g, W = {sum(weights):.0f} kN (dead "
-            f"and superimposed dead of the levels, {code_context.table('seismic').liveShare:.0%} of the floor "
-            "live load and the beams at full depth, as the analysis model counts it), "
+            f"and superimposed dead of the levels, {_live_in_w(settings)} and the beams at full depth"
+            ", as the analysis model counts it), "
             f"V = {v:.0f} kN each way (the "
             "analysis model's static method)."
         )
@@ -1353,6 +1364,11 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     # the roof that allowance is floor live load L too, not roof live load.
     q_floor_live = floor_load.floor_live(part_case)
     q_roof_partitions = roof_load.floor_live(part_case) - roof_load.live
+    # The floor live load and partition allowance [kN/m²] in the seismic weight W beyond the
+    # superimposed dead load counted in the levels' dead load (settings.seismic_weight_rule).
+    q_floor_weight = seismic_weight_rule(final).weight(floor_load.live, floor_load.partitions) - (
+        floor_load.partitions if part_case == "SD" else 0.0
+    )
     notes.append(
         f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
         f"{final.site.siteClass}"
@@ -1542,7 +1558,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         live: dict[tuple[int, int, int], float] = {}
         roof: dict[tuple[int, int, int], float] = {}
         level_dead = [0.0] * (n + 1)
-        level_live = [0.0] * (n + 1)
+        level_area = [0.0] * (n + 1)  # floor area [m²] of each level below the roof
         level_overlap = [0.0] * (n + 1)
         for i in range(nx):
             for j in range(ny):
@@ -1579,19 +1595,17 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
                     dead[(i, j, k)], live[(i, j, k)], roof[(i, j, k)] = pd, pl, pr
                     level_dead[k] += pd - before
                     if k < n:
-                        level_live[k] += (
-                            sum(
-                                (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
-                                for a, b in adjacent_panels(i, j)
-                            )
-                            * q_floor_live
+                        level_area[k] += sum(
+                            (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b]) / 4 / 1e6
+                            for a, b in adjacent_panels(i, j)
                         )
         # The seismic weight of each level as the analysis model counts it (fem.derive): the
-        # dead load, the code's share of the floor live load (no roof live) and the beams at
-        # their full depth (the analysis model's frame members overlap the slab).
+        # dead load, the shares of the floor live load and partition allowance in W
+        # (settings.seismic_weight_rule; no roof live) and the beams at their full depth (the
+        # analysis model's frame members overlap the slab).
         seismic = [
-            d + code_context.table("seismic").liveShare * lv + o
-            for d, lv, o in zip(level_dead, level_live, level_overlap, strict=True)
+            d + area * q_floor_weight + o
+            for d, area, o in zip(level_dead, level_area, level_overlap, strict=True)
         ]
         return out, {"dead": dead, "live": live, "roof": roof, "levels": level_dead,
                      "seismicLevels": seismic}  # fmt: skip
@@ -2512,8 +2526,7 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
             "by the portal method. Storey forces of the analysis model's own static methods "
             "(fem.loads: the equivalent static earthquake force with W the dead and "
             "superimposed dead load of the levels plus "
-            f"{code_context.table('seismic').liveShare:.0%} of the floor live load and the "
-            "beams at full depth, "
+            f"{_live_in_w(final)} and the beams at full depth, "
             "as the analysis model counts it, and the wind forces); the "
             "storey shear "
             f"{'shared' if frame_share == 1 else f'x {frame_share:g} (dual system) shared'} "

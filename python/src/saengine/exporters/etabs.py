@@ -68,7 +68,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
-from saengine.library.settings import ProjectSettings, partition_case
+from saengine.library.settings import ProjectSettings, seismic_weight_rule
 
 G = 9.80665  # m/s²
 
@@ -86,6 +86,11 @@ Lateral = Literal["loads", "coefficient"]
 #: SAEngine's cracked-section factors (BNBC 2020 Part 6 Sec 6.3.10.4.1, as
 #: :mod:`saengine.fem.second_order` applies them).
 _CRACKED = {"column": 0.70, "beam": 0.35, "slab": 0.25, "wall": 0.70, "wallCracked": 0.35}
+
+#: The load pattern of the partition allowance when it counts in the seismic weight apart from
+#: its load case (in full while a live load, the default pack's Sec 2.5.7.3, or a project's
+#: factor): the mass source can then give it its own share. Combined as its case (L or SD).
+PARTITION_PATTERN = "PART"
 
 #: Load patterns: name, ETABS type, self-weight multiplier.
 _PATTERNS = (
@@ -349,7 +354,7 @@ def write_e2k(
     lateral: Lateral = "loads",
     derivation: dict[str, Any] | None = None,
     summary: dict[str, Any] | None = None,
-    live_share: float = 0.25,
+    live_share: float | None = None,
     library_shapes: bool = True,
     grids: list[tuple[str, str, float]] | None = None,
     equipment: list[Equipment] | None = None,
@@ -362,7 +367,9 @@ def write_e2k(
     :func:`saengine.fem.derive.derive_fem`): its wind and earthquake story forces are written as
     point loads; ``summary`` its summary (period and base shear coefficient, for
     ``lateral="coefficient"``). Without them the lateral patterns have no loads (reported).
-    ``live_share`` is the code's share of the live load in the seismic weight; ``grids`` the
+    ``live_share`` replaces the share of L in the mass source (default: SAEngine's, from
+    :func:`saengine.library.settings.seismic_weight_rule` under the pack in force, with a
+    pattern ``PART`` for the partition allowance when it counts in W apart from L); ``grids`` the
     grid lines (axis "X" or "Y", label, position [mm]), from the floor plan; ``equipment`` the
     loads of 07 MEP's equipment (:func:`equipment_of`); ``member_loads`` the line and point
     loads on members (``05 Floor Plan/loads.json``, :class:`saengine.library.line_loads.
@@ -410,7 +417,7 @@ class _Writer:
         lateral: Lateral,
         derivation: dict[str, Any] | None,
         summary: dict[str, Any],
-        live_share: float,
+        live_share: float | None,
         library_shapes: bool,
     ) -> None:
         self.b, self.settings, self.u, self.report = building, settings, units, report
@@ -420,7 +427,14 @@ class _Writer:
         self.lateral = lateral
         self.derivation = derivation
         self.summary = summary
-        self.live_share = live_share
+        # The seismic weight's shares (saengine.library.settings.seismic_weight_rule): the mass
+        # source gives SAEngine's W. L takes the floor load's live share (judged as SAEngine
+        # judges it); a partition allowance counted in W apart from its case is a pattern of
+        # its own (PART) with its own share.
+        self.weight_rule = seismic_weight_rule(settings)
+        self.part_case = self.weight_rule.partitions.case
+        self.part_apart = self.weight_rule.partitions.separate
+        self.live_share = live_share if live_share is not None else self._live_mass_share()
         self.library_shapes = library_shapes
         self.analysis = settings.analysis
         self.cracked = self.analysis.stiffness == "aci"
@@ -434,6 +448,9 @@ class _Writer:
         self.equipment: list[Equipment] = []
         self.member_loads: Any = None
         self.patterns = list(_PATTERNS)
+        if self.part_apart and any(a.partitions for a in settings.areaLoads):
+            kind = "Live" if self.part_case == "L" else "Super Dead"
+            self.patterns.append((PARTITION_PATTERN, kind, 0))
         self.used_materials: set[str] = set()
         self.frame_sections: dict[str, list[str]] = {}  # type id -> lines
         self.concrete_sections: list[str] = []
@@ -1251,10 +1268,7 @@ class _Writer:
         if e.areaLoad:
             load = next((a for a in self.settings.areaLoads if a.id == e.areaLoad), None)
             if load is not None:
-                area = _area3(e.outline)
-                case = partition_case(self.settings)
-                self._pressure(made, "SD", load.superimposed(case), area)
-                self._pressure(made, "L", load.floor_live(case), area)
+                self._area_pressures(made, load, _area3(e.outline), roof=False)
 
     # ── loads ──
 
@@ -1315,14 +1329,17 @@ class _Writer:
         if any(item.loads.get("F") for item in self.equipment):
             self.patterns.append(("F", "Other", 0))
 
-    def _pressure(self, area: tuple[str, str], case: str, kpa: float, m2: float) -> None:
+    def _pressure(
+        self, area: tuple[str, str], case: str, kpa: float, m2: float, carried: str | None = None
+    ) -> None:
+        """An area load of ``case`` (a pattern); ``carried``: the SAEngine case it counts as."""
         if not kpa:
             return
         self.area_loads.append(
             f'  AREALOAD  {_q(area[0])}  {_q(area[1])}  TYPE "UNIFF"  DIR "GRAV"  '
             f"LC {_q(case)}  FVAL {_n(self.u.pressure(kpa))}"
         )
-        self.report.carried[case] += kpa * m2
+        self.report.carried[carried or case] += kpa * m2
 
     def _slab_loads(
         self, slab: str, area: tuple[str, str], own: str | None, roof: bool, m2: float
@@ -1333,14 +1350,43 @@ class _Writer:
         if load is None:
             self.report.skip("slabs whose area load is not in the settings", f"{slab} ({load_id})")
             return
-        case = partition_case(self.settings)
-        self._pressure(area, "SD", load.superimposed(case), m2)
-        if roof:
-            # A partition allowance that is a live load is floor live load L, not Lr.
-            self._pressure(area, "Lr", load.live, m2)
-            self._pressure(area, "L", load.floor_live(case) - load.live, m2)
-        else:
-            self._pressure(area, "L", load.floor_live(case), m2)
+        self._area_pressures(area, load, m2, roof)
+
+    def _area_pressures(self, area: tuple[str, str], load: Any, m2: float, roof: bool) -> None:
+        """An area load's finish (SD), live load (L, Lr on the roof) and partition allowance:
+        in its load case (L, also on the roof, or SD; one line per pattern, ETABS replaces a
+        pattern's load given twice), or in the pattern PART when it counts in the seismic
+        weight apart from that case."""
+        case = self.part_case
+        apart = self.part_apart
+        sd = load.finish + (load.partitions if case == "SD" and not apart else 0.0)
+        live = load.live + (load.partitions if case == "L" and not apart and not roof else 0.0)
+        self._pressure(area, "SD", sd, m2)
+        self._pressure(area, "Lr" if roof else "L", live, m2)
+        if apart:
+            self._pressure(area, PARTITION_PATTERN, load.partitions, m2, carried=case)
+        elif roof and case == "L":
+            self._pressure(area, "L", load.partitions, m2)
+
+    def _live_mass_share(self) -> float:
+        """The share of L in the mass source: the floor load's, as SAEngine judges it
+        (:meth:`saengine.library.settings.SeismicWeightRule.area`); reported when the floors'
+        area loads take different shares (ETABS takes one per pattern)."""
+        loads = [a for a in self.settings.areaLoads if a.id != self.settings.roofLoad]
+        floor = next((a for a in loads if a.id == self.settings.floorLoad), None)
+        shares = {round(self.weight_rule.area(a.live, a.partitions)[0], 6) for a in loads}
+        share = (
+            self.weight_rule.area(floor.live, floor.partitions)[0]
+            if floor is not None
+            else self.weight_rule.live()
+        )
+        if len(shares) > 1:
+            self.report.approximate(
+                "mass source: one share of L for every floor (SAEngine takes each area load's "
+                "own share in the seismic weight)",
+                ", ".join(f"{s:g}" for s in sorted(shares)) + f"; written {share:g}",
+            )
+        return share
 
     def _partition(self, e: WallElement) -> None:
         """A non-structural wall: its weight as SD line loads on the beams under it."""
@@ -1639,6 +1685,16 @@ class _Writer:
             ),
             '  MASSSOURCELOAD  "MsSrc1"  "SD"  1 ',
             f'  MASSSOURCELOAD  "MsSrc1"  "L"  {_n(self.live_share)} ',
+            *(
+                [
+                    (
+                        f"  MASSSOURCELOAD  {_q('MsSrc1')}  {_q(PARTITION_PATTERN)}  "
+                        f"{_n(self.weight_rule.partitions.share())} "
+                    )
+                ]
+                if self._partition_pattern
+                else []
+            ),
             *(['  MASSSOURCELOAD  "MsSrc1"  "F"  1 '] if self._fluid else []),
             "",
             "$ LOAD CASES",
@@ -1671,6 +1727,10 @@ class _Writer:
     def _fluid(self) -> bool:
         return any(p[0] == "F" for p in self.patterns)
 
+    @property
+    def _partition_pattern(self) -> bool:
+        return any(p[0] == PARTITION_PATTERN for p in self.patterns)
+
     def _combinations(self) -> list[str]:
         out = []
         taken: set[str] = set()
@@ -1680,6 +1740,9 @@ class _Writer:
                 name, k = f"{c.name} ({k})", k + 1
             taken.add(name.upper())
             terms = [("D", c.D), ("SD", c.D), ("L", c.L), ("Lr", c.Lr)]
+            if self._partition_pattern:
+                # The partition allowance's pattern is combined as its load case.
+                terms.append((PARTITION_PATTERN, c.L if self.part_case == "L" else c.D))
             if self._fluid:
                 terms.append(("F", c.F or 0.0))
             terms += [(case, getattr(c, case)) for case in ("WX", "WY", "EX", "EY")]
@@ -1832,8 +1895,7 @@ def export_e2k(
             summary = result.get("summary") or {}
         else:
             notes = list(result.get("problems") or [])
-    with code_context.using(code_context.pack_for(settings, p.root)):
-        live_share = float(code_context.table("seismic").liveShare)
+    pack = code_context.pack_for(settings, p.root)
     from saengine.library import mep as mep_library
 
     try:
@@ -1866,22 +1928,23 @@ def export_e2k(
     except ValueError:
         member_loads = None
         notes.append("05 Floor Plan/loads.json has errors: the member loads are not exported.")
-    export = write_e2k(
-        building,
-        objects,
-        materials,
-        settings,
-        member_loads=member_loads,
-        name=p.name,
-        grids=grids,
-        equipment=equipment_of(mep, materials) if mep is not None else [],
-        units=units,
-        lateral=lateral,
-        derivation=derivation,
-        summary=summary,
-        live_share=live_share,
-        library_shapes=library_shapes,
-    )
+    # The mass source from the project's pack (its W rule, as the analysis forms W).
+    with code_context.using(pack):
+        export = write_e2k(
+            building,
+            objects,
+            materials,
+            settings,
+            member_loads=member_loads,
+            name=p.name,
+            grids=grids,
+            equipment=equipment_of(mep, materials) if mep is not None else [],
+            units=units,
+            lateral=lateral,
+            derivation=derivation,
+            summary=summary,
+            library_shapes=library_shapes,
+        )
     report = export.report
     report.source["project"] = p.name
     for note in notes:
