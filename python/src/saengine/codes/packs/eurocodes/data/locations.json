@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1991-1-4 Sec 4.2 (vb,0) and EN 1998-1 Sec 3.2.1 (agR): both are given by the National Annex maps"
+  ],
+  "source": "The Eurocodes give no towns: the fundamental basic wind velocity vb,0 and the reference peak ground acceleration agR are read from the maps of the National Annex. Choose Location: Custom and enter agR (in g) as Z and vb,0 (m/s) as V. A National Annex pack may list its towns here.",
+  "locations": {}
+}

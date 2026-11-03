@@ -1,0 +1,58 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1991-1-4:2005 Sec 4.2-4.5 (basic velocity, mean wind, turbulence, peak velocity pressure), Table 4.1 (terrain categories), Sec 6.2 (cscd), Sec 7.2.2 and Table 7.1 (walls), 7.2.9 (internal pressure), recommended values"
+  ],
+  "source": "EN 1991-1-4 Sec 4 (peak velocity pressure qp(z) from vb,0, the terrain category and co), Sec 7.2.2 Table 7.1 (cpe,10 of zones D and E) and 7.2.2(3) (lack of correlation), Sec 6.2 (cscd = 1 in the simplified cases); recommended values. The project's basic wind speed is vb,0.",
+  "method": "peakVelocityPressure",
+  "peakVelocityPressure": {
+    "season": 1.0,
+    "airDensity": 1.25,
+    "krFactor": 0.19,
+    "krExponent": 0.07,
+    "z0Reference": 0.05,
+    "zmax": 200.0,
+    "turbulence": 1.0,
+    "peakFactor": 7.0
+  },
+  "exposures": {
+    "0": { "description": "Terrain category 0: sea or coastal area exposed to the open sea", "z0": 0.003, "zmin": 1.0 },
+    "I": { "description": "Terrain category I: lakes or flat horizontal area with negligible vegetation and without obstacles", "z0": 0.01, "zmin": 1.0 },
+    "II": { "description": "Terrain category II: low vegetation such as grass and isolated obstacles (trees, buildings) at least 20 obstacle heights apart", "z0": 0.05, "zmin": 2.0 },
+    "III": { "description": "Terrain category III: regular cover of vegetation or buildings, or isolated obstacles at most 20 obstacle heights apart (villages, suburban terrain, permanent forest)", "z0": 0.3, "zmin": 5.0 },
+    "IV": { "description": "Terrain category IV: at least 15 % of the surface covered with buildings of average height over 15 m", "z0": 1.0, "zmin": 10.0 }
+  },
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.0,
+  "cpWindward": 0.8,
+  "cpLeeward": [[1.0, -0.5]],
+  "wallPressure": [
+    { "ratio": 0.25, "windward": 0.7, "leeward": -0.3 },
+    { "ratio": 1.0, "windward": 0.8, "leeward": -0.5 },
+    { "ratio": 5.0, "windward": 0.8, "leeward": -0.7 }
+  ],
+  "correlation": [[1.0, 0.85], [5.0, 1.0]],
+  "structuralFactor": { "value": 1.0, "heightMax": 15.0, "frameHeightMax": 100.0, "depthRatioMax": 4.0 },
+  "internalPressureRange": [0.2, -0.3],
+  "sources": {
+    "peakVelocityPressure": "EN 1991-1-4 Sec 4.2(2) Eq 4.1 (cdir, cseason recommended 1.0), Eqs 4.3-4.5 (cr, kr = 0.19 (z0/z0,II)^0.07, z0,II = 0.05 m, zmax = 200 m), Eq 4.7 (Iv, kI = 1.0), Eq 4.8 (qp = [1 + 7 Iv] ½ ρ vm², ρ = 1.25 kg/m³)",
+    "exposures": "EN 1991-1-4 Table 4.1: terrain categories 0, I, II, III, IV with z0 and zmin",
+    "directionality": "cdir = 1.0 (EN 1991-1-4 Sec 4.2(2) Note 2, recommended); a project override applies",
+    "topographic": "Orography factor co = 1.0 on flat ground (EN 1991-1-4 Sec 4.3.3; Annex A.3 for hills is not covered)",
+    "gust": "cscd where the pack's structuralFactor does not decide (the project override)",
+    "cpWindward": "EN 1991-1-4 Table 7.1, zone D at h/d = 1 (used only when wallPressure is empty)",
+    "cpLeeward": "EN 1991-1-4 Table 7.1, zone E at h/d = 1 (used only when wallPressure is empty)",
+    "wallPressure": "EN 1991-1-4 Table 7.1: cpe,10 of zones D (+0.8 at h/d ≥ 1, +0.7 at 0.25) and E (-0.7 at 5, -0.5 at 1, -0.3 at ≤ 0.25), linear between",
+    "correlation": "EN 1991-1-4 Sec 7.2.2(3) Note: lack of correlation factor 1.0 at h/d ≥ 5, 0.85 at h/d ≤ 1, linear between",
+    "structuralFactor": "EN 1991-1-4 Sec 6.2(1): cscd = 1 for buildings below 15 m (a) and for frame buildings with structural walls below 100 m and below 4 times the in-wind depth (c); the detailed procedure of Sec 6.3 / Annex B-C is not covered",
+    "internalPressureRange": "EN 1991-1-4 Sec 7.2.9(6) Note 2: cpi +0.2 and -0.3 where μ cannot be estimated (reported; cancels in the storey forces)",
+    "designCases": "EN 1991-1-4 Sec 7.1.2 (torsion e = b/10 on rectangular plans) is not covered: Case 1 only"
+  },
+  "clauses": {
+    "gust": "EN 1991-1-4 Sec 6.2",
+    "peak": "EN 1991-1-4 Sec 4.5, Eq 4.8",
+    "walls": "EN 1991-1-4 Sec 7.2.2, Table 7.1"
+  }
+}

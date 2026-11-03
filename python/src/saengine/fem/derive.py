@@ -1832,6 +1832,21 @@ def _derive_fem(
         rain_kpa, helipad = None, None
         b.notes.append(f"rain and helipad loads: not applied ({error})")
     helipad_slabs = set(getattr(getattr(settings.site, "helipad", None), "slabs", None) or [])
+    # C4: snow on the roof from the ground snow load (saengine.fem.snow_load, the pack's snow).
+    from saengine.fem import snow_load
+
+    try:
+        snow = snow_load.roof_snow(settings)
+    except LookupError as error:
+        snow = None
+        b.notes.append(f"snow: the ground snow load is not applied ({error})")
+    if snow is not None:
+        b.notes.append(
+            f"snow s = μ1·Ce·Ct·sk = {snow['mu1']:.2f} × {snow['Ce']:g} × {snow['Ct']:g} × "
+            f"{snow['sk_kPa']:g} = {snow['s_kPa']:.2f} kN/m² on the roof slabs ({snow['source']}; "
+            f"roof {snow['angle_deg']:g}°, exposure {snow['exposure']}), in {snow['case']} where "
+            "larger than the roof live load (the two do not act together)"
+        )
     if rain_kpa:
         b.notes.append(
             f"rain R = {rain_kpa:.2f} kN/m² on the roof slabs (primary drains blocked, water "
@@ -1900,6 +1915,8 @@ def _derive_fem(
         # B16: a helicopter landing area's distributed live load L3 where it is larger.
         if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
             live = max(live, helipad["L3_kPa"])
+        if roof and snow is not None:  # C4: snow in the roof live load case, the larger
+            live = max(live, snow["s_kPa"])
         pressures = {"D": self_weight, "SD": finish * 1e3, live_case: live * 1e3}
         add_partitions(pressures, partitions * 1e3)
         if roof and rain_kpa:
@@ -2392,10 +2409,14 @@ def _derive_fem(
                 values.get(f"R{case[1]}", values["R"]),  # each direction its own R (B2)
                 settings.seismic.damping,
             )
-            shear = sa * sum(weights)
+            # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
+            correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
+            shear = sa * sum(weights) * correction
             forces = fl.vertical_distribution(rel_levels, shear, period)
             forces_of[case] = forces
             info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
+            if correction != 1.0:
+                info[case]["correction"] = correction
             nodal = out.setdefault(case, {})
             for level, h in enumerate(heights):
                 for node_id, share in level_shares(h).items():
@@ -4212,6 +4233,13 @@ def _wind_loads(
             )
             no_width[case] = flat
         levels = fl.wind_levels(rel, spans, depths, speed, exposure, importance)
+        if code_context.table("wind").method == "peakVelocityPressure":  # C4
+            from saengine.fem.peak_velocity_pressure import describe
+
+            notes.append(
+                f"{case}: "
+                + describe(rel[-1], spans[-1][1] - spans[-1][0], max(depths), speed, exposure)
+            )
         if rooftop and rooftop.get(case):
             levels[-1] = dataclasses.replace(levels[-1], force=levels[-1].force + rooftop[case])
         moments = (

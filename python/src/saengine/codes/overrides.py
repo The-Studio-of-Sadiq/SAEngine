@@ -330,6 +330,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "areaLoads",
             "deadLoads",
             "liveReduction",
+            "snow",
             "seismic",
             "zoneCoefficients",
             "locations",

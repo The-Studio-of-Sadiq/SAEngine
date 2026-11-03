@@ -156,6 +156,11 @@ class AreaUse(_Row):
         description="A roof live load (case Lr): reduced by the roof rule, not the floor rule.",
     )
     note: str | None = Field(default=None, description="The row's notes, for the user.")
+    category: str | None = Field(
+        default=None,
+        description="The code's category of use (A, B, C1 ...), where the code groups the uses "
+        "(the area-and-storeys reduction reads it); empty: none.",
+    )
 
 
 class RoofLiveRow(_Row):
@@ -411,6 +416,33 @@ class CombinationsTable(TableModel):
         "gravity part of the seismic strength combination); empty: the generic default "
         "(codes/generic), named in the report.",
     )
+    # C4: a code with alternative sets of strength combinations (EN 1990 6.10 or 6.10a/b).
+    strengthSets: dict[str, list[Combination]] = Field(
+        default_factory=dict,
+        description="Alternative sets of strength combinations by id; ``strengthSet`` chooses "
+        "the one that becomes ``strength`` (every reader then sees that set).",
+    )
+    strengthSet: str | None = Field(
+        default=None,
+        description="Id of the set of ``strengthSets`` used as ``strength`` (a project may "
+        "choose another by overriding this value); empty: ``strength`` as given.",
+    )
+    strengthSetLabels: dict[str, str] = Field(
+        default_factory=dict, description="Readable name of each set, for the report."
+    )
+
+    @model_validator(mode="after")
+    def _chosen_set(self) -> CombinationsTable:
+        if self.strengthSet is None:
+            return self
+        chosen = self.strengthSets.get(self.strengthSet)
+        if chosen is None:
+            raise ValueError(
+                f"strengthSet '{self.strengthSet}' is not one of the strengthSets "
+                f"({', '.join(self.strengthSets) or 'none'})"
+            )
+        self.strength = list(chosen)
+        return self
 
 
 # ─────────────────────────────────────────── seismic ───────────────────────────────────────────
@@ -696,6 +728,50 @@ class TimeHistoryRules(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class DesignSpectrumRule(BaseModel):
+    """C4: the design spectrum. ``reducedElastic``: Sa = pgaFactor·Z·I/R·Cs(T) (the default
+    pack's). ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q -
+    2/3)] up to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag
+    from TC (:mod:`saengine.fem.spectra`); R stands for q."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["reducedElastic", "behaviourFactor"] = "reducedElastic"
+    plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
+    lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
+    clause: str = ""
+
+
+class LateralForceRule(BaseModel):
+    """C4: the lateral force method. Base shear × ``correction`` when T ≤ ``periodTcFactor``·TC
+    and the building has more than ``minStoreys`` - 1 storeys (EN 1998-1 4.3.3.2.2 λ = 0.85);
+    ``distribution``: ``heightPower`` (Fx ∝ wx·hx^k, k 1 to 2 with T) or ``linear`` (Fi ∝ zi·mi,
+    EN 1998-1 4.3.3.2.3 with the linear mode shape)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    correction: float = Field(default=1.0, gt=0, le=1)
+    periodTcFactor: float | None = Field(default=None, gt=0)
+    minStoreys: int = Field(default=0, ge=0)
+    distribution: Literal["heightPower", "linear"] = "heightPower"
+    clause: str = ""
+
+
+class StabilityRule(BaseModel):
+    """C4: θ. ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx h), θmax = 0.5/Cd
+    ≤ ``thetaCap``; ``designDrift`` (EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de
+    (Cd standing for qd), θmax = ``thetaCap``. Below ``ignoreBelow`` second order effects need
+    not be taken into account; up to ``amplifyUpTo`` they may be by 1/(1 - θ)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["elasticOverImportance", "designDrift"] = "elasticOverImportance"
+    ignoreBelow: float = Field(default=0.10, gt=0, lt=1)
+    amplifyUpTo: float | None = Field(default=None, gt=0, lt=1)
+    thetaCap: float = Field(default=0.25, gt=0, lt=1)
+    clause: str = ""
+
+
 class SeismicTable(TableModel):
     """Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis."""
 
@@ -769,6 +845,51 @@ class SeismicTable(TableModel):
         description="D6: load case -> factor of the gravity load Px of the stability "
         "coefficient θ; empty: the generic default (codes/generic), named in the report.",
     )
+    # ── C4: generic methods a pack picks by id (empty: the default pack's methods) ──
+    spectrumType: str | None = Field(
+        default=None,
+        description="Id of the spectrum of ``spectra`` whose site parameters become "
+        "``siteClasses`` (EN 1998-1 Type 1 or Type 2); a project chooses another by "
+        "overriding this value. Empty: ``siteClasses`` as given.",
+    )
+    spectra: dict[str, dict[str, SiteClass]] = Field(
+        default_factory=dict,
+        description="Site parameters (S, TB, TC, TD) by spectrum type id, then site class.",
+    )
+    designSpectrum: DesignSpectrumRule | None = Field(
+        default=None,
+        description="How the design spectrum follows from the elastic one; empty: "
+        "reducedElastic, Sa = pgaFactor·Z·I/R·Cs(T).",
+    )
+    lateralForce: LateralForceRule | None = Field(
+        default=None,
+        description="The base shear correction and the distribution of the lateral force "
+        "method; empty: no correction, Fx ∝ wx·hx^k with k from the period.",
+    )
+    driftAmplification: Literal["overImportance", "displacementFactor"] | None = Field(
+        default=None,
+        description="Design displacements from the elastic ones: overImportance (Cd·δe/I) or "
+        "displacementFactor (qd·de, Cd standing for qd, the importance already in de). "
+        "Empty: overImportance.",
+    )
+    stability: StabilityRule | None = Field(
+        default=None,
+        description="The interstorey drift sensitivity coefficient θ; empty: θ = Px δe/(I Vx "
+        "h) with θmax = 0.5/Cd ≤ 0.25.",
+    )
+
+    @model_validator(mode="after")
+    def _chosen_spectrum(self) -> SeismicTable:
+        if self.spectrumType is None:
+            return self
+        chosen = self.spectra.get(self.spectrumType)
+        if chosen is None:
+            raise ValueError(
+                f"spectrumType '{self.spectrumType}' is not one of the spectra "
+                f"({', '.join(self.spectra) or 'none'})"
+            )
+        self.siteClasses = dict(chosen)
+        return self
 
 
 # ───────────────────────────────────────────── wind ─────────────────────────────────────────────
@@ -776,8 +897,12 @@ class SeismicTable(TableModel):
 
 class Exposure(_Row):
     description: str
-    alpha: float = Field(gt=0)
-    zg: float = Field(gt=0, description="Gradient height [m].")
+    # The power-law profile (wind.method "powerLaw"); empty in a pack whose method uses the
+    # logarithmic profile (z0, zmin) instead.
+    alpha: float | None = Field(default=None, gt=0)
+    zg: float | None = Field(default=None, gt=0, description="Gradient height [m].")
+    # C4: the logarithmic profile of a terrain category (wind.method "peakVelocityPressure").
+    z0: float | None = Field(default=None, gt=0, description="Roughness length z0 [m].")
     # The terrain constants of the gust-effect factor (the default pack's Part 6 Table 6.2.10); None: a
     # pack without them gives rigid buildings only.
     c: float | None = Field(default=None, gt=0, description="Turbulence intensity factor c.")
@@ -785,7 +910,12 @@ class Exposure(_Row):
     epsilonBar: float | None = Field(default=None, gt=0, description="Integral length ε̄.")
     alphaBar: float | None = Field(default=None, gt=0, description="Mean-speed power ᾱ.")
     bBar: float | None = Field(default=None, gt=0, description="Mean-speed factor b̄.")
-    zmin: float | None = Field(default=None, gt=0, description="z_min of z̄ [m].")
+    zmin: float | None = Field(
+        default=None,
+        gt=0,
+        description="z_min of z̄ [m]; with peakVelocityPressure the least height zmin of the "
+        "logarithmic profile.",
+    )
 
 
 class WindDesignCasesRow(_Row):
@@ -1164,7 +1294,65 @@ class OpenBuildingsTable(_Row):
     cladding: OpenRoofCladding | None = None
 
 
+class PeakVelocityPressureRule(_Row):
+    """C4: the peak velocity pressure of EN 1991-1-4 Sec 4 (``wind.method``
+    "peakVelocityPressure", :mod:`saengine.fem.peak_velocity_pressure`): vb = cdir·cseason·vb,0
+    (the project's basic wind speed is vb,0); cr(z) = kr·ln(max(z, zmin)/z0) with kr =
+    ``krFactor``·(z0/``z0Reference``)^``krExponent``, up to ``zmax``; vm = cr·co·vb; Iv = kI /
+    (co·ln(max(z, zmin)/z0)); qp = (1 + ``peakFactor``·Iv)·½·ρ·vm²."""
+
+    season: float = Field(default=1.0, gt=0, description="cseason.")
+    airDensity: Positive = Field(description="ρ [kg/m³].")
+    krFactor: Positive = Field(description="0.19 of kr.")
+    krExponent: Positive = Field(description="0.07 of kr.")
+    z0Reference: Positive = Field(description="z0,II [m] of kr.")
+    zmax: Positive = Field(description="zmax [m].")
+    turbulence: Positive = Field(description="Turbulence factor kI.")
+    peakFactor: Positive = Field(description="7 of (1 + 7 Iv).")
+
+
+class WallPressureRow(_Row):
+    """External pressure coefficients of the walls by h/d (EN 1991-1-4 Table 7.1, zones D and
+    E): ``ratio`` h/d, ``windward`` cpe,10 of D, ``leeward`` cpe,10 of E; linear between rows."""
+
+    ratio: Positive
+    windward: float
+    leeward: float
+
+
+class StructuralFactorRule(_Row):
+    """cscd of buildings: ``value`` where ``heightMax`` (h below it) or ``frameHeightMax`` and
+    ``depthRatioMax`` (frame buildings with walls, h below it and below that × the depth along
+    the wind) hold (EN 1991-1-4 6.2(1) a and c); else the detailed procedure, not covered: the
+    value is used with a note."""
+
+    value: Positive = 1.0
+    heightMax: Positive | None = None
+    frameHeightMax: Positive | None = None
+    depthRatioMax: Positive | None = None
+
+
 class WindTable(TableModel):
+    method: Literal["powerLaw", "peakVelocityPressure"] = Field(
+        default="powerLaw",
+        description="C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I "
+        "with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from "
+        "the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd).",
+    )
+    peakVelocityPressure: PeakVelocityPressureRule | None = None
+    wallPressure: list[WallPressureRow] = Field(
+        default_factory=list, description="cpe of the walls by h/d (peakVelocityPressure)."
+    )
+    correlation: list[tuple[float, float]] = Field(
+        default_factory=list,
+        description="(h/d, factor) on the net wall force for the lack of correlation between "
+        "windward and leeward; linear between, the end values outside.",
+    )
+    structuralFactor: StructuralFactorRule | None = None
+    internalPressureRange: tuple[float, float] | None = Field(
+        default=None,
+        description="(most positive, most negative) cpi where it cannot be worked out; reported.",
+    )
     exposures: dict[str, Exposure]
     directionality: float = Field(description="Kd for buildings.")
     topographic: float = Field(description="Kzt (flat terrain).")
@@ -1214,6 +1402,17 @@ class WindTable(TableModel):
     rooftop: RooftopTable | None = Field(
         default=None, description="Increase of the force on rooftop equipment; None: none."
     )
+
+    @model_validator(mode="after")
+    def _profiles(self) -> WindTable:
+        for key, row in self.exposures.items():
+            if self.method == "powerLaw" and (row.alpha is None or row.zg is None):
+                raise ValueError(f"exposure {key}: alpha and zg are required (powerLaw)")
+            if self.method == "peakVelocityPressure" and (row.z0 is None or row.zmin is None):
+                raise ValueError(f"exposure {key}: z0 and zmin are required (peakVelocityPressure)")
+        if self.method == "peakVelocityPressure" and self.peakVelocityPressure is None:
+            raise ValueError("peakVelocityPressure: the method needs its constants")
+        return self
 
 
 class LatticeCfRow(_Row):
@@ -4137,16 +4336,44 @@ class RoofReduction(_Group):
     uses: list[str] = Field(description="Area uses the rule reduces (ordinary roofs).")
 
 
-class LiveReductionTable(TableModel):
-    """Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13)."""
+class AreaAndStoreys(_Group):
+    """C4: EN 1991-1-1 6.3.1.2(10)-(11): αA = ``areaShare``·ψ0 + A0/A ≤ 1 (at least
+    ``categoryMinimum`` in the ``minimumCategories``), αn = (2 + (n - 2)·ψ0)/n for columns and
+    walls of n > 2 storeys; the member takes ``combine`` of the two ("lesser": the one that
+    reduces more, used alone)."""
 
-    influenceMin: Positive = Field(description="Least KLL AT [m²] that is reduced.")
-    constant: Share = Field(description="a of L = L0 (a + b / √(KLL AT)).")
-    coefficient: Positive = Field(description="b of L = L0 (a + b / √(KLL AT)) [m].")
-    minOneFloor: Share = Field(description="Least L / L0 of members supporting one floor.")
-    minFloors: Share = Field(description="Least L / L0 of members supporting two or more.")
+    psi0: Share = Field(description="ψ0 of the imposed load.")
+    areaShare: Positive = Field(description="5/7 of αA.")
+    referenceArea: Positive = Field(description="A0 [m²].")
+    categoryMinimum: Share | None = None
+    minimumCategories: list[str] = Field(default_factory=list)
+    storeysFrom: int = Field(default=3, ge=2, description="αn applies from this many storeys.")
+    combine: Literal["lesser"] = "lesser"
+
+
+class LiveReductionTable(TableModel):
+    """Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),
+    or (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys."""
+
+    method: Literal["influenceArea", "areaAndStoreys"] = "influenceArea"
+    areaAndStoreys: AreaAndStoreys | None = None
+    influenceMin: Positive | None = Field(
+        default=None, description="Least KLL AT [m²] that is reduced."
+    )
+    constant: Share | None = Field(default=None, description="a of L = L0 (a + b / √(KLL AT)).")
+    coefficient: Positive | None = Field(
+        default=None, description="b of L = L0 (a + b / √(KLL AT)) [m]."
+    )
+    minOneFloor: Share | None = Field(
+        default=None, description="Least L / L0 of members supporting one floor."
+    )
+    minFloors: Share | None = Field(
+        default=None, description="Least L / L0 of members supporting two or more."
+    )
     heavyLive: Positive = Field(description="Live loads above this [kN/m²] are not reduced.")
-    heavyFactor: Share = Field(description="L / L0 of heavy loads on members of 2+ floors.")
+    heavyFactor: Share | None = Field(
+        default=None, description="L / L0 of heavy loads on members of 2+ floors."
+    )
     notReduced: list[str] = Field(description="Area uses never reduced.")
     assemblyMax: float | None = Field(
         default=None,
@@ -4164,10 +4391,22 @@ class LiveReductionTable(TableModel):
         default=None,
         description="AT of a one-way slab at most its span times this many spans wide.",
     )
-    kll: LiveElementFactors
+    kll: LiveElementFactors | None = None
     roof: RoofReduction | None = Field(
         default=None, description="Reduction of the ordinary roof live load (Lr)."
     )
+
+    @model_validator(mode="after")
+    def _method_values(self) -> LiveReductionTable:
+        if self.method == "areaAndStoreys":
+            if self.areaAndStoreys is None:
+                raise ValueError("areaAndStoreys: the method needs its values")
+            return self
+        names = ("influenceMin", "constant", "coefficient", "minOneFloor", "minFloors")
+        missing = [n for n in (*names, "heavyFactor", "kll") if getattr(self, n) is None]
+        if missing:
+            raise ValueError(f"influenceArea needs {', '.join(missing)}")
+        return self
 
 
 Hours = Annotated[float, Field(ge=0)]
@@ -8230,6 +8469,45 @@ class MepOpeningsTable(TableModel):
     clauses: dict[str, str] = Field(default_factory=dict, description="Check -> clause.")
 
 
+# ───────────────────────────── C4: snow on roofs ─────────────────────────────
+
+
+class SnowExposure(_Row):
+    description: str
+    Ce: Positive = Field(description="Exposure coefficient Ce.")
+
+
+class SnowTable(TableModel):
+    """Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = factor·
+    μ1·Ce·Ct·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the
+    roof's pitch (``shape``: (angle [°], μ1) points, linear between, the last value beyond), Ce
+    by the exposure of the site, Ct the thermal coefficient. The project gives sk (Site >
+    Snow). ``loadCase``: the load case the roof snow goes into; with ``withRoofLive``
+    "envelope" the roof takes the larger of the roof live load and the snow (imposed loads on
+    roofs need not act with snow). A pack without it does not cover snow."""
+
+    exposures: dict[str, SnowExposure]
+    defaultExposure: str
+    thermal: Positive = Field(default=1.0, description="Ct where the project gives none.")
+    factor: Positive = Field(
+        default=1.0,
+        description="A code's constant factor on the roof snow (1.0 in EN 1991-1-3; 0.7 of the "
+        "flat roof snow load in codes that give one).",
+    )
+    shape: list[tuple[float, float]] = Field(min_length=1, description="(roof angle °, μ1).")
+    loadCase: Literal["Lr"] = "Lr"
+    withRoofLive: Literal["envelope"] = "envelope"
+    exceptionalFactor: Positive | None = Field(
+        default=None, description="Cesl of the exceptional snow load (accidental; reported)."
+    )
+
+    @model_validator(mode="after")
+    def _exposure(self) -> SnowTable:
+        if self.defaultExposure not in self.exposures:
+            raise ValueError(f"defaultExposure '{self.defaultExposure}' is not an exposure")
+        return self
+
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -8282,6 +8560,7 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "ferrocement": FerrocementTable,
     "citations": CitationsTable,
     "mepOpenings": MepOpeningsTable,
+    "snow": SnowTable,
 }
 
 

@@ -58,6 +58,7 @@ const PACK_LIST_FIELDS: { readonly [path: string]: string } = {
 	'seismic.system': 'systems',
 	'seismic.systemY': 'systems',
 	'areaLoads.use': 'areaUses',
+	'wind.exposure': 'exposures',
 };
 
 /** Desktop command telling where the site class and qa come from (`saengine.soil.sources`). */

@@ -35,6 +35,7 @@ come from the active code pack.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import math
 from dataclasses import dataclass
 from typing import Any
@@ -92,6 +93,38 @@ def __getattr__(name: str) -> Any:
     raise AttributeError(name)
 
 
+def element_factor(name: str) -> float:
+    """KLL of the member kind ``name`` (interiorColumn, other ...); 1.0 when the pack's rule has
+    none (the area-and-storeys method)."""
+    kll = getattr(_table(), "kll", None)
+    return float(getattr(kll, name)) if kll is not None else 1.0
+
+
+def area_and_storeys(area: float, floors: int, scope: LiveScope) -> tuple[float, str]:
+    """(L / L0, why) by the pack's ``areaAndStoreys`` (EN 1991-1-1 6.3.1.2(10)-(11)): αA =
+    areaShare·ψ0 + A0/A ≤ 1, at least the category minimum where a floor's category asks for
+    it; αn = (2 + (n - 2)·ψ0)/n for n ≥ storeysFrom storeys above; the lesser of the two."""
+    table = _table()
+    rule = table.areaAndStoreys
+    where = clause()
+    alpha_a = min(1.0, rule.areaShare * rule.psi0 + rule.referenceArea / max(area, 1e-9))
+    floor_note = ""
+    if rule.categoryMinimum is not None and scope.categories & set(rule.minimumCategories):
+        if alpha_a < rule.categoryMinimum:
+            floor_note = f", at least {rule.categoryMinimum:g}"
+        alpha_a = max(alpha_a, rule.categoryMinimum)
+    alpha_n = 1.0
+    if floors >= rule.storeysFrom:
+        alpha_n = min(1.0, (2 + (floors - 2) * rule.psi0) / floors)
+    factor = min(alpha_a, alpha_n)
+    which = "αn" if alpha_n < alpha_a else "αA"
+    return factor, (
+        f"αA = {rule.areaShare:.3f} × {rule.psi0:g} + {rule.referenceArea:g}/{area:.1f} = "
+        f"{alpha_a:.3f}{floor_note}; αn = {alpha_n:.3f} ({floors} storey"
+        f"{'s' if floors != 1 else ''}); {which} used ({where})"
+    )
+
+
 def reduction(kll: float, area: float, floors: int, scope: LiveScope) -> tuple[float, str]:
     """(L / L0, why) of a member with live load element factor ``kll``, tributary area
     ``area`` [m²] and ``floors`` supported, in a building of ``scope``."""
@@ -101,6 +134,11 @@ def reduction(kll: float, area: float, floors: int, scope: LiveScope) -> tuple[f
         return 1.0, f"{scope.building}: not reduced ({where})"
     if scope.assembly:
         return 1.0, f"assembly use: not reduced ({where})"
+    if getattr(table, "method", "influenceArea") == "areaAndStoreys":
+        if scope.heavy or scope.garage:
+            what = f"live load over {table.heavyLive:g} kN/m²" if scope.heavy else "parking"
+            return 1.0, f"{what}: not reduced ({where})"
+        return area_and_storeys(area, floors, scope)
     if scope.heavy or scope.garage:
         what = f"live load over {table.heavyLive:g} kN/m²" if scope.heavy else "parking"
         share = round(100 * (1 - table.heavyFactor))
@@ -171,6 +209,8 @@ class LiveScope:
     garage: bool = False
     building: str = ""
     roof: float = 0.0
+    #: The code's categories of the floor uses (areaLoads.uses[].category), where it has them.
+    categories: set[str] = dataclasses.field(default_factory=set)
 
     @classmethod
     def of(cls, settings: Any) -> LiveScope:
@@ -223,6 +263,11 @@ class LiveScope:
             garage=any(a.use in table.twoFloorsOnly for a in loads),
             building=building,
             roof=roof,
+            categories={
+                str(uses[a.use].category)
+                for a in loads
+                if a.use in uses and getattr(uses[a.use], "category", None)
+            },
         )
 
 
@@ -301,21 +346,18 @@ def member_factor(
     cannot be worked out (no L case, no live load)."""
     if scope.live <= 0 or not pieces:
         return None
-    table = _table()
     area = _tributary(kind, pieces, service, "L", scope.live * 1e3)
     if area is None:
         return None
     if kind == "column":
         top = float(getattr(element, "top", 0.0))
         floors = sum(1 for s in building.stories if float(s.elevation) >= top - 1.0)
-        kll = (
-            table.kll.interiorColumn
-            if _interior(element, building)
-            else (table.kll.cornerColumnCantilever)
+        kll = element_factor(
+            "interiorColumn" if _interior(element, building) else "cornerColumnCantilever"
         )
         return reduction(kll, area, max(floors, 1), scope)
     sides = framing.slab_beside(element, width)[1] if framing is not None else 0
-    kll = table.kll.interiorBeam if sides >= 2 else table.kll.other
+    kll = element_factor("interiorBeam" if sides >= 2 else "other")
     return reduction(kll, area, 1, scope)
 
 

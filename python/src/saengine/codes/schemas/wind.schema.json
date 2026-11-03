@@ -982,15 +982,45 @@
           "type": "string"
         },
         "alpha": {
-          "exclusiveMinimum": 0,
-          "title": "Alpha",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha"
         },
         "zg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Gradient height [m].",
-          "exclusiveMinimum": 0,
-          "title": "Zg",
-          "type": "number"
+          "title": "Zg"
+        },
+        "z0": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Roughness length z0 [m].",
+          "title": "Z0"
         },
         "c": {
           "anyOf": [
@@ -1073,14 +1103,12 @@
             }
           ],
           "default": null,
-          "description": "z_min of z̄ [m].",
+          "description": "z_min of z̄ [m]; with peakVelocityPressure the least height zmin of the logarithmic profile.",
           "title": "Zmin"
         }
       },
       "required": [
-        "description",
-        "alpha",
-        "zg"
+        "description"
       ],
       "title": "Exposure",
       "type": "object"
@@ -2013,6 +2041,85 @@
       "title": "OpenStructuresTable",
       "type": "object"
     },
+    "PeakVelocityPressureRule": {
+      "additionalProperties": false,
+      "description": "C4: the peak velocity pressure of EN 1991-1-4 Sec 4 (``wind.method``\n\"peakVelocityPressure\", :mod:`saengine.fem.peak_velocity_pressure`): vb = cdir·cseason·vb,0\n(the project's basic wind speed is vb,0); cr(z) = kr·ln(max(z, zmin)/z0) with kr =\n``krFactor``·(z0/``z0Reference``)^``krExponent``, up to ``zmax``; vm = cr·co·vb; Iv = kI /\n(co·ln(max(z, zmin)/z0)); qp = (1 + ``peakFactor``·Iv)·½·ρ·vm².",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "season": {
+          "default": 1.0,
+          "description": "cseason.",
+          "exclusiveMinimum": 0,
+          "title": "Season",
+          "type": "number"
+        },
+        "airDensity": {
+          "description": "ρ [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Airdensity",
+          "type": "number"
+        },
+        "krFactor": {
+          "description": "0.19 of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Krfactor",
+          "type": "number"
+        },
+        "krExponent": {
+          "description": "0.07 of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Krexponent",
+          "type": "number"
+        },
+        "z0Reference": {
+          "description": "z0,II [m] of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Z0Reference",
+          "type": "number"
+        },
+        "zmax": {
+          "description": "zmax [m].",
+          "exclusiveMinimum": 0,
+          "title": "Zmax",
+          "type": "number"
+        },
+        "turbulence": {
+          "description": "Turbulence factor kI.",
+          "exclusiveMinimum": 0,
+          "title": "Turbulence",
+          "type": "number"
+        },
+        "peakFactor": {
+          "description": "7 of (1 + 7 Iv).",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "airDensity",
+        "krFactor",
+        "krExponent",
+        "z0Reference",
+        "zmax",
+        "turbulence",
+        "peakFactor"
+      ],
+      "title": "PeakVelocityPressureRule",
+      "type": "object"
+    },
     "ReturnCorner": {
       "additionalProperties": false,
       "description": "The factor on the first region's Cf (B/s ≥ ``fromAspect``) with a return corner, by\nLr/s.",
@@ -2607,6 +2714,72 @@
       "title": "SolidSignsTable",
       "type": "object"
     },
+    "StructuralFactorRule": {
+      "additionalProperties": false,
+      "description": "cscd of buildings: ``value`` where ``heightMax`` (h below it) or ``frameHeightMax`` and\n``depthRatioMax`` (frame buildings with walls, h below it and below that × the depth along\nthe wind) hold (EN 1991-1-4 6.2(1) a and c); else the detailed procedure, not covered: the\nvalue is used with a note.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "value": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "heightMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heightmax"
+        },
+        "frameHeightMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameheightmax"
+        },
+        "depthRatioMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depthratiomax"
+        }
+      },
+      "title": "StructuralFactorRule",
+      "type": "object"
+    },
     "TopographyShape": {
       "additionalProperties": false,
       "description": "A topographic feature's speed-up parameters: K1/(H/Lh) by exposure, γ and μ.",
@@ -2759,6 +2932,45 @@
       "title": "TowerCf",
       "type": "object"
     },
+    "WallPressureRow": {
+      "additionalProperties": false,
+      "description": "External pressure coefficients of the walls by h/d (EN 1991-1-4 Table 7.1, zones D and\nE): ``ratio`` h/d, ``windward`` cpe,10 of D, ``leeward`` cpe,10 of E; linear between rows.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "ratio": {
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "windward": {
+          "title": "Windward",
+          "type": "number"
+        },
+        "leeward": {
+          "title": "Leeward",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio",
+        "windward",
+        "leeward"
+      ],
+      "title": "WallPressureRow",
+      "type": "object"
+    },
     "WindDesignCasesRow": {
       "additionalProperties": false,
       "description": "The design wind load cases of the main wind-force resisting system (the default pack's Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
@@ -2844,6 +3056,87 @@
       "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
       "title": "Clauses",
       "type": "object"
+    },
+    "method": {
+      "default": "powerLaw",
+      "description": "C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd).",
+      "enum": [
+        "powerLaw",
+        "peakVelocityPressure"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "peakVelocityPressure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PeakVelocityPressureRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "wallPressure": {
+      "description": "cpe of the walls by h/d (peakVelocityPressure).",
+      "items": {
+        "$ref": "#/$defs/WallPressureRow"
+      },
+      "title": "Wallpressure",
+      "type": "array"
+    },
+    "correlation": {
+      "description": "(h/d, factor) on the net wall force for the lack of correlation between windward and leeward; linear between, the end values outside.",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Correlation",
+      "type": "array"
+    },
+    "structuralFactor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuralFactorRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "internalPressureRange": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "(most positive, most negative) cpi where it cannot be worked out; reported.",
+      "title": "Internalpressurerange"
     },
     "exposures": {
       "additionalProperties": {
