@@ -1039,8 +1039,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const share = typeof source.partitionShare === 'number' ? source.partitionShare : undefined;
 		const pack = DEFAULT_CODE_TABLES.seismicWeight;
 		const packWords = pack.partitions === 'withLiveShare'
-			? localize('settings.partitionWithLive', "{0} {1}: the partition allowance counts with the live load share in W.", DEFAULT_CODE_TABLES.edition, pack.source)
-			: localize('settings.partitionFull', "{0} {1}: the partition allowance counts in full in W (partition walls are dead load); the live share is judged without it.", DEFAULT_CODE_TABLES.edition, pack.source);
+			? localize('settings.partitionWithLive', "{0}: the partition allowance counts with the live load share in W.", pack.source)
+			: localize('settings.partitionFull', "{0}: the partition allowance counts in full in W (partition walls are dead load); the live share is judged without it.", pack.source);
 		if (mode === 'factor') {
 			return share !== undefined
 				? localize('settings.partitionFactorUsed', "W takes {0} × the partition allowance. {1}", format(share), packWords)
