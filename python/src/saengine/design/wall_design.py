@@ -406,6 +406,12 @@ def design_walls(
         drift_factor = float(values["Cd"]) / float(values["seismicImportance"])
     except (KeyError, TypeError, ValueError, ZeroDivisionError, AttributeError):
         drift_factor = None
+    try:
+        omega = float(derived(settings)["omega"])  # wall piers' design shear cap (8.3.6.8(a)(i))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        omega = None
+    additions = getattr(building, "additions", None)
+    openings = list(getattr(additions, "wallOpenings", None) or [])
 
     infos: dict[str, dict[str, Any]] = {}
     for e, t, bars, concrete, steel in ready:
@@ -440,8 +446,10 @@ def design_walls(
         }
         wall = _Wall(e, t, bars, fc, fy, es, special, drift, hw, options, earthquake, story_names)
         wall.collect = collect["walls"] if collect is not None else None
+        own_openings = [o for o in openings if o.host == e.id]
         for pier in piers:
-            wall.part(pier, pier["pier"], ("bottom", "middle", "top"))
+            where = _wall_pier(e, pier, own_openings, omega) if special else None
+            wall.part(pier, pier["pier"], ("bottom", "middle", "top"), wall_pier=where)
             if pier.get("holes"):
                 wall.notes.append(
                     f"{pier['pier']}: small opening(s) {', '.join(pier['holes'])} in the pier are "
@@ -903,7 +911,12 @@ class _Wall:
     layers_required: int = 1
 
     def part(
-        self, part: dict[str, Any], name: str, cuts: tuple[str, ...], whole: bool = False
+        self,
+        part: dict[str, Any],
+        name: str,
+        cuts: tuple[str, ...],
+        whole: bool = False,
+        wall_pier: W.WallPier | None = None,
     ) -> None:
         """Checks a pier (or the whole wall at a level, ``whole``) from its ``cuts``."""
         geometry = W.geometry_of(part, wall_height=self.height, **self.options)
@@ -926,6 +939,7 @@ class _Wall:
                 special=self.special,
                 drift=self.drift,
                 grade_beam=getattr(self.object, "gradeBeam", None),
+                wall_pier=wall_pier,
             )
         except DesignError as error:
             # Not checked is not passing: the pier stays in the wall with a failing row.
@@ -948,6 +962,10 @@ class _Wall:
             "ok": all(c["ok"] for c in d.checks if not c["flag"]),
             "boundary": boundary_entry(need, fc) if self.special else None,
             "whole": whole,
+            # "pier" or "column" (a wall pier of 8.3.6.8 and its rules), "wall", None.
+            "wallPier": None
+            if wall_pier is None
+            else W.pier_kind(float(part["lw"]), float(part["tw"]), wall_pier.clear_height),
             "notes": d.notes,
             "holes": list(part.get("holes", [])),
         }
@@ -972,6 +990,7 @@ class _Wall:
                     "need": d.need,
                     "checks": d.checks,
                     "whole": whole,
+                    "pier": wall_pier,
                 }
             )
 
@@ -1126,6 +1145,35 @@ def _confined_building(
     return [f"confined masonry: {', '.join(failed)} not met"] if failed else []
 
 
+def _wall_pier(
+    e: Any, pier: dict[str, Any], openings: list[Any], omega: float | None
+) -> W.WallPier | None:
+    """Where a pier of ``wall_forces`` stands beside the wall's ``openings`` (06 BIM's, sills
+    from the wall's bottom): its segment of :func:`walls.pier_segments` over the pier's storey
+    band; None when no opening is beside it (the whole wall: not a wall pier)."""
+    bottom, top = float(pier["bottom"]), float(pier["top"])
+    shift = bottom - float(e.bottom)
+    band = [
+        {
+            "offset": float(o.offset),
+            "width": float(o.width),
+            "sill": float(o.sill or 0.0) - shift,
+            "height": float(o.height),
+        }
+        for o in openings
+    ]
+    length = math.dist(e.start, e.end)
+    best = None
+    for s in W.pier_segments(length, top - bottom, band):
+        miss = abs(s["start"] - float(pier["start"])) + abs(s["end"] - float(pier["end"]))
+        if best is None or miss < best[0]:
+            best = (miss, s)
+    if best is None or best[0] > 100.0 or not best[1]["bounded"]:
+        return None
+    s = best[1]
+    return W.WallPier(s["clear"], s["edge"], s["above"], s["below"], omega)
+
+
 def _settle(element: dict[str, Any]) -> None:
     """R3-1: the wall's ok and utilisation from every design check of it, its piers' and
     coupling beams' (informative rows never ok=false: :func:`walls.settle_informative`)."""
@@ -1162,21 +1210,43 @@ def coupling_diagonal(bars: Any) -> W.Diagonal | None:
         return None
     get = bars.get if isinstance(bars, dict) else (lambda k, d=None: getattr(bars, k, d))
     angle = get("angle", None)
+
+    def reader(value: Any) -> Any:
+        return value.get if isinstance(value, dict) else (lambda k, d=None: getattr(value, k, d))
+
     hoop = get("hoop", None)
     hoops = None
     if hoop is not None:
-        part = hoop.get if isinstance(hoop, dict) else (lambda k, d=None: getattr(hoop, k, d))
+        part = reader(hoop)
         hoops = W.CouplingHoops(
             float(part("dia", 10.0)),
             float(part("spacing", 100.0)),
             int(part("legsAcross", 2)),
             int(part("legsAlong", 2)),
         )
+    group = get("groupHoop", None)
+    group_hoops = None
+    if group is not None:
+        part = reader(group)
+        width, depth = part("width", None), part("depth", None)
+        group_hoops = W.GroupHoops(
+            float(part("dia", 10.0)),
+            float(part("spacing", 100.0)),
+            float(width) if width else None,
+            float(depth) if depth else None,
+        )
+    long = get("longitudinal", None)
+    longitudinal = None
+    if long is not None:
+        part = reader(long)
+        longitudinal = (float(part("dia")), float(part("spacing")))
     return W.Diagonal(
         int(get("count")),
         float(get("dia")),
         angle=math.radians(float(angle)) if angle else None,
         hoop=hoops,
+        group_hoop=group_hoops,
+        longitudinal=longitudinal,
     )
 
 
@@ -1209,9 +1279,12 @@ def _coupling_beams(
                     vu, combination = abs(float(r["V2"])), name
         ln, h, bw = float(s["length"]), float(s["depth"]), float(s["tw"])
         diagonal = coupling_diagonal(diagonal_bars)
+        widths = [float(p["lw"]) for p in beside]
+        web = W.wall_bars(wall_type.reinforcement)
         found = W.coupling_beam_checks(
-            ln, h, bw, vu * 1e3, fc, fy, diagonal=diagonal, combination=combination, cover=cover
-        )
+            ln, h, bw, vu * 1e3, fc, fy, diagonal=diagonal, combination=combination, cover=cover,
+            piers=widths, web=web,
+        )  # fmt: skip
         if collect is not None and found.mode != "flexural":
             collect.append(
                 {
@@ -1227,6 +1300,8 @@ def _coupling_beams(
                     "fy": fy,
                     "cover": cover,
                     "mode": found.mode,
+                    "piers": widths,
+                    "web": web,
                 }
             )
         notes = list(found.notes)
@@ -1526,6 +1601,7 @@ def search_need(collected: dict[str, Any], layers: int | None = None) -> W.WallN
         bars=bars,
         cover=cover,
         search=True,
+        pier=collected.get("pier"),
     )
 
 
@@ -1696,6 +1772,18 @@ def wall_label(reinforcement: dict[str, Any]) -> str:
         text += f"; coupling beams {d['count']} Ø{d['dia']:g} diagonals per group"
         if hoop:
             text += f" (hoops Ø{hoop.get('dia', 10):g} @ {hoop.get('spacing', 100):g})"
+        group = d.get("groupHoop") or {}
+        if group and not hoop:
+            text += (
+                f" (hoops around each group Ø{group.get('dia', 10):g} @ "
+                f"{group.get('spacing', 100):g})"
+            )
+        long = d.get("longitudinal") or {}
+        if long:
+            text += f", Ø{long['dia']:g} @ {long['spacing']:g} along each face"
+    p = reinforcement.get("pierHoop")
+    if p:
+        text += f"; wall piers hoops Ø{p.get('dia', 10):g} @ {p.get('spacing', 100):g}"
     return text
 
 
@@ -1719,6 +1807,7 @@ def _recheck(
                 c["es"],
                 special=c["special"],
                 drift=c["drift"],
+                wall_pier=c.get("pier"),
             )
         except DesignError as error:
             problems.append(f"{c['id']}: not checked with these bars: {error}")
@@ -1817,11 +1906,15 @@ def _attempt(
             )
             reinforcement["boundary"] = _boundary_json(merged)
         diagonal, diagonal_notes = coupling_proposal(
-            spandrels or [], (current or {}).get("diagonal")
+            spandrels or [], (current or {}).get("diagonal"), W.wall_bars(reinforcement)
         )
         if diagonal is not None:
             reinforcement["diagonal"] = diagonal
         notes += diagonal_notes
+        pier_hoop, pier_notes = _pier_hoop_proposal(group, needs, reinforcement, current)
+        if pier_hoop is not None:
+            reinforcement["pierHoop"] = pier_hoop
+        notes += pier_notes
         utilisation, problems = _recheck(group, reinforcement)
         if problems and not any(": not checked with these bars: " in p for p in problems):
             # Checks the web's vertical bars carry besides the end bars (out-of-plane
@@ -1874,16 +1967,64 @@ def _attempt(
     return reinforcement, utilisation, notes, too_small
 
 
+def _hoop_json(h: W.CouplingHoops) -> dict[str, Any]:
+    return {
+        "dia": h.dia,
+        "spacing": h.spacing,
+        "legsAcross": h.legs_across,
+        "legsAlong": h.legs_along,
+    }
+
+
+def _pier_hoop_proposal(
+    group: list[dict[str, Any]],
+    needs: list[W.WallNeed],
+    reinforcement: dict[str, Any],
+    current: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The hoops of the type's wall piers (``reinforcement.pierHoop``, 8.3.6.8): the type's own
+    where every wall pier passes with them, else the largest diameter, closest spacing and most
+    legs the piers' needs ask for; None and no notes when the type has no wall pier."""
+    wanted = [(c, n.pier_hoop) for c, n in zip(group, needs, strict=True) if n.pier_hoop]
+    if not wanted:
+        return None, []
+    own = (current or {}).get("pierHoop")
+    if own:
+        trial = {**reinforcement, "pierHoop": own}
+        _, left = _recheck([c for c, _ in wanted], trial)
+        if not left:
+            return own, []
+    hoops = [h for _, h in wanted]
+    merged = W.CouplingHoops(
+        max(h.dia for h in hoops),
+        min(h.spacing for h in hoops),
+        max(h.legs_across for h in hoops),
+        max(h.legs_along for h in hoops),
+    )
+    ids = ", ".join(c["id"] for c, _ in wanted)
+    where = W.ref("pier")
+    return _hoop_json(merged), [
+        f"wall piers {ids}: hoops Ø{merged.dia:g} @ {merged.spacing:g} ({merged.legs_across} x "
+        f"{merged.legs_along} legs) over the clear height and "
+        f"{W.special_limit('pierHoopExtension'):g} mm above and below"
+        + (f" ({where})" if where else "")
+    ]
+
+
 def coupling_proposal(
-    spandrels: list[dict[str, Any]], current: dict[str, Any] | None
+    spandrels: list[dict[str, Any]],
+    current: dict[str, Any] | None,
+    web: W.WallBars | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """The diagonal bars and hoops (``reinforcement.diagonal``) of a special wall type's
     coupling beams ``spandrels`` (``collect["spandrels"]`` of one type): None and no notes
     when none needs them. Diagonal bars where 8.3.6.7(b) requires them, or where they are
     optional (8.3.6.7(c)) and the beam rules fail; the type's own diagonal bars are kept where
-    they carry the shear, with hoops added or made closer where (d)(iv) needs it. The bars
-    are the largest any of the spandrels needs, the hoops the closest and heaviest; all are
-    checked again on every spandrel of the type."""
+    they carry the shear, with hoops added or made closer where (d)(iv) needs it, and
+    longitudinal bars along the faces where the wall's horizontal bars leave a hoop leg without
+    a bar to engage. The bars are the largest any of the spandrels needs, the hoops the closest
+    and heaviest; all are checked again on every spandrel of the type. ``web``: the wall's web
+    bars proposed (default: each spandrel's own)."""
     mine = coupling_diagonal(current) if current else None
     need = [
         s
@@ -1896,8 +2037,16 @@ def coupling_proposal(
     def check(s: dict[str, Any], d: W.Diagonal | None) -> W.CouplingBeam:
         return W.coupling_beam_checks(
             s["ln"], s["h"], s["bw"], s["vu"], s["fc"], s["fy"], diagonal=d,
-            combination=s.get("combination"), cover=s["cover"],
+            combination=s.get("combination"), cover=s["cover"], piers=s.get("piers"),
+            web=web or s.get("web"),
         )  # fmt: skip
+
+    def passes(d: W.Diagonal) -> bool:
+        return all(all(c["ok"] for c in check(s, d).checks if not c["flag"]) for s in need)
+
+    if mine is not None and mine.hoop is None and mine.group_hoop is not None and passes(mine):
+        # The type's hoops around each group (8.3.6.7(d)(iii)) do: kept as they are.
+        return current, []
 
     def strength_ok(found: W.CouplingBeam) -> bool:
         strength = ("Coupling beam diagonal bars", "Diagonal bars per group")
@@ -1930,12 +2079,23 @@ def coupling_proposal(
         max(h.legs_along for h in hoops),
     )
     own = mine.hoop if mine is not None else None
-    if own is not None and all(
-        all(c["ok"] for c in check(s, replace(bars, hoop=own)).checks if not c["flag"])
-        for s in need
-    ):
+    own_long = mine.longitudinal if mine is not None else None
+    if own is not None and passes(replace(bars, hoop=own, longitudinal=own_long)):
         merged = own
-    trial = replace(bars, hoop=merged)
+    trial = replace(bars, hoop=merged, group_hoop=None, longitudinal=own_long)
+    if not passes(trial):
+        # 8.3.6.7(d)(iv): a longitudinal bar at each hoop leg, at least the hoop's diameter: the
+        # beam's own bars along each face where the wall's horizontal bars are too far apart.
+        step = W.spacing_step()
+        horizontal = web.horizontal_dia if web is not None else 0.0
+        dia = max(merged.dia, horizontal, min(W.bar_sizes("wall")))
+        spacing = min(
+            W.round_down((s["h"] - 2 * s["cover"]) / max(merged.legs_across - 1, 1), step)
+            for s in need
+        )
+        candidate = replace(trial, longitudinal=(dia, max(spacing, W.MIN_WALL_SPACING)))
+        if passes(candidate) or not passes(trial):
+            trial = candidate
     left = [
         f"{s['id']} still fails: "
         + ", ".join(c["name"] for c in check(s, trial).checks if not c["ok"] and not c["flag"])
@@ -1951,12 +2111,20 @@ def coupling_proposal(
         "legsAcross": merged.legs_across,
         "legsAlong": merged.legs_along,
     }
+    if trial.longitudinal is not None:
+        out["longitudinal"] = {"dia": trial.longitudinal[0], "spacing": trial.longitudinal[1]}
     ids = ", ".join(s["id"] for s in need)
+    where = ", ".join(t for t in (W.ref("couplingEither"), W.ref("couplingHoops")) if t)
     notes = [
         (
             f"coupling beams {ids}: {trial.count} Ø{trial.dia:g} diagonal bars per group with "
-            f"hoops Ø{merged.dia:g} @ {merged.spacing:g} over the whole section (8.3.6.7(c), "
-            "(d)(iv))"
+            f"hoops Ø{merged.dia:g} @ {merged.spacing:g} over the whole section"
+            + (
+                f" and Ø{trial.longitudinal[0]:g} @ {trial.longitudinal[1]:g} along each face"
+                if trial.longitudinal
+                else ""
+            )
+            + (f" ({where})" if where else "")
         )
     ]
     return out, notes + left

@@ -940,19 +940,34 @@ def spandrel_design(
             widths = ("Width to depth", "Width ≥ 250", "Width within the supporting column")
             limits = ("Clear span ≥ 4d", "Axial force of a flexural member", *widths)
             waived = limits if mode == "either" else widths if lateral_stability else ()
+            # The clauses the waiver notes cite: the pack's (designClauses.wallsRows).
+            from saengine.design.walls import _paren
+            from saengine.design.walls import ref as wall_ref
+
+            either, lateral = wall_ref("couplingEither"), wall_ref("couplingLateral")
+            rules = wall_ref("couplingBeamRules")
             for c in detailing.checks:
                 if waived and c["name"].startswith(waived):
                     c["flag"] = True
                     c["note"] = (c["note"] + "; " if c["note"] else "") + (
-                        "not required of a coupling beam (8.3.6.7(c): the beam rules 8.3.4.2 to "
-                        "8.3.4.4 only)"
+                        _paren(
+                            "not required of a coupling beam",
+                            f"{either}: the beam rules {rules} only"
+                            if either and rules
+                            else either,
+                        )
                         if mode == "either"
-                        else "lateral stability shown by the engineer's analysis: waived (8.3.6.7(a))"
+                        else _paren(
+                            "lateral stability shown by the engineer's analysis: waived", lateral
+                        )
                     )
                 elif c["name"].startswith(widths) and not c.get("ok", True):
                     c["note"] = (c["note"] + "; " if c["note"] else "") + (
-                        "may be waived only if analysis shows the beam is laterally stable "
-                        "(8.3.6.7(a)); no such analysis is made here"
+                        _paren(
+                            "may be waived only if analysis shows the beam is laterally stable",
+                            lateral,
+                        )
+                        + "; no such analysis is made here"
                     )
                 checks.append(c)
             notes += detailing.notes

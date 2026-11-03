@@ -75,12 +75,33 @@ Coupling beams (8.3.6.7, p. 1105-1106): ln/h > 4: as flexural members of a speci
 (the text refers to "8.3.7" [sic]: the flexural-member provisions are 8.3.4,
 :func:`saengine.design.ductile_members.beam_checks`); ln/h < 2 with Vu > 0.33 Acw λ √f'c: two
 groups of diagonal bars; between: either. Diagonal bars: Vn = 2 Avd fy sin α <= 0.83 Acw √f'c
-(Eq. 6.8.11), φ = 0.85 (6.2.3.3(c)), at least four bars per group (8.3.6.7(d)(ii)), and hoops
-over the whole section (8.3.6.7(d)(iv); the option (iii), hoops around each group, is not
-checked): at most min(150 mm, 6 db) apart along the beam, their legs and crossties at most 200 mm
-apart each way, Ash of 8.3.5.4 (the larger of Eq. 6.8.7 and 6.8.8) across the core's depth and
-across its width (the pack's ``detailing.walls`` couplingHoopSpacingMax, couplingHoopDb and
-couplingLegSpacingMax).
+(Eq. 6.8.11), φ = 0.85 (6.2.3.3(c)), at least four bars per group (8.3.6.7(d)(ii)) embedded
+1.25 ld into the wall (the narrower pier beside the beam: (lw - cover) / cos α along the bar),
+and either (iv) hoops over the whole section: at most min(150 mm, 6 db) apart along the beam,
+their legs and crossties at most 200 mm apart each way, Ash of 8.3.5.4 (the larger of Eq. 6.8.7
+and 6.8.8) across the core's depth and across its width, each leg engaging a longitudinal bar of
+at least its diameter (the type's coupling-beam longitudinal bars, else the wall's horizontal
+bars: one per face at each leg down the depth); or, when the type gives no such hoops, (iii)
+hoops around each group: out-to-out at least bw/2 parallel to bw and bw/5 along the other sides,
+Ash of 8.3.5.4 on the group's section with the cover on all four sides, spacing along the bars
+at most min(so, 6 db) (so of 8.3.5.4(b), as ACI 318-19 18.10.7.4(c)), legs at most 350 mm
+apart, and bars around the beam's perimeter at least 0.002 bw s each way at most 300 mm apart
+(the pack's ``detailing.walls`` coupling* values).
+
+Wall piers (8.3.6.8, pp. 1109-1110). The code does not define a wall pier's proportions: the
+pack's pierLengthRatioMax and pierHeightRatioMin (default pack and generic: ACI 318-19 2.3's
+lw/bw <= 6.0 and clear height / lw >= 2.0) pick the piers beside openings that are wall piers
+(:func:`pier_kind`); those with lw/bw at most pierAlternativeRatio (2.5) take the column rules
+(8.3.5.3(a) steel ratio, 8.3.5.4 hoops over the clear height, the capacity-design shear with
+Vc = 0), the others the alternative (i)-(vi) (:func:`wall_pier_rows`): Ve by capacity design
+2 Mpr / hc, at most Ω0 Vu, against Vn of 8.3.6.4 with ρt of the web and the hoops; hoops at most
+pierHoopSpacingMax (150 mm) apart, extended pierHoopExtension (300 mm) above and below the clear
+height (measured by the bill and the bar schedule); boundary elements by 8.3.6.6(c); at an edge
+of the wall, the horizontal bars above and below the clear height (within lw of it) carry Ve
+(8.3.6.8(b)).
+
+Check-row names cite the clauses of the pack's ``designClauses.wallsRows`` (:func:`named`); a
+pack without them names the rows without a clause.
 
 Section and bar layout. The pier section is a :class:`~saengine.library.objects.RectangleProfile`
 with ``xDim`` = t and ``yDim`` = lw: +y towards the wall's end (the pier's local 2 of
@@ -113,6 +134,7 @@ from saengine.design.bars import (
     spacing_step,
 )
 from saengine.design.clauses import Clauses
+from saengine.design.clauses import text as clause_text
 from saengine.design.ductile_members import _row, so_special
 from saengine.design.rc import (
     Bar,
@@ -129,6 +151,27 @@ from saengine.library.objects import RectangleProfile
 
 #: The clause of each check, from the code pack in force (``designClauses.walls``).
 CLAUSES: Clauses = Clauses("walls")
+
+#: The pack's group of the clause numbers the check rows' names cite (``designClauses.
+#: wallsRows``: the clause without the code's name, e.g. "8.3.6.7(d)(iv)" in the default pack).
+ROWS = "wallsRows"
+
+
+def ref(key: str) -> str:
+    """The clause row ``key`` cites, from the pack in force ("" when it has none: the row is
+    then named without a clause)."""
+    return clause_text(ROWS, key)
+
+
+def _paren(label: str, text: str) -> str:
+    """``label (text)``, or ``label`` alone when ``text`` is empty."""
+    return f"{label} ({text})" if text else label
+
+
+def named(label: str, *keys: str, extra: Iterable[str] = ()) -> str:
+    """A check row's name: ``label`` with the pack's clauses of ``keys`` (and ``extra`` words)
+    in parentheses; ``label`` alone when the pack has none of them."""
+    return _paren(label, ", ".join(t for t in [*(ref(k) for k in keys), *extra] if t))
 
 
 def steel_limit(name: str) -> float:
@@ -228,6 +271,8 @@ class WallBars:
     horizontal_spacing: float
     layers: int = 2
     boundary: Boundary | None = None
+    # Hoops of the type's wall piers (8.3.6.8), in addition to the web bars; None: none.
+    pier_hoop: CouplingHoops | None = None
 
     def rho_l(self, t: float) -> float:
         """Distributed vertical (web) ratio ρl."""
@@ -268,6 +313,15 @@ def wall_bars(reinforcement: Any) -> WallBars | None:
             int(_get(hoop, "legsAlong", 2)),
             hoops=hoop is not None,
         )
+    p = _get(reinforcement, "pierHoop")
+    pier_hoop = None
+    if p is not None:
+        pier_hoop = CouplingHoops(
+            float(_get(p, "dia", 10.0)),
+            float(_get(p, "spacing", 100.0)),
+            int(_get(p, "legsAcross", 2)),
+            int(_get(p, "legsAlong", 2)),
+        )
     return WallBars(
         float(_get(reinforcement, "cover")),
         float(_get(vertical, "dia")),
@@ -276,6 +330,7 @@ def wall_bars(reinforcement: Any) -> WallBars | None:
         float(_get(horizontal, "spacing")),
         int(_get(reinforcement, "layers", 2)),
         boundary,
+        pier_hoop,
     )
 
 
@@ -741,6 +796,7 @@ class WallNeed:
     boundary: BoundaryNeed | None = None
     end_bars: Boundary | None = None  # bars the P-M checks need at the ends (None: web only)
     notes: tuple[str, ...] = ()
+    pier_hoop: CouplingHoops | None = None  # a wall pier's hoops (8.3.6.8); None: not a pier
 
 
 @dataclass
@@ -780,8 +836,13 @@ def wall_checks(
     surface: InteractionSurface | PierInteraction | None = None,
     fyt: float | None = None,
     grade_beam: Any = None,
+    wall_pier: WallPier | None = None,
 ) -> WallDesign:
     """All checks of a wall pier (ordinary, and 8.3.6 when ``special``).
+
+    ``wall_pier``: where the pier stands beside its openings; a special wall's pier that is a wall
+    pier (:func:`pier_kind`) adds the rows of :func:`wall_pier_rows` (8.3.6.8) and takes its
+    boundary elements by the stress method (8.3.6.8(a)(vi) -> 8.3.6.6(c)).
 
     B33: the pack's slender-wall method out of the plane (:func:`slender_wall_checks`, checks
     where k lc / r exceeds the slenderness limit, informative otherwise) and, with
@@ -806,26 +867,37 @@ def wall_checks(
     vu = abs(vu_case.V2) if vu_case else 0.0
     vu_name = vu_case.combination if vu_case else None
     root = math.sqrt(fc)
+    pier_rows: list[dict[str, Any]] = []
+    if special and wall_pier is not None:
+        pier_rows, pier_notes, kind = wall_pier_rows(
+            geometry, bars, forces, fc, fy, es, wall_pier, lam=lam, fyt=fyt
+        )
+        out.notes += pier_notes
+        if kind != "wall":
+            drift = None  # 8.3.6.8(a)(vi): boundary elements by 8.3.6.6(c)
 
     # Minimum distributed reinforcement.
     min_l, min_t = minimum_ratios(bars.vertical_dia, bars.horizontal_dia, fy)
-    rule = "6.6.3.2 / 6.6.3.3"
+    rule = ref("minimum")
     shear_reinforced = _shear_reinforced(geometry, forces, fc, lam)  # 6.4.8.8
     req_l, req_t = min_l, min_t
     if special:
         if vu > special_limit("relaxedShare") * acv * lam * root:
             req_l = req_t = steel_limit("rhoShear")
-            rule = "8.3.6.2(a)"
+            rule = ref("webSpecial")
         else:
-            rule = "8.3.6.2(a)(i)/(ii): Vu <= 0.083 Acv λ √f'c"
+            relaxed = ref("webRelaxed")
+            rule = (f"{relaxed}: " if relaxed else "") + "Vu <= 0.083 Acv λ √f'c"
     elif shear_reinforced:
         req_t = max(req_t, steel_limit("rhoShear"))
         t_need = _rho_t_shear(geometry, forces, fc, fy, lam)
         req_l = max(req_l, rho_l_eq71(geometry, rho_t, t_need))
-        rule = "6.4.8.9.2 / 6.4.8.9.4 (Vu > 0.5 φVc, 6.4.8.8)"
+        rule = ref("webShear")
+        why = ", ".join(t for t in ("Vu > 0.5 φVc", ref("shearReinforced")) if t)
+        rule = _paren(rule, why) if rule else why
     out.checks.append(
         _row(
-            f"Vertical web ratio ρl ({rule})",
+            _paren("Vertical web ratio ρl", rule),
             100 * req_l,
             100 * rho_l,
             "%",
@@ -834,7 +906,7 @@ def wall_checks(
     )
     out.checks.append(
         _row(
-            f"Horizontal web ratio ρt ({rule})",
+            _paren("Horizontal web ratio ρt", rule),
             100 * req_t,
             100 * rho_t,
             "%",
@@ -844,7 +916,7 @@ def wall_checks(
     if special and geometry.aspect <= 2.0:
         out.checks.append(
             _row(
-                "ρl >= ρt where hw/lw <= 2.0 (8.3.6.4(c))",
+                named("ρl >= ρt where hw/lw <= 2.0", "rhoLAtLeastT"),
                 100 * rho_t,
                 100 * rho_l,
                 "%",
@@ -855,26 +927,34 @@ def wall_checks(
     # Spacing.
     s_max = steel_limit("spacingMax")
     s_v, s_h = min(3 * t, s_max), min(3 * t, s_max)
-    why_v = why_h = "min(3t, 450 mm) (6.6.3.5)"
+    why_v = why_h = named("min(3t, 450 mm)", "spacing")
     if shear_reinforced and not special:
-        s_h, why_h = min(lw / 5, 3 * t, s_max), "min(lw/5, 3h, 450 mm) (6.4.8.9.3)"
-        s_v, why_v = min(lw / 3, 3 * t, s_max), "min(lw/3, 3h, 450 mm) (6.4.8.9.5)"
+        s_h, why_h = (
+            min(lw / 5, 3 * t, s_max),
+            named("min(lw/5, 3h, 450 mm)", "spacingHorizontalShear"),
+        )
+        s_v, why_v = (
+            min(lw / 3, 3 * t, s_max),
+            named("min(lw/3, 3h, 450 mm)", "spacingVerticalShear"),
+        )
     if special:
-        why_v = why_h = "450 mm (8.3.6.2(a)) and min(3t, 450 mm) (6.6.3.5)"
+        why_v = why_h = f"{named('450 mm', 'webSpecial')} and {named('min(3t, 450 mm)', 'spacing')}"
     out.checks.append(_row(f"Vertical bar spacing, {why_v}", bars.vertical_spacing, s_v, "mm"))
     out.checks.append(_row(f"Horizontal bar spacing, {why_h}", bars.horizontal_spacing, s_h, "mm"))
 
     # Layers.
     if t > steel_limit("twoLayerThickness") and not geometry.basement:
         out.checks.append(
-            _row("Two layers in walls thicker than 250 mm (6.6.3.4)", 2, bars.layers, "layers")
+            _row(
+                named("Two layers in walls thicker than 250 mm", "layers"), 2, bars.layers, "layers"
+            )
         )
     if special:
         curtains = special_limit("twoCurtainShare") * acv * lam * root
         need2 = vu > curtains
         out.checks.append(
             _row(
-                "Two curtains where Vu > 0.17 Acv λ √f'c (8.3.6.2(b))",
+                named("Two curtains where Vu > 0.17 Acv λ √f'c", "curtains"),
                 2 if need2 else 1,
                 bars.layers,
                 "curtains",
@@ -898,7 +978,11 @@ def wall_checks(
         r, f = worst
         out.checks.append(
             _row(
-                "Axial force and bending P-M3-M2 (6.6.4" + (", 8.3.6.5)" if special else ")"),
+                named(
+                    "Axial force and bending P-M3-M2",
+                    "compression",
+                    *(("flexureSpecial",) if special else ()),
+                ),
                 _knm(r.mu),
                 _knm(r.phi_mn),
                 "kN·m",
@@ -941,7 +1025,7 @@ def wall_checks(
                 f"{'<' if phi_v < rc_value('PHI_SHEAR') else '>='} the largest Vu Mn/Mu = {shown}"
                 + (f", {phi_case.combination})" if phi_case is not None else ")")
             )
-            name = "In-plane shear (8.3.6.4, Eq. 6.8.9)"
+            name = named("In-plane shear", "shearSpecial")
         else:
             sv = wall_vn(geometry, bars, vu_case, fc, fy, lam)
             vn = float(sv["vn"])
@@ -950,7 +1034,7 @@ def wall_checks(
                 f"{_kn(float(sv['vs'])):.1f} kN, d = 0.8 lw; Vn <= 0.83 √f'c h d = "
                 f"{_kn(float(sv['vmax'])):.1f} kN"
             )
-            name = "In-plane shear (6.4.8)"
+            name = named("In-plane shear", "shear")
         # Every combination against its own Vn: the ordinary Vc depends on Nu, Mu.
         best = (vu / (phi_v * vn) if vn > 0 else math.inf, vu_case, vn)
         if not special:
@@ -963,6 +1047,7 @@ def wall_checks(
         out.checks.append(
             _row(name, _kn(abs(f.V2)), _kn(phi_v * vn), "kN", f.combination, note, utilisation=u)
         )
+    out.checks += pier_rows
 
     # Out-of-plane: bending of the web per metre with its axial force (6.6.4), slab shear
     # (6.4.8.1), slenderness.
@@ -980,7 +1065,7 @@ def wall_checks(
         q = abs(v3_case.V3) / lw * 1000
         out.checks.append(
             _row(
-                "Out-of-plane shear per metre, as a slab (6.4.8.1, 6.4.10.1.1)",
+                named("Out-of-plane shear per metre, as a slab", "outOfPlaneShear"),
                 q / 1e3,
                 cap / 1e3,
                 "kN/m",
@@ -1007,7 +1092,11 @@ def wall_checks(
             phi_pn = empirical_capacity(geometry, fc)
             out.checks.append(
                 _row(
-                    "Empirical method φPn = 0.55 φ f'c Ag [1 - (k lc/32h)²] (6.6.5.2, informative)",
+                    named(
+                        "Empirical method φPn = 0.55 φ f'c Ag [1 - (k lc/32h)²]",
+                        "empirical",
+                        extra=("informative",),
+                    ),
                     _kn(p_case.P),
                     _kn(phi_pn),
                     "kN",
@@ -1020,7 +1109,7 @@ def wall_checks(
             least = 190.0 if geometry.basement else max(100.0, min(geometry.clear_height, lw) / 25)
             out.checks.append(
                 _row(
-                    "Least thickness, empirical method (6.6.5.3)",
+                    named("Least thickness, empirical method", "empiricalThickness"),
                     least,
                     t,
                     "mm",
@@ -1028,7 +1117,7 @@ def wall_checks(
                 )
             )
             out.checks[-1]["flag"] = True
-    out.checks.append(_row("Least thickness (6.6.5.3.1, 6.6.6.1)", 100.0, t, "mm"))
+    out.checks.append(_row(named("Least thickness", "thickness"), 100.0, t, "mm"))
 
     # Boundary elements (8.3.6.6).
     boundary = None
@@ -1061,6 +1150,7 @@ def wall_checks(
         fyt=fyt,
         bars=bars,
         boundary=boundary,
+        pier=wall_pier,
     )
     settle_informative(out.checks)
     strength = [c for c in out.checks if not c["flag"]]
@@ -1128,7 +1218,7 @@ def web_strip_check(
         " at the faces" if len(xs) == 2 else " at mid-thickness"
     )
     return _row(
-        "Out-of-plane bending per metre of web, with its axial force (6.6.4)",
+        named("Out-of-plane bending per metre of web, with its axial force", "compression"),
         mu / 1e6,
         cap / 1e6,
         "kN·m/m",
@@ -1333,7 +1423,7 @@ def _boundary_rows(
     if need.method == "displacement":
         rows.append(
             _row(
-                "Boundary elements: c >= lw / 600(δu/hw) (8.3.6.6(b), Eq. 6.8.10)",
+                named("Boundary elements: c >= lw / 600(δu/hw)", "boundaryDisplacement"),
                 need.c,
                 need.trigger if need.trigger is not None else need.c,
                 "mm",
@@ -1346,7 +1436,7 @@ def _boundary_rows(
     else:
         rows.append(
             _row(
-                "Boundary elements: extreme fibre stress > 0.2 f'c (8.3.6.6(c))",
+                named("Boundary elements: extreme fibre stress > 0.2 f'c", "boundaryStress"),
                 need.stress,
                 special_limit("stressRequired") * fc,
                 "MPa",
@@ -1363,7 +1453,7 @@ def _boundary_rows(
             if b is None or not b.hoops:
                 rows.append(
                     _row(
-                        "End ties where ρ at the boundary > 2.8/fy (8.3.6.6(e)(i))",
+                        named("End ties where ρ at the boundary > 2.8/fy", "endTies"),
                         need.length,
                         0.0,
                         "mm",
@@ -1379,8 +1469,9 @@ def _boundary_rows(
             else:
                 rows.append(
                     _row(
-                        "End tie spacing <= 200 mm where ρ at the boundary > 2.8/fy "
-                        "(8.3.6.6(e)(i))",
+                        named(
+                            "End tie spacing <= 200 mm where ρ at the boundary > 2.8/fy", "endTies"
+                        ),
                         b.hoop_spacing,
                         need.ties_spacing or 200.0,
                         "mm",
@@ -1394,7 +1485,7 @@ def _boundary_rows(
     if b is None:
         rows.append(
             _row(
-                "Boundary element provided (8.3.6.6(d))",
+                named("Boundary element provided", "boundaryProvided"),
                 need.length,
                 0.0,
                 "mm",
@@ -1405,7 +1496,7 @@ def _boundary_rows(
         return rows
     rows.append(
         _row(
-            "Boundary element length >= max(c - 0.1 lw, c/2) (8.3.6.6(d)(i))",
+            named("Boundary element length >= max(c - 0.1 lw, c/2)", "boundaryLength"),
             need.least_length,
             b.length,
             "mm",
@@ -1416,7 +1507,7 @@ def _boundary_rows(
     if not b.hoops:
         rows.append(
             _row(
-                "Boundary hoops provided (8.3.6.6(d)(iii), 8.3.5.4)",
+                named("Boundary hoops provided", "boundaryHoops"),
                 need.spacing,
                 0.0,
                 "mm",
@@ -1427,7 +1518,7 @@ def _boundary_rows(
         return rows
     rows.append(
         _row(
-            "Boundary hoop spacing (8.3.6.6(d)(iii), 8.3.5.4(b))",
+            named("Boundary hoop spacing", "boundaryHoopSpacing"),
             b.hoop_spacing,
             need.spacing,
             "mm",
@@ -1439,7 +1530,7 @@ def _boundary_rows(
     ):
         rows.append(
             _row(
-                f"Boundary Ash, bc {what} (Eq. 6.8.8)",
+                named(f"Boundary Ash, bc {what}", "boundaryAsh"),
                 need.ash_s[k] * b.hoop_spacing,
                 legs * bar_area(b.hoop_dia),
                 "mm²",
@@ -1451,7 +1542,7 @@ def _boundary_rows(
         (t - 2 * bars.cover) / max(b.legs_along - 1, 1),
     )
     rows.append(
-        _row("Boundary hoop legs hx <= 350 mm (8.3.5.4(c))", hx, special_limit("hxMax"), "mm")
+        _row(named("Boundary hoop legs hx <= 350 mm", "hx"), hx, special_limit("hxMax"), "mm")
     )
     return rows
 
@@ -1474,6 +1565,7 @@ def wall_need(
     boundary: BoundaryNeed | None = None,
     cover: float = 25.0,
     search: bool = False,
+    pier: WallPier | None = None,
 ) -> WallNeed:
     """The reinforcement a wall needs: ρl, ρt, the largest spacings, the layers, a mesh per face
     (:func:`saengine.design.bars.mesh_for`, Ø10-Ø20, >= 100 mm apart) and, for special walls,
@@ -1561,6 +1653,16 @@ def wall_need(
         web = WallBars(
             cover, vertical.dia, vertical.spacing, horizontal.dia, horizontal.spacing, layers
         )
+    pier_hoop = None
+    if special and pier is not None and pier_kind(lw, t, pier.clear_height) != "wall":
+        drift = None  # 8.3.6.8(a)(vi): boundary elements by 8.3.6.6(c)
+        if web is not None:
+            try:
+                pier_hoop = propose_pier_hoops(
+                    geometry, web, forces, fc, fy, es, pier, lam=lam, fyt=fyt
+                )
+            except DesignError as error:
+                notes.append(f"wall pier hoops not found: {error}")
     if special and boundary is None and web is not None:
         try:
             section = pier_section(geometry, web, fc, fy, es)
@@ -1604,6 +1706,7 @@ def wall_need(
         boundary,
         end_bars,
         tuple(notes),
+        pier_hoop,
     )
 
 
@@ -1614,7 +1717,7 @@ def end_ratio_row(b: Boundary, t: float) -> dict[str, Any]:
     high = column_rho()[1]
     rho = b.count * bar_area(b.dia) / (b.length * t) if b.length > 0 and t > 0 else math.inf
     return _row(
-        f"End bars over the end zone, ρ <= {100 * high:g} % (6.6.4 -> 6.3.8.1)",
+        named(f"End bars over the end zone, ρ <= {100 * high:g} %", "endBars"),
         100 * rho,
         100 * high,
         "%",
@@ -1691,6 +1794,416 @@ def _search_end_bars(
     return False, None
 
 
+# ─────────────────────────────────────── wall piers ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class WallPier:
+    """Where a pier of a special wall stands beside its openings (8.3.6.8): ``clear_height``
+    the height of the openings beside it (the taller); ``edge``: at an end of the wall
+    (8.3.6.8(b)); ``above``, ``below``: the depth of the wall in the storey above and below its
+    clear height [mm]; ``omega``: Ω0 of the system (the design shear need not exceed Ω0 times
+    the analysis shear, 8.3.6.8(a)(i)); None: not capped."""
+
+    clear_height: float
+    edge: bool = False
+    above: float = 0.0
+    below: float = 0.0
+    omega: float | None = None
+
+
+def pier_kind(lw: float, bw: float, clear_height: float) -> str:
+    """ "wall": not a wall pier (lw/bw above the pack's pierLengthRatioMax, or the clear
+    height below pierHeightRatioMin lw); "column": a wall pier the column rules of 8.3.5
+    design (lw/bw at most pierAlternativeRatio); "pier": a wall pier that may take the
+    alternative of 8.3.6.8(a)(i)-(vi)."""
+    if bw <= 0 or lw <= 0:
+        return "wall"
+    if lw / bw > special_limit("pierLengthRatioMax") + 1e-9:
+        return "wall"
+    if clear_height / lw < special_limit("pierHeightRatioMin") - 1e-9:
+        return "wall"
+    return "column" if lw / bw <= special_limit("pierAlternativeRatio") + 1e-9 else "pier"
+
+
+def pier_segments(
+    length: float, height: float, openings: Iterable[Any], min_opening: float | None = None
+) -> list[dict[str, Any]]:
+    """The piers of a wall ``length`` by ``height`` between its openings (``offset``, ``width``,
+    ``sill``, ``height`` from the wall's start and bottom; those reaching over less than
+    ``min_opening`` of the height do not split it, as :mod:`saengine.design.wall_forces`):
+    ``{start, end, lw, clear, edge, above, below, bounded}`` with ``clear`` the height of the
+    taller opening beside it, ``above``/``below`` the wall over and under that opening and
+    ``bounded`` whether an opening is beside it (else the whole wall, not a pier)."""
+    if min_opening is None:
+        from saengine.design.wall_forces import MIN_OPENING
+
+        min_opening = MIN_OPENING
+    cuts = []
+    for w in openings:
+        start = max(float(_get(w, "offset")), 0.0)
+        end = min(float(_get(w, "offset")) + float(_get(w, "width")), length)
+        sill = max(float(_get(w, "sill", 0.0) or 0.0), 0.0)
+        head = min(sill + float(_get(w, "height")), height)
+        if end <= start or head - sill < min_opening * height - 1e-6:
+            continue
+        cuts.append((start, end, sill, head))
+    cuts.sort()
+    out: list[dict[str, Any]] = []
+    edges = [0.0]
+    for start, end, *_ in cuts:
+        edges += [start, end]
+    edges.append(length)
+    for a, b in zip(edges[::2], edges[1::2], strict=False):
+        if b - a <= 1.0:
+            continue
+        beside = [c for c in cuts if abs(c[1] - a) <= 1.0 or abs(c[0] - b) <= 1.0]
+        if beside:
+            tall = max(beside, key=lambda c: c[3] - c[2])
+            clear, above, below = tall[3] - tall[2], height - tall[3], tall[2]
+        else:
+            clear, above, below = height, 0.0, 0.0
+        out.append(
+            {
+                "start": a,
+                "end": b,
+                "lw": b - a,
+                "clear": clear,
+                "edge": a <= 1.0 or b >= length - 1.0,
+                "above": above,
+                "below": below,
+                "bounded": bool(beside),
+            }
+        )
+    return out
+
+
+def pier_rho_t(t: float, bars: WallBars) -> float:
+    """ρt of a wall pier: the horizontal web bars and its hoops' legs along the length."""
+    rho = bars.rho_t(t)
+    h = bars.pier_hoop
+    if h is not None:
+        rho += h.legs_along * bar_area(h.dia) / (t * h.spacing)
+    return rho
+
+
+def pier_design_shear(
+    geometry: WallGeometry,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+    pier: WallPier,
+) -> tuple[float, float, str, str | None]:
+    """(Ve, the shear at the nominal moments 2 Mn / hc, how, combination) [N] of a wall pier
+    (8.3.6.8(a)(i), by the capacity design of 8.3.8.1): Ve = 2 Mpr / hc with Mpr the probable
+    moment (the pack's ``detailing.lintels.probable`` x fy, 1.25 in the default pack, φ = 1)
+    at the axial force of the combinations with E giving the largest,
+    the clear height hc between the joint faces; at most Ω0 times the largest analysis shear of
+    those combinations (when Ω0 is given), at least the largest factored Vu."""
+    hc = max(pier.clear_height, 1.0)
+    seismic = [f for f in forces if f.earthquake] or list(forces)
+    factor = float(code_context.table("detailing").lintels["probable"])  # 1.25 fy (8.3.8.1)
+    probable = PierInteraction(pier_section(geometry, bars, fc, factor * fy, es))
+    nominal = PierInteraction(pier_section(geometry, bars, fc, fy, es))
+    mpr = mn = 0.0
+    case = None
+    for f in seismic:
+        for sense in (1, -1):
+            m = probable.nominal(f.P, "M3", sense)[0]
+            if m > mpr:
+                mpr, case = m, f.combination
+            mn = max(mn, nominal.nominal(f.P, "M3", sense)[0])
+    ve = 2 * mpr / hc
+    how = f"2 Mpr / hc = 2 x {_knm(mpr):.1f} / {hc / 1e3:.2f} m"
+    vu_e = max((abs(f.V2) for f in seismic), default=0.0)
+    if pier.omega:
+        cap = pier.omega * vu_e
+        if cap < ve:
+            ve, how = cap, f"Ω0 Vu = {pier.omega:g} x {_kn(vu_e):.1f} kN (below {how})"
+    vu = max((abs(f.V2) for f in forces), default=0.0)
+    if vu > ve:
+        ve, how = vu, f"the factored Vu (above {how})"
+    return ve, 2 * mn / hc, how, case
+
+
+def pier_hoop_limits(
+    geometry: WallGeometry, bars: WallBars, kind: str, fc: float, fyt: float
+) -> dict[str, Any]:
+    """What a wall pier's hoops must meet: ``spacing`` the largest vertical spacing and, for
+    the column rules, ``ash`` (Ash/s along the length and across the thickness, mm²/mm) and
+    ``hx`` of the legs entered (the pier's core to the outside of the hoops)."""
+    from saengine.design.ductile_members import ash_per_spacing
+
+    t, lw = geometry.thickness, geometry.length
+    if kind != "column":
+        return {"spacing": special_limit("pierHoopSpacingMax"), "rule": "pier"}
+    cover = bars.cover
+    bc_len, bc_t = lw - 2 * cover, t - 2 * cover
+    ag, ach = lw * t, max(bc_len, 1.0) * max(bc_t, 1.0)
+    h = bars.pier_hoop
+    db = bars.vertical_dia
+    if h is not None:
+        hx = max(
+            (bc_len - 2 * h.dia - db) / max(h.legs_across - 1, 1),
+            (bc_t - 2 * h.dia - db) / max(h.legs_along - 1, 1),
+        )
+    else:
+        hx = special_limit("hxMax")
+    so = so_special(hx)
+    return {
+        "spacing": min(min(t, lw) / 4, 6 * db, so),
+        "rule": f"min(least dimension/4, 6 db, so), so = {so:.0f} mm",
+        "ash": (ash_per_spacing(bc_len, ag, ach, fc, fyt), ash_per_spacing(bc_t, ag, ach, fc, fyt)),
+        "hx": hx,
+    }
+
+
+def pier_shear_capacity(
+    geometry: WallGeometry, bars: WallBars, kind: str, fc: float, fy: float, lam: float = 1.0
+) -> tuple[float, str]:
+    """(Vn, how) [N] of a wall pier: the alternative by 8.3.6.4 (Eq. 6.8.9 with αc for its
+    clear height and ρt of its web bars and hoops, at most 0.83 Acw √f'c); the column rules
+    by the hoops and the web's horizontal bars alone (Vc taken as 0 on the safe side), d =
+    0.8 lw."""
+    t, lw = geometry.thickness, geometry.length
+    fy_v = min(fy, rc_value("FYT_SHEAR_MAX"))
+    rho = pier_rho_t(t, bars)
+    if kind == "column":
+        vs = rho * t * fy_v * 0.8 * lw
+        return vs, f"Vs = ρt fy t d = {_kn(vs):.1f} kN, d = 0.8 lw, Vc = 0"
+    a = alpha_c(geometry.clear_height / lw)
+    vn = lw * t * (a * lam * math.sqrt(fc) + rho * fy_v)
+    vmax = 0.83 * lw * t * math.sqrt(fc)
+    return min(vn, vmax), (
+        f"Vn = Acv (αc λ √f'c + ρt fy), αc = {a:.2f}, ρt = {100 * rho:.3f} % (web and hoops), "
+        f"<= 0.83 Acw √f'c = {_kn(vmax):.1f} kN"
+    )
+
+
+def wall_pier_rows(
+    geometry: WallGeometry,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+    pier: WallPier,
+    *,
+    lam: float = 1.0,
+    fyt: float | None = None,
+) -> tuple[list[dict[str, Any]], list[str], str]:
+    """The checks of a wall pier (8.3.6.8): (rows, notes, kind of :func:`pier_kind`). The
+    column rules (lw/bw at most the pack's pierAlternativeRatio): the vertical steel ratio of
+    8.3.5.3(a), hoops of 8.3.5.4 over the clear height (Ash, spacing, hx) and the
+    capacity-design shear; otherwise the alternative (i)-(v): the capacity-design shear (i)
+    against Vn of 8.3.6.4 (ii), hoops (iii) at most 150 mm apart (iv), extended 300 mm above and
+    below the clear height (v, in the bill and the bar schedule), the boundary elements by
+    8.3.6.6(c) (vi, :func:`wall_checks`). At an edge of the wall, (b): the horizontal bars of
+    the wall above and below the clear height (within lw of it) carry Ve."""
+    t, lw = geometry.thickness, geometry.length
+    fyt = fy if fyt is None else fyt
+    kind = pier_kind(lw, t, pier.clear_height)
+    if kind == "wall":
+        return [], [], kind
+    rows: list[dict[str, Any]] = []
+    notes = [
+        f"a wall pier: lw/bw = {lw / t:.2f} <= {special_limit('pierLengthRatioMax'):g} and clear "
+        f"height / lw = {pier.clear_height:.0f} / {lw:.0f} = {pier.clear_height / lw:.2f} >= "
+        f"{special_limit('pierHeightRatioMin'):g}: "
+        + (
+            "the column rules"
+            if kind == "column"
+            else f"the alternative to the column rules (lw/bw > "
+            f"{special_limit('pierAlternativeRatio'):g})"
+        )
+        + f" ({ref('pier') or 'wall piers'}); boundary elements by the stress method"
+    ]
+    ve, v_mn, how, case = pier_design_shear(geometry, bars, forces, fc, fy, es, pier)
+    vn, vn_how = pier_shear_capacity(geometry, bars, kind, fc, fy, lam)
+    phi = rc_value("PHI_SHEAR")
+    if kind == "pier" and vn < v_mn:
+        phi = wall_phi("shearSeismic")
+    rows.append(
+        _row(
+            named("Wall pier design shear Ve, capacity design", "pierShear"),
+            _kn(ve),
+            _kn(phi * vn),
+            "kN",
+            case,
+            f"Ve = {how}; {vn_how}; φ = {phi:.2f}",
+        )
+    )
+    h = bars.pier_hoop
+    limits = pier_hoop_limits(geometry, bars, kind, fc, fyt)
+    hoops_key = "pierColumnHoops" if kind == "column" else "pierHoops"
+    spacing_key = "pierColumnSpacing" if kind == "column" else "pierSpacing"
+    if h is None:
+        rows.append(
+            _row(
+                named("Wall pier hoops provided", hoops_key),
+                limits["spacing"],
+                0.0,
+                "mm",
+                note=f"hoops at <= {limits['spacing']:.0f} mm over the clear height and "
+                f"{special_limit('pierHoopExtension'):g} mm above and below needed; the wall "
+                "type has no wall pier hoops entered",
+            )
+        )
+    else:
+        rows.append(
+            _row(
+                named("Wall pier hoop spacing", spacing_key),
+                h.spacing,
+                limits["spacing"],
+                "mm",
+                note=f"Ø{h.dia:g} @ {h.spacing:g}"
+                + (f"; {limits['rule']}" if kind == "column" else ""),
+            )
+        )
+        if kind == "column":
+            for k, (what, legs) in enumerate(
+                (("along the length", h.legs_across), ("across the thickness", h.legs_along))
+            ):
+                rows.append(
+                    _row(
+                        named(f"Wall pier Ash, bc {what}", hoops_key),
+                        limits["ash"][k] * h.spacing,
+                        legs * bar_area(h.dia),
+                        "mm²",
+                        note=f"{legs} legs Ø{h.dia:g} @ {h.spacing:g}; the larger of Eq. 6.8.7 "
+                        "and 6.8.8",
+                    )
+                )
+            rows.append(
+                _row(
+                    named("Wall pier hoop legs hx <= 350 mm", "hx"),
+                    limits["hx"],
+                    special_limit("hxMax"),
+                    "mm",
+                )
+            )
+        notes.append(
+            f"wall pier hoops over the clear height {pier.clear_height:.0f} mm and at least "
+            f"{special_limit('pierHoopExtension'):g} mm above and below it"
+            + (
+                "; with one curtain, single-leg horizontal bars with 180° bends at each end "
+                "engaging the pier's boundary bars may serve instead"
+                if bars.layers == 1 and kind == "pier"
+                else ""
+            )
+        )
+    if kind == "column":
+        section = pier_section(geometry, bars, fc, fy, es)
+        from saengine.design.ductile_members import _column_rho
+
+        low, high = _column_rho()
+        rho = section.steel_area / section.gross_area
+        rows.append(
+            _row(
+                named("Wall pier as a column: least steel ratio", "pierColumnBars"),
+                100 * low,
+                100 * rho,
+                "%",
+            )
+        )
+        rows.append(
+            _row(
+                named("Wall pier as a column: largest steel ratio", "pierColumnBars"),
+                100 * rho,
+                100 * high,
+                "%",
+            )
+        )
+    if pier.edge:
+        reach = [min(d, lw) for d in (pier.above, pier.below) if d > 1.0]
+        area = sum(
+            bars.layers * bars_down(d, bars.horizontal_spacing) * bar_area(bars.horizontal_dia)
+            for d in reach
+        )
+        fy_t = min(fy, rc_value("FYT_SHEAR_MAX"))
+        phi_t = rc_value("PHI_SHEAR")
+        rows.append(
+            _row(
+                named("Edge wall pier: horizontal bars above and below carry Ve", "pierEdge"),
+                _kn(ve),
+                _kn(phi_t * area * fy_t),
+                "kN",
+                case,
+                f"{bars.layers} x Ø{bars.horizontal_dia:g} @ {bars.horizontal_spacing:g} within "
+                + (
+                    " and ".join(f"{d:.0f} mm" for d in reach)
+                    if reach
+                    else "no wall above or below the clear height in the storey"
+                )
+                + f"; φ As fy, φ = {phi_t:.2f}; the bars run on past the pier into the wall",
+            )
+        )
+        if not reach:
+            rows[-1]["flag"] = True
+            rows[-1]["note"] += " (the floor or foundation takes it: informative)"
+    return rows, notes, kind
+
+
+def propose_pier_hoops(
+    geometry: WallGeometry,
+    bars: WallBars,
+    forces: list[PierForces],
+    fc: float,
+    fy: float,
+    es: float,
+    pier: WallPier,
+    *,
+    lam: float = 1.0,
+    fyt: float | None = None,
+) -> CouplingHoops | None:
+    """The hoops of a wall pier (None when it is not one): per hoop diameter the fewest legs
+    (the column rules: hx <= 350 mm, more while Ash allows a spacing below 75 mm; the
+    alternative: a closed hoop, two legs each way), the spacing the least of the rules' and
+    what the capacity-design shear needs, rounded down to the spacing step; the lightest."""
+    t, lw = geometry.thickness, geometry.length
+    fyt = fy if fyt is None else fyt
+    kind = pier_kind(lw, t, pier.clear_height)
+    if kind == "wall":
+        return None
+    ve = pier_design_shear(geometry, bars, forces, fc, fy, es, pier)[0]
+    step = spacing_step()
+    best: tuple[float, CouplingHoops] | None = None
+    bc_len, bc_t = lw - 2 * bars.cover, t - 2 * bars.cover
+    for dh in bar_sizes("hoop"):
+        across = along = 2
+        if kind == "column":
+            across = max(2, math.ceil(bc_len / special_limit("hxMax") - 1e-9) + 1)
+            along = max(2, math.ceil(bc_t / special_limit("hxMax") - 1e-9) + 1)
+        for _ in range(12):
+            trial = replace(bars, pier_hoop=CouplingHoops(dh, 1000.0, across, along))
+            limits = pier_hoop_limits(geometry, trial, kind, fc, fyt)
+            s = limits["spacing"]
+            if kind == "column":
+                need_len, need_t = limits["ash"]
+                s = min(s, across * bar_area(dh) / need_len, along * bar_area(dh) / need_t)
+                if s < 75.0:
+                    if across * bar_area(dh) / need_len <= along * bar_area(dh) / need_t:
+                        across += 1
+                    else:
+                        along += 1
+                    continue
+            break
+        s = max(round_down(s, step), 50.0)
+        # The capacity-design shear: closer hoops while φVn < Ve.
+        while s > 50.0:
+            trial = replace(bars, pier_hoop=CouplingHoops(dh, s, across, along))
+            vn = pier_shear_capacity(geometry, trial, kind, fc, fy, lam)[0]
+            if wall_phi("shearSeismic") * vn >= ve:
+                break
+            s = max(s - step, 50.0)
+        weight = (across * bc_t + along * bc_len) * bar_area(dh) / s
+        if best is None or weight < best[0] - 1e-9:
+            best = (weight, CouplingHoops(dh, s, across, along))
+    return best[1] if best else None
+
+
 # ─────────────────────────────────────── coupling beams ───────────────────────────────────────
 
 
@@ -1703,9 +2216,24 @@ class Diagonal:
     edge: float = 0.0  # centroid of the group from the beam face at the wall face [mm]
     angle: float | None = None  # α [rad]; None: from the depth, edge and span
     hoop: CouplingHoops | None = None  # over the whole section (8.3.6.7(d)(iv)); None: none
+    group_hoop: GroupHoops | None = None  # around each group (8.3.6.7(d)(iii)); None: none
+    # Longitudinal bars along each face (dia, spacing down the depth); None: the web's bars.
+    longitudinal: tuple[float, float] | None = None
 
     def area(self) -> float:
         return self.count * bar_area(self.dia)
+
+
+@dataclass(frozen=True)
+class GroupHoops:
+    """Hoops around each group of diagonal bars (8.3.6.7(d)(iii)): out-to-out ``width``
+    parallel to the wall's thickness and ``depth`` along the other sides (None: from the wall's
+    curtains and the group's bars)."""
+
+    dia: float
+    spacing: float
+    width: float | None = None
+    depth: float | None = None
 
 
 @dataclass(frozen=True)
@@ -1781,19 +2309,20 @@ def coupling_hoop_rows(
     if hoop is None:
         return [
             _row(
-                "Coupling beam hoops provided (8.3.6.7(d)(iv))",
+                named("Coupling beam hoops provided", "couplingTransverse"),
                 s_max,
                 0.0,
                 "mm",
-                note=f"hoops over the whole section at <= {s_max:.0f} mm needed; the wall type's "
-                "diagonal bars have no hoops entered",
+                note=f"hoops over the whole section at <= {s_max:.0f} mm, or hoops around each "
+                "group of diagonal bars, needed; the wall type's diagonal bars have no hoops "
+                "entered",
             )
         ]
     depth, width = h - 2 * cover, bw - 2 * cover
     leg = max(depth / max(hoop.legs_across - 1, 1), width / max(hoop.legs_along - 1, 1))
     rows = [
         _row(
-            "Coupling beam hoop spacing (8.3.6.7(d)(iv))",
+            named("Coupling beam hoop spacing", "couplingHoops"),
             hoop.spacing,
             s_max,
             "mm",
@@ -1802,7 +2331,7 @@ def coupling_hoop_rows(
             f"{special_limit('couplingHoopDb'):g} db) with db = Ø{db:g}",
         ),
         _row(
-            "Coupling beam hoop legs and crossties apart (8.3.6.7(d)(iv))",
+            named("Coupling beam hoop legs and crossties apart", "couplingHoops"),
             leg,
             legs_max,
             "mm",
@@ -1816,7 +2345,7 @@ def coupling_hoop_rows(
     ):
         rows.append(
             _row(
-                f"Coupling beam Ash, bc {what} (8.3.5.4, Eq. 6.8.7, 6.8.8)",
+                named(f"Coupling beam Ash, bc {what}", "couplingAsh"),
                 need * hoop.spacing,
                 legs * bar_area(hoop.dia),
                 "mm²",
@@ -1825,6 +2354,228 @@ def coupling_hoop_rows(
             )
         )
     return rows
+
+
+def coupling_longitudinal(
+    diagonal: Diagonal, web: WallBars | None
+) -> tuple[float, float, int, str]:
+    """(diameter, spacing down the depth, faces, what) of a coupling beam's longitudinal bars:
+    the type's own (``diagonal.longitudinal``), else the wall's horizontal web bars."""
+    layers = web.layers if web is not None else 2
+    if diagonal.longitudinal is not None:
+        dia, spacing = diagonal.longitudinal
+        return dia, spacing, layers, "the coupling beam's longitudinal bars"
+    if web is not None:
+        return web.horizontal_dia, web.horizontal_spacing, layers, "the wall's horizontal bars"
+    return 0.0, math.inf, layers, "no longitudinal bars known"
+
+
+def bars_down(depth: float, spacing: float) -> int:
+    """Bars of one face at ``spacing`` down a core ``depth`` deep (one at each end)."""
+    if not math.isfinite(spacing) or spacing <= 0:
+        return 0
+    return math.floor(max(depth, 0.0) / spacing + 1e-9) + 1
+
+
+def coupling_engagement_rows(
+    hoop: CouplingHoops, diagonal: Diagonal, h: float, cover: float, web: WallBars | None
+) -> list[dict[str, Any]]:
+    """8.3.6.7(d)(iv): each crosstie and hoop leg engages a longitudinal bar of equal or larger
+    diameter: a bar of each face at each leg down the depth, a face of bars at each leg across
+    the thickness, and their diameter at least the hoop's."""
+    dia, spacing, faces, what = coupling_longitudinal(diagonal, web)
+    if dia <= 0:
+        return []  # neither the beam's bars nor the wall's web given: a note of the caller
+    depth = h - 2 * cover
+    count = bars_down(depth, spacing)
+    rows = [
+        _row(
+            named("Coupling beam longitudinal bars, one at each hoop leg", "couplingHoops"),
+            hoop.legs_across,
+            count,
+            "bars",
+            note=f"{hoop.legs_across} legs across down {depth:.0f} mm; {what} Ø{dia:g} @ "
+            f"{spacing:g}: {count} per face",
+        ),
+        _row(
+            named("Coupling beam longitudinal bar Ø >= the hoop's", "couplingHoops"),
+            hoop.dia,
+            dia,
+            "mm",
+            note=what,
+        ),
+    ]
+    if hoop.legs_along > faces:
+        rows.append(
+            _row(
+                named("Coupling beam legs along engage a face of bars", "couplingHoops"),
+                hoop.legs_along,
+                faces,
+                "faces",
+                note=f"{hoop.legs_along} legs along across the thickness, {faces} curtain(s)",
+            )
+        )
+    return rows
+
+
+def group_hoop_size(
+    group: GroupHoops, diagonal: Diagonal, bw: float, cover: float, web: WallBars | None
+) -> tuple[float, float]:
+    """(width parallel to bw, depth) out to out [mm] of the hoops around a group: as entered,
+    else the room inside the wall's curtains and two layers of the group's bars."""
+    if group.width:
+        width = group.width
+    elif web is not None:
+        width = bw - 2 * (cover + web.horizontal_dia + web.vertical_dia)
+    else:
+        width = bw - 2 * cover
+    db = diagonal.dia
+    depth = group.depth or (2 * group.dia + 2 * db + max(25.0, db))
+    return width, depth
+
+
+def coupling_group_rows(
+    diagonal: Diagonal,
+    h: float,
+    bw: float,
+    cover: float,
+    fc: float,
+    fyt: float,
+    web: WallBars | None,
+) -> list[dict[str, Any]]:
+    """8.3.6.7(d)(iii): hoops around each group of diagonal bars (out-to-out at least bw/2 and
+    bw/5, Ash of 8.3.5.4 on the group's section with the cover on all four sides, spacing along
+    the bars at most min(so, 6 db), legs at most 350 mm apart) and the bars around the beam's
+    perimeter (at least 0.002 bw s each way, at most 300 mm apart)."""
+    from saengine.design.ductile_members import ash_per_spacing
+
+    group = diagonal.group_hoop
+    assert group is not None
+    db, dh = diagonal.dia, group.dia
+    width, depth = group_hoop_size(group, diagonal, bw, cover, web)
+    rows = []
+    for what, size, share in (
+        ("parallel to bw", width, special_limit("couplingGroupWidthShare")),
+        ("along the other sides", depth, special_limit("couplingGroupDepthShare")),
+    ):
+        rows.append(
+            _row(
+                named(f"Coupling beam group hoops out to out, {what}", "couplingGroup"),
+                share * bw,
+                size,
+                "mm",
+                note=f"at least {share:g} bw, bw = {bw:.0f} mm",
+            )
+        )
+    legs = max(width, depth) - 2 * dh
+    hx = max(width - 2 * dh - db, depth - 2 * dh - db, 0.0)
+    s_max = min(so_special(hx), special_limit("couplingHoopDb") * db)
+    rows.append(
+        _row(
+            named("Coupling beam group hoop spacing along the bars", "couplingGroup"),
+            group.spacing,
+            s_max,
+            "mm",
+            note=f"Ø{dh:g} @ {group.spacing:g}; min(so, {special_limit('couplingHoopDb'):g} db), "
+            f"so = {so_special(hx):.0f} mm, db = Ø{db:g}",
+        )
+    )
+    rows.append(
+        _row(
+            named("Coupling beam group hoop legs apart", "couplingGroup"),
+            legs,
+            special_limit("couplingGroupLegSpacingMax"),
+            "mm",
+            note="two legs each way, perpendicular to the diagonal bars",
+        )
+    )
+    ag = (width + 2 * cover) * (depth + 2 * cover)
+    ach = max(width, 1.0) * max(depth, 1.0)
+    for what, bc in (("across the width", width), ("across the depth", depth)):
+        rows.append(
+            _row(
+                named(f"Coupling beam group Ash, bc {what}", "couplingGroupAsh"),
+                ash_per_spacing(bc, ag, ach, fc, fyt) * group.spacing,
+                2 * bar_area(dh),
+                "mm²",
+                note=f"2 legs Ø{dh:g} @ {group.spacing:g}; Ag with {cover:g} mm cover on all four "
+                "sides of the group",
+            )
+        )
+    rows += coupling_perimeter_rows(diagonal, bw, web)
+    return rows
+
+
+def coupling_perimeter_rows(
+    diagonal: Diagonal, bw: float, web: WallBars | None
+) -> list[dict[str, Any]]:
+    """8.3.6.7(d)(iii): longitudinal and transverse bars around the beam's perimeter, area each
+    way at least 0.002 bw s and at most 300 mm apart (the longitudinal bars of
+    :func:`coupling_longitudinal`, the wall's vertical bars transverse)."""
+    ratio, s_max = (
+        special_limit("couplingPerimeterRatio"),
+        special_limit("couplingPerimeterSpacingMax"),
+    )
+    dia, spacing, faces, what = coupling_longitudinal(diagonal, web)
+    sets = [("longitudinal", dia, spacing, faces, what)]
+    if web is not None:
+        sets.append(
+            (
+                "transverse",
+                web.vertical_dia,
+                web.vertical_spacing,
+                web.layers,
+                "the wall's vertical bars",
+            )
+        )
+    rows = []
+    for kind, d, s, n, source in sets:
+        rho = n * bar_area(d) / (bw * s) if d > 0 and math.isfinite(s) else 0.0
+        rows.append(
+            _row(
+                named(f"Coupling beam perimeter bars, {kind}: area / (bw s)", "couplingGroup"),
+                100 * ratio,
+                100 * rho,
+                "%",
+                note=f"{source}: {n} x Ø{d:g} @ {s:g}",
+            )
+        )
+        rows.append(
+            _row(
+                named(f"Coupling beam perimeter bars, {kind} spacing", "couplingGroup"),
+                s,
+                s_max,
+                "mm",
+                note=source,
+            )
+        )
+    return rows
+
+
+def coupling_embedment_row(
+    diagonal: Diagonal, alpha: float, piers: Iterable[float], cover: float, fy: float, fc: float
+) -> dict[str, Any] | None:
+    """8.3.6.7(d)(ii): the diagonal bars embedded into the wall at least 1.25 ld in tension:
+    the length along the bar within the narrower of the piers beside the beam, (lw - cover) /
+    cos α; None when the piers are not known."""
+    from saengine.drawings.detailing import development_tension
+
+    widths = [float(w) for w in piers]
+    if not widths:
+        return None
+    k = special_limit("couplingEmbedment")
+    ld = development_tension(diagonal.dia, fy, fc).value
+    least = min(widths)
+    cos = math.cos(alpha) if alpha < math.pi / 2 else 1e-9
+    available = max(least - cover, 0.0) / max(cos, 1e-9)
+    return _row(
+        named(f"Diagonal bars embedded into the piers >= {k:g} ld", "couplingEmbedment"),
+        k * ld,
+        available,
+        "mm",
+        note=f"ld = {ld:.0f} mm for Ø{diagonal.dia:g}; the narrower pier beside the beam "
+        f"{least:.0f} mm: ({least:.0f} - {cover:g}) / cos {math.degrees(alpha):.1f}°",
+    )
 
 
 @dataclass
@@ -1849,12 +2600,16 @@ def coupling_beam_checks(
     combination: str | None = None,
     cover: float = 40.0,
     fyt: float | None = None,
+    piers: Iterable[float] | None = None,
+    web: WallBars | None = None,
 ) -> CouplingBeam:
     """A coupling beam of special structural walls (8.3.6.7): ``ln`` clear span, ``h`` depth,
     ``bw`` width [mm], ``vu`` the largest factored shear [N]. ``mode`` "flexural": check it as
     a special moment frame beam (``ductile_members.beam_checks``); "either": diagonals or the
     beam rules; "diagonal": diagonal bars required. ``fyt``: the hoops' yield strength (``fy``
-    when not given)."""
+    when not given). ``piers``: the lengths of the piers beside it (the diagonal bars'
+    embedment, (d)(ii)); ``web``: the wall's web bars (its longitudinal and perimeter bars
+    unless the type gives the beam's own)."""
     acw = bw * h
     root = math.sqrt(fc)
     ratio = ln / h
@@ -1894,7 +2649,10 @@ def coupling_beam_checks(
         vn = min(2 * diagonal.area() * fy * sin, vmax)
         out.checks.append(
             _row(
-                "Coupling beam diagonal bars Vn = 2 Avd fy sin α <= 0.83 Acw √f'c (Eq. 6.8.11)",
+                named(
+                    "Coupling beam diagonal bars Vn = 2 Avd fy sin α <= 0.83 Acw √f'c",
+                    "couplingShear",
+                ),
                 _kn(vu),
                 _kn(phi_d * vn),
                 "kN",
@@ -1904,17 +2662,41 @@ def coupling_beam_checks(
             )
         )
         out.checks.append(
-            _row("Diagonal bars per group (8.3.6.7(d)(ii))", 4, diagonal.count, "bars")
+            _row(named("Diagonal bars per group", "couplingBars"), 4, diagonal.count, "bars")
         )
-        out.checks += coupling_hoop_rows(diagonal.hoop, h, bw, cover, fc, fyt or fy, diagonal.dia)
-        out.notes.append(
-            "8.3.6.7(d)(iv): each hoop leg and crosstie engages a longitudinal bar of at least its "
-            "diameter (the wall's bars around the beam's perimeter)"
-        )
+        if diagonal.hoop is None and diagonal.group_hoop is not None:
+            # (iii): hoops around each group, with bars around the beam's perimeter.
+            out.checks += coupling_group_rows(diagonal, h, bw, cover, fc, fyt or fy, web)
+            out.notes.append(
+                "the group hoops continue through the intersection of the diagonal bars "
+                f"({ref('couplingGroup') or 'hoops around each group'})"
+            )
+        else:
+            # (iv): hoops over the whole section (none entered: the failing "provided" row).
+            out.checks += coupling_hoop_rows(
+                diagonal.hoop, h, bw, cover, fc, fyt or fy, diagonal.dia
+            )
+            if diagonal.hoop is not None:
+                engaged = coupling_engagement_rows(diagonal.hoop, diagonal, h, cover, web)
+                out.checks += engaged
+                if not engaged:
+                    out.notes.append(
+                        "each hoop leg and crosstie engages a longitudinal bar of at least its "
+                        f"diameter ({ref('couplingHoops') or 'hoops over the section'}): the "
+                        "beam's longitudinal bars are not known here"
+                    )
+        embedment = coupling_embedment_row(diagonal, alpha, piers or (), cover, fy, fc)
+        if embedment is not None:
+            out.checks.append(embedment)
+        else:
+            out.notes.append(
+                f"diagonal bars embedded at least {special_limit('couplingEmbedment'):g} ld into "
+                "the wall: the piers beside the beam are not known here"
+            )
     elif mode == "diagonal":
         out.checks.append(
             _row(
-                "Coupling beam diagonal bars required (8.3.6.7(b))",
+                named("Coupling beam diagonal bars required", "couplingRequired"),
                 out.avd_required,
                 0.0,
                 "mm²",

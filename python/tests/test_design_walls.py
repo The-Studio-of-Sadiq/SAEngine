@@ -350,10 +350,13 @@ def test_coupling_beam_diagonal():
     # Avd required = Vu / (φ 2 fy sin α) = 500e3 / (0.85 x 2 x 420 x 0.371391) = 1885.6 mm².
     assert cb.avd_required == pytest.approx(1885.6, rel=1e-4)
     assert cb.proposal is not None and cb.proposal.area() >= cb.avd_required
-    # No hoops entered with the diagonal bars: 8.3.6.7(d)(iv) fails (owner 2026-11-03).
+    # No hoops entered with the diagonal bars: 8.3.6.7(d)(iii) or (iv) fails (owner 2026-11-03;
+    # either option since the wall piers round, 2026-11-04). The piers beside the beam are not
+    # given: the embedment of (d)(ii) is a note.
     assert [c["name"] for c in cb.checks if not c["ok"]] == [
-        "Coupling beam hoops provided (8.3.6.7(d)(iv))"
+        "Coupling beam hoops provided (8.3.6.7(d)(iii), (iv))"
     ]
+    assert any("1.25 ld" in n for n in cb.notes)
     assert W.coupling_beam_checks(3000, 600, 300, 500e3, FC, FY).mode == "flexural"
 
 
@@ -568,3 +571,209 @@ def test_wall_need_warns_when_ordinary_shear_exceeds_the_limit():
     g = W.WallGeometry(1500, 150, 9000, 3000)
     n = W.wall_need(g, _forces((500, 1200, 300)), FC, FY, search=True)
     assert any("6.4.8.3" in note and "593 kN" in note for note in n.notes), n.notes
+
+
+# ─────────────────────── wall piers and coupling beam details (2026-11-04) ───────────────────────
+
+
+def test_wall_piers_are_found_by_the_packs_proportions():
+    """8.3.6.8 (owner 2026-11-04): the code does not define a wall pier's proportions; the
+    pack's pierLengthRatioMax 6.0 and pierHeightRatioMin 2.0 (ACI 318-19 2.3) do, and lw/bw up to
+    pierAlternativeRatio 2.5 takes the column rules. The sample W1 (5000 x 3200, W250, doors D1
+    1500-2500 x 2200 and D2 3300-4200 x 2100): P1 1500 (6.0, 1.47: a wall), P2 800 between the
+    doors (3.2, 2200 / 800 = 2.75: a wall pier) and P3 800 at the end (2100 / 800 = 2.63, at the
+    edge, 1100 mm of wall above its clear height)."""
+    assert W.pier_kind(1500, 250, 2200) == "wall"
+    assert W.pier_kind(800, 250, 2200) == "pier"
+    assert W.pier_kind(600, 250, 2200) == "column"
+    assert W.pier_kind(800, 250, 1500) == "wall"  # 1500 / 800 < 2.0
+    assert W.pier_kind(1600, 250, 4000) == "wall"  # 6.4 > 6.0
+    doors = [
+        {"offset": 1500, "width": 1000, "sill": 0, "height": 2200},
+        {"offset": 3300, "width": 900, "sill": 0, "height": 2100},
+    ]
+    parts = W.pier_segments(5000, 3200, doors)
+    assert [(p["start"], p["end"], p["clear"], p["edge"]) for p in parts] == [
+        (0.0, 1500.0, 2200.0, True),
+        (2500.0, 3300.0, 2200.0, False),  # the taller door beside it
+        (4200.0, 5000.0, 2100.0, True),
+    ]
+    assert parts[2]["above"] == 1100.0 and parts[2]["below"] == 0.0
+    assert all(p["bounded"] for p in parts)
+    (whole,) = W.pier_segments(5000, 3200, [])
+    assert not whole["bounded"]
+
+
+def _pier_bars(hoop: W.CouplingHoops | None = None) -> W.WallBars:
+    return W.WallBars(25, 10, 200, 10, 200, 2, pier_hoop=hoop)
+
+
+def test_wall_pier_alternative_rows():
+    """8.3.6.8(a) alternative (lw/bw > 2.5), a pier 800 x 250 with a clear height of 2100 mm at
+    the wall's edge: Ve by capacity design 2 Mpr / hc (1.25 fy), at most Ω0 Vu: 3 x 50 = 150 kN;
+    Vn = Acv (0.17 √f'c + ρt fy) with ρt of the web (2 Ø10 @ 200: 0.314 %) and the hoops (2 legs
+    Ø10 @ 150: 0.419 %); hoops at most 150 mm apart; at the edge the horizontal bars within 800 mm
+    above carry Ve: 2 x 5 Ø10 = 785 mm², 0.75 x 785 x 420 = 247.4 kN."""
+    g = W.WallGeometry(800, 250, 3200, 3200)
+    forces = _forces((300, 50, 40), (250, -50, -40))
+    pier = W.WallPier(2100, edge=True, above=1100, omega=3.0)
+    rows, notes, kind = W.wall_pier_rows(g, _pier_bars(), forces, FC, FY, 200_000, pier)
+    assert kind == "pier" and any("wall pier" in n for n in notes)
+    assert [r["name"] for r in rows] == [
+        "Wall pier design shear Ve, capacity design (8.3.6.8(a)(i), (ii))",
+        "Wall pier hoops provided (8.3.6.8(a)(iii))",
+        "Edge wall pier: horizontal bars above and below carry Ve (8.3.6.8(b))",
+    ]
+    assert not rows[1]["ok"]  # no hoops entered
+    shear = rows[0]
+    assert shear["demand"] == pytest.approx(150.0, abs=0.01)  # Ω0 Vu below 2 Mpr / hc
+    rho = 2 * bar_area(10) / (250 * 200)
+    assert shear["capacity"] == pytest.approx(
+        0.75 * 800 * 250 * (0.17 * ROOT + rho * 420) / 1e3, abs=0.01
+    )
+    assert rows[2]["capacity"] == pytest.approx(0.75 * 10 * bar_area(10) * 420 / 1e3, abs=0.01)
+    hooped = _pier_bars(W.CouplingHoops(10, 150, 2, 2))
+    rows, _, _ = W.wall_pier_rows(g, hooped, forces, FC, FY, 200_000, pier)
+    assert rows[1]["name"] == "Wall pier hoop spacing (8.3.6.8(a)(iv))"
+    assert all(r["ok"] for r in rows)
+    rho += 2 * bar_area(10) / (250 * 150)
+    assert rows[0]["capacity"] == pytest.approx(
+        0.75 * 800 * 250 * (0.17 * ROOT + rho * 420) / 1e3, abs=0.01
+    )
+    wide = _pier_bars(W.CouplingHoops(10, 200, 2, 2))
+    assert not W.wall_pier_rows(g, wide, forces, FC, FY, 200_000, pier)[0][1]["ok"]
+    # Without Ω0, Ve is 2 Mpr / hc, Mpr at 1.25 fy at the earthquake rows' axial force.
+    alone = W.WallPier(2100)
+    ve, _, how, _ = W.pier_design_shear(g, _pier_bars(), forces, FC, FY, 200_000, alone)
+    probable = W.PierInteraction(W.pier_section(g, _pier_bars(), FC, 1.25 * FY, 200_000))
+    mpr = max(probable.nominal(p, "M3", s)[0] for p in (300e3, 250e3) for s in (1, -1))
+    assert ve == pytest.approx(2 * mpr / 2100, rel=1e-9) and how.startswith("2 Mpr / hc")
+
+
+def test_wall_checks_add_the_pier_rows_and_take_the_stress_method():
+    """8.3.6.8(a)(vi): a wall pier's boundary elements by 8.3.6.6(c), even with δu/hw given;
+    the design mode's need gives it hoops that pass."""
+    g = W.WallGeometry(800, 250, 3200, 3200)
+    forces = _forces((300, 50, 40), (250, -50, -40))
+    pier = W.WallPier(2100, omega=3.0)
+    bars = _pier_bars()
+    d = W.wall_checks(g, bars, forces, FC, FY, special=True, drift=0.01, wall_pier=pier)
+    assert _row(d, "Boundary elements: extreme fibre stress")["flag"]
+    assert not _row(d, "Wall pier hoops provided")["ok"]
+    assert d.need is not None and d.need.pier_hoop is not None
+    hoop = d.need.pier_hoop
+    assert hoop.spacing <= 150
+    hooped = _pier_bars(hoop)
+    again = W.wall_checks(g, hooped, forces, FC, FY, special=True, drift=0.01, wall_pier=pier)
+    assert all(c["ok"] for c in again.checks if c["name"].startswith("Wall pier"))
+    # Not special, or not a wall pier: no rows.
+    plain = W.wall_checks(g, bars, forces, FC, FY, wall_pier=pier)
+    assert not any(c["name"].startswith("Wall pier") for c in plain.checks)
+    long = W.WallGeometry(1600, 250, 3200, 3200)
+    wide = W.wall_checks(long, bars, forces, FC, FY, special=True, wall_pier=pier)
+    assert not any(c["name"].startswith("Wall pier") for c in wide.checks)
+
+
+def test_wall_pier_column_rules():
+    """lw/bw <= 2.5 (600 x 250): the column rules, ρ 0.01-0.06 of 8.3.5.3(a), Ash of 8.3.5.4
+    over the clear height, spacing <= min(least/4, 6 db, so)."""
+    g = W.WallGeometry(600, 250, 3200, 3200)
+    forces = _forces((300, 30, 20))
+    pier = W.WallPier(2200, omega=3.0)
+    bars = _pier_bars(W.CouplingHoops(10, 60, 3, 2))
+    rows, _, kind = W.wall_pier_rows(g, bars, forces, FC, FY, 200_000, pier)
+    assert kind == "column"
+    names = [r["name"] for r in rows]
+    assert "Wall pier hoop spacing (8.3.6.8(a), 8.3.5.4(b))" in names
+    assert "Wall pier as a column: least steel ratio (8.3.6.8(a), 8.3.5.3(a))" in names
+    spacing = next(r for r in rows if r["name"].startswith("Wall pier hoop spacing"))
+    assert spacing["capacity"] == pytest.approx(min(250 / 4, 6 * 10), abs=1e-9)
+    least = next(r for r in rows if r["name"].startswith("Wall pier as a column: least"))
+    assert not least["ok"]  # Ø10 @ 200 in two layers over 600 x 250: below 1 %
+    proposed = W.propose_pier_hoops(g, bars, forces, FC, FY, 200_000, pier)
+    assert proposed is not None
+    trial = W.WallBars(25, 10, 200, 10, 200, 2, pier_hoop=proposed)
+    rows, _, _ = W.wall_pier_rows(g, trial, forces, FC, FY, 200_000, pier)
+    assert all(r["ok"] for r in rows if "Ash" in r["name"] or "spacing" in r["name"])
+
+
+def test_coupling_beam_embedment_engagement_and_group_hoops():
+    """8.3.6.7(d): the sample W1's spandrel over D1 (ln 1000, h 1000, bw 250, cover 25, 4 Ø16,
+    hoops Ø10 @ 75 with 7 legs down the depth). (ii) embedment 1.25 ld into the narrower pier
+    (800): (800 - 25) / cos α >= 1.25 ld; (iv) a longitudinal bar of each face at each of the 7
+    legs: the wall's Ø10 @ 200 give 5 over 950 mm (fails), Ø10 @ 150 along each face 7; (iii)
+    hoops around each group instead, with the web bars as the perimeter bars."""
+    from saengine.drawings.detailing import development_tension
+
+    fc, fy = 24.1, 420.0
+    web = W.WallBars(25, 10, 200, 10, 200, 2)
+    d = W.Diagonal(4, 16, hoop=W.CouplingHoops(10, 75, 7, 2))
+
+    def check(diagonal: W.Diagonal, piers=(1500, 800)) -> W.CouplingBeam:
+        return W.coupling_beam_checks(
+            1000, 1000, 250, 30e3, fc, fy, diagonal=diagonal, cover=25, piers=piers, web=web
+        )
+
+    rows = {r["name"]: r for r in check(d).checks}
+    embed = rows["Diagonal bars embedded into the piers >= 1.25 ld (8.3.6.7(d)(ii))"]
+    alpha = math.atan((1000 - 2 * (25 + 10 + 40)) / 1000)
+    assert embed["demand"] == pytest.approx(1.25 * development_tension(16, fy, fc).value, abs=0.01)
+    assert embed["capacity"] == pytest.approx(775 / math.cos(alpha), abs=0.01) and embed["ok"]
+    engaged = rows["Coupling beam longitudinal bars, one at each hoop leg (8.3.6.7(d)(iv))"]
+    assert (engaged["demand"], engaged["capacity"], engaged["ok"]) == (7, 5, False)
+    own = W.Diagonal(4, 16, hoop=d.hoop, longitudinal=(10.0, 150.0))
+    assert all(c["ok"] for c in check(own).checks)
+    # Embedment short: a 400 mm pier.
+    assert [c["name"] for c in check(own, (400, 800)).checks if not c["ok"]] == [
+        "Diagonal bars embedded into the piers >= 1.25 ld (8.3.6.7(d)(ii))"
+    ]
+    # (iii): hoops around each group, out to out 250 - 2 (25 + 10 + 10) = 160 >= bw/2 = 125 and
+    # 2 x 10 + 2 x 16 + 25 = 77 >= bw/5 = 50; s <= min(so, 6 x 16 = 96).
+    grouped = check(W.Diagonal(4, 16, group_hoop=W.GroupHoops(10, 90)))
+    names = [c["name"] for c in grouped.checks]
+    assert "Coupling beam group hoops out to out, parallel to bw (8.3.6.7(d)(iii))" in names
+    assert "Coupling beam perimeter bars, longitudinal: area / (bw s) (8.3.6.7(d)(iii))" in names
+    assert not any(n.startswith("Coupling beam hoop spacing") for n in names)
+    width = next(
+        c for c in grouped.checks if c["name"].endswith("parallel to bw (8.3.6.7(d)(iii))")
+    )
+    assert (width["demand"], width["capacity"]) == (125.0, 160.0)
+    perimeter = next(c for c in grouped.checks if "longitudinal: area" in c["name"])
+    assert perimeter["capacity"] == pytest.approx(100 * 2 * bar_area(10) / (250 * 200), abs=0.01)
+    assert perimeter["ok"]
+    spacing = next(c for c in grouped.checks if c["name"].startswith("Coupling beam group hoop sp"))
+    assert spacing["capacity"] <= 96.0
+
+
+def test_row_names_cite_the_packs_clauses(tmp_path):
+    """Owner 2026-11-04: the walls' check-row names take their clause numbers from the pack's
+    designClauses.wallsRows; a pack that rewrites one renames that row only, and a pack
+    without the table names the rows without a clause."""
+    import json
+
+    from saengine.codes import context as code_context
+    from saengine.codes import registry
+
+    def stub(name: str, tables: dict, extends: str | None = "bnbc2020"):
+        folder = tmp_path / name
+        (folder / "data").mkdir(parents=True)
+        manifest = {
+            "schema": "saengine.codePack/1", "id": name, "name": "Stub Code 2030",
+            "edition": "Stub Code 2030", "version": "1.0.0", "extends": extends,
+            "covers": sorted(tables),
+        }  # fmt: skip
+        (folder / "pack.json").write_text(json.dumps(manifest), encoding="utf-8")
+        for table, data in tables.items():
+            (folder / "data" / f"{table}.json").write_text(json.dumps(data), encoding="utf-8")
+        return registry.load_path(folder)
+
+    label = "Wall pier hoop spacing"
+    assert W.named(label, "pierSpacing") == f"{label} (8.3.6.8(a)(iv))"
+    data = {"clauses": {"wallsRows": {"pierSpacing": "Art. 7.2"}}}
+    with code_context.using(stub("rows-stub", {"designClauses": data})):
+        assert W.named(label, "pierSpacing") == f"{label} (Art. 7.2)"
+    with code_context.using(stub("bare-stub", {"areaLoads": {"uses": {}}}, extends=None)):
+        assert W.named(label, "pierSpacing") == label
+        assert (
+            W.named("Empirical", "empirical", extra=("informative",)) == "Empirical (informative)"
+        )

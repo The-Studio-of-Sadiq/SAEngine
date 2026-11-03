@@ -2,12 +2,25 @@
   "$notes": {
     "bars": "ACI 318-19 Ch. 25 (hooks 25.3, development 25.4, laps 25.5) and 18.6-18.10 (splice zones), ACI 318-14 25.4.3.2 (hook factors), ACI 318-19 9.7.3 and 8.7.4 (bar extents), used as generic defaults",
     "bars.laps.noLapDb": "ACI 318-19 25.5.1.1: bars larger than 36 mm are not lap spliced (43 mm and up), used as a generic default",
-    "walls": "ACI 318-19 18.10.7.4(d): hoops over a diagonally reinforced coupling beam's whole section at most min(150 mm, 6 db of the diagonal bars) apart, legs and crossties at most 200 mm apart each way, used as generic defaults"
+    "walls": "ACI 318-19 18.10.7.4(d): hoops over a diagonally reinforced coupling beam's whole section at most min(150 mm, 6 db of the diagonal bars) apart, legs and crossties at most 200 mm apart each way, used as generic defaults",
+    "walls.coupling": "ACI 318-19 18.10.7.4(b), (c): diagonal bars embedded 1.25 ld into the wall; hoops around each group out-to-out at least bw/2 parallel to bw and bw/5 along the other sides, crossties or legs at most 350 mm apart perpendicular to the bars; bars around the beam's perimeter at least 0.002 bw s each way at most 300 mm apart, used as generic defaults",
+    "walls.pier": "ACI 318-19 2.3 (a wall pier: lw/bw at most 6.0, hw/lw at least 2.0) and 18.10.8.1 (lw/bw above 2.5 may take the alternative: hoops at most 150 mm apart, extended 300 mm above and below the clear height), used as generic defaults"
   },
   "walls": {
     "couplingHoopSpacingMax": 150.0,
     "couplingHoopDb": 6.0,
-    "couplingLegSpacingMax": 200.0
+    "couplingLegSpacingMax": 200.0,
+    "couplingEmbedment": 1.25,
+    "couplingGroupWidthShare": 0.5,
+    "couplingGroupDepthShare": 0.2,
+    "couplingGroupLegSpacingMax": 350.0,
+    "couplingPerimeterRatio": 0.002,
+    "couplingPerimeterSpacingMax": 300.0,
+    "pierLengthRatioMax": 6.0,
+    "pierHeightRatioMin": 2.0,
+    "pierAlternativeRatio": 2.5,
+    "pierHoopSpacingMax": 150.0,
+    "pierHoopExtension": 300.0
   },
   "bars": {
     "hooks": {

@@ -154,6 +154,98 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
 
+## 2026-11-04
+
+- **Wall piers and the remaining coupling-beam checks of special structural walls.**
+  - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
+    coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec
+    8.3.6.8, pp. 1109-1110 of the PDF, Gazette pp. 3687-3688) and the rest of 8.3.6.7(d)
+    (pp. 1108-1109, Gazette pp. 3686-3687) ask, and does the Sample Frame's W1 meet them?
+  - Findings:
+    - 8.3.6.8(a): wall piers take the special moment frame column rules, with the joint faces
+      at the top and bottom of the clear height (the text cites 8.3.5.3 only; SAEngine applies
+      8.3.5.3(a), 8.3.5.4 and the capacity-design shear). Piers with lw/bw > 2.5 may instead
+      meet (i)-(vi): design shear by 8.3.8.1 (capacity design), not above Ω0 times the
+      analysis shear; Vn and web bars by 8.3.6.4; hoops (single-leg bars with 180° bends where
+      there is one curtain); vertical spacing ≤ 150 mm; hoops 300 mm beyond the clear height
+      above and below; boundary elements by 8.3.6.6(c). (b): at a wall's edge, horizontal
+      bars above and below the pier carry its design shear into the wall (Figure 6.8.14).
+    - BNBC 2020 does not define a wall pier's proportions. ACI 318-19 2.3 does: lw/bw ≤ 6.0
+      and clear height / lw ≥ 2.0.
+    - 8.3.6.7(d)(ii): diagonal bars are embedded at least 1.25 ld (tension) into the wall.
+      (iii), the alternative to (iv): hoops around each group, out to out at least bw/2 and
+      bw/5, Ash of 8.3.5.4 on the group with cover on all sides, spacing along the bars by
+      8.3.5.4 and ≤ 6 db, legs ≤ 350 mm apart, through the intersection, and bars round the
+      beam's perimeter ≥ 0.002 bw s each way at ≤ 300 mm. (iv): each hoop leg and crosstie
+      engages a longitudinal bar of equal or larger diameter.
+    - Sample W1 (W250, piers 1500 / 800 / 800 mm, doors 2200 and 2100 mm high): P1 is a wall
+      (lw/bw 6.0, hc/lw 1.47); P2 (3.2, 2.75) and P3 (3.2, 2.63, at the wall's end) are wall
+      piers taking the alternative. With its PR #173 bars W1 now fails four rows: no pier
+      hoops in P2 and P3, and the coupling hoops' 7 legs down the depth have only 5 (S1) and 6
+      (S2) of the wall's Ø10 @ 200 horizontal bars per face to engage. The diagonal embedment
+      passes: 1.25 ld = 815 mm against (800 - 25) / cos α = 1017 mm (S1) and 1127 mm (S2).
+  - Decision:
+    - Wall piers are found per pier beside openings by the pack's `detailing.walls`
+      `pierLengthRatioMax` 6.0 and `pierHeightRatioMin` 2.0 (generic and default-pack values
+      from ACI 318-19 2.3, the pack's source says BNBC has none). The clear height is the
+      taller opening beside the pier. lw/bw ≤ `pierAlternativeRatio` 2.5 takes the column
+      rules, otherwise the alternative.
+    - The alternative's checks: Ve = 2 Mpr / hc (1.25 fy, the pack's `lintels.probable`), at
+      most Ω0 Vu, against φ Vn of 8.3.6.4 with ρt of the web and the pier hoops (φ 0.60 where Vn
+      is below 2 Mn / hc); hoops provided; spacing ≤ `pierHoopSpacingMax` 150 mm; boundary
+      elements by the stress method; at an edge, the horizontal bars within lw above and below
+      the clear height carry Ve (φ As fy, φ 0.75). The hoops' extension (`pierHoopExtension`
+      300 mm) is a note in the checks and is measured in the bill and schedule.
+    - The column rules' checks: ρ 1 %–6 % (8.3.5.3(a)), Ash both ways and spacing ≤ min(least
+      dimension/4, 6 db, so) over the clear height (8.3.5.4), hx ≤ 350 mm, and capacity-design
+      shear with Vc = 0 (conservative). The 8.3.5.1 size limits are not applied to wall piers.
+    - Wall types get `pierHoop` (hoops in every wall pier of the type, in addition to the web
+      bars). `CouplingDiagonal` gets `groupHoop` (option (iii)) and `longitudinal` (the beam's
+      own bars along each face, the bars the legs engage; none: the web's horizontal bars).
+      (iii) is checked when a type has no hoops over the section. The (iii) spacing limit is
+      min(so, 6 db), as ACI 318-19 18.10.7.4(c).
+    - New pack values: `couplingEmbedment` 1.25, `couplingGroupWidthShare` 0.5,
+      `couplingGroupDepthShare` 0.2, `couplingGroupLegSpacingMax` 350, `couplingPerimeterRatio`
+      0.002, `couplingPerimeterSpacingMax` 300, `pierLengthRatioMax`, `pierHeightRatioMin`,
+      `pierAlternativeRatio`, `pierHoopSpacingMax`, `pierHoopExtension`. Generic defaults come
+      from ACI 318-19 2.3, 18.10.7.4(b)-(c) and 18.10.8.1.
+    - Design Reinforcement proposes pier hoops for wall piers (the type's own kept where they
+      pass), and coupling-beam longitudinal bars where the wall's horizontal bars leave a hoop
+      leg without a bar.
+    - The sample's W250 gets `pierHoop` Ø10 @ 150 (2 × 2 legs) and coupling-beam longitudinal
+      bars Ø10 @ 150 along each face. The BOQ is regenerated (Ø10 steel +81.5 kg: pier hoops
+      48.7 kg, longitudinal bars 32.8 kg; concrete unchanged).
+  - W1 numbers:
+    - Before (PR #173 bars, new checks): fails P2 and P3 "Wall pier hoops provided"
+      (8.3.6.8(a)(iii)); S1 legs 7 against 5 bars, S2 7 against 6 (8.3.6.7(d)(iv)).
+    - After, with the starting bars: passes, governing utilisation 1.00 (4 diagonal bars per
+      group against 4, the 200 mm leg limit, the 150 mm pier hoop spacing). P2 Ve = 3 × 7.1 =
+      21.3 kN, P3 Ve = 3 × 17.7 = 53.1 kN (Ω0 Vu below 2 Mpr / hc of 162 and 164 kN), φVn = 587
+      kN; P3's edge bars carry 247 kN.
+    - After Design Reinforcement → Apply: W250 status "ok". The web proposal becomes Ø12 @ 350
+      V and Ø12 @ 450 H. The diagonals, the coupling hoops and longitudinal bars, and the pier
+      hoops stay as they are. W1 passes; every element of the sample passes.
+  - Check-row names come from the pack (owner, 2026-11-04). The wall and coupling-beam rows
+    of `design/walls.py` name their clause from the pack's `designClauses.wallsRows` (clause
+    numbers only, e.g. "8.3.6.8(a)(iv)"). A pack without an entry names the row without a
+    clause. The PR #173 rows, the new rows, the existing walls rows and the 8.3.6.7(a)/(c)
+    waiver notes of `design/lintels.py` all read it. With the default pack the names are
+    unchanged except "Coupling beam hoops provided (8.3.6.7(d)(iii), (iv))".
+  - Where it lives:
+    - Checks: `design/walls.py` (`pier_kind`, `pier_segments`, `wall_pier_rows`,
+      `pier_design_shear`, `propose_pier_hoops`, `coupling_engagement_rows`,
+      `coupling_group_rows`, `coupling_perimeter_rows`, `coupling_embedment_row`, `named`).
+    - Glue: `design/wall_design.py` (`_wall_pier`, `_pier_hoop_proposal`,
+      `coupling_proposal`).
+    - Schema: `library/objects.py` (`WallReinforcement.pierHoop`,
+      `CouplingDiagonal.groupHoop`, `.longitudinal`, `CouplingGroupHoops`).
+    - Quantities: `boq/quantities.py` (`wall_pier_parts`; "pier hoops", "group hoops",
+      "coupling bars"). The schedule's marks are Q and Z (pier hoops and crossties), U
+      (coupling longitudinal bars) and W (group hoops) in `drawings/detailing.py`.
+  - Open: the column-rule shear takes Vc = 0 whatever the axial force; and 8.3.6.8(b) is
+    checked with the horizontal web bars within lw of the clear height. The figure shows no
+    length, so the owner may want another reach.
+
 ## 2026-11-03
 
 - **Slab openings carry no area load, and the ETABS import keeps shell slabs as shells.**

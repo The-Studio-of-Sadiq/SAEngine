@@ -272,6 +272,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "hoop": {"dia": 10, "spacing": 100, "legsAcross": 2, "legsAlong": 2},
     },
     "CouplingDiagonal": {"count": 4, "dia": 20},
+    "CouplingGroupHoops": {"dia": 10, "spacing": 100},
     "StairReinforcement": {
         "material": _REBAR,
         "cover": 20,

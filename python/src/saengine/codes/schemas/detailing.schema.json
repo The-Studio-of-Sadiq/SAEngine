@@ -1042,6 +1042,75 @@
           "exclusiveMinimum": 0,
           "title": "Couplinglegspacingmax",
           "type": "number"
+        },
+        "couplingEmbedment": {
+          "description": "Diagonal bars embedded into the wall piers at least this many tension development lengths.",
+          "exclusiveMinimum": 0,
+          "title": "Couplingembedment",
+          "type": "number"
+        },
+        "couplingGroupWidthShare": {
+          "description": "Hoops around each group of diagonal bars: out-to-out at least · bw parallel to the web width.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplinggroupwidthshare",
+          "type": "number"
+        },
+        "couplingGroupDepthShare": {
+          "description": "... and at least · bw along the other sides.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplinggroupdepthshare",
+          "type": "number"
+        },
+        "couplingGroupLegSpacingMax": {
+          "description": "Largest spacing of the crossties or hoop legs around each group, perpendicular to the diagonal bars [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinggrouplegspacingmax",
+          "type": "number"
+        },
+        "couplingPerimeterRatio": {
+          "description": "Bars around a coupling beam's perimeter with hoops around each group: area each way at least · bw s.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplingperimeterratio",
+          "type": "number"
+        },
+        "couplingPerimeterSpacingMax": {
+          "description": "... at most this far apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplingperimeterspacingmax",
+          "type": "number"
+        },
+        "pierLengthRatioMax": {
+          "description": "A wall pier: a vertical wall segment beside an opening with lw/bw at most this ...",
+          "exclusiveMinimum": 0,
+          "title": "Pierlengthratiomax",
+          "type": "number"
+        },
+        "pierHeightRatioMin": {
+          "description": "... and its clear height over lw at least this.",
+          "exclusiveMinimum": 0,
+          "title": "Pierheightratiomin",
+          "type": "number"
+        },
+        "pierAlternativeRatio": {
+          "description": "Wall piers with lw/bw above this may take the alternative to the column rules (hoops, capacity-design shear).",
+          "exclusiveMinimum": 0,
+          "title": "Pieralternativeratio",
+          "type": "number"
+        },
+        "pierHoopSpacingMax": {
+          "description": "Largest vertical spacing of the wall pier's hoops (the alternative) [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Pierhoopspacingmax",
+          "type": "number"
+        },
+        "pierHoopExtension": {
+          "description": "The wall pier's hoops extend at least this above and below its clear height [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Pierhoopextension",
+          "type": "number"
         }
       },
       "required": [
@@ -1054,7 +1123,18 @@
         "hxMax",
         "couplingHoopSpacingMax",
         "couplingHoopDb",
-        "couplingLegSpacingMax"
+        "couplingLegSpacingMax",
+        "couplingEmbedment",
+        "couplingGroupWidthShare",
+        "couplingGroupDepthShare",
+        "couplingGroupLegSpacingMax",
+        "couplingPerimeterRatio",
+        "couplingPerimeterSpacingMax",
+        "pierLengthRatioMax",
+        "pierHeightRatioMin",
+        "pierAlternativeRatio",
+        "pierHoopSpacingMax",
+        "pierHoopExtension"
       ],
       "title": "SpecialWalls",
       "type": "object"
