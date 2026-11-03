@@ -84,6 +84,11 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
 - **Slab modelling** (ETABS): floors that are all ShellThin or ShellThick make the project's
   slabs shells (02 Project Settings → Analysis model → Slabs); membrane floors keep slabs as
   loads to the beams; a mix keeps loads to the beams, reported.
+- **Mesh size** (ETABS): the areas' auto mesh (`AREAASSIGN ... AUTOMESH "YES" MAXSIZE1 0.25
+  MAXSIZE2 0.25`, as SAEngine's export writes it; also a single `MAXSIZE`) becomes the
+  project's mesh size (02 Project Settings → Analysis model → Mesh size): one size on every
+  area is taken as it is, mixed sizes take the most common (reported), no size keeps the
+  default.
 - **Column bars**: older files' bar sizes and counts, and ETABS 2016+ patterns
   (`PATTERN "R-4-3" LONGBARAREA 314.2`: 10 bars of 20 mm; `"C-8"` round a circle).
 - **Loads**: uniform gravity area loads on floors and roofs become the project's floor and roof
@@ -241,7 +246,9 @@ Settings:
 - **Slab and wall properties**: slabs are membranes when 02 Project Settings hands slab loads to
   the beams (one-way load distribution for one-way slabs), thin shells when slabs are shells;
   walls thin shells. Non-structural walls are not elements: their weight is an SD line load on
-  the beams under them (the part on no beam is reported with its total).
+  the beams under them (the part on no beam is reported with its total). Every slab and wall
+  is auto meshed at the project's mesh size (`AUTOMESH "YES" MAXSIZE1 <size> MAXSIZE2 <size>`),
+  which the import reads back.
 - **Objects**: columns (split at each story they pass), beams at their story, braces and other
   inclined members, structural walls story by story, slabs, slab openings (with 07 MEP's
   openings and shafts, as the analysis cuts them) and wall openings. A point off a story level

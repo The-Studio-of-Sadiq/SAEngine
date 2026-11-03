@@ -645,12 +645,11 @@ def test_sample_whole_project_w_and_v_round_trip(sample_whole_round_trip: Any) -
     assert own.analysis.slabs == "shells"
     assert imported.settings.analysis.slabs == "shells"
     w0, v0, d0 = project_w_v(original, SAMPLE)
-    # The mesh size is SAEngine's own (the e2k meshes by ETABS's auto mesh): the original's.
-    texts = dict(imported.texts)
-    settings = imported.settings.model_copy(deep=True)
-    settings.analysis.meshSize = own.analysis.meshSize
-    texts["02 Project Settings/project-settings.json"] = settings.model_dump_json()
-    w1, v1, d1 = project_w_v(texts)
+    # The mesh size comes back from the areas' auto mesh (owner decision 2026-11-04): before,
+    # the 500 mm default left W 1.05 kN (0.14 %) low on a plain round trip.
+    assert own.analysis.meshSize == 250
+    assert imported.settings.analysis.meshSize == own.analysis.meshSize
+    w1, v1, d1 = project_w_v(dict(imported.texts))
     assert (w1, v1) == pytest.approx((w0, v0), rel=1e-6)
 
     # The partition allowance (1.2 kN/m² in full, W's parts kept to 1 N) on the same net floor:

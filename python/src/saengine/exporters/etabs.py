@@ -1068,11 +1068,18 @@ class _Writer:
         label = self._label(name)
         if "OPENING" not in pairs:
             self.used.update(p for p in at if p is not None)
+            pairs += self._area_mesh()
         names = "  ".join(_q(p[0]) for p in at if p is not None)
         offsets = "  ".join(str(story - p[1]) for p in at if p is not None)
         self.areas.append(f"  AREA {_q(label)}  {kind}  {len(at)}  {names}  {offsets}  ")
         self.area_assigns.append(f"  AREAASSIGN  {_q(label)}  {_q(self._story(story))}  {pairs}")
         return label, self._story(story)
+
+    def _area_mesh(self) -> str:
+        """The area's auto mesh: no element side larger than the project's mesh size (owner
+        decision 2026-11-04), in both in-plane directions; read back as the mesh size."""
+        size = _n(self.u.len(float(self.analysis.meshSize)))
+        return f'AUTOMESH "YES"  MAXSIZE1 {size}  MAXSIZE2 {size}  '
 
     def _released(self, type_id: str) -> bool:
         t = self.types.get(type_id)

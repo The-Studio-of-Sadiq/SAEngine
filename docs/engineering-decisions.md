@@ -233,6 +233,22 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   elements and its spandrels (8.3.4.1(c), (d)). At 250 mm it still failed. The layout and
   coupling-beam change above (PR #173) makes it pass.
 
+## 2026-11-04
+
+- **The ETABS e2k carries the shell mesh size** (owner decision). Question: the Sample Frame
+  read back from its e2k came back at the 500 mm default mesh, not its 250 mm, and its W was
+  1.05 kN (0.14 %) low. Decision: the export writes the mesh as ETABS expresses it, an auto
+  mesh on every area object (`AREAASSIGN ... AUTOMESH "YES" MAXSIZE1 <size> MAXSIZE2 <size>`,
+  the project's `analysis.meshSize` in the file's length unit). The import reads the areas'
+  largest element side back (`MAXSIZE1`/`MAXSIZE2`, or one of `MAXSIZE`, `MAXMESHSIZE`,
+  `AUTOMESHSIZE`, `MESHSIZE`; none or `AUTOMESH "NO"`: no size). One size on every meshed area
+  is the project's mesh size; mixed sizes take the most common, reported; a file with no
+  sizes keeps the default; sizes under SAEngine's 100 mm minimum are raised to it, reported.
+  "Mesh by slab span" is not in the file (ETABS has no such setting) and keeps its default.
+  The keyword spelling follows public descriptions of the e2k text, not a file written by
+  ETABS, so the reader is tolerant. Where: `exporters/etabs.py` (`_area_mesh`),
+  `importers/etabs.py` (`_area_mesh`, `_mesh_size`).
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of
