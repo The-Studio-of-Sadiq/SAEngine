@@ -156,6 +156,12 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 
 ## 2026-11-04
 
+- **Release plan: alpha 9 completes the features, alpha 10 is speed** (owner). Alpha 9 builds the
+  other code packs (ACI 318-19 + ASCE 7-22, Eurocodes, IS codes, then BS 8110 and BNBC 2006), the
+  features that were planned-feature pages only, and the items earlier set aside as low value.
+  Speed (Design Reinforcement on the Sample Frame now takes minutes, not seconds) moves to alpha 10.
+  Only the BNBC 2020 text is at hand: the other packs list every value with its clause in the pack's
+  `VERIFY.md`, to be checked against the printed codes.
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
     coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec
