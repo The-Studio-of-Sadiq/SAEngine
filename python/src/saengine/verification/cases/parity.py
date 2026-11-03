@@ -23,7 +23,7 @@ from saengine.fem.derive import pinned_twins
 from saengine.library import FloorPlan, default_floor_plan
 from saengine.library import line_loads as ll
 from saengine.library.bim import generate
-from saengine.library.settings import default_project_settings, partition_case
+from saengine.library.settings import default_project_settings
 from saengine.verification.cases.common import (
     BY_ID,
     MATERIALS,
@@ -137,42 +137,38 @@ def story_mass(folder: Path) -> Outcome:
     )
     loads = {a.id: a for a in s.areaLoads}
     floor, roof = loads[s.floorLoad], loads[s.roofLoad]
-    case = partition_case(s)
     gamma = DENSITY * G
-    # The partition allowance in the pack's case: with the live load when it is live (its
-    # intensity then sets the share), with the finishes when dead.
-    share = 0.5 if floor.floor_live(case) > 3.0 else 0.25
+    # The partition allowance counts in W in full, like the dead load, whatever its load case;
+    # the live share is judged on the floor live load alone (owner decision 2026-11-03,
+    # Sec 2.5.7.3; the default pack's seismic.partitionWeight "full").
+    share = 0.5 if floor.live > 3.0 else 0.25
     slab, beams = 0.15 * 30, 0.15 * 22  # m³: 6 x 5 x 0.15; 0.3 x 0.5 x (2 x 5.6 + 2 x 4.6)
     level1 = (
         gamma * (slab + beams + 4 * 0.16 * 3.2)
-        + floor.superimposed(case) * 30e3
-        + share * floor.floor_live(case) * 30e3
+        + (floor.finish + floor.partitions) * 30e3
+        + share * floor.live * 30e3
     )
-    level2 = (
-        gamma * (slab + beams + 4 * 0.16 * 1.6)
-        + roof.superimposed(case) * 30e3
-        + share * (roof.floor_live(case) - roof.live) * 30e3
-    )
+    level2 = gamma * (slab + beams + 4 * 0.16 * 1.6) + (roof.finish + roof.partitions) * 30e3
     to_base = gamma * 4 * 0.16 * 1.6  # the columns' lower half of the first storey
     w = d.summary["seismicWeight"]
     masses = sum(n["mass"][0] for n in d.project["nodes"]) * G
     reference = Reference(
         source="BNBC 2020 Part 6 Sec 2.5.7.3 (p. 628): W is the dead load including partition "
-        "walls, 25 % of a live load up to 3 kN/m² and 50 % above; the partition allowance is "
-        "live load (Sec 2.3.6); the weight lumped at the nearest story level",
+        "walls (the partition allowance in full), 25 % of a live load up to 3 kN/m² and 50 % "
+        "above, judged on the live load without the partitions; the weight lumped at the "
+        "nearest story level",
         formula="W_i = γ (slab + beams + columns half a storey above and below) + (SD + "
-        "share × L) A",
+        "partitions + share × L) A",
         steps=[
             f"γ = {fmt(DENSITY)} × 9.80665 = {fmt(gamma / 1e3)} kN/m³, A = 6 × 5 = 30 m²",
             "beams between the column faces: 0.3 × 0.5 × (2 × 5.6 + 2 × 4.6) = 3.3 m³ per level",
             (
-                f"level 1: γ (4.5 + 3.3 + 4 × 0.16 × 3.2) + ({floor.superimposed(case):g} + "
-                f"{share:g} × {floor.floor_live(case):g}) × 30 = {fmt(level1 / 1e3)} kN (SD "
-                f"{floor.superimposed(case):g}, L {floor.floor_live(case):g} kN/m² with the partition "
-                "allowance where the code pack makes it live)"
+                f"level 1: γ (4.5 + 3.3 + 4 × 0.16 × 3.2) + ({floor.finish:g} + "
+                f"{floor.partitions:g} + {share:g} × {floor.live:g}) × 30 = {fmt(level1 / 1e3)} kN "
+                f"(finish {floor.finish:g}, partitions {floor.partitions:g}, L {floor.live:g} kN/m²)"
             ),
             (
-                f"level 2: γ (4.5 + 3.3 + 4 × 0.16 × 1.6) + {roof.superimposed(case):g} × 30 = "
+                f"level 2: γ (4.5 + 3.3 + 4 × 0.16 × 1.6) + {roof.finish + roof.partitions:g} × 30 = "
                 f"{fmt(level2 / 1e3)} kN (roof live load Lr not in W)"
             ),
             (

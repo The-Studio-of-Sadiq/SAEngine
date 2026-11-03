@@ -93,11 +93,12 @@ def test_generate_writes_the_set_and_its_record(generated: tuple[Path, dict]):
     # The bill of quantities is in the sample: the schedule is reconciled per bar size.
     assert {r["dia"] for r in answer["reconciliation"]} >= {10.0, 16.0}
     assert any(n.startswith("Bar bending schedule against 10 BOQ: Ø10") for n in answer["notes"])
-    # The sample's failing detailing checks (C1's dowels, S2's top bars into W1) are problems
-    # to resolve before issue, and the general notes sheet says so.
+    # The sample's failing detailing checks (C1's dowels) are problems to resolve before issue,
+    # and the general notes sheet says so. S2's top bars now develop into the 250 mm wall W1
+    # (sample W1 250 mm, owner 2026-11-03; at 200 mm they were not met).
     errors = [p["message"] for p in answer["problems"] if p["severity"] == "error"]
     assert any(e.startswith("C1: Column bars into foundation") for e in errors)
-    assert any(e.startswith("S2: Top X bars") and "not met" in e for e in errors)
+    assert not any(e.startswith("S2: Top X bars") and "not met" in e for e in errors)
     assert all(p["severity"] in ("error", "warning") for p in answer["problems"])
     record = json.loads((folder / d.RECORD).read_text(encoding="utf-8"))
     assert record["schema"] == d.SCHEMA_ID and record["marks"]

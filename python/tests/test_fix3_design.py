@@ -357,7 +357,9 @@ def test_wizard_columns_are_sized_for_the_joint_shear() -> None:
         {"gridsX": [6000] * 4, "gridsY": [6000] * 3, "storyCount": 10, "location": "dhaka"}
     )
     reasons = result["summary"]["columnReasons"]
-    assert reasons["L1-L3 interior"] == "joint shear at B2 L1"
+    # The governing joint moved from L1 to L2 with the larger W (owner decision 2026-11-03:
+    # partitions in full in W, Sec 2.5.7.3): the storey forces and so the beams' bars grew.
+    assert reasons["L1-L3 interior"] == "joint shear at B2 L2"
     assert reasons["L4-L6 interior"] == "joint shear at B2 L4"
     by_id = {c["id"]: c["type"] for c in result["floorPlan"]["columns"]}
     assert by_id["C-B2-L1"] == "C650x650"

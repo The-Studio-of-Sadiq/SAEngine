@@ -1,7 +1,7 @@
 {
 	"schema": "saengine.bim/2",
 	"source": {
-		"floorPlan": "6258ca1b5d5ba68e446045b067876e307a0666a0"
+		"floorPlan": "a86f01dda8aa4709a52199c10744d9bbf9d87335"
 	},
 	"stories": [
 		{
@@ -194,7 +194,7 @@
 		},
 		{
 			"id": "W1",
-			"type": "W200",
+			"type": "W250",
 			"source": "W1",
 			"kind": "wall",
 			"start": [

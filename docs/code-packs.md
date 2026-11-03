@@ -382,7 +382,7 @@ Values that belong to a member or a material (a material's E, a member's cover) 
 on the member or material.
 
 A few owner decisions also have their own setting, because the choice is a common one:
-`analysis.partitionAllowanceCase`, `analysis.steelRigidZoneFactor` and
+`analysis.partitionAllowanceCase`, `analysis.massSource.partitions` (how the partition counts in the seismic weight), `analysis.steelRigidZoneFactor` and
 `site.flood.waveCombination` (see [engineering-decisions.md](engineering-decisions.md)). They
 win over the pack's value and over an override of it.
 
@@ -411,6 +411,7 @@ code. Results and the report name each one as "generic default (SAEngine practic
 | `combinations.pDeltaPreload` | 1.2 D, SD, F; 1.0 L | ASCE 7-22 Sec 2.3.6, combination 6 |
 | `seismic.stabilityGravity` | 1.0 each | ASCE 7-22 Sec 12.8.7 |
 | `areaLoads.partitions.loadCase` | L | ASCE 7-22 Sec 4.3.2 |
+| `seismic.partitionWeight` | full | ASCE 7-22 Sec 12.7.2 (partitions in the seismic weight) |
 | `flood.waveCombination` | sum | SAEngine practice (conservative) |
 | `steelSeismic.practice.rigidZoneMax` | 0 | SAEngine practice (centreline model) |
 | `concrete.modulus` | 4700 √f'c; 0.043 wc^1.5 √f'c | ACI 318-19 19.2.2.1 (brick aggregate: no generic rule, the normal-weight value) |

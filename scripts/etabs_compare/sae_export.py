@@ -1152,10 +1152,23 @@ def native_input(
     out["point_loads"] = point_loads
 
     # mass source: self mass + the load patterns with SAEngine's seismic shares
+    # (the partition allowance is in SD here, so in full: SAEngine's W with the default pack's
+    # rule, saengine.library.settings.seismic_weight_rule; L takes the floor load's share)
     live_share = 0.25
     try:
+        from saengine.library.settings import seismic_weight_rule
+
         with code_context.using(code_context.pack_for(settings, project)):
-            live_share = float(code_context.table("seismic").liveShare)
+            rule = seismic_weight_rule(settings)
+        floor = area_loads.get(settings.floorLoad)
+        live_share, part_share = (
+            rule.area(floor.live, floor.partitions) if floor else (rule.live(), 1.0)
+        )
+        if part_share != 1.0:
+            notes.append(
+                f"mass source: the partition allowance counts in full here ({rule.partitions.words()} "
+                "in SAEngine)"
+            )
     except Exception as exc:  # noqa: BLE001 - a fallback, noted
         notes.append(f"code pack: live share of the seismic weight taken as 0.25 ({exc})")
     # Self mass comes from the elements; a Dead pattern in the mass source would count the

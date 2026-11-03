@@ -1013,6 +1013,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 					? localize('settings.factorOverrideNote', "Override: {0} Table 6.2.19 row {1} gives {2} for {3}.", DEFAULT_CODE_TABLES.edition, system.row, format(system[key]), system.name)
 					: undefined;
 			}
+			case 'analysis.massSource.partitionShare':
+				return this.partitionWeightNote();
 		}
 		const own = PROJECT_FIELDS.find(([drawing]) => path === `drawings.${drawing}`);
 		if (own) {
@@ -1024,6 +1026,30 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				: undefined;
 		}
 		return undefined;
+	}
+
+	/**
+	 * Under the partition factor: how the partition allowance counts in the seismic weight W with
+	 * the choice made (Partition allowance in W), and what the code pack says, with its clause.
+	 */
+	private partitionWeightNote(): string {
+		const analysis = isObject(this.document?.analysis) ? this.document.analysis : {};
+		const source = isObject(analysis.massSource) ? analysis.massSource : {};
+		const mode = typeof source.partitions === 'string' ? source.partitions : 'pack';
+		const share = typeof source.partitionShare === 'number' ? source.partitionShare : undefined;
+		const pack = DEFAULT_CODE_TABLES.seismicWeight;
+		const packWords = pack.partitions === 'withLiveShare'
+			? localize('settings.partitionWithLive', "{0} {1}: the partition allowance counts with the live load share in W.", DEFAULT_CODE_TABLES.edition, pack.source)
+			: localize('settings.partitionFull', "{0} {1}: the partition allowance counts in full in W (partition walls are dead load); the live share is judged without it.", DEFAULT_CODE_TABLES.edition, pack.source);
+		if (mode === 'factor') {
+			return share !== undefined
+				? localize('settings.partitionFactorUsed', "W takes {0} × the partition allowance. {1}", format(share), packWords)
+				: localize('settings.partitionFactorMissing', "Enter the factor (0 to 1); until then W follows the code pack. {0}", packWords);
+		}
+		if (share !== undefined) {
+			return localize('settings.partitionFactorUnused', "Used only when Partition allowance in W is a factor of my own. {0}", packWords);
+		}
+		return packWords;
 	}
 
 	/** An empty override shows the value it would replace, with its table. */
@@ -1048,6 +1074,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 					: localize('settings.seismicLiveNone', "the earthquake combination's (Sec 2.7.3.1)");
 			}
 			case 'analysis.massSource.liveShare': return localize('settings.liveSharePlaceholder', "0.25; 0.5 above 3 kN/m² (Sec 2.5.7.3)");
+			case 'analysis.massSource.partitionShare': return localize('settings.partitionSharePlaceholder', "e.g. 0.5; 1 = in full");
 			case 'analysis.slenderness.driftFactor': return localize('settings.driftFactorPlaceholder', "automatic: 1.0 on cracked sections");
 			case 'analysis.ssiShearModulusRatio': return localize('settings.gRatioPlaceholder', "from (2/3)·Z·S (ASCE 7-05 Table 19.2-1)");
 		}

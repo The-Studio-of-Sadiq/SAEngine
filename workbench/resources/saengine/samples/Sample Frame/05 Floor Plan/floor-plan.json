@@ -198,7 +198,7 @@
 	"walls": [
 		{
 			"id": "W1",
-			"type": "W200",
+			"type": "W250",
 			"base": "BASE",
 			"top": "L1",
 			"start": {

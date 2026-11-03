@@ -83,8 +83,11 @@ def test_default_pack_results_are_pinned(default_model) -> None:
     # partition allowance a live load, so the default floor's live load is 2.0 + 1.2 kN/m²,
     # above 3 kN/m², and enters the seismic weight at 50 % instead of being dead load in full:
     # W 1357.2 -> 1349.7 kN and V with it. Changed on purpose; the same on the base f288ebba.
-    assert s["weight_kN"] == pytest.approx(1349.7034382400013, rel=1e-12)
-    assert s["base_shear_kN"] == pytest.approx(75.92081840100009, rel=1e-12)
+    # Re-pinned 2026-11-03 (owner decision 2026-11-03: partitions in full in W, Sec 2.5.7.3):
+    # the allowance counts in full and 25 % of the 2.0 kN/m² live load, 1.2 + 0.5 = 1.7 kN/m²
+    # against 0.5 x 3.2 = 1.6 over the 75 m² floor: W 1349.7 -> 1357.2 kN, V 75.92 -> 76.34 kN.
+    assert s["weight_kN"] == pytest.approx(1357.2034382399995, rel=1e-12)
+    assert s["base_shear_kN"] == pytest.approx(76.34269340099998, rel=1e-12)
     assert s["period_s"] == pytest.approx(0.24771248339517093, rel=1e-12)
     assert s["wind_X_kN"] == pytest.approx(29.06010093994609, rel=1e-12)
     assert s["wind_Y_kN"] == pytest.approx(108.95203529021688, rel=1e-12)
@@ -189,7 +192,10 @@ def test_stub_pack_changes_only_its_table(tmp_path, default_model) -> None:
     assert stub.summary["patternLive"] == base.summary["patternLive"]
     # The note cites the stub pack's own clause, named after the stub pack.
     weight = next(n for n in stub.notes if n.startswith("seismic weight W ="))
-    assert "(Stub Code 2030 Chapter 9 Rule 9.9)" in weight and "BNBC" not in weight
+    # The partition rule the stub inherits keeps the clause of the pack that gives it.
+    own, inherited = weight.split("partition allowance", 1)
+    assert "(Stub Code 2030 Chapter 9 Rule 9.9)" in own and "BNBC" not in own
+    assert "BNBC 2020 Part 6 Sec 2.5.7.3" in inherited
     assert "live load x0.5" in weight
 
 

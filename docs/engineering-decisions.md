@@ -45,7 +45,7 @@ here, newest first, with the date, the question, the decision, the reason and wh
 
 | # | Track | Question | Decision | Why |
 |---|---|---|---|---|
-| 1 | B1 live loads (#114) | BNBC 2.3.6 calls the partition allowance a live load, but SAEngine had it as a superimposed dead load (×1.2). | **Live load (L, ×1.6).** The pack sets which load case partitions belong to, so another pack can keep them as dead. | Follow the code text. Results change by a few percent. |
+| 1 | B1 live loads (#114) | BNBC 2.3.6 calls the partition allowance a live load, but SAEngine had it as a superimposed dead load (×1.2). | **Live load (L, ×1.6).** The pack sets which load case partitions belong to, so another pack can keep them as dead. In the seismic weight they count in full (owner decision 2026-11-03, below). | Follow the code text. Results change by a few percent. |
 | 2 | B12 irregularities (#125) | BNBC has no penthouse exemption, so a small stair or machine room on the roof flags a diaphragm discontinuity. Most buildings over 12 m in zones 2–4 then need dynamic analysis. | **Keep the literal reading.** | It matches the code and is conservative. SAEngine runs the response spectrum automatically, so it only costs run time. |
 | 3 | B35 steel moment frames (#146) | At the default rigid-zone factor of 0.5, the special moment frame panel-zone check fails under the response spectrum. | **Steel moment frames default to 0 (centreline).** RC frames keep 0.5. A factor the engineer sets always wins. SAEngine practice. | This is the usual model when the panel zone is checked separately. |
 | 4 | B8 pile capacity (#121) | Eq 6.3.36 is printed with D, which makes skin-friction settlement about 35× larger than the source equation's L. | **Use L (source form).** The pack switch `skinDenominator: "diameter"` restores the printed D. | The printed D is a misprint. |
@@ -75,9 +75,27 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
    - Engine: one helper, `partition_case_basis` in `library/settings.py`. Every load, mass,
      live-load-reduction, design, generator and ETABS-export path goes through
      `AreaLoad.superimposed()` and `AreaLoad.floor_live()`.
-   - Seismic weight: the allowance counts with the live-load share. The 25 % / 50 % threshold is
-     judged on live load plus partitions, so the default floor (2.0 + 1.2 kN/m²) takes 50 %.
-     Confirmed by the owner on 2026-11-02. It follows from the partitions being live load.
+   - Seismic weight (owner decision, 2026-11-03; it replaces the 2026-11-02 reading, where the
+     allowance counted with the live-load share and the threshold was judged on live load plus
+     partitions):
+     - Count partitions in full in the seismic weight W.
+     - BNBC 2020 Part 6 Sec 2.5.7.3 defines W as the dead load "including partition walls". The
+       25 %/50 % live share (Sec 2.5.7.3 (a)/(b)) is judged on the floor live load without the
+       partition allowance and applies to that live load only.
+     - Keep an option so the user can override this as they like.
+   - Where it lives: pack `seismic.partitionWeight` (`"full"` or `"withLiveShare"`; the default
+     pack gives `"full"`, citing Sec 2.5.7.3), also through `codeOverrides`. Project:
+     `analysis.massSource.partitions` (`"pack"`, `"full"`, `"withLiveShare"` or `"factor"`, with
+     `analysis.massSource.partitionShare` 0 to 1 for the factor), which wins. Fallback: `"full"`,
+     the generic default (ASCE 7-22 Sec 12.7.2 also counts partitions in W), named in the report.
+   - Engine: one helper, `seismic_weight_rule` (with `partition_weight_basis`) in
+     `library/settings.py`, read by the analysis masses and the static W and base shear
+     (`fem/derive.py`; the response spectrum scaling and the irregularity and mass checks use
+     those), the grid wizard's preliminary W, the report's W rows and note, the ETABS export's
+     mass source (the allowance in a pattern `PART`, in the mass source in full and combined as
+     L, when it counts apart from L) and the ETABS import's mass-source comparison. The default
+     floor (2.0 + 1.2 kN/m²) now adds 1.2 + 0.25 × 2.0 = 1.7 kN/m² to W, against 0.5 × 3.2 =
+     1.6 kN/m² before.
 2. **Literal reading:** no change.
 3. **Steel rigid zone.**
    - Pack: `steelSeismic.practice.rigidZoneMax`.
@@ -134,6 +152,13 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
       for a shortfall). The chord check's note names the strip, its source and the chord bars.
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
+
+## 2026-11-03
+
+- **Partitions count in full in the seismic weight W** (Sec 2.5.7.3). See item 1 above.
+- **The Sample Frame's wall W1 is 250 mm** (type W250, was W200). Every structural wall in
+  Seismic Design Category D is a special wall, and at 200 mm W1 was too thin for its boundary
+  elements and its spandrels (8.3.4.1(c), (d)).
 
 ## Earlier owner decisions
 

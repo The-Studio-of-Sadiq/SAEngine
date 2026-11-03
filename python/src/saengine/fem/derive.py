@@ -89,6 +89,7 @@ from saengine.library.settings import (
     derived,
     partition_case,
     partition_case_basis,
+    seismic_weight_rule,
 )
 from saengine.library.structure import plane_of
 
@@ -97,6 +98,9 @@ if TYPE_CHECKING:
 
 G = 9.80665  # m/s²
 MM = 0.001  # m per mm
+#: The part of W (and the pressure key) of the partition allowance when it counts in W apart
+#: from its load case (:attr:`saengine.library.settings.PartitionWeight.separate`).
+PARTITIONS = "partitions"
 #: Nodes this close [m] to equally near levels count as half way between them (mass lumping).
 TIE_M = 1e-6
 UNITS = "SI (m, N, kg, s, Pa)"
@@ -1554,43 +1558,55 @@ def _derive_fem(
                 add_nodal("D", node_id, down * w, top_stage(solid.nodes))
                 add_weight(node_id, w)
 
+    # The shares of the loads in W (saengine.library.settings.seismic_weight_rule): the code
+    # pack's live share and heavy-live rule (Sec 2.5.7.3 (a), (b); a pack without the heavy
+    # numbers keeps one share), the project's live share, and how the partition allowance
+    # counts (the pack's seismic.partitionWeight, or the project's massSource.partitions).
     seismic_table = code_context.table("seismic")
-    live_share = seismic_table.liveShare
-    # The heavy-live rule (Sec 2.5.7.3 (b)) is new: it holds once the code pack carries its
-    # numbers (heavyLiveLimit, heavyLiveShare), so a pack without them keeps the old W.
-    heavy_limit_value = getattr(seismic_table, "heavyLiveLimit", None)
-    heavy_share_value = getattr(seismic_table, "heavyLiveShare", None)
-    if heavy_share_value is None:
-        heavy_limit_value = None  # no share given: the pack has no heavy-live rule
-    heavy_limit = float(heavy_limit_value) if heavy_limit_value is not None else math.inf
-    heavy_share = float(heavy_share_value) if heavy_share_value is not None else live_share
-    user_live_share = option(mass_source, "liveShare", None)
+    weight_rule = seismic_weight_rule(settings, table=seismic_table)
+    live_share = weight_rule.live_share
+    heavy_share = weight_rule.heavy_share if weight_rule.heavy_share is not None else live_share
+    heavy_limit_value = weight_rule.heavy_limit
+    user_live_share = weight_rule.user_live_share
+    part_rule = weight_rule.partitions
+    part_case = part_rule.case
 
     def seismic_share(case: str, pressure: float | None = None) -> float:
         """The share of a load of ``case`` in the seismic weight; ``pressure`` (N/m²): of a live
-        load, its intensity (above 3 kN/m² at least 50 %, Sec 2.5.7.3 (b))."""
+        load, its intensity (above 3 kN/m² at least 50 %, Sec 2.5.7.3 (b)). The partition
+        allowance counted apart (:data:`PARTITIONS`): its own share."""
+        if case == PARTITIONS:
+            return part_rule.share()
         if case in ("D", "SD"):
             return 1.0
         if case != "L":
             return 0.0
-        if user_live_share is not None:
-            return float(user_live_share)
-        if pressure is not None and pressure > heavy_limit * 1e3 + 1e-9:
-            return max(live_share, heavy_share)
-        return live_share
+        return weight_rule.live(None if pressure is None else pressure / 1e3)
 
     def part_of(case: str) -> str:
-        return case if case in ("D", "SD", "L") else "other"
+        return case if case in ("D", "SD", "L", PARTITIONS) else "other"
+
+    def case_of(key: str) -> str:
+        """The load case of a pressure key: the partition allowance counted apart is a load of
+        its own case."""
+        return part_case if key == PARTITIONS else key
+
+    def add_partitions(pressures: dict[str, float], partitions: float) -> None:
+        """The partition allowance [N/m²] into ``pressures``: in its load case, or apart when
+        it counts in W apart from that case (:attr:`PartitionWeight.separate`)."""
+        key = PARTITIONS if part_rule.separate else part_case
+        pressures[key] = pressures.get(key, 0.0) + partitions
 
     def shell_pressure(shell: _Shell, case: str, pressure: float) -> None:
-        """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads."""
+        """A uniform downward pressure (N/m²) on a shell, as its consistent nodal loads
+        (``case``: a load case, or :data:`PARTITIONS`)."""
         shares = shell_node_shares([b.coords[n] for n in shell.nodes])
         stage = top_stage(shell.nodes)
         share = seismic_share(case, pressure)
         middle = np.mean([b.coords[n] for n in shell.nodes], axis=0) / MM
         live_at[0] = (float(middle[0]), float(middle[1]), float(middle[2]))
         for node_id, area in zip(shell.nodes, shares, strict=True):
-            add_nodal(case, node_id, down * pressure * area, stage)
+            add_nodal(case_of(case), node_id, down * pressure * area, stage)
             add_weight(node_id, pressure * area * share, part_of(case))
         live_at[0] = None
 
@@ -1655,6 +1671,7 @@ def _derive_fem(
         nodes."""
         w = seismic_share(case) if share is None else share
         part = part or part_of(case)
+        case = case_of(case)  # the partition allowance counted apart: a load of its case
         axis = p1 - p0
         length = float(np.linalg.norm(axis))
         on_line = line_stations(p0, p1)
@@ -1782,9 +1799,11 @@ def _derive_fem(
             b.notes.append(f"{source}: no area load '{load_id}' in the project settings")
         if area_load is None:
             continue
+        own = {"SD": area_load.finish * 1e3, "L": area_load.live * 1e3}
+        add_partitions(own, area_load.partitions * 1e3)
         for shell in shells_of_source(source):
-            shell_pressure(shell, "SD", area_load.superimposed(partition_case(settings)) * 1e3)
-            shell_pressure(shell, "L", area_load.floor_live(partition_case(settings)) * 1e3)
+            for case, pressure in own.items():
+                shell_pressure(shell, case, pressure)
     top = levels[-1] if levels else 0.0
     # B16: the rain load R on the roof and a helicopter landing area (saengine.fem.special_loads).
     from saengine.fem import special_loads as spl
@@ -1810,12 +1829,13 @@ def _derive_fem(
         )
     story_of_level = {round(st.elevation): st.id for st in building.stories}
     # The partition allowance's load case (the code pack's): the floor live load L (on the roof
-    # too, it is not roof live load) or superimposed dead SD.
-    part_case, part_from = partition_case_basis(settings)
+    # too, it is not roof live load) or superimposed dead SD; and how it counts in W.
+    _, part_from = partition_case_basis(settings)
     if any(a.partitions for a in settings.areaLoads):
         b.notes.append(
             f"partition allowance: in {part_case} "
-            f"({'live load' if part_case == 'L' else 'superimposed dead load'}; {part_from})"
+            f"({'live load' if part_case == 'L' else 'superimposed dead load'}; {part_from}); "
+            f"in the seismic weight: {part_rule.words()} ({part_rule.source})"
         )
     walled = arch_set.walled if arch_set is not None and partition_mode != "allowance" else set()
     if arch_set is not None:
@@ -1864,7 +1884,7 @@ def _derive_fem(
         if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
             live = max(live, helipad["L3_kPa"])
         pressures = {"D": self_weight, "SD": finish * 1e3, live_case: live * 1e3}
-        pressures[part_case] = pressures.get(part_case, 0.0) + partitions * 1e3
+        add_partitions(pressures, partitions * 1e3)
         if roof and rain_kpa:
             pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
 
@@ -1880,7 +1900,7 @@ def _derive_fem(
             room_finish = finish if room is None or room.finish is None else room.finish
             room_live = live if room is None or room.live is None else room.live
             out = {"SD": room_finish * 1e3, live_case: room_live * 1e3}
-            out[part_case] = out.get(part_case, 0.0) + partitions * 1e3
+            add_partitions(out, partitions * 1e3)
             return out
 
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
@@ -2550,7 +2570,11 @@ def _derive_fem(
                 "superimposed": part_factor["SD"],
                 "liveShare": user_live_share if user_live_share is not None else live_share,
                 "heavyLiveShare": heavy_share,
-                "heavyLiveLimit_kPa": None if heavy_limit_value is None else heavy_limit,
+                "heavyLiveLimit_kPa": heavy_limit_value,
+                "partitions": part_rule.mode,
+                "partitionShare": part_rule.share() if part_rule.separate else None,
+                "partitionCase": part_case,
+                "partitionFrom": part_rule.source,
             },
         )
         b.notes.append(summary["seismicWeight"]["note"])
@@ -4538,6 +4562,19 @@ def _story_label(story_names: dict[float, str], h: float) -> str:
     return story_names.get(round(h, 6)) or f"z = {h:g} m"
 
 
+def _partition_words(source: dict[str, Any]) -> str:
+    """How the partition allowance counted in W, in words, with where the rule comes from."""
+    from saengine.library.settings import PartitionWeight
+
+    rule = PartitionWeight(
+        str(source.get("partitions")),
+        source.get("partitionShare"),
+        str(source.get("partitionCase") or "L"),
+        str(source.get("partitionFrom") or ""),
+    )
+    return f"{rule.words()}{f' ({rule.source})' if rule.source else ''}"
+
+
 def _seismic_weight_summary(
     lumping: str,
     heights: list[float],
@@ -4551,7 +4588,8 @@ def _seismic_weight_summary(
     source: dict[str, Any],
 ) -> dict[str, Any]:
     """The seismic weight W per level and how it was formed (kN): ``{"method", "levels":
-    [{"story", "z_m", "weight_kN", "parts_kN": {D, SD, L, other, extra}, "lumped_kN"}],
+    [{"story", "z_m", "weight_kN", "parts_kN": {D, SD, L, partitions, other, extra},
+    "lumped_kN"}],
     "total_kN", "toBase_kN", "toBaseParts_kN", "extra_kN", "source", "note"}``."""
     rows = []
     for h in heights:
@@ -4587,6 +4625,7 @@ def _seismic_weight_summary(
             if source.get("heavyLiveLimit_kPa") is not None
             else ", "
         )
+        + (_partition_words(source) + ", " if source.get("partitions") else "")
         + "equipment and liquids in full"
         + (f", extra masses {extra / 1e3:.1f} kN" if extra else "")
         + f"; {how}"

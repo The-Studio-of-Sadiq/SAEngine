@@ -28,6 +28,8 @@ export interface IDefaultCodeTables {
 	readonly siteClasses: { readonly [id: string]: string };
 	readonly exposures: { readonly [id: string]: string };
 	readonly loadCases: { readonly [id: string]: string };
+	/** Sec 2.5.7.3: how the partition allowance counts in the seismic weight W (`full` or `withLiveShare`) and the clause. */
+	readonly seismicWeight: { readonly partitions: string; readonly source: string };
 }
 
 export const MATERIALS_SCHEMA: IJSONSchema = {
@@ -9613,7 +9615,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		MassSource: {
 			additionalProperties: false,
-			description: 'What forms the seismic weight W and the masses (the default pack\'s Part 6 Sec 2.5.7.3: the dead\nload including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full; a partition allowance the pack makes a live load\ncounts with the live load).',
+			description: 'What forms the seismic weight W and the masses (the default pack\'s Part 6 Sec 2.5.7.3: the dead\nload including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent\nequipment and retained liquid in full; how the partition allowance counts is the code\npack\'s ``seismic.partitionWeight`` unless ``partitions`` chooses).',
 			properties: {
 				dead: {
 					default: 1.0,
@@ -9643,6 +9645,29 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Empty: the code\'s (25 %, 50 % for live loads above 3 kN/m²). A number replaces both (the code\'s are minimums).',
 					title: 'Live load share',
+				},
+				partitions: {
+					default: 'pack',
+					description: 'How the area loads\' partition allowance counts in the seismic weight. In full: like the dead load (partition walls are part of W); the live load share and its threshold use the floor live load without the allowance. With the live share: the allowance counts as live load, the threshold judged on the live load and the allowance together. A factor: the allowance times the partition factor below. Code pack: the active pack\'s choice (in full when it gives none).',
+					enum: ['pack', 'full', 'withLiveShare', 'factor'],
+					enumDescriptions: ['As the code pack says', 'In full (like dead load)', 'With the live load share', 'A factor of my own'],
+					title: 'Partition allowance in W',
+					type: 'string',
+				},
+				partitionShare: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Share of the partition allowance in W (0 to 1) when the allowance in W is a factor of my own.',
+					title: 'Partition factor',
 				},
 				extraMasses: {
 					description: 'Weights added per story.',
@@ -11484,6 +11509,7 @@ export const DEFAULT_SETTINGS: object = {
 		massSource: {
 			dead: 1.0,
 			superimposed: 1.0,
+			partitions: 'pack',
 			extraMasses: [],
 		},
 		accidentalEccentricity: true,
@@ -13139,6 +13165,10 @@ export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 		T: 'Temperature',
 		R: 'Rain (blocked drains, to the secondary drainage level)',
 		Fa: 'Flood and surge (hydrodynamic and wave loads, in the direction of the wind)',
+	},
+	seismicWeight: {
+		partitions: 'full',
+		source: 'BNBC 2020 Part 6 Sec 2.5.7.3',
 	},
 };
 
@@ -17956,6 +17986,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			dead: 1.0,
 			superimposed: 1.0,
 			liveShare: null,
+			partitions: 'pack',
+			partitionShare: null,
 			extraMasses: [],
 		},
 		accidentalEccentricity: true,

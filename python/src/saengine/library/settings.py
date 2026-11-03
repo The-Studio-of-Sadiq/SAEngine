@@ -1360,8 +1360,8 @@ class ExtraMass(_Model):
 class MassSource(_Model):
     """What forms the seismic weight W and the masses (the default pack's Part 6 Sec 2.5.7.3: the dead
     load including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent
-    equipment and retained liquid in full; a partition allowance the pack makes a live load
-    counts with the live load)."""
+    equipment and retained liquid in full; how the partition allowance counts is the code
+    pack's ``seismic.partitionWeight`` unless ``partitions`` chooses)."""
 
     dead: float = Field(default=1.0, ge=0, title="Dead load factor", description="On D.")
     superimposed: float = Field(
@@ -1374,6 +1374,32 @@ class MassSource(_Model):
         title="Live load share",
         description="Empty: the code's (25 %, 50 % for live loads above 3 kN/m²). A number "
         "replaces both (the code's are minimums).",
+    )
+    partitions: Literal["pack", "full", "withLiveShare", "factor"] = Field(
+        default="pack",
+        title="Partition allowance in W",
+        description="How the area loads' partition allowance counts in the seismic weight. In "
+        "full: like the dead load (partition walls are part of W); the live load share and its "
+        "threshold use the floor live load without the allowance. With the live share: the "
+        "allowance counts as live load, the threshold judged on the live load and the "
+        "allowance together. A factor: the allowance times the partition factor below. Code "
+        "pack: the active pack's choice (in full when it gives none).",
+        json_schema_extra=_labels(
+            [
+                "As the code pack says",
+                "In full (like dead load)",
+                "With the live load share",
+                "A factor of my own",
+            ]
+        ),
+    )
+    partitionShare: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Partition factor",
+        description="Share of the partition allowance in W (0 to 1) when the allowance in W "
+        "is a factor of my own.",
     )
     extraMasses: list[ExtraMass] = Field(
         default_factory=list, title="Extra masses", description="Weights added per story."
@@ -1956,6 +1982,150 @@ def partition_case_basis(settings: Any = None, pack: CodePack | None = None) -> 
 def partition_case(settings: Any = None, pack: CodePack | None = None) -> str:
     """The partition allowance's load case, "L" or "SD" (:func:`partition_case_basis`)."""
     return partition_case_basis(settings, pack)[0]
+
+
+#: How the partition allowance counts in the seismic weight W when neither the project nor the
+#: code pack says: in full, like the dead load (partition walls are part of the dead load in
+#: W; ASCE 7-22 Sec 12.7.2 also counts partitions in W, at least 0.48 kPa).
+PARTITION_WEIGHT_DEFAULT = "full"
+
+
+@dataclass(frozen=True)
+class PartitionWeight:
+    """How the partition allowance counts in the seismic weight W (:func:`seismic_weight_rule`).
+
+    ``mode``: "full" (100 %, like the dead load; the live share and its threshold use the floor
+    live load without the allowance), "withLiveShare" (as the live load of its case, the
+    threshold judged on the live load with the allowance) or "factor" (``factor`` times the
+    allowance); ``case``: the allowance's load case (L or SD); ``source``: where the mode comes
+    from."""
+
+    mode: str
+    factor: float | None
+    case: str
+    source: str
+
+    @property
+    def separate(self) -> bool:
+        """Whether the allowance's weight is counted apart from the rest of its load case (in
+        full while it is a live load, or a factor of the project's). Otherwise it counts as its
+        case does: with the live share in L, in full in SD."""
+        return self.mode == "factor" or (self.mode == "full" and self.case == "L")
+
+    def share(self) -> float:
+        """The allowance's share in W when it is :attr:`separate`."""
+        return float(self.factor) if self.mode == "factor" and self.factor is not None else 1.0
+
+    def words(self) -> str:
+        """The rule in words, for the notes and the report."""
+        if self.mode == "factor" and self.factor is not None:
+            return f"partition allowance x{self.share():g}"
+        if self.mode == "withLiveShare" and self.case == "L":
+            return "partition allowance with the live load (its share judged on live + partitions)"
+        return "partition allowance in full (the live share judged without it)"
+
+
+@dataclass(frozen=True)
+class SeismicWeightRule:
+    """The shares of the loads in the seismic weight W: the code pack's live share (and its
+    heavy-live rule), the project's live share override and the partition allowance's rule.
+    Every path that forms W (the analysis masses, the static seismic weight and base shear,
+    the preliminary sizes, the report and the ETABS mass source) reads it from here."""
+
+    live_share: float
+    heavy_limit: float | None
+    heavy_share: float | None
+    user_live_share: float | None
+    partitions: PartitionWeight
+
+    def live(self, kpa: float | None = None) -> float:
+        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share)."""
+        if self.user_live_share is not None:
+            return float(self.user_live_share)
+        if (
+            kpa is not None
+            and self.heavy_limit is not None
+            and self.heavy_share is not None
+            and kpa > self.heavy_limit + 1e-9
+        ):
+            return max(self.live_share, self.heavy_share)
+        return self.live_share
+
+    def area(self, live: float, partitions: float) -> tuple[float, float]:
+        """(share of the live load, share of the partition allowance) in W of a floor area of
+        ``live`` and ``partitions`` [kN/m²]."""
+        rule = self.partitions
+        if rule.separate:
+            return self.live(live), rule.share()
+        if rule.case == "L":
+            both = self.live(live + partitions)
+            return both, both
+        return self.live(live), 1.0
+
+    def weight(self, live: float, partitions: float) -> float:
+        """The live load and partition allowance [kN/m²] that count in W."""
+        a, b = self.area(live, partitions)
+        return a * live + b * partitions
+
+
+def _field(part: Any, name: str, default: Any) -> Any:
+    """``part.name`` of a model or ``part[name]`` of a dict, else ``default``."""
+    if isinstance(part, dict):
+        return part.get(name, default)
+    return getattr(part, name, default) if part is not None else default
+
+
+def _mass_source(settings: Any) -> Any:
+    return _field(_field(settings, "analysis", None), "massSource", None)
+
+
+def partition_weight_basis(settings: Any = None, pack: CodePack | None = None) -> PartitionWeight:
+    """How the partition allowance counts in W: the project's ``analysis.massSource.partitions``
+    (with ``partitionShare`` for "factor") when it names one, else the code pack's
+    ``seismic.partitionWeight`` (a project override of it through ``codeOverrides`` included),
+    else :data:`PARTITION_WEIGHT_DEFAULT` (the generic default). Read at every run."""
+    case = partition_case(settings, pack)
+    source = _mass_source(settings)
+    chosen = _field(source, "partitions", "pack")
+    share = _field(source, "partitionShare", None)
+    if chosen == "factor" and share is not None:
+        return PartitionWeight("factor", float(share), case, "project setting")
+    if chosen in ("full", "withLiveShare"):
+        return PartitionWeight(chosen, None, case, "project setting")
+    pack = pack or code_context.current()
+    value = getattr(pack.table("seismic"), "partitionWeight", None) if pack.has("seismic") else None
+    if value in ("full", "withLiveShare"):
+        # The pack's (with its clause), a project override of it, or the generic default.
+        source = pack.value_source("seismic", "partitionWeight")
+        ref = code_context.source_ref("seismic", "partitionWeight", pack)
+        if ref and source.startswith("code pack"):
+            source = f"{source}, {ref}"
+        return PartitionWeight(value, None, case, source)
+    from saengine.codes import generic
+
+    return PartitionWeight(
+        PARTITION_WEIGHT_DEFAULT, None, case, generic.label(code_context.code_name(pack))
+    )
+
+
+def seismic_weight_rule(
+    settings: Any = None, pack: CodePack | None = None, table: Any = None
+) -> SeismicWeightRule:
+    """The shares of the loads in W (:class:`SeismicWeightRule`) for ``settings`` under ``pack``
+    (default the pack in force; ``table``: its seismic table when already read). The
+    heavy-live rule holds once the pack gives its share."""
+    pack = pack or code_context.current()
+    table = table if table is not None else pack.table("seismic")
+    heavy_share = getattr(table, "heavyLiveShare", None)
+    heavy_limit = getattr(table, "heavyLiveLimit", None) if heavy_share is not None else None
+    user = _field(_mass_source(settings), "liveShare", None)
+    return SeismicWeightRule(
+        live_share=float(table.liveShare),
+        heavy_limit=None if heavy_limit is None else float(heavy_limit),
+        heavy_share=None if heavy_share is None else float(heavy_share),
+        user_live_share=None if user is None else float(user),
+        partitions=partition_weight_basis(settings, pack),
+    )
 
 
 class LoadCombination(_Model):

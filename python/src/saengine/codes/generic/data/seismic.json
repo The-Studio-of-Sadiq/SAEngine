@@ -1,11 +1,13 @@
 {
   "$notes": {
-    "stabilityGravity": "ASCE 7-22 Sec 12.8.7 (Px with no individual load factor above 1.0), used as a generic default"
+    "stabilityGravity": "ASCE 7-22 Sec 12.8.7 (Px with no individual load factor above 1.0), used as a generic default",
+    "partitionWeight": "ASCE 7-22 Sec 12.7.2 (partitions count in the effective seismic weight, at least 0.48 kPa), used as a generic default: the partition allowance in full"
   },
   "stabilityGravity": {
     "D": 1.0,
     "SD": 1.0,
     "F": 1.0,
     "L": 1.0
-  }
+  },
+  "partitionWeight": "full"
 }
