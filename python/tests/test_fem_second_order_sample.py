@@ -72,8 +72,9 @@ def test_sample_with_p_delta_has_a_small_drift_amplification(tmp_path: Path) -> 
         # solver's round-off: θ of the order of -3e-6 since the end offsets of 0.0.44). Since
         # 0.0.45 (each storey's wind on its own face, the slab loads as triangles and
         # trapezoids) its drift in WX is about 4 µm and θ about -6e-5: the second-order drift
-        # 0.24 nm smaller, no amplification to speak of.
-        assert all(-1e-4 < s["impliedTheta"] < 0.05 for s in case["storeys"]), case
+        # 0.24 nm smaller, no amplification to speak of. Since the stair loads (walk 3, OI-2) its
+        # WX drift is about 4.0 µm and θ about -1.1e-4: round-off of the same kind.
+        assert all(-5e-4 < s["impliedTheta"] < 0.05 for s in case["storeys"]), case
     # BNBC Eq 6.2.48 θ (I = 1.0, Cd = 5.5 assumed here): far below 0.10 and θmax.
     bnbc = drift_amplification(
         second.project, root / "08 FEM" / "model.results", importance=1.0, cd=5.5

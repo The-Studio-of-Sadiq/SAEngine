@@ -453,7 +453,7 @@ def unreinforced_report(project_path: str | Path) -> dict[str, Any] | None:
     design checks of such a model check nothing; working out its combined forces took minutes on
     10 storeys (B10-11 of usability walk 3). The combined forces are worked out by the design
     that proposes the bars (:func:`gathered`), when the engineer asks for it."""
-    from saengine.design.check import NO_REINFORCEMENT, design_counts
+    from saengine.design.check import DESIGNED_IN_PART_9, NO_REINFORCEMENT, design_counts
     from saengine.design.required import with_assumed_bars
     from saengine.library.materials import MaterialLibrary
     from saengine.library.settings import ProjectSettings, code_basis
@@ -502,6 +502,8 @@ def unreinforced_report(project_path: str | Path) -> dict[str, Any] | None:
         )
     ]
     notes += [f"{e.get('id')}: slab not designed (no reinforcement)" for e in slabs]
+    # The report's limitations still say where the foundations are designed.
+    notes.append(DESIGNED_IN_PART_9)
     counts = design_counts([], skipped, [], [])
     return {
         "code": code_basis(settings).concrete,

@@ -201,6 +201,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `project/importArchive` | **path**, **destParent**, name, currentVersion, overwrite, migrate | `project_import_archive` (worker) | Unpacks a ``.civil`` file into ``<dest_parent>/<name>``: ``{root, name, files, problems (warnings), migrated, pending, renamed?}``, or a refusal (nothing is left behind). |
 | `project/inspectArchive` | **path**, currentVersion, verify | `project_inspect_archive` | What a ``.civil`` file holds: ``{manifest\|null, problems, ok, files, size}``. |
 | `project/validate` | — | `validate_project` | Load ``path`` with the opensees-studio schema and check its references. |
+| `report/build` | **projectRoot**, outPdf, template, format | `build_report` (worker) | The design report of the project, PDF or Word (see ``saengine.report.build_report``). |
 | `report/createTemplate` | **projectRoot**, **id**, base, name | `report_template_create` | Writes a new report template ``template_id`` into the project, a copy of ``base`` (a built-in or project template; the default when not given): ``{"path"}`` or ``{"problems"}``. An existing file is never overwritten. |
 | `report/templates` | — | `report_templates` | The report templates the project can print (built-in and its own) and the one its settings name: ``{"templates": [{id, name, source, path?}], "current"}``. |
 | `results/list` | **outDir**, **projectPath** | `result_list` | The results of a run that can be shown in 3D (see ``saengine.fem.display``). |
@@ -209,15 +210,19 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `revit/apply` | — |  |  |
 | `revit/export` | — |  |  |
 | `revit/preview` | — |  |  |
+| `saengine/cancelJobs` | — |  |  |
 | `saengine/info` | — | `info` | Versions of the backend stack, for the workbench's runtime check. |
+| `saengine/jobs` | — |  |  |
+| `section/analyse` | **text**, materialsText, projectRoot, capacity, surface, momentCurvature, contourAt |  |  |
 | `share/connect` | **projectRoot**, **location**, author | `share_connect` (worker) | Shares the project at a shared folder or git server address, then syncs. |
 | `share/disconnect` | **projectRoot** | `share_disconnect` (worker) | Stops syncing this copy. |
 | `share/heartbeat` | **projectRoot**, user, part, leaving | `share_heartbeat` (worker) | Keeps (or with ``leaving`` ends) this engineer's presence: ``{available, people}``. |
+| `share/join` | **location**, **target** |  |  |
 | `share/lock` | **projectRoot**, **part**, user, note | `share_lock` (worker) | Takes the lock of a part in the shared folder: ``{lock}``. |
 | `share/status` | **projectRoot**, user, fetch | `share_status` (worker) | The office copy: ``{shared, location, kind, ahead, behind, locks, people, problems}``. |
 | `share/sync` | **projectRoot**, author, resolutions, user | `share_sync` (worker) | Saves, fetches, merges per part file and sends: ``{state, received, sent, conflicts}``. |
 | `share/unlock` | **projectRoot**, **part**, user, force | `share_unlock` (worker) | Releases (or with ``force`` breaks) the lock of a part: ``{released, was}``. |
-| `soil/allowableBearing` | **soilText**, settingsText, **x**, **y**, **foundingLevel**, **b**, **l** | `allowable_bearing` | Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``). |
+| `soil/allowableBearing` | **soilText**, settingsText, **x**, **y**, **foundingLevel**, **b**, **l** | `allowable_bearing` (worker) | Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``). |
 | `soil/gisExport` | **projectRoot**, **format**, **outPath** | `gis_export` (worker) | The site, boreholes and building outline as GeoJSON or GeoPackage (WGS 84). |
 | `soil/gisImport` | **path**, soilText | `gis_import` (worker) | The soil report with a GeoJSON or GeoPackage file's boreholes and boundary merged in. |
 | `soil/import` | **path**, soilText | `import_soil` | The soil report with the boreholes of a CSV or Excel file merged in: ``{"text", "notes"}`` or ``{"problems"}``. |
@@ -225,7 +230,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `soil/plotCheck` | soilText, floorPlanText, objectsText | `plot_check` (worker) | The plot and its buildable envelope in project mm, and the floor plan's members outside them (``saengine.gis.plot.encroachments``): ``{plot, envelope, warnings, problems}``. |
 | `soil/qgisCommand` | **program**, **filePath** | `qgis_command` | The program and arguments that open ``file_path`` in QGIS (a .bat launcher through cmd.exe, its last argument to pass verbatim), or ``{problems}`` for a path cmd.exe would interpret. |
 | `soil/qgisProgram` | — | `qgis_program` (worker) | The launcher of an installed QGIS, or None (QGIS is not bundled). |
-| `soil/report` | **soilText**, settingsText | `soil_report` | Everything computed from the soil report (see ``saengine.soil.soil_report``), with the site class of the settings resolved as the analysis uses it. |
+| `soil/report` | **soilText**, settingsText | `soil_report` (worker) | Everything computed from the soil report (see ``saengine.soil.soil_report``), with the site class of the settings resolved as the analysis uses it. |
 | `soil/settlement` | **soilText**, **borehole**, **b**, **l**, **df**, **q** | `soil_settlement` | Settlement of a footing at a borehole under a net pressure. |
 | `soil/sources` | soilText, settingsText | `soil_sources` | Where the site class and the allowable bearing pressure come from, for Project Settings. |
 | `soil/template` | — | `soil_template` | Writes the borehole import template (.csv or .xlsx): ``{"path"}`` or ``{"problems"}``. |
@@ -233,8 +238,11 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `structure/insert` | **structureText**, **geometry** | `insert_geometry` | The structural model with previewed geometry added: ``{"text", "ids", "skipped"}``. |
 | `structure/runScript` | **structureText**, **scriptPath** | `run_script` | Runs a structural model script (see ``saengine.library.script``). |
 | `structure/shapeGeometry` | — | `shape_geometry` | The members, areas and supports of a parametric shape, to preview and insert. |
+| `substructure/design` | — | `substructure_design` (worker) | Run All's foundation step (``saengine.substructure.run.design_foundations``): moves the building model's footings in while the substructure is the placeholder, gives foundations without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as :func:`substructure_report`, with ``sources`` taken after the bars were written (they are part of what was checked), or ``{"problems"}``. |
 | `substructure/ensure` | — | `substructure_ensure` | Writes the building model's footings into ``substructure.json`` while it is still the placeholder (``saengine.substructure.handover.ensure_migrated``). |
 | `substructure/migrate` | — | `substructure_migrate` | The saved substructure with the building model's footings added (nothing is written): ``{"substructure", "notes", "count"}`` or ``{"problems"}``. |
+| `substructure/report` | — | `substructure_report` (worker) | The design checks of the project's saved substructure (see ``saengine.substructure.substructure_report``), or ``{"problems"}`` when a part of the project cannot be read. |
+| `substructure/size` | **projectRoot**, columns, substructureText | `substructure_size` (worker) | Footings proposed for ``columns`` (default: the columns without a foundation) from the reactions and the soil report, with the editor's substructure ``substructure_text`` when given: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``. |
 | `versions/diff` | **projectRoot**, fromVersion, toVersion | `versions_diff` (worker) | Two versions (or a version and the current files, ``b`` omitted) compared part by part. |
 | `versions/list` | **projectRoot**, limit | `versions_list` (worker) | The versions, newest first: ``{versions, count, more}``. |
 | `versions/markIssued` | **projectRoot**, **version**, **label**, author | `versions_mark_issued` (worker) | Marks ``version`` as issued with ``label``: ``{version, tag}``. |

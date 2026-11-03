@@ -42,9 +42,13 @@ def rpc_methods(server: Path, handlers: Path) -> list[dict]:
     """Every JSON-RPC method of the server, sorted by name."""
     docs = _handler_docs(handlers)
     tree = ast.parse(server.read_text(encoding="utf-8"))
+    # An async method that awaits a worker function reads its parameters there.
+    functions = {
+        n.name: n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
     methods = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         name, worker = None, False
         for deco in node.decorator_list:
@@ -62,7 +66,18 @@ def rpc_methods(server: Path, handlers: Path) -> list[dict]:
             continue
         params: dict[str, bool] = {}
         handler = None
+        bodies = [node]
         for sub in ast.walk(node):
+            if isinstance(sub, ast.Await) and isinstance(sub.value, ast.Call):
+                called = sub.value.func
+                if isinstance(called, ast.Name) and called.id in functions:
+                    target = functions[called.id]
+                    bodies.append(target)
+                    worker = worker or any(
+                        isinstance(d, ast.Name) and d.id.endswith("worker")
+                        for d in target.decorator_list
+                    )
+        for sub in (s for body in bodies for s in ast.walk(body)):
             if (
                 isinstance(sub, ast.Subscript)
                 and isinstance(sub.slice, ast.Constant)
