@@ -973,6 +973,7 @@ class _Importer:
 
     def _areas(self) -> None:
         self.area_sets: dict[str, list[tuple[str, float]]] = {}
+        floor_modelling: dict[str, str] = {}  # floor instance -> its MODELINGTYPE
         for label, story, pairs in self.e.area_assigns:
             area = self.e.areas.get(label)
             instance = f"{label}-{story}"
@@ -1003,9 +1004,27 @@ class _Importer:
             self._pier(pairs)
             self.b.add_area(instance, section, points, area_kind)  # type: ignore[arg-type]
             self.instances[(label, story)] = instance
+            if area_kind == "floor":
+                floor_modelling[instance] = props.get("MODELINGTYPE", "").upper()
             load_set = pairs.get("UNIFLOADSET")
             if load_set:
                 self.area_sets[instance] = self.e.load_sets.get(load_set, [])
+        self._slab_modelling(floor_modelling)
+
+    def _slab_modelling(self, floors: dict[str, str]) -> None:
+        """The analysis's slabs from the floors' modelling: membrane floors hand their loads to
+        the beams (SAEngine's "loadsToBeams"), shell floors (thin or thick) are meshed as shells.
+        Floors of both kinds keep the default with a note."""
+        shells = sorted(k for k, m in floors.items() if m and m != "MEMBRANE")
+        membranes = sorted(k for k, m in floors.items() if m == "MEMBRANE")
+        if shells and not membranes:
+            self.b.analysis["slabs"] = "shells"
+        elif shells and membranes:
+            self.report.approximate(
+                "shell and membrane floors in one model: all slabs hand their loads to the beams "
+                "(02 Project Settings → Analysis model → Slabs)",
+                shells[0],
+            )
 
     def _supports(self) -> None:
         for point, story, pairs in self.e.point_assigns:

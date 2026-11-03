@@ -81,6 +81,9 @@ CurrUnits`. A file without a unit line is read in kN and m, with a warning.
   6.3.10.4.1's cracked factors (columns 0.70, beams 0.35, slabs 0.25, walls 0.70 or 0.35 Ig)
   switch on SAEngine's cracked sections for all cases; other values and membrane, axial, shear,
   torsion, mass and weight modifiers are reported as not applied.
+- **Slab modelling** (ETABS): floors that are all ShellThin or ShellThick make the project's
+  slabs shells (02 Project Settings → Analysis model → Slabs); membrane floors keep slabs as
+  loads to the beams; a mix keeps loads to the beams, reported.
 - **Column bars**: older files' bar sizes and counts, and ETABS 2016+ patterns
   (`PATTERN "R-4-3" LONGBARAREA 314.2`: 10 bars of 20 mm; `"C-8"` round a circle).
 - **Loads**: uniform gravity area loads on floors and roofs become the project's floor and roof

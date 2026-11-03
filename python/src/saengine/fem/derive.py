@@ -720,6 +720,23 @@ def _plan_area(points: Any) -> float:
     return abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))) / 2
 
 
+def _opening_fraction(boundary: Any, openings: list[Any]) -> float:
+    """The part of the plan polygon ``boundary`` (mm) its slab ``openings`` take: their union
+    within the polygon (an opening reaching past the panel's edge counts only over it)."""
+    if not openings:
+        return 0.0
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    panel = Polygon([(float(x), float(y)) for x, y in boundary])
+    if not panel.is_valid:
+        panel = panel.buffer(0)
+    if panel.area <= 0:
+        return 0.0
+    holes = unary_union([Polygon([p[:2] for p in _rectangle(o, 0.0)]) for o in openings])
+    return min(1.0, panel.intersection(holes).area / panel.area)
+
+
 def derive_fem(
     building: BuildingModel,
     objects: ObjectLibrary,
@@ -1948,6 +1965,11 @@ def _derive_fem(
                 pressures[case] = pressures[case] * (1 - covered) + sum(
                     room_pressures(room)[case] * share for room, share in rooms_here
                 )
+        # The panel's openings carry no slab, finish or live load: the area loads act on its net
+        # area (as on a shell slab, whose mesh leaves the openings out), spread over the panel's
+        # edges by its shape. The live load's intensity (its share in W) stays as given.
+        cut = _opening_fraction(element.boundary, slab_openings.get(element.id, []))
+        uncut = dict(pressures) if cut else {}
         # The stairs' support lines on the panel: their total as a uniform load over it.
         stair_lines = [
             line
@@ -1999,10 +2021,16 @@ def _derive_fem(
                 "its loads are not applied"
             )
             free = []
+        if cut:
+            b.notes.append(
+                f"{element.id}: its openings take {cut:.1%} of the panel; its area loads act "
+                "on the net area (slabs as loads to beams)"
+            )
         for case, pressure in pressures.items():
-            if not pressure:
+            applied = pressure - cut * uncut.get(case, 0.0)
+            if not applied:
                 continue
-            shape = sls.slab_load_shapes(corners, pressure, object_type.system, free=free)
+            shape = sls.slab_load_shapes(corners, applied, object_type.system, free=free)
             if not noted:
                 b.notes += [f"{element.id}: {note}" for note in shape.notes]
                 noted = True

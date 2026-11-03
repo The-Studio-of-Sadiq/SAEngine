@@ -156,6 +156,17 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
 
 ## 2026-11-03
 
+- **Slab openings carry no area load, and the ETABS import keeps shell slabs as shells.**
+  Question: the Sample Frame read back from its e2k had W 659 kN for 608 kN (54 m² of floor
+  loaded on 65 m²). Findings: the import left `analysis.slabs` at its default "loads to
+  beams" for the file's ShellThin floors, and slabs as loads to beams loaded the whole panel,
+  openings included (a shell slab's mesh leaves them out). Decision (SAEngine practice): with
+  slabs as loads to beams the area loads (self-weight, finish, live, partitions, rain) act on
+  the panel's net area (less the union of its openings within it, MEP shafts included),
+  spread to the edges by the panel's shape; the live load's intensity, and so its share in W,
+  is the given one. The e2k import sets `analysis.slabs` to "shells" when every floor is
+  ShellThin or ShellThick, keeps "loads to beams" for membrane floors and reports a mix.
+  Where: `fem/derive.py` (`_opening_fraction`), `importers/etabs.py` (`_slab_modelling`).
 - **The ETABS import restores the partition allowance** (PR #172). Question: the e2k export
   writes the allowance as its own pattern `PART`, in the mass source at its share; should the
   import read it back as plain live load (×0.25 in W, with a note) or restore it? Decision

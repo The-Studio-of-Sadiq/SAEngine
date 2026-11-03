@@ -535,6 +535,8 @@ def test_tiny_model_round_trip(tmp_path: Path) -> None:
     assert imported.report.imported["memberLineLoads"] == 1
     assert imported.report.carried["D"] >= wall * (1 - 1e-6)
     assert imported.report.imported["slabOpenings"] == 1
+    # Slabs as loads to the beams go out as membrane floors and come back as such.
+    assert settings.analysis.slabs == imported.settings.analysis.slabs == "loadsToBeams"
 
 
 def test_sample_round_trip(tmp_path: Path) -> None:
@@ -573,7 +575,7 @@ def test_sample_round_trip(tmp_path: Path) -> None:
     assert restored and restored[0]["examples"] == ["PART"]
     assert imported.settings.analysis.massSource.partitions == "pack"
     # W and V of the sample with the area loads and mass source read back are the original's
-    # (on the sample's own geometry: the slabs read back carry their loads on more area).
+    # (on the sample's own geometry; the whole project read back: below).
     full, objects_full, materials, own = sample_parts(SAMPLE)
     original = seismic_w_v(full, objects_full, materials, own)
     back = {a.id: a for a in imported.settings.areaLoads}
@@ -590,6 +592,84 @@ def test_sample_round_trip(tmp_path: Path) -> None:
     # The stair's reactions are in the file (OI-2): the top of its upper flight on beam B1.
     assert 'LINELOAD  "B1"' in result.text
     assert result.report.carried["D"] > 0
+
+
+PROJECT_FILES = (
+    "06 BIM/bim.json",
+    "04 Objects/objects.json",
+    "03 Materials/materials.json",
+    "02 Project Settings/project-settings.json",
+)
+SIDE_FILES = (  # what the derivation reads beside the model (soil report: none in the e2k)
+    "07 MEP/mep.json",
+    "09 Substructure/substructure.json",
+    "05 Floor Plan/loads.json",
+    "05 Floor Plan/architecture.json",
+)
+
+
+def project_w_v(texts: dict[str, str], root: Path | None = None) -> tuple[float, float, dict]:
+    """W, V [kN] and the analysis settings of the whole project of ``texts`` (as Run All
+    derives it: MEP, member loads and the rest read beside the model)."""
+    from saengine.codes import context as code_context
+    from saengine.rpc.handlers import derive_fem
+
+    with code_context.project(root):
+        d = derive_fem(
+            *(texts[f] for f in PROJECT_FILES), None, None, *(texts.get(f) for f in SIDE_FILES)
+        )
+    assert "problems" not in d, d.get("problems")
+    summary = d["summary"]
+    return summary["seismicWeight"]["total_kN"], summary["base_shear_kN"], d
+
+
+@pytest.fixture(scope="module")
+def sample_whole_round_trip(tmp_path_factory: Any) -> dict[str, Any]:
+    original = {
+        f: (SAMPLE / f).read_text(encoding="utf-8")
+        for f in (*PROJECT_FILES, *SIDE_FILES)
+        if (SAMPLE / f).exists()
+    }
+    result = export_e2k(SAMPLE, derive=False)
+    imported = round_trip(result.text, tmp_path_factory.mktemp("e2k"))
+    return {"original": original, "imported": imported}
+
+
+def test_sample_whole_project_w_and_v_round_trip(sample_whole_round_trip: Any) -> None:
+    """The Sample Frame read back from its e2k has the original's seismic weight W and base
+    shear V: its shell slabs come back as shells (MODELINGTYPE ShellThin), their openings out of
+    the loaded area. Before, the import made them slabs as loads to the beams, which loaded the
+    whole panel through its openings: 54 m² of floor carried on 65 m², W 659 kN for 608 kN."""
+    original, imported = sample_whole_round_trip["original"], sample_whole_round_trip["imported"]
+    own = ProjectSettings.model_validate_json(original["02 Project Settings/project-settings.json"])
+    assert own.analysis.slabs == "shells"
+    assert imported.settings.analysis.slabs == "shells"
+    w0, v0, d0 = project_w_v(original, SAMPLE)
+    # The mesh size is SAEngine's own (the e2k meshes by ETABS's auto mesh): the original's.
+    texts = dict(imported.texts)
+    settings = imported.settings.model_copy(deep=True)
+    settings.analysis.meshSize = own.analysis.meshSize
+    texts["02 Project Settings/project-settings.json"] = settings.model_dump_json()
+    w1, v1, d1 = project_w_v(texts)
+    assert (w1, v1) == pytest.approx((w0, v0), rel=1e-6)
+
+    # The partition allowance (1.2 kN/m² in full, W's parts kept to 1 N) on the same net floor:
+    # 53.35 m² (65 m² of panels less the openings O1, O2 and the shaft SH1).
+    def partitions(d: dict) -> float:
+        return d["summary"]["seismicWeight"]["levels"][0]["parts_kN"]["partitions"]
+
+    assert partitions(d1) == pytest.approx(partitions(d0), rel=1e-9)
+    assert partitions(d1) / 1.2 == pytest.approx(65.0 - 2.6 * 4.14 - 0.5**2 - 0.8**2, abs=1e-3)
+
+
+def test_slabs_as_loads_to_beams_leave_the_openings_out() -> None:
+    """Slabs as loads to the beams carry the area loads of their net area, as shell slabs do:
+    the Sample Frame's W and V are the same either way (O1 and O2 take 36.7 % of S1)."""
+    building, objects, materials, settings = sample_parts(SAMPLE)
+    shells = seismic_w_v(building, objects, materials, settings)
+    settings.analysis.slabs = "loadsToBeams"
+    to_beams = seismic_w_v(building, objects, materials, settings)
+    assert to_beams == pytest.approx(shells, rel=1e-9)
 
 
 def test_generated_building_round_trip(tmp_path: Path) -> None:
