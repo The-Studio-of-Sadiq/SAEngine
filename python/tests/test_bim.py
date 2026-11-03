@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from saengine.library import BuildingModel, FloorPlan, ObjectLibrary, default_floor_plan
-from saengine.library.bim import generate, source_stamp
+from saengine.library.bim import floor_plan_stamp, generate, source_stamp
 from saengine.library.check import check_library
 from saengine.rpc.handlers import generate_building
 
@@ -179,7 +179,9 @@ def test_generate_handler() -> None:
     text = json.dumps(PLAN.model_dump(mode="json", by_alias=True), indent="\t")
     result = generate_building(text, json.dumps({"schema": 1, "part": "bim"}))
     model = BuildingModel.model_validate_json(result["text"])
-    assert model.source is not None and model.source.floorPlan == source_stamp(text)
+    assert model.source is not None and model.source.floorPlan == floor_plan_stamp(
+        text
+    )  # without the underlays (OI-24)
     assert len(model.elements) == 5
 
     broken = json.loads(text)
