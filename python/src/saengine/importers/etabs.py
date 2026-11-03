@@ -1117,7 +1117,15 @@ class _Importer:
 
         # SAEngine's shares in W under the pack in force: an imported live load counts with the
         # light-load live share (it is not the area loads' partition allowance).
-        live_share = seismic_weight_rule().live()
+        rule = seismic_weight_rule()
+        live_share = rule.live()
+        heavy_share = (
+            max(rule.live_share, rule.heavy_share)
+            if rule.user_live_share is None
+            and rule.heavy_share is not None
+            and rule.heavy_limit is not None
+            else None
+        )
 
         for name, d in self.e.seismic.items():
             detail = f"{name}: {d.get('TYPE', '')}"
@@ -1161,10 +1169,15 @@ class _Importer:
                 factors[case] = max(factors[case], factor)
             for case, factor in sorted(factors.items()):
                 # SAEngine's W takes the dead loads and the equipment's contents (F, retained
-                # liquid: saengine.mep.loads) in full and the code pack's share of L.
+                # liquid: saengine.mep.loads) in full and the code pack's share of L: the light-
+                # load share, or the heavy-load share above the pack's limit (named, as the file's
+                # one factor cannot tell which floors are heavy).
                 expected = 1.0 if case in ("D", "F") else live_share if case == "L" else 0.0
                 if abs(factor - expected) > 1e-6:
-                    differences.append(f"{case} × {factor:g} (SAEngine {expected:g})")
+                    shares = f"{expected:g}"
+                    if case == "L" and heavy_share is not None:
+                        shares += f", {heavy_share:g} above {rule.heavy_limit:g} kN/m²"
+                    differences.append(f"{case} × {factor:g} (SAEngine {shares})")
             if partitions:
                 differences.append(
                     f"partition pattern {', '.join(partitions)} (imported as live load L, "
