@@ -188,6 +188,8 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
   - 6.10 is the default set. 6.10a/b is chosen with the override `combinations.strengthSet`
     "6.10ab". Type 1 is the default spectrum; Type 2 is chosen with `seismic.spectrumType` "2".
     A National Annex is a pack that extends `eurocodes` and sets only these parameters.
+  - Owner, 2026-11-04: these defaults, and the US pack's (SDS/SD1 entry, exposure B/C/D, the
+    storage share above 4.79 kN/m²), are accepted; each stays overridable per project.
 
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
