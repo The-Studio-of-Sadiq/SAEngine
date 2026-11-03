@@ -56,8 +56,8 @@ from saengine.library.bim import (
     InclinedMember,
     SlabOpening,
     WallOpening,
+    floor_plan_stamp,
     generate,
-    source_stamp,
 )
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary
@@ -1097,7 +1097,7 @@ class ProjectBuilder:
         plan_text = json_text(floor_plan)
         bim = generate(
             floor_plan,
-            source_stamp(plan_text),
+            floor_plan_stamp(plan_text),
             BuildingModel(
                 additions=Additions(
                     members=members, slabOpenings=openings, wallOpenings=wall_openings

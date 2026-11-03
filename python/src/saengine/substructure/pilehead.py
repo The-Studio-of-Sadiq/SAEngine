@@ -151,6 +151,30 @@ def plain_shear_capacity(diameter: float, fc: float) -> float:
     return 0.60 * 0.11 * math.sqrt(fc) * diameter * diameter
 
 
+#: The pile sections' interaction surfaces by section and code pack (R2-20: the 15 pile caps
+#: of one pile type built the same surface 15 times, a third of Check the Foundations Again).
+_SURFACES: dict[tuple[Any, ...], tuple[Any, Any]] = {}
+_SURFACES_KEPT = 16
+
+
+def _surface(section: Any, key: tuple[Any, ...], make: Any) -> Any:
+    """The interaction surface of ``section`` (made by ``make``), kept per ``key`` (shape,
+    size, f'c, fy, bars) while the code pack in force is the same object."""
+    from saengine.codes import context as code_context
+
+    square, diameter, fc, fy, reinforcement = key
+    pack = code_context.current()
+    full = (square, float(diameter), float(fc), float(fy), reinforcement.model_dump_json())
+    found = _SURFACES.get(full)
+    if found is not None and found[0] is pack:
+        return found[1]
+    surface = make(section)
+    while len(_SURFACES) >= _SURFACES_KEPT:
+        _SURFACES.pop(next(iter(_SURFACES)))
+    _SURFACES[full] = (pack, surface)
+    return surface
+
+
 def section_checks(
     diameter: float,
     fc: float,
@@ -223,7 +247,7 @@ def section_checks(
                 )
             )
     else:
-        surface = InteractionSurface(section)
+        surface = _surface(section, (square, diameter, fc, fy, reinforcement), InteractionSurface)
         best = (-1.0, 0.0, 0.0, 0.0, None)
         for name, (most, least) in axial.items():
             moment = actions[name]["design"]

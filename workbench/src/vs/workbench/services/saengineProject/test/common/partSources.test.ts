@@ -5,13 +5,38 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { newFloorPlan, recordedStamp, sourceStamp, upstreamPart } from '../../common/partSources.js';
+import { floorPlanStamp, newFloorPlan, recordedStamp, sourceStamp, upstreamCurrent, upstreamPart } from '../../common/partSources.js';
 import { projectParts } from '../../common/saengineProject.js';
 import { DEFAULT_FLOOR_PLAN } from '../../common/projectLibraries.generated.js';
 
 suite('SAEngine - Part sources', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the floor plan stamp leaves out the underlays, as the Python side does', () => {
+		// R2-10 (OI-24): the same plan and digest as python/tests/test_rewalk2_minors.py.
+		const plan = {
+			schema: 'saengine.floorPlan/1',
+			grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000.5 }], y: [] },
+			stories: [{ id: 'L1', name: 'Level 1', elevation: 3600 }],
+			columns: [],
+			underlays: [{ file: 'plan.dxf', story: 'L1', scale: 1.0 }],
+		};
+		const text = JSON.stringify(plan, null, '	');
+		const moved = JSON.stringify({ ...plan, underlays: [{ file: 'other.pdf', story: 'L1' }] });
+		const changed = JSON.stringify({ ...plan, stories: [{ id: 'L1', name: 'Level 1', elevation: 3500 }] });
+		assert.deepStrictEqual({
+			stamp: floorPlanStamp(text),
+			moved: floorPlanStamp(moved) === floorPlanStamp(text),
+			changed: floorPlanStamp(changed) === floorPlanStamp(text),
+			current: [upstreamCurrent('floorPlan', floorPlanStamp(text), moved), upstreamCurrent('floorPlan', sourceStamp(text), text), upstreamCurrent('floorPlan', sourceStamp(text), moved), upstreamCurrent('structure', floorPlanStamp(text), moved), upstreamCurrent('floorPlan', undefined, text)],
+		}, {
+			stamp: '0a246b6025a9f94811161541eb2aa347b6392c2e',
+			moved: true,
+			changed: false,
+			current: [true, true, false, false, false],
+		});
+	});
 
 	test('stamps match the Python models and ignore line endings', () => {
 		assert.deepStrictEqual({

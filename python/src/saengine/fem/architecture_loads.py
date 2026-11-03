@@ -18,8 +18,8 @@ architecture wall becomes a superimposed dead load (case SD) on what carries it:
   instead, the larger of the walls' weight over the panel's area (statically the same total)
   and 33 % of the wall's weight per metre run, the code's uniform equivalent of light partitions
   (Sec 2.3.6, Provision for partition walls, p. 540; the code allows it for partitions of at
-  most 5.5 kN/m: a heavier wall on a slab is noted, model the slab as shells or put a beam
-  under it). The code's 1.2 kN/m² minimum of Sec 2.3.6 is for partitions *not* on the plans and
+  most 5.5 kN/m: a heavier wall on a slab takes its weight over the panel only, and is noted:
+  model the slab as shells or put a beam under it). The code's 1.2 kN/m² minimum of Sec 2.3.6 is for partitions *not* on the plans and
   is not applied to drawn walls;
 - a piece over a floor-plan wall (or a wall whose ``structuralRef`` is one) is that wall's,
   which the floor plan already weighs: it is left out, never counted twice;
@@ -717,8 +717,14 @@ def panel_pressures(loads: ArchitectureLoads, slab: SlabElement) -> tuple[float,
     if area <= 0:
         return 0.0, []
     total = sum(w.load * math.dist(w.start, w.end) for w in on)  # N
-    heaviest = max(w.load for w in on)  # N/m
-    return max(total / area, partition_rule()[0] * heaviest), sorted({w.source for w in on})
+    share, light, _ = partition_rule()
+    # The uniform equivalent is the code's for light partitions only (the default pack's Part 6
+    # Sec 2.3.6, p. 540: at most 5.5 kN/m a run); a heavier wall is its weight in place (Sec
+    # 2.2.5), here its total over the panel (R2: 8.75 kN/m spread as 0.33 x 8.75 = 2.89 kN/m²
+    # put 87 kN on a 30 m² panel for a 44 kN wall), with the note to model it as shells.
+    lights = [w.load for w in on if w.load <= light * KN + 1e-6]
+    equivalent = share * max(lights) if lights else 0.0
+    return max(total / area, equivalent), sorted({w.source for w in on})
 
 
 def room_shares(loads: ArchitectureLoads, slab: SlabElement) -> list[tuple[RoomLoad, float]]:

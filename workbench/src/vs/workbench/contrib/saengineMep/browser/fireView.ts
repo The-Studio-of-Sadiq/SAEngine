@@ -38,7 +38,7 @@ const E = {
 	dwellingUnits: { key: 'dwellingUnits', label: localize('fireView.f.units', "Dwelling units"), kind: 'number', min: 0, title: localize('fireView.f.unitsTitle', "Flats: 30 or more need a fire protection plan (Sec 5.1.6(c))") },
 	occupantLoad: { key: 'occupantLoad', label: localize('fireView.f.occupants', "Occupant load"), kind: 'number', min: 0, title: localize('fireView.f.occupantsTitle', "Industry G1: above 150 the protection is performance based (Sec 5.9.1)") },
 	falseCeiling: { key: 'falseCeiling', label: localize('fireView.f.falseCeiling', "Under one false ceiling"), unit: M2, kind: 'number', min: 0, title: localize('fireView.f.falseCeilingTitle', "Offices: above 500 m² an automatic alarm above and below it (Sec 5.7(ix))") },
-	fireEngineWeight: { key: 'fireEngineWeight', label: localize('fireView.f.engine', "Fire engine"), unit: UNIT_KN, kind: 'number', min: 0.001, title: localize('fireView.f.engineTitle', "Gross weight of the local fire engine; empty: 160 kN (from memory, to be checked)") },
+	fireEngineWeight: { key: 'fireEngineWeight', label: localize('fireView.f.engine', "Fire engine"), unit: UNIT_KN, kind: 'number', min: 0.001, title: localize('fireView.f.engineTitle', "Gross weight of the local fire engine; empty: 160 kN (a typical water tender, to be confirmed with the local fire service)") },
 	diameter: { key: 'diameter', label: localize('fireView.f.diameter', "DN"), unit: UNIT_MM, kind: 'number', min: 1, width: 64, title: localize('fireView.f.diameterTitle', "Nominal size; empty: sized by the hydraulic calculation") },
 	flow: { key: 'flow', label: localize('fireView.f.flow', "Flow"), unit: LPM, kind: 'number', min: 0.001, width: 72 },
 	head: { key: 'head', label: localize('fireView.f.head', "Head"), unit: localize('fireView.unit.m', "m"), kind: 'number', min: 0.001, width: 64 },
@@ -334,7 +334,7 @@ export function renderFirePumpProperties(panel: HTMLElement, host: IMepFormHost,
 		host.fieldRow(panel, field, pump[field.key], v => host.setField(pump, field.key, v), path(field.key));
 	}
 	appendPropertyNote(panel, pump.operatingWeight === undefined
-		? localize('fireView.pumpTypical', "No weight given: the analysis takes a typical set of its power (from memory); give the selected set's data. A pump vibrates (impact).")
+		? localize('fireView.pumpTypical2', "No weight given: the analysis takes a typical set of its power (catalogue values to be confirmed); give the selected set's data. A pump vibrates (impact).")
 		: localize('fireView.pumpNote', "Its weight loads the floor it stands on, once, with impact (it vibrates)."));
 }
 

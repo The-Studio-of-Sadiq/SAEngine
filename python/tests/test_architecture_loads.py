@@ -159,11 +159,13 @@ def test_wall_across_the_slab() -> None:
     # Heavier than a light partition (5.5 kN/m): noted.
     assert any("light partition" in note for note in loads.notes)
     base = derived(None)
-    # Slabs as loads to beams: the panel takes max(41.33 kN / 30 m² = 1.378, 0.33 × 8.8875 =
-    # 2.933) kN/m² (BNBC Sec 2.3.6) = 87.99 kN, the beams 2 × 0.175 × 8.8875 = 3.111 kN; the
-    # 36 kN partition allowance (1.2 kN/m² × 30 m², a live load) goes from L.
+    # Slabs as loads to beams: a wall heavier than a light partition gets no uniform equivalent
+    # (BNBC Sec 2.3.6 allows it for at most 5.5 kN/m; Sec 2.2.5: drawn walls are their weight
+    # in place): the panel takes its total, 8.8875 × 4.65 = 41.33 kN over 30 m² (re-walk 2:
+    # 0.33 × 8.8875 kN/m² × 30 m² = 87.99 kN was twice the wall), the beams 2 × 0.175 × 8.8875
+    # = 3.111 kN; the 36 kN partition allowance (1.2 kN/m² × 30 m², a live load) goes from L.
     beams = derived(arch)
-    assert sd(beams) - sd(base) == pytest.approx(0.33 * 8.8875 * 30 + 0.35 * 8.8875, rel=1e-6)
+    assert sd(beams) - sd(base) == pytest.approx(8.8875 * 4.65 + 0.35 * 8.8875, rel=1e-6)
     assert live(beams) - live(base) == pytest.approx(-36, rel=1e-6)
     # An interior partition replaces the allowance, with a warning that says so (FD-2).
     assert any(n.startswith("Warning: L1: the partition allowance") for n in beams.notes)

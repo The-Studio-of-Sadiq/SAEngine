@@ -56,6 +56,39 @@ def source_stamp(text: str) -> str:
     return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
+#: Keys of the floor plan that only set what is shown behind it, not the building: the
+#: underlays (R2-10, OI-24: attaching one made the building model and everything after it
+#: stale).
+FLOOR_PLAN_VIEW_KEYS = frozenset({"underlays"})
+
+
+def floor_plan_stamp(text: str) -> str:
+    """The stamp the building model records for the floor plan ``text`` (key ``floorPlan``): of
+    its content without :data:`FLOOR_PLAN_VIEW_KEYS`, as JavaScript's ``JSON.stringify`` writes
+    it. The workbench computes the same (``floorPlanStamp`` in partSources.ts); a text that is
+    not a JSON object is stamped whole."""
+    import json
+
+    from saengine.fem.derive import js_json
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return source_stamp(text)
+    if not isinstance(document, dict):
+        return source_stamp(text)
+    return source_stamp(
+        js_json({k: v for k, v in document.items() if k not in FLOOR_PLAN_VIEW_KEYS})
+    )
+
+
+def floor_plan_current(recorded: str | None, text: str) -> bool:
+    """Whether a stamp recorded for the floor plan is that of ``text``: its
+    :func:`floor_plan_stamp`, or the whole text's stamp that building models recorded before
+    the view-only keys were left out (they stay current until the plan changes)."""
+    return recorded is not None and recorded in (floor_plan_stamp(text), source_stamp(text))
+
+
 def ground_level_stamp(ground_level: float) -> str:
     """The stamp of the finished ground level [mm] (to the micrometre), the only value of the
     project settings the bill of quantities depends on. The workbench computes the same

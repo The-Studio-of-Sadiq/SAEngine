@@ -437,7 +437,11 @@ def design_strip(
                 "1.6H",
                 f"φMn of {dia:.0f} mm at {spacing:.0f} ({area:.0f} mm²/m), d = {d:.0f} mm "
                 f"({strip.where})"
-                + (f"; {flexure_clause}" if (flexure_clause := _clause("retainingWall.stemFlexure")) else ""),
+                + (
+                    f"; {flexure_clause}"
+                    if (flexure_clause := _clause("retainingWall.stemFlexure"))
+                    else ""
+                ),
             )
         )
     least = minimum_area(strip, fy, dia)

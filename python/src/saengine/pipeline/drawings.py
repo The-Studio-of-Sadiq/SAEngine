@@ -59,7 +59,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from saengine.library.bim import source_stamp
+from saengine.library.bim import floor_plan_stamp, source_stamp
 
 SCHEMA_ID = "saengine.drawings/1"
 FOLDER = "11 Exports/Drawings"
@@ -135,10 +135,24 @@ def input_stamps(root: Path) -> dict[str, str | None]:
     stamps: dict[str, str | None] = {}
     for key, relative, _ in SOURCES:
         text = _read(root / relative)
-        stamps[key] = source_stamp(text) if text is not None else None
+        if text is None:
+            stamps[key] = None
+        elif key == "floorPlan":
+            # Without its underlays (R2-10, OI-24: attaching one said "changed since: Floor Plan").
+            stamps[key] = floor_plan_stamp(text)
+            while len(_WHOLE_PLAN) >= 64:
+                _WHOLE_PLAN.pop(next(iter(_WHOLE_PLAN)))
+            _WHOLE_PLAN[stamps[key] or ""] = source_stamp(text)
+        else:
+            stamps[key] = source_stamp(text)
     text = _read(root / RESULTS_MANIFEST)
     stamps["results"] = source_stamp(text) if text is not None else None
     return stamps
+
+
+#: The whole floor plan's stamp by its :func:`floor_plan_stamp`, the sets drawn before the
+#: underlays were left out recorded (still current while the plan does not change).
+_WHOLE_PLAN: dict[str, str] = {}
 
 
 def _labels() -> dict[str, str]:
@@ -149,7 +163,14 @@ def changed_sources(recorded: dict[str, Any] | None, current: dict[str, str | No
     """The labels of the sources whose stamp differs from ``recorded`` (in source order)."""
     recorded = recorded or {}
     labels = _labels()
-    return [labels[k] for k in labels if k in recorded and recorded.get(k) != current.get(k)]
+
+    def differs(key: str) -> bool:
+        now = current.get(key)
+        if recorded.get(key) == now:
+            return False
+        return not (key == "floorPlan" and now and recorded.get(key) == _WHOLE_PLAN.get(now))
+
+    return [labels[k] for k in labels if k in recorded and differs(k)]
 
 
 # ─────────────────────────────────── settings ───────────────────────────────────

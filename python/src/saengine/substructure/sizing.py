@@ -160,7 +160,12 @@ def _why_bearing(trial: Trial, failing: list[dict[str, Any]]) -> str:
         return (
             f"at {size}, {worst['combination']} gives a net {worst['demand']:.1f} kPa against "
             f"{worst['capacity']:.1f} kPa allowed"
-            + (f" (qa {qa.group(1)}" + (", settlement governs)" if "settlement governs" in note else ")") if qa else "")
+            + (
+                f" (qa {qa.group(1)}"
+                + (", settlement governs)" if "settlement governs" in note else ")")
+                if qa
+                else ""
+            )
             + f", utilisation {worst['utilisation']:.2f}"
         )
     return f"at {size}, {worst['name']} fails under {worst['combination']} (utilisation {worst['utilisation']:.2f})"
@@ -339,8 +344,7 @@ class Sizer:
             if max(trial.length, trial.width) >= MAX_SIZE:
                 raise Skip(
                     f"no footing up to {max(MAX_SIZE, trial.width, trial.length) / 1e3:g} m "
-                    "carries the bearing: "
-                    + _why_bearing(trial, failing)
+                    "carries the bearing: " + _why_bearing(trial, failing)
                 )
             # Grow in proportion to the overload (at least one step).
             ratio = math.sqrt(min(max(c["utilisation"] for c in failing), 4.0))

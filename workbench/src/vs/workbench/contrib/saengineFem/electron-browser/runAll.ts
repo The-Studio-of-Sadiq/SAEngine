@@ -24,7 +24,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
-import { recordedStamp, sourceStamp, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
+import { recordedStamp, sourceStamp, upstreamCurrent, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { awaitsTankDesigns, BOQ_COMPUTE_COMMAND, BOQ_SOURCES, boqComputeArgs, changedSources, IBoqComputeResult, parseBoq } from '../../saengineBoq/browser/boqDocument.js';
 import { BUILD_REPORT_COMMAND_ID, IReportBuildRequest, IReportBuildResult, notDesignedCount, reportProblems, reportStepMessage } from '../../saengineReport/browser/reportBuild.js';
@@ -622,7 +622,7 @@ export class RunAllService implements IRunAllService {
 			document = undefined;
 		}
 		let result: IStepResult;
-		if (recordedStamp(document, upstream) === sourceStamp(source)) {
+		if (upstreamCurrent(upstream, recordedStamp(document, upstream), source)) {
 			result = { status: 'skipped', message: localize('runAll.bimCurrent', "up to date") };
 		} else {
 			const generated = await this.backend(context, this.commandService.executeCommand<{ readonly text?: string; readonly problems?: readonly string[] }>(upstream === 'structure' ? BIM_GENERATE_FROM_STRUCTURE_COMMAND : BIM_GENERATE_COMMAND, source, text));

@@ -1749,8 +1749,11 @@ def proposal_entries(
                         # Said as what the end bars gave, not as a failure of the bars proposed
                         # (R2-1: "still fails slender wall" beside bars that pass).
                         notes += [
-                            p.replace(": not checked with these bars: ", ": with end bars, ")
-                            .replace(" still fails: ", ": with end bars and the least web it fails ")
+                            p.replace(
+                                ": not checked with these bars: ", ": with end bars, "
+                            ).replace(
+                                " still fails: ", ": with end bars and the least web it fails "
+                            )
                             for p in problems
                         ] + [
                             (
@@ -1770,7 +1773,9 @@ def proposal_entries(
                     if not left:
                         notes.append(
                             "a heavier vertical web than the least: "
-                            + "; ".join(p.replace(" still fails: ", " failed with it: ") for p in problems)
+                            + "; ".join(
+                                p.replace(" still fails: ", " failed with it: ") for p in problems
+                            )
                         )
                         reinforcement, utilisation, problems = trial, found, []
                         break

@@ -241,7 +241,7 @@ def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, A
 
     from pydantic import ValidationError
 
-    from saengine.library.bim import BuildingModel, generate, source_stamp
+    from saengine.library.bim import BuildingModel, floor_plan_stamp, generate
     from saengine.library.floorplan import FloorPlan
 
     def messages(exc: ValidationError, where: str) -> list[str]:
@@ -269,7 +269,7 @@ def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, A
             except ValidationError as exc:
                 return {"problems": messages(exc, "Building model")}
     try:
-        model = generate(plan, source_stamp(floor_plan_text), previous)
+        model = generate(plan, floor_plan_stamp(floor_plan_text), previous)
     except ValueError as exc:
         return {"problems": [str(exc)]}
     data = model.model_dump(mode="json", by_alias=True, exclude_none=True)

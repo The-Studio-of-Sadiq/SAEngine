@@ -297,6 +297,14 @@ def test_story_use_comes_from_plumbing() -> None:
         (r["story"], r["occupancy"]) for r in b["stories"]
     ]
     assert any("as in Plumbing" in n for n in a["notes"])
+    # R2-5: with the use entered in Coordination > Storey use, the note says so.
+    from saengine.fire.report import fire_stories
+
+    uses = [{"story": "B1", "use": "retail"}]
+    coordinated = MepModel.model_validate({"fire": fire, "plumbing": plumbing, "storyUses": uses})
+    _, notes = fire_stories(coordinated)
+    assert any(n.startswith("use of B1 as in Coordination > Storey use") for n in notes)
+    assert not any("B1" in n and "as in Plumbing" in n for n in notes)
     # a plumbing story the fire section does not list is a fire story too
     fire["stories"] = fire["stories"][:3]
     mep = MepModel.model_validate({"fire": fire, "plumbing": plumbing})

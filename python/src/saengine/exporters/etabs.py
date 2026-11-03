@@ -1888,9 +1888,9 @@ def export_e2k(
         report.warn(f"Derivation: {note}")
     stale = building.source and building.source.floorPlan
     if stale and plan_text:
-        from saengine.library.bim import source_stamp
+        from saengine.library.bim import floor_plan_current
 
-        if source_stamp(plan_text) != building.source.floorPlan:  # type: ignore[union-attr]
+        if not floor_plan_current(building.source.floorPlan, plan_text):  # type: ignore[union-attr]
             report.warn(
                 "The building model (06 BIM) is older than the floor plan: rebuild it to export "
                 "the latest plan."

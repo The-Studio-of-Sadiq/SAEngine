@@ -236,24 +236,41 @@ def shell_node_shares(points: Sequence[np.ndarray]) -> list[float]:
     if len(points) == 3:
         area = float(np.linalg.norm(np.cross(points[1] - points[0], points[2] - points[0]))) / 2
         return [area / 3] * 3
+    # In plain floats, term by term as before (the same sums and products; numpy's per-call
+    # overhead on 3-vectors made this a fifth of a 4-storey model's derivation, R2-20).
     shares = [0.0] * 4
-    gauss = 1 / np.sqrt(3)
-    for xi in (-gauss, gauss):
-        for eta in (-gauss, gauss):
-            n = [
-                (1 - xi) * (1 - eta) / 4,
-                (1 + xi) * (1 - eta) / 4,
-                (1 + xi) * (1 + eta) / 4,
-                (1 - xi) * (1 + eta) / 4,
+    xyz = [tuple(float(c) for c in p) for p in points]
+    for xi, eta in _GAUSS_POINTS:
+        n = [
+            (1 - xi) * (1 - eta) / 4,
+            (1 + xi) * (1 - eta) / 4,
+            (1 + xi) * (1 + eta) / 4,
+            (1 - xi) * (1 + eta) / 4,
+        ]
+        d_xi = [-(1 - eta) / 4, (1 - eta) / 4, (1 + eta) / 4, -(1 + eta) / 4]
+        d_eta = [-(1 - xi) / 4, -(1 + xi) / 4, (1 + xi) / 4, (1 - xi) / 4]
+        g_xi = [0.0, 0.0, 0.0]
+        g_eta = [0.0, 0.0, 0.0]
+        for k in range(4):
+            for axis in range(3):
+                g_xi[axis] += d_xi[k] * xyz[k][axis]
+                g_eta[axis] += d_eta[k] * xyz[k][axis]
+        cross = np.array(
+            [
+                g_xi[1] * g_eta[2] - g_xi[2] * g_eta[1],
+                g_xi[2] * g_eta[0] - g_xi[0] * g_eta[2],
+                g_xi[0] * g_eta[1] - g_xi[1] * g_eta[0],
             ]
-            d_xi = [-(1 - eta) / 4, (1 - eta) / 4, (1 + eta) / 4, -(1 + eta) / 4]
-            d_eta = [-(1 - xi) / 4, -(1 + xi) / 4, (1 + xi) / 4, (1 - xi) / 4]
-            g_xi = sum(d * p for d, p in zip(d_xi, points, strict=True))
-            g_eta = sum(d * p for d, p in zip(d_eta, points, strict=True))
-            jacobian = float(np.linalg.norm(np.cross(g_xi, g_eta)))
-            for k in range(4):
-                shares[k] += n[k] * jacobian
+        )
+        jacobian = float(np.linalg.norm(cross))
+        for k in range(4):
+            shares[k] += n[k] * jacobian
     return shares
+
+
+_GAUSS = 1 / np.sqrt(3)
+#: The 2 x 2 Gauss points (xi, eta) of :func:`shell_node_shares`, in its order.
+_GAUSS_POINTS = [(float(xi), float(eta)) for xi in (-_GAUSS, _GAUSS) for eta in (-_GAUSS, _GAUSS)]
 
 
 def _smallest_dimension(volume: Volume) -> float:

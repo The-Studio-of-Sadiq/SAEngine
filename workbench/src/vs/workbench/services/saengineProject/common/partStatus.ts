@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, femCodeTables, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamPart } from './partSources.js';
+import { boqSourceStamp, femCodeTables, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamCurrent, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 import { formatDate as formatUiDate } from './formatting.js';
@@ -464,7 +464,8 @@ function bimStatus(parts: readonly IProjectPart[], inputs: IPartStatusInputs): I
 	if (!document || !recorded) {
 		return status('bim', 'notStarted', localize('partStatus.bim.notBuilt', "not built"), localize('partStatus.bim.build', "build the building model"));
 	}
-	if (upstream && changed(inputs.texts, upstream, recorded)) {
+	const upstreamText = upstream ? inputs.texts.get(upstream) : undefined;
+	if (upstream && (upstreamText === undefined || !upstreamCurrent(upstream, recorded, upstreamText))) {
 		return status('bim', 'stale', STALE(), localize('partStatus.bim.buildAgain', "build the building model again"));
 	}
 	// Built from an empty plan (N-B1): nothing to analyse yet, so not done.

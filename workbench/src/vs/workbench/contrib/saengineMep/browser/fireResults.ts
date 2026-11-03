@@ -29,7 +29,7 @@ const KW = localize('fireResults.unit.kw', "kW");
 export function renderFireReport(view: HTMLElement, report: IFireReport, host: IResultsHost): void {
 	const header = append(view, $('.mep-view-header'));
 	append(header, $('span.mep-view-title', undefined, localize('fireResults.title', "Fire protection")));
-	append(header, $('span.mep-view-subtitle', undefined, localize('fireResults.subtitle', "Computed by the backend to {0} Part 4 from the fire set-up; not stored in the file. NFPA values are from memory, to be checked.", defaultCodeName())));
+	append(header, $('span.mep-view-subtitle', undefined, localize('fireResults.subtitle2', "Computed by the backend to {0} Part 4 from the fire set-up; not stored in the file. The values {0} leaves to NFPA are marked: to be confirmed against the adopted edition.", defaultCodeName())));
 
 	const tile = tiles(view);
 	const required = report.systems.filter(s => s.status === 'required').length;

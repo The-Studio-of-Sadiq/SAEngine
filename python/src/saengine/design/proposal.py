@@ -1231,6 +1231,32 @@ def _with_chord_bars(
     return notes
 
 
+def _thin_slabs(type_id: str, obj: Any, collected: list[dict[str, Any]]) -> str | None:
+    """R2-18: the slabs of a type thinner than the least thickness of the code pack's table
+    (the checks' "Min. thickness (Table ...)" row, reported beside the strength checks since a
+    computed deflection may stand for it): what they need and the thickness to try (in 25 mm
+    steps), else None. Bars do not cure it."""
+    rows = [
+        r
+        for c in collected
+        for r in c.get("checks", [])
+        if str(r.get("name", "")).startswith("Min. thickness") and not r.get("ok", True)
+    ]
+    if not rows:
+        return None
+    worst = max(rows, key=lambda r: float(r.get("demand") or 0.0))
+    need = float(worst.get("demand") or 0.0)
+    given = float(getattr(obj, "thickness", 0.0) or worst.get("capacity") or 0.0)
+    members = {c["id"] for c in collected if any(r in rows for r in c.get("checks", []))}
+    rule = str(worst["name"]).removeprefix("Min. thickness").strip(" ()") or "the code pack"
+    return (
+        f"{type_id}: {len(members)} of its {len(collected)} slabs are thinner than the least "
+        f"thickness of {rule} (up to {need:.0f} mm needed, {given:.0f} mm given): try "
+        f"{math.ceil(need / 25.0 - 1e-9) * 25.0:.0f} mm, or check their deflection by "
+        "calculation; bars do not cure it, and the analysis must be run again"
+    )
+
+
 class SlabDesigner:
     def __init__(self, obj: Slab, fc: float, fy: float, es: float, options: Options) -> None:
         self.obj = obj
@@ -2078,6 +2104,7 @@ def propose(
     for collected in gathered.collect.get("slabs", []):
         slabs.setdefault(collected["type"], []).append(collected)
     bar_rooms = _bar_rooms(gathered)
+    thin_slabs: list[str] = []
     for type_id, collected in slabs.items():
         first = collected[0]
         designer = SlabDesigner(first["object"], first["fc"], first["fy"], first["es"], opts)
@@ -2164,6 +2191,10 @@ def propose(
             entry["status"] = "unchanged" if same else "ok"
         _with_punching(entry, itertools.chain.from_iterable(x["checks"] for x in collected))
         entry["notes"] = [*entry["notes"], *designer.anchorage_notes]
+        thin = _thin_slabs(type_id, first["object"], collected)
+        if thin:
+            entry["notes"] = [*entry["notes"], thin]
+            thin_slabs.append(thin)
         types.append(entry)
 
     # Integrator glue: wall types (saengine.design.wall_design) and staircase types (stairs.py).
@@ -2196,6 +2227,7 @@ def propose(
             "Foundations are designed in 9 Substructure: its Size Footings proposes their "
             "size and bars."
         )
+    notes += thin_slabs  # R2-18: said with the summary too, not only in the type's row
     for t in types:
         if t["status"] == "tooSmall":
             warnings.append(f"{t['type']}: section too small — {t['tooSmall']['reason']}")
@@ -2785,7 +2817,7 @@ def apply_proposal(
     "to", "message"}]``. Raises ``ValueError`` when a text is not valid JSON or a type is not there.
     ``substructure_text`` is accepted and ignored (older callers send it): foundations are
     designed in 9 Substructure."""
-    from saengine.library.bim import source_stamp
+    from saengine.library.bim import floor_plan_current, floor_plan_stamp
     from saengine.library.objects import ObjectLibrary
 
     objects = json.loads(objects_text)
@@ -2927,9 +2959,9 @@ def apply_proposal(
         # The BIM model was built from the floor plan as it was: it stays current with the new
         # floor plan (the same members, the same types), so its stamp follows.
         stamps = bim.get("source") or {}
-        new_stamp = source_stamp(result["floorPlanText"])
-        if stamps.get("floorPlan") == source_stamp(floor_plan_text) and new_stamp != stamps.get(
-            "floorPlan"
+        new_stamp = floor_plan_stamp(result["floorPlanText"])
+        if floor_plan_current(stamps.get("floorPlan"), floor_plan_text) and (
+            new_stamp != stamps.get("floorPlan")
         ):
             stamps["floorPlan"] = new_stamp
             result["bimText"] = _dump(bim, bim_text)
