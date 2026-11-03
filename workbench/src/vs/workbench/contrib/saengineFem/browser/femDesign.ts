@@ -418,6 +418,8 @@ export const DESIGN_PROPOSAL_COMMAND = 'saengine.design.proposal';
 export const DESIGN_CANCEL_PROPOSAL_COMMAND = 'saengine.design.cancelProposal';
 /** `{objectsText, bimText, proposal} => IFemDesignApplyResult`: the object types (and building model) with the proposal applied. */
 export const DESIGN_APPLY_COMMAND = 'saengine.design.apply';
+/** Whether Run All would run the analysis again with the files given (R3-3): `boolean | null`. */
+export const DESIGN_ANALYSIS_CHANGED_COMMAND = 'saengine.design.analysisChanged';
 
 /**
  * One row of the steel required (`saengine.design.required`): per element and location (a

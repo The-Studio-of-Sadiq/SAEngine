@@ -1379,14 +1379,16 @@ def substructure_report(project_root: str) -> dict[str, Any]:
     The result adds ``sources``: the stamp of each part file the design reads, by part id ("" for
     a missing file), taken before the design reads them, so the part list can tell when the
     checks no longer describe the project (an edit while the design runs counts as a change)."""
+    from saengine.codes.registry import recording_tables
     from saengine.substructure import substructure_report as report
 
-    sources = substructure_sources(project_root)
+    texts = _substructure_texts(project_root)
     try:
-        result = report(project_root)
+        with recording_tables() as read:
+            result = report(project_root)
     except ValueError as error:
         return _problem(error)
-    return {**result, "sources": sources}
+    return {**result, "sources": substructure_sources(project_root, read, texts)}
 
 
 def substructure_design(project_root: str) -> dict[str, Any]:
@@ -1395,15 +1397,17 @@ def substructure_design(project_root: str) -> dict[str, Any]:
     without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as
     :func:`substructure_report`, with ``sources`` taken after the bars were written (they are
     part of what was checked), or ``{"problems"}``."""
+    from saengine.codes.registry import recording_tables
     from saengine.substructure.run import design_foundations
 
     try:
-        result = design_foundations(project_root)
+        with recording_tables() as read:
+            result = design_foundations(project_root)
     except ValueError as error:
         return _problem(error)
     if result.get("problems") and result.get("foundations") is None:
         return result
-    return {**result, "sources": substructure_sources(project_root)}
+    return {**result, "sources": substructure_sources(project_root, read)}
 
 
 #: The part files the foundation design reads, by the part ids the workbench knows them under
@@ -1418,18 +1422,44 @@ SUBSTRUCTURE_SOURCES = {
 }
 
 
-def substructure_sources(project_root: str) -> dict[str, str]:
-    """The stamp of each of :data:`SUBSTRUCTURE_SOURCES` in the project ("" when missing)."""
+def _substructure_texts(project_root: str) -> dict[str, str | None]:
+    """The texts of :data:`SUBSTRUCTURE_SOURCES` in the project (None when missing)."""
     from pathlib import Path
 
-    from saengine.library.bim import source_stamp
-
-    stamps: dict[str, str] = {}
+    texts: dict[str, str | None] = {}
     for part, relative in SUBSTRUCTURE_SOURCES.items():
         try:
-            stamps[part] = source_stamp((Path(project_root) / relative).read_text(encoding="utf-8"))
+            texts[part] = (Path(project_root) / relative).read_text(encoding="utf-8")
         except OSError:
+            texts[part] = None
+    return texts
+
+
+def substructure_sources(
+    project_root: str,
+    code_tables: set[str] | frozenset[str] | None = None,
+    texts: dict[str, str | None] | None = None,
+) -> dict[str, str]:
+    """The stamp of each of :data:`SUBSTRUCTURE_SOURCES` in the project ("" when missing), of
+    ``texts`` when given (read before the design). R3: with ``code_tables`` (the code pack
+    tables the design read) the settings' stamp leaves out the overrides of other tables
+    (:func:`saengine.fem.derive.code_settings_stamp`) and ``codeTables`` lists them, so a ramp
+    slope leaves the foundation checks current."""
+    from saengine.fem.derive import CODE_TABLES_KEY, code_settings_stamp, code_tables_text
+    from saengine.library.bim import source_stamp
+
+    if texts is None:
+        texts = _substructure_texts(project_root)
+    stamps: dict[str, str] = {}
+    for part, text in texts.items():
+        if text is None:
             stamps[part] = ""
+        elif part == "settings" and code_tables is not None:
+            stamps[part] = code_settings_stamp(text, code_tables)
+        else:
+            stamps[part] = source_stamp(text)
+    if code_tables is not None:
+        stamps[CODE_TABLES_KEY] = code_tables_text(code_tables)
     return stamps
 
 
@@ -1477,9 +1507,16 @@ def mep_report(
     project_root: str, out_dir: str | None = None, mep_text: str | None = None
 ) -> dict[str, Any]:
     """The MEP coordination report (``saengine.mep.mep_report``), or ``{"problems"}``."""
+    from saengine.codes.registry import recording_tables
     from saengine.mep import mep_report as report
 
-    return _mep_call(lambda: report(project_root, out_dir, mep_text))
+    # R3: the code pack tables the coordination read (``codeTables``), for its summary's
+    # settings stamp (a ramp slope made the MEP "not checked").
+    with recording_tables() as read:
+        result = _mep_call(lambda: report(project_root, out_dir, mep_text))
+    if isinstance(result, dict) and "openings" in result:
+        result = {**result, "codeTables": sorted(read)}
+    return result
 
 
 def mep_suggest_sleeves(
@@ -2182,6 +2219,67 @@ def design_apply_proposal(
 
     return apply_proposal(
         objects_text, bim_text or "{}", proposal, floor_plan_text, substructure_text
+    )
+
+
+def design_analysis_changed(
+    project_root: str, objects_text: str, bim_text: str | None = None
+) -> dict[str, Any]:
+    """R3-3: whether the analysis Run All would run again with ``objects_text`` (and
+    ``bim_text``) in place of the project's: the analysis model derived from them, stamped as
+    Run All stamps the analysis it keeps (``saengine.pipeline.run_all.analysis_inputs_stamp``:
+    the model without its meta and its side files), against the stamp kept beside the results
+    (``analysis-inputs.json``). ``{"changed": bool}``; ``{"changed": None}`` when it cannot be
+    told (no results kept, an input that does not derive): the caller says what it can."""
+    import json
+
+    from saengine.codes import context as code_context
+    from saengine.fem.derive import model_stamp
+    from saengine.library.bim import source_stamp
+    from saengine.pipeline.design_mode import ANALYSIS_INPUTS_FILE
+    from saengine.pipeline.run_all import FACES_FILE, SSI_FILE, THERMAL_FILE
+
+    root = Path(project_root)
+    folder = root / "08 FEM"
+    try:
+        kept = json.loads((folder / "model.results" / ANALYSIS_INPUTS_FILE).read_text("utf-8"))
+    except (OSError, ValueError):
+        return {"changed": None}
+    if not isinstance(kept, dict) or not isinstance(kept.get("stamp"), str):
+        return {"changed": None}
+    bim = bim_text if bim_text is not None else _read(root / "06 BIM/bim.json")
+    materials = _read(root / "03 Materials/materials.json")
+    settings = _read(root / "02 Project Settings/project-settings.json")
+    if bim is None or materials is None or settings is None:
+        return {"changed": None}
+    with code_context.project(root):
+        derived = derive_fem(bim, objects_text, materials, settings, None, *_derive_texts(root))
+    if not isinstance(derived.get("text"), str):
+        return {"changed": None}
+    # The side files as Run All writes them from the derivation (absent: "name=").
+    sides = {THERMAL_FILE: "thermalText", SSI_FILE: "ssiText", FACES_FILE: "facesText"}
+    parts = [model_stamp(derived["text"])] + [
+        f"{name}={source_stamp(derived[key]) if isinstance(derived.get(key), str) else ''}"
+        for name, key in sides.items()
+    ]
+    return {"changed": source_stamp("\n".join(parts)) != kept["stamp"]}
+
+
+def _derive_texts(root: Path) -> tuple[str | None, ...]:
+    """The texts :func:`derive_fem` reads beside the model folder (soil report, MEP,
+    substructure, member loads, architecture), read from the project ``root``."""
+    from saengine.library import architecture as arch_lib
+    from saengine.library import line_loads as ll
+    from saengine.library import mep as mep_library
+    from saengine.library import substructure as substructure_library
+    from saengine.library.settings import read_soil_text
+
+    return (
+        read_soil_text(root),
+        _read(root / mep_library.MEP_FILE),
+        _read(root / substructure_library.SUBSTRUCTURE_FILE),
+        _read(root / ll.LOADS_FILE),
+        _read(root / arch_lib.ARCHITECTURE_FILE),
     )
 
 

@@ -782,6 +782,14 @@ CommandsRegistry.registerCommand('saengine.design.apply', async (accessor, args:
 	});
 });
 
+// R3-3: whether Run All would run the analysis again with these files (the stamp it keeps the
+// results by), for the Apply banner; null when the backend cannot tell.
+CommandsRegistry.registerCommand('saengine.design.analysisChanged', async (accessor, args: { readonly projectRoot: string; readonly objectsText: string; readonly bimText?: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	const answer = await accessor.get(IFemSolverService).engine(python, 'design/analysisChanged', { projectRoot: args.projectRoot, objectsText: args.objectsText, ...(args.bimText !== undefined ? { bimText: args.bimText } : {}) }) as { changed?: unknown } | undefined;
+	return typeof answer?.changed === 'boolean' ? answer.changed : null;
+});
+
 /**
  * 1 Soil Report's site map (`saengine.gis.site`): where the site, the boreholes and the
  * building are in WGS 84 with the nearest BNBC town, the GeoJSON/GeoPackage exchange with

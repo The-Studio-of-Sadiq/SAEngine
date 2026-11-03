@@ -187,6 +187,8 @@ const DEVELOPER_APPEARANCE_ITEMS: ReadonlySet<string> = new Set([
 	'editor.action.toggleMinimap', 'breadcrumbs.toggle', 'editor.action.toggleStickyScroll',
 	MenuId.EditorRenderWhitespaceSubmenu.id, 'editor.action.toggleRenderControlCharacter',
 	'workbench.action.toggleZenMode',
+	// R3 misc: a code editor's centered layout, not an engineer's.
+	'workbench.action.toggleCenteredLayout',
 ]);
 
 function keptInSimpleMode(menu: MenuId, id: string): boolean {

@@ -61,7 +61,12 @@ def _method() -> list[str]:
             "spacings and layers of 6.6.3, 6.4.8.9 and 8.3.6.2; the boundary elements of 8.3.6.6 "
             "(displacement-based with δu = Cd δe / I where the wall rises from the base, else the "
             "0.2 f'c stress trigger); coupling beams by 8.3.6.7. Under a window the whole wall at "
-            "its bottom level is checked too (the continuous section)."
+            "its bottom level is checked too (the continuous section). The web out of its plane "
+            "per metre: M2 / lw on a 1 m strip of the web's vertical bars with P / lw (6.6.4); "
+            "shear friction across the construction joint at the pier's bottom with the vertical "
+            "bars crossing it (end bars included); the end bars over their zone at most a "
+            "compression member's largest ratio (6.3.8.1). Every one of these counts in the "
+            "wall's verdict; informative rows never fail it."
         ),
         (
             "Flanged walls (Sec 8.3.6.5): walls meeting at an L, T or C in a storey are checked as "
@@ -570,6 +575,8 @@ def design_walls(
     elements += masonry_elements
     if masonry_elements:
         notes += _confined_building(building, masonry_elements, masonry_ready, settings)
+    for element in elements:
+        _settle(element)
     return {
         "elements": elements,
         "skipped": skipped,
@@ -1103,6 +1110,23 @@ def _confined_building(
             el["ok"] = all(c["ok"] for c in designed)
     failed = [r["name"] for r in rows if not r["ok"] and not r["flag"]]
     return [f"confined masonry: {', '.join(failed)} not met"] if failed else []
+
+
+def _settle(element: dict[str, Any]) -> None:
+    """R3-1: the wall's ok and utilisation from every design check of it, its piers' and
+    coupling beams' (informative rows never ok=false: :func:`walls.settle_informative`)."""
+    concrete = element.get("wallType") in ("special", "ordinary")
+    for part in [element, *element.get("piers", []), *element.get("couplingBeams", [])]:
+        checks = part.get("checks")
+        if not isinstance(checks, list):
+            continue
+        W.settle_informative(checks)
+        if part.get("ok") is None or not concrete:
+            continue  # a spandrel not designed here stays so
+        own = [c for c in checks if not c.get("flag")]
+        if own:
+            part["utilisation"] = max(c["utilisation"] for c in own)
+            part["ok"] = all(c["ok"] for c in own)
 
 
 def _wall_boundary(piers: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -1648,9 +1672,19 @@ def _recheck(
     return utilisation, problems
 
 
-#: The heavier vertical webs tried (lightest first) when the proposed bars leave a pier failing
-#: a check the web carries (each try checks every pier of the type again).
-_HEAVIER_WEBS = 12
+def _lightest_passing(
+    group: list[dict[str, Any]], reinforcement: dict[str, Any], meshes: list[dict[str, float]]
+) -> tuple[dict[str, Any], dict[str, float]] | None:
+    """The lightest of ``meshes`` (lightest first) as the vertical web with which every pier of
+    ``group`` passes: ``(reinforcement, utilisation)``, None when none does. Tried in order, not
+    by bisection: a heavier web is not always better (the slender-wall method asks for a
+    tension-controlled section, which too much steel loses)."""
+    for mesh in meshes:
+        trial = {**reinforcement, "vertical": mesh}
+        found, left = _recheck(group, trial)
+        if not left:
+            return trial, found
+    return None
 
 
 def _heavier_meshes(least: dict[str, Any], s_max: float) -> list[dict[str, float]]:
@@ -1667,6 +1701,115 @@ def _heavier_meshes(least: dict[str, Any], s_max: float) -> list[dict[str, float
     return sorted(out, key=lambda m: (W.bar_area(m["dia"]) / m["spacing"], m["dia"]))
 
 
+#: The checks a second curtain answers (bars at both faces: the web's out-of-plane lever arm),
+#: by the start of their names: the proposal tries two curtains for them only.
+_TWO_CURTAINS = ("Out-of-plane bending", "Slender wall", "Construction joint")
+
+
+def _attempt(
+    group: list[dict[str, Any]],
+    current: dict[str, Any] | None,
+    material: str,
+    cover: float,
+    layers: int,
+) -> tuple[dict[str, Any] | None, dict[str, float], list[str], str]:
+    """The proposal of a wall type with ``layers`` curtains: (reinforcement or None,
+    utilisation by pier, notes, why none), its bars checked again on every pier of ``group``."""
+    from saengine.design.bars import mesh_for
+
+    needs = [search_need(c, layers) for c in group]
+    notes = list(dict.fromkeys(n for need in needs for n in need.notes))
+    thickness = group[0]["geometry"].thickness
+    too_small = ""
+    picks: dict[str, Any] = {}
+    sizes = W.bar_sizes("wall")
+    for key, rho, s_max in (
+        ("vertical", "rho_l", "vertical_s_max"),
+        ("horizontal", "rho_t", "horizontal_s_max"),
+    ):
+        if any(getattr(n, key) is None for n in needs):
+            too_small = f"no {key} mesh of Ø10-Ø20 at ≥ 100 mm apart: the wall is too thin"
+            break
+        area = max(_face(getattr(n, rho), thickness, layers) for n in needs)
+        spacing = min(getattr(n, s_max) for n in needs)
+        mesh = mesh_for(area, spacing, sizes, W.MIN_WALL_SPACING)
+        if mesh is None:
+            too_small = f"no {key} mesh carries {area:.0f} mm²/m at ≤ {spacing:.0f} mm"
+            break
+        picks[key] = {"dia": mesh.dia, "spacing": mesh.spacing}
+    if any("enlarge the wall" in n for n in notes):
+        too_small = too_small or "no end bars carry the axial force and bending"
+    reinforcement: dict[str, Any] | None = None
+    utilisation: dict[str, float] = {}
+    if not too_small:
+        reinforcement = {"material": material, "cover": cover, **picks, "layers": layers}
+        ends = [n.end_bars for n in needs if n.end_bars is not None]
+        if ends:
+            big = max(ends, key=lambda b: (b.count * W.bar_area(b.dia), b.dia))
+            merged = W.Boundary(
+                max(b.length for b in ends),
+                big.count,
+                big.dia,
+                max(b.hoop_dia for b in ends),
+                min(b.hoop_spacing for b in ends),
+                max(b.legs_across for b in ends),
+                max(b.legs_along for b in ends),
+            )
+            reinforcement["boundary"] = _boundary_json(merged)
+        if current and current.get("diagonal"):
+            reinforcement["diagonal"] = current["diagonal"]
+        utilisation, problems = _recheck(group, reinforcement)
+        if problems and not any(": not checked with these bars: " in p for p in problems):
+            # Checks the web's vertical bars carry besides the end bars (out-of-plane
+            # bending, the slender-wall method): a heavier vertical web with the same ends.
+            spacing = min(n.vertical_s_max for n in needs)
+            hit = _lightest_passing(
+                group, reinforcement, _heavier_meshes(picks["vertical"], spacing)
+            )
+            if hit is not None:
+                notes.append(
+                    "a heavier vertical web than the least: "
+                    + "; ".join(p.replace(" still fails: ", " failed with it: ") for p in problems)
+                )
+                reinforcement, utilisation, problems = hit[0], hit[1], []
+        if problems and "boundary" in reinforcement:
+            # End bars that do not fit in a pier (a short pier between openings): try a
+            # heavier vertical web with no end bars, which every pier can take.
+            spacing = min(n.vertical_s_max for n in needs)
+            for mesh in _heavier_meshes(picks["vertical"], spacing):
+                trial = {**reinforcement, "vertical": mesh}
+                del trial["boundary"]
+                found, left = _recheck(group, trial)
+                if not left:
+                    # Said as what the end bars gave, not as a failure of the bars proposed
+                    # (R2-1: "still fails slender wall" beside bars that pass).
+                    notes += [
+                        p.replace(": not checked with these bars: ", ": with end bars, ").replace(
+                            " still fails: ", ": with end bars and the least web it fails "
+                        )
+                        for p in problems
+                    ] + [
+                        (
+                            "the end bars do not fit in every pier: a heavier vertical web "
+                            "carries the axial force and bending instead, checked on every pier"
+                        )
+                        if any(": not checked with these bars: " in p for p in problems)
+                        else (
+                            "the end bars with a heavier web still fail: a heavier vertical web "
+                            "without end bars carries it instead, checked on every pier"
+                        )
+                    ]
+                    reinforcement, utilisation, problems = trial, found, []
+                    break
+        if problems:
+            # Bars the type's piers cannot all take are not proposed (applying them would
+            # leave a pier failing or unchecked).
+            notes += problems
+            too_small = "; ".join(problems)
+            reinforcement, utilisation = None, {}
+    return reinforcement, utilisation, notes, too_small
+
+
 def proposal_entries(
     collected: list[dict[str, Any]], assumed: set[str], originals: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -1674,7 +1817,6 @@ def proposal_entries(
     ``collect["walls"]``: the web meshes every pier needs (one mesh each way for the type), the
     end bars (boundary elements of special walls, or end bars with ties), checked again on
     every pier with the bars proposed. ``originals``: 04 Objects' types by id (JSON)."""
-    from saengine.design.bars import mesh_for
     from saengine.design.proposal import _same
     from saengine.design.proposal import bars_of as reported
 
@@ -1695,96 +1837,18 @@ def proposal_entries(
         held = (current or {}).get("layers") if isinstance(current, dict) else None
         if isinstance(held, int | float) and held > layers:
             layers = int(held)
-        needs = [search_need(c, layers) for c in group]
-        notes = list(dict.fromkeys(n for need in needs for n in need.notes))
-        thickness = group[0]["geometry"].thickness
-        too_small = ""
-        picks: dict[str, Any] = {}
-        sizes = W.bar_sizes("wall")
-        for key, rho, s_max in (
-            ("vertical", "rho_l", "vertical_s_max"),
-            ("horizontal", "rho_t", "horizontal_s_max"),
-        ):
-            if any(getattr(n, key) is None for n in needs):
-                too_small = f"no {key} mesh of Ø10-Ø20 at ≥ 100 mm apart: the wall is too thin"
-                break
-            area = max(_face(getattr(n, rho), thickness, layers) for n in needs)
-            spacing = min(getattr(n, s_max) for n in needs)
-            mesh = mesh_for(area, spacing, sizes, W.MIN_WALL_SPACING)
-            if mesh is None:
-                too_small = f"no {key} mesh carries {area:.0f} mm²/m at ≤ {spacing:.0f} mm"
-                break
-            picks[key] = {"dia": mesh.dia, "spacing": mesh.spacing}
-        if any("enlarge the wall" in n for n in notes):
-            too_small = too_small or "no end bars carry the axial force and bending"
-        reinforcement: dict[str, Any] | None = None
-        utilisation: dict[str, float] = {}
-        if not too_small:
-            reinforcement = {"material": material, "cover": cover, **picks, "layers": layers}
-            ends = [n.end_bars for n in needs if n.end_bars is not None]
-            if ends:
-                big = max(ends, key=lambda b: (b.count * W.bar_area(b.dia), b.dia))
-                merged = W.Boundary(
-                    max(b.length for b in ends),
-                    big.count,
-                    big.dia,
-                    max(b.hoop_dia for b in ends),
-                    min(b.hoop_spacing for b in ends),
-                    max(b.legs_across for b in ends),
-                    max(b.legs_along for b in ends),
-                )
-                reinforcement["boundary"] = _boundary_json(merged)
-            if current and current.get("diagonal"):
-                reinforcement["diagonal"] = current["diagonal"]
-            utilisation, problems = _recheck(group, reinforcement)
-            if problems and "boundary" in reinforcement:
-                # End bars that do not fit in a pier (a short pier between openings): try a
-                # heavier vertical web with no end bars, which every pier can take.
-                spacing = min(n.vertical_s_max for n in needs)
-                for mesh in _heavier_meshes(picks["vertical"], spacing):
-                    trial = {**reinforcement, "vertical": mesh}
-                    del trial["boundary"]
-                    found, left = _recheck(group, trial)
-                    if not left:
-                        # Said as what the end bars gave, not as a failure of the bars proposed
-                        # (R2-1: "still fails slender wall" beside bars that pass).
-                        notes += [
-                            p.replace(
-                                ": not checked with these bars: ", ": with end bars, "
-                            ).replace(
-                                " still fails: ", ": with end bars and the least web it fails "
-                            )
-                            for p in problems
-                        ] + [
-                            (
-                                "the end bars do not fit in every pier: a heavier vertical web "
-                                "carries the axial force and bending instead, checked on every pier"
-                            )
-                        ]
-                        reinforcement, utilisation, problems = trial, found, []
-                        break
-            if problems and not any(": not checked with these bars: " in p for p in problems):
-                # Checks the web's vertical bars carry besides the end bars (out-of-plane
-                # bending, the slender-wall method): a heavier vertical web with the same ends.
-                spacing = min(n.vertical_s_max for n in needs)
-                for mesh in _heavier_meshes(picks["vertical"], spacing)[:_HEAVIER_WEBS]:
-                    trial = {**reinforcement, "vertical": mesh}
-                    found, left = _recheck(group, trial)
-                    if not left:
-                        notes.append(
-                            "a heavier vertical web than the least: "
-                            + "; ".join(
-                                p.replace(" still fails: ", " failed with it: ") for p in problems
-                            )
-                        )
-                        reinforcement, utilisation, problems = trial, found, []
-                        break
-            if problems:
-                # Bars the type's piers cannot all take are not proposed (applying them would
-                # leave a pier failing or unchecked).
-                notes += problems
-                too_small = "; ".join(problems)
-                reinforcement, utilisation = None, {}
+
+        reinforcement, utilisation, notes, too_small = _attempt(
+            group, current, material, cover, layers
+        )
+        if reinforcement is None and layers == 1 and any(k in too_small for k in _TWO_CURTAINS):
+            # R3-1: a second curtain (bars at both faces) where one at mid-thickness leaves
+            # the web too weak out of its plane, or the joint short of bars.
+            two = _attempt(group, current, material, cover, 2)
+            if two[0] is not None:
+                reinforcement, utilisation, notes, _ = two
+                notes = notes + [f"two curtains: with one, {too_small}"]
+                too_small, layers = "", 2
         status = "tooSmall" if reinforcement is None else "ok"
         if status == "ok" and current is not None and _same(current, reinforcement):
             status = "unchanged"

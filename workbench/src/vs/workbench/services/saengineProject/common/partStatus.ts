@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { boqSourceStamp, femCodeTables, femSettingsStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceStamp, upstreamCurrent, upstreamPart } from './partSources.js';
+import { boqSourceStamp, codeSettingsStamp, FEM_CODE_TABLES_SOURCE, femCodeTables, femSettingsStamp, femSourceCurrent, mepModelStamp, recordedStamp, sourceCodeTables, sourceStamp, upstreamCurrent, upstreamPart } from './partSources.js';
 import { DEFAULT_MATERIALS, DEFAULT_OBJECTS, DEFAULT_SETTINGS } from './projectLibraries.generated.js';
 import { IProjectPart } from './saengineProject.js';
 import { formatDate as formatUiDate } from './formatting.js';
@@ -419,8 +419,12 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	}
 	const summary = parseDesignSummary(inputs.designSummaryText);
 	// Done only once the design checks ran on these results, checked something and found no failure.
-	if (!summary || (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime)) {
+	if (!summary) {
 		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
+	}
+	if (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime) {
+		// R3-4: the design state, not "analysed": there are checks, of earlier results.
+		return status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again"));
 	}
 	// The files the checks read changed since (bars, a code override the design reads): Run All
 	// checks the members again, so they are not current here either (R1-2).
@@ -855,11 +859,23 @@ export function describeFoundationCounts(counts: IFoundationCounts): string[] {
 	return parts.length ? parts : [localize('partStatus.foundations.allPass', "all {0} pass", counts.total)];
 }
 
-/** True when every part file a summary recorded still has the text it was checked with. */
-function sourcesUnchanged(texts: ReadonlyMap<string, string | undefined>, source: { readonly [part: string]: unknown }): boolean {
+/**
+ * True when every part file a summary recorded still has the text it was checked with. R3: a
+ * source that records `codeTables` (the code pack tables its checks read) stamps the settings
+ * without the overrides of other tables ({@link codeSettingsStamp}); `saengine.pipeline.status.
+ * _sources_unchanged` is the same.
+ */
+export function sourcesUnchanged(texts: ReadonlyMap<string, string | undefined>, source: { readonly [part: string]: unknown }): boolean {
+	const tables = sourceCodeTables(source);
 	return Object.entries(source).every(([part, recorded]) => {
+		if (part === FEM_CODE_TABLES_SOURCE) {
+			return true;
+		}
 		const text = texts.get(part);
-		return recorded === '' ? text === undefined : text !== undefined && recorded === sourceStamp(text);
+		if (recorded === '') {
+			return text === undefined;
+		}
+		return text !== undefined && (recorded === sourceStamp(text) || (part === 'settings' && !!tables && recorded === codeSettingsStamp(text, tables)));
 	});
 }
 

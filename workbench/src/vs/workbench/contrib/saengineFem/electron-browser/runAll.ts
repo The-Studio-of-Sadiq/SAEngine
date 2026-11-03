@@ -717,7 +717,16 @@ export class RunAllService implements IRunAllService {
 			kept = undefined;
 		}
 		if (stamp && manifest !== undefined && kept?.stamp === stamp && kept.manifest === sourceStamp(manifest)) {
+			// R3-4: design checks made on these results stay as new as them (the part list said
+			// "analysed: run the design checks" beside a current design).
+			const mtime = (resource: URI) => this.fileService.stat(resource).then(s => s.mtime, () => undefined);
+			const summaryFile = joinPath(results, DESIGN_SUMMARY_FILE);
+			const [manifestTime, summaryTime] = await Promise.all([mtime(joinPath(results, RESULTS_MANIFEST)), mtime(summaryFile)]);
 			await this.fileService.writeFile(joinPath(results, RESULTS_MANIFEST), VSBuffer.fromString(manifest));
+			const summaryText = manifestTime !== undefined && summaryTime !== undefined && summaryTime >= manifestTime ? await this.readText(summaryFile) : undefined;
+			if (summaryText !== undefined) {
+				await this.fileService.writeFile(summaryFile, VSBuffer.fromString(summaryText));
+			}
 			return { status: 'skipped', message: localize('runAll.resultsCurrent', "results current: the analysis model did not change") };
 		}
 		const runner = this.instantiationService.createInstance(FemAnalysisRunner);
@@ -965,7 +974,10 @@ export class RunAllService implements IRunAllService {
 		let failing = failedOpenings;
 		if (plumbingFailed) {
 			parts.push(localize('runAll.plumbing', "plumbing: failing checks {0}, floors below the minimum pressure {1}", plumbingFailed.items, plumbingFailed.floorsLow));
-			failing += plumbingFailed.items + plumbingFailed.floorsLow;
+			// Counted as the part list counts them (pipeline/status.py `mep`): the failing checks;
+			// the floors below the minimum pressure only when nothing else fails (R3 counts: the
+			// toast said "MEP 9 fail" beside the part list's "7 checks fail").
+			failing += plumbingFailed.items;
 		}
 		const notes: string[] = [];
 		if (hvac) {
@@ -982,6 +994,9 @@ export class RunAllService implements IRunAllService {
 		if (fire) {
 			parts.push(localize('runAll.fire', "fire: failing checks {0}, sleeves to add {1}", fireFailures(fire.report), fire.missingOpenings));
 			failing += fireFailures(fire.report);
+		}
+		if (!failing && plumbingFailed?.floorsLow) {
+			failing = plumbingFailed.floorsLow;
 		}
 		return { status: notes.length || openClashes ? 'warning' : 'ok', message: [...parts, ...notes].join('; '), failing };
 	}

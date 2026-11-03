@@ -428,10 +428,22 @@ def mep_summary_file(
     """``mepSummaryFile``: ``source_texts`` are the texts of :data:`MEP_SOURCE_PARTS`."""
     openings = mep_openings(raw)
     clashes = mep_clashes(raw)
+    from saengine.fem.derive import CODE_TABLES_KEY, code_settings_stamp, code_tables_text
+
     source: dict[str, str] = dict(string_sources(raw) or {})
+    # R3: the settings without the overrides of code tables the checks did not read.
+    tables = raw.get(CODE_TABLES_KEY)
+    read = frozenset(str(t) for t in tables) if isinstance(tables, list) else None
     for part in MEP_SOURCE_PARTS:
         text = source_texts.get(part)
-        source[part] = "" if text is None else source_stamp(text)
+        if text is None:
+            source[part] = ""
+        elif part == "settings" and read is not None:
+            source[part] = code_settings_stamp(text, read)
+        else:
+            source[part] = source_stamp(text)
+    if read is not None:
+        source[CODE_TABLES_KEY] = code_tables_text(read)
     source["mep"] = source_stamp(mep_text)
     return {
         "equipment": len(document.get("equipment", [])),

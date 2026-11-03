@@ -823,6 +823,47 @@ def _bar_rooms(gathered: Any) -> dict[str, Any]:
         return empty
 
 
+def _column_short(
+    entry: dict[str, Any] | None, rooms: dict[str, Any], gathered: Any, opts: Options
+) -> tuple[float, list[tuple[Any, ...]], list[float]] | None:
+    """The proposed column bars of ``entry`` that do not anchor in a foundation (R2-8, as the
+    drawings check it: ldh <= the foundation's thickness less its cover and two mesh bars):
+    ``(largest bar, [(shortfall, member, room, ldh, available, fy)], the smaller column bar
+    sizes that anchor in every such foundation)``; None when they all anchor."""
+    from saengine.design import ductile_joints as dj
+
+    found = rooms.get("columns") or {}
+    proposed = (entry or {}).get("proposed") if (entry or {}).get("kind") == "column" else None
+    groups = (proposed or {}).get("longitudinal") or []
+    if not found or not groups or entry is None:
+        return None
+    fy_of = {
+        m["id"]: float(m["fy"])
+        for m in gathered.collect.get("members", [])
+        if m.get("kind") == "column" and m.get("fy")
+    }
+    db = max(float(g["dia"]) for g in groups)
+    short = []
+    for member in entry.get("members", []):
+        room = found.get(member)
+        if room is None:
+            continue
+        fy = fy_of.get(member, 420.0)
+        need = dj.hooked_development(db, fy, room["fc"])
+        available = room["thickness"] - room["cover"] - 2 * room["mesh"]
+        if need > available + 1e-6:
+            short.append((need - available, member, room, need, available, fy))
+    if not short:
+        return None
+    # The sizes that anchor in every foundation found short (not only the worst one).
+    fitting = [
+        d
+        for d in sorted(opts.column_diameters)
+        if d < db and all(dj.hooked_development(d, s[5], s[2]["fc"]) <= s[4] + 1e-6 for s in short)
+    ]
+    return db, short, fitting
+
+
 def _column_anchorage(
     types: list[dict[str, Any]], rooms: dict[str, Any], gathered: Any, opts: Options
 ) -> list[str]:
@@ -831,42 +872,14 @@ def _column_anchorage(
     thickness less its cover and two mesh bars). The column's bars carry its forces, so they are
     not made smaller here: a note on the type says how deep the foundation must be (9
     Substructure sizes it) and the largest bar that fits. Returns the warnings."""
-    from saengine.design import ductile_joints as dj
-
-    found = rooms.get("columns") or {}
-    if not found:
-        return []
-    fy_of = {
-        m["id"]: float(m["fy"])
-        for m in gathered.collect.get("members", [])
-        if m.get("kind") == "column" and m.get("fy")
-    }
     warnings: list[str] = []
     for entry in types:
-        proposed = entry.get("proposed") if entry.get("kind") == "column" else None
-        groups = (proposed or {}).get("longitudinal") or []
-        if not groups:
+        found = _column_short(entry, rooms, gathered, opts)
+        if found is None:
             continue
-        db = max(float(g["dia"]) for g in groups)
-        short = []
-        for member in entry.get("members", []):
-            room = found.get(member)
-            if room is None:
-                continue
-            fy = fy_of.get(member, 420.0)
-            need = dj.hooked_development(db, fy, room["fc"])
-            available = room["thickness"] - room["cover"] - 2 * room["mesh"]
-            if need > available + 1e-6:
-                short.append((need - available, member, room, need, available, fy))
-        if not short:
-            continue
-        _, member, room, need, available, fy = max(short, key=lambda s: s[0])
+        db, short, fitting = found
+        _, member, room, need, available, _fy = max(short, key=lambda s: s[0])
         depth = math.ceil((need + room["cover"] + 2 * room["mesh"]) / 25.0) * 25.0
-        fitting = [
-            d
-            for d in sorted(opts.diameters)
-            if d < db and dj.hooked_development(d, fy, room["fc"]) <= available + 1e-6
-        ]
         others = ", ".join(sorted(s[1] for s in short if s[1] != member))
         note = (
             f"column bars Ø{db:g} into the foundation: {member} needs ldh {need:.0f} mm in "
@@ -1973,6 +1986,55 @@ def propose(
     for type_id in column_searches:
         column_results[type_id] = column_type(type_id)
         results.append(column_results[type_id])
+    bar_rooms = _bar_rooms(gathered)
+    # R3 misc: column bars that would not anchor in their foundation: the type proposed again
+    # with the bar sizes that do, kept when it still passes (else the note says what to do).
+    for type_id in list(column_searches):
+        first = column_results[type_id]
+        short = _column_short(first.entry, bar_rooms, gathered, opts)
+        if short is None or not short[2]:
+            continue
+        kept_search = column_searches[type_id]
+        _search, members = kept_search
+        member = next(
+            (m for m in gathered.collect.get("members", []) if m["type"] == type_id), None
+        )
+        if member is None:
+            continue
+        smaller = dataclasses.replace(opts, column_diameters=tuple(short[2]))
+        alt = ColumnSearch(
+            member["object"], member["fc"], member["fy"], member["es"], member["aggregate"], smaller
+        )
+        column_searches[type_id] = (
+            alt,
+            {mid: (alt.smallest(points), points) for mid, (_, points) in members.items()},
+        )
+        taken.difference_update(t["type"] for t in first.new_types)
+        again = column_type(type_id)
+        if (
+            again.entry is not None
+            and again.entry.get("proposed")
+            and again.entry["status"]
+            in (
+                "ok",
+                "unchanged",
+            )
+        ):
+            _, worst, room, need, _, _ = max(short[1], key=lambda s: s[0])
+            again.entry["notes"] = [
+                *again.entry["notes"],
+                (
+                    f"bars of at most Ø{max(short[2]):g}, so they anchor in the foundation "
+                    f"(Ø{short[0]:g} needs ldh {need:.0f} mm in {room['foundation']} under "
+                    f"{worst}): checked as the others"
+                ),
+            ]
+            column_results[type_id] = again
+            results[results.index(first)] = again
+        else:
+            column_searches[type_id] = kept_search
+            taken.difference_update(t["type"] for t in again.new_types)
+            taken.update(t["type"] for t in first.new_types)
 
     # Beam-column joints of special moment frames (Sec 8.3.7): bars cannot raise a joint's
     # capacity (the column section and f'c give it); lighter beam bars lower its shear. The
@@ -2106,7 +2168,6 @@ def propose(
     slabs: dict[str, list[dict[str, Any]]] = {}
     for collected in gathered.collect.get("slabs", []):
         slabs.setdefault(collected["type"], []).append(collected)
-    bar_rooms = _bar_rooms(gathered)
     thin_slabs: list[str] = []
     for type_id, collected in slabs.items():
         first = collected[0]

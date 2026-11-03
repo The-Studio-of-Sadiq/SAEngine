@@ -345,12 +345,32 @@ def _plumbing_count(document: dict[str, Any]) -> int:
 
 
 def _sources_unchanged(texts: dict[str, str | None], source: dict[str, Any]) -> bool:
+    """``sourcesUnchanged`` of partStatus.ts. R3: a source recording ``codeTables`` (the code
+    pack tables its checks read, comma separated) stamps the settings without the overrides of
+    other tables (:func:`saengine.fem.derive.code_settings_stamp`)."""
+    from saengine.fem.derive import CODE_TABLES_KEY, code_settings_stamp
+
+    recorded_tables = source.get(CODE_TABLES_KEY)
+    tables = (
+        frozenset(t for t in recorded_tables.split(",") if t and t != "-")
+        if isinstance(recorded_tables, str)
+        else None
+    )
     for part, recorded in source.items():
+        if part == CODE_TABLES_KEY:
+            continue
         text = texts.get(part)
         if recorded == "":
             if text is not None:
                 return False
-        elif text is None or recorded != source_stamp(text):
+        elif text is None or (
+            recorded != source_stamp(text)
+            and not (
+                part == "settings"
+                and tables is not None
+                and recorded == code_settings_stamp(text, tables)
+            )
+        ):
             return False
     return True
 
@@ -569,10 +589,11 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         if value and all(_is_number(value.get(k)) for k in ("checked", "passed", "failed"))
         else None
     )
-    if not summary or (
-        inputs.designSummaryTime is not None and inputs.designSummaryTime < inputs.femResultsTime
-    ):
+    if not summary:
         return _status("fem", "inProgress", "analysed", "run the design checks")
+    if inputs.designSummaryTime is not None and inputs.designSummaryTime < inputs.femResultsTime:
+        # R3-4: the design state, not "analysed": checks there are, of earlier results.
+        return _status("fem", "stale", "design stale", "run the design checks again")
     if not design_sources_current(inputs.texts, summary):
         return _status("fem", "stale", "design stale", "run the design checks again")
     counts = _design_counts(summary)

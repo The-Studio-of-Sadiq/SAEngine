@@ -87,7 +87,8 @@ suite('SAEngine - PartStatus', () => {
 			'fem: stale stale',
 			'fem: done 13 pass',
 			'fem: failed 3 fail',
-			'fem: inProgress analysed',
+			// R3-4: the design state, checks of earlier results.
+			'fem: stale design stale',
 		]);
 		// Design checks that checked nothing are not a pass (G1).
 		const none = JSON.stringify({ checked: 0, passed: 0, failed: 0, maxUtilisation: null, governing: null, computed: '2026-10-16T00:00:00Z' });
