@@ -109,7 +109,8 @@ types: the foundations with the same definition (form, size, reinforcement, conc
 type named after the first of them, and that label (F1, PC2) is the code when free. The role
 letters are T top, B bottom, F side face, S stirrups, X cross ties (beams); V vertical, D
 dowels (starter bars), H ties or hoops, P spirals (columns); BX, BY, TX, TY bottom and top
-bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops (walls), LB, LT, LS
+bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops, G coupling beam
+diagonals, J their hoops and Y crossties (walls), LB, LT, LS
 the bottom bars, top hangers and stirrups of the lintels over a wall's openings; M main, N
 distribution, T top, L landing, LN landing distribution (stairs). Identical bars of the same type (same diameter, shape and dimensions)
 share a mark across members. Marks are deterministic, and ``previous`` (the ``marks`` of an
@@ -2921,8 +2922,79 @@ def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
                         bend=h135.bend_dia, grade=grade, zone="boundary",
                     )
                 )  # fmt: skip
+        if getattr(r, "diagonal", None) is not None:
+            _detail_coupling_beams(ctx, wall, element, r, th, fy, fc, grade)
         _ = step
     return out
+
+
+def _detail_coupling_beams(
+    ctx: _Ctx,
+    wall: Any,
+    element: dict[str, Any],
+    r: Any,
+    th: float,
+    fy: float,
+    fc: float,
+    grade: str | None,
+) -> None:
+    """The wall type's coupling beam bars (``reinforcement.diagonal``) over each opening with a
+    pier on each side and the wall above it (:func:`saengine.boq.quantities.wall_spandrels`):
+    G, the two groups of diagonal bars corner to corner, embedded 1.25 ld into the piers
+    (8.3.6.7(d)(ii)); J, the hoops over the whole section along the clear span, and Y, their
+    crossties beyond the two outer legs each way (8.3.6.7(d)(iv))."""
+    from saengine.boq.quantities import wall_spandrels
+
+    d = r.diagonal
+    cover = float(r.cover)
+    length = math.dist(wall.start, wall.end)
+    height = wall.top - wall.bottom
+    own = [o for o in ctx.building.additions.wallOpenings if o.host == wall.id]
+    spandrels = wall_spandrels(length, height, own)
+    if not spandrels:
+        return
+    db = float(d.dia)
+    bend = bend_diameter(db).value
+    embed = 1.25 * ctx.ld(db, fy, fc)
+    for span, depth in spandrels:
+        edge = cover + 10.0 + 2 * 20.0  # the group's centroid off the beam's faces, as designed
+        run = math.hypot(span, max(depth - 2 * edge, 0.0)) + 2 * embed
+        element["bars"].append(
+            _bar(
+                "diagonal", "G", db, "straight", 2 * int(d.count), {"A": run}, run,
+                {"span": round(span, 1), "depth": round(depth, 1), "embedment": round(embed, 1)},
+                bend=bend, grade=grade, remarks="two groups, 1.25 ld into the piers",
+            )
+        )  # fmt: skip
+        hp = getattr(d, "hoop", None)
+        if hp is None:
+            continue
+        hdia = float(hp.dia)
+        hook = seismic_hook(hdia)
+        a, b = depth - 2 * cover, th - 2 * cover
+        n = math.floor(span / float(hp.spacing) + 1e-9) + 1
+        element["bars"].append(
+            _bar(
+                "hoop", "J", hdia, "stirrup", n, {"A": a, "B": b},
+                stirrup_length(a, b, hdia, hook), {"section": [a, b], "span": round(span, 1)},
+                bend=hook.bend_dia, grade=grade, zone="coupling beam",
+            )
+        )  # fmt: skip
+        h135, h90 = seismic_hook(hdia), standard_hook(hdia, 90, transverse=True)
+        extra = ((max(int(hp.legsAcross) - 2, 0), b), (max(int(hp.legsAlong) - 2, 0), a))
+        for count, width in extra:
+            if count:
+                element["bars"].append(
+                    _bar(
+                        "crosstie", "Y", hdia, "special", n * count, {"A": width},
+                        crosstie_length(width, hdia, h135, h90), {"legs": count},
+                        bend=h135.bend_dia, grade=grade, zone="coupling beam",
+                    )
+                )  # fmt: skip
+    element["notes"].append(
+        f"coupling beams over {len(spandrels)} opening(s): {d.count} Ø{db:g} diagonal bars per "
+        "group and hoops over the whole section"
+    )
 
 
 #: Lintels: the first stirrup from each end of the lintel [mm] (practice, as the first stirrup
@@ -3390,6 +3462,7 @@ _PREFIX = {
     "pileCap": "PC",
 }
 _ROLE_ORDER = ["T", "B", "F", "S", "X", "V", "D", "H", "P", "BX", "BY", "TX", "TY", "E", "K",
+               "G", "J", "Y",
                "M", "N", "L", "LN", "LB", "LT", "LS"]  # fmt: skip
 
 

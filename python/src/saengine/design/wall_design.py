@@ -459,7 +459,16 @@ def design_walls(
 
         beams: list[dict[str, Any]] = []
         if special:
-            beams = _coupling_beams(e, t, spandrels_of.get(e.id, []), piers, fc, fy, story_names)
+            beams = _coupling_beams(
+                e,
+                t,
+                spandrels_of.get(e.id, []),
+                piers,
+                fc,
+                fy,
+                story_names,
+                collect.setdefault("spandrels", []) if collect is not None else None,
+            )
         # Spandrels over an opening between two piers that no diagonal bars design: as beams
         # (8.3.6.7(a), (c) for special walls; Chapter 6 for ordinary walls).
         beams = _beam_spandrels(
@@ -481,6 +490,11 @@ def design_walls(
                 wall.checks.append({**c, "note": note})
         designed = {b["id"] for b in beams if b["ok"] is not None}
         by_id = {b["id"]: b for b in beams}
+        for c in (collect or {}).get("spandrels", []):
+            if c["wall"] == e.id and c["id"] in by_id:
+                # The design mode needs to know whether the beam rules (8.3.6.7(c)) pass.
+                c["ok"] = by_id[c["id"]]["ok"]
+                c["asBeam"] = not by_id[c["id"]]["diagonal"]
         for s in spandrels_of.get(e.id, []):
             # The spandrel's shells stay with the wall (selecting one shows the wall), but a
             # spandrel without a strength check is listed as not designed (report.skipped and
@@ -1141,6 +1155,31 @@ def _wall_boundary(piers: list[dict[str, Any]]) -> dict[str, Any] | None:
     return found[0]
 
 
+def coupling_diagonal(bars: Any) -> W.Diagonal | None:
+    """The :class:`walls.Diagonal` of a wall type's ``reinforcement.diagonal`` (an
+    ``objects.CouplingDiagonal`` or its JSON), with its hoops; None when there is none."""
+    if bars is None:
+        return None
+    get = bars.get if isinstance(bars, dict) else (lambda k, d=None: getattr(bars, k, d))
+    angle = get("angle", None)
+    hoop = get("hoop", None)
+    hoops = None
+    if hoop is not None:
+        part = hoop.get if isinstance(hoop, dict) else (lambda k, d=None: getattr(hoop, k, d))
+        hoops = W.CouplingHoops(
+            float(part("dia", 10.0)),
+            float(part("spacing", 100.0)),
+            int(part("legsAcross", 2)),
+            int(part("legsAlong", 2)),
+        )
+    return W.Diagonal(
+        int(get("count")),
+        float(get("dia")),
+        angle=math.radians(float(angle)) if angle else None,
+        hoop=hoops,
+    )
+
+
 def _coupling_beams(
     wall: Any,
     wall_type: Any,
@@ -1149,9 +1188,11 @@ def _coupling_beams(
     fc: float,
     fy: float,
     story_names: dict[str, str],
+    collect: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """The coupling beams of a special wall: its spandrels over an opening with a pier on each
-    side (8.3.6.7), checked with the type's diagonal bars (``reinforcement.diagonal``)."""
+    side (8.3.6.7), checked with the type's diagonal bars (``reinforcement.diagonal``). With
+    ``collect``, what the design mode needs of each one that may take diagonal bars."""
     diagonal_bars = getattr(wall_type.reinforcement, "diagonal", None)
     cover = float(wall_type.reinforcement.cover)
     out = []
@@ -1167,17 +1208,27 @@ def _coupling_beams(
                 if abs(float(r["V2"])) > vu:
                     vu, combination = abs(float(r["V2"])), name
         ln, h, bw = float(s["length"]), float(s["depth"]), float(s["tw"])
-        diagonal = None
-        if diagonal_bars is not None:
-            angle = getattr(diagonal_bars, "angle", None)
-            diagonal = W.Diagonal(
-                int(diagonal_bars.count),
-                float(diagonal_bars.dia),
-                angle=math.radians(angle) if angle else None,
-            )
+        diagonal = coupling_diagonal(diagonal_bars)
         found = W.coupling_beam_checks(
             ln, h, bw, vu * 1e3, fc, fy, diagonal=diagonal, combination=combination, cover=cover
         )
+        if collect is not None and found.mode != "flexural":
+            collect.append(
+                {
+                    "id": s["spandrel"],
+                    "wall": wall.id,
+                    "type": wall.type,
+                    "ln": ln,
+                    "h": h,
+                    "bw": bw,
+                    "vu": vu * 1e3,
+                    "combination": combination,
+                    "fc": fc,
+                    "fy": fy,
+                    "cover": cover,
+                    "mode": found.mode,
+                }
+            )
         notes = list(found.notes)
         if found.mode == "flexural":
             notes.append(
@@ -1625,7 +1676,8 @@ def _boundary_json(b: W.Boundary) -> dict[str, Any]:
 
 
 def wall_label(reinforcement: dict[str, Any]) -> str:
-    """'Ø10 @ 200 V, Ø10 @ 200 H, 2 layer(s); ends 4 Ø16 over 400 (Ø10 @ 100)'."""
+    """'Ø10 @ 200 V, Ø10 @ 200 H, 2 layer(s); ends 4 Ø16 over 400 (Ø10 @ 100)', with
+    '; coupling beams 4 Ø16 diagonals per group (hoops Ø10 @ 75)' for diagonal bars."""
     parts = []
     for key, short in (("vertical", "V"), ("horizontal", "H")):
         m = reinforcement.get(key)
@@ -1638,6 +1690,12 @@ def wall_label(reinforcement: dict[str, Any]) -> str:
         text += f"; ends {b['count']} Ø{b['dia']:g} over {b['length']:g}"
         if hoop:
             text += f" (Ø{hoop.get('dia', 10):g} @ {hoop.get('spacing', 100):g})"
+    d = reinforcement.get("diagonal")
+    if d:
+        hoop = d.get("hoop") or {}
+        text += f"; coupling beams {d['count']} Ø{d['dia']:g} diagonals per group"
+        if hoop:
+            text += f" (hoops Ø{hoop.get('dia', 10):g} @ {hoop.get('spacing', 100):g})"
     return text
 
 
@@ -1712,9 +1770,11 @@ def _attempt(
     material: str,
     cover: float,
     layers: int,
+    spandrels: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, float], list[str], str]:
     """The proposal of a wall type with ``layers`` curtains: (reinforcement or None,
-    utilisation by pier, notes, why none), its bars checked again on every pier of ``group``."""
+    utilisation by pier, notes, why none), its bars checked again on every pier of ``group``;
+    the diagonal bars and hoops of its coupling beams ``spandrels`` (:func:`coupling_proposal`)."""
     from saengine.design.bars import mesh_for
 
     needs = [search_need(c, layers) for c in group]
@@ -1756,8 +1816,12 @@ def _attempt(
                 max(b.legs_along for b in ends),
             )
             reinforcement["boundary"] = _boundary_json(merged)
-        if current and current.get("diagonal"):
-            reinforcement["diagonal"] = current["diagonal"]
+        diagonal, diagonal_notes = coupling_proposal(
+            spandrels or [], (current or {}).get("diagonal")
+        )
+        if diagonal is not None:
+            reinforcement["diagonal"] = diagonal
+        notes += diagonal_notes
         utilisation, problems = _recheck(group, reinforcement)
         if problems and not any(": not checked with these bars: " in p for p in problems):
             # Checks the web's vertical bars carry besides the end bars (out-of-plane
@@ -1810,19 +1874,115 @@ def _attempt(
     return reinforcement, utilisation, notes, too_small
 
 
+def coupling_proposal(
+    spandrels: list[dict[str, Any]], current: dict[str, Any] | None
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The diagonal bars and hoops (``reinforcement.diagonal``) of a special wall type's
+    coupling beams ``spandrels`` (``collect["spandrels"]`` of one type): None and no notes
+    when none needs them. Diagonal bars where 8.3.6.7(b) requires them, or where they are
+    optional (8.3.6.7(c)) and the beam rules fail; the type's own diagonal bars are kept where
+    they carry the shear, with hoops added or made closer where (d)(iv) needs it. The bars
+    are the largest any of the spandrels needs, the hoops the closest and heaviest; all are
+    checked again on every spandrel of the type."""
+    mine = coupling_diagonal(current) if current else None
+    need = [
+        s
+        for s in spandrels
+        if s["mode"] == "diagonal" or mine is not None or (s.get("asBeam") and not s.get("ok"))
+    ]
+    if not need:
+        return (current if current else None), []
+
+    def check(s: dict[str, Any], d: W.Diagonal | None) -> W.CouplingBeam:
+        return W.coupling_beam_checks(
+            s["ln"], s["h"], s["bw"], s["vu"], s["fc"], s["fy"], diagonal=d,
+            combination=s.get("combination"), cover=s["cover"],
+        )  # fmt: skip
+
+    def strength_ok(found: W.CouplingBeam) -> bool:
+        strength = ("Coupling beam diagonal bars", "Diagonal bars per group")
+        return all(c["ok"] for c in found.checks if c["name"].startswith(strength))
+
+    if mine is not None and all(strength_ok(check(s, mine)) for s in need):
+        bars = mine
+    else:
+        picks = []
+        for s in need:
+            found = check(s, None)
+            if found.proposal is None:
+                return (current if current else None), [
+                    (
+                        f"{s['id']}: no diagonal bars up to 8 per group carry Vu = "
+                        f"{s['vu'] / 1e3:.1f} kN: a thicker wall or a deeper spandrel"
+                    )
+                ]
+            picks.append(found.proposal)
+        top = max(picks, key=lambda d: (d.area(), d.dia))
+        bars = W.Diagonal(top.count, top.dia, angle=mine.angle if mine else None)
+    hoops = [
+        W.propose_coupling_hoops(s["h"], s["bw"], s["cover"], s["fc"], s["fy"], bars.dia)
+        for s in need
+    ]
+    merged = W.CouplingHoops(
+        max(h.dia for h in hoops),
+        min(h.spacing for h in hoops),
+        max(h.legs_across for h in hoops),
+        max(h.legs_along for h in hoops),
+    )
+    own = mine.hoop if mine is not None else None
+    if own is not None and all(
+        all(c["ok"] for c in check(s, replace(bars, hoop=own)).checks if not c["flag"])
+        for s in need
+    ):
+        merged = own
+    trial = replace(bars, hoop=merged)
+    left = [
+        f"{s['id']} still fails: "
+        + ", ".join(c["name"] for c in check(s, trial).checks if not c["ok"] and not c["flag"])
+        for s in need
+        if not all(c["ok"] for c in check(s, trial).checks if not c["flag"])
+    ]
+    out: dict[str, Any] = {"count": trial.count, "dia": trial.dia}
+    if current and current.get("angle"):
+        out["angle"] = current["angle"]
+    out["hoop"] = {
+        "dia": merged.dia,
+        "spacing": merged.spacing,
+        "legsAcross": merged.legs_across,
+        "legsAlong": merged.legs_along,
+    }
+    ids = ", ".join(s["id"] for s in need)
+    notes = [
+        (
+            f"coupling beams {ids}: {trial.count} Ø{trial.dia:g} diagonal bars per group with "
+            f"hoops Ø{merged.dia:g} @ {merged.spacing:g} over the whole section (8.3.6.7(c), "
+            "(d)(iv))"
+        )
+    ]
+    return out, notes + left
+
+
 def proposal_entries(
-    collected: list[dict[str, Any]], assumed: set[str], originals: dict[str, Any]
+    collected: list[dict[str, Any]],
+    assumed: set[str],
+    originals: dict[str, Any],
+    spandrels: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Design-mode entries (the shape of ``saengine.design.proposal._entry``) per wall type from
     ``collect["walls"]``: the web meshes every pier needs (one mesh each way for the type), the
     end bars (boundary elements of special walls, or end bars with ties), checked again on
-    every pier with the bars proposed. ``originals``: 04 Objects' types by id (JSON)."""
+    every pier with the bars proposed; and the diagonal bars and hoops of the coupling beams
+    ``spandrels`` (``collect["spandrels"]``) that need them. ``originals``: 04 Objects' types
+    by id (JSON)."""
     from saengine.design.proposal import _same
     from saengine.design.proposal import bars_of as reported
 
     groups: dict[str, list[dict[str, Any]]] = {}
     for c in collected:
         groups.setdefault(c["type"], []).append(c)
+    beams_of: dict[str, list[dict[str, Any]]] = {}
+    for s in spandrels or []:
+        beams_of.setdefault(s["type"], []).append(s)
     entries = []
     for type_id, group in groups.items():
         t = group[0]["object"]
@@ -1838,13 +1998,14 @@ def proposal_entries(
         if isinstance(held, int | float) and held > layers:
             layers = int(held)
 
+        beams = beams_of.get(type_id, [])
         reinforcement, utilisation, notes, too_small = _attempt(
-            group, current, material, cover, layers
+            group, current, material, cover, layers, beams
         )
         if reinforcement is None and layers == 1 and any(k in too_small for k in _TWO_CURTAINS):
             # R3-1: a second curtain (bars at both faces) where one at mid-thickness leaves
             # the web too weak out of its plane, or the joint short of bars.
-            two = _attempt(group, current, material, cover, 2)
+            two = _attempt(group, current, material, cover, 2, beams)
             if two[0] is not None:
                 reinforcement, utilisation, notes, _ = two
                 notes = notes + [f"two curtains: with one, {too_small}"]

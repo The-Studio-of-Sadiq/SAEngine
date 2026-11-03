@@ -1,7 +1,13 @@
 {
   "$notes": {
     "bars": "ACI 318-19 Ch. 25 (hooks 25.3, development 25.4, laps 25.5) and 18.6-18.10 (splice zones), ACI 318-14 25.4.3.2 (hook factors), ACI 318-19 9.7.3 and 8.7.4 (bar extents), used as generic defaults",
-    "bars.laps.noLapDb": "ACI 318-19 25.5.1.1: bars larger than 36 mm are not lap spliced (43 mm and up), used as a generic default"
+    "bars.laps.noLapDb": "ACI 318-19 25.5.1.1: bars larger than 36 mm are not lap spliced (43 mm and up), used as a generic default",
+    "walls": "ACI 318-19 18.10.7.4(d): hoops over a diagonally reinforced coupling beam's whole section at most min(150 mm, 6 db of the diagonal bars) apart, legs and crossties at most 200 mm apart each way, used as generic defaults"
+  },
+  "walls": {
+    "couplingHoopSpacingMax": 150.0,
+    "couplingHoopDb": 6.0,
+    "couplingLegSpacingMax": 200.0
   },
   "bars": {
     "hooks": {

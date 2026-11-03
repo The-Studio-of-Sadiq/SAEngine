@@ -2266,7 +2266,10 @@ def propose(
     from saengine.design import wall_design
 
     types += wall_design.proposal_entries(
-        gathered.collect.get("walls", []), gathered.assumed, originals
+        gathered.collect.get("walls", []),
+        gathered.assumed,
+        originals,
+        gathered.collect.get("spandrels", []),
     )
     types += stair_design.proposal_entries(
         gathered.collect.get("stairs", []), opts.slab_diameters, opts.min_slab_spacing

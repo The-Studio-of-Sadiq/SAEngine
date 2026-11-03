@@ -297,6 +297,39 @@ def test_design_mode_rows_and_proposal_for_walls(monkeypatch) -> None:
     assert not any("still fails" in n for n in entry["notes"])
 
 
+def test_proposal_gives_coupling_beams_diagonal_bars_and_hoops(monkeypatch) -> None:
+    """Owner 2026-11-03 (sample W250 boundary elements and spandrel hoops): a special wall's
+    coupling beam that may take diagonal bars (8.3.6.7(c)) and fails the beam rules gets them
+    from Design Reinforcement, with hoops over the whole section ((d)(iv)); applied, it passes."""
+    collect: dict = {}
+    found = _run(monkeypatch, SPECIAL, collect)
+    (beam,) = found["elements"][0]["couplingBeams"]
+    assert beam["mode"] == "either" and beam["ok"] is False  # the beam rules: Ve too large
+    (spandrel,) = collect["spandrels"]
+    assert spandrel["id"] == "W1/L1/S1" and spandrel["asBeam"] and spandrel["ok"] is False
+    entries = wall_design.proposal_entries(
+        collect["walls"], set(), {"W250": WALL_TYPE}, collect["spandrels"]
+    )
+    (entry,) = entries
+    diagonal = entry["proposed"]["diagonal"]
+    assert diagonal["count"] >= 4 and diagonal["hoop"]["spacing"] <= 6 * diagonal["dia"]
+    assert "coupling beams" in entry["proposed"]["text"]
+    assert any(n.startswith("coupling beams W1/L1/S1:") for n in entry["notes"])
+    proposed = {k: v for k, v in entry["proposed"].items() if k != "text"}
+    applied = {**WALL_TYPE, "reinforcement": proposed}
+    Wall.model_validate(applied)  # a valid 04 Objects type
+    again = _run(monkeypatch, SPECIAL, wall_type=applied)
+    (beam,) = again["elements"][0]["couplingBeams"]
+    assert beam["diagonal"] and beam["ok"] is True
+    assert {c["name"] for c in beam["checks"]} >= {
+        "Coupling beam hoop spacing (8.3.6.7(d)(iv))",
+        "Coupling beam Ash, bc down the depth (8.3.5.4, Eq. 6.8.7, 6.8.8)",
+    }
+    # Without the spandrels (an ordinary wall, or none needing them): no diagonal bars.
+    (plain,) = wall_design.proposal_entries(collect["walls"], set(), {"W250": WALL_TYPE})
+    assert "diagonal" not in (plain["proposed"] or {})
+
+
 def test_stair_rows_and_new_fields() -> None:
     stair = Staircase.model_validate(
         {
@@ -628,6 +661,48 @@ def test_boq_end_bars_at_every_pier() -> None:
 
     plain, split = end_bars([]), end_bars([opening(2000, 1000, 0, 2100)])
     assert plain > 0 and split == pytest.approx(2 * plain, rel=1e-3)
+
+
+def test_boq_and_schedule_measure_the_coupling_beam_diagonals_and_hoops() -> None:
+    """Owner 2026-11-03: the wall type's coupling beam bars (``reinforcement.diagonal``) are
+    measured over every opening with a pier on each side and the wall above it: the estimate
+    (2 groups x count x the corner-to-corner length + 2 x 1.25 x 40 db) and the bar bending
+    schedule's G (diagonals), J (hoops) and Y (crossties) bars."""
+    from saengine.boq.quantities import bill_of_quantities, wall_spandrels
+    from saengine.drawings.detailing import detailing_model
+    from saengine.library.bim import WallOpening
+
+    door = WallOpening.model_validate(
+        {"id": "D1", "host": "W1", "offset": 2000, "width": 1000, "sill": 0, "height": 2100}
+    )
+    end = door.model_copy(update={"id": "D2", "offset": 4000})
+    assert wall_spandrels(5000, 3000, [door, end]) == [(1000.0, 900.0)]  # D2 ends the wall
+    diagonal = {
+        "count": 4,
+        "dia": 16,
+        "hoop": {"dia": 10, "spacing": 75, "legsAcross": 5, "legsAlong": 2},
+    }
+    typed = {**WALL_TYPE, "reinforcement": {**WALL_TYPE["reinforcement"], "diagonal": diagonal}}
+    objects = ObjectLibrary.model_validate({"objects": [typed]})
+    building = _building()
+    additions = building.additions.model_copy(update={"wallOpenings": [door]})
+    building = building.model_copy(update={"additions": additions})
+    data = bill_of_quantities(building, objects, default_material_library()).model_dump()
+    rows = {r["detail"]: float(r["quantity"]) for r in _rows(data)}
+    run = math.hypot(1000, 900 - 50) + 2 * 1.25 * 40 * 16
+    assert rows["diagonals"] == pytest.approx(8 * run / 1000 * W.bar_area(16) * 7.85e-3, rel=0.01)
+    assert rows["coupling hoops"] > 0
+    texts = {
+        "bim": building.model_dump_json(),
+        "objects": objects.model_dump_json(),
+        "materials": default_material_library().model_dump_json(),
+    }
+    model = detailing_model(texts=texts)
+    (wall,) = [e for e in model["elements"] if e["id"] == "W1"]
+    roles = {b["role"] for b in wall["bars"]}
+    assert {"diagonal", "hoop", "crosstie"} <= roles
+    (g,) = [b for b in wall["bars"] if b["role"] == "diagonal"]
+    assert g["count"] == 8 and g["dia"] == 16 and g["mark"].split("-")[1].startswith("G")
 
 
 def _rows(data):

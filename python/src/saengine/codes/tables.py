@@ -1959,6 +1959,16 @@ class SpecialWalls(_Group):
     stressStop: Share = Field(description="Boundary elements may stop below · f'c.")
     fytConfinementMax: Positive
     hxMax: Positive
+    couplingHoopSpacingMax: Positive = Field(
+        description="Largest spacing of the hoops over a diagonally reinforced coupling beam's "
+        "whole section [mm]."
+    )
+    couplingHoopDb: Positive = Field(
+        description="... and at most this many diameters of the diagonal bars."
+    )
+    couplingLegSpacingMax: Positive = Field(
+        description="Largest spacing of those hoops' legs and crossties, each way [mm]."
+    )
 
     @model_validator(mode="after")
     def _check(self) -> SpecialWalls:
