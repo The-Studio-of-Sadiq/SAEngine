@@ -750,10 +750,13 @@ def wall_joint_check(
     fc: float,
     fy: float,
     combination: str | None,
+    end_bars: tuple[int, float, float] | None = None,
 ) -> dict[str, Any] | None:
     """Shear friction of a floor-to-wall connection: ``force`` [N] along a wall ``length``
     [mm] long across its horizontal construction joint at the floor, the wall's vertical bars
-    crossing it. None when the wall type has no vertical bars or the pack has no rule."""
+    crossing it. ``end_bars``: (count per end, diameter, length per end [mm]) of end bars that
+    cross the joint too, in place of the web over those lengths. None when the wall type has
+    no vertical bars or the pack has no rule."""
     reinforcement = getattr(wall_type, "reinforcement", None)
     vertical = getattr(reinforcement, "vertical", None)
     if vertical is None or length <= 0:
@@ -761,6 +764,11 @@ def wall_joint_check(
     rule = getattr(_detailing(), "shearFriction", None)
     per_metre = int(reinforcement.layers) * math.pi * vertical.dia**2 / 4 * 1000 / vertical.spacing
     avf = per_metre * length / 1000
+    ends = ""
+    if end_bars is not None and 0 < 2 * end_bars[2] < length:
+        count, dia, zone = end_bars
+        avf = per_metre * (length - 2 * zone) / 1000 + 2 * count * math.pi * dia**2 / 4
+        ends = f" and {count} Ø{dia:g} per end over {zone:g} mm"
     area = float(wall_type.thickness) * length
     found = shear_friction(avf, fy, fc, area, "roughened")
     if found is None or rule is None:
@@ -772,7 +780,7 @@ def wall_joint_check(
         "kN",
         combination,
         f"{found.note}; the wall's vertical bars {reinforcement.layers} × Ø{vertical.dia:g} @ "
-        f"{vertical.spacing:g} over {length / 1e3:.2f} m, roughened to about "
+        f"{vertical.spacing:g}{ends} over {length / 1e3:.2f} m, roughened to about "
         f"{rule.roughness:g} mm",
     )
 

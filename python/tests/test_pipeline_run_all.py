@@ -100,9 +100,15 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
                                  "bearingUnchecked", "unsupported", "status", "maxUtilisation",
                                  "governing", "computed", "source"]  # fmt: skip
     project = open_project(root)
+    from saengine.pipeline.status import _sources_unchanged
+
+    # R3: the code tables the checks read are recorded beside the stamps.
+    assert isinstance(foundations["source"].pop("codeTables"), str)
     for part, stamp in foundations["source"].items():
         text = project.text(part)
         assert stamp == ("" if text is None else source_stamp(text)), part
+    texts = {p: project.text(p) for p in foundations["source"]}
+    assert _sources_unchanged(texts, foundations["source"])
     mep = json.loads((root / "07 MEP/mep.results/summary.json").read_text(encoding="utf-8"))
     assert list(mep) == ["equipment", "openings", "openingsFailed", "openingsPartial", "clashes",
                          "clashesOpen", "computed", "source", "plumbing", "hvac", "electrical",

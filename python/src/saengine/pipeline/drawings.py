@@ -59,6 +59,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from saengine.codes.registry import recording_tables
+from saengine.fem.derive import code_settings_stamp
 from saengine.library.bim import floor_plan_stamp, source_stamp
 
 SCHEMA_ID = "saengine.drawings/1"
@@ -129,14 +131,22 @@ def _read(path: Path) -> str | None:
         return None
 
 
-def input_stamps(root: Path) -> dict[str, str | None]:
+def input_stamps(root: Path, code_tables: frozenset[str] | None = None) -> dict[str, str | None]:
     """The stamps of the files the drawings are drawn from, and of the analysis results'
-    manifest (a new run: new design checks); None: the file is missing."""
+    manifest (a new run: new design checks); None: the file is missing. ``code_tables``: the
+    code pack tables the drawings read (their record's ``codeTables``): the settings' overrides
+    of other tables are left out of its stamp (R3: a ramp slope made all 34 sheets out of
+    date)."""
     stamps: dict[str, str | None] = {}
     for key, relative, _ in SOURCES:
         text = _read(root / relative)
         if text is None:
             stamps[key] = None
+        elif key == "settings" and code_tables is not None:
+            stamps[key] = code_settings_stamp(text, code_tables)
+            while len(_WHOLE_SETTINGS) >= 64:
+                _WHOLE_SETTINGS.pop(next(iter(_WHOLE_SETTINGS)))
+            _WHOLE_SETTINGS[stamps[key] or ""] = source_stamp(text)
         elif key == "floorPlan":
             # Without its underlays (R2-10, OI-24: attaching one said "changed since: Floor Plan").
             stamps[key] = floor_plan_stamp(text)
@@ -153,6 +163,9 @@ def input_stamps(root: Path) -> dict[str, str | None]:
 #: The whole floor plan's stamp by its :func:`floor_plan_stamp`, the sets drawn before the
 #: underlays were left out recorded (still current while the plan does not change).
 _WHOLE_PLAN: dict[str, str] = {}
+#: The whole settings' stamp by its :func:`code_settings_stamp`, for the sheets drawn before
+#: the drawings recorded the code tables they read (current while the settings do not change).
+_WHOLE_SETTINGS: dict[str, str] = {}
 
 
 def _labels() -> dict[str, str]:
@@ -167,6 +180,8 @@ def changed_sources(recorded: dict[str, Any] | None, current: dict[str, str | No
     def differs(key: str) -> bool:
         now = current.get(key)
         if recorded.get(key) == now:
+            return False
+        if key == "settings" and now and recorded.get(key) == _WHOLE_SETTINGS.get(now):
             return False
         return not (key == "floorPlan" and now and recorded.get(key) == _WHOLE_PLAN.get(now))
 
@@ -338,13 +353,26 @@ def check_problems(model: dict[str, Any], design_report: dict[str, Any] | None) 
                 "not met."
             )
     if design_report:
-        members = [e for e in design_report.get("elements") or [] if isinstance(e, dict)]
-        failed = [str(e.get("id")) for e in members if e.get("ok") is False]
+        # Counts of R3 (re-walk 3): the members as the design summary counts them
+        # (check.design_counts: diaphragms apart, each member once), "158 of 202", not of every
+        # element row with the diaphragms (206).
+        elements = [e for e in design_report.get("elements") or [] if isinstance(e, dict)]
+        members = [e for e in elements if e.get("kind") != "diaphragm"]
+        failed = list(dict.fromkeys(str(e.get("id")) for e in members if e.get("ok") is False))
+        counted = ((design_report.get("summary") or {}).get("counts") or {}).get("members") or {}
+        total = counted.get("total") if isinstance(counted.get("total"), int) else len(members)
         if failed:
             lines.append(
-                f"Design checks: {len(failed)} of {len(members)} members fail ("
+                f"Design checks: {counted.get('failed', len(failed))} of {total} members fail ("
                 f"{', '.join(failed)}): the sheets show the bars entered in 04 Objects."
             )
+        failed_d = [
+            str(e.get("id"))
+            for e in elements
+            if e.get("kind") == "diaphragm" and e.get("ok") is False
+        ]
+        if failed_d:
+            lines.append(f"Design checks: diaphragm(s) {', '.join(failed_d)} fail.")
         joints = ((design_report.get("summary") or {}).get("joints") or {}).get("failed")
         if joints:
             lines.append(f"Design checks: {joints} beam-column joint(s) fail.")
@@ -464,7 +492,10 @@ def generate(
         _RUNNING[key] = {"step": "", "index": 0, "count": len(STEPS), "message": "",
                          "started": time.time()}  # fmt: skip
     try:
-        return _generate(root, sheets, size, design_report, required, use_design, progress, issuing)
+        with recording_tables() as read:
+            return _generate(
+                root, sheets, size, design_report, required, use_design, progress, issuing, read
+            )
     finally:
         with _GUARD:
             _RUNNING.pop(key, None)
@@ -479,7 +510,9 @@ def _generate(
     use_design: bool,
     report_progress: Progress | None,
     issuing: dict[str, Any] | None = None,
+    read: set[str] | None = None,
 ) -> dict[str, Any]:
+    """:func:`generate`; ``read``: the code pack tables read so far (recording_tables)."""
     from saengine.drawings import bbs
     from saengine.drawings.detailing import detailing_model
     from saengine.drawings.sheets import DrawingSettings, build_sheets, drawing_set, write_drawings
@@ -691,6 +724,11 @@ def _generate(
         if found:
             conflicts.append(f"{sheet.number}: {len(found)} label(s) could not be placed clear")
     generated = datetime.now(UTC).isoformat(timespec="seconds")
+    # R3: the settings stamped (as read at the start) with the overrides of the code tables
+    # the drawings and the design checks they show read only.
+    tables = _drawn_tables(read, design_report)
+    if tables is not None and settings_text is not None:
+        stamps["settings"] = code_settings_stamp(settings_text, tables)
     # The members that fail their design checks, flagged on the sheets that detail them.
     failing_ids = {
         str(e.get("id"))
@@ -754,6 +792,7 @@ def _generate(
         "size": sheet_size,
         "settings": settings,
         "source": stamps,
+        **({"codeTables": sorted(tables)} if tables is not None else {}),
         # the office layer names the sheets were written with (named back on the next run)
         "layerNames": _layer_names(all_sheets),
         "sheets": sheet_rows,
@@ -791,6 +830,23 @@ def _generate(
 # ─────────────────────────────────── listing ───────────────────────────────────
 
 
+def _drawn_tables(
+    read: set[str] | None, design_report: dict[str, Any] | None
+) -> frozenset[str] | None:
+    """The code pack tables a set was drawn with: those read while drawing and those of the
+    design checks it shows (their summary's ``codeTables``); None when unknown (a design
+    report that does not record them: every override then counts)."""
+    if read is None:
+        return None
+    tables = set(read)
+    if design_report:
+        recorded = (design_report.get("summary") or {}).get("codeTables")
+        if not isinstance(recorded, list):
+            return None
+        tables.update(str(t) for t in recorded)
+    return frozenset(tables)
+
+
 def _time_ms(text: Any) -> int | None:
     try:
         return int(datetime.fromisoformat(str(text)).timestamp() * 1000)
@@ -808,7 +864,10 @@ def _answer(root: Path, record: dict[str, Any]) -> dict[str, Any]:
         full = folder / str(path)
         return str(full) if full.exists() else None
 
-    current = input_stamps(root)
+    tables = record.get("codeTables")
+    current = input_stamps(
+        root, frozenset(str(t) for t in tables) if isinstance(tables, list) else None
+    )
     sheets = []
     changed: list[str] = []
     missing = []

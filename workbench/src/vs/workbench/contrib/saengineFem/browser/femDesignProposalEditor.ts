@@ -41,7 +41,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { femObjectsStamp } from '../../../services/saengineProject/common/partSources.js';
-import { DESIGN_APPLY_COMMAND, DESIGN_CANCEL_PROPOSAL_COMMAND, DESIGN_PROPOSAL_COMMAND,designArguments, IFemDesignReport, runDesign, writeDesignSummary } from './femDesign.js';
+import { DESIGN_ANALYSIS_CHANGED_COMMAND, DESIGN_APPLY_COMMAND, DESIGN_CANCEL_PROPOSAL_COMMAND, DESIGN_PROPOSAL_COMMAND,designArguments, IFemDesignReport, runDesign, writeDesignSummary } from './femDesign.js';
 import { HiddenPageMemo, countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, describeWaitStep, DesignProposalMode, IDesignWaitStep, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
@@ -462,8 +462,22 @@ export class FemDesignProposalEditor extends EditorPane {
 			// Kept even if the engineer stops waiting from here on: the files are edited, Undo stays.
 			// OI-5 / R2-10 of the re-walks: bars alone leave the analysis current (femObjectsStamp);
 			// a steel section or a member moved to a new type does not, and the page says so.
-			const analysisChanged = (edits.objects !== undefined && femObjectsStamp(edits.objects) !== femObjectsStamp(current.objectsText))
+			let analysisChanged = (edits.objects !== undefined && femObjectsStamp(edits.objects) !== femObjectsStamp(current.objectsText))
 				|| edits.bim !== undefined || edits.floorPlan !== undefined;
+			if (analysisChanged && edits.floorPlan === undefined && !unsaved.length) {
+				// R3-3: told by the stamp Run All keeps the results by (the analysis model derived
+				// from the edited files), not by the files' text: the banner said "out of date"
+				// where the next Run All found the results current.
+				const bimText = edits.bim ?? current.bimText;
+				const told = await this.commandService.executeCommand<boolean | null>(DESIGN_ANALYSIS_CHANGED_COMMAND, {
+					projectRoot: dirname(dirname(model)).fsPath,
+					objectsText: edits.objects ?? current.objectsText,
+					...(bimText !== undefined ? { bimText } : {}),
+				}).catch(() => null);
+				if (typeof told === 'boolean') {
+					analysisChanged = told;
+				}
+			}
 			const applied: IAppliedState = { before, after: undefined, changes, edited, undone: false, rowsShown: true, mode: this.model.mode, analysisChanged };
 			// The other way of sharing types was proposed from the bars before: asked for again.
 			this.model.keepOnly(this.model.mode);

@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Severity } from '../../../../../platform/notification/common/notification.js';
-import { femCodeTables, femSettingsStamp, femSourceCurrent, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
+import { codeSettingsStamp, femCodeTables, femSettingsStamp, femSourceCurrent, sourceStamp } from '../../../../services/saengineProject/common/partSources.js';
+import { sourcesUnchanged } from '../../../../services/saengineProject/common/partStatus.js';
 import { analysisInputsStamp, bimMembers, femModelStamp, formatDuration, IStepOutcome, outcomeLine, RUN_ALL_STEPS, runSeverity } from '../../electron-browser/runAll.js';
 
 function outcome(id: IStepOutcome['id'], status: IStepOutcome['status'], failing?: number): IStepOutcome {
@@ -91,5 +92,18 @@ suite('SAEngine - Run All', () => {
 		assert.deepStrictEqual([...femCodeTables(new Map([['codeTables', 'seismic,wind']]))!], ['seismic', 'wind']);
 		assert.deepStrictEqual([...femCodeTables(new Map([['codeTables', '-']]))!], []);
 		assert.strictEqual(femCodeTables(new Map()), undefined);
+	});
+
+	test('R3: the downstream parts stamp the settings without the overrides of tables they do not read', () => {
+		const text = '{"schema": "saengine.projectSettings/1", "codeOverrides": {"planning.rampSlope": 0.1, "foundations.x": 1.5}, "project": {"name": "P"}}';
+		// saengine.fem.derive.code_settings_stamp of the same text
+		assert.strictEqual(codeSettingsStamp(text, new Set(['foundations'])), '6583f3f8a593420723c32a26f597999cc658b003');
+		assert.strictEqual(codeSettingsStamp(text, new Set()), '05e628972d7b92564ecd4ba1a94609bf227f3d10');
+		// All its overrides read: the whole text's stamp, as such a part recorded before.
+		assert.strictEqual(codeSettingsStamp(text, new Set(['foundations', 'planning'])), sourceStamp(text));
+		const source = { settings: codeSettingsStamp(text, new Set(['foundations'])), codeTables: 'foundations' };
+		assert.ok(sourcesUnchanged(new Map([['settings', text.replace('0.1', '0.08')]]), source));
+		assert.ok(!sourcesUnchanged(new Map([['settings', text.replace('1.5', '2')]]), source));
+		assert.ok(!sourcesUnchanged(new Map([['settings', text.replace('0.1', '0.08')]]), { settings: sourceStamp(text) }));
 	});
 });

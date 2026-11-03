@@ -287,6 +287,10 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         parts.append(_and(failing) + " fail their design checks")
     if f_failed:
         parts.append(f"{f_failed} of {f_total} foundations or tie beams fail")
+    # R3 counts: the substructure's other elements (retaining walls, ...) named apart.
+    others = [str(i) for i in (fdn.get("otherFailed") or [])] if fdn.get("available") else []
+    if others:
+        parts.append(f"substructure element(s) {_and(others)} fail")
     # The members left without reinforcement: never "pass" while there are any.
     not_designed = (design.get("notDesigned") or {}) if design.get("available") else {}
     missing = f"{counted(not_designed)} are not designed (no reinforcement)"
@@ -4002,9 +4006,30 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
         [str(t.id) for t in substructure.tieBeams],
         report,
     )
-    failed = max(counts["failed"], int(summary.get("failed", 0) or 0))
+    # Counts of R3 (re-walk 3): the foundations and tie beams only, as everywhere else ("5 of
+    # 15"); the substructure's other elements that fail (retaining walls, ground slabs,
+    # excavations, ...) are named apart, never added to that count.
+    failed = counts["failed"]
+    own = {str(f.id) for f in substructure.foundations} | {str(t.id) for t in substructure.tieBeams}
+    others = [
+        str(r.get("id"))
+        for key in (
+            "retainingWalls",
+            "groundSlabs",
+            "excavations",
+            "temporaryWorks",
+            "machineFoundations",
+        )
+        for r in report.get(key, []) or []
+        if isinstance(r, dict) and r.get("ok") is False and str(r.get("id")) not in own
+    ]
     if failed:
         parts.warnings.append(f"{failed} foundation(s) or tie beam(s) fail their design checks.")
+    if others:
+        parts.warnings.append(
+            f"{len(others)} other substructure element(s) fail their design checks: "
+            f"{', '.join(others)}."
+        )
     if not summary.get("analysed", True):
         parts.warnings.append("The foundations are not designed: there are no analysis results.")
     max_util = summary.get("maxUtilisation")
@@ -4018,12 +4043,14 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             ],
             ["Passed", str(counts["passed"])],
             ["Failed", str(failed)],
+            *([["Other substructure elements failing", ", ".join(others)]] if others else []),
             ["Without a bearing check (no qa)", str(len(counts["bearingUnchecked"]))],
             ["Not designed", str(counts["notChecked"])],
             ["Largest utilisation", _utilisation_text(max_util)],
             ["Governing", str(governing) if governing else "–"],
         ],
         "failed": failed,
+        "otherFailed": others,
         "checked": counts["checked"],
         "total": counts["total"],
         "bearingUnchecked": len(counts["bearingUnchecked"]),

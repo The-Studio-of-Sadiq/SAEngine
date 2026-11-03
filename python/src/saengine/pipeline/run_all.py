@@ -629,7 +629,16 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
         # names): the results stand. The manifest is written again, unchanged, so the part list
         # sees results as new as the model (design_mode stamps it by content).
         manifest = results_folder(model) / "manifest.json"
+        # R3-4: design checks made on these results stay as new as them (the part list said
+        # "analysed: run the design checks" beside a current design).
+        summary = results_folder(model) / S.DESIGN_SUMMARY_FILE
+        try:
+            kept_design = summary.stat().st_mtime >= manifest.stat().st_mtime
+        except OSError:
+            kept_design = False
         manifest.write_bytes(manifest.read_bytes())
+        if kept_design:
+            summary.write_bytes(summary.read_bytes())
         step.status = "skipped"
         step.message = "The analysis results are current: the analysis model did not change."
         step.outputs.append(_relative(project, results_folder(model)))

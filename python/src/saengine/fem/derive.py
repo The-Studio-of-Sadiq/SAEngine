@@ -462,6 +462,34 @@ def settings_stamp(
     return stamp(js_json(kept))
 
 
+def code_settings_stamp(text: str, code_tables: frozenset[str] | set[str]) -> str:
+    """R3 staleness: the stamp a part downstream of the analysis (9 Substructure, 7 MEP, the
+    drawings) records for the project settings: of the whole settings, but with the project's
+    overrides (``codeOverrides``) of the code pack tables it read (``code_tables``) only, so a
+    ramp slope its checks never read leaves it current. The workbench computes the same
+    (``codeSettingsStamp`` in partSources.ts); a text that is not a JSON object is stamped whole,
+    and one without overrides of other tables gets its whole text's stamp (as recorded before)."""
+    import json
+
+    from saengine.codes.overrides import restricted
+
+    try:
+        document = json.loads(text)
+    except ValueError:
+        return stamp(text)
+    if not isinstance(document, dict) or not isinstance(document.get("codeOverrides"), dict):
+        return stamp(text)
+    overrides = restricted(document["codeOverrides"], code_tables)
+    if overrides == document["codeOverrides"]:
+        return stamp(text)
+    kept = dict(document)
+    if overrides:
+        kept["codeOverrides"] = overrides
+    else:
+        del kept["codeOverrides"]
+    return stamp(js_json(kept))
+
+
 def objects_stamp(text: str) -> str:
     """The stamp an analysis model records for the object types (key ``objects``): of the types
     without :data:`OBJECT_DESIGN_KEYS` (N-X9). The workbench computes the same

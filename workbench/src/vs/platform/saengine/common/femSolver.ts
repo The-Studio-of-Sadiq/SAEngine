@@ -680,6 +680,9 @@ export interface IFemSolverService {
  */
 export type EngineMethod =
 	| 'design/required' | 'design/proposal' | 'design/applyProposal'
+	// `design/analysisChanged` `{projectRoot, objectsText, bimText?}` -> `{changed: boolean | null}`:
+	// whether Run All would run the analysis again with those files (R3-3).
+	| 'design/analysisChanged'
 	// `saengine/cancelJobs` `{methods}` -> `{cancelled}`: the engine stops its running requests
 	// of those methods at their next check (Stop Waiting on Design Reinforcement).
 	| 'saengine/cancelJobs'

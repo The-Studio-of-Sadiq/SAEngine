@@ -703,7 +703,10 @@ export class DrawingsSection extends Disposable {
 		if (!root || !set || this.busy || this.blocked || !CommandsRegistry.getCommand(DRAWINGS_ISSUE_COMMAND)) {
 			return;
 		}
-		const pending = set.register?.pending ?? '0';
+		// Asked again now (R3: a revision just added in Project Settings is the one offered; the
+		// set listed before it was may be older), else the one listed.
+		const fresh = await Promise.resolve(this.commandService.executeCommand(DRAWINGS_LIST_COMMAND, { projectRoot: root.fsPath })).then(value => readDrawingSet(value, root), () => undefined);
+		const pending = fresh?.register?.pending ?? set.register?.pending ?? '0';
 		const code = await this.quickInputService.input({
 			title: localize('drawings.issueStep1of4', "Issue Drawings (1 of 4): revision"),
 			value: pending,
