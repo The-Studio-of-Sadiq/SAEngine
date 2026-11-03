@@ -1563,7 +1563,7 @@ def _derive_fem(
     # numbers keeps one share), the project's live share, and how the partition allowance
     # counts (the pack's seismic.partitionWeight, or the project's massSource.partitions).
     seismic_table = code_context.table("seismic")
-    weight_rule = seismic_weight_rule(settings)
+    weight_rule = seismic_weight_rule(settings, table=seismic_table)
     live_share = weight_rule.live_share
     heavy_share = weight_rule.heavy_share if weight_rule.heavy_share is not None else live_share
     heavy_limit_value = weight_rule.heavy_limit

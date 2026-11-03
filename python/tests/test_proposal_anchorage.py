@@ -50,8 +50,9 @@ def sample() -> SimpleNamespace:
 def test_rooms_are_the_drawings_supports_and_foundations(sample) -> None:
     c1 = sample.rooms["columns"]["C1"]
     assert (c1["foundation"], c1["thickness"], c1["cover"], c1["mesh"]) == ("F1", 500, 75, 12)
-    # S2's X edge rests on the 200 mm wall W1 (no slab beyond it); its Y edges on beams.
-    assert sample.rooms["slabs"]["S2"]["X"] == [(200.0, math.inf, "W1")]
+    # S2's X edge rests on the 250 mm wall W1 (no slab beyond it; sample W1 250 mm, owner
+    # 2026-11-03, was 200 mm); its Y edges on beams.
+    assert sample.rooms["slabs"]["S2"]["X"] == [(250.0, math.inf, "W1")]
 
 
 def test_slab_top_bars_are_limited_to_hooks_that_develop(sample) -> None:
@@ -60,16 +61,17 @@ def test_slab_top_bars_are_limited_to_hooks_that_develop(sample) -> None:
     designer = P.SlabDesigner(slab, 24.1, 420.0, 200000.0, opts)
     supports = {d: [(*f, "S2") for f in found] for d, found in sample.rooms["slabs"]["S2"].items()}
     designer.limit_top_bars(supports)
-    room = 200 - 20  # W1 less the slab's cover
+    room = 250 - 20  # W1 less the slab's cover
     assert hook_development(10, 420, 24.1).value == pytest.approx(205.3, abs=0.1)
-    assert room < 205.3
+    assert hook_development(10, 420, 24.1).value <= room < hook_development(12, 420, 24.1).value
     assert min(opts.slab_diameters) == 10
-    # No slab bar's hook develops in W1: said, with the width it would need.
-    assert "topX" not in designer.top_sizes
+    # In the 250 mm wall W1 (sample W1 250 mm, owner 2026-11-03) the hooks of Ø10 develop, not
+    # those of Ø12 (246 mm): the top X bars keep to Ø10, and the note says why. At 200 mm (180 mm
+    # of room) no slab bar's hook developed there.
+    assert designer.top_sizes["topX"] == (10.0,)
     assert designer.anchorage_notes[0] == (
-        "topX bars hooked into the edge support W1 of S2: even Ø10 needs ldh 205 mm, 180 mm "
-        "there (its width less the cover): a wider support (at least 225 mm), or anchor the "
-        "bars beyond it"
+        "topX bars at most Ø10: the hooks of Ø12, Ø16 do not develop in the edge supports (W1 "
+        "of S2)"
     )
     # The 300 mm edge beams hold Ø10 and Ø12 hooks (Ø16: 329 mm > 280 mm): the top Y bars keep
     # to those.

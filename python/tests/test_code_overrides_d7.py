@@ -90,8 +90,8 @@ def test_default_pack_has_every_value_and_no_overrides(default_model) -> None:
     assert code_context.pack_for(_settings()) is pack
     assert pack.with_overrides({}) is pack
     # The derived model is the D1 pin (test_decoupling_d1, re-pinned there).
-    assert default_model.summary["weight_kN"] == pytest.approx(1349.7034382400013, rel=1e-12)
-    assert default_model.summary["base_shear_kN"] == pytest.approx(75.92081840100009, rel=1e-12)
+    assert default_model.summary["weight_kN"] == pytest.approx(1357.2034382399995, rel=1e-12)
+    assert default_model.summary["base_shear_kN"] == pytest.approx(76.34269340099998, rel=1e-12)
 
 
 def test_empty_overrides_are_not_written_to_the_settings_file() -> None:

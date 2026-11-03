@@ -2108,11 +2108,14 @@ def partition_weight_basis(settings: Any = None, pack: CodePack | None = None) -
     )
 
 
-def seismic_weight_rule(settings: Any = None, pack: CodePack | None = None) -> SeismicWeightRule:
+def seismic_weight_rule(
+    settings: Any = None, pack: CodePack | None = None, table: Any = None
+) -> SeismicWeightRule:
     """The shares of the loads in W (:class:`SeismicWeightRule`) for ``settings`` under ``pack``
-    (default the pack in force). The heavy-live rule holds once the pack gives its share."""
+    (default the pack in force; ``table``: its seismic table when already read). The
+    heavy-live rule holds once the pack gives its share."""
     pack = pack or code_context.current()
-    table = pack.table("seismic")
+    table = table if table is not None else pack.table("seismic")
     heavy_share = getattr(table, "heavyLiveShare", None)
     heavy_limit = getattr(table, "heavyLiveLimit", None) if heavy_share is not None else None
     user = _field(_mass_source(settings), "liveShare", None)

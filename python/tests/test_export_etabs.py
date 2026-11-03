@@ -279,10 +279,17 @@ def test_tiny_model_writes_each_block_as_etabs_reads_it() -> None:
     # The brace from the base up to Level 1.
     assert any(x.strip().startswith('LINE  "BR1"  BRACE') and x.endswith("1") for x in lines)
     # Area loads: floor finish as SD, live as L below the roof, Lr on it; the partition
-    # allowance in SD or L as the code pack says (L in the default pack).
+    # allowance in SD or L as the code pack says (L in the default pack), in a pattern PART of
+    # its own as it counts in the seismic weight in full (owner decision 2026-11-03: partitions
+    # in full in W, Sec 2.5.7.3), in the mass source x1 and combined as L.
     floor, roof = settings_loads()
+    settings = default_project_settings("Tiny")
+    partitions = {a.id: a for a in settings.areaLoads}[settings.floorLoad].partitions
     assert f'LC "SD"  FVAL {floor[0]:g}' in text
-    assert f'LC "L"  FVAL {floor[1]:g}' in text
+    assert f'LC "L"  FVAL {floor[1] - partitions:g}' in text
+    assert f'LC "PART"  FVAL {partitions:g}' in text
+    assert 'MASSSOURCELOAD  "MsSrc1"  "PART"  1' in text
+    assert 'MASSSOURCELOAD  "MsSrc1"  "L"  0.25' in text
     assert f'LC "Lr"  FVAL {roof[1]:g}' in text
     # The brick wall on beam B3 of Level 1, its weight per metre.
     wall = 1900 * 9.80665 * 0.125 * 3.0 / 1000  # kN/m
@@ -521,7 +528,11 @@ def test_sample_round_trip(tmp_path: Path) -> None:
     # (O2) in its slab, and the slab live load is that of the net slab, as exported.
     report = imported.report
     assert not any(v for v in report.not_carried.values())
-    assert not any("mass source" in a["what"] for a in report.to_dict()["approximated"])
+    # The one mass-source difference: the partition pattern PART (in full in SAEngine's W,
+    # owner decision 2026-11-03, Sec 2.5.7.3) comes back as live load L, at the live share.
+    mass = [a for a in report.to_dict()["approximated"] if "mass source" in a["what"]]
+    words = json.dumps(mass, ensure_ascii=False)
+    assert len(mass) == 1 and "partition pattern PART × 1" in words and "L ×" not in words
     assert {o.host for o in imported.bim.additions.wallOpenings} == {"W1-Level-1"}
     assert sorted(o.width for o in imported.bim.additions.wallOpenings) == [900.0, 1000.0]
     assert "O2-Level-1" in {o.id for o in imported.bim.additions.slabOpenings}

@@ -266,8 +266,6 @@ def test_the_importer_names_a_partition_pattern_in_the_mass_source(tmp_path) -> 
     path = tmp_path / "w.e2k"
     path.write_text(text, encoding="utf-8")
     project = read_e2k(path)
-    found = [
-        a for a in project.report.to_dict()["approximated"] if "mass source" in a["what"]
-    ]
+    found = [a for a in project.report.to_dict()["approximated"] if "mass source" in a["what"]]
     assert found, "the partition pattern's full mass share is reported"
     assert any("partition pattern PART × 1" in str(a) for a in found)
