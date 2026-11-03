@@ -113,7 +113,7 @@ UNITS = "SI (m, N, kg, s, Pa)"
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
 #: B16: the rain case R on the roof (Site → Rain) and the flood and surge cases FaX, FaY (Site
 #: → Flood and surge, :mod:`saengine.fem.flood`); after the crane cases, only when loaded.
-SPECIAL_CASES = ("R", "FaX", "FaY")
+SPECIAL_CASES = ("R", "FaX", "FaY", "S")  # C1: the roof snow S (Site → Snow, fem.snow)
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -1832,6 +1832,23 @@ def _derive_fem(
         rain_kpa, helipad = None, None
         b.notes.append(f"rain and helipad loads: not applied ({error})")
     helipad_slabs = set(getattr(getattr(settings.site, "helipad", None), "slabs", None) or [])
+    # C1: the roof snow load S (saengine.fem.snow) of a pack that covers snow.
+    snow_kpa, snow_info = None, None
+    if getattr(settings.site, "snow", None) is not None:
+        from saengine.fem import snow as fsnow
+
+        try:
+            snow_info = fsnow.roof_snow(settings.site.snow, settings.occupancy.category)
+            snow_kpa = snow_info.S if snow_info is not None else None
+        except (fsnow.SnowNotCovered, KeyError) as error:
+            b.notes.append(f"snow: not applied ({error})")
+    if snow_kpa and snow_info is not None:
+        b.notes.append(
+            f"snow S = {snow_kpa:.2f} kN/m² on the roof slabs (pg = {snow_info.pg:g}, Ce = "
+            f"{snow_info.Ce:g}, Ct = {snow_info.Ct:g}, Is = {snow_info.Is:g}, Cs = "
+            f"{snow_info.Cs:.2f}; {code_context.cite('snow', 'roof') or code_context.code_name()})"
+        )
+        b.notes.extend(f"snow: {n}" for n in snow_info.notes)
     if rain_kpa:
         b.notes.append(
             f"rain R = {rain_kpa:.2f} kN/m² on the roof slabs (primary drains blocked, water "
@@ -1904,6 +1921,8 @@ def _derive_fem(
         add_partitions(pressures, partitions * 1e3)
         if roof and rain_kpa:
             pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
+        if roof and snow_kpa:
+            pressures["S"] = snow_kpa * 1e3  # C1: the roof snow load
 
         def room_pressures(
             room: Any,
@@ -1923,7 +1942,7 @@ def _derive_fem(
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
             for case, pressure in pressures.items():
-                if case not in ("D", "R") and rooms_here:
+                if case not in ("D", "R", "S") and rooms_here:
                     continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
@@ -2384,7 +2403,8 @@ def _derive_fem(
         forces_of: dict[str, list[float]] = {}
         for axis, case in ((0, "EX"), (1, "EY")):
             period = periods[case[1]]
-            sa = fl.design_acceleration(
+            # The pack's equivalent static coefficient (C1: Cs with its bounds from mapped values).
+            sa = fl.elf_coefficient(
                 period,
                 settings.site.siteClass,
                 values["Z"],
@@ -2447,7 +2467,7 @@ def _derive_fem(
             {
                 "period_s": approximate,
                 "Cs": fl.normalized_spectrum(
-                    approximate, settings.site.siteClass, settings.seismic.damping
+                    approximate, settings.site.siteClass, settings.seismic.damping, values["Z"]
                 ),
                 "Sa_g": info["EX"]["Sa_g"],
                 "base_shear_kN": info["EX"]["base_shear_kN"],
@@ -2457,6 +2477,17 @@ def _derive_fem(
         )
         if eccentric:
             summary["accidentalTorsion"] = info["levels"]
+        # C1: a pack whose spectrum comes from the site's mapped values names them.
+        from saengine.fem import spectral_hazard as sh
+
+        if isinstance(values["Z"], sh.SpectralHazard):
+            # Sa_g is the pack's Cs (V = Cs W); the zone method's normalised Cs has no meaning.
+            summary.pop("Cs", None)
+            summary["spectral"] = sh.describe(values["Z"])
+            b.notes.append(
+                f"seismic: the site's mapped spectral values {summary['spectral']}; Cs = "
+                f"{info['EX']['Sa_g']:.4f} in X ({code_context.cite('seismic', 'elf')})"
+            )
         # ── B2: the site-specific study warning (S1, S2 flagged by the soil report) and the
         # height limit of the systems in the Seismic Design Category ──
         from saengine.fem.seismic_design import height_limit_note, seismic_design_category, zone_of
@@ -2524,6 +2555,8 @@ def _derive_fem(
         )
     # ── B16: rain, helipad, gas explosions and air raid shelters (summary and report) ──
     special_loads, special_notes = _special_loads_summary(settings, rain_kpa, helipad)
+    if snow_info is not None:
+        special_loads["snow"] = snow_info.as_dict()
     if special_loads:
         summary["specialLoads"] = special_loads
     b.notes.extend(special_notes)
@@ -3248,7 +3281,10 @@ def _derive_fem(
             {"X": approximate, "Y": approximate_y},
             seismic_table,
             seismic_loads,
-            lambda t: fl.normalized_spectrum(t, settings.site.siteClass, settings.seismic.damping),
+            lambda t: fl.normalized_spectrum(
+                t, settings.site.siteClass, settings.seismic.damping, values["Z"]
+            ),
+            upper_factor=fl.period_upper_factor(values["Z"]),
         )
     # ── the gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2) ──
     if summary.get("wind"):
@@ -3301,6 +3337,7 @@ def _analysis_period(
     seismic_table: Any,
     seismic_loads: Any,
     normalized: Any,
+    upper_factor: float | None | str = "pack",
 ) -> None:
     """Replace the static earthquake loads of ``project`` (EX, EY and the eccentric cases) by
     those of the modal period in each direction, not below the approximate period Ta and
@@ -3321,7 +3358,12 @@ def _analysis_period(
             f"Ta = {min(ta.values()):.3f} s is used"
         )
         return
-    upper = getattr(seismic_table, "periodUpperFactor", None)
+    # C1: ``upper_factor`` the site's Cu where the pack gives it by SD1, else the pack's factor.
+    upper = (
+        getattr(seismic_table, "periodUpperFactor", None)
+        if upper_factor == "pack"
+        else upper_factor
+    )
     factor = math.inf if upper is None else float(upper)
     if upper is None:
         notes.append(

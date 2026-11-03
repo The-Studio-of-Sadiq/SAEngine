@@ -228,6 +228,11 @@ def zone_of(z: float | None) -> int | None:
     the code pack in force)."""
     if not z:
         return None
+    # C1: the site's mapped values give the band of the category table instead of a zone.
+    from saengine.fem.spectral_hazard import SpectralHazard, band
+
+    if isinstance(z, SpectralHazard):
+        return band(z)
     zones = code_context.table("zoneCoefficients").zones
     return min(zones, key=lambda k: abs(zones[k] - z))
 

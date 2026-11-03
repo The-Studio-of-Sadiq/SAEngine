@@ -1,0 +1,332 @@
+{
+  "$defs": {
+    "SnowDensity": {
+      "additionalProperties": false,
+      "description": "Snow density γ = ``factor``·pg + ``constant`` ≤ ``maximum`` [kN/m³], pg in kN/m².",
+      "properties": {
+        "factor": {
+          "minimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "constant": {
+          "minimum": 0,
+          "title": "Constant",
+          "type": "number"
+        },
+        "maximum": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "constant",
+        "maximum"
+      ],
+      "title": "SnowDensity",
+      "type": "object"
+    },
+    "SnowDriftRule": {
+      "additionalProperties": false,
+      "description": "The drift at a roof step (method id, :func:`saengine.fem.snow.drift`).\n\n``windParameter``: hd = coefficient·(pg^a · lu^b · W2^c / γ)^power in the units of the\nmethod's equation (``units`` imperial: ft, psf, pcf); the windward drift is\n``windwardShare`` × that of the lower roof's length; the drift's width w = ``widthFactor``\nhd, where hd > hc: hd = hc and w = widthFactor·hd²/hc ≤ ``widthMax``·hc. ``minLength``:\nlu taken at least this [m]; ``windParameter``: W2 when the project gives none.",
+      "properties": {
+        "method": {
+          "const": "windParameter",
+          "default": "windParameter",
+          "title": "Method",
+          "type": "string"
+        },
+        "units": {
+          "default": "imperial",
+          "enum": [
+            "imperial",
+            "si"
+          ],
+          "title": "Units",
+          "type": "string"
+        },
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "groundExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Groundexponent",
+          "type": "number"
+        },
+        "lengthExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthexponent",
+          "type": "number"
+        },
+        "windExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Windexponent",
+          "type": "number"
+        },
+        "power": {
+          "exclusiveMinimum": 0,
+          "title": "Power",
+          "type": "number"
+        },
+        "windwardShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Windwardshare",
+          "type": "number"
+        },
+        "widthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Widthfactor",
+          "type": "number"
+        },
+        "widthMax": {
+          "exclusiveMinimum": 0,
+          "title": "Widthmax",
+          "type": "number"
+        },
+        "minLength": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Minlength",
+          "type": "number"
+        },
+        "windParameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Windparameter"
+        }
+      },
+      "required": [
+        "coefficient",
+        "groundExponent",
+        "lengthExponent",
+        "windExponent",
+        "power",
+        "windwardShare",
+        "widthFactor",
+        "widthMax"
+      ],
+      "title": "SnowDriftRule",
+      "type": "object"
+    },
+    "SnowMinimum": {
+      "additionalProperties": false,
+      "description": "The minimum snow load of low-slope roofs (slope below ``slopeMax`` [°]): ``share`` ×\npg (× Is) where pg ≤ ``groundLimit``, else ``value`` (× Is) [kN/m²].",
+      "properties": {
+        "slopeMax": {
+          "exclusiveMinimum": 0,
+          "title": "Slopemax",
+          "type": "number"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "groundLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Groundlimit",
+          "type": "number"
+        },
+        "value": {
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "slopeMax",
+        "share",
+        "groundLimit",
+        "value"
+      ],
+      "title": "SnowMinimum",
+      "type": "object"
+    },
+    "SnowSlopeRow": {
+      "additionalProperties": false,
+      "description": "The roof slope factor Cs of roofs whose thermal factor is at most ``ctMax``: 1 up to\n``slipperyStart`` [°] (unobstructed slippery roofs) or ``otherStart`` (other roofs), then\nlinear to 0 at ``end``.",
+      "properties": {
+        "ctMax": {
+          "exclusiveMinimum": 0,
+          "title": "Ctmax",
+          "type": "number"
+        },
+        "slipperyStart": {
+          "minimum": 0,
+          "title": "Slipperystart",
+          "type": "number"
+        },
+        "otherStart": {
+          "minimum": 0,
+          "title": "Otherstart",
+          "type": "number"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ctMax",
+        "slipperyStart",
+        "otherStart",
+        "end"
+      ],
+      "title": "SnowSlopeRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Roof snow loads from the ground snow load (:mod:`saengine.fem.snow`): the flat roof load\npf = ``flatFactor``·Ce·Ct·Is·pg, the sloped roof load ps = Cs·pf, the minimum load of\nlow-slope roofs, the density and the drift at roof steps. A pack without it does not\ncover snow (no case S).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "flatFactor": {
+      "description": "pf = flatFactor·Ce·Ct·Is·pg.",
+      "exclusiveMinimum": 0,
+      "title": "Flatfactor",
+      "type": "number"
+    },
+    "exposure": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "type": "object"
+      },
+      "description": "Ce by terrain category, then by roof exposure (fullyExposed, partiallyExposed, sheltered).",
+      "title": "Exposure",
+      "type": "object"
+    },
+    "thermal": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Ct by thermal condition.",
+      "title": "Thermal",
+      "type": "object"
+    },
+    "importance": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Is by occupancy (risk) category; empty: none (1.0, e.g. a code whose ground snow maps are by risk category).",
+      "title": "Importance",
+      "type": "object"
+    },
+    "slope": {
+      "items": {
+        "$ref": "#/$defs/SnowSlopeRow"
+      },
+      "title": "Slope",
+      "type": "array"
+    },
+    "minimum": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SnowMinimum"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "density": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SnowDensity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "drift": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SnowDriftRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "seismicShare": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Share of the flat roof snow load in the seismic weight...",
+      "title": "Seismicshare"
+    },
+    "seismicThreshold": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "... where pf is above this [kN/m²].",
+      "title": "Seismicthreshold"
+    }
+  },
+  "required": [
+    "flatFactor",
+    "exposure",
+    "thermal"
+  ],
+  "title": "SnowTable",
+  "type": "object",
+  "$id": "saengine.codePack.snow/1"
+}

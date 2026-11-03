@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../schemas/snow.schema.json",
+  "$sources": [
+    "ASCE 7-22 Chapter 7 (snow loads): Sec 7.2 ground snow loads by risk category, 7.3 flat roof snow load, 7.4 sloped roofs, 7.7-7.8 drifts"
+  ],
+  "source": "ASCE 7-22 Chapter 7",
+  "flatFactor": 0.7,
+  "exposure": {
+    "B": {"fullyExposed": 0.9, "partiallyExposed": 1.0, "sheltered": 1.2},
+    "C": {"fullyExposed": 0.9, "partiallyExposed": 1.0, "sheltered": 1.1},
+    "D": {"fullyExposed": 0.8, "partiallyExposed": 0.9, "sheltered": 1.0},
+    "aboveTreeline": {"fullyExposed": 0.7, "partiallyExposed": 0.8},
+    "alaskaTreeless": {"fullyExposed": 0.7, "partiallyExposed": 0.8}
+  },
+  "thermal": {
+    "heated": 1.0,
+    "justAboveFreezing": 1.1,
+    "unheated": 1.2,
+    "freezer": 1.3,
+    "greenhouse": 0.85
+  },
+  "importance": {},
+  "slope": [
+    {"ctMax": 1.0, "slipperyStart": 5.0, "otherStart": 30.0, "end": 70.0},
+    {"ctMax": 1.1, "slipperyStart": 10.0, "otherStart": 37.5, "end": 70.0},
+    {"ctMax": 99.0, "slipperyStart": 15.0, "otherStart": 45.0, "end": 70.0}
+  ],
+  "minimum": {"slopeMax": 15.0, "share": 1.0, "groundLimit": 0.96, "value": 0.96},
+  "density": {"factor": 0.426, "constant": 2.2, "maximum": 4.7},
+  "drift": {
+    "method": "windParameter",
+    "units": "imperial",
+    "coefficient": 1.5,
+    "groundExponent": 0.74,
+    "lengthExponent": 0.70,
+    "windExponent": 1.7,
+    "power": 0.5,
+    "windwardShare": 0.75,
+    "widthFactor": 4.0,
+    "widthMax": 8.0,
+    "minLength": 6.1
+  },
+  "seismicShare": 0.2,
+  "seismicThreshold": 1.44,
+  "sources": {
+    "flatFactor": "ASCE 7-22 Sec 7.3, Eq 7.3-1: pf = 0.7 Ce Ct pg (pg of the risk category's map, Sec 7.2; no importance factor)",
+    "exposure": "ASCE 7-22 Table 7.3-1, Ce by surface roughness B, C, D and above the tree line / Alaska without trees, and roof exposure",
+    "thermal": "ASCE 7-22 Table 7.3-2, Ct by thermal condition (the categories of the earlier edition; see VERIFY.md)",
+    "slope": "ASCE 7-22 Sec 7.4, Figure 7.4-1: Cs for warm roofs (Ct <= 1.0), cold roofs Ct = 1.1 and Ct >= 1.2",
+    "minimum": "ASCE 7-22 Sec 7.3.3: low-slope roofs (below 15 degrees), pm = pg up to 20 psf (0.96 kN/m²), 20 psf above",
+    "density": "ASCE 7-22 Sec 7.7.1, Eq 7.7-1: gamma = 0.426 pg + 2.2 <= 4.7 kN/m³",
+    "drift": "ASCE 7-22 Sec 7.8, Eq 7.8-1 (leeward drift with the winter wind parameter W2), windward drift 3/4 of it with the lower roof's length, w = 4 hd, hd <= hc with w = 4 hd²/hc <= 8 hc; lu at least 20 ft",
+    "seismicShare": "ASCE 7-22 Sec 12.7.2(4): 20 % of the uniform design snow load where the flat roof snow load exceeds 30 psf (1.44 kN/m²)"
+  },
+  "clauses": {
+    "roof": "Sec 7.3-7.4, Eqs 7.3-1 and 7.4-1",
+    "minimum": "Sec 7.3.3",
+    "drift": "Sec 7.7-7.8"
+  }
+}

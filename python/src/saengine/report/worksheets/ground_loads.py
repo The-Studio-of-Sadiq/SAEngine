@@ -660,6 +660,15 @@ def _zones() -> list[tuple[str, str]]:
 )
 def _seismic(s: Sheet) -> None:
     table = code_context.table("seismic")
+    from saengine.fem.spectral_hazard import uses_mapped
+
+    if uses_mapped():  # C1: this worksheet's inputs are a zone's; not covered for mapped values
+        s.note(
+            f"{code_context.code_name()} takes the seismic hazard from the site's mapped "
+            "spectral values (SDS, SD1): this worksheet works with seismic zones and does not "
+            "cover it. The analysis model's derivation states Cs, V and the forces per level."
+        )
+        return
     z = s.step(
         "Z",
         code_context.table("zoneCoefficients").zones[int(s["zone"])],

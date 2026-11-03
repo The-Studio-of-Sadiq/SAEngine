@@ -1,0 +1,141 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Sec 2.3.1 (strength design), 2.3.2 and 2.4.2 (flood), 2.3.6 and 2.4.5 (seismic), 2.4.1 (allowable stress design)",
+    "ASCE 7-22 Sec 12.4.2-12.4.4 (seismic load effects, overstrength, cantilevers)",
+    "ASCE 7-22 Appendix C commentary (serviceability)"
+  ],
+  "source": "ASCE 7-22 Sec 2.3.1 and 2.3.6; D includes the superimposed dead load SD; F with the factor of D; H at 1.6 where it adds to the other loads (0 where it counteracts them)",
+  "loadCases": {
+    "D": "Dead (self-weight)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Live",
+    "Lr": "Roof live",
+    "S": "Snow",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Lateral earth and groundwater pressure (basement walls)",
+    "T": "Self-straining (temperature)",
+    "R": "Rain (blocked primary drains)",
+    "Fa": "Flood (hydrodynamic and wave loads, in the direction of the wind)"
+  },
+  "strength": [
+    {"id": "1", "name": "1.4D", "factors": {"D": 1.4, "F": 1.4}, "source": "ASCE 7-22 Sec 2.3.1 combination 1"},
+    {"id": "2", "name": "1.2D + 1.6L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "L": 1.6, "H": 1.6, "Lr": 0.5}, "source": "ASCE 7-22 Sec 2.3.1 combination 2, 1.2D + 1.6L + 0.5(Lr or S or R)"},
+    {"id": "3L", "name": "1.2D + 1.6Lr + 1.0L", "factors": {"D": 1.2, "F": 1.2, "Lr": 1.6, "L": 1.0, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.1 combination 3, 1.2D + 1.6(Lr or S or R) + (L or 0.5W)"},
+    {"id": "3W", "name": "1.2D + 1.6Lr + 0.5W", "factors": {"D": 1.2, "F": 1.2, "Lr": 1.6, "W": 0.5, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.1 combination 3, 1.2D + 1.6(Lr or S or R) + (L or 0.5W)"},
+    {"id": "4", "name": "1.2D + 1.0W + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 1.0, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.1 combination 4, 1.2D + 1.0W + L + 0.5(Lr or S or R)"},
+    {"id": "5", "name": "0.9D + 1.0W", "factors": {"D": 0.9, "W": 1.0, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.1 combination 5", "note": "F left out where it counteracts W (an empty tank): SAEngine practice, on the safe side"},
+    {"id": "6", "name": "1.2D + 1.0E + 1.0L + 0.2S", "factors": {"D": 1.2, "F": 1.2, "E": 1.0, "L": 1.0, "S": 0.2, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.6 combination 6, 1.2D + Ev + Eh + L + 0.2S; Ev = 0.2 SDS D (Sec 12.4.2.2)"},
+    {"id": "7", "name": "0.9D + 1.0E", "factors": {"D": 0.9, "E": 1.0, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.6 combination 7, 0.9D - Ev + Eh", "note": "F left out where it counteracts E: SAEngine practice, on the safe side"}
+  ],
+  "service": [
+    {"id": "1", "name": "D + L", "factors": {"D": 1.0, "L": 1.0, "Lr": 1.0}, "source": "ASCE 7-22 Appendix C, commentary CC.2: vertical deflection, short-term effects", "note": "L taken with the roof live load Lr at 1.0 (a member carries one or the other)"},
+    {"id": "2", "name": "D + 0.5L", "factors": {"D": 1.0, "L": 0.5}, "source": "ASCE 7-22 Appendix C, commentary CC.2: creep and other long-term effects"},
+    {"id": "3", "name": "D + 0.5L + 0.6W", "factors": {"D": 1.0, "L": 0.5, "W": 0.6}, "source": "ASCE 7-22 Appendix C, commentary CC.2: drift under wind", "note": "0.6W (the allowable stress wind factor of Sec 2.4.1) as the service wind: SAEngine practice; the commentary leaves the wind's return period to the engineer"}
+  ],
+  "allowable": [
+    {"id": "1", "name": "D", "factors": {"D": 1.0, "F": 1.0}, "source": "ASCE 7-22 Sec 2.4.1 combination 1"},
+    {"id": "2", "name": "D + L", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 1.0}, "source": "ASCE 7-22 Sec 2.4.1 combination 2"},
+    {"id": "3", "name": "D + Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "Lr": 1.0}, "source": "ASCE 7-22 Sec 2.4.1 combination 3, D + (Lr or S or R)"},
+    {"id": "4", "name": "D + 0.75L + 0.75Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "Lr": 0.75}, "source": "ASCE 7-22 Sec 2.4.1 combination 4, D + 0.75L + 0.75(Lr or S or R)"},
+    {"id": "5W", "name": "D + 0.6W", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 0.6}, "source": "ASCE 7-22 Sec 2.4.1 combination 5"},
+    {"id": "5E", "name": "D + 0.7E", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "E": 0.7}, "source": "ASCE 7-22 Sec 2.4.5 combination 8, 1.0D + 0.7Ev + 0.7Eh"},
+    {"id": "6W", "name": "D + 0.75L + 0.45W + 0.75Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.45, "Lr": 0.75}, "source": "ASCE 7-22 Sec 2.4.1 combination 6, D + 0.75L + 0.75(0.6W) + 0.75(Lr or S or R)"},
+    {"id": "6E", "name": "D + 0.525E + 0.75L + 0.75S", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "E": 0.525, "L": 0.75, "S": 0.75}, "source": "ASCE 7-22 Sec 2.4.5 combination 9, 1.0D + 0.525Ev + 0.525Eh + 0.75L + 0.75S"},
+    {"id": "7", "name": "0.6D + 0.6W", "factors": {"D": 0.6, "W": 0.6, "H": 1.0}, "source": "ASCE 7-22 Sec 2.4.1 combination 7"},
+    {"id": "8", "name": "0.6D + 0.7E", "factors": {"D": 0.6, "E": 0.7, "H": 1.0}, "source": "ASCE 7-22 Sec 2.4.5 combination 10, 0.6D - 0.7Ev + 0.7Eh"}
+  ],
+  "temperature": [
+    {"name": "1.2D + 1.0T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": 1.0, "L": 1.6, "Lr": 0.5}},
+    {"name": "1.2D - 1.0T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": -1.0, "L": 1.6, "Lr": 0.5}}
+  ],
+  "gravity": [
+    {"name": "1.4D", "factors": {"D": 1.4}},
+    {"name": "1.2D + 1.6L", "factors": {"D": 1.2, "L": 1.6}}
+  ],
+  "seismicDeadUpper": 1.2,
+  "seismicDeadLower": 0.9,
+  "overstrength": "Em = Ω0 Eh ± Ev in the combinations with E (ASCE 7-22 Sec 12.4.3): 1.2D + Ev + Ω0 Eh + L + 0.2S and 0.9D − Ev + Ω0 Eh",
+  "optionalCases": ["F", "H", "T", "R", "S"],
+  "alternates": {"Lr": ["S", "R"]},
+  "withLateral": ["Fa"],
+  "flood": {
+    "coastal": {
+      "source": "ASCE 7-22 Sec 2.3.2 and 2.4.2: V zones and Coastal A zones",
+      "strength": [
+        {"id": "4Fa", "name": "1.2D + 1.0W + 2.0Fa + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 1.0, "Fa": 2.0, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.2: 1.0W of combination 4 replaced by 1.0W + 2.0Fa"},
+        {"id": "5Fa", "name": "0.9D + 1.0W + 2.0Fa", "factors": {"D": 0.9, "W": 1.0, "Fa": 2.0, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.2: 1.0W of combination 5 replaced by 1.0W + 2.0Fa"}
+      ],
+      "allowable": [
+        {"id": "5Fa", "name": "D + 0.6W + 1.5Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 0.6, "Fa": 1.5}, "source": "ASCE 7-22 Sec 2.4.2: 1.5Fa added to combination 5, E = 0"},
+        {"id": "6Fa", "name": "D + 0.75L + 0.45W + 0.75Lr + 1.5Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.45, "Lr": 0.75, "Fa": 1.5}, "source": "ASCE 7-22 Sec 2.4.2: 1.5Fa added to combination 6, E = 0"},
+        {"id": "7Fa", "name": "0.6D + 0.6W + 1.5Fa", "factors": {"D": 0.6, "W": 0.6, "H": 1.0, "Fa": 1.5}, "source": "ASCE 7-22 Sec 2.4.2: 1.5Fa added to combination 7"}
+      ]
+    },
+    "inland": {
+      "source": "ASCE 7-22 Sec 2.3.2 and 2.4.2: noncoastal A zones",
+      "strength": [
+        {"id": "4Fa", "name": "1.2D + 0.5W + 1.0Fa + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 0.5, "Fa": 1.0, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.2: 1.0W of combination 4 replaced by 0.5W + 1.0Fa"},
+        {"id": "5Fa", "name": "0.9D + 0.5W + 1.0Fa", "factors": {"D": 0.9, "W": 0.5, "Fa": 1.0, "H": 1.6}, "source": "ASCE 7-22 Sec 2.3.2: 1.0W of combination 5 replaced by 0.5W + 1.0Fa"}
+      ],
+      "allowable": [
+        {"id": "5Fa", "name": "D + 0.6W + 0.75Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 0.6, "Fa": 0.75}, "source": "ASCE 7-22 Sec 2.4.2: 0.75Fa added to combination 5, E = 0"},
+        {"id": "6Fa", "name": "D + 0.75L + 0.45W + 0.75Lr + 0.75Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.45, "Lr": 0.75, "Fa": 0.75}, "source": "ASCE 7-22 Sec 2.4.2: 0.75Fa added to combination 6, E = 0"},
+        {"id": "7Fa", "name": "0.6D + 0.6W + 0.75Fa", "factors": {"D": 0.6, "W": 0.6, "H": 1.0, "Fa": 0.75}, "source": "ASCE 7-22 Sec 2.4.2: 0.75Fa added to combination 7"}
+      ]
+    }
+  },
+  "exceptions": {
+    "reducedLive": {
+      "case": "L",
+      "to": 0.5,
+      "rows": ["3L", "4", "6", "4Fa"],
+      "liveMax": 4.79,
+      "excludedUses": [
+        "parking",
+        "assemblyFixed",
+        "assemblyMovable",
+        "assemblyPlatform",
+        "stageFloor",
+        "stadiumBleachers",
+        "stadiumFixed",
+        "grandstand",
+        "danceHall",
+        "gymnasium"
+      ],
+      "source": "ASCE 7-22 Sec 2.3.1 exception 1 and Sec 2.3.6 exception 1: L at 0.5 in combinations 3, 4 and 6 where L0 is at most 100 psf (4.79 kN/m²), except garages and places of public assembly"
+    }
+  },
+  "allowableStressIncrease": 1.2,
+  "allowableStressIncreaseRows": ["5E", "6E", "8"],
+  "cantileverUplift": {
+    "factor": 0.2,
+    "categories": ["D", "E", "F"],
+    "source": "ASCE 7-22 Sec 12.4.4: horizontal cantilevers in Seismic Design Categories D-F, a net upward force of 0.2 times the dead load besides the combinations"
+  },
+  "pDeltaPreload": {"D": 1.2, "SD": 1.2, "F": 1.2, "L": 1.0},
+  "sources": {
+    "strength": "ASCE 7-22 Sec 2.3.1 and 2.3.6; the combinations with one or more loads not acting are investigated (Sec 2.3.1): F, H, T, R and S are left out where the model has no such case",
+    "service": "ASCE 7-22 Appendix C commentary CC.2 (serviceability, not mandatory)",
+    "allowable": "ASCE 7-22 Sec 2.4.1 and 2.4.5 (combinations 8-10 with E)",
+    "temperature": "ASCE 7-22 Sec 2.3.4: self-straining loads T with a factor of at least 1.0 (1.0 taken)",
+    "seismicDeadUpper": "ASCE 7-22 Sec 2.3.6 combination 6",
+    "seismicDeadLower": "ASCE 7-22 Sec 2.3.6 combination 7",
+    "alternates": "ASCE 7-22 Sec 2.3.1 and 2.4.1 '(Lr or S or R)'",
+    "flood": "ASCE 7-22 Sec 2.3.2 and 2.4.2; Fa the flood load of Chapter 5",
+    "withLateral": "ASCE 7-22 Sec 2.3.2: Fa is combined with the wind; SAEngine takes it in the wind's direction and sign",
+    "allowableStressIncrease": "ASCE 7-22 Sec 12.4.3.3: allowable stresses may be increased by 1.2 with the overstrength seismic load",
+    "pDeltaPreload": "ASCE 7-22 Sec 2.3.6 combination 6: its gravity part (SD and F with D)",
+    "cantileverUplift": "ASCE 7-22 Sec 12.4.4"
+  },
+  "clauses": {
+    "strength": "Sec 2.3.1",
+    "temperature": "Sec 2.3.4",
+    "settlement": "Sec 2.3.4, T including differential settlement"
+  }
+}

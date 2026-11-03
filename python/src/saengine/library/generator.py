@@ -66,6 +66,7 @@ from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import (
     LocationId,
     ProjectSettings,
+    SpectralSite,
     default_project_settings,
     partition_case,
     seismic_weight_rule,
@@ -188,6 +189,19 @@ class BuildingSpec(_Spec):
         default=None, gt=0, description="Floor live load [kN/m²]; none: the code minimum."
     )
     location: LocationId | None = None  # type: ignore[valid-type]
+    # C1: another code pack than the settings' (its id), and the site values it needs.
+    codePack: str | None = Field(
+        default=None,
+        description="Id of the code pack the project follows; none: the settings' own.",
+    )
+    spectral: SpectralSite | None = Field(
+        default=None,
+        description="The site's mapped spectral values (SDS, SD1, S1, TL) for a code pack whose "
+        "seismic hazard is mapped (Project Settings > Site > Mapped spectral values).",
+    )
+    windSpeed: float | None = Field(
+        default=None, gt=0, description="Basic wind speed V [m/s] (a pack without towns)."
+    )
     siteClass: Literal["SA", "SB", "SC", "SD", "SE"] | None = None
     siteClassSource: Literal["entered", "assumed"] = Field(
         default="entered",
@@ -597,7 +611,7 @@ def stiffness_estimate(
     tops = list(itertools.accumulate(heights[1:]))
     rel = [t / 1000 for t in tops]
     ta = fl.approximate_period(rel[-1], settings.seismic.system)
-    upper = code_context.table("seismic").periodUpperFactor
+    upper = fl.period_upper_factor(values["Z"])  # C1: Cu by SD1 where the pack gives it
     shape = fl.vertical_distribution(list(zip(rel, weights, strict=True)), 1.0, ta)
     lx_m, ly_m = (xs[-1] - xs[0]) / 1000, (ys[-1] - ys[0]) / 1000
     wind: dict[str, list[float]] = {}
@@ -608,7 +622,7 @@ def stiffness_estimate(
     seismic_v = 0.0
     limit = cd = None
     if values["Z"]:
-        sa = fl.design_acceleration(
+        sa = fl.elf_coefficient(
             ta, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
         )
         seismic_v = sa * sum(weights)
@@ -771,7 +785,7 @@ def lateral_column_sizes(
     if seismic and values["Z"]:
         weights = parts.get("seismicLevels", parts["levels"])[1:]
         period = fl.approximate_period(base[-1] / 1000, settings.seismic.system)
-        sa = fl.design_acceleration(
+        sa = fl.elf_coefficient(
             period, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
         )
         v = sa * sum(weights)
@@ -1240,6 +1254,39 @@ def lateral_column_sizes(
     return out
 
 
+def _pack_patch(
+    s: BuildingSpec, base: Any, patch: dict[str, Any], site: dict[str, Any], notes: list[str]
+) -> None:
+    """C1: the code pack of the spec (``codePack``) into the settings' patch, with the site
+    values it takes: a pack without towns makes the location custom (the spectral values and
+    V entered), and a wind exposure the pack does not list becomes its first one."""
+    if s.codePack is None and s.spectral is None and s.windSpeed is None:
+        return
+    if s.codePack is not None:
+        patch["codePack"] = s.codePack
+    pack_id = s.codePack or base.codePack
+    try:
+        pack = code_context.pack_for({"codePack": pack_id}, strict=True)
+    except Exception as error:  # noqa: BLE001 - reported by the settings' check
+        notes.append(f"Code pack '{pack_id}': {error}")
+        return
+    towns = pack.table("locations").locations if pack.has("locations") else {}
+    if not towns:
+        site["location"] = "custom"
+    if s.spectral is not None:
+        site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
+    if s.windSpeed is not None:
+        site["windSpeed"] = s.windSpeed
+    exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
+    if exposures and base.wind.exposure not in exposures:
+        first = exposures[0]
+        patch["wind"] = {"exposure": first}
+        notes.append(
+            f"Wind exposure {first} ({pack.table('wind').exposures[first].description}) of "
+            f"{pack.edition or pack.name} assumed: CONFIRM it in 02 Project Settings."
+        )
+
+
 @code_context.in_project_pack()
 def settings_patch(
     s: BuildingSpec, settings: Any, notes: list[str]
@@ -1273,6 +1320,7 @@ def settings_patch(
     site: dict[str, Any] = {}
     if s.location is not None:
         site["location"] = s.location
+    _pack_patch(s, base, patch, site, notes)  # C1: another code pack and its site values
     if s.siteClass is not None and s.siteClassSource == "assumed":
         # The settings have no "assumed" source (site.siteClassSource is "soilReport" or
         # "entered"): "soilReport" keeps the assumed class only until 1 Soil Report gives one.

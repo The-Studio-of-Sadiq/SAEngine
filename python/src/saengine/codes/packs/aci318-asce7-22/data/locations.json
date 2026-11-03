@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Sec 11.4.2 (mapped spectral values), Sec 26.5.1 (basic wind speed), Sec 7.2 (ground snow load): the values of a site come from the ASCE Hazard Tool, not from a table of towns"
+  ],
+  "source": "ASCE 7-22 Sec 11.4.2, 26.5.1, 7.2: site-specific values from the ASCE Hazard Tool",
+  "locations": {}
+}

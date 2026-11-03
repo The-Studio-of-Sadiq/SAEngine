@@ -151,6 +151,10 @@ TABLE_HELP: dict[str, str] = {
     "designLimits": "Code values of the member design no other table holds: the cap of √f'c in "
     "shear and torsion, the ERW wall thickness factor, the stair geometry rules and widths. A "
     "pack without it does not cover those checks.",
+    "snow": "Roof snow loads from the ground snow load: the flat roof factor, Ce by terrain and "
+    "roof exposure, Ct by thermal condition, Is by category (where the code has it), the slope "
+    "factor, the minimum load of low-slope roofs, the snow density and the drift at roof steps. "
+    "A pack without it does not cover snow.",
     "mepOpenings": "The checks of the openings and sleeves MEP cuts through the structure: the "
     "column strip width, the punching zone near columns, the trim bars of wall openings and "
     "the clause of each check (with slabMethods.openings and concrete.walls). A pack without "

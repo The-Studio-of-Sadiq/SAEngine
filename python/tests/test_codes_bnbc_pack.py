@@ -675,7 +675,9 @@ def _pack_value(module: str, name: str):
 
 def test_every_table_file_validates_and_is_registered():
     names = sorted(p.stem for p in (PACK / "data").glob("*.json"))
-    assert names == sorted(tables.TABLE_MODELS)
+    # C1: tables of other codes' methods that BNBC 2020 does not cover (snow loads).
+    not_in_bnbc = {"snow"}
+    assert names == sorted(set(tables.TABLE_MODELS) - not_in_bnbc)
     manifest = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
     assert manifest["id"] == "bnbc2020" and manifest["extends"] is None
     assert sorted(manifest["covers"]) == names

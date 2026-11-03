@@ -21,6 +21,54 @@
       "title": "AdjacentRatio",
       "type": "object"
     },
+    "CsLimits": {
+      "additionalProperties": false,
+      "description": "Bounds of the seismic response coefficient Cs of the equivalent lateral force method:\nCs ≥ max(``sdsFactor``·SDS·Ie, ``floor``) and, where S1 ≥ ``nearFaultS1``,\nCs ≥ ``nearFaultFactor``·S1 / (R/Ie).",
+      "properties": {
+        "sdsFactor": {
+          "minimum": 0,
+          "title": "Sdsfactor",
+          "type": "number"
+        },
+        "floor": {
+          "minimum": 0,
+          "title": "Floor",
+          "type": "number"
+        },
+        "nearFaultS1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaults1"
+        },
+        "nearFaultFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaultfactor"
+        }
+      },
+      "required": [
+        "sdsFactor",
+        "floor"
+      ],
+      "title": "CsLimits",
+      "type": "object"
+    },
     "DampingCorrection": {
       "additionalProperties": false,
       "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta.",
@@ -510,6 +558,88 @@
       "title": "Irregularities",
       "type": "object"
     },
+    "MultiPeriodRule": {
+      "additionalProperties": false,
+      "description": "SMS and SM1 from a multi-period MCER spectrum (Sa [g] by T [s]): SMS = ``smsShare`` ×\nthe largest Sa from ``smsPeriods[0]`` to ``smsPeriods[1]``, at least Sa at the first;\nSM1 = the largest T·Sa from ``sm1Periods[0]`` to ``sm1Periods[1]`` (``sm1PeriodsSoft`` for\nthe ``softClasses``); SDS, SD1 = ``designShare`` × them. Used when the project gives the\nMCER spectrum and not SDS and SD1.",
+      "properties": {
+        "smsShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Smsshare",
+          "type": "number"
+        },
+        "smsPeriods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Smsperiods",
+          "type": "array"
+        },
+        "sm1Periods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Sm1Periods",
+          "type": "array"
+        },
+        "sm1PeriodsSoft": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sm1Periodssoft"
+        },
+        "softClasses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Softclasses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "smsShare",
+        "smsPeriods",
+        "sm1Periods"
+      ],
+      "title": "MultiPeriodRule",
+      "type": "object"
+    },
     "PeriodCoefficient": {
       "additionalProperties": false,
       "properties": {
@@ -542,6 +672,149 @@
         "m"
       ],
       "title": "PeriodCoefficient",
+      "type": "object"
+    },
+    "SeismicHazard": {
+      "additionalProperties": false,
+      "description": "How the design spectrum is found (a method id, :mod:`saengine.fem.spectral_hazard`).\n\n``zoneFactor`` (absent: the default): the zone coefficient Z of the location and the site\nclass's S, TB, TC, TD (:func:`saengine.fem.loads.normalized_spectrum`). ``mappedSpectral``:\nthe site's design spectral accelerations SDS and SD1 (and S1, TL) entered from the code's\nhazard maps or tool, a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS; SDS(0.4 +\n0.6T/T0) below T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or the site's multi-period\ndesign spectrum; the equivalent lateral force coefficient Cs = SDS/(R/Ie) at most SD1/(T R/Ie)\n(SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the Seismic Design Category from the\nbands of SDS and SD1 (the more severe), the ``s1Extreme`` band where S1 reaches it; the\nperiod's upper limit Cu·Ta from ``periodUpper`` by SD1.",
+      "properties": {
+        "method": {
+          "default": "zoneFactor",
+          "enum": [
+            "zoneFactor",
+            "mappedSpectral"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "designShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SDS = share × SMS, SD1 = share × SM1 (mapped values).",
+          "title": "Designshare"
+        },
+        "t0Share": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "T0 = share × TS.",
+          "title": "T0Share"
+        },
+        "rampStart": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sa at T = 0 as a share of SDS (the ramp to T0).",
+          "title": "Rampstart"
+        },
+        "sdsBands": {
+          "description": "SDS [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sdsbands",
+          "type": "array"
+        },
+        "sd1Bands": {
+          "description": "SD1 [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sd1Bands",
+          "type": "array"
+        },
+        "s1Extreme": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S1 [g] from which the band after the last one applies.",
+          "title": "S1Extreme"
+        },
+        "csLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CsLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "periodUpper": {
+          "description": "(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Periodupper",
+          "type": "array"
+        },
+        "multiPeriod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultiPeriodRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "SeismicHazard",
       "type": "object"
     },
     "Separation": {
@@ -595,33 +868,70 @@
           "type": "string"
         },
         "S": {
+          "default": 1.0,
           "description": "Soil factor.",
           "exclusiveMinimum": 0,
           "title": "S",
           "type": "number"
         },
         "TB": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Tb",
           "type": "number"
         },
         "TC": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Tc",
           "type": "number"
         },
         "TD": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Td",
           "type": "number"
+        },
+        "vs30": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(lower, upper) average shear wave speed of the top 30 m [m/s] of the class, where the code defines the class by it; empty: by the description.",
+          "title": "Vs30"
         }
       },
       "required": [
-        "description",
-        "S",
-        "TB",
-        "TC",
-        "TD"
+        "description"
       ],
       "title": "SiteClass",
       "type": "object"
@@ -1106,6 +1416,24 @@
       "description": "Clause references of the seismic results, by key.",
       "title": "Clauses",
       "type": "object"
+    },
+    "hazard": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SeismicHazard"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C1: how the design spectrum is found (method id); empty: zoneFactor."
+    },
+    "thetaIncludesImportance": {
+      "default": false,
+      "description": "C1: the stability coefficient θ has Ie in its numerator (θ = Px Δ Ie / (Vx hsx Cd)), so Ie cancels the one in Δ; False: θ = Px Δ / (Vx hsx Cd).",
+      "title": "Thetaincludesimportance",
+      "type": "boolean"
     },
     "siteClasses": {
       "additionalProperties": {

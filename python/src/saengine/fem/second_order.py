@@ -978,7 +978,12 @@ def drift_amplification(
                 vx = abs(float(loads_above(project, {code: 1.0}, key[0])[axis]))
                 row["Px"], row["Vx"] = px, vx
                 if vx > 0:  # θ = Px δxe / (I Vx hsx), δxe / hsx the drift ratio
-                    row["theta"] = px * row["centreOfMassDrift"] / (importance * vx)
+                    # C1: with Ie in θ's numerator (the pack's thetaIncludesImportance) it
+                    # cancels the one of Δ: θ = Px δxe / (Vx hsx).
+                    own = getattr(code_context.table("seismic"), "thetaIncludesImportance", False)
+                    row["theta"] = (
+                        px * row["centreOfMassDrift"] / ((1.0 if own else importance) * vx)
+                    )
             storeys.append(row)
         ratios = [s["ratio"] for s in storeys if s["ratio"] is not None]
         thetas = [s["theta"] for s in storeys if s["theta"] is not None]

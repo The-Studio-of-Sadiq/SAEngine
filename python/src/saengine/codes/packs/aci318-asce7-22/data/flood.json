@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/flood.schema.json",
+  "$sources": [
+    "ASCE 7-22 Chapter 5 (flood loads) and Sec 8.2 (rain): the hydrostatic, hydrodynamic, breaking wave and impact rules of the pack it extends (BNBC 2020 Sec 2.6 follows ASCE 7-05 Chapter 5 and its commentary) with the US design flood"
+  ],
+  "returnPeriod": {"I": 100, "II": 100, "III": 100, "IV": 100},
+  "waterLevelReturnPeriod": {"I": 100, "II": 100, "III": 100, "IV": 100},
+  "surgeRegions": {"$replace": true},
+  "waterLevels": {"$replace": true},
+  "sources": {
+    "returnPeriod": "ASCE 7-22 Sec 5.3 and Sec 1.2 (design flood: the flood of 1 % annual chance, or the community's larger one); enter the design flood elevation (DFE) of the site as the flood level",
+    "surgeRegions": "None: the coastal surge regions and the water level stations are Bangladesh tables; a US site gives its stillwater elevation from the flood maps",
+    "rain": "ASCE 7-22 Sec 8.2, Eq 8.2-1: R = 0.0098 (ds + dh + dp) kN/m² with the depths in mm (unit weight 9.8 kN/m³): enter ds + dh + dp as the depth; the controlled drainage allowance is the inherited BNBC value"
+  }
+}

@@ -46,6 +46,8 @@ AreaUseId = _choice([*code_data.AREA_USES, "custom"])
 SystemId = _choice(list(code_data.STRUCTURAL_SYSTEMS))
 #: The code pack's site classes (``seismic.siteClasses``).
 SiteClassId = _choice(list(code_data.SITE_CLASSES))
+#: The code pack's wind exposure categories (``wind.exposures``).
+ExposureId = _choice(list(code_data.EXPOSURES))
 
 
 def _labels(names: list[str]) -> dict[str, Any]:
@@ -277,6 +279,110 @@ class RainSite(_Model):
     )
 
 
+class SpectralSite(_Model):
+    """C1: the site's mapped spectral values (a pack whose ``seismic.hazard`` method is
+    mappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1
+    (the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets
+    the lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period
+    branch."""
+
+    sds: float | None = Field(
+        default=None,
+        gt=0,
+        title="SDS",
+        description="Design spectral acceleration at short periods [g].",
+    )
+    sd1: float | None = Field(
+        default=None, gt=0, title="SD1", description="Design spectral acceleration at 1 s [g]."
+    )
+    sms: float | None = Field(
+        default=None,
+        gt=0,
+        title="SMS",
+        description="MCER spectral acceleration at short periods [g] (used when SDS is empty).",
+    )
+    sm1: float | None = Field(
+        default=None,
+        gt=0,
+        title="SM1",
+        description="MCER spectral acceleration at 1 s [g] (used when SD1 is empty).",
+    )
+    ss: float | None = Field(
+        default=None,
+        gt=0,
+        title="SS",
+        description="Mapped MCER acceleration at short periods [g] (for the report).",
+    )
+    s1: float | None = Field(
+        default=None,
+        gt=0,
+        title="S1",
+        description="Mapped MCER acceleration at 1 s [g]: the "
+        "near-fault lower bound of Cs and the categories E and F.",
+    )
+    tl: float | None = Field(
+        default=None,
+        gt=0,
+        title="TL",
+        description="Long-period transition period [s]. Empty: "
+        "no long-period branch (the spectrum stays SD1/T).",
+    )
+    designSpectrum: list[tuple[float, float]] = Field(
+        default_factory=list,
+        title="Multi-period design spectrum",
+        description="(T [s], Sa [g]) points of the site's multi-period design spectrum (5 % "
+        "damped): used for the response spectrum analysis instead of the two-period one.",
+    )
+    mcerSpectrum: list[tuple[float, float]] = Field(
+        default_factory=list,
+        title="Multi-period MCER spectrum",
+        description="(T [s], Sa [g]) points of the site's multi-period MCER spectrum: SDS and "
+        "SD1 from it by the code pack's rule when they are not given.",
+    )
+
+
+class SnowDrift(_Model):
+    """A roof step: the drift on the lower roof (reported, not applied to the model)."""
+
+    upperLength: float = Field(gt=0, title="Upper roof length lu", description="[m]")
+    lowerLength: float | None = Field(
+        default=None, gt=0, title="Lower roof length", description="[m], for the windward drift."
+    )
+    stepHeight: float = Field(
+        gt=0, title="Step height", description="Height from the lower roof to the upper [m]."
+    )
+    windParameter: float | None = Field(
+        default=None,
+        gt=0,
+        title="Winter wind parameter W2",
+        description="From the code's map; empty: the code pack's default.",
+    )
+
+
+class SnowSite(_Model):
+    """C1: the ground snow load and the roof's conditions (:mod:`saengine.fem.snow`)."""
+
+    groundLoad: float = Field(gt=0, title="Ground snow load pg", description="[kN/m²]")
+    terrain: str = Field(
+        default="C",
+        title="Terrain category",
+        description="A key of the pack's snow exposure table (surface roughness).",
+    )
+    roofExposure: Literal["fullyExposed", "partiallyExposed", "sheltered"] = Field(
+        default="partiallyExposed", title="Roof exposure"
+    )
+    thermal: str = Field(
+        default="heated",
+        title="Thermal condition",
+        description="A key of the pack's thermal factor table.",
+    )
+    slope: float = Field(default=0.0, ge=0, lt=90, title="Roof slope", description="[°]")
+    slippery: bool = Field(
+        default=False, title="Slippery roof", description="An unobstructed slippery surface."
+    )
+    drift: SnowDrift | None = Field(default=None, title="Drift at a roof step")
+
+
 class Helipad(_Model):
     """A helicopter landing or touch-down area."""
 
@@ -362,6 +468,22 @@ class Site(_Model):
         gt=0,
         title="Basic wind speed",
         description="Overrides the location's value [m/s] (the code pack's basic wind speed).",
+    )
+    # C1: the mapped spectral values and the snow of packs that use them.
+    spectral: SpectralSite | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Mapped spectral values",
+        description="The site's design spectral accelerations from the hazard maps or tool of "
+        "the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A "
+        "pack with seismic zones ignores them.",
+    )
+    snow: SnowSite | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Snow",
+        description="Ground snow load and roof conditions: the roof snow load (case S) of code "
+        "packs that cover snow. Empty: no snow.",
     )
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
@@ -558,9 +680,9 @@ class CladdingRoof(_Model):
 
 
 class Wind(_Model):
-    exposure: Literal["A", "B", "C"] = Field(
+    exposure: ExposureId = Field(  # type: ignore[valid-type]
         default="A",
-        description="Exposure category (6.2.9.3).",
+        description="Exposure category of the code pack (the default pack's 6.2.9.3).",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.EXPOSURES.items()]),
     )
     directionality: float | None = Field(
@@ -2473,6 +2595,7 @@ class ProjectSettings(_Model):
 
         need("site.location", "locations", self.site.location)
         need("site.siteClass", "siteClasses", self.site.siteClass)
+        need("wind.exposure", "exposures", self.wind.exposure)
         seismic = self.seismic
         need("seismic.system", "systems", seismic.system)
         need("seismic.systemY", "systems", seismic.systemY)
@@ -2504,8 +2627,8 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
     """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
     out: dict[str, list[dict[str, str]]] = {}
     locations, zone_table = table("locations"), table("zoneCoefficients")
-    area, seismic = table("areaLoads"), table("seismic")
-    if locations is not None:
+    area, seismic, wind = table("areaLoads"), table("seismic"), table("wind")
+    if locations is not None and locations.locations:  # C1: a pack without towns takes any id
         zones = dict(zone_table.zones) if zone_table is not None else {}
         rows = []
         for key, v in locations.locations.items():
@@ -2522,6 +2645,10 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         out["systems"] = [{"id": k, "label": v.name} for k, v in seismic.systems.items()]
         out["siteClasses"] = [
             {"id": k, "label": f"{k}: {v.description}"} for k, v in seismic.siteClasses.items()
+        ]
+    if wind is not None:
+        out["exposures"] = [
+            {"id": k, "label": f"{k}: {v.description}"} for k, v in wind.exposures.items()
         ]
     return out
 
@@ -2681,13 +2808,24 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     """The code values the settings imply (from the project's code pack), each with where it
     comes from."""
     pack = code_pack(settings)
-    location = pack.table("locations").locations.get(settings.site.location)
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    location = locations.get(settings.site.location)
     category = pack.table("occupancyCategories").categories[settings.occupancy.category]
     system = pack.table("seismic").systems[settings.seismic.system]
-    zone_z = pack.table("zoneCoefficients").zones[location.zone] if location else None
+    zones = pack.table("zoneCoefficients").zones if pack.has("zoneCoefficients") else {}
+    zone_z = zones.get(location.zone) if location else None
+    zone = location.zone if location else None
+    z: Any = settings.site.zoneCoefficient or zone_z
+    # C1: a pack whose spectrum comes from mapped values: "Z" is the site's SpectralHazard
+    # (a float SDS with SD1, S1, TL; saengine.fem.spectral_hazard), "zone" its category band.
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped(pack):
+        z = sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack)
+        zone = sh.band(z, pack) if z is not None else None
     return {
-        "zone": location.zone if location else None,
-        "Z": settings.site.zoneCoefficient or zone_z,
+        "zone": zone,
+        "Z": z,
         "windSpeed": settings.site.windSpeed or (location.windSpeed if location else None),
         "seismicImportance": category.seismicImportance,
         "windImportance": category.windImportance,
@@ -2832,8 +2970,11 @@ def design_category(settings: ProjectSettings, site_class: str | None = None) ->
     pack = code_pack(settings)
     seismic = pack.table("seismic")
     values = derived(settings)
-    zone = values["zone"] if settings.site.zoneCoefficient is None else None
-    if zone is None and values["Z"]:
+    from saengine.fem.spectral_hazard import SpectralHazard
+
+    mapped = isinstance(values["Z"], SpectralHazard)  # C1: the band of the mapped values
+    zone = values["zone"] if settings.site.zoneCoefficient is None or mapped else None
+    if zone is None and values["Z"] and not mapped:
         zones = pack.table("zoneCoefficients").zones
         zone = min(zones, key=lambda k: abs(zones[k] - values["Z"]))
     site = site_class or settings.site.siteClass
@@ -2899,8 +3040,13 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
         # Overrides of the pack's values that it does not accept: reported, not used.
         out.extend((f"codeOverrides.{path}", message) for path, message in pack.override_problems)
         out.extend(_pack_problems(settings, pack))
-    if settings.site.location == "custom":
-        if settings.site.zoneCoefficient is None:
+    mapped = pack is not None and _uses_mapped(pack)
+    # C1: a pack without towns (site values from the code's hazard tool) is a custom location.
+    townless = pack is not None and not (
+        pack.table("locations").locations if pack.has("locations") else {}
+    )
+    if settings.site.location == "custom" or townless:
+        if settings.site.zoneCoefficient is None and not mapped:
             out.append(
                 (
                     "site.zoneCoefficient",
@@ -2914,6 +3060,12 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
     if not settings.combinations:
         out.append(("combinations", "there are no load combinations"))
     return out
+
+
+def _uses_mapped(pack: CodePack) -> bool:
+    from saengine.fem.spectral_hazard import uses_mapped
+
+    return uses_mapped(pack)
 
 
 def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
@@ -2949,8 +3101,8 @@ def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str,
                 )
             )
     out += _exception_problems(settings, pack)
-    locations = pack.table("locations").locations
-    if settings.site.location != "custom" and settings.site.location not in locations:
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    if locations and settings.site.location != "custom" and settings.site.location not in locations:
         out.append(
             (
                 "site.location",
@@ -2967,7 +3119,7 @@ def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str,
     ):
         if key not in values:
             out.append((where, f"the code pack '{pack.id}' has no '{key}'"))
-    zones = pack.table("zoneCoefficients").zones
+    zones = pack.table("zoneCoefficients").zones if pack.has("zoneCoefficients") else {}
     z = settings.site.zoneCoefficient
     if z is not None and zones and not min(zones.values()) <= z <= max(zones.values()):
         out.append(
@@ -2994,7 +3146,29 @@ def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str,
         )
     if settings.seismic.system in pack.table("seismic").systems:
         out.extend(_system_problems(settings, pack))
+    out.extend(_mapped_problems(settings, pack))
     return out
+
+
+def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """C1: a pack whose spectrum comes from mapped values needs the site's SDS and SD1."""
+    from saengine.fem import spectral_hazard as sh
+
+    if not sh.uses_mapped(pack):
+        return []
+    if sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack) is not None:
+        return []
+    edition = pack.edition or pack.name
+    return [
+        (
+            "site.spectral",
+            (
+                f"{edition} takes the seismic hazard from the site's mapped spectral values: "
+                "enter SDS and SD1 (or SMS and SM1, or the multi-period MCER spectrum); without "
+                "them the earthquake cases stay empty"
+            ),
+        )
+    ]
 
 
 def _exception_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
