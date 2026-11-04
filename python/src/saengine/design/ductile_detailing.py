@@ -28,6 +28,17 @@ the beams' design moments in the sense of the sway; joints with no column above 
 joint shear Vj = overstrength fyd (As,top + As,bottom of the beams' two sides) - Vcol <= γ
 √fck bj hc, γ by the faces confined by beams covering three quarters of them, bj = min(bb +
 widthShare hc, bc).
+
+Alpha 9 C18c (the AS 3600 Appendix C and NZS 3101 forms): with ``basis`` "capacityFactor" the
+method runs without partial factors (nominal strengths, the strength design's φ: fyd is fy and
+the capacity shear's resistance the parent's φVn); ``levels`` give the groups that differ by
+frame level (limited / moderately ductile); columns may take the NZS 3101 10.4.7 type
+confinement by the axial load (``ashForm`` "axialLoad"), the confined length by N*/(φ f'c Ag)
+(``confinedByAxial``) and the capacity design shear (``capacityShear``); joints the stress cap
+min(a f'c, b MPa) and the horizontal joint hoops (``stressLimit``, ``reinforcementShare``);
+walls the design shear by overstrength and dynamic magnification (``shearAmplification``,
+applied in :func:`saengine.design.walls.wall_checks`), the boundary hoops and the confined
+length (``boundaryAsh``, ``boundaryLength``).
 """
 
 from __future__ import annotations
@@ -46,8 +57,49 @@ PREFIX = "Detailing: "
 
 
 def rules() -> Any | None:
-    """The pack's ``concreteMethods.seismic`` of method ``ductileDetailing``, or None."""
-    return _group("seismic", "ductileDetailing")
+    """The pack's ``concreteMethods.seismic`` of method ``ductileDetailing``, or None; alpha 9
+    C18c: also without partial factors where the group's basis is ``capacityFactor``."""
+    found = _group("seismic", "ductileDetailing")
+    if found is not None:
+        return found
+    from saengine.codes.method_tables import chosen
+    from saengine.design.tabulated_shear import _table
+
+    found = chosen(_table(), "seismic", "ductileDetailing")
+    if found is None or found.basis != "capacityFactor":
+        return None
+    if "seismic" in (getattr(_table(), "parentMethods", None) or ()):
+        return None
+    return found
+
+
+def rules_for(level: str | None) -> Any | None:
+    """Alpha 9 C18c: the method's groups for frame level ``level``: its own with the level's
+    ``levels`` entry put over them (the method's own where the level gives none)."""
+    r = rules()
+    if r is None or not level:
+        return r
+    over = r.levels.get(level)
+    if over is None:
+        return r
+    update = {k: getattr(over, k) for k in ("beams", "columns", "joints", "walls")}
+    return r.model_copy(update={k: v for k, v in update.items() if v is not None})
+
+
+def capacity_factor(r: Any = None) -> bool:
+    """Alpha 9 C18c: True when the method runs on nominal strengths with φ."""
+    r = r or rules()
+    return r is not None and getattr(r, "basis", "designStrength") == "capacityFactor"
+
+
+def design_yield(fy: float) -> float:
+    """The diagonal bars' strength of coupling beams [MPa]: fyd, or φ fy with the walls'
+    ``couplingPhi`` (capacity-factor basis; fy without it)."""
+    r = rules_for("special")
+    if capacity_factor(r):
+        phi = r.walls.couplingPhi
+        return fy * (float(phi) if phi is not None else 1.0)
+    return _fyd(fy)
 
 
 def _row(name: str, demand: float, capacity: float, unit: str, note: str = "", key: str = ""):
@@ -58,9 +110,23 @@ def _row(name: str, demand: float, capacity: float, unit: str, note: str = "", k
 
 
 def _fyd(fy: float) -> float:
+    if capacity_factor():  # Alpha 9 C18c: nominal strengths
+        return fy
     from saengine.design import design_strength
 
     return design_strength.fyd(fy)
+
+
+def _beam_resistance(s: Any, dia: float, legs: int, spacing: float) -> float:
+    """φVn [N] of a beam with the hoops of its end zones: the tabulated method's, or (capacity-
+    factor basis) the strength design's (:func:`saengine.design.rc.shear`)."""
+    if capacity_factor():
+        from saengine.design.rc import shear
+
+        return float(shear(s, dia, legs, spacing).phi_vn)
+    from saengine.design import tabulated_shear
+
+    return float(tabulated_shear.beam_shear(s, dia, legs, spacing).phi_vn)
 
 
 def _clear_spans(joints: list[Any], by_id: dict[str, Any]) -> dict[str, float]:
@@ -84,8 +150,6 @@ def _clear_spans(joints: list[Any], by_id: dict[str, Any]) -> dict[str, float]:
 
 
 def beam_rows(d: Any, r: Any, clear: float | None, demands: Any) -> list[dict[str, Any]]:
-    from saengine.design import tabulated_shear
-
     b = r.beams
     s = d.section
     rows: list[dict[str, Any]] = []
@@ -153,10 +217,19 @@ def beam_rows(d: Any, r: Any, clear: float | None, demands: Any) -> list[dict[st
         rows.append(_row("Hoops", 1, 0, "", "no hoops", "seismicBeams"))
     else:
         a, nb, mm = b.hoopSpacing
+        zone_of = "D" if b.hoopZoneOnDepth else "d"  # Alpha 9 C18c
         rows.append(_row("Hoop diameter", b.hoopMinDia, zones.dia, "mm", key="seismicBeams"))
+        if b.hoopZoneOnDepth and zones.zone_length is not None:
+            rows.append(
+                _row(
+                    "Plastic hinge region", b.hoopZoneDepths * depth, zones.zone_length, "mm",
+                    f"the close hoops over {b.hoopZoneDepths:g} D = "
+                    f"{b.hoopZoneDepths * depth:.0f} mm from the faces", "seismicHinges",
+                )
+            )  # fmt: skip
         rows.append(
             _row(
-                f"Hoop spacing within {b.hoopZoneDepths:g} d of the faces", zones.in_zone,
+                f"Hoop spacing within {b.hoopZoneDepths:g} {zone_of} of the faces", zones.in_zone,
                 min(a * dd, nb * db, mm), "mm",
                 f"≤ min({a:g} d, {nb:g} db, {mm:g} mm), the first ≤ {b.firstHoop:g} mm from the face",
                 "seismicBeams",
@@ -171,10 +244,10 @@ def beam_rows(d: Any, r: Any, clear: float | None, demands: Any) -> list[dict[st
                 demands.gravity_shear
                 + b.overstrength * (caps[False].phi_mn + caps[True].phi_mn) / clear
             )
-            res = tabulated_shear.beam_shear(s, zones.dia, zones.legs, zones.in_zone)
+            resistance = _beam_resistance(s, zones.dia, zones.legs, zones.in_zone)
             rows.append(
                 _row(
-                    "Capacity design shear", vu / 1e3, res.phi_vn / 1e3, "kN",
+                    "Capacity design shear", vu / 1e3, resistance / 1e3, "kN",
                     f"Vu = Vu,gravity {demands.gravity_shear / 1e3:.1f} kN + {b.overstrength:g} "
                     f"(Mu,hog + Mu,sag) / {clear:.0f} mm; resistance with the hoops of the end zones",
                     "capacityDesign",
@@ -203,9 +276,21 @@ def column_rows(d: Any, r: Any, clear: float | None) -> list[dict[str, Any]]:
     db = min((x.dia for x in s.bars), default=0.0)
     a, b, mm = c.confinedLength
     lo = max(a * other, (clear or 0.0) / b, mm)
+    lo_text = f"lo ≥ max({a:g} D, clear/{b:g}, {mm:g} mm)"
+    context = getattr(d, "context", None) or {}
+    axial = max(float((context.get("axial") or (0.0,))[0] or 0.0), 0.0)
+    phi_c = float(c.ashAxial[3]) if c.ashAxial else 0.85
+    n_ratio = axial / (phi_c * s.fc * s.gross_area) if s.gross_area > 0 else 0.0
+    if c.confinedByAxial:  # Alpha 9 C18c: by N*/(φ f'c Ag) (NZS 3101 10.4.5 type)
+        factor = next(
+            (k for share, k in c.confinedByAxial if n_ratio <= share + 1e-9),
+            c.confinedByAxial[-1][1],
+        )
+        lo = max(lo, factor * other)
+        lo_text += f" and {factor:g} D at N*/(φ f'c Ag) = {n_ratio:.2f}"
     if zones.zone_length is not None:
         rows.append(_row("Confined length lo", lo, zones.zone_length, "mm",
-                         f"lo ≥ max({a:g} D, clear/{b:g}, {mm:g} mm)", "seismicConfinement"))  # fmt: skip
+                         lo_text, "seismicConfinement"))  # fmt: skip
     sa, sb, smm = c.confinedSpacing
     rows.append(
         _row("Hoop spacing in lo", zones.in_zone, min(sa * least, sb * db, smm), "mm",
@@ -237,13 +322,59 @@ def column_rows(d: Any, r: Any, clear: float | None) -> list[dict[str, Any]]:
                               (core_y, zones.across_depth, "across the depth")):  # fmt: skip
         h = dm._hx(core, zones.dia, db, legs)
         need = max(c.ash[0] * (s.gross_area / ak - 1), c.ash[1]) * zones.in_zone * h * s.fc / fy_t
-        rows.append(
-            _row(f"Ash of one leg, {label}", need, area, "mm²",
-                 f"Ash ≥ max({c.ash[0]:g} (Ag/Ak - 1), {c.ash[1]:g}) s h fck/fy, h = {h:.0f} mm",
-                 "seismicConfinement")
-        )  # fmt: skip
+        text = f"Ash ≥ max({c.ash[0]:g} (Ag/Ak - 1), {c.ash[1]:g}) s h fck/fy, h = {h:.0f} mm"
+        if c.ashForm == "axialLoad" and c.ashAxial:
+            # Alpha 9 C18c: Ash/(s h'') = (a - ρt m)/b (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - c
+            # (NZS 3101 10.4.7.4 type), h'' the core across the legs (h above).
+            aa, bb, cc, _phi = c.ashAxial
+            rho_t = s.steel_area / s.gross_area
+            m = s.fy / (0.85 * s.fc)
+            ratio = (aa - rho_t * m) / bb * (s.gross_area / ak) * (s.fc / fy_t) * n_ratio - cc
+            need = max(ratio, 0.0) * zones.in_zone * h
+            text = (
+                f"Ash/(s h) ≥ ({aa:g} - ρt m)/{bb:g} (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - {cc:g} = "
+                f"{max(ratio, 0.0):.5f}, ρt m = {rho_t * m:.3f}, N*/(φ f'c Ag) = {n_ratio:.2f}, "
+                f"h = {h:.0f} mm"
+            )
+        rows.append(_row(f"Ash of one leg, {label}", need, area, "mm²", text, "seismicConfinement"))
         rows.append(_row(f"Leg spacing h, {label}", h, c.hxMax, "mm", key="seismicConfinement"))
+    rows += _column_capacity_shear(d, c, clear, zones)
     return rows
+
+
+def _column_capacity_shear(d: Any, c: Any, clear: float | None, zones: Any) -> list[dict]:
+    """Alpha 9 C18c: V*col = capacityShear (Mn,top + Mn,bottom) / the clear height against φVn
+    with the hoops of the confined length (NZS 3101 Appendix D type)."""
+    context = getattr(d, "context", None) or {}
+    dem = context.get("demands")
+    if c.capacityShear is None or not clear or dem is None:
+        return []
+    from saengine.design.rc import shear
+
+    s = d.section
+    moments = []
+    for p in {float(dem.pmin), float(dem.pmax)}:
+        for angle in (0.0, math.pi / 2):
+            try:
+                moments.append(dj.column_moment(s, p, angle))
+            except (DesignError, ValueError):
+                continue
+    if not moments:
+        return []
+    mn = max(moments)
+    vo = c.capacityShear * 2 * mn / clear
+    try:
+        resistance = float(shear(s, zones.dia, zones.legs, zones.in_zone).phi_vn)
+    except (DesignError, ValueError):
+        return []
+    return [
+        _row(
+            "Column capacity design shear", vo / 1e3, resistance / 1e3, "kN",
+            f"V*col = {c.capacityShear:g} (Mn,top + Mn,bottom) / {clear:.0f} mm, Mn = "
+            f"{mn / 1e6:.1f} kN·m the largest over the earthquake axial forces; φVn with the "
+            "hoops of the confined length", "capacityDesign",
+        )
+    ]  # fmt: skip
 
 
 def _axis_of(column: Any, beam: Any) -> tuple[int, Any]:
@@ -315,15 +446,50 @@ def joint_rows(
         vcol = j.overstrength * sum_mb / height
         vj = j.overstrength * _fyd(fy) * tension - vcol
         capacity = gamma * math.sqrt(below.section.fc) * bj * hc
+        limit_text = f"≤ {gamma:g} √fck bj hc"
+        if j.stressLimit is not None:  # Alpha 9 C18c: vjh <= min(a f'c, b MPa) (NZS 15.4 type)
+            share, cap = j.stressLimit
+            capacity = min(share * below.section.fc, cap) * bj * hc
+            limit_text = f"vjh ≤ min({share:g} f'c, {cap:g} MPa)"
         rows.append(
             _row(
                 f"Joint shear at {joint.id}, along {label}", vj / 1e3, capacity / 1e3, "kN",
-                f"Vj = {j.overstrength:g} fyd ΣAs - Vcol, Vcol = {vcol / 1e3:.0f} kN; ≤ {gamma:g} √fck "
-                f"bj hc, bj = {bj:.0f} mm, hc = {hc:.0f} mm ({key} faces confined)",
-                "seismicJoints",
+                f"Vj = {j.overstrength:g} {'fy' if capacity_factor() else 'fyd'} ΣAs - Vcol, Vcol = "
+                f"{vcol / 1e3:.0f} kN; {limit_text}, bj = {bj:.0f} mm, hc = {hc:.0f} mm ({key} "
+                "faces confined)", "seismicJoints",
             )
         )  # fmt: skip
+        if j.reinforcementShare is not None and vj > 0:
+            rows += _joint_hoop_rows(joint, below, items, j, vj, label)
     return rows
+
+
+def _joint_hoop_rows(joint: Any, below: Any, items: list, j: Any, vjh: float, label: str):
+    """Alpha 9 C18c: the horizontal joint hoops Ajh >= share Vjh / fyh (NZS 3101 15.4.4
+    type): the column's hoops of its confined length taken through the joint, their legs along
+    the frame direction over the beams' depth between the outer bars (SAEngine practice)."""
+    reinforcement = below.object.reinforcement
+    zones = dm.zones_of(reinforcement.transverse if reinforcement else None)
+    need = j.reinforcementShare * vjh / below.section.fy
+    depth = min(sec.depth for _, sec, _ in items)
+    cover = reinforcement.cover if reinforcement else 40.0
+    inside = max(depth - 2 * cover, 0.0)
+    if zones is None or not zones.in_zone:
+        provided, text = 0.0, "no hoops given"
+    else:
+        layers = max(math.floor(inside / zones.in_zone) + 1, 1)
+        provided = layers * zones.legs * bar_area(zones.dia)
+        text = (
+            f"{layers} sets of {zones.legs} legs Ø{zones.dia:g} at {zones.in_zone:.0f} mm over "
+            f"the beam depth less the covers, {inside:.0f} mm"
+        )
+    return [
+        _row(
+            f"Joint horizontal hoops at {joint.id}, along {label}", need, provided, "mm²",
+            f"Ajh ≥ {j.reinforcementShare:g} Vjh / fyh = {need:.0f} mm²; {text}",
+            "seismicJoints",
+        )
+    ]  # fmt: skip
 
 
 def wall_rows(geometry: Any, bars: Any, forces: list[Any], fc: float) -> list[dict[str, Any]]:
@@ -333,7 +499,7 @@ def wall_rows(geometry: Any, bars: Any, forces: list[Any], fc: float) -> list[di
     boundaryStress × fck (to where it falls below boundaryStop × fck)."""
     from saengine.design.walls import extreme_stress
 
-    r = rules()
+    r = rules_for("special")
     if r is None:
         return []
     w = r.walls
@@ -374,7 +540,60 @@ def wall_rows(geometry: Any, bars: Any, forces: list[Any], fc: float) -> list[di
         if not required:
             row["flag"] = True
         rows.append(row)
+        if required:
+            rows += _boundary_rows(geometry, bars, worst, fc, w)
     return rows
+
+
+def _boundary_rows(geometry: Any, bars: Any, worst: Any, fc: float, w: Any) -> list[dict]:
+    """Alpha 9 C18c: the confined end of a ductile wall (NZS 3101 11.4.6 type): its length at
+    least max(a lw, b c) with c the elastic compression depth of the governing combination
+    (SAEngine practice for c), and its hoops Ash/(s h) >= max(a (Ag/Ac - 1), b) f'c/fyt across
+    the thickness."""
+    rows: list[dict[str, Any]] = []
+    t, lw = geometry.thickness, geometry.length
+    boundary = bars.boundary
+    if w.boundaryLength is not None:
+        a, b = w.boundaryLength
+        sigma_top = worst.P / (t * lw) + abs(worst.M3) * (lw / 2) / (t * lw**3 / 12)
+        sigma_bottom = worst.P / (t * lw) - abs(worst.M3) * (lw / 2) / (t * lw**3 / 12)
+        if sigma_top > 0 and sigma_bottom < 0:
+            c = lw * sigma_top / (sigma_top - sigma_bottom)
+        else:
+            c = lw if sigma_top > 0 else 0.0
+        need = max(a * lw, b * c)
+        rows.append(
+            _row(
+                "Confined end length", need, boundary.length if boundary else 0.0, "mm",
+                f"≥ max({a:g} lw, {b:g} c), c = {c:.0f} mm the elastic compression depth",
+                "seismicWallBoundary",
+            )
+        )  # fmt: skip
+    if w.boundaryAsh is not None:
+        if boundary is None or not boundary.hoops:
+            rows.append(_row("Confined end hoops", 1, 0, "", "no boundary hoops given",
+                             "seismicWallBoundary"))  # fmt: skip
+            return rows
+        a, b = w.boundaryAsh
+        cover = bars.cover
+        core_t = t - 2 * cover
+        core_l = max(boundary.length - cover, 1.0)
+        ag, ac = t * boundary.length, max(core_t * core_l, 1.0)
+        h = max(core_l / max(boundary.legs_across - 1, 1), 1.0)
+        need = max(a * (ag / ac - 1), b) * boundary.hoop_spacing * h * fc / bars_fy(bars)
+        rows.append(
+            _row(
+                "Confined end hoops, one leg", need, bar_area(boundary.hoop_dia), "mm²",
+                f"Ash ≥ max({a:g} (Ag/Ac - 1), {b:g}) s h f'c/fyt, s = "
+                f"{boundary.hoop_spacing:.0f} mm, h = {h:.0f} mm", "seismicWallBoundary",
+            )
+        )  # fmt: skip
+    return rows
+
+
+def bars_fy(bars: Any) -> float:
+    """fyt of a wall's hoops [MPa]: the type's (``fyt``) where given, else the pack's 500."""
+    return float(getattr(bars, "fyt", None) or 500.0)
 
 
 def coupling_row(
@@ -382,7 +601,7 @@ def coupling_row(
 ) -> dict[str, Any] | None:
     """Whether a coupling beam needs diagonal bars: τv > couplingRoot (ls/D) √fck with ls/D
     below couplingSpanRatio."""
-    r = rules()
+    r = rules_for("special")
     if r is None or depth <= 0:
         return None
     w = r.walls
@@ -413,7 +632,8 @@ def proposal_caps(kind: str, section: Any) -> tuple[float, float, float] | None:
         except DesignError:
             d = 0.9 * section.depth
         a, n, mm = b.hoopSpacing
-        return min(a * d, n * db, mm), b.elsewhereShare * d, b.hoopZoneDepths * d
+        zone = b.hoopZoneDepths * (section.depth if b.hoopZoneOnDepth else d)  # Alpha 9 C18c
+        return min(a * d, n * db, mm), b.elsewhereShare * d, zone
     c = r.columns
     least, other = sorted((section.width, section.depth))
     sa, sb, smm = c.confinedSpacing
@@ -454,9 +674,9 @@ def apply(
     signature and result: ``{"joints": [], "notes": [...]}``)."""
     from saengine.design import seismic_detailing as sd
 
-    r = rules()
     notes: list[str] = []
     level = scope.get("detailingLevel")
+    r = rules_for(level)  # Alpha 9 C18c: the level's groups
     if r is None or level not in r.frames:
         return {"joints": [], "notes": notes}
     members_scope = scope.get("members", {})

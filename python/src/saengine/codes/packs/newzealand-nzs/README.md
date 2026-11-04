@@ -39,14 +39,27 @@ empty: N = 1). The equivalent static distribution `lateralForce` linear with the
   multiplier Mh and the dynamic response factor Cdyn. The AS 1170.4 design category by height is
   removed (NZS 1170.5 has none).
 
+## Alpha 9 C18c (version 0.3)
+
+- `concreteMethods.seismic` method `ductileDetailing` with `basis: "capacityFactor"` and
+  `levels` (NZS 3101 Chapters 9, 10, 11, 15, Appendix D): ductile (special) and limited ductile
+  (intermediate) frames; plastic hinge regions on D and by N*/(φ f'c Ag), the confinement by
+  the axial load (10.4.7), the Appendix D capacity design (Mo = λo Mn, the strong column ratio
+  ω λo/φ, the columns' capacity shear), joints by vjh <= min(0.2 f'c, 10 MPa) with the
+  horizontal joint hoops (15.4), the ductile walls' design shear φo,w ωv V*E and confined ends
+  (11.4), diagonally reinforced coupling beams.
+- Walls: `concrete.walls` 0.7/fy each way, min(3 t, 450 mm) (11.3.11; the Australian values are
+  not inherited).
+- `steelLimitState.seismic` method `prescriptiveFrames` (NZS 3404 Section 12): categories 1 and
+  3 (compact yielding members, the connections for φoms Mp, category 1 columns ΣMpc >= φoms
+  ΣMpb); the connections of the Australian pack (Chapter 9, the AS 4100 rules).
+- `designClauses`: the walls' rows, the slenderness and the detailing chapter are NZS 3101's.
+
 ## Not covered (from the parent packs, named so)
 
-NZS 3101 capacity design beyond the program's probable-moment rules (Appendix D dynamic
-magnification ω and the overstrength φo of columns, the ductile wall provisions of 11.4,
-coupling beams), the ductile and limited ductile detailing lengths of Chapters 9-11, beam-column
-joints by Chapter 15 (the parent's joint rows apply), NZS 3404 Section 12 seismic categories 1-4
-and member overstrength, walls by NZS 3101 Chapter 11, footings, connections, NZS 4230 masonry
-and NZS 3603 timber (none fits SAEngine's masonry or timber engines in this version). Torsion,
-punching and column shear run the parent's methods, of the same form as NZS 3101 7.6, 12.7 and
-10.3.10 (their constants to verify). Every value is listed with its clause in
+Slender columns, torsion, punching and column shear run the parent's methods, of the same form
+as NZS 3101 10.4, 7.6, 12.7 and 10.3.10 (their constants to verify); the AS 3600 anchorage and
+strut-and-tie are not inherited (concreteMethods replaced: the parent's ACI-type development
+lengths and strut-and-tie apply); footings, NZS 4230 masonry and NZS 3603 timber (none fits
+SAEngine's masonry or timber engines in this version). Every value is listed with its clause in
 [VERIFY.md](VERIFY.md).

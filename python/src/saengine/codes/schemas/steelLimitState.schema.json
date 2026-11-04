@@ -831,6 +831,210 @@
       "title": "SteelBracingForces",
       "type": "object"
     },
+    "SteelCapacityFactorBolt": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18c: a bolt grade of the capacity-factor connections.",
+      "properties": {
+        "fuf": {
+          "description": "The bolt's tensile strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fuf",
+          "type": "number"
+        },
+        "pretensioned": {
+          "default": false,
+          "description": "May be fully tensioned (TB, TF).",
+          "title": "Pretensioned",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fuf"
+      ],
+      "title": "SteelCapacityFactorBolt",
+      "type": "object"
+    },
+    "SteelCapacityFactorJoints": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18c, ``steelLimitState.connections`` (method ``capacityFactorJoints``, the\nAS 4100:2020 Chapter 9 form; :mod:`saengine.design.steel.capacity_factor_joints`): bolts in\nshear ``φ shearShare fuf kr Ac`` (Ac the core area with the threads in the shear plane,\n``coreShare`` Ao), in tension ``φ As fuf``, combined ``(V/φVf)² + (N/φNtf)² <= 1``, the ply\nin bearing ``φ bearingFactor df tp fup`` and tear-out ``φ ae tp fup``, friction\n``φ μ nei Nti kh``, block shear on the parts' fy and fu with ``phiBlock``, fillet welds\n``φ weldShare fuw tt kr``.",
+      "properties": {
+        "method": {
+          "const": "capacityFactorJoints",
+          "title": "Method",
+          "type": "string"
+        },
+        "phiBolt": {
+          "description": "φ of bolts in shear and tension.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phibolt",
+          "type": "number"
+        },
+        "shearShare": {
+          "description": "Vf = φ share fuf kr Ac.",
+          "exclusiveMinimum": 0,
+          "title": "Shearshare",
+          "type": "number"
+        },
+        "coreShare": {
+          "description": "Ac / Ao (the threads in the shear plane).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Coreshare",
+          "type": "number"
+        },
+        "tensileArea": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "As [mm²] by bolt diameter (0.78 Ao otherwise).",
+          "title": "Tensilearea",
+          "type": "object"
+        },
+        "grades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelCapacityFactorBolt"
+          },
+          "title": "Grades",
+          "type": "object"
+        },
+        "gradeOf": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Other grade names taken as a grade of ``grades``.",
+          "title": "Gradeof",
+          "type": "object"
+        },
+        "longJoint": {
+          "description": "kr: 1 up to l1 [mm], a - lj / b up to l2, the least above: (l1, l2, a, b, least).",
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Longjoint",
+          "type": "array"
+        },
+        "phiPly": {
+          "description": "φ of the ply in bearing and tear-out.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phiply",
+          "type": "number"
+        },
+        "bearingFactor": {
+          "description": "Vb = φ factor df tp fup.",
+          "exclusiveMinimum": 0,
+          "title": "Bearingfactor",
+          "type": "number"
+        },
+        "phiSlip": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phislip",
+          "type": "number"
+        },
+        "slipMu": {
+          "description": "μ of the faying surfaces (the code's default).",
+          "exclusiveMinimum": 0,
+          "title": "Slipmu",
+          "type": "number"
+        },
+        "holeKh": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "kh by hole type (standard, oversize, ...).",
+          "title": "Holekh",
+          "type": "object"
+        },
+        "pretension": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Nti [kN] by bolt diameter.",
+          "title": "Pretension",
+          "type": "object"
+        },
+        "phiBlock": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phiblock",
+          "type": "number"
+        },
+        "phiWeld": {
+          "description": "φ of the fillet welds (the weld category's).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phiweld",
+          "type": "number"
+        },
+        "weldShare": {
+          "description": "φvw = φ share fuw tt kr.",
+          "exclusiveMinimum": 0,
+          "title": "Weldshare",
+          "type": "number"
+        },
+        "fuw": {
+          "description": "The weld metal's strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fuw",
+          "type": "number"
+        },
+        "throatShare": {
+          "description": "tt = share × the leg.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Throatshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "phiBolt",
+        "shearShare",
+        "coreShare",
+        "grades",
+        "longJoint",
+        "phiPly",
+        "bearingFactor",
+        "phiSlip",
+        "slipMu",
+        "holeKh",
+        "pretension",
+        "phiBlock",
+        "phiWeld",
+        "weldShare",
+        "fuw",
+        "throatShare"
+      ],
+      "title": "SteelCapacityFactorJoints",
+      "type": "object"
+    },
     "SteelClassLimits": {
       "additionalProperties": false,
       "description": "c/t limits of the cross-section classes 1, 2, 3, as multiples of ε = √(ref / fy).",
@@ -3661,6 +3865,9 @@
         },
         {
           "$ref": "#/$defs/SteelJointResistances"
+        },
+        {
+          "$ref": "#/$defs/SteelCapacityFactorJoints"
         },
         {
           "type": "null"

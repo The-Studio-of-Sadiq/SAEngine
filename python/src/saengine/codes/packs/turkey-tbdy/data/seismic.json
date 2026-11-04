@@ -1,0 +1,237 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "TBDY 2018 Bolum 2 (hazard levels DD-1 to DD-4, local site classes ZA-ZF, Tablo 2.1 and 2.2 site coefficients, the horizontal elastic design spectrum), Bolum 3 (BKS, I, DTS, BYS, performance objectives), Bolum 4 (R and D of Tablo 4.1, Ra(T), equivalent lateral load and modal analysis, drift limits with lambda and kappa); see VERIFY.md"
+  ],
+  "source": "TBDY 2018 (Turkiye Bina Deprem Yonetmeligi), Bolum 2-4: the design earthquake is DD-2 (10 % in 50 years); SS and S1 of the site are read from the AFAD hazard map (site-specific: enter them under Site > Mapped spectral values; the towns give example values only); SDS = SS FS, SD1 = S1 F1 (Tablo 2.1, 2.2), TA = 0.2 SD1/SDS, TB = SD1/SDS, TL = 6 s; SaR(T) = Sae(T)/Ra(T), Ra = D + (R/I - D) T/TB below TB, R/I above (Denk. 4.1); the design earthquake categories DTS 1-4 (1a-4a for BKS 1) are SAEngine's categories D (DTS 1, 2), C (DTS 3) and B (DTS 4). Entered from knowledge of the code, every value to be checked against the printed regulation (VERIFY.md).",
+  "defaultSiteClass": "ZC",
+  "defaultSystem": "rcSmf",
+  "siteClasses": {
+    "ZA": { "description": "ZA: hard, sound rock (vs30 above 1500 m/s)", "vs30": [1500, null] },
+    "ZB": { "description": "ZB: slightly weathered, medium-strength rock (vs30 760-1500 m/s)", "vs30": [760, 1500] },
+    "ZC": { "description": "ZC: very dense sand, gravel and hard clay, or weathered rock (vs30 360-760 m/s)", "vs30": [360, 760] },
+    "ZD": { "description": "ZD: medium-dense to dense sand and gravel or very stiff clay (vs30 180-360 m/s)", "vs30": [180, 360] },
+    "ZE": { "description": "ZE: loose sand, gravel or soft clay (vs30 below 180 m/s), or a soft clay layer over 3 m thick", "vs30": [null, 180] },
+    "ZF": { "description": "ZF: soils needing a site-specific investigation and site response analysis (liquefiable, sensitive clays, peats, very thick soft clays)" }
+  },
+  "designSpectrum": {
+    "method": "mappedSpectral",
+    "designShare": 1.0,
+    "t0Share": 0.2,
+    "rampStart": 0.4,
+    "sdsBands": [0.33, 0.5, 0.75],
+    "sd1Bands": [],
+    "csLimits": { "sdsFactor": 0.04, "floor": 0.0 },
+    "siteCoefficients": {
+      "fa": {
+        "points": [0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+        "classes": {
+          "ZA": [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+          "ZB": [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+          "ZC": [1.3, 1.3, 1.2, 1.2, 1.2, 1.2],
+          "ZD": [1.6, 1.4, 1.2, 1.1, 1.0, 1.0],
+          "ZE": [2.4, 1.7, 1.3, 1.1, 0.9, 0.8]
+        }
+      },
+      "fv": {
+        "points": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        "classes": {
+          "ZA": [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+          "ZB": [0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+          "ZC": [1.5, 1.5, 1.5, 1.5, 1.5, 1.4],
+          "ZD": [2.4, 2.2, 2.0, 1.9, 1.8, 1.7],
+          "ZE": [4.2, 3.3, 2.8, 2.4, 2.2, 2.0]
+        }
+      },
+      "clause": "TBDY 2018 2.3.3, Tablo 2.1 (FS) and Tablo 2.2 (F1)"
+    },
+    "shortPeriodReduction": { "method": "overstrengthRamp", "clause": "TBDY 2018 4.3.4.1, Denk. 4.1" },
+    "clauses": {
+      "spectrum": "TBDY 2018 2.3.4, Denk. 2.2",
+      "design": "TBDY 2018 2.3.3, Denk. 2.1 (SDS = SS FS, SD1 = S1 F1)",
+      "sdc": "TBDY 2018 3.2, Tablo 3.2 (DTS)",
+      "cs": "TBDY 2018 4.7.1.1, Denk. 4.19 (Vt = m SaR(T) g >= 0.04 m I SDS g)",
+      "coefficients": "TBDY 2018 Tablo 2.1, 2.2",
+      "reduction": "TBDY 2018 4.3.4.1, Denk. 4.1 (Ra)"
+    }
+  },
+  "systems": {
+    "rcSmf": { "name": "RC frames, high ductility (all seismic loads by frames)", "R": 8.0, "Omega0": 3.0, "Cd": 8.0, "row": "Tablo 4.1 A11", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcImf": { "name": "RC frames, limited ductility", "R": 4.0, "Omega0": 2.5, "Cd": 4.0, "row": "Tablo 4.1 B11", "heightLimits": { "B": 28.0, "C": 28.0, "D": 0.0 }, "frame": "intermediate", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcCoupledWalls": { "name": "RC coupled structural walls, high ductility", "R": 8.0, "Omega0": 2.5, "Cd": 8.0, "row": "Tablo 4.1 A12", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcSpecialWallFrame": { "name": "RC uncoupled (cantilever) structural walls, high ductility", "R": 6.0, "Omega0": 2.5, "Cd": 6.0, "row": "Tablo 4.1 A13", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcOrdinaryWallFrame": { "name": "RC structural walls, limited ductility", "R": 4.0, "Omega0": 2.5, "Cd": 4.0, "row": "Tablo 4.1 B12", "heightLimits": { "B": 28.0, "C": 28.0, "D": 0.0 }, "frame": null, "specialWalls": false, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcDualSpecial": { "name": "RC frames and structural walls together, high ductility", "R": 7.0, "Omega0": 2.5, "Cd": 7.0, "row": "Tablo 4.1 C11", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "dualSpecial", "dual": true },
+    "steelSmf": { "name": "Steel moment frames, high ductility", "R": 8.0, "Omega0": 3.0, "Cd": 8.0, "row": "Tablo 4.1 A21", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelImf": { "name": "Steel moment frames, limited ductility", "R": 4.0, "Omega0": 2.0, "Cd": 4.0, "row": "Tablo 4.1 B21", "heightLimits": { "B": 28.0, "C": 28.0, "D": 0.0 }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelScbf": { "name": "Steel concentrically braced frames, high ductility", "R": 5.0, "Omega0": 2.0, "Cd": 5.0, "row": "Tablo 4.1 A22", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelOcbf": { "name": "Steel concentrically braced frames, limited ductility", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Tablo 4.1 B22", "heightLimits": { "B": 28.0, "C": 28.0, "D": 0.0 }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelEbf": { "name": "Steel eccentrically braced frames, high ductility", "R": 6.0, "Omega0": 2.5, "Cd": 6.0, "row": "Tablo 4.1 A23", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame", "dual": false },
+    "masonryOrdinaryPlain": { "name": "Unreinforced masonry (Bolum 11)", "R": 2.5, "Omega0": 1.5, "Cd": 2.5, "row": "Tablo 4.1 (masonry)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "masonry": true, "momentFrame": false, "periodFamily": null, "group": "bearingWall", "dual": false }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": ["steelImf", "steelSmf"],
+    "steelBracedFrame": ["steelOcbf", "steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems, least ductile first (TBDY 2018 Tablo 4.1 limited, then high ductility)"
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.1, "m": 0.75 },
+    "steelMomentFrame": { "Ct": 0.08, "m": 0.75 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.07, "m": 0.75 },
+    "other": { "Ct": 0.05, "m": 0.75 }
+  },
+  "periodUpperFactor": 1.4,
+  "designCategories": {
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["B", "C", "D", "D"] } }
+  },
+  "siteSpecificStudy": {
+    "classes": ["ZF"],
+    "assumedClass": "ZE",
+    "clause": "TBDY 2018 16.4 and 2.4 (site-specific spectrum)",
+    "warning": "Site class {classes}: {code} {clause} requires a site-specific investigation and site response analysis. Until one is made, the spectrum uses the values entered for the site (class {used}) and the design category is read for {assumed}: an assumption, not a value of the code."
+  },
+  "requiredDetailing": { "B": "intermediate", "C": "intermediate", "D": "special" },
+  "allowableDrift": { "I": 0.008, "II": 0.008, "III": 0.008, "IV": 0.008 },
+  "allowableDriftLabel": "Concrete buildings with infill walls fixed to the frame (λ δ/h ≤ 0.008 κ, κ = 1)",
+  "driftLimits": [
+    { "id": "steelTolerant", "label": "Steel buildings with infill walls separated from the frame or deformable connections (λ δ/h ≤ 0.016 κ, κ = 0.5)", "concrete": false, "masonry": false, "driftTolerantFinishes": true, "limits": { "I": 0.008, "II": 0.008, "III": 0.008, "IV": 0.008 } },
+    { "id": "steel", "label": "Steel buildings with infill walls fixed to the frame (λ δ/h ≤ 0.008 κ, κ = 0.5)", "concrete": false, "masonry": false, "limits": { "I": 0.004, "II": 0.004, "III": 0.004, "IV": 0.004 } },
+    { "id": "concreteTolerant", "label": "Concrete buildings with infill walls separated from the frame or deformable connections (λ δ/h ≤ 0.016 κ, κ = 1)", "concrete": true, "driftTolerantFinishes": true, "limits": { "I": 0.016, "II": 0.016, "III": 0.016, "IV": 0.016 } }
+  ],
+  "driftServiceRatio": { "value": 1.0, "label": "λ", "clause": "TBDY 2018 4.9.1.3 (λ = Sae(DD-3) / Sae(DD-2) at the period; 1.0 here on the safe side: enter the site's ratio as a Code Value)" },
+  "performanceBased": {
+    "columns": { "D": "dts12", "C": "dts3", "B": "dts4" },
+    "heightLabel": "building height class BYS",
+    "heightClasses": [
+      { "id": "1", "label": "tall building", "above": { "dts12": 70.0, "dts3": 91.0, "dts4": 105.0 } },
+      { "id": "2", "above": { "dts12": 56.0, "dts3": 70.0, "dts4": 91.0 } },
+      { "id": "3", "above": { "dts12": 42.0, "dts3": 56.0, "dts4": 56.0 } },
+      { "id": "4", "above": { "dts12": 28.0, "dts3": 42.0, "dts4": 42.0 } },
+      { "id": "5", "above": { "dts12": 17.5, "dts3": 28.0, "dts4": 28.0 } },
+      { "id": "6", "above": { "dts12": 10.5, "dts3": 17.5, "dts4": 17.5 } },
+      { "id": "7", "above": { "dts12": 7.0, "dts3": 10.5, "dts4": 10.5 } },
+      { "id": "8", "above": { "dts12": 0.0, "dts3": 0.0, "dts4": 0.0 } }
+    ],
+    "rules": [
+      {
+        "classes": ["1"],
+        "label": "a tall building (BYS 1)",
+        "clause": "TBDY 2018 3.4.2, Tablo 3.4b and Bolum 13",
+        "objectives": [
+          { "hazard": "DD-4", "level": "continuous use (KK)", "procedure": "linear", "label": "elastic, R = 1" },
+          { "hazard": "DD-2", "level": "controlled damage (KH)", "procedure": "strength", "label": "the preliminary design" },
+          { "hazard": "DD-1", "level": "collapse prevention (GO)", "procedure": "nonlinearHistory", "label": "at least 11 record pairs" }
+        ]
+      }
+    ],
+    "clause": "TBDY 2018 3.3, Tablo 3.3 (BYS)"
+  },
+  "driftRedundancyCategories": [],
+  "driftAmplification": "overImportance",
+  "dampingEta": 1.0,
+  "dampingCorrection": { "method": "squareRoot", "referenceDamping": 0.05, "numerator": 10.0, "offset": 5.0, "minimum": 0.55 },
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 1.0 },
+  "irregularities": {
+    "reentrantProjection": 0.2,
+    "openingShare": 0.3333,
+    "offsets": true,
+    "soft": { "storeyAbove": 0.5 },
+    "weak": { "storeyAbove": 0.8 },
+    "strength": { "method": "shearStrength", "concreteFactor": 0.17, "depthFactor": 0.8 },
+    "labels": {
+      "torsion": { "group": "plan", "label": "A1 torsional irregularity (ηbi > 1.2)" },
+      "reentrantCorner": { "group": "plan", "label": "A3 re-entrant corners (projections over 20 % of the plan dimension)" },
+      "diaphragmDiscontinuity": { "group": "plan", "label": "A2 floor discontinuity (openings over 1/3 of the floor)" },
+      "outOfPlaneOffset": { "group": "plan", "label": "A4 non-parallel or offset axes" },
+      "soft": { "group": "vertical", "label": "B2 soft storey (ηki > 2.0)" },
+      "weak": { "group": "vertical", "label": "B1 weak storey (ηci < 0.8)" },
+      "inPlaneDiscontinuity": { "group": "vertical", "label": "B3 discontinuity of the vertical elements" }
+    },
+    "clauses": {
+      "plan": "TBDY 2018 3.6.2, Tablo 3.6 (A types)",
+      "vertical": "TBDY 2018 3.6.2, Tablo 3.6 (B types)",
+      "torsion": "Tablo 3.6 A1",
+      "reentrantCorner": "Tablo 3.6 A3",
+      "diaphragmDiscontinuity": "Tablo 3.6 A2",
+      "outOfPlaneOffset": "Tablo 3.6 A4",
+      "soft": "Tablo 3.6 B2",
+      "weak": "Tablo 3.6 B1",
+      "inPlaneDiscontinuity": "Tablo 3.6 B3",
+      "strength": "the storey shear strength of the columns and walls (the ACI 318 form of the base pack, SAEngine practice)"
+    }
+  },
+  "timeHistory": {
+    "method": "periodRange",
+    "minimumRecords": 11,
+    "periodLower": 0.2,
+    "periodUpper": 1.5,
+    "spectrumDamping": 0.05,
+    "singleRatio": 1.0,
+    "pairRatio": 1.3,
+    "meanFrom": 11,
+    "baseShearShare": 1.0,
+    "scaleDrifts": true,
+    "simultaneousPairs": true,
+    "pairCombination": "srss",
+    "periodBasis": "governing",
+    "targets": {
+      "linear": {},
+      "nonlinear": { "R": 1.0, "I": 1.0, "factor": 1.5 }
+    },
+    "clauses": {
+      "records": "TBDY 2018 2.5.1-2.5.2 (at least 11 records or pairs, the mean spectrum from 0.2 T to 1.5 T at least the target; the SRSS of the pairs at least 1.3 times)",
+      "nonlinearRecords": "TBDY 2018 2.5.2 and Bolum 13 (DD-1 target for the collapse prevention evaluation; factor 1.5 SAEngine practice for DD-1 / DD-2: enter the site's DD-1 values)"
+    }
+  },
+  "liveShare": 0.3,
+  "minimumScale": 0.8,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.95,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 2.0,
+  "torsionAmplificationMax": 2.0,
+  "pgaFactor": 0.4,
+  "verticalFactor": 1.6667,
+  "lateralForce": { "distribution": "linear", "topForce": { "storeyFactor": 0.0075 }, "clause": "TBDY 2018 4.7.2.1-4.7.2.2 (ΔFN = 0.0075 N Vt at the top)" },
+  "clauses": {
+    "scale": "TBDY 2018 4.8.4 (γE = 0.80)",
+    "torsion": "TBDY 2018 4.5.3 (5 % accidental eccentricity)",
+    "orthogonal": "TBDY 2018 4.4.2",
+    "vertical": "TBDY 2018 4.4.3 (simplified vertical effect (2/3) SDS G)",
+    "combinations": "TBDY 2018 4.4.4",
+    "drift": "TBDY 2018 4.9.1 (δ = (R/I) Δ; λ δ/h ≤ 0.008 κ or 0.016 κ)",
+    "sdc": "TBDY 2018 3.2, Tablo 3.2",
+    "modes": "TBDY 2018 4.8.3 (95 % of the mass)",
+    "irregularity": "TBDY 2018 Tablo 3.6 A1",
+    "amplification": "TBDY 2018 4.7.2.4 (Dbi = (ηbi/1.2)² ≤ 2.0)",
+    "systems": "TBDY 2018 Tablo 4.1",
+    "displacement": "TBDY 2018 4.9.1.1",
+    "period": "TBDY 2018 4.7.3 (TpA = Ct HN^(3/4); Tp ≤ 1.4 TpA)",
+    "weight": "TBDY 2018 4.5.9 (n = 0.3)",
+    "elf": "TBDY 2018 4.7.1",
+    "spectrum": "TBDY 2018 2.3.4",
+    "performance": "TBDY 2018 3.4, Bolum 13"
+  },
+  "sources": {
+    "siteClasses": "TBDY 2018 16.4, Tablo 16.1: the local site classes ZA-ZF by vs30 (and the SPT / undrained strength columns, not used)",
+    "designSpectrum": "TBDY 2018 2.3.4: Sae(T) = (0.4 + 0.6 T/TA) SDS up to TA = 0.2 TB, SDS to TB = SD1/SDS, SD1/T to TL, SD1 TL/T² beyond (TL = 6 s, the towns' tl); 4.7.1.1: Vt ≥ 0.04 m I SDS g",
+    "systems": "TBDY 2018 Tablo 4.1: R and D (overstrength) by system; Cd = R (δ = (R/I) Δ, 4.9.1.1); Omega0 holds D; the height limits of the limited-ductility systems (not permitted in DTS 1, 2; BYS ≥ 6 in DTS 3, 4: HN ≤ 28 m) are an SAEngine reading of the table's permitted BYS columns",
+    "periodCoefficients": "TBDY 2018 4.7.3.3, Denk. 4.31: Ct = 0.1 RC frames, 0.08 steel frames, 0.07 eccentrically braced steel frames, 0.05 other buildings",
+    "designCategories": "TBDY 2018 Tablo 3.2: DTS 4 (SDS < 0.33), 3 (0.33-0.50), 2 (0.50-0.75), 1 (≥ 0.75) (1a-4a for BKS 1): SAEngine's slots B (DTS 4), C (DTS 3) and D (DTS 1, 2)",
+    "requiredDetailing": "TBDY 2018 4.3.2-4.3.3: high ductility in DTS 1 and 2; limited ductility permitted in DTS 3 and 4 (SAEngine's intermediate)",
+    "allowableDrift": "TBDY 2018 4.9.1.3, Denk. 4.34: λ (δi)max/hi ≤ 0.008 κ (infill walls fixed to the frame) or 0.016 κ (separated or deformable), κ = 1 concrete, 0.5 steel",
+    "liveShare": "TBDY 2018 4.5.9.1, Tablo 4.3: n = 0.3 for residences and offices (0.6 shops, schools, halls; 0.8 storage: enter as a Code Value)",
+    "minimumScale": "TBDY 2018 4.8.4: the modal base shear at least γE = 0.80 × the equivalent lateral load Vt",
+    "pgaFactor": "TBDY 2018 2.3.4: the peak ground acceleration 0.4 SDS",
+    "verticalFactor": "TBDY 2018 4.4.3: the simplified vertical effect (2/3) SDS G (verticalFactor 1.6667 on 0.4 SDS)",
+    "dampingCorrection": "TBDY 2018 2.3.5: η = √(10/(5 + ξ)) ≥ 0.55 (check)",
+    "torsionExtreme": "TBDY 2018 Tablo 3.6 A1: ηbi > 2.0 is not permitted (SAEngine's extreme torsion slot)",
+    "lateralForce": "TBDY 2018 4.7.2: Fi = (Vt - ΔFN) mi Hi / Σ mj Hj, ΔFN = 0.0075 N Vt at the top storey",
+    "irregularities": "TBDY 2018 Tablo 3.6 (check the thresholds); the stiffness irregularity B2 (ηki > 2.0, the drift ratio of adjacent storeys) is read as a storey stiffness below 0.5 × the storey above (SAEngine form)",
+    "timeHistory": "TBDY 2018 2.5: at least 11 records (pairs), the mean spectrum within 0.2 Tp to 1.5 Tp at least the target (single) and the mean SRSS spectrum at least 1.3 × the target (pairs)"
+  }
+}

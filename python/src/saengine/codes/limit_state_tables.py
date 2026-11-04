@@ -331,6 +331,50 @@ class SteelConnectionRules(_Group):
     )
 
 
+class SteelCapacityFactorBolt(_Group):
+    """Alpha 9 C18c: a bolt grade of the capacity-factor connections."""
+
+    fuf: Positive = Field(description="The bolt's tensile strength [MPa].")
+    pretensioned: bool = Field(default=False, description="May be fully tensioned (TB, TF).")
+
+
+class SteelCapacityFactorJoints(_Group):
+    """Alpha 9 C18c, ``steelLimitState.connections`` (method ``capacityFactorJoints``, the
+    AS 4100:2020 Chapter 9 form; :mod:`saengine.design.steel.capacity_factor_joints`): bolts in
+    shear ``φ shearShare fuf kr Ac`` (Ac the core area with the threads in the shear plane,
+    ``coreShare`` Ao), in tension ``φ As fuf``, combined ``(V/φVf)² + (N/φNtf)² <= 1``, the ply
+    in bearing ``φ bearingFactor df tp fup`` and tear-out ``φ ae tp fup``, friction
+    ``φ μ nei Nti kh``, block shear on the parts' fy and fu with ``phiBlock``, fillet welds
+    ``φ weldShare fuw tt kr``."""
+
+    method: Literal["capacityFactorJoints"]
+    phiBolt: Share = Field(description="φ of bolts in shear and tension.")
+    shearShare: Positive = Field(description="Vf = φ share fuf kr Ac.")
+    coreShare: Share = Field(description="Ac / Ao (the threads in the shear plane).")
+    tensileArea: dict[int, Positive] = Field(
+        default_factory=dict, description="As [mm²] by bolt diameter (0.78 Ao otherwise)."
+    )
+    grades: dict[str, SteelCapacityFactorBolt]
+    gradeOf: dict[str, str] = Field(
+        default_factory=dict, description="Other grade names taken as a grade of ``grades``."
+    )
+    longJoint: tuple[Positive, Positive, Positive, Positive, Share] = Field(
+        description="kr: 1 up to l1 [mm], a - lj / b up to l2, the least above: (l1, l2, a, b, "
+        "least)."
+    )
+    phiPly: Share = Field(description="φ of the ply in bearing and tear-out.")
+    bearingFactor: Positive = Field(description="Vb = φ factor df tp fup.")
+    phiSlip: Share
+    slipMu: Positive = Field(description="μ of the faying surfaces (the code's default).")
+    holeKh: dict[str, Positive] = Field(description="kh by hole type (standard, oversize, ...).")
+    pretension: dict[int, Positive] = Field(description="Nti [kN] by bolt diameter.")
+    phiBlock: Share
+    phiWeld: Share = Field(description="φ of the fillet welds (the weld category's).")
+    weldShare: Positive = Field(description="φvw = φ share fuw tt kr.")
+    fuw: Positive = Field(description="The weld metal's strength [MPa].")
+    throatShare: Share = Field(description="tt = share × the leg.")
+
+
 class SeismicFrameRules(_Group):
     """The rules of one steel seismic frame kind (None or empty: not required)."""
 
@@ -400,7 +444,10 @@ class SteelLimitStateTable(TableModel):
     #: The connection strengths: bolts by C9's rules (``partialFactorBolts``) or (alpha 9 C6)
     #: bolts, bearing, welds and block tearing with γM2 (``partialFactors``,
     #: saengine.design.steel.joint_resistances).
-    connections: SteelConnectionRules | SteelJointResistances | None = None
+    #: Alpha 9 C18c: or the capacity-factor joints (``capacityFactorJoints``, AS 4100 Ch 9).
+    connections: SteelConnectionRules | SteelJointResistances | SteelCapacityFactorJoints | None = (
+        None
+    )
     #: The seismic frames: prescriptive rules (``prescriptiveFrames``) or (alpha 9 C6) the
     #: capacity design of dissipative frames (``dissipativeZones``,
     #: saengine.design.steel.seismic_dissipative).

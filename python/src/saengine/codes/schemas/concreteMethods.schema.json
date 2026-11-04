@@ -402,6 +402,100 @@
       "title": "BondTableRules",
       "type": "object"
     },
+    "BucklingMagnifierRules": {
+      "additionalProperties": false,
+      "description": "Slender columns by the moment magnifier with Nc from the balanced moment (method\n``bucklingMagnifier``, :mod:`saengine.design.buckling_magnifier`).",
+      "properties": {
+        "method": {
+          "const": "bucklingMagnifier",
+          "title": "Method",
+          "type": "string"
+        },
+        "bracedLimit": {
+          "description": "Braced columns short up to Le/r = this.",
+          "exclusiveMinimum": 0,
+          "title": "Bracedlimit",
+          "type": "number"
+        },
+        "unbracedLimit": {
+          "description": "Unbraced columns short up to Le/r = this.",
+          "exclusiveMinimum": 0,
+          "title": "Unbracedlimit",
+          "type": "number"
+        },
+        "kmBase": {
+          "description": "km = base + slope M1/M2 (positive single curvature).",
+          "exclusiveMinimum": 0,
+          "title": "Kmbase",
+          "type": "number"
+        },
+        "kmSlope": {
+          "title": "Kmslope",
+          "type": "number"
+        },
+        "kmMin": {
+          "description": "km at least this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kmmin",
+          "type": "number"
+        },
+        "stiffnessCoefficient": {
+          "description": "Nc = (π²/Le²) c do φ Mub / (1 + βd).",
+          "exclusiveMinimum": 0,
+          "title": "Stiffnesscoefficient",
+          "type": "number"
+        },
+        "phiBuckling": {
+          "description": "φ of Nc.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phibuckling",
+          "type": "number"
+        },
+        "minEccentricityShare": {
+          "description": "M* at least N* × share D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mineccentricityshare",
+          "type": "number"
+        },
+        "slendernessMax": {
+          "description": "Le/r above this: not covered.",
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "ultimateStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "εcu of the balanced point (none: the pack's).",
+          "title": "Ultimatestrain"
+        }
+      },
+      "required": [
+        "method",
+        "bracedLimit",
+        "unbracedLimit",
+        "kmBase",
+        "kmSlope",
+        "kmMin",
+        "stiffnessCoefficient",
+        "phiBuckling",
+        "minEccentricityShare",
+        "slendernessMax"
+      ],
+      "title": "BucklingMagnifierRules",
+      "type": "object"
+    },
     "ColumnMethodRules": {
       "additionalProperties": false,
       "description": "Columns: slenderness (``additionalMoment``, alpha 9 C20b ``endMomentMagnifier``) and\nbiaxial bending (``loadContour``, or the interaction ``surface``).",
@@ -1201,6 +1295,161 @@
       "title": "DetailingRules",
       "type": "object"
     },
+    "DevelopmentFactorRules": {
+      "additionalProperties": false,
+      "description": "Development and laps of deformed bars by the basic length and the factors k1-k3\n(method ``developmentFactors``, :mod:`saengine.design.development_factors`).",
+      "properties": {
+        "method": {
+          "const": "developmentFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "coefficient": {
+          "description": "Lsy.tb = c k1 k3 fsy db / (k2 √f'c).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "minCoefficient": {
+          "description": "... at least this × fsy k1 db.",
+          "exclusiveMinimum": 0,
+          "title": "Mincoefficient",
+          "type": "number"
+        },
+        "topFactor": {
+          "description": "k1 of top bars ...",
+          "exclusiveMinimum": 0,
+          "title": "Topfactor",
+          "type": "number"
+        },
+        "topDepth": {
+          "description": "... with more than this [mm] of concrete below.",
+          "exclusiveMinimum": 0,
+          "title": "Topdepth",
+          "type": "number"
+        },
+        "barFactor": {
+          "description": "k2 = (a - db) / b.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Barfactor",
+          "type": "array"
+        },
+        "coverFactor": {
+          "description": "k3 = 1 - c (cd - db)/db within (least, most).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Coverfactor",
+          "type": "array"
+        },
+        "fcMax": {
+          "description": "f'c of √f'c at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmax",
+          "type": "number"
+        },
+        "hookShare": {
+          "description": "Hooks and cogs: this × Lsy.tb.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookshare",
+          "type": "number"
+        },
+        "compression": {
+          "description": "Lsy.c = a fsy db / √f'c >= b fsy db and mm.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compression",
+          "type": "array"
+        },
+        "lapFactor": {
+          "description": "Tension laps: this × Lsy.t ...",
+          "exclusiveMinimum": 0,
+          "title": "Lapfactor",
+          "type": "number"
+        },
+        "lapMinCoefficient": {
+          "description": "... at least this × k1 db.",
+          "exclusiveMinimum": 0,
+          "title": "Lapmincoefficient",
+          "type": "number"
+        },
+        "compressionLap": {
+          "description": "Compression laps: Lsy.c at least n db and mm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compressionlap",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "coefficient",
+        "minCoefficient",
+        "topFactor",
+        "topDepth",
+        "barFactor",
+        "coverFactor",
+        "fcMax",
+        "hookShare",
+        "compression",
+        "lapFactor",
+        "lapMinCoefficient",
+        "compressionLap"
+      ],
+      "title": "DevelopmentFactorRules",
+      "type": "object"
+    },
     "DuctileBeamRules": {
       "additionalProperties": false,
       "properties": {
@@ -1308,6 +1557,12 @@
           "exclusiveMinimum": 0,
           "title": "Overstrength",
           "type": "number"
+        },
+        "hoopZoneOnDepth": {
+          "default": false,
+          "description": "The close hoops' zone is hoopZoneDepths × D (else × d).",
+          "title": "Hoopzoneondepth",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1467,6 +1722,83 @@
           "exclusiveMinimum": 0,
           "title": "Laphoopspacing",
           "type": "number"
+        },
+        "ashForm": {
+          "default": "areaRatio",
+          "description": "areaRatio: Ash/(s h) >= max(a (Ag/Ak - 1), b) fck/fy (``ash``); axialLoad: Ash/(s h) = (a - ρt m)/b (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - c (``ashAxial``).",
+          "enum": [
+            "areaRatio",
+            "axialLoad"
+          ],
+          "title": "Ashform",
+          "type": "string"
+        },
+        "ashAxial": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, c, φ) of the axialLoad form, m = fy / (0.85 f'c) (``ash`` then only sizes the hoops of Design Reinforcement).",
+          "title": "Ashaxial"
+        },
+        "confinedByAxial": {
+          "description": "lo = a × D by N*/(φ f'c Ag): (axial share up to, a) rows, the first that holds; empty: ``confinedLength`` alone (else the larger of both).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Confinedbyaxial",
+          "type": "array"
+        },
+        "capacityShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "V*col = this × (Mn,top + Mn,bottom) / the clear height (Mn the column's largest nominal moment over the earthquake axial forces); none: not checked.",
+          "title": "Capacityshear"
         }
       },
       "required": [
@@ -1515,6 +1847,24 @@
         },
         "walls": {
           "$ref": "#/$defs/DuctileWallRules"
+        },
+        "basis": {
+          "default": "designStrength",
+          "description": "designStrength: the resistances on fcd, fyd (the pack's partial factors); capacityFactor: nominal strengths with the strength design's φ (packs without partial factors).",
+          "enum": [
+            "designStrength",
+            "capacityFactor"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "levels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DuctileLevelRules"
+          },
+          "description": "Per frame level of ``frames``: the groups that differ (the others the method's own, which Design Reinforcement sizes by).",
+          "title": "Levels",
+          "type": "object"
         }
       },
       "required": [
@@ -1550,6 +1900,47 @@
           "maximum": 1,
           "title": "Widthshare",
           "type": "number"
+        },
+        "stressLimit": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "vjh at most min(a f'c, b MPa) in place of γ √fck (none: the γ form).",
+          "title": "Stresslimit"
+        },
+        "reinforcementShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Horizontal joint hoops Ajh >= share × Vjh / fyh (none: not checked).",
+          "title": "Reinforcementshare"
         }
       },
       "required": [
@@ -1558,6 +1949,58 @@
         "widthShare"
       ],
       "title": "DuctileJointRules",
+      "type": "object"
+    },
+    "DuctileLevelRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18c: the groups of one frame level (detailing level) that differ from the\nmethod's own (limited and moderately ductile frames under codes with several).",
+      "properties": {
+        "beams": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctileBeamRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctileColumnRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "joints": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctileJointRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "walls": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctileWallRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DuctileLevelRules",
       "type": "object"
     },
     "DuctileWallRules": {
@@ -1637,6 +2080,85 @@
           "exclusiveMinimum": 0,
           "title": "Couplingspanratio",
           "type": "number"
+        },
+        "shearAmplification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WallShearAmplification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The design shear V = Ωv ωv V* of the earthquake combinations (overstrength and dynamic magnification); none: the factored shear."
+        },
+        "boundaryAsh": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Boundary hoops Ash/(s h) >= max(a (Ag/Ac - 1), b) f'c/fyt of the boundary element (none: flagged only).",
+          "title": "Boundaryash"
+        },
+        "boundaryLength": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The confined end at least max(a lw, b × the stress block's c) [share of lw, of the elastic compression depth] (none: not checked).",
+          "title": "Boundarylength"
+        },
+        "couplingPhi": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "φ of the diagonal bars 2 Asd fy sin α (capacity-factor basis).",
+          "title": "Couplingphi"
         }
       },
       "required": [
@@ -4921,10 +5443,18 @@
           "type": "string"
         },
         "nuDivisor": {
-          "description": "ν' = 1 - fck / divisor.",
-          "exclusiveMinimum": 0,
-          "title": "Nudivisor",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ν' = 1 - fck / divisor (alpha 9 C18c: none, ν' = 1).",
+          "title": "Nudivisor"
         },
         "strutUncracked": {
           "description": "σRd,max = share × fcd (no transverse tension).",
@@ -5055,10 +5585,95 @@
           "minimum": 0,
           "title": "Corbelhorizontalforce",
           "type": "number"
+        },
+        "basis": {
+          "default": "designStrength",
+          "description": "designStrength: fcd and fyd; capacityFactor: phiStrut concreteShare f'c and phiTie fsy.",
+          "enum": [
+            "designStrength",
+            "capacityFactor"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "phiStrut": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "φst of struts and nodes.",
+          "title": "Phistrut"
+        },
+        "phiTie": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "φ of ties.",
+          "title": "Phitie"
+        },
+        "concreteShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The struts' and nodes' strength × f'c (capacityFactor).",
+          "title": "Concreteshare"
+        },
+        "bottleStrut": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, least, most): a cracked (bottle-shaped) strut's βs = 1 / (1 + a cot² θ) within the range, θ the strut-tie angle, in place of ``strutCracked``.",
+          "title": "Bottlestrut"
         }
       },
       "required": [
-        "nuDivisor",
         "strutUncracked",
         "strutCracked",
         "nodeCCC",
@@ -6334,6 +6949,86 @@
       "title": "WallMethodRules",
       "type": "object"
     },
+    "WallShearAmplification": {
+      "additionalProperties": false,
+      "description": "C2: the design shear of special walls, Ve = Ωv ωv Vu <= cap Vu. Ωv = ``omega`` where\nhw/lw exceeds ``aspect`` (else 1.0); ωv = a + ns/b (``dynamicLow``) up to\n``dynamicStoreys`` storeys, a + ns/b (``dynamicHigh``) at most ``dynamicMax`` above, 1.0\nwhere hw/lw is below ``dynamicAspect``.",
+      "properties": {
+        "aspect": {
+          "exclusiveMinimum": 0,
+          "title": "Aspect",
+          "type": "number"
+        },
+        "omega": {
+          "minimum": 1,
+          "title": "Omega",
+          "type": "number"
+        },
+        "dynamicAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Dynamicaspect",
+          "type": "number"
+        },
+        "dynamicLow": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamiclow",
+          "type": "array"
+        },
+        "dynamicHigh": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamichigh",
+          "type": "array"
+        },
+        "dynamicStoreys": {
+          "minimum": 1,
+          "title": "Dynamicstoreys",
+          "type": "integer"
+        },
+        "dynamicMax": {
+          "minimum": 1,
+          "title": "Dynamicmax",
+          "type": "number"
+        },
+        "cap": {
+          "minimum": 1,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "aspect",
+        "omega",
+        "dynamicAspect",
+        "dynamicLow",
+        "dynamicHigh",
+        "dynamicStoreys",
+        "dynamicMax",
+        "cap"
+      ],
+      "title": "WallShearAmplification",
+      "type": "object"
+    },
     "WallSlendernessRules": {
       "additionalProperties": false,
       "description": "Walls out of their plane (method ``columnAnalogy``): the wall strip as a column, l0 =\nβ lw, λ against λlim of the pack's slenderness method; beyond it the nominal curvature\nmethod; the out-of-plane moment at least NEd e0.",
@@ -6532,6 +7227,9 @@
           "$ref": "#/$defs/BondTableRules"
         },
         {
+          "$ref": "#/$defs/DevelopmentFactorRules"
+        },
+        {
           "type": "null"
         }
       ],
@@ -6574,10 +7272,14 @@
           "$ref": "#/$defs/SlendernessRules"
         },
         {
+          "$ref": "#/$defs/BucklingMagnifierRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Slenderness"
     },
     "parentMethods": {
       "description": "Areas (saengine.design.method_selection) a project designs by the default method instead of the pack's (an override).",

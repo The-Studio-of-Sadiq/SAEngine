@@ -34,6 +34,10 @@ def _method() -> list[str]:
     from saengine.design.steel import limit_state
 
     connections = limit_state.connection_method_lines()  # C9: the pack's bolt and weld rules
+    if not connections:  # Alpha 9 C18c: the capacity-factor joints (AS 4100 Ch 9 type)
+        from saengine.design.steel import capacity_factor_joints
+
+        connections = capacity_factor_joints.method_lines()
     if connections:
         return [*steel_members.METHOD, *connections, *composite_design.METHOD]
 

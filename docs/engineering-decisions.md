@@ -41,6 +41,36 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
+
+`australia-as` 0.3 and `newzealand-nzs` 0.3 (VERIFY C18c-1 to C18c-60 and C18c-1 to C18c-29).
+New generic methods by id: `concreteMethods.slenderness` `bucklingMagnifier`,
+`concreteMethods.anchorage` `developmentFactors`, `steelLimitState.connections`
+`capacityFactorJoints`. Existing methods widened by optional fields whose defaults keep every
+other pack's results: `strutAndTie` (`basis`, `phiStrut`, `phiTie`, `concreteShare`,
+`bottleStrut`, `nuDivisor` optional), `ductileDetailing` (`basis`, `levels`, columns `ashForm`,
+`ashAxial`, `confinedByAxial`, `capacityShear`, joints `stressLimit`, `reinforcementShare`,
+walls `shearAmplification`, `boundaryAsh`, `boundaryLength`, `couplingPhi`, beams
+`hoopZoneOnDepth`), `concrete.walls.spacingThickness` (3 t by default).
+
+- **Capacity-factor basis (SAEngine practice).** The C5c strut-and-tie and C8 ductile detailing
+  methods were written on fcd and fyd. Under a pack without partial factors they now run on f'c
+  and fy with the code's φ (`basis: "capacityFactor"`), so AS 3600 and NZS 3101 reuse them.
+- **Detailing levels.** AS 3600 Appendix C rows apply to μ 3 (intermediate) frames; μ 2 frames are
+  designed by the members' general rules only; μ 4 frames are detailed as μ 3 (AS 3600 leaves
+  them to a special study). NZS 3101: ductile and limited ductile frames; nominally ductile by the
+  general rules. Design Reinforcement sizes the hoops by the method's own (strictest) group.
+- **NZS 3101 Appendix D reduced to factors (SAEngine practice).** The column capacity design is
+  the strong column ratio ΣMn,col >= ω λo/φ ΣMn,beam with one ω per level (1.3 ductile, 1.0
+  limited) and the columns' capacity shear 1.25 (or 1.0) (Mn,top + Mn,bottom)/clear; the wall's
+  overstrength φo,w is taken as λo/φ = 1.47, not computed; the horizontal joint hoops carry
+  0.5 Vjh (not the code's Ajh expression). All flagged in VERIFY.
+- **Slender columns without bars.** Nc takes 0.4 Ec Ig where no bars are known to find Mub.
+- **AS 4100 bolt grades.** A307 is taken as 4.6; A325, A490 and 10.9 as 8.8 (on the safe side).
+- **Design Reinforcement torsion links.** Under the AS 3600 8.3 method the closed links carry T*
+  on top of the shear's links, at most min(0.12 ut, 300 mm) apart.
+- Nothing was run (owner rule of 2026-11-05): the tests are written, the test pass is next week.
+
 ## 2026-11-05: Australia and New Zealand remainder (alpha 9 track C18b)
 
 `australia-as` 0.2 and `newzealand-nzs` 0.2 (VERIFY C18b-1 to C18b-42 and C18b-1 to C18b-4).
@@ -221,6 +251,38 @@ run this week (owner, 2026-11-05): the tests are written, not run.
 - **Generic mechanisms (no existing pack sets them):** the spectrum method
   `influenceCoefficient`, `locations.*.spectrumType`, `seismic.driftLimits[].groups`,
   `seismic.rareDrift`, `seismic.seismicGrades`, `steelLimitState.compression.perry`.
+
+## 2026-11-05: Turkey, Nepal and Sri Lanka packs (alpha 9 track C21)
+
+Packs `turkey-tbdy` (extends `aci318-asce7-22`), `nepal-nbc` (extends `is-codes`) and
+`srilanka` (extends `eurocodes`). The values were entered from knowledge of the codes (no text
+on this PC); each pack's `VERIFY.md` lists them with their clauses and marks the uncertain ones.
+Not tested yet (owner, 2026-11-05: no test runs this week).
+
+- **SAEngine practice, TBDY categories.** The design earthquake categories DTS 1-4 (and 1a-4a)
+  sit in the category slots D (DTS 1, 2), C (DTS 3) and B (DTS 4): the engine's detailing,
+  height limit and joint rules read B/C/D. BKS 1-3 sit in the occupancy slots IV, III and I-II.
+- **SAEngine practice, Ra(T).** `shortPeriodReduction` takes D from the system's Omega0 (the
+  project's Ω0 override applies); callers that give no D (the New Building sizing, isolation,
+  record targets, the worksheets' spectrum plot) keep Ra = R/I. The equivalent static
+  coefficient is Sae(T)/Ra(T) of the full spectrum, its rising branch below TA included.
+- **SAEngine practice, λ.** The TBDY drift ratio λ = Sae(DD-3)/Sae(DD-2) is site-specific:
+  the pack's value is 1.0 (on the safe side); the project enters the site's ratio as the Code
+  Value `seismic.driftServiceRatio.value`.
+- **SAEngine practice, performance-based design.** The BYS 1 (tall building) requirement of TBDY
+  3.4 / Bolum 13 is reported in the analysis notes with the procedures (linear DD-4, strength
+  DD-2, nonlinear time history DD-1); SAEngine does not run them by itself. The pushover hazard
+  levels DD-2 (LS) and DD-1 (CP, spectrum × 1.5 until the site's ratio is entered) check the
+  base pack's ASCE 41 hinges, not the TBDY Bolum 5 strain limits.
+- **SAEngine practice, TS 500.** Vc = 0.8 Vcr is a stress by grade in the tabulated shear method
+  (no steel ratio term); ρmin of beams and the least stirrups are taken at C40 (safe up to C40);
+  the least eccentricity 15 mm + 0.03 h as max(h/20, 25 mm). The areas TS 500 does not set here
+  (torsion, deflection, cracking, cover, anchorage, slabs, footings) are the base pack's ACI 318.
+- **SAEngine practice, Nepal.** NBC 105:2020 R = Rμ Ωu under the `shapeFactors` method (Sp = 1,
+  kμ = R); Cd = Rμ with the displacement factor; one category (D) for the whole country; the SLS
+  spectrum is not checked (the ULS drift governs for the usual Ωu / Ωs).
+- **SAEngine practice, Sri Lanka wind.** The 1980 zone speeds (3-second gusts) are converted to
+  the EN 1991-1-4 vb,0 by 1/1.53; seismic design is not covered.
 
 ## 2026-11-05: Australia and New Zealand packs (alpha 9 track C18)
 

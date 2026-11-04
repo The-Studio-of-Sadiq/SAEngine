@@ -1512,6 +1512,16 @@ class SlenderContext:
             radius, depth = _pack_geometry(section, h)
             area = float(section.gross_area)
             steel = float(section.steel_area)
+        # Alpha 9 C18c: the pack's moment magnifier with Nc from the balanced moment (AS 3600
+        # 10.4 type, saengine.design.buckling_magnifier); the balanced point once per axis.
+        from saengine.design import buckling_magnifier
+
+        pack_magnifier = not pack_curvature and buckling_magnifier.rules() is not None
+        balanced_point = buckling_magnifier.balanced(section, axis, h) if pack_magnifier else None
+        if pack_magnifier and balanced_point is None:
+            # No bars to find Mub from: the stiffness 0.4 Ec Ig in its place (SAEngine practice).
+            br = buckling_magnifier.rules()
+            balanced_point = (0.4 * ec * ig / (br.stiffnessCoefficient * br.phiBuckling), 1.0)
         for seg in segs:
             for p in seg.pieces:
                 segment_of[p.id] = seg
@@ -1600,6 +1610,45 @@ class SlenderContext:
                         "dns": med / m2 if m2 else 1.0,
                     }  # fmt: skip
                     best = _governs(best, pack_info)
+                    continue
+                if pack_magnifier:
+                    # Alpha 9 C18c: δb with Nc from Mub, the larger of δb and the storey's δs
+                    # in sway storeys, M* at least N* × the pack's share of D.
+                    spectral = c < len(self.spectrum) and self.spectrum[c]
+                    ds = 1.0
+                    if (
+                        (sway_storey or free)
+                        and opts.second_order == "none"
+                        and pu > 0
+                        and (ds_given is not None or seg.storey is not None)
+                    ):
+                        ds = (
+                            float(ds_given)
+                            if ds_given is not None
+                            else seg.storey.delta_s(c, opts.sway_magnifier)  # type: ignore[union-attr]
+                        )
+                    found_m = buckling_magnifier.magnify(
+                        pu, m_bot, m_top, sway_storey or free,
+                        free or not consistent or _curved(m_all), k_used * lu, r, h,
+                        balanced_point, p_sus / pu if pu > 0 else 0.0, ds, cm_given, dns_given,
+                        bool(spectral),
+                    )  # fmt: skip
+                    med = float(found_m["med"])
+                    mc[c] = max(mc[c], med)
+                    mc_no_min[c] = max(mc_no_min[c], med)
+                    magnified[c] = magnified[c] or bool(found_m["slender"])
+                    if math.isfinite(ds) and ds > worst["ds"][0]:
+                        worst["ds"] = (ds, c)
+                    magnifier_info: dict[str, Any] = {
+                        "segment": seg, "c": c, "pu": pu, "first": first, "ds": ds,
+                        "k": k_used, "slender": k_used * lu / r, "lu": lu,
+                        "sway": sway_storey if framing else None, "framing": framing,
+                        "given": given, "k_note": "", "neglected": not found_m["slender"],
+                        "mc": med, "m2": found_m["m2"], "limit": found_m["limit"],
+                        "magnifier": found_m, "radius": r, "spectral": spectral,
+                        "dns": found_m["delta"],
+                    }  # fmt: skip
+                    best = _governs(best, magnifier_info)
                     continue
                 # Sway magnification of the end moments (6.3.10.7).
                 ds = 1.0
@@ -1718,6 +1767,10 @@ class SlenderContext:
             )
         if best.get("pack") is not None:  # Alpha 9 C5b
             return _pack_check(axis, best, self.combinations)
+        if best.get("magnifier") is not None:  # Alpha 9 C18c
+            from saengine.design import buckling_magnifier
+
+            return buckling_magnifier.check_row(axis, best, self.combinations)
         seg: Segment = best["segment"]
         c = best["c"]
         storey = seg.storey
@@ -2037,6 +2090,10 @@ _METHOD = [
 def method(options: SlenderOptions, lateral_cracked: bool = False) -> list[str]:
     """The method lines of the report for these options; ``lateral_cracked``: the analysed
     model ran its lateral cases on cracked sections (:attr:`Model.lateral_cracked`)."""
+    from saengine.design import buckling_magnifier
+
+    if buckling_magnifier.rules() is not None:  # Alpha 9 C18c: the pack's magnifier
+        return buckling_magnifier.method_lines()
     sway = (
         "the analysis includes P-Δ (δs = 1)"
         if options.second_order == "pDelta"

@@ -212,3 +212,72 @@ SAEngine practice (not a code value) is marked **P**.
 | C18b-42 | Clause references: torsion 8.3, deflection 2.3.2 and 8.5.3, accidental eccentricity AS 1170.4 6.6, fire Section 5, punching 9.3 and 9.3.1; column shear, wind cases, pattern live load and Ω0 named without a clause (the parent's methods) | designClauses | U |
 
 42 more entries (170 in all).
+
+## Alpha 9 C18c (the second remainder)
+
+U: uncertain (check first). P: SAEngine practice where the code leaves a choice.
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C18c-1 | Short columns: Le/r <= 25 braced (the fixed value; the larger α(38 - f'c/15)(1 + M1*/M2*) not taken), <= 22 unbraced | AS 3600:2018 10.3.1 | U |
+| C18c-2 | r = 0.3 D rectangles, 0.25 D circles | 10.5.2 | |
+| C18c-3 | M* at least N* × 0.05 D, every column | 10.1.2 | |
+| C18c-4 | δb = km / (1 - N*/Nc) >= 1, km = 0.6 - 0.4 M1*/M2* >= 0.4, 1.0 with transverse loads | 10.4.2 | |
+| C18c-5 | Nc = (π²/Le²) 182 do φ Mub / (1 + βd) | 10.4.4 | |
+| C18c-6 | φ = 0.6 in Nc | 10.4.4 / Table 2.2.2 | U |
+| C18c-7 | Mub by strain compatibility at εcu 0.003 and the extreme bar at fsy/Es, the pack's α2, γ block | 10.4.4, 8.1.3 | P (strip integration) |
+| C18c-8 | Unbraced: δ the larger of δb and δs; δs the storey's by the project's sway magnifier option (sumPc for ΣN*/ΣNc) | 10.4.3 | U |
+| C18c-9 | Le/r at most 120 (a rigorous analysis above) | 10.5 | U |
+| C18c-10 | No bars known: Nc with 0.4 Ec Ig in place of 182 do φ Mub | - | P |
+| C18c-11 | Lsy.tb = 0.5 k1 k3 fsy db / (k2 √f'c) >= 0.058 fsy k1 db | 13.1.2.2 | |
+| C18c-12 | k1 = 1.3 for horizontal bars with more than 300 mm of concrete below (top bars), else 1.0 | 13.1.2.2 | |
+| C18c-13 | k2 = (132 - db)/100 | 13.1.2.2 | |
+| C18c-14 | k3 = 1 - 0.15 (cd - db)/db within 0.7-1.0; cd unknown: k3 = 1 | 13.1.2.2 | P (cd) |
+| C18c-15 | √f'c with f'c <= 65 MPa | 13.1.2.2 | |
+| C18c-16 | Hooks and cogs 0.5 Lsy.tb | 13.1.2.7 | |
+| C18c-17 | Lsy.c = 0.22 fsy db/√f'c >= 0.0435 fsy db, >= 200 mm | 13.1.5 | U |
+| C18c-18 | Tension laps k7 Lsy.t >= 29 k1 db, k7 = 1.25 always (1.0 not taken) | 13.2.2 | P |
+| C18c-19 | Compression laps Lsy.c >= 40 db and 300 mm | 13.2.4 | U |
+| C18c-20 | Struts and nodes on φst 0.9 f'c, φst = 0.6 | 7.2.3, Table 2.2.2 | |
+| C18c-21 | Prismatic struts βs = 1.0; bottle struts βs = 1/(1 + 0.66 cot² θt) within 0.3-1.0 | 7.2.4 | U |
+| C18c-22 | Nodes βn 1.0 C-C-C, 0.8 C-C-T, 0.6 C-T-T | 7.4.2 | |
+| C18c-23 | Ties φ 0.8 As fsy | 7.3, Table 2.2.2 | |
+| C18c-24 | The strut-tie angle at least 30° | 7.2.2 | U |
+| C18c-25 | Deep beams Lo/D below 3 (simply supported; the 4 of continuous ones not separated) | 12.1.1 | P (one ratio) |
+| C18c-26 | Deep beams' web mesh 0.001 Ac per face, >= 150 mm²/m, <= min(2 b, 300 mm) apart | 12.1.2 | U (SAEngine values) |
+| C18c-27 | Corbels: z0 = 0.8 d, tan θ 0.577-2.5, H* >= 0.2 V*, closed links 0.5 As,main | 12.2 | U |
+| C18c-28 | Walls: vertical ratio >= 0.0015, horizontal >= 0.0025 (0.0015 free to shrink not taken) | 11.7.1, 11.7.2 | |
+| C18c-29 | Walls: bars <= min(2.5 tw, 350 mm) apart | 11.7.3 | |
+| C18c-30 | Walls: two layers and the special walls' ratio stay the parent's | 11.7.4 | U |
+| C18c-31 | Appendix C applies to intermediate (μ 3) frames; μ 2 frames by the general rules; μ 4 frames detailed as μ 3 | Clause 14, App C | U |
+| C18c-32 | Beams b >= 200 mm, b/D >= 0.3, ln >= 4 D | C4.2 | U |
+| C18c-33 | Beams at least 2 N12 top and bottom, ρ >= 0.25 √f'c/fsy, <= 0.025 | C4.2 | U |
+| C18c-34 | Bottom strength >= 1/3 of the top's at the face, any section >= 1/5 of the most | C4.2 | U |
+| C18c-35 | Closed ties over 2 D from the faces at <= min(d/4, 8 db, 300 mm), the first within 50 mm, elsewhere <= d/2, >= N10 | C4.2 | U |
+| C18c-36 | Beams' capacity shear on Mn = φMn/0.85 (1.18 φMn) + the gravity shear | C4.2 | U |
+| C18c-37 | Columns: least dimension 200 mm, b/D >= 0.4, ρ 1-4 % | C4.3, 10.7.1 | U |
+| C18c-38 | Column ties over max(D, clear/6, 450 mm) at <= min(b/2, 8 db, 300 mm); outside at most the least dimension | C4.3, 10.7.4 | U |
+| C18c-39 | Column confinement by the ACI type 0.3 (Ag/Ach - 1) and 0.09 f'c/fyt, legs <= 350 mm | 10.7.3 | P (not the AS form) |
+| C18c-40 | Strong column ratio 1.0 | C4.4 | U |
+| C18c-41 | Joints Vj = fy ΣAs - Vcol against 1.7 / 1.25 / 1.0 √f'c bj hc, bj = min(bc, bw + 0.5 hc) | C4.4 | P (ACI type) |
+| C18c-42 | Ductile walls ρ >= 0.0025, tw >= 150 mm, two layers above 200 mm, db <= tw/10, bars <= min(lw/5, 2.5 tw, 350 mm), boundary elements where σ > 0.2 f'c | C5 | U |
+| C18c-43 | Coupling beams: diagonal bars where v* > 0.1 (ln/D) √f'c and ln/D < 2; φ 0.85 | C5 | U |
+| C18c-44 | Clause numbers C4.2-C5 of Appendix C, 12.1, 12.2 and 7.2.2 | 2018 numbering | U |
+| C18c-45 | Bolts in shear φVf = φ 0.62 fuf kr Ac, threads in every plane, Ac = 0.716 Ao | AS 4100:2020 9.3.2.1 | |
+| C18c-46 | kr = 1.0 up to 300 mm, 1.075 - lj/4000 to 1300 mm, 0.75 above | Table 9.3.2.1 | |
+| C18c-47 | Bolts in tension φNtf = φ As fuf, As 84.3, 157, 245, 353, 561, 817 mm² (M12-M36) | 9.3.2.2 | |
+| C18c-48 | Combined (V*/φVf)² + (N*/φNtf)² <= 1; φ = 0.8 | 9.3.2.3, Table 3.4 | |
+| C18c-49 | fuf 400 (4.6), 830 (8.8) MPa; A307 as 4.6; A325, A490 and 10.9 as 8.8 | AS 4291.1 | P (grade names) |
+| C18c-50 | The ply: φ 0.9 min(3.2 df tp fup, ae tp fup), ae from the bolt's centre | 9.2.2.4 | |
+| C18c-51 | Friction φVsf = φ μ nei Nti kh, φ 0.7, μ 0.35, kh 1.0 / 0.85 / 0.7; × (1 - N*/Nti) | 9.3.3.1, 9.3.3.3 | |
+| C18c-52 | Nti 95, 145, 210, 335, 490 kN (M16-M36) | Table 15.2.5.1 | |
+| C18c-53 | Block shear φ 0.75 (min(0.6 fu Anv, 0.6 fy Agv) + kbs fu Ant) | 9.1.9 (2020) | U |
+| C18c-54 | Fillet welds φvw = 0.8 × 0.6 fuw tt kr, fuw 490 MPa, tt = 0.707 w, kr = 1 | 9.7.3.10 | U (2020 numbering) |
+| C18c-55 | Holes df + 2 (up to M24), df + 3 above | 14.3.5.2 | |
+| C18c-56 | Edges 1.75 df sheared, 1.50 df rolled/machine cut (1.25 df of a section's rolled edge not used); pitch >= 2.5 df; edge <= 12 tp and 150 mm | 9.6.1-9.6.3, Table 9.6.2 | |
+| C18c-57 | Least fillet legs 3 (t <= 7), 4 (<= 10), 5 (<= 15), 6 mm; along edges below 6 mm the leg at most t, else t - 1 | Table 9.7.3.2, 9.7.3.3 | |
+| C18c-58 | Net section rupture φ 0.765 on An fu (0.9 × 0.85, kt = 1) | 7.2 | |
+| C18c-59 | Base plate bearing 0.85 f'c √(A2/A1) <= 2 f'c, φ 0.6 | AS 3600 12.6 | U |
+| C18c-60 | Design Reinforcement's torsion links Asw/s = T*/(φ fsy.f 2 At cot θv) on top of the shear's, at most min(0.12 ut, 300 mm); ΔAl added to the bars | 8.3.5, 8.3.6, 8.3.8 | P |
+
+60 more entries (230 in all).

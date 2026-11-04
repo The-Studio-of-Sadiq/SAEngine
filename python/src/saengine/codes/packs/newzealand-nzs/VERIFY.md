@@ -87,3 +87,39 @@ VERIFY.md), entered from knowledge of the standards (no copy of the codes was av
 | C18b-4 | The AS 3600 torsion, punching and wall methods not inherited (concreteMethods replaced) | - | P |
 
 4 more entries (55 in all, plus the inherited ones).
+
+## Alpha 9 C18c (the second remainder)
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C18c-1 | Ductile (special, μ <= 6) and limited ductile (intermediate, μ <= 3) frames and ductile walls; nominally ductile by the general rules | NZS 3101:2006 2.6, Ch 9, 10, 11 | |
+| C18c-2 | Nominal strengths with φ 0.85 (capacityFactor basis); overstrength λo 1.25 of 500E | 2.6.5.5 | |
+| C18c-3 | Beams b >= 200 mm, b/D >= 0.25, ln >= 4 D | 9.4.1 | U (the 9.4.1.2 stability limits not used) |
+| C18c-4 | Beams at least 2 HD12 top and bottom, ρ >= √f'c/(4 fy), ρ <= 0.025 | 9.4.3 | U ((f'c + 10)/(6 fy) not taken) |
+| C18c-5 | Bottom >= 0.5, any section >= 0.25 of the top at the faces | 9.4.3.4 | U |
+| C18c-6 | Plastic hinge region 2 D from the faces | 9.4.6 | U |
+| C18c-7 | Stirrup-ties in it at <= min(d/4, 6 db) ductile, min(d/4, 10 db) limited; the 150 / 200 mm caps | 9.4.6 | P (mm caps) |
+| C18c-8 | Beams' capacity shear on Mo = 1.47 φMn (λo/φ) + the gravity shear | Appendix D | U |
+| C18c-9 | Columns ρ 0.8 % to 18/fy (3.6 % for 500E) | 10.3.8.1, 10.4.6.2 | U |
+| C18c-10 | Plastic region D up to N*/(φ f'c Ag) 0.25 (or clear/10 for M > 0.8 Mmax), 2 D up to 0.5, 3 D up to 0.7, at least 300 mm | 10.4.5 | U (clear/10 SAEngine) |
+| C18c-11 | Hoops at <= min(h/4, 6 db, 150 mm) ductile, min(h/3, 10 db, 200 mm) limited | 10.4.7.4 | U |
+| C18c-12 | Ash/(s h'') = (1.3 - ρt m)/3.3 (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - 0.006, m = fy/(0.85 f'c), φ 0.85 (ductile) | 10.4.7.4.4 | |
+| C18c-13 | Limited ductile: (1.3 - ρt m)/6.0 ... - 0.0045 | 10.4.7.5 | U |
+| C18c-14 | Legs <= 200 mm apart | 10.4.7.4 | U |
+| C18c-15 | ΣMn,col >= 1.9 ΣMn,beam ductile (ω 1.3 × λo/φ 1.47), 1.47 limited (ω 1.0) | Appendix D | U (ω one value) |
+| C18c-16 | Columns' capacity shear 1.25 (Mn,top + Mn,bottom)/clear ductile, 1.0 limited | Appendix D | P |
+| C18c-17 | Joints Vjh = 1.25 fy ΣAs - Vcol, vjh <= min(0.2 f'c, 10 MPa), bj = min(bc, bw + 0.5 hc) | 15.4 | U |
+| C18c-18 | Horizontal joint hoops Ajh >= 0.5 Vjh/fyh, the column's zone hoops over the beam depth | 15.4.4.2 | P (not the code's expression) |
+| C18c-19 | Ductile walls ρ >= 0.7/fy, tw >= 150 mm, two layers above 200 mm, db <= tw/8, bars <= min(lw/3, 2.5 tw, 200 mm) | 11.4 | U |
+| C18c-20 | Wall design shear φo,w ωv V*E, φo,w 1.47, ωv = 0.9 + n/10 (n <= 6), 1.3 + n/30 <= 1.8, at most 5 V*E | 11.4.7 | U (φo,w not computed; cap P) |
+| C18c-21 | Confined ends where σ > 0.2 f'c, over max(0.1 lw, 0.5 c), c the elastic compression depth; hoops 0.3 (Ag/Ac - 1), 0.09 f'c/fyt | 11.4.6 | U (stand-in) |
+| C18c-22 | Coupling beams: diagonal bars where v* > 0.1 (ln/h) √f'c with ln/h < 2; V* <= 0.85 × 2 Asd fy sin α | 11.4.11 | U |
+| C18c-23 | Walls (all): ρ >= 0.0014 (0.7/fy) both ways, bars <= min(3 t, 450 mm) | 11.3.11.3, 11.3.11.4 | U |
+| C18c-24 | NZS 3404 Section 12: steelSmf, steelEbf category 1; steelImf, steelScbf category 3; μ 1.25 systems category 4 (no rows) | NZS 3404 12.2 | U |
+| C18c-25 | Yielding members compact by the AS 4100 5.2 limits (stand-in for Table 12.5) | 12.4, Table 12.5 | U |
+| C18c-26 | Connections for φoms Mp, φoms = 1.25; category 1 columns ΣMpc >= 1.25 ΣMpb | 12.2.6, 12.8.3 | U |
+| C18c-27 | Category 3 braces KL/r <= 200 | 12.12 | U |
+| C18c-28 | Connections by the Australian pack's AS 4100 Chapter 9 values (NZS 3404 Chapter 9 the same) | NZS 3404 9 | U |
+| C18c-29 | Clause numbers 9.4, 9.4.6, 10.4, 10.4.7, 11.4, 11.4.6, 11.4.11, 15.4, Appendix D; walls 11.3.10, 11.3.11 | 2006 A3 numbering | U |
+
+29 more entries (84 in all, plus the inherited ones).

@@ -1,7 +1,8 @@
 {
   "$schema": "../../../schemas/steelLimitState.schema.json",
   "$sources": [
-    "AS 4100:2020 Sections 3, 5, 6, 7 and 8"
+    "AS 4100:2020 Sections 3, 5, 6, 7 and 8",
+    "AS 4100:2020 Chapter 9 (connections: bolts, the ply, welds, block shear)"
   ],
   "source": "AS 4100:2020 limit state design of steel members: φ = 0.9 on the member capacities (the method's γm0 = 1/0.9), section classification by λe = (b/t)√(fy/250) (5.2), the member slenderness reduction factor αc with αb (6.3.3), lateral-torsional buckling Mb = αm αs Ms (5.6.1.1), shear Vw = 0.6 fy Aw (5.11.4), the linear section and member checks (8.3, 8.4 conservative forms); connections and the seismic rules from the parent pack (named so)",
   "partialFactors": {
@@ -279,7 +280,15 @@
     "sectionPlastic": "8.3.3",
     "sectionLinear": "8.3.2",
     "memberCompression": "8.4",
-    "memberTension": "8.4.5"
+    "memberTension": "8.4.5",
+    "connections": "Chapter 9",
+    "boltShear": "9.3.2.1",
+    "boltTension": "9.3.2.2",
+    "boltCombined": "9.3.2.3",
+    "slip": "9.3.3.1",
+    "bearing": "9.2.2.4",
+    "blockShear": "9.1.9",
+    "welds": "9.7.3.10"
   },
   "sources": {
     "partialFactors": "AS 4100:2020 Table 3.4: φ = 0.9 members (γm0 = γm1 = 1/0.9), bolts 0.8 (1/0.8), friction-type connections 0.7, SP category fillet welds 0.8 (field welds taken SP too)",
@@ -291,6 +300,68 @@
     "shear": "AS 4100:2020 5.11.4: Vw = 0.6 fy Aw for dp/tw <= 82/√(fy/250); above, SAEngine's simple post-critical method of the family in place of 5.11.5's αv = (82/λw)² (to be added)",
     "interaction": "AS 4100:2020 8.3.2-8.3.3 (section: Mr = Ms (1 - N*/φNs), linear) and 8.4.2.2 / 8.4.4.1 by their conservative linear form N*/φNc + M*/φMb <= 1 (SAEngine practice, on the safe side of the in-plane and out-of-plane capacities)",
     "slenderness": "AS 4100 has no general slenderness limit: le/r 200 for compression, 300 for tension members (SAEngine practice)",
-    "shearModulus": "AS 4100:2020 2.2.4: G = 80 000 MPa"
+    "shearModulus": "AS 4100:2020 2.2.4: G = 80 000 MPa",
+    "connections": "AS 4100:2020 Chapter 9 (method capacityFactorJoints): bolts in shear φVf = φ 0.62 fuf kr (nn Ac + nx Ao) with the threads in every plane (Ac = 0.716 Ao, the minor diameter area of ISO coarse threads M16-M24), kr 1.0 up to 300 mm, 1.075 - lj/4000 to 1300 mm, 0.75 above (9.3.2.1, Table 9.3.2.1); tension φNtf = φ As fuf (9.3.2.2), As of M12-M36; combined (V*/φVf)² + (N*/φNtf)² <= 1 (9.3.2.3); φ = 0.8 (Table 3.4); 4.6 fuf 400, 8.8 fuf 830 MPa (AS 4291.1; grades A307, A325 and A490 / 10.9 taken as 4.6 and 8.8, on the safe side for 10.9); the ply φ 0.9 × min(3.2 df tp fup, ae tp fup) (9.2.2.4), ae from the bolt's centre; friction φVsf = φ μ nei Nti kh, φ 0.7, μ 0.35, kh 1.0 / 0.85 / 0.7 (9.3.3.1), Nti 95, 145, 210, 335, 490 kN (M16-M36, Table 15.2.5.1), × (1 - N*/Nti) with tension (9.3.3.3); block shear φ 0.75 (0.6 fu Anv or 0.6 fy Agv) + kbs fu Ant (9.1.9, AS 4100:2020); fillet welds φvw = φ 0.6 fuw tt kr, φ 0.8 (SP category), fuw 490 MPa (E49XX), tt = 0.707 w, kr = 1 (welds up to 1.7 m; 9.7.3.10, the 1998 numbering: to verify for 2020)"
+  },
+  "connections": {
+    "method": "capacityFactorJoints",
+    "phiBolt": 0.8,
+    "shearShare": 0.62,
+    "coreShare": 0.716,
+    "tensileArea": {
+      "12": 84.3,
+      "16": 157.0,
+      "20": 245.0,
+      "24": 353.0,
+      "30": 561.0,
+      "36": 817.0
+    },
+    "grades": {
+      "4.6": {
+        "fuf": 400.0,
+        "pretensioned": false
+      },
+      "8.8": {
+        "fuf": 830.0,
+        "pretensioned": true
+      }
+    },
+    "gradeOf": {
+      "A307": "4.6",
+      "A325N": "8.8",
+      "A325X": "8.8",
+      "A490N": "8.8",
+      "A490X": "8.8",
+      "10.9": "8.8"
+    },
+    "longJoint": [
+      300.0,
+      1300.0,
+      1.075,
+      4000.0,
+      0.75
+    ],
+    "phiPly": 0.9,
+    "bearingFactor": 3.2,
+    "phiSlip": 0.7,
+    "slipMu": 0.35,
+    "holeKh": {
+      "standard": 1.0,
+      "oversized": 0.85,
+      "shortSlot": 0.85,
+      "longSlot": 0.7
+    },
+    "pretension": {
+      "16": 95.0,
+      "20": 145.0,
+      "24": 210.0,
+      "30": 335.0,
+      "36": 490.0
+    },
+    "phiBlock": 0.75,
+    "phiWeld": 0.8,
+    "weldShare": 0.6,
+    "fuw": 490.0,
+    "throatShare": 0.707
   }
 }

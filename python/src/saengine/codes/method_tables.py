@@ -27,7 +27,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from saengine.codes.tables import Positive, Share, TableModel, _Group
+from saengine.codes.tables import Positive, Share, TableModel, WallShearAmplification, _Group
 
 # ───────────────────────────── concreteMethods ─────────────────────────────
 
@@ -812,6 +812,11 @@ class DuctileBeamRules(_Group):
     elsewhereShare: Share = Field(description="Elsewhere at most this × d.")
     hoopMinDia: Positive
     overstrength: Positive = Field(description="Capacity shear: × the moment capacities.")
+    # Alpha 9 C18c (NZS 3101 9.4.? / AS 3600 App C type: the plastic hinge region set on the
+    # member depth D, not d).
+    hoopZoneOnDepth: bool = Field(
+        default=False, description="The close hoops' zone is hoopZoneDepths × D (else × d)."
+    )
 
 
 class DuctileColumnRules(_Group):
@@ -831,12 +836,42 @@ class DuctileColumnRules(_Group):
     hxMax: Positive
     outsideShare: Share = Field(description="Outside lo: at most share × least dimension.")
     lapHoopSpacing: Positive
+    # Alpha 9 C18c: the NZS 3101 type confinement and the capacity design of columns.
+    ashForm: Literal["areaRatio", "axialLoad"] = Field(
+        default="areaRatio",
+        description="areaRatio: Ash/(s h) >= max(a (Ag/Ak - 1), b) fck/fy (``ash``); axialLoad: "
+        "Ash/(s h) = (a - ρt m)/b (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - c (``ashAxial``).",
+    )
+    ashAxial: tuple[Positive, Positive, float, Share] | None = Field(
+        default=None,
+        description="(a, b, c, φ) of the axialLoad form, m = fy / (0.85 f'c) (``ash`` then only "
+        "sizes the hoops of Design Reinforcement).",
+    )
+    confinedByAxial: list[tuple[Positive, Positive]] = Field(
+        default_factory=list,
+        description="lo = a × D by N*/(φ f'c Ag): (axial share up to, a) rows, the first that "
+        "holds; empty: ``confinedLength`` alone (else the larger of both).",
+    )
+    capacityShear: Positive | None = Field(
+        default=None,
+        description="V*col = this × (Mn,top + Mn,bottom) / the clear height (Mn the column's "
+        "largest nominal moment over the earthquake axial forces); none: not checked.",
+    )
 
 
 class DuctileJointRules(_Group):
     gamma: dict[str, Positive] = Field(description="Vj <= γ √fck Aej by confinement.")
     overstrength: Positive
     widthShare: Share = Field(description="bj = min(bb + share × hc, bc).")
+    # Alpha 9 C18c (NZS 3101 15.4 type).
+    stressLimit: tuple[Share, Positive] | None = Field(
+        default=None,
+        description="vjh at most min(a f'c, b MPa) in place of γ √fck (none: the γ form).",
+    )
+    reinforcementShare: Share | None = Field(
+        default=None,
+        description="Horizontal joint hoops Ajh >= share × Vjh / fyh (none: not checked).",
+    )
 
 
 class DuctileWallRules(_Group):
@@ -850,6 +885,36 @@ class DuctileWallRules(_Group):
     boundaryStop: Share = Field(description="... until σ < this × fck.")
     couplingRoot: Positive = Field(description="Diagonal bars where τv > c (ls/D) √fck ...")
     couplingSpanRatio: Positive = Field(description="... and ls / D below this.")
+    # Alpha 9 C18c (NZS 3101 11.4 type): the ductile walls' design shear, boundary
+    # confinement and the diagonal bars' φ under the capacity-factor basis.
+    shearAmplification: WallShearAmplification | None = Field(
+        default=None,
+        description="The design shear V = Ωv ωv V* of the earthquake combinations (overstrength "
+        "and dynamic magnification); none: the factored shear.",
+    )
+    boundaryAsh: tuple[Positive, Positive] | None = Field(
+        default=None,
+        description="Boundary hoops Ash/(s h) >= max(a (Ag/Ac - 1), b) f'c/fyt of the boundary "
+        "element (none: flagged only).",
+    )
+    boundaryLength: tuple[Share, Share] | None = Field(
+        default=None,
+        description="The confined end at least max(a lw, b × the stress block's c) [share of "
+        "lw, of the elastic compression depth] (none: not checked).",
+    )
+    couplingPhi: Share | None = Field(
+        default=None, description="φ of the diagonal bars 2 Asd fy sin α (capacity-factor basis)."
+    )
+
+
+class DuctileLevelRules(_Group):
+    """Alpha 9 C18c: the groups of one frame level (detailing level) that differ from the
+    method's own (limited and moderately ductile frames under codes with several)."""
+
+    beams: DuctileBeamRules | None = None
+    columns: DuctileColumnRules | None = None
+    joints: DuctileJointRules | None = None
+    walls: DuctileWallRules | None = None
 
 
 class DuctileDetailingRules(_Group):
@@ -862,6 +927,18 @@ class DuctileDetailingRules(_Group):
     columns: DuctileColumnRules
     joints: DuctileJointRules
     walls: DuctileWallRules
+    # Alpha 9 C18c (AS 3600 / NZS 3101 type).
+    basis: Literal["designStrength", "capacityFactor"] = Field(
+        default="designStrength",
+        description="designStrength: the resistances on fcd, fyd (the pack's partial factors); "
+        "capacityFactor: nominal strengths with the strength design's φ (packs without partial "
+        "factors).",
+    )
+    levels: dict[str, DuctileLevelRules] = Field(
+        default_factory=dict,
+        description="Per frame level of ``frames``: the groups that differ (the others the "
+        "method's own, which Design Reinforcement sizes by).",
+    )
 
 
 # ───────── Alpha 9 C5c: the rest of the partial-factor members and their detailing ─────────
@@ -875,7 +952,9 @@ class StressFieldRules(_Group):
     ties As fyd; the deep beams' web mesh and the corbels' tie, strut angle and links."""
 
     method: Literal["designStressLimits"] = "designStressLimits"
-    nuDivisor: Positive = Field(description="ν' = 1 - fck / divisor.")
+    nuDivisor: Positive | None = Field(
+        default=None, description="ν' = 1 - fck / divisor (alpha 9 C18c: none, ν' = 1)."
+    )
     strutUncracked: Positive = Field(description="σRd,max = share × fcd (no transverse tension).")
     strutCracked: Positive = Field(description="σRd,max = share × ν' fcd (cracked zones).")
     nodeCCC: Positive = Field(description="k1 of C-C-C nodes (× ν' fcd).")
@@ -898,6 +977,23 @@ class StressFieldRules(_Group):
     corbelVerticalLinks: Share = Field(description="ΣAs,lnk >= k2 FEd / fyd (vertical links).")
     corbelHorizontalForce: float = Field(
         ge=0, description="HEd at least share × FEd where none is given (SAEngine practice)."
+    )
+    # Alpha 9 C18c (AS 3600:2018 Chapter 7 type): the strengths on f'c and fsy with capacity
+    # reduction factors in place of fcd and fyd (packs without partial factors).
+    basis: Literal["designStrength", "capacityFactor"] = Field(
+        default="designStrength",
+        description="designStrength: fcd and fyd; capacityFactor: phiStrut concreteShare f'c "
+        "and phiTie fsy.",
+    )
+    phiStrut: Share | None = Field(default=None, description="φst of struts and nodes.")
+    phiTie: Share | None = Field(default=None, description="φ of ties.")
+    concreteShare: Share | None = Field(
+        default=None, description="The struts' and nodes' strength × f'c (capacityFactor)."
+    )
+    bottleStrut: tuple[Positive, Share, Share] | None = Field(
+        default=None,
+        description="(a, least, most): a cracked (bottle-shaped) strut's βs = 1 / (1 + a cot² θ) "
+        "within the range, θ the strut-tie angle, in place of ``strutCracked``.",
     )
 
 
@@ -1244,6 +1340,53 @@ class ShearSpanWallRules(_Group):
     webMin: Share
 
 
+# ── Alpha 9 C18c: slender columns and anchorage by the forms of AS 3600:2018 (10.4, 13) ──
+
+
+class BucklingMagnifierRules(_Group):
+    """Slender columns by the moment magnifier with Nc from the balanced moment (method
+    ``bucklingMagnifier``, :mod:`saengine.design.buckling_magnifier`)."""
+
+    method: Literal["bucklingMagnifier"]
+    bracedLimit: Positive = Field(description="Braced columns short up to Le/r = this.")
+    unbracedLimit: Positive = Field(description="Unbraced columns short up to Le/r = this.")
+    kmBase: Positive = Field(description="km = base + slope M1/M2 (positive single curvature).")
+    kmSlope: float
+    kmMin: Share = Field(description="km at least this.")
+    stiffnessCoefficient: Positive = Field(description="Nc = (π²/Le²) c do φ Mub / (1 + βd).")
+    phiBuckling: Share = Field(description="φ of Nc.")
+    minEccentricityShare: Share = Field(description="M* at least N* × share D.")
+    slendernessMax: Positive = Field(description="Le/r above this: not covered.")
+    ultimateStrain: Positive | None = Field(
+        default=None, description="εcu of the balanced point (none: the pack's)."
+    )
+
+
+class DevelopmentFactorRules(_Group):
+    """Development and laps of deformed bars by the basic length and the factors k1-k3
+    (method ``developmentFactors``, :mod:`saengine.design.development_factors`)."""
+
+    method: Literal["developmentFactors"]
+    coefficient: Positive = Field(description="Lsy.tb = c k1 k3 fsy db / (k2 √f'c).")
+    minCoefficient: Positive = Field(description="... at least this × fsy k1 db.")
+    topFactor: Positive = Field(description="k1 of top bars ...")
+    topDepth: Positive = Field(description="... with more than this [mm] of concrete below.")
+    barFactor: tuple[Positive, Positive] = Field(description="k2 = (a - db) / b.")
+    coverFactor: tuple[Positive, Share, Share] = Field(
+        description="k3 = 1 - c (cd - db)/db within (least, most)."
+    )
+    fcMax: Positive = Field(description="f'c of √f'c at most [MPa].")
+    hookShare: Share = Field(description="Hooks and cogs: this × Lsy.tb.")
+    compression: tuple[Positive, Positive, Positive] = Field(
+        description="Lsy.c = a fsy db / √f'c >= b fsy db and mm."
+    )
+    lapFactor: Positive = Field(description="Tension laps: this × Lsy.t ...")
+    lapMinCoefficient: Positive = Field(description="... at least this × k1 db.")
+    compressionLap: tuple[Positive, Positive] = Field(
+        description="Compression laps: Lsy.c at least n db and mm."
+    )
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
@@ -1266,12 +1409,13 @@ class ConcreteMethodsTable(TableModel):
     cracking: CrackRules | CrackWidthRules | TensionStiffeningCrackRules | None = None
     deflection: SpanDepthRules | SpanDepthFactorRules | LongTermStiffnessRules | None = None
     cover: CoverRules | ExposureConditionRules | None = None
-    anchorage: AnchorageRules | BondTableRules | None = None
+    # Alpha 9 C18c: developmentFactors (AS 3600 13.1 type).
+    anchorage: AnchorageRules | BondTableRules | DevelopmentFactorRules | None = None
     memberSteel: MemberSteelRules | None = None
     exposureClasses: dict[str, ExposureClass] = Field(default_factory=dict)
     defaultExposure: str | None = None
-    # Alpha 9 C5b.
-    slenderness: SlendernessRules | None = None
+    # Alpha 9 C5b; C18c bucklingMagnifier (AS 3600 10.4 type).
+    slenderness: SlendernessRules | BucklingMagnifierRules | None = None
     parentMethods: list[str] = Field(
         default_factory=list,
         description="Areas (saengine.design.method_selection) a project designs by the default "

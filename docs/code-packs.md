@@ -844,6 +844,25 @@ The C20b remainder adds these generic keys (a pack without them behaves as befor
 | `steelLimitState.seismic.gradeFrames` | The steel seismic frame kind by the building's seismic grade |
 | `foundations.shallow.widthDepthCorrection`, `layerwiseSettlement` | fa = fak + ηb γ (b - b0) + ηd γm (d - d0) of a qa given without a soil report; s = ψs Σ p0/Es (z ᾱ) (`soil/characteristic_bearing.py`) |
 
+### Turkey, Nepal and Sri Lanka (alpha 9 C21)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `turkey-tbdy` | `aci318-asce7-22` | TBDY 2018: DD-2 SS, S1 of example cities (site-specific: the AFAD map), site classes ZA-ZF with FS, F1, the horizontal spectrum with TL = 6 s, BKS 1-3 (I 1.5, 1.2, 1.0), DTS by SDS (categories D, C, B), R and D of Tablo 4.1 with Ra(T), ΔFN = 0.0075 N Vt, Vt ≥ 0.04 I SDS W, γE 0.80, λ δ/h ≤ 0.008 κ / 0.016 κ, BYS 1-8 and the tall building (BYS 1) performance-based requirement, 11-record suites; TS 500 / TBDY 4.4.4 combinations; TS 500 concrete (γmc 1.5, γms 1.15, k1, Vc = 0.8 Vcr, punching, minimum steel) with TBDY Bolum 7 ductile detailing; Ø8-Ø32 bars; DD-2 / DD-1 pushover hazard levels; SI |
+| `nepal-nbc` | `is-codes` | NBC 105:2020: Z of 14 municipalities (0.25-0.40), soil types A-D with Ch(T), I 1.0 / 1.25 / 1.5, Cd(T) = Ch(T) Z I / (Rμ Ωu), T1 = 1.25 kt H^0.75, ULS drift 0.025; the NBC 105 3.6 combinations; IS 456 concrete and IS 800 steel from the parent; SI |
+| `srilanka` | `eurocodes` | The Sri Lankan wind zones 1-3 (49, 43, 33 m/s gusts as vb,0 by 1/1.53) for 16 towns; no seismic design (zone 0); the Eurocodes' recommended values for the rest |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.shortPeriodReduction` (method `overstrengthRamp`) | Under `mappedSpectral`: Ra(T) = D + (R/I - D) T/TS below TS, R/I beyond, D the system's Omega0; the design spectrum Sa/Ra and the equivalent static Sa(T)/Ra(T) within `csLimits` |
+| `seismic.driftLimits[].concrete` | A drift row for concrete (true) or other (false) systems only |
+| `seismic.driftServiceRatio` (`value`, `label`) | The drift limits divided by λ (λ δ/h ≤ limit) |
+| `seismic.performanceBased` | Height classes by the building's height and the category's column, and the rules (classes or categories) that require a performance-based design with their objectives (hazard, level, procedure: linear, strength, pushover, nonlinearHistory), reported in the analysis notes (`fem/performance_requirements.py`) |
+| `seismic.lateralForce.topForce.storeyFactor` | Ft = storeyFactor × N × V at the top, N the number of levels (periodFrom, factor, maxShare now optional) |
+| `seismic.siteClasses.*.shape[].c2`, `n2` | A second power term c2 (t0/T)^n2 of a spectral shape branch |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

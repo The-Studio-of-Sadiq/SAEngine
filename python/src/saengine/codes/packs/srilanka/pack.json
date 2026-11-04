@@ -1,0 +1,41 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "srilanka",
+  "name": "Sri Lanka (Eurocodes with the Sri Lankan wind zones)",
+  "edition": "Eurocodes (recommended values) with the Sri Lankan wind zones",
+  "country": "LK",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic"
+  ],
+  "description": "Sri Lankan practice (alpha 9 track C21): a thin pack that extends the built-in pack eurocodes (EN 1990, EN 1991, EN 1992-1-1, EN 1993 and the rest with the recommended values; no Sri Lankan National Annex values are reliably known to SAEngine, so none are set). Wind: the Sri Lankan wind zones 1-3 (Design of Buildings for High Winds, 1980: 49, 43 and 33 m/s 3-second gusts of normal structures) converted to the EN 1991-1-4 basic velocity vb,0 by 1/1.53 (SAEngine practice), for 16 towns. Seismic: not covered (no seismic code reliably known: zone 0, no earthquake cases; a project may enter agR). The legacy British Standards practice (BS 8110, CP 3) is the built-in pack bs8110 with a custom location. Every value is listed in VERIFY.md: the zones of the towns and the gust conversion are to be checked before design.",
+  "sources": [
+    {
+      "id": "SLHW1980",
+      "title": "Design of Buildings for High Winds - Sri Lanka",
+      "edition": "1980",
+      "publisher": "Ministry of Local Government, Housing and Construction, Sri Lanka"
+    }
+  ],
+  "clauses": {
+    "locations": ["Design of Buildings for High Winds - Sri Lanka (1980): wind zones 1-3"],
+    "zoneCoefficients": ["Sri Lanka: seismic design not covered"],
+    "seismic": ["Sri Lanka: seismic design not covered"]
+  },
+  "basis": {
+    "general": "EN 1990, EN 1991 (recommended values) with the Sri Lankan wind zones",
+    "concrete": "EN 1992-1-1 (parent pack eurocodes, recommended values)",
+    "steel": "EN 1993-1-1 (parent pack eurocodes, recommended values)",
+    "method": "Limit state design (EN 1990)"
+  },
+  "tableCodes": {
+    "locations": "Sri Lanka wind zones (1980)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

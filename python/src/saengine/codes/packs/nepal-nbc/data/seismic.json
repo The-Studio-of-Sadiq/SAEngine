@@ -1,0 +1,134 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBC 105:2020 (Seismic Design of Buildings in Nepal) Sections 3-6: soil types A-D, the spectral shape factor Ch(T), the elastic site spectrum C(T) = Ch(T) Z I, the ULS design spectrum Cd(T) = C(T) / (Rμ Ωu), the period T1 = 1.25 kt H^(3/4), the equivalent static method, the drift limit; see VERIFY.md"
+  ],
+  "source": "NBC 105:2020: C(T) = Ch(T) Z I with Ch(T) of the soil type (Table 4-1: Ta, Tc, α, K), Z the seismic zoning factor of the municipality (0.25-0.40) and I the importance factor; the ULS design spectrum Cd(T) = C(T) / (Rμ Ωu) by the system (Rμ, Ωu: R holds the product, Rd = Rμ, Ro = Ωu; Cd = Rμ for the ULS deflections); the equivalent static method takes α below Ta. The SLS spectrum (0.2 C(T) / Ωs) and its drift check are not built (the ULS drift governs for the usual Ωu / Ωs, VERIFY.md N12). Entered from knowledge of the code, every value to be checked against the printed code (VERIFY.md).",
+  "defaultSiteClass": "C",
+  "defaultSystem": "rcSmf",
+  "siteClasses": {
+    "A": {
+      "description": "Soil type A: stiff and hard soil sites (rock, or stiff soil less than 6 m over rock; Ta 0.11 s, Tc 0.5 s)",
+      "shape": [
+        { "upTo": 0.11, "a": 1.0, "b": 13.6364 },
+        { "upTo": 0.5, "a": 2.5 },
+        { "c": 4.5, "n": 2.0, "t0": 0.5, "c2": -2.0, "n2": 4.0 }
+      ]
+    },
+    "B": {
+      "description": "Soil type B: medium soil sites (Ta 0.11 s, Tc 0.7 s)",
+      "shape": [
+        { "upTo": 0.11, "a": 1.0, "b": 13.6364 },
+        { "upTo": 0.7, "a": 2.5 },
+        { "c": 4.5, "n": 2.0, "t0": 0.7, "c2": -2.0, "n2": 4.0 }
+      ]
+    },
+    "C": {
+      "description": "Soil type C: soft soil sites (deep alluvium; Ta 0.11 s, Tc 1.0 s)",
+      "shape": [
+        { "upTo": 0.11, "a": 1.0, "b": 13.6364 },
+        { "upTo": 1.0, "a": 2.5 },
+        { "c": 4.5, "n": 2.0, "t0": 1.0, "c2": -2.0, "n2": 4.0 }
+      ]
+    },
+    "D": {
+      "description": "Soil type D: very soft soil sites (Ta 0.5 s, Tc 2.0 s)",
+      "shape": [
+        { "upTo": 0.5, "a": 1.0, "b": 2.5 },
+        { "upTo": 2.0, "a": 2.25 },
+        { "c": 1.8, "n": 2.0, "t0": 2.0, "c2": 0.45, "n2": 4.0 }
+      ]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "NBC 105:2020 4.1, 6.1",
+    "shapeFactors": {
+      "performance": [[1.0, 1.0], [10.0, 1.0]],
+      "ductilityPeriod": null,
+      "clauses": {
+        "performance": "NBC 105:2020 5.3 (Rμ Ωu as the system's R; no Sp)",
+        "shape": "NBC 105:2020 4.1.2, Table 4-1"
+      }
+    },
+    "clauses": {
+      "shape": "NBC 105:2020 4.1.2, Table 4-1, Eq 4.1(1)",
+      "static": "NBC 105:2020 6.1.2 (α below Ta for the equivalent static method)",
+      "design": "NBC 105:2020 6.1.1 (Cd(T) = C(T) / (Rμ Ωu))"
+    }
+  },
+  "systems": {
+    "rcSmf": { "name": "RC moment resisting frame (ductile)", "R": 6.0, "Rd": 4.0, "Ro": 1.5, "Omega0": 1.5, "Cd": 4.0, "row": "Table 5-2 (RC MRF)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcDualSpecial": { "name": "RC dual system (moment frame and structural walls)", "R": 6.0, "Rd": 4.0, "Ro": 1.5, "Omega0": 1.5, "Cd": 4.0, "row": "Table 5-2 (RC dual)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "dualSpecial", "dual": true },
+    "rcSpecialWallFrame": { "name": "RC structural wall system", "R": 4.5, "Rd": 3.0, "Ro": 1.5, "Omega0": 1.5, "Cd": 3.0, "row": "Table 5-2 (RC walls)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelSmf": { "name": "Steel moment resisting frame", "R": 6.0, "Rd": 4.0, "Ro": 1.5, "Omega0": 1.5, "Cd": 4.0, "row": "Table 5-2 (steel MRF)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelEbf": { "name": "Steel eccentrically braced frame", "R": 6.0, "Rd": 4.0, "Ro": 1.5, "Omega0": 1.5, "Cd": 4.0, "row": "Table 5-2 (steel EBF)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame", "dual": false },
+    "steelScbf": { "name": "Steel concentrically braced frame", "R": 3.9, "Rd": 3.0, "Ro": 1.3, "Omega0": 1.3, "Cd": 3.0, "row": "Table 5-2 (steel CBF)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "masonryOrdinaryPlain": { "name": "Unreinforced masonry walls with RC bands", "R": 2.4, "Rd": 2.0, "Ro": 1.2, "Omega0": 1.2, "Cd": 2.0, "row": "Table 5-2 (masonry)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "masonry": true, "momentFrame": false, "periodFamily": null, "group": "bearingWall", "dual": false }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": ["steelSmf"],
+    "steelBracedFrame": ["steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems of NBC 105:2020 Table 5-2"
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.09375, "m": 0.75 },
+    "steelMomentFrame": { "Ct": 0.10625, "m": 0.75 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.09375, "m": 0.75 },
+    "other": { "Ct": 0.0625, "m": 0.75 }
+  },
+  "designCategories": {
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["D"] } },
+    "zoneColumns": { "25": 0, "30": 0, "35": 0, "40": 0 }
+  },
+  "requiredDetailing": { "B": "special", "C": "special", "D": "special" },
+  "allowableDrift": { "I": 0.025, "II": 0.025, "III": 0.025, "IV": 0.025 },
+  "allowableDriftLabel": "Ultimate limit state inter-storey deflection (Rμ × the deflection of Cd(T))",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "displacementFactor",
+  "dampingEta": 1.0,
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 1.0 },
+  "liveShare": 0.3,
+  "minimumScale": 1.0,
+  "accidentalEccentricity": 0.1,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.5,
+  "torsionExtreme": 2.0,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.6667,
+  "lateralForce": { "distribution": "heightPower", "clause": "NBC 105:2020 6.3 (Fi = V Wi hi^k / Σ Wj hj^k)" },
+  "clauses": {
+    "scale": "NBC 105:2020 Section 7 (modal base shear scaled to the equivalent static one; check the subclause)",
+    "torsion": "NBC 105:2020 5.5 (accidental eccentricity ±0.1 b)",
+    "orthogonal": "NBC 105:2020 3.5 (100 % + 30 %)",
+    "combinations": "NBC 105:2020 3.6",
+    "drift": "NBC 105:2020 5.6.3 (ULS 0.025)",
+    "sdc": "NBC 105:2020 4.1.4 (Z of the municipality)",
+    "modes": "NBC 105:2020 Section 7 (90 % of the mass; check the subclause)",
+    "systems": "NBC 105:2020 Table 5-2",
+    "displacement": "NBC 105:2020 6.5 (Rμ × the elastic deflections of Cd(T))",
+    "period": "NBC 105:2020 5.1.2 (T1 = 1.25 kt H^(3/4))",
+    "weight": "NBC 105:2020 5.2 (DL + λ LL, λ = 0.3; 0.6 for storage)",
+    "elf": "NBC 105:2020 6.1 (V = Cd(T1) W)",
+    "spectrum": "NBC 105:2020 4.1"
+  },
+  "sources": {
+    "siteClasses": "NBC 105:2020 4.1.3 (soil types A-D by their description, SPT and shear wave speed) and Table 4-1: Ta 0.11, 0.11, 0.11, 0.5 s; Tc 0.5, 0.7, 1.0, 2.0 s; α 2.5, 2.5, 2.5, 2.25; K 1.8, 1.8, 1.8, 0.8. Ch(T) = 1 + (α - 1) T/Ta below Ta (modal; α for the equivalent static method), α to Tc, α [K + (1 - K)(Tc/T)²](Tc/T)² beyond (Eq 4.1(1) as SAEngine read it, uncertain: VERIFY.md N2), held beyond 6 s",
+    "systems": "NBC 105:2020 Table 5-2: ductility factor Rμ (Rd) and overstrength factor Ωu (Ro), R = Rμ Ωu; Cd = Rμ (6.5); Omega0 holds Ωu (uncertain values: VERIFY.md N5)",
+    "periodCoefficients": "NBC 105:2020 5.1.2: T1 = 1.25 kt H^(3/4), kt = 0.075 RC moment frames, 0.085 steel moment frames, 0.075 eccentrically braced steel frames, 0.05 all others (Ct holds 1.25 kt)",
+    "designCategories": "SAEngine practice: Z is 0.25-0.40 everywhere in Nepal and NBC 105:2020 asks for ductile detailing in all of it: one category (D)",
+    "liveShare": "NBC 105:2020 5.2, Table 5-1: λ = 0.3 (0.6 for storage: enter as a Code Value)",
+    "accidentalEccentricity": "NBC 105:2020 5.5: ±0.1 b (check)",
+    "torsionIrregular": "NBC 105:2020 5.5.2 (torsional irregularity: the largest drift over 1.5 × the average; check)",
+    "minimumScale": "SAEngine practice (the modal base shear not below the equivalent static one, on the safe side; check NBC 105:2020 7)",
+    "pgaFactor": "NBC 105:2020 4.1: Z is the peak ground acceleration (S = 1)",
+    "verticalFactor": "NBC 105:2020 4.3: the vertical spectrum Cv = (2/3) Z (uncertain)"
+  }
+}
