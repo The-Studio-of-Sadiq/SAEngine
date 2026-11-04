@@ -496,6 +496,33 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
 
+## 2026-11-04: pushover hinges, performance levels and the performance point (alpha 9, track P3)
+
+- **Target displacement by method id** (`pushover.targetDisplacement.method`): `coefficient`
+  (the default pack's, unchanged), `displacementCoefficient` (ASCE 41-17 Eqs 7-28 to 7-31, the
+  US pack's), `equivalentLinearization` (FEMA 440 performance point, selectable in the US pack
+  by an override) and `n2` (EN 1998-1 Annex B, the Eurocodes pack's). A pack may list hazard
+  levels (`hazards`: BSE-1N/BSE-2N, SD/NC/DL) with a spectrum scale and the performance level
+  checked there; the first is the main target. Code values (the formulas); the hazard scales of
+  the Eurocodes pack (NC × 1.73, DL × 0.78 by (TLR/TL)^(1/3)) are SAEngine practice.
+- **Hinges are assigned, not modelled.** The pushover stays the fibre model it was: the hinges
+  (`fem/hinges.py`) sit at every frame member end and fibre wall storey segment and are read
+  from the run. The plastic rotation of a concrete end is its chord rotation beyond the one at
+  the first yield of its tension bars in the analysis; steel uses θy = Z·Fy·L/(6EI) (× (1 −
+  P/Pye) for columns); braces their axial deformation beyond yield or buckling; walls with
+  hw/lw ≤ 1.5 their storey drift. The modelling parameters a, b, c and the limits per level come
+  from the pack's tables (`table`, `columnRegression`, `chordRotationCapacity` models) with the
+  variables at the target displacement. SAEngine practice (the assignment), code values (the
+  tables). Results of the default pack are unchanged: it has no hinges and keeps `fibreStrain`.
+- **Safe-side fallbacks:** ties not readable (no 04 Objects) count as not conforming, profiles
+  other than I shapes as noncompact, ASCE 7-22 site classes BC/CD/DE take the softer
+  neighbour's C1 factor, Cm = 1.0. SAEngine practice.
+- **The pushover results follow the project's code pack** (with its overrides): until now they
+  were worked out under the default pack whatever the project chose. Projects on the default
+  pack see the same results.
+- Where: `fem/pushover_target.py`, `fem/hinges.py`, `fem/acceptance.py`, the packs'
+  `data/pushover.json` (values in their `VERIFY.md`).
+
 ## 2026-11-04: the US loads pack (alpha 9, track C1)
 
 The built-in pack `aci318-asce7-22` (ASCE 7-22 loads; values in its `VERIFY.md`, to be checked

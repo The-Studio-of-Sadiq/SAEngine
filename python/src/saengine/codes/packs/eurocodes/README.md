@@ -181,8 +181,11 @@ these tables come from **BNBC 2020** and the report's design basis says so: `mat
 `fire`, `planning`, `accessibility`, `mepOpenings`); the parts of `steel`, `composite`,
 `masonry` and `timber` the pack does not set (base plates, HSS joints, the masonry seismic
 detailing, the timber joints). The load tables without a Eurocode counterpart here are the
-parent's too: `deadLoads` (unit weights), `cranes`, `nonstructural`, `isolation`, `pushover`,
+parent's too: `deadLoads` (unit weights), `cranes`, `nonstructural`, `isolation`,
 `nonlinearHistory`, `fatigue` and the flood, rain, helipad and shelter parts of `flood`.
+The pushover (`pushover`, alpha 9 P3) is the pack's own: the N2 target displacement of EN
+1998-1 Annex B and the chord rotation capacities of EN 1998-3 Annexes A and B against the
+limit states DL, SD and NC.
 
 Not covered by this version (stated in the results where they would apply): EN 1991-1-3
 local effects (overhangs, snow guards) and exceptional drifts; EN 1998-1 response history

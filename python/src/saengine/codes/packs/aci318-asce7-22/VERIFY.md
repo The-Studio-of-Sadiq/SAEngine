@@ -519,6 +519,65 @@ All clause numbers are from memory of ACI 318-19; sub-clause letters especially 
 | D15 | Foundations: column bars into the footing, grade beam ties | 25.4.3 (hooks), 18.13.2.3, 18.13.3.2, 18.13.3.3 | Grade beam clause numbers | UNSURE |
 | D16 | System and materials: detailing by SDC, the systems table, f'c, λ, grades, actual fy, fu/fy, elongation, mechanical splices, φ, walls | 18.2.1, ASCE 7-22 Table 12.2-1, 18.2.5 (Table 19.2.1.1), 19.2.4, 18.2.6 (20.2.2.5), 20.2.2.5(b)(i)-(iii), 18.2.7 (18.2.7.1), 21.2, 18.10 | The 20.2.2.5(b) letters | UNSURE |
 
+## Pushover: ASCE 41-17 and FEMA 440 (alpha 9 track P3) — `pushover.json`
+
+No copy of ASCE/SEI 41-17 (or 41-23) or FEMA 440 was available. The values are entered from
+the author's knowledge of ASCE 41-17 (the 41-23 edition revised some hinge tables; those
+revisions are not entered). Check every row against the printed standard. "UNSURE" rows must be
+checked before the pack is used for an assessment.
+
+### Procedure and target displacement
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| P1 | first-mode load pattern; control node at the roof centre of mass | ASCE 41-17 Sec 7.4.3.2.2, 7.4.3.2.3 | | OK? |
+| P2 | push to 150 % of δt | ASCE 41-17 Sec 7.4.3.2.1 | The 150 % rule as recalled | UNSURE |
+| P3 | no no-drop rule (`noDropToTarget` empty); strength degradation limit μmax (Eq 7-32) not covered | ASCE 41-17 Sec 7.4.3.2.4 | | OK? |
+| P4 | bilinear fit through 0.6 Vy, equal areas; Te = Ti √(Ki/Ke) | Sec 7.4.3.2.4, Eq 7-27 | Same fit as the default pack's | OK? |
+| P5 | δt = C0 C1 C2 Sa Te²/(4π²) g | Eq 7-28 | | OK? |
+| P6 | C1 = 1 + (μ − 1)/(a Te²); Te < 0.2 s: C1 at 0.2 s; Te > 1.0 s: C1 = 1 | Eq 7-29 | | OK? |
+| P7 | a = 130 (A, B), 90 (C), 60 (D, E, F) | Eq 7-29 | ASCE 7-22 classes BC → 90, CD and DE → 60: the softer neighbour (SAEngine practice) | OK? |
+| P8 | C2 = 1 + ((μ − 1)/Te)²/800; Te > 0.7 s: C2 = 1 | Eq 7-30 | | OK? |
+| P9 | μstrength = Sa/(Vy/W) · Cm, Cm = 1.0 | Eq 7-31, Table 7-4 | Cm = 1.0 (the table's upper bound) is SAEngine practice | OK? |
+| P10 | Sa from the ASCE 7-22 design spectrum with R = 1, I = 1 | Sec 2.4.1 | | OK? |
+| P11 | hazards: BSE-1N = design spectrum (scale 1.0) → LS; BSE-2N = 1.5 × design (MCER) → CP | Sec 2.2.1 (BPON), 2.4.1 | | OK? |
+| P12 | FEMA 440 general coefficients, 1 < μ < 4: β = 4.9(μ−1)² − 1.1(μ−1)³ + β0, Teff = [0.20(μ−1)² − 0.038(μ−1)³ + 1] T0 | FEMA 440 Eqs 6-5a, 6-6a | | OK? |
+| P13 | 4 ≤ μ ≤ 6.5: β = 14.0 + 0.32(μ−1) + β0, Teff = [0.28 + 0.13(μ−1) + 1] T0 | Eqs 6-5b, 6-6b | | OK? |
+| P14 | μ > 6.5: β = 19[(0.64(μ−1) − 1)/(0.64(μ−1))²](Teff/T0)² + β0, Teff = {0.89[√((μ−1)/(1 + 0.05(μ−2))) − 1] + 1} T0 | Eqs 6-5c, 6-6c | | OK? |
+| P15 | B = 4/(5.6 − ln βeff[%]); MADRS M = (Teff/Tsec)², Tsec = T0 √(μ/(1 + αμ − α)); β0 = 5 % | Eqs 6-11 to 6-13 | The performance point is where the trial gives itself back (Procedure A as SAEngine reads it) | OK? |
+
+### Hinges — the assignment
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| H1 | √f'c in psi: V/(bw d √f'c) with the stress unit 145.038 psi per MPa | Table 10-7, 10-19 notes | | OK |
+| H2 | Conforming: hoops at s ≤ d/3 and Vs ≥ 3/4 V in the hinge region | Table 10-7 note | The end zone spacing of the type (else its spacing) | OK? |
+| H3 | Controlled by shear when V ≥ Vc + Vs, Vc = 0.17 √f'c bw d | Table 10-7 (condition ii), ACI 318-19 22.5.5.1 | SAEngine practice for "shear controls" | UNSURE |
+| H4 | Stirrups "close" at s ≤ d/2 | Table 10-7, condition ii | | OK? |
+| H5 | ρbal with α1 = 0.85, εcu = 0.003, β1 = 0.85 to 0.65 between 28 and 55 MPa | ACI 318-19 22.2.2.4 | | OK |
+| H6 | Walls with hw/lw ≤ 1.5 controlled by shear | ASCE 41-17 Sec 10.7.2 | Aspect limit as recalled | UNSURE |
+| H7 | θy = Z Fy L/(6 E I) (beams), × (1 − P/Pye) (columns) | Eqs 9-1, 9-2 | L: the member length | OK? |
+| H8 | Compact: bf/2tf ≤ 52/√Fy (0.305 √(E/Fy)), h/tw ≤ 418/√Fy (2.45); noncompact 65/√Fy (0.38), 640/√Fy (3.76), linear between | Table 9-7.1 notes | ksi limits converted with E = 29 000 ksi | OK? |
+| H9 | Brace and column PCL = min(A Fy, π² E I/(K L)²), K = 1 | Sec 9.4 | Euler capped by the squash load: SAEngine practice | UNSURE |
+
+### Hinges — the modelling parameters and acceptance criteria
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| H10 | RC beams, flexure, C: (ρ−ρ')/ρbal ≤ 0, v ≤ 3: a 0.025 b 0.05 c 0.2, IO 0.010 LS 0.025 CP 0.05; v ≥ 6: 0.02 0.04 0.2, 0.005 0.02 0.04; ≥ 0.5, v ≤ 3: 0.02 0.03 0.2, 0.005 0.02 0.03; v ≥ 6: 0.015 0.02 0.2, 0.005 0.015 0.02 | Table 10-7, condition i | | OK? |
+| H11 | RC beams, flexure, NC: ≤ 0, ≤ 3: 0.02 0.03 0.2, 0.005 0.02 0.03; ≤ 0, ≥ 6: 0.01 0.015 0.2, 0.0015 0.01 0.015; ≥ 0.5, ≤ 3: 0.01 0.015 0.2, 0.005 0.01 0.015; ≥ 0.5, ≥ 6: 0.005 0.01 0.2, 0.0015 0.005 0.01 | Table 10-7, condition i | | OK? |
+| H12 | RC beams, shear: s ≤ d/2: 0.003 0.02 0.2, 0.0015 0.01 0.02; s > d/2: 0.003 0.01 0.2, 0.0015 0.005 0.01 | Table 10-7, condition ii | Conditions iii, iv not covered | OK? |
+| H13 | RC columns: a = 0.042 − 0.043 n + 0.63 ρt − 0.023 V/Vcol ≥ 0; b = 0.5/(5 + n/0.8 · 1/ρt · f'c/fyt) − 0.01 ≥ a; c = 0.24 − 0.4 n ≥ 0 | Table 10-8 | n = N/(Ag f'c) at the target | OK? |
+| H14 | RC columns: IO = 0.15 a ≤ 0.005, LS = 0.5 b, CP = 0.7 b | Table 10-8 | | OK? |
+| H15 | RC columns: ρt ≤ 0.0175; ρt < 0.0005: no ductility; n ≤ 0.7; V/Vcol ≥ 0.2 | Table 10-8 notes | The limits of the notes as recalled | UNSURE |
+| H16 | Vcol = k λ [Av fyt d/s + 0.5 √f'c/(M/Vd) √(1 + N/(0.5 √f'c Ag)) 0.8 Ag] (MPa), 2 ≤ M/Vd ≤ 4, k = 1, αcol = 1 | Eq 10-3 | 6√f'c psi → 0.5√f'c MPa | OK? |
+| H17 | RC walls, flexure, confined: P-ratio ≤ 0.1, v ≤ 4: 0.015 0.020 0.75, 0.005 0.015 0.020; ≤ 0.1, ≥ 6: 0.010 0.015 0.40, 0.004 0.010 0.015; ≥ 0.25, ≤ 4: 0.009 0.012 0.60, 0.003 0.009 0.012; ≥ 0.25, ≥ 6: 0.005 0.010 0.30, 0.0015 0.005 0.010 | Table 10-19 | The 41-13 values; 41-17/41-23 revisions not entered | UNSURE |
+| H18 | RC walls, flexure, unconfined: ≤ 0.1, ≤ 4: 0.008 0.015 0.60, 0.002 0.008 0.015; ≤ 0.1, ≥ 6: 0.006 0.010 0.30, 0.002 0.006 0.010; ≥ 0.25, ≤ 4: 0.003 0.005 0.25, 0.001 0.003 0.005; ≥ 0.25, ≥ 6: 0.002 0.004 0.20, 0.001 0.002 0.004 | Table 10-19 | As H17 | UNSURE |
+| H19 | RC walls, shear (drift): P-ratio ≤ 0.05: d 1.0 % e 2.0 % c 0.40, IO 0.40 % LS 1.5 % CP 2.0 %; > 0.05: 0.75 % 1.0 % 0.20, 0.30 % 0.75 % 1.0 % | Table 10-20 | | UNSURE |
+| H20 | Steel beams, flexure (× θy): compact a 9 b 11 c 0.6, IO 1 LS 9 CP 11; noncompact a 4 b 6 c 0.2, IO 0.25 LS 3 CP 4 | Table 9-7.1 | LS/CP of the one-row 41-17 table as recalled (41-13 primary: LS 6, CP 8) | UNSURE |
+| H21 | Steel columns, P/PCL < 0.2: as beams; 0.2-0.5 compact: a 11(1 − 5/3 P/PCL), b 17(1 − 5/3 P/PCL), c 0.2, IO 0.25, LS 14(…), CP 17(…); noncompact a 1 b 1.5 c 0.2, IO 0.25 LS 1.2 CP 1.2; > 0.5: force-controlled | Table 9-7.1 | 41-17 replaced these by equations (Eqs 9-?); the older form is entered | UNSURE |
+| H22 | Braces (× ΔT or Δc): tension a 11 b 14 c 0.8, IO 0.25 LS 7 CP 9; compression (W, I, 2L, 2C in plane) a 0.5 b 10 c 0.3, IO 0.25 LS 5 CP 7 | Table 9-7.1 | Primary-member values of the older edition | UNSURE |
+
 ## Not covered in this version (fall back or absent)
 
 - Timber: the NDS species and grades not listed (Southern Pine, the machine stress rated
@@ -539,4 +598,8 @@ All clause numbers are from memory of ACI 318-19; sub-clause letters especially 
 - Dead load unit weights (`deadLoads`): BNBC's.
 - Nonstructural components (Ch 13), isolation (Ch 17), dampers (Ch 18), nonlinear response
   history (Ch 16), ice (Ch 10): BNBC's tables or not covered.
+- ASCE 41 (pushover, P3): the strength degradation limit μmax (Eq 7-32), the expected
+  strength factors, beams with inadequate development or embedment (Table 10-7 iii, iv),
+  columns controlled by inadequate splices, coupling beams, the knowledge factor and the
+  linear procedures are not covered.
 - The ground loads worksheet of the report covers zone-factor packs only.
