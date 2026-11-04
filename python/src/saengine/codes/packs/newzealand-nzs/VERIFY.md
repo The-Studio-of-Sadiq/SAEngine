@@ -76,3 +76,14 @@ VERIFY.md), entered from knowledge of the standards (no copy of the codes was av
 | 51 | The member rules and numbering of AS 4100 (φ 0.9, λe, αc with αb, αm αs) | Sections 5-8 | U |
 
 51 entries (plus the inherited ones of australia-as).
+
+## Alpha 9 C18b
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C18b-1 | Clause references: torsion 7.6, deflection 2.4.2 and 6.8, column shear 10.3.10, punching 12.7 and 12.7.1, fire Section 4, accidental eccentricity NZS 1170.5 5.3.1.2 (the computations are the parent's methods of the same form) | NZS 3101:2006 A3 | U |
+| C18b-2 | No earthquake design category by height (the Australian pack's rows removed) | NZS 1170.5 | |
+| C18b-3 | Mh and Cdyn of the Australian pack (joint AS/NZS 1170.2:2021) | AS/NZS 1170.2 4.4.2, 6.2 | |
+| C18b-4 | The AS 3600 torsion, punching and wall methods not inherited (concreteMethods replaced) | - | P |
+
+4 more entries (55 in all, plus the inherited ones).

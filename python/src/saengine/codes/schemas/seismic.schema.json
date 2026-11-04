@@ -163,6 +163,47 @@
           },
           "title": "Zonecolumns",
           "type": "object"
+        },
+        "byHeight": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Byheight",
+          "type": "object"
+        },
+        "simpleStatic": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Simplestatic",
+          "type": "object"
+        },
+        "dynamicRequired": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dynamicrequired",
+          "type": "array"
         }
       },
       "required": [

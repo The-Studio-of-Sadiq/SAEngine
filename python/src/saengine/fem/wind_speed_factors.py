@@ -133,6 +133,38 @@ def slope_factor() -> dict[str, Any] | None:
     return {"k3": 1.0 + c * rule.speedUp, "theta": theta, "C": c, "s": rule.speedUp}
 
 
+def hill_shape_factor(height: float) -> dict[str, Any] | None:
+    """Alpha 9 C18b: k3 at ``height`` z [m] by the pack's ``speedFactors.hillShape`` (the
+    hill-shape multiplier Mh of AS/NZS 1170.2 4.4.2 type) from the project's topography
+    (Project Settings > Wind > Topography: H, Lu = Lh, x, downwind): see
+    :class:`saengine.codes.tables.HillShapeRules`. None: no rule, no feature, or the project
+    sets k3 itself."""
+    from saengine.fem.loads import _TOPOGRAPHY, _WIND_OVERRIDES
+
+    rule = getattr(_table(), "hillShape", None)
+    topo = _TOPOGRAPHY.get()
+    if rule is None or topo is None:
+        return None
+    if (_WIND_OVERRIDES.get() or {}).get("topographic") is not None:
+        return None
+    h, lu = float(topo.height), float(topo.length)
+    ratio = h / (2 * lu)
+    a, b = rule.l1Shares
+    l1 = max(a * lu, b * h)
+    escarpment_downwind = topo.feature == "escarpment" and topo.downwind
+    l2 = (rule.escarpmentDownwindL2 if escarpment_downwind else rule.upwindL2) * l1
+    x = abs(float(topo.distance))
+    reach = max(0.0, 1.0 - x / l2)
+    z = max(float(height), 0.0)
+    if ratio < rule.flatRatio:
+        k3 = 1.0
+    elif ratio < rule.steepRatio:
+        k3 = 1.0 + h / (rule.divisor * (z + l1)) * reach
+    else:
+        k3 = 1.0 + rule.steepSpeedUp * reach
+    return {"k3": k3, "H_2Lu": ratio, "L1": l1, "L2": l2, "x": x}
+
+
 def factors(height: float, speed: float, exposure: str, importance: float) -> dict[str, float]:
     """Every factor of the design pressure at ``height``: k1, k2, k3, k4, Kd, Ka, Kc, the
     product K (at least the pack's minimum share), Vz [m/s], pz and pd [kN/m²]."""
@@ -145,6 +177,9 @@ def factors(height: float, speed: float, exposure: str, importance: float) -> di
     slope = slope_factor()  # C12: k3 from the site's slope where the pack gives the rule
     if slope is not None:
         k3 = slope["k3"]
+    hill = hill_shape_factor(height)  # Alpha 9 C18b: Mh at the level's height
+    if hill is not None:
+        k3 = hill["k3"]
     k4 = float(table.importance)
     kd = wind_factor("directionality")
     if table.cyclonic:  # Alpha 9 C9b: a cyclone-prone site

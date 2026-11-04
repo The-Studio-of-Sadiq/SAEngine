@@ -609,6 +609,28 @@ class DesignCategories(BaseModel):
     #: not numbered 1, 2, ... (a zone 0 without seismic action, more zones than columns);
     #: empty: zone n takes column n - 1.
     zoneColumns: dict[str, int] = Field(default_factory=dict)
+    # Alpha 9 C18b (AS 1170.4 Table 2.1 type: the earthquake design category by the
+    # structure's height hn): group -> (hn up to [m], category) rows, the first row whose
+    # height holds (None: any height), in place of the zone rows where the analysis knows hn.
+    byHeight: dict[str, list[tuple[float | None, str]]] = Field(default_factory=dict)
+    #: Categories designed by a simple static force Fi = share × Wi at every level (AS 1170.4
+    #: Section 5 type), in place of the equivalent static method: category -> share.
+    simpleStatic: dict[str, float] = Field(default_factory=dict)
+    #: Categories for which the code asks for the dynamic (modal) analysis: the run says so
+    #: where the equivalent static method was used (AS 1170.4 2.2 / Section 7 type).
+    dynamicRequired: list[str] = Field(default_factory=list)
+
+
+def height_category(table: DesignCategories, group: str, height: float) -> str | None:
+    """Alpha 9 C18b: the category of ``group`` at the structure's height ``height`` [m] by
+    the pack's ``byHeight`` rows; None when the pack gives none for the group."""
+    rows = table.byHeight.get(group)
+    if not rows:
+        return None
+    for up_to, category in rows:
+        if up_to is None or height <= float(up_to):
+            return category
+    return rows[-1][1]
 
 
 def category_column(table: DesignCategories, zone: Any, count: int) -> int:
@@ -2167,6 +2189,31 @@ class SlopeTopography(_Row):
     )
 
 
+class HillShapeRules(_Row):
+    """Alpha 9 C18b: k3 by the hill-shape multiplier of a hill, ridge or escarpment at the
+    height z of each level (the AS/NZS 1170.2 4.4.2 form, :func:`saengine.fem.
+    wind_speed_factors.hill_shape_factor`), from the project's topography (H the feature's
+    height, Lu = the settings' half-height distance Lh, x the distance from the crest):
+
+    - H / (2 Lu) below ``flatRatio``: k3 = 1;
+    - up to ``steepRatio``: k3 = 1 + H / (divisor (z + L1)) (1 - |x| / L2);
+    - from ``steepRatio``: k3 = 1 + ``steepSpeedUp`` (1 - |x| / L2) (the separation zone's
+      value, taken at every height: on the safe side);
+
+    L1 = max(a Lu, b H) (``l1Shares``), L2 = ``upwindL2`` L1 upwind of the crest and for hills
+    and ridges, ``escarpmentDownwindL2`` L1 downwind of an escarpment; k3 = 1 beyond L2."""
+
+    flatRatio: float = Field(gt=0, description="H/(2 Lu) below this: no speed-up.")
+    steepRatio: float = Field(gt=0, description="H/(2 Lu) from this: the steep form.")
+    divisor: float = Field(gt=0, description="k3 = 1 + H / (divisor (z + L1)) (1 - |x|/L2).")
+    steepSpeedUp: float = Field(gt=0, description="k3 = 1 + this (1 - |x|/L2) when steep.")
+    l1Shares: tuple[float, float] = Field(description="L1 = max(a Lu, b H): (a, b).")
+    upwindL2: float = Field(gt=0, description="L2 = this × L1 (upwind; hills and ridges).")
+    escarpmentDownwindL2: float = Field(
+        gt=0, description="L2 = this × L1 downwind of an escarpment."
+    )
+
+
 class GustFactorRules(_Row):
     """The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):
     G = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the
@@ -2174,15 +2221,33 @@ class GustFactorRules(_Row):
 
     heightRatio: float = Field(gt=0, description="Applies when h / b exceeds this ...")
     frequencyLimit: float = Field(gt=0, description="... or the first frequency is below [Hz].")
-    meanFactors: dict[str, list[tuple[float, float]]] = Field(
-        description="k̄2: terrain -> (height [m], hourly mean speed factor) points."
+    # Alpha 9 C18b: the form of the factor. "gustFactor" (the default, IS 875 (Part 3) type):
+    # G on the hourly mean pressure as above. "dynamicResponse" (AS/NZS 1170.2 Section 6
+    # type): Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et / ζ)] / (1 + 2 gv Ih) on the design
+    # (gust) pressure at every level, the mean speed V̄h = Vdes,h / (1 + gv Ih), Ih from
+    # ``turbulencePoints``; meanFactors, roughness, turbulence and terrainShares not used.
+    form: Literal["gustFactor", "dynamicResponse"] = Field(
+        default="gustFactor",
+        description="gustFactor (G on the mean pressure) or "
+        "dynamicResponse (Cdyn on the design pressure).",
     )
-    roughness: dict[str, float] = Field(description="z0 [m] by terrain.")
-    turbulence: tuple[float, float, float, float] = Field(
-        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4)."
+    turbulencePoints: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="Iz: terrain -> (height [m], turbulence intensity) points, linear between, "
+        "constant outside (the dynamicResponse form).",
+    )
+    meanFactors: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="k̄2: terrain -> (height [m], hourly mean speed factor) points.",
+    )
+    roughness: dict[str, float] = Field(default_factory=dict, description="z0 [m] by terrain.")
+    turbulence: tuple[float, float, float, float] | None = Field(
+        default=None,
+        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
     )
     terrainShares: dict[str, float] = Field(
-        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last)."
+        default_factory=dict,
+        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last).",
     )
     peakFactor: float = Field(gt=0, description="gv, the peak factor of the upwind velocity.")
     scaleCoefficients: dict[str, float] = Field(
@@ -2246,6 +2311,8 @@ class SpeedFactors(_Row):
     # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
     topography: SlopeTopography | None = None
     gustFactor: GustFactorRules | None = None
+    # Alpha 9 C18b: k3 by the hill-shape multiplier at each height (AS/NZS 1170.2 4.4.2 type).
+    hillShape: HillShapeRules | None = None
     # Alpha 9 C23: codes that tabulate the design pressure by height (the Hong Kong Code of
     # Practice on Wind Effects type) instead of a basic speed and k2.
     referencePressures: dict[str, list[tuple[float, Positive]]] | None = Field(

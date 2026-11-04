@@ -326,7 +326,231 @@
     "importance": 1.0,
     "areaAveraging": 1.0,
     "combination": 1.0,
-    "minimumShare": 0.0
+    "minimumShare": 0.0,
+    "hillShape": {
+      "flatRatio": 0.05,
+      "steepRatio": 0.45,
+      "divisor": 3.5,
+      "steepSpeedUp": 0.71,
+      "l1Shares": [
+        0.36,
+        0.4
+      ],
+      "upwindL2": 4.0,
+      "escarpmentDownwindL2": 10.0
+    },
+    "gustFactor": {
+      "form": "dynamicResponse",
+      "heightRatio": 1000.0,
+      "frequencyLimit": 1.0,
+      "turbulencePoints": {
+        "TC1": [
+          [
+            5,
+            0.165
+          ],
+          [
+            10,
+            0.157
+          ],
+          [
+            15,
+            0.152
+          ],
+          [
+            20,
+            0.147
+          ],
+          [
+            30,
+            0.14
+          ],
+          [
+            40,
+            0.133
+          ],
+          [
+            50,
+            0.128
+          ],
+          [
+            75,
+            0.118
+          ],
+          [
+            100,
+            0.108
+          ],
+          [
+            150,
+            0.095
+          ],
+          [
+            200,
+            0.085
+          ]
+        ],
+        "TC2": [
+          [
+            5,
+            0.196
+          ],
+          [
+            10,
+            0.183
+          ],
+          [
+            15,
+            0.176
+          ],
+          [
+            20,
+            0.171
+          ],
+          [
+            30,
+            0.162
+          ],
+          [
+            40,
+            0.156
+          ],
+          [
+            50,
+            0.151
+          ],
+          [
+            75,
+            0.14
+          ],
+          [
+            100,
+            0.131
+          ],
+          [
+            150,
+            0.117
+          ],
+          [
+            200,
+            0.107
+          ]
+        ],
+        "TC3": [
+          [
+            5,
+            0.271
+          ],
+          [
+            10,
+            0.239
+          ],
+          [
+            15,
+            0.225
+          ],
+          [
+            20,
+            0.215
+          ],
+          [
+            30,
+            0.203
+          ],
+          [
+            40,
+            0.195
+          ],
+          [
+            50,
+            0.188
+          ],
+          [
+            75,
+            0.176
+          ],
+          [
+            100,
+            0.166
+          ],
+          [
+            150,
+            0.15
+          ],
+          [
+            200,
+            0.139
+          ]
+        ],
+        "TC4": [
+          [
+            5,
+            0.342
+          ],
+          [
+            10,
+            0.342
+          ],
+          [
+            15,
+            0.342
+          ],
+          [
+            20,
+            0.342
+          ],
+          [
+            30,
+            0.305
+          ],
+          [
+            40,
+            0.285
+          ],
+          [
+            50,
+            0.27
+          ],
+          [
+            75,
+            0.248
+          ],
+          [
+            100,
+            0.233
+          ],
+          [
+            150,
+            0.21
+          ],
+          [
+            200,
+            0.196
+          ]
+        ]
+      },
+      "peakFactor": 3.7,
+      "scaleCoefficients": {
+        "TC1": 85.0,
+        "TC2": 85.0,
+        "TC3": 85.0,
+        "TC4": 85.0
+      },
+      "backgroundTerms": [
+        0.26,
+        0.46
+      ],
+      "sizeTerms": [
+        3.5,
+        4.0
+      ],
+      "spectrumTerms": [
+        70.8,
+        0.8333
+      ],
+      "duration": 600.0,
+      "damping": 0.05
+    }
   },
   "directionality": 1.0,
   "topographic": 1.0,
@@ -357,6 +581,13 @@
     "topographic": "AS/NZS 1170.2 4.4: topographic multiplier Mt = Mh Mlee Ms = 1.0 on flat ground; enter Mt in Project Settings > Wind (the hill multiplier Mh of 4.4.2 is not computed)",
     "gust": "AS/NZS 1170.2: regional speeds are 0.2 s gusts, the pressure coefficients need no gust factor (1.0); Cdyn = 1 (6.1, buildings with n1 > 1 Hz; the dynamic response factor of Section 6 is not computed)",
     "cpWindward": "AS/NZS 1170.2 Table 5.2(A): windward wall Cp,e = 0.7 (Kl = 1)",
-    "cpLeeward": "AS/NZS 1170.2 Table 5.2(B): leeward wall Cp,e by d/b: -0.5 (<= 1), -0.3 (2), -0.2 (>= 4), roof pitch below 10° (linear between)"
+    "cpLeeward": "AS/NZS 1170.2 Table 5.2(B): leeward wall Cp,e by d/b: -0.5 (<= 1), -0.3 (2), -0.2 (>= 4), roof pitch below 10° (linear between)",
+    "speedFactors.hillShape": "AS/NZS 1170.2:2021 4.4.2: hill-shape multiplier Mh (k3 of the method, at the height z of each level) for H/(2Lu) < 0.05: 1.0; 0.05-0.45: 1 + H/(3.5 (z + L1)) (1 - |x|/L2); >= 0.45: 1 + 0.71 (1 - |x|/L2) (the separation zone's value, SAEngine takes it at every height: on the safe side); L1 = max(0.36 Lu, 0.4 H), L2 = 4 L1 upwind and for hills and ridges, 10 L1 downwind of an escarpment; Mlee and the elevation term of Mt = 1 (SAEngine practice). A k3 entered in Project Settings > Wind replaces it",
+    "speedFactors.gustFactor": "AS/NZS 1170.2:2021 Section 6 (6.2.2): Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et/ζ)]/(1 + 2 gv Ih) for buildings with n1 below 1 Hz (n1 from Project Settings > Wind or the modal analysis), gv = 3.7, Lh = 85 (h/10)^0.25, Bs = 1/(1 + √(0.26 h² + 0.46 b²)/Lh) (s = 0, Hs = 1), S = 1/((1 + 3.5 na h/V̄h)(1 + 4 na b/V̄h)), Et = π N/(1 + 70.8 N²)^(5/6), N = na Lh/V̄h, V̄h = Vdes,h/(1 + gv Ih), gR = √(2 ln(600 na)); Ih by terrain category and height (Table 6.1); ζ = 0.05 (SAEngine practice for concrete buildings at ultimate; the project's damping where entered). Cdyn multiplies the design pressure of every level"
+  },
+  "clauses": {
+    "gustFactor": "6.2",
+    "flexible": "6.1",
+    "hillShape": "4.4.2"
   }
 }

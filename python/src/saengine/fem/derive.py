@@ -2399,6 +2399,27 @@ def _derive_fem(
     eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)
     eccentric = bool(option(options, "accidentalEccentricity", False)) and bool(heights)
     period_method = option(options, "periodMethod", "approximate")
+    # Alpha 9 C18b: the pack's design category by the structure's height (AS 1170.4 Table 2.1
+    # type) and, for a category the pack designs by the simple static force, Fi = share × Wi.
+    category_rules = getattr(seismic_table, "designCategories", None)
+    height_sdc: str | None = None
+    if heights and values.get("Z") and category_rules is not None and category_rules.byHeight:
+        from saengine.fem.seismic_design import seismic_design_category as _height_sdc
+        from saengine.fem.seismic_design import zone_of as _zone_of
+        from saengine.library.settings import category_site_class as _site_of
+        from saengine.library.settings import soil_flags as _soil_flags
+
+        height_sdc = _height_sdc(
+            _zone_of(values["Z"]),
+            _site_of(settings, settings.site.siteClass, _soil_flags(settings)),
+            settings.occupancy.category,
+            height=hn,
+        )
+    simple_share = (
+        category_rules.simpleStatic.get(height_sdc)
+        if height_sdc is not None and category_rules is not None
+        else None
+    )
 
     def seismic_loads(
         periods: dict[str, float],
@@ -2444,6 +2465,10 @@ def _derive_fem(
             correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
             shear = sa * sum(weights) * correction
             forces = fl.vertical_distribution(rel_levels, shear, period)
+            if simple_share is not None:  # Alpha 9 C18b: Fi = share × Wi at every level
+                sa, correction = float(simple_share), 1.0
+                shear = sa * sum(weights)
+                forces = [sa * w for w in weights]
             forces_of[case] = forces
             info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
             if correction != 1.0:
@@ -2610,10 +2635,27 @@ def _derive_fem(
             zone_of(values["Z"]),
             category_site_class(settings, settings.site.siteClass, flags),
             settings.occupancy.category,
+            height=hn if heights else None,  # Alpha 9 C18b: the pack's rows by height
         )
         height_note = height_limit_note(settings, sdc, hn)
         if height_note:
             b.notes.append(height_note)
+        if height_sdc is not None and category_rules is not None:  # Alpha 9 C18b
+            summary["designCategoryByHeight"] = {"category": height_sdc, "hn_m": hn}
+            where = code_context.cite("seismic", "designCategories")
+            where = f" ({where})" if where else ""
+            if simple_share is not None:
+                b.notes.append(
+                    f"seismic: category {height_sdc} at hn = {hn:.1f} m{where}: the simple "
+                    f"static force Fi = {simple_share:g} Wi at every level in place of the "
+                    "equivalent static method"
+                )
+            if height_sdc in category_rules.dynamicRequired:
+                b.notes.append(
+                    f"seismic: category {height_sdc} at hn = {hn:.1f} m{where}: the code asks "
+                    "for the dynamic analysis (the modal response spectrum); the equivalent "
+                    "static cases alone are not enough, run the response spectrum analysis"
+                )
     if heights and values["windSpeed"]:
         from saengine.fem.loads import wind_overrides
 
@@ -4789,7 +4831,11 @@ def _gust_factor_method(
             f"{axis}: h/b = {height / breadth:.2f}, f0 = {n1:.3f} Hz from {source}, G = "
             f"{terms['G']:.3f} (Ih {terms['Ih']:.3f}, Bs {terms['Bs']:.3f}, S {terms['S']:.3f}, "
             f"E {terms['E']:.3f}, gR {terms['gR']:.2f}, β {terms['beta']:.3f}), the storey forces "
-            "× G (k̄2/k2)²"
+            + (
+                "× Cdyn (the dynamic response factor on the design pressure)"
+                if gust_response.dynamic_form()
+                else "× G (k̄2/k2)²"
+            )
         )
     wind["gust"] = gust
     notes.append(f"wind gust factor method ({cite}): " + "; ".join(texts))

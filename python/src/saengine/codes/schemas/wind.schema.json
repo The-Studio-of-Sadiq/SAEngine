@@ -1480,6 +1480,37 @@
           "title": "Frequencylimit",
           "type": "number"
         },
+        "form": {
+          "default": "gustFactor",
+          "description": "gustFactor (G on the mean pressure) or dynamicResponse (Cdyn on the design pressure).",
+          "enum": [
+            "gustFactor",
+            "dynamicResponse"
+          ],
+          "title": "Form",
+          "type": "string"
+        },
+        "turbulencePoints": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Iz: terrain -> (height [m], turbulence intensity) points, linear between, constant outside (the dynamicResponse form).",
+          "title": "Turbulencepoints",
+          "type": "object"
+        },
         "meanFactors": {
           "additionalProperties": {
             "items": {
@@ -1510,25 +1541,33 @@
           "type": "object"
         },
         "turbulence": {
-          "description": "(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
-          "maxItems": 4,
-          "minItems": 4,
-          "prefixItems": [
+          "anyOf": [
             {
-              "type": "number"
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
             },
             {
-              "type": "number"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "number"
+              "type": "null"
             }
           ],
-          "title": "Turbulence",
-          "type": "array"
+          "default": null,
+          "description": "(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
+          "title": "Turbulence"
         },
         "terrainShares": {
           "additionalProperties": {
@@ -1628,10 +1667,6 @@
       "required": [
         "heightRatio",
         "frequencyLimit",
-        "meanFactors",
-        "roughness",
-        "turbulence",
-        "terrainShares",
         "peakFactor",
         "scaleCoefficients",
         "backgroundTerms",
@@ -1641,6 +1676,87 @@
         "damping"
       ],
       "title": "GustFactorRules",
+      "type": "object"
+    },
+    "HillShapeRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18b: k3 by the hill-shape multiplier of a hill, ridge or escarpment at the\nheight z of each level (the AS/NZS 1170.2 4.4.2 form, :func:`saengine.fem.\nwind_speed_factors.hill_shape_factor`), from the project's topography (H the feature's\nheight, Lu = the settings' half-height distance Lh, x the distance from the crest):\n\n- H / (2 Lu) below ``flatRatio``: k3 = 1;\n- up to ``steepRatio``: k3 = 1 + H / (divisor (z + L1)) (1 - |x| / L2);\n- from ``steepRatio``: k3 = 1 + ``steepSpeedUp`` (1 - |x| / L2) (the separation zone's\n  value, taken at every height: on the safe side);\n\nL1 = max(a Lu, b H) (``l1Shares``), L2 = ``upwindL2`` L1 upwind of the crest and for hills\nand ridges, ``escarpmentDownwindL2`` L1 downwind of an escarpment; k3 = 1 beyond L2.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "flatRatio": {
+          "description": "H/(2 Lu) below this: no speed-up.",
+          "exclusiveMinimum": 0,
+          "title": "Flatratio",
+          "type": "number"
+        },
+        "steepRatio": {
+          "description": "H/(2 Lu) from this: the steep form.",
+          "exclusiveMinimum": 0,
+          "title": "Steepratio",
+          "type": "number"
+        },
+        "divisor": {
+          "description": "k3 = 1 + H / (divisor (z + L1)) (1 - |x|/L2).",
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
+          "type": "number"
+        },
+        "steepSpeedUp": {
+          "description": "k3 = 1 + this (1 - |x|/L2) when steep.",
+          "exclusiveMinimum": 0,
+          "title": "Steepspeedup",
+          "type": "number"
+        },
+        "l1Shares": {
+          "description": "L1 = max(a Lu, b H): (a, b).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "L1Shares",
+          "type": "array"
+        },
+        "upwindL2": {
+          "description": "L2 = this × L1 (upwind; hills and ridges).",
+          "exclusiveMinimum": 0,
+          "title": "Upwindl2",
+          "type": "number"
+        },
+        "escarpmentDownwindL2": {
+          "description": "L2 = this × L1 downwind of an escarpment.",
+          "exclusiveMinimum": 0,
+          "title": "Escarpmentdownwindl2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "flatRatio",
+        "steepRatio",
+        "divisor",
+        "steepSpeedUp",
+        "l1Shares",
+        "upwindL2",
+        "escarpmentDownwindL2"
+      ],
+      "title": "HillShapeRules",
       "type": "object"
     },
     "InternalPressureTable": {
@@ -3865,6 +3981,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/GustFactorRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hillShape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HillShapeRules"
             },
             {
               "type": "null"

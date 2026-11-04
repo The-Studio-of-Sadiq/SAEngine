@@ -36,12 +36,38 @@ in `covers` comes from the default pack and the report names it BNBC 2020. The N
   ε = √(250/fy) units, `compression.slendernessReduction` (αc with αb by section family),
   `flexure.slendernessReduction` (αs), shear 0.6 fy Aw, the linear section and member checks.
 
+## Alpha 9 C18b (version 0.2)
+
+- Torsion `concreteMethods.torsion` method `torsionInteraction` (`design/torsion_interaction.py`,
+  AS 3600 8.3): Jt, Tuc, neglected below 0.25 φTuc, no links up to T*/φTuc + V*/φVuc = 0.5,
+  web crushing with Tu.max = 0.2 f'c Jt, closed links Tus, their spacing, ΔAl (informative).
+- Punching `concreteMethods.punching` method `momentTransfer` (`design/moment_punching.py`,
+  AS 3600 9.3): fcv = 0.17 (1 + 2/βh) √f'c <= 0.34 √f'c, Vu = Vuo/(1 + u M*v/(8 V* a dom)) in
+  flat slabs, footings and the slab frames; closed fitments and shearheads not laid out.
+- Walls `concreteMethods.simplifiedWalls` method `simplifiedWall` (`design/simplified_walls.py`,
+  AS 3600 11.5, 11.6): the simplified axial strength (informative) and the in-plane shear by
+  Hw/Lw.
+- Wind `speedFactors.hillShape` (AS/NZS 1170.2 4.4.2): Mh at each level's height from Project
+  Settings > Wind > Topography (H, Lu, x, downwind); `speedFactors.gustFactor` with
+  `form: "dynamicResponse"`: Cdyn of Section 6 for n1 below 1 Hz on the design pressure.
+- Earthquake `designCategories.byHeight`, `simpleStatic`, `dynamicRequired` (AS 1170.4 2.2,
+  Table 2.1, Section 5): the EDC by hn in the analysis, EDC I designed by Fi = 0.1 Wi, EDC III
+  noted as needing the dynamic analysis.
+- `designClauses`: the clauses of the covered checks (torsion, deflection, punching, accidental
+  eccentricity, fire); a key without an AS counterpart names the row without a clause.
+
 ## Not covered (falls back to BNBC 2020, named so)
 
-Concrete torsion, punching, walls, slender columns, the seismic detailing, footings and pile
-caps, connections, masonry (AS 3700), timber (AS 1720), the services, fire and the other tables
-not in `covers`. The bar schedule is the parent's BS 8666 (AS 3600 practice follows similar
-shape codes). The EDC I simple static method and the EDC III height rule are not chosen
-automatically (see VERIFY.md). Every value is listed with its clause in [VERIFY.md](VERIFY.md),
-for checking against the printed standards (no code text was available when the pack was
-written).
+Slender columns (AS 3600 10.4 δb, δs with Nc from Mub), the seismic detailing (Clause 14 and
+Appendix C: the parent's ordinary detailing rows apply), anchorage and laps (13.1, 13.2),
+strut-and-tie for deep beams and corbels (Chapters 7 and 12), the walls' minimum steel and
+detailing (11.7), footings and pile caps beyond punching, connections (AS 4100 Chapter 9: the
+parent's connection checks are AISC-shaped and are not re-based), masonry (AS 3700: none of
+SAEngine's masonry engines has the capacity-reduction-factor form of AS 3700) and timber
+(AS 1720.1: the timber engine's modification factors are not the k1-k12 of AS 1720.1), the
+services, fire and the other tables not in `covers`. The bar schedule stays the parent's BS 8666:
+AS 3600 and AS/NZS 4671 give no shape code standard of their own, and Australian schedules use
+shapes of the same form. The earthquake design category by height does not include the kp Z and
+site class columns of Table 2.1 (see VERIFY.md). Every value is listed with its clause in
+[VERIFY.md](VERIFY.md), for checking against the printed standards (no code text was available
+when the pack was written).

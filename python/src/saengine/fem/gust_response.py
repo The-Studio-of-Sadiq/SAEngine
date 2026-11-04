@@ -59,9 +59,24 @@ def mean_factor(height: float, exposure: str) -> float:
     return _interpolate(rows[exposure], max(float(height), 0.0))
 
 
+def dynamic_form(r: Any | None = None) -> bool:
+    """Alpha 9 C18b: whether the pack's factor is the dynamic response factor Cdyn on the
+    design pressure (AS/NZS 1170.2 Section 6 type) rather than G on the mean pressure."""
+    r = r if r is not None else rules()
+    return r is not None and getattr(r, "form", "gustFactor") == "dynamicResponse"
+
+
 def turbulence(height: float, exposure: str) -> float:
-    """Iz, the turbulence intensity at ``height`` in terrain ``exposure``."""
+    """Iz, the turbulence intensity at ``height`` in terrain ``exposure`` (alpha 9 C18b: from
+    the pack's ``turbulencePoints`` of the terrain where it gives them)."""
     r = rules()
+    points = (getattr(r, "turbulencePoints", None) or {}).get(exposure)
+    if points:
+        from saengine.fem.wind_speed_factors import _interpolate
+
+        return max(_interpolate(points, max(float(height), 0.0)), 0.0)
+    if r.turbulence is None:
+        raise ValueError(f"no turbulence intensity for terrain '{exposure}' in the code pack")
     a1, b1, a4, b4 = r.turbulence
     terrains = sorted(r.roughness)
     first, last = terrains[0], terrains[-1]
@@ -88,6 +103,8 @@ def gust_factor(
     r = rules()
     h = max(float(height), 1e-3)
     top = factors(h, speed, exposure, importance)
+    if dynamic_form(r):
+        return _dynamic_response(r, h, breadth, frequency, top, exposure, damping)
     vh = float(speed) * top["k1"] * mean_factor(h, exposure) * top["k3"] * top["k4"]
     ih = turbulence(h, exposure)
     rough = 2.0 * ih
@@ -122,10 +139,62 @@ def gust_factor(
     }
 
 
+def _dynamic_response(
+    r: Any,
+    h: float,
+    breadth: float,
+    frequency: float,
+    top: dict[str, float],
+    exposure: str,
+    damping: float | None,
+) -> dict[str, float]:
+    """Alpha 9 C18b: Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et / ζ)] / (1 + 2 gv Ih) (the
+    AS/NZS 1170.2 6.2.2 form) with Vdes,h the design speed at h (``top``), the mean speed
+    V̄h = Vdes,h / (1 + gv Ih) in S and N, Lh = coefficient (h/10)^0.25, Bs = 1 / (1 +
+    √(c1 h² + c2 b²) / Lh) (s = 0, Hs = 1: the base), S = 1 / ((1 + c1 n h / V̄h)(1 + c2 n b /
+    V̄h)), Et = π N / (1 + c1 N²)^c2, N = n Lh / V̄h, gR = √(2 ln(duration n)). Returned as
+    "G" (with the terms), applied to the design pressure of every level."""
+    ih = turbulence(h, exposure)
+    gv = r.peakFactor
+    vh = float(top["Vz"]) / (1 + gv * ih)
+    lh = r.scaleCoefficients.get(exposure, max(r.scaleCoefficients.values())) * (h / 10) ** 0.25
+    c1, c2 = r.backgroundTerms
+    bs = 1.0 / (1.0 + math.sqrt(c1 * h**2 + c2 * breadth**2) / lh)
+    hs = 1.0
+    s1, s2 = r.sizeTerms
+    size = 1.0 / ((1 + s1 * frequency * h / vh) * (1 + s2 * frequency * breadth / vh))
+    n = frequency * lh / vh
+    e1, e2 = r.spectrumTerms
+    spectrum = math.pi * n / (1 + e1 * n**2) ** e2
+    gr = math.sqrt(2 * math.log(max(r.duration * frequency, 1.0001)))
+    zeta = float(damping) if damping else r.damping
+    cdyn = (1 + 2 * ih * math.sqrt(gv**2 * bs + hs * gr**2 * size * spectrum / zeta)) / (
+        1 + 2 * gv * ih
+    )
+    return {
+        "G": cdyn,
+        "Ih": ih,
+        "r": 2.0 * ih,
+        "Lh": lh,
+        "Bs": bs,
+        "phi": 0.0,
+        "S": size,
+        "E": spectrum,
+        "N": n,
+        "gR": gr,
+        "beta": zeta,
+        "Vh": vh,
+    }
+
+
 def level_ratio(z: float, g: float, exposure: str) -> float:
     """The gust factor method's pressure over the static design pressure at height ``z``:
-    G (k̄2 / k2)²."""
+    G (k̄2 / k2)²; alpha 9 C18b: Cdyn itself in the dynamic response form (it acts on the
+    design pressure)."""
     from saengine.fem.wind_speed_factors import height_factor
+
+    if dynamic_form():
+        return g
 
     k2 = height_factor(z, exposure)
     return g * (mean_factor(z, exposure) / k2) ** 2 if k2 > 0 else g

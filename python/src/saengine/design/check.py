@@ -2029,6 +2029,11 @@ def _assemble(
     members_failed = [e for e in members_checked if not e["ok"]]
     code = code_basis(settings).concrete
     method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
+    from saengine.design import torsion_interaction
+
+    if torsion_interaction.rules() is not None and not design_strength.partial_factors():
+        # Alpha 9 C18b: the pack's torsion method (AS 3600 8.3 type) in place of the tube's line.
+        method[3] = f"Beam {torsion_interaction.method_line()}; the slab is not counted in Jt."
     if design_strength.partial_factors():
         # Alpha 9 C5: the pack's partial-factor method replaces the basis, flexure, beam and
         # column lines; the torsion and deflection lines stay (the parent pack's methods).
@@ -4645,7 +4650,10 @@ def _beam_torsion_checks(
     reinforcement = beam.reinforcement
     if reinforcement is None:
         return [], None
-    if tabulated_shear.torsion_rules() is not None:
+    from saengine.design import torsion_interaction
+
+    interaction = torsion_interaction.rules() is not None  # Alpha 9 C18b (AS 3600 8.3 type)
+    if tabulated_shear.torsion_rules() is not None or interaction:
         # Alpha 9 C8: torsion by the equivalent shear and moment (IS 456 41) in place of the
         # thin-walled tube; every station's (Tu, Vu, Mu).
         points: list[tuple[float, float, float, str, str]] = []
@@ -4671,6 +4679,16 @@ def _beam_torsion_checks(
             if transverse is not None and transverse.spacing
             else None
         )
+        if interaction:  # Alpha 9 C18b: Tuc, the interaction with shear and the links
+            try:
+                found = torsion_interaction.torsion_rows(
+                    section, reinforcement.cover, stirrups, points
+                )
+            except DesignError as error:
+                found = [
+                    _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
+                ]
+            return found, None
         capacities = {hog: flexure(section, hog) for hog in (False, True)}
         return (
             tabulated_shear.torsion_rows(

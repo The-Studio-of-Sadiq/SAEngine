@@ -2887,6 +2887,57 @@
       "title": "MemberSteelRules",
       "type": "object"
     },
+    "MomentTransferPunchingRules": {
+      "additionalProperties": false,
+      "description": "Punching by Vuo = u dom fcv reduced for the unbalanced moment (method\n``momentTransfer``, :mod:`saengine.design.moment_punching`).",
+      "properties": {
+        "method": {
+          "const": "momentTransfer",
+          "title": "Method",
+          "type": "string"
+        },
+        "coefficient": {
+          "description": "fcv = c (1 + 2/βh) √f'c ...",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "maxCoefficient": {
+          "description": "... at most this × √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Maxcoefficient",
+          "type": "number"
+        },
+        "momentDivisor": {
+          "description": "Vu = Vuo / (1 + u M*v / (divisor V* a dom)).",
+          "exclusiveMinimum": 0,
+          "title": "Momentdivisor",
+          "type": "number"
+        },
+        "rootMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "√f'c at most [MPa] (none: no cap).",
+          "title": "Rootmax"
+        }
+      },
+      "required": [
+        "method",
+        "coefficient",
+        "maxCoefficient",
+        "momentDivisor"
+      ],
+      "title": "MomentTransferPunchingRules",
+      "type": "object"
+    },
     "PanelCase": {
       "additionalProperties": false,
       "properties": {
@@ -3296,6 +3347,142 @@
         "k4"
       ],
       "title": "ServiceStressRules",
+      "type": "object"
+    },
+    "SimplifiedWallRules": {
+      "additionalProperties": false,
+      "description": "Walls by the simplified method (method ``simplifiedWall``,\n:mod:`saengine.design.simplified_walls`): the axial strength per unit length\nφNu = φ (tw - a e - 2 ea) k f'c, ea = Hwe² / (divisor tw), and the in-plane shear by the\naspect ratio Hw/Lw.",
+      "properties": {
+        "method": {
+          "const": "simplifiedWall",
+          "title": "Method",
+          "type": "string"
+        },
+        "phi": {
+          "description": "φ of the axial strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "strengthShare": {
+          "description": "k of k f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strengthshare",
+          "type": "number"
+        },
+        "eccentricityFactor": {
+          "description": "a of a e.",
+          "exclusiveMinimum": 0,
+          "title": "Eccentricityfactor",
+          "type": "number"
+        },
+        "additionalDivisor": {
+          "description": "ea = Hwe² / (divisor tw).",
+          "exclusiveMinimum": 0,
+          "title": "Additionaldivisor",
+          "type": "number"
+        },
+        "minEccentricityShare": {
+          "description": "e at least this × tw.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mineccentricityshare",
+          "type": "number"
+        },
+        "slendernessMax": {
+          "description": "Hwe / tw at most.",
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "restrainedK": {
+          "description": "k of Hwe = k Hw for a wall restrained at both ends.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Restrainedk",
+          "type": "number"
+        },
+        "shearDepthShare": {
+          "description": "The shear area 0.8 Lw tw: the share.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sheardepthshare",
+          "type": "number"
+        },
+        "squatShear": {
+          "description": "Hw/Lw <= 1: Vuc = (a - b Hw/Lw) √f'c × the area.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Squatshear",
+          "type": "array"
+        },
+        "slenderShear": {
+          "description": "Hw/Lw > 1: also (a + b / (Hw/Lw - 1)) √f'c × the area ...",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Slendershear",
+          "type": "array"
+        },
+        "shearLeast": {
+          "description": "... at least this √f'c × the area.",
+          "exclusiveMinimum": 0,
+          "title": "Shearleast",
+          "type": "number"
+        },
+        "shearMaxShare": {
+          "description": "Vu at most this × f'c × the area.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearmaxshare",
+          "type": "number"
+        },
+        "phiShear": {
+          "description": "φ of the shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phishear",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "phi",
+        "strengthShare",
+        "eccentricityFactor",
+        "additionalDivisor",
+        "minEccentricityShare",
+        "slendernessMax",
+        "restrainedK",
+        "shearDepthShare",
+        "squatShear",
+        "slenderShear",
+        "shearLeast",
+        "shearMaxShare",
+        "phiShear"
+      ],
+      "title": "SimplifiedWallRules",
       "type": "object"
     },
     "SlendernessRule": {
@@ -4643,6 +4830,98 @@
       "title": "TieForceRules",
       "type": "object"
     },
+    "TorsionInteractionRules": {
+      "additionalProperties": false,
+      "description": "Torsion of beams by the cracking torque and the interaction with shear (method\n``torsionInteraction``, :mod:`saengine.design.torsion_interaction`).",
+      "properties": {
+        "method": {
+          "const": "torsionInteraction",
+          "title": "Method",
+          "type": "string"
+        },
+        "torsionModulus": {
+          "description": "Jt = c x² y of a rectangle (x the short side).",
+          "exclusiveMinimum": 0,
+          "title": "Torsionmodulus",
+          "type": "number"
+        },
+        "crackingCoefficient": {
+          "description": "Tuc = c Jt √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Crackingcoefficient",
+          "type": "number"
+        },
+        "neglectShare": {
+          "description": "T* below share × φ Tuc: torsion neglected.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Neglectshare",
+          "type": "number"
+        },
+        "plainInteraction": {
+          "description": "T*/(φ Tuc) + V*/(φ Vuc) up to this: no torsion reinforcement.",
+          "exclusiveMinimum": 0,
+          "title": "Plaininteraction",
+          "type": "number"
+        },
+        "maxCoefficient": {
+          "description": "Tu.max = c f'c Jt.",
+          "exclusiveMinimum": 0,
+          "title": "Maxcoefficient",
+          "type": "number"
+        },
+        "crushingInteraction": {
+          "description": "T*/(φ Tu.max) + V*/(φ Vu.max) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Crushinginteraction",
+          "type": "number"
+        },
+        "cotTheta": {
+          "description": "cot θv of the links' and bars' terms.",
+          "exclusiveMinimum": 0,
+          "title": "Cottheta",
+          "type": "number"
+        },
+        "linkSpacing": {
+          "description": "Closed links at most min(share ut, mm) apart.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Linkspacing",
+          "type": "array"
+        },
+        "fyMax": {
+          "description": "fsy.f of the links at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "torsionModulus",
+        "crackingCoefficient",
+        "neglectShare",
+        "plainInteraction",
+        "maxCoefficient",
+        "crushingInteraction",
+        "cotTheta",
+        "linkSpacing",
+        "fyMax"
+      ],
+      "title": "TorsionInteractionRules",
+      "type": "object"
+    },
     "TwoWaySlabRules": {
       "additionalProperties": false,
       "description": "Two-way slabs on beams by moment coefficients by edge case (method\n``restrainedPanel``): M = α w lx² per unit width.",
@@ -5257,6 +5536,9 @@
           "$ref": "#/$defs/EquivalentTorsionRules"
         },
         {
+          "$ref": "#/$defs/TorsionInteractionRules"
+        },
+        {
           "type": "null"
         }
       ],
@@ -5270,6 +5552,9 @@
         },
         {
           "$ref": "#/$defs/RootStressPunchingRules"
+        },
+        {
+          "$ref": "#/$defs/MomentTransferPunchingRules"
         },
         {
           "type": "null"
@@ -5560,6 +5845,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TieCorbelRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "simplifiedWalls": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SimplifiedWallRules"
         },
         {
           "type": "null"
