@@ -189,6 +189,36 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     "6.10ab". Type 1 is the default spectrum; Type 2 is chosen with `seismic.spectrumType` "2".
     A National Annex is a pack that extends `eurocodes` and sets only these parameters.
 
+- **Eurocodes pack, concrete and foundations (alpha 9 track C5).** The `eurocodes` pack (0.2.0)
+  adds two method tables, `concreteMethods` (EN 1992-1-1, EN 1998-1 Section 5) and
+  `geotechnicalMethods` (EN 1997-1); every value is in `codes/packs/eurocodes/VERIFY.md`
+  (rows 99-190). A pack without them (BNBC 2020) designs exactly as before. Decisions:
+  - Partial factors replace φ only where the pack's method is wired: beam and column flexure
+    and axial force (design strengths, φ = 1, the rectangular block η, λ, εcu3 so the closed-form
+    section integration stays; `stressBlock: "parabolaRectangle"` is available and slower),
+    beam and column shear (variable strut), and the new member-steel and DCM/DCH rows. The
+    other concrete checks (torsion, deflection, slenderness, slabs, walls, punching, stairs, the
+    parent's special-frame detailing) keep BNBC's method and φ; the design report says so.
+    SAEngine practice.
+  - Shear resistance VRd = max(VRd,c, min(VRd,s, VRd,max)) (no calculated links where VEd ≤
+    VRd,c), cot θ chosen in 1-2.5 for the largest resistance. Beams always need ρw,min: below it
+    the "Minimum stirrups" row fails whatever the shear. SAEngine reading of 6.2.1 and 9.2.2.
+  - The minimum eccentricity e0 is applied about both axes at once (conservative). SAEngine
+    practice.
+  - The ductility class comes from the system's frame level (special → DCH, intermediate →
+    DCM), consistent with C4's q mapping. νd uses the largest axial force of all combinations
+    (on the safe side). SAEngine practice.
+  - EN 1997-1: the design approach is a National choice; the pack sets DA1 (overridable). The
+    footing design stays allowable-pressure (BNBC); the limit state functions (Annex D bearing,
+    sliding, ξ factors) exist, and a pile type's initial load tests report Rc,k (ξ1, ξ2) and
+    Rc,d per DA combination. Owner-approved practice defaults, all overridable (owner,
+    2026-11-04).
+  - Fix of C4's `areaLoads`: the engine reads `stairsDwelling`; the Eurocodes table replaced
+    the uses without it, so the stair design failed. Added as category A stairs (2.0 kN/m²).
+  - Where it lives: `codes/method_tables.py`; `design/design_strength.py`, `strut_shear.py`,
+    `perimeter_punching.py`, `crack_control.py`, `bar_rules.py`, `curvature_ductility.py`;
+    `substructure/limit_state_geotechnics.py`; glue in `design/rc.py`, `design/check.py`,
+    `substructure/load_tests.py`.
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
     coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec

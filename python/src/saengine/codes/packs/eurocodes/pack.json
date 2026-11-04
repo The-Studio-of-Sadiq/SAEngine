@@ -4,7 +4,7 @@
   "name": "Eurocodes (recommended values)",
   "edition": "Eurocodes",
   "region": "CEN member countries",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -16,15 +16,19 @@
     "seismic",
     "wind",
     "snow",
-    "flood"
+    "flood",
+    "concreteMethods",
+    "geotechnicalMethods"
   ],
-  "description": "The Eurocodes with their recommended values, loads and seismic actions only (this version): EN 1990 (combinations 6.10 or 6.10a/b, characteristic, frequent and quasi-permanent combinations, ψ factors, partial factors of set B), EN 1991-1-1 (imposed loads by category, αA and αn), EN 1991-1-3 (snow on roofs), EN 1991-1-4 (peak velocity pressure, walls, cscd), EN 1991-1-7 Annex D (internal gas explosions) and EN 1998-1 (ground types, Type 1 and 2 spectra, importance classes, behaviour factors, lateral force and modal analysis, drift and θ). The material and member design tables (concrete, steel, foundations, detailing ...) are not Eurocode yet: they come from the pack it extends, BNBC 2020, until the EN 1992 to EN 1998 material packs exist. A National Annex is a pack that extends this one and sets only its Nationally Determined Parameters. Every value is listed in VERIFY.md for checking against the printed codes.",
+  "description": "The Eurocodes with their recommended values. Loads and seismic actions (version 0.1, alpha 9 track C4): EN 1990 (combinations 6.10 or 6.10a/b, characteristic, frequent and quasi-permanent combinations, ψ factors, partial factors of set B), EN 1991-1-1 (imposed loads by category, αA and αn), EN 1991-1-3 (snow on roofs), EN 1991-1-4 (peak velocity pressure, walls, cscd), EN 1991-1-7 Annex D (internal gas explosions) and EN 1998-1 (ground types, Type 1 and 2 spectra, importance classes, behaviour factors, lateral force and modal analysis, drift and θ). Concrete (version 0.2, alpha 9 track C5): EN 1992-1-1 design strengths with partial factors, the stress block by strength class, shear by the variable strut inclination method, torsion, punching, stress, crack and span/depth checks, cover by exposure class, anchorage, laps and member steel (concreteMethods), with EN 1998-1 Section 5 detailing for DCM and DCH, and EN 1997-1 partial factor sets, design approaches DA1-DA3, bearing (Annex D), sliding and pile resistance with the correlation factors (geotechnicalMethods). The other material and member design tables (steel, the concrete methods not yet covered, the foundation design itself ...) come from the pack it extends, BNBC 2020. A National Annex is a pack that extends this one and sets only its Nationally Determined Parameters. Every value is listed in VERIFY.md for checking against the printed codes.",
   "sources": [
     { "id": "EN1990", "title": "EN 1990 Eurocode: Basis of structural design (with A1, Annex A1)", "edition": "2002+A1:2005", "publisher": "CEN" },
     { "id": "EN1991-1-1", "title": "EN 1991-1-1 Actions on structures: densities, self-weight, imposed loads for buildings", "edition": "2002", "publisher": "CEN" },
     { "id": "EN1991-1-3", "title": "EN 1991-1-3 Actions on structures: snow loads", "edition": "2003", "publisher": "CEN" },
     { "id": "EN1991-1-4", "title": "EN 1991-1-4 Actions on structures: wind actions", "edition": "2005", "publisher": "CEN" },
     { "id": "EN1991-1-7", "title": "EN 1991-1-7 Actions on structures: accidental actions", "edition": "2006", "publisher": "CEN" },
+    { "id": "EN1992-1-1", "title": "EN 1992-1-1 Design of concrete structures: general rules and rules for buildings", "edition": "2004+AC:2010", "publisher": "CEN" },
+    { "id": "EN1997-1", "title": "EN 1997-1 Geotechnical design: general rules", "edition": "2004", "publisher": "CEN" },
     { "id": "EN1998-1", "title": "EN 1998-1 Design of structures for earthquake resistance: general rules, seismic actions and rules for buildings", "edition": "2004", "publisher": "CEN" }
   ],
   "clauses": {
@@ -37,11 +41,13 @@
     "seismic": ["EN 1998-1 Sec 3, 4; Tables 5.1, 6.2, 9.1"],
     "wind": ["EN 1991-1-4 Sec 4, 6.2, 7.2.2, 7.2.9"],
     "snow": ["EN 1991-1-3 Sec 5.2, 5.3.2"],
-    "flood": ["EN 1991-1-7 Annex D (gas explosions only)"]
+    "flood": ["EN 1991-1-7 Annex D (gas explosions only)"],
+    "concreteMethods": ["EN 1992-1-1 Sections 2-9; EN 1998-1 Section 5"],
+    "geotechnicalMethods": ["EN 1997-1 Sections 2.4.7, 6, 7; Annexes A, D"]
   },
   "basis": {
     "general": "EN 1990, EN 1991, EN 1998-1 (recommended values)",
-    "concrete": "BNBC 2020 Part 6 Chapter 6 (no EN 1992 pack yet)",
+    "concrete": "EN 1992-1-1 (partial factors, variable strut shear, member steel) and EN 1998-1 Section 5 (DCM, DCH); other concrete methods from BNBC 2020 Part 6 Chapter 6 until covered",
     "steel": "BNBC 2020 Part 6 Chapter 10 (no EN 1993 pack yet)",
     "method": "Limit state design (EN 1990)"
   },

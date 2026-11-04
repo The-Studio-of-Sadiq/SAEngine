@@ -306,6 +306,8 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "slabMethods",
             "wallMethods",
             "stairMethods",
+            "concreteMethods",
+            "geotechnicalMethods",
             "transfer",
             "anchors",
             "concreteTime",

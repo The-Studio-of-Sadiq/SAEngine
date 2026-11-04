@@ -1,0 +1,451 @@
+{
+  "$defs": {
+    "ActionSet": {
+      "additionalProperties": false,
+      "properties": {
+        "permanentUnfavourable": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentunfavourable",
+          "type": "number"
+        },
+        "permanentFavourable": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentfavourable",
+          "type": "number"
+        },
+        "variableUnfavourable": {
+          "exclusiveMinimum": 0,
+          "title": "Variableunfavourable",
+          "type": "number"
+        }
+      },
+      "required": [
+        "permanentUnfavourable",
+        "permanentFavourable",
+        "variableUnfavourable"
+      ],
+      "title": "ActionSet",
+      "type": "object"
+    },
+    "BearingRules": {
+      "additionalProperties": false,
+      "description": "Bearing resistance by the general equation on effective dimensions (method\n``effectiveArea``).",
+      "properties": {
+        "method": {
+          "const": "effectiveArea",
+          "default": "effectiveArea",
+          "title": "Method",
+          "type": "string"
+        },
+        "nGammaFactor": {
+          "description": "Nγ = factor (Nq - 1) tan φ'.",
+          "exclusiveMinimum": 0,
+          "title": "Ngammafactor",
+          "type": "number"
+        },
+        "gammaShape": {
+          "description": "sγ = 1 - c B'/L'.",
+          "exclusiveMinimum": 0,
+          "title": "Gammashape",
+          "type": "number"
+        },
+        "undrainedShape": {
+          "description": "sc = 1 + c B'/L' (undrained).",
+          "exclusiveMinimum": 0,
+          "title": "Undrainedshape",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nGammaFactor",
+        "gammaShape",
+        "undrainedShape"
+      ],
+      "title": "BearingRules",
+      "type": "object"
+    },
+    "CorrelationFactors": {
+      "additionalProperties": false,
+      "description": "ξ by the number of tests (rows (n, ξa, ξb), n ascending).",
+      "properties": {
+        "loadTests": {
+          "description": "(n, ξ1, ξ2).",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Loadtests",
+          "type": "array"
+        },
+        "groundTests": {
+          "description": "(n, ξ3, ξ4).",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Groundtests",
+          "type": "array"
+        },
+        "stiffDivisor": {
+          "description": "ξ ÷ this for stiff structures (ξ1 >= 1).",
+          "exclusiveMinimum": 0,
+          "title": "Stiffdivisor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "loadTests",
+        "groundTests",
+        "stiffDivisor"
+      ],
+      "title": "CorrelationFactors",
+      "type": "object"
+    },
+    "DesignApproachCombination": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "title": "Actions",
+          "type": "string"
+        },
+        "materials": {
+          "title": "Materials",
+          "type": "string"
+        },
+        "resistances": {
+          "title": "Resistances",
+          "type": "string"
+        },
+        "pileMaterials": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sets of piles if different.",
+          "title": "Pilematerials"
+        },
+        "pileResistances": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pileresistances"
+        },
+        "structuralActions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Actions on the structure if different (DA3: A1).",
+          "title": "Structuralactions"
+        }
+      },
+      "required": [
+        "actions",
+        "materials",
+        "resistances"
+      ],
+      "title": "DesignApproachCombination",
+      "type": "object"
+    },
+    "MaterialSet": {
+      "additionalProperties": false,
+      "properties": {
+        "tanPhi": {
+          "exclusiveMinimum": 0,
+          "title": "Tanphi",
+          "type": "number"
+        },
+        "cohesion": {
+          "exclusiveMinimum": 0,
+          "title": "Cohesion",
+          "type": "number"
+        },
+        "undrained": {
+          "exclusiveMinimum": 0,
+          "title": "Undrained",
+          "type": "number"
+        },
+        "unconfined": {
+          "exclusiveMinimum": 0,
+          "title": "Unconfined",
+          "type": "number"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tanPhi",
+        "cohesion",
+        "undrained",
+        "unconfined",
+        "weight"
+      ],
+      "title": "MaterialSet",
+      "type": "object"
+    },
+    "PileResistanceSet": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "shaft": {
+          "exclusiveMinimum": 0,
+          "title": "Shaft",
+          "type": "number"
+        },
+        "total": {
+          "exclusiveMinimum": 0,
+          "title": "Total",
+          "type": "number"
+        },
+        "tension": {
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base",
+        "shaft",
+        "total",
+        "tension"
+      ],
+      "title": "PileResistanceSet",
+      "type": "object"
+    },
+    "SlidingRules": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "interfaceFriction",
+          "default": "interfaceFriction",
+          "title": "Method",
+          "type": "string"
+        },
+        "castInPlace": {
+          "description": "δ = share × φ'cv,d for concrete cast against soil.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Castinplace",
+          "type": "number"
+        },
+        "precast": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Precast",
+          "type": "number"
+        },
+        "undrainedShare": {
+          "description": "Rd <= share Vd where water can reach the interface.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Undrainedshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "castInPlace",
+        "precast",
+        "undrainedShare"
+      ],
+      "title": "SlidingRules",
+      "type": "object"
+    },
+    "SpreadResistanceSet": {
+      "additionalProperties": false,
+      "properties": {
+        "bearing": {
+          "exclusiveMinimum": 0,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "sliding": {
+          "exclusiveMinimum": 0,
+          "title": "Sliding",
+          "type": "number"
+        },
+        "earth": {
+          "exclusiveMinimum": 0,
+          "title": "Earth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bearing",
+        "sliding",
+        "earth"
+      ],
+      "title": "SpreadResistanceSet",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Limit state geotechnical design (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "designApproach": {
+      "description": "The design approach in force (an id of 'approaches').",
+      "title": "Designapproach",
+      "type": "string"
+    },
+    "actions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ActionSet"
+      },
+      "title": "Actions",
+      "type": "object"
+    },
+    "materials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MaterialSet"
+      },
+      "title": "Materials",
+      "type": "object"
+    },
+    "spreadResistances": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SpreadResistanceSet"
+      },
+      "title": "Spreadresistances",
+      "type": "object"
+    },
+    "pileResistances": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/PileResistanceSet"
+        },
+        "type": "object"
+      },
+      "description": "By pile kind (driven, bored, cfa), the R sets.",
+      "title": "Pileresistances",
+      "type": "object"
+    },
+    "approaches": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/DesignApproachCombination"
+        },
+        "type": "array"
+      },
+      "title": "Approaches",
+      "type": "object"
+    },
+    "bearing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BearingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sliding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SlidingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "correlation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CorrelationFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "designApproach",
+    "actions",
+    "materials",
+    "spreadResistances",
+    "pileResistances",
+    "approaches"
+  ],
+  "title": "GeotechnicalMethodsTable",
+  "type": "object",
+  "$id": "saengine.codePack.geotechnicalMethods/1"
+}

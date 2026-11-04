@@ -39,6 +39,7 @@ from saengine.codes import context as code_context
 from saengine.design import (
     column_shear,
     deep_beams,
+    design_strength,
     live_reduction,
     rc_detailing,
     seismic_rules,
@@ -777,7 +778,14 @@ def _design_run(
     framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
     column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
+    # Alpha 9 C5: a pack with partial-factor concrete methods adds its member rules
+    # (saengine.design.bar_rules) and, for DCM / DCH systems, the curvature-ductility detailing
+    # (saengine.design.curvature_ductility). Without them (the default pack) nothing changes.
+    from saengine.design import bar_rules, curvature_ductility, strut_shear
     from saengine.rpc import jobs as rpc_jobs
+
+    member_rules = bar_rules.covered()
+    ductility = _ductility_class(settings) if member_rules else None
 
     for member_id, type_id, element in members:
         # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
@@ -997,6 +1005,11 @@ def _design_run(
                 if faced.at_faces:
                     face_forces.annotate(checks, faced)
                 faced_any = faced_any or faced.at_faces
+                if member_rules:  # Alpha 9 C5 (see above)
+                    beam_transverse = getattr(object_type.reinforcement, "transverse", None)
+                    checks += bar_rules.beam_rows(section, beam_transverse)
+                    if ductility:
+                        checks += curvature_ductility.beam_rows(section, beam_transverse, ductility)
                 # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
                 # (saengine.design.deflection) of beams of the building model.
                 if isinstance(element, BeamElement):
@@ -1102,14 +1115,28 @@ def _design_run(
                 # Integrator glue (0.0.45): the shear of every column from the analysis forces
                 # with the axial force's effect on Vc (saengine.design.column_shear).
                 points = _shear_points(own, combinations, _turned(element, exact))
-                checks += column_shear.column_shear_checks(
-                    section, object_type.reinforcement.transverse, points
-                )
+                if member_rules and strut_shear.rules() is not None:
+                    # Alpha 9 C5: the pack's shear method (variable strut inclination).
+                    checks += strut_shear.column_rows(
+                        section, object_type.reinforcement.transverse, points
+                    )
+                else:
+                    checks += column_shear.column_shear_checks(
+                        section, object_type.reinforcement.transverse, points
+                    )
                 # B21: shear friction across the construction joint at the floor.
                 joint = rc_detailing.column_joint_check(section, points, bars.steel.fy)
                 if joint is not None:
                     checks.append(joint)
                 faced_any = faced_any or faced.at_faces
+                if member_rules:  # Alpha 9 C5 (see above)
+                    column_transverse = object_type.reinforcement.transverse
+                    ned_max = float(points.pu.max()) if len(points.pu) else 0.0
+                    checks += bar_rules.column_rows(section, ned_max, column_transverse)
+                    if ductility:
+                        checks += curvature_ductility.column_rows(
+                            section, column_transverse, ned_max, ductility
+                        )
             if live_row is not None:
                 checks.append(live_row)
             if roof_row is not None:
@@ -1698,6 +1725,11 @@ def _assemble(
     members_failed = [e for e in members_checked if not e["ok"]]
     code = code_basis(settings).concrete
     method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
+    if design_strength.partial_factors():
+        # Alpha 9 C5: the pack's partial-factor method replaces the basis, flexure, beam and
+        # column lines; the torsion and deflection lines stay (the parent pack's methods).
+        lines = design_strength.method_lines(code)
+        method = lines[:3] + method[3:5] + lines[3:]
     if columns_seen:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if faced_any:
@@ -3421,6 +3453,18 @@ def _check(
     }
 
 
+def _ductility_class(settings: Any) -> str | None:
+    """Alpha 9 C5: the ductility class (DCM, DCH) of the project's seismic system by the pack's
+    ``concreteMethods.seismic.frameClasses`` (None: no curvature-ductility detailing)."""
+    from saengine.design import curvature_ductility
+
+    try:
+        system = code_context.table("seismic").systems[settings.seismic.system]
+    except (KeyError, AttributeError):
+        return None
+    return curvature_ductility.ductility_class(getattr(system, "frame", None))
+
+
 def _longest_span(element: BeamElement, framing: _BeamFraming) -> float:
     """The longest span [mm] of a beam between the supports along it (its length without)."""
     a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
@@ -3470,7 +3514,12 @@ def _beam_checks(
             note = f"φ = {capacity.phi:.2f}, εt = {capacity.eps_t:.4f}" + (
                 f"; {note}" if note else ""
             )
-            if capacity.eps_t < 0.004:
+            if design_strength.partial_factors():
+                # Alpha 9 C5: design strengths, no φ (saengine.design.design_strength).
+                note = design_strength.basis_note(section.fc, section.fy) + (
+                    f"; {demand[2]}" if demand[2] else ""
+                )
+            elif capacity.eps_t < 0.004:
                 note += "; εt below 0.004 (ACI 9.3.3.1)"
         checks.append(
             _check(label, demand[0] / 1e6, capacity.phi_mn / 1e6, "kN·m", demand[1], note)
@@ -3483,18 +3532,21 @@ def _beam_checks(
         transverse.spacing if transverse else None,
     )
     parts = [f"Vc = {resistance.vc / 1e3:.1f} kN, Vs = {resistance.vs / 1e3:.1f} kN"]
-    if transverse is None:
+    if resistance.notes is not None:
+        # Alpha 9 C5: the pack's shear method's notes (saengine.design.strut_shear).
+        parts = list(resistance.notes)
+    elif transverse is None:
         parts.append("no stirrups")
     elif not resistance.with_min_stirrups:
         parts.append(
             f"Av = {resistance.av:.0f} mm² below Av,min = {resistance.av_min:.0f} mm² (ACI 9.6.3.4)"
         )
-    if not resistance.with_min_stirrups:
+    if not resistance.with_min_stirrups and resistance.notes is None:
         parts.append(
             f"Vc = 0.66 λs ρw^(1/3) √f'c b d, λs = {resistance.lambda_s:.2f}, "
             f"ρw = {resistance.rho_w:.4f}"
         )
-    if resistance.vs_limited:
+    if resistance.vs_limited and resistance.notes is None:
         parts.append("Vs limited to 0.66 √f'c b d")
     if shear_demand[2]:
         parts.append(shear_demand[2])
@@ -3523,7 +3575,21 @@ def _beam_checks(
             transverse.legs if transverse else 0, transverse.spacing if transverse else None,
             float(code_context.table("factors").phi["shear"]),
         )  # fmt: skip
-    if not resistance.with_min_stirrups:
+    if not resistance.with_min_stirrups and resistance.notes is not None:
+        # Alpha 9 C5: the pack's shear method asks every beam for the least links.
+        clause = code_context.cite("concreteMethods", "shearMinimum")
+        checks.append(
+            _check(
+                "Minimum stirrups" + (f" ({clause})" if clause else ""),
+                shear_demand[0] / 1e3,
+                resistance.av_min_threshold / 1e3,
+                "kN",
+                shear_demand[1],
+                "links below ρw,min: beams need at least the least links whatever the shear"
+                + (f"; {shear_demand[2]}" if shear_demand[2] else ""),
+            )
+        )
+    elif not resistance.with_min_stirrups:
         # ACI 9.6.3.1: beams need at least Av,min where Vu > 0.083 φ λ √f'c bw d.
         checks.append(
             _check(
@@ -3570,6 +3636,18 @@ def _column_checks(
                             _where(piece, k, count),
                         )
                     )
+    if design_strength.partial_factors():
+        # Alpha 9 C5: the moments at least NEd e0 about each axis (minimum eccentricity,
+        # saengine.design.design_strength.minimum_moment); Mx bends over the profile's depth.
+        points = [
+            (
+                pu,
+                max(mux, design_strength.minimum_moment(pu, section.depth)),
+                max(muy, design_strength.minimum_moment(pu, section.width)),
+                *rest,
+            )
+            for pu, mux, muy, *rest in points
+        ]
     for pu, _mux, _muy, combination, where in points:
         if pu > axial[0]:
             axial = (pu, combination, where)

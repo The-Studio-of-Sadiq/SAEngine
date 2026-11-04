@@ -8508,6 +8508,12 @@ class SnowTable(TableModel):
         return self
 
 
+# Alpha 9 C5: the partial-factor concrete and geotechnical methods (their own module).
+from saengine.codes.method_tables import (
+    ConcreteMethodsTable,
+    GeotechnicalMethodsTable,
+)
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -8561,6 +8567,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "citations": CitationsTable,
     "mepOpenings": MepOpeningsTable,
     "snow": SnowTable,
+    # Alpha 9 C5.
+    "concreteMethods": ConcreteMethodsTable,
+    "geotechnicalMethods": GeotechnicalMethodsTable,
 }
 
 

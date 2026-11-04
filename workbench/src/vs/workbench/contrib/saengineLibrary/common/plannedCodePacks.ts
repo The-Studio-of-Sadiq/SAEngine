@@ -32,7 +32,7 @@ export const PLANNED_CODE_PACK_INDIA = 'settings.codePackIndia';
 export function plannedCodePacks(): readonly IPlannedCodePack[] {
 	return [
 		{ feature: PLANNED_CODE_PACK_US, name: localize('plannedPack.us', "ACI 318-19 + ASCE 7-22"), region: localize('plannedPack.usRegion', "United States") },
-		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes EN 1990–1998 with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1) are covered by the built-in Eurocodes pack; the materials (EN 1992 to EN 1999) are planned.") } },
+		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes steel and other materials (EN 1993–1999) with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1), concrete (EN 1992-1-1, EN 1998-1 Section 5) and the geotechnical partial factors (EN 1997-1) are covered by the built-in Eurocodes pack; steel, composite, timber, masonry and aluminium (EN 1993 to EN 1999) and the National Annexes are planned.") } },
 		{ feature: PLANNED_CODE_PACK_INDIA, name: localize('plannedPack.india', "IS 456, 1893, 800, 875, 13920"), region: localize('plannedPack.indiaRegion', "India") },
 	];
 }

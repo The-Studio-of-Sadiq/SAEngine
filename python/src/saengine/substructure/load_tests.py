@@ -335,7 +335,7 @@ def pile_type_tests(tests: list[Any], pile_type: Any, ep: float) -> dict[str, An
         return min(rows, key=lambda r: r["safe"]) if rows else None
 
     single = least("compression")
-    return {
+    found = {
         "results": results,
         "compression": single,
         "group": least("compression", True),
@@ -344,6 +344,17 @@ def pile_type_tests(tests: list[Any], pile_type: Any, ep: float) -> dict[str, An
         "loadTest": single is not None,
         "notes": notes,
     }
+    # Alpha 9 C5: a pack with limit state geotechnics (geotechnicalMethods) also gives the
+    # characteristic and design resistance from the tests' failure loads (correlation ξ).
+    from saengine.substructure import limit_state_geotechnics
+
+    limit_state = limit_state_geotechnics.load_test_summary(
+        results, str(getattr(pile_type, "kind", "bored"))
+    )
+    if limit_state is not None:
+        found["limitState"] = limit_state
+        notes.append(limit_state["note"])
+    return found
 
 
 def adequacy_checks(
