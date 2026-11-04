@@ -665,17 +665,18 @@ registerPlannedFeature({
 	],
 });
 
-// T30: cold-formed steel purlins and girts. BNBC 2020 Part 6 Chapter 10 covers hot-rolled and
-// built-up members only; cold-formed sections need AISI S100.
+// T30: cold-formed steel purlins and girts. Alpha 9 C12: lipped C and Z members (the 04 Objects
+// profiles "C" and "Z") are designed by the code pack's coldFormed table (AISI S100, EN 1993-1-3,
+// IS 801; BNBC 2020 has no cold-formed provisions); the purlin and girt systems stay planned.
 registerPlannedFeature({
 	id: FemPlanned.coldFormedSteel,
 	part: 'fem',
 	title: localize('planned.coldFormed.title', "Cold-Formed Purlins and Girts"),
-	summary: localize('planned.coldFormed.summary', "Designs cold-formed C and Z purlins and girts of steel sheds: effective section properties of thin, slender elements, flexure with lateral-torsional and distortional buckling, the restraint from the sheeting, laps and continuity over the frames, and the wind uplift case."),
+	summary: localize('planned.coldFormed.summary', "Cold-formed lipped C and Z members are designed as steel members by the code pack's cold-formed method (effective widths, distortional buckling, member resistances). Planned: the purlin and girt systems of steel sheds: the restraint from the sheeting, laps and continuity over the frames, web crippling at the supports, the wind uplift case and the schedule."),
 	steps: [
-		localize('planned.coldFormed.step1', "Pick a C or Z section from the cold-formed section table, its span arrangement (simple, lapped or continuous) and the sag rods."),
+		localize('planned.coldFormed.step1', "Pick a C or Z section, its span arrangement (simple, lapped or continuous) and the sag rods."),
 		localize('planned.coldFormed.step2', "Take the roof and wall loads with the wind pressure and uplift from the cladding areas."),
-		localize('planned.coldFormed.step3', "Work out the effective section, then check flexure, shear, web crippling at the supports and the combined actions, for downward load and uplift."),
+		localize('planned.coldFormed.step3', "Check the members with the sheeting restraint, the laps and web crippling at the supports, for downward load and uplift."),
 		localize('planned.coldFormed.step4', "Check the deflection and list the purlins and girts with their sizes for the BOQ."),
 	],
 	inputs: [
@@ -689,7 +690,7 @@ registerPlannedFeature({
 		localize('planned.coldFormed.out2', "A purlin and girt schedule"),
 	],
 	references: [
-		localize('planned.coldFormed.ref1', "{0} Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions)", defaultCodeName()),
+		localize('planned.coldFormed.ref1', "{0} Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions: the US, Eurocodes and IS packs design C and Z members)", defaultCodeName()),
 		localize('planned.coldFormed.ref2', "AISI S100 (North American specification for cold-formed steel structural members)"),
 	],
 });

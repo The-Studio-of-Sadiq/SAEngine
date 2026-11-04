@@ -1,0 +1,65 @@
+{
+  "$schema": "../../../schemas/coldFormed.schema.json",
+  "$sources": [
+    "AISI S100-16 North American Specification for the Design of Cold-Formed Steel Structural Members (LRFD, US)"
+  ],
+  "source": "AISI S100-16 (LRFD): effective widths (Sec 1.1 of Appendix 1 / B), distortional buckling by the direct strength curves (E4, F4) on SAEngine's edge stiffener critical stress, members (Chapters D-H); see VERIFY.md",
+  "method": "effectiveSection",
+  "E": 203000.0,
+  "G": 78000.0,
+  "effectiveWidth": {
+    "method": "winter",
+    "factors": [
+      0.22,
+      0.673,
+      1.052
+    ],
+    "kInternal": 4.0,
+    "kOutstand": 0.43
+  },
+  "distortional": {
+    "method": "directStrength",
+    "factors": [
+      0.561,
+      0.25,
+      0.6,
+      0.673,
+      0.22,
+      0.5
+    ],
+    "poisson": 0.3
+  },
+  "resistance": {
+    "format": "lrfd",
+    "factors": {
+      "tension": 0.9,
+      "compression": 0.85,
+      "flexure": 0.9,
+      "shear": 0.95
+    },
+    "bucklingCurve": "aisc",
+    "interaction": "linear",
+    "shearLimits": [
+      1.0,
+      1.51
+    ],
+    "shearYield": 0.6
+  },
+  "thicknessMax": 25.4,
+  "widthRatioMax": {
+    "web": 200.0,
+    "flange": 60.0,
+    "lip": 60.0
+  },
+  "clauses": {
+    "code": "S100-16",
+    "effectiveWidth": "S100-16 1.1 (ρ, λ of Eqs 1.1-1 to 1.1-4)",
+    "distortional": "S100-16 E4 and F4 (direct strength distortional curves)",
+    "tension": "S100-16 D2",
+    "compression": "S100-16 E2, E3, E4",
+    "flexure": "S100-16 F2, F3, F4",
+    "shear": "S100-16 G2.1",
+    "combined": "S100-16 H1.2",
+    "limits": "S100-16 B4.1 (largest w/t)"
+  }
+}

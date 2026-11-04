@@ -2874,6 +2874,12 @@ class SteelBracing(_Group):
     )
     distortional: Positive = Field(description="βsec = this × E / ho × (...).")
     slenderness: Positive = Field(description="L/r limit of stability bracing.")
+    # Alpha 9 C12: the brace requirements as flagged check rows of the member (and the
+    # beams' torsional bracing); False: listed in the section notes only (the default pack).
+    rows: bool = Field(
+        default=False,
+        description="List each brace's required strength and stiffness as flagged check rows.",
+    )
 
 
 class PondingCurve(_Group):
@@ -9500,6 +9506,7 @@ from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
 )
+from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
     StabilityNotional,
@@ -9570,6 +9577,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "aluminium": AluminiumTable,
     # Alpha 9 C9.
     "steelLimitState": SteelLimitStateTable,
+    # Alpha 9 C12: cold-formed members and steel in fire.
+    "coldFormed": ColdFormedTable,
+    "steelFire": SteelFireTable,
 }
 
 

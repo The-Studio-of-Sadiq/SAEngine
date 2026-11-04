@@ -1378,6 +1378,14 @@ def column_side_checks(
     zone (with a doubler plate), and the transverse stiffeners (Sec 10.10.10.8) and doubler
     (Sec 10.10.10.9) when given. ``loaded_width``/``delivering_thickness``: the plate (or
     flange) delivering the force; ``end_distance``: column end to the force [mm]."""
+    from saengine.design.steel import column_side
+
+    if column_side.table() is not None:  # alpha 9 C12: the pack's column side method
+        return column_side.checks(
+            force, comb, column, column_material, bearing_length, stiffened,
+            delivering_thickness=delivering_thickness, double_sided=double_sided,
+            axial_ratio=axial_ratio, doubler=doubler, weld=weld, end_distance=end_distance,
+        )  # fmt: skip
     fy, e = column_material.fy, column_material.E
     tf, tw, dc, bf = column.tf, column.tw, column.h, column.b
     k = tf + column.r
@@ -2412,6 +2420,13 @@ def check_hss_joint(
     N [N], tension +)]`` (Sec 10.11.2): T/Y, cross, gapped K and overlapped K joints (this brace
     the overlapping branch; ``overlapped`` the other, thru branch, default this brace's
     section)."""
+    from saengine.design.steel import hss_chord_face
+
+    if hss_chord_face.table() is not None:  # alpha 9 C12: the pack's hollow section joints
+        return hss_chord_face.check(
+            c, branch, branch_material, chord, chord_material, axial, overlapped,
+            overlapped_material,
+        )  # fmt: skip
     cm = chord_material or branch_material
     fy, fu, e = cm.fy, cm.fu, cm.E
     fyb = branch_material.fy

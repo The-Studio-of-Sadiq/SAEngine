@@ -850,6 +850,12 @@ def _design_run(
                     "anchors": anchor_seismic,
                     "basis": steel_basis.ASD,
                 }
+            # Alpha 9 C12: steel in fire by the pack's steelFire table (the members' ratings).
+            from saengine.design.steel import fire as steel_fire
+
+            steel_fire_ratings = steel_fire.ratings(settings)
+            if steel_fire_ratings:
+                steel_extra["fire"] = steel_fire_ratings
             try:
                 entry, steel_collected = steel_design.design_member(
                     member_id,

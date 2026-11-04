@@ -1434,7 +1434,17 @@ def method_lines() -> list[str]:
         ),
         (
             "Deflection of beams (serviceability): as the code pack's serviceability table gives "
-            "the limits. Not checked by this method: torsion, connections other than those of the "
-            "member types, fatigue, fire."
+            "the limits. Not checked by this method: "
+            + ("" if _c12_covers("torsion") else "torsion, ")
+            + "connections other than those of the member types, fatigue"
+            + ("" if _c12_covers("fire") else ", fire")
+            + "."
         ),
     ]
+
+
+def _c12_covers(what: str) -> bool:
+    """Alpha 9 C12: whether the pack adds torsion or fire design to the members."""
+    from saengine.design.steel.limit_state import _covers
+
+    return _covers(what, None)

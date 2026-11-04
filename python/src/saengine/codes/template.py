@@ -166,6 +166,13 @@ TABLE_HELP: dict[str, str] = {
     "sets of actions, soil parameters and resistances, the design approaches combining them, "
     "the bearing resistance on the effective base, sliding and the correlation factors of pile "
     "resistance. A pack without it designs foundations by allowable stresses.",
+    "coldFormed": "Cold-formed lipped channels and Z sections (alpha 9 C12): the effective "
+    "widths of their plates, distortional buckling of the lipped flanges and the member "
+    "resistances (LRFD, partial factors or permissible stresses). A pack without it does not "
+    "design cold-formed members.",
+    "steelFire": "Steel members in the standard fire (alpha 9 C12): the retention factors of "
+    "strength and stiffness, the critical temperature, the heating of protected and unprotected "
+    "sections and the load ratio in fire. A pack without it checks no steel member in fire.",
     "snow": "Snow on roofs from the ground snow load: the exposure coefficients Ce, the thermal "
     "coefficient Ct, the roof shape coefficient mu1 by pitch and the load case the roof snow "
     "goes into. A pack without it does not cover snow.",

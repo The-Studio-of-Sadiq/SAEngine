@@ -316,6 +316,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "steelSeismic",
             "steelStability",
             "steelSections",
+            "coldFormed",
             "composite",
             "compositeConcrete",
             "masonry",
@@ -353,6 +354,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
         (
             "fire",
             "fireResistance",
+            "steelFire",
             "plumbing",
             "hvac",
             "electrical",

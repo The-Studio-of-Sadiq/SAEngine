@@ -22,6 +22,12 @@ from saengine.codes.material_method_tables import (
     SteelJointResistances,
 )
 from saengine.codes.material_method_tables import SteelMemberResistance as MemberResistance
+from saengine.codes.steel_remainder_tables import (  # alpha 9 C12
+    SteelBracingForces,
+    SteelColumnSide,
+    SteelHssChordFace,
+    SteelTorsionStresses,
+)
 from saengine.codes.tables import Positive, Share, TableModel, _Group
 
 # ───────────────────────────────────── steelLimitState ─────────────────────────────────────
@@ -300,6 +306,12 @@ class SteelLimitStateTable(TableModel):
     #: capacity design of dissipative frames (``dissipativeZones``,
     #: saengine.design.steel.seismic_dissipative).
     seismic: SteelSeismicRules | SteelDissipative | None = None
+    #: Alpha 9 C12 (saengine.codes.steel_remainder_tables): torsion by elastic stresses, the
+    #: stability bracing forces, the column side under flange forces, hollow section joints.
+    torsion: SteelTorsionStresses | None = None
+    bracing: SteelBracingForces | None = None
+    columnSide: SteelColumnSide | None = None
+    hssJoints: SteelHssChordFace | None = None
 
     @model_validator(mode="after")
     def _members(self) -> SteelLimitStateTable:

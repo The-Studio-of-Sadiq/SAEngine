@@ -171,6 +171,80 @@
       "title": "DissipativeFrame",
       "type": "object"
     },
+    "DissipativeLinks": {
+      "additionalProperties": false,
+      "description": "The links of eccentrically braced frames (``steelLimitState.seismic.links``): Vp,link =\n(fy / √3) tw (d - tf), Mp,link = fy b tf (d - tf); short e < ``short`` Mp/Vp, long e >\n``long`` Mp/Vp; the rotation θp at most ``rotationShort`` (short) to ``rotationLong``\n(long, linear between); with NEd / Npl above ``axialLimit`` the reduced Vp,link,r and\nMp,link,r and the length limit by R; Ω = ``omegaFactor`` Vp,link / VEd (short) or Mp,link\n/ MEd (long and intermediate).",
+      "properties": {
+        "short": {
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        },
+        "long": {
+          "exclusiveMinimum": 0,
+          "title": "Long",
+          "type": "number"
+        },
+        "rotationShort": {
+          "exclusiveMinimum": 0,
+          "title": "Rotationshort",
+          "type": "number"
+        },
+        "rotationLong": {
+          "exclusiveMinimum": 0,
+          "title": "Rotationlong",
+          "type": "number"
+        },
+        "axialLimit": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axiallimit",
+          "type": "number"
+        },
+        "lengthRatio": {
+          "description": "R = NEd tw (d - 2tf) / (VEd A) limit.",
+          "exclusiveMinimum": 0,
+          "title": "Lengthratio",
+          "type": "number"
+        },
+        "lengthA": {
+          "description": "e <= (a - b R) short Mp/Vp when R >= lengthRatio.",
+          "exclusiveMinimum": 0,
+          "title": "Lengtha",
+          "type": "number"
+        },
+        "lengthB": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthb",
+          "type": "number"
+        },
+        "omegaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Omegafactor",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "short",
+        "long",
+        "rotationShort",
+        "rotationLong",
+        "axialLimit",
+        "lengthRatio",
+        "lengthA",
+        "lengthB",
+        "omegaFactor"
+      ],
+      "title": "DissipativeLinks",
+      "type": "object"
+    },
     "SeismicFrameRules": {
       "additionalProperties": false,
       "description": "The rules of one steel seismic frame kind (None or empty: not required).",
@@ -430,6 +504,96 @@
         "longJoint"
       ],
       "title": "SteelBoltRules",
+      "type": "object"
+    },
+    "SteelBracingForces": {
+      "additionalProperties": false,
+      "description": "The forces the stability bracing must carry.\n\n``equivalentImperfection``: the equivalent stabilising force q = Σ NEd 8 (e0 + δq) / L² of\na bracing system restraining ``m`` members, e0 = αm L / ``bowDivisor``, αm = √(0.5 (1 + 1 /\nm)), δq the bracing deflection (taken at its limit L / ``deflectionDivisor``); beams with\nNEd = MEd / h of the compression flange; the force at a splice or brace point αm NEd /\n``spliceDivisor``.\n\n``forceShare``: each lateral restraint carries ``share`` of the largest force in the\ncompression flange of a beam (or of the axial compression of a column).",
+      "properties": {
+        "method": {
+          "enum": [
+            "equivalentImperfection",
+            "forceShare"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "members": {
+          "default": 1,
+          "description": "m: members restrained by one system.",
+          "minimum": 1,
+          "title": "Members",
+          "type": "integer"
+        },
+        "bowDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e0 = αm L / this.",
+          "title": "Bowdivisor"
+        },
+        "deflectionDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "δq taken as L / this (the bracing's deflection limit).",
+          "title": "Deflectiondivisor"
+        },
+        "spliceDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Force at a splice or brace point αm NEd / this.",
+          "title": "Splicedivisor"
+        },
+        "share": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "forceShare: restraint force share.",
+          "title": "Share"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SteelBracingForces",
       "type": "object"
     },
     "SteelClassLimits": {
@@ -752,6 +916,152 @@
         "circularAxial"
       ],
       "title": "SteelClassification",
+      "type": "object"
+    },
+    "SteelColumnSide": {
+      "additionalProperties": false,
+      "description": "A column under a beam's concentrated flange forces.\n\n``effectiveWidth``: the column web in transverse compression and tension on the effective\nwidth beff = tfb + 2√2 a + 5 (tfc + s) (s the root radius) with ω of the web shear, kwc of\nthe longitudinal stress and ρ of the web's plate buckling; the column flange in transverse\nbending of a welded joint beff = twc + 2 s + ``flangeSpread`` k tfc; the web panel in shear\n``panelShare`` fy Avc / (√3 γ).\n\n``dispersion``: web bearing (b1 + n2) tw fyw / γ with n2 the dispersion through the flange\nand root at 1 : ``bearingSlope``; web buckling (b1 + n1) tw fcd, n1 the dispersion to the\nweb's mid-depth at 45° and fcd of the buckling curve ``bucklingCurve`` at λ = ``webSlenderness``\nd / tw; the panel as web shear Av fy / (√3 γ).",
+      "properties": {
+        "method": {
+          "enum": [
+            "effectiveWidth",
+            "dispersion"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "gamma": {
+          "description": "γ of yielding (γM0 / γm0).",
+          "exclusiveMinimum": 0,
+          "title": "Gamma",
+          "type": "number"
+        },
+        "gammaBuckling": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "γ of buckling.",
+          "title": "Gammabuckling"
+        },
+        "flangeSpread": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "beff,fc: this k tfc.",
+          "title": "Flangespread"
+        },
+        "panelShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vwp = this fy Avc / (√3 γ).",
+          "title": "Panelshare"
+        },
+        "stressLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "kwc = 1 while σcom,Ed <= this fy, else 1.7 - σ / fy.",
+          "title": "Stresslimit"
+        },
+        "bearingSlope": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "n2 = this (tf + r).",
+          "title": "Bearingslope"
+        },
+        "webSlenderness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "λ = this d / tw.",
+          "title": "Webslenderness"
+        },
+        "bucklingCurve": {
+          "anyOf": [
+            {
+              "enum": [
+                "a",
+                "b",
+                "c",
+                "d"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bucklingcurve"
+        },
+        "alpha": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Imperfection factors of the buckling curves.",
+          "title": "Alpha",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "method",
+        "gamma"
+      ],
+      "title": "SteelColumnSide",
       "type": "object"
     },
     "SteelCompression": {
@@ -1108,6 +1418,17 @@
           },
           "title": "Clauses",
           "type": "object"
+        },
+        "links": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DissipativeLinks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1207,6 +1528,172 @@
         "amplified"
       ],
       "title": "SteelGlobalAnalysis",
+      "type": "object"
+    },
+    "SteelHssChordFace": {
+      "additionalProperties": false,
+      "description": "Welded hollow section truss joints by the chord face (method ``chordFace``): CHS chord\nface failure of T/Y, X and gapped K joints with kp and kg, punching shear; RHS chord face\nfailure (β <= ``rhsFaceBeta``) with kn, punching shear and brace failure; within the limits\nof validity.",
+      "properties": {
+        "method": {
+          "const": "chordFace",
+          "default": "chordFace",
+          "title": "Method",
+          "type": "string"
+        },
+        "gamma": {
+          "description": "γM5.",
+          "exclusiveMinimum": 0,
+          "title": "Gamma",
+          "type": "number"
+        },
+        "chsT": {
+          "description": "T/Y: γ^0.2 kp fy t² (a + b β²) / sinθ.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Chst",
+          "type": "array"
+        },
+        "chsX": {
+          "description": "X: kp fy t² a / ((1 - b β) sinθ).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Chsx",
+          "type": "array"
+        },
+        "chsK": {
+          "description": "K: kg kp fy t² (a + b d1/d0) / sinθ.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Chsk",
+          "type": "array"
+        },
+        "kgFactors": {
+          "description": "kg = γ^0.2 (1 + a γ^b / (1 + exp(c g/t0 - d))).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Kgfactors",
+          "type": "array"
+        },
+        "kp": {
+          "description": "kp = 1 - this np (1 + np) (chord in compression).",
+          "exclusiveMinimum": 0,
+          "title": "Kp",
+          "type": "number"
+        },
+        "rhsFaceBeta": {
+          "description": "RHS chord face failure while β <= this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhsfacebeta",
+          "type": "number"
+        },
+        "rhsK": {
+          "description": "RHS K: this kn fy t² √γ (b1 + b2 + h1 + h2) / (4 b0).",
+          "exclusiveMinimum": 0,
+          "title": "Rhsk",
+          "type": "number"
+        },
+        "kn": {
+          "description": "kn = a - b n / β <= 1 (compression).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Kn",
+          "type": "array"
+        },
+        "effectiveWidth": {
+          "description": "beff = this / (b0/t0) (fy0 t0 / fyi ti) bi.",
+          "exclusiveMinimum": 0,
+          "title": "Effectivewidth",
+          "type": "number"
+        },
+        "limits": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Limits of validity: chsBetaMin, chsBetaMax, chsRatioMax (2γ), chsBraceMax (di/ti), rhsBetaMin, rhsRatioMax (b0/t0), rhsBraceMax (bi/ti).",
+          "title": "Limits",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gamma",
+        "chsT",
+        "chsX",
+        "chsK",
+        "kgFactors",
+        "kp",
+        "rhsFaceBeta",
+        "rhsK",
+        "kn",
+        "effectiveWidth",
+        "limits"
+      ],
+      "title": "SteelHssChordFace",
       "type": "object"
     },
     "SteelInteractionA": {
@@ -2486,6 +2973,58 @@
       "title": "SteelTension",
       "type": "object"
     },
+    "SteelTorsionStresses": {
+      "additionalProperties": false,
+      "description": "Torsion of members by elastic stresses (method ``elasticStresses``): the St. Venant and\nwarping stresses of the twist along the member (open sections; hollow sections by Bredt's\nshear flow T / (2 A0 t)) added to the stresses of the other forces, checked by the yield\ncriterion (σ / (fy / γ))² + 3 (τ / (fy / γ))² <= 1 at the critical points, and the shear\nresistance reduced for the torsional shear stress.",
+      "properties": {
+        "method": {
+          "const": "elasticStresses",
+          "default": "elasticStresses",
+          "title": "Method",
+          "type": "string"
+        },
+        "gamma": {
+          "description": "γ of the resistances (fy / γ).",
+          "exclusiveMinimum": 0,
+          "title": "Gamma",
+          "type": "number"
+        },
+        "criterion": {
+          "default": 3.0,
+          "description": "(σ/fd)² + this (τ/fd)² <= 1 (the yield criterion).",
+          "exclusiveMinimum": 0,
+          "title": "Criterion",
+          "type": "number"
+        },
+        "shearReductionOpen": {
+          "description": "I and H sections: Vpl,T = √(1 - τt / (this fy / (√3 γ))) Vpl.",
+          "exclusiveMinimum": 0,
+          "title": "Shearreductionopen",
+          "type": "number"
+        },
+        "neglect": {
+          "description": "Torsion is checked when T exceeds this share of the St. Venant torsional resistance (else neglected).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Neglect",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gamma",
+        "shearReductionOpen",
+        "neglect"
+      ],
+      "title": "SteelTorsionStresses",
+      "type": "object"
+    },
     "SteelWeldRules": {
       "additionalProperties": false,
       "description": "Fillet welds (method ``throatShear``): fwd = fu / (√3 γmw) on the throat share × size.",
@@ -2825,6 +3364,50 @@
       ],
       "default": null,
       "title": "Seismic"
+    },
+    "torsion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelTorsionStresses"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bracing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelBracingForces"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "columnSide": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelColumnSide"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "hssJoints": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelHssChordFace"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "title": "SteelLimitStateTable",

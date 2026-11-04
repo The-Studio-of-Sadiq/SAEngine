@@ -113,6 +113,27 @@ _PROFILES = {
             "filletRadius": "FilletRadius",
         },
     ),
+    # Alpha 9 C12: cold-formed lipped channels; lipped Z sections as IfcZShapeProfileDef (its
+    # flange thickness set to the wall thickness too; the lips are not in the IFC profile).
+    "C": (
+        "IfcCShapeProfileDef",
+        {
+            "depth": "Depth",
+            "width": "Width",
+            "wallThickness": "WallThickness",
+            "girth": "Girth",
+            "internalFilletRadius": "InternalFilletRadius",
+        },
+    ),
+    "Z": (
+        "IfcZShapeProfileDef",
+        {
+            "depth": "Depth",
+            "width": "FlangeWidth",
+            "wallThickness": "WebThickness",
+            "internalFilletRadius": "FilletRadius",
+        },
+    ),
 }
 
 
@@ -210,6 +231,8 @@ class _Writer:
                 value = getattr(profile, source)
                 if value:
                     setattr(ifc_profile, target, float(value))
+            if profile.shape == "Z":  # alpha 9 C12
+                ifc_profile.FlangeThickness = float(profile.wallThickness)
             self.profiles[type_id] = ifc_profile
         return self.profiles[type_id]
 

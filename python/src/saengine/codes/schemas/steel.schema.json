@@ -221,6 +221,12 @@
           "exclusiveMinimum": 0,
           "title": "Slenderness",
           "type": "number"
+        },
+        "rows": {
+          "default": false,
+          "description": "List each brace's required strength and stiffness as flagged check rows.",
+          "title": "Rows",
+          "type": "boolean"
         }
       },
       "required": [

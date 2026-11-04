@@ -209,6 +209,20 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "webThickness": 6,
         "flangeThickness": 10,
     },
+    "CShapeProfile": {
+        "shape": "C",
+        "depth": 200,
+        "width": 75,
+        "wallThickness": 2,
+        "girth": 20,
+    },
+    "ZShapeProfile": {
+        "shape": "Z",
+        "depth": 200,
+        "width": 75,
+        "wallThickness": 2,
+        "girth": 20,
+    },
     # reinforcement
     "BarGroup": {"position": "bottom", "count": 3, "dia": 16},
     "Transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},

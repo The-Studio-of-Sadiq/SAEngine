@@ -1,0 +1,71 @@
+{
+  "$schema": "../../../schemas/coldFormed.schema.json",
+  "$sources": [
+    "EN 1993-1-3:2006 (+AC:2009) Supplementary rules for cold-formed members and sheeting (recommended values)"
+  ],
+  "source": "EN 1993-1-3: effective widths by EN 1993-1-5 4.4 (5.5.2), distortional buckling by the edge stiffener (5.5.3), members (6.1-6.3), the recommended γM; see VERIFY.md",
+  "method": "effectiveSection",
+  "E": 210000.0,
+  "G": 81000.0,
+  "effectiveWidth": {
+    "method": "plateSlenderness",
+    "factors": [
+      0.055,
+      0.188,
+      28.4,
+      235.0
+    ],
+    "kInternal": 4.0,
+    "kOutstand": 0.43
+  },
+  "distortional": {
+    "method": "reductionCurve",
+    "factors": [
+      0.65,
+      1.47,
+      0.723,
+      1.38,
+      0.66
+    ],
+    "poisson": 0.3
+  },
+  "resistance": {
+    "format": "partialFactors",
+    "factors": {
+      "tension": 1.0,
+      "section": 1.0,
+      "compression": 1.0,
+      "flexure": 1.0,
+      "shear": 1.0
+    },
+    "bucklingCurve": "b",
+    "alpha": {
+      "b": 0.34,
+      "lt": 0.34
+    },
+    "interaction": "power",
+    "exponent": 0.8,
+    "shearLimits": [
+      0.83,
+      1.4
+    ],
+    "shearYield": 0.58
+  },
+  "thicknessMax": 15.0,
+  "widthRatioMax": {
+    "web": 500.0,
+    "flange": 60.0,
+    "lip": 50.0
+  },
+  "clauses": {
+    "code": "Sections 5 and 6",
+    "effectiveWidth": "5.5.2 (EN 1993-1-5 4.4, Table 4.1, 4.2)",
+    "distortional": "5.5.3.1(7) Eq 5.12, 5.5.3.2 Eqs 5.10b, 5.15",
+    "tension": "6.1.2",
+    "compression": "6.1.3, 6.2.2 (curve b, Table 6.3)",
+    "flexure": "6.1.4, 6.2.4 (χLT curve b)",
+    "shear": "6.1.5, Table 6.1",
+    "combined": "6.3 Eq 6.36",
+    "limits": "5.2, Table 5.1"
+  }
+}

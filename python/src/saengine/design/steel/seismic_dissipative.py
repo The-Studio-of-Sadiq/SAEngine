@@ -244,6 +244,16 @@ def apply(
             )
         return False
 
+    # Alpha 9 C12: the links of eccentric bracing by their class (the pack's ``links``).
+    from saengine.design.steel import dissipative_links
+
+    links: dict[str, list[dict[str, Any]]] = {}
+    if "eccentric" in kinds and dissipative_links.table() is not None:
+        from saengine.design.steel.seismic_braced import _drift_ratio
+
+        links = dissipative_links.find(
+            building, types, members, info, pairs, _drift_ratio(settings), out["notes"]
+        )
     # Ω of the dissipative members
     omegas: dict[str, float] = {}
     for m in members:
@@ -251,6 +261,11 @@ def apply(
             continue
         i = info[m.id]
         sec, st = i["sec"], i["stations"]
+        if m.kind == "beam" and m.id in links:
+            found_omega = [lk["omega"] for lk in links[m.id] if lk["omega"]]
+            if found_omega:
+                omegas[m.id] = min(found_omega)
+            continue
         if m.kind == "brace":
             demand = _e_part(st, pairs, "P") + _g_part(st, pairs, "P")
             cap = sec.shape.area * sec.fy / g0
@@ -310,6 +325,7 @@ def apply(
                     f"class {cls} in {state}, at most class {limit}",
                 )
             )
+        rows += [r for lk in links.get(m.id, []) for r in lk["rows"]]  # alpha 9 C12
         if m.kind == "brace" and role == "dissipative":
             rows += _brace_rows(t, found, sec, lengths, st, pairs)
         elif m.kind == "beam" and role == "dissipative" and "moment" in kinds:
@@ -355,7 +371,19 @@ def apply(
             _rescore(m.entry)
     if "moment" in kinds:
         out["checks"] += _strong_column_rows(t, joints, info, pairs)
+    if links:  # alpha 9 C12
+        out["checks"] += dissipative_links.spread_row(links, float(t.braceOmegaSpread))
+        out["links"] = {
+            mid: [{"e": round(lk["e"], 0), "class": lk["class"]} for lk in found_links]
+            for mid, found_links in links.items()
+        }
     return out
+
+
+def _cite_links() -> str:
+    from saengine.design.steel.dissipative_links import _cite as cite_links
+
+    return cite_links("strength")
 
 
 def _class_limit(t: Any, found: list[tuple[str, Any]], kind: str) -> int:
@@ -482,8 +510,14 @@ def method_lines() -> list[str]:
             f"non-dissipative members under G + {float(t.capacityFactor):g} γov Ω E with γov = "
             f"{float(t.gammaOv):g}; moment frames: beam axial force and shear, column shear and "
             f"ΣMRc >= {float(t.strongColumn):g} ΣMRb; concentric bracing: the brace slenderness "
-            f"and Ωmax <= {float(t.braceOmegaSpread):g} Ωmin; eccentric bracing: short links "
-            "(SAEngine practice). E and G from each earthquake combination and its partner of "
-            "the opposite sign."
+            f"and Ωmax <= {float(t.braceOmegaSpread):g} Ωmin; eccentric bracing: "
+            + (
+                f"the links classified short, intermediate or long by e against Mp,link / "
+                f"Vp,link, their shear, moment and rotation and Ω by the class "
+                f"({_cite_links()})"
+                if getattr(t, "links", None) is not None
+                else "short links (SAEngine practice)"
+            )
+            + ". E and G from each earthquake combination and its partner of the opposite sign."
         )
     ]

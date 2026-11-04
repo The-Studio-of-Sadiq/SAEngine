@@ -321,6 +321,8 @@ function profileText(profile: unknown): string {
 		case 'T': return localize('profile.t', "T {0} × {1} mm (web {2}, flange {3})", n('flangeWidth'), n('depth'), n('webThickness'), n('flangeThickness'));
 		case 'L': return localize('profile.l', "L {0} × {1} × {2} mm", n('depth'), n('width'), n('thickness'));
 		case 'U': return localize('profile.u', "U {0} × {1} mm (web {2}, flange {3})", n('flangeWidth'), n('depth'), n('webThickness'), n('flangeThickness'));
+		case 'C': return localize('profile.c', "Lipped C {0} × {1} × {2} mm, t {3}", n('depth'), n('width'), n('girth'), n('wallThickness'));
+		case 'Z': return localize('profile.z', "Lipped Z {0} × {1} × {2} mm, t {3}", n('depth'), n('width'), n('girth'), n('wallThickness'));
 	}
 	return str(profile.shape);
 }

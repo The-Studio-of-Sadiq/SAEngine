@@ -1372,6 +1372,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 							$ref: '#/$defs/UShapeProfile',
 						},
 						{
+							$ref: '#/$defs/CShapeProfile',
+						},
+						{
+							$ref: '#/$defs/ZShapeProfile',
+						},
+						{
 							$ref: '#/$defs/DesignedProfile',
 						},
 					],
@@ -1685,6 +1691,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 						{
 							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/CShapeProfile',
+						},
+						{
+							$ref: '#/$defs/ZShapeProfile',
 						},
 						{
 							$ref: '#/$defs/DesignedProfile',
@@ -2247,6 +2259,52 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'BuiltUpMember',
 			type: 'object',
 		},
+		CShapeProfile: {
+			additionalProperties: false,
+			description: 'IfcCShapeProfileDef: a cold-formed lipped channel (alpha 9 C12). ``depth`` and ``width``\nare overall, ``girth`` the overall lip length, ``wallThickness`` the sheet thickness.',
+			properties: {
+				shape: {
+					const: 'C',
+					default: 'C',
+					title: 'Shape',
+					type: 'string',
+				},
+				depth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				wallThickness: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Wall thickness',
+					type: 'number',
+				},
+				girth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Girth',
+					type: 'number',
+				},
+				internalFilletRadius: {
+					default: 0,
+					description: '[mm]',
+					minimum: 0,
+					title: 'Internal fillet radius',
+					type: 'number',
+				},
+			},
+			required: ['depth', 'width', 'wallThickness', 'girth'],
+			title: 'CShapeProfile',
+			type: 'object',
+		},
 		ChordBars: {
 			additionalProperties: false,
 			description: 'Continuous bars along a slab\'s free edges (the floor\'s edges without an edge beam), lapped\nas tension bars, that carry the diaphragm chord force with the slab\'s own bars parallel to\nthe edge within the edge strip (:mod:`saengine.design.diaphragms`).',
@@ -2381,6 +2439,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 						},
 						{
 							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/CShapeProfile',
+						},
+						{
+							$ref: '#/$defs/ZShapeProfile',
 						},
 						{
 							$ref: '#/$defs/DesignedProfile',
@@ -5136,6 +5200,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 							$ref: '#/$defs/UShapeProfile',
 						},
 						{
+							$ref: '#/$defs/CShapeProfile',
+						},
+						{
+							$ref: '#/$defs/ZShapeProfile',
+						},
+						{
 							$ref: '#/$defs/DesignedProfile',
 						},
 					],
@@ -7617,6 +7687,52 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['material', 'cover'],
 			title: 'WallReinforcement',
+			type: 'object',
+		},
+		ZShapeProfile: {
+			additionalProperties: false,
+			description: 'A cold-formed lipped Z (alpha 9 C12; the lips of IfcCShapeProfileDef on the flanges of an\nIfcZShapeProfileDef, exported as an arbitrary profile): equal flanges ``width`` each side of\nthe web, overall ``depth``, overall lip length ``girth``, sheet ``wallThickness``.',
+			properties: {
+				shape: {
+					const: 'Z',
+					default: 'Z',
+					title: 'Shape',
+					type: 'string',
+				},
+				depth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				wallThickness: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Wall thickness',
+					type: 'number',
+				},
+				girth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Girth',
+					type: 'number',
+				},
+				internalFilletRadius: {
+					default: 0,
+					description: '[mm]',
+					minimum: 0,
+					title: 'Internal fillet radius',
+					type: 'number',
+				},
+			},
+			required: ['depth', 'width', 'wallThickness', 'girth'],
+			title: 'ZShapeProfile',
 			type: 'object',
 		},
 	},
@@ -18074,6 +18190,20 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		flangeWidth: 75,
 		webThickness: 6,
 		flangeThickness: 10,
+	},
+	CShapeProfile: {
+		shape: 'C',
+		depth: 200,
+		width: 75,
+		wallThickness: 2,
+		girth: 20,
+	},
+	ZShapeProfile: {
+		shape: 'Z',
+		depth: 200,
+		width: 75,
+		wallThickness: 2,
+		girth: 20,
 	},
 	BarGroup: {
 		position: 'bottom',

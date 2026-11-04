@@ -406,6 +406,43 @@
     "blockShear": "IS 800:2007 6.4.1: Tdb = min(Avg fy / (√3 γm0) + 0.9 Atn fu / γm1, 0.9 Avn fu / (√3 γm1) + Atg fy / γm0)",
     "seismic": "IS 800:2007 Section 12: 12.7 OCBF (KL/r ≤ 120, 0.8 Pd, 30-70 % in tension, no K bracing), 12.8 SCBF (KL/r ≤ 160, plastic braces), 12.10 OMF and 12.11 SMF (connections for 1.2 Mp, 0.04 rad, plastic sections, ΣMpc ≥ 1.2 ΣMpb), 12.2.2 columns under the amplified seismic load",
     "systems": "SAEngine practice: IS 1893 (Part 1):2016 Table 9 lists 'steel concentric braced frame' without OCBF/SCBF; it is taken as SCBF (the stricter rules), overridable; eccentric braced frames are not in IS 800:2007 Section 12 as SAEngine reads it (not covered)",
-    "rAbove": "SAEngine practice: the rules apply whenever a steel frame system of the pack is in use (IS 800 12.1 applies Section 12 to the seismic zones; overridable)"
+    "rAbove": "SAEngine practice: the rules apply whenever a steel frame system of the pack is in use (IS 800 12.1 applies Section 12 to the seismic zones; overridable)",
+    "torsion": "IS 800:2007 has no torsion clause for members: SAEngine checks the elastic St. Venant and warping stresses by the yield criterion with γm0 (5.4.1 Table 5) and reduces the shear resistance for the torsional shear (the EN 1993-1-1 6.2.7 form; SAEngine practice)",
+    "bracing": "IS 800:2007 lateral restraints: 2.5 % of the largest force in the compression flange (beams), the same share of the axial force taken for columns (SAEngine practice; clause to verify)",
+    "columnSide": "IS 800:2007 8.7.4 web bearing (b1 + n2) tw fyw / γm0 with the 1:2.5 dispersion; 8.7.3.1 web buckling (b1 + n1) tw fcd, λ = 2.5 d / t, curve c; 8.4.1 the panel as web shear"
+  },
+  "torsion": {
+    "method": "elasticStresses",
+    "gamma": 1.1,
+    "criterion": 3.0,
+    "shearReductionOpen": 1.25,
+    "neglect": 0.05,
+    "clauses": {
+      "criterion": "IS 800:2007 gives no torsion rule: SAEngine practice, the yield criterion (σ/fd)² + 3 (τ/fd)² <= 1 with fd = fy / γm0 (5.4.1)",
+      "shear": "IS 800:2007 8.4 with the torsional shear (SAEngine practice)"
+    }
+  },
+  "bracing": {
+    "method": "forceShare",
+    "share": 0.025,
+    "clauses": {
+      "bracing": "IS 800:2007 8.3 (lateral restraint, 2.5 % of the flange force; to verify)"
+    }
+  },
+  "columnSide": {
+    "method": "dispersion",
+    "gamma": 1.1,
+    "bearingSlope": 2.5,
+    "webSlenderness": 2.5,
+    "bucklingCurve": "c",
+    "alpha": {
+      "c": 0.49
+    },
+    "clauses": {
+      "code": "IS 800:2007",
+      "webBearing": "IS 800:2007 8.7.4",
+      "webBuckling": "IS 800:2007 8.7.3.1",
+      "panel": "IS 800:2007 8.4.1"
+    }
   }
 }

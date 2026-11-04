@@ -402,7 +402,8 @@
     "torsionalMomentForm": "share",
     "torsionalStiffness": 3.6,
     "distortional": 3.3,
-    "slenderness": 180.0
+    "slenderness": 180.0,
+    "rows": true
   },
   "ponding": {
     "clauses": {

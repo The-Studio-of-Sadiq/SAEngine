@@ -226,6 +226,24 @@ export function profileOutline(profile: Json): { readonly kind: 'polygon'; reado
 			const [x, y] = [b / 2, h / 2];
 			return { kind: 'polygon', points: [[-x, -y], [x, -y], [x, -y + tf], [-x + tw, -y + tf], [-x + tw, y - tf], [x, y - tf], [x, y], [-x, y]] };
 		}
+		case 'C': {
+			// Cold-formed lipped channel: web at the left, lips turned in.
+			const [b, h, t, c] = [n('width'), n('depth'), n('wallThickness'), n('girth')];
+			if (!b || !h || !t || !c) {
+				return undefined;
+			}
+			const [x, y] = [b / 2, h / 2];
+			return { kind: 'polygon', points: [[-x, -y], [x, -y], [x, -y + c], [x - t, -y + c], [x - t, -y + t], [-x + t, -y + t], [-x + t, y - t], [x - t, y - t], [x - t, y - c], [x, y - c], [x, y], [-x, y]] };
+		}
+		case 'Z': {
+			// Cold-formed lipped Z: the top flange to the right, the bottom flange to the left.
+			const [b, h, t, c] = [n('width'), n('depth'), n('wallThickness'), n('girth')];
+			if (!b || !h || !t || !c) {
+				return undefined;
+			}
+			const [x, y] = [b - t / 2, h / 2];
+			return { kind: 'polygon', points: [[-x, -y], [t / 2, -y], [t / 2, y - t], [x - t, y - t], [x - t, y - c], [x, y - c], [x, y], [-t / 2, y], [-t / 2, -y + t], [-x + t, -y + t], [-x + t, -y + c], [-x, -y + c]] };
+		}
 	}
 	return undefined;
 }

@@ -302,10 +302,16 @@ def add_fire_checks(checked: list[dict[str, Any]], types: dict[str, Any], settin
         getattr(_settings_part(settings, "construction"), "aggregate", "siliceous") or "siliceous"
     )
     count = 0
+    from saengine.design.steel import fire as steel_fire
+
+    steel_in_fire = steel_fire.table() is not None  # alpha 9 C12
     for element in checked:
         kind = element.get("kind")
         if kind not in ratings:
             continue
+        section = element.get("section")
+        if steel_in_fire and isinstance(section, dict) and "family" in section:
+            continue  # alpha 9 C12: a steel member, checked by the pack's steel fire method
         hours, why = ratings[kind]
         masonry = element.get("fireMasonry") if kind == "wall" else None
         rows = member_checks(

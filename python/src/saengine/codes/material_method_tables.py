@@ -36,6 +36,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from saengine.codes.steel_remainder_tables import DissipativeLinks  # alpha 9 C12
 from saengine.codes.tables import Positive, Share, TableModel, _Group
 
 # ───────────────────────────── steel members (buckling curves) ─────────────────────────────
@@ -367,6 +368,9 @@ class SteelDissipative(_Group):
         min_length=1, description="Structural system id -> its frame kind and ductility class."
     )
     clauses: dict[str, str] = Field(default_factory=dict)
+    #: Alpha 9 C12: the links of eccentrically braced frames (saengine.design.steel.
+    #: dissipative_links); None: the links taken as short links (C6).
+    links: DissipativeLinks | None = None
 
 
 # ───────────────────────────── composite members (EN-type) ─────────────────────────────

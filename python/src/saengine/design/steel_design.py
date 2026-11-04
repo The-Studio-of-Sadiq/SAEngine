@@ -501,8 +501,11 @@ def _design_member(
         "lengths": lengths,
         "stations": stations,
         # B17: the stability design method, for the design mode's re-checks.
-        "options": steel_members.SteelOptions(stability=options.stability, basis=options.basis)
-        if options.stability is not None or options.basis != steel_basis.LRFD
+        # Alpha 9 C12: and the fire ratings when the pack designs steel in fire.
+        "options": steel_members.SteelOptions(
+            stability=options.stability, basis=options.basis, fire=options.fire
+        )
+        if options.stability is not None or options.basis != steel_basis.LRFD or options.fire
         else None,
         "checks": entry["checks"],
     }

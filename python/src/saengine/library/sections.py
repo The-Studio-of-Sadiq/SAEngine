@@ -99,6 +99,27 @@ def profile_geometry(profile: o.Profile) -> Geometry:
                 r=profile.filletRadius,
                 n_r=8 if profile.filletRadius else 1,
             )
+        case o.CShapeProfile():  # alpha 9 C12: cold-formed lipped channel
+            t = profile.wallThickness
+            return steel_sections.cee_section(
+                d=profile.depth,
+                b=profile.width,
+                l=profile.girth,
+                t=t,
+                r_out=profile.internalFilletRadius + t if profile.internalFilletRadius else t,
+                n_r=8 if profile.internalFilletRadius else 1,
+            )
+        case o.ZShapeProfile():  # alpha 9 C12: cold-formed lipped Z
+            t = profile.wallThickness
+            return steel_sections.zed_section(
+                d=profile.depth,
+                b_l=profile.width,
+                b_r=profile.width,
+                l=profile.girth,
+                t=t,
+                r_out=profile.internalFilletRadius + t if profile.internalFilletRadius else t,
+                n_r=8 if profile.internalFilletRadius else 1,
+            )
         case o.DesignedProfile():
             from saengine.library import section_designer
 

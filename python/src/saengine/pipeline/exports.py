@@ -245,6 +245,20 @@ def profile_outline(profile: dict[str, Any]) -> tuple[str, Any] | None:
         x, y = b / 2, h / 2
         return ("polygon", [(-x, -y), (x, -y), (x, -y + tf), (-x + tw, -y + tf), (-x + tw, y - tf),
                             (x, y - tf), (x, y), (-x, y)])  # fmt: skip
+    if shape in ("C", "Z"):  # alpha 9 C12: cold-formed lipped channel and lipped Z
+        b, h, t, c = n("width"), n("depth"), n("wallThickness"), n("girth")
+        if not (b and h and t and c):
+            return None
+        y = h / 2
+        if shape == "C":
+            x = b / 2
+            return ("polygon", [(-x, -y), (x, -y), (x, -y + c), (x - t, -y + c), (x - t, -y + t),
+                                (-x + t, -y + t), (-x + t, y - t), (x - t, y - t), (x - t, y - c),
+                                (x, y - c), (x, y), (-x, y)])  # fmt: skip
+        x = b - t / 2
+        return ("polygon", [(-x, -y), (t / 2, -y), (t / 2, y - t), (x - t, y - t), (x - t, y - c),
+                            (x, y - c), (x, y), (-t / 2, y), (-t / 2, -y + t), (-x + t, -y + t),
+                            (-x + t, -y + c), (-x, -y + c)])  # fmt: skip
     return None
 
 

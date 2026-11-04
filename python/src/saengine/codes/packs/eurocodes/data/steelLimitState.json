@@ -167,6 +167,23 @@
       "steelDualSmfScbf": {"kind": "moment", "ductility": "DCH", "classMax": 1},
       "steelNotDetailed": {"kind": "moment", "ductility": "DCL", "classMax": 3}
     },
+    "links": {
+      "short": 1.6,
+      "long": 3.0,
+      "rotationShort": 0.08,
+      "rotationLong": 0.02,
+      "axialLimit": 0.15,
+      "lengthRatio": 0.3,
+      "lengthA": 1.15,
+      "lengthB": 0.5,
+      "omegaFactor": 1.5,
+      "clauses": {
+        "strength": "EN 1998-1 6.8.2(3)-(5), Eqs 6.13-6.16",
+        "axial": "EN 1998-1 6.8.2(6)-(8), Eqs 6.17-6.20",
+        "rotation": "EN 1998-1 6.8.2(10)",
+        "omega": "EN 1998-1 6.8.3(1), 6.8.2(10)"
+      }
+    },
     "clauses": {
       "general": "EN 1998-1 Sec 6.1-6.5",
       "classes": "EN 1998-1 6.5.3, Table 6.3",
@@ -176,6 +193,88 @@
       "strongColumn": "EN 1998-1 4.4.2.3(4), Eq 4.29",
       "braceSlenderness": "EN 1998-1 6.7.3(1)-(4)",
       "braceOmega": "EN 1998-1 6.7.3(8)"
+    }
+  },
+  "torsion": {
+    "method": "elasticStresses",
+    "gamma": 1.0,
+    "criterion": 3.0,
+    "shearReductionOpen": 1.25,
+    "neglect": 0.05,
+    "clauses": {
+      "criterion": "EN 1993-1-1 6.2.7(5), 6.2.1(5) Eq 6.1",
+      "shear": "EN 1993-1-1 6.2.7(9) Eqs 6.26-6.28"
+    }
+  },
+  "bracing": {
+    "method": "equivalentImperfection",
+    "members": 1,
+    "bowDivisor": 500.0,
+    "deflectionDivisor": 2500.0,
+    "spliceDivisor": 100.0,
+    "clauses": {
+      "bracing": "EN 1993-1-1 5.3.3, Eqs 5.12-5.14"
+    }
+  },
+  "columnSide": {
+    "method": "effectiveWidth",
+    "gamma": 1.0,
+    "gammaBuckling": 1.0,
+    "flangeSpread": 7.0,
+    "panelShare": 0.9,
+    "stressLimit": 0.7,
+    "clauses": {
+      "code": "EN 1993-1-8",
+      "webCompression": "EN 1993-1-8 6.2.6.2, Eqs 6.9-6.14, Table 6.3",
+      "webTension": "EN 1993-1-8 6.2.6.3, Eq 6.15",
+      "flange": "EN 1993-1-8 4.10, Eqs 4.6-4.7",
+      "panel": "EN 1993-1-8 6.2.6.1, Eq 6.7"
+    }
+  },
+  "hssJoints": {
+    "method": "chordFace",
+    "gamma": 1.0,
+    "chsT": [
+      2.8,
+      14.2
+    ],
+    "chsX": [
+      5.2,
+      0.81
+    ],
+    "chsK": [
+      1.8,
+      10.2
+    ],
+    "kgFactors": [
+      0.024,
+      1.2,
+      0.5,
+      1.33
+    ],
+    "kp": 0.3,
+    "rhsFaceBeta": 0.85,
+    "rhsK": 8.9,
+    "kn": [
+      1.3,
+      0.4
+    ],
+    "effectiveWidth": 10.0,
+    "limits": {
+      "chsBetaMin": 0.2,
+      "chsBetaMax": 1.0,
+      "chsRatioMax": 50.0,
+      "chsRatioMaxX": 40.0,
+      "chsBraceMax": 50.0,
+      "rhsBetaMin": 0.25,
+      "rhsRatioMax": 35.0,
+      "rhsBraceMax": 35.0
+    },
+    "clauses": {
+      "code": "EN 1993-1-8",
+      "validity": "EN 1993-1-8 7.1.2, Tables 7.1, 7.8",
+      "chs": "EN 1993-1-8 7.4.2, Table 7.2",
+      "rhs": "EN 1993-1-8 7.5.2, Tables 7.10-7.12"
     }
   },
   "clauses": {
@@ -202,6 +301,11 @@
   "sources": {
     "memberResistance": "EN 1993-1-1 2.4.1, 6.1 (γM0 1.00, γM1 1.00, γM2 1.25 recommended); 3.2.6 (E, G); Tables 3.1, 5.2, 6.1-6.5; 6.2-6.3; Annexes A, B; EN 1993-1-5 4.4 (ρ, kσ of Tables 4.1, 4.2), 5.2-5.3 (η 1.20, χw)",
     "connections": "EN 1993-1-8 2.2 Table 2.1 (γM2 1.25, γM3 1.25 / 1.10); 3.1.1 Table 3.1 (fyb, fub); 3.6.1 Table 3.4 (αv, k1, αb, k2, the 1.4 of the interaction); 3.9 (Fp,C = 0.7 fub As, ks, μ of Table 3.7); 3.10.2 (block tearing); 4.5.3 (welds, βw of Table 4.1); As of the bolt standards",
-    "seismic": "EN 1998-1 6.2(3) γov 1.25; 6.5.3 Table 6.3; 6.6.2-6.6.3; 6.7.3-6.7.4; 6.8; 4.4.2.3(4)"
+    "seismic": "EN 1998-1 6.2(3) γov 1.25; 6.5.3 Table 6.3; 6.6.2-6.6.3; 6.7.3-6.7.4; 6.8; 4.4.2.3(4)",
+    "torsion": "EN 1993-1-1 6.2.7: TEd <= TRd, the St. Venant and warping stresses by the yield criterion 6.2.1(5) with γM0, Vpl,T,Rd of Eqs 6.26-6.28; the stresses of warping torsion along the member (SAEngine's solution of the thin-walled member)",
+    "bracing": "EN 1993-1-1 5.3.3: q = Σ NEd 8 (e0 + δq) / L², e0 = αm L / 500, αm = √(0.5 (1 + 1/m)), δq at the limit L / 2500 (5.3.3(2)), NEd = MEd / h for beams, αm NEd / 100 at splices (5.3.3(4))",
+    "columnSide": "EN 1993-1-8 6.2.6.1 (Vwp,Rd = 0.9 fy Avc / (√3 γM0)), 6.2.6.2 (Fc,wc,Rd with ω, kwc, ρ, beff = tfb + 2√2 ab + 5 (tfc + s)), 6.2.6.3 (Ft,wc,Rd), 4.10 (beff = tw + 2 s + 7 k tf of welds to unstiffened flanges)",
+    "hssJoints": "EN 1993-1-8 7.4 (CHS: Table 7.2 chord face failure, punching; kp, kg), 7.5 (RHS: Table 7.10 chord face failure β <= 0.85, brace failure, punching; Table 7.12 K joints with gap), validity Tables 7.1, 7.8, γM5 1.0",
+    "links": "EN 1998-1 6.8.2: Vp,link = (fy/√3) tw (d - tf), Mp,link = fy b tf (d - tf), short e < 1.6 Mp/Vp, long e > 3.0 Mp/Vp, θp 0.08 / 0.02 rad, NEd/Npl > 0.15 reductions and length limit by R; 6.8.3 Ω = 1.5 Vp,link/VEd (short) or 1.5 Mp,link/MEd"
   }
 }

@@ -1768,6 +1768,9 @@ class SteelOptions:
     built_up: Any = None
     #: Alpha 9 C3: the design basis of the checks, "LRFD" or "ASD" (saengine.design.steel.basis).
     basis: str = "LRFD"
+    #: Alpha 9 C12: the fire resistance ratings by member kind ``{kind: (hours, why)}`` when the
+    #: pack designs steel in fire (saengine.design.steel.fire); None: no fire rows.
+    fire: Any = None
 
     @classmethod
     def of(cls, value: SteelOptions | dict[str, Any] | None) -> SteelOptions:
@@ -2079,14 +2082,19 @@ def check_member(
     the design report's format (``{name, demand, capacity, unit, utilisation, combination, ok,
     note, flag, clause}``, forces in kN and kN·m), on the design basis of ``options.basis``
     (alpha 9 C3: the stations are then those of that basis' combinations)."""
-    from saengine.design.steel import limit_state
+    from saengine.design.steel import cold_formed, fire, limit_state
 
-    if limit_state.rules() is not None:
-        # Alpha 9 C9: the pack designs steel by limit state with partial factors (IS 800).
-        return limit_state.check_member(shape, steel, stations, lengths, kind, options)
     options = SteelOptions.of(options)
-    with steel_basis.using(options.basis):
-        return _check_member(shape, steel, stations, lengths, kind, options)
+    if cold_formed.is_cold_formed(shape):  # alpha 9 C12: the pack's cold-formed members
+        rows = cold_formed.check_member(shape, steel, stations, lengths, kind, options)
+    elif limit_state.rules() is not None:
+        # Alpha 9 C9: the pack designs steel by limit state with partial factors (IS 800).
+        rows = limit_state.check_member(shape, steel, stations, lengths, kind, options)
+    else:
+        with steel_basis.using(options.basis):
+            rows = _check_member(shape, steel, stations, lengths, kind, options)
+    # Alpha 9 C12: steel in fire when the pack has the method and the member a rating.
+    return rows + fire.rows(shape, steel, lengths, kind, rows, options)
 
 
 def _check_member(
@@ -2823,7 +2831,15 @@ def _design_steel_member(
             checks.append(slender)
     # C9: the stability bracing and B31 rules are the LRFD pack's; the limit state method
     # names what it does not check.
-    bracing = [] if ls else bracing_requirements(shape, stations, lengths, kind)
+    # Alpha 9 C12: the limit state method's bracing forces when its pack chooses them.
+    from saengine.design.steel import bracing_forces
+
+    if ls:
+        bracing = bracing_forces.requirements(shape, stations, lengths, kind)
+    else:
+        bracing = bracing_requirements(shape, stations, lengths, kind)
+        if bracing and getattr(_bracing_table(), "rows", False):  # the pack lists them as rows
+            checks.extend(bracing_forces.rows_of(bracing))
     if ls:
         extra = limit_state.member_notes(stations)
     else:
@@ -2833,7 +2849,14 @@ def _design_steel_member(
             if c["name"].startswith(("Tension", "Compression")):
                 c["note"] = f"{c['note']}; {note}" if c["note"] else note
     strength = [c for c in checks if not c["flag"]]
-    if ls:
+    from saengine.design.steel import cold_formed
+    from saengine.design.steel.torsion import has_torsion
+
+    if cold_formed.is_cold_formed(shape):  # alpha 9 C12
+        section_class, described = "cold-formed (effective section)", []
+        if any(has_torsion(st.T) for st in stations):
+            extra = [*extra, "torsion of cold-formed members: not covered (not checked)"]
+    elif ls:
         section_class, described = limit_state.section_summary(shape, steel)
     else:
         elements = cl.compression_elements(shape, steel.fy, steel.e)
@@ -2856,12 +2879,7 @@ def _design_steel_member(
             "notes": [
                 *shape.notes,
                 *steel.notes,
-                *(
-                    f"stability bracing ({b['what']}, {b['type']}, {b['note']}): each brace "
-                    f"needs {b['Pbr']:g} kN and {b['betaBr']:g} kN/mm ({b['demand']}, "
-                    f"Lb = {b['Lb']:g} m)"
-                    for b in bracing
-                ),
+                *(bracing_forces.note_of(b) for b in bracing),
                 *extra,
             ],
         },
@@ -2873,7 +2891,11 @@ def _design_steel_member(
 def __getattr__(name: str) -> list[str]:
     # The method text names the clauses of the pack in force: built when it is read.
     if name == "METHOD":
-        from saengine.design.steel import limit_state
+        from saengine.design.steel import cold_formed, fire, limit_state
 
-        return limit_state.method_lines() if limit_state.rules() is not None else _method()
+        if limit_state.rules() is not None:  # its lines name the C12 groups it uses
+            return limit_state.method_lines() + cold_formed.method_lines()
+        # Alpha 9 C12: the cold-formed members and steel fire design when the pack has them.
+        extra = [line for line in (fire.method_line(),) if line]
+        return _method() + cold_formed.method_lines() + extra
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

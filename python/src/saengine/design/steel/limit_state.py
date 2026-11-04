@@ -813,9 +813,10 @@ def check_member(
         from saengine.design.steel import buckling_curves
 
         try:
-            return buckling_curves.check_member(shape, steel, stations, lengths, kind, options)
+            found = buckling_curves.check_member(shape, steel, stations, lengths, kind, options)
         except ValueError as error:
             raise SteelDesignError(str(error)) from error
+        return found + _remainder_rows(shape, steel, stations, options)
     t = _t(None)
     g0 = float(t.partialFactors.gammaM0)
     nd = shape.area * steel.fy / g0
@@ -1028,7 +1029,17 @@ def check_member(
     for c in rows:
         if c["utilisation"] < 0:
             c.update(utilisation=0.0, ok=True, demand=0.0)
-    return rows
+    return rows + _remainder_rows(shape, steel, stations, options, bool(t.welded))
+
+
+def _remainder_rows(
+    shape: ShapeProperties, steel: Steel, stations: Sequence[Any], options: Any, welded=False
+) -> list[dict[str, Any]]:
+    """Alpha 9 C12: the rows of the groups the pack adds to the members (torsion by elastic
+    stresses, :mod:`saengine.design.steel.torsion_stresses`); none without them."""
+    from saengine.design.steel import torsion_stresses
+
+    return torsion_stresses.rows(shape, steel, stations, options, welded)
 
 
 def _has_torsion(torque: Any) -> bool:
@@ -1042,8 +1053,11 @@ def _has_torsion(torque: Any) -> bool:
 
 def member_notes(stations: Sequence[Any]) -> list[str]:
     """The member's notes of what the method does not check."""
+    from saengine.design.steel import torsion_stresses
+
     out = []
-    if any(_has_torsion(getattr(st, "T", None)) for st in stations):
+    covered = torsion_stresses.table() is not None  # alpha 9 C12
+    if not covered and any(_has_torsion(getattr(st, "T", None)) for st in stations):
         out.append("torsion: not covered by the code pack's limit state steel method (not checked)")
     return out
 
@@ -1066,7 +1080,7 @@ def method_lines(table: Any | None = None) -> list[str]:
     if table is None and member_resistance() is not None:  # alpha 9 C6
         from saengine.design.steel import buckling_curves
 
-        return buckling_curves.method_lines()
+        return buckling_curves.method_lines() + _remainder_lines()
     t = _t(table)
     pf = t.partialFactors
     return [
@@ -1113,9 +1127,43 @@ def method_lines(table: Any | None = None) -> list[str]:
         ),
         (
             "Deflection of beams (serviceability): as the code pack's serviceability table gives "
-            "the limits, under the unfactored load cases. Not checked here: torsion, built-up "
-            "lacing, fatigue, fire; connections: see the steel connection checks."
+            "the limits, under the unfactored load cases. Not checked here: "
+            + ("torsion, " if not _covers("torsion", table) else "")
+            + "built-up lacing, fatigue"
+            + (", fire" if not _covers("fire", table) else "")
+            + "; connections: see the steel connection checks."
         ),
+        *([] if table is not None else _remainder_lines()),
+    ]
+
+
+def _covers(what: str, table: Any | None) -> bool:
+    """Alpha 9 C12: whether the pack in force adds ``what`` (``torsion``, ``fire``) to the
+    limit state members (a table handed in explicitly: not)."""
+    if table is not None:
+        return False
+    if what == "torsion":
+        from saengine.design.steel import torsion_stresses
+
+        return torsion_stresses.table() is not None
+    from saengine.design.steel import fire
+
+    return fire.table() is not None
+
+
+def _remainder_lines() -> list[str]:
+    """Alpha 9 C12: the report paragraphs of the groups the pack adds (torsion, bracing
+    forces, fire)."""
+    from saengine.design.steel import bracing_forces, fire, torsion_stresses
+
+    return [
+        line
+        for line in (
+            torsion_stresses.method_line(),
+            bracing_forces.method_line(),
+            fire.method_line(),
+        )
+        if line
     ]
 
 

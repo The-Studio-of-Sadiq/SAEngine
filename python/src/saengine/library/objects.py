@@ -117,6 +117,31 @@ class UShapeProfile(_Model):
     filletRadius: float = Field(default=0, ge=0, description="[mm]")
 
 
+class CShapeProfile(_Model):
+    """IfcCShapeProfileDef: a cold-formed lipped channel (alpha 9 C12). ``depth`` and ``width``
+    are overall, ``girth`` the overall lip length, ``wallThickness`` the sheet thickness."""
+
+    shape: Literal["C"] = "C"
+    depth: Length
+    width: Length
+    wallThickness: Length
+    girth: Length
+    internalFilletRadius: float = Field(default=0, ge=0, description="[mm]")
+
+
+class ZShapeProfile(_Model):
+    """A cold-formed lipped Z (alpha 9 C12; the lips of IfcCShapeProfileDef on the flanges of an
+    IfcZShapeProfileDef, exported as an arbitrary profile): equal flanges ``width`` each side of
+    the web, overall ``depth``, overall lip length ``girth``, sheet ``wallThickness``."""
+
+    shape: Literal["Z"] = "Z"
+    depth: Length
+    width: Length
+    wallThickness: Length
+    girth: Length
+    internalFilletRadius: float = Field(default=0, ge=0, description="[mm]")
+
+
 class DesignedProfile(_Model):
     """A section drawn in the Section Designer (``04 Objects/sections/<section>.json``, see
     :mod:`saengine.library.section_designer`): L/T/C columns, core walls, built-up steel; IFC
@@ -135,6 +160,8 @@ Profile = Annotated[
     | TShapeProfile
     | LShapeProfile
     | UShapeProfile
+    | CShapeProfile
+    | ZShapeProfile
     | DesignedProfile,
     Field(discriminator="shape"),
 ]

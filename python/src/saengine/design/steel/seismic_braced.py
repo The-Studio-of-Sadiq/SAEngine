@@ -891,6 +891,59 @@ def _beam_at(line: _Line, t: float) -> _BeamOnLine | None:
     return next((b for b in line.beams if b.t0 - 1e-6 <= t <= b.t1 + 1e-6), None)
 
 
+def link_spans(
+    line: _Line,
+    panel: Panel,
+    geometry: dict[str, tuple[np.ndarray, np.ndarray]],
+    info: dict[str, dict[str, Any]],
+    by_id: dict[str, Any],
+    notes: list[str],
+) -> list[tuple[_BeamOnLine, float, float, bool, float, list, float, float]]:
+    """The EBF links of one panel of a beam line (not a V): ``(beam, a, b, at_column, e, the
+    bracing points, the brace angle, the storey height)``, ``a``/``b`` the link's ends along the
+    line, ``e`` its length less half the column depth at a column (alpha 9 C12: shared by the
+    dissipative links of :mod:`saengine.design.steel.dissipative_links`). ``info`` holds each
+    member's ``shape``; links on beams that are not I-shapes are noted and left out."""
+    single = len(panel.clusters) == 1
+    if not single:
+        pairs = [
+            (panel.clusters[i], panel.clusters[i + 1], False)
+            for i in range(len(panel.clusters) - 1)
+        ]
+    else:
+        c0 = panel.clusters[0]
+        tp = c0[0][0]
+        near_left = tp - panel.ta <= panel.tb - tp
+        edge = [(panel.ta if near_left else panel.tb, "", -1)]
+        pairs = [(edge, c0, True) if near_left else (c0, edge, True)]
+    out = []
+    for lo, hi, at_column in pairs:
+        a, b = lo[-1][0], hi[0][0]
+        mid = (a + b) / 2
+        beam = _beam_at(line, mid)
+        if beam is None or beam.id not in info or beam.id not in by_id:
+            continue
+        shape = info[beam.id]["shape"]
+        if shape.family != "I":
+            notes.append(f"{beam.id}: an EBF link must be an I-shape")
+            continue
+        face = 0.0
+        if at_column:
+            col = panel.left if lo[0][2] == -1 else panel.right
+            if col in info:
+                face = info[col]["shape"].dims.get("d", 0.0) / 2
+        e_len = max(b - a - face, 1.0)
+        bracing = [p for p in (lo + hi) if p[2] >= 0]
+        angle = _angle(*geometry[bracing[0][1]]) if bracing else 0.0
+        height = (
+            abs(float(geometry[bracing[0][1]][1][2] - geometry[bracing[0][1]][0][2]))
+            if bracing
+            else 0.0
+        )
+        out.append((beam, a, b, at_column, e_len, bracing, angle, height))
+    return out
+
+
 def _local(beam: _BeamOnLine, t: float) -> float:
     """Distance along the beam element from its start [mm] of the line position ``t``."""
     return (beam.t1 - t) if beam.flipped else (t - beam.t0)
@@ -1040,40 +1093,9 @@ def apply(
             single = len(panel.clusters) == 1
             v_shape = single and len({p[1] for p in panel.clusters[0]}) >= 2
             if ebf and not v_shape:
-                if not single:
-                    pairs = [
-                        (panel.clusters[i], panel.clusters[i + 1], False)
-                        for i in range(len(panel.clusters) - 1)
-                    ]
-                else:
-                    c0 = panel.clusters[0]
-                    tp = c0[0][0]
-                    near_left = tp - panel.ta <= panel.tb - tp
-                    edge = [(panel.ta if near_left else panel.tb, "", -1)]
-                    pairs = [(edge, c0, True) if near_left else (c0, edge, True)]
-                for lo, hi, at_column in pairs:
-                    a, b = lo[-1][0], hi[0][0]
-                    mid = (a + b) / 2
-                    beam = _beam_at(line, mid)
-                    if beam is None or beam.id not in info or beam.id not in by_id:
-                        continue
+                found = link_spans(line, panel, geometry, info, by_id, out["notes"])
+                for beam, a, b, at_column, e_len, bracing, angle, height in found:
                     shape = info[beam.id]["shape"]
-                    if shape.family != "I":
-                        out["notes"].append(f"{beam.id}: an EBF link must be an I-shape")
-                        continue
-                    face = 0.0
-                    if at_column:
-                        col = panel.left if lo[0][2] == -1 else panel.right
-                        if col in info:
-                            face = info[col]["shape"].dims.get("d", 0.0) / 2
-                    e_len = max(b - a - face, 1.0)
-                    bracing = [p for p in (lo + hi) if p[2] >= 0]
-                    angle = _angle(*geometry[bracing[0][1]]) if bracing else 0.0
-                    height = (
-                        abs(float(geometry[bracing[0][1]][1][2] - geometry[bracing[0][1]][0][2]))
-                        if bracing
-                        else 0.0
-                    )
                     d = shape.dims
                     link = Link(
                         beam.id,

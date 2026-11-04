@@ -28,6 +28,7 @@ is the major-axis inertia of an I-shape. Units: mm, mm², mm⁴, mm⁶.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass, field
 
@@ -330,6 +331,141 @@ def round_bar(diameter: float, label: str = "") -> ShapeProperties:
     )
 
 
+# ─────────────────────────── cold-formed lipped sections (alpha 9 C12) ───────────────────────────
+
+
+def thin_walled(points: list[tuple[float, float]], t: float) -> dict[str, float]:
+    """Thin-walled properties of an open section of constant thickness ``t`` along the
+    centreline polyline ``points``: A, the centroid, Ix, Iy, Ixy about it, the shear centre
+    (x0, y0) from the centroid, J = Σ L t³ / 3 and Cw = ∫ ωn² dA by the sectorial coordinate
+    about the shear centre (normalised)."""
+    pts = [(float(x), float(y)) for x, y in points]
+    segs = list(itertools.pairwise(pts))
+    lens = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in segs]
+    area = t * sum(lens)
+    cx = sum(t * ln * (a[0] + b[0]) / 2 for (a, b), ln in zip(segs, lens, strict=True)) / area
+    cy = sum(t * ln * (a[1] + b[1]) / 2 for (a, b), ln in zip(segs, lens, strict=True)) / area
+
+    def integral(f: list[float], g: list[float]) -> float:
+        # ∫ f g dA with f, g linear on each segment (node values).
+        total = 0.0
+        for i, ln in enumerate(lens):
+            fa, fb, ga, gb = f[i], f[i + 1], g[i], g[i + 1]
+            total += t * ln * (2 * fa * ga + fa * gb + fb * ga + 2 * fb * gb) / 6
+        return total
+
+    xs = [p[0] - cx for p in pts]
+    ys = [p[1] - cy for p in pts]
+    ix, iy, ixy = integral(ys, ys), integral(xs, xs), integral(xs, ys)
+
+    def sectorial(px: float, py: float) -> list[float]:
+        w = [0.0]
+        for a, b in segs:
+            w.append(w[-1] + (a[0] - px) * (b[1] - py) - (b[0] - px) * (a[1] - py))
+        return w
+
+    w0 = sectorial(cx, cy)
+    iwx, iwy = integral(w0, xs), integral(w0, ys)
+    det = ix * iy - ixy**2
+    x0 = (iy * iwy - ixy * iwx) / det if det > 0 else 0.0
+    y0 = (ixy * iwy - ix * iwx) / det if det > 0 else 0.0
+    ws = sectorial(cx + x0, cy + y0)
+    mean = integral(ws, [1.0] * len(ws)) / area
+    wn = [w - mean for w in ws]
+    return {
+        "A": area, "cx": cx, "cy": cy, "Ix": ix, "Iy": iy, "Ixy": ixy, "x0": x0, "y0": y0,
+        "J": sum(lens) * t**3 / 3, "Cw": integral(wn, wn), "wn": max(abs(w) for w in wn),
+    }  # fmt: skip
+
+
+def lipped(
+    kind: str, h: float, b: float, c: float, t: float, r: float = 0.0, label: str = ""
+) -> ShapeProperties:
+    """A cold-formed lipped channel (``kind`` "C", web at the left, flanges to the right, lips
+    turned in) or lipped Z ("Z", top flange to the right, bottom flange to the left), overall
+    depth ``h``, flange width ``b``, lip ``c``, thickness ``t``, inside corner radius ``r``. A, I,
+    S and Z of the square-cornered plates (the corners left out: a few per cent on the safe
+    side); J, Cw and the shear centre on the centreline (thin-walled). Flat widths for the
+    effective widths: the plate less t + r at each bend. Z: the geometric axes (x along the
+    flanges), with the least principal inertia for buckling."""
+    if c <= t or b <= 2 * t or h <= 2 * t:
+        raise ValueError("a lipped section needs depth, width and lip larger than the thickness")
+    if kind == "C":
+        parts = [
+            tables._rect(0, t, 0, h),
+            tables._rect(t, b, h - t, h),
+            tables._rect(t, b, 0, t),
+            tables._rect(b - t, b, h - c, h - t),
+            tables._rect(b - t, b, t, c),
+        ]
+        width = b
+        line = [
+            (b - t / 2, h - c), (b - t / 2, h - t / 2), (t / 2, h - t / 2), (t / 2, t / 2),
+            (b - t / 2, t / 2), (b - t / 2, c),
+        ]  # fmt: skip
+        family = "lippedChannel"
+    else:
+        x_web = b - t
+        parts = [
+            tables._rect(x_web, b, 0, h),
+            tables._rect(b, 2 * b - t, h - t, h),
+            tables._rect(0, x_web, 0, t),
+            tables._rect(2 * b - 2 * t, 2 * b - t, h - c, h - t),
+            tables._rect(0, t, t, c),
+        ]
+        width = 2 * b - t
+        xw = b - t / 2
+        line = [
+            (2 * b - 1.5 * t, h - c), (2 * b - 1.5 * t, h - t / 2), (xw, h - t / 2), (xw, t / 2),
+            (t / 2, t / 2), (t / 2, c),
+        ]  # fmt: skip
+        family = "lippedZ"
+    p = tables._combine(parts, width, h)
+    tw = thin_walled(line, t)
+    mean = (p.Ix + p.Iy) / 2
+    radius = math.hypot((p.Ix - p.Iy) / 2, p.Ixy)
+    bend = t + r
+    return ShapeProperties(
+        family=family,
+        label=label or f"{kind} {h:g}x{b:g}x{c:g}x{t:g}",
+        area=p.A,
+        ix=p.Ix,
+        iy=p.Iy,
+        sx=p.Sx,
+        sy=p.Sy,
+        zx=p.Zx,
+        zy=p.Zy,
+        j=tw["J"],
+        cw=tw["Cw"],
+        x0=tw["x0"],
+        y0=tw["y0"],
+        dims={
+            "d": h,
+            "b": b,
+            "c": c,
+            "t": t,
+            "r": r,
+            "cx": p.cx,
+            "cy": p.cy,
+            "web": h - 2 * bend,
+            "flange": b - 2 * bend,
+            "lip": c - bend,
+            "ho": h - t,
+            "wn": tw["wn"],
+        },
+        sx_top=p.Ix / (h - p.cy),
+        sx_bottom=p.Ix / p.cy,
+        iz=mean - radius,
+        ixy=p.Ixy,
+        notes=(
+            (
+                "cold-formed section: the corners left out of A, I, S and Z; J, Cw and the shear "
+                "centre on the centreline"
+            ),
+        ),
+    )
+
+
 def shape_properties(profile: o.Profile, erw: bool = True) -> ShapeProperties:
     """The steel shape of an object profile; ``erw``: hollow sections are ERW (design wall
     thickness 0.93 t, Sec 10.2.3.12), else SAW (nominal t). Solid rectangles and circles are
@@ -375,6 +511,15 @@ def shape_properties(profile: o.Profile, erw: bool = True) -> ShapeProperties:
             return bar(profile.yDim, profile.xDim)
         case o.CircleProfile():
             return round_bar(2 * profile.radius)
+        case o.CShapeProfile() | o.ZShapeProfile():  # alpha 9 C12: cold-formed
+            return lipped(
+                profile.shape,
+                profile.depth,
+                profile.width,
+                profile.girth,
+                profile.wallThickness,
+                profile.internalFilletRadius,
+            )
     raise ValueError(f"a {profile.shape} profile is not a steel shape")
 
 
