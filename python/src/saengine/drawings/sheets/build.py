@@ -277,8 +277,14 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
         specs += schedules.table_specs(
             table, height, key=f"bbs:{table.title}", max_width=area[2] - area[0]
         )
+    if specs and data.bbs_shapes:  # alpha 9 C14: the shape key of the pack's standard
+        specs += schedules.shape_key_specs(
+            data.bbs_shapes, height, area[2] - area[0], data.bbs_shapes_title
+        )
     if specs:
-        out.append(_Category("Bar bending schedule", 1, specs, scale_text="NTS"))
+        # the standard's sheet title (the default pack's BS 8666: "Bar bending schedule")
+        name = data.bbs[0].title if data.bbs and data.bbs[0].title else "Bar bending schedule"
+        out.append(_Category(name, 1, specs, scale_text="NTS"))
     out += _steel_categories(data, settings, area, problems)
     out += _architecture_categories(data, settings, area, problems)
     out += _mep_categories(data, settings, area, problems)

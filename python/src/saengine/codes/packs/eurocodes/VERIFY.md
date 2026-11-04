@@ -528,3 +528,21 @@ Rows numbered S1-S36 (their own series, so the parallel tracks do not collide).
 | N13 | Steel beams and columns (× θy): class 1 DL 1.0 SD 6.0 NC 8.0; class 2 DL 0.25 SD 2.0 NC 3.0; columns only up to N/Npl = 0.3 | EN 1998-3 B.5.2 | | unsure |
 | N14 | Braces (× ΔT, Δc): tension DL 0.25 SD 7 NC 9; compression DL 0.25 SD 4 NC 6 | EN 1998-3 B.5.3 | | unsure |
 | N15 | Class 1 / 2 by EN 1993-1-1 Table 5.2: flange c/tf 9ε / 10ε, web 72ε / 83ε, as √(E/fy) multiples 0.301 / 0.334 and 2.41 / 2.78 (E = 210 GPa) | EN 1993-1-1 Table 5.2 | Flange c taken as bf/2 | sure |
+
+## EN ISO 3766:2003 bar schedules (alpha 9 C14)
+
+`barSchedule.standard` = `iso3766`. EN ISO 3766 gives the shape codes and how they are
+dimensioned (outside dimensions); it gives no cutting-length formulas, so SAEngine computes the
+length along the bar's centre line (SAEngine practice), with the mandrel diameters of EN
+1992-1-1 8.3 (`concreteMethods.barShapes`). A UK National Annex pack sets `standard` back to
+`bs8666` (inherited from the default pack).
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| BI1 | barSchedule.standards.iso3766.shapes (codes) | 00, 11, 12, 13, 21, 23, 26, 31, 41, 51, 77, 99 and their dimension letters | EN ISO 3766:2003 shape code table | Shape codes and letters | Uncertain (the codes are taken as BS 8666 numbers them; check each code's meaning, and whether 51 is the closed link with 135° hooks) |
+| BI2 | barSchedule.standards.iso3766.shapes.11 / 21 / 31 / 41 | sum of A.. less n [2(r + d) - π/2 (r + d/2)] for n 90° bends | geometry (SAEngine practice) | Centre-line length | Sure (geometry) |
+| BI3 | barSchedule.standards.iso3766.shapes.13 | A + C - B + π (B - d)/2 | geometry (SAEngine practice) | 180° bend of outside width B | Check (that B is the bend's outside width) |
+| BI4 | barSchedule.standards.iso3766.shapes.51 | 2(A + B) + 2C - 10(r + d) + 3π (r + d/2) | geometry (SAEngine practice) | Closed link, C = ext + r + d | Check |
+| BI5 | barSchedule.standards.iso3766.shapes.77 | C √((π(A - d))² + B²) | geometry | Helix of C turns, pitch B | Sure (geometry) |
+| BI6 | barSchedule.standards.iso3766.shapes.26 | A + B + C | SAEngine practice | Crank, kinks neglected | Check |
+| BI7 | barSchedule.standards.iso3766.roundTo | 25 mm, up | SAEngine practice (not in the standard) | Rounding | Practice |

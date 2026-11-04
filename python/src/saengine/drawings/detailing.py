@@ -132,9 +132,9 @@ type; foundations of 9 Substructure: see the marks), "form"? (foundations: isola
 combined, strip, pileCap, raft), "member" (the label),
 "members" (the BIM ids a beam line spans), "story", "count" (1), "bars", "transverse",
 "laps", "checks", "notes"}``; per bar ``{"mark", "role", "dia", "grade", "shape" (straight,
-L, U, crank, stirrup, helix, special: names :mod:`saengine.drawings.bbs` maps to BS 8666
-codes), "count" (in this member), "dims" (outside dimensions A, B, C ... as BS 8666
-schedules them), "segments" (the same in order), "bendDia" (the least inside bend diameter),
+L, U, crank, stirrup, helix, special: names :mod:`saengine.drawings.bbs` maps to the shape
+codes of the pack's schedule standard, BS 8666 in the default pack), "count" (in this member),
+"dims" (outside dimensions A, B, C ... as the schedules give them), "segments" (the same in order), "bendDia" (the least inside bend diameter),
 "length" (developed length along the bar's centreline, from that bend diameter), "at"
 (where it lies: line coordinates or levels, face, layer and world end points),
 "zone"?, "lap"? (lap length at its ends), "curtailed"? (a cut-off bar), "remarks"?}``;
