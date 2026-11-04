@@ -528,9 +528,7 @@ def headed_development(
     if rules is None:
         from saengine.codes import context as code_context
 
-        raise NotCovered(
-            f"headed bars are not covered by the code pack {code_context.code_name()}"
-        )
+        raise NotCovered(f"headed bars are not covered by the code pack {code_context.code_name()}")
     return _power_development(
         rules, "headed", db, fy, fc, lam, psi_e, cover, confined, excess,
         _cite("barDevelopmentHeaded"),

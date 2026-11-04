@@ -825,6 +825,16 @@ def _development(s: Sheet) -> None:
         excess=s["excess"],
     )
     s.step("ldh (standard hook)", ldh.value, "mm", ldh.formula, ldh.clause)
+    # C2: headed bars where the pack gives their rule (none in the default pack).
+    try:
+        ldt = DT.headed_development(
+            db, fy, fc, lam=lam, psi_e=psi_e, cover=s["hook_cover"],
+            confined=s["hook_confined"], excess=s["excess"],
+        )  # fmt: skip
+    except DT.NotCovered:
+        ldt = None
+    if ldt is not None:
+        s.step("ldt (headed bar)", ldt.value, "mm", ldt.formula, ldt.clause)
     if s["available"] > 0:
         s.check("Length available ≥ ld", s["available"], ld.value, "mm", ld.clause, at_least=True)
 

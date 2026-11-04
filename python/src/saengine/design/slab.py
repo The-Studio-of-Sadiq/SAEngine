@@ -2610,7 +2610,9 @@ def one_way_span(
     limits = True
     if not any(continuous):
         limits = False
-        notes.append(f"a single span: {_one_way_item('oneWaySpans', '(a)')} needs two or more spans")
+        notes.append(
+            f"a single span: {_one_way_item('oneWaySpans', '(a)')} needs two or more spans"
+        )
     if dead > 0 and live > float(table["liveToDeadMax"]) * dead:
         limits = False
         notes.append(

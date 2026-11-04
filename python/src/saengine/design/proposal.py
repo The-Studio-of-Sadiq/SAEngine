@@ -196,6 +196,18 @@ class BeamDesigner:
             return dj.hooked_anchorage_seismic(db, self.fy, self.fc)
         return dj.hooked_development(db, self.fy, self.fc)
 
+    def _headed_need(self, db: float) -> str:
+        """C2: " (ldt = ... mm, <clause>)" of a headed bar of ``db`` where the pack gives the
+        headed bar rule (:func:`saengine.drawings.detailing.headed_development`); "" without."""
+        from saengine.drawings import detailing
+
+        try:
+            rule = detailing.headed_development(db, self.fy, self.fc)
+        except detailing.NotCovered:
+            return ""
+        where = f", {rule.clause}" if rule.clause else ""
+        return f" (Ø{db:g} headed: ldt = {rule.value:.0f} mm{where})"
+
     def diameters(self) -> tuple[tuple[float, ...], str | None]:
         """The bar sizes the top and bottom bars may take: those whose hooks fit the room in
         the columns the type's members end in (OI-1 of walk 3: Ø25 bars hooking into 400 mm
@@ -226,7 +238,10 @@ class BeamDesigner:
                 )
             else:
                 why = f"Ø{smallest:g} needs {ratio} db through {room.through_at}"
-            return sizes, f"no bar size fits: {why}; use headed bars or a larger column"
+            return (
+                sizes,
+                f"no bar size fits: {why}; use headed bars{self._headed_need(smallest)} or a larger column",
+            )
         parts = []
         if any(not hooks(d) for d in sizes):
             first = min(d for d in sizes if not hooks(d))

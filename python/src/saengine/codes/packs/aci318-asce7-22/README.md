@@ -1,10 +1,33 @@
 # ACI 318-19 + ASCE 7-22 code pack (`aci318-asce7-22`)
 
-The built-in US pack. This version (alpha 9, track C1) covers the **loads** of ASCE/SEI 7-22;
-concrete (ACI 318-19), steel and the other materials are later tracks. The pack extends
-`bnbc2020`: every table it does not give (concrete, detailing, steel, foundations, masonry,
-timber, the building services, dead load unit weights ...) is BNBC 2020's, and the report and
-the design notes cite those tables as BNBC 2020's.
+The built-in US pack. This version covers the **loads** of ASCE/SEI 7-22 (alpha 9, track C1)
+and **structural concrete** of ACI 318-19 (track C2); steel (AISC 360-22) and the other
+materials are later tracks. The pack extends `bnbc2020`: every table it does not give (steel,
+masonry, timber, the geotechnical tables, the building services, dead load unit weights ...)
+is BNBC 2020's, and the report and the design notes cite those tables as BNBC 2020's.
+
+Each table's clause references are named after the code they come from (`tableCodes` in
+`pack.json`): the concrete tables "ACI 318-19", the load clauses "ASCE 7-22"; the few rules
+ACI 318-19 does not have and the pack keeps from BNBC 2020 (the two-way slab coefficient
+method, stair spans) are cited as BNBC 2020's.
+
+### Concrete tables (C2)
+
+| File | What it holds | Clauses |
+| --- | --- | --- |
+| `factors.json` | φ | 21.2 |
+| `materials.json` | εcu, Es, seismic concrete and bar grades | 18.2, 19.2, 20.2, 22.2 |
+| `concrete.json` | bar sizes (No. 10-36), thickness tables, deflection (Ie `bischoff`), shrinkage steel 0.0018, walls, torsion, prestress (punching `precompression`) | Ch 6-11, 19-24 |
+| `detailing.json` | crack control, integrity, shear friction, SMF limits, joints (γ of columns ending at the joint), special walls (1.5 δu/hw, the amplified design shear Ωv ωv, two curtains by hw/lw), bars (hooks and headed bars by db^1.5, ψg) | Ch 18, 24.3, 25 |
+| `designClauses.json`, `citations.json` | the clause references of the design checks, worksheets and drawings | |
+| `slabMethods.json`, `wallMethods.json`, `compositeConcrete.json` | clause references (same numbers) | 8.10-8.11, 11.8, 16.4 |
+| `foundations.json` | strut-and-tie βs | Ch 23 |
+
+Methods it chooses where ACI 318-19 differs from the default pack: `concrete.deflection.
+effectiveInertia = bischoff`, `detailing.bars.development.hookMethod = powerDiameter` (with
+`hook`, `headed`, `psiG`), `detailing.walls.driftFactor`, `curtainAspect`,
+`shearAmplification`, `detailing.joints.gamma` "…Top" keys, `concrete.prestress.
+punchingMethod = precompression`. Each is a value of the pack, overridable per project.
 
 Choose it in Project Settings (Design code) or in the New Building wizard. The site's values
 come from the ASCE Hazard Tool, not from a table of towns: enter SDS, SD1 (or SMS, SM1, or the

@@ -792,7 +792,11 @@ def shear_amplification(geometry: WallGeometry) -> tuple[float, str]:
     if aspect < rule.dynamicAspect:
         omega_v, storeys = 1.0, ""
     else:
-        ns = max(1, round(geometry.height / geometry.clear_height)) if geometry.clear_height > 0 else 1
+        ns = (
+            max(1, round(geometry.height / geometry.clear_height))
+            if geometry.clear_height > 0
+            else 1
+        )
         a, b = rule.dynamicLow if ns <= rule.dynamicStoreys else rule.dynamicHigh
         omega_v = a + ns / b
         if ns > rule.dynamicStoreys:
@@ -1500,7 +1504,10 @@ def _boundary_rows(
     if need.method == "displacement":
         rows.append(
             _row(
-                named(f"Boundary elements: c >= lw / 600({_drift_times()}δu/hw)", "boundaryDisplacement"),
+                named(
+                    f"Boundary elements: c >= lw / 600({_drift_times()}δu/hw)",
+                    "boundaryDisplacement",
+                ),
                 need.c,
                 need.trigger if need.trigger is not None else need.c,
                 "mm",

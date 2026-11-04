@@ -282,6 +282,16 @@
           "exclusiveMinimum": 0,
           "title": "Cantileverslab",
           "type": "number"
+        },
+        "effectiveInertia": {
+          "default": "cubic",
+          "description": "Ie: 'cubic' (Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³) Icr <= Ig, Ig up to Mcr) or 'bischoff' (Ie = Icr / (1 - ((2/3) Mcr/Ma)² (1 - Icr/Ig)), Ig up to (2/3) Mcr).",
+          "enum": [
+            "cubic",
+            "bischoff"
+          ],
+          "title": "Effectiveinertia",
+          "type": "string"
         }
       },
       "required": [

@@ -1070,7 +1070,11 @@ def hooked_development(
 ) -> float:
     """ldh [mm] of a bar with a standard hook in tension (Sec 8.2.6.1-8.2.6.3, p 1079):
     0.24 ψe fy db / (λ √f'c) times the applicable factors of 8.2.6.3 (``factor``), not less
-    than 8 db nor 150 mm."""
+    than 8 db nor 150 mm. C2: a pack whose ``hookMethod`` is not this linear one gives its own
+    (:func:`saengine.drawings.detailing.hook_development`, ``factor`` as As,req/As,prov)."""
+    rule = _pack_hook_rule(db, fy, fc, lam, psi_e, factor)
+    if rule is not None:
+        return rule.value
     return max(0.24 * psi_e * fy * db / (lam * math.sqrt(fc)) * factor, 8 * db, 150.0)
 
 
@@ -1107,12 +1111,12 @@ def column_dowel_checks(
             f"{available:.0f} mm; 90° hooks at the bottom, turned towards the column's centre "
             "(Sec 8.3.11.2(a), (b))"
         )
-    return [
-        _check(f"Column bars into foundation, {column_id}", need, available, "mm", None, how)
-    ]
+    return [_check(f"Column bars into foundation, {column_id}", need, available, "mm", None, how)]
 
 
-def _pack_hook_rule(db: float, fy: float, fc: float, lam: float) -> Any:
+def _pack_hook_rule(
+    db: float, fy: float, fc: float, lam: float, psi_e: float = 1.0, excess: float = 1.0
+) -> Any:
     """C2: the hooked development of the pack in force when its ``hookMethod`` is not the
     default pack's linear one (:func:`saengine.drawings.detailing.hook_development`); None
     otherwise."""
@@ -1124,7 +1128,7 @@ def _pack_hook_rule(db: float, fy: float, fc: float, lam: float) -> Any:
         return None
     if getattr(dev, "hookMethod", "linear") == "linear":
         return None
-    return detailing.hook_development(db, fy, fc, lam=lam)
+    return detailing.hook_development(db, fy, fc, lam=lam, psi_e=psi_e, excess=excess)
 
 
 def column_near_footing_edge(
