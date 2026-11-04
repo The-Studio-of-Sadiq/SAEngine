@@ -194,6 +194,7 @@ the ACI 318-19 numbering as recalled; each must be checked with the values.
 | # | Value | Clause | Description | Status |
 |---|---|---|---|---|
 | C7 | εcu 0.003, Es 200 000 MPa | 22.2.2.1, 20.2.2.2 | | OK? |
+| C7a | bar names #3–#11 for the soft-metric No. 10, 13, 16, 19, 22, 25, 29, 32, 36 (`barNames`) | ASTM A615/A615M Table 1 | Printed in US customary display units (C13); the pack's suggested units `USCustomary` in pack.json | OK? |
 | C8 | f'c ≥ 21 MPa; lightweight ≤ 35 MPa in special frames and walls | Table 19.2.1.1 | | OK? |
 | C9 | lightweight concrete up to 1840 kg/m³ | 2.3 | Definition (was 1850 in the BNBC table) | UNSURE (1840 vs 1850) |
 | C10 | seismic bars: Grades 280, 420, 550; largest 550 | 20.2.2.4-20.2.2.5, 18.2.6 | Grade 690 for special walls not offered | UNSURE (Grade 280 permission) |

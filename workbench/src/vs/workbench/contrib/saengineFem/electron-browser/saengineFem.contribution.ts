@@ -343,7 +343,7 @@ CommandsRegistry.registerCommand('saengine.boq.templates', async accessor => {
 	return accessor.get(IFemSolverService).engine(python, 'boq/templates', {});
 });
 
-CommandsRegistry.registerCommand('saengine.boq.writeXlsx', async (accessor, target: URI, args: { boqText: string; ratesText?: string; carbonText?: string; title?: string }) => {
+CommandsRegistry.registerCommand('saengine.boq.writeXlsx', async (accessor, target: URI, args: { boqText: string; ratesText?: string; carbonText?: string; title?: string; settingsText?: string }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'boq/exportXlsx', { ...args, path: target.fsPath });
 });

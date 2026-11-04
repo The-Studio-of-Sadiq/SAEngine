@@ -41,6 +41,31 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
+
+- **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)
+  chooses how numbers are shown: `system` SI (default; the files, results and printouts exactly
+  as before, and the setting is not written) or US customary, with per-quantity choices
+  (lengths ft/in, member sizes in/ft, forces kip/lbf, stresses ksi/psi, pressures psf/ksf,
+  moments kip·ft/kip·in, line loads kip/ft or plf, unit weights pcf/kcf, volumes ft³/yd³,
+  speeds mph/ft/s). Switching converts nothing stored: the editors convert where a value is
+  shown and typed, the backend where it prints. Factors from the exact definitions (NIST SP 811).
+- **A pack suggests the units of a new project** (`units` in pack.json; the US pack:
+  USCustomary). It applies only when a project is created with the pack (settings_for_pack of
+  settings that chose none); changing the pack later keeps the project's choice. SAEngine practice.
+- **The quantity of a field is its SI unit** as the descriptions already write it ("[mm]",
+  "[kN/m²]"), so no field is tagged twice; a field without one can name its kind (`unitKind`).
+  SAEngine practice.
+- **Not converted, SAEngine practice:** temperatures (°C; an absolute temperature and a change
+  convert differently and the fields do not say which), the expressions of the calculation
+  worksheets (written in the code's SI form; their values, checks and units are converted, and
+  the report says so), the costing (rates stay in the units of the schedule of rates), and the
+  BOQ's cft, cement bags, litres and counts.
+- **US bar names from the pack** (`concrete.barNames`): the US pack names its soft-metric bars
+  #3–#11 (ASTM A615). Drawings and the bar bending schedule print dimensions in feet and inches
+  to 1/8" (DXF architectural units, the geometry stays in mm) and levels in feet; the BBS's
+  lengths in ft-in, totals in ft and masses in lb.
+
 ## 2026-11-04: the legacy packs BS 8110 and BNBC 2006 (alpha 9 track C10)
 
 Two built-in packs that extend BNBC 2020 (owner: wanted after all, gaps CD-4): `bs8110` (BS 8110,

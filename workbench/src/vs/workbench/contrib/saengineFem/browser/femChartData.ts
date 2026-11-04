@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { activeDisplayUnits, displayUnit, IDisplayUnits, kindOfUnit, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** `(model: URI) => IFemStoryResponse`: the storey response and curves of the last run. */
 export const FEM_STORY_RESPONSE_COMMAND = 'saengine.fem.storyResponse';
@@ -408,7 +409,7 @@ export interface IFemTableLike {
  * F3 -> Fz) so the cases' and the combinations' tables have the same columns. Tables of other
  * unit systems are returned as they are.
  */
-export function displayTable<T extends IFemTableLike>(table: T, units: string | undefined): T {
+export function displayTable<T extends IFemTableLike>(table: T, units: string | undefined, display: IDisplayUnits = activeDisplayUnits()): T {
 	if (!units?.startsWith('SI')) {
 		return table;
 	}
@@ -446,6 +447,43 @@ export function displayTable<T extends IFemTableLike>(table: T, units: string | 
 		});
 	});
 	const title = table.title.replace(/\(N, N·m\)/, '(kN, kN·m)').replace(/\(m, rad\)/, '(mm, rad)');
+	return inDisplayUnits({ ...table, title, columns, rows }, display);
+}
+
+/**
+ * C13: a table in SAEngine's SI units (mm, kN, kN·m, MPa: its columns "Name [unit]" or a "Unit"
+ * column) in the project's display units; the same table in SI.
+ */
+export function inDisplayUnits<T extends { readonly columns: readonly string[]; readonly rows: readonly (readonly FemTableCell[])[]; readonly title?: string }>(table: T, display: IDisplayUnits = activeDisplayUnits()): T {
+	if (display.system !== 'USCustomary') {
+		return table;
+	}
+	const factors: (number | undefined)[] = [];
+	const columns = table.columns.map((column, k) => {
+		const bracket = /^(.*)\[([^\]]+)\]$/.exec(column);
+		if (!bracket || !kindOfUnit(bracket[2])) {
+			return column;
+		}
+		factors[k] = toDisplay(1, bracket[2], display);
+		return `${bracket[1]}[${displayUnit(bracket[2], display)}]`;
+	});
+	const unitColumn = table.columns.indexOf('Unit');
+	const valueColumns = table.columns.map((c, k) => /^(Value|Min|Max)$/.test(c) ? k : -1).filter(k => k >= 0);
+	const rows = table.rows.map(row => {
+		const unit = unitColumn >= 0 ? String(row[unitColumn]) : '';
+		const perRow = unit && kindOfUnit(unit) ? toDisplay(1, unit, display) : undefined;
+		return row.map((cell, k) => {
+			if (k === unitColumn && perRow !== undefined) {
+				return displayUnit(unit, display);
+			}
+			const factor = perRow !== undefined && valueColumns.includes(k) ? perRow : factors[k];
+			return typeof cell === 'number' && factor !== undefined ? cell * factor : cell;
+		});
+	});
+	if (table.title === undefined) {
+		return { ...table, columns, rows };
+	}
+	const title = table.title.replace(/\((kN), (kN·m)\)/, () => `(${displayUnit('kN', display)}, ${displayUnit('kN·m', display)})`).replace(/\(mm, rad\)/, () => `(${displayUnit('mm', display)}, rad)`);
 	return { ...table, title, columns, rows };
 }
 
@@ -717,7 +755,7 @@ export function storeyTable(response: IFemStoryResponse, format: { length(v: num
 			]);
 		}
 	}
-	return { name: localize('femTable.storeys', "Storey response"), columns, rows, notes: response.notes };
+	return inDisplayUnits({ name: localize('femTable.storeys', "Storey response"), columns, rows, notes: response.notes });
 }
 
 /** The modal periods and mass participation (in %) as a table. */
@@ -736,7 +774,7 @@ export function modalTable(modal: NonNullable<IFemStoryResponse['modal']>): IFem
 
 /** The base reactions of the static cases and combinations. */
 export function baseReactionTable(response: IFemStoryResponse, format: { force(v: number): number; moment(v: number): number }): IFemSheet {
-	return {
+	return inDisplayUnits({
 		name: localize('femTable.base', "Base reactions"),
 		columns: [
 			localize('femTable.result', "Result"),
@@ -750,7 +788,7 @@ export function baseReactionTable(response: IFemStoryResponse, format: { force(v
 		notes: response.baseCentre
 			? [localize('femTable.baseCentre', "Forces summed over the supports; moments about the supports' centroid at the base (x = {0} m, y = {1} m, z = {2} m): the overturning about X and Y and the torsion about Z, with each support's own moment.", ...response.baseCentre.map(v => v.toFixed(2)))]
 			: [localize('femTable.baseSum', "Forces and moments summed over the supports (each support's own moment, not about a point).")],
-	};
+	});
 }
 
 // ───────────────────────────── sorting and filtering ─────────────────────────────

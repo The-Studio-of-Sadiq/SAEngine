@@ -5,6 +5,7 @@
 
 import type { CadEntitySpec, CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
+import { parseList } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf } from './floorPlanDrawing.js';
 import { resolvePoint } from './floorPlanEdits.js';
@@ -227,7 +228,8 @@ export function snapMarker(snap: ISnap, r: number, layer: string): CadEntitySpec
  * AutoCAD's "@Δx,Δy").
  */
 export function typedEnd(start: CadPoint, text: string, toward: CadPoint | undefined): CadPoint | undefined {
-	const parts = text.trim().replace(/^@/, '').split(/[\s,;]+/).filter(Boolean).map(Number);
+	// C13: in the display units (feet and inches in US customary units); exactly Number's reading in SI
+	const parts = parseList(text) ?? [NaN];
 	if (parts.length === 2 && parts.every(Number.isFinite) && (parts[0] || parts[1])) {
 		return [start[0] + parts[0], start[1] + parts[1]];
 	}

@@ -53,10 +53,11 @@ import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { headingWithUnit } from '../../../services/saengineProject/common/displayUnits.js';
 import { footingsOwnedMessage } from './floorPlanEdits.js';
 import { siblingPartFile } from './floorPlanEditorInput.js';
 import {
-	filterRows, GROUP_LABELS, IMemberRow, IRowFilter, ISort, MEMBER_GROUPS, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, SortKey, sortRows,
+	filterRows, GROUP_LABELS, IMemberRow, IRowFilter, ISort, lengthCell, MEMBER_GROUPS, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, SortKey, sortRows,
 	storyOptions, TableEdit, typeOptions,
 } from './floorPlanTableModel.js';
 
@@ -389,7 +390,8 @@ export class MembersTableEditor extends EditorPane {
 			const sorted = this.sort.key === column.key;
 			const th = append(headRow, $(`th.${column.className}`, { 'aria-sort': sorted ? (this.sort.descending ? 'descending' : 'ascending') : 'none' }));
 			const button = append(th, $('button.sort', { type: 'button' }));
-			append(button, $('span', undefined, column.label));
+			// C13: the Length column in the display units (the section stays as its type names it)
+			append(button, $('span', undefined, column.key === 'length' ? headingWithUnit(column.label) : column.label));
 			if (sorted) {
 				append(button, $(`span${ThemeIcon.asCSSSelector(this.sort.descending ? Codicon.arrowDown : Codicon.arrowUp)}`));
 			}
@@ -413,7 +415,7 @@ export class MembersTableEditor extends EditorPane {
 			const type = append(tr, $(`td.type${editable}`, { title: typeNames.get(row.type) ?? row.type }, row.type || '—'));
 			this.typeCells.set(key, type);
 			append(tr, $('td.section', undefined, row.section || '—'));
-			append(tr, $('td.length', { title: row.group === 'columns' ? localize('membersTable.height', "Height of the column") : '' }, row.length === undefined ? '' : String(row.length)));
+			append(tr, $('td.length', { title: row.group === 'columns' ? localize('membersTable.height', "Height of the column") : '' }, row.length === undefined ? '' : lengthCell(row.length)));
 			const story = append(tr, $(`td.story${editable}`, undefined, row.base !== undefined ? `${names.get(row.base) ?? row.base} – ${names.get(row.story) ?? row.story}` : names.get(row.story) ?? row.story));
 			append(tr, $('td.location', { title: row.location }, row.location));
 			if (this.focused === key) {
