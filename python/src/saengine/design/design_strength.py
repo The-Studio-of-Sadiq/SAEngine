@@ -17,7 +17,12 @@ unchanged.
 - Stress block: ``rectangular`` (η fcd over λ x, strain εcu3 at the extreme fibre) or
   ``parabolaRectangle`` (εc2, εcu2, n). The rectangular block keeps the sections' closed-form
   integration (:mod:`saengine.design.fast_ultimate`); the parabola-rectangle is integrated by
-  concreteproperties over its mesh (slower).
+  concreteproperties over its mesh (slower). Alpha 9 C25 (the nonlinear deformation model of
+  SP 63.13330.2018 6.1.20-6.1.22 and 8.1.20-8.1.30, the section in equilibrium under the
+  strains of the diagrams): ``bilinear`` (linear to fcd at εc3, fcd to εcu3) and ``trilinear``
+  (linear to 0.6 fcd at 0.6 fcd / Ecm, to fcd at εc2, fcd to εcu2), on the mesh as well.
+- Alpha 9 C25: ``designStrengths`` tabulates fcd, fctd and Ecm by class (SP 63 Tables 6.8,
+  6.11 type: the code's rounded values), times αcc and αct; other grades by the relations.
 - Reinforcement: elastic-perfectly plastic at fyd (the horizontal top branch, no strain limit).
 - Axial compression: NRd = η fcd (Ac - As) + σs As with σs = min(fyd, Es εc2) (the strain of a
   section in pure compression), and the moments at least NEd e0 with e0 = h / divisor, at
@@ -100,13 +105,17 @@ def properties(fck: float, found: Any | None = None) -> ConcreteProperties:
         fctm = r.fctmHighCoefficient * math.log(1 + fcm / r.fctmHighDivisor)
     lo, hi = r.fctkShares
     h = r.highFrom
+    ecm = r.ecmOffset + r.ecmCoefficient * (fcm / r.ecmDivisor) ** r.ecmExponent
+    row = tabulated(fck, found or rules())  # Alpha 9 C25: the pack's tabulated Ecm
+    if row is not None:
+        ecm = row[2]
     return ConcreteProperties(
         fck=fck,
         fcm=fcm,
         fctm=fctm,
         fctk005=lo * fctm,
         fctk095=hi * fctm,
-        ecm=r.ecmOffset + r.ecmCoefficient * (fcm / r.ecmDivisor) ** r.ecmExponent,
+        ecm=ecm,
         eps_c2=_relation(r.epsC2, fck, h) / 1e3,
         eps_cu2=_relation(r.epsCu2, fck, h) / 1e3,
         n=_relation(r.n, fck, h),
@@ -117,22 +126,42 @@ def properties(fck: float, found: Any | None = None) -> ConcreteProperties:
     )
 
 
+def tabulated(fck: float, found: Any | None = None) -> tuple[float, float, float] | None:
+    """Alpha 9 C25: (fcd, fctd, Ecm) [MPa] of the pack's ``designStrengths`` row of ``fck``
+    (before αcc, αct), or None where the pack tabulates none for it."""
+    r = found or rules()
+    rows = getattr(r, "designStrengths", None) if r is not None else None
+    for row in rows or ():
+        if abs(float(row[0]) - fck) < 0.05:
+            return float(row[1]), float(row[2]), float(row[3])
+    return None
+
+
 def fcd(
     fck: float, found: Any | None = None, accidental: bool = False, shear: bool = False
 ) -> float:
     """Design compressive strength αcc fck / γc [MPa]; with ``shear`` the pack's αcc of shear,
-    torsion and punching (``alphaCCShear``, alpha 9 C15) where it gives one."""
+    torsion and punching (``alphaCCShear``, alpha 9 C15) where it gives one; alpha 9 C25: αcc
+    × the pack's tabulated fcd of the class where it gives one (in accidental situations × γc
+    / γc,acc)."""
     r = found or rules()
     gamma = (r.gammaCAccidental or r.gammaC) if accidental else r.gammaC
     alpha = r.alphaCC
     if shear and getattr(r, "alphaCCShear", None) is not None:
         alpha = r.alphaCCShear
+    row = tabulated(fck, r)
+    if row is not None:
+        return alpha * row[0] * r.gammaC / gamma
     return alpha * fck / gamma
 
 
 def fctd(fck: float, found: Any | None = None) -> float:
-    """Design tensile strength αct fctk,0.05 / γc [MPa]."""
+    """Design tensile strength αct fctk,0.05 / γc [MPa]; alpha 9 C25: αct × the pack's
+    tabulated fctd of the class where it gives one."""
     r = found or rules()
+    row = tabulated(fck, r)
+    if row is not None:
+        return r.alphaCT * row[1]
     return r.alphaCT * properties(fck, r).fctk005 / r.gammaC
 
 
@@ -155,7 +184,8 @@ def ultimate_strain(fck: float) -> float:
     stress block's (εcu3 rectangular, εcu2 parabola-rectangle)."""
     r = rules()
     p = properties(fck, r)
-    return p.eps_cu3 if r.stressBlock == "rectangular" else p.eps_cu2
+    # Alpha 9 C25: the bilinear diagram ends at εcu3, the trilinear one at εcu2.
+    return p.eps_cu3 if r.stressBlock in ("rectangular", "bilinear") else p.eps_cu2
 
 
 def steel_yield(fyk: float) -> float:
@@ -166,6 +196,8 @@ def steel_yield(fyk: float) -> float:
 def concrete_profile(fck: float) -> Any:
     """The concreteproperties ultimate profile of the pack's stress block."""
     from concreteproperties.stress_strain_profile import (
+        BilinearStressStrain,
+        ConcreteUltimateProfile,
         EurocodeParabolicUltimate,
         RectangularStressBlock,
     )
@@ -176,6 +208,17 @@ def concrete_profile(fck: float) -> Any:
     if r.stressBlock == "parabolaRectangle":
         return EurocodeParabolicUltimate(
             compressive_strength=f, compressive_strain=p.eps_c2, ultimate_strain=p.eps_cu2, n=p.n
+        )
+    if r.stressBlock == "bilinear":  # Alpha 9 C25: SP 63 6.1.22 two-linear diagram
+        return BilinearStressStrain(
+            compressive_strength=f, compressive_strain=p.eps_c3, ultimate_strain=p.eps_cu3
+        )
+    if r.stressBlock == "trilinear":  # Alpha 9 C25: SP 63 6.1.22 three-linear diagram
+        first = min(0.6 * f / p.ecm, 0.5 * p.eps_c2)
+        return ConcreteUltimateProfile(
+            strains=[-p.eps_c2, 0.0, first, p.eps_c2, p.eps_cu2],
+            stresses=[0.0, 0.0, 0.6 * f, f, f],
+            compressive_strength=f,
         )
     return RectangularStressBlock(
         compressive_strength=f, alpha=p.eta, gamma=p.lam, ultimate_strain=p.eps_cu3
@@ -232,7 +275,29 @@ def strength_class(fck: float) -> str:
             best = (cyl, cube)
     if best is None or abs(best[0] - fck) > 1e-9:
         return f"fck = {fck:g} MPa"
+    if getattr(r, "cubePrefix", None):  # Alpha 9 C25: classes named by the cube strength ("B25")
+        return f"{r.cubePrefix}{best[1]:g}"
     return f"C{best[0]:g}/{best[1]:g}"
+
+
+def block_text(r: Any | None = None) -> str:
+    """The stress block or diagram of the pack's sections, for the method lines (alpha 9 C25:
+    the bilinear and trilinear diagrams of the nonlinear deformation model)."""
+    r = r or rules()
+    if r.stressBlock == "rectangular":
+        return "the rectangular stress block η fcd over λ x, εcu3 at the extreme fibre"
+    if r.stressBlock == "bilinear":
+        return (
+            "the bilinear diagram (fcd from εc3 to εcu3) of the nonlinear deformation model, "
+            "the section in equilibrium under a plane strain distribution"
+        )
+    if r.stressBlock == "trilinear":
+        return (
+            "the trilinear diagram (0.6 fcd at 0.6 fcd / Ecm, fcd from εc2 to εcu2) of the "
+            "nonlinear deformation model, the section in equilibrium under a plane strain "
+            "distribution"
+        )
+    return "the parabola-rectangle diagram (εc2, εcu2, n)"
 
 
 def method_lines(code: str) -> list[str]:
@@ -244,11 +309,7 @@ def method_lines(code: str) -> list[str]:
     if tabulated_shear.rules() is not None:  # C8: the tabulated (IS 456 type) methods
         return tabulated_shear.method_lines(code)
     cite = code_context.cite
-    block = (
-        "the rectangular stress block η fcd over λ x, εcu3 at the extreme fibre"
-        if r.stressBlock == "rectangular"
-        else "the parabola-rectangle diagram (εc2, εcu2, n)"
-    )
+    block = block_text(r)
     shear = cite("concreteMethods", "shear")
     members = cite("concreteMethods", "beamSteel")
     from saengine.design import compression_field_shear
@@ -353,6 +414,11 @@ def basis_note(fck: float, fyk: float) -> str:
     block = (
         f"η = {p.eta:.2f}, λ = {p.lam:.2f}, εcu3 = {1e3 * p.eps_cu3:.2f} ‰"
         if r.stressBlock == "rectangular"
+        # Alpha 9 C25: the diagrams of the nonlinear deformation model.
+        else f"bilinear, εc3 = {1e3 * p.eps_c3:.2f} ‰, εcu3 = {1e3 * p.eps_cu3:.2f} ‰"
+        if r.stressBlock == "bilinear"
+        else f"trilinear, εc2 = {1e3 * p.eps_c2:.2f} ‰, εcu2 = {1e3 * p.eps_cu2:.2f} ‰"
+        if r.stressBlock == "trilinear"
         else f"parabola-rectangle, εc2 = {1e3 * p.eps_c2:.2f} ‰, εcu2 = {1e3 * p.eps_cu2:.2f} ‰"
     )
     clause = code_context.cite("concreteMethods", "designStrength")

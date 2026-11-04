@@ -296,11 +296,32 @@ def period_upper_factor(z: Any = None) -> float | None:
     return None if upper is None else float(upper)
 
 
-def base_shear_correction(period: float, storeys: int, site_class: str) -> float:
+def linear_mode_share(levels: list[tuple[float, float]]) -> float:
+    """Alpha 9 C25: (Σ Wi hi)² / (Σ Wi Σ Wi hi²) of (height, weight) levels, the share of the
+    weight a first mode linear in the height carries (SP 14.13330.2018 5.5 ηk with Xk(x) = x);
+    1.0 without levels."""
+    total = sum(w for _, w in levels)
+    first = sum(w * h for h, w in levels)
+    second = sum(w * h * h for h, w in levels)
+    if total <= 0 or second <= 0:
+        return 1.0
+    return min(1.0, first * first / (total * second))
+
+
+def base_shear_correction(
+    period: float,
+    storeys: int,
+    site_class: str,
+    levels: list[tuple[float, float]] | None = None,
+) -> float:
     """C4: the factor on the equivalent static base shear of the pack's
     ``seismic.lateralForce`` (EN 1998-1 4.3.3.2.2: λ = 0.85 when T1 ≤ 2·TC and the building has
-    more than two storeys, else 1.0); 1.0 without the rule."""
+    more than two storeys, else 1.0); 1.0 without the rule. Alpha 9 C25: with the rule's
+    ``correctionMethod`` "linearMode" the share of the linear first mode of ``levels``
+    ((height above the base, weight) pairs, :func:`linear_mode_share`)."""
     rule = getattr(code_context.table("seismic"), "lateralForce", None)
+    if rule is not None and getattr(rule, "correctionMethod", "constant") == "linearMode":
+        return linear_mode_share(levels) if levels else 1.0
     if rule is None or rule.correction >= 1.0 or storeys < rule.minStoreys:
         return 1.0
     if rule.periodTcFactor is not None:
@@ -417,6 +438,54 @@ def wind_factor(name: str) -> float:
     terrain's (or the override); :func:`topographic_factor` gives it at a height on a hill."""
     own = (_WIND_OVERRIDES.get() or {}).get(name)
     return own if own is not None else float(getattr(code_context.table("wind"), name))
+
+
+def _along_grid(xs: list[float], x: float) -> tuple[int, int, float]:
+    """(i, j, t) of x along the ascending ``xs``: between xs[i] and xs[j] at share t (the end
+    values outside)."""
+    if x <= xs[0]:
+        return 0, 0, 0.0
+    if x >= xs[-1]:
+        last = len(xs) - 1
+        return last, last, 0.0
+    for k in range(len(xs) - 1):
+        if xs[k] <= x <= xs[k + 1]:
+            span = xs[k + 1] - xs[k]
+            return k, k + 1, (x - xs[k]) / span if span > 0 else 0.0
+    last = len(xs) - 1
+    return last, last, 0.0
+
+
+def pulsation_correlation(width: float, height: float) -> float:
+    """Alpha 9 C25: ν of the pack's ``wind.pulsation`` at ρ = ``width`` [m] and χ =
+    ``height`` [m] (bilinear in its table, the end values outside)."""
+    rule = code_context.table("wind").pulsation
+    i0, i1, ti = _along_grid(list(rule.rho), float(width))
+    j0, j1, tj = _along_grid(list(rule.chi), float(height))
+    v = rule.values
+
+    def row(i: int) -> float:
+        return float(v[i][j0] + (v[i][j1] - v[i][j0]) * tj)
+
+    return row(i0) + (row(i1) - row(i0)) * ti
+
+
+def pulsation_factor(height: float, exposure: str, nu: float) -> float:
+    """Alpha 9 C25: G(z) = 1 + ζ(z) ν, ζ(z) = pulsationZeta (max(z, kzMinHeight) / zg)^(-1/α)
+    of the exposure (SP 20.13330.2016 11.1.8, Table 11.4 type); the project's gust override
+    wins."""
+    own = (_WIND_OVERRIDES.get() or {}).get("gust")
+    if own is not None:
+        return own
+    table = code_context.table("wind")
+    profile = table.exposures[exposure]
+    least = table.kzMinHeight if table.kzMinHeight is not None else 4.57
+    if profile.kzMinHeight is not None:
+        least = profile.kzMinHeight
+    zeta = profile.pulsationZeta * (max(float(height), least) / profile.zg) ** (
+        -1.0 / profile.alpha
+    )
+    return 1.0 + zeta * nu
 
 
 def gust_factor(height: float, exposure: str) -> float:
@@ -683,14 +752,27 @@ def wind_levels(
     by_height = getattr(wind, "cpByHeight", None)
     # Alpha 9 C19: G of the building's height where the exposure gives it (gust_factor).
     gust = gust_factor(heights[-1], exposure)
+    # Alpha 9 C25 (SP 20.13330.2016 11.1.5, 11.1.8 type): the windward wall at ze of the
+    # building's proportions and G = 1 + ζ(ze) ν in place of the gust factor (powerLaw).
+    proportions = getattr(wind, "referenceHeight", "level") == "proportions"
+    pulsation = getattr(wind, "pulsation", None)
+
+    def storey_width(i: int) -> float:
+        return max(spans[i][1] - spans[i][0], 0.0)
+
+    def gust_at(z: float, i: int) -> float:
+        if pulsation is None:
+            return gust
+        return pulsation_factor(z, exposure, pulsation_correlation(storey_width(i), heights[-1]))
 
     def leeward(i: int) -> float:
         width = spans[i][1] - spans[i][0]
         if width <= 0:
             return 0.0
+        g = gust_at(heights[-1], i)
         if by_height:  # C7: Cp by h/w and l/w
-            return qh * gust * wall_coefficients(heights[-1], width, depths[i])[1]
-        return qh * gust * leeward_coefficient(depths[i] / width)
+            return qh * g * wall_coefficients(heights[-1], width, depths[i])[1]
+        return qh * g * leeward_coefficient(depths[i] / width)
 
     def windward_cp(i: int) -> float:
         if by_height:
@@ -700,7 +782,15 @@ def wind_levels(
 
     out = []
     for i, z in enumerate(heights):
-        windward = velocity_pressure(z, speed, exposure, importance) * gust * windward_cp(i)
+        if proportions or pulsation is not None:  # Alpha 9 C25
+            from saengine.fem.peak_velocity_pressure import reference_height
+
+            ze = reference_height(z, heights[-1], storey_width(i)) if proportions else z
+            windward = (
+                velocity_pressure(ze, speed, exposure, importance) * gust_at(ze, i) * windward_cp(i)
+            )
+        else:
+            windward = velocity_pressure(z, speed, exposure, importance) * gust * windward_cp(i)
         parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
         if i + 1 < n:
             parts.append((i + 1, (heights[i + 1] - z) / 2))

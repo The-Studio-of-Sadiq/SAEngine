@@ -863,6 +863,27 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `seismic.lateralForce.topForce.storeyFactor` | Ft = storeyFactor × N × V at the top, N the number of levels (periodFrom, factor, maxShare now optional) |
 | `seismic.siteClasses.*.shape[].c2`, `n2` | A second power term c2 (t0/T)^n2 of a spectral shape branch |
 
+### Russia and the CIS (alpha 9 C25)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `russia-sp` | `bnbc2020` | SP 20.13330.2016: the first and second limit state groups as the strength and service combinations, γf (1.1 / 1.3 / 1.4 / 1.4), ψt 1.0 / 0.9 / 0.7, the floor live loads of Table 8.3 with ψA1 and ψn1, the snow regions I-VIII (S0 = μ Sg), the wind regions Ia-VII with k(ze) of terrain A-C, ze by the proportions and the pulsation ζ ν; SP 14.13330.2018: 25 cities with the OSR-2015 intensities on the maps A, B, C (the map by the occupancy), soil categories I-IV with β(T) and the one-point shift, Sik = K0 K1 A β Kψ ηik (K0 as the importance, R = 1/K1), ηk of a linear mode, the special combination 0.9 / 0.5, the close-mode combination, height limits by intensity; SP 63.13330.2018: Rb, Rbt, Eb of B15-B60 with γb1, Rs of A240 / A400 / A500C, the rectangular block with ξR or the nonlinear deformation model, shear by the inclined section, punching, cracks, deflection, cover, anchorage and laps, least steel, bars Ø6-Ø40; SP 16.13330.2017: Ry of C245-C390 with γm, φ of the curves a, b, c; SP 22.13330.2016: the design resistance R; SI |
+
+The generic keys it adds, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `locations.*.mapZones` with `seismic.hazardMaps` (`maps`, `default`, `byOccupancy`) | The town's zone on the hazard map of the project's occupancy category (OSR-2015 A, B, C type), in `derived` (`hazardMap` in the values) |
+| `seismic.lateralForce.correctionMethod` `linearMode` | The static base shear × (Σ W h)² / (Σ W Σ W h²), the share of a linear first mode (SP 14 ηk) |
+| `wind.referenceHeight` `proportions` | The windward wall at ze of h and the windward width (h <= b, b < h <= 2b, h > 2b) under `powerLaw` |
+| `wind.pulsation` (`rho`, `chi`, `values`) with `exposures.*.pulsationZeta` | G(z) = 1 + ζ(ze) ν in place of the gust factor, ζ = pulsationZeta (z/zg)^(-1/α), ν of the table by the windward width and the height |
+| `concreteMethods.ultimate.designStrengths` | (fck, fcd, fctd, Ecm) rows: the code's rounded design strengths by class (× αcc, αct) in place of fck/γc and the relations |
+| `concreteMethods.ultimate.cubePrefix` | Classes named by the cube strength ("B25") |
+| `concreteMethods.ultimate.stressBlock` `bilinear`, `trilinear` | The two- and three-linear diagrams of a nonlinear deformation model, integrated over the section's mesh (the section in equilibrium under a plane strain distribution) |
+| `concreteMethods.shear.inclinedSection` (method `qbQsw`) | Beam shear Q <= Qb + Qsw at the projection c giving the least (Qb = φb2 fctd b h0²/c within bounds, Qsw = φsw qsw c0), the strut φb1 fcd b h0; Design Reinforcement inverts it |
+| `concreteMethods.shear.stirrupYieldShare`, `stirrupYieldMax` | The links' design yield × share, at most the cap (Rsw = 0.8 Rs <= 300 MPa) |
+| `foundations.shallow.designResistance` (method `frictionAngleFactors`) | R = γc1 γc2 / k (Mγ kz b γ + Mq d γ' + Mc c) of the soil report's founding layer, qa = R - σv, in place of the bearing capacity over FS |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SP 14.13330.2018 5.5 (A = 0.1, 0.2, 0.4 for 7, 8, 9 points)"
+  ],
+  "source": "SP 14.13330.2018 5.5: the ground acceleration A in g of the site's intensity (7: 0.1, 8: 0.2, 9: 0.4); zone 0 (5 points and below) no earthquake, zone 1 (6 points) 0.05 (half of 7: SP 14 asks no calculation below 7; SAEngine practice, P), zone 5 (10 points, beyond SP 14: a site-specific study, P) 0.8. The soil category's one-point shift is in the site classes' spectral shape (seismic.siteClasses).",
+  "zones": {
+    "0": 0.0,
+    "1": 0.05,
+    "2": 0.1,
+    "3": 0.2,
+    "4": 0.4,
+    "5": 0.8
+  }
+}

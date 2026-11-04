@@ -116,6 +116,14 @@ class Location(_Row):
         description="Id of the pack's seismic.spectra the town takes (e.g. its design "
         "earthquake group); empty: the pack's spectrumType.",
     )
+    # Alpha 9 C25 (SP 14.13330.2018 4.3, the OSR-2015 maps A, B, C: one intensity per map and
+    # return period): the town's zone on each of the pack's seismic.hazardMaps; the map a
+    # project takes is the pack's by occupancy category. Empty: ``zone`` alone.
+    mapZones: dict[str, int] | None = Field(
+        default=None,
+        description="Zone (index into zoneCoefficients) by hazard map id (seismic.hazardMaps); "
+        "empty: zone for every map.",
+    )
 
 
 class Town(_Row):
@@ -1692,6 +1700,14 @@ class LateralForceRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     correction: float = Field(default=1.0, gt=0, le=1)
+    # Alpha 9 C25 (SP 14.13330.2018 5.5, ηk of a first mode taken linear in the height): the
+    # base shear × (Σ Wi hi)² / (Σ Wi Σ Wi hi²), the share of the weight the linear mode
+    # carries, in place of ``correction`` (with distribution "linear": Fi = Sa Wi ηi exactly).
+    correctionMethod: Literal["constant", "linearMode"] = Field(
+        default="constant",
+        description="constant: correction (with periodTcFactor, minStoreys); linearMode: "
+        "(Σ Wi hi)² / (Σ Wi Σ Wi hi²) of the levels.",
+    )
     periodTcFactor: float | None = Field(default=None, gt=0)
     minStoreys: int = Field(default=0, ge=0)
     # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period). Alpha 9 C19:
@@ -1910,6 +1926,30 @@ class SeismicGradesRule(BaseModel):
     clause: str = ""
 
 
+class HazardMapsRule(BaseModel):
+    """Alpha 9 C25 (SP 14.13330.2018 4.3 type: the OSR-2015 maps A, B and C of 10 %, 5 % and
+    1 % in 50 years): the map a project's town zone is read from (``locations.*.mapZones``),
+    by the occupancy category (``byOccupancy``), else ``default``. A project overrides either
+    value (``seismic.hazardMaps.default`` ...)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    maps: dict[str, str] = Field(description="Map id -> its name, for the settings and report.")
+    default: str = Field(description="The map id of an occupancy category not listed.")
+    byOccupancy: dict[str, str] = Field(
+        default_factory=dict, description="Occupancy category -> map id."
+    )
+    clause: str = ""
+
+
+def hazard_map(rule: HazardMapsRule | None, occupancy: str | None) -> str | None:
+    """Alpha 9 C25: the hazard map id of ``occupancy`` by the pack's ``hazardMaps`` (None
+    without the rule)."""
+    if rule is None:
+        return None
+    return rule.byOccupancy.get(str(occupancy), rule.default) if occupancy else rule.default
+
+
 class SeismicTable(TableModel):
     """Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis."""
 
@@ -2071,6 +2111,13 @@ class SeismicTable(TableModel):
         description="The seismic grade's force factors and γRE in the member design; empty: "
         "not applied.",
     )
+    # Alpha 9 C25: the hazard map of the town's zone by occupancy (SP 14 4.3 type; empty: the
+    # town's zone alone).
+    hazardMaps: HazardMapsRule | None = Field(
+        default=None,
+        description="The town's zone by hazard map (locations mapZones), the map by occupancy "
+        "category; empty: the town's zone.",
+    )
 
     @model_validator(mode="after")
     def _chosen_spectrum(self) -> SeismicTable:
@@ -2123,6 +2170,38 @@ class Exposure(_Row):
         description="(building height H [m], G) points, linear between, the end values "
         "outside; empty: the table's gust.",
     )
+    # Alpha 9 C25 (SP 20.13330.2016 11.1.8, Table 11.4: ζ(ze) = ζ10 (ze/10)^-α): the
+    # pulsation coefficient of this terrain at the reference height zg, for the table's
+    # ``pulsation`` (ζ(z) = this × (max(z, kzMinHeight)/zg)^(-1/alpha)).
+    pulsationZeta: float | None = Field(
+        default=None, gt=0, description="ζ at the height zg (wind.pulsation); empty: none."
+    )
+
+
+class WindPulsation(BaseModel):
+    """Alpha 9 C25 (SP 20.13330.2016 11.1.8-11.1.11 type): the mean pressure plus its
+    pulsation, G(z) = 1 + ζ(ze) ν in place of the table's gust: ζ of the exposure
+    (``pulsationZeta``), ν the spatial correlation of the windward face by ρ = its width b and
+    χ = the building height h (``rho``, ``chi``, ``values``: a row per ρ, bilinear between, the
+    end values outside). The dynamic factor ξ of flexible buildings (f1 < flim) is not
+    applied (ξ = 1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rho: list[Annotated[float, Field(gt=0)]] = Field(min_length=2, description="ρ [m] of the rows.")
+    chi: list[Annotated[float, Field(gt=0)]] = Field(
+        min_length=2, description="χ [m] of the columns."
+    )
+    values: list[list[Annotated[float, Field(gt=0, le=1)]]] = Field(
+        description="ν, a row per ρ, a value per χ."
+    )
+    clause: str = ""
+
+    @model_validator(mode="after")
+    def _shape(self) -> WindPulsation:
+        if len(self.values) != len(self.rho) or any(len(r) != len(self.chi) for r in self.values):
+            raise ValueError("pulsation: one row of ν per ρ and one value per χ")
+        return self
 
 
 class WindDesignCasesRow(_Row):
@@ -2963,6 +3042,19 @@ class WindTable(TableModel):
     minimumLateral: MinimumLateral | None = Field(
         default=None, description="Least storey force as a share of the dead weight; None: none."
     )
+    # Alpha 9 C25 (SP 20.13330.2016 11.1.5, 11.1.8): the windward wall at the reference height
+    # ze of the building's proportions (h <= b: h; up to 2b: b and h; above: b, z, h) and the
+    # pulsation in place of the gust factor (powerLaw only).
+    referenceHeight: Literal["level", "proportions"] = Field(
+        default="level",
+        description="level: qz at each level's height; proportions: at ze by h and the "
+        "windward width b (powerLaw).",
+    )
+    pulsation: WindPulsation | None = Field(
+        default=None,
+        description="G(z) = 1 + ζ(ze) ν in place of gust (powerLaw, the exposures' "
+        "pulsationZeta); empty: gust.",
+    )
 
     @model_validator(mode="after")
     def _profiles(self) -> WindTable:
@@ -2973,6 +3065,13 @@ class WindTable(TableModel):
                 raise ValueError(f"exposure {key}: z0 and zmin are required (peakVelocityPressure)")
         if self.method == "peakVelocityPressure" and self.peakVelocityPressure is None:
             raise ValueError("peakVelocityPressure: the method needs its constants")
+        if self.pulsation is not None:  # Alpha 9 C25
+            missing = [k for k, row in self.exposures.items() if row.pulsationZeta is None]
+            if self.method != "powerLaw" or missing:
+                raise ValueError(
+                    "pulsation: needs the powerLaw method and every exposure's pulsationZeta"
+                    + (f" (missing: {', '.join(missing)})" if missing else "")
+                )
         if self.method == "speedFactors":
             if self.speedFactors is None:
                 raise ValueError("speedFactors: the method needs its factors")
@@ -4858,6 +4957,30 @@ class LayerwiseSettlement(_Group):
     oedometricFactor: Positive
 
 
+class DesignResistanceRule(_Group):
+    """Alpha 9 C25 (SP 22.13330.2016 5.6.7 type, :func:`saengine.soil.bearing.design_resistance`):
+    the design resistance of the founding soil, the mean pressure under the footing at most
+    R = γc1 γc2 / k (Mγ kz b γ + Mq d q' + Mc c) with q' the effective overburden at the base
+    (d γ'), Mγ, Mq, Mc by φ (``factors``: (φ [°], Mγ, Mq, Mc) rows, linear between), γc1 by the
+    soil's behaviour (``conditionFactors``), γc2 for the structure, k by how the strength was
+    found, kz = 1 below ``kzWidth``, else z0/b + kzOffset. In place of qa = (qu - σ'v)/FS of the
+    founding layer (the deeper layers keep the parent's check); net of the total overburden
+    like every qa."""
+
+    method: Literal["frictionAngleFactors"]
+    factors: list[
+        tuple[Annotated[float, Field(ge=0)], Annotated[float, Field(ge=0)], Positive, Positive]
+    ] = Field(min_length=2, description="(φ [°], Mγ, Mq, Mc) rows.")
+    conditionFactors: dict[str, Positive] = Field(
+        description="γc1 by the founding layer's behaviour (granular, cohesive)."
+    )
+    structureFactor: Positive = Field(description="γc2.")
+    reliability: Positive = Field(description="k (1.1: strength from tables or correlations).")
+    kzWidth: Positive = Field(description="kz = 1 for b below this [m].")
+    kzDepth: Positive = Field(description="z0 [m] of kz = z0/b + kzOffset.")
+    kzOffset: float = Field(ge=0)
+
+
 class ShallowFoundations(_Group):
     """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
     allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
@@ -4942,6 +5065,13 @@ class ShallowFoundations(_Group):
         default=None,
         description="The settlement of footings by the layer-wise summation with the "
         "empirical factor ψs (method ``layerwiseSummation``); empty: SAEngine's methods.",
+    )
+    # Alpha 9 C25 (SP 22.13330.2016 5.6.7 type): the design resistance R of the founding layer.
+    designResistance: DesignResistanceRule | None = Field(
+        default=None,
+        description="R = γc1 γc2 / k (Mγ kz b γ + Mq d γ' + Mc c) of the soil report's founding "
+        "layer in place of the bearing capacity over FS (method ``frictionAngleFactors``); "
+        "empty: the bearing capacity equation.",
     )
 
 

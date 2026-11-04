@@ -1,0 +1,435 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "SP 14.13330.2018 (with amendments) Sections 4-6, Tables 1-5"
+  ],
+  "source": "SP 14.13330.2018: the intensity of the site (MSK-64) from the OSR-2015 maps A, B, C by the responsibility (4.3) and the soil category I-IV (Table 1: I one point less, III one point more), the design seismic load Sik = K0 K1 S0ik with S0ik = Qk A β(Ti) Kψ ηik (5.5): A 0.1, 0.2, 0.4 g for 7, 8, 9 points, β(T) by the soil category (5.6, at least 0.8), K0 by the purpose (Table 3, the occupancy's seismic importance), K1 by the allowed damage of the system (Table 5, R = 1/K1), Kψ 1.0 for buildings (Table 4); the modal method with the modes to 90 % of the mass and the combination of 5.10-5.11 (SRSS, the close modes T ratio >= 0.9 by CQC); ηk of the first mode taken linear for the static method (5.5); the height limits by the system and intensity (Table 8, U). Every value is in VERIFY.md (the tables written from memory: U).",
+  "defaultSiteClass": "II",
+  "defaultSystem": "rcFrame",
+  "siteClasses": {
+    "$replace": true,
+    "I": {
+      "description": "Category I: rock, frozen rock and coarse soils (the site one point below the map: Ch = 0.5 β(T), β of categories I-II)",
+      "S": 0.5,
+      "TB": 0.1,
+      "TC": 0.4,
+      "TD": 3.90625,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 0.5,
+          "b": 7.5
+        },
+        {
+          "upTo": 0.4,
+          "a": 1.25
+        },
+        {
+          "upTo": 3.90625,
+          "c": 1.25,
+          "t0": 0.4,
+          "n": 0.5
+        },
+        {
+          "a": 0.4
+        }
+      ]
+    },
+    "II": {
+      "description": "Category II: weathered rock, dense and medium sands, clays of IL <= 0.5 (the map's intensity: Ch = β(T) of categories I-II)",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.4,
+      "TD": 3.90625,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.0,
+          "b": 15.0
+        },
+        {
+          "upTo": 0.4,
+          "a": 2.5
+        },
+        {
+          "upTo": 3.90625,
+          "c": 2.5,
+          "t0": 0.4,
+          "n": 0.5
+        },
+        {
+          "a": 0.8
+        }
+      ]
+    },
+    "III": {
+      "description": "Category III: loose sands, clays of IL > 0.5 (the site one point above the map: Ch = 2 β(T), β of categories III-IV)",
+      "S": 2.0,
+      "TB": 0.1,
+      "TC": 0.8,
+      "TD": 7.8125,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 2.0,
+          "b": 30.0
+        },
+        {
+          "upTo": 0.8,
+          "a": 5.0
+        },
+        {
+          "upTo": 7.8125,
+          "c": 5.0,
+          "t0": 0.8,
+          "n": 0.5
+        },
+        {
+          "a": 1.6
+        }
+      ]
+    },
+    "IV": {
+      "description": "Category IV: very soft soils (a site-specific study; category III assumed meanwhile)",
+      "S": 2.0,
+      "TB": 0.1,
+      "TC": 0.8,
+      "TD": 7.8125,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 2.0,
+          "b": 30.0
+        },
+        {
+          "upTo": 0.8,
+          "a": 5.0
+        },
+        {
+          "upTo": 7.8125,
+          "c": 5.0,
+          "t0": 0.8,
+          "n": 0.5
+        },
+        {
+          "a": 1.6
+        }
+      ]
+    }
+  },
+  "systems": {
+    "$replace": true,
+    "rcFrame": {
+      "name": "RC frame without diaphragms (K1 0.35)",
+      "R": 2.857143,
+      "Omega0": 1.0,
+      "Cd": 2.857143,
+      "row": "SP 14 Table 5 item 2 (RC frame)",
+      "heightLimits": {
+        "A": null,
+        "B": 30.0,
+        "C": 23.0,
+        "D": 17.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "group": "frame",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    },
+    "rcFrameWall": {
+      "name": "RC frame with diaphragms (walls) or braces (K1 0.3)",
+      "R": 3.333333,
+      "Omega0": 1.0,
+      "Cd": 3.333333,
+      "row": "SP 14 Table 5 item 2 (frame with diaphragms)",
+      "heightLimits": {
+        "A": null,
+        "B": 50.0,
+        "C": 40.0,
+        "D": 30.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "frameWall",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    },
+    "rcWall": {
+      "name": "Monolithic RC walls (K1 0.25)",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 4.0,
+      "row": "SP 14 Table 5 item 2 (large-panel or monolithic walls)",
+      "heightLimits": {
+        "A": null,
+        "B": 75.0,
+        "C": 60.0,
+        "D": 45.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "wall",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    },
+    "rcFrameTube": {
+      "name": "RC frame with a core (diaphragms) (K1 0.3)",
+      "R": 3.333333,
+      "Omega0": 1.0,
+      "Cd": 3.333333,
+      "row": "SP 14 Table 5 item 2 (frame with diaphragms)",
+      "heightLimits": {
+        "A": null,
+        "B": 50.0,
+        "C": 40.0,
+        "D": 30.0
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "frameTube",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    },
+    "steelFrame": {
+      "name": "Steel frame without diaphragms or braces (K1 0.25)",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 4.0,
+      "row": "SP 14 Table 5 item 2 (steel frame)",
+      "heightLimits": {
+        "A": null,
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "group": "steelFrame",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    },
+    "steelBraced": {
+      "name": "Steel frame with diaphragms or braces (K1 0.22)",
+      "R": 4.545455,
+      "Omega0": 1.0,
+      "Cd": 4.545455,
+      "row": "SP 14 Table 5 item 2 (steel frame with braces)",
+      "heightLimits": {
+        "A": null,
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "steelBraced",
+      "note": "R = 1 / (K1 Kψ) with Kψ 1.0 (buildings); Cd = R (the displacements of the K1-reduced analysis × 1/K1: SAEngine practice); the detailing of SP 14 Section 6 taken as SAEngine's intermediate level (P)"
+    }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": [
+      "steelFrame"
+    ],
+    "steelBracedFrame": [
+      "steelBraced"
+    ]
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "$replace": true,
+      "I": "all",
+      "II": "all",
+      "III": "all",
+      "IV": "all"
+    },
+    "bySiteClass": {
+      "$replace": true,
+      "I": {
+        "all": [
+          "A",
+          "A",
+          "A",
+          "B",
+          "C",
+          "D"
+        ]
+      },
+      "II": {
+        "all": [
+          "A",
+          "A",
+          "B",
+          "C",
+          "D",
+          "D"
+        ]
+      },
+      "III": {
+        "all": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "IV": {
+        "all": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {
+      "$replace": true
+    },
+    "zoneColumns": {
+      "0": 0,
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5
+    }
+  },
+  "requiredDetailing": {
+    "$replace": true,
+    "A": "ordinary",
+    "B": "ordinary",
+    "C": "intermediate",
+    "D": "intermediate"
+  },
+  "allowableDrift": {
+    "$replace": true,
+    "I": 0.02,
+    "II": 0.02,
+    "III": 0.015,
+    "IV": 0.01
+  },
+  "allowableDriftLabel": "SAEngine practice (SP 14.13330.2018 gives no storey drift limit for the design earthquake): 2 % (I, II), 1.5 % (III), 1 % (IV) of the storey height on Cd × the K1-reduced drift",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "displacementFactor",
+  "siteSpecificStudy": {
+    "$replace": true,
+    "classes": [
+      "IV"
+    ],
+    "assumedClass": "III",
+    "clause": "SP 14.13330.2018 Table 1 (category IV)",
+    "warning": "Soil category {classes}: {code} asks for a site-specific study ({clause}); category {assumed} is used meanwhile"
+  },
+  "dampingEta": 1.0,
+  "dampingCorrection": {
+    "$replace": true,
+    "method": "none"
+  },
+  "designSpectrum": {
+    "$replace": true,
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "SP 14.13330.2018 5.5, 5.6",
+    "shapeFactors": {
+      "performance": [
+        [
+          1.0,
+          1.0
+        ],
+        [
+          10.0,
+          1.0
+        ]
+      ],
+      "clauses": {
+        "performance": "5.5 (no Sp: 1.0)"
+      }
+    },
+    "clauses": {
+      "shape": "5.6 (β of the soil category)",
+      "static": "5.5"
+    }
+  },
+  "lateralForce": {
+    "correctionMethod": "linearMode",
+    "distribution": "linear",
+    "clause": "SP 14.13330.2018 5.5 (ηk of a first mode linear in the height)"
+  },
+  "modalCombination": {
+    "method": "independence",
+    "ratio": 0.9
+  },
+  "hazardMaps": {
+    "maps": {
+      "A": "OSR-2015 map A (10 % in 50 years: mass construction)",
+      "B": "OSR-2015 map B (5 % in 50 years: increased responsibility)",
+      "C": "OSR-2015 map C (1 % in 50 years: especially important)"
+    },
+    "default": "A",
+    "byOccupancy": {
+      "I": "A",
+      "II": "A",
+      "III": "B",
+      "IV": "C"
+    },
+    "clause": "SP 14.13330.2018 4.3"
+  },
+  "dynamicAnalysis": null,
+  "liveShare": 0.65,
+  "heavyLiveLimit": null,
+  "heavyLiveShare": null,
+  "minimumScale": 0.0,
+  "accidentalEccentricity": 0.1,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.0,
+  "clauses": {
+    "systems": "SP 14.13330.2018 Table 5 (K1), Table 8 (heights)",
+    "spectrum": "5.5, 5.6",
+    "elf": "5.5",
+    "modal": "5.9-5.11",
+    "drift": "SAEngine practice",
+    "maps": "4.3, Appendix A",
+    "soil": "Table 1",
+    "importance": "Table 3 (K0)"
+  },
+  "sources": {
+    "siteClasses": "SP 14.13330.2018 Table 1 (soil categories I-III, IV special, U) and 5.6: β = 1 + 15 T (T <= 0.1 s), 2.5 (to 0.4 s for I-II, 0.8 s for III-IV), 2.5 (Tc/T)^0.5 beyond, at least 0.8 (U); the one-point intensity shift of Table 1 as the factor 0.5 / 1 / 2 on β (A doubles per point: SAEngine's form, P)",
+    "systems": "SP 14.13330.2018 Table 5: K1 0.35 RC frame, 0.3 with diaphragms, 0.25 monolithic walls, 0.25 steel frame, 0.22 braced (U); Table 4: Kψ 1.0 for buildings (1.5 for towers and masts: not covered, U); Table 8 heights [m] at 7, 8, 9 points (U; above them SP 14 asks for scientific support, not a ban)",
+    "liveShare": "SP 14.13330.2018 Table 2: short-term loads at 0.5 of their design value (γf 1.3): 0.65 (the long-term share at 0.8 not split, U)",
+    "accidentalEccentricity": "SP 14.13330.2018 5.? (U): the accidental eccentricity 0.1 of the plan dimension taken",
+    "minimumScale": "SP 14 has no scaling of the modal results to the static base shear (0)",
+    "lateralForce": "SP 14.13330.2018 5.5: Sik = K0 K1 A β Kψ Qk ηik, ηk = Xk(xk) Σ Qj Xk(xj) / Σ Qj Xk²(xj) with X linear: V = Sa (Σ Q h)² / Σ Q h², Fi ∝ Qi hi",
+    "modalCombination": "SP 14.13330.2018 5.10-5.11: SRSS, the modes closer than 0.9 by CQC (U)",
+    "hazardMaps": "SP 14.13330.2018 4.3: map A for mass construction, B or C for the objects of increased responsibility and especially important ones (the client's choice: III -> B, IV -> C taken, P)",
+    "allowableDrift": "SAEngine practice (P)",
+    "dynamicAnalysis": "SP 14 asks for the modal method for buildings: the run makes both (the parent's height rule not used)",
+    "orthogonalShare": "SAEngine practice (P): 100 % + 30 %",
+    "pgaFactor": "a_h = A × the soil factor (S)"
+  }
+}

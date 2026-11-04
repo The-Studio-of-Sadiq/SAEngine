@@ -3189,6 +3189,20 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     zones = pack.table("zoneCoefficients").zones if pack.has("zoneCoefficients") else {}
     zone_z = zones.get(location.zone) if location else None
     zone = location.zone if location else None
+    # Alpha 9 C25 (SP 14.13330.2018 4.3 type): the town's zone on the pack's hazard map of the
+    # occupancy category (locations mapZones); unchanged for a pack without hazardMaps.
+    from saengine.codes.tables import hazard_map
+
+    map_extra: dict[str, Any] = {}
+    map_id = hazard_map(
+        getattr(pack.table("seismic"), "hazardMaps", None), settings.occupancy.category
+    )
+    if map_id is not None:
+        map_extra = {"hazardMap": map_id}
+        own = getattr(location, "mapZones", None) if location else None
+        if own and map_id in own:
+            zone = own[map_id]
+            zone_z = zones.get(zone)
     z: Any = settings.site.zoneCoefficient or zone_z
     # C1: a pack whose spectrum comes from mapped values: "Z" is the site's SpectralHazard
     # (a float SDS with SD1, S1, TL; saengine.fem.spectral_hazard), "zone" its category band.
@@ -3226,6 +3240,7 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
         "Z": z,
         "windSpeed": speed,
         **extra,
+        **map_extra,
         "seismicImportance": category.seismicImportance,
         "windImportance": category.windImportance,
         "R": settings.seismic.r or system.R,

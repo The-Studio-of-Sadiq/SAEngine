@@ -1,0 +1,126 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "GOST 34028-2016 (A400, A500C bars) sizes; SP 63.13330.2018 10.3.6"
+  ],
+  "source": "GOST 34028-2016 hot-rolled ribbed bars A400 and A500C (named Ø and the diameter); the other values the parent's",
+  "barDiameters": {
+    "$replace": true,
+    "all": [
+      6.0,
+      8.0,
+      10.0,
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      25.0,
+      28.0,
+      32.0,
+      36.0,
+      40.0
+    ],
+    "main": [
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      25.0,
+      28.0
+    ],
+    "column": [
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      25.0,
+      28.0,
+      32.0
+    ],
+    "slab": [
+      8.0,
+      10.0,
+      12.0
+    ],
+    "stirrup": [
+      8.0,
+      10.0,
+      12.0
+    ],
+    "wall": [
+      8.0,
+      10.0,
+      12.0,
+      14.0,
+      16.0
+    ],
+    "boundary": [
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      25.0
+    ],
+    "hoop": [
+      8.0,
+      10.0,
+      12.0
+    ],
+    "lintel": [
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0
+    ],
+    "tank": [
+      10.0,
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0
+    ],
+    "foundation": [
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      25.0
+    ]
+  },
+  "barNames": {
+    "$replace": true,
+    "6": "Ø6",
+    "8": "Ø8",
+    "10": "Ø10",
+    "12": "Ø12",
+    "14": "Ø14",
+    "16": "Ø16",
+    "18": "Ø18",
+    "20": "Ø20",
+    "22": "Ø22",
+    "25": "Ø25",
+    "28": "Ø28",
+    "32": "Ø32",
+    "36": "Ø36",
+    "40": "Ø40"
+  },
+  "columnRho": [
+    0.005,
+    0.04
+  ],
+  "sources": {
+    "barDiameters": "GOST 34028-2016 nominal diameters 6-40 mm (SAEngine's sets by use)",
+    "barNames": "Ø and the diameter (the grade A500C is the material's, not the name's)",
+    "columnRho": "SP 63.13330.2018 10.3.6 (0.25 % per face at λ >= 87: 0.5 % in total, P) and at most 4 % (SAEngine practice, P)"
+  }
+}

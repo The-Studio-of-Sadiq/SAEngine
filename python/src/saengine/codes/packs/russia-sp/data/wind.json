@@ -1,0 +1,152 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "SP 20.13330.2016 11.1.3-11.1.11 (w = wm + wp, wm = w0 k(ze) c, wp = wm ζ(ze) ν), Tables 11.1, 11.2, 11.4, 11.6, Appendix B.1.2"
+  ],
+  "source": "SP 20.13330.2016 Section 11: the mean component wm = w0 k(ze) c with k(ze) = k10 (ze/10)^2α of the terrain types A, B, C, ze by the building's proportions (11.1.5), the pulsation wp = wm ζ(ze) ν (11.1.8, for f1 > flim), c 0.8 windward and -0.5 leeward (B.1.2), γf 1.4 in the combinations. The dynamic factor ξ of flexible buildings (f1 < flim, 11.1.10) and the peak pressures of cladding (11.2) are not covered: the parent's cladding and roof coefficients are used (named BNBC 2020).",
+  "method": "powerLaw",
+  "exposures": {
+    "$replace": true,
+    "A": {
+      "description": "Type A: open coasts of seas, lakes and reservoirs, deserts, steppes, tundra",
+      "alpha": 6.6667,
+      "zg": 10.0,
+      "kzFactor": 1.0,
+      "kzMinHeight": 5.0,
+      "pulsationZeta": 0.76
+    },
+    "B": {
+      "description": "Type B: urban areas, forests and terrain evenly covered by obstacles over 10 m high",
+      "alpha": 5.0,
+      "zg": 10.0,
+      "kzFactor": 0.65,
+      "kzMinHeight": 5.0,
+      "pulsationZeta": 1.06
+    },
+    "C": {
+      "description": "Type C: urban areas with buildings over 25 m high",
+      "alpha": 4.0,
+      "zg": 10.0,
+      "kzFactor": 0.4,
+      "kzMinHeight": 10.0,
+      "pulsationZeta": 1.78
+    }
+  },
+  "defaultExposure": "B",
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.7,
+  "cpWindward": 0.8,
+  "cpLeeward": [
+    [
+      1.0,
+      -0.5
+    ]
+  ],
+  "referenceHeight": "proportions",
+  "pulsation": {
+    "rho": [
+      0.1,
+      5.0,
+      10.0,
+      20.0,
+      40.0,
+      80.0,
+      160.0
+    ],
+    "chi": [
+      5.0,
+      10.0,
+      20.0,
+      40.0,
+      80.0,
+      160.0,
+      350.0
+    ],
+    "values": [
+      [
+        0.95,
+        0.92,
+        0.88,
+        0.83,
+        0.76,
+        0.67,
+        0.56
+      ],
+      [
+        0.89,
+        0.87,
+        0.84,
+        0.8,
+        0.73,
+        0.65,
+        0.54
+      ],
+      [
+        0.85,
+        0.84,
+        0.81,
+        0.77,
+        0.71,
+        0.64,
+        0.53
+      ],
+      [
+        0.8,
+        0.78,
+        0.76,
+        0.73,
+        0.68,
+        0.61,
+        0.51
+      ],
+      [
+        0.72,
+        0.72,
+        0.7,
+        0.67,
+        0.63,
+        0.57,
+        0.48
+      ],
+      [
+        0.63,
+        0.63,
+        0.61,
+        0.59,
+        0.56,
+        0.51,
+        0.44
+      ],
+      [
+        0.53,
+        0.53,
+        0.52,
+        0.5,
+        0.47,
+        0.44,
+        0.38
+      ]
+    ],
+    "clause": "SP 20.13330.2016 11.1.11, Tables 11.6 and 11.7 (face zOy: ρ = b, χ = h)"
+  },
+  "flexible": null,
+  "topography": null,
+  "sources": {
+    "$replace": true,
+    "exposures": "SP 20.13330.2016 11.1.6, Table 11.3: k(ze) = k10 (ze/10)^2α, A: α 0.15, k10 1.0; B: 0.20, 0.65; C: 0.25, 0.4 (as Kz = kzFactor (z/zg)^(2/alpha) with zg 10 m and alpha = 1/α); k at least that at 5 m (A, B) and 10 m (C) as Table 11.2's first row (A 0.75 there: 0.81 here, on the safe side, U); Table 11.4 ζ at 10 m: A 0.76, B 1.06, C 1.78, ζ(ze) = ζ10 (ze/10)^-α",
+    "directionality": "SP 20 has no directionality factor: 1.0",
+    "topographic": "Flat terrain (SP 20 11.1 has no topographic factor for buildings): 1.0",
+    "gust": "Not an SP value (P): G 1.7 ≈ 1 + ζ(20 m, B) ν (0.92 × 0.76) only for the parent's roof and wall pressures that take the table's gust; the storey forces take 1 + ζ(ze) ν of the pulsation",
+    "cpWindward": "SP 20.13330.2016 Appendix B.1.2, Table B.2: ce 0.8 on the windward wall",
+    "cpLeeward": "SP 20.13330.2016 Appendix B.1.2: ce3 -0.5 (-0.4 to -0.6 by b/l and h/l, one value taken, U)",
+    "referenceHeight": "SP 20.13330.2016 11.1.5: ze = h for h <= d; d and h below and above for d < h <= 2d; d, z and h for h > 2d, d the windward width (SAEngine's EN 1991-1-4 7.2.2 form, the split of the middle case at z = d: U)",
+    "pulsation": "SP 20.13330.2016 11.1.8: wp = wm ζ(ze) ν, ν of Table 11.6 by ρ = b and χ = h (Table 11.7), bilinear between (U); for f1 < flim (Table 11.5) the dynamic factor ξ is not applied (U)"
+  },
+  "clauses": {
+    "$replace": true,
+    "gust": "11.1.8",
+    "pressure": "11.1.3, 11.1.4",
+    "exposure": "11.1.6"
+  }
+}
