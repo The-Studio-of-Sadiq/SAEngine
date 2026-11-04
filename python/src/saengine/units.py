@@ -459,10 +459,16 @@ def _number(text: str) -> float:
 _CHANGE = re.compile(r"Δ|±|\b(?:by|range|rise|drop|change|gradient)\b", re.IGNORECASE)
 
 
+#: Where the words before a temperature stop: a clause's end or the temperature before it.
+_CLAUSE_END = re.compile(r"[;,:()\n°]")
+
+
 def _is_change(text: str, at: int) -> bool:
     """Whether the temperature printed at ``at`` in ``text`` is a change (SAEngine practice: a
-    "Δ", "±" or one of :data:`_CHANGE`'s words within the 20 characters before it)."""
-    return _CHANGE.search(text[max(0, at - 20) : at]) is not None
+    "Δ", "±" or one of :data:`_CHANGE`'s words within the 20 characters before it, in its own
+    clause)."""
+    before = _CLAUSE_END.split(text[max(0, at - 20) : at])[-1]
+    return _CHANGE.search(before) is not None
 
 
 def convert_text(text: str, units: Units) -> str:

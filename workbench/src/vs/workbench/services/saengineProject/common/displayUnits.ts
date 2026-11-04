@@ -450,7 +450,9 @@ export function convertText(text: string, units: IDisplayUnits = activeDisplayUn
 		return text;
 	}
 	const quantities = text.replace(QUANTITY, (_whole: string, first: string, rest: string, unit: string, at: number) => {
-		const own = unit === '°C' && CHANGE.test(text.slice(Math.max(0, at - 20), at)) ? 'Δ°C' : unit;
+		// the words before it in its own clause (up to a ; , : ( ) or the temperature before it)
+		const before = text.slice(Math.max(0, at - 20), at).split(/[;,:()\n°]/).pop() ?? '';
+		const own = unit === '°C' && CHANGE.test(before) ? 'Δ°C' : unit;
 		const shown = rest.replace(SEPARATOR, (_part: string, gap: string, value: string) => gap + significantText(toDisplay(numberOf(value), own, units)));
 		return `${significantText(toDisplay(numberOf(first), own, units))}${shown} ${displayUnit(own, units)}`;
 	});

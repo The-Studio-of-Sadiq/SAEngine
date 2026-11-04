@@ -137,7 +137,7 @@ projects print and show exactly as before. SAEngine practice throughout:
   a field that holds a change names the kind `temperatureChange` (the thermal ΔTu and ΔTg, a
   timber service temperature above normal, the HVAC daily range: 1.8 °F per °C). In printed
   text a temperature is a change when "Δ", "±" or "by", "range", "rise", "drop", "change",
-  "gradient" stand within the 20 characters before it.
+  "gradient" stand within the 20 characters before it, in its own clause.
 - **Worksheet expressions with their values.** In US units every step whose expression is
   mathematics gets a "With values" form: the symbols replaced by the values as printed, juxtaposed
   factors joined by ×. An expression in the code's SI form (a root of a stress, a constant above

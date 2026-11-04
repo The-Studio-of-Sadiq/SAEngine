@@ -23,9 +23,9 @@ def test_temperatures_absolute_and_change():
     assert u.SI.label("Δ°C") == "°C"  # a change shows "°C" in SI
     assert u.SI.convert(20.0, "°C") == (20.0, "°C")
     # in text: a change after Δ, ± or "by", else an absolute temperature
-    text = "ΔTu = ±20 °C on the roof; supply at 13 °C; dry bulbs differ by 11 °C"
+    text = "ΔTu = ±20 °C on the roof; supply 13 °C; dry bulbs differ by 11 °C"
     assert u.convert_text(text, US) == (
-        "ΔTu = ±36 °F on the roof; supply at 55.4 °F; dry bulbs differ by 19.8 °F"
+        "ΔTu = ±36 °F on the roof; supply 55.4 °F; dry bulbs differ by 19.8 °F"
     )
     assert u.convert_text(text, u.SI) == text
 
