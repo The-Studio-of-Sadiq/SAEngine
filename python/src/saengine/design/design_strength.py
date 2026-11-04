@@ -56,6 +56,10 @@ def partial_factors() -> bool:
 
 
 def _relation(rel: Any, fck: float, high_from: float) -> float:
+    steps = getattr(rel, "steps", None)  # Alpha 9 C23: the value by strength band
+    if steps:
+        ordered = sorted(steps)
+        return float(next((v for top, v in ordered if fck <= top + 1e-9), ordered[-1][1]))
     if fck <= high_from or rel.highBase is None:
         return float(rel.base)
     if rel.top is not None:

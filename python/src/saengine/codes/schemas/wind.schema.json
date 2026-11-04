@@ -3843,6 +3843,36 @@
             }
           ],
           "default": null
+        },
+        "referencePressures": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "By terrain (exposure id): (height [m], reference design pressure [kN/m²]) points, linear between, constant outside. For such a terrain pz = q(z)·k1·k3·k4 (the factors then act on the pressure) and the basic wind speed is not used; its k2 is reported as √(q(z) / q(10 m)). Empty: pz = airFactor·Vz².",
+          "title": "Referencepressures"
         }
       },
       "required": [

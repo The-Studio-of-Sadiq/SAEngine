@@ -1,0 +1,84 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "HK Code of Practice for Structural Use of Concrete 2013: Table 2.2 (γm), Table 3.2 (Ec), 6.1.2.4 (stress block, neutral axis depth), 6.1.2.5 and Table 6.3 (vc, the maximum shear stress)"
+  ],
+  "ultimate": {
+    "gammaS": 1.15,
+    "strengthClasses": [
+      [25, 25],
+      [30, 30],
+      [35, 35],
+      [40, 40],
+      [45, 45],
+      [50, 50],
+      [60, 60],
+      [70, 70],
+      [80, 80]
+    ],
+    "relations": {
+      "ecmCoefficient": 3460,
+      "ecmDivisor": 1,
+      "ecmExponent": 0.5,
+      "ecmOffset": 3210,
+      "lambda": {
+        "steps": [
+          [45, 0.9],
+          [70, 0.8],
+          [100, 0.72]
+        ]
+      },
+      "epsCu2": {
+        "steps": [
+          [60, 3.5],
+          [70, 3.31],
+          [80, 3.23],
+          [90, 3.17],
+          [100, 3.12]
+        ]
+      },
+      "epsCu3": {
+        "steps": [
+          [60, 3.5],
+          [70, 3.31],
+          [80, 3.23],
+          [90, 3.17],
+          [100, 3.12]
+        ]
+      }
+    },
+    "neutralAxisSteps": [
+      [45, 0.5],
+      [70, 0.4],
+      [100, 0.33]
+    ]
+  },
+  "shear": {
+    "grades": [25, 30, 35, 40, 50, 60, 70, 80],
+    "tauC": [
+      [0.336, 0.357, 0.376, 0.393, 0.423, 0.45, 0.474, 0.495],
+      [0.398, 0.423, 0.445, 0.466, 0.501, 0.533, 0.561, 0.586],
+      [0.502, 0.533, 0.561, 0.587, 0.632, 0.672, 0.708, 0.74],
+      [0.574, 0.61, 0.642, 0.672, 0.723, 0.769, 0.809, 0.846],
+      [0.632, 0.672, 0.707, 0.739, 0.796, 0.846, 0.891, 0.931],
+      [0.723, 0.769, 0.809, 0.846, 0.911, 0.968, 1.019, 1.065],
+      [0.796, 0.846, 0.891, 0.931, 1.003, 1.066, 1.122, 1.173],
+      [0.912, 0.969, 1.02, 1.066, 1.149, 1.221, 1.285, 1.344]
+    ],
+    "maxStress": [4.0, 4.38, 4.73, 5.06, 5.66, 6.2, 6.69, 7.0]
+  },
+  "clauses": {
+    "designStrength": "2.4.3.2, Table 2.2",
+    "ultimate": "6.1.2.4, Figure 6.1",
+    "neutralAxis": "6.1.2.4(c) (x <= 0.5 d, 0.4 d, 0.33 d by grade)",
+    "shear": "6.1.2.5, Tables 6.2 and 6.3"
+  },
+  "sources": {
+    "ultimate.gammaS": "HK CoP Concrete 2013 Table 2.2: γm = 1.15 for reinforcement (BS 8110-1:1997 takes 1.05)",
+    "ultimate.strengthClasses": "HK CoP Concrete 2013 3.1.3: grades C20 to C100 (SAEngine lists C25 to C80, the range of the shear table)",
+    "ultimate.relations": "HK CoP Concrete 2013 Table 3.2: Ec = 3.46 √fcu + 3.21 kN/mm²; 6.1.2.4 and Figure 6.1: the rectangular block 0.67 fcu/γm over 0.9 x (fcu <= 45), 0.8 x (45 < fcu <= 70), 0.72 x (70 < fcu <= 100); εcu = 0.0035 up to C60 and 0.0035 - 0.00006 √(fcu - 60) above, entered as steps at each band's top (SAEngine form, on the safe side)",
+    "ultimate.neutralAxisSteps": "HK CoP Concrete 2013 6.1.2.4(c): x <= 0.5 d (fcu <= 45), 0.4 d (45 < fcu <= 70), 0.33 d (70 < fcu <= 100) without moment redistribution",
+    "shear.tauC": "HK CoP Concrete 2013 Table 6.3: vc = 0.79 (100 As/bv d)^1/3 (400/d)^1/4 / γm (γm 1.25) × (fcu/25)^1/3 with fcu up to 80 (BS 8110: up to 40); columns 25-40 as BS 8110 Table 3.8, columns 50-80 computed by (fcu/25)^1/3 from the 25 column",
+    "shear.maxStress": "HK CoP Concrete 2013 6.1.2.5(a): v at most 0.8 √fcu or 7 N/mm² (BS 8110: 5 N/mm²)"
+  }
+}

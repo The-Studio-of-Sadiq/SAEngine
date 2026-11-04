@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "HK Code of Practice on Wind Effects in Hong Kong 2019: Section 3 (reference design wind pressure by height), the topography factor Sq, the directionality and the size and dynamic factors"
+  ],
+  "source": "HK CoP Wind Effects 2019: the design wind pressure q(z) by the height above ground from the code's table of reference pressures (one profile for the territory), times the topography factor Sq of the site (Project Settings > Wind, the k3 / Kzt field: 1.0 on flat ground); storey forces by the wall coefficients (+0.85 windward, -0.5 leeward) with no lack-of-correlation reduction. Dynamically sensitive buildings (the code's size and dynamic factor of tall or slender buildings) are not covered.",
+  "defaultExposure": "hongKong",
+  "exposures": {
+    "$replace": true,
+    "hongKong": {
+      "description": "Hong Kong: the code's reference pressures (one profile for the territory)"
+    }
+  },
+  "speedFactors": {
+    "heightFactors": {
+      "$replace": true
+    },
+    "referencePressures": {
+      "hongKong": [
+        [2.5, 1.82],
+        [5, 2.01],
+        [10, 2.23],
+        [20, 2.46],
+        [30, 2.6],
+        [50, 2.79],
+        [75, 2.94],
+        [100, 3.06],
+        [150, 3.25],
+        [200, 3.39],
+        [250, 3.5],
+        [300, 3.6],
+        [400, 3.75],
+        [500, 3.88]
+      ]
+    },
+    "combination": 1.0,
+    "areaAveraging": 1.0
+  },
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "sources": {
+    "speedFactors.referencePressures": "HK CoP Wind Effects: design wind pressure q(z) [kPa] by height (2.5 m and below to 500 m, linear between, constant beyond); the numbers are those of the 2004 edition's Table 1 as SAEngine knows them, to be replaced by the 2019 edition's reference pressures where they differ (VERIFY.md H1)",
+    "speedFactors.combination": "HK CoP Wind Effects: no lack-of-correlation factor on the windward plus leeward force (SAEngine reading; 1.0)",
+    "speedFactors.areaAveraging": "HK CoP Wind Effects 2019: the size and dynamic factor of the building taken 1.0 (SAEngine practice for rigid buildings; the dynamic response of tall or slender buildings is not covered)",
+    "directionality": "HK CoP Wind Effects 2019: the directional factor Sθ taken 1.0 for every direction (the largest; override wind.directionality)",
+    "topographic": "HK CoP Wind Effects 2019: topography factor Sq on the pressure, 1.0 on flat ground; enter the site's Sq in Project Settings > Wind (it multiplies the pressure, not the speed)"
+  }
+}

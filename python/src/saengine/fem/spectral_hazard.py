@@ -24,6 +24,7 @@ Units: g, s.
 from __future__ import annotations
 
 from itertools import pairwise
+from types import SimpleNamespace
 from typing import Any, Self
 
 from saengine.codes import context as code_context
@@ -140,6 +141,18 @@ def site_hazard(spectral: Any, site_class: str, pack: Any = None) -> SpectralHaz
         sms, sm1 = get("sms"), get("sm1")
         if sms is not None and sm1 is not None:
             sds, sd1, source = share * sms, share * sm1, "SDS, SD1 = (2/3) SMS, SM1"
+    coefficients = getattr(hazard, "siteCoefficients", None)  # Alpha 9 C23: Fa SS, Fv S1
+    ss, s1 = get("ss"), get("s1")
+    missing = sds is None or sd1 is None
+    if missing and coefficients is not None and share and ss is not None and s1 is not None:
+        factors = site_factors(ss, s1, site_class, pack)
+        if factors is not None:
+            fa, fv, used = factors
+            sds, sd1 = share * fa * ss, share * fv * s1
+            source = (
+                f"SDS, SD1 = {share:.3g} × Fa SS, Fv S1 with Fa = {fa:.3g}, Fv = {fv:.3g} "
+                f"(site class {used})"
+            )
     mcer = getattr(spectral, "mcerSpectrum", None)
     if (sds is None or sd1 is None) and mcer:
         try:
@@ -151,6 +164,53 @@ def site_hazard(spectral: Any, site_class: str, pack: Any = None) -> SpectralHaz
         return None
     design = getattr(spectral, "designSpectrum", None) or None
     return SpectralHazard(sds, sd1, get("s1"), get("tl"), design, source)
+
+
+def _along(points: list[float], values: list[float], x: float) -> float:
+    return _interp(list(zip(points, values, strict=True)), x)
+
+
+def site_factors(
+    ss: float, s1: float, site_class: str, pack: Any = None
+) -> tuple[float, float, str] | None:
+    """Alpha 9 C23: (Fa, Fv, the class used) of the pack's ``siteCoefficients`` at the mapped
+    SS and S1 for ``site_class`` (a class needing a site study, ``siteSpecificStudy``, read as
+    its assumed class); None without the table or the class."""
+    hazard = rule(pack)
+    table = getattr(hazard, "siteCoefficients", None) if hazard is not None else None
+    if table is None:
+        return None
+    used = site_class
+    if used not in table.fa.classes or used not in table.fv.classes:
+        seismic = pack.table("seismic") if pack is not None else code_context.table("seismic")
+        study = getattr(seismic, "siteSpecificStudy", None)
+        if study is None or site_class not in study.classes:
+            return None
+        used = study.assumedClass or ""
+        if used not in table.fa.classes or used not in table.fv.classes:
+            return None
+    fa = _along(list(table.fa.points), list(table.fa.classes[used]), ss)
+    fv = _along(list(table.fv.points), list(table.fv.classes[used]), s1)
+    return fa, fv, used
+
+
+def with_location(spectral: Any, location: Any) -> Any:
+    """Alpha 9 C23: the site's mapped values with the town's (``locations`` SS, S1, TL) where
+    the project gives none; ``spectral`` itself when the town has none."""
+    names = ("ss", "s1", "tl")
+    town = {n: getattr(location, n, None) for n in names} if location is not None else {}
+    if not any(v is not None for v in town.values()):
+        return spectral
+    if spectral is None:
+        merged: dict[str, Any] = {}
+    elif hasattr(spectral, "model_dump"):
+        merged = spectral.model_dump()
+    else:
+        merged = dict(vars(spectral))
+    for name in names:
+        if merged.get(name) is None and town.get(name) is not None:
+            merged[name] = town[name]
+    return SimpleNamespace(**merged)
 
 
 def two_period(period: float, hazard: SpectralHazard, pack: Any = None) -> float:

@@ -82,13 +82,18 @@ def partial_factors() -> bool:
 # ─────────────────────────────── slab and stair strips ───────────────────────────────
 
 
-def neutral_axis_limit(fy: float) -> float:
-    """xu/d at most: (1 - k1)/k2 of the pack (EN 1992-1-1 5.5(4)); with C8's member limits
-    (IS 456 38.1(f)) εcu / (εcu + fyd/Es + their extra strain); else the depth at which the bars
-    just yield."""
+def neutral_axis_limit(fy: float, fc: float | None = None) -> float:
+    """xu/d at most: alpha 9 C23, the pack's band of grade ``fc`` where it gives
+    ``neutralAxisSteps`` (HK CoP 2013 6.1.2.4); (1 - k1)/k2 of the pack (EN 1992-1-1 5.5(4));
+    with C8's member limits (IS 456 38.1(f)) εcu / (εcu + fyd/Es + their extra strain); else the
+    depth at which the bars just yield."""
     from saengine.design.member_limits import limits
 
     r = design_strength.rules()
+    steps = getattr(r, "neutralAxisSteps", None)
+    if steps and fc is not None:
+        ordered = sorted(steps)
+        return float(next((v for top, v in ordered if fc <= top + 1e-9), ordered[-1][1]))
     if r.neutralAxisLimit is not None:
         k1, k2 = r.neutralAxisLimit
         return (1 - k1) / k2
@@ -115,7 +120,7 @@ def layer_capacity(
     a = p.lam * x
     mrd = area * f_yd * (d - a / 2)
     eps = p.eps_cu3 * (d - x) / x if x > 0 else math.inf
-    return LayerCapacity(area, d, a, x, eps, 1.0, mrd, mrd, neutral_axis_limit(fy))
+    return LayerCapacity(area, d, a, x, eps, 1.0, mrd, mrd, neutral_axis_limit(fy, fc))
 
 
 def one_way_shear(rho: float, d: float, fc: float) -> tuple[float, float]:
@@ -824,7 +829,7 @@ def beam_flexure_need(
     k, lam, eps_cu, es_ = _block(fc)
     es = es or es_
     f_yd = design_strength.fyd(fy)
-    x_lim = neutral_axis_limit(fy) * d
+    x_lim = neutral_axis_limit(fy, fc) * d
     a_lim = lam * x_lim
     as_lim = k * b * a_lim / f_yd
     m_lim = as_lim * f_yd * (d - a_lim / 2)
@@ -843,7 +848,7 @@ def beam_flexure_need(
     compression = (mu - m_lim) / ((fs - k) * (d - d_comp))
     area = as_lim + compression * (fs - k) / f_yd
     note = (
-        f"compression bars: beyond xu/d = {neutral_axis_limit(fy):.3f}"
+        f"compression bars: beyond xu/d = {neutral_axis_limit(fy, fc):.3f}"
         + (f" ({_cite('redistribution')})" if _cite("redistribution") else "")
         + f", σs2 = {fs:.0f} MPa"
     )
@@ -867,7 +872,7 @@ def with_minimum(required: float, minimum: float) -> float:
 def slab_max_area(d: float, fc: float, fy: float) -> float:
     """The most bars per metre [mm²/m] at ``d``: those that put the neutral axis at the limit."""
     k, lam, _eps, _es = _block(fc)
-    return k * 1000.0 * lam * neutral_axis_limit(fy) * d / design_strength.fyd(fy)
+    return k * 1000.0 * lam * neutral_axis_limit(fy, fc) * d / design_strength.fyd(fy)
 
 
 def strain_limit(fy: float) -> float:

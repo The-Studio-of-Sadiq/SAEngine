@@ -30,6 +30,48 @@
           "exclusiveMinimum": 0,
           "title": "Windspeed",
           "type": "number"
+        },
+        "ss": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCE acceleration SS at short periods [g].",
+          "title": "Ss"
+        },
+        "s1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCE acceleration S1 [g].",
+          "title": "S1"
+        },
+        "tl": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Long-period transition period TL [s].",
+          "title": "Tl"
         }
       },
       "required": [

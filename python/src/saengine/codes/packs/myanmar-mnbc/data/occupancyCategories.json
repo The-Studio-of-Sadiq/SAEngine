@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$sources": [
+    "MNBC 2020 Part 3 occupancy categories with the wind importance factor of the 50-year wind (ASCE 7-05 Table 6-1 form) and the seismic importance factor (ASCE 7-05 Table 11.5-1 form, as the parent)"
+  ],
+  "categories": {
+    "I": {"windImportance": 0.87},
+    "II": {"windImportance": 1.0},
+    "III": {"windImportance": 1.15},
+    "IV": {"windImportance": 1.15}
+  },
+  "sources": {
+    "categories": "MNBC 2020 Part 3 (ASCE 7-05 Table 6-1 form, regions not prone to hurricanes): wind importance I = 0.87, 1.0, 1.15, 1.15 for categories I-IV; the seismic importance 1.0, 1.0, 1.25, 1.5 is the parent's (the same values)"
+  }
+}

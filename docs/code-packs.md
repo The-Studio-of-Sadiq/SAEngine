@@ -703,6 +703,29 @@ The generic keys these two packs add, open to any pack (absent: the behaviour be
 | `seismic.designSpectrum.shapePlateau`, `descendingExponent`, `leastCoefficient` | the plateau, the power of TC/T and the least C/R of `reducedElastic` |
 | `seismic.lateralForce.topForce` | Ft = factor T V at most maxShare V when T > periodFrom |
 
+### Thin country packs (alpha 9 C23)
+
+Small built-in packs that extend a family pack and set only what the country changes (each
+pack's README and `VERIFY.md` are in `python/src/saengine/codes/packs/<id>/`; the Malaysian and
+Singapore annexes are the National Annex packs above):
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `myanmar-mnbc` | `aci318-asce7-22` | MNBC 2020: towns with the zone, SS, S1 and V; Fa, Fv and site classes A-F; the 1.6W combinations and wind importance of the ASCE 7-05 form; ASCE 7-05 exposure constants; metric bars; SI |
+| `bhutan` | `is-codes` | Towns with the IS seismic zone (IV west, V elsewhere) and Vb |
+| `qatar-qcs` | `bs8110` | QCS 2014: towns with Vb (BS 6399-2), a coastal default terrain, the 'severe' exposure; no seismic loading |
+| `hongkong-cop` | `bs8110` | HK CoP Wind 2019 pressures by height; HK CoP Concrete 2013 γm, stress block and x/d by grade, Ec, vc to C80, vmax 7 N/mm²; HK imposed loads; no seismic loading |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.siteCoefficients` (`fa`, `fv`) | Under `mappedSpectral`: SMS = Fa SS, SM1 = Fv S1 by site class (linear between the points) where SDS, SD1 and SMS, SM1 are not given; a site-study class is read as its assumed class |
+| `locations.*.ss`, `s1`, `tl` | A town's mapped values, used where the project enters none (Site > Mapped spectral values win) |
+| `wind.speedFactors.referencePressures` | By terrain, (height, kN/m²) points: pz = q(z) k1 k3 k4 (the factors on the pressure), the basic speed not used |
+| `concreteMethods.ultimate.relations.<relation>.steps` | (fck up to, value) bands in place of base and the high relation (stress block depth, εcu, ...) |
+| `concreteMethods.ultimate.neutralAxisSteps` | (fck up to, xu/d) bands of the neutral axis limit where the grade is known |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

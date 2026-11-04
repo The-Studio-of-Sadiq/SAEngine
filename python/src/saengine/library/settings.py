@@ -2808,6 +2808,8 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         for key, v in locations.locations.items():
             z = zones.get(v.zone)
             hazard = f"zone {v.zone}, Z {z:.2f}, " if z is not None else f"zone {v.zone}, "
+            if v.ss is not None and v.s1 is not None:  # Alpha 9 C23: the town's mapped values
+                hazard = f"zone {v.zone}, SS {v.ss:g}, S1 {v.s1:g}, "
             rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
         out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
     if area is not None:
@@ -3088,7 +3090,9 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped(pack):
-        z = sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack)
+        # Alpha 9 C23: the town's mapped SS, S1, TL where the project enters none.
+        spectral = sh.with_location(settings.site.spectral, location)
+        z = sh.site_hazard(spectral, settings.site.siteClass, pack)
         zone = sh.band(z, pack) if z is not None else None
     speed = settings.site.windSpeed or (location.windSpeed if location else None)
     # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
@@ -3434,7 +3438,9 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
 
     if not sh.uses_mapped(pack):
         return []
-    if sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack) is not None:
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    spectral = sh.with_location(settings.site.spectral, locations.get(settings.site.location))
+    if sh.site_hazard(spectral, settings.site.siteClass, pack) is not None:
         return []
     edition = pack.edition or pack.name
     return [
