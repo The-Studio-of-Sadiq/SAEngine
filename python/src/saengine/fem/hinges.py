@@ -520,7 +520,16 @@ def variables(
     n_comp = max(0.0, float(hist.forces[step, 0]))
     shear = float(np.max(hist.forces[: step + 1, 2 if axis == 0 else 1]))
     moment = float(hist.forces[step, 4 if axis == 0 else 5])
-    out: dict[str, float | str] = {"N": n_comp, "V": shear, "M": moment, "b": b, "h": h, "d": d}
+    shear_now = float(hist.forces[step, 2 if axis == 0 else 1])
+    out: dict[str, float | str] = {
+        "N": n_comp,
+        "V": shear,
+        "Vstep": shear_now,
+        "M": moment,
+        "b": b,
+        "h": h,
+        "d": d,
+    }
     unit = math.sqrt(rule.stressUnitPerMPa)
     if sec.concrete:
         fc, fy = sec.fc, sec.fy
@@ -711,7 +720,7 @@ def column_shear_strength(rule: Any, values: dict[str, Any], ag: float) -> float
     fc = float(values.get("fc", 0.0))
     d, s = float(values.get("d", 0.0)), float(values.get("s", 0.0))
     steel = float(values.get("Av", 0.0)) * float(values.get("fyt", 0.0)) * MPA * d / s if s else 0.0
-    shear = float(values.get("V", 0.0))
+    shear = float(values.get("Vstep", values.get("V", 0.0)))
     span = float(values.get("M", 0.0)) / (shear * d) if shear > 0 and d > 0 else rule.shearSpan[1]
     span = min(max(span, rule.shearSpan[0]), rule.shearSpan[1])
     root = math.sqrt(fc) if fc > 0 else 0.0
@@ -730,7 +739,7 @@ def chord_rotation_capacity(hinge: Hinge, rule: Any, values: dict[str, Any]) -> 
     rho_t = float(values.get("rho", 0.0)) * float(values["d"]) / h
     rho_c = float(values.get("rhoCompression", 0.0)) * float(values["d"]) / h
     omega, omega_c = rho_t * fy / fc, rho_c * fy / fc
-    shear = float(values.get("V", 0.0))
+    shear = float(values.get("Vstep", values.get("V", 0.0)))
     lv = float(values.get("M", 0.0)) / shear if shear > 0 else hinge.length / 2
     lv = max(lv, 1e-3 * h)
     ties = _ties(hinge)
@@ -1091,10 +1100,11 @@ def step_ratios(
     target: dict[str, Any],
     step: int,
     project_path: Any = None,
+    library: dict[str, Any] | None = None,
 ) -> dict[int, float]:
     """The ratio of demand to the checked level's limit of the hinges at ``step``, per element
     of the pushover model (its member's largest), for colouring the members by state."""
-    found = evaluate_rows_at(project, results, target, step, project_path)
+    found = evaluate_rows_at(project, results, target, step, project_path, library)
     ratios: dict[int, float] = {}
     for row in found:
         if not row.get("covered") or row.get("ratio") is None:
@@ -1110,9 +1120,11 @@ def evaluate_rows_at(
     target: dict[str, Any],
     step: int,
     project_path: Any = None,
+    library: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """The hinge rows at any ``step`` (the parameters at the target's), checked against the
-    main hazard's performance level."""
+    main hazard's performance level (``library``: the object types, else read beside
+    ``project_path``)."""
     from saengine.fem.pushover_target import table as pushover_table
 
     pushover = pushover_table()
@@ -1122,9 +1134,9 @@ def evaluate_rows_at(
     levels = [lv.id for lv in rules.levels]
     hazards = target.get("hazards") or []
     main = hazards[0]["level"] if hazards else checked_level(levels, pushover.acceptance)
-    evaluated = _evaluated(
-        project, results, int(target["targetStep"]), rules, levels, library_beside(project_path)
-    )
+    if library is None:
+        library = library_beside(project_path)
+    evaluated = _evaluated(project, results, int(target["targetStep"]), rules, levels, library)
     return [row_at(item, step, levels, main, "") for item in evaluated]
 
 
