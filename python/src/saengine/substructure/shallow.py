@@ -403,7 +403,7 @@ def one_way_shear_capacity(b: float, d: float, rho: float, fc: float, lam: float
     from saengine.design import tabulated_shear
 
     if tabulated_shear.rules() is not None:
-        return tabulated_shear.tau_c(fc, 100 * max(rho, 0.0)) * b * d
+        return tabulated_shear.tau_c(fc, 100 * max(rho, 0.0), d=d) * b * d
     # Alpha 9 C5b: with the pack's variable strut method VRd,c of the strip (strut_shear).
     from saengine.design import method_selection
 

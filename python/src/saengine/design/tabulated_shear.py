@@ -99,13 +99,24 @@ def _interp(x: float, xs: list[float], ys: list[float]) -> float:
     return float(ys[-1])
 
 
-def tau_c(fck: float, pt: float, r: Any | None = None) -> float:
-    """τc [MPa] at steel ratio ``pt`` [%] and grade ``fck`` [MPa]."""
+def tau_c(fck: float, pt: float, r: Any | None = None, d: float | None = None) -> float:
+    """τc [MPa] at steel ratio ``pt`` [%] and grade ``fck`` [MPa]; alpha 9 C10: times the
+    pack's depth factor at the effective depth ``d`` [mm] where it gives one."""
     r = r or rules()
     by_grade = [
         _interp(pt, list(r.steelRatios), [row[g] for row in r.tauC]) for g in range(len(r.grades))
     ]
-    return _interp(fck, list(r.grades), by_grade)
+    return _interp(fck, list(r.grades), by_grade) * depth_factor(d, r)
+
+
+def depth_factor(d: float | None, r: Any | None = None) -> float:
+    """Alpha 9 C10: (reference / d)^exponent at least ``min`` of the pack's
+    ``shear.depthFactor`` (BS 8110-1 Table 3.8, (400/d)^1/4 >= 1); 1 without it or ``d``."""
+    r = r or rules()
+    f = getattr(r, "depthFactor", None)
+    if f is None or not d or d <= 0:
+        return 1.0
+    return max(float(f.min), (float(f.reference) / d) ** float(f.exponent))
 
 
 def tau_c_max(fck: float, r: Any | None = None) -> float:
@@ -154,7 +165,7 @@ def beam_shear(section: Any, stirrup_dia: float | None, legs: int, spacing: floa
     ]
     rho = min(a for a in faces if a > 0) / (b * d)
     pt = 100 * rho
-    tc = tau_c(section.fc, pt, r)
+    tc = tau_c(section.fc, pt, r, d)
     tmax = tau_c_max(section.fc, r)
     fyd = stirrup_yield(section.fy, r)
     av = legs * bar_area(stirrup_dia) if stirrup_dia and spacing else 0.0
@@ -261,7 +272,7 @@ def column_rows(section: Any, transverse: Any | None, points: Any) -> list[dict[
         if far <= 0:
             far = 0.5 * section.steel_area
         pt = 100 * far / (part.bw * part.d)
-        tc = tau_c(fck, pt, r)
+        tc = tau_c(fck, pt, r, part.d)
         vus = fyd * part.av * part.d / part.spacing if part.av and part.spacing else 0.0
         vmax = tmax * part.bw * part.d
         vc = delta * tc * part.bw * part.d
@@ -315,7 +326,7 @@ def required_stirrups(vu: float, b: float, d: float, fck: float, fy: float, pt: 
     """Asv / sv [mm²/mm] for Vu [N] (the larger of the shear's and the least)."""
     r = rules()
     fyd = stirrup_yield(fy, r)
-    need = max(vu - tau_c(fck, pt, r) * b * d, 0.0) / (fyd * d)
+    need = max(vu - tau_c(fck, pt, r, d) * b * d, 0.0) / (fyd * d)
     return max(need, r.minStirrupStress * b / fyd)
 
 
@@ -358,7 +369,7 @@ def torsion_rows(
     shear = beam_shear(section, *(stirrups if stirrups else (None, 0, None)))
     pt = 100 * shear.rho_w
     fyd = stirrup_yield(section.fy, r)
-    tc = tau_c(section.fc, pt, r)
+    tc = tau_c(section.fc, pt, r, d)
     tmax = tau_c_max(section.fc, r)
 
     def evaluate(point: tuple[float, float, float, str, str]) -> dict[str, float]:
@@ -475,7 +486,7 @@ def torsion_need(
         d = section.effective_depth(top=False)
     except Exception:  # noqa: BLE001
         d = section.effective_depth(top=True)
-    tc = tau_c(section.fc, float(r.steelRatios[0]), r)
+    tc = tau_c(section.fc, float(r.steelRatios[0]), r, d)
     fyd = stirrup_yield(section.fy, r)
     worst = max(points, key=lambda p: abs(p[1]) + t.shearFactor * abs(p[0]) / b)
     ve = abs(worst[1]) + t.shearFactor * abs(worst[0]) / b
@@ -655,10 +666,45 @@ def method_lines(code: str) -> list[str]:
 
     u = design_strength.rules()
     r = rules()
+    # Alpha 9 C10: the block's force and centroid from the pack's values (IS 456: 0.36 fck xu
+    # at 0.42 xu; BS 8110: 0.405 fcu x at 0.45 x).
+    rel = u.relations
+    force = float(rel.eta.base) * u.alphaCC / u.gammaC * float(rel.lam.base)
     block = (
-        "the rectangular block equivalent to the parabola-rectangle (0.36 fck xu at 0.42 xu)"
+        f"the rectangular block equivalent to the parabola-rectangle ({force:.3g} fck xu at "
+        f"{float(rel.lam.base) / 2:.3g} xu)"
         if u.stressBlock == "rectangular"
         else "the parabola-rectangle diagram (0.002, 0.0035)"
+    )
+    e_text = (
+        "emin = "
+        + (f"l/{u.eccentricityLengthDivisor:g} + " if u.eccentricityLengthDivisor else "")
+        + f"D/{u.eccentricityDivisor:g}"
+    )
+    if u.eccentricityMin >= 1:
+        e_text += f" >= {u.eccentricityMin:g} mm"
+    if u.eccentricityMax is not None:
+        e_text += f" <= {u.eccentricityMax:g} mm"
+    from saengine.design import additional_moment
+
+    col = additional_moment.rules()
+    divisor = f"{col.slenderness.divisor:g}" if col is not None else "2000"
+    biaxial = (
+        "biaxial bending by the load contour (Mux/Mux1)^αn + (Muy/Muy1)^αn <= 1"
+        f"{_paren('biaxial')}, Mux1 and Muy1 from the interaction surface at Pu"
+        if col is None or col.biaxial.method == "loadContour"
+        else f"biaxial bending by the interaction surface at Pu{_paren('biaxial')}"
+    )
+    torsion = (
+        [
+            (
+                "Beam torsion by the equivalent shear Ve = Vu + 1.6 Tu/b and moment Me1 = Mu + "
+                f"Tu (1 + D/b)/1.7 with closed links for Tu and Vu{_paren('torsion')} (the "
+                "pack's factors)."
+            )
+        ]
+        if torsion_rules() is not None
+        else []
     )
     shares = u.axialShares
     cap = (
@@ -685,10 +731,7 @@ def method_lines(code: str) -> list[str]:
             f"cover by the exposure condition and the development and lap lengths by the design "
             f"bond stress{_paren('beamSteel')}."
         ),
-        (
-            "Beam torsion by the equivalent shear Ve = Vu + 1.6 Tu/b and moment Me1 = Mu + Tu (1 + "
-            f"D/b)/1.7 with closed links for Tu and Vu{_paren('torsion')} (the pack's factors)."
-        ),
+        *torsion,
         (
             "Beam deflection: the span / effective depth ratio with the modification factors of "
             "the tension and compression steel and the flanges, and the deflection from the "
@@ -697,12 +740,10 @@ def method_lines(code: str) -> list[str]:
         ),
         (
             f"Columns: axial force with biaxial bending, {cap}, the moments at least Pu emin "
-            f"about both axes at once (emin = l/500 + D/30 >= 20 mm{_paren('minimumEccentricity')}); "
-            "slender columns (lex/D above the limit) with the additional moments Pu D/2000 "
-            f"(lex/D)² reduced by k = (Puz - Pu)/(Puz - Pb){_paren('slenderness')}; biaxial "
-            f"bending by the load contour (Mux/Mux1)^αn + (Muy/Muy1)^αn <= 1{_paren('biaxial')}, "
-            "Mux1 and Muy1 from the interaction surface at Pu; least and largest steel, bars, "
-            f"ties{_paren('columnSteel')}."
+            f"about both axes at once ({e_text}{_paren('minimumEccentricity')}); "
+            f"slender columns (lex/D above the limit) with the additional moments Pu D/{divisor} "
+            f"(lex/D)² reduced by k = (Puz - Pu)/(Puz - Pb){_paren('slenderness')}; {biaxial}; "
+            f"least and largest steel, bars, ties{_paren('columnSteel')}."
         ),
     ] + _remainder_lines(r)
 

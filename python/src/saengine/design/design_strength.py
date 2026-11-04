@@ -102,7 +102,7 @@ def properties(fck: float, found: Any | None = None) -> ConcreteProperties:
         fctm=fctm,
         fctk005=lo * fctm,
         fctk095=hi * fctm,
-        ecm=r.ecmCoefficient * (fcm / r.ecmDivisor) ** r.ecmExponent,
+        ecm=r.ecmOffset + r.ecmCoefficient * (fcm / r.ecmDivisor) ** r.ecmExponent,
         eps_c2=_relation(r.epsC2, fck, h) / 1e3,
         eps_cu2=_relation(r.epsCu2, fck, h) / 1e3,
         n=_relation(r.n, fck, h),
@@ -188,7 +188,10 @@ def eccentricity(depth: float, length: float = 0.0) -> float:
     e = depth / r.eccentricityDivisor
     if r.eccentricityLengthDivisor is not None:
         e += length / r.eccentricityLengthDivisor
-    return max(e, r.eccentricityMin)
+    e = max(e, r.eccentricityMin)
+    if r.eccentricityMax is not None:  # Alpha 9 C10: BS 8110-1 3.8.2.4 (at most 20 mm)
+        e = min(e, r.eccentricityMax)
+    return e
 
 
 def minimum_moment(pu: float, depth: float, length: float = 0.0) -> float:

@@ -97,18 +97,21 @@ def slender_points(
         lu, k = float(info.get("lu") or 0.0), float(info.get("k") or 1.0)
         lex = k * lu
         ratio = lex / depth if depth > 0 else 0.0
-        slender_axis = ratio > s.limit
+        # Alpha 9 C10: a column of a sway storey against the pack's unbraced limit (BS 8110-1
+        # 3.8.1.3: 10 unbraced, 15 braced), where it gives one.
+        limit = s.unbracedLimit if s.unbracedLimit is not None and info.get("sway") else s.limit
+        slender_axis = ratio > limit
         pb = balanced_axial(section, axis) if slender_axis else 0.0
         if slender_axis:
             adds[axis] = (lex, depth, pb)
         pu_max = max((p[0] for p in points), default=0.0)
         ma = _additional(pu_max, depth, lex, p_uz, pb, s) if slender_axis else 0.0
         note = f"lex = k lu = {k:.2f} × {lu:.0f} = {lex:.0f} mm, D = {depth:.0f} mm: " + (
-            f"slender (> {s.limit:g}), Ma = Pu D/{s.divisor:g} (lex/D)² k = "
+            f"slender (> {limit:g}), Ma = Pu D/{s.divisor:g} (lex/D)² k = "
             f"{ma / 1e6:.2f} kN·m at Pu = {pu_max / 1e3:.0f} kN (Puz = {p_uz / 1e3:.0f} kN, "
             f"Pb = {pb / 1e3:.0f} kN)"
             if slender_axis
-            else f"short (<= {s.limit:g}), no additional moment"
+            else f"short (<= {limit:g}), no additional moment"
         )
         rows.append(
             _check(

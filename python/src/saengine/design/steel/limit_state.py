@@ -361,6 +361,40 @@ def tension_rupture(
 # ───────────────────────────────────────── compression ─────────────────────────────────────────
 
 
+def imperfection(value: float, robertson: bool, e: float, fy: float) -> float:
+    """α of the curve: ``value`` itself, or (alpha 9 C10, BS 5950-1:2000 Annexes B and C, the
+    Perry factor η = a (λ - λ0) / 1000 on the slenderness) a π √(E / fy) / 1000."""
+    if not robertson:
+        return float(value)
+    return float(value) * math.pi * math.sqrt(e / fy) / 1000.0
+
+
+def design_steel(shape: ShapeProperties, steel: Steel, table: Any | None = None) -> Steel:
+    """Alpha 9 C10: ``steel`` with fy the pack's ``designStrength`` row of its grade at the
+    thickness of the shape's thickest element (BS 5950-1:2000 Table 9, py; the flange of I and
+    channel sections); ``steel`` unchanged without the rows, the grade or a thickness."""
+    import dataclasses
+
+    t = _t(table)
+    rows_by_grade = getattr(t, "designStrength", None) or {}
+    rows = rows_by_grade.get(f"{steel.fy:g}")
+    if not rows:
+        return steel
+    d = shape.dims
+    thickness = d.get("tf") or d.get("t") or d.get("tw")
+    if not thickness:
+        return steel
+    for most, py in sorted(rows):
+        if thickness <= most:
+            break
+    else:
+        py = max(rows)[1]
+    if py == steel.fy:
+        return steel
+    note = f"py = {py:g} MPa at t = {thickness:g} mm ({cite('designStrength') or 'the pack'})"
+    return dataclasses.replace(steel, fy=float(py), notes=(*steel.notes, note))
+
+
 def chi(lam: float, alpha: float, plateau: float) -> float:
     """χ = 1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²]."""
     if lam <= plateau:
@@ -397,7 +431,9 @@ def _fcd(fy: float, e: float, kl: float, r: float, curve: str, t: Any) -> tuple[
     if kl <= 0:
         return fy / t.partialFactors.gammaM0, 0.0
     lam = math.sqrt(fy / (math.pi**2 * e / (kl / r) ** 2))
-    c = chi(lam, float(t.compression.alpha[curve]), float(t.compression.plateau))
+    comp = t.compression
+    alpha = imperfection(comp.alpha[curve], comp.robertson, e, fy)
+    c = chi(lam, alpha, float(comp.plateau))
     return c * fy / float(t.partialFactors.gammaM0), lam
 
 
@@ -444,7 +480,8 @@ def compression(
         lam_vv = (length / shape.rz) / base
         lam_phi = (shape.dims["b"] + shape.dims["d"]) / (2 * shape.dims["t"]) / base
         lam_e = math.sqrt(max(k1 + k2 * lam_vv**2 + k3 * lam_phi**2, 0.0))
-        c = chi(lam_e, float(comp.alpha[comp.angleCurve]), float(comp.plateau))
+        alpha = imperfection(comp.alpha[comp.angleCurve], comp.robertson, e, fy)
+        c = chi(lam_e, alpha, float(comp.plateau))
         pd = area * c * fy / g0
         cap = Capacity(
             1.0,
@@ -565,7 +602,9 @@ def flexure_major(
             md,
             cls,
         )
-    alpha = float(t.flexure.alphaLT["welded" if t.welded else "rolled"])
+    alpha = imperfection(
+        t.flexure.alphaLT["welded" if t.welded else "rolled"], t.flexure.robertson, e, fy
+    )
     c = chi(lam, alpha, float(t.flexure.ltbBase))
     mdl = min(beta * zp * c * fy / g0, md)
     return Flexure(
@@ -676,8 +715,13 @@ def shear_capacity(
     fy, e = steel.fy, steel.e
     g0 = float(t.partialFactors.gammaM0)
     av, how = shear_area(shape, axis, t.welded)
-    vp = av * fy / math.sqrt(3)
-    note = f"Vd = Av fyw / (√3 γm0), {how} = {av:.0f} mm², γm0 = {g0:g}"
+    share = getattr(t.shear, "yieldShare", None)  # Alpha 9 C10: BS 5950-1 4.2.3, 0.6 py
+    vp = av * fy / math.sqrt(3) if share is None else av * fy * float(share)
+    note = (
+        f"Vd = Av fyw / (√3 γm0), {how} = {av:.0f} mm², γm0 = {g0:g}"
+        if share is None
+        else f"Vd = {float(share):g} Av fyw / γm0, {how} = {av:.0f} mm², γm0 = {g0:g}"
+    )
     if axis != "y" or shape.family not in ("I", "channel"):
         return Capacity(1 / g0, vp, "shear yielding", cite("shear"), note)
     s = t.shear
@@ -705,7 +749,7 @@ def shear_capacity(
     lam = math.sqrt(fy / (math.sqrt(3) * tau_e))
     low, high = s.lambdaLimits
     if lam <= low:
-        tau = fy / math.sqrt(3)
+        tau = fy / math.sqrt(3) if share is None else fy * float(share)
     elif lam < high:
         tau = (1 - float(s.lambdaSlope) * (lam - low)) * fy / math.sqrt(3)
     else:
@@ -818,6 +862,7 @@ def check_member(
             raise SteelDesignError(str(error)) from error
         return found + _remainder_rows(shape, steel, stations, options)
     t = _t(None)
+    steel = design_steel(shape, steel, t)  # alpha 9 C10: py by thickness where the pack has it
     g0 = float(t.partialFactors.gammaM0)
     nd = shape.area * steel.fy / g0
     ty = tension_yielding(shape, steel, t)

@@ -63,6 +63,8 @@ class StrengthRelations(_Group):
     ecmCoefficient: Positive = Field(description="Ecm = c (fcm / divisor)^exponent [MPa].")
     ecmDivisor: Positive
     ecmExponent: Positive
+    # Alpha 9 C10 (BS 8110-2 7.2: Ec = 20 + 0.2 fcu GPa): Ecm = offset + c (fcm / divisor)^e.
+    ecmOffset: float = Field(default=0.0, ge=0, description="Ecm = offset + ... [MPa].")
     epsC2: PowerRelation
     epsCu2: PowerRelation
     n: PowerRelation
@@ -106,6 +108,10 @@ class UltimateRules(_Group):
     )
     eccentricityLengthDivisor: Positive | None = Field(
         default=None, description="e0 = l / this + h / eccentricityDivisor (none: h only)."
+    )
+    # Alpha 9 C10 (BS 8110-1 3.8.2.4: emin = 0.05 h, at most 20 mm).
+    eccentricityMax: Positive | None = Field(
+        default=None, description="e0 at most this [mm] (none: no cap)."
     )
 
 
@@ -401,6 +407,14 @@ class ExposureClass(_Group):
 # member_limits, panel_coefficients, ductile_detailing.
 
 
+class DepthFactor(_Group):
+    """A depth factor on the tabulated τc: (reference / d)^exponent, at least ``min``."""
+
+    reference: Positive = Field(description="[mm]")
+    exponent: Positive
+    min: Positive = 1.0
+
+
 class TabulatedShearRules(_Group):
     """Shear by a design shear strength of concrete tabulated by the tension steel ratio and the
     grade (method ``tabulatedStress``): τc from ``tauC`` (rows by ``steelRatios`` [%], columns
@@ -428,6 +442,10 @@ class TabulatedShearRules(_Group):
         description="δ = 1 + axialFactor Pu / (Ag fck) on τc of columns (none: δ = 1).",
     )
     axialMax: Positive | None = Field(default=None, description="δ at most this.")
+    # Alpha 9 C10 (BS 8110-1 Table 3.8): τc × (reference / d)^exponent, at least min, every member.
+    depthFactor: DepthFactor | None = Field(
+        default=None, description="τc × (reference / d)^exponent >= min (none: 1)."
+    )
 
 
 class EquivalentTorsionRules(_Group):
@@ -468,6 +486,13 @@ class SpanDepthFactorRules(_Group):
         "tension steel curve, at most max; fs = stressShare fy As,req / As,prov."
     )
     stressShare: Share
+    # Alpha 9 C10 (BS 8110-1 Table 3.10): kt = a + (b - fs) / (c (d0 + M/bd²)) <= max.
+    tensionMoment: tuple[Positive, Positive, Positive, float, Positive] | None = Field(
+        default=None,
+        description="(a, b, c, d0, max) of kt = a + (b - fs) / (c (d0 + M / b d²)) in place of "
+        "``tension`` (M / b d² from pt at fy / γs and z = leverArm d); none: ``tension``.",
+    )
+    leverArm: Share = Field(default=0.9, description="z / d of M / b d² (tensionMoment).")
     compression: tuple[Positive, Positive] = Field(
         description="(a, max): kc = 1 + pc / (a + pc), at most max (pc in %)."
     )
@@ -568,6 +593,10 @@ class SlendernessRule(_Group):
     limit: Positive = Field(description="Short when lex / D is at most this.")
     divisor: Positive = Field(description="Ma = Pu D / divisor (lex / D)².")
     maxRatio: Positive = Field(description="lex / D at most this (unsupported length).")
+    # Alpha 9 C10 (BS 8110-1 3.8.1.3: 15 braced, 10 unbraced).
+    unbracedLimit: Positive | None = Field(
+        default=None, description="Short in a sway storey up to this (none: ``limit``)."
+    )
 
 
 class BiaxialRule(_Group):

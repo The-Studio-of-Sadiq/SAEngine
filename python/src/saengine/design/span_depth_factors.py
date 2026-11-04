@@ -53,12 +53,24 @@ def support_kind(ends: int, cantilever: bool) -> str:
 
 def tension_factor(pt: float, fy: float, r: Any | None = None) -> float:
     r = r or rules()
-    a, b, c, top = r.tension
     fs = r.stressShare * fy
+    if r.tensionMoment is not None:  # Alpha 9 C10: BS 8110-1 Table 3.10
+        return _tension_by_moment(pt, fy, fs, r)
+    a, b, c, top = r.tension
     if pt <= 0:
         return top
     value = 1 / (a + b * fs - c * math.log10(1 / pt))
     return min(top, max(value, 0.0))
+
+
+def _tension_by_moment(pt: float, fy: float, fs: float, r: Any) -> float:
+    """kt = a + (b - fs) / (c (d0 + M / b d²)) <= max, M / b d² = pt / 100 × fy / γs × z/d
+    (As,req / As,prov taken 1, z = ``leverArm`` d: SAEngine practice), at least 0."""
+    from saengine.design import design_strength
+
+    a, b, c, d0, top = r.tensionMoment
+    m_bd2 = max(pt, 0.0) / 100 * design_strength.fyd(fy) * r.leverArm
+    return min(top, max(a + (b - fs) / (c * (d0 + m_bd2)), 0.0))
 
 
 def compression_factor(pc: float, r: Any | None = None) -> float:

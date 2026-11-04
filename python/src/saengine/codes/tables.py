@@ -936,6 +936,24 @@ class DesignSpectrumRule(BaseModel):
         description="reducedElastic: the equivalent static method takes the plateau below TB "
         "(no rising branch); the dynamic analysis the full shape.",
     )
+    # Alpha 9 C10 (BNBC 1993 / 2006 Sec 2.5.6, C = 1.25 S / T^(2/3) <= 2.75): the shape's
+    # plateau and the power of its descending branch, and the least C / R.
+    shapePlateau: float | None = Field(
+        default=None,
+        gt=0,
+        description="reducedElastic: the normalized plateau (empty: 2.5); the descending "
+        "branch plateau × S × (TC / T)^descendingExponent.",
+    )
+    descendingExponent: float | None = Field(
+        default=None, gt=0, description="reducedElastic: the power of TC / T (empty: 1)."
+    )
+    leastCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        lt=1,
+        description="reducedElastic: Sa at least factor × Z × I × this (C / R >= this; empty: "
+        "no least value).",
+    )
     # ── mappedSpectral (C1) ──
     designShare: Share | None = Field(
         default=None, description="SDS = share × SMS, SD1 = share × SM1 (mapped values)."
@@ -962,6 +980,16 @@ class DesignSpectrumRule(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class TopForce(BaseModel):
+    """Alpha 9 C10: the concentrated top force Ft of the equivalent static method."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    periodFrom: float = Field(gt=0, description="Ft = 0 while T <= this [s].")
+    factor: float = Field(gt=0, description="Ft = factor × T × V.")
+    maxShare: float = Field(gt=0, lt=1, description="Ft at most this × V.")
+
+
 class LateralForceRule(BaseModel):
     """C4: the lateral force method. Base shear × ``correction`` when T ≤ ``periodTcFactor``·TC
     and the building has more than ``minStoreys`` - 1 storeys (EN 1998-1 4.3.3.2.2 λ = 0.85);
@@ -978,6 +1006,12 @@ class LateralForceRule(BaseModel):
     minimumShare: dict[int, Annotated[float, Field(gt=0, lt=1)]] = Field(
         default_factory=dict,
         description="C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
+    )
+    # Alpha 9 C10 (BNBC 1993 / 2006 Sec 2.5.7.2): the concentrated force at the top.
+    topForce: TopForce | None = Field(
+        default=None,
+        description="Ft = factor T V <= maxShare V at the top when T > periodFrom; the rest "
+        "distributed (empty: none).",
     )
     clause: str = ""
 

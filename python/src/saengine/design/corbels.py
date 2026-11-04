@@ -276,7 +276,7 @@ def root_tie_checks(
     ties = corbel.ties
     ah = ties.count * 2 * bar_area(ties.dia) if ties else 0.0
     pt = 100 * provided / (b * d)
-    tc = tabulated_shear.tau_c(fc, pt, shear_rules)
+    tc = tabulated_shear.tau_c(fc, pt, shear_rules, d)
     factor = max(shear_rules.enhancement * d / av, 1.0) if av > 0 else shear_rules.enhancement
     tmax = tabulated_shear.tau_c_max(fc, shear_rules)
     capacity = min(factor * tc * b * d + tabulated_shear.stirrup_yield(fy) * ah, tmax * b * d)

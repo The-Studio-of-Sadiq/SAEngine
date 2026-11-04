@@ -113,6 +113,12 @@ class SteelCompression(_Group):
     )
     angleCondition: str = Field(description="The end condition taken (an id of angleConstants).")
     angleCurve: str = Field(description="The buckling curve of single angles on λe.")
+    # Alpha 9 C10 (BS 5950-1:2000 Annex C): the Perry factor η = a (λ - λ0) / 1000 on the
+    # slenderness KL/r, read as α = a π √(E / fy) / 1000 on the relative slenderness.
+    robertson: bool = Field(
+        default=False,
+        description="``alpha`` holds Robertson constants a: α = a π √(E / fy) / 1000.",
+    )
 
 
 class SteelTension(_Group):
@@ -140,6 +146,11 @@ class SteelFlexure(_Group):
     ltbPlateau: Positive = Field(description="No lateral-torsional buckling while λLT ≤ this.")
     ltbBase: Positive = Field(description="λ0 of φLT = 0.5 [1 + αLT (λLT - λ0) + λLT²].")
     highShare: Share = Field(description="High shear above this × Vd (the reduced Mdv).")
+    # Alpha 9 C10 (BS 5950-1:2000 Annex B.2.2): ηLT = αLT (λLT - λL0) / 1000.
+    robertson: bool = Field(
+        default=False,
+        description="``alphaLT`` holds BS type constants: α = αLT π √(E / fy) / 1000.",
+    )
 
 
 class SteelShear(_Group):
@@ -158,6 +169,10 @@ class SteelShear(_Group):
         "second, fyw / (√3 λw²) above."
     )
     lambdaSlope: Positive = Field(description="The slope of the middle range.")
+    # Alpha 9 C10 (BS 5950-1:2000 4.2.3: Pv = 0.6 py Av).
+    yieldShare: Positive | None = Field(
+        default=None, description="Shear yield stress = share × fy (none: fy / √3)."
+    )
 
 
 class SteelInteraction(_Group):
@@ -312,6 +327,10 @@ class SteelLimitStateTable(TableModel):
     bracing: SteelBracingForces | None = None
     columnSide: SteelColumnSide | None = None
     hssJoints: SteelHssChordFace | None = None
+    #: Alpha 9 C10 (BS 5950-1:2000 Table 9): the design strength by thickness, per grade (the
+    #: nominal fy of the material, e.g. "275"): (thickness up to [mm], py) rows; a member's fy
+    #: is the row of its thickest element (flange of I and channel sections). Empty: fy.
+    designStrength: dict[str, list[tuple[Positive, Positive]]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _members(self) -> SteelLimitStateTable:

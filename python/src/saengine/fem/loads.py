@@ -85,6 +85,8 @@ def normalized_spectrum(
     site = seismic.siteClasses[site_class]
     s, tb, tc, td = site.S, site.TB, site.TC, site.TD
     eta = damping_correction(damping)
+    if rule is not None and (rule.shapePlateau is not None or rule.descendingExponent is not None):
+        return _powered_spectrum(period, s, tb, tc, td, eta, rule, static)
     if period <= tb and not (static and rule is not None and rule.staticPlateau):
         return s * (1 + period / tb * (2.5 * eta - 1))
     if period <= tc:
@@ -94,6 +96,27 @@ def normalized_spectrum(
     if rule is not None and rule.longPeriod == "constant":
         return 2.5 * s * eta * tc / td
     return 2.5 * s * eta * tc * td / period**2
+
+
+def _powered_spectrum(
+    period: float, s: float, tb: float, tc: float, td: float, eta: float, rule: Any, static: bool
+) -> float:
+    """Alpha 9 C10: the normalized spectrum with the pack's plateau P (``shapePlateau``) and
+    the descending branch P S η (TC / T)^x (``descendingExponent``), as BNBC 1993 / 2006 Sec
+    2.5.6 gives C = 1.25 S / T^(2/3) <= 2.75 (P 2.75, x 2/3, TC = (1.25 S / 2.75)^1.5 with S
+    in TC and the class's S 1). Beyond TD as ``longPeriod`` says."""
+    plateau = rule.shapePlateau if rule.shapePlateau is not None else 2.5
+    power = rule.descendingExponent if rule.descendingExponent is not None else 1.0
+    if period <= tb and not (static and rule.staticPlateau):
+        return s * (1 + period / tb * (plateau * eta - 1))
+    if period <= tc:
+        return plateau * s * eta
+    if period <= td:
+        return plateau * s * eta * (tc / period) ** power
+    at_td = plateau * s * eta * (tc / td) ** power
+    if rule.longPeriod == "constant":
+        return at_td
+    return at_td * (td / period) ** 2
 
 
 def design_acceleration(
@@ -133,13 +156,16 @@ def design_acceleration(
     if rule is not None and rule.method == "mappedSpectral":
         return importance / r * normalized_spectrum(period, site_class, damping, z)
     factor = rule.factor if rule is not None and rule.factor is not None else 2 / 3
-    return (
+    sa = (
         factor
         * z
         * importance
         / r
         * normalized_spectrum(period, site_class, damping, static=static)
     )
+    if rule is not None and rule.leastCoefficient is not None:  # Alpha 9 C10: C / R >= least
+        sa = max(sa, factor * z * importance * rule.leastCoefficient)
+    return sa
 
 
 def minimum_base_share(zone: int | None) -> float:
@@ -232,6 +258,16 @@ def vertical_distribution(
     k = _distribution_exponent(period)
     weights = [w * h**k for h, w in levels]
     total = sum(weights)
+    # Alpha 9 C10: the pack's concentrated top force Ft (BNBC 1993 / 2006 Sec 2.5.7.2).
+    rule = getattr(code_context.table("seismic"), "lateralForce", None)
+    top = getattr(rule, "topForce", None) if rule is not None else None
+    if top is not None and period > top.periodFrom and levels:
+        ft = min(top.factor * period * base_shear, top.maxShare * base_shear)
+        rest = base_shear - ft
+        forces = [rest * w / total if total else 0.0 for w in weights]
+        highest = max(range(len(levels)), key=lambda i: levels[i][0])
+        forces[highest] += ft
+        return forces
     return [base_shear * w / total if total else 0.0 for w in weights]
 
 

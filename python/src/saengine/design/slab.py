@@ -470,7 +470,7 @@ def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[fl
     from saengine.design import tabulated_shear
 
     if tabulated_shear.rules() is not None:
-        tc = tabulated_shear.tau_c(fc, 100 * max(rho, 0.0))
+        tc = tabulated_shear.tau_c(fc, 100 * max(rho, 0.0), d=d)
         k = tabulated_shear.slab_factor(d + 25.0)
         return k * tc * 1000 * d, 1.0
     if _strut_shear():
