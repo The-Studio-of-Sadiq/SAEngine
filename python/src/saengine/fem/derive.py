@@ -2612,6 +2612,21 @@ def _derive_fem(
                 torsion=bool(option(options, "windTorsionCases", True)),
                 story_names=story_names,
                 settings=settings.wind,
+                # Alpha 9 C15: the levels' characteristic dead weight [kN] (a pack's least
+                # horizontal load, wind.minimumLateral).
+                dead_weights=[
+                    sum(level_parts.get(h, {}).get(k, 0.0) for k in ("D", "SD")) / 1e3
+                    for h in heights
+                ],
+            )
+        if values.get("windAltitudeFactor") is not None:  # Alpha 9 C15
+            altitude = code_context.table("wind").altitude
+            b.notes.append(
+                f"wind: vb,0 = vb,map × calt = {values['windSpeedMap']:g} × "
+                f"{values['windAltitudeFactor']:.3f} = {values['windSpeed']:.2f} m/s (calt = 1 + "
+                f"{altitude.factor:g} A, site altitude A = {settings.site.altitude or 0.0:g} m"
+                + (f"; {altitude.clause}" if altitude.clause else "")
+                + ")"
             )
         b.notes.extend(wind_notes)
     # ── B16: flood and surge (cases FaX, FaY; saengine.fem.flood) ──
@@ -4266,6 +4281,7 @@ def _wind_loads(
     torsion: bool,
     story_names: dict[float, str] | None = None,
     settings: Any = None,
+    dead_weights: list[float] | None = None,
 ) -> list[str]:
     """The equivalent static wind loads WX and WY (the default pack's Part 6 Sec 2.4.11.2) and the
     torsional cases WTX and WTY (Sec 2.4.11.3 and Figure 6.2.9, pp. 559 and 574-575) into
@@ -4340,6 +4356,20 @@ def _wind_loads(
             )
             no_width[case] = flat
         levels = fl.wind_levels(rel, spans, depths, speed, exposure, importance)
+        least = getattr(code_context.table("wind"), "minimumLateral", None)  # Alpha 9 C15
+        if least is not None and dead_weights and len(dead_weights) == len(levels):
+            raised = 0
+            for i, (level, dead) in enumerate(zip(levels, dead_weights, strict=True)):
+                floor = least.share * dead
+                if floor > level.force:
+                    levels[i] = dataclasses.replace(level, force=floor)
+                    raised += 1
+            if raised:
+                notes.append(
+                    f"{case}: {raised} level(s) take the least horizontal load "
+                    f"{least.share:.1%} of their characteristic dead weight G in place of the "
+                    f"smaller wind force ({least.clause or code_context.code_name()})"
+                )
         if code_context.table("wind").method == "peakVelocityPressure":  # C4
             from saengine.fem.peak_velocity_pressure import describe
 

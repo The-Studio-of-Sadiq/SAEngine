@@ -1,0 +1,57 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "eurocodes-my",
+  "name": "Eurocodes with the Malaysian National Annexes (MS EN)",
+  "edition": "MS EN 1990-1998 with the Malaysian National Annexes",
+  "country": "MY",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "concreteMethods"
+  ],
+  "description": "The Eurocodes with the Malaysian National Annexes (alpha 9 track C15, group 1 of C23): the basic wind velocity of MS EN 1991-1-4 NA and the reference peak ground acceleration of MS EN 1998-1 NA by town, and αcc of MS EN 1992-1-1 NA; everything else from the base pack Eurocodes (recommended values). No snow. Every value is listed in VERIFY.md: the town values are uncertain and must be checked against the NA maps before design.",
+  "sources": [
+    {
+      "id": "MSNA1991-1-4",
+      "title": "MS EN 1991-1-4 National Annex: wind actions",
+      "edition": "2010",
+      "publisher": "Department of Standards Malaysia"
+    },
+    {
+      "id": "MSNA1992-1-1",
+      "title": "MS EN 1992-1-1 National Annex: concrete structures",
+      "edition": "2010",
+      "publisher": "Department of Standards Malaysia"
+    },
+    {
+      "id": "MSNA1998-1",
+      "title": "MS EN 1998-1 National Annex: earthquake resistance",
+      "edition": "2015",
+      "publisher": "Department of Standards Malaysia"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "MS EN 1991-1-4 NA (wind zones); MS EN 1998-1 NA Figure NA.1"
+    ],
+    "zoneCoefficients": [
+      "MS EN 1998-1 NA Figure NA.1 (SAEngine bands)"
+    ],
+    "seismic": [
+      "MS EN 1998-1 NA (category bands: SAEngine practice)"
+    ],
+    "concreteMethods": [
+      "MS EN 1992-1-1 NA 3.1.6"
+    ]
+  },
+  "basis": {
+    "general": "MS EN 1990, MS EN 1991, MS EN 1998-1 with the Malaysian National Annexes",
+    "concrete": "MS EN 1992-1-1 with the Malaysian National Annex"
+  },
+  "author": "SAEngine",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

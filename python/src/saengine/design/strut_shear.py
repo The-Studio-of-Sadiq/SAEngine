@@ -61,7 +61,9 @@ def size_factor(d: float, r: Any) -> float:
 
 
 def nu1(fck: float, r: Any) -> float:
-    return r.nuCoefficient * (1 - fck / r.nuDivisor)
+    value = r.nuCoefficient * (1 - fck / r.nuDivisor)
+    cap = getattr(r, "nuMax", None)  # Alpha 9 C15: a National Annex's cap
+    return min(value, cap) if cap is not None else value
 
 
 def concrete_resistance(
@@ -96,7 +98,7 @@ def link_resistance(
     r = r or rules()
     u = design_strength.rules()
     z = r.leverArmShare * d
-    f_cd = design_strength.fcd(fck, u)
+    f_cd = design_strength.fcd(fck, u, shear=True)
     f_ywd = design_strength.fyd(fywk, u)
     v1 = nu1(fck, r)
     lo, hi = r.cotTheta
@@ -228,7 +230,7 @@ def torsion(
     uk = 2 * ((b - tef) + (h - tef))
     cot = cot_theta if cot_theta is not None else r.cotTheta[0]
     theta = math.atan(1 / cot)
-    f_cd = design_strength.fcd(fck, u)
+    f_cd = design_strength.fcd(fck, u, shear=True)
     trd_max = 2 * nu1(fck, r) * r.alphaCw * f_cd * ak * tef * math.sin(theta) * math.cos(theta)
     f_yd = design_strength.fyd(fyk, u)
     links = ted / (2 * ak * f_yd * cot) if ted > 0 else 0.0

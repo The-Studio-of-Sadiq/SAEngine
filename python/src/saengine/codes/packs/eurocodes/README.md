@@ -206,3 +206,9 @@ Parameters. For example (see `python/tests/test_codes_eurocodes.py`):
 Objects merge key by key, so the annex changes one value and keeps the rest. It may also list
 its towns with their zones and wind speeds in `locations`, and give its own `zoneCoefficients`.
 A project may override any single value under **Code Values** instead.
+
+Built in (alpha 9 C15): `eurocodes-uk` (UK NAs), `eurocodes-de` (DIN EN NAs), `eurocodes-my`
+(MS EN NAs) and `eurocodes-sg` (SS EN NAs), each with its README and VERIFY.md. The keys an
+annex may set beyond this pack's own (αcc of shear, a ν1 cap, the altitude factor, qp(z)
+profiles, the least horizontal load, sk by zone and altitude, the zone columns of the seismic
+categories) are listed in `docs/code-packs.md`.

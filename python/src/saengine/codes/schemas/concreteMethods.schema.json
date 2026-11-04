@@ -3921,6 +3921,21 @@
           "title": "Nudivisor",
           "type": "number"
         },
+        "nuMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ν1 at most (none: no cap).",
+          "title": "Numax"
+        },
         "alphaCw": {
           "exclusiveMinimum": 0,
           "title": "Alphacw",
@@ -4465,6 +4480,21 @@
           "maximum": 1,
           "title": "Alphact",
           "type": "number"
+        },
+        "alphaCCShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "αcc of fcd in shear, torsion and punching (none: alphaCC).",
+          "title": "Alphaccshear"
         },
         "steelE": {
           "description": "Es [MPa].",

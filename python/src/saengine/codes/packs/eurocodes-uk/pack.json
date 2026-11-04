@@ -1,0 +1,134 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "eurocodes-uk",
+  "name": "Eurocodes with the UK National Annexes",
+  "edition": "BS EN 1990-1998 with the UK National Annexes",
+  "country": "GB",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "combinations",
+    "areaLoads",
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "wind",
+    "snow",
+    "concreteMethods",
+    "steelLimitState",
+    "geotechnicalMethods",
+    "barSchedule"
+  ],
+  "description": "The Eurocodes with the UK National Annexes (alpha 9 track C15): only the Nationally Determined Parameters, everything else from the base pack Eurocodes (recommended values). BS EN 1990 Eqs 6.10a/b with ξ 0.925 and the UK ψ (wind 0.5); BS EN 1991-1-1 imposed loads of Tables NA.2-NA.4 and roofs 0.6 kN/m²; BS EN 1991-1-4 vb,map of Figure NA.1 by town with the altitude factor calt = 1 + 0.001 A; BS EN 1991-1-3 sk by the zone of Figure NA.1 and the site altitude; BS EN 1992-1-1 αcc 0.85 (flexure and axial) and 1.0 (shear), Δcdev 10 mm; BS EN 1993-1-1/-1-8 γM0 1.0, γM1 1.0, γM2 1.10 (members) and 1.25 (joints); BS EN 1997-1 Design Approach 1; BS EN 1998-1: very low seismicity (no seismic design by default); bar schedules by BS 8666. Every value is listed in VERIFY.md for checking against the printed annexes.",
+  "sources": [
+    {
+      "id": "UKNA1990",
+      "title": "UK National Annex to BS EN 1990:2002+A1:2005",
+      "edition": "NA+A1:2009",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1991-1-1",
+      "title": "UK National Annex to BS EN 1991-1-1:2002",
+      "edition": "2005",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1991-1-3",
+      "title": "UK National Annex to BS EN 1991-1-3:2003",
+      "edition": "2007",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1991-1-4",
+      "title": "UK National Annex to BS EN 1991-1-4:2005+A1:2010",
+      "edition": "NA+A1:2010",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1992-1-1",
+      "title": "UK National Annex to BS EN 1992-1-1:2004+A1:2014",
+      "edition": "NA+A2:2014",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1993-1-1",
+      "title": "UK National Annex to BS EN 1993-1-1:2005+A1:2014",
+      "edition": "NA+A1:2014",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1993-1-8",
+      "title": "UK National Annex to BS EN 1993-1-8:2005",
+      "edition": "2008",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1997-1",
+      "title": "UK National Annex to BS EN 1997-1:2004+A1:2013",
+      "edition": "NA+A1:2014",
+      "publisher": "BSI"
+    },
+    {
+      "id": "UKNA1998-1",
+      "title": "UK National Annex to BS EN 1998-1:2004",
+      "edition": "2008",
+      "publisher": "BSI"
+    },
+    {
+      "id": "PD6698",
+      "title": "PD 6698 Recommendations for the design of structures for earthquake resistance to BS EN 1998",
+      "edition": "2009",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS8666",
+      "title": "BS 8666 Scheduling, dimensioning, cutting and bending of steel reinforcement for concrete",
+      "edition": "2020",
+      "publisher": "BSI"
+    }
+  ],
+  "clauses": {
+    "combinations": [
+      "UK NA to BS EN 1990 NA.2.2.3.2, Tables NA.A1.1, NA.A1.2(B)"
+    ],
+    "areaLoads": [
+      "UK NA to BS EN 1991-1-1 Tables NA.2-NA.4, NA.7"
+    ],
+    "locations": [
+      "UK NA to BS EN 1991-1-4 Figure NA.1"
+    ],
+    "zoneCoefficients": [
+      "UK NA to BS EN 1998-1; PD 6698"
+    ],
+    "seismic": [
+      "UK NA to BS EN 1998-1 (very low seismicity)"
+    ],
+    "wind": [
+      "UK NA to BS EN 1991-1-4 NA.2.4-NA.2.8"
+    ],
+    "snow": [
+      "UK NA to BS EN 1991-1-3 NA.2.8, Figure NA.1"
+    ],
+    "concreteMethods": [
+      "UK NA to BS EN 1992-1-1 3.1.6, 2.4.2.4, 4.4.1.3"
+    ],
+    "steelLimitState": [
+      "UK NA to BS EN 1993-1-1 6.1; UK NA to BS EN 1993-1-8 2.2"
+    ],
+    "geotechnicalMethods": [
+      "UK NA to BS EN 1997-1 2.4.7.3.4.1"
+    ],
+    "barSchedule": [
+      "BS 8666:2020"
+    ]
+  },
+  "basis": {
+    "general": "BS EN 1990, BS EN 1991, BS EN 1998-1 with the UK National Annexes",
+    "concrete": "BS EN 1992-1-1 with the UK National Annex and BS EN 1998-1 Section 5",
+    "steel": "BS EN 1993-1-1, BS EN 1993-1-8 with the UK National Annexes"
+  },
+  "author": "SAEngine",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}
