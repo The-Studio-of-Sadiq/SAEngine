@@ -2373,6 +2373,17 @@ def _derive_fem(
     values = derived(settings)
     hn = (heights[-1] - base_m) if heights else 0.0
     summary: dict[str, Any] = {"levels": len(heights), "weight_kN": sum(weights) / 1e3}
+    # Alpha 9 C5c: the pack's regularity criteria (EN 1998-1 4.2.3 type) and their consequence
+    # on q (saengine.fem.seismic_regularity); nothing without them.
+    from saengine.fem import seismic_regularity
+
+    regularity = seismic_regularity.pre_analysis(building, objects, materials)
+    if regularity is not None and values.get("Z"):
+        values = seismic_regularity.apply_to_values(values, regularity, settings)
+        b.notes.extend(f"seismic regularity: {n}" for n in regularity["notes"])
+        summary["regularity"] = {
+            k: regularity[k] for k in ("plan", "elevation", "qFactor", "rows") if k in regularity
+        }
     if member_set is not None:
         summary["memberLoads"] = member_set.summary()
     if arch_set is not None:
@@ -4401,7 +4412,22 @@ def _wind_loads(
     high = np.max([hi for _, hi in extents], axis=0)
     least = float(min(high - low))
     if rel[-1] > 0 and least > _WIND_MIN_WIDTH:
-        cladding = fl.cladding_pressures(
+        from saengine.fem import local_pressures
+
+        cladding = None
+        if local_pressures.rules() is not None:
+            # Alpha 9 C5c: the pack's area-dependent local pressures (cpe,1 / cpe,10).
+            cladding = local_pressures.local_pressures(
+                rel[-1],
+                float(max(high - low)),
+                least,
+                speed,
+                exposure,
+                importance,
+                area=getattr(settings, "claddingArea", None),
+                parapet=getattr(settings, "parapetHeight", None) or None,
+            )
+        cladding = cladding or fl.cladding_pressures(
             rel[-1],
             least,
             speed,
@@ -4527,6 +4553,13 @@ def _wind_site_extras(
             notes.append(
                 f"wind topography ({feature}): not isolated or not near the crest, so no "
                 f"speed-up (Kzt 1; {source})"
+            )
+        elif getattr(wind, "orography", None) is not None:
+            # Alpha 9 C5c: the pack's orography factor co(z) at every height (in qp).
+            notes.append(
+                f"wind orography ({feature}): co(z) by "
+                f"{code_context.cite('wind', 'orography') or 'the code pack'} at every height "
+                "(the roof's in the WX / WY notes)"
             )
         else:
             terms = fl.topographic_terms(roof, exposure)

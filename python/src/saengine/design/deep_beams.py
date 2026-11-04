@@ -110,8 +110,25 @@ class SpanDemands:
 
 
 def is_deep(span: DeepSpan) -> tuple[bool, str]:
-    """(deep, why): ln <= 4 h, or a concentrated load within 2 h of a face (Sec 6.4.6.1)."""
+    """(deep, why): ln <= 4 h, or a concentrated load within 2 h of a face (Sec 6.4.6.1).
+    Alpha 9 C5c: with the pack's strut-and-tie method on the design strengths, its span ratio
+    (the concentrated load rule stays)."""
     table = _table()
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:
+        found = stress_fields.is_deep(span)
+        if found is not None:
+            return found
+        reach = table.loadDistance * span.depth
+        for at, length in span.loads:
+            gap = min(at - length / 2, span.clear - at - length / 2)
+            if gap <= reach:
+                return True, (
+                    f"a column lands {max(gap, 0.0):.0f} mm from a support face, within "
+                    f"{table.loadDistance:g} h = {reach:.0f} mm"
+                )
+        return False, ""
     if span.clear <= table.spanRatio * span.depth:
         return True, f"ln = {span.clear:.0f} mm <= {table.spanRatio:g} h = " + (
             f"{table.spanRatio * span.depth:.0f} mm"
@@ -162,6 +179,12 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
 
     table = _table()
     suffix = f"; {where}" if where else ""
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:
+        # Alpha 9 C5c: the pack's strut-and-tie method on the design strengths (no φ, no
+        # sectional shear limit: the struts and nodes govern).
+        return stress_fields.deep_span_rows(span, demands, _shear_spans(span), suffix)
     checks: list[dict[str, Any]] = []
     root = math.sqrt(span.fc)
     vu, v_combination = demands.shear

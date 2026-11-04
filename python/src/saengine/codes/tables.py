@@ -683,6 +683,119 @@ class Irregularities(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class RegularityCriteria(BaseModel):
+    """Alpha 9 C5c: regularity in plan and in elevation by criteria (method ``criteria``,
+    :mod:`saengine.fem.seismic_regularity`; EN 1998-1 4.2.3 type) and what follows from them.
+
+    Plan: each floor's slenderness Lmax / Lmin at most ``slendernessMax``; its outline within a
+    convex envelope whose area exceeds the floor's by at most ``compactnessShare``; at each
+    storey the eccentricity e0 of the centre of stiffness (from the moments of inertia of the
+    columns' and walls' sections) from the centre of mass (the floor's centroid) at most
+    ``eccentricityShare`` × the torsional radius r, and r at least the radius of gyration ls of
+    the floor (``torsionalRadius``). Elevation: the lateral systems run from the base to the
+    top (the offsets of the irregularity checks), setbacks preserving symmetry each at most
+    ``setbackShare`` of the dimension below, a single one in the lower ``baseHeightShare`` of
+    the height at most ``baseSetbackShare``, unsymmetric ones each at most
+    ``unsymmetricShare`` and in all at most ``unsymmetricTotal`` of the base dimension.
+
+    Consequences: a structure not regular in elevation takes q × ``elevationFactor``; one not
+    regular in plan takes αu/α1 as the mean of 1 and the system's (``planAverage``); the
+    lateral force method needs regularity in elevation (``dynamicAnalysis``); a planar model
+    needs regularity in plan (SAEngine always analyses the spatial model)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["criteria"] = "criteria"
+    slendernessMax: float = Field(gt=0)
+    compactnessShare: float = Field(gt=0, lt=1)
+    eccentricityShare: float = Field(gt=0, le=1)
+    torsionalRadius: bool = True
+    setbackShare: float = Field(gt=0, lt=1)
+    baseHeightShare: float = Field(gt=0, lt=1)
+    baseSetbackShare: float = Field(gt=0, lt=1)
+    unsymmetricShare: float = Field(gt=0, lt=1)
+    unsymmetricTotal: float = Field(gt=0, lt=1)
+    symmetryTolerance: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        description="A setback is symmetric when its two sides differ "
+        "by at most this share of it (SAEngine practice).",
+    )
+    elevationFactor: float = Field(gt=0, le=1)
+    planAverage: bool = True
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class TorsionalEffectsRule(BaseModel):
+    """Alpha 9 C5c: accidental torsional effects by the factor δ = 1 + ``coefficient`` x / Le
+    on each element's earthquake effects (method ``deltaFactor``, EN 1998-1 4.3.3.2.4 type),
+    where the analysis has no accidental eccentricity cases: x the element's distance from the
+    centre of mass across the earthquake, Le the plan's extent across it; the larger of the two
+    directions' δ, rounded up to ``step``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["deltaFactor"] = "deltaFactor"
+    coefficient: float = Field(gt=0)
+    planarCoefficient: float | None = Field(default=None, gt=0)
+    step: float = Field(default=0.05, gt=0)
+
+
+class ModalCombinationRule(BaseModel):
+    """Alpha 9 C5c: the combination of the modal maxima (method ``independence``): SRSS where
+    every pair of modes is independent (Tj <= ``ratio`` Ti), else CQC."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["independence"] = "independence"
+    ratio: float = Field(gt=0, lt=1)
+
+
+class VerticalComponentRule(BaseModel):
+    """Alpha 9 C5c: the vertical seismic action (method ``verticalSpectrum``): only where avg =
+    ``ratio`` [spectrum type] × ag exceeds ``threshold`` g; Ev / D = share × avg × ``plateau`` /
+    ``behaviour`` (the vertical design spectrum's plateau, q = 1.5), with the orthogonal share
+    of the combination; the members of ``members`` (applied to every member, on the safe side)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["verticalSpectrum"] = "verticalSpectrum"
+    threshold: float = Field(gt=0)
+    ratio: dict[str, float]
+    plateau: float = Field(gt=0)
+    behaviour: float = Field(gt=0)
+    combinationShare: float = Field(gt=0, le=1)
+    members: str = Field(default="", description="Which members the code applies it to.")
+
+
+class FoundationCapacityRule(BaseModel):
+    """Alpha 9 C5c: capacity design of foundations (method ``overstrengthFactor``): the
+    foundations' design action EFd = EF,G + γRd Ω EF,E with γRd = ``gammaLow`` for q up to
+    ``qLimit``, ``gammaHigh`` above, Ω the project's or ``omega`` (None: q, the elastic
+    response), γRd Ω at most q."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["overstrengthFactor"] = "overstrengthFactor"
+    qLimit: float = Field(gt=0)
+    gammaLow: float = Field(gt=0)
+    gammaHigh: float = Field(gt=0)
+    omega: float | None = Field(default=None, gt=0)
+
+
+class SpectrumTypeGuidance(BaseModel):
+    """Alpha 9 C5c: when to choose the pack's second spectrum type: ``type`` where the
+    earthquakes that contribute most to the hazard have a surface-wave magnitude Ms at most
+    ``magnitude``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str
+    magnitude: float = Field(gt=0)
+    text: str = ""
+
+
 class DynamicAnalysis(BaseModel):
     """When the equivalent static method is not enough. ``regularHeights`` and
     ``irregularHeights``: height [m] above which dynamic analysis is required, by seismic zone
@@ -943,6 +1056,14 @@ class SeismicTable(TableModel):
     diaphragmConnections: DiaphragmConnections | None = None
     # B19: the response history procedures; empty in a pack that does not cover them.
     timeHistory: TimeHistoryRules | None = None
+    # Alpha 9 C5c: regularity criteria, δ, the modal combination, the vertical component, the
+    # foundations' capacity design and the spectrum type guidance (None: not covered).
+    regularity: RegularityCriteria | None = None
+    torsionalEffects: TorsionalEffectsRule | None = None
+    modalCombination: ModalCombinationRule | None = None
+    verticalComponent: VerticalComponentRule | None = None
+    foundationCapacity: FoundationCapacityRule | None = None
+    spectrumTypeGuidance: SpectrumTypeGuidance | None = None
     clauses: dict[str, str] = Field(
         default_factory=dict, description="Clause references of the seismic results, by key."
     )
@@ -1079,11 +1200,22 @@ class WindDesignCasesRow(_Row):
 
     partial: float = Field(gt=0, le=1, description="Case 2: share of the pressure with torsion.")
     eccentricity: float = Field(ge=0, description="Case 2 and 4: e / B.")
-    simultaneous: float = Field(gt=0, le=1, description="Case 3: share of each direction.")
-    simultaneousTorsional: float = Field(
-        gt=0, le=1, description="Case 4: share of each direction with both torsions."
+    # Alpha 9 C5c: a code with the torsional case only (EN 1991-1-4 7.1.2: e = b/10) leaves the
+    # simultaneous cases and the exemption out (None).
+    simultaneous: float | None = Field(
+        default=None, gt=0, le=1, description="Case 3: share of each direction; None: no Case 3."
     )
-    exemptHeight: float = Field(gt=0, description="Exception: one-storey height limit h [m].")
+    simultaneousTorsional: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="Case 4: share of each direction with both torsions; None: no Case 4.",
+    )
+    exemptHeight: float | None = Field(
+        default=None,
+        gt=0,
+        description="Exception: one-storey height limit h [m]; None: no exemption.",
+    )
 
 
 class FlexibleGustRow(_Row):
@@ -1485,6 +1617,94 @@ class StructuralFactorRule(_Row):
     heightMax: Positive | None = None
     frameHeightMax: Positive | None = None
     depthRatioMax: Positive | None = None
+    detailed: DetailedStructuralFactor | None = Field(
+        default=None,
+        description="Alpha 9 C5c: the detailed cscd outside the simplified cases; None: the "
+        "value with a note.",
+    )
+
+
+class DetailedStructuralFactor(_Row):
+    """Alpha 9 C5c: cscd of EN 1991-1-4 Annex B (method ``annexB``,
+    :func:`saengine.fem.peak_velocity_pressure.detailed_structural_factor`): cscd = (1 + 2 kp
+    Iv(zs) √(B² + R²)) / (1 + ``peakFactor`` Iv(zs)), zs = ``heightShare`` h; L(zs) =
+    ``scaleLength`` (zs / ``scaleHeight``)^α, α = ``alphaBase`` + ``alphaLog`` ln z0; B² = 1 /
+    (1 + ``backgroundFactor`` ((b + h) / L)^``backgroundExponent``); SL = a fL / (1 + b fL)^(5/3);
+    R² = π² / (2 δ) SL Rh Rb with η = ``admittance`` fL h / L (and b); kp = √(2 ln νT) + 0.6 /
+    √(2 ln νT) at least ``kpMin``, ν at least ``upcrossingMin`` [Hz], T = ``duration`` [s]; n1 =
+    ``frequencyCoefficient`` / h where the project gives none; δ the logarithmic decrement:
+    ``structuralDamping`` by structure kind (or 2π ξ of the project's damping ratio)."""
+
+    method: Literal["annexB"] = "annexB"
+    heightShare: Positive
+    scaleLength: Positive
+    scaleHeight: Positive
+    alphaBase: float
+    alphaLog: float
+    backgroundFactor: Positive
+    backgroundExponent: Positive
+    spectrum: tuple[Positive, Positive] = Field(description="(a, b) of SL = a fL/(1 + b fL)^(5/3).")
+    admittance: Positive
+    kpMin: Positive
+    upcrossingMin: Positive
+    duration: Positive
+    frequencyCoefficient: Positive = Field(description="n1 = c / h [Hz] (h in m).")
+    structuralDamping: dict[str, Positive] = Field(description="δs by kind: concrete, steel.")
+    peakFactor: Positive = Field(default=7.0, description="The 7 of 1 + 7 Iv(zs).")
+
+
+class OrographyRule(_Row):
+    """Alpha 9 C5c: the orography factor co(z) of EN 1991-1-4 Annex A.3 (method ``annexA3``,
+    :func:`saengine.fem.peak_velocity_pressure.orography_factor`): Φ = H / Lu; co = 1 below
+    ``slopeMin``; co = 1 + ``slopeFactor`` s Φ up to ``slopeMax``; above it 1 + ``steepFactor`` s
+    and Le = H / ``slopeMax``; s by the location factors' polynomials (upwind of the crest,
+    downwind of hills and ridges, downwind of cliffs and escarpments). SAEngine reads the
+    project's half-height distance Lh as Lu = ``lengthFromHalfHeight`` × Lh and Ld = Lu."""
+
+    method: Literal["annexA3"] = "annexA3"
+    slopeMin: Positive
+    slopeMax: Positive
+    slopeFactor: Positive
+    steepFactor: Positive
+    lengthFromHalfHeight: Positive
+    upwindA: list[float] = Field(description="A(z/Le), polynomial coefficients, highest first.")
+    upwindB: list[float] = Field(description="B(z/Le), upwind: s = A e^(B X/Lu).")
+    hillB: list[float] = Field(description="B(z/Le), downwind of hills and ridges.")
+    cliffA: list[float] = Field(description="A(log z/Le), downwind of cliffs and escarpments.")
+    cliffB: list[float]
+    cliffC: list[float]
+    upwindRange: tuple[float, float] = Field(description="X/Lu from, z/Le up to (upwind).")
+    hillRange: tuple[float, float] = Field(description="X/Ld up to, z/Le up to (hills).")
+    cliffRange: tuple[float, float, float, float] = Field(
+        description="X/Ld from, to; z/Le from, to (cliffs)."
+    )
+
+
+class LocalPressureZone(_Row):
+    """Alpha 9 C5c: cpe,1 and cpe,10 of one zone of walls or flat roofs (EN 1991-1-4 Tables 7.1,
+    7.2): ``ratio`` h/d of the wall row, or hp/h of the roof row (0: sharp eaves), linear between
+    the rows of a zone and sign; a zone may have a positive and a negative row."""
+
+    surface: Literal["wall", "roof"]
+    zone: str
+    label: str
+    ratio: float = Field(default=0.0, ge=0)
+    cpe10: float
+    cpe1: float
+
+
+class LocalPressuresTable(_Row):
+    """Alpha 9 C5c: local pressures of cladding and fixings (method ``areaDependent``,
+    :mod:`saengine.fem.local_pressures`): cpe of a loaded area A by cpe,1 at A <= ``areaSmall``,
+    cpe,10 at A >= ``areaLarge``, linear in log A between; w = qp(ze) (cpe - cpi), cpi the more
+    onerous of ``internal``; e = min(b, ``edgeFactor`` h)."""
+
+    method: Literal["areaDependent"] = "areaDependent"
+    areaSmall: Positive
+    areaLarge: Positive
+    edgeFactor: Positive
+    zones: list[LocalPressureZone] = Field(min_length=1)
+    internal: tuple[float, float] = Field(description="(most positive, most negative) cpi.")
 
 
 class RiskCoefficientRow(_Row):
@@ -1687,6 +1907,13 @@ class WindTable(TableModel):
     )
     rooftop: RooftopTable | None = Field(
         default=None, description="Increase of the force on rooftop equipment; None: none."
+    )
+    # Alpha 9 C5c: the orography of EN 1991-1-4 type and the area-dependent local pressures.
+    orography: OrographyRule | None = Field(
+        default=None, description="co(z) of hills, ridges and escarpments; None: topographic."
+    )
+    localPressures: LocalPressuresTable | None = Field(
+        default=None, description="Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
     )
 
     @model_validator(mode="after")
@@ -9566,6 +9793,26 @@ class SnowDriftRule(BaseModel):
     windParameter: Positive | None = None
 
 
+class SnowShapeDriftRule(BaseModel):
+    """Alpha 9 C5c: the drift at a roof step and at a parapet by shape coefficients (method
+    ``shapeCoefficient``, EN 1991-1-3 5.3.6 and 6.2 type, :func:`saengine.fem.snow_load.drift`):
+    at a step μ2 = μs + μw with μw = (b1 + b2) / (2 h) <= γ h / sk within ``windRange``, μs = 0
+    (the upper roof's slope at most ``slideAngle``), over ls = ``lengthFactor`` h within
+    ``lengthRange`` [m]; at a parapet μ2 = γ h / sk within ``parapetRange`` over the same ls;
+    μ1 = ``lowerShape`` away from it; s = μ Ce Ct sk."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["shapeCoefficient"] = "shapeCoefficient"
+    density: Positive = Field(description="γ of snow [kN/m³].")
+    windRange: tuple[Positive, Positive]
+    lengthFactor: Positive
+    lengthRange: tuple[Positive, Positive]
+    slideAngle: Positive = Field(description="μs = 0 for an upper roof up to this pitch [°].")
+    parapetRange: tuple[Positive, Positive]
+    lowerShape: Positive
+
+
 class SnowTable(TableModel):
     """Snow on roofs from the snow load on the ground (:mod:`saengine.fem.snow_load`; C4, C1):
     s = ``factor``·(roof factor)·Ce·Ct·Is·sg on the roof, sg the ground snow load the project
@@ -9613,7 +9860,7 @@ class SnowTable(TableModel):
         default=None, description="Cesl of the exceptional snow load (accidental; reported)."
     )
     density: SnowDensity | None = None
-    drift: SnowDriftRule | None = None
+    drift: SnowDriftRule | SnowShapeDriftRule | None = None  # Alpha 9 C5c: by method id
     seismicShare: Share | None = Field(
         default=None, description="Share of the roof snow in the seismic weight..."
     )

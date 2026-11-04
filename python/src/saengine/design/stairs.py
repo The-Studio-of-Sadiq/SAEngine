@@ -1240,6 +1240,14 @@ def _pack_part_checks(
         row(f"{p}: max. spacing (distribution)", bars.distribution.spacing, s_dist, "mm", None,
             f"{s_dist:.0f} mm", "slabSteel")
     )  # fmt: skip
+    from saengine.design import limit_state_members
+
+    if limit_state_members.span_depth_selected():  # Alpha 9 C5c: the span/depth ratio
+        checks.append(
+            limit_state_members.stair_span_depth_row(
+                p, demand.span, demand.continuous_ends, d, main.area, fc, fy
+            )
+        )
     return checks
 
 

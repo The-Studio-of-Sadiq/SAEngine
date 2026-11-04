@@ -87,6 +87,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import itertools
 import json
 import math
 import os
@@ -284,8 +285,91 @@ def peak_ground_acceleration(settings: Any) -> float:
 
 
 def vertical_coefficient(settings: Any) -> float:
-    """Ev / D = verticalFactor·a_h (the pack's; eq. 6.2.56, p. 645: 0.50)."""
+    """Ev / D = verticalFactor·a_h (the pack's; eq. 6.2.56, p. 645: 0.50). Alpha 9 C5c: with
+    the pack's ``verticalComponent`` (method ``verticalSpectrum``), the share of the vertical
+    design spectrum's plateau where avg exceeds its threshold (:func:`vertical_terms`)."""
+    found = vertical_terms(settings)
+    if found is not None:
+        return found["coefficient"]
     return _seismic().verticalFactor * peak_ground_acceleration(settings)
+
+
+def vertical_terms(settings: Any) -> dict[str, Any] | None:
+    """Alpha 9 C5c: the vertical component by the pack's rule: ``{"avg" [g], "applies",
+    "coefficient" (Ev / D), "members"}``; None without the rule. avg = ratio × ag with ag =
+    γI agR (the settings' Z) of the spectrum type in force; Ev / D = combinationShare × avg ×
+    plateau / behaviour where avg > threshold, else 0."""
+    from saengine.library.settings import derived
+
+    rule = getattr(_seismic(), "verticalComponent", None)
+    if rule is None or rule.method != "verticalSpectrum":
+        return None
+    values = derived(settings)
+    z = values.get("Z")
+    if not z or not isinstance(z, (int, float)):
+        return {"avg": 0.0, "applies": False, "coefficient": 0.0, "members": rule.members}
+    kind = str(getattr(_seismic(), "spectrumType", None) or "1")
+    ratio = float(rule.ratio.get(kind, max(rule.ratio.values())))
+    avg = ratio * float(values.get("seismicImportance") or 1.0) * float(z)
+    applies = avg > rule.threshold
+    coefficient = rule.combinationShare * avg * rule.plateau / rule.behaviour if applies else 0.0
+    return {"avg": avg, "applies": applies, "coefficient": coefficient, "members": rule.members}
+
+
+def _c5c_notes(settings: Any, options: Any, spectra: dict[str, Any]) -> list[str]:
+    """Alpha 9 C5c: the notes of the pack's vertical component, modal combination and spectrum
+    type guidance (none without them)."""
+    seismic = _seismic()
+    notes: list[str] = []
+    found = vertical_terms(settings)
+    if found is not None:
+        clause = code_context.cite("seismic", "vertical")
+        if found["applies"] and not getattr(options, "verticalComponent", False):
+            notes.append(
+                f"vertical component: avg = {found['avg']:.3f} g is above the pack's threshold, "
+                f"so {found['members'] or 'the members it names'} need the vertical action "
+                f"({clause}); turn on the vertical component in Project Settings > Seismic"
+            )
+        elif found["applies"]:
+            notes.append(
+                f"vertical component: avg = {found['avg']:.3f} g, Ev = ±{found['coefficient']:.4f} "
+                f"D in the earthquake combinations, on every member (on the safe side; {clause})"
+            )
+    if getattr(seismic, "modalCombination", None) is not None:
+        rules = {axis: data.get("rule") for axis, data in spectra.items()}
+        if rules:
+            notes.append(
+                "modal combination: "
+                + ", ".join(f"{axis} {rule}" for axis, rule in sorted(rules.items()))
+                + " (SRSS where every pair of modes has Tj <= "
+                f"{seismic.modalCombination.ratio:g} Ti, else CQC; "
+                f"{code_context.cite('seismic', 'modes')})"
+            )
+    guidance = getattr(seismic, "spectrumTypeGuidance", None)
+    if guidance is not None:
+        kind = str(getattr(seismic, "spectrumType", None) or "1")
+        notes.append(
+            f"spectrum type {kind} in use; type {guidance.type} where the earthquakes that "
+            f"contribute most to the hazard have Ms <= {guidance.magnitude:g}"
+            + (f" ({guidance.text})" if guidance.text else "")
+        )
+    return notes
+
+
+def modal_rule(modes: list[dict[str, Any]], given: str) -> str:
+    """Alpha 9 C5c: the modal combination by the pack's ``modalCombination`` (method
+    ``independence``): SRSS where every pair of the modes is independent (Tj <= ratio × Ti),
+    else CQC; ``given`` (the analysis case's) without the rule."""
+    rule = getattr(_seismic(), "modalCombination", None)
+    if rule is None or rule.method != "independence":
+        return given
+    periods = sorted(
+        (2 * math.pi / float(m["angular_frequency"]) for m in modes
+         if float(m.get("angular_frequency") or 0.0) > 0),
+        reverse=True,
+    )  # fmt: skip
+    independent = all(tj <= rule.ratio * ti for ti, tj in itertools.pairwise(periods))
+    return "SRSS" if independent else "CQC"
 
 
 def drift_limit(
@@ -794,7 +878,8 @@ def _spectra(out_dir: Path) -> dict[str, dict[str, Any]]:
         found[axis] = {
             "case_id": int(entry["case_id"]),
             "name": str(entry["case_name"]),
-            "rule": str(entry.get("combination", "CQC")),
+            # Alpha 9 C5c: the pack's choice of SRSS or CQC by the modes' independence.
+            "rule": modal_rule(entry["modes"], str(entry.get("combination", "CQC"))),
             "damping": entry.get("damping_ratio"),
             "modes": [dict(m) for m in entry["modes"]],
             "peaks": [m.modal_peak_disp for m in results.modes],
@@ -2019,6 +2104,7 @@ def _seismic_design(
             "the earthquake design asks for the time histories, but the model has none: the "
             "response spectrum is used"
         )
+    notes += _c5c_notes(settings, options, spectra)
 
     summary = {
         "schema": SUMMARY_SCHEMA,

@@ -323,9 +323,26 @@ class Strip:
 
 
 def _flexure_area(m: float, d: float, fc: float, fy: float) -> float | None:
+    from saengine.design import limit_state_rows
+
+    if limit_state_rows.partial_factors():
+        # Alpha 9 C5c: As by the pack's block on the design strengths (None beyond the
+        # section's singly reinforced limit).
+        r_block = limit_state_rows.singly_area(m * 1e6, 1000.0, d, fc, fy)
+        return r_block
     from saengine.plumbing.tanks import flexure_area
 
     return flexure_area(m * 1e6, d, fc, fy)
+
+
+def _h_factor() -> float:
+    """The factor on the earth pressure of the stem's and base's strength design: γG of the
+    pack's actions set A1 when retaining walls are by limit states (alpha 9 C5c), else the
+    pack's ``retainingWall.hFactor``."""
+    from saengine.substructure import limit_state_retaining
+
+    found = limit_state_retaining.earth_factor()
+    return found if found is not None else _factors().hFactor
 
 
 def _crack(strip: Strip, dia: float, spacing: float, fc: float, ec: float) -> float:
@@ -420,7 +437,7 @@ def design_strip(
                 strip.mu,
                 0.0,
                 "kN·m/m",
-                "1.6H",
+                f"{_h_factor():g}H",
                 "the section is too thin for the moment singly reinforced; thicken it",
             )
         )
@@ -428,13 +445,17 @@ def design_strip(
         # φMn of the bars given (ACI rectangular block, φ = 0.9: tension-controlled slabs).
         a = area * fy / (0.85 * fc * 1000)
         phi_mn = 0.9 * area * fy * (d - a / 2) / 1e6
+        from saengine.design import limit_state_rows
+
+        if limit_state_rows.partial_factors():  # Alpha 9 C5c: MRd on the design strengths
+            phi_mn = limit_state_rows.layer_capacity(area, d, fc, fy).mn / 1e6
         checks.append(
             _check(
                 f"{name}: flexure",
                 strip.mu,
                 phi_mn,
                 "kN·m/m",
-                "1.6H",
+                f"{_h_factor():g}H",
                 f"φMn of {dia:.0f} mm at {spacing:.0f} ({area:.0f} mm²/m), d = {d:.0f} mm "
                 f"({strip.where})"
                 + (
@@ -487,7 +508,7 @@ def design_strip(
                 strip.vu,
                 phi_vc / 1e3,
                 "kN/m",
-                "1.6H",
+                f"{_h_factor():g}H",
                 f"{_clause('retainingWall.stemShear', 'no shear reinforcement')} ({strip.where})",
             )
         )
@@ -754,6 +775,15 @@ def stability(
         return {"n": n, "toe": toe_p, "heel": heel_p, "e": e}
 
     static = assess(forces, f.sliding, f.overturning, "")
+    from saengine.substructure import limit_state_retaining
+
+    if limit_state_retaining.selected():
+        # Alpha 9 C5c: sliding, bearing and overturning by the pack's limit states; the
+        # factors of safety stay, reported only (serviceability indication).
+        for c in checks:
+            c["flag"] = True
+            c["note"] += "; reported only: the limit state rows decide"
+        checks += limit_state_retaining.stability_rows(wall, s, soil, forces, terms, passive, state)
     seismic_pressures = None
     kh = _peak_acceleration(ctx) if wall.seismic else None
     if kh:
@@ -795,6 +825,11 @@ def stability(
             flag=True,
         )
     )
+    if limit_state_retaining.selected():  # Alpha 9 C5c: the bearing resistance rows decide
+        for c in checks:
+            if c["name"] == "Bearing":
+                c["flag"] = True
+                c["note"] += "; reported only: the limit state rows decide"
     return (
         checks,
         {
@@ -897,8 +932,9 @@ def design_retaining_wall(
     ys, m_s, v_s, props = beam_actions(
         hs, service_load, supports, wall.baseFixed or wall.kind == "cantilever"
     )
-    strength = np.array(m_s) * f.hFactor
-    shear = np.array(v_s) * f.hFactor
+    h_factor = _h_factor()  # Alpha 9 C5c: γG of A1 under the pack's limit states
+    strength = np.array(m_s) * h_factor
+    shear = np.array(v_s) * h_factor
     if kh:
         k_wall = kh * (f.yieldingKh if state == "active" else 1.0)
         inc = seismic_increment(
@@ -915,8 +951,8 @@ def design_retaining_wall(
         _, m_e, v_e, _ = beam_actions(
             hs, quake, supports, wall.baseFixed or wall.kind == "cantilever"
         )
-        strength = np.maximum(strength, np.array(m_s) * f.hFactor + np.array(m_e))
-        shear = np.maximum(np.abs(shear), np.abs(np.array(v_s) * f.hFactor + np.array(v_e)))
+        strength = np.maximum(strength, np.array(m_s) * h_factor + np.array(m_e))
+        shear = np.maximum(np.abs(shear), np.abs(np.array(v_s) * h_factor + np.array(v_e)))
         notes.append(f"{wall.id}: {inc.get('note', '')}")
     # Faces: the soil face (positive M) and the front face (negative M).
     h_base = s.thickness(0.0) * 1e3
@@ -1076,6 +1112,17 @@ def _base_design(
         "0.9D + 1.6H": {"D": 0.9, "H": f.hFactor, "L": 0.0, "U": f.hFactor},
         "service": {"D": 1.0, "H": 1.0, "L": 1.0, "U": 1.0},
     }
+    from saengine.substructure import limit_state_geotechnics, limit_state_retaining
+
+    if limit_state_retaining.earth_factor() is not None:
+        # Alpha 9 C5c: the A1 set's factors (permanent unfavourable and favourable, variable).
+        a1 = limit_state_geotechnics.rules().actions["A1"]
+        g, g_fav, q = a1.permanentUnfavourable, a1.permanentFavourable, a1.variableUnfavourable
+        combos = {
+            f"{g:g}G + {q:g}Q": {"D": g, "H": g, "L": q, "U": g},
+            f"{g_fav:g}G + {g:g}H": {"D": g_fav, "H": g, "L": 0.0, "U": g},
+            "service": {"D": 1.0, "H": 1.0, "L": 1.0, "U": 1.0},
+        }
     xs = np.linspace(0.0, s.width, 201)
     results: dict[str, dict[str, float]] = {}
     for name, factor in combos.items():

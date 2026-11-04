@@ -14,7 +14,7 @@ into the pack reads the built-in table.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 from saengine.codes import context as code_context
@@ -95,6 +95,58 @@ def short_clause(group: str, key: str) -> str:
     names = getattr(table, "shortNames", None) or {}
     own = names.get(f"{group}.{key}") or names.get(group)
     return f"{own or short_name() or code_name()} {text(group, key)}".strip()
+
+
+def own_text(group: str, key: str) -> str:
+    """C11: :func:`text` of ``key`` in ``group`` only where the pack in force gives it itself
+    (or a project override does): "" where it would be inherited from a pack it extends, so a
+    pack without its own entry names the check without a clause, never another code's number.
+    The built-in default pack's table read for a working copy of it counts as its own."""
+    found = text(group, key)
+    if not found:
+        return ""
+    pack = code_context.current()
+    if not pack.has(TABLE):
+        return found
+    owner = pack.clause_owner(TABLE, group, key)
+    if owner is None or owner[0] == pack.id or found != owner[1]:
+        return found
+    return ""
+
+
+def _paren(label: str, inner: str) -> str:
+    """``label (inner)``, or ``label`` alone when ``inner`` is empty."""
+    return f"{label} ({inner})" if inner else label
+
+
+class Rows:
+    """C11: the clause numbers the check rows and notes of a module cite, from the pack's
+    ``designClauses.<group>`` (the clause without the code's name, e.g. "8.3.4.1(d)" in the
+    default pack), as :func:`own_text` gives them: a pack without an entry for a key names the
+    row without a clause."""
+
+    def __init__(self, group: str) -> None:
+        self.group = group
+
+    def ref(self, *keys: str, extra: Iterable[str] = ()) -> str:
+        """The pack's clauses of ``keys`` (and ``extra`` words), comma separated; "" when it
+        has none of them."""
+        found = [own_text(self.group, k) for k in keys]
+        return ", ".join(t for t in [*found, *extra] if t)
+
+    def named(self, label: str, *keys: str, extra: Iterable[str] = ()) -> str:
+        """``label`` with :meth:`ref` of ``keys`` in parentheses; ``label`` alone without."""
+        return _paren(label, self.ref(*keys, extra=extra))
+
+    def sec(self, *keys: str) -> str:
+        """ "Sec <clauses>" of ``keys``; "" when the pack has none of them."""
+        found = self.ref(*keys)
+        return f"Sec {found}" if found else ""
+
+    def within(self, *keys: str) -> str:
+        """ " (<clauses>)" of ``keys`` to follow a phrase; "" when the pack has none of them."""
+        found = self.ref(*keys)
+        return f" ({found})" if found else ""
 
 
 class Clauses(Mapping[str, str]):

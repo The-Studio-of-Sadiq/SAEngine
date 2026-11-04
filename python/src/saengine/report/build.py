@@ -1498,9 +1498,14 @@ def _wind_cladding_rows(cladding: dict[str, Any]) -> list[list[str]]:
         [
             "Wind components and cladding",
             (
-                f"p = qh·[(GCp) − (±GCpi)], qh = {fmt(cladding.get('qh_kPa', 0), 3)} kN/m² at "
-                f"h = {fmt(cladding.get('h_m', 0), 2)} m, "
-                + ("low-rise (h ≤ 18.3 m)" if cladding.get("lowRise") else "h > 18.3 m")
+                (
+                    f"{cladding['formula']}, qp = {fmt(cladding.get('qh_kPa', 0), 3)} kN/m² at "
+                    f"h = {fmt(cladding.get('h_m', 0), 2)} m"  # Alpha 9 C5c: the pack's method
+                    if cladding.get("formula")
+                    else f"p = qh·[(GCp) − (±GCpi)], qh = {fmt(cladding.get('qh_kPa', 0), 3)} "
+                    f"kN/m² at h = {fmt(cladding.get('h_m', 0), 2)} m, "
+                    + ("low-rise (h ≤ 18.3 m)" if cladding.get("lowRise") else "h > 18.3 m")
+                )
                 + f", edge zones a = {fmt(cladding.get('a_m', 0), 2)} m, "
                 + _ENCLOSURES.get(cladding.get("enclosure", ""), "enclosed")
                 + f" (GCpi = ±{fmt(cladding.get('GCpi', 0), 2)}), effective wind area "

@@ -252,10 +252,33 @@ class Rule:
 # ─────────────────────────────────────── hooks and bends ───────────────────────────────────────
 
 
+def _bar_shapes() -> Any | None:
+    """Alpha 9 C5c: the pack's ``concreteMethods.barShapes`` when it picks that method (bends,
+    hooks and links' bends, compression laps; None: the parent's rules)."""
+    from saengine.codes import context as code_context
+    from saengine.design import method_selection
+
+    if not method_selection.uses("barShapes", "barShapes"):
+        return None
+    return code_context.table("concreteMethods").barShapes
+
+
+def _shapes_cite(key: str = "barShapes") -> str:
+    """Alpha 9 C5c: the pack's ``concreteMethods`` clause ``key``."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("concreteMethods", key)
+
+
 def bend_diameter(db: float, transverse: bool = False) -> Rule:
     """Least inside bend diameter [mm] (8.1.2.2, Table 6.8.1, p 1066): 6 db (10-25 mm), 8 db
     (over 25 to 40 mm), 10 db (over 40 to 57 mm); stirrups and ties of 16 mm and smaller 4 db
-    (8.1.2.2(b)). Bars below 10 mm: 6 db (4 db as ties)."""
+    (8.1.2.2(b)). Bars below 10 mm: 6 db (4 db as ties). Alpha 9 C5c: the pack's mandrel
+    diameters by bar size (bars and links alike) where it picks ``barShapes``."""
+    shapes = _bar_shapes()
+    if shapes is not None:
+        factor = next((f for size, f in shapes.mandrel if db <= size), shapes.mandrel[-1][1])
+        return Rule(factor * db, f"{factor:g} φ", _shapes_cite())
     bends = bar_rules().bends
     if transverse and db <= bends.transverseMax:
         return Rule(bends.transverse * db, f"{bends.transverse:g} db", _cite("barBendStirrup"))
@@ -293,6 +316,14 @@ def standard_hook(
     for 19-25 mm, 135° + 6 db for db <= 25 mm; ``closed`` ties, and seismic hooks (d), 135° +
     max(6 db, 75 mm)."""
     bend = bend_diameter(db, transverse).value
+    shapes = _bar_shapes()
+    if shapes is not None:  # Alpha 9 C5c: the pack's bends, hooks and links' bends
+        clause = _shapes_cite()
+        if not transverse:
+            n, mm = shapes.bendTail
+            return Hook(180 if angle >= 180 else 90, max(n * db, mm), bend, db, clause)
+        n, mm = shapes.link135 if angle >= 135 else shapes.link90
+        return Hook(135 if angle >= 135 else 90, max(n * db, mm), bend, db, clause)
     h = bar_rules().hooks
     if not transverse:
         if angle >= 180:
@@ -419,7 +450,18 @@ def development_compression(
     excess: float = 1.0,
 ) -> Rule:
     """ldc [mm] (8.2.4, p 1078): max(0.24 fy db / (λ √f'c), 0.043 fy db) × As,req/As,prov × 0.75
-    inside spirals or 12 mm ties at 100 mm (``confined``), at least 200 mm."""
+    inside spirals or 12 mm ties at 100 mm (``confined``), at least 200 mm. Alpha 9 C5c: with
+    the pack's bar shapes and bond stress, lbd in compression (α = 1, lb,min of compression)."""
+    if _bar_shapes() is not None and _bond_stress():
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.anchorage_length(db, fc, fy, compression=True)
+        return Rule(
+            found["lbd"] * excess,
+            f"lbd = lb,rqd = {found['lbrqd']:.0f} mm in compression, at least "
+            f"{found['lbmin']:.0f} mm" + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            _shapes_cite("compressionLaps"),
+        )
     dev = bar_rules().development
     a, b = dev.compression
     basic = max(a * fy * db / (lam * sqrt_fc(fc)), b * fy * db)
@@ -451,6 +493,19 @@ def hook_development(
     value is :func:`saengine.design.ductile_joints.hooked_development` (√f'c capped, 8.2.2)."""
     from saengine.design.ductile_joints import hooked_development
 
+    if _bar_shapes() is not None and _bond_stress():
+        # Alpha 9 C5c: a bent or hooked bar by the pack's anchorage, lb,eq = α1 lb,rqd with α1
+        # of bent bars where the side cover is enough (``cover``), else 1 (on the safe side).
+        from saengine.design import bar_rules as rules_of_bars
+
+        cd = 4 * db if cover else None
+        found = rules_of_bars.anchorage_length(db, fc, fy, cd=cd, bent=True)
+        return Rule(
+            found["lbd"] * excess,
+            f"lb,eq = α1 lb,rqd, α1 = {found['alpha1']:g}, lb,rqd = {found['lbrqd']:.0f} mm, at "
+            f"least {found['lbmin']:.0f} mm" + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            _shapes_cite("anchorage"),
+        )
     dev = bar_rules().development
     if getattr(dev, "hookMethod", "linear") == "powerDiameter":
         return _power_development(
@@ -599,7 +654,21 @@ def lap_tension(
 def lap_compression(db: float, fy: float, fc: float, *, factor: float = 1.0) -> Rule:
     """Compression lap [mm] (8.2.14.1, p 1084): 0.071 fy db for fy <= 420 MPa, (0.13 fy - 24) db
     above, + 1/3 when f'c < 21 MPa; ``factor`` 0.83 for tied columns with ties of 0.0015 h s
-    (8.2.15.2(d)) or 0.75 inside spirals (8.2.15.2(e)); at least 300 mm."""
+    (8.2.15.2(d)) or 0.75 inside spirals (8.2.15.2(e)); at least 300 mm. Alpha 9 C5c: with the
+    pack's bar shapes and bond stress, l0 = α6 lb,rqd in compression (α1 = α2 = 1) with a
+    transverse bar outside each end of the lap (the parent's ``factor`` does not apply)."""
+    shapes = _bar_shapes()
+    if shapes is not None and _bond_stress():
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.lap_length(db, fc, fy, shapes.columnLapShare, compression=True)
+        return Rule(
+            found["l0"],
+            f"l0 = α6 lb,rqd = {found['alpha6']:g} × {found['lbrqd']:.0f} mm in compression, at "
+            f"least {found['l0min']:.0f} mm; a transverse bar outside each end within "
+            f"{shapes.compressionLapEnd:g} φ",
+            _shapes_cite("compressionLaps"),
+        )
     laps = bar_rules().laps
     a, b = laps.compressionHigh
     low = fy <= laps.compressionFyLimit
@@ -644,7 +713,22 @@ def column_lap(
     0.5 fy, and the laps of special moment frames, 8.3.5.3(b)): class B (c)."""
     if stress == "compression":
         rule = lap_compression(db, fy, fc, factor=factor)
+        if _bar_shapes() is not None and _bond_stress():  # Alpha 9 C5c: its own clause
+            return rule
         return Rule(rule.value, rule.formula, _cite("barLapColumnCompression"))
+    shapes = _bar_shapes()
+    if shapes is not None and _bond_stress():
+        # Alpha 9 C5c: a column's tension lap by the pack's laps, α6 of the share lapped at one
+        # section (all of them by the pack's practice value).
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.lap_length(db, fc, fy, max(spliced_share, shapes.columnLapShare))
+        return Rule(
+            found["l0"],
+            f"l0 = α1 α2 α6 lb,rqd, α6 = {found['alpha6']:g}, lb,rqd = {found['lbrqd']:.0f} mm, "
+            f"at least {found['l0min']:.0f} mm",
+            _shapes_cite("laps"),
+        )
     cls = "A" if stress == "low" and spliced_share <= 0.5 else "B"
     rule = lap_tension(db, fy, fc, cls=cls, **development)
     return Rule(

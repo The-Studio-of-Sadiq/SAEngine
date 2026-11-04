@@ -928,6 +928,64 @@ def _punching_depth(spec: FootingSpec, column: ColumnBase, d: float) -> float:
     return dp
 
 
+def _footing_punching_rules() -> Any | None:
+    """Alpha 9 C5c: the pack's punching of column bases (None: the parent's ACI method)."""
+    from saengine.design import perimeter_punching
+
+    return perimeter_punching.footing_rules()
+
+
+def _limit_state_punching(
+    spec: FootingSpec,
+    column: ColumnBase,
+    pressure: SoilPressure,
+    weight: float,
+    f: np.ndarray,
+    d: float,
+    name: str,
+    keep: Any,
+) -> None:
+    """Alpha 9 C5c: punching at ``column`` by the pack's control perimeters within 2d
+    (:func:`saengine.design.perimeter_punching.footing_punching`): VEd the column's load less
+    the net soil pressure inside each perimeter (the rounded area, the mean pressure over its
+    bounding rectangle), the column's moments, ρl = √(ρx ρy) of the bottom meshes."""
+    from saengine.design import perimeter_punching as pp
+
+    length, width = spec.length, spec.width
+    reach = min(
+        column.u - column.cu / 2 + length / 2,
+        length / 2 - column.u - column.cu / 2,
+        column.v - column.cv / 2 + width / 2,
+        width / 2 - column.v - column.cv / 2,
+    )
+    if reach <= 0:
+        return
+
+    def inside(a: float) -> float:
+        u0, u1 = column.u - column.cu / 2 - a, column.u + column.cu / 2 + a
+        v0, v1 = column.v - column.cv / 2 - a, column.v + column.cv / 2 + a
+        box = (u1 - u0) * (v1 - v0)
+        net = pressure.over(u0, u1, v0, v1) - weight * box
+        return net * pp.footing_area(column.cu, column.cv, a) / box
+
+    ratios = [mesh_area(m) / (1000 * d) for m in (spec.bottom_x, spec.bottom_y) if d > 0]
+    rho = math.sqrt(ratios[0] * ratios[1]) if len(ratios) == 2 else 0.0
+    found = pp.footing_punching(
+        float(f[0]), d, column.cu, column.cv, spec.fc, rho, inside, float(f[2]), float(f[1]), reach
+    )
+    if found is None:
+        return
+    keep(
+        f"Punching at {column.id}",
+        found.utilisation,
+        found.v_ed * found.u * d / 1e3,
+        found.v_rd * found.u * d / 1e3,
+        "kN",
+        name,
+        pp.footing_note(found, d) + f", d = {d:.0f} mm, ρl = {rho:.4f}",
+    )
+
+
 def _step_punching(
     spec: FootingSpec,
     pressure: SoilPressure,
@@ -1419,6 +1477,11 @@ def design_footing(
                 )
             )
             dp = _punching_depth(spec, column, d) if spec.profiled else d
+            if _footing_punching_rules() is not None:
+                # Alpha 9 C5c: the pack's punching of column bases (control perimeters within
+                # 2d, the soil pressure inside deducted).
+                _limit_state_punching(spec, column, pressure, weight, f, dp, name, keep)
+                continue
             u0, u1 = column.u - column.cu / 2 - dp / 2, column.u + column.cu / 2 + dp / 2
             v0, v1 = column.v - column.cv / 2 - dp / 2, column.v + column.cv / 2 + dp / 2
             sides = {
@@ -1492,7 +1555,13 @@ def design_footing(
         "Flexure X (top)",
         "Flexure Y (top)",
     ]
-    reinforced = _punching_reinforcement(spec, governing, punch_demands, notes)
+    # Alpha 9 C5c: under the pack's punching of column bases the punching reinforcement is not
+    # laid out (a failing row says to thicken the footing).
+    reinforced = (
+        {}
+        if _footing_punching_rules() is not None
+        else _punching_reinforcement(spec, governing, punch_demands, notes)
+    )
     checks += [
         reinforced.get(name) or _kept(name, governing[name]) for name in order if name in governing
     ]

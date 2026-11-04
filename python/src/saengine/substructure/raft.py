@@ -962,6 +962,17 @@ def _punching(
         lo_u, hi_u, lo_v, hi_v = section.extents
         pu, pv = rel @ u, rel @ v
         inside = (pu >= -lo_u) & (pu <= hi_u) & (pv >= -lo_v) & (pv <= hi_v)
+        from saengine.design import perimeter_punching as pp
+
+        if pp.footing_rules() is not None:
+            # Alpha 9 C5c: the pack's punching of column bases on the raft.
+            found = _limit_state_punching(
+                spec, column, k, d, bottom, section, rel @ u, rel @ v, strength, results,
+                springs, weight, dead_factor,
+            )  # fmt: skip
+            if found is not None:
+                checks.append(found)
+            continue
         beta = max(column.c1, column.c2) / min(column.c1, column.c2)
         capacity = punching_capacity(spec.fc, d, section.b0, beta, section.alpha_s)
         phi_vc = rc.value("PHI_SHEAR") * capacity.vc
@@ -1010,6 +1021,93 @@ def _punching(
             plain = _punching_with_reinforcement(spec, column, d, demands, bottom, plain, free_body)
         checks.append(plain)
     return checks
+
+
+def _limit_state_punching(
+    spec: RaftSpec,
+    column: Any,
+    k: int,
+    d: float,
+    bottom: list[Any],
+    section: Any,
+    pu: np.ndarray,
+    pv: np.ndarray,
+    strength: dict[str, list[np.ndarray]],
+    results: RaftResults,
+    springs: np.ndarray,
+    weight: float,
+    dead_factor: dict[str, float] | None,
+) -> dict[str, Any] | None:
+    """Alpha 9 C5c: punching at a column of the raft by the pack's control perimeters
+    (interior columns: within 2d, the soil reaction inside less the factored weight,
+    :func:`saengine.design.perimeter_punching.footing_punching`; edge and corner columns: the
+    basic perimeter at 2d with β of the position, :func:`~saengine.design.perimeter_punching.
+    punching`, VEd less the net reaction within 2d). The raft's punching reinforcement is not
+    counted (the row says so where one is given)."""
+    from saengine.codes.context import cite
+    from saengine.design import perimeter_punching as pp
+    from saengine.design.check import _check
+
+    mesh = results.mesh
+    ratios = [layer.area / (1000.0 * layer.d) for layer in bottom]
+    rho = math.sqrt(ratios[0] * ratios[1]) if len(ratios) == 2 else ratios[0]
+    best = None
+    for name, loads in strength.items():
+        w = results.w[f"U: {name}"]
+        reaction = springs * np.maximum(-w, 0.0) if spec.compression_only else -springs * w
+        factor = (dead_factor or {}).get(name, 1.2)
+
+        def inside(a: float, reaction: np.ndarray = reaction, factor: float = factor) -> float:
+            half_u, half_v = column.c1 / 2 + a, column.c2 / 2 + a
+            within = (np.abs(pu) <= half_u) & (np.abs(pv) <= half_v)
+            box = 4 * half_u * half_v
+            net = float(reaction[within].sum()) - factor * weight * float(mesh.shares[within].sum())
+            return net * pp.footing_area(column.c1, column.c2, a) / box
+
+        ved = float(loads[k][0])
+        m1, m2 = float(loads[k][2]), float(loads[k][1])
+        position = section.location if section.location in ("edge", "corner") else "interior"
+        if position == "interior":
+            found = pp.footing_punching(ved, d, column.c1, column.c2, spec.fc, rho, inside, m1, m2)
+            if found is None:
+                continue
+            util, demand, capacity = (
+                found.utilisation,
+                found.v_ed * found.u * d / 1e3,
+                found.v_rd * found.u * d / 1e3,
+            )
+            note = pp.footing_note(found, d)
+        else:
+            reduced = max(ved - inside(pp.rules().perimeterDistance * d), 0.0)
+            p = pp.punching(reduced, d, column.c1, column.c2, spec.fc, rho, position)
+            util, demand, capacity = (
+                p.utilisation,
+                p.v_ed * p.u1 * d / 1e3,
+                p.v_rdc * p.u1 * d / 1e3,
+            )
+            note = (
+                f"{position} column, β = {p.beta:.2f}, u1 = {p.u1:.0f} mm at "
+                f"{pp.rules().perimeterDistance:g} d, VEd less the net reaction within it "
+                f"{reduced / 1e3:.0f} kN, vEd = {p.v_ed:.3f} MPa, vRd,c = {p.v_rdc:.3f} MPa, vEd,0 "
+                f"= {p.v_ed0:.3f} against vRd,max = {p.v_rdmax:.3f} MPa "
+                f"({cite('concreteMethods', 'punching')})"
+            )
+        if best is None or util > best[0]:
+            best = (util, demand, capacity, name, note)
+    if best is None:
+        return None
+    util, demand, capacity, name, note = best
+    if spec.punching_reinforcement is not None:
+        note += "; the raft's punching reinforcement is not counted under this method"
+    return _check(
+        f"Punching at {column.id}",
+        demand,
+        capacity,
+        "kN",
+        name,
+        note + f", d = {d:.0f} mm (bottom), ρl = {rho:.4f}",
+        utilisation=util,
+    )
 
 
 def _punching_with_reinforcement(

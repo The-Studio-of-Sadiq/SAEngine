@@ -378,6 +378,26 @@ def _topography_settings(s: Sheet) -> Any:
     return SimpleNamespace(topography=topo)
 
 
+def _kz_formula() -> str:
+    """How Kz is found by the wind method of the pack in force (C11: the formula text follows
+    the method, not the default pack's)."""
+    table = code_context.table("wind")
+    if table.method == "speedFactors":
+        return "k2² (terrain and height factor)"
+    factor = table.kzFactor if table.kzFactor is not None else 2.01
+    return f"{factor:g} (z/zg)^(2/α)"
+
+
+def _pressure_formula() -> str:
+    """How qz is found by the wind method of the pack in force (C11)."""
+    method = code_context.table("wind").method
+    if method == "peakVelocityPressure":
+        return "peak velocity pressure qp(z) = ce(z) qb"
+    if method == "speedFactors":
+        return "design wind pressure from Vz = Vb k1 k2 k3 k4"
+    return "0.000613 Kz Kzt Kd V² I"
+
+
 def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
     """The steps I, Kz, Kzt, Kd and qz at height ``z``; returns (qz, Kz)."""
     importance = code_context.table("occupancyCategories").categories[s["category"]]
@@ -386,7 +406,7 @@ def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
         f"Kz at {where}",
         L.exposure_coefficient(z, s["exposure"]),
         "",
-        "2.01 (z/zg)^(2/α)",
+        _kz_formula(),
         _code("wsExposure"),
     )
     terms = L.topographic_terms(z, s["exposure"])
@@ -412,7 +432,7 @@ def _velocity_steps(s: Sheet, z: float, where: str) -> tuple[float, float]:
         "qz" if where != "h" else "qh",
         L.velocity_pressure(z, s["speed"], s["exposure"], i_w),
         "kN/m²",
-        "0.000613 Kz Kzt Kd V² I",
+        _pressure_formula(),
         _code("wsVelocityPressure"),
     )
     return float(q), float(kz)
@@ -619,6 +639,18 @@ def _wind_chimney(s: Sheet) -> None:
 # ─────────────────────────────────────── seismic base shear ───────────────────────────────
 
 
+def _acceleration_formula() -> str:
+    """How Sa is found by the design spectrum method of the pack in force (C11: the formula
+    text follows the method, not the default pack's)."""
+    rule = getattr(code_context.table("seismic"), "designSpectrum", None)
+    if rule is not None and rule.method == "behaviourFactor":
+        return "Sd(T) of ag = Z I with the behaviour factor q = R"
+    factor = rule.factor if rule is not None and rule.factor is not None else None
+    if factor is None or math.isclose(factor, 2 / 3):
+        return "(2/3) Z I / R Cs"
+    return f"{factor:g} Z I / R Cs"
+
+
 def _systems() -> list[tuple[str, str]]:
     return [(k, v.name) for k, v in default_pack().table("seismic").systems.items()]
 
@@ -715,7 +747,7 @@ def _seismic(s: Sheet) -> None:
         "Sa",
         L.design_acceleration(t, s["site"], z, i_e, r),
         "g",
-        "(2/3) Z I / R Cs",
+        _acceleration_formula(),
         _code("wsSpectrum"),
         digits=4,
     )

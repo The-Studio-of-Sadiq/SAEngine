@@ -53,7 +53,7 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design.clauses import clause, short_clause, short_name
+from saengine.design.clauses import Rows, clause, short_clause, short_name
 from saengine.design.rc import (
     DesignError,
     RcSection,
@@ -104,6 +104,32 @@ def _phi_joint() -> float:
 def _section() -> str:
     """The code and part the joint rules cite ("<code> Part 6"), from the pack in force."""
     return clause("ductileJoints", "part")
+
+
+#: C11: the clause numbers the rows and notes cite, from the pack in force
+#: (``designClauses.ductileJointsRows``: the clause without the code's name, e.g. "8.3.7.3" in
+#: the default pack); a pack without them leaves the clause out.
+R = Rows("ductileJointsRows")
+
+
+def _cite(*keys: str) -> str:
+    """ "<code> Part 6 Sec <clauses>" of :data:`R` ``keys``; "" when the pack has none."""
+    found = R.ref(*keys)
+    return f"{_section()} Sec {found}" if found else ""
+
+
+def _at(*keys: str) -> str:
+    """ " (<code> Part 6 Sec <clauses>)" of :data:`R` ``keys`` to follow a phrase; "" without."""
+    found = _cite(*keys)
+    return f" ({found})" if found else ""
+
+
+def _applies(member_id: str, rule: str, fallback: str, listed: str = "") -> str:
+    """ "<member>: Sec <rule> applies: <listed>" of :data:`R` keys ``rule`` and ``listed`` (the
+    clauses it asks for); ``fallback`` words for the rule where the pack gives none."""
+    found = R.sec(rule) or fallback
+    asked = R.ref(*listed.split(",")) if listed else ""
+    return f"{member_id}: {found} applies" + (f": {asked}" if asked else "")
 
 
 def _check(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -502,21 +528,25 @@ def strong_column_checks(
             parts.append(f"Mnc {name} = {m / 1e6:.1f} kN·m at P = {p / 1e3:.0f} kN")
         mnb = max(_sum_beams(d, s, probable=False) for s in (1, -1))
         note = (
-            f"ΣMnc = {mnc / 1e6:.1f} ≥ 1.2 ΣMnb = 1.2 × {mnb / 1e6:.1f} kN·m "
-            f"({_section()} Sec 8.3.5.2(b), Eq. 6.8.5); " + "; ".join(parts)
+            f"ΣMnc = {mnc / 1e6:.1f} ≥ 1.2 ΣMnb = 1.2 × {mnb / 1e6:.1f} kN·m"
+            f"{_at('strongColumn')}; " + "; ".join(parts)
         )
         if above is None:
             note += "; column ends at this joint"
         if not required:
             note += (
-                "; not required: the columns carry at most 0.1 Ag f'c (Sec 8.3.5.2(a)), "
-                "reported only"
+                "; not required: the columns carry at most 0.1 Ag f'c"
+                + _within(R.sec("strongColumnScope"))
+                + ", reported only"
             )
         else:
             note += (
-                "; if not met: transverse reinforcement of Sec 8.3.5.4 over the full height "
-                "of the columns (8.3.5.2(c)), their lateral strength and stiffness ignored "
-                "(8.3.5.2(a))"
+                "; if not met: transverse reinforcement"
+                + _of(R.sec("columnHoops"), "for confinement")
+                + " over the full height of the columns"
+                + R.within("fullHeight")
+                + ", their lateral strength and stiffness ignored"
+                + R.within("strongColumnScope")
             )
         rows.append(
             _check(
@@ -656,10 +686,11 @@ def joint_checks(
                 capacity / 1e3,
                 "kN",
                 None,
-                f"Vj = ΣT - Vcol = {tension / 1e3:.0f} - {vcol / 1e3:.0f} kN, T = 1.25 fy As "
-                f"({_section()} Sec 8.3.7.1(a)); φ γ √f'c Aj, φ = {phi:g} (Sec 6.2.3.3(c)), "
-                f"γ = {gamma:g} (confined: {kind}, {faces} face(s), Sec 8.3.7.3), Aj = "
-                f"{h:.0f} × {bj:.0f} mm (bj by ACI 318-19 18.8.4.3: {short_name()} does not define it); "
+                f"Vj = ΣT - Vcol = {tension / 1e3:.0f} - {vcol / 1e3:.0f} kN, T = 1.25 fy As"
+                f"{_at('jointForces')}; φ γ √f'c Aj, φ = {phi:g}{_within(R.sec('jointPhi'))}, "
+                f"γ = {gamma:g} (confined: {kind}, {faces} face(s)"
+                + (f", {R.sec('jointGamma')}" if R.ref("jointGamma") else "")
+                + f"), Aj = {h:.0f} × {bj:.0f} mm ({_joint_width()}); "
                 f"Vcol = ΣMpr / {lever:.0f} mm",
             )
         )
@@ -675,7 +706,7 @@ def joint_checks(
                     "mm",
                     None,
                     f"column dimension parallel to the beam bars ≥ {factor} db = {factor} × "
-                    f"{db:g} mm (Sec 8.3.7.1(d))",
+                    f"{db:g} mm" + _within(R.sec("throughBars")),
                 )
             )
         else:
@@ -686,8 +717,8 @@ def joint_checks(
                 note = (
                     f"{beam.id} ends here: hooked bars to the far face of the confined core, "
                     f"ldh = max(8 db, 150, fy db / (5.4 √f'c)) = {need:.0f} mm for db = "
-                    f"{db:g} mm (Sec 8.3.7.1(c), 8.3.7.4(a), Eq. 6.8.12); available h - cover "
-                    f"- tie = {core:.0f} mm"
+                    f"{db:g} mm{_within(R.sec('anchorage', 'anchorageEq'))}; available h - "
+                    f"cover - tie = {core:.0f} mm"
                 )
                 if not 10 <= db <= 36:
                     note += f"; {short_name()} gives ldh for 10-36 mm bars only"
@@ -748,12 +779,15 @@ def _shear_rows(
         note,
         f"Vc = {vc / 1e3:.1f} kN"
         + (
-            " (0: the earthquake part is at least half of Ve and Pu < 0.05 Ag f'c, Sec 8.3.8.2(a))"
+            " (0: the earthquake part is at least half of Ve and Pu < 0.05 Ag f'c"
+            + (f", {R.sec('vcZero')}" if R.ref("vcZero") else "")
+            + ")"
             if zero
             else ""
         ),
-        f"Vs = {vs / 1e3:.1f} kN, fyt ≤ {rc_value('FYT_SHEAR_MAX'):g} MPa (Sec 8.3.3.4(d), 6.4.3.2), "
-        + f"φ = {rc_value('PHI_SHEAR'):g}",
+        f"Vs = {vs / 1e3:.1f} kN, fyt ≤ {rc_value('FYT_SHEAR_MAX'):g} MPa"
+        + _within(R.sec("shearFy"))
+        + f", φ = {rc_value('PHI_SHEAR'):g}",
     ]
     if need * fyt * d > vs_max:
         parts.append("Ve needs Vs above 0.66 √f'c bw d: enlarge the section")
@@ -831,7 +865,7 @@ def beam_capacity_shear(
         note = (
             f"Ve = (Mpr- + Mpr+) / ln + Vg = ({m.mpr_hog / 1e6:.1f} + {m.mpr_sag / 1e6:.1f}) "
             f"kN·m / {clear_span:.0f} mm + {abs(gravity_shear) / 1e3:.1f} kN, Mpr at 1.25 fy, "
-            f"φ = 1 ({_section()} Sec 8.3.8.1(a))"
+            f"φ = 1{_at('smfShear')}"
         )
         label = "Capacity shear Ve (SMF)"
     else:
@@ -844,7 +878,7 @@ def beam_capacity_shear(
         if doubled_e_shear is not None and doubled_e_shear < ve:
             ve = abs(doubled_e_shear)
             note += f"; the combinations with 2E give less: {ve / 1e3:.1f} kN governs"
-        note += f" ({_section()} Sec 8.3.10.3)"
+        note += _at("imfShear")
         label = "Capacity shear (IMF)"
     return _shear_rows(
         label,
@@ -919,7 +953,7 @@ def column_capacity_shear(
         ve = v_moment
         note = (
             f"Ve = 2 Mpr / lu = 2 × {m / 1e6:.1f} kN·m / {clear_height:.0f} mm, Mpr at "
-            f"P = {p / 1e3:.0f} kN ({_section()} Sec 8.3.8.1(b))"
+            f"P = {p / 1e3:.0f} kN{_at('smfColumnShear')}"
         )
         if beam_limit is not None and beam_limit < ve:
             ve = beam_limit
@@ -941,7 +975,7 @@ def column_capacity_shear(
         if doubled_e_shear is not None and abs(doubled_e_shear) < ve:
             ve = abs(doubled_e_shear)
             note += f"; the combinations with 2E give less: {ve / 1e3:.1f} kN governs"
-        note += f" ({_section()} Sec 8.3.10.3)"
+        note += _at("imfShear")
         v_sway = ve
         label = f"Capacity shear (IMF column, {frame.axis})"
     vc = 0.17 * lam * min(math.sqrt(section.fc), 8.3) * bw * d
@@ -1106,10 +1140,10 @@ def column_dowel_checks(
     else:
         need = hooked_development(db, fy, fc, lam)
         how = (
-            f"ldh = max(0.24 fy db / (λ √f'c), 8 db, 150) = {need:.0f} mm for db = {db:g} mm "
-            f"({_section()} Sec 8.2.6.1, 8.2.6.2); available t - cover - 2 mesh bars = "
-            f"{available:.0f} mm; 90° hooks at the bottom, turned towards the column's centre "
-            "(Sec 8.3.11.2(a), (b))"
+            f"ldh = max(0.24 fy db / (λ √f'c), 8 db, 150) = {need:.0f} mm for db = {db:g} mm"
+            f"{_at('dowelHooks')}; available t - cover - 2 mesh bars = "
+            f"{available:.0f} mm; 90° hooks at the bottom, turned towards the column's centre"
+            + _within(R.sec("dowels"))
         )
     return [_check(f"Column bars into foundation, {column_id}", need, available, "mm", None, how)]
 
@@ -1168,7 +1202,8 @@ def grade_beam_tie_check(
             limit,
             "mm",
             None,
-            f"no closed ties: they are required at ≤ {limit:.0f} mm (Sec 8.3.11.3(b))",
+            f"no closed ties: they are required at ≤ {limit:.0f} mm"
+            + _within(R.sec("gradeBeamTies")),
         )
     return _check(
         f"Grade beam ties, {beam_id}",
@@ -1176,9 +1211,10 @@ def grade_beam_tie_check(
         limit,
         "mm",
         None,
-        f"closed ties at ≤ min(smallest dimension / 2, 300 mm) = {limit:.0f} mm "
-        f"({_section()} Sec 8.3.11.3(b)); grade beams bent by the columns of the seismic system "
-        "also follow Sec 8.3.4 (8.3.11.3(c))",
+        f"closed ties at ≤ min(smallest dimension / 2, 300 mm) = {limit:.0f} mm"
+        f"{_at('gradeBeamTies')}; grade beams bent by the columns of the seismic system "
+        f"also follow {R.sec('gradeBeamRules') or 'the special moment frame beam rules'}"
+        + R.within("gradeBeamScope"),
     )
 
 
@@ -1261,8 +1297,9 @@ def non_sfrs_checks(
                 phi_mn / 1e6,
                 "kN·m",
                 None,
-                f"under the design displacement δu with the gravity forces ({_section()} "
-                "Sec 8.3.12.2); beyond φMn the detailing of Sec 8.3.12.3 applies",
+                "under the design displacement δu with the gravity forces"
+                f"{_at('nonSfrsInduced')}; beyond φMn the detailing"
+                f"{_of(R.sec('nonSfrsDetailing'))} applies",
                 flag=True,
             )
         )
@@ -1273,34 +1310,50 @@ def non_sfrs_checks(
                 phi_vn / 1e3,
                 "kN",
                 None,
-                "under the design displacement δu with the gravity forces (Sec 8.3.12.2)",
+                "under the design displacement δu with the gravity forces"
+                + _within(R.sec("nonSfrsInduced")),
                 flag=True,
             )
         )
         d = _depth(section)
         if exceeds:
-            clauses = (
-                "8.3.3.3, 8.3.3.4, 8.3.4.2, 8.3.8"
-                if light
-                else "8.3.3.3, 8.3.3.4, 8.3.5.3, 8.3.5.4, 8.3.7.1, 8.3.8"
+            notes.append(
+                _applies(
+                    member_id,
+                    "nonSfrsDetailing",
+                    "the detailing beyond the design strengths",
+                    "nonSfrsLight" if light else "nonSfrsHeavy",
+                )
             )
-            notes.append(f"{member_id}: Sec 8.3.12.3 applies: {clauses}")
             if light:
-                rows.append(_full_length(member_id, stirrups, d / 2, "d / 2", "8.3.12.3(b)"))
+                rows.append(_full_length(member_id, stirrups, d / 2, "d / 2", "nonSfrsStirrups"))
         elif light:
-            notes.append(f"{member_id}: Sec 8.3.12.2(a) applies: 8.3.4.2(a)")
-            rows.append(_full_length(member_id, stirrups, d / 2, "d / 2", "8.3.12.2(a)"))
+            notes.append(
+                _applies(member_id, "nonSfrsWithinLight", "the detailing within them", "beamBars")
+            )
+            rows.append(_full_length(member_id, stirrups, d / 2, "d / 2", "nonSfrsWithinLight"))
         else:
             db = min((b.dia for b in section.bars), default=0.0)
             so = min(6 * db, 150.0)
             half = gravity_axial > 0.35 * section.p0
-            notes.append(
-                f"{member_id}: Sec 8.3.12.2({'c' if half else 'b'}) applies: 8.3.5.3(a), "
-                f"8.3.5.4{' with half the 8.3.5.4(a) amount' if half else ''}"
+            asked = _applies(
+                member_id,
+                "nonSfrsWithinHalf" if half else "nonSfrsWithinHeavy",
+                "the detailing within them",
+                "columnRho,columnHoops",
             )
+            if half:
+                amount = R.ref("columnAsh")
+                asked += f" with half the {amount} amount" if amount else " with half the amount"
+            notes.append(asked)
             rows.append(
                 _full_length(
-                    member_id, stirrups, so, "so = min(6 db, 150 mm)", "8.3.12.2(b)", tie=True
+                    member_id,
+                    stirrups,
+                    so,
+                    "so = min(6 db, 150 mm)",
+                    "nonSfrsWithinHeavy",
+                    tie=True,
                 )
             )
     else:
@@ -1311,18 +1364,25 @@ def non_sfrs_checks(
                 phi_mn / 1e6,
                 "kN·m",
                 None,
-                f"under twice the lateral displacement of the factored lateral forces ({_section()}"
-                " Sec 8.3.9.1); beyond φMn the detailing of 8.3.9.1(a) applies",
+                "under twice the lateral displacement of the factored lateral forces"
+                f"{_at('omfInduced')}; beyond φMn the detailing{_of(R.ref('omfBeyond'))} "
+                "applies",
                 flag=True,
             )
         )
         if induced_moment > phi_mn:
-            clauses = "8.3.4.2(a), 8.3.8.1(a)" if light else "8.3.5.4, 8.3.7.2(a), 8.3.8.1(b)"
-            notes.append(f"{member_id}: Sec 8.3.9.1(a) applies: {clauses}")
+            notes.append(
+                _applies(
+                    member_id,
+                    "omfBeyond",
+                    "the detailing beyond φMn",
+                    "omfBeyondLight" if light else "omfBeyondHeavy",
+                )
+            )
         else:
-            notes.append(f"{member_id}: Sec 8.3.9.1(b) applies: 8.3.4.2(a)")
+            notes.append(_applies(member_id, "omfWithin", "the detailing within φMn", "beamBars"))
         if not light:
-            notes.append(f"{member_id}: ties of Sec 8.3.9.2 (Pu > 0.1 Ag f'c)")
+            notes.append(f"{member_id}: ties{_of(R.sec('omfTies'))} (Pu > 0.1 Ag f'c)")
     return rows, notes
 
 
@@ -1349,6 +1409,27 @@ def _full_length(
         limit,
         "mm",
         None,
-        f"≤ {rule} = {limit:.0f} mm over the full length ({_section()} Sec {clause})"
+        f"≤ {rule} = {limit:.0f} mm over the full length{_at(clause)}"
         + ("" if stirrups else "; no transverse bars"),
     )
+
+
+def _within(text: str) -> str:
+    """ " (text)", or "" for an empty ``text``."""
+    return f" ({text})" if text else ""
+
+
+def _of(text: str, fallback: str = "") -> str:
+    """ " of <text>" (``fallback`` words, " <fallback>", for an empty ``text``)."""
+    if text:
+        return f" of {text}"
+    return f" {fallback}" if fallback else ""
+
+
+def _joint_width() -> str:
+    """How bj is taken: the pack's clause for it where it gives one; else ACI 318-19 18.8.4.3,
+    which the code does not replace (an SAEngine choice)."""
+    own = R.ref("jointWidth")
+    if own:
+        return f"bj by {short_name()} {own}"
+    return f"bj by ACI 318-19 18.8.4.3: {short_name()} does not define it"

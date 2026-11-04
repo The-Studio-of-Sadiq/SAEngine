@@ -29,6 +29,15 @@ area               ids                                    module
 ``piles``          ``correlationFactors``                 limit_state_geotechnics (ξ of piles)
 =================  =====================================  ==========================================
 
+Alpha 9 C5c areas: ``strutAndTie`` ``designStressLimits`` (stress_fields: deep beams, corbels,
+pile caps), ``interfaceShear`` ``interfaceShear`` (rc_detailing: construction joints), ``ties``
+``tieForces`` (limit_state_members), ``footingPunching`` ``reducedPerimeter``
+(perimeter_punching: footings, pile caps, rafts), ``wallSlenderness`` ``columnAnalogy``
+(limit_state_members: walls out of their plane), ``barShapes`` ``barShapes`` (drawings.detailing:
+bends, hooks, compression laps) and the geotechnical ``retaining`` ``limitStates``
+(limit_state_retaining). The slabs' and stairs' span/depth ratio is the ``deflection`` area's
+method, the confinement of columns and walls the ``seismic`` one's.
+
 A group holds one method, chosen by its id (:func:`saengine.codes.method_tables.chosen` is the
 same test for a module that reads its own group). The IS 456 type methods of track C8 are
 further ids of the same groups: ``shear`` ``tabulatedStress``, ``torsion`` ``equivalentShear``,
@@ -67,6 +76,7 @@ _GEOTECHNICAL = {
     "bearing": ("bearing", None),
     "sliding": ("sliding", None),
     "piles": ("correlation", "correlationFactors"),
+    "retaining": ("retaining", "limitStates"),  # Alpha 9 C5c
 }
 
 
@@ -99,7 +109,7 @@ def concrete(area: str) -> str | None:
 
 def geotechnical(area: str) -> str | None:
     """The method id the pack in force picks for foundation design ``area`` (``bearing``,
-    ``sliding``, ``piles``), or None for the default allowable-stress design."""
+    ``sliding``, ``piles``, ``retaining``), or None for the default allowable-stress design."""
     table = _table("geotechnicalMethods")
     if table is None or area in (getattr(table, "parentMethods", None) or ()):
         return None
@@ -129,6 +139,13 @@ LIMIT_STATE_IDS = {
     "seismic": "curvatureDuctility",
     "anchorage": "bondStress",
     "shear": "variableStrut",
+    # Alpha 9 C5c.
+    "strutAndTie": "designStressLimits",
+    "interfaceShear": "interfaceShear",
+    "ties": "tieForces",
+    "footingPunching": "reducedPerimeter",
+    "wallSlenderness": "columnAnalogy",
+    "barShapes": "barShapes",
 }
 
 
@@ -143,6 +160,8 @@ def summary() -> dict[str, str | None]:
     areas = (
         "ultimate", "shear", "torsion", "punching", "cracking", "serviceStress", "deflection",
         "slenderness", "cover", "anchorage", "memberSteel", "seismic",
+        "strutAndTie", "interfaceShear", "ties", "footingPunching", "wallSlenderness",
+        "barShapes",
     )  # fmt: skip
     out: dict[str, str | None] = {a: concrete(a) for a in areas}
     out.update({a: geotechnical(a) for a in _GEOTECHNICAL})

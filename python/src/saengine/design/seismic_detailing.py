@@ -40,10 +40,37 @@ import numpy as np
 from saengine.design import ductile_joints as dj
 from saengine.design import ductile_members as dm
 from saengine.design import seismic_rules
-from saengine.design.clauses import clause, short_name
+from saengine.design.clauses import Rows, clause, code_name, own_text, short_name
 from saengine.design.rc import DesignError, RcSection
 
 PREFIX = "Detailing: "
+
+#: C11: the clause numbers this glue's notes and method text cite beyond the rule modules'
+#: (``designClauses.seismicDetailingRows``; those of :data:`ductile_members.R` and
+#: :data:`ductile_joints.R` otherwise); a pack without them leaves the clause out.
+R = Rows("seismicDetailingRows")
+
+
+def _join(*parts: str) -> str:
+    """The non-empty ``parts``, comma separated."""
+    return ", ".join(p for p in parts if p)
+
+
+def _and(*parts: str) -> str:
+    """The non-empty ``parts`` as "a, b and c"."""
+    found = [p for p in parts if p]
+    return ", ".join(found[:-1]) + f" and {found[-1]}" if len(found) > 1 else "".join(found)
+
+
+def _of(text: str) -> str:
+    return f" of {text}" if text else ""
+
+
+def _chapter() -> str:
+    """The code and chapter the method text names: the pack's own (C11), else its name only."""
+    if own_text("seismicDetailing", "chapter"):
+        return clause("seismicDetailing", "chapter")
+    return code_name()
 
 
 def _code() -> str:
@@ -92,33 +119,67 @@ EARTHQUAKE_CASES = ("EX", "EY")
 
 def _method() -> list[str]:
     """``METHOD``: the method text of the design report, with the clauses of the code pack in
-    force (read as a module attribute)."""
+    force (read as a module attribute; C11: the clause numbers from its ``seismicDetailingRows``,
+    ``ductileMembersRows`` and ``ductileJointsRows``, left out where it gives none)."""
+    m, j = dm.R, dj.R
+
+    def sec(rows: Rows, *keys: str) -> str:
+        """ " Sec <clauses>" to follow a phrase; "" when the pack gives none."""
+        found = rows.sec(*keys)
+        return f" {found}" if found else ""
+
+    def paren(*parts: str) -> str:
+        found = "; ".join(p for p in parts if p)
+        return f" ({found})" if found else ""
+
+    levels = ": ".join(t for t in (R.sec("levels"), "D special, C intermediate, B ordinary") if t)
+    ash = R.ref("ash")
+    imf_axial = m.ref("imfAxial")
+    stricter = _and(m.ref("columnHoops"), m.ref("beamHoops"))
+    nonsfrs = m.sec("nonSfrs")
+    omf_nonsfrs = m.ref("omfNonSfrs")
+    own_bj = j.ref("jointWidth")
+    bj = (
+        f"bj by {short_name()} {own_bj}"
+        if own_bj
+        else f"bj by ACI 318-19 18.8.4.3, {short_name()} does not define it"
+    )
+    vc_zero = j.ref("vcZero")
     return [
         (
-            f"Seismic detailing to {clause('seismicDetailing', 'chapter')}: the detailing level "
+            f"Seismic detailing to {_chapter()}: the detailing level "
             "from the Seismic "
-            "Design Category (Sec 8.3.2: D special, C intermediate, B ordinary) and the structural "
-            "system (Table 6.2.19); materials of Sec 8.3.3.3, 8.3.3.4."
+            f"Design Category ({levels}) and the structural "
+            f"system{R.within('systems')}; materials{_of(R.sec('materials'))}."
         ),
         (
-            "Members: special moment frame beams Sec 8.3.4 (b ≥ 250 mm and 0.3 h, ln ≥ 4d, ρ limits, "
-            "Mn+ ≥ Mn-/2, hoops over 2h at min(d/4, 8 db, 24 dh, 300 mm), d/2 elsewhere), columns "
-            "Sec 8.3.5 (least dimension ≥ 300 mm, ρg 1-6 %, Ash by Eq. 6.8.7 and 6.8.8 over lo = "
-            "max(h, ln/6, 450 mm) at so = min(b/4, 6 db, 100 + (350 - hx)/3)); intermediate frames "
-            "Sec 8.3.10.4, 8.3.10.5 (columns with Pu ≤ 0.1 Ag f'c by 8.3.10.4, Sec 8.3.10.2; "
-            "special frame columns with Pu ≤ 0.1 Ag f'c take the stricter of 8.3.5.4 and 8.3.4.3, "
-            "an SAEngine choice); ordinary frames Sec 8.3.9; gravity members Sec 8.3.12 (Sec "
-            "8.3.12.3 with the capacity shear of 8.3.8 where the induced forces exceed φMn, φVn or "
-            "are not computed, as for columns), 8.3.9.1. The hoop spacing in lo reported is the "
+            f"Members: special moment frame beams{sec(m, 'smfBeams')} (b ≥ 250 mm and 0.3 h, ln ≥ "
+            "4d, ρ limits, "
+            "Mn+ ≥ Mn-/2, hoops over 2h at min(d/4, 8 db, 24 dh, 300 mm), d/2 elsewhere), columns"
+            f"{sec(m, 'smfColumns')} (least dimension ≥ 300 mm, ρg 1-6 %, Ash"
+            f"{' by ' + ash if ash else ''} over lo = "
+            "max(h, ln/6, 450 mm) at so = min(b/4, 6 db, 100 + (350 - hx)/3)); intermediate frames"
+            f"{sec(m, 'imfBeams', 'imfColumns')} (columns with Pu ≤ 0.1 Ag f'c by "
+            f"{m.ref('imfBeams') or 'the beam rules'}"
+            f"{', Sec ' + imf_axial if imf_axial else ''}; "
+            "special frame columns with Pu ≤ 0.1 Ag f'c take the stricter of "
+            f"{stricter or 'the column and beam hoop rules'}, "
+            f"an SAEngine choice); ordinary frames{sec(m, 'omf')}; gravity members"
+            f"{sec(R, 'gravity')} ({nonsfrs or 'the rule beyond the design strengths'} with the "
+            f"capacity shear{_of(R.ref('shear'))} where the induced forces exceed φMn, φVn or "
+            f"are not computed, as for columns){', ' + omf_nonsfrs if omf_nonsfrs else ''}. The "
+            "hoop spacing in lo reported is the "
             "least of the dimensional limit, Ash and the capacity shear's Av/s with the type's ties."
         ),
         (
-            "Capacity design: strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2, Eq. 6.8.5), "
-            "joint shear Vj = 1.25 fy As - Vcol ≤ 0.85 γ √f'c Aj (Sec 8.3.7.3; bj by ACI 318-19 "
-            f"18.8.4.3, {short_name()} does not define it), capacity shear Ve from Mpr at 1.25 fy "
-            "(Sec 8.3.8, "
-            "Vc = 0 by 8.3.8.2(a)) or 2E (Sec 8.3.10.3); Ω0 combinations for transfer members and "
-            "collectors (Sec 2.5.5.6, 2.5.13.4). Foundations (Sec 8.3.11) are Part 9's."
+            "Capacity design: strong column / weak beam ΣMnc ≥ 1.2 ΣMnb"
+            f"{paren(R.sec('strongColumn'))}, "
+            f"joint shear Vj = 1.25 fy As - Vcol ≤ 0.85 γ √f'c Aj{paren(j.sec('jointGamma'), bj)}"
+            ", capacity shear Ve from Mpr at 1.25 fy"
+            f"{paren(_join(R.sec('shear'), f'Vc = 0 by {vc_zero}' if vc_zero else ''))}"
+            f" or 2E{paren(j.sec('imfShear'))}; Ω0 combinations for transfer members and "
+            f"collectors{paren(R.sec('omega'))}. Foundations{paren(R.sec('foundations'))} are "
+            "Part 9's."
         ),
     ]
 
@@ -182,15 +243,16 @@ def _clause(name: str) -> str | None:
 
 
 #: The clause of the rows whose names carry none (the capacity-design rows of
-#: :mod:`saengine.design.ductile_joints`), by the start of the name.
+#: :mod:`saengine.design.ductile_joints`), by the start of the name: keys of its
+#: :data:`ductile_joints.R` (C11: the pack's clauses).
 NAME_CLAUSES = (
-    ("Strong column / weak beam", "8.3.5.2(b), Eq. 6.8.5"),
-    ("Joint shear", "8.3.7.3"),
-    ("Beam bars through joint", "8.3.7.1(d)"),
-    ("Beam bar anchorage", "8.3.7.1(c), 8.3.7.4(a)"),
-    ("Capacity shear Ve (SMF column", "8.3.8.1(b), 8.3.8.2"),
-    ("Capacity shear Ve (SMF)", "8.3.8.1(a), 8.3.8.2"),
-    ("Capacity shear (IMF", "8.3.10.3"),
+    ("Strong column / weak beam", ("strongColumn",)),
+    ("Joint shear", ("jointGamma",)),
+    ("Beam bars through joint", ("throughBars",)),
+    ("Beam bar anchorage", ("anchorage",)),
+    ("Capacity shear Ve (SMF column", ("smfColumnShear", "columnShearVc")),
+    ("Capacity shear Ve (SMF)", ("smfShear", "shearVc")),
+    ("Capacity shear (IMF", ("imfShear",)),
 )
 
 _NOTE_CLAUSE = re.compile(r"Sec (\d+\.\d+(?:\.\d+)*(?:\([a-z0-9]+\))*)")
@@ -204,9 +266,12 @@ def _clause_of(row: dict[str, Any], clause: str | None = None) -> str | None:
     found = _clause(row["name"])
     if found:
         return found
-    for start, sec in NAME_CLAUSES:
+    for start, keys in NAME_CLAUSES:
         if row["name"].startswith(start):
-            return f"{_code()} Sec {sec}"
+            sec = dj.R.ref(*keys)
+            if sec:
+                return f"{_code()} Sec {sec}"
+            break
     if clause:
         return clause
     match = _NOTE_CLAUSE.search(row.get("note") or "")
@@ -224,7 +289,10 @@ def _tagged(rows: list[dict[str, Any]], clause: str | None = None) -> list[dict[
 
 
 def _with_clause(rows: list[dict[str, Any]], clause: str) -> list[dict[str, Any]]:
-    """The rows with ``clause`` (a section list such as "8.3.12.3(b), 8.3.8.1(a)") set."""
+    """The rows with ``clause`` (a section list such as "8.3.12.3(b), 8.3.8.1(a)", from the
+    pack) set; unchanged when it is empty (the pack gives no clause)."""
+    if not clause:
+        return rows
     return [{**r, "clause": f"{_code()} Sec {clause}"} for r in rows]
 
 
@@ -449,16 +517,21 @@ def apply(
             try:
                 found, _ = dj.joint_checks(joint, beams, jb, ja, below.object.profile)
             except DesignError as error:
-                notes.append(f"{joint.id}: Sec 8.3.7.1 not checked: {error}")
+                notes.append(
+                    f"{joint.id}: {R.sec('jointBars') or 'the joint bar rules'} not checked: "
+                    f"{error}"
+                )
                 continue
             gravity_joint_rows.setdefault(joint.below, []).extend(
                 _with_clause(
                     [r for r in found if r["name"].startswith("Beam bar")],
-                    "8.3.12.3(c), "
-                    + (
-                        "8.3.7.1(d)"
-                        if any("through" in r["name"] for r in found)
-                        else "8.3.7.1(c), 8.3.7.4(a)"
+                    _join(
+                        dm.R.ref("nonSfrsColumns"),
+                        dj.R.ref(
+                            "throughBars"
+                            if any("through" in r["name"] for r in found)
+                            else "anchorage"
+                        ),
                     ),
                 )
             )
@@ -568,7 +641,7 @@ def apply(
             "zones": None,
             "Ve": None,
             "phiVn": None,
-            "clause": f"{_code()} Sec " + ", ".join(row["provisions"]),
+            "clause": _provisions_clause(row["provisions"]),
             "notes": member_notes,
         }
         context: dict[str, Any] = {
@@ -620,7 +693,7 @@ def apply(
                         for n in member_notes
                         if not (found["computed"] and n.startswith(_NOT_COMPUTED))
                         # 8.3.12.2(a) asks 8.3.4.2(a) only, not the splices of 8.3.4.2(b).
-                        and not (found["only4_2a"] and n.startswith("lap splices (8.3.4.2(b))"))
+                        and not (found["only4_2a"] and n.startswith(dm.splice_note() + ":"))
                     ] + found_notes
                     if gravity_d and found["capacityShear"]:
                         context["shearLevel"] = "special"
@@ -636,7 +709,10 @@ def apply(
                         doubled_e_shear=dem.doubled_e_shear,
                     )
                     if not lateral:
-                        shear_rows = _with_clause(shear_rows, "8.3.12.3(b), 8.3.8.1(a)")
+                        shear_rows = _with_clause(
+                            shear_rows,
+                            _join(dm.R.ref("nonSfrsStirrups"), dj.R.ref("smfShear")),
+                        )
                     rows += shear_rows
                     if shear_rows:
                         info["Ve"], info["phiVn"] = (
@@ -664,8 +740,10 @@ def apply(
                 member_notes += out.notes
                 if d.id in full_height:
                     member_notes.append(
-                        "a joint of this column fails the strong-column rule: Sec 8.3.5.4 "
-                        "confinement over the full height (8.3.5.2(c))"
+                        "a joint of this column fails the strong-column rule: "
+                        + " ".join(t for t in (dm.R.sec("columnHoops"), "confinement") if t)
+                        + " over the full height"
+                        + dm.R.within("columnFullHeight")
                     )
                 need = out.need
                 if need is not None:
@@ -676,15 +754,7 @@ def apply(
                     }
                 light = not heavy(d, axial[0])
                 if gravity_d:
-                    member_notes.append(
-                        f"{_NOT_COMPUTED} for columns, so Sec 8.3.12.3 applies (8.3.12.1): "
-                        + (
-                            "8.3.12.3(b) asks 8.3.4.2 and 8.3.8 with ties at d/2; the beam "
-                            "steel ratios of 8.3.4.2 are not checked for a column section"
-                            if light
-                            else "8.3.12.3(c) asks 8.3.5.3, 8.3.5.4, 8.3.7.1 and 8.3.8"
-                        )
-                    )
+                    member_notes.append(_gravity_column_note(light))
                     context["shearLevel"] = "special"
                     if not light:
                         rows += gravity_joint_rows.get(d.id, [])
@@ -704,13 +774,19 @@ def apply(
                         )
                         if not lateral:
                             found = _with_clause(
-                                found, f"8.3.12.3({'b' if light else 'c'}), 8.3.8.1(b)"
+                                found,
+                                _join(
+                                    dm.R.ref("nonSfrsStirrups" if light else "nonSfrsColumns"),
+                                    dj.R.ref("smfColumnShear"),
+                                ),
                             )
                         rows += found
                     else:
+                        rules = _join(R.ref("shear"), dj.R.ref("imfShear"))
                         member_notes.append(
-                            "an inclined member: its capacity shear (Sec 8.3.8, 8.3.10.3) is "
-                            "not checked"
+                            "an inclined member: its capacity shear"
+                            + (f" (Sec {rules})" if rules else "")
+                            + " is not checked"
                         )
         except DesignError as error:
             member_notes.append(f"seismic detailing not checked: {error}")
@@ -742,13 +818,15 @@ def _zone_spacing(
     if so is None:
         return {}
     limits = {"dimensions": float(so)}
+    # The end of the Ash rows' names in lo ("in lo (8.3.5.4(a)(ii))" in the default pack).
+    ash_in_lo = dm.ash_name("x", "in lo").split(", ", 2)[-1]
     if ties is not None and ties.in_zone > 0:
         s = ties.in_zone
         for r in rows:
             name = r["name"]
             if r["flag"] or r["demand"] <= 0 or r["capacity"] <= 0:
                 continue
-            if "Confinement Ash" in name and name.endswith("in lo (8.3.5.4(a)(ii))"):
+            if "Confinement Ash" in name and name.endswith(ash_in_lo):
                 key = "Ash"
             elif name.endswith(": transverse steel Av/s"):
                 key = "capacity shear Av/s"
@@ -792,24 +870,31 @@ def _gravity_beam(
     exceeds = not computed or any(r["utilisation"] > 1 for r in induced)
     out = list(rows)
     if scope.get("sdc") == "D":
-        clause = "8.3.12.3(b)" if exceeds else "8.3.12.2(a)"
+        # The d/2 row of ductile_members, named after the clause that applies.
+        before = dm.R.named("Stirrup spacing elsewhere", "nonSfrsStirrups")
+        after = dm.R.named(
+            "Stirrup spacing elsewhere", "nonSfrsStirrups" if exceeds else "nonSfrsWithin"
+        )
         out = [
-            {**r, "name": r["name"].replace("(8.3.12.3(b))", f"({clause})")}
-            if r["name"].startswith("Stirrup spacing elsewhere")
-            else r
+            {**r, "name": after + r["name"][len(before) :]} if r["name"].startswith(before) else r
             for r in out
         ]
-        if not exceeds:  # 8.3.12.2(a): 8.3.4.2(a) only
-            out = [r for r in out if "(8.3.4.2(b))" not in r["name"]]
+        if not exceeds:  # 8.3.12.2(a): 8.3.4.2(a) only, not the splices
+            splices = dm.R.named("Hoops over lap splices", "beamSplices")
+            out = [r for r in out if r["name"] != splices]
         has_d2 = any(r["name"].startswith("Stirrup spacing elsewhere") for r in out)
         found = [r for r in found if not (has_d2 and r["name"].startswith("Stirrup spacing (full"))]
         if not computed:
             notes.append(
                 f"{d.id}: the induced forces under δu could not be computed (no combination with "
-                "E, or no φMn): Sec 8.3.12.3 applies (8.3.12.1)"
+                f"E, or no φMn): {dm.R.sec('nonSfrs') or 'the rule for induced forces not computed'}"
+                f" applies{dm.R.within('nonSfrsScope')}"
             )
         if exceeds:
-            notes.append(f"{d.id}: the capacity shear of Sec 8.3.8 applies (8.3.12.3(b))")
+            notes.append(
+                f"{d.id}: the capacity shear{_of(R.sec('shear'))} applies"
+                + dm.R.within("nonSfrsStirrups")
+            )
     only = scope.get("sdc") == "D" and not exceeds
     return {
         "rows": out + found,
@@ -993,6 +1078,31 @@ def capacity_av_s(section: RcSection, kind: str, context: dict[str, Any]) -> dic
         if len(rows) > 1:
             out[axis] = rows[1]["demand"]
     return out
+
+
+def _provisions_clause(provisions: list[str]) -> str | None:
+    """The clause of a member's provisions (ids of :func:`seismic_rules._member_provisions`):
+    "<code> Part 6 Sec <clauses>" from the pack (C11); None when it gives none of them."""
+    found = seismic_rules.provision_clauses(provisions)
+    return f"{_code()} Sec {found}" if found else None
+
+
+def _gravity_column_note(light: bool) -> str:
+    """The note of a column outside the seismic-force-resisting system in Category D whose
+    induced forces are not computed."""
+    rule = dm.R.sec("nonSfrs") or "the rule for induced forces not computed"
+    if light:
+        asks = (
+            f"{dm.R.ref('nonSfrsStirrups') or 'it'} asks "
+            f"{_and(R.ref('beams'), R.ref('shear')) or 'the beam rules'} with ties at d/2; the "
+            f"beam steel ratios{_of(R.ref('beams'))} are not checked for a column section"
+        )
+    else:
+        listed = _and(
+            R.ref("columnBars"), dm.R.ref("columnHoops"), R.ref("jointBars"), R.ref("shear")
+        )
+        asks = f"{dm.R.ref('nonSfrsColumns') or 'it'} asks {listed or 'the column rules'}"
+    return f"{_NOT_COMPUTED} for columns, so {rule} applies{dm.R.within('nonSfrsScope')}: {asks}"
 
 
 def __getattr__(name: str) -> list[str]:

@@ -152,12 +152,14 @@ def lap_length(
     good_bond: bool = True,
     cd: float | None = None,
     bent: bool = False,
+    compression: bool = False,
 ) -> dict[str, float]:
-    """l0 and its parts [mm]."""
+    """l0 and its parts [mm]; ``compression`` (alpha 9 C5c): a lap in compression, α1 = α2 = 1
+    (Table 8.2 gives 1.0 for bars in compression)."""
     a = _table().anchorage
     sigma = design_strength.fyd(fyk) if sigma_sd is None else sigma_sd
     lb = basic_length(bar, sigma, fck, good_bond)
-    alpha1, alpha2 = _alphas(bar, cd, bent)
+    alpha1, alpha2 = (1.0, 1.0) if compression else _alphas(bar, cd, bent)
     alpha6 = lap_alpha6(lapped_share)
     share, n, mm = a.lapMin
     lmin = max(share * alpha6 * lb, n * bar, mm)

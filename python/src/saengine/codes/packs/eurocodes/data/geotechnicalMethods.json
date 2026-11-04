@@ -74,6 +74,15 @@
     "waterAtInterface": true,
     "phiCvShare": 1.0
   },
+  "equilibrium": {
+    "permanentDestabilising": 1.1,
+    "permanentStabilising": 0.9,
+    "variableDestabilising": 1.5
+  },
+  "retaining": {
+    "method": "limitStates",
+    "castInPlace": true
+  },
   "sources": {
     "designApproach": "EN 1997-1 2.4.7.3.4.1 (the approach is a National choice; DA1 here is SAEngine practice, overridable)",
     "actions": "EN 1997-1 Annex A Table A.3 (sets A1, A2)",
@@ -84,7 +93,9 @@
     "bearing": "EN 1997-1 Annex D.3 (undrained), D.4 (drained): Nγ = 2 (Nq - 1) tan φ', sγ = 1 - 0.3 B'/L', sc = 1 + 0.2 B'/L'",
     "sliding": "EN 1997-1 6.5.3(8)-(12): δd = φ'cv,d cast in place, 2/3 φ'cv,d smooth precast; Rd <= 0.4 Vd undrained where water or air can reach the interface",
     "correlation": "EN 1997-1 Annex A Tables A.9 (static load tests ξ1, ξ2), A.10 (ground tests ξ3, ξ4); 7.6.2.2(9), 7.6.2.3(9): ÷ 1.1 for structures stiff and strong enough",
-    "footings": "SAEngine practice: the founding layer's characteristic φ', c', cu, γ of the nearest borehole; drained where it gives φ', undrained where it gives cu (both where both); cast in place; water may reach the base; φ'cv,k = φ'k where none is given (EN 1997-1 6.5.3(10) takes φ'cv,d); overridable"
+    "footings": "SAEngine practice: the founding layer's characteristic φ', c', cu, γ of the nearest borehole; drained where it gives φ', undrained where it gives cu (both where both); cast in place; water may reach the base; φ'cv,k = φ'k where none is given (EN 1997-1 6.5.3(10) takes φ'cv,d); overridable",
+    "equilibrium": "EN 1990 Annex A1 Table A1.2(A) (EQU, recommended: γG,dst 1.10, γG,stb 0.90, γQ 1.50); EN 1997-1 2.4.7.2 and Table A.1",
+    "retaining": "EN 1997-1 9.5 (earth pressures: Ka with the design φ'd of the combination's M set, Annex C), 9.7.2-9.7.3 (bearing and sliding by 6.5.2, 6.5.3 on the effective base width B' = B - 2e), 9.7.4 and 2.4.7.2 (overturning as EQU: the design destabilising moment at most the stabilising one); EN 1992-1-1 for the stem and base"
   },
   "clauses": {
     "designApproach": "EN 1997-1 2.4.7.3.4",
@@ -93,6 +104,8 @@
     "pileLoadTests": "EN 1997-1 7.6.2.2",
     "pileGroundTests": "EN 1997-1 7.6.2.3",
     "pileTension": "EN 1997-1 7.6.3",
-    "spreadFoundations": "EN 1997-1 6.5"
+    "spreadFoundations": "EN 1997-1 6.5",
+    "retaining": "EN 1997-1 9",
+    "equilibrium": "EN 1990 A1.3.1, Table A1.2(A)"
   }
 }

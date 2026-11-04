@@ -125,6 +125,70 @@
   "torsionAmplificationMax": 1.0,
   "pgaFactor": 1.0,
   "verticalFactor": 0.0,
+  "irregularities": {
+    "offsets": true,
+    "inPlaneOffset": 1.0,
+    "soft": { "storeyAbove": 0.7 },
+    "mass": { "adjacent": 1.5, "topExempt": true },
+    "labels": {
+      "torsion": { "group": "plan", "label": "Torsional sensitivity indicator: drift at one end over the mean (reported)" },
+      "extremeTorsion": { "group": "plan", "label": "Torsional sensitivity indicator, high (reported)" },
+      "planRegularity": { "group": "plan", "label": "Not regular in plan" },
+      "elevationRegularity": { "group": "vertical", "label": "Not regular in elevation" },
+      "outOfPlaneOffset": { "group": "vertical", "label": "Lateral system not continuous to the base" },
+      "inPlaneDiscontinuity": { "group": "vertical", "label": "Wall offset in its plane" },
+      "soft": { "group": "vertical", "label": "Abrupt change of the storey stiffness" },
+      "mass": { "group": "vertical", "label": "Abrupt change of the storey mass" }
+    },
+    "clauses": {
+      "plan": "EN 1998-1 Sec 4.2.3.2",
+      "vertical": "EN 1998-1 Sec 4.2.3.3",
+      "torsion": "EN 1998-1 Sec 4.2.3.2 (indicator only)",
+      "extremeTorsion": "EN 1998-1 Sec 4.2.3.2 (indicator only)",
+      "planRegularity": "EN 1998-1 Sec 4.2.3.2(2)-(8)",
+      "elevationRegularity": "EN 1998-1 Sec 4.2.3.3(2)-(5), Figure 4.1",
+      "outOfPlaneOffset": "EN 1998-1 Sec 4.2.3.3(2)",
+      "inPlaneDiscontinuity": "EN 1998-1 Sec 4.2.3.3(2)",
+      "soft": "EN 1998-1 Sec 4.2.3.3(3) (SAEngine indicator: 70 % of the storey above)",
+      "mass": "EN 1998-1 Sec 4.2.3.3(3) (SAEngine indicator: 150 % of an adjacent storey)"
+    }
+  },
+  "regularity": {
+    "method": "criteria",
+    "slendernessMax": 4.0,
+    "compactnessShare": 0.05,
+    "eccentricityShare": 0.30,
+    "torsionalRadius": true,
+    "setbackShare": 0.20,
+    "baseHeightShare": 0.15,
+    "baseSetbackShare": 0.50,
+    "unsymmetricShare": 0.10,
+    "unsymmetricTotal": 0.30,
+    "symmetryTolerance": 0.25,
+    "elevationFactor": 0.8,
+    "planAverage": true,
+    "clauses": {
+      "plan": "EN 1998-1 Sec 4.2.3.2, 5.2.2.2(6)",
+      "elevation": "EN 1998-1 Sec 4.2.3.3, 4.2.3.1(7)"
+    }
+  },
+  "torsionalEffects": { "method": "deltaFactor", "coefficient": 0.6, "planarCoefficient": 1.2, "step": 0.05 },
+  "modalCombination": { "method": "independence", "ratio": 0.9 },
+  "verticalComponent": {
+    "method": "verticalSpectrum",
+    "threshold": 0.25,
+    "ratio": { "1": 0.90, "2": 0.45 },
+    "plateau": 3.0,
+    "behaviour": 1.5,
+    "combinationShare": 0.30,
+    "members": "horizontal members spanning 20 m or more, cantilevers longer than 5 m, prestressed horizontal members, beams supporting columns and base-isolated structures"
+  },
+  "foundationCapacity": { "method": "overstrengthFactor", "qLimit": 3.0, "gammaLow": 1.0, "gammaHigh": 1.2 },
+  "spectrumTypeGuidance": {
+    "type": "2",
+    "magnitude": 5.5,
+    "text": "override seismic.spectrumType; a National Annex may use both or give its own rule"
+  },
   "sources": {
     "spectra": "EN 1998-1 Tables 3.2 (Type 1) and 3.3 (Type 2), recommended values; Type 2 where the earthquakes that contribute most have Ms ≤ 5.5 (Sec 3.2.2.2(2)): override seismic.spectrumType",
     "siteClasses": "EN 1998-1 Table 3.1 ground types A-E: SAEngine keeps the site class ids SA-SE (the soil report classes the ground by the same vs,30, NSPT and cu limits)",
@@ -146,13 +210,20 @@
     "orthogonalShare": "EN 1998-1 Sec 4.3.3.5.1(3) Eqs 4.18-4.19: EEdx + 0.30 EEdy",
     "massParticipation": "EN 1998-1 Sec 4.3.3.3.1(3): modes with at least 90 % of the total mass (and every mode over 5 %)",
     "torsionIrregular": "SAEngine practice: EN 1998-1 Sec 4.2.3.2 judges plan regularity by the torsional radius (rx ≥ ls, e0 ≤ 0.30 r), not by the drift ratio; the 1.2 / 1.4 drift ratios are reported only",
-    "torsionAmplificationMax": "EN 1998-1 has no torsional amplification Ax (Sec 4.3.3.2.4 uses δ = 1 + 0.6 x/Le instead, not covered): 1.0, no amplification",
+    "torsionAmplificationMax": "EN 1998-1 has no torsional amplification Ax: 1.0, no amplification (Sec 4.3.3.2.4's δ is torsionalEffects)",
     "pgaFactor": "a_h = ag·S (EN 1998-1 Sec 3.2.1, 3.2.2.2)",
-    "verticalFactor": "EN 1998-1 Sec 4.3.3.5.2: the vertical component is taken into account only where avg > 0.25 g for the members of 4.3.3.5.2(1) (not covered): 0",
+    "verticalFactor": "EN 1998-1 Sec 4.3.3.5.2: not a fixed share of a_h; the vertical component is verticalComponent",
     "dynamicAnalysis": "EN 1998-1 Sec 4.3.3.2.1(2): the lateral force method needs T1 ≤ 4·TC and ≤ 2.0 s and regularity in elevation",
     "separation": "EN 1998-1 Sec 4.4.2.7(2)-(3): SRSS of the peak displacements; 0.7 where the floors are at the same elevations",
     "dampingCorrection": "EN 1998-1 Sec 3.2.2.2(3) Eq 3.6: η = √(10/(5 + ξ)) ≥ 0.55 (elastic spectrum only; the design spectrum has the damping in q)",
-    "siteSpecificStudy": "EN 1998-1 Sec 3.1.2(4): ground types S1 and S2 need special studies"
+    "siteSpecificStudy": "EN 1998-1 Sec 3.1.2(4): ground types S1 and S2 need special studies",
+    "irregularities": "SAEngine practice: the checks of the analysis that tell about EN 1998-1 4.2.3.3 (continuity of the lateral systems; the storey stiffness at least 70 % of the storey above and the mass at most 150 % of an adjacent one as indicators of an abrupt change: the code gives no numbers); the drift ratio of the ends is reported only",
+    "regularity": "EN 1998-1 Sec 4.2.3.2(4) Note (λ = Lmax/Lmin <= 4), (5) (the floor within its convex envelope: the area between at most 5 % of the floor's), (6) Eqs 4.1a-4.1b, 4.2 (e0 <= 0.30 r, r >= ls), (8) (the stiffness centre and r from the moments of inertia of the vertical elements: the approximate definition for buildings that meet its conditions); 4.2.3.3(2) (lateral systems continuous to the top), (5) Figure 4.1 (setbacks: symmetric each <= 20 % of the dimension below, a single one in the lower 15 % of the height <= 50 %, unsymmetric each <= 10 % and together <= 30 % of the base's); 4.2.3.1(7) (not regular in elevation: q0 × 0.8), 5.2.2.2(6) (not regular in plan: αu/α1 the mean of 1.0 and the system's), Table 4.1 (models and methods); SAEngine practice: the centre of mass at the floor's centroid, a setback symmetric when its two sides differ by at most 25 % of it",
+    "torsionalEffects": "EN 1998-1 Sec 4.3.3.2.4(1) Eq 4.12 (δ = 1 + 0.6 x/Le), (2) (1.2 x/Le for planar models): applied where the analysis has no accidental eccentricity cases (4.3.2(1), 4.3.3.3.3 otherwise); SAEngine practice: the centre of mass at the plan's centre, the larger of the two directions' δ, rounded up to 0.05",
+    "modalCombination": "EN 1998-1 Sec 4.3.3.3.2(1)-(3): modes i, j independent when Tj <= 0.9 Ti; SRSS where every pair is independent, else CQC (all the analysis's modes compared, on the safe side)",
+    "verticalComponent": "EN 1998-1 Sec 4.3.3.5.2(1) (only where avg > 0.25 g, for the members listed), Table 3.4 (avg/ag 0.90 Type 1, 0.45 Type 2), 3.2.2.5(4)-(5) (vertical design spectrum, plateau 3.0 avg/q with q <= 1.5), 4.3.3.5.2(4) Eqs 4.22 (0.30 combination); SAEngine practice: the plateau value (short vertical periods) and every member (on the safe side)",
+    "foundationCapacity": "EN 1998-1 Sec 4.4.2.6(2) Eq 4.30 (EFd = EF,G + γRd Ω EF,E), (2) Note (γRd = 1.0 for q <= 3, 1.2 otherwise), (3)-(4) (Ω = Rdi/Edi <= q); SAEngine practice: Ω = q (the elastic response, the bound 4.4.2.6(2) allows), overridable by seismic.foundationCapacity.omega",
+    "spectrumTypeGuidance": "EN 1998-1 Sec 3.2.2.2(2) Note 1: Type 2 where the earthquakes that contribute most to the hazard have Ms <= 5.5 (recommended)"
   },
   "clauses": {
     "scale": "EN 1998-1 Sec 4.3.3.3",
@@ -163,7 +234,7 @@
     "drift": "EN 1998-1 Sec 4.3.4 and 4.4.3.2",
     "sdc": "EN 1998-1 Sec 3.2.1(4)-(5) (SAEngine's category of the seismic action)",
     "modes": "EN 1998-1 Sec 4.3.3.3.1",
-    "irregularity": "EN 1998-1 Sec 4.2.3.2 (drift ratio reported only)",
+    "irregularity": "EN 1998-1 Sec 4.2.3 (regularity criteria; the drift ratio reported only)",
     "amplification": "EN 1998-1 Sec 4.3.3.2.4",
     "systems": "EN 1998-1 Tables 5.1, 6.2, 9.1",
     "combinationDirections": "EN 1998-1 Sec 4.3.1(1)",
@@ -178,6 +249,9 @@
     "pDelta": "EN 1998-1 Sec 4.4.2.2",
     "stability": "EN 1998-1 Eq 4.28",
     "spectrum": "EN 1998-1 Sec 3.2.2.5",
-    "lateralForce": "EN 1998-1 Sec 4.3.3.2"
+    "lateralForce": "EN 1998-1 Sec 4.3.3.2",
+    "regularity": "EN 1998-1 Sec 4.2.3",
+    "foundationCapacity": "EN 1998-1 Sec 4.4.2.6",
+    "spectrumType": "EN 1998-1 Sec 3.2.2.2(2)"
   }
 }
