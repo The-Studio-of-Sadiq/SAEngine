@@ -150,6 +150,11 @@ export interface IFemResultView {
 		readonly nodes: readonly number[];
 		readonly stress?: readonly number[];
 	}[];
+	/**
+	 * P3, a pushover step where the project's code pack checks hinges (`fem/hinges.py`): the
+	 * performance level checked and, per element id, its member's largest hinge demand / limit.
+	 */
+	readonly hinges?: { readonly level: string; readonly ratios: { readonly [elementId: string]: number } };
 }
 
 /** A rule violation in a library file, reported against the entry at `index` (none: the whole file). */

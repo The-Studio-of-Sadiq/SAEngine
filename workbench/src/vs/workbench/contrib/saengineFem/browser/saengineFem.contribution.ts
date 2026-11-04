@@ -303,33 +303,10 @@ registerPlannedFeature({
 	],
 });
 
-// T21 / B20: the pushover's target displacement, fibre walls and member acceptance follow the code
-// pack's methods (fem/pushover_target.py, fem/acceptance.py). Still planned: the performance levels
-// and hinge backbones of performance-based assessment, other target displacement methods, and
+// T21 / B20 / P3: the pushover's target displacement (coefficient, ASCE 41 coefficient, FEMA 440,
+// N2), the hinges with their performance levels and the member acceptance follow the code
+// pack's methods (fem/pushover_target.py, fem/hinges.py, fem/acceptance.py). Still planned:
 // walls with openings as nonlinear piers and spandrels.
-registerPlannedFeature({
-	id: FemPlanned.pushoverHinges,
-	part: 'fem',
-	title: localize('planned.hinges.title', "Performance Levels (IO, LS, CP)"),
-	summary: localize('planned.hinges.summary', "Gives beams and columns plastic hinges with performance-based backbone curves, and checks each hinge's rotation against the Immediate Occupancy, Life Safety and Collapse Prevention limits. Today's pushover checks the members' fibre strains against the code pack's acceptance rule at the target displacement."),
-	steps: [
-		localize('planned.hinges.step1', "Assign hinges to the members from their sections, bars and axial load."),
-		localize('planned.hinges.step2', "Run the pushover with the hinges."),
-		localize('planned.hinges.step3', "Colour the hinges in the view by state (B, IO, LS, CP, C, E) at each step."),
-		localize('planned.hinges.step4', "Report each hinge's rotation against the limit of the chosen performance level."),
-	],
-	inputs: [
-		{ label: localize('planned.hinges.target', "Target performance level"), example: localize('planned.hinges.targetExample', "Life Safety") },
-		{ label: localize('planned.hinges.knowledge', "Knowledge factor") },
-	],
-	outputs: [
-		localize('planned.hinges.out1', "Hinge states in the 3D view, step by step"),
-		localize('planned.hinges.out2', "A hinge table by performance level"),
-	],
-	references: [
-		localize('planned.hinges.ref2', "ASCE/SEI 41-17 Ch 7 and Ch 10 (nonlinear procedures; concrete hinges and acceptance)"),
-	],
-});
 registerPlannedFeature({
 	id: FemPlanned.fibreWalls,
 	part: 'fem',
@@ -346,29 +323,6 @@ registerPlannedFeature({
 	],
 	references: [
 		localize('planned.fibreWalls.ref1', "ASCE/SEI 41-17 Sec 10.7 (concrete shear walls and coupling beams)"),
-	],
-});
-registerPlannedFeature({
-	id: FemPlanned.performancePoint,
-	part: 'fem',
-	title: localize('planned.perfPoint.title', "Other Target Displacement Methods"),
-	summary: localize('planned.perfPoint.summary', "Finds the performance point by the N2 method or the FEMA 440 improved procedures, as alternatives to the code pack's own target displacement method, which the pushover already uses."),
-	steps: [
-		localize('planned.perfPoint.step1', "Convert the capacity curve to the equivalent single-degree-of-freedom system."),
-		localize('planned.perfPoint.step2', "Take the demand from the project's design spectrum."),
-		localize('planned.perfPoint.step3', "Find the performance point by the chosen method, and mark it on the capacity curve."),
-	],
-	inputs: [
-		{ label: localize('planned.perfPoint.method', "Method"), example: localize('planned.perfPoint.methodExample', "N2 or FEMA 440 equivalent linearisation") },
-		{ label: localize('planned.perfPoint.hazard', "Hazard level"), example: localize('planned.perfPoint.hazardExample', "Design earthquake") },
-	],
-	outputs: [
-		localize('planned.perfPoint.out1', "The performance point on the capacity curve chart"),
-		localize('planned.perfPoint.out2', "Target displacement, effective period and damping"),
-	],
-	references: [
-		localize('planned.perfPoint.ref1', "EN 1998-1:2004 Annex B (N2 method)"),
-		localize('planned.perfPoint.ref2', "FEMA 440 (2005); ATC-40 (1996)"),
 	],
 });
 

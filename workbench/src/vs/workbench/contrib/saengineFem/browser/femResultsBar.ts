@@ -90,7 +90,8 @@ const VIEW_STATE_KEY = 'saengine.fem.results.viewState';
 /** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
 /** A slab layer's rebar contour (the design's steel per shell), drawn as shell values. */
 type RebarShow = 'rebarBottomX' | 'rebarBottomY' | 'rebarTopX' | 'rebarTopY';
-type Show = FemResultQuantity | 'none' | 'joints' | RebarShow;
+/** `hinges` (P3): a pushover step's members coloured by their hinges' demand / limit. */
+type Show = FemResultQuantity | 'none' | 'joints' | 'hinges' | RebarShow;
 /** The rebar contours in the order of `SLAB_REBAR_LAYERS`. */
 const REBAR_SHOWS: readonly RebarShow[] = ['rebarBottomX', 'rebarBottomY', 'rebarTopX', 'rebarTopY'];
 
@@ -143,6 +144,11 @@ const DESIGN_OPTION: IShowOption = { show: 'utilisation', label: localize('femRe
  */
 const JOINTS_OPTION: IShowOption = { show: 'joints', label: localize('femResults.joints', "Joint Checks") };
 /**
+ * P3: a pushover step's members coloured by their hinges' deformation against the performance
+ * level the code pack checks (`fem/hinges.py`), offered where the pack checks hinges.
+ */
+const HINGES_OPTION: IShowOption = { show: 'hinges', label: localize('femResults.hinges', "Hinge States") };
+/**
  * The steel each slab layer needs, shell by shell, from the design's Wood-Armer moments
  * enveloped over the combinations (rebar intensity contours), offered when the model has shells.
  */
@@ -188,6 +194,19 @@ const COMPONENT_NAMES: readonly string[] = ['N', 'V2', 'V3', 'T', 'M2', 'M3'];
 const SCALE_MIN_EXPONENT = -3;
 const SCALE_MAX_EXPONENT = 5;
 const SCALE_STEP = 0.25;
+
+/** P3: a pushover step's hinge ratios (demand / limit) by element id, drawn in the utilisation bands. */
+export function hingeColouring(view: IFemResultView | undefined): { [elementId: number]: number } | undefined {
+	const ratios = view?.hinges?.ratios;
+	if (!ratios) {
+		return undefined;
+	}
+	const out: { [elementId: number]: number } = {};
+	for (const [id, ratio] of Object.entries(ratios)) {
+		out[Number(id)] = ratio;
+	}
+	return out;
+}
 
 /** "×1.4": the scale multiplier as the slider shows it. */
 export function scaleText(scale: number): string {
@@ -869,7 +888,7 @@ export class FemResultsBar extends Disposable {
 			case 'modal': return MODAL_OPTIONS;
 			case 'spectrum': return SPECTRUM_OPTIONS;
 			case 'history': return [...HISTORY_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
-			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [])];
+			case 'pushover': return [...STATIC_OPTIONS, ...(this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : []), ...(this.view?.hinges ? [HINGES_OPTION] : [])];
 		}
 		const solids = this.view?.solids?.some(s => s.stress) ? SOLID_OPTIONS : [];
 		const shells = this.view?.shells?.length ? SHELL_OPTIONS : [];
@@ -1143,12 +1162,12 @@ export class FemResultsBar extends Disposable {
 			view && show !== 'none' ? {
 				// The joints are drawn as the utilisation of the members framing into them; a slab
 				// layer's rebar contour as one value per shell.
-				show: show === 'joints' ? 'utilisation' : isRebarShow(show) ? 'shellValues' : show,
+				show: show === 'joints' || show === 'hinges' ? 'utilisation' : isRebarShow(show) ? 'shellValues' : show,
 				scale: this.scale,
 				animate: this.animate,
 				memberLabels: this.memberLabels,
 				format: this.format,
-				utilisation: !this.design ? undefined
+				utilisation: show === 'hinges' ? hingeColouring(view) : !this.design ? undefined
 					: show === 'utilisation' ? designUtilisation(this.design)
 						: show === 'joints' ? jointColouring(this.design, this.model) : undefined,
 				// The joints as glyphs at their nodes, over the members' or the joints' colours.
@@ -1311,6 +1330,20 @@ export class FemResultsBar extends Disposable {
 		let shown = false;
 		if (this.pending) {
 			// The result asked for is being read: its values are not known yet.
+		} else if (this.entry && this.show === 'hinges' && this.view?.hinges) {
+			// P3: the hinges' demand against the performance level the code pack checks.
+			append(this.legend, $('.fem-legend-title', undefined, localize('femResults.hingeLegend', "Hinges against {0}", this.view.hinges.level)));
+			for (const [band, label] of [
+				['pass', localize('femResults.hingePass', "below 0.9 of the limit")],
+				['warn', localize('femResults.hingeWarn', "0.9 to 1.0 of the limit")],
+				['fail', localize('femResults.hingeFail', "beyond the limit")],
+			]) {
+				const row = append(this.legend, $('.fem-legend-row'));
+				append(row, $(`span.fem-design-swatch.${band}`));
+				append(row, $('span', undefined, label));
+			}
+			append(this.legend, $('.fem-legend-row', undefined, localize('femResults.hingeUncoloured', "Grey: no hinge, or not covered by the code pack")));
+			shown = true;
 		} else if (this.entry && isDesignShow(this.show) && !isRebarShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
 			// The colours of the 3D view's utilisation bands.
 			append(this.legend, $('.fem-legend-title', undefined, this.show === 'joints'
@@ -1455,7 +1488,7 @@ export class FemResultsBar extends Disposable {
 		if (entry.kind === 'pushover') {
 			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
-			this.appendPlanned(container, [FemPlanned.pushoverHinges, FemPlanned.fibreWalls, FemPlanned.performancePoint]);
+			this.appendPlanned(container, [FemPlanned.fibreWalls]);
 		} else if (entry.kind === 'modal') {
 			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		} else if (entry.kind === 'history') {

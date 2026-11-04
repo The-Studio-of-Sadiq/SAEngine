@@ -665,7 +665,11 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 try:
                     curve.update(
                         acceptance.evaluate_run(
-                            project, analysis, r, acceptance.analysis_settings(project_path)
+                            project,
+                            analysis,
+                            r,
+                            acceptance.analysis_settings(project_path),
+                            project_path,
                         )
                     )
                 except Exception as error:  # noqa: BLE001 - the curve shows without them
