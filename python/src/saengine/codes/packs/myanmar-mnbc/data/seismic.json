@@ -1,0 +1,50 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "MNBC 2020 Part 3 seismic design in the IBC / ASCE 7 form: mapped SS and S1, site coefficients Fa and Fv, SDS = 2/3 Fa SS, SD1 = 2/3 Fv S1 (the ASCE 7-05 to 7-16 tables), site classes A-F by the average shear wave velocity"
+  ],
+  "designSpectrum": {
+    "siteCoefficients": {
+      "fa": {
+        "points": [0.25, 0.5, 0.75, 1.0, 1.25],
+        "classes": {
+          "SA": [0.8, 0.8, 0.8, 0.8, 0.8],
+          "SB": [1.0, 1.0, 1.0, 1.0, 1.0],
+          "SC": [1.2, 1.2, 1.1, 1.0, 1.0],
+          "SD": [1.6, 1.4, 1.2, 1.1, 1.0],
+          "SE": [2.5, 1.7, 1.2, 0.9, 0.9]
+        }
+      },
+      "fv": {
+        "points": [0.1, 0.2, 0.3, 0.4, 0.5],
+        "classes": {
+          "SA": [0.8, 0.8, 0.8, 0.8, 0.8],
+          "SB": [1.0, 1.0, 1.0, 1.0, 1.0],
+          "SC": [1.7, 1.6, 1.5, 1.4, 1.3],
+          "SD": [2.4, 2.0, 1.8, 1.6, 1.5],
+          "SE": [3.5, 3.2, 2.8, 2.4, 2.4]
+        }
+      },
+      "clause": "MNBC 2020 Part 3 (ASCE 7-05 Tables 11.4-1 and 11.4-2 form)"
+    },
+    "multiPeriod": {
+      "softClasses": ["SD", "SE"]
+    },
+    "clauses": {
+      "siteCoefficients": "MNBC 2020 Part 3 (site coefficients Fa, Fv; ASCE 7-05 Tables 11.4-1, 11.4-2 form)"
+    }
+  },
+  "siteClasses": {
+    "$replace": true,
+    "SA": {"description": "Site class A: hard rock (vs above 1524 m/s)", "vs30": [1524, null]},
+    "SB": {"description": "Site class B: rock (vs 762-1524 m/s)", "vs30": [762, 1524]},
+    "SC": {"description": "Site class C: very dense soil and soft rock (vs 366-762 m/s)", "vs30": [366, 762]},
+    "SD": {"description": "Site class D: stiff soil (vs 183-366 m/s)", "vs30": [183, 366]},
+    "SE": {"description": "Site class E: soft clay soil (vs below 183 m/s)", "vs30": [null, 183]},
+    "SF": {"description": "Site class F: soils needing a site response analysis"}
+  },
+  "sources": {
+    "designSpectrum.siteCoefficients": "MNBC 2020 Part 3 in the ASCE 7-05 form: Fa by SS (0.25, 0.5, 0.75, 1.0, 1.25 g) and Fv by S1 (0.1 to 0.5 g) for site classes A-E, linear between, the end values outside (ASCE 7-05 Tables 11.4-1 and 11.4-2); site class F needs a site response analysis (the parent's siteSpecificStudy: read as class E meanwhile)",
+    "siteClasses": "MNBC 2020 Part 3 site classes A-F by the average shear wave velocity of the top 30 m (ASCE 7-05 Table 20.3-1: 5000, 2500, 1200, 600 ft/s = 1524, 762, 366, 183 m/s)"
+  }
+}

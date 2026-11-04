@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "HK Code of Practice on Wind Effects in Hong Kong 2019: one reference design wind pressure profile for the whole territory (wind.speedFactors.referencePressures); no seismic loading in the HK codes of this pack"
+  ],
+  "source": "HK CoP Wind Effects 2019: the reference pressures by height apply across Hong Kong (no wind speed map), with the topography factor Sq of the site (Project Settings > Wind, Kzt / k3). The V shown is the 3-second gust speed equivalent of the 10 m pressure, √(q(10 m)/0.613), for the display only: the pressures do not use it. Seismic zone 0: earthquake loading is not covered (zoneCoefficients). Elsewhere a custom location.",
+  "default": "hongKongIsland",
+  "locations": {
+    "hongKongIsland": {
+      "name": "Hong Kong Island (Central)",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "kowloon": {
+      "name": "Kowloon",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "shaTin": {
+      "name": "Sha Tin (New Territories)",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "tsuenWan": {
+      "name": "Tsuen Wan (New Territories)",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "tuenMun": {
+      "name": "Tuen Mun (New Territories)",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "taiPo": {
+      "name": "Tai Po (New Territories)",
+      "zone": 0,
+      "windSpeed": 60.3
+    },
+    "tungChung": {
+      "name": "Tung Chung (Lantau)",
+      "zone": 0,
+      "windSpeed": 60.3
+    }
+  }
+}

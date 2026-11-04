@@ -1,0 +1,40 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "bhutan",
+  "name": "Bhutan (Indian Standards with Bhutan's zoning)",
+  "edition": "Bhutan Building Rules with IS 1893 / IS 875",
+  "country": "BT",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "is-codes",
+  "covers": [
+    "locations"
+  ],
+  "description": "A thin pack for Bhutan (alpha 9 track C23): Bhutan designs to the Indian Standards, so it extends the built-in pack is-codes (IS 875 loads, IS 1893 (Part 1):2016 seismic, IS 456 concrete, IS 800 steel and the rest) and sets only Bhutan's towns: the seismic zone of each (western Bhutan zone IV, central, eastern and south-eastern Bhutan zone V, Z = 0.24 / 0.36 of IS 1893 Table 3) and the basic wind speed Vb of IS 875 (Part 3):2015 read at the adjoining Indian regions (47 or 50 m/s). Mountain sites need the topography factor k3 (Project Settings > Wind > Topography, IS 875 (Part 3) Annex C). Every value is listed in VERIFY.md: the zone and Vb of every town are SAEngine readings, to be checked against the zoning Bhutan's Department of Engineering Services applies before design.",
+  "sources": [
+    {
+      "id": "BBR",
+      "title": "Bhutan Building Rules",
+      "edition": "as in force",
+      "publisher": "Ministry of Works and Human Settlement, Royal Government of Bhutan"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "IS 1893 (Part 1):2016 zoning as applied in Bhutan (SAEngine reading)",
+      "IS 875 (Part 3):2015 Figure 1 (adjoining Indian regions)"
+    ]
+  },
+  "basis": {
+    "general": "Bhutan Building Rules with IS 875 (Parts 1-3, 5) and IS 1893 (Part 1):2016",
+    "concrete": "IS 456:2000 and IS 13920:2016 (parent pack is-codes)",
+    "steel": "IS 800:2007 (parent pack is-codes)",
+    "method": "Limit state design (IS 456)"
+  },
+  "tableCodes": {
+    "locations": "IS 1893 (Part 1):2016 / IS 875 (Part 3):2015 (Bhutan)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

@@ -41,6 +41,40 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: thin country packs (alpha 9 track C23)
+
+- **What was built.** Four built-in packs that set only what their country changes:
+  `myanmar-mnbc` (extends `aci318-asce7-22`), `bhutan` (extends `is-codes`), `qatar-qcs`
+  (extends `bs8110`) and `hongkong-cop` (extends `bs8110`). Malaysia and Singapore were done as
+  National Annex packs in C15. Every value is in the pack's `VERIFY.md`; no code text was
+  available.
+- **Generic keys (any pack may use them; the existing packs do not set them, so their results
+  are unchanged):** `seismic.designSpectrum.siteCoefficients` (Fa, Fv by site class: SMS = Fa SS,
+  SM1 = Fv S1 under `mappedSpectral` where SDS, SD1 and SMS, SM1 are not given), the towns'
+  `ss`, `s1`, `tl` in `locations` (used where the project enters none),
+  `wind.speedFactors.referencePressures` (a code's design pressure by height, the factors k1, k3,
+  k4 on the pressure), `concreteMethods.ultimate.relations.<relation>.steps` and
+  `ultimate.neutralAxisSteps` (values by strength band).
+- **Which parent (SAEngine practice).** Qatar extends `bs8110`, not `eurocodes`: QCS 2014's
+  structural references are the British Standards and its wind follows BS 6399-2. Hong Kong
+  extends `bs8110`. No `uae-dubai` pack: Dubai practice is the US codes with the authority's own
+  values, which SAEngine cannot state reliably; the US pack with entered values covers it.
+- **SAEngine practice, Myanmar.** MNBC 2020 is read as the ASCE 7-05 form: 50-year basic wind
+  speeds with 1.6W (strength) and 1.0W (allowable) combinations (on the safe side should MNBC use
+  ultimate speeds), wind importance 0.87-1.15, Fa and Fv of ASCE 7-05 Tables 11.4-1 and 11.4-2,
+  site classes A-F; the towns' SS and S1 are SAEngine estimates from the zone (SS ≈ 2.5 ×, S1 ≈
+  1.0 × the zone's upper PGA) and the wind speeds readings by region: both must be replaced with
+  MNBC's town values before design (VERIFY.md N2, N10). Metric bars and BS 8666 schedules.
+- **SAEngine practice, Hong Kong.** The wind pressures are the 2004 edition's design pressures as
+  known, to be replaced by the 2019 edition's (VERIFY.md H1); Sθ, the size and dynamic factor and
+  the correlation factor are 1.0, the BS 6399 wall coefficients stand in for the building's force
+  coefficient; εcu above C60 as steps at each band's top. Seismic not covered; steel stays BS
+  5950-1.
+- **SAEngine practice, Bhutan and Qatar.** Bhutan: zone IV in the west, V elsewhere, and Vb of
+  the adjoining Indian regions (to be checked). Qatar: Vb = 25 m/s for every town, a town site 2
+  km from the sea and the 'severe' exposure as defaults; no seismic loading; the temperature
+  range is a project input (suggestion about 25 °C).
+
 ## 2026-11-04: National Annex packs on the Eurocodes (alpha 9 track C15)
 
 - **What was built.** Four built-in packs that `extends: "eurocodes"` and set only Nationally

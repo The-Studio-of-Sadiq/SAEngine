@@ -422,6 +422,17 @@
           ],
           "default": null
         },
+        "siteCoefficients": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SiteCoefficients"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "clauses": {
           "additionalProperties": {
             "type": "string"
@@ -1359,6 +1370,63 @@
         "description"
       ],
       "title": "SiteClass",
+      "type": "object"
+    },
+    "SiteCoefficientTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C23: one site coefficient table (Fa by SS, Fv by S1): the factor of each site\nclass at the mapped values ``points`` [g], linear between, the end values outside.",
+      "properties": {
+        "points": {
+          "description": "SS (or S1) of the columns [g].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        },
+        "classes": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Site class id -> the factor at each point.",
+          "title": "Classes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "points",
+        "classes"
+      ],
+      "title": "SiteCoefficientTable",
+      "type": "object"
+    },
+    "SiteCoefficients": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C23: SMS = Fa·SS and SM1 = Fv·S1 from the site's (or its town's) mapped values,\nused where neither SDS, SD1 nor SMS, SM1 are given (the IBC / ASCE 7-05 to 7-16 form).",
+      "properties": {
+        "fa": {
+          "$ref": "#/$defs/SiteCoefficientTable"
+        },
+        "fv": {
+          "$ref": "#/$defs/SiteCoefficientTable"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fa",
+        "fv"
+      ],
+      "title": "SiteCoefficients",
       "type": "object"
     },
     "SiteSpecificStudy": {

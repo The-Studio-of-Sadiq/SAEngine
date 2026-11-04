@@ -71,6 +71,16 @@ class Location(_Row):
     name: str
     zone: int = Field(description="Seismic zone (index into zoneCoefficients).")
     windSpeed: float = Field(gt=0, description="Basic wind speed V [m/s].")
+    # Alpha 9 C23: the town's mapped spectral values, for a pack whose design spectrum is
+    # mappedSpectral and gives site coefficients (MNBC 2020 type town tables); empty: none, the
+    # project enters them (Site > Mapped spectral values), as before.
+    ss: float | None = Field(
+        default=None, gt=0, description="Mapped MCE acceleration SS at short periods [g]."
+    )
+    s1: float | None = Field(default=None, gt=0, description="Mapped MCE acceleration S1 [g].")
+    tl: float | None = Field(
+        default=None, gt=0, description="Long-period transition period TL [s]."
+    )
 
 
 class Town(_Row):
@@ -929,6 +939,36 @@ class MultiPeriodRule(BaseModel):
     softClasses: list[str] = Field(default_factory=list)
 
 
+class SiteCoefficientTable(BaseModel):
+    """Alpha 9 C23: one site coefficient table (Fa by SS, Fv by S1): the factor of each site
+    class at the mapped values ``points`` [g], linear between, the end values outside."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    points: list[Positive] = Field(min_length=1, description="SS (or S1) of the columns [g].")
+    classes: dict[str, list[Positive]] = Field(
+        description="Site class id -> the factor at each point."
+    )
+
+    @model_validator(mode="after")
+    def _lengths(self) -> SiteCoefficientTable:
+        for key, row in self.classes.items():
+            if len(row) != len(self.points):
+                raise ValueError(f"site class {key}: one factor per point")
+        return self
+
+
+class SiteCoefficients(BaseModel):
+    """Alpha 9 C23: SMS = Fa·SS and SM1 = Fv·S1 from the site's (or its town's) mapped values,
+    used where neither SDS, SD1 nor SMS, SM1 are given (the IBC / ASCE 7-05 to 7-16 form)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fa: SiteCoefficientTable
+    fv: SiteCoefficientTable
+    clause: str = ""
+
+
 class DesignSpectrumRule(BaseModel):
     """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
 
@@ -1012,6 +1052,8 @@ class DesignSpectrumRule(BaseModel):
         description="(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
     )
     multiPeriod: MultiPeriodRule | None = None
+    # Alpha 9 C23: Fa and Fv by site class (empty: SDS, SD1 or SMS, SM1 must be given).
+    siteCoefficients: SiteCoefficients | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
@@ -1913,6 +1955,15 @@ class SpeedFactors(_Row):
     # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
     topography: SlopeTopography | None = None
     gustFactor: GustFactorRules | None = None
+    # Alpha 9 C23: codes that tabulate the design pressure by height (the Hong Kong Code of
+    # Practice on Wind Effects type) instead of a basic speed and k2.
+    referencePressures: dict[str, list[tuple[float, Positive]]] | None = Field(
+        default=None,
+        description="By terrain (exposure id): (height [m], reference design pressure [kN/m²]) "
+        "points, linear between, constant outside. For such a terrain pz = q(z)·k1·k3·k4 (the "
+        "factors then act on the pressure) and the basic wind speed is not used; its k2 is "
+        "reported as √(q(z) / q(10 m)). Empty: pz = airFactor·Vz².",
+    )
 
 
 class CpHeightRow(_Row):
@@ -2038,7 +2089,12 @@ class WindTable(TableModel):
         if self.method == "speedFactors":
             if self.speedFactors is None:
                 raise ValueError("speedFactors: the method needs its factors")
-            missing = [k for k in self.exposures if k not in self.speedFactors.heightFactors]
+            pressures = self.speedFactors.referencePressures or {}  # Alpha 9 C23
+            missing = [
+                k
+                for k in self.exposures
+                if k not in self.speedFactors.heightFactors and k not in pressures
+            ]
             if missing:
                 raise ValueError(f"speedFactors: no height factors of {', '.join(missing)}")
         return self

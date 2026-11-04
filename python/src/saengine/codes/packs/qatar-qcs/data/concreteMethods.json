@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "QCS 2014 (concrete to BS 8110-1:1997, parent pack bs8110); the Gulf exposure as SAEngine practice"
+  ],
+  "defaultExposure": "severe",
+  "sources": {
+    "defaultExposure": "SAEngine practice for the Gulf's hot, saline climate: new members start in the BS 8110-1 Table 3.3 'severe' condition (cover 40 mm, C40); QCS 2014's own durability rules (covers, cement types, the below-ground classes) are not included: choose each member's exposure and check the covers against the QCS section in force"
+  }
+}
