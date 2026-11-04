@@ -261,7 +261,9 @@ def seismic_design_category(zone: int | None, site_class: str, occupancy: str) -
     site = table.aliases.get(site_class, site_class)
     row = rows.get(site) or rows.get("SE") or list(rows.values())[-1]
     group = table.occupancyGroups.get(occupancy) or next(iter(row))
-    return row[group][int(zone) - 1]
+    from saengine.codes.tables import category_column  # Alpha 9 C15
+
+    return row[group][category_column(table, zone, len(row[group]))]
 
 
 def orthogonal_required(category: str | None, option: str = "auto") -> bool:

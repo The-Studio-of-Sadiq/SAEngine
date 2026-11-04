@@ -1,0 +1,66 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MS EN 1991-1-4:2010 National Annex (basic wind velocity by zone) and MS EN 1998-1:2015 National Annex Figure NA.1 (agR)"
+  ],
+  "source": "MS EN 1991-1-4 NA: vb,0 by wind zone; MS EN 1998-1 NA: agR from the seismic hazard map, banded (zoneCoefficients). Both values of every town are to be checked against the NA maps (VERIFY.md). Elsewhere a custom location (enter agR as Z and vb,0 as V).",
+  "default": "kualaLumpur",
+  "locations": {
+    "kualaLumpur": {
+      "name": "Kuala Lumpur",
+      "zone": 3,
+      "windSpeed": 23.0
+    },
+    "georgeTown": {
+      "name": "George Town (Penang)",
+      "zone": 3,
+      "windSpeed": 23.8
+    },
+    "johorBahru": {
+      "name": "Johor Bahru",
+      "zone": 2,
+      "windSpeed": 23.0
+    },
+    "ipoh": {
+      "name": "Ipoh",
+      "zone": 2,
+      "windSpeed": 23.0
+    },
+    "kotaBharu": {
+      "name": "Kota Bharu",
+      "zone": 1,
+      "windSpeed": 23.8
+    },
+    "kuantan": {
+      "name": "Kuantan",
+      "zone": 1,
+      "windSpeed": 23.8
+    },
+    "kuching": {
+      "name": "Kuching",
+      "zone": 1,
+      "windSpeed": 23.0
+    },
+    "kotaKinabalu": {
+      "name": "Kota Kinabalu",
+      "zone": 5,
+      "windSpeed": 23.0
+    },
+    "ranau": {
+      "name": "Ranau",
+      "zone": 6,
+      "windSpeed": 23.0
+    },
+    "sandakan": {
+      "name": "Sandakan",
+      "zone": 4,
+      "windSpeed": 23.0
+    },
+    "lahadDatu": {
+      "name": "Lahad Datu",
+      "zone": 5,
+      "windSpeed": 23.0
+    }
+  }
+}

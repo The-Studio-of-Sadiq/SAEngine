@@ -30,7 +30,8 @@ soil failure, the structure of the pile and the deflection of its head:
   moment and ``Pu (15 + 0.03 h)`` (ACI 318-19 6.6.4, Cm = 1), on the P-M surface;
 - **load tests** (:mod:`saengine.substructure.load_tests`): a lateral load test of the pile
   type gives its allowable lateral load directly;
-- **soil failure** (Broms) and p-y analysis are planned features: not checked.
+- **soil failure** (Broms) and the **p-y analysis** (alpha 9 P7): the pack's ``soilFailure`` and
+  ``pyAnalysis`` groups, in :mod:`saengine.substructure.pile_lateral_soil`.
 
 Units: N and mm inside; reported in kN, kN·m and mm.
 """
@@ -356,8 +357,4 @@ def lateral_checks(
                 f"({tested['basis']}) × group ratio {group:.2f}",
             )
         )
-    notes.append(
-        "lateral soil failure of the piles (Broms) is a planned feature: not checked; the head "
-        "deflection, the pile section and any lateral load test are"
-    )
     return checks, notes

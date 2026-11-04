@@ -1,0 +1,101 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "UK NA to BS EN 1991-1-1:2002, Tables NA.2-NA.4 (imposed loads by category), Table NA.7 (roofs, category H)"
+  ],
+  "uses": {
+    "residential": {
+      "name": "Category A1: all usages within self-contained dwelling units",
+      "live": 1.5,
+      "concentrated": 2.0
+    },
+    "dwelling": {
+      "name": "Category A1: floors of dwellings",
+      "live": 1.5,
+      "concentrated": 2.0
+    },
+    "residentialPublic": {
+      "name": "Category A3: bedrooms in hotels and motels, hospital wards",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "hospitalWard": {
+      "name": "Category A3: hospital wards",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "stairsDwelling": {
+      "name": "Category A2: stairs and landings of single dwellings",
+      "live": 1.5,
+      "concentrated": 2.0
+    },
+    "balcony": {
+      "name": "Category A5: balconies of single family dwellings and communal areas",
+      "live": 2.5,
+      "concentrated": 2.0
+    },
+    "office": {
+      "name": "Category B1: offices for general use",
+      "live": 2.5,
+      "concentrated": 2.7
+    },
+    "classroom": {
+      "name": "Category C13: classrooms",
+      "live": 3.0,
+      "concentrated": 3.0
+    },
+    "dining": {
+      "name": "Category C11: public, institutional and communal dining rooms and lounges",
+      "live": 2.0,
+      "concentrated": 3.0
+    },
+    "assemblyFixed": {
+      "name": "Category C21: assembly areas with fixed seating",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "danceHall": {
+      "name": "Category C42: dance halls and studios, gymnasia, stages",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "gymnasium": {
+      "name": "Category C42: gymnasia",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "grandstand": {
+      "name": "Category C5: areas susceptible to large crowds",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "retailGround": {
+      "name": "Category D1: areas in general retail shops",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "retailUpper": {
+      "name": "Category D1: areas in general retail shops",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "wholesale": {
+      "name": "Category D2: areas in department stores",
+      "live": 4.0,
+      "concentrated": 3.6
+    }
+  },
+  "roofLive": [
+    {
+      "id": "H",
+      "name": "Category H: roofs not accessible except for maintenance (slope below 30°)",
+      "live": 0.6,
+      "concentrated": 0.9,
+      "slopeMin": 0
+    }
+  ],
+  "sources": {
+    "uses": "UK NA to BS EN 1991-1-1 Tables NA.2-NA.4 (the rows set here; the other uses keep the EN recommended values)",
+    "roofLive": "UK NA to BS EN 1991-1-1 Table NA.7: qk 0.6 kN/m², Qk 0.9 kN for roofs below 30°"
+  }
+}

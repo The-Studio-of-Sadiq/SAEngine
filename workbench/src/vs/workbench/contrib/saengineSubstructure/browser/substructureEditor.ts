@@ -94,7 +94,7 @@ const SITE_PARTS: readonly (readonly [keyof ISiteTexts, string])[] = [
 /** Planned excavation support features (registered in the contribution). */
 const EXCAVATION_FEATURES = ['substructure.embeddedPileWall', 'substructure.sheetPileWall', 'substructure.strutsAnchors'];
 /** Planned pile features shown as chips under the pile types (registered in the contribution). */
-const PLANNED_PILE_FEATURES = ['substructure.lateralPileBroms', 'substructure.lateralPilePy', 'substructure.piledRaft', 'substructure.pileGroupInteraction'];
+const PLANNED_PILE_FEATURES = ['substructure.piledRaft', 'substructure.pileGroupInteraction'];
 
 const MM = localize('sub.unit.mm', "mm");
 const M = localize('sub.unit.m', "m");
@@ -2592,6 +2592,7 @@ export class SubstructureEditor extends EditorPane {
 		} else {
 			this.renderExcavationLoads(section, excavations);
 			this.renderAdjoining(section, excavations);
+			this.renderEmbeddedWalls(section, excavations);
 			for (const excavation of excavations) {
 				const needs = this.report?.excavations?.find(r => r.id === excavation.id)?.requirements ?? [];
 				if (needs.length) {
@@ -2604,7 +2605,7 @@ export class SubstructureEditor extends EditorPane {
 			}
 		}
 		this.renderFormwork(document);
-		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "The walls round a deep excavation and their supports (embedded pile walls, sheet pile walls, struts and anchors) are planned: the code pack gives the rules above but no method to design them.")));
+		append(section, $('p.sub-muted', undefined, localize('sub.excavationNote', "An embedded wall is designed per metre run in Embedded walls by the code pack's method (embedment, moment, prop force). The wall sections and the supports of staged excavations (pile walls, sheet piles, struts, walers and anchors) are planned.")));
 		const planned = append(section, $('.sub-planned'));
 		for (const id of EXCAVATION_FEATURES) {
 			this.viewDisposables.add(appendPlannedFeatureChip(planned, id, this.commandService));
@@ -2758,6 +2759,70 @@ export class SubstructureEditor extends EditorPane {
 					this.changed(true);
 				});
 			});
+		});
+	}
+
+	/**
+	 * Alpha 9 P7: the embedded wall of each excavation, designed per metre run by the code pack's
+	 * method (embedment, bending moment, prop force; the checks join the excavation's row).
+	 */
+	private renderEmbeddedWalls(section: HTMLElement, excavations: IExcavation[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.embeddedWalls', "Embedded walls")));
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const prop: IFieldSpec = { key: 'propLevel', label: localize('sub.f.propLevel', "Prop level"), unit: M, kind: 'length' };
+		const toe: IFieldSpec = { key: 'toeLevel', label: localize('sub.f.toeLevel', "Toe level"), unit: M, kind: 'length' };
+		const surcharge: IFieldSpec = { key: 'surcharge', label: localize('sub.f.wallSurcharge', "Surcharge"), unit: 'kPa', kind: 'number', min: 0 };
+		const capacity: IFieldSpec = { key: 'momentCapacity', label: localize('sub.f.momentCapacity', "Moment capacity"), unit: 'kN·m/m', kind: 'number', min: 0 };
+		const spacing: IFieldSpec = { key: 'propSpacing', label: localize('sub.f.propSpacing', "Prop spacing"), unit: MM, kind: 'number', min: 0 };
+		const kinds = [
+			{ value: 'cantilever', label: localize('sub.wall.cantilever', "Cantilever") },
+			{ value: 'propped:free', label: localize('sub.wall.proppedFree', "Propped, free earth support") },
+			{ value: 'propped:fixed', label: localize('sub.wall.proppedFixed', "Propped, fixed earth support") },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.excavation', "Excavation"), width: 90 }, { label: localize('sub.f.wall', "Wall"), width: 200 },
+			{ label: prop.label, unit: M, numeric: true, width: 80 }, { label: toe.label, unit: M, numeric: true, width: 80 },
+			{ label: surcharge.label, unit: 'kPa', numeric: true, width: 80 }, { label: capacity.label, unit: 'kN·m/m', numeric: true, width: 100 },
+			{ label: spacing.label, unit: MM, numeric: true, width: 80 },
+		]);
+		const body = append(table, $('tbody'));
+		excavations.forEach((excavation, e) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `excavations.${e}.wall.${field}`;
+			const wall = excavation.wall;
+			append(row, $('td', undefined, excavation.id));
+			const current = !wall ? '' : wall.kind === 'propped' ? `propped:${wall.earthSupport ?? 'free'}` : 'cantilever';
+			append(append(row, $('td')), this.selectInput(kinds, current, value => {
+				if (!value) {
+					delete excavation.wall;
+				} else {
+					const [kind, support] = value.split(':');
+					const next = { ...(excavation.wall ?? {}), kind: kind as 'cantilever' | 'propped' };
+					if (support) {
+						next.earthSupport = support as 'free' | 'fixed';
+					} else {
+						delete next.earthSupport;
+					}
+					excavation.wall = next;
+				}
+				this.changed(true);
+			}, path('kind'), localize('sub.f.wall', "Wall"), true));
+			for (const field of [prop, toe, surcharge, capacity, spacing]) {
+				const input = this.textInput(field, wall?.[field.key], value => {
+					if (!excavation.wall) {
+						return;
+					}
+					if (value === undefined || value === '') {
+						delete excavation.wall[field.key];
+					} else {
+						excavation.wall[field.key] = value;
+					}
+					this.changed(false);
+				}, path(field.key));
+				input.disabled = !wall || (field === prop && wall.kind !== 'propped') || (field === spacing && wall.kind !== 'propped');
+				append(append(row, $('td')), input);
+			}
 		});
 	}
 

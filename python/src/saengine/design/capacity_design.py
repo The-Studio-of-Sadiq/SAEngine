@@ -199,7 +199,12 @@ def _beam_shear_resistance(section: Any, transverse: Any | None, ductility: str)
         d = 0.9 * section.depth
     z = s.leverArmShare * d
     vrd_max = (
-        s.alphaCw * b * z * strut_shear.nu1(section.fc, s) * design_strength.fcd(section.fc, u) / 2
+        s.alphaCw
+        * b
+        * z
+        * strut_shear.nu1(section.fc, s)
+        * design_strength.fcd(section.fc, u, shear=True)
+        / 2
     )
     if not (dia and spacing and legs):
         return 0.0

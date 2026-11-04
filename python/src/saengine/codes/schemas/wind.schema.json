@@ -1,5 +1,47 @@
 {
   "$defs": {
+    "AltitudeFactor": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the altitude factor on the mapped basic wind velocity (UK NA to BS EN\n1991-1-4 Eq NA.2a type): vb,0 = vb,map × (1 + ``factor`` × A), A the site altitude [m].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factor": {
+          "description": "Per metre of altitude.",
+          "minimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "AltitudeFactor",
+      "type": "object"
+    },
     "ArchRow": {
       "additionalProperties": false,
       "description": "A rise-to-span range of an arched roof: windward quarter Cp = a·r + b (and the alternate\ncoefficient that shall also be used, where given).",
@@ -1923,6 +1965,48 @@
       "title": "LowRiseTable",
       "type": "object"
     },
+    "MinimumLateral": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: a least horizontal load at each level as a share of its characteristic\ndead weight (the Singapore NA's 1.5 % type): the wind storey force is at least ``share`` ×\nthe level's G.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "share"
+      ],
+      "title": "MinimumLateral",
+      "type": "object"
+    },
     "MwfrsTable": {
       "additionalProperties": false,
       "description": "External pressures of the main wind-force resisting system on walls and roofs of\nenclosed and partially enclosed buildings (read by :mod:`saengine.fem.loads` and\n:mod:`saengine.fem.open_wind`).",
@@ -2781,6 +2865,39 @@
           "exclusiveMinimum": 0,
           "title": "Peakfactor",
           "type": "number"
+        },
+        "profiles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/VelocityPressureSegment"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "By terrain (exposure id): qp(z) = factor × qb × (z / zref)^exponent in the first segment with z <= zmax (qb = ½ ρ vb²); a terrain without one takes Eq 4.8.",
+          "title": "Profiles"
+        },
+        "simplified": {
+          "description": "Stepped qp by height for low buildings, by vb,0 and terrain (used with useSimplified).",
+          "items": {
+            "$ref": "#/$defs/SimplifiedPressureRow"
+          },
+          "title": "Simplified",
+          "type": "array"
+        },
+        "useSimplified": {
+          "default": false,
+          "description": "Take the simplified stepped pressures where a row fits the site and the building's height (a project override).",
+          "title": "Usesimplified",
+          "type": "boolean"
         }
       },
       "required": [
@@ -3225,6 +3342,62 @@
         "noneShare"
       ],
       "title": "RooftopTable",
+      "type": "object"
+    },
+    "SimplifiedPressureRow": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the simplified velocity pressure of a wind zone (by its ``vb0`` [m/s]) and\nterrain ``exposure``: (height up to [m], q [kN/m²]) steps, the whole building at the step of\nits height.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "vb0": {
+          "description": "vb,0 of the wind zone [m/s].",
+          "exclusiveMinimum": 0,
+          "title": "Vb0",
+          "type": "number"
+        },
+        "exposure": {
+          "title": "Exposure",
+          "type": "string"
+        },
+        "heights": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Heights",
+          "type": "array"
+        }
+      },
+      "required": [
+        "vb0",
+        "exposure",
+        "heights"
+      ],
+      "title": "SimplifiedPressureRow",
       "type": "object"
     },
     "SlopeTopography": {
@@ -3909,6 +4082,60 @@
       "title": "TowerCf",
       "type": "object"
     },
+    "VelocityPressureSegment": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: one height range of a qp(z) profile: qp = ``factor`` × qb × (z /\n``zref``)^``exponent`` up to ``zmax`` [m]; with ``absolute`` the factor is qp in kN/m²\n(times (z / zref)^exponent) instead of a multiple of qb.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zmax": {
+          "description": "Upper end of the range [m].",
+          "exclusiveMinimum": 0,
+          "title": "Zmax",
+          "type": "number"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "exponent": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "zref": {
+          "default": 10.0,
+          "description": "[m]",
+          "exclusiveMinimum": 0,
+          "title": "Zref",
+          "type": "number"
+        },
+        "absolute": {
+          "default": false,
+          "title": "Absolute",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "zmax",
+        "factor"
+      ],
+      "title": "VelocityPressureSegment",
+      "type": "object"
+    },
     "WallPressureRow": {
       "additionalProperties": false,
       "description": "External pressure coefficients of the walls by h/d (EN 1991-1-4 Table 7.1, zones D and\nE): ``ratio`` h/d, ``windward`` cpe,10 of D, ``leeward`` cpe,10 of E; linear between rows.",
@@ -4403,6 +4630,30 @@
       ],
       "default": null,
       "description": "Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
+    },
+    "altitude": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AltitudeFactor"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Altitude factor on the mapped speed; None: none."
+    },
+    "minimumLateral": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MinimumLateral"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least storey force as a share of the dead weight; None: none."
     }
   },
   "required": [

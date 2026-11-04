@@ -646,6 +646,29 @@ A National Annex pack extends it and gives only what differs:
 For example, `data/combinations.json` can be `{"strengthSet": "6.10ab"}` and
 `data/seismic.json` `{"spectrumType": "2", "designSpectrum": {"lowerBound": 0.1}}`.
 
+Built-in National Annexes (alpha 9 C15; each pack's README and `VERIFY.md` are in
+`python/src/saengine/codes/packs/<id>/`):
+
+| Pack | Annexes | What it sets |
+| --- | --- | --- |
+| `eurocodes-uk` | UK NAs to BS EN 1990-1998 | 6.10a/b with ξ 0.925 and ψ0 wind 0.5, imposed loads, vb,map by town with the altitude factor, sk by zone and altitude, αcc 0.85 / 1.0 (shear), γM2 1.10, DA1, very low seismicity, BS 8666 bar schedules |
+| `eurocodes-de` | DIN EN NAs, DIN 1054 | Eq 6.10, imposed loads of Table 6.1DE, wind zones 1-4 by town with the NA.B profiles (and the simplified pressures), snow zones 1-3, αcc 0.85, CRd,c 0.15/γc, ν1 = 0.75 ν2, γM1 1.1, DA2*, seismic zones 0-3 and the combined subsoil classes |
+| `eurocodes-my` | MS EN NAs | vb,0 and agR by town, αcc 0.85 / 1.0 |
+| `eurocodes-sg` | SS EN NAs | vb,0 = 20 m/s, the least horizontal load 1.5 % G, αcc 0.85 / 1.0, γM2 1.10, no seismic design |
+
+The generic keys they use, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `concreteMethods.ultimate.alphaCCShear` | αcc of fcd in shear (VRd,max), torsion (TRd,max) and punching (vRd,max); none: `alphaCC` |
+| `concreteMethods.shear.nuMax` | ν1 at most this |
+| `wind.altitude.factor` | vb,0 = vb,map × (1 + factor A), A = Project Settings > Site > Site altitude; the town's or the entered V is vb,map |
+| `wind.peakVelocityPressure.profiles` | By terrain id: segments `{zmax, factor, exponent, zref, absolute}`, qp = factor qb (z/zref)^exponent (or factor (z/zref)^exponent kN/m² with `absolute`) in place of Eq 4.8 |
+| `wind.peakVelocityPressure.simplified`, `useSimplified` | Stepped qp by vb,0, terrain and building height, the whole height at the step of h (opt-in) |
+| `wind.minimumLateral.share` | Each level's wind storey force at least share × its characteristic dead weight (D + SD) |
+| `snow.groundLoad` (`zoneAltitude`) | sk = factor × max(minimum, base + coefficient ((A + offset)/divisor)^exponent) by Site > Snow > Snow zone, where no ground snow load is entered |
+| `seismic.designCategories.zoneColumns` | The category column of each zone id (zone 0, or more zones than columns); none: zone n takes column n - 1 |
+
 The US and Indian packs have none of their tables, values or clause text included yet.
 
 ### Legacy British Standards: `bs8110`

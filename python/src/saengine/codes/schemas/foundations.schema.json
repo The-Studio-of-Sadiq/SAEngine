@@ -1817,6 +1817,28 @@
           "exclusiveMinimum": 0,
           "title": "Unbracedcu",
           "type": "number"
+        },
+        "soilFailure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileSoilFailure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pyAnalysis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PilePyAnalysis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1848,6 +1870,124 @@
         "lateral"
       ],
       "title": "PileLoadTestRules",
+      "type": "object"
+    },
+    "PilePyAnalysis": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P7, method ``nonlinearSprings``: the pile a beam on nonlinear p-y springs\n(:mod:`saengine.substructure.pile_lateral_soil`): soft clay (cu below ``stiffClayCu``) by\n``softClay``, stiff clay by ``stiffClay``, sand by ``sand``; ε50 by cu bands, the initial\nmodulus k of sand by φ', above and below the water table; EI × ``inertiaFactor``.",
+      "properties": {
+        "method": {
+          "const": "nonlinearSprings",
+          "default": "nonlinearSprings",
+          "title": "Method",
+          "type": "string"
+        },
+        "softClay": {
+          "const": "matlockSoftClay",
+          "default": "matlockSoftClay",
+          "title": "Softclay",
+          "type": "string"
+        },
+        "stiffClay": {
+          "default": "stiffClayNoWater",
+          "enum": [
+            "stiffClayNoWater",
+            "matlockSoftClay"
+          ],
+          "title": "Stiffclay",
+          "type": "string"
+        },
+        "sand": {
+          "const": "apiSand",
+          "default": "apiSand",
+          "title": "Sand",
+          "type": "string"
+        },
+        "stiffClayCu": {
+          "description": "cu at or above this [kPa]: stiff clay.",
+          "exclusiveMinimum": 0,
+          "title": "Stiffclaycu",
+          "type": "number"
+        },
+        "clayJ": {
+          "description": "J of the clay's ultimate resistance.",
+          "exclusiveMinimum": 0,
+          "title": "Clayj",
+          "type": "number"
+        },
+        "strain50": {
+          "description": "(cu up to [kPa], ε50) bands; the last for larger cu.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Strain50",
+          "type": "array"
+        },
+        "sandModulus": {
+          "description": "(φ' [°], k above, k below the water table [MN/m³]), linear between.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Sandmodulus",
+          "type": "array"
+        },
+        "sandCoefficient": {
+          "description": "A = max(a - b z/D, 0.9) of static loading: (a, b).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Sandcoefficient",
+          "type": "array"
+        },
+        "inertiaFactor": {
+          "description": "EI of the analysis × this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Inertiafactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stiffClayCu",
+        "clayJ",
+        "strain50",
+        "sandModulus",
+        "sandCoefficient",
+        "inertiaFactor"
+      ],
+      "title": "PilePyAnalysis",
       "type": "object"
     },
     "PileRules": {
@@ -2121,6 +2261,57 @@
         "stiffCu"
       ],
       "title": "PileSoilClasses",
+      "type": "object"
+    },
+    "PileSoilFailure": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P7, method ``broms``: the ultimate lateral load of a single pile against soil\nfailure by Broms (1964), short or long, free or fixed head, from the soil averaged over\n``averagingDepth`` × D below the head: cohesive 9 cu D below ``cohesiveGap`` × D\n(``passiveCohesive``), granular ``passiveGranular`` Kp γ' D z; allowed Hu /\n``factorOfSafety`` × the group ratio (:mod:`saengine.substructure.pile_lateral_soil`).",
+      "properties": {
+        "method": {
+          "const": "broms",
+          "default": "broms",
+          "title": "Method",
+          "type": "string"
+        },
+        "factorOfSafety": {
+          "description": "Allowable lateral load = Hu / this.",
+          "exclusiveMinimum": 0,
+          "title": "Factorofsafety",
+          "type": "number"
+        },
+        "passiveCohesive": {
+          "description": "Cohesive: the soil reaction × cu D.",
+          "exclusiveMinimum": 0,
+          "title": "Passivecohesive",
+          "type": "number"
+        },
+        "cohesiveGap": {
+          "description": "Cohesive: no reaction over this × D.",
+          "minimum": 0,
+          "title": "Cohesivegap",
+          "type": "number"
+        },
+        "passiveGranular": {
+          "description": "Granular: the reaction × Kp γ' D z.",
+          "exclusiveMinimum": 0,
+          "title": "Passivegranular",
+          "type": "number"
+        },
+        "averagingDepth": {
+          "description": "Soil averaged over this × D below the head.",
+          "exclusiveMinimum": 0,
+          "title": "Averagingdepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factorOfSafety",
+        "passiveCohesive",
+        "cohesiveGap",
+        "passiveGranular",
+        "averagingDepth"
+      ],
+      "title": "PileSoilFailure",
       "type": "object"
     },
     "PileStatic": {

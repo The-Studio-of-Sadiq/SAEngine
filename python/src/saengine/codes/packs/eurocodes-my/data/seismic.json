@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "MS EN 1998-1:2015 NA (agR bands, SAEngine practice for the category)"
+  ],
+  "designCategories": {
+    "zoneColumns": {
+      "0": 0,
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 1,
+      "5": 1,
+      "6": 2
+    }
+  },
+  "sources": {
+    "designCategories": "SAEngine practice: the agR bands up to 0.04 g take the first category column (B), 0.06-0.08 g the second (C), 0.12 g the third (D), as the base pack's bands of agR"
+  }
+}

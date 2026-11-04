@@ -156,6 +156,13 @@
           },
           "title": "Aliases",
           "type": "object"
+        },
+        "zoneColumns": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Zonecolumns",
+          "type": "object"
         }
       },
       "required": [

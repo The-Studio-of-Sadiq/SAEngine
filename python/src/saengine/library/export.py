@@ -73,7 +73,7 @@ export interface IDefaultCodeTables {
 	/** Table 6.2.19: R, Ω0, Cd; its row; the height limit [m] by Seismic Design Category (null: no limit, 0: not permitted); the frame's seismic detailing. */
 	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number; readonly row: string; readonly heightLimits: { readonly [sdc: string]: number | null }; readonly frame: string | null } };
 	/** Table 6.2.18: the Seismic Design Category by site class, occupancy group and zone (in zone order). */
-	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string } };
+	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string }; readonly zoneColumns: { readonly [zone: string]: number } };
 	/** Sec 8.3.2: the least seismic detailing by Seismic Design Category. */
 	readonly requiredDetailing: { readonly [sdc: string]: string };
 	/** Sec 2.4: Kd (Table 6.2.12), Kzt (flat terrain) and G (rigid building). */

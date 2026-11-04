@@ -18,7 +18,7 @@ export interface IDefaultCodeTables {
 	/** Table 6.2.19: R, Ω0, Cd; its row; the height limit [m] by Seismic Design Category (null: no limit, 0: not permitted); the frame's seismic detailing. */
 	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number; readonly row: string; readonly heightLimits: { readonly [sdc: string]: number | null }; readonly frame: string | null } };
 	/** Table 6.2.18: the Seismic Design Category by site class, occupancy group and zone (in zone order). */
-	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string } };
+	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string }; readonly zoneColumns: { readonly [zone: string]: number } };
 	/** Sec 8.3.2: the least seismic detailing by Seismic Design Category. */
 	readonly requiredDetailing: { readonly [sdc: string]: string };
 	/** Sec 2.4: Kd (Table 6.2.12), Kzt (flat terrain) and G (rigid building). */
@@ -10807,6 +10807,20 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Overrides the location\'s value [m/s] (the code pack\'s basic wind speed).',
 					title: 'Basic wind speed',
 				},
+				altitude: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Altitude of the site above mean sea level [m], for code packs whose basic wind velocity or ground snow load depends on it (National Annexes). Empty: 0 m.',
+					title: 'Site altitude',
+				},
 				spectral: {
 					anyOf: [
 						{
@@ -10985,8 +10999,21 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE 7: the code\'s snow map or tool). Empty: no snow.',
+					description: 'Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE 7: the code\'s snow map or tool). Empty: no snow, or the code pack\'s value of the Snow zone and Site altitude where the pack has one.',
 					title: 'Ground snow load',
+				},
+				zone: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The zone of the code\'s snow map (an id of the code pack\'s snow zones, such as 2 or 1a) for the ground snow load by zone and the site altitude, where the pack has that rule and no ground snow load is entered.',
+					title: 'Snow zone',
 				},
 				exposure: {
 					anyOf: [
@@ -13876,6 +13903,7 @@ export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 			S1: 'SE',
 			S2: 'SE',
 		},
+		zoneColumns: {},
 	},
 	requiredDetailing: {
 		D: 'special',
@@ -23367,9 +23395,102 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'EarthPressure',
 			type: 'object',
 		},
+		EmbeddedWall: {
+			additionalProperties: false,
+			description: 'Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,\na diaphragm wall), designed per metre run by the code pack\'s ``embeddedWalls`` method\n(:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.\nThe wall sections, walers, struts and anchors are designed separately.',
+			properties: {
+				kind: {
+					default: 'cantilever',
+					description: 'Cantilevered from the ground, or propped (strut or anchor) near the top.',
+					enum: ['cantilever', 'propped'],
+					enumDescriptions: ['Cantilever', 'Propped'],
+					title: 'Kind',
+					type: 'string',
+				},
+				earthSupport: {
+					default: 'free',
+					description: 'A propped wall: free earth support (the toe may rotate) or fixed earth support (Blum\'s equivalent beam, a longer wall).',
+					enum: ['free', 'fixed'],
+					enumDescriptions: ['Free earth support', 'Fixed earth support'],
+					title: 'Earth support',
+					type: 'string',
+				},
+				propLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of the strut or anchor of a propped wall [mm, project datum].',
+					title: 'Prop level',
+				},
+				toeLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Toe of the wall as built [mm, project datum]; empty: the required toe is reported.',
+					title: 'Toe level',
+				},
+				surcharge: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'On the retained ground [kPa]; empty: the largest load beside the excavation, at least the code pack\'s least surcharge.',
+					title: 'Surcharge',
+				},
+				momentCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design bending resistance of the wall per metre run [kN·m/m] (the sheet pile\'s, or the piles\' over their spacing); empty: the moment is reported only.',
+					title: 'Moment capacity',
+				},
+				propSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Spacing of the struts or anchors along the wall [mm]; empty: per metre.',
+					title: 'Prop spacing',
+				},
+			},
+			title: 'EmbeddedWall',
+			type: 'object',
+		},
 		Excavation: {
 			additionalProperties: false,
-			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work; the design of an embedded wall and its supports is a\nseparate (planned) feature.',
+			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work and, with ``wall``, the design of its embedded wall\n(alpha 9 P7); the walers, struts and anchors are designed separately.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -23546,6 +23667,19 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					},
 					title: 'Adjoining structures',
 					type: 'array',
+				},
+				wall: {
+					anyOf: [
+						{
+							$ref: '#/$defs/EmbeddedWall',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The embedded wall of its sides, designed by the code pack\'s method.',
+					title: 'Embedded wall',
 				},
 				note: {
 					anyOf: [
@@ -27378,6 +27512,33 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'On vibration isolators: the nominal air gap to its bumper restraints or snubbers [mm] (a larger gap than the code pack\'s limit doubles the design force).',
 					title: 'Isolator clearance',
+				},
+				nonBuilding: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its type in the code pack\'s non-building structure table (e.g. elevatedTankBraced, trussedTower, steelStorageRack): a tank on legs, a tower or rack designed with R, Ω0 and Cd of its type; empty: a component only.',
+					title: 'Non-building structure',
+				},
+				period: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fundamental period of the non-building structure itself [s]; empty: the plateau of the design spectrum (on the safe side).',
+					title: 'Own period',
 				},
 			},
 			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MS EN 1998-1:2015 NA Figure NA.1 (reference peak ground acceleration agR), banded by SAEngine"
+  ],
+  "source": "SAEngine practice: bands of agR [g] read from the MS EN 1998-1 NA hazard map (Peninsular Malaysia low, Sabah higher); a project enters its own agR as Z where the map gives another value",
+  "zones": {
+    "0": 0.0,
+    "1": 0.02,
+    "2": 0.03,
+    "3": 0.04,
+    "4": 0.06,
+    "5": 0.08,
+    "6": 0.12
+  }
+}

@@ -41,6 +41,67 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: National Annex packs on the Eurocodes (alpha 9 track C15)
+
+- **What was built.** Four built-in packs that `extends: "eurocodes"` and set only Nationally
+  Determined Parameters: `eurocodes-uk` (UK NAs to BS EN 1990-1998, bar schedules by BS 8666),
+  `eurocodes-de` (DIN EN NAs, DIN 1054), `eurocodes-my` (MS EN NAs) and `eurocodes-sg` (SS EN
+  NAs). Every value is in the pack's `VERIFY.md`; no annex text was available.
+- **Generic keys the annexes needed (any pack may use them; the base packs do not set them, so
+  BNBC 2020 and Eurocodes results are unchanged):** `concreteMethods.ultimate.alphaCCShear` (αcc
+  of shear, torsion and punching), `concreteMethods.shear.nuMax` (a cap on ν1),
+  `wind.altitude` (vb,0 = vb,map × (1 + factor A) with the new Site > Site altitude),
+  `wind.peakVelocityPressure.profiles` / `simplified` / `useSimplified` (an annex's qp(z)
+  profiles and stepped pressures in place of EN Eq 4.8), `wind.minimumLateral` (the least
+  storey force as a share of the characteristic dead weight), `snow.groundLoad` (sk by the
+  zone of the snow map, Site > Snow > Snow zone, and the site altitude) and
+  `seismic.designCategories.zoneColumns` (which category column a zone id takes; zones not
+  numbered 1, 2, ... used to index the wrong column or fail).
+- **SAEngine practice.** UK: Eq NA.2a (calt = 1 + 0.001 A at every height, the conservative
+  form), cdir = 1.0 in every direction, qp by EN Eq 4.8 (the NA's exposure factor figures not
+  covered). DE: the NA.B profiles by default, the simplified stepped pressures by a Code Values
+  override; on a hill qp × co²; DA2* applied as the A1 factors on the actions; zones 0-2
+  ordinary detailing, zone 3 intermediate. SG: the 1.5 % least horizontal load applied to the
+  characteristic wind storey forces (factored like the wind; on the safe side). MY: the town
+  wind speeds are SAEngine's conversion of the MS 1553 gust speeds and the agR bands are read
+  from memory: both must be checked before design (VERIFY.md M1, M2). A zone with agR 0 takes
+  the first category column (no seismic detailing).
+
+## 2026-11-04: checks BNBC requires without a method (alpha 9 track P7)
+
+Owner decision 6 of the BNBC review left these as placeholders; alpha 9 builds them with
+established methods chosen by pack method id. In the default pack each is labelled **SAEngine
+practice where BNBC 2020 is silent**, except the non-building structures, which BNBC 2020 Sec
+2.5.18 itself sends to ASCE/SEI 7-05 Chapter 15. Every value is overridable per project.
+
+- **Floor vibration** (BNBC Part 6 Sec 1.4.2(e), 10.12.5). Floors on steel beams by the AISC
+  Design Guide 11 walking acceleration, concrete floors by the CCIP-016 / SCI P354 response
+  factor (the Eurocodes pack uses the response factor for both). fn = 0.18 √(g/Δ) with Δ the
+  panel's deflection from the analysis (D + SD + the use's service live load), relative to the
+  slab's supported nodes; the panel is the bay round the largest deflection. Damping is the
+  pack's "ceilings" fit-out. The modal mass of the response factor is 1/4 of one bay's mass: on
+  the safe side (continuous floors engage more), to be refined. Parking, storage and roofs have
+  no criterion.
+- **Wind comfort** (BNBC Sec 10.12.6). Along-wind peak acceleration of the top floor from the
+  modal mass and shape of the run (ASCE 7-05 Commentary C6.5.8 form, EN 1991-1-4 Annex B.4 in
+  the Eurocodes pack), 10-year wind (V_T/V_50 = 0.36 + 0.10 ln 12T), damping 1.5 % concrete /
+  1 % steel, limits 15 / 18 / 25 milli-g (residential / hotel / office). Across-wind and
+  torsional motion are not computed (stated in the report).
+- **Non-building structures**: 07 MEP equipment marked as a non-building type gets Cs = Sa I / R
+  of the project spectrum (at least 0.044 SDS I and 0.03; rigid: 0.30 SDS I), R / Ω0 / Cd of
+  ASCE 7-05 Tables 15.4-1/-2; supported structures below 25 % of the building's W stay
+  components (the existing component force governs). Without a period: the plateau.
+- **Laterally loaded piles**: Broms soil failure (soil averaged over the top 10 D, allowable Hu /
+  2.5 × group ratio, My = φMn at no axial force) and a p-y analysis (Matlock soft clay, Welch &
+  Reese stiff clay, API sand; beam finite elements, the group ratio as a p-multiplier). Both are
+  new checks of every pile cap with soil strengths in the soil report. Our own solver is used,
+  not OpenSees PySimple1 (deterministic, no extra run).
+- **Embedded excavation walls**: per metre, cantilever (Blum, d = 1.2 d0), propped free earth
+  support (d = d0) and fixed earth support (Blum's equivalent beam, d = 1.2 d0), Rankine
+  pressures with the passive divided by 2.0, the least surcharge 10 kPa and an overdig of 10 % of
+  H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
+  walers, struts and anchors stay with track P1.
+
 ## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
 
 - **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)

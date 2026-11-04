@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/nonBuilding.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.18 (p. 669): seismic design forces of non-building structures by ASCE/SEI 7-05 Chapter 15, complying with Sec 2.5",
+    "BNBC 2020 Part 6 Sec 2.5.15 (p. 653): supported components and non-building structures over 25 percent of W with T > 0.06 s designed with their interaction",
+    "ASCE/SEI 7-05 Sec 15.3.1, 15.4.1(2), 15.4.2, Tables 15.4-1 and 15.4-2 (values transcribed from knowledge of the standard; see VERIFY.md)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5.18 (p. 669): non-building structures by ASCE/SEI 7-05 Chapter 15 (Tables 15.4-1, 15.4-2), with the Sec 2.5 design spectrum",
+  "method": "responseModification",
+  "types": {
+    "elevatedTankBraced": { "label": "Elevated tank, vessel, bin or hopper on symmetrically braced legs", "R": 3.0, "omega0": 2.0, "Cd": 2.5 },
+    "elevatedTankUnbraced": { "label": "Elevated tank, vessel, bin or hopper on unbraced or asymmetrically braced legs", "R": 2.0, "omega0": 2.0, "Cd": 2.5 },
+    "horizontalVessel": { "label": "Horizontal, saddle-supported welded steel vessel", "R": 3.0, "omega0": 2.0, "Cd": 2.5 },
+    "trussedTower": { "label": "Trussed tower (freestanding or guyed), guyed stack or chimney", "R": 3.0, "omega0": 2.0, "Cd": 2.5 },
+    "cantileverColumn": { "label": "Cantilevered column-type structure", "R": 2.0, "omega0": 2.0, "Cd": 2.0 },
+    "signBillboard": { "label": "Sign or billboard", "R": 3.5, "omega0": 1.75, "Cd": 3.0 },
+    "telecomTrussSteel": { "label": "Telecommunication tower, steel truss", "R": 3.0, "omega0": 1.5, "Cd": 3.0 },
+    "telecomPoleSteel": { "label": "Telecommunication tower, steel pole", "R": 1.5, "omega0": 1.5, "Cd": 1.5 },
+    "coolingTower": { "label": "Cooling tower, concrete or steel", "R": 3.5, "omega0": 1.75, "Cd": 3.0 },
+    "steelStorageRack": { "label": "Steel storage rack", "R": 4.0, "omega0": 2.0, "Cd": 3.5, "similar": true },
+    "otherSelfSupporting": { "label": "Other self-supporting structure, tank or vessel", "R": 1.25, "omega0": 2.0, "Cd": 2.5 }
+  },
+  "supportedShare": 0.25,
+  "rigidPeriod": 0.06,
+  "rigidFactor": 0.3,
+  "minimumCoefficient": [0.044, 0.03],
+  "clauses": {
+    "required": "Part 6 Sec 2.5.18 (p. 669): non-building structures by ASCE/SEI 7-05 Chapter 15",
+    "supported": "Part 6 Sec 2.5.15 (p. 653): over 25 % of W with T > 0.06 s, with interaction; ASCE/SEI 7-05 Sec 15.3.1: below 25 %, a nonstructural component",
+    "types": "ASCE/SEI 7-05 Tables 15.4-1 and 15.4-2 (R, Ω0, Cd)",
+    "minimum": "ASCE/SEI 7-05 Sec 15.4.1(2): Cs ≥ 0.044 SDS I ≥ 0.03",
+    "rigid": "ASCE/SEI 7-05 Sec 15.4.2: T < 0.06 s, V = 0.30 SDS W I"
+  }
+}

@@ -370,7 +370,16 @@ class SnowSite(_Model):
         gt=0,
         title="Ground snow load",
         description="Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE "
-        "7: the code's snow map or tool). Empty: no snow.",
+        "7: the code's snow map or tool). Empty: no snow, or the code pack's value of the "
+        "Snow zone and Site altitude where the pack has one.",
+    )
+    # Alpha 9 C15: the zone of a pack's ground snow rule (snow.groundLoad).
+    zone: str | None = Field(
+        default=None,
+        title="Snow zone",
+        description="The zone of the code's snow map (an id of the code pack's snow "
+        "zones, such as 2 or 1a) for the ground snow load by zone and the site altitude, where "
+        "the pack has that rule and no ground snow load is entered.",
     )
     exposure: str | None = Field(
         default=None,
@@ -484,6 +493,14 @@ class Site(_Model):
         gt=0,
         title="Basic wind speed",
         description="Overrides the location's value [m/s] (the code pack's basic wind speed).",
+    )
+    # Alpha 9 C15: the site altitude for a pack's altitude factor (wind) and snow by altitude.
+    altitude: float | None = Field(
+        default=None,
+        ge=0,
+        title="Site altitude",
+        description="Altitude of the site above mean sea level [m], for code packs whose basic "
+        "wind velocity or ground snow load depends on it (National Annexes). Empty: 0 m.",
     )
     # C1: the mapped spectral values of packs whose design spectrum is mappedSpectral.
     spectral: SpectralSite | None = Field(
@@ -2994,10 +3011,19 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     if sh.uses_mapped(pack):
         z = sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack)
         zone = sh.band(z, pack) if z is not None else None
+    speed = settings.site.windSpeed or (location.windSpeed if location else None)
+    # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
+    altitude_rule = getattr(pack.table("wind"), "altitude", None) if pack.has("wind") else None
+    extra: dict[str, Any] = {}
+    if altitude_rule is not None and speed:
+        calt = 1.0 + altitude_rule.factor * float(settings.site.altitude or 0.0)
+        extra = {"windSpeedMap": speed, "windAltitudeFactor": calt}
+        speed = speed * calt
     return {
         "zone": zone,
         "Z": z,
-        "windSpeed": settings.site.windSpeed or (location.windSpeed if location else None),
+        "windSpeed": speed,
+        **extra,
         "seismicImportance": category.seismicImportance,
         "windImportance": category.windImportance,
         "R": settings.seismic.r or system.R,
@@ -3157,7 +3183,9 @@ def design_category(settings: ProjectSettings, site_class: str | None = None) ->
     rows = table.bySiteClass
     row = rows.get(table.aliases.get(site, site)) or list(rows.values())[-1]
     group = table.occupancyGroups.get(settings.occupancy.category) or next(iter(row))
-    sdc = row[group][int(zone) - 1]
+    from saengine.codes.tables import category_column  # Alpha 9 C15
+
+    sdc = row[group][category_column(table, zone, len(row[group]))]
     # Every system of both directions: the most stringent limitation (systemCombination).
     by_axis = system_values(settings, pack) if system else {}
     limits = [a["heightLimits"].get(sdc) for a in by_axis.values()]

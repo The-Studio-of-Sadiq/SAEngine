@@ -55,8 +55,14 @@ New pile type: bored, 500 mm, 18 m, head fixed in the cap, no depth to fixity.
 horizontal force is shared equally by its piles; the head moment is H Lf / 2 for a fixed head
 and H Lf at the depth to fixity for a free one. With a depth to fixity the pile section is
 checked for axial force plus that moment and for shear, and fixed heads add their moments to the
-cap's face moments. Empty: the piles are checked for axial force only. Lateral capacity by
-Broms and by p-y springs are planned (chips under the pile types table).
+cap's face moments. Empty: the piles are checked for axial force only. Beside these, every pile
+cap checks the lateral soil failure of its piles by Broms (short or long pile, the head's
+fixity, the soil averaged over the top 10 D of the nearest borehole, allowable Hu / 2.5 times
+the group ratio) and analyses the pile on nonlinear p-y springs (Matlock soft clay, stiff clay,
+API sand): the head deflection under the service shear against the allowable deflection, and
+the largest shaft moment under the strength shear against the section's φMn. Both methods are
+the code pack's (*SAEngine practice where BNBC 2020 is silent* in the default pack; Project
+Settings > Code pack overrides change them).
 
 **Design options** (nothing selected): pile capacity from the *Soil report (per layer)* or the
 *BNBC SPT equations*; factors of safety for pile compression and uplift (default 2.5, BNBC Table
@@ -90,8 +96,15 @@ twice the wet concrete and workers' load on the sheeting and joists against the 
 allowable stress, and the posts' height and diameter (Part 7 Sec 3.8, Table 7.3.1). Footings
 founded in a fill layer of the soil report and the waterproofing of basements are noted in the
 report, and the drawings' general notes carry the excavation, fill, waterproofing and formwork
-rules. The design of the walls themselves (contiguous and secant pile walls, sheet pile walls,
-struts, walers and anchors) stays planned: each chip opens its planned-feature page.
+rules. An excavation's *Wall* column designs its embedded wall per metre run by the code
+pack's method (the default pack: free and fixed earth support with the passive resistance
+divided by 2.0, SAEngine practice where BNBC 2020 is silent; the Eurocodes pack: EN 1997-1 with
+the M2 strengths): *Cantilever*, *Propped, free earth* or *Propped, fixed earth*, with the
+*Prop level*, the *Toe level* as built and the wall's *Moment capacity* (kN·m/m). The checks give
+the required embedment (with the unplanned overdig and the least surcharge), the largest bending
+moment and the prop force. The wall sections (contiguous and secant pile walls, sheet piles),
+the struts, walers and anchors of staged excavations stay planned: each chip opens its
+planned-feature page.
 
 **Machine foundations:** the *Machine foundations* table (Add Machine Foundation) gives each
 block under a generator, compressor, turbine or hammer its kind, base L × B, depth and founding

@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/geotechnicalMethods.schema.json",
+  "$sources": [
+    "UK NA to BS EN 1997-1:2004+A1:2013, NA.2 (2.4.7.3.4.1: Design Approach 1)"
+  ],
+  "designApproach": "DA1",
+  "sources": {
+    "designApproach": "UK NA to BS EN 1997-1 2.4.7.3.4.1(1)P: Design Approach 1 (combinations 1 and 2). The UK pile resistance factors R4 (with and without SLS verification by load tests, Tables NA.A.6-NA.A.8) are not covered: the base pack's recommended R4 applies"
+  }
+}

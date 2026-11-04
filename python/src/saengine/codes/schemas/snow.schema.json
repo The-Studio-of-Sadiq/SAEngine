@@ -1,5 +1,144 @@
 {
   "$defs": {
+    "GroundSnowRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the ground snow load from the zone of the snow map and the site altitude\n(method ``zoneAltitude``), where the project enters no ground snow load.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "zoneAltitude",
+          "default": "zoneAltitude",
+          "title": "Method",
+          "type": "string"
+        },
+        "zones": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GroundSnowZone"
+          },
+          "minProperties": 1,
+          "title": "Zones",
+          "type": "object"
+        },
+        "defaultZone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The zone where the project gives none; None: no snow then.",
+          "title": "Defaultzone"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "zones"
+      ],
+      "title": "GroundSnowRule",
+      "type": "object"
+    },
+    "GroundSnowZone": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the ground snow load of one zone of a code's snow map by the site altitude\nA [m]: sk = ``factor`` × max(``minimum``, ``base`` + ``coefficient`` × ((A + ``offset``) /\n``divisor``)^``exponent``) [kN/m²].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "base": {
+          "title": "Base",
+          "type": "number"
+        },
+        "coefficient": {
+          "default": 0.0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "offset": {
+          "default": 0.0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "divisor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
+          "type": "number"
+        },
+        "exponent": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sk at least [kN/m²].",
+          "title": "Minimum"
+        },
+        "factor": {
+          "default": 1.0,
+          "description": "On the whole (a zone 1a = 1.25 × 1).",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "base"
+      ],
+      "title": "GroundSnowZone",
+      "type": "object"
+    },
     "SnowDensity": {
       "additionalProperties": false,
       "description": "Snow density γ = ``factor``·pg + ``constant`` ≤ ``maximum`` [kN/m³], pg in kN/m².",
@@ -509,6 +648,18 @@
       "default": null,
       "description": "... where the flat roof snow is above this [kN/m²].",
       "title": "Seismicthreshold"
+    },
+    "groundLoad": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GroundSnowRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "sk by zone and altitude; None: the project enters sk."
     }
   },
   "required": [

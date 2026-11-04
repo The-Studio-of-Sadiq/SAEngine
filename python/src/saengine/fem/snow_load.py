@@ -166,6 +166,30 @@ def roof_angle(settings: Any) -> float:
     return float(getattr(roof, "angle", None) or 0.0)
 
 
+def ground_snow(settings: Any, table: Any) -> dict[str, Any] | None:
+    """Alpha 9 C15: the ground snow load by the pack's ``groundLoad`` rule (zone of the snow
+    map and site altitude, see :class:`saengine.codes.tables.GroundSnowZone`): ``{"sk_kPa",
+    "zone", "altitude_m", "clause"}``; None without the rule or a zone."""
+    rule = getattr(table, "groundLoad", None)
+    if rule is None:
+        return None
+    snow = getattr(getattr(settings, "site", None), "snow", None)
+    zone = getattr(snow, "zone", None) or rule.defaultZone
+    row = rule.zones.get(str(zone)) if zone is not None else None
+    if row is None:
+        return None
+    altitude = float(getattr(getattr(settings, "site", None), "altitude", None) or 0.0)
+    t = (altitude + row.offset) / row.divisor
+    term = t**row.exponent if t >= 0 else -((-t) ** row.exponent)
+    sk = row.base + row.coefficient * term
+    if row.minimum is not None:
+        sk = max(sk, row.minimum)
+    sk *= row.factor
+    if sk <= 0:
+        return None
+    return {"sk_kPa": sk, "zone": str(zone), "altitude_m": altitude, "clause": rule.clause}
+
+
 def roof_snow(settings: Any) -> dict[str, Any] | None:
     """The roof snow load of the project: ``{"s_kPa", "sk_kPa", "mu1" (the roof factor: μ1 or
     Cs), "Ce", "Ct", "Is", "angle_deg", "exposure", "case", "method", "source"}`` and, with
@@ -174,9 +198,13 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     the pack does not cover snow (the caller reports it)."""
     snow = getattr(getattr(settings, "site", None), "snow", None)
     ground = getattr(snow, "groundLoad", None)
+    pack = code_context.current()
+    mapped = None
+    if not ground and pack.has("snow"):  # Alpha 9 C15: sk by the pack's zone and altitude
+        mapped = ground_snow(settings, code_context.table("snow"))
+        ground = mapped["sk_kPa"] if mapped else None
     if not ground:
         return None
-    pack = code_context.current()
     if not pack.has("snow"):
         raise LookupError(f"the code pack {code_context.code_name()} does not cover snow")
     table = code_context.table("snow")
@@ -200,6 +228,8 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
         "method": table.method,
         "source": table.source,
     }
+    if mapped is not None:
+        out["groundZone"] = mapped
     if table.method == "slopeFactor":
         cs = slope_factor(table, ct, angle, bool(getattr(snow, "slippery", False)))
         pf = table.factor * ce * ct * importance * ground
@@ -237,6 +267,12 @@ def describe(snow: dict[str, Any]) -> str:
             f"snow s = μ1·Ce·Ct·sk = {snow['mu1']:.2f} × {snow['Ce']:g} × {snow['Ct']:g} × "
             f"{snow['sk_kPa']:g} = {snow['s_kPa']:.2f} kN/m² on the roof slabs ({snow['source']}; "
             f"roof {snow['angle_deg']:g}°, exposure {snow['exposure']})"
+        )
+    zone = snow.get("groundZone")
+    if zone is not None:  # Alpha 9 C15
+        text += (
+            f"; sk = {zone['sk_kPa']:.3f} kN/m² of snow zone {zone['zone']} at the site altitude "
+            f"A = {zone['altitude_m']:g} m" + (f" ({zone['clause']})" if zone.get("clause") else "")
         )
     if snow["case"] == "S":
         text += ", in its own case S (the combinations take Lr or S)"

@@ -532,6 +532,19 @@ class DesignCategories(BaseModel):
     bySiteClass: dict[str, dict[str, list[str]]]
     #: Site classes read from another row (e.g. S1, S2 -> SE).
     aliases: dict[str, str] = Field(default_factory=dict)
+    #: Alpha 9 C15: the column of each zone id in the rows (0 the first), for zones that are
+    #: not numbered 1, 2, ... (a zone 0 without seismic action, more zones than columns);
+    #: empty: zone n takes column n - 1.
+    zoneColumns: dict[str, int] = Field(default_factory=dict)
+
+
+def category_column(table: DesignCategories, zone: Any, count: int) -> int:
+    """Alpha 9 C15: the column of ``zone`` in rows of ``count`` categories: the pack's
+    ``zoneColumns`` where it names the zone, else zone - 1 (a zone beyond the last column takes
+    the last)."""
+    own = table.zoneColumns.get(str(zone))
+    index = int(own) if own is not None else int(zone) - 1
+    return min(index, count - 1)
 
 
 class SiteSpecificStudy(BaseModel):
@@ -1630,6 +1643,62 @@ class PeakVelocityPressureRule(_Row):
     zmax: Positive = Field(description="zmax [m].")
     turbulence: Positive = Field(description="Turbulence factor kI.")
     peakFactor: Positive = Field(description="7 of (1 + 7 Iv).")
+    # Alpha 9 C15: a National Annex's own qp(z) profiles in place of Eq 4.8 (DIN EN 1991-1-4/NA
+    # Annex NA.B type) and its simplified stepped pressures for low buildings.
+    profiles: dict[str, list[VelocityPressureSegment]] | None = Field(
+        default=None,
+        description="By terrain (exposure id): qp(z) = factor × qb × (z / zref)^exponent in the "
+        "first segment with z <= zmax (qb = ½ ρ vb²); a terrain without one takes Eq 4.8.",
+    )
+    simplified: list[SimplifiedPressureRow] = Field(
+        default_factory=list,
+        description="Stepped qp by height for low buildings, by vb,0 and terrain (used with "
+        "useSimplified).",
+    )
+    useSimplified: bool = Field(
+        default=False,
+        description="Take the simplified stepped pressures where a row fits the site and the "
+        "building's height (a project override).",
+    )
+
+
+class VelocityPressureSegment(_Row):
+    """Alpha 9 C15: one height range of a qp(z) profile: qp = ``factor`` × qb × (z /
+    ``zref``)^``exponent`` up to ``zmax`` [m]; with ``absolute`` the factor is qp in kN/m²
+    (times (z / zref)^exponent) instead of a multiple of qb."""
+
+    zmax: Positive = Field(description="Upper end of the range [m].")
+    factor: Positive
+    exponent: float = Field(default=0.0, ge=0)
+    zref: Positive = Field(default=10.0, description="[m]")
+    absolute: bool = False
+
+
+class SimplifiedPressureRow(_Row):
+    """Alpha 9 C15: the simplified velocity pressure of a wind zone (by its ``vb0`` [m/s]) and
+    terrain ``exposure``: (height up to [m], q [kN/m²]) steps, the whole building at the step of
+    its height."""
+
+    vb0: Positive = Field(description="vb,0 of the wind zone [m/s].")
+    exposure: str
+    heights: list[tuple[Positive, Positive]] = Field(min_length=1)
+
+
+class AltitudeFactor(_Row):
+    """Alpha 9 C15: the altitude factor on the mapped basic wind velocity (UK NA to BS EN
+    1991-1-4 Eq NA.2a type): vb,0 = vb,map × (1 + ``factor`` × A), A the site altitude [m]."""
+
+    factor: float = Field(ge=0, description="Per metre of altitude.")
+    clause: str | None = None
+
+
+class MinimumLateral(_Row):
+    """Alpha 9 C15: a least horizontal load at each level as a share of its characteristic
+    dead weight (the Singapore NA's 1.5 % type): the wind storey force is at least ``share`` ×
+    the level's G."""
+
+    share: Share
+    clause: str | None = None
 
 
 class WallPressureRow(_Row):
@@ -1948,6 +2017,13 @@ class WindTable(TableModel):
     )
     localPressures: LocalPressuresTable | None = Field(
         default=None, description="Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
+    )
+    # Alpha 9 C15: National Annex parameters.
+    altitude: AltitudeFactor | None = Field(
+        default=None, description="Altitude factor on the mapped speed; None: none."
+    )
+    minimumLateral: MinimumLateral | None = Field(
+        default=None, description="Least storey force as a share of the dead weight; None: none."
     )
 
     @model_validator(mode="after")
@@ -4015,6 +4091,46 @@ class PileDetailing(_Group):
     concrete: list[FoundationConcrete]
 
 
+class PileSoilFailure(_Group):
+    """Alpha 9 P7, method ``broms``: the ultimate lateral load of a single pile against soil
+    failure by Broms (1964), short or long, free or fixed head, from the soil averaged over
+    ``averagingDepth`` × D below the head: cohesive 9 cu D below ``cohesiveGap`` × D
+    (``passiveCohesive``), granular ``passiveGranular`` Kp γ' D z; allowed Hu /
+    ``factorOfSafety`` × the group ratio (:mod:`saengine.substructure.pile_lateral_soil`)."""
+
+    method: Literal["broms"] = "broms"
+    factorOfSafety: Positive = Field(description="Allowable lateral load = Hu / this.")
+    passiveCohesive: Positive = Field(description="Cohesive: the soil reaction × cu D.")
+    cohesiveGap: float = Field(ge=0, description="Cohesive: no reaction over this × D.")
+    passiveGranular: Positive = Field(description="Granular: the reaction × Kp γ' D z.")
+    averagingDepth: Positive = Field(description="Soil averaged over this × D below the head.")
+
+
+class PilePyAnalysis(_Group):
+    """Alpha 9 P7, method ``nonlinearSprings``: the pile a beam on nonlinear p-y springs
+    (:mod:`saengine.substructure.pile_lateral_soil`): soft clay (cu below ``stiffClayCu``) by
+    ``softClay``, stiff clay by ``stiffClay``, sand by ``sand``; ε50 by cu bands, the initial
+    modulus k of sand by φ', above and below the water table; EI × ``inertiaFactor``."""
+
+    method: Literal["nonlinearSprings"] = "nonlinearSprings"
+    softClay: Literal["matlockSoftClay"] = "matlockSoftClay"
+    stiffClay: Literal["stiffClayNoWater", "matlockSoftClay"] = "stiffClayNoWater"
+    sand: Literal["apiSand"] = "apiSand"
+    stiffClayCu: Positive = Field(description="cu at or above this [kPa]: stiff clay.")
+    clayJ: Positive = Field(description="J of the clay's ultimate resistance.")
+    strain50: list[tuple[float, float]] = Field(
+        min_length=1, description="(cu up to [kPa], ε50) bands; the last for larger cu."
+    )
+    sandModulus: list[tuple[float, float, float]] = Field(
+        min_length=1,
+        description="(φ' [°], k above, k below the water table [MN/m³]), linear between.",
+    )
+    sandCoefficient: tuple[float, float] = Field(
+        description="A = max(a - b z/D, 0.9) of static loading: (a, b)."
+    )
+    inertiaFactor: Share = Field(description="EI of the analysis × this.")
+
+
 class PileLateral(_Group):
     """Lateral load on piles: the head deflection, the group ratios, unbraced piles."""
 
@@ -4025,6 +4141,9 @@ class PileLateral(_Group):
         description="[in-line c/c × B, ratio of the lateral resistance in the group]."
     )
     unbracedCu: Positive = Field(description="Soil below this cu [kPa] gives no lateral support.")
+    # Alpha 9 P7: lateral soil failure (Broms) and the p-y analysis; None: not covered.
+    soilFailure: PileSoilFailure | None = None
+    pyAnalysis: PilePyAnalysis | None = None
 
 
 class TestLoadFactors(_Group):
@@ -10136,6 +10255,33 @@ class SnowShapeDriftRule(BaseModel):
     lowerShape: Positive
 
 
+class GroundSnowZone(_Row):
+    """Alpha 9 C15: the ground snow load of one zone of a code's snow map by the site altitude
+    A [m]: sk = ``factor`` × max(``minimum``, ``base`` + ``coefficient`` × ((A + ``offset``) /
+    ``divisor``)^``exponent``) [kN/m²]."""
+
+    name: str
+    base: float
+    coefficient: float = 0.0
+    offset: float = 0.0
+    divisor: Positive = 1.0
+    exponent: Positive = 1.0
+    minimum: float | None = Field(default=None, ge=0, description="sk at least [kN/m²].")
+    factor: Positive = Field(default=1.0, description="On the whole (a zone 1a = 1.25 × 1).")
+
+
+class GroundSnowRule(_Row):
+    """Alpha 9 C15: the ground snow load from the zone of the snow map and the site altitude
+    (method ``zoneAltitude``), where the project enters no ground snow load."""
+
+    method: Literal["zoneAltitude"] = "zoneAltitude"
+    zones: dict[str, GroundSnowZone] = Field(min_length=1)
+    defaultZone: str | None = Field(
+        default=None, description="The zone where the project gives none; None: no snow then."
+    )
+    clause: str | None = None
+
+
 class SnowTable(TableModel):
     """Snow on roofs from the snow load on the ground (:mod:`saengine.fem.snow_load`; C4, C1):
     s = ``factor``·(roof factor)·Ce·Ct·Is·sg on the roof, sg the ground snow load the project
@@ -10190,6 +10336,10 @@ class SnowTable(TableModel):
     seismicThreshold: Positive | None = Field(
         default=None, description="... where the flat roof snow is above this [kN/m²]."
     )
+    # Alpha 9 C15: a National Annex's ground snow load by map zone and altitude.
+    groundLoad: GroundSnowRule | None = Field(
+        default=None, description="sk by zone and altitude; None: the project enters sk."
+    )
 
     @model_validator(mode="after")
     def _exposure(self) -> SnowTable:
@@ -10218,6 +10368,12 @@ from saengine.codes.material_method_tables import (
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
+)
+from saengine.codes.practice_tables import (  # P7: checks the code gives no method for
+    EmbeddedWallsTable,
+    FloorVibrationTable,
+    NonBuildingTable,
+    WindComfortTable,
 )
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
@@ -10293,6 +10449,11 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C12: cold-formed members and steel in fire.
     "coldFormed": ColdFormedTable,
     "steelFire": SteelFireTable,
+    # Alpha 9 P7: floor vibration, wind comfort, non-building structures, embedded walls.
+    "floorVibration": FloorVibrationTable,
+    "windComfort": WindComfortTable,
+    "nonBuilding": NonBuildingTable,
+    "embeddedWalls": EmbeddedWallsTable,
     # Alpha 9 C14: the bar bending schedule's standard.
     "barSchedule": BarScheduleTable,
 }

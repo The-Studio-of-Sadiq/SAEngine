@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Singapore: EN 1998 has not been adopted for buildings; no seismic design is generally required"
+  ],
+  "source": "Singapore: no seismic design of ordinary buildings (EN 1998 not adopted): agR 0, no earthquake cases. Enter agR as Z (Location: Custom) for a building that needs a study of far-field effects.",
+  "zones": {
+    "0": 0.0
+  }
+}

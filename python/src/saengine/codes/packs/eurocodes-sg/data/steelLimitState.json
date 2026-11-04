@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "SS EN 1993-1-1 National Annex 6.1(1) (γM)"
+  ],
+  "memberResistance": {
+    "gammaM0": 1.0,
+    "gammaM1": 1.0,
+    "gammaM2": 1.1
+  },
+  "sources": {
+    "memberResistance": "SS EN 1993-1-1 NA 6.1(1): γM0 1.00, γM1 1.00, γM2 1.10"
+  }
+}

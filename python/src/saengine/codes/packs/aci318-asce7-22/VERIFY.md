@@ -649,3 +649,15 @@ be applied through `bbs.length_display`.
 | BA5 | barSchedule.standards.aci315.stockLength | 18288 mm (60 ft) | US mill practice | Longest stock bar | Check |
 | BA6 | barSchedule.standards.aci315.sizeLabel | No. {d} | ASTM A615M / A706M soft-metric designations | Size label | Sure |
 | BA7 | barSchedule.standards.aci315 bar mass | d²/162 kg/m of the designation | SAEngine practice | Mass (ASTM nominal masses differ: No. 10 0.560 kg/m) | Practice (kept so that BOQ = BBS) |
+
+## Alpha 9 P7: floor vibration, wind comfort, non-building structures
+
+The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.md, FV and LP rows).
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P7U1 | windComfort.referencePeriod, referenceToFifty | 700 years, V_700/V_50 = 1.265 (√1.6) | ASCE 7-10 Commentary C26.5.1 | Check |
+| P7U2 | windComfort response | along-wind, Commentary C26.11 | ASCE 7-22 | Check |
+| P7U3 | nonBuilding.types.signBillboard | R 3, Ω0 1.75, Cd 3 | ASCE 7-22 Table 15.4-2 | Check |
+| P7U4 | nonBuilding other types | as bnbc2020 NB4-NB13 | ASCE 7-22 Tables 15.4-1/-2 | Check (unchanged since 7-05?) |
+| P7U5 | nonBuilding.minimumCoefficient | 0.044 SDS Ie ≥ 0.03 | ASCE 7-22 Eq 15.4-1 | Sure |

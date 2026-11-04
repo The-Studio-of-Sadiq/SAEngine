@@ -1,0 +1,115 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "DIN EN 1991-1-1/NA:2010-12, Table 6.1DE (imposed loads by category)"
+  ],
+  "uses": {
+    "residential": {
+      "name": "Kategorie A2: rooms of residential buildings (sufficient load distribution)",
+      "live": 1.5
+    },
+    "dwelling": {
+      "name": "Kategorie A3: floors of dwellings without sufficient load distribution",
+      "live": 2.0,
+      "concentrated": 1.0
+    },
+    "residentialPublic": {
+      "name": "Kategorie B2: hotel rooms, hospital wards",
+      "live": 3.0,
+      "concentrated": 3.0
+    },
+    "hospitalWard": {
+      "name": "Kategorie B2: hospital wards",
+      "live": 3.0,
+      "concentrated": 3.0
+    },
+    "stairs": {
+      "name": "Kategorie T2: stairs and landings of categories B2 to E",
+      "live": 5.0,
+      "concentrated": 2.0
+    },
+    "stairsDwelling": {
+      "name": "Kategorie T1: stairs and landings of categories A and B1",
+      "live": 3.0,
+      "concentrated": 2.0
+    },
+    "balcony": {
+      "name": "Kategorie Z: access ways, loggias and balconies",
+      "live": 4.0,
+      "concentrated": 2.0
+    },
+    "office": {
+      "name": "Kategorie B1: offices",
+      "live": 2.0,
+      "concentrated": 2.0
+    },
+    "classroom": {
+      "name": "Kategorie C1: areas with tables (schools, cafés, restaurants)",
+      "live": 3.0,
+      "concentrated": 4.0
+    },
+    "dining": {
+      "name": "Kategorie C1: dining rooms and restaurants",
+      "live": 3.0,
+      "concentrated": 4.0
+    },
+    "assemblyFixed": {
+      "name": "Kategorie C2: areas with fixed seats",
+      "live": 4.0,
+      "concentrated": 4.0
+    },
+    "assemblyMovable": {
+      "name": "Kategorie C3: areas for free movement of people (museums, exhibitions)",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "corridorAbove": {
+      "name": "Kategorie C3: access areas of public buildings",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "officeLobby": {
+      "name": "Kategorie C3: lobbies and access areas",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "danceHall": {
+      "name": "Kategorie C4: sports and play areas, dance halls",
+      "live": 5.0,
+      "concentrated": 7.0
+    },
+    "gymnasium": {
+      "name": "Kategorie C4: gymnasia",
+      "live": 5.0,
+      "concentrated": 7.0
+    },
+    "stageFloor": {
+      "name": "Kategorie C4: stages",
+      "live": 5.0,
+      "concentrated": 7.0
+    },
+    "grandstand": {
+      "name": "Kategorie C5: areas for large crowds (concert halls, terraces)",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "retailGround": {
+      "name": "Kategorie D2: areas of retail shops and department stores",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "retailUpper": {
+      "name": "Kategorie D2: areas of retail shops and department stores",
+      "live": 5.0,
+      "concentrated": 4.0
+    },
+    "wholesale": {
+      "name": "Kategorie D2: areas of department stores",
+      "live": 5.0,
+      "concentrated": 4.0
+    }
+  },
+  "sources": {
+    "uses": "DIN EN 1991-1-1/NA Table 6.1DE (the rows set here; the other uses keep the EN recommended values)"
+  }
+}

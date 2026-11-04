@@ -1,0 +1,8 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "BS 8666:2020 (the UK's bar schedule standard with the UK NA, as before code packs)"
+  ],
+  "standard": "bs8666",
+  "shapeKey": false
+}

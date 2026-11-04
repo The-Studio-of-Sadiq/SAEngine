@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/geotechnicalMethods.schema.json",
+  "$sources": [
+    "DIN EN 1997-1/NA:2010-12 and DIN 1054:2010-12 (design approach 2*, Tables A 2.1-A 2.3)"
+  ],
+  "designApproach": "DA2*",
+  "approaches": {
+    "DA2*": [
+      {
+        "actions": "A1",
+        "materials": "M1",
+        "resistances": "R2"
+      }
+    ]
+  },
+  "sources": {
+    "designApproach": "DIN EN 1997-1/NA with DIN 1054 2.4.7.3.4: design approach 2* (the partial factors on the effects of the characteristic actions) for bearing and sliding, with γG 1.35, γQ 1.5 (BS-P) and γR,v 1.4, γR,h 1.1 (R2, the values of the base pack); SAEngine applies the A1 factors to the actions, which equals DA2* for the linear bearing and sliding checks (the eccentricity from the characteristic actions is not separated)"
+  }
+}

@@ -6,8 +6,9 @@ cap's axes: :func:`cap_shears`) are shared equally by its piles: the cap is rigi
 of a cap are of one type, so they deflect alike and take equal shears, ``H = (Hu, Hv) / n``.
 
 Head moment by the equivalent cantilever: the pile acts as fixed at the depth to fixity ``Lf``
-below its head (``PileType.fixityDepth``, from the geotechnical report; the lateral pile
-analysis that finds it, by Broms or by p-y springs, is a planned feature). Statics of a member
+below its head (``PileType.fixityDepth``, from the geotechnical report; else 1.4 R of the
+Winkler springs; the p-y analysis of :mod:`saengine.substructure.pile_lateral_soil` checks the
+shaft's moment on nonlinear springs beside it). Statics of a member
 of length Lf under a head shear H:
 
 - head fixed in the cap (the pile bars developed into it, the default pack's Sec 3.10.1.20): the
@@ -212,7 +213,8 @@ def section_checks(
     if not depth:
         detail["note"] = (
             "no depth to fixity: the piles are designed for axial force only; enter it from the "
-            "geotechnical report (the lateral pile analysis is planned)"
+            "geotechnical report (the p-y analysis of the pile rules checks the shaft's moment "
+            "where the soil report gives cu or φ')"
         )
         return checks, detail
     where = (
