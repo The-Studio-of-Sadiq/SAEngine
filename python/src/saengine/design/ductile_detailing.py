@@ -515,6 +515,7 @@ def apply(
             notes.append(f"{d.id}: ductile detailing not checked: {error}")
             continue
         d.entry["checks"].extend(rows)
+    joints_out: list[dict[str, Any]] = []
     for joint in joints:
         below = by_id.get(joint.below)
         if below is None or below.kind != "column" or not lateral(below):
@@ -532,6 +533,61 @@ def apply(
             notes.append(f"{joint.id}: joint not checked: {error}")
             continue
         below.entry["checks"].extend(rows)
+        joints_out.append(_joint_entry(project, joint, below, rows, r.columns.strongColumn, sd))
     for d in designed:
         sd.rate(d.entry)
-    return {"joints": [], "notes": notes}
+    return {"joints": joints_out, "notes": notes}
+
+
+def _joint_entry(
+    project: dict[str, Any], joint: Any, below: Any, rows: list[dict[str, Any]], factor: float,
+    sd: Any,
+) -> dict[str, Any]:  # fmt: skip
+    """Alpha 9 C9b: one joint of the design report's ``joints`` (the shape of
+    :func:`saengine.design.capacity_design.apply`'s), from its strong column and joint shear
+    rows, so the workbench's joints view lists the joints under the pack too."""
+    import re
+
+    scwb: dict[str, Any] = {}
+    shear_rows = []
+    for row in rows:
+        found = re.search(r"along ([xy])", row["name"])
+        axis = found.group(1) if found else "x"
+        if "Strong column" in row["name"]:
+            mrb = row["demand"] / factor if factor else 0.0
+            scwb[axis] = {
+                "ratio": round(row["capacity"] / mrb, 3) if mrb > 0 else None,
+                "sumMnc": row["capacity"],
+                "sumMnb": round(mrb, 2),
+                "required": factor,
+                "utilisation": row["utilisation"],
+                "notRequired": False,
+            }
+        elif "Joint shear" in row["name"]:
+            shear_rows.append(row)
+    governing = max(shear_rows, key=lambda r: r["utilisation"], default=None)
+    strength = [r for r in rows if not r["flag"]]
+    rotation = float(getattr(below.element, "rotation", 0.0) or 0.0)
+    return {
+        "id": joint.id,
+        "node": sd._node_at(
+            project, joint.position[0] / 1e3, joint.position[1] / 1e3, joint.level / 1e3
+        ),
+        "column": joint.below,
+        "columnAbove": joint.above,
+        "beams": sorted({b.id for b in joint.beams}),
+        "type": sd._joint_type(joint, rotation),
+        "level": joint.level,
+        "scwb": {"x": scwb.get("x"), "y": scwb.get("y")},
+        "shear": None
+        if governing is None
+        else {
+            "Vj": governing["demand"],
+            "phiVn": governing["capacity"],
+            "utilisation": governing["utilisation"],
+        },
+        "checks": rows,
+        "utilisation": max((r["utilisation"] for r in strength), default=0.0),
+        "ok": all(r["ok"] for r in strength),
+        "notes": [],
+    }

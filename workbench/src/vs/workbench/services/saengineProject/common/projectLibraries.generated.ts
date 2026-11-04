@@ -1755,7 +1755,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3502,7 +3502,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3801,7 +3801,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3953,7 +3953,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -6335,7 +6335,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},

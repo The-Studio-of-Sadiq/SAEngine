@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "IS 456:2000 Clause 33 (stairs)"
+  ],
+  "source": "Indian Standards: the clauses of the design rows the pack's methods share with the parent (alpha 9 track C9b); every other clause is the parent's (named after it).",
+  "shortNames": {
+    "stairs.spans": "IS 456"
+  },
+  "clauses": {
+    "stairs": {
+      "spans": "IS 456:2000 33.1"
+    }
+  }
+}

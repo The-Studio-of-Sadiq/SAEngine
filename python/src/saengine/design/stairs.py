@@ -1014,6 +1014,13 @@ def phi_vc(d: float, fc: float, rho: float = 0.0) -> float:
     return rc_value("PHI_SHEAR") * 0.17 * math.sqrt(fc) * 1000 * d / 1000
 
 
+def _tabulated_limits() -> Any | None:
+    """Alpha 9 C9b: the pack's ``memberLimits`` (the tabulated methods' slab rules), or None."""
+    from saengine.design import member_limits
+
+    return member_limits.limits()
+
+
 def _pack_steel(
     h: float, d: float, fc: float, fy: float
 ) -> tuple[float, float, float, float] | None:
@@ -1092,6 +1099,11 @@ def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> lis
         return checks[:1] + _pack_part_checks(
             p, demand, bars, main, d, capacity, pack_steel, material
         )
+    from saengine.design import member_limits
+
+    if member_limits.covered():
+        # Alpha 9 C9b: the tabulated methods' slab rules (IS 456 33 sends stairs to them).
+        return checks[:1] + _tabulated_part_checks(p, demand, bars, main, d, capacity, material)
     checks.append(
         _check(
             f"{p}: one-way shear",
@@ -1231,6 +1243,85 @@ def _pack_part_checks(
     return checks
 
 
+def _tabulated_part_checks(
+    p: str,
+    demand: Demand,
+    bars: StairBars,
+    main: Any,
+    d: float,
+    capacity: Any,
+    material: StairMaterial,
+) -> list[dict[str, Any]]:
+    """Alpha 9 C9b: the rows of a flight or landing after its bottom flexure by the pack's
+    tabulated methods (the pack's ``memberLimits``, ``shear`` and ``deflection``): xu/d, top
+    flexure, one-way shear k τc b d without shear reinforcement, the slab steel rows (least
+    steel, bar size, spacing) of the main and distribution bars, and span / effective depth
+    with the tension steel's factor (no 15 % stair increase: SAEngine reading of IS 456 33)."""
+    from saengine.design import member_limits, span_depth_factors
+    from saengine.design.check import _check
+    from saengine.design.tabulated_shear import _paren
+
+    fc, fy, es = material.fc, material.fy, material.es
+    checks = [
+        _check(
+            f"{p}: neutral axis depth xu/d{_paren('neutralAxis')}",
+            capacity.c_d,
+            capacity.c_d_limit,
+            "x/d",
+            None,
+            f"x = {capacity.c:.1f} mm, d = {d:.0f} mm",
+        )
+    ]
+    if demand.mu_top > 0:
+        if bars.top is None:
+            checks.append(
+                _check(f"{p}: flexure (top, supports)", demand.mu_top, 0.0, "kN·m/m", None,
+                       "no top bars entered for the support moment")
+            )  # fmt: skip
+        else:
+            dt = demand.h - bars.cover - bars.top.dia / 2
+            top = slab_design.layer_capacity(bars.top.area, dt, fc, fy, es)
+            checks.append(
+                _check(f"{p}: flexure (top, supports)", demand.mu_top, top.phi_mn / 1e6,
+                       "kN·m/m", None, f"{bars.top.label()}, d = {dt:.0f} mm")
+            )  # fmt: skip
+    rho = main.area / (1000 * d)
+    checks.append(
+        _check(
+            f"{p}: one-way shear{_paren('shear')}",
+            demand.vu,
+            slab_design.one_way_shear(rho, d, fc)[0] / 1000,
+            "kN/m",
+            None,
+            f"k τc b d at pt = {100 * rho:.2f} %, no shear reinforcement, at the support reaction",
+        )
+    )
+    for row in member_limits.slab_rows(demand.h, d, fy, main.dia, main.spacing, main.area):
+        row["name"] = f"{p}: {row['name']}"
+        checks.append(row)
+    dist = bars.distribution
+    d_dist = d - main.dia / 2 - dist.dia / 2
+    for row in member_limits.slab_rows(
+        demand.h, d_dist, fy, dist.dia, dist.spacing, dist.area, main=False
+    ):
+        row["name"] = f"{p}: distribution, {row['name'][0].lower()}{row['name'][1:]}"
+        checks.append(row)
+    if span_depth_factors.rules() is not None and d > 0:
+        kind = span_depth_factors.support_kind(demand.continuous_ends, False)
+        allowed, how = span_depth_factors.allowed_ratio(demand.span, kind, 100 * rho, 0.0, fy)
+        checks.append(
+            _check(
+                f"{p}: span / effective depth{_paren('spanDepth')}",
+                demand.span / d,
+                allowed,
+                "",
+                None,
+                f"l = {demand.span:.0f} mm, d = {d:.0f} mm; allowed {how}",
+            )
+        )
+    return checks
+
+
 # ─────────────────────────────────────── design mode ───────────────────────────────────────
 
 
@@ -1305,14 +1396,27 @@ def need_of(
                 else:
                     need.s_main = min(need.s_main, pack_steel[2])
                     need.s_dist = min(need.s_dist, pack_steel[3])
+            limits = _tabulated_limits()
+            if limits is not None:  # Alpha 9 C9b: the pack's slab spacings by d
+                n1, mm1 = limits.slabSpacing
+                n2, mm2 = limits.slabDistributionSpacing
+                if demand.kind == "landing":
+                    need.s_landing = min(need.s_landing, n1 * d, mm1)
+                else:
+                    need.s_main = min(need.s_main, n1 * d, mm1)
+                    need.s_dist = min(need.s_dist, n2 * (d - dia), mm2)
             target[dia] = max(target.get(dia, 0.0), flexure.area, as_min)
             if demand.mu_top > 0:
                 top = B.slab_flexure_need(demand.mu_top * 1e6, d, fc, fy, es)
                 need.top[dia] = max(need.top.get(dia, 0.0), top.area)
-            if demand.vu > phi_vc(d, fc) * (1 + 1e-9):
+            shear_capacity, named = phi_vc(d, fc), "φVc"
+            if limits is not None:  # Alpha 9 C9b: k τc b d at the least ratio (safe side)
+                shear_capacity = slab_design.one_way_shear(as_min / (1000 * d), d, fc)[0] / 1000
+                named = "k τc b d"
+            if demand.vu > shear_capacity * (1 + 1e-9):
                 need.too_small.append(
-                    f"{demand.part}: shear {demand.vu:.1f} kN/m above φVc "
-                    f"{phi_vc(d, fc):.1f} kN/m without shear bars"
+                    f"{demand.part}: shear {demand.vu:.1f} kN/m above {named} "
+                    f"{shear_capacity:.1f} kN/m without shear bars"
                 )
                 break
     return need

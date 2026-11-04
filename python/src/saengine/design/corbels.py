@@ -71,6 +71,8 @@ def corbel_checks(
     in the design report's shape."""
     from saengine.design.check import _check
 
+    if tie_rules() is not None:  # Alpha 9 C9b: the pack's corbel method (IS 456 28 type)
+        return root_tie_checks(corbel, fc, fy, demand, label)
     table = code_context.pack_table("transfer").corbel
     phi = _phi("shear", 0.75)
     b, h = float(corbel.width), float(corbel.depth)
@@ -184,6 +186,131 @@ def corbel_checks(
                 combination,
                 f"φ 0.85 f'c A1, φ = {phi_b:g}, A1 = {corbel.bearing:g} × {b:.0f} mm "
                 f"({clause('corbels', 'bearing')})",
+            )
+        )
+    return checks
+
+
+def tie_rules() -> Any | None:
+    """Alpha 9 C9b: the pack's ``concreteMethods.corbels`` of method ``rootTie`` (with its
+    design strengths and tabulated shear), or None: the parent's method above."""
+    from saengine.design.tabulated_shear import _group, rules
+
+    found = _group("corbels", "rootTie")
+    return found if found is not None and rules() is not None else None
+
+
+def root_tie_checks(
+    corbel: Any, fc: float, fy: float, demand: CorbelDemand, label: str = "Corbel"
+) -> list[dict[str, Any]]:
+    """The rows of a corbel by the tie at its root (the pack's ``corbels``, IS 456 28 type):
+
+    - av / d at most ``spanRatio``; the outer edge at least ``edgeDepth`` × the depth h at the
+      face;
+    - the main bars As at least Af + An: Af for Mu = Vu av + Nuc (h - d) by the design
+      strengths (fyd Af (d - λ x / 2), the pack's stress block), An = Nuc / fyd, Nuc the
+      horizontal force given, at least ``tensionShare`` Vu;
+    - shear at the face: Vu at most (enhancement d / av) τc b d + fyd Ah, at most τc,max b d
+      (τc of the main bars' ratio, Ah the closed links);
+    - the closed links Ah at least ``tiesShare`` As within ``tiesDepth`` d below As;
+    - the bearing at most ``bearing`` fck A1 when a bearing is given."""
+    from saengine.design import design_strength, tabulated_shear
+    from saengine.design.check import _check
+
+    r = tie_rules()
+    shear_rules = tabulated_shear.rules()
+    clause = tabulated_shear.cite("corbels")
+    tail = f" ({clause})" if clause else ""
+    b, h = float(corbel.width), float(corbel.depth)
+    main = corbel.mainBars
+    d = h - float(corbel.cover) - main.dia / 2
+    av = float(corbel.loadOffset or corbel.projection / 2)
+    vu, combination = demand.shear, demand.combination
+    given = corbel.horizontalForce
+    least = r.tensionShare * vu
+    nuc = max(float(given) * 1e3, least) if given is not None else least
+    checks = [
+        _check(
+            f"{label}: shear span av / d",
+            av / d,
+            r.spanRatio,
+            "",
+            None,
+            f"av = {av:.0f} mm, d = {d:.0f} mm; at most {r.spanRatio:g}{tail}",
+        ),
+        _check(
+            f"{label}: depth at the outer edge",
+            r.edgeDepth * h,
+            float(corbel.edgeDepth),
+            "mm",
+            None,
+            f"at least {r.edgeDepth:g} × the depth at the face, h = {h:.0f} mm{tail}",
+        ),
+    ]
+    fyd = design_strength.fyd(fy)
+    u = design_strength.rules()
+    p = design_strength.properties(fc, u)
+    block = p.eta * design_strength.fcd(fc, u) * b  # force per unit depth of the block
+    mu = vu * av + nuc * (h - d)
+    root = d * d - 2 * mu / block
+    af = block * (d - math.sqrt(root)) / fyd if root >= 0 else math.inf
+    an = nuc / fyd
+    required = af + an
+    provided = main.count * bar_area(main.dia)
+    checks.append(
+        _check(
+            f"{label}: main bars As",
+            required,
+            provided,
+            "mm²",
+            combination,
+            f"As at least Af + An = {af:.0f} + {an:.0f} mm²; Mu = Vu av + Nuc (h - d) = "
+            f"{mu / 1e6:.1f} kN·m by the design strengths (fyd = {fyd:.0f} MPa), Nuc = "
+            f"{nuc / 1e3:.1f} kN (at least {r.tensionShare:g} Vu){tail}; {main.count} "
+            f"Ø{main.dia:g}",
+        )
+    )
+    ties = corbel.ties
+    ah = ties.count * 2 * bar_area(ties.dia) if ties else 0.0
+    pt = 100 * provided / (b * d)
+    tc = tabulated_shear.tau_c(fc, pt, shear_rules)
+    factor = max(shear_rules.enhancement * d / av, 1.0) if av > 0 else shear_rules.enhancement
+    tmax = tabulated_shear.tau_c_max(fc, shear_rules)
+    capacity = min(factor * tc * b * d + tabulated_shear.stirrup_yield(fy) * ah, tmax * b * d)
+    checks.append(
+        _check(
+            f"{label}: shear at the face",
+            vu / 1e3,
+            capacity / 1e3,
+            "kN",
+            combination,
+            f"{shear_rules.enhancement:g} d / av × τc b d + fyd Ah, τc = {tc:.3f} MPa (pt = "
+            f"{pt:.2f} %, × {factor:.2f}), at most τc,max b d = {tmax * b * d / 1e3:.0f} kN"
+            f"{tail}",
+        )
+    )
+    checks.append(
+        _check(
+            f"{label}: closed ties Ah",
+            r.tiesShare * provided,
+            ah,
+            "mm²",
+            combination,
+            f"Ah at least {r.tiesShare:g} As, within {r.tiesDepth:.2f} d = {r.tiesDepth * d:.0f} mm "
+            f"below As{tail}"
+            + (f"; {ties.count} closed Ø{ties.dia:g}" if ties else "; no ties given"),
+        )
+    )
+    if corbel.bearing:
+        area = float(corbel.bearing) * b
+        checks.append(
+            _check(
+                f"{label}: bearing",
+                vu / 1e3,
+                r.bearing * fc * area / 1e3,
+                "kN",
+                combination,
+                f"{r.bearing:g} fck A1, A1 = {corbel.bearing:g} × {b:.0f} mm{tail}",
             )
         )
     return checks

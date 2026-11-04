@@ -473,7 +473,7 @@ class StairReinforcement(_Model):
 # here so the beam and brace types can carry them.
 
 BoltDiameter = Literal[16, 20, 22, 24, 27, 30, 36]
-BoltGrade = Literal["A307", "A325N", "A325X", "A490N", "A490X", "8.8", "10.9"]
+BoltGrade = Literal["A307", "A325N", "A325X", "A490N", "A490X", "4.6", "8.8", "10.9"]
 
 
 class _Bolted(_Model):

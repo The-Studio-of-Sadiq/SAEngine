@@ -357,8 +357,13 @@ class BeamDesigner:
         and 300 mm, Sec 6.4.4.6.1), ph of this beam's cage with its top drop. The drop is the
         crossing beams' top bar diameter, which the proposal may enlarge: the largest bar
         offered is taken, so the spacing still holds once their bars are applied."""
+        from saengine.design import tabulated_shear
         from saengine.design import torsion as torsion_design
 
+        if tabulated_shear.torsion_rules() is not None:
+            # Alpha 9 C9b: the equivalent shear method's own link spacing (IS 456 26.5.1.7
+            # type) in place of the parent's ph / 8.
+            return tabulated_shear.link_spacing_limit(self.b, self.h, self.cover, dia)
         rules = torsion_design.TorsionRules.from_pack()
         drop = self.top_drop
         if drop > 0:
@@ -512,9 +517,14 @@ class BeamDesigner:
         if loads.at_s <= 0:
             return B.choose_stirrups(need, self.b, opts.stirrup_diameters, opts.min_stirrup_spacing)
         largest = max(opts.stirrup_diameters, default=10.0)
+        from saengine.design import tabulated_shear
+
+        # Alpha 9 C9b: the equivalent shear method's closed links carry its whole Asv/sv (the
+        # shear's term is in it), so the larger of the two, not their sum.
+        equivalent = tabulated_shear.torsion_rules() is not None
         torsion_need = dataclasses.replace(
             need,
-            av_s=need.av_s + 2 * loads.at_s,
+            av_s=max(need.av_s, 2 * loads.at_s) if equivalent else need.av_s + 2 * loads.at_s,
             s_max=min(need.s_max, loads.torsion_s_max, self._torsion_s_max(largest)),
         )
         # Two legs only: below 300 mm width choose_stirrups tries two legs alone.
